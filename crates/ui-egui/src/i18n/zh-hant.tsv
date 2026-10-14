@@ -502,6 +502,11 @@
 	Opened from an Outlook data file, kept on this computer only	從 Outlook 資料檔開啟，僅保存在這台電腦上
 	Not available: a data file has no server.	無法使用：資料檔沒有伺服器。
 	Opening {file}…	正在開啟 {file}…
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	伺服器：{url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	此 MailCraft 副本未設定 Microsoft 登入。
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	透過 Microsoft Graph 同步，適用於關閉了 IMAP 的公司或學校帳戶。在瀏覽器中以 Microsoft 登入：不會儲存密碼。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

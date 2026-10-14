@@ -502,6 +502,11 @@
 	Opened from an Outlook data file, kept on this computer only	Открыт из файла данных Outlook, хранится только на этом компьютере
 	Not available: a data file has no server.	Недоступно: у файла данных нет сервера.
 	Opening {file}…	Открытие {file}…
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	Сервер: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	Вход через Microsoft не настроен в этой копии MailCraft.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Синхронизация через Microsoft Graph — для рабочих и учебных учётных записей с отключённым IMAP. Вход выполняется через Microsoft в браузере: пароль не сохраняется.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -503,6 +503,11 @@
 	Opened from an Outlook data file, kept on this computer only	Abierto desde un archivo de datos de Outlook, guardado solo en este equipo
 	Not available: a data file has no server.	No disponible: un archivo de datos no tiene servidor.
 	Opening {file}…	Abriendo {file}…
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	Servidor: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	El inicio de sesión con Microsoft no está configurado en esta copia de MailCraft.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Sincroniza mediante Microsoft Graph, para cuentas profesionales o educativas con IMAP desactivado. Inicias sesión con Microsoft en el navegador: no se guarda ninguna contraseña.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

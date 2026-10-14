@@ -502,6 +502,11 @@
 	Opened from an Outlook data file, kept on this computer only	Outlook 데이터 파일에서 열었으며 이 컴퓨터에만 보관됩니다
 	Not available: a data file has no server.	사용할 수 없음: 데이터 파일에는 서버가 없습니다.
 	Opening {file}…	{file} 여는 중…
+	Exchange (Microsoft 365)	Exchange(Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange(Microsoft Graph)
+	Server: {url} (Microsoft Graph)	서버: {url}(Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	이 MailCraft에는 Microsoft 로그인이 설정되어 있지 않습니다.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	IMAP이 꺼져 있는 회사 및 학교 계정을 위해 Microsoft Graph로 동기화합니다. 브라우저에서 Microsoft로 로그인하므로 암호는 저장되지 않습니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

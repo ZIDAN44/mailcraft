@@ -44,6 +44,8 @@ fn kind(a: &AccountState) -> &'static str {
         "Outlook data file"
     } else if a.is_local() {
         "Sample mailbox"
+    } else if a.config.graph.is_some() {
+        "Exchange (Microsoft Graph)"
     } else if a.config.jmap.is_some() {
         "JMAP"
     } else {
@@ -181,6 +183,8 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
         tl!("Opened from an Outlook data file, kept on this computer only").to_string()
     } else if a.is_local() {
         tl!("Sample mailbox, kept on this computer only").to_string()
+    } else if let Some(u) = &a.config.graph {
+        tf!("Server: {url} (Microsoft Graph)", url = u)
     } else if let Some(u) = &a.config.jmap {
         tf!("Server: {url} (JMAP)", url = u)
     } else {
@@ -204,7 +208,7 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
         },
     );
     egui::Popup::menu(&r).show(|ui| {
-        if !a.is_local() && ui.button(tl!("Server settings…")).clicked() {
+        if !a.is_local() && a.config.graph.is_none() && ui.button(tl!("Server settings…")).clicked() {
             acts.push(Action::Dialog(Dialog::edit_account(&a.config)));
         }
         if !a.is_local() && ui.button(tl!(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" })).clicked() {

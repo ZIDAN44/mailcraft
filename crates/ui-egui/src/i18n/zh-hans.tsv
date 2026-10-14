@@ -505,3 +505,8 @@ month	May	5月
 	Opened from an Outlook data file, kept on this computer only	从 Outlook 数据文件打开，仅保存在这台电脑上
 	Not available: a data file has no server.	不可用：数据文件没有服务器。
 	Opening {file}…	正在打开 {file}…
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	服务器：{url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	此 MailCraft 副本未设置 Microsoft 登录。
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	通过 Microsoft Graph 同步，适用于关闭了 IMAP 的工作或学校帐户。在浏览器中使用 Microsoft 登录：不会保存密码。

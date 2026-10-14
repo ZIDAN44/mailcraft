@@ -27,6 +27,8 @@ pub struct AccountForm {
     /// Syncs over JMAP instead of IMAP and SMTP, through this session address.
     pub jmap: bool,
     pub jmap_url: String,
+    /// Exchange Online through Microsoft Graph (signs in with Microsoft in the browser).
+    pub graph: bool,
     pub error: Option<String>,
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
@@ -46,6 +48,9 @@ impl AccountForm {
 
     pub(crate) fn params(&self) -> serde_json::Value {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
+        if self.graph {
+            return json!({"email": self.email.trim(), "name": self.name.trim(), "graph": true});
+        }
         if self.jmap {
             return json!({
                 "email": self.email.trim(),
@@ -691,9 +696,12 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(vec2(300.0, 26.0)).desired_width(300.0),
                 );
                 ui.end_row();
-                ui.label(tl!("Password"));
-                ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
-                ui.end_row();
+                // Exchange signs in with Microsoft in the browser.
+                if !f.graph {
+                    ui.label(tl!("Password"));
+                    ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
+                    ui.end_row();
+                }
             });
             ui.add_space(6.0);
             ui.checkbox(&mut f.advanced, tl!("Server settings"));
@@ -706,11 +714,24 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     let label = |ui: &mut Ui, s: &str| {
                         ui.label(RichText::new(tl!(s)).strong().small());
                     };
-                    ui.horizontal(|ui| {
+                    let mut kind = if f.graph { 2 } else { u8::from(f.jmap) };
+                    ui.horizontal_wrapped(|ui| {
                         label(ui, "Mail server");
-                        ui.radio_value(&mut f.jmap, false, tl!("IMAP and SMTP"));
-                        ui.radio_value(&mut f.jmap, true, tl!("JMAP"));
+                        ui.radio_value(&mut kind, 0, tl!("IMAP and SMTP"));
+                        ui.radio_value(&mut kind, 1, tl!("JMAP"));
+                        ui.radio_value(&mut kind, 2, tl!("Exchange (Microsoft 365)"));
                     });
+                    (f.jmap, f.graph) = (kind == 1, kind == 2);
+                    if f.graph {
+                        ui.label(
+                            RichText::new(tl!(
+                                "Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored."
+                            ))
+                            .color(t.dim)
+                            .small(),
+                        );
+                        return;
+                    }
                     if f.jmap {
                         label(ui, "JMAP session address");
                         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
@@ -755,6 +776,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         );
                     }
                 });
+            } else if f.graph {
+                ui.label(RichText::new(tl!("Exchange (Microsoft 365)")).color(t.faint).small());
             } else if f.jmap && !f.jmap_url.trim().is_empty() {
                 ui.label(RichText::new(tf!("Server: {url} (JMAP)", url = f.jmap_url.trim())).color(t.faint).small());
             } else if !f.imap_host.is_empty() {
@@ -795,7 +818,12 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.label(RichText::new(e).color(t.danger));
             }
             // Providers that sign in through the browser (OAuth), when this copy can.
-            let provider = mailcraft_engine::model::oauth_provider_for(&f.imap_host).filter(|p| s.oauth_available.iter().any(|a| a == p));
+            let provider = if f.graph { Some("microsoft") } else { mailcraft_engine::model::oauth_provider_for(&f.imap_host) }
+                .filter(|p| s.oauth_available.iter().any(|a| a == p));
+            if f.graph && provider.is_none() {
+                ui.add_space(6.0);
+                ui.label(RichText::new(tl!("Signing in with Microsoft isn't set up in this copy of MailCraft.")).color(t.warn).small());
+            }
             if let Some(p) = provider {
                 ui.add_space(6.0);
                 let name = if p == "google" { "Google" } else { "Microsoft" };
@@ -812,13 +840,15 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         f.error = None;
                         let mut params = f.params();
                         params["oauth"] = json!(p);
-                        params["password"] = json!(null);
+                        if let Some(o) = params.as_object_mut() {
+                            o.remove("password");
+                        }
                         acts.push(Action::Submit("account.add", params));
                     }
                     ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
-            let ready = !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
+            let ready = !f.graph && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
                 if !f.jmap && f.imap_host.is_empty() {

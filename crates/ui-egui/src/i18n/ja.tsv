@@ -505,3 +505,8 @@ month	May	5月
 	Opened from an Outlook data file, kept on this computer only	Outlook データ ファイルから開いたもので、このコンピューターにのみ保存されています
 	Not available: a data file has no server.	利用できません: データ ファイルにはサーバーがありません。
 	Opening {file}…	{file} を開いています…
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	サーバー: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	この MailCraft では Microsoft でのサインインが設定されていません。
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	IMAP が無効になっている職場や学校のアカウント向けに、Microsoft Graph で同期します。ブラウザーで Microsoft にサインインするため、パスワードは保存されません。

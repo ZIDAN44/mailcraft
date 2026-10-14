@@ -102,6 +102,7 @@ pub(crate) fn tour() {
             Dialog::rule_from("zoe@studio.example", "x"),
             Dialog::add_account_with("zoe@gmail.com", true),
             jmap_form(),
+            graph_form(),
             Dialog::Preview {
                 title: "notes.txt".into(),
                 header: vec![("From".into(), "Zoe".into())],
@@ -193,6 +194,31 @@ fn jmap_form() -> Dialog {
         f.password = "pw".into();
     }
     d
+}
+
+fn graph_form() -> Dialog {
+    let mut d = Dialog::add_account_with("ana@contoso.example", true);
+    if let Dialog::AddAccount(f) = &mut d {
+        f.graph = true;
+    }
+    d
+}
+
+#[test]
+fn the_account_form_adds_exchange_accounts() {
+    let (mut a, dir) = app("graph-form");
+    let p = match graph_form() {
+        Dialog::AddAccount(f) => f.params(),
+        _ => serde_json::Value::Null,
+    };
+    assert_eq!((p["graph"].clone(), p.get("password")), (serde_json::json!(true), None), "Microsoft sign-in, no password");
+    a.session.oauth_available = vec!["microsoft".into()];
+    let mut p = p;
+    p["oauth"] = serde_json::json!("microsoft");
+    a.act(crate::Action::Submit("account.add", p));
+    let added = a.session.accounts.iter().find(|x| x.config.email == "ana@contoso.example").unwrap();
+    assert!(added.config.graph.is_some() && added.config.oauth.is_some());
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
