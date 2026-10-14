@@ -13,11 +13,17 @@
 //!
 //! Every file is written to a temporary name and renamed into place, so a crash or power cut
 //! leaves either the old or the new version, never half of one.
+//!
+//! [`Store::memory`] keeps the same layout in memory instead, for the browser (which has no
+//! files) and for tests; [`Store::snapshot`] and [`Store::memory_from`] carry what should
+//! outlast the page.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use mailcraft_model::{AccountConfig, Folder, MessageKey, Op, Summary};
 use serde::de::DeserializeOwned;
@@ -108,9 +114,131 @@ fn safe_doc(name: &str) -> String {
     if v.is_empty() { "doc.json".into() } else { v }
 }
 
+/// Where the files live.
+#[derive(Clone, Debug)]
+enum Files {
+    Disk,
+    Memory(Arc<Mutex<BTreeMap<PathBuf, Vec<u8>>>>),
+}
+
+fn not_found() -> io::Error {
+    io::Error::from(io::ErrorKind::NotFound)
+}
+
+impl Files {
+    fn with<T>(m: &Arc<Mutex<BTreeMap<PathBuf, Vec<u8>>>>, f: impl FnOnce(&mut BTreeMap<PathBuf, Vec<u8>>) -> T) -> T {
+        let mut g = m.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        f(&mut g)
+    }
+
+    fn read(&self, p: &Path) -> io::Result<Vec<u8>> {
+        match self {
+            Files::Disk => fs::read(p),
+            Files::Memory(m) => Files::with(m, |m| m.get(p).cloned().ok_or_else(not_found)),
+        }
+    }
+
+    fn write(&self, p: &Path, bytes: &[u8]) -> Result<()> {
+        match self {
+            Files::Disk => write_atomic(p, bytes),
+            Files::Memory(m) => {
+                Files::with(m, |m| m.insert(p.to_path_buf(), bytes.to_vec()));
+                Ok(())
+            }
+        }
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        match self {
+            Files::Disk => fs::rename(from, to),
+            Files::Memory(m) => Files::with(m, |m| {
+                let moving: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(from)).cloned().collect();
+                if moving.is_empty() {
+                    return Err(not_found());
+                }
+                for k in moving {
+                    if let (Some(v), Ok(rest)) = (m.remove(&k), k.strip_prefix(from)) {
+                        m.insert(if rest.as_os_str().is_empty() { to.to_path_buf() } else { to.join(rest) }, v);
+                    }
+                }
+                Ok(())
+            }),
+        }
+    }
+
+    fn remove_file(&self, p: &Path) -> io::Result<()> {
+        match self {
+            Files::Disk => fs::remove_file(p),
+            Files::Memory(m) => Files::with(m, |m| m.remove(p).map(|_| ()).ok_or_else(not_found)),
+        }
+    }
+
+    fn remove_dir_all(&self, p: &Path) -> io::Result<()> {
+        match self {
+            Files::Disk => fs::remove_dir_all(p),
+            Files::Memory(m) => Files::with(m, |m| {
+                let before = m.len();
+                m.retain(|k, _| !k.starts_with(p));
+                if m.len() == before { Err(not_found()) } else { Ok(()) }
+            }),
+        }
+    }
+
+    fn is_file(&self, p: &Path) -> bool {
+        match self {
+            Files::Disk => p.is_file(),
+            Files::Memory(m) => Files::with(m, |m| m.contains_key(p)),
+        }
+    }
+
+    fn exists(&self, p: &Path) -> bool {
+        match self {
+            Files::Disk => p.exists(),
+            Files::Memory(m) => Files::with(m, |m| m.keys().any(|k| k.starts_with(p))),
+        }
+    }
+
+    /// The files directly in a folder, by name.
+    fn list(&self, dir: &Path) -> Vec<(String, PathBuf)> {
+        match self {
+            Files::Disk => {
+                let Ok(rd) = fs::read_dir(dir) else { return Vec::new() };
+                rd.filter_map(|e| e.ok())
+                    .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+                    .filter_map(|e| Some((e.file_name().to_str()?.to_string(), e.path())))
+                    .collect()
+            }
+            Files::Memory(m) => Files::with(m, |m| {
+                m.keys().filter(|k| k.parent() == Some(dir)).filter_map(|k| Some((k.file_name()?.to_str()?.to_string(), k.clone()))).collect()
+            }),
+        }
+    }
+
+    /// Bytes under a folder.
+    fn size(&self, dir: &Path) -> u64 {
+        fn walk(p: &Path, depth: usize) -> u64 {
+            let Ok(rd) = fs::read_dir(p) else { return 0 };
+            rd.filter_map(|e| e.ok())
+                .map(|e| match e.file_type() {
+                    Ok(t) if t.is_dir() && depth < 8 => walk(&e.path(), depth + 1),
+                    Ok(t) if t.is_file() => e.metadata().map(|m| m.len()).unwrap_or(0),
+                    _ => 0,
+                })
+                .fold(0u64, u64::saturating_add)
+        }
+        match self {
+            Files::Disk => walk(dir, 0),
+            Files::Memory(m) => {
+                Files::with(m, |m| m.iter().filter(|(k, _)| k.starts_with(dir)).map(|(_, v)| v.len() as u64).fold(0u64, u64::saturating_add))
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Store {
     root: PathBuf,
+    files: Files,
 }
 
 impl Store {
@@ -118,7 +246,46 @@ impl Store {
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
         fs::create_dir_all(&root).map_err(io_err(&root))?;
-        Ok(Store { root })
+        Ok(Store { root, files: Files::Disk })
+    }
+
+    /// A cache kept in memory only (clones share it).
+    pub fn memory() -> Store {
+        Store { root: PathBuf::from("memory"), files: Files::Memory(Arc::default()) }
+    }
+
+    /// A memory cache holding files from an earlier [`Store::snapshot`].
+    pub fn memory_from(files: Vec<(String, Vec<u8>)>) -> Store {
+        let s = Store::memory();
+        if let Files::Memory(m) = &s.files {
+            // Paths stay inside the cache.
+            let inside = files.into_iter().filter(|(p, _)| !p.split('/').any(|seg| seg.is_empty() || seg == "." || seg == ".."));
+            let entries: BTreeMap<PathBuf, Vec<u8>> = inside.map(|(p, v)| (p.split('/').fold(s.root.clone(), |acc, seg| acc.join(seg)), v)).collect();
+            Files::with(m, |m| m.extend(entries));
+        }
+        s
+    }
+
+    /// A memory cache's files whose relative path (`a1/folders.json`) `keep` accepts; empty for
+    /// a cache on disk.
+    pub fn snapshot(&self, keep: impl Fn(&str) -> bool) -> Vec<(String, Vec<u8>)> {
+        let Files::Memory(m) = &self.files else { return Vec::new() };
+        Files::with(m, |m| {
+            m.iter()
+                .filter_map(|(k, v)| {
+                    let rel = k.strip_prefix(&self.root).ok()?;
+                    let rel: Vec<&str> = rel.iter().map(|s| s.to_str()).collect::<Option<_>>()?;
+                    Some((rel.join("/"), v))
+                })
+                .filter(|(p, _)| keep(p))
+                .map(|(p, v)| (p, v.clone()))
+                .collect()
+        })
+    }
+
+    /// Whether the cache lives in memory.
+    pub fn is_memory(&self) -> bool {
+        matches!(self.files, Files::Memory(_))
     }
 
     pub fn root(&self) -> &Path {
@@ -139,14 +306,14 @@ impl Store {
     }
 
     fn read_json<T: DeserializeOwned + Default>(&self, path: &Path) -> Result<T> {
-        match fs::read(path) {
+        match self.files.read(path) {
             Ok(bytes) => match serde_json::from_slice(&bytes) {
                 Ok(v) => Ok(v),
                 Err(source) => {
                     // A damaged cache file is not worth failing over: it is rebuilt by the next
                     // sync. Keep the bad copy for diagnosis.
                     log::warn!("{}: unreadable, starting fresh: {source}", path.display());
-                    let _ = fs::rename(path, path.with_extension("json.bad"));
+                    let _ = self.files.rename(path, &path.with_extension("json.bad"));
                     Ok(T::default())
                 }
             },
@@ -157,7 +324,7 @@ impl Store {
 
     fn write_json<T: Serialize + ?Sized>(&self, path: &Path, value: &T) -> Result<()> {
         let bytes = serde_json::to_vec(value).map_err(|source| StoreError::Json { path: path.display().to_string(), source })?;
-        write_atomic(path, &bytes)
+        self.files.write(path, &bytes)
     }
 
     /// A small document at the top of the data folder (`rules.json`, `snoozes.json`); empty when
@@ -213,7 +380,7 @@ impl Store {
     /// Forget a folder's cache (UIDVALIDITY changed, or the folder was deleted on the server).
     pub fn clear_folder(&self, account: &str, folder: &str) -> Result<()> {
         let dir = self.folder_dir(account, folder);
-        match fs::remove_dir_all(&dir) {
+        match self.files.remove_dir_all(&dir) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&dir)(e)),
             _ => Ok(()),
         }
@@ -221,42 +388,32 @@ impl Store {
 
     /// Bytes an account's cache takes on disk (message sources, summaries, the Outbox).
     pub fn account_size(&self, account: &str) -> u64 {
-        fn size(p: &Path, depth: usize) -> u64 {
-            let Ok(rd) = fs::read_dir(p) else { return 0 };
-            rd.filter_map(|e| e.ok())
-                .map(|e| match e.file_type() {
-                    Ok(t) if t.is_dir() && depth < 8 => size(&e.path(), depth + 1),
-                    Ok(t) if t.is_file() => e.metadata().map(|m| m.len()).unwrap_or(0),
-                    _ => 0,
-                })
-                .fold(0u64, u64::saturating_add)
-        }
-        size(&self.account_dir(account), 0)
+        self.files.size(&self.account_dir(account))
     }
 
     /// Forget everything about an account.
     pub fn remove_account(&self, account: &str) -> Result<()> {
         let dir = self.account_dir(account);
-        match fs::remove_dir_all(&dir) {
+        match self.files.remove_dir_all(&dir) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&dir)(e)),
             _ => Ok(()),
         }
     }
 
     pub fn read_body(&self, key: &MessageKey) -> Option<Vec<u8>> {
-        fs::read(self.body_path(key)).ok()
+        self.files.read(&self.body_path(key)).ok()
     }
 
     pub fn has_body(&self, key: &MessageKey) -> bool {
-        self.body_path(key).is_file()
+        self.files.is_file(&self.body_path(key))
     }
 
     pub fn write_body(&self, key: &MessageKey, raw: &[u8]) -> Result<()> {
-        write_atomic(&self.body_path(key), raw)
+        self.files.write(&self.body_path(key), raw)
     }
 
     pub fn remove_body(&self, key: &MessageKey) {
-        let _ = fs::remove_file(self.body_path(key));
+        let _ = self.files.remove_file(&self.body_path(key));
     }
 
     pub fn load_ops(&self, account: &str) -> Result<Vec<Op>> {
@@ -266,7 +423,7 @@ impl Store {
     pub fn save_ops(&self, account: &str, ops: &[Op]) -> Result<()> {
         let path = self.account_dir(account).join("ops.json");
         if ops.is_empty() {
-            match fs::remove_file(&path) {
+            match self.files.remove_file(&path) {
                 Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(io_err(&path)(e)),
                 _ => return Ok(()),
             }
@@ -361,9 +518,9 @@ impl Store {
                 for f in list.iter_mut() {
                     if let Some(new) = mailcraft_model::rebase_path(&f.path, from, to, f.delimiter.or(delimiter)) {
                         let (src, dst) = (self.folder_dir(account, &f.path), self.folder_dir(account, &new));
-                        if src.exists() {
-                            let _ = fs::remove_dir_all(&dst);
-                            fs::rename(&src, &dst).map_err(io_err(&src))?;
+                        if self.files.exists(&src) {
+                            let _ = self.files.remove_dir_all(&dst);
+                            self.files.rename(&src, &dst).map_err(io_err(&src))?;
                         }
                         f.path = new.clone();
                         moved.push(new);
@@ -394,7 +551,7 @@ impl Store {
     /// Queue a message to send when the account is back online.
     pub fn outbox_add(&self, account: &str, item: &OutboxItem, raw: &[u8]) -> Result<()> {
         let dir = self.outbox_dir(account);
-        write_atomic(&dir.join(format!("{}.eml", item.id)), raw)?;
+        self.files.write(&dir.join(format!("{}.eml", item.id)), raw)?;
         self.write_json(&dir.join(format!("{}.json", item.id)), item)
     }
 
@@ -405,33 +562,34 @@ impl Store {
 
     /// Queued messages, oldest first.
     pub fn outbox(&self, account: &str) -> Vec<OutboxItem> {
-        let Ok(rd) = fs::read_dir(self.outbox_dir(account)) else { return Vec::new() };
-        let mut items: Vec<OutboxItem> = rd
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-            .filter_map(|e| fs::read(e.path()).ok())
+        let dir = self.outbox_dir(account);
+        let mut items: Vec<OutboxItem> = self
+            .files
+            .list(&dir)
+            .into_iter()
+            .filter(|(name, _)| name.ends_with(".json"))
+            .filter_map(|(_, p)| self.files.read(&p).ok())
             .filter_map(|b| serde_json::from_slice::<OutboxItem>(&b).ok())
-            .filter(|i| self.outbox_dir(account).join(format!("{}.eml", i.id)).is_file())
+            .filter(|i| self.files.is_file(&dir.join(format!("{}.eml", i.id))))
             .collect();
         items.sort_by_key(|i| (i.queued, i.id));
         items
     }
 
     pub fn outbox_raw(&self, account: &str, id: u64) -> Option<Vec<u8>> {
-        fs::read(self.outbox_dir(account).join(format!("{id}.eml"))).ok()
+        self.files.read(&self.outbox_dir(account).join(format!("{id}.eml"))).ok()
     }
 
     pub fn outbox_remove(&self, account: &str, id: u64) {
         let dir = self.outbox_dir(account);
-        let _ = fs::remove_file(dir.join(format!("{id}.json")));
-        let _ = fs::remove_file(dir.join(format!("{id}.eml")));
+        let _ = self.files.remove_file(&dir.join(format!("{id}.json")));
+        let _ = self.files.remove_file(&dir.join(format!("{id}.eml")));
     }
 
     /// Cached sources across all folders of an account, as (key, path) pairs, for indexing.
     pub fn cached_bodies(&self, account: &str, folder: &str, validity: u32) -> Vec<u32> {
         let dir = self.folder_dir(account, folder).join(validity.to_string());
-        let Ok(rd) = fs::read_dir(&dir) else { return Vec::new() };
-        rd.filter_map(|e| e.ok()).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".eml")).and_then(|n| n.parse().ok())).collect()
+        self.files.list(&dir).into_iter().filter_map(|(n, _)| n.strip_suffix(".eml").and_then(|n| n.parse().ok())).collect()
     }
 }
 
@@ -632,5 +790,72 @@ mod tests {
         assert!(p.starts_with(s.root()));
         assert!(!p.to_string_lossy().contains(".."));
         let _ = fs::remove_dir_all(s.root());
+    }
+
+    #[test]
+    fn a_memory_cache_works_like_the_disk_and_keeps_a_snapshot() {
+        let s = Store::memory();
+        assert!(s.is_memory());
+        let acc = AccountConfig { id: "a1".into(), email: "z@x".into(), ..Default::default() };
+        s.save_accounts(std::slice::from_ref(&acc)).unwrap();
+        let folders = vec![
+            Folder { account: "a1".into(), path: "Projects".into(), delimiter: Some('/'), ..Default::default() },
+            Folder { account: "a1".into(), path: "Projects/Film".into(), delimiter: Some('/'), ..Default::default() },
+        ];
+        s.save_folders("a1", &folders).unwrap();
+        let st = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false), msg(1, true)], ..Default::default() };
+        s.save_folder("a1", "Projects/Film", &st).unwrap();
+        let key = MessageKey { account: "a1".into(), folder: "Projects/Film".into(), validity: 3, uid: 2 };
+        s.write_body(
+            &key,
+            b"Subject: m2
+
+hi",
+        )
+        .unwrap();
+        assert!(s.has_body(&key));
+        assert_eq!(s.cached_bodies("a1", "Projects/Film", 3), vec![2]);
+        assert!(s.account_size("a1") > 0);
+
+        // A renamed folder takes its cache with it, children too.
+        s.apply_op("a1", &Op::RenameFolder { from: "Projects".into(), to: "Work".into() }).unwrap();
+        assert_eq!(s.load_folder("a1", "Work/Film").unwrap().messages.len(), 2);
+        let moved = MessageKey { folder: "Work/Film".into(), ..key.clone() };
+        assert_eq!(
+            s.read_body(&moved).unwrap(),
+            b"Subject: m2
+
+hi"
+        );
+        assert!(s.load_folder("a1", "Projects/Film").unwrap().messages.is_empty());
+        s.apply_op("a1", &Op::SetFlag { keys: vec![MessageKey { uid: 2, ..moved.clone() }], flag: Flag::Seen, on: true }).unwrap();
+        assert!(s.load_folder("a1", "Work/Film").unwrap().messages.iter().all(|m| m.flags.seen));
+
+        let item = OutboxItem { id: 5, from: "z@x".into(), recipients: vec!["a@y".into()], ..Default::default() };
+        s.outbox_add("a1", &item, b"x").unwrap();
+        assert_eq!(s.outbox("a1"), vec![item]);
+        s.outbox_remove("a1", 5);
+        assert!(s.outbox("a1").is_empty());
+
+        // What outlasts the page: here everything but message sources.
+        let snap = s.snapshot(|p| !p.ends_with(".eml"));
+        assert!(snap.iter().any(|(p, _)| p == "accounts.json"));
+        assert!(snap.iter().all(|(p, _)| !p.ends_with(".eml")));
+        let back = Store::memory_from(snap);
+        assert_eq!(back.load_accounts().unwrap(), vec![acc]);
+        assert_eq!(back.load_folder("a1", "Work/Film").unwrap().messages.len(), 2);
+        assert!(!back.has_body(&moved));
+        // Paths from a snapshot stay inside the cache.
+        let odd = Store::memory_from(vec![("../accounts.json".into(), b"[]".to_vec()), ("a//b".into(), b"x".to_vec())]);
+        assert!(odd.snapshot(|_| true).is_empty());
+
+        s.remove_account("a1").unwrap();
+        assert!(s.load_folders("a1").unwrap().is_empty() && s.account_size("a1") == 0);
+        // Clones share the cache; a damaged document starts fresh.
+        let other = s.clone();
+        other.save_doc("rules.json", &vec![1, 2]).unwrap();
+        assert_eq!(s.load_doc::<Vec<i32>>("rules.json").unwrap(), vec![1, 2]);
+        let bad = Store::memory_from(vec![("rules.json".into(), b"{oops".to_vec())]);
+        assert!(bad.load_doc::<Vec<i32>>("rules.json").unwrap().is_empty());
     }
 }
