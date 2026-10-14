@@ -302,6 +302,8 @@ pub struct Session {
     pub discovered: HashMap<String, Option<(Option<AccountConfig>, String)>>,
     /// OAuth providers this copy can sign in with (set by the app).
     pub oauth_available: Vec<String>,
+    /// The fonts PDFs embed (regular, bold): the system's, set by the app.
+    pub print_fonts: Option<(Vec<u8>, Option<Vec<u8>>)>,
     /// Pages to show in the browser (OAuth sign-in), oldest first.
     pub open_urls: Vec<String>,
     index: Option<SearchIndex>,
@@ -345,6 +347,7 @@ impl Session {
             pictures_for: BTreeSet::new(),
             discovered: HashMap::new(),
             oauth_available: Vec::new(),
+            print_fonts: None,
             open_urls: Vec::new(),
             index: None,
             registry: Arc::new(crate::cmd::registry()),

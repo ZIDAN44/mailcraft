@@ -316,6 +316,31 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn messages_save_as_eml_and_pdf() {
+    let mut s = sample_session("export");
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.open", &k).unwrap();
+    let dir = s.store.as_ref().unwrap().root().join("export");
+    std::fs::create_dir_all(&dir).unwrap();
+    let eml = dir.join("m.eml");
+    s.run("message.saveAs", &json!({"path": eml.to_string_lossy()})).unwrap();
+    assert_eq!(mailcraft_mime::parse(&std::fs::read(&eml).unwrap()).unwrap().subject, "Storyboard review on Thursday");
+    if let Some(font) =
+        ["C:\\Windows\\Fonts\\segoeui.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"].iter().find_map(|p| std::fs::read(p).ok())
+    {
+        s.print_fonts = Some((font, None));
+    }
+    let pdf = dir.join("m.pdf");
+    s.run("message.exportPdf", &json!({"path": pdf.to_string_lossy()})).unwrap();
+    let bytes = std::fs::read(&pdf).unwrap();
+    assert!(bytes.starts_with(b"%PDF-") && bytes.ends_with(b"%%EOF\n"));
+    if let Ok(keep) = std::env::var("MAILCRAFT_KEEP_PDF") {
+        let _ = std::fs::copy(&pdf, keep);
+    }
+    done(s);
+}
+
+#[test]
 fn attachments_preview_and_save_all() {
     let mut s = sample_session("attachments");
     let k = key_of(&s, "Your proof for the festival poster is ready");

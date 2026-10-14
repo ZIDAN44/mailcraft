@@ -41,6 +41,7 @@ pub enum Icon {
     Pin,
     Clock,
     Tag,
+    Print,
 }
 
 struct Pen<'a> {
@@ -243,6 +244,11 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Clock => {
             pen.circle(8.0, 8.5, 6.0);
             pen.line(&[(8.0, 5.0), (8.0, 8.5), (10.5, 10.0)]);
+        }
+        Icon::Print => {
+            pen.rect(4.0, 1.5, 12.0, 5.5);
+            pen.closed(&[(1.5, 5.5), (14.5, 5.5), (14.5, 11.5), (12.0, 11.5), (12.0, 9.5), (4.0, 9.5), (4.0, 11.5), (1.5, 11.5)]);
+            pen.rect(4.0, 9.5, 12.0, 14.5);
         }
         Icon::Tag => {
             pen.closed(&[(1.5, 2.5), (8.0, 2.5), (14.5, 9.0), (9.0, 14.5), (1.5, 8.0)]);

@@ -1,0 +1,15 @@
+[package]
+name = "mailcraft-print"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft print and export: a message laid out on pages as a PDF (pure, wasm-safe)"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Glyph ids and widths of the system font that gets embedded.
+ttf-parser = { version = "0.25", default-features = false, features = ["std", "opentype-layout", "apple-layout", "variable-fonts", "glyph-names"] }
+# Compressed page and font streams.
+miniz_oxide = "0.8"

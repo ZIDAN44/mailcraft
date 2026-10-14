@@ -141,6 +141,21 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                     if widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
                         acts.push(Action::Run("mail.forward", json!({})));
                     }
+                    ui.add_space(6.0);
+                    if widgets::pill_button(ui, Icon::Print, "Print", &t).on_hover_text("Open as a PDF to print").clicked() {
+                        acts.push(Action::Print);
+                    }
+                    let more = widgets::pill_button(ui, Icon::File, "Save", &t);
+                    egui::Popup::menu(&more).show(|ui| {
+                        if ui.button("Save as PDF…").clicked() {
+                            acts.push(Action::ExportPdf);
+                            ui.close();
+                        }
+                        if ui.button("Save as email (.eml)…").clicked() {
+                            acts.push(Action::SaveMessage);
+                            ui.close();
+                        }
+                    });
                 });
             }
             ui.add_space(12.0);

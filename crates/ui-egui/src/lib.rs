@@ -117,6 +117,11 @@ pub enum Action {
     AttachFiles,
     FocusSearch,
     SetDark(Option<bool>),
+    /// Print the open message (as a PDF opened in the system's viewer).
+    Print,
+    /// Save the open message as a PDF, or as its `.eml` source.
+    ExportPdf,
+    SaveMessage,
     /// Open an attachment in a Craft app (its command name).
     OpenInCraft(usize, &'static str),
     /// Save every attachment of the open message into a folder.
@@ -433,6 +438,27 @@ impl MailApp {
                     self.session.notice(format!("{} couldn't open it: {e}", app.display()), true);
                 }
             }
+            Action::Print => {
+                let dir = std::env::temp_dir().join("mailcraft-print");
+                let _ = std::fs::create_dir_all(&dir);
+                let path = dir.join(format!("{}.pdf", self.message_file_name()));
+                match self.session.run("message.exportPdf", &json!({"path": path.to_string_lossy()})) {
+                    Ok(_) => match self.services.open_path(&path) {
+                        Ok(()) => self.session.notice("Opened as a PDF: print it from the viewer", false),
+                        Err(e) => self.session.notice(format!("The PDF couldn't be opened: {e}"), true),
+                    },
+                    Err(e) => self.session.notice(e.to_string(), true),
+                }
+            }
+            Action::ExportPdf | Action::SaveMessage => {
+                let (ext, id) = if matches!(a, Action::ExportPdf) { ("pdf", "message.exportPdf") } else { ("eml", "message.saveAs") };
+                if let Some(path) = self.services.save_path(&format!("{}.{ext}", self.message_file_name())) {
+                    match self.session.run(id, &json!({"path": path.to_string_lossy()})) {
+                        Ok(_) => self.session.notice(format!("Saved {}", path.display()), false),
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
             Action::SaveAll => {
                 if let Some(dir) = self.services.pick_folder() {
                     match self.session.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})) {
@@ -518,6 +544,13 @@ impl MailApp {
         } else {
             self.session.notice(format!("Links like {} aren't opened", widgets::shorten(u, 40)), true);
         }
+    }
+
+    /// A file name for the open message (its subject, made safe).
+    fn message_file_name(&self) -> String {
+        let subject = self.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.subject.clone()).unwrap_or_default();
+        let name = mailcraft_engine::mime::sanitize_filename(if subject.trim().is_empty() { "message" } else { &subject });
+        name.chars().take(80).collect()
     }
 
     /// Write an attachment to a temporary file to hand to another app.

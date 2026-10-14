@@ -12,6 +12,7 @@ workspace = true
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-store = { workspace = true }
+mailcraft-print = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }

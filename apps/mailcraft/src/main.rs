@@ -64,7 +64,7 @@ impl Services for Desktop {
         rfd::FileDialog::new().set_title("Attach files").pick_files().unwrap_or_default()
     }
     fn save_path(&mut self, suggested: &str) -> Option<PathBuf> {
-        rfd::FileDialog::new().set_title("Save attachment").set_file_name(suggested).save_file()
+        rfd::FileDialog::new().set_title("Save as").set_file_name(suggested).save_file()
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         open::that_detached(path).map_err(|e| e.to_string())
@@ -270,6 +270,10 @@ fn main() -> eframe::Result {
                 app.ui.title_base = "MailCraft – Sample mailbox".into();
             }
             let (regular, bold) = system_fonts();
+            // PDFs (print, save as PDF) embed the same font.
+            if let Some(r) = &regular {
+                app.session.print_fonts = Some((r.clone(), bold.clone()));
+            }
             app.install_fonts(&cc.egui_ctx, regular, bold);
             if let Some(v) = state_path.as_ref().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()) {
                 app.restore_state(&v);

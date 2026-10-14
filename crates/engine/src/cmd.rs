@@ -161,6 +161,8 @@ pub fn registry() -> Registry {
         CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"}"#),
         CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
         CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
+        CommandSpec::new("message.saveAs", "Save as", "File › Save As", save_message).params(r#"{"path": string}"#).when(has_reading),
+        CommandSpec::new("message.exportPdf", "Save as PDF", "File › Save As", export_pdf).params(r#"{"path": string}"#).when(has_reading),
         CommandSpec::new("message.showPictures", "Show pictures", "Reading pane", |s, v| s.show_pictures(p::bool(v, "always").unwrap_or(false)))
             .params(r#"{"always"?: bool}"#)
             .when(has_reading),
@@ -683,6 +685,46 @@ fn preview_attachment(s: &mut Session, v: &Value) -> CmdResult {
     const MAX: usize = 512 << 10;
     let text = String::from_utf8_lossy(data.get(..MAX).unwrap_or(&data)).to_string();
     Ok(json!({"kind": "text", "name": a.name, "text": text, "truncated": data.len() > MAX}))
+}
+
+/// The open message's source, as an `.eml` file.
+fn save_message(s: &mut Session, v: &Value) -> CmdResult {
+    let path = p::req_str(v, "path")?;
+    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+    let raw = if r.key.folder == crate::session::OUTBOX {
+        s.outbox_entry(&r.key).and_then(|(a, i)| s.store.as_ref().and_then(|st| st.outbox_raw(&a, i.id)))
+    } else {
+        s.store.as_ref().and_then(|st| st.read_body(&r.key))
+    }
+    .ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
+    std::fs::write(path, &raw).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    Ok(json!({"saved": path, "bytes": raw.len()}))
+}
+
+/// The open message as a PDF: subject, header, text and the names of its attachments.
+fn export_pdf(s: &mut Session, v: &Value) -> CmdResult {
+    let path = p::req_str(v, "path")?;
+    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+    let m = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+    let mut header = vec![("From".to_string(), m.from.to_string())];
+    if !m.to.is_empty() {
+        header.push(("To".into(), mailcraft_model::addr::format_list(&m.to)));
+    }
+    if !m.cc.is_empty() {
+        header.push(("Cc".into(), mailcraft_model::addr::format_list(&m.cc)));
+    }
+    if m.date > 0 {
+        header.push(("Date".into(), mailcraft_model::dates::full_time(m.date, &s.clock)));
+    }
+    let files: Vec<String> = m.attachments.iter().filter(|a| !a.inline).map(|a| a.name.clone()).collect();
+    if !files.is_empty() {
+        header.push(("Attachments".into(), files.join(", ")));
+    }
+    let doc = mailcraft_print::Doc { title: m.subject.clone(), header, body: m.text.clone() };
+    let fonts = s.print_fonts.as_ref().map(|(r, b)| mailcraft_print::Fonts { regular: r, bold: b.as_deref() });
+    let bytes = mailcraft_print::pdf(&doc, fonts).map_err(CmdError::Failed)?;
+    std::fs::write(path, &bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    Ok(json!({"saved": path, "bytes": bytes.len()}))
 }
 
 fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {

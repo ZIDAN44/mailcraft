@@ -26,8 +26,15 @@ commands:
 ";
 
 /// Crate layers. A crate may depend only on crates in lower layers.
-const LAYERS: &[(&str, u8)] =
-    &[("mailcraft-model", 0), ("mailcraft-mime", 1), ("mailcraft-store", 1), ("mailcraft-net", 3), ("mailcraft-engine", 4), ("mailcraft-ui-egui", 6)];
+const LAYERS: &[(&str, u8)] = &[
+    ("mailcraft-model", 0),
+    ("mailcraft-mime", 1),
+    ("mailcraft-store", 1),
+    ("mailcraft-print", 1),
+    ("mailcraft-net", 3),
+    ("mailcraft-engine", 4),
+    ("mailcraft-ui-egui", 6),
+];
 
 /// Crates that never build for the web (sockets, threads, TLS).
 const NATIVE_ONLY: &[&str] = &["mailcraft-net"];

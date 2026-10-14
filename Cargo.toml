@@ -14,6 +14,7 @@ repository = "https://github.com/ZIDAN44/mailcraft"
 mailcraft-model = { path = "crates/model" }
 mailcraft-mime = { path = "crates/mime" }
 mailcraft-store = { path = "crates/store" }
+mailcraft-print = { path = "crates/print" }
 mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
 mailcraft-ui-egui = { path = "crates/ui-egui" }

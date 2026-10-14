@@ -77,8 +77,13 @@ fn renders_every_state_without_panicking() {
             Dialog::Rules,
             Dialog::rule_from("zoe@studio.example", "x"),
             Dialog::add_account_with("zoe@gmail.com", true),
-            Dialog::Preview { title: "notes.txt".into(), header: vec![("From".into(), "Zoe".into())], text: "line one
-line two".into() },
+            Dialog::Preview {
+                title: "notes.txt".into(),
+                header: vec![("From".into(), "Zoe".into())],
+                text: "line one
+line two"
+                    .into(),
+            },
         ] {
             a.ui.dialog = Some(d);
             frame(&ctx, &mut a, vec![]);
