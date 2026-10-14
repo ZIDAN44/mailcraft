@@ -89,8 +89,8 @@ pub enum Action {
     AttachFiles,
     FocusSearch,
     SetDark(Option<bool>),
-    /// Add an account from the dialog; it stays open to show an error.
-    SubmitAccount(Value),
+    /// Run a command for the open dialog: it closes on success and shows the error otherwise.
+    Submit(&'static str, Value),
 }
 
 /// UI-only state.
@@ -289,7 +289,7 @@ impl MailApp {
             }
             Action::Dialog(d) => self.ui.dialog = Some(d),
             Action::FocusSearch => self.ui.focus_search = true,
-            Action::SubmitAccount(p) => match self.session.run("account.add", &p) {
+            Action::Submit(id, p) => match self.session.run(id, &p) {
                 Ok(_) => self.ui.dialog = None,
                 Err(e) => {
                     if let Some(d) = self.ui.dialog.as_mut() {

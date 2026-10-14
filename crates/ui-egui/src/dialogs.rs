@@ -57,13 +57,48 @@ impl AccountForm {
 #[derive(Clone, Debug)]
 pub enum Dialog {
     AddAccount(Box<AccountForm>),
-    Password { account: String, email: String, password: String },
-    ConfirmDelete { count: usize },
-    MoveTo { filter: String },
+    Password {
+        account: String,
+        email: String,
+        password: String,
+    },
+    ConfirmDelete {
+        count: usize,
+    },
+    MoveTo {
+        filter: String,
+    },
     EmptySubject,
-    RemoveAccount { account: String, email: String },
-    Signature { account: String, text: String },
+    RemoveAccount {
+        account: String,
+        email: String,
+    },
+    Signature {
+        account: String,
+        text: String,
+    },
     Settings,
+    /// New folder (in `parent`), or rename `rename`.
+    FolderName {
+        account: String,
+        parent: Option<String>,
+        rename: Option<String>,
+        name: String,
+        error: Option<String>,
+    },
+    MoveFolder {
+        account: String,
+        folder: String,
+        filter: String,
+        error: Option<String>,
+    },
+    DeleteFolder {
+        account: String,
+        folder: String,
+        name: String,
+        permanent: bool,
+        error: Option<String>,
+    },
 }
 
 impl Dialog {
@@ -90,9 +125,30 @@ impl Dialog {
 
     /// Set the error shown in the add-account form.
     pub fn set_error(&mut self, e: String) {
-        if let Dialog::AddAccount(f) = self {
-            f.error = Some(e);
+        match self {
+            Dialog::AddAccount(f) => f.error = Some(e),
+            Dialog::FolderName { error, .. } | Dialog::MoveFolder { error, .. } | Dialog::DeleteFolder { error, .. } => *error = Some(e),
+            _ => {}
         }
+    }
+
+    pub fn new_folder(account: &str, parent: Option<&str>) -> Dialog {
+        Dialog::FolderName { account: account.into(), parent: parent.map(str::to_string), rename: None, name: String::new(), error: None }
+    }
+
+    pub fn rename_folder(f: &Folder) -> Dialog {
+        Dialog::FolderName { account: f.account.clone(), parent: None, rename: Some(f.path.clone()), name: f.display_name(), error: None }
+    }
+
+    pub fn move_folder(f: &Folder) -> Dialog {
+        Dialog::MoveFolder { account: f.account.clone(), folder: f.path.clone(), filter: String::new(), error: None }
+    }
+
+    /// Delete a folder: into Deleted Items, or for good when it's already there.
+    pub fn delete_folder(s: &Session, f: &Folder) -> Dialog {
+        let trash = s.account(&f.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Trash)).map(|t| t.path.clone());
+        let permanent = trash.is_none_or(|t| mailcraft_engine::model::is_within(&f.path, &t, f.delimiter));
+        Dialog::DeleteFolder { account: f.account.clone(), folder: f.path.clone(), name: f.display_name(), permanent, error: None }
     }
 }
 
@@ -223,7 +279,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     f.guess();
                 }
                 f.error = None;
-                acts.push(Action::SubmitAccount(f.params()));
+                acts.push(Action::Submit("account.add", f.params()));
             }
             !cancel
         }
@@ -329,6 +385,93 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 return false;
             }
             !buttons(ui, t, "Move", false).1
+        }
+        Dialog::FolderName { account, parent, rename, name, error } => {
+            ui.set_width(360.0);
+            title(ui, t, if rename.is_some() { "Rename folder" } else { "New folder" });
+            if rename.is_none() {
+                let place = parent.as_deref().and_then(|p| s.folder(account, p)).map(Folder::display_name);
+                let who = s.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
+                let text = match place {
+                    Some(p) => format!("Inside {p} ({who})"),
+                    None => format!("At the top of {who}"),
+                };
+                ui.label(RichText::new(text).color(t.dim).small());
+                ui.add_space(4.0);
+            }
+            let r = ui.add(egui::TextEdit::singleline(name).hint_text("Folder name").desired_width(f32::INFINITY));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            // One field: Enter means OK wherever the focus is.
+            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if let Some(e) = error {
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let ready = !name.trim().is_empty();
+            let (ok, cancel) = buttons(ui, t, if rename.is_some() { "Rename" } else { "Create" }, ready);
+            if (ok || enter) && ready {
+                *error = None;
+                match rename {
+                    Some(path) => acts.push(Action::Submit("folder.rename", json!({"account": account, "folder": path, "name": name.trim()}))),
+                    None => acts.push(Action::Submit("folder.create", json!({"account": account, "parent": parent, "name": name.trim()}))),
+                }
+            }
+            !cancel
+        }
+        Dialog::MoveFolder { account, folder, filter, error } => {
+            ui.set_width(340.0);
+            let name = s.folder(account, folder).map(Folder::display_name).unwrap_or_default();
+            title(ui, t, &format!("Move “{name}” to"));
+            let r = ui.add(egui::TextEdit::singleline(filter).hint_text("Search folders").desired_width(f32::INFINITY));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            let needle = filter.to_lowercase();
+            let Some(acc) = s.account(account) else { return false };
+            let d = acc.folders.iter().find_map(|f| f.delimiter);
+            let mut chosen: Option<Option<String>> = None;
+            egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                if needle.is_empty() && ui.selectable_label(false, RichText::new("(Top level)").italics()).clicked() {
+                    chosen = Some(None);
+                }
+                for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d)) {
+                    if !mailcraft_engine::model::utf7::decode(&f.path).to_lowercase().contains(&needle) {
+                        continue;
+                    }
+                    let indent = "    ".repeat(f.depth());
+                    if ui.selectable_label(false, format!("{indent}{}", f.display_name())).clicked() {
+                        chosen = Some(Some(f.path.clone()));
+                    }
+                }
+            });
+            if let Some(e) = error {
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            if let Some(parent) = chosen {
+                *error = None;
+                acts.push(Action::Submit("folder.move", json!({"account": account, "folder": folder, "parent": parent})));
+            }
+            !buttons(ui, t, "Move", false).1
+        }
+        Dialog::DeleteFolder { account, folder, name, permanent, error } => {
+            ui.set_width(380.0);
+            title(ui, t, &format!("Delete “{name}”?"));
+            let text = if *permanent {
+                "The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone."
+            } else {
+                "The folder and everything in it will be moved to Deleted Items."
+            };
+            ui.label(RichText::new(text).color(t.dim));
+            if let Some(e) = error {
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let (ok, cancel) = buttons(ui, t, "Delete", true);
+            if ok {
+                *error = None;
+                acts.push(Action::Submit("folder.delete", json!({"account": account, "folder": folder})));
+            }
+            !cancel
         }
         Dialog::Settings => {
             ui.set_width(460.0);

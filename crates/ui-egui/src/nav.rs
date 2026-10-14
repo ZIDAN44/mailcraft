@@ -1,5 +1,6 @@
 //! The folder pane: Favorites, then each account's folders as a tree with unread counts.
-//! Messages dragged from the list drop onto a folder to move them.
+//! Messages dragged from the list drop onto a folder to move them; a folder dragged onto another
+//! moves inside it. Right-click a folder to create, rename, move, delete or pin it to Favorites.
 
 use egui::{Color32, RichText, Sense, Ui, vec2};
 use mailcraft_engine::model::{Folder, FolderRole};
@@ -23,11 +24,28 @@ fn role_icon(role: FolderRole) -> Icon {
     }
 }
 
+/// What a dragged folder carries.
+pub struct DragFolder {
+    pub account: String,
+    pub path: String,
+}
+
 /// One row; returns its response.
-fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, unread: u32, depth: usize, selected: bool, drop_ok: bool) -> egui::Response {
+#[allow(clippy::too_many_arguments)]
+fn row(
+    ui: &mut Ui,
+    t: &Tokens,
+    icon: Icon,
+    label: &str,
+    unread: u32,
+    depth: usize,
+    selected: bool,
+    drop_ok: bool,
+    draggable: bool,
+) -> egui::Response {
     let h = 30.0;
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
-    let hovering_drop = drop_ok && resp.dnd_hover_payload::<DragKeys>().is_some();
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
+    let hovering_drop = drop_ok && (resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some());
     let fill = if hovering_drop {
         t.accent.gamma_multiply(0.3)
     } else if selected {
@@ -69,18 +87,17 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if s.accounts.len() > 1 {
             let unread: u32 = s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum();
             let sel = s.view == View::Unified { role: FolderRole::Inbox } && s.search.is_none();
-            if row(ui, t, Icon::Inbox, "All Inboxes", unread, 0, sel, false).clicked() {
+            if row(ui, t, Icon::Inbox, "All Inboxes", unread, 0, sel, false, false).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "inbox"})));
             }
             let sel = s.view == View::Unified { role: FolderRole::Sent } && s.search.is_none();
-            if row(ui, t, Icon::Sent, "All Sent", 0, 0, sel, false).clicked() {
+            if row(ui, t, Icon::Sent, "All Sent", 0, 0, sel, false, false).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "sent"})));
             }
-        } else if let Some(a) = s.accounts.first() {
-            for role in [FolderRole::Inbox, FolderRole::Sent, FolderRole::Drafts] {
-                if let Some(f) = a.folder(role) {
-                    folder_row(s, t, ui, acts, f, 0, true);
-                }
+        }
+        for fav in s.favorites() {
+            if let Some(f) = s.folder(&fav.account, &fav.folder) {
+                folder_row(s, t, ui, acts, f, 0, true);
             }
         }
         ui.add_space(8.0);
@@ -114,6 +131,10 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Dialog(Dialog::Signature { account: config.id.clone(), text: config.signature.clone() }));
                     ui.close();
                 }
+                if ui.button("New folder…").clicked() {
+                    acts.push(Action::Dialog(Dialog::new_folder(&config.id, None)));
+                    ui.close();
+                }
                 ui.separator();
                 if ui.button(RichText::new("Remove account…").color(t.danger)).clicked() {
                     acts.push(Action::Dialog(Dialog::RemoveAccount { account: config.id.clone(), email: config.email.clone() }));
@@ -142,10 +163,14 @@ fn section(ui: &mut Ui, t: &Tokens, label: &str) {
 
 fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &Folder, depth: usize, favorite: bool) {
     let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
-    let name = if favorite && s.accounts.len() > 1 { format!("{} ({})", f.display_name(), f.account) } else { f.display_name() };
+    let name = match s.account(&f.account) {
+        Some(a) if favorite && s.accounts.len() > 1 => format!("{} · {}", f.display_name(), a.config.email.split('@').next().unwrap_or_default()),
+        _ => f.display_name(),
+    };
     // Unread counts matter for mail you receive, not for Sent or Drafts.
     let unread = if matches!(f.role, FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Archive) { 0 } else { f.unread };
-    let resp = row(ui, t, role_icon(f.role), &name, unread, depth, selected, f.selectable);
+    let user_folder = f.role == FolderRole::Other && !f.path.eq_ignore_ascii_case("INBOX");
+    let resp = row(ui, t, role_icon(f.role), &name, unread, depth, selected, f.selectable, user_folder && !favorite);
     if f.selectable && resp.clicked() {
         acts.push(Action::Run("folder.open", json!({"account": f.account, "folder": f.path})));
     }
@@ -155,8 +180,18 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     {
         acts.push(Action::Run("mail.move", json!({"folder": f.path})));
     }
+    if let Some(p) = resp.dnd_release_payload::<DragFolder>()
+        && p.account == f.account
+        && p.path != f.path
+    {
+        acts.push(Action::Run("folder.move", json!({"account": f.account, "folder": p.path, "parent": f.path})));
+    }
+    if user_folder && !favorite && resp.drag_started() {
+        resp.dnd_set_drag_payload(DragFolder { account: f.account.clone(), path: f.path.clone() });
+    }
     let path = f.path.clone();
     let account = f.account.clone();
+    let is_favorite = s.favorites().iter().any(|r| r.account == f.account && r.folder == f.path);
     resp.context_menu(|ui| {
         if ui.button("Open").clicked() {
             acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
@@ -170,6 +205,31 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
         if ui.button("Mark all as read").clicked() {
             acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
             acts.push(Action::Run("mail.markAllRead", json!({})));
+            ui.close();
+        }
+        ui.separator();
+        if ui.button("New folder…").clicked() {
+            acts.push(Action::Dialog(Dialog::new_folder(&account, Some(&path))));
+            ui.close();
+        }
+        if user_folder {
+            if ui.button("Rename folder…").clicked() {
+                acts.push(Action::Dialog(Dialog::rename_folder(f)));
+                ui.close();
+            }
+            if ui.button("Move folder…").clicked() {
+                acts.push(Action::Dialog(Dialog::move_folder(f)));
+                ui.close();
+            }
+            if ui.button(RichText::new("Delete folder…").color(t.danger)).clicked() {
+                acts.push(Action::Dialog(Dialog::delete_folder(s, f)));
+                ui.close();
+            }
+        }
+        ui.separator();
+        let label = if is_favorite { "Remove from Favorites" } else { "Show in Favorites" };
+        if ui.button(label).clicked() {
+            acts.push(Action::Run("folder.favorite", json!({"account": account, "folder": path, "on": !is_favorite})));
             ui.close();
         }
     });

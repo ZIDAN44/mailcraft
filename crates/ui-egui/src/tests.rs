@@ -57,6 +57,7 @@ fn renders_every_state_without_panicking() {
         frame(&ctx, &mut a, vec![]);
         a.session.prefs.reading_pane = ReadingPane::Right;
         a.run("compose.discard", json!({}));
+        let projects = a.session.folder("sample", "Projects").cloned().unwrap();
         for d in [
             Dialog::add_account(),
             Dialog::move_to(),
@@ -66,6 +67,11 @@ fn renders_every_state_without_panicking() {
             Dialog::RemoveAccount { account: "sample".into(), email: "x".into() },
             Dialog::Signature { account: "sample".into(), text: "sig".into() },
             Dialog::Password { account: "sample".into(), email: "x".into(), password: String::new() },
+            Dialog::new_folder("sample", Some("Projects")),
+            Dialog::new_folder("sample", None),
+            Dialog::rename_folder(&projects),
+            Dialog::move_folder(&projects),
+            Dialog::delete_folder(&a.session, &projects),
         ] {
             a.ui.dialog = Some(d);
             frame(&ctx, &mut a, vec![]);
@@ -120,6 +126,31 @@ fn keyboard_shortcuts_run_commands() {
     frame(&ctx, &mut a, vec![key(Key::Delete, Modifiers::NONE)]);
     assert_eq!(a.session.list.len(), n);
     frame(&ctx, &mut a, vec![key(Key::M, Modifiers::COMMAND | Modifiers::SHIFT)]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn folder_dialogs_create_rename_and_report_errors() {
+    let (mut a, dir) = app("folders");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::new_folder("sample", None));
+    frame(&ctx, &mut a, vec![]);
+    if let Some(Dialog::FolderName { name, .. }) = a.ui.dialog.as_mut() {
+        *name = "Clients".into();
+    }
+    frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert!(a.session.folder("sample", "Clients").is_some());
+    assert!(a.ui.dialog.is_none(), "the dialog closes once the folder exists");
+    // A duplicate keeps the dialog open with the error.
+    a.act(crate::Action::Dialog(Dialog::new_folder("sample", None)));
+    a.act(crate::Action::Submit("folder.create", json!({"account": "sample", "name": "Clients"})));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::FolderName { error: Some(e), .. }) if e.contains("already")));
+    frame(&ctx, &mut a, vec![]);
+    // Favorites show the new folder once pinned.
+    a.run("folder.favorite", json!({"account": "sample", "folder": "Clients"}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.favorites().iter().any(|f| f.folder == "Clients"));
     let _ = std::fs::remove_dir_all(dir);
 }
 
