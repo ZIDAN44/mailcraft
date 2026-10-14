@@ -48,15 +48,16 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - Outlook may be **observed** black-box (screenshots of its window only, kept out of the repo).
   Never read or copy anything inside its install. Protocols come from the RFCs: IMAP 3501/9051,
   CONDSTORE/QRESYNC 7162, IDLE 2177, MOVE 6851, UIDPLUS 4315, SPECIAL-USE 6154, disconnected
-  clients 4549, message format 5322/2045–2049, submission 6409/8314, threading 5256.
+  clients 4549, message format 5322/2045–2049, submission 6409/8314, threading 5256, JMAP
+  8620/8621, OAuth for native apps 8252 + PKCE 7636, SRV discovery 6186.
 - Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, Stalwart server…). Permissive crates only.
 
 ## Architecture
 | Layer | Crate | Job |
 |---|---|---|
 | L0 | `model` | data model, jobs/events, threading, search, dates (pure, wasm) |
-| L1 | `mime`, `store` | MIME parse/build; the on-disk cache |
-| L3 | `net` | IMAP client + sync, SMTP, worker pool (native only) |
+| L1 | `mime`, `store`, `print` | MIME parse/build; the on-disk cache; PDF export |
+| L3 | `net` | IMAP client + sync, SMTP, JMAP, HTTP/DNS/OAuth, worker pool (native only) |
 | L4 | `engine` | sans-I/O `Session` + command registry |
 | L6 | `ui-egui` | egui front end |
 | apps | `mailcraft`, `mailcraft-cli` | binaries |
@@ -66,6 +67,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   open dialogs (the UI asks, then calls the command).
 - **Sans-I/O engine:** the engine queues `Job`s and applies `Event`s; only `net` does network I/O.
   `cargo xtask layers` enforces the layering (no `egui` below L6, no network crates outside `net`).
+- **Interface text** goes through `tl!` / `tf!` and every catalog in `crates/ui-egui/src/i18n/`
+  (the tests fail on an untranslated string).
 - **Rust only. Never break wasm** for the portable crates (`cargo xtask wasm`).
 
 ## Quality gates

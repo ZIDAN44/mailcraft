@@ -6,28 +6,40 @@ calendar, contacts, Exchange (EWS / Graph / ActiveSync) and PST import are delib
 
 _Status: v0.1, 2026-10-15._
 
+## Open
+
 | # | Gap | Notes |
 |---|---|---|
-| 1 | **Rich-text compose** | Messages are plain text. Next: bold/italic/lists/links with a `text/html` alternative, and pasting pictures inline. |
-| 2 | **HTML rendering** | HTML mail is shown converted to text (safe, private). Next: a sanitised HTML renderer with "show pictures" per sender. |
-| 3 | **Outbox** | Sending needs a connection; offline sends fail with a message. Queue them and send on reconnect. |
-| 4 | **Folder management** | Create, rename, delete and move folders; favorites chosen by the user. |
-| 5 | **OAuth2 sign-in** | Gmail and Microsoft 365 increasingly require OAuth (XOAUTH2 / OAUTHBEARER) instead of passwords; app passwords work today. |
-| 6 | **Autoconfig** | Server settings are guessed from the domain. Add Mozilla ISPDB / `autoconfig.` lookup and SRV records (RFC 6186). |
-| 7 | **QRESYNC** | Expunges are found with a UID search; QRESYNC's `VANISHED` would make large folders cheaper (docs/sync.md). |
-| 8 | **Notifications** | Desktop notifications and a taskbar/dock badge for new mail. |
-| 9 | **Rules and categories** | Inbox rules, colour categories, pinning, snooze. Focused/Other sorting. |
-| 10 | **Attachments, more previews** | PDF and video previews ("Open in PdfCraft" / FilmCraft), drag attachments out to Craft apps. |
-| 11 | **Contacts autocomplete** | Suggest addresses from mail already seen. |
-| 12 | **Print and export** | Print a message; save as `.eml`; export to PDF. |
-| 13 | **Localisation** | The interface is English only; the Craft apps' i18n system should be adopted. |
-| 14 | **JMAP** | Second transport (RFC 8620/8621) behind the same Job/Event interface. |
-| 15 | **Calendar, contacts, Exchange, PST** | Deferred per #2177 (CalDAV/CardDAV first). |
+| 1 | **Calendar and contacts** | Deferred per #2177. CalDAV / CardDAV first (meeting invites in mail, an address book beyond the recipients seen in mail). |
+| 2 | **Exchange, PST** | Deferred per #2177: EWS / Graph / ActiveSync accounts, and importing `.pst` archives. Microsoft 365 works today over IMAP with OAuth. |
+| 3 | **JMAP push** | JMAP accounts poll the Inbox every two minutes; the session's EventSource (RFC 8620 §7.3) would make new mail instant, as IDLE does for IMAP. |
+| 4 | **Faithful HTML** | HTML mail is shown as formatted text (headings, lists, links, quotes, pictures on request). Layout-heavy newsletters lose their columns and colours; a sanitised HTML renderer would keep them. |
+| 5 | **Drag attachments out** | Attachments open in their app or Craft app and save anywhere, but can't yet be dragged onto the desktop or a `.craft` project (egui has no outgoing OS drag). |
+| 6 | **Video and PDF thumbnails** | Pictures preview inline and text-like files in a preview; PDFs and videos open in PdfCraft / FilmCraft or the system app without a thumbnail. |
+| 7 | **More languages** | English, Spanish, French, German, Brazilian Portuguese, Japanese and Simplified Chinese; others (Traditional Chinese, Korean, Italian…) need a catalog each. |
+| 8 | **Web build** | The engine and UI crates build for wasm32, but the network layer is native; a browser build needs a JMAP-over-`fetch` transport. |
 
-## Done in v0.1
+## Done
 
-IMAP/SMTP accounts with keychain passwords; unified inbox; local cache with incremental sync
-(CONDSTORE, UIDVALIDITY, IDLE, offline change replay); date-grouped list with conversations,
-filters, multi-select and drag to folder; reading pane right/bottom/off with conversation strip and
-picture previews; reply / reply all / forward with quoting and signatures; drafts; delete / archive /
-junk / move / flag / read; offline search with field operators; dark mode; CLI; sample mailbox.
+- **v0.1:** IMAP/SMTP accounts with keychain passwords; unified inbox; local cache with
+  incremental sync (CONDSTORE, UIDVALIDITY, IDLE, offline change replay); date-grouped list with
+  conversations, filters, multi-select and drag to folder; reading pane right/bottom/off with
+  conversation strip and picture previews; reply / reply all / forward with quoting and
+  signatures; drafts; delete / archive / junk / move / flag / read; offline search with field
+  operators; dark mode; CLI; sample mailbox.
+- **Folders:** create, rename, move (drag) and delete, favourites chosen by the user.
+- **Outbox:** mail that can't go out is kept and sent on reconnect; refusals stay with the error.
+- **QRESYNC:** expunges and flag changes arrive with the `SELECT` (`VANISHED (EARLIER)`).
+- **Contacts autocomplete:** recipients suggested from mail already seen.
+- **Notifications:** desktop notifications for new mail, unread count in the window title.
+- **Organising:** colour categories (IMAP keywords), pinning, snooze, inbox rules, Focused/Other.
+- **HTML mail:** shown formatted; pictures from the web only on request, remembered per sender.
+- **Rich-text compose:** bold, italic, strikethrough, headings, lists, quotes, links and code with a
+  `text/html` alternative; pictures inserted or pasted inline.
+- **Autoconfig:** the domain's autoconfig, the Mozilla ISPDB, MX and SRV records (RFC 6186).
+- **OAuth 2.0:** Gmail and Microsoft 365 through the browser (RFC 8252 + PKCE), XOAUTH2 for IMAP
+  and SMTP.
+- **Attachments:** text-like previews, attached emails, Open in the Craft app for the file, Save all.
+- **Print and export:** print through a PDF, Save as PDF, Save as `.eml`.
+- **Localisation:** six languages besides English, following the system or chosen in Settings.
+- **JMAP:** a second transport (RFC 8620/8621) behind the same jobs and events.

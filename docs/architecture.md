@@ -6,7 +6,7 @@
             │                                                          │
    input ──▶│  ui-egui (L6) ──commands──▶ engine::Session (L4)         │
             │      ▲  reads state              │  queues Jobs           │
-            │      └──────────────── Events ◀──┼── net::Pool (L3) ◀──── IMAP / SMTP
+            │      └──────────────── Events ◀──┼── net::Pool (L3) ◀── IMAP·SMTP·JMAP
             │                                  ▼        │               │
             │                          store (L1) ◀─────┘ writes cache  │
             └──────────────────────────────────────────────────────────┘
@@ -19,9 +19,10 @@
 | L0 | `mailcraft-model` | — | Pure data + algorithms; `Job`/`Event` are defined here so `net` and `engine` agree without depending on each other |
 | L1 | `mailcraft-mime` | model | `mail-parser`, `mail-builder`, `html2text` |
 | L1 | `mailcraft-store` | model | Plain files + JSON; atomic writes; no database engine |
-| L3 | `mailcraft-net` | model, mime, store | Native only. `imap-proto`, `lettre`, `rustls` |
+| L1 | `mailcraft-print` | — | Messages laid out as PDF pages with an embedded TrueType font (`ttf-parser`, `miniz_oxide`) |
+| L3 | `mailcraft-net` | model, mime, store | Native only. IMAP (`imap-proto`), SMTP (`lettre`), JMAP and a small HTTP/1.1 client, DNS for autoconfiguration, OAuth; TLS through `rustls` |
 | L4 | `mailcraft-engine` | model, mime, store | Sans-I/O, wasm-safe |
-| L6 | `mailcraft-ui-egui` | engine | egui only; platform services behind traits |
+| L6 | `mailcraft-ui-egui` | engine | egui only; platform services behind traits; interface languages (`i18n/*.tsv`) |
 
 `cargo xtask layers` enforces this, including that `egui` stays in L6 and network crates stay in `net`.
 
@@ -41,6 +42,13 @@ written (`Compose`), preferences and status-bar notices.
 - Local-only accounts (the sample mailbox) apply changes to the cache directly, including moves
   (new UIDs in the destination) and sending (filed in Sent).
 
+## Languages
+
+Interface text is English in the code and looked up in a catalog per language
+(`crates/ui-egui/src/i18n/*.tsv`: context, English, translation) through `tl!` and `tf!`; anything
+untranslated shows in English. Commands, the CLI and mail stay English. The language follows the
+system unless one is chosen in Settings; Chinese and Japanese load an installed CJK font.
+
 ## Search
 
 `model::search` parses the query language into clauses. The session builds an inverted index
@@ -59,7 +67,9 @@ appears in exactly one conversation.
 
 - `model`, `mime`, `store`: unit tests, including hostile inputs.
 - `net`: a scripted stream for framing edge cases, an in-memory IMAP server (`fake.rs`) for the sync
-  algorithm and server-side changes, a local SMTP stub, and an end-to-end test of the threaded worker
-  pool over real TCP sockets.
+  algorithm and server-side changes, a local SMTP stub, an end-to-end test of the threaded worker
+  pool over real TCP sockets, and an in-memory JMAP server (`fake_jmap.rs`) driving a JMAP account
+  through the same pool. HTTP, DNS, autoconfig and OAuth run against local stubs.
 - `engine`: commands against the sample mailbox and scripted network events; every command with junk params.
-- `ui-egui`: headless egui frames in every layout and dialog, shortcuts as input events, and a 2,000-message folder.
+- `ui-egui`: headless egui frames in every layout and dialog, shortcuts as input events, and a 2,000-message folder;
+  every catalog covers every interface string, and a tour in a pseudo-language finds text that skips the catalogs.

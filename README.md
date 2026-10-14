@@ -6,7 +6,7 @@
 
 <p align="center">
   The mail workflow you already know (folders, a message list grouped by date, a reading pane,
-  Reply / Reply all / Forward, flags, Archive, Delete, Send / Receive) over plain IMAP and SMTP.
+  Reply / Reply all / Forward, flags, Archive, Delete, Send / Receive) over IMAP and SMTP, or JMAP.
   Mail is cached on your computer, so it opens instantly, searches fast and stays readable offline.
   Your password stays in the system keychain and only ever goes to your own mail server.<br>
   <i>By the ArtCraft team. Tracked in <a href="https://github.com/storytold/artcraft/issues/2177">storytold/artcraft#2177</a>.</i>
@@ -40,11 +40,13 @@
 - **Local-first.** Every folder is cached on disk with the IMAP sync state (UIDVALIDITY, UIDNEXT,
   HIGHESTMODSEQ), so a refresh costs a handful of round trips and changes made offline are
   replayed when you reconnect. See [docs/sync.md](docs/sync.md).
-- **Private.** No cloud relay: the app talks to your IMAP and SMTP servers directly over TLS.
-  Passwords live in the OS keychain (Windows Credential Manager, macOS Keychain, Secret Service).
-  HTML mail is shown as text, so remote images and trackers are never loaded.
-- **Media-aware.** Picture attachments preview inline; any attachment opens in its default app or
-  saves anywhere.
+- **Private.** No cloud relay: the app talks to your mail servers directly over TLS. Passwords (or
+  OAuth sign-ins) live in the OS keychain (Windows Credential Manager, macOS Keychain, Secret
+  Service). HTML mail is shown as formatted text and pictures from the web load only when you ask,
+  so trackers stay quiet.
+- **Media-aware.** Picture attachments preview inline, text-like files and attached emails open in
+  a preview, and files a Craft app edits get *Open in PdfCraft / WordCraft / GridCraft…*; any
+  attachment opens in its default app or saves anywhere.
 - **Fast.** The message list only lays out the rows on screen; search uses an inverted index over
   headers, cached bodies and attachment names.
 - **Built for agents.** Every action is a command with an id. The same commands drive the ribbon,
@@ -54,16 +56,17 @@
 - **Open.** MIT OR Apache-2.0, clean-room: built from the RFCs and public behaviour, every asset
   original (icons are drawn in code).
 
-## What works today (v0.1)
+## What works today
 
 | Area | Highlights |
 |---|---|
-| **Accounts** | Any IMAP + SMTP provider; several accounts with an *All Inboxes* favorite; server settings guessed from the address; SSL/TLS or STARTTLS; passwords in the system keychain; sign in again when a password changes |
-| **Sync** | Folder list with special-use roles (RFC 6154); per-folder incremental sync (new mail, flag changes via CONDSTORE, deletions); UIDVALIDITY resets; IDLE on the Inbox for instant new mail; newest messages prefetched for offline reading; back-off reconnects |
-| **Reading** | Date-grouped list (Today, Yesterday, weekdays, Last week…), unread bars and bold, flags, attachment and replied markers, previews; reading pane right, bottom or off; conversations (JWZ threading); HTML converted to text; inline picture previews |
-| **Organising** | Delete (to Deleted Items; permanent there, with confirmation), Archive, Report junk / Not junk, Move to (dialog or drag), Read / Unread, Flag, Mark all as read; filters: Unread, Flagged, Has files; multi-select with Ctrl and Shift |
-| **Writing** | New, Reply, Reply all, Forward (with attachments); To / Cc / Bcc with address checking; attachments up to 25 MB; signatures; drafts saved to the server; sent copies filed in Sent Items |
+| **Accounts** | Any IMAP + SMTP provider, or JMAP (RFC 8620/8621); several accounts with an *All Inboxes* favorite; server settings found from the address (the domain's autoconfig, the Mozilla ISPDB, MX and SRV records); Gmail and Microsoft 365 sign-in through the browser (OAuth 2.0); SSL/TLS or STARTTLS; passwords in the system keychain |
+| **Sync** | Folder list with special-use roles (RFC 6154); per-folder incremental sync (new mail, flag changes via CONDSTORE, deletions via QRESYNC); UIDVALIDITY resets; IDLE on the Inbox for instant new mail; newest messages prefetched for offline reading; changes made offline replayed; back-off reconnects; desktop notifications for new mail |
+| **Reading** | Date-grouped list (Today, Yesterday, weekdays, Last week…), unread bars and bold, flags, attachment and replied markers, previews; reading pane right, bottom or off; conversations (JWZ threading); HTML shown formatted (headings, lists, links, quotes) with web pictures on request, remembered per sender; inline picture previews; Print, Save as PDF, Save as `.eml` |
+| **Organising** | Delete (to Deleted Items; permanent there, with confirmation), Archive, Report junk / Not junk, Move to (dialog or drag), Read / Unread, Flag, Pin, Snooze, colour categories, Mark all as read; Focused / Other; inbox rules; filters: Unread, Flagged, Has files; multi-select with Ctrl and Shift; folders created, renamed, moved and deleted; favourites |
+| **Writing** | New, Reply, Reply all, Forward (with attachments); formatting (bold, italic, lists, headings, quotes, links) sent with a plain-text alternative; pictures inserted or pasted inline; To / Cc / Bcc suggested from mail you've seen; attachments up to 25 MB; signatures; drafts saved to the server; an Outbox for mail written offline |
 | **Search** | Offline, all folders or this folder; bare words match word prefixes; `"phrases"`, `from:`, `to:`, `subject:`, `body:`, `has:attachment`, `is:unread`, `is:flagged`, `-negation` |
+| **Languages** | English, Español, Français, Deutsch, Português (Brasil), 日本語, 简体中文: following the system or chosen in Settings |
 | **Platforms** | Windows, macOS, Linux (egui on the GPU); the engine and UI crates also build for WebAssembly |
 
 The full list of what's missing, ranked, is in [docs/gaps.md](docs/gaps.md).
@@ -85,7 +88,9 @@ without it to add your own account (the gear button, or the welcome screen).
 From the command line (passwords come from `MAILCRAFT_PASSWORD` or a prompt, never stored):
 
 ```bash
+cargo run -p mailcraft-cli -- add --email you@example.com
 cargo run -p mailcraft-cli -- add --email you@example.com --imap mail.example.com:993 --smtp mail.example.com:465
+cargo run -p mailcraft-cli -- add --email you@fastmail.com --jmap https://api.fastmail.com/jmap/session
 cargo run -p mailcraft-cli -- test
 cargo run -p mailcraft-cli -- sync
 cargo run -p mailcraft-cli -- list --limit 10
@@ -103,15 +108,16 @@ or `~/.local/share/mailcraft`; override with `--data DIR` or `MAILCRAFT_DATA`).
 |---|---|---|
 | L0 | `model` | accounts, folders, message keys, flags, jobs and events, JWZ threading, search queries and index, dates, IMAP UTF-7 |
 | L1 | `mime` | parse messages for the list and reading pane, HTML → text, attachments, build outgoing mail, reply / forward drafts |
-| L1 | `store` | the local-first cache: folder state, message sources, pending offline changes; atomic writes |
-| L3 | `net` | native only: IMAP client on `imap-proto`, the sync algorithm, SMTP via `lettre`, per-account worker threads |
+| L1 | `store` | the local-first cache: folder state, message sources, pending offline changes, the Outbox; atomic writes |
+| L1 | `print` | messages as PDF pages, with the interface font embedded |
+| L3 | `net` | native only: IMAP client on `imap-proto`, the sync algorithm, SMTP via `lettre`, JMAP, HTTP, DNS, autoconfig, OAuth, per-account worker threads |
 | L4 | `engine` | the sans-I/O session: views, selection, compose, search, the command registry; queues jobs, applies events |
 | L6 | `ui-egui` | the egui front end (thin: reads the session, runs commands) |
 | apps | `mailcraft`, `mailcraft-cli` | the desktop app and the command line |
 
 The engine never touches the network: it emits `Job`s and applies `Event`s, which the app connects
-to the `net` worker pool. Tests drive it with scripted events, and an in-memory IMAP server tests
-the real client and sync code. Details in [docs/architecture.md](docs/architecture.md).
+to the `net` worker pool. Tests drive it with scripted events, and in-memory IMAP and JMAP servers
+test the real clients and sync code. Details in [docs/architecture.md](docs/architecture.md).
 
 Quality gate before every commit: `cargo xtask ci` (fmt, clippy `-D warnings`, tests, layering,
 assets, wasm).
@@ -139,6 +145,7 @@ The version lives only in `[workspace.package]` of `Cargo.toml` (`cargo xtask ve
 MIT OR Apache-2.0. Built on [`mail-parser`](https://github.com/stalwartlabs/mail-parser) and
 [`mail-builder`](https://github.com/stalwartlabs/mail-builder) (Stalwart Labs, Apache-2.0 / MIT),
 [`imap-proto`](https://github.com/djc/tokio-imap) (MIT / Apache-2.0), [`lettre`](https://github.com/lettre/lettre) (MIT),
-[`rustls`](https://github.com/rustls/rustls), [`html2text`](https://github.com/jugglerchris/rust-html2text) (MIT) and
+[`rustls`](https://github.com/rustls/rustls) and [`ring`](https://github.com/briansmith/ring), [`html2text`](https://github.com/jugglerchris/rust-html2text) (MIT),
+[`ttf-parser`](https://github.com/harfbuzz/ttf-parser) and [`miniz_oxide`](https://github.com/Frommi/miniz_oxide) (MIT / Apache-2.0) and
 [`egui`](https://github.com/emilk/egui). Microsoft Outlook is a trademark of Microsoft; MailCraft is
 not affiliated with it and uses none of its code, icons or assets.
