@@ -3,6 +3,7 @@
 
 use egui::{Color32, Margin, Rect, RichText, Sense, Ui, vec2};
 use mailcraft_engine::mime::{self, AttachmentKind};
+use mailcraft_engine::model::contacts::Contact;
 use mailcraft_engine::model::{MessageKey, addr, dates};
 use mailcraft_engine::{Session, model::EmailAddress};
 use serde_json::json;
@@ -312,6 +313,96 @@ fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, c
             r.request_focus();
         }
     });
+    address_check(ui, t, value, check_addresses);
+}
+
+/// A recipient box (To, Cc, Bcc) that suggests people from mail already seen: ↑/↓ choose,
+/// Enter or Tab takes the highlighted one, a click takes any.
+#[allow(clippy::too_many_arguments)]
+fn recipient_field(
+    ui: &mut Ui,
+    st: &mut UiState,
+    name: &'static str,
+    label: &str,
+    value: &mut String,
+    hint: &str,
+    focus: bool,
+    suggestions: &[Contact],
+) {
+    let t = st.tokens;
+    let showing = st.suggest_field == Some(name) && !suggestions.is_empty();
+    let mut take: Option<usize> = None;
+    if showing {
+        let n = suggestions.len();
+        // Before the text box sees them: arrows move the highlight, Enter/Tab accept.
+        ui.input_mut(|i| {
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
+                st.suggest_index = (st.suggest_index + 1) % n;
+            }
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
+                st.suggest_index = (st.suggest_index + n - 1) % n;
+            }
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
+                take = Some(st.suggest_index.min(n - 1));
+            }
+            if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+                st.suggest_dismissed = Some(value.clone());
+            }
+        });
+    }
+    let r = ui
+        .horizontal(|ui| {
+            ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(label).color(t.dim)));
+            ui.add(egui::TextEdit::singleline(value).hint_text(hint).desired_width(f32::INFINITY))
+        })
+        .inner;
+    if focus {
+        r.request_focus();
+    }
+    if r.changed() {
+        st.suggest_index = 0;
+        st.suggest_dismissed = None;
+    }
+    if showing && take.is_none() {
+        let area = egui::Area::new(ui.id().with(("suggest", name))).order(egui::Order::Foreground).fixed_pos(r.rect.left_bottom() + vec2(0.0, 2.0));
+        area.show(ui.ctx(), |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_width(r.rect.width().min(420.0));
+                for (i, c) in suggestions.iter().enumerate() {
+                    let on = i == st.suggest_index;
+                    let text =
+                        if c.address.name.is_empty() { c.address.email.clone() } else { format!("{}  ·  {}", c.address.name, c.address.email) };
+                    let resp = ui.selectable_label(on, RichText::new(text).color(t.text));
+                    // On press: the box loses focus on the same click, before a release would count.
+                    if resp.hovered() && ui.input(|i| i.pointer.primary_pressed()) {
+                        take = Some(i);
+                    }
+                }
+            });
+        });
+    }
+    if let Some(i) = take
+        && let Some(c) = suggestions.get(i)
+    {
+        *value = mailcraft_engine::model::contacts::complete(value, &c.address);
+        st.suggest_index = 0;
+        r.request_focus();
+        if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
+            let end = egui::text::CCursor::new(value.chars().count());
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+            state.store(ui.ctx(), r.id);
+        }
+    }
+    if r.has_focus() || take.is_some() {
+        st.suggest_field = Some(name);
+    } else if st.suggest_field == Some(name) {
+        st.suggest_field = None;
+    }
+    // Half-typed addresses are fine while typing; check once the box is left.
+    address_check(ui, &t, value, !r.has_focus());
+}
+
+fn address_check(ui: &mut Ui, t: &Tokens, value: &str, check_addresses: bool) {
     if check_addresses
         && !value.trim().is_empty()
         && let Err(bad) = addr::parse_list(value)
@@ -327,6 +418,24 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     let t = st.tokens;
     let accounts: Vec<(String, String)> =
         s.accounts.iter().map(|a| (a.config.id.clone(), EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string())).collect();
+    // Suggestions for the recipient box being typed in (computed before the form borrows it).
+    let suggestions: Vec<Contact> = match (st.suggest_field, s.compose.as_ref()) {
+        (Some(f), Some(c)) => {
+            let text = match f {
+                "to" => c.to.clone(),
+                "cc" => c.cc.clone(),
+                _ => c.bcc.clone(),
+            };
+            let token = mailcraft_engine::model::contacts::last_token(&text).to_string();
+            if token.chars().count() < 1 || st.suggest_dismissed.as_deref() == Some(text.as_str()) {
+                Vec::new()
+            } else {
+                let present = text.to_lowercase();
+                s.suggest_contacts(&token, 8).into_iter().filter(|x| !present.contains(&x.address.email.to_lowercase())).take(6).collect()
+            }
+        }
+        _ => Vec::new(),
+    };
     let Some(c) = s.compose.as_mut() else { return };
     // A newly opened message: start in To (new mail) or the body (replies).
     let fresh = st.compose_shown != Some(c.id);
@@ -375,10 +484,10 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     });
                 });
             }
-            field(ui, &t, "To", &mut c.to, "Names <addresses>, separated by ; or ,", true, focus_to);
+            recipient_field(ui, st, "to", "To", &mut c.to, "Names <addresses>, separated by ; or ,", focus_to, &suggestions);
             if c.show_cc {
-                field(ui, &t, "Cc", &mut c.cc, "", true, false);
-                field(ui, &t, "Bcc", &mut c.bcc, "Hidden from the other recipients", true, false);
+                recipient_field(ui, st, "cc", "Cc", &mut c.cc, "", false, &suggestions);
+                recipient_field(ui, st, "bcc", "Bcc", &mut c.bcc, "Hidden from the other recipients", false, &suggestions);
             } else {
                 ui.horizontal(|ui| {
                     ui.add_space(62.0);

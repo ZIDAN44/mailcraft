@@ -174,6 +174,28 @@ fn folder_dialogs_create_rename_and_report_errors() {
 }
 
 #[test]
+fn recipient_boxes_suggest_people() {
+    let (mut a, dir) = app("suggest");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Text("zo".into())]);
+    assert_eq!(a.session.compose.as_ref().unwrap().to, "zo");
+    assert_eq!(a.ui.suggest_field, Some("to"));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(a.session.compose.as_ref().unwrap().to, "Zoe Park <zoe@studio.example>, ");
+    // The next address starts fresh; Escape hides the list.
+    frame(&ctx, &mut a, vec![Event::Text("sh".into())]);
+    frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE), key(Key::Escape, Modifiers::NONE)]);
+    frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert!(a.session.compose.as_ref().unwrap().to.ends_with(", sh"), "{}", a.session.compose.as_ref().unwrap().to);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn long_folders_render_quickly() {
     let (mut a, dir) = app("long");
     let store = a.session.store.clone().unwrap();

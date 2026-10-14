@@ -110,6 +110,11 @@ pub struct UiState {
     fonts_ready: bool,
     /// The compose form last shown, to focus its first field when a new one opens.
     pub(crate) compose_shown: Option<u64>,
+    /// The recipient box showing suggestions (`to`, `cc`, `bcc`), the highlighted one, and the
+    /// text for which Escape hid them.
+    pub(crate) suggest_field: Option<&'static str>,
+    pub(crate) suggest_index: usize,
+    pub(crate) suggest_dismissed: Option<String>,
 }
 
 pub struct MailApp {
@@ -139,6 +144,9 @@ impl MailApp {
                 scroll_to_focus: false,
                 fonts_ready: false,
                 compose_shown: None,
+                suggest_field: None,
+                suggest_index: 0,
+                suggest_dismissed: None,
             },
         }
     }
