@@ -9,11 +9,13 @@
 pub mod addr;
 pub mod contacts;
 pub mod dates;
+pub mod ical;
 pub mod job;
 pub mod organize;
 pub mod search;
 pub mod thread;
 pub mod utf7;
+pub mod vcard;
 
 use serde::{Deserialize, Serialize};
 
