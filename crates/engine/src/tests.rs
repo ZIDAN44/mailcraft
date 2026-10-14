@@ -316,6 +316,43 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn messages_open_in_windows_of_their_own() {
+    let mut s = sample_session("windows");
+    let k = s.list.iter().find(|m| !m.flags.seen).map(|m| m.key.clone()).unwrap();
+    s.run("message.popOut", &json!({"key": k.to_id()})).unwrap();
+    s.run("message.popOut", &json!({"key": k.to_id()})).unwrap();
+    assert_eq!(s.windows.len(), 1, "opening again doesn't add a window");
+    assert!(s.windows[0].parsed.is_some(), "cached: shown at once");
+    assert!(s.summary(&k).unwrap().flags.seen, "opening marks it read");
+    assert!(s.reading.is_none(), "the reading pane is left alone");
+    // Not downloaded yet: fetched, then filled in when it arrives.
+    let k2 = s.list.iter().find(|m| m.key != k).map(|m| m.key.clone()).unwrap();
+    s.store.as_ref().unwrap().remove_body(&k2);
+    s.run("message.popOut", &json!({"key": k2.to_id()})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FetchBody { key } if *key == k2)));
+    assert!(s.windows[1].parsed.is_none());
+    s.apply(Event::Body {
+        key: k2.clone(),
+        raw: b"Subject: Arrived
+
+hi
+"
+        .to_vec(),
+    });
+    assert_eq!(s.windows[1].parsed.as_ref().unwrap().subject, "Arrived");
+    s.run("message.closeWindow", &json!({"key": k.to_id()})).unwrap();
+    assert_eq!(s.windows.len(), 1);
+    // The focused message without a key; and never more than a handful of windows.
+    let keys: Vec<mailcraft_model::MessageKey> = s.list.iter().map(|m| m.key.clone()).collect();
+    for k in &keys {
+        s.run("list.select", &json!({"key": k.to_id()})).unwrap();
+        s.run("message.popOut", &json!({})).unwrap();
+    }
+    assert_eq!(s.windows.len(), keys.len().min(crate::session::MAX_WINDOWS));
+    done(s);
+}
+
+#[test]
 fn jmap_accounts_need_no_imap_servers() {
     let store = temp("jmap-account");
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));

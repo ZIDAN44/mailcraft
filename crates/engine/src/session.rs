@@ -189,7 +189,10 @@ pub enum Row {
     Message { index: usize, count: usize, unread: usize },
 }
 
-/// The message open in the reading pane.
+/// The most messages open in their own windows at once.
+pub const MAX_WINDOWS: usize = 8;
+
+/// The message open in the reading pane (or in a window of its own).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reading {
     pub key: MessageKey,
@@ -272,6 +275,8 @@ pub struct Session {
     pub selection: Vec<MessageKey>,
     pub focus: Option<MessageKey>,
     pub reading: Option<Reading>,
+    /// Messages opened in their own windows (double-click), oldest first.
+    pub windows: Vec<Reading>,
     pub compose: Option<Compose>,
     pub prefs: Prefs,
     pub clock: Clock,
@@ -329,6 +334,7 @@ impl Session {
             selection: Vec::new(),
             focus: None,
             reading: None,
+            windows: Vec::new(),
             compose: None,
             prefs: Prefs::default(),
             clock,
@@ -748,7 +754,43 @@ impl Session {
         }
     }
 
+    /// Open a message in its own window (it stays open while the list changes). Already open:
+    /// nothing changes. At most [`MAX_WINDOWS`]; the oldest closes first.
+    pub fn pop_out(&mut self, key: &MessageKey) -> CmdResult {
+        if !self.windows.iter().any(|w| &w.key == key) {
+            if self.windows.len() >= MAX_WINDOWS {
+                self.windows.remove(0);
+            }
+            let cached = if key.folder == OUTBOX {
+                self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
+            } else {
+                self.store.as_ref().and_then(|s| s.read_body(key))
+            };
+            let mut w = Reading { key: key.clone(), parsed: None, error: None, thread: Vec::new() };
+            match cached {
+                Some(raw) => {
+                    w.parsed = mime::parse(&raw);
+                    w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
+                }
+                None => self.jobs.push(Job::FetchBody { key: key.clone() }),
+            }
+            self.windows.push(w);
+            if self.prefs.mark_read_on_open && key.folder != OUTBOX && self.summary(key).is_some_and(|m| !m.flags.seen) {
+                self.apply_op(&key.account.clone(), Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true });
+            }
+        }
+        Ok(serde_json::json!({"key": key.to_id(), "windows": self.windows.len()}))
+    }
+
+    pub fn close_window(&mut self, key: &MessageKey) {
+        self.windows.retain(|w| &w.key != key);
+    }
+
     fn show_body(&mut self, key: &MessageKey, raw: &[u8]) {
+        for w in self.windows.iter_mut().filter(|w| &w.key == key && w.parsed.is_none()) {
+            w.parsed = mime::parse(raw);
+            w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
+        }
         let parsed = mime::parse(raw);
         if let Some(r) = self.reading.as_mut()
             && &r.key == key
@@ -1835,6 +1877,9 @@ impl Session {
                 self.index = None;
             }
             Event::BodyFailed { key, error } => {
+                for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {
+                    w.error = Some(error.clone());
+                }
                 if let Some(r) = self.reading.as_mut()
                     && r.key == key
                 {

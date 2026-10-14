@@ -161,6 +161,20 @@ pub fn registry() -> Registry {
         CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"}"#),
         CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
         CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
+        CommandSpec::new("message.popOut", "Open in new window", "Message list › Open", |s, v| {
+            let k = match parse_key(v) {
+                Some(_) => key_param(s, v)?,
+                None => s.focus.clone().or_else(|| s.selection.first().cloned()).or_else(|| s.reading.as_ref().map(|r| r.key.clone())).ok_or_else(|| CmdError::Disabled("select a message first".into()))?,
+            };
+            s.pop_out(&k)
+        })
+        .params(r#"{"key"?: string}"#),
+        CommandSpec::new("message.closeWindow", "Close the message window", "Message window", |s, v| {
+            let k = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required".into()))?;
+            s.close_window(&k);
+            Ok(json!({"windows": s.windows.len()}))
+        })
+        .params(r#"{"key": string}"#),
         CommandSpec::new("message.saveAs", "Save as", "File › Save As", save_message).params(r#"{"path": string}"#).when(has_reading),
         CommandSpec::new("message.exportPdf", "Save as PDF", "File › Save As", export_pdf).params(r#"{"path": string}"#).when(has_reading),
         CommandSpec::new("message.showPictures", "Show pictures", "Reading pane", |s, v| s.show_pictures(p::bool(v, "always").unwrap_or(false)))
