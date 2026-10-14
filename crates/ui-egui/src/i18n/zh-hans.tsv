@@ -351,3 +351,5 @@
 	JMAP	JMAP
 	JMAP session address	JMAP 会话地址
 	Server: {url} (JMAP)	服务器: {url} (JMAP)
+	Open in new window	在新窗口中打开
+	{subject} – Message	{subject} – 邮件

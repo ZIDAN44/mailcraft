@@ -158,6 +158,8 @@ pub enum Action {
     OpenUrl(String),
     /// Run a command for the open dialog: it closes on success and shows the error otherwise.
     Submit(&'static str, Value),
+    /// Bring the main window to the front (after acting from a message window).
+    FocusMain,
 }
 
 /// UI-only state.
@@ -196,6 +198,8 @@ pub struct UiState {
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
     pub title_base: String,
     pub(crate) title_shown: String,
+    /// Raise the main window on the next frame.
+    focus_main: bool,
 }
 
 pub struct MailApp {
@@ -240,6 +244,7 @@ impl MailApp {
                 cjk_loaded: false,
                 title_base: "MailCraft".into(),
                 title_shown: String::new(),
+                focus_main: false,
             },
         };
         app.ui.craft_apps = craft_apps;
@@ -388,6 +393,8 @@ impl MailApp {
             }
         }
 
+        self.message_windows(&ctx, &mut acts);
+
         if let Some(mut d) = self.ui.dialog.take() {
             let language = self.ui.language.clone();
             let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &language, &mut acts);
@@ -401,8 +408,44 @@ impl MailApp {
             self.act(a);
         }
         self.flush_jobs();
+        if std::mem::take(&mut self.ui.focus_main) {
+            ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
+        }
         let busy = self.session.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting | SyncStatus::Syncing { .. }));
         ctx.request_repaint_after(std::time::Duration::from_secs(if busy || self.ui.toast.is_some() { 1 } else { 20 }));
+    }
+
+    /// Messages opened in windows of their own (double-click), each a native window with the
+    /// message's own toolbar.
+    fn message_windows(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
+        let t = self.ui.tokens;
+        for w in self.session.windows.clone() {
+            let key = w.key.clone();
+            let subject =
+                w.parsed.as_ref().map(|p| p.subject.clone()).filter(|s| !s.trim().is_empty()).unwrap_or_else(|| tl!("(no subject)").to_string());
+            let id = egui::ViewportId::from_hash_of(("message-window", key.to_id()));
+            let builder = egui::ViewportBuilder::default()
+                .with_title(tf!("{subject} – Message", subject = subject))
+                .with_inner_size([940.0, 740.0])
+                .with_min_inner_size([480.0, 360.0]);
+            let (session, st) = (&mut self.session, &mut self.ui);
+            let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+                let mut mine: Vec<Action> = Vec::new();
+                let closing = ui.input(|i| i.viewport().close_requested() || i.key_pressed(Key::Escape));
+                egui::Panel::top(egui::Id::new(("message-window-bar", key.to_id())))
+                    .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 6)).stroke(egui::Stroke::new(1.0, t.border)))
+                    .show(ui, |ui| window_toolbar(ui, session, &t, &key, &mut mine));
+                egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                    reading::window(session, st, ui, w.clone(), &mut mine);
+                });
+                let leave = mine.iter().any(|a| matches!(a, Action::Run("message.closeWindow", _)));
+                acts.extend(mine);
+                closing && !leave
+            });
+            if close {
+                acts.push(Action::Run("message.closeWindow", json!({"key": key.to_id()})));
+            }
+        }
     }
 
     /// New mail: a desktop notification, the taskbar asking for attention when the window is in
@@ -470,6 +513,7 @@ impl MailApp {
             }
             Action::Dialog(d) => self.ui.dialog = Some(d),
             Action::FocusSearch => self.ui.focus_search = true,
+            Action::FocusMain => self.ui.focus_main = true,
             Action::Submit(id, p) => match self.session.run(id, &p) {
                 Ok(_) => self.ui.dialog = None,
                 Err(e) => {
@@ -1008,6 +1052,56 @@ impl MailApp {
             self.ui.language = l.to_string();
         }
     }
+}
+
+/// The toolbar of a message window. Replying and forwarding happen in the main window, so
+/// they close this one; so do Delete and Archive.
+fn window_toolbar(ui: &mut Ui, s: &Session, t: &Tokens, key: &MessageKey, acts: &mut Vec<Action>) {
+    let close = || Action::Run("message.closeWindow", json!({"key": key.to_id()}));
+    let flagged = s.summary(key).is_some_and(|m| m.flags.flagged);
+    let unread = s.summary(key).is_some_and(|m| !m.flags.seen);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        for (id, icon, label) in
+            [("mail.reply", Icon::Reply, "Reply"), ("mail.replyAll", Icon::ReplyAll, "Reply all"), ("mail.forward", Icon::Forward, "Forward")]
+        {
+            if widgets::tool_button(ui, icon, label, t, true).clicked() {
+                acts.push(Action::Open(key.clone()));
+                acts.push(Action::Run(id, json!({})));
+                acts.push(Action::FocusMain);
+                acts.push(close());
+            }
+        }
+        widgets::group_sep(ui, t);
+        for (id, icon, label) in [("mail.delete", Icon::Delete, "Delete"), ("mail.archive", Icon::Archive, "Archive")] {
+            if widgets::tool_button(ui, icon, label, t, true).clicked() {
+                acts.push(Action::Open(key.clone()));
+                acts.push(Action::Run(id, json!({})));
+                acts.push(close());
+            }
+        }
+        if widgets::tool_button(ui, Icon::Move, "Move to", t, true).clicked() {
+            acts.push(Action::Open(key.clone()));
+            acts.push(Action::Dialog(Dialog::move_to()));
+            acts.push(Action::FocusMain);
+            acts.push(close());
+        }
+        widgets::group_sep(ui, t);
+        let (ricon, rlabel) = if unread { (Icon::Read, "Mark read") } else { (Icon::Unread, "Mark unread") };
+        if widgets::tool_button(ui, ricon, rlabel, t, true).clicked() {
+            acts.push(Action::Run("list.select", json!({"key": key.to_id()})));
+            acts.push(Action::Run(if unread { "mail.markRead" } else { "mail.markUnread" }, json!({})));
+        }
+        if widgets::tool_button(ui, Icon::Flag, if flagged { "Unflag" } else { "Flag" }, t, true).clicked() {
+            acts.push(Action::Run("list.select", json!({"key": key.to_id()})));
+            acts.push(Action::Run("mail.flag", json!({"on": !flagged})));
+        }
+        widgets::group_sep(ui, t);
+        if widgets::tool_button(ui, Icon::Print, "Print", t, true).clicked() {
+            acts.push(Action::Open(key.clone()));
+            acts.push(Action::Print);
+        }
+    });
 }
 
 /// The list's title in the interface language.

@@ -65,6 +65,9 @@ pub(crate) fn tour() {
         frame(&ctx, &mut a, vec![]);
         a.session.prefs.reading_pane = ReadingPane::Right;
         a.run("compose.discard", json!({}));
+        a.run("message.popOut", json!({"key": k.to_id()}));
+        frame(&ctx, &mut a, vec![]);
+        a.run("message.closeWindow", json!({"key": k.to_id()}));
         let projects = a.session.folder("sample", "Projects").cloned().unwrap();
         a.session.oauth_available = vec!["google".into()];
         for d in [
@@ -177,6 +180,32 @@ fn jmap_form() -> Dialog {
         f.password = "pw".into();
     }
     d
+}
+
+#[test]
+fn double_clicked_mail_opens_in_its_own_window() {
+    let (mut a, dir) = app("windows");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list[0].key.clone();
+    a.run("message.popOut", json!({"key": k.to_id()}));
+    // Without a native backend the window is drawn inside the main one.
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.windows.len(), 1);
+    // Its toolbar acts on its own message: Reply opens the reply in the main window and closes it.
+    a.act(crate::Action::Open(k.clone()));
+    a.act(crate::Action::Run("mail.reply", json!({})));
+    a.act(crate::Action::Run("message.closeWindow", json!({"key": k.to_id()})));
+    assert!(a.session.compose.is_some() && a.session.windows.is_empty());
+    // Escape closes a window.
+    a.run("compose.discard", json!({}));
+    a.run("message.popOut", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.windows.is_empty(), "Escape closes the window");
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]

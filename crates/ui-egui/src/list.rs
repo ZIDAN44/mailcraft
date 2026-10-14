@@ -291,8 +291,13 @@ fn message_row(
             acts.push(Action::Open(m.key.clone()));
         }
     }
-    if resp.double_clicked() && s.view_role() == Some(FolderRole::Drafts) {
-        acts.push(Action::Open(m.key.clone()));
+    if resp.double_clicked() {
+        // Drafts carry on being written; other mail opens in a window of its own.
+        if s.view_role() == Some(FolderRole::Drafts) {
+            acts.push(Action::Open(m.key.clone()));
+        } else {
+            acts.push(Action::Run("message.popOut", json!({"key": m.key.to_id()})));
+        }
     }
     if resp.drag_started() {
         if !selected {
@@ -319,6 +324,8 @@ fn message_row(
                 ui.close();
             }
         };
+        item(ui, tl!("Open in new window"), Action::Run("message.popOut", json!({"key": key.to_id()})));
+        ui.separator();
         item(ui, tl!("Reply"), Action::Run("mail.reply", json!({})));
         item(ui, tl!("Reply all"), Action::Run("mail.replyAll", json!({})));
         item(ui, tl!("Forward"), Action::Run("mail.forward", json!({})));

@@ -352,6 +352,8 @@
 	JMAP	JMAP
 	JMAP session address	Dirección de la sesión JMAP
 	Server: {url} (JMAP)	Servidor: {url} (JMAP)
+	Open in new window	Abrir en una ventana nueva
+	{subject} – Message	{subject} – Mensaje
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

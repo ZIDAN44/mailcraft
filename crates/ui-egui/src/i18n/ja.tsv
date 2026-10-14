@@ -351,3 +351,5 @@
 	JMAP	JMAP
 	JMAP session address	JMAP セッションのアドレス
 	Server: {url} (JMAP)	サーバー: {url} (JMAP)
+	Open in new window	新しいウィンドウで開く
+	{subject} – Message	{subject} – メッセージ

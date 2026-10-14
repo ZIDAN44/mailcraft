@@ -19,12 +19,32 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
         return;
     }
     let t = st.tokens;
-    let Some(r) = s.reading.clone() else {
+    if s.reading.is_none() {
         empty(ui, &t, if s.list.is_empty() { "" } else { tl!("Select a message to read it") });
         return;
-    };
+    }
+    message(s, st, ui, acts, false);
+}
+
+/// A message in a window of its own. What it asks for applies to that message: it becomes the
+/// open one first.
+pub fn window(s: &mut Session, st: &mut UiState, ui: &mut Ui, w: mailcraft_engine::Reading, acts: &mut Vec<Action>) {
+    let key = w.key.clone();
+    let saved = s.reading.replace(w);
+    let mut mine = Vec::new();
+    message(s, st, ui, &mut mine, true);
+    s.reading = saved;
+    if !mine.is_empty() {
+        acts.push(Action::Open(key));
+        acts.extend(mine);
+    }
+}
+
+fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, in_window: bool) {
+    let t = st.tokens;
+    let Some(r) = s.reading.clone() else { return };
     let summary = s.summary(&r.key).cloned();
-    egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", r.key.to_id())).show(ui, |ui| {
+    egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", in_window, r.key.to_id())).show(ui, |ui| {
         egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: 18, bottom: 24 }).show(ui, |ui| {
             let Some(p) = &r.parsed else {
                 ui.add_space(30.0);
@@ -76,7 +96,7 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
             ui.add_space(10.0);
 
             // Conversation.
-            if r.thread.len() > 1 {
+            if r.thread.len() > 1 && !in_window {
                 thread_list(s, &t, ui, &r.thread, &r.key, acts);
                 ui.add_space(10.0);
             }
@@ -129,7 +149,7 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                         acts.push(Action::Run("mail.delete", json!({})));
                     }
                 });
-            } else {
+            } else if !in_window {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     if widgets::pill_button(ui, Icon::Reply, "Reply", &t).clicked() {
