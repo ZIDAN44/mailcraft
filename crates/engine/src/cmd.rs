@@ -258,6 +258,23 @@ pub fn registry() -> Registry {
         // Accounts
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
             .params(r#"{"email": string, "password"?: string, "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …}"#),
+        CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
+            let email = p::req_str(v, "email")?.trim().to_ascii_lowercase();
+            if !mailcraft_model::addr::is_valid_email(&email) {
+                return Err(CmdError::Params(format!("`{email}` is not an email address")));
+            }
+            match s.discovered.get(&email) {
+                Some(Some((Some(c), source))) => Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "username": c.username})),
+                Some(Some((None, _))) => Ok(json!({"found": false})),
+                Some(None) => Ok(json!({"pending": true})),
+                None => {
+                    s.discovered.insert(email.clone(), None);
+                    s.push_job(mailcraft_model::Job::Discover { email });
+                    Ok(json!({"pending": true}))
+                }
+            }
+        })
+        .params(r#"{"email": string} (asks once; call again for the answer)"#),
         CommandSpec::new("account.remove", "Remove account", "File › Accounts", |s, v| {
             let id = p::req_str(v, "account")?.to_string();
             s.remove_account(&id)

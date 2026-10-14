@@ -100,6 +100,8 @@ pub enum Job {
     FlushOutbox { account: String },
     /// Download a picture a message links to (only after the user asked to see pictures).
     FetchUrl { url: String },
+    /// Look up the server settings for an address (autoconfiguration).
+    Discover { email: String },
 }
 
 impl Job {
@@ -114,7 +116,7 @@ impl Job {
             | Job::Send { account, .. }
             | Job::SaveDraft { account, .. }
             | Job::FlushOutbox { account } => account,
-            Job::FetchUrl { .. } => "",
+            Job::FetchUrl { .. } | Job::Discover { .. } => "",
         }
     }
 }
@@ -203,6 +205,12 @@ pub enum Event {
         url: String,
         data: Option<Vec<u8>>,
         error: Option<String>,
+    },
+    /// Server settings found for an address (`None`: nothing published; guess instead).
+    Discovered {
+        email: String,
+        config: Option<AccountConfig>,
+        source: String,
     },
     /// Something the user should see in the status bar.
     Notice {

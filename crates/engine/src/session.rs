@@ -298,6 +298,8 @@ pub struct Session {
     pub pictures: HashMap<String, Picture>,
     /// Messages whose pictures the user asked to see this time.
     pictures_for: BTreeSet<MessageKey>,
+    /// Server settings looked up per address (lower case): `None` while looking.
+    pub discovered: HashMap<String, Option<(Option<AccountConfig>, String)>>,
     index: Option<SearchIndex>,
     registry: Arc<Registry>,
     next_id: u64,
@@ -337,6 +339,7 @@ impl Session {
             focus_other: false,
             pictures: HashMap::new(),
             pictures_for: BTreeSet::new(),
+            discovered: HashMap::new(),
             index: None,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -1855,6 +1858,9 @@ impl Session {
                 self.after_outbox_change();
             }
             Event::OpFailed { error, .. } => self.notice(format!("The server refused a change: {error}"), true),
+            Event::Discovered { email, config, source } => {
+                self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config, source)));
+            }
             Event::Fetched { url, data, error } => {
                 let p = match (data, error) {
                     (Some(d), _) => Picture::Ready(Arc::new(d)),

@@ -348,7 +348,13 @@ impl MailApp {
         }
         let unread = self.session.inbox_unread();
         let view = self.session.view_title();
-        let title = if unread > 0 { format!("({unread}) {view} – {}", self.ui.title_base) } else { format!("{view} – {}", self.ui.title_base) };
+        let title = if self.session.view == mailcraft_engine::View::Empty {
+            self.ui.title_base.clone()
+        } else if unread > 0 {
+            format!("({unread}) {view} – {}", self.ui.title_base)
+        } else {
+            format!("{view} – {}", self.ui.title_base)
+        };
         if title != self.ui.title_shown {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.ui.title_shown = title;

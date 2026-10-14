@@ -187,6 +187,24 @@ fn run() -> Result<(), String> {
                     p[key] = json!(v);
                 }
             }
+            // No servers given: look them up (the domain's autoconfig, the ISP database, DNS).
+            if args.opt("--imap").is_none() && args.opt("--smtp").is_none() {
+                match mailcraft_net::autoconfig::discover(&email) {
+                    Some(f) => {
+                        eprintln!("settings found: {}", f.source);
+                        p["imapHost"] = json!(f.config.imap.host);
+                        p["imapPort"] = json!(f.config.imap.port);
+                        p["imapSecurity"] = json!(f.config.imap.security.code());
+                        p["smtpHost"] = json!(f.config.smtp.host);
+                        p["smtpPort"] = json!(f.config.smtp.port);
+                        p["smtpSecurity"] = json!(f.config.smtp.security.code());
+                        if args.opt("--username").is_none() {
+                            p["username"] = json!(f.config.username);
+                        }
+                    }
+                    None => eprintln!("no published settings for this domain: guessing (check with `accounts`)"),
+                }
+            }
             for (flag, host, port) in [("--imap", "imapHost", "imapPort"), ("--smtp", "smtpHost", "smtpPort")] {
                 if let Some(v) = args.opt(flag) {
                     let (h, n) = v.rsplit_once(':').ok_or(format!("{flag} wants HOST:PORT"))?;

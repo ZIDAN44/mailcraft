@@ -25,6 +25,9 @@ pub struct AccountForm {
     pub smtp_port: String,
     pub smtp_security: Security,
     pub error: Option<String>,
+    /// The address whose looked-up settings are filled in, and where they came from.
+    pub found_for: Option<String>,
+    pub found_source: Option<String>,
 }
 
 impl AccountForm {
@@ -396,6 +399,27 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     ui.add(egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com").min_size(vec2(300.0, 26.0)).desired_width(300.0));
                 if r.changed() && !f.servers_edited {
                     f.guess();
+                    f.found_for = None;
+                    f.found_source = None;
+                }
+                // Look the settings up once the address is typed (when the box is left).
+                let email = f.email.trim().to_ascii_lowercase();
+                if (r.lost_focus() || f.advanced) && mailcraft_engine::model::addr::is_valid_email(&email) && !s.discovered.contains_key(&email) {
+                    acts.push(Action::Run("account.discover", json!({"email": email})));
+                }
+                if !f.servers_edited
+                    && f.found_for.as_deref() != Some(email.as_str())
+                    && let Some(Some((Some(c), source))) = s.discovered.get(&email)
+                {
+                    f.imap_host = c.imap.host.clone();
+                    f.imap_port = c.imap.port.to_string();
+                    f.imap_security = c.imap.security;
+                    f.smtp_host = c.smtp.host.clone();
+                    f.smtp_port = c.smtp.port.to_string();
+                    f.smtp_security = c.smtp.security;
+                    f.username = if c.username.eq_ignore_ascii_case(&email) { String::new() } else { c.username.clone() };
+                    f.found_for = Some(email.clone());
+                    f.found_source = Some(source.clone());
                 }
                 ui.end_row();
                 ui.label("Your name");
@@ -457,6 +481,26 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         .color(t.faint)
                         .small(),
                 );
+            }
+            let email = f.email.trim().to_ascii_lowercase();
+            match (&f.found_source, s.discovered.get(&email)) {
+                (Some(src), _) if f.found_for.as_deref() == Some(email.as_str()) => {
+                    ui.label(RichText::new(format!("Settings found: {src}")).color(t.ok).small());
+                }
+                (_, Some(None)) => {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(RichText::new("Looking up the server settings…").color(t.faint).small());
+                    });
+                }
+                (_, Some(Some((None, _)))) => {
+                    ui.label(
+                        RichText::new("No published settings: the usual server names are filled in. Check them under Server settings.")
+                            .color(t.faint)
+                            .small(),
+                    );
+                }
+                _ => {}
             }
             if let Some(e) = &f.error {
                 ui.add_space(6.0);

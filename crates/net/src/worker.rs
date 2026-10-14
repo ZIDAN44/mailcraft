@@ -137,6 +137,20 @@ impl Pool {
     pub fn submit(&mut self, job: Job) {
         match job {
             Job::FetchUrl { url } => self.fetch_url(url),
+            Job::Discover { email } => {
+                let sink = self.sink.clone();
+                let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
+                    let found = crate::autoconfig::discover(&email);
+                    let (config, source) = match found {
+                        Some(f) => (Some(f.config), f.source),
+                        None => (None, String::new()),
+                    };
+                    sink.emit(Event::Discovered { email, config, source });
+                });
+                if let Err(e) = spawned {
+                    log::warn!("autoconfiguration: {e}");
+                }
+            }
             Job::Start { account, password } => self.start(account, password),
             Job::Remove { account } => {
                 self.stop(&account);
@@ -611,7 +625,7 @@ impl Worker {
                 }
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
-            Job::FetchUrl { .. } => {}
+            Job::FetchUrl { .. } | Job::Discover { .. } => {}
             Job::Start { .. } | Job::Remove { .. } => {}
         }
     }

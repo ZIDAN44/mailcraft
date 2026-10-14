@@ -316,6 +316,21 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn server_settings_are_looked_up_once() {
+    let mut s = Session::blank();
+    assert!(s.run("account.discover", &json!({"email": "nope"})).is_err());
+    assert_eq!(s.run("account.discover", &json!({"email": "Zoe@Example.org"})).unwrap()["pending"], true);
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Discover { email }] if email == "zoe@example.org"));
+    assert_eq!(s.run("account.discover", &json!({"email": "zoe@example.org"})).unwrap()["pending"], true);
+    assert!(s.take_jobs().is_empty(), "asked once");
+    let mut c = mailcraft_model::AccountConfig::guess("zoe@example.org");
+    c.imap.host = "imap.example.org".into();
+    s.apply(Event::Discovered { email: "zoe@example.org".into(), config: Some(c), source: "example.org".into() });
+    let r = s.run("account.discover", &json!({"email": "zoe@example.org"})).unwrap();
+    assert_eq!((r["found"].as_bool(), r["imap"]["host"].as_str()), (Some(true), Some("imap.example.org")));
+}
+
+#[test]
 fn formatted_messages_go_out_as_html_with_pictures() {
     let mut s = sample_session("rich");
     s.run("mail.new", &json!({})).unwrap();

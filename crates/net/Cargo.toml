@@ -18,3 +18,7 @@ rustls = { workspace = true }
 webpki-roots = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# The system's DNS resolvers (account autoconfiguration).
+ipconfig = "0.3"
