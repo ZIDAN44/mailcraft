@@ -1,7 +1,11 @@
 //! Workspace tooling: `cargo xtask <command>`.
 //!
-//! Pure Rust (std + serde_json). External tools (`cargo`, `git`) run through
+//! Pure Rust (std, serde_json, png). External tools (`cargo`, `git`) run through
 //! `std::process::Command`.
+
+mod ico;
+mod icons;
+mod version;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -16,6 +20,9 @@ commands:
   layers   enforce the crate layering (docs/architecture.md)
   assets   check that every asset file is attributed in ATTRIBUTION.md
   wasm     cargo check --target wasm32-unknown-unknown for the portable crates
+  icons    render the app icon into assets/app-icon/ (PNGs, SVG, .ico, .icns)
+  ico      pack PNGs into a Windows .ico: ico <out.ico> <in.png>…
+  version  print the workspace version; `version set X.Y.Z[-pre]` changes it (release builds)
 ";
 
 /// Crate layers. A crate may depend only on crates in lower layers.
@@ -180,6 +187,9 @@ fn main() -> ExitCode {
         Some("layers") => cmd_layers(),
         Some("assets") => cmd_assets(),
         Some("wasm") => cmd_wasm(),
+        Some("icons") => icons::run(&root()),
+        Some("ico") => ico::run(&args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),
+        Some("version") => version::run(&root(), &args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),
         _ => {
             print!("{USAGE}");
             Ok(())

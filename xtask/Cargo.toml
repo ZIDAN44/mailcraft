@@ -7,3 +7,5 @@ publish = false
 
 [dependencies]
 serde_json = { workspace = true }
+# PNG encoding for `cargo xtask icons`.
+png = "0.18"
