@@ -56,6 +56,22 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                     icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
                 }
             });
+            if let Some(m) = &summary {
+                let cats = s.categories_of(m);
+                if !cats.is_empty() {
+                    ui.horizontal_wrapped(|ui| {
+                        for c in cats {
+                            let color = theme::category_color(c.color, t.dark);
+                            egui::Frame::new().fill(color.gamma_multiply(0.18)).corner_radius(10).inner_margin(Margin::symmetric(8, 2)).show(
+                                ui,
+                                |ui| {
+                                    ui.label(RichText::new(&c.name).color(color).small());
+                                },
+                            );
+                        }
+                    });
+                }
+            }
             ui.add_space(10.0);
 
             // Conversation.

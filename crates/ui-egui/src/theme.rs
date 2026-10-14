@@ -117,6 +117,22 @@ pub fn account_color(i: u8) -> Color32 {
     C.get(usize::from(i) % C.len()).copied().unwrap_or(APP_COLOR)
 }
 
+/// Category colours (the category's `color` index).
+pub fn category_color(i: u8, dark: bool) -> Color32 {
+    const C: [Color32; 8] = [
+        Color32::from_rgb(0xD1, 0x34, 0x38),
+        Color32::from_rgb(0xE0, 0x7A, 0x1F),
+        Color32::from_rgb(0x2E, 0x8B, 0x57),
+        Color32::from_rgb(0x2F, 0x6D, 0xD4),
+        Color32::from_rgb(0x8A, 0x4F, 0xC7),
+        Color32::from_rgb(0xC9, 0xA2, 0x00),
+        Color32::from_rgb(0x1C, 0x95, 0x9F),
+        Color32::from_rgb(0xB0, 0x4A, 0x8C),
+    ];
+    let c = C.get(usize::from(i) % C.len()).copied().unwrap_or(APP_COLOR);
+    if dark { c.gamma_multiply(1.15) } else { c }
+}
+
 /// Apply the tokens to egui's style.
 pub fn apply(ctx: &egui::Context, t: &Tokens) {
     let mut v = if t.dark { Visuals::dark() } else { Visuals::light() };

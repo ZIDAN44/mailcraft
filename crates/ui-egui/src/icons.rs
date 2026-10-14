@@ -38,6 +38,9 @@ pub enum Icon {
     Person,
     Warning,
     Outbox,
+    Pin,
+    Clock,
+    Tag,
 }
 
 struct Pen<'a> {
@@ -232,6 +235,18 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Person => {
             pen.circle(8.0, 5.0, 3.0);
             pen.arc(8.0, 15.0, 6.0, PI, 2.0 * PI);
+        }
+        Icon::Pin => {
+            pen.closed(&[(5.5, 2.0), (10.5, 2.0), (10.0, 6.5), (12.5, 9.0), (3.5, 9.0), (6.0, 6.5)]);
+            pen.line(&[(8.0, 9.0), (8.0, 14.5)]);
+        }
+        Icon::Clock => {
+            pen.circle(8.0, 8.5, 6.0);
+            pen.line(&[(8.0, 5.0), (8.0, 8.5), (10.5, 10.0)]);
+        }
+        Icon::Tag => {
+            pen.closed(&[(1.5, 2.5), (8.0, 2.5), (14.5, 9.0), (9.0, 14.5), (1.5, 8.0)]);
+            pen.circle(5.0, 6.0, 1.2);
         }
         Icon::Outbox => {
             pen.closed(&[(1.5, 9.0), (4.0, 4.5), (5.5, 4.5)]);

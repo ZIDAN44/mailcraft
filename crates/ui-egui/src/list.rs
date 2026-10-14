@@ -32,6 +32,26 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             ui.label(RichText::new(s.view_title()).font(theme::bold(18.0)).color(t.text));
         });
         ui.add_space(4.0);
+        if s.focus_split() {
+            ui.horizontal(|ui| {
+                for (other, label) in [(false, "Focused"), (true, "Other")] {
+                    let on = s.focus_other == other;
+                    let text =
+                        RichText::new(label).color(if on { t.text } else { t.dim }).font(if on { theme::bold(14.0) } else { theme::regular(14.0) });
+                    let r = ui.add(egui::Button::new(text).frame(false));
+                    if on {
+                        ui.painter().line_segment(
+                            [pos2(r.rect.left() + 2.0, r.rect.bottom() + 1.0), pos2(r.rect.right() - 2.0, r.rect.bottom() + 1.0)],
+                            egui::Stroke::new(2.0, t.accent),
+                        );
+                    }
+                    if r.clicked() && !on {
+                        acts.push(Action::Run("list.focusTab", json!({"value": if other { "other" } else { "focused" }})));
+                    }
+                }
+            });
+            ui.add_space(2.0);
+        }
         ui.horizontal(|ui| {
             for f in ListFilter::ALL {
                 let on = s.filter == f;
@@ -190,6 +210,9 @@ fn message_row(
     };
     let hovered = resp.hovered();
     if !hovered {
+        if m.flags.pinned() {
+            marker(Icon::Pin, t.accent, &mut icons_w);
+        }
         if m.flags.flagged {
             marker(Icon::Flag, t.flag, &mut icons_w);
         }
@@ -200,6 +223,13 @@ fn message_row(
             marker(Icon::Reply, t.faint, &mut icons_w);
         } else if m.flags.forwarded {
             marker(Icon::Forward, t.faint, &mut icons_w);
+        }
+    }
+    // Categories: a coloured dot each, before the markers.
+    if !hovered {
+        for c in s.categories_of(m).into_iter().rev().take(4) {
+            icons_w += 13.0;
+            p.circle_filled(egui::pos2(right - icons_w + 7.0, line2 + 8.0), 5.0, theme::category_color(c.color, t.dark));
         }
     }
     let subject = if m.subject.is_empty() { "(no subject)".to_string() } else { m.subject.clone() };
@@ -298,6 +328,8 @@ fn message_row(
         item(ui, "Archive", Action::Run("mail.archive", json!({})));
         item(ui, "Report junk", Action::Run("mail.junk", json!({})));
         item(ui, "Delete", Action::Run("mail.delete", json!({})));
+        ui.separator();
+        crate::organize::context_items(ui, s, t, acts, flags.pinned());
     });
     // Reply actions need the message open.
     if resp.secondary_clicked() && !s.reading.as_ref().is_some_and(|r| r.key == m.key) {

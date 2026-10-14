@@ -72,6 +72,9 @@ fn renders_every_state_without_panicking() {
             Dialog::rename_folder(&projects),
             Dialog::move_folder(&projects),
             Dialog::delete_folder(&a.session, &projects),
+            Dialog::NewCategory { name: "Clients".into(), color: 3, error: Some("taken".into()) },
+            Dialog::Rules,
+            Dialog::rule_from("zoe@studio.example", "x"),
         ] {
             a.ui.dialog = Some(d);
             frame(&ctx, &mut a, vec![]);
@@ -240,6 +243,38 @@ fn new_mail_is_announced_and_counted_in_the_title() {
     let got = shown.lock().unwrap().clone();
     assert_eq!(got[0], ("Zoe Park".to_string(), "Lunch?".to_string()));
     assert_eq!(got[1], ("3 new messages".to_string(), "From Ann and Bo".to_string()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn organising_renders_and_rules_save() {
+    let (mut a, dir) = app("organise");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list[1].key.clone();
+    a.run("list.select", json!({"key": k.to_id()}));
+    a.run("mail.categorize", json!({"category": "Work"}));
+    a.run("mail.pin", json!({}));
+    a.run("view.focused", json!({"on": true}));
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    a.run("list.focusTab", json!({"value": "other"}));
+    frame(&ctx, &mut a, vec![]);
+    // The rule editor saves a rule; the Rules dialog lists it.
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", ""));
+    frame(&ctx, &mut a, vec![]);
+    if let Some(Dialog::EditRule(f)) = a.ui.dialog.as_mut() {
+        f.action = crate::dialogs::RuleDo::Categorize;
+        f.target = "Work".into();
+    }
+    a.act(crate::Action::Submit(
+        "rules.set",
+        json!({"rules": [{"name": "Zoe", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "categorize", "value": "Work"}]}]}),
+    ));
+    assert_eq!(a.session.rules.len(), 1);
+    a.ui.dialog = Some(Dialog::Rules);
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
 

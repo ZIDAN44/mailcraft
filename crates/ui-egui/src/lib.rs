@@ -11,6 +11,7 @@ mod dialogs;
 pub mod icons;
 mod list;
 mod nav;
+mod organize;
 mod reading;
 pub mod theme;
 mod widgets;
@@ -179,6 +180,8 @@ impl MailApp {
         for e in self.backend.poll() {
             self.session.apply(e);
         }
+        // Snoozed mail that is due comes back.
+        self.session.tick();
     }
 
     fn flush_jobs(&mut self) {
@@ -611,6 +614,15 @@ impl MailApp {
                     if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled("mail.flag")).on_hover_text("Flag / Unflag (Insert)").clicked() {
                         acts.push(Action::Run("mail.flag", json!({})));
                     }
+                    let sel = !s.selection.is_empty();
+                    let r = widgets::tool_button(ui, Icon::Tag, "Categorize", &t, sel);
+                    egui::Popup::menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));
+                    let pinned = s.selected().first().is_some_and(|m| m.flags.pinned());
+                    if widgets::tool_button(ui, Icon::Pin, if pinned { "Unpin" } else { "Pin" }, &t, sel).clicked() {
+                        acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
+                    }
+                    let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
+                    egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
                     widgets::group_sep(ui, &t);
                     if widgets::tool_button(ui, Icon::Sync, "Send / Receive", &t, enabled("mail.sync"))
                         .on_hover_text("Send / Receive all folders (F9)")
@@ -627,6 +639,13 @@ impl MailApp {
                         }
                     }
                     widgets::group_sep(ui, &t);
+                    if ui
+                        .selectable_label(s.prefs.focused_inbox, "Focused Inbox")
+                        .on_hover_text("Put newsletters and automatic mail in Other")
+                        .clicked()
+                    {
+                        acts.push(Action::Run("view.focused", json!({})));
+                    }
                     if ui.selectable_label(s.prefs.conversations, "Conversations").on_hover_text("Group messages by conversation").clicked() {
                         acts.push(Action::Run("view.conversations", json!({})));
                     }

@@ -2,7 +2,8 @@
 
 use egui::{Margin, RichText, Ui, vec2};
 use mailcraft_engine::Session;
-use mailcraft_engine::model::{AccountConfig, Folder, Security};
+use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
+use mailcraft_engine::model::{AccountConfig, Folder, FolderRole, Security};
 use serde_json::json;
 
 use crate::theme::{self, Tokens};
@@ -99,6 +100,176 @@ pub enum Dialog {
         permanent: bool,
         error: Option<String>,
     },
+    NewCategory {
+        name: String,
+        color: u8,
+        error: Option<String>,
+    },
+    Rules,
+    EditRule(Box<RuleForm>),
+}
+
+/// What the rule editor offers: one test and one action (rules made elsewhere can have more).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuleTest {
+    From,
+    To,
+    Subject,
+    AnyText,
+    HasAttachment,
+    Bulk,
+}
+
+impl RuleTest {
+    const ALL: [RuleTest; 6] = [RuleTest::From, RuleTest::To, RuleTest::Subject, RuleTest::AnyText, RuleTest::HasAttachment, RuleTest::Bulk];
+    fn label(self) -> &'static str {
+        match self {
+            RuleTest::From => "From contains",
+            RuleTest::To => "To or Cc contains",
+            RuleTest::Subject => "Subject contains",
+            RuleTest::AnyText => "Sender, recipients or subject contain",
+            RuleTest::HasAttachment => "Has attachments",
+            RuleTest::Bulk => "Is a newsletter or list mail",
+        }
+    }
+    fn needs_text(self) -> bool {
+        !matches!(self, RuleTest::HasAttachment | RuleTest::Bulk)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuleDo {
+    MoveTo,
+    Archive,
+    Delete,
+    Categorize,
+    MarkRead,
+    Flag,
+    Pin,
+}
+
+impl RuleDo {
+    const ALL: [RuleDo; 7] = [RuleDo::MoveTo, RuleDo::Archive, RuleDo::Delete, RuleDo::Categorize, RuleDo::MarkRead, RuleDo::Flag, RuleDo::Pin];
+    fn label(self) -> &'static str {
+        match self {
+            RuleDo::MoveTo => "Move to folder",
+            RuleDo::Archive => "Archive",
+            RuleDo::Delete => "Delete",
+            RuleDo::Categorize => "Categorize",
+            RuleDo::MarkRead => "Mark as read",
+            RuleDo::Flag => "Flag",
+            RuleDo::Pin => "Pin",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RuleForm {
+    /// The rule being changed (`None`: a new one).
+    pub index: Option<usize>,
+    pub name: String,
+    pub test: RuleTest,
+    pub text: String,
+    pub action: RuleDo,
+    /// A folder path (`MoveTo`) or a category name (`Categorize`).
+    pub target: String,
+    /// The account whose folders `MoveTo` offers (and the only one it applies to).
+    pub account: Option<String>,
+    pub stop: bool,
+    pub error: Option<String>,
+}
+
+impl RuleForm {
+    fn to_rule(&self) -> Result<Rule, String> {
+        if self.name.trim().is_empty() {
+            return Err("Give the rule a name".into());
+        }
+        if self.test.needs_text() && self.text.trim().is_empty() {
+            return Err("Say what to look for".into());
+        }
+        let t = self.text.trim().to_string();
+        let condition = match self.test {
+            RuleTest::From => Condition::From(t),
+            RuleTest::To => Condition::To(t),
+            RuleTest::Subject => Condition::Subject(t),
+            RuleTest::AnyText => Condition::AnyText(t),
+            RuleTest::HasAttachment => Condition::HasAttachment,
+            RuleTest::Bulk => Condition::Bulk,
+        };
+        let action = match self.action {
+            RuleDo::MoveTo if self.target.is_empty() => return Err("Pick a folder".into()),
+            RuleDo::MoveTo => RuleAction::MoveTo(self.target.clone()),
+            RuleDo::Archive => RuleAction::MoveToRole(FolderRole::Archive),
+            RuleDo::Delete => RuleAction::Delete,
+            RuleDo::Categorize if self.target.is_empty() => return Err("Pick a category".into()),
+            RuleDo::Categorize => RuleAction::Categorize(self.target.clone()),
+            RuleDo::MarkRead => RuleAction::MarkRead,
+            RuleDo::Flag => RuleAction::Flag,
+            RuleDo::Pin => RuleAction::Pin,
+        };
+        Ok(Rule {
+            name: self.name.trim().to_string(),
+            enabled: true,
+            account: if self.action == RuleDo::MoveTo { self.account.clone() } else { None },
+            conditions: vec![condition],
+            match_all: true,
+            actions: vec![action],
+            stop: self.stop,
+        })
+    }
+
+    fn from_rule(index: usize, r: &Rule) -> RuleForm {
+        let (test, text) = match r.conditions.first() {
+            Some(Condition::From(t)) => (RuleTest::From, t.clone()),
+            Some(Condition::To(t)) => (RuleTest::To, t.clone()),
+            Some(Condition::Subject(t)) => (RuleTest::Subject, t.clone()),
+            Some(Condition::AnyText(t)) => (RuleTest::AnyText, t.clone()),
+            Some(Condition::HasAttachment) => (RuleTest::HasAttachment, String::new()),
+            Some(Condition::Bulk) | None => (RuleTest::Bulk, String::new()),
+        };
+        let (action, target) = match r.actions.first() {
+            Some(RuleAction::MoveTo(f)) => (RuleDo::MoveTo, f.clone()),
+            Some(RuleAction::MoveToRole(FolderRole::Trash)) | Some(RuleAction::Delete) => (RuleDo::Delete, String::new()),
+            Some(RuleAction::MoveToRole(_)) => (RuleDo::Archive, String::new()),
+            Some(RuleAction::Categorize(c)) => (RuleDo::Categorize, c.clone()),
+            Some(RuleAction::MarkRead) => (RuleDo::MarkRead, String::new()),
+            Some(RuleAction::Flag) => (RuleDo::Flag, String::new()),
+            Some(RuleAction::Pin) | None => (RuleDo::Pin, String::new()),
+        };
+        RuleForm { index: Some(index), name: r.name.clone(), test, text, action, target, account: r.account.clone(), stop: r.stop, error: None }
+    }
+}
+
+/// One line describing a rule.
+fn describe(r: &Rule) -> String {
+    let cond = r
+        .conditions
+        .iter()
+        .map(|c| match c {
+            Condition::From(t) => format!("from “{t}”"),
+            Condition::To(t) => format!("to “{t}”"),
+            Condition::Subject(t) => format!("subject has “{t}”"),
+            Condition::AnyText(t) => format!("mentions “{t}”"),
+            Condition::HasAttachment => "has attachments".into(),
+            Condition::Bulk => "is list mail".into(),
+        })
+        .collect::<Vec<_>>()
+        .join(if r.match_all { " and " } else { " or " });
+    let act = r
+        .actions
+        .iter()
+        .map(|a| match a {
+            RuleAction::MoveTo(f) => format!("move to {}", mailcraft_engine::model::utf7::decode(f)),
+            RuleAction::MoveToRole(role) => format!("move to {}", role.label().unwrap_or("folder")),
+            RuleAction::MarkRead => "mark read".into(),
+            RuleAction::Flag => "flag".into(),
+            RuleAction::Pin => "pin".into(),
+            RuleAction::Categorize(c) => format!("categorize {c}"),
+            RuleAction::Delete => "delete".into(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("If it {cond}: {act}")
 }
 
 impl Dialog {
@@ -127,9 +298,28 @@ impl Dialog {
     pub fn set_error(&mut self, e: String) {
         match self {
             Dialog::AddAccount(f) => f.error = Some(e),
-            Dialog::FolderName { error, .. } | Dialog::MoveFolder { error, .. } | Dialog::DeleteFolder { error, .. } => *error = Some(e),
+            Dialog::FolderName { error, .. }
+            | Dialog::MoveFolder { error, .. }
+            | Dialog::DeleteFolder { error, .. }
+            | Dialog::NewCategory { error, .. } => *error = Some(e),
+            Dialog::EditRule(f) => f.error = Some(e),
             _ => {}
         }
+    }
+
+    /// A new rule for mail like this (from its sender, into Archive).
+    pub fn rule_from(sender: &str, _subject: &str) -> Dialog {
+        Dialog::EditRule(Box::new(RuleForm {
+            index: None,
+            name: format!("Mail from {sender}"),
+            test: RuleTest::From,
+            text: sender.to_string(),
+            action: RuleDo::Archive,
+            target: String::new(),
+            account: None,
+            stop: false,
+            error: None,
+        }))
     }
 
     pub fn new_folder(account: &str, parent: Option<&str>) -> Dialog {
@@ -473,6 +663,175 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             }
             !cancel
         }
+        Dialog::NewCategory { name, color, error } => {
+            ui.set_width(340.0);
+            title(ui, t, "New category");
+            let r = ui.add(egui::TextEdit::singleline(name).hint_text("Name").desired_width(f32::INFINITY));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            ui.horizontal(|ui| {
+                for c in 0..8u8 {
+                    let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::click());
+                    ui.painter().circle_filled(rect.center(), 8.0, theme::category_color(c, t.dark));
+                    if *color == c {
+                        ui.painter().circle_stroke(rect.center(), 10.0, egui::Stroke::new(2.0, t.text));
+                    }
+                    if resp.clicked() {
+                        *color = c;
+                    }
+                }
+            });
+            if let Some(e) = error {
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let ready = !name.trim().is_empty();
+            let (ok, cancel) = buttons(ui, t, "Create", ready);
+            if (ok || enter) && ready {
+                *error = None;
+                acts.push(Action::Submit("category.create", json!({"name": name.trim(), "color": color})));
+            }
+            !cancel
+        }
+        Dialog::Rules => {
+            ui.set_width(520.0);
+            title(ui, t, "Rules");
+            ui.label(RichText::new("Rules run on new mail as it arrives in an Inbox, in this order.").color(t.dim).small());
+            ui.add_space(6.0);
+            if s.rules.is_empty() {
+                ui.label(RichText::new("No rules yet.").color(t.faint));
+            }
+            let mut rules = s.rules.clone();
+            let mut changed = false;
+            let mut remove = None;
+            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                for (i, r) in rules.iter_mut().enumerate() {
+                    egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(8)).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            changed |= ui.checkbox(&mut r.enabled, "").on_hover_text("On / off").changed();
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new(&r.name).strong());
+                                ui.label(RichText::new(describe(r)).color(t.dim).small());
+                            });
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.small_button("Delete").clicked() {
+                                    remove = Some(i);
+                                }
+                                if ui.small_button("Edit").clicked() {
+                                    acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
+                                }
+                                if ui.small_button("Run now").on_hover_text("Run on the folder on screen").clicked() {
+                                    acts.push(Action::Run("rules.run", json!({"index": i})));
+                                }
+                            });
+                        });
+                    });
+                    ui.add_space(4.0);
+                }
+            });
+            if let Some(i) = remove {
+                acts.push(Action::Run("rules.delete", json!({"index": i})));
+            } else if changed {
+                acts.push(Action::Run("rules.set", json!({"rules": rules})));
+            }
+            ui.add_space(6.0);
+            if ui.button("New rule…").clicked() {
+                acts.push(Action::Dialog(Dialog::rule_from("", "")));
+            }
+            ui.add_space(6.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button("Close").clicked()).inner
+        }
+        Dialog::EditRule(f) => {
+            ui.set_width(440.0);
+            title(ui, t, if f.index.is_some() { "Edit rule" } else { "New rule" });
+            egui::Grid::new("rule").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
+                ui.label("Name");
+                ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(300.0));
+                ui.end_row();
+                ui.label("When mail");
+                egui::ComboBox::from_id_salt("rule-test").width(300.0).selected_text(f.test.label()).show_ui(ui, |ui| {
+                    for x in RuleTest::ALL {
+                        ui.selectable_value(&mut f.test, x, x.label());
+                    }
+                });
+                ui.end_row();
+                if f.test.needs_text() {
+                    ui.label("");
+                    ui.add(egui::TextEdit::singleline(&mut f.text).hint_text("Text or address").desired_width(300.0));
+                    ui.end_row();
+                }
+                ui.label("Then");
+                egui::ComboBox::from_id_salt("rule-do").width(300.0).selected_text(f.action.label()).show_ui(ui, |ui| {
+                    for x in RuleDo::ALL {
+                        if ui.selectable_value(&mut f.action, x, x.label()).changed() {
+                            f.target.clear();
+                        }
+                    }
+                });
+                ui.end_row();
+                match f.action {
+                    RuleDo::MoveTo => {
+                        ui.label("Folder");
+                        let shown = f
+                            .account
+                            .as_deref()
+                            .and_then(|a| s.folder(a, &f.target))
+                            .map(|x| format!("{} ({})", x.display_name(), s.account(&x.account).map(|a| a.config.email.as_str()).unwrap_or_default()))
+                            .unwrap_or_else(|| "Choose…".into());
+                        egui::ComboBox::from_id_salt("rule-folder").width(300.0).selected_text(shown).show_ui(ui, |ui| {
+                            for a in &s.accounts {
+                                ui.label(RichText::new(&a.config.email).small().color(t.faint));
+                                for x in a.folders.iter().filter(|x| x.selectable) {
+                                    let on = f.account.as_deref() == Some(a.config.id.as_str()) && f.target == x.path;
+                                    if ui.selectable_label(on, format!("{}{}", "    ".repeat(x.depth()), x.display_name())).clicked() {
+                                        f.account = Some(a.config.id.clone());
+                                        f.target = x.path.clone();
+                                    }
+                                }
+                            }
+                        });
+                        ui.end_row();
+                    }
+                    RuleDo::Categorize => {
+                        ui.label("Category");
+                        let shown = if f.target.is_empty() { "Choose…".to_string() } else { f.target.clone() };
+                        egui::ComboBox::from_id_salt("rule-cat").width(300.0).selected_text(shown).show_ui(ui, |ui| {
+                            for c in &s.prefs.categories {
+                                ui.selectable_value(&mut f.target, c.name.clone(), &c.name);
+                            }
+                        });
+                        ui.end_row();
+                    }
+                    _ => {}
+                }
+            });
+            ui.checkbox(&mut f.stop, "Don't run later rules on mail this one matches");
+            if let Some(e) = &f.error {
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let (ok, cancel) = buttons(ui, t, "Save", true);
+            if ok {
+                match f.to_rule() {
+                    Ok(rule) => {
+                        let mut rules = s.rules.clone();
+                        match f.index.filter(|i| *i < rules.len()) {
+                            Some(i) => {
+                                let enabled = rules.get(i).is_none_or(|r| r.enabled);
+                                if let Some(slot) = rules.get_mut(i) {
+                                    *slot = Rule { enabled, ..rule };
+                                }
+                            }
+                            None => rules.push(rule),
+                        }
+                        f.error = None;
+                        acts.push(Action::Submit("rules.set", json!({"rules": rules})));
+                    }
+                    Err(e) => f.error = Some(e),
+                }
+            }
+            !cancel
+        }
         Dialog::Settings => {
             ui.set_width(460.0);
             title(ui, t, "Accounts");
@@ -512,6 +871,13 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             let mut notify = s.prefs.notify;
             if ui.checkbox(&mut notify, "Show a desktop notification when new mail arrives").changed() {
                 acts.push(Action::Run("view.notifications", json!({"on": notify})));
+            }
+            let mut focused = s.prefs.focused_inbox;
+            if ui.checkbox(&mut focused, "Focused Inbox: put newsletters and automatic mail in Other").changed() {
+                acts.push(Action::Run("view.focused", json!({"on": focused})));
+            }
+            if ui.button("Rules…").clicked() {
+                acts.push(Action::Dialog(Dialog::Rules));
             }
             let mut confirm = s.prefs.confirm_permanent_delete;
             if ui.checkbox(&mut confirm, "Ask before deleting for good").changed() {
