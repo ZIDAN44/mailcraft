@@ -895,3 +895,99 @@ fn remote_accounts_go_through_jobs_and_events() {
     assert!(s2.accounts.is_empty());
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn calendar_events_on_this_computer() {
+    let mut s = sample_session("calendar");
+    s.run("view.module", &json!({"name": "calendar"})).unwrap();
+    s.run("calendar.view", &json!({"mode": "week"})).unwrap();
+    let week: Vec<Value> = s.run("calendar.events", &json!({})).unwrap().as_array().unwrap().clone();
+    let titles: Vec<&str> = week.iter().filter_map(|e| e["summary"].as_str()).collect();
+    assert_eq!(titles.iter().filter(|t| **t == "Team stand-up").count(), 3, "Monday, Wednesday and Friday: {titles:?}");
+    assert!(titles.contains(&"Storyboard review"));
+    let mix = week
+        .iter()
+        .chain(&s.run("calendar.events", &json!({"from": "2026-10-01", "to": "2026-11-30"})).unwrap().as_array().unwrap().clone())
+        .find(|e| e["summary"] == "Sound mix playback")
+        .cloned()
+        .unwrap();
+    assert_eq!(mix["needsReply"], true, "an invitation awaiting a reply");
+
+    // A new event at a local time; the clock is UTC here.
+    let uid = s
+        .run("event.create", &json!({"summary": "Colour grading", "start": "2026-10-20T10:00", "end": "2026-10-20T12:30", "location": "Suite B"}))
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let day = s.run("calendar.events", &json!({"from": "2026-10-20", "to": "2026-10-20"})).unwrap();
+    let e = day.as_array().unwrap().iter().find(|e| e["uid"] == uid.as_str()).cloned().unwrap();
+    assert_eq!(e["end"].as_i64().unwrap() - e["start"].as_i64().unwrap(), 9000);
+    assert!(s.run("event.create", &json!({"summary": " ", "start": "2026-10-20"})).is_err(), "a title is needed");
+    assert!(s.run("event.create", &json!({"summary": "x", "start": "2026-10-20T10:00", "end": "2026-10-20T09:00"})).is_err());
+    assert!(s.run("event.create", &json!({"summary": "x", "start": "20 October"})).is_err());
+
+    // Make it weekly, skip one week, then move the whole series.
+    s.run("event.update", &json!({"uid": uid, "repeat": "weekly"})).unwrap();
+    let span = json!({"from": "2026-10-20", "to": "2026-11-10"});
+    let count = |s: &mut Session| s.run("calendar.events", &span).unwrap().as_array().unwrap().iter().filter(|e| e["uid"] == uid.as_str()).count();
+    assert_eq!(count(&mut s), 4);
+    let second =
+        s.run("calendar.events", &span).unwrap().as_array().unwrap().iter().filter(|e| e["uid"] == uid.as_str()).nth(1).unwrap()["occurrence"]
+            .as_i64()
+            .unwrap();
+    s.run("event.delete", &json!({"uid": uid, "occurrence": second})).unwrap();
+    assert_eq!(count(&mut s), 3, "one occurrence skipped");
+    s.run("event.update", &json!({"uid": uid, "summary": "Grading", "allDay": true})).unwrap();
+    assert!(s.find_event(&uid).unwrap().1.event.all_day);
+
+    // All of it is kept.
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    let mut again = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert_eq!(again.find_event(&uid).unwrap().1.event.summary, "Grading");
+    again.run("event.delete", &json!({"uid": uid})).unwrap();
+    assert!(again.find_event(&uid).is_none());
+
+    // Moving through the calendar.
+    s.run("calendar.view", &json!({"mode": "month"})).unwrap();
+    let r = s.run("calendar.goto", &json!({"date": "2026-01-31", "step": 1})).unwrap();
+    assert_eq!(r["date"], "2026-02-28", "a month on from the 31st stays in February");
+    assert_eq!(s.cal_days().1 - s.cal_days().0, 42);
+    assert_eq!(s.run("calendar.goto", &json!({"date": "today"})).unwrap()["date"].as_str().map(|d| d.len()), Some(10));
+    done(s);
+}
+
+#[test]
+fn people_in_the_address_book() {
+    let mut s = sample_session("people");
+    let all = s.run("contact.list", &json!({})).unwrap();
+    assert!(all.as_array().unwrap().len() >= 5);
+    let hits = s.run("contact.list", &json!({"query": "lantern"})).unwrap();
+    assert!(hits.as_array().unwrap().iter().all(|p| p["org"] == "Studio Lantern"));
+    let uid = s
+        .run("contact.create", &json!({"name": "Mira Chen", "emails": "mira@colour.example, mira.chen@home.example", "org": "Colour House"}))
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(s.run("contact.create", &json!({"name": "Bad", "emails": ["not an address"]})).is_err());
+    assert!(s.run("contact.create", &json!({})).is_err(), "a name or address is needed");
+    // Saved people are suggested before people only seen in mail.
+    let top: Vec<String> = s.suggest_contacts("mi", 2).into_iter().map(|c| c.address.email).collect();
+    assert!(top.contains(&"mira@colour.example".to_string()), "{top:?}");
+    s.run("contact.update", &json!({"uid": uid, "phones": ["+1 555 0101"], "title": "Colourist"})).unwrap();
+    let p = s.find_person(&uid).unwrap();
+    assert_eq!((p.card.phones[0].value.as_str(), p.card.title.as_str(), p.card.emails.len()), ("+1 555 0101", "Colourist", 2));
+    s.run("contact.delete", &json!({"uid": uid})).unwrap();
+    assert!(s.find_person(&uid).is_none());
+    // The sender of a message, once.
+    let k = s.list.iter().find(|m| m.from.email == "win@prizes.example").map(|m| m.key.clone());
+    if let Some(k) = k {
+        s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+        let first = s.run("contact.fromMessage", &json!({})).unwrap();
+        let second = s.run("contact.fromMessage", &json!({})).unwrap();
+        assert_eq!(first["uid"], second["uid"]);
+        assert_eq!(second["existing"], true);
+    }
+    done(s);
+}

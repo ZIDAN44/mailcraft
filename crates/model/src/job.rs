@@ -151,6 +151,9 @@ pub enum Job {
     GetVacation { account: String },
     /// Change them.
     SetVacation { account: String, vacation: Vacation },
+    /// Sync the account's calendars and address books with its CalDAV / CardDAV server (changes
+    /// made here first).
+    SyncDav { account: String },
 }
 
 impl Job {
@@ -166,7 +169,8 @@ impl Job {
             | Job::SaveDraft { account, .. }
             | Job::FlushOutbox { account }
             | Job::GetVacation { account }
-            | Job::SetVacation { account, .. } => account,
+            | Job::SetVacation { account, .. }
+            | Job::SyncDav { account } => account,
             Job::FetchUrl { .. } | Job::Discover { .. } => "",
             Job::SignIn { account } => &account.id,
         }

@@ -11,7 +11,7 @@ use mailcraft_model::job::{Secret, Vacation};
 use mailcraft_model::search::{Doc, Index, Query, summary_text};
 use mailcraft_model::thread::{Thread, threads};
 use mailcraft_model::{
-    AccountConfig, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,
+    AccountConfig, EmailAddress, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,
 };
 use mailcraft_store::{FolderState, OutboxItem, Store};
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,7 @@ use serde_json::Value;
 use crate::{CmdError, CmdResult, Registry};
 
 mod organize;
+pub mod pim;
 
 /// One account and what the session knows about it.
 #[derive(Clone, Debug, PartialEq)]
@@ -327,6 +328,13 @@ pub struct Session {
     pub print_fonts: Option<(Vec<u8>, Option<Vec<u8>>)>,
     /// Pages to show in the browser (OAuth sign-in), oldest first.
     pub open_urls: Vec<String>,
+    /// Each account's calendars and address books.
+    pub pim: HashMap<String, mailcraft_model::pim::Pim>,
+    /// Mail, Calendar or People.
+    pub module: pim::Module,
+    pub cal_mode: pim::CalMode,
+    /// The local day the calendar shows (`None`: today).
+    pub cal_day: Option<i64>,
     index: Option<SearchIndex>,
     registry: Arc<Registry>,
     next_id: u64,
@@ -371,6 +379,10 @@ impl Session {
             oauth_available: Vec::new(),
             print_fonts: None,
             open_urls: Vec::new(),
+            pim: HashMap::new(),
+            module: pim::Module::Mail,
+            cal_mode: pim::CalMode::Week,
+            cal_day: None,
             index: None,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -408,6 +420,7 @@ impl Session {
             s.note_new_mail(&a, &f);
         }
         s.refresh_outbox();
+        s.load_pim();
         s.view = s.default_view();
         s.refresh_list();
         s
@@ -617,6 +630,14 @@ impl Session {
             for (a, f) in folders {
                 for m in &self.folder_state(&a, &f).messages {
                     book.add(m, &mine);
+                }
+            }
+            // People saved in an address book come first.
+            for p in self.pim.values() {
+                for c in &p.cards {
+                    for e in &c.card.emails {
+                        book.add_saved(&EmailAddress::new(c.card.display(), e.value.clone()), self.clock.now);
+                    }
                 }
             }
             self.contacts = Some(book);
@@ -1874,6 +1895,7 @@ impl Session {
         }
         self.accounts.retain(|a| a.config.id != id);
         self.cache.retain(|(a, _), _| a != id);
+        self.pim.remove(id);
         if let Some(store) = &self.store
             && let Err(e) = store.remove_account(id)
         {

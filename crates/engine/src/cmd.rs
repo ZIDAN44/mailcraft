@@ -9,7 +9,7 @@ use mailcraft_model::{AccountConfig, Flag, FolderRole, Security, ServerConfig};
 use serde_json::{Value, json};
 
 use crate::session::{ListFilter, MoveTarget, ReadingPane, SearchScope, View, parse_key};
-use crate::{CmdError, CmdResult, CommandSpec, Registry, Session, p};
+use crate::{CmdError, CmdResult, CommandSpec, Registry, Session, p, parse_local};
 
 fn has_selection(s: &Session) -> Option<&'static str> {
     if s.selection.is_empty() { Some("no message selected") } else { None }
@@ -292,6 +292,94 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"address": string, "on"?: bool}"#),
         // Accounts
+        // Calendar and People
+        CommandSpec::new("view.module", "Mail, Calendar or People", "Navigation", |s, v| {
+            s.module = match p::req_str(v, "name")? {
+                "mail" => crate::Module::Mail,
+                "calendar" => crate::Module::Calendar,
+                "people" => crate::Module::People,
+                other => return Err(CmdError::Params(format!("unknown module `{other}`"))),
+            };
+            Ok(json!({"module": s.module}))
+        })
+        .params(r#"{"name": "mail"|"calendar"|"people"}"#),
+        CommandSpec::new("calendar.view", "Day, week or month", "Calendar › View", |s, v| {
+            s.cal_mode = match p::req_str(v, "mode")? {
+                "day" => crate::CalMode::Day,
+                "week" => crate::CalMode::Week,
+                "month" => crate::CalMode::Month,
+                other => return Err(CmdError::Params(format!("unknown view `{other}`"))),
+            };
+            s.cal_goto(None, 0)
+        })
+        .params(r#"{"mode": "day"|"week"|"month"}"#),
+        CommandSpec::new("calendar.goto", "Go to a date", "Calendar › Go to", |s, v| s.cal_goto(p::str(v, "date"), p::i64(v, "step").unwrap_or(0)))
+            .params(r#"{"date"?: "YYYY-MM-DD"|"today", "step"?: number (days, weeks or months, as on screen)}"#),
+        CommandSpec::new("calendar.events", "Events", "Calendar", |s, v| {
+            let off = i64::from(s.clock.offset);
+            let (d0, d1) = s.cal_days();
+            let from = p::str(v, "from").and_then(|x| parse_local(x, off)).map_or(s.local_midnight(d0), |(t, all_day)| if all_day { t - off } else { t });
+            let to = p::str(v, "to").and_then(|x| parse_local(x, off)).map_or(s.local_midnight(d1), |(t, all_day)| if all_day { t - off + 86_400 } else { t });
+            Ok(json!(s.agenda(from, to).iter().map(|i| json!({
+                "uid": i.uid, "summary": i.summary, "location": i.location, "start": i.start, "end": i.end, "allDay": i.all_day,
+                "occurrence": i.occurrence, "recurring": i.recurring, "account": i.account, "calendar": i.calendar,
+                "needsReply": i.needs_reply, "status": i.status,
+            })).collect::<Vec<_>>()))
+        })
+        .params(r#"{"from"?: date or date-time, "to"?: …} (default: what the calendar shows)"#),
+        CommandSpec::new("event.create", "New event", "Calendar › New event", |s, v| {
+            let e = event_from(s, v, mailcraft_model::ical::CalEvent::default())?;
+            s.create_event(p::str(v, "account"), p::str(v, "calendar"), e)
+        })
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "account"?: string, "calendar"?: string}"#),
+        CommandSpec::new("event.update", "Edit event", "Calendar › Event", |s, v| {
+            let uid = p::req_str(v, "uid")?.to_string();
+            let current = s.find_event(&uid).map(|(_, e)| e.event.clone()).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
+            let e = event_from(s, v, current)?;
+            s.update_event(&uid, |x| *x = e)
+        })
+        .params(r#"{"uid": string, … the fields of event.create to change}"#),
+        CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
+            let uid = p::req_str(v, "uid")?.to_string();
+            s.delete_event(&uid, p::i64(v, "occurrence"))
+        })
+        .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence)}"#),
+        CommandSpec::new("contact.list", "People", "People", |s, v| {
+            let q = p::str(v, "query").unwrap_or_default();
+            Ok(json!(s.people(q).iter().map(|x| json!({"uid": x.card.uid, "name": x.card.display(), "emails": x.card.emails, "phones": x.card.phones, "org": x.card.org, "title": x.card.title, "account": x.account})).collect::<Vec<_>>()))
+        })
+        .params(r#"{"query"?: string}"#),
+        CommandSpec::new("contact.create", "New contact", "People › New contact", |s, v| {
+            let c = card_from(v, mailcraft_model::vcard::Card::default())?;
+            s.create_card(p::str(v, "account"), c)
+        })
+        .params(r#"{"name": string, "emails"?: [string] | "a, b", "phones"?: [string] | "…", "org"?: string, "title"?: string, "note"?: string, "account"?: string}"#),
+        CommandSpec::new("contact.update", "Edit contact", "People › Contact", |s, v| {
+            let uid = p::req_str(v, "uid")?.to_string();
+            let current = s.find_person(&uid).map(|x| x.card).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
+            let c = card_from(v, current)?;
+            s.update_card(&uid, |x| *x = c)
+        })
+        .params(r#"{"uid": string, … the fields of contact.create to change}"#),
+        CommandSpec::new("contact.delete", "Delete contact", "People › Contact", |s, v| {
+            let uid = p::req_str(v, "uid")?.to_string();
+            s.delete_card(&uid)
+        })
+        .params(r#"{"uid": string}"#),
+        CommandSpec::new("contact.fromMessage", "Add sender to contacts", "Reading pane", |s, _| {
+            let from = s.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.from.clone()).ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+            if let Some(existing) = s.people(&from.email).into_iter().find(|x| x.card.emails.iter().any(|e| e.value.eq_ignore_ascii_case(&from.email))) {
+                return Ok(json!({"uid": existing.card.uid, "existing": true}));
+            }
+            let card = mailcraft_model::vcard::Card {
+                name: from.name.clone(),
+                emails: vec![mailcraft_model::vcard::Typed { value: from.email.clone(), kind: String::new() }],
+                ..Default::default()
+            };
+            let account = s.reading.as_ref().map(|r| r.key.account.clone());
+            s.create_card(account.as_deref(), card)
+        })
+        .when(has_reading),
         CommandSpec::new("folder.empty", "Empty folder", "Folder › Empty", |s, v| {
             let account = account_param(s, v)?;
             let folder = match (p::str(v, "folder"), p::str(v, "role")) {
@@ -921,4 +1009,72 @@ fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "folders": a.folders.iter().map(|f| json!({"path": f.path, "name": f.display_name(), "role": f.role.code(), "unread": f.unread, "total": f.total})).collect::<Vec<_>>(),
         }))
         .collect::<Vec<_>>()))
+}
+
+/// An event from command params, starting from `e` (what's not given stays).
+fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::CalEvent) -> Result<mailcraft_model::ical::CalEvent, CmdError> {
+    let off = i64::from(s.clock.offset);
+    let when = |k: &str| -> Result<Option<(i64, bool)>, CmdError> {
+        match p::str(v, k) {
+            Some(x) => parse_local(x, off).map(Some).ok_or_else(|| CmdError::Params(format!("`{x}` is not a date (YYYY-MM-DD or YYYY-MM-DDTHH:MM)"))),
+            None => Ok(v.get(k).and_then(Value::as_i64).map(|n| (n, false))),
+        }
+    };
+    let length = e.end - e.start;
+    if let Some((t, all_day)) = when("start")? {
+        e.start = t;
+        e.all_day = p::bool(v, "allDay").unwrap_or(all_day);
+        e.end = t + length.max(if e.all_day { 86_400 } else { 3600 });
+    } else if let Some(a) = p::bool(v, "allDay") {
+        e.all_day = a;
+    }
+    if let Some((t, all_day)) = when("end")? {
+        // An all-day end date is the last day shown: the event ends the day after.
+        e.end = if all_day && e.all_day { t + 86_400 } else { t };
+    }
+    if e.all_day {
+        e.start -= e.start.rem_euclid(86_400);
+        e.end = (e.end - e.end.rem_euclid(86_400)).max(e.start + 86_400);
+    }
+    for (k, field) in [("summary", &mut e.summary), ("location", &mut e.location), ("description", &mut e.description)] {
+        if let Some(x) = p::str(v, k) {
+            *field = x.chars().take(10_000).collect();
+        }
+    }
+    match p::str(v, "repeat").map(str::trim) {
+        Some("" | "none" | "never") => e.rrule = None,
+        Some(r @ ("daily" | "weekly" | "monthly" | "yearly")) => e.rrule = Some(format!("FREQ={}", r.to_ascii_uppercase())),
+        Some(r) if r.to_ascii_uppercase().starts_with("FREQ=") && r.len() < 500 => e.rrule = Some(r.to_string()),
+        Some(r) => return Err(CmdError::Params(format!("`{r}` is not a repeat"))),
+        None => {}
+    }
+    Ok(e)
+}
+
+/// A card from command params, starting from `c`.
+fn card_from(v: &Value, mut c: mailcraft_model::vcard::Card) -> Result<mailcraft_model::vcard::Card, CmdError> {
+    let list = |k: &str| -> Option<Vec<String>> {
+        match v.get(k)? {
+            Value::String(s) => Some(s.split([',', ';', '\n']).map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect()),
+            Value::Array(a) => Some(a.iter().filter_map(Value::as_str).map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect()),
+            _ => None,
+        }
+    };
+    if let Some(n) = p::str(v, "name") {
+        c.name = n.trim().chars().take(300).collect();
+        c.given.clear();
+        c.family.clear();
+    }
+    if let Some(e) = list("emails") {
+        c.emails = e.into_iter().take(20).map(|value| mailcraft_model::vcard::Typed { value, kind: String::new() }).collect();
+    }
+    if let Some(ph) = list("phones") {
+        c.phones = ph.into_iter().take(20).map(|value| mailcraft_model::vcard::Typed { value, kind: String::new() }).collect();
+    }
+    for (k, field) in [("org", &mut c.org), ("title", &mut c.title), ("note", &mut c.note)] {
+        if let Some(x) = p::str(v, k) {
+            *field = x.chars().take(10_000).collect();
+        }
+    }
+    Ok(c)
 }

@@ -213,6 +213,8 @@ impl Pool {
                     Err(e) => self.sink.emit(Event::SendFailed { account, id, error: e.to_string() }),
                 }
             }
+            // Offline: changes wait in the cache for the next sync.
+            Job::SyncDav { account } if !self.workers.contains_key(&account) => {}
             Job::GetVacation { account } | Job::SetVacation { account, .. } if !self.workers.contains_key(&account) => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
             }
@@ -830,6 +832,8 @@ impl Worker {
                 }
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
+            // Calendars and address books sync in their own pass (net::dav).
+            Job::SyncDav { .. } => {}
             Job::GetVacation { .. } => {
                 let r = self.vacation(None);
                 self.report_vacation(r, None);

@@ -74,6 +74,13 @@ impl ContactBook {
         c.last = c.last.max(date);
     }
 
+    /// Someone saved in an address book: ranked as if written to often.
+    pub fn add_saved(&mut self, a: &EmailAddress, now: i64) {
+        for _ in 0..8 {
+            self.note(a, now, true);
+        }
+    }
+
     /// Count a message. `mine` are the user's own addresses: a message from one of them is one
     /// you sent, so its recipients are people you write to.
     pub fn add(&mut self, m: &Summary, mine: &[String]) {

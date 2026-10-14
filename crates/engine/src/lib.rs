@@ -25,6 +25,7 @@ pub use mailcraft_store as store;
 pub use session::{
     AccountState, Compose, FolderRef, ListFilter, MoveTarget, Notice, Picture, Prefs, Reading, ReadingPane, Row, SearchScope, Session, VacationState,
     View, parse_key,
+    pim::{AgendaItem, CalMode, Module, Person, parse_local},
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
@@ -134,6 +135,9 @@ pub mod p {
     }
     pub fn bool(v: &Value, k: &str) -> Option<bool> {
         v.get(k).and_then(Value::as_bool)
+    }
+    pub fn i64(v: &Value, k: &str) -> Option<i64> {
+        v.get(k).and_then(|x| x.as_i64().or_else(|| x.as_f64().filter(|f| f.is_finite() && f.abs() < 9.0e15).map(|f| f as i64)))
     }
 }
 
