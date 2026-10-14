@@ -414,6 +414,7 @@
 	this server doesn't offer automatic replies	ce serveur ne propose pas de réponses automatiques
 	this server doesn't offer automatic replies (no ManageSieve)	ce serveur ne propose pas de réponses automatiques (pas de ManageSieve)
 	the account is offline	le compte est hors connexion
+	Drag it to a folder or another app to copy it	Faites-le glisser vers un dossier ou une autre application pour le copier
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

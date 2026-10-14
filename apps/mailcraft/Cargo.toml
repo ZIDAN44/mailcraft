@@ -45,3 +45,7 @@ keyring = { version = "3.6", default-features = false, features = ["apple-native
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["async-secret-service", "async-io", "crypto-rust"] }
+
+# Dragging attachments out of the window to other apps (on Linux it would need GTK).
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+drag = "2.1"

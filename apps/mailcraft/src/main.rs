@@ -153,6 +153,9 @@ impl Services for Desktop {
         }
         candidates.iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, *i)))
     }
+    fn can_drag_out(&self) -> bool {
+        cfg!(any(target_os = "windows", target_os = "macos"))
+    }
     fn pick_folder(&mut self) -> Option<PathBuf> {
         rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
     }
@@ -227,14 +230,36 @@ fn version_line() -> String {
     }
 }
 
+/// Hand a file to the system's drag and drop (Windows and macOS; elsewhere egui has no way to).
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+fn drag_out(frame: &eframe::Frame, path: PathBuf) {
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/ai.storyteller.mailcraft.png");
+    let options = drag::Options { skip_animatation_on_cancel_or_failure: false, mode: drag::DragMode::Copy };
+    // The drag crate is native code; a failure there must not take the app down.
+    let started = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        drag::start_drag(frame, drag::DragItem::Files(vec![path]), drag::Image::Raw(PNG.to_vec()), |_, _| {}, options)
+    }));
+    match started {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => log::warn!("drag out: {e}"),
+        Err(_) => log::warn!("drag out failed"),
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn drag_out(_frame: &eframe::Frame, _path: PathBuf) {}
+
 struct App {
     app: MailApp,
     state_path: Option<PathBuf>,
 }
 
 impl eframe::App for App {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        if let Some(path) = self.app.take_drag_out() {
+            drag_out(frame, path);
+        }
     }
     fn on_exit(&mut self) {
         if let Some(p) = &self.state_path

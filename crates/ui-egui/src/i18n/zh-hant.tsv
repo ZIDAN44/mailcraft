@@ -413,6 +413,7 @@
 	this server doesn't offer automatic replies	這個伺服器不提供自動回覆
 	this server doesn't offer automatic replies (no ManageSieve)	這個伺服器不提供自動回覆 (沒有 ManageSieve)
 	the account is offline	帳戶目前離線
+	Drag it to a folder or another app to copy it	拖曳到資料夾或其他應用程式即可複製
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

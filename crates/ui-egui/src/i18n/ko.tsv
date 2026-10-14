@@ -413,6 +413,7 @@
 	this server doesn't offer automatic replies	이 서버는 자동 회신을 지원하지 않습니다
 	this server doesn't offer automatic replies (no ManageSieve)	이 서버는 자동 회신을 지원하지 않습니다 (ManageSieve 없음)
 	the account is offline	계정이 오프라인입니다
+	Drag it to a folder or another app to copy it	폴더나 다른 앱으로 끌어 복사
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

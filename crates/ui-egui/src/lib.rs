@@ -102,6 +102,11 @@ pub trait Services {
     fn open_url(&mut self, _url: &str) -> Result<(), String> {
         Err("not available".into())
     }
+    /// Whether files can be dragged out of the window to other apps (see
+    /// [`MailApp::take_drag_out`]).
+    fn can_drag_out(&self) -> bool {
+        false
+    }
 }
 
 /// Services for tests: a fixed clock, no dialogs.
@@ -163,6 +168,8 @@ pub enum Action {
     FocusMain,
     /// Open the File page at a page.
     Backstage(backstage::Page),
+    /// An attachment is being dragged out of the window: hand it to the system as a file.
+    DragOut(usize),
 }
 
 /// UI-only state.
@@ -206,6 +213,10 @@ pub struct UiState {
     focus_main: bool,
     /// The File page, while it's open.
     pub backstage: Option<backstage::Backstage>,
+    /// A file to drag out of the window (the app starts the system drag).
+    drag_out: Option<PathBuf>,
+    /// The platform can drag files out.
+    pub(crate) can_drag_out: bool,
 }
 
 pub struct MailApp {
@@ -252,10 +263,19 @@ impl MailApp {
                 title_shown: String::new(),
                 focus_main: false,
                 backstage: None,
+                drag_out: None,
+                can_drag_out: false,
             },
         };
         app.ui.craft_apps = craft_apps;
+        app.ui.can_drag_out = app.services.can_drag_out();
         app
+    }
+
+    /// A file the user started dragging out of the window, for the app to hand to the system's
+    /// drag and drop (egui can't).
+    pub fn take_drag_out(&mut self) -> Option<PathBuf> {
+        self.ui.drag_out.take()
     }
 
     /// Register the UI fonts, preferring an installed system font (call before the first frame).
@@ -525,6 +545,11 @@ impl MailApp {
             Action::FocusSearch => self.ui.focus_search = true,
             Action::FocusMain => self.ui.focus_main = true,
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
+            Action::DragOut(i) => {
+                if self.services.can_drag_out() {
+                    self.ui.drag_out = self.attachment_to_temp(i);
+                }
+            }
             Action::Submit(id, p) => match self.session.run(id, &p) {
                 Ok(_) => self.ui.dialog = None,
                 Err(e) => {

@@ -413,6 +413,7 @@
 	this server doesn't offer automatic replies	этот сервер не поддерживает автоответы
 	this server doesn't offer automatic replies (no ManageSieve)	этот сервер не поддерживает автоответы (нет ManageSieve)
 	the account is offline	учётная запись не в сети
+	Drag it to a folder or another app to copy it	Перетащите в папку или другое приложение, чтобы скопировать
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

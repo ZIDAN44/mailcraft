@@ -363,6 +363,29 @@ impl crate::Services for Recorder {
     fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
         Some(mailcraft_engine::sample::sample_png())
     }
+    fn can_drag_out(&self) -> bool {
+        true
+    }
+}
+
+#[test]
+fn attachments_drag_out_as_files() {
+    let (mut a, dir) = app("drag-out");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.iter().find(|m| m.has_attachments).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    // Not offered where the system can't take the file.
+    a.act(crate::Action::DragOut(0));
+    assert!(a.take_drag_out().is_none());
+    a.services = Box::new(Recorder(Default::default()));
+    a.ui.can_drag_out = true;
+    let index = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).and_then(|p| p.attachments.first()).map(|x| x.index).unwrap();
+    a.act(crate::Action::DragOut(index));
+    let path = a.take_drag_out().expect("a file to drag");
+    assert!(path.is_file() && path.metadata().unwrap().len() > 0, "{path:?}");
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]

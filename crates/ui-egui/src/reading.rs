@@ -515,62 +515,71 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
     let t = st.tokens;
     let kind = a.kind();
     let tex = if kind == AttachmentKind::Image { preview(s, st, ui.ctx(), key, a.index) } else { None };
-    egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::same(8)).show(ui, |ui| {
-        ui.set_width(220.0);
-        ui.vertical(|ui| {
-            if let Some(tex) = &tex {
-                let sz = tex.size_vec2();
-                let scale = (204.0 / sz.x).min(130.0 / sz.y).min(8.0);
-                let (r, resp) = ui.allocate_exact_size(vec2(204.0, 130.0), Sense::click());
-                ui.painter().rect_filled(r, 4.0, t.chrome);
-                let img_rect = Rect::from_center_size(r.center(), sz * scale);
-                ui.painter().image(tex.id(), img_rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-                if resp.on_hover_text(tl!("Open")).clicked() {
-                    acts.push(Action::OpenAttachment(a.index));
+    let card =
+        egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::same(8)).show(ui, |ui| {
+            ui.set_width(220.0);
+            ui.vertical(|ui| {
+                if let Some(tex) = &tex {
+                    let sz = tex.size_vec2();
+                    let scale = (204.0 / sz.x).min(130.0 / sz.y).min(8.0);
+                    let (r, resp) = ui.allocate_exact_size(vec2(204.0, 130.0), Sense::click());
+                    ui.painter().rect_filled(r, 4.0, t.chrome);
+                    let img_rect = Rect::from_center_size(r.center(), sz * scale);
+                    ui.painter().image(tex.id(), img_rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+                    if resp.on_hover_text(tl!("Open")).clicked() {
+                        acts.push(Action::OpenAttachment(a.index));
+                    }
+                    ui.add_space(4.0);
                 }
-                ui.add_space(4.0);
-            }
-            ui.horizontal(|ui| {
-                let (ir, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
-                ui.painter().rect_filled(ir, 5.0, t.accent_soft);
-                icons::paint(ui.painter(), icons::centered(ir, 16.0), kind_icon(kind), t.accent);
-                ui.vertical(|ui| {
-                    ui.label(RichText::new(widgets::shorten(&a.name, 26)).color(t.text).small()).on_hover_text(&a.name);
-                    ui.label(RichText::new(format!("{} · {}", kind_label(kind), widgets::human_size(a.size))).color(t.faint).small());
+                ui.horizontal(|ui| {
+                    let (ir, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
+                    ui.painter().rect_filled(ir, 5.0, t.accent_soft);
+                    icons::paint(ui.painter(), icons::centered(ir, 16.0), kind_icon(kind), t.accent);
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new(widgets::shorten(&a.name, 26)).color(t.text).small()).on_hover_text(&a.name);
+                        ui.label(RichText::new(format!("{} · {}", kind_label(kind), widgets::human_size(a.size))).color(t.faint).small());
+                    });
+                });
+                ui.horizontal_wrapped(|ui| {
+                    // The Craft app for the file, when it's installed; else the system's choice.
+                    let craft = mime::craft_app_for(&a.mime, &a.name)
+                        .and_then(|(cmd, name)| st.craft_apps.iter().any(|(c, _)| *c == cmd).then_some((cmd, name)));
+                    match craft {
+                        Some((cmd, name)) => {
+                            if ui
+                                .small_button(tf!("Open in {app}", app = name))
+                                .on_hover_text(tl!("Open it in the Craft app for this kind of file"))
+                                .clicked()
+                            {
+                                acts.push(Action::OpenInCraft(a.index, cmd));
+                            }
+                            if ui.small_button(tl!("Open")).on_hover_text(tl!("Open with the system's app")).clicked() {
+                                acts.push(Action::OpenAttachment(a.index));
+                            }
+                        }
+                        None => {
+                            if ui.small_button(tl!("Open")).clicked() {
+                                acts.push(Action::OpenAttachment(a.index));
+                            }
+                        }
+                    }
+                    if mime::text_preview_kind(&a.mime, &a.name).is_some() && ui.small_button(tl!("Preview")).clicked() {
+                        acts.push(Action::Run("attachment.preview", json!({"index": a.index})));
+                    }
+                    if ui.small_button(tl!("Save as…")).clicked() {
+                        acts.push(Action::SaveAttachment(a.index));
+                    }
                 });
             });
-            ui.horizontal_wrapped(|ui| {
-                // The Craft app for the file, when it's installed; else the system's choice.
-                let craft =
-                    mime::craft_app_for(&a.mime, &a.name).and_then(|(cmd, name)| st.craft_apps.iter().any(|(c, _)| *c == cmd).then_some((cmd, name)));
-                match craft {
-                    Some((cmd, name)) => {
-                        if ui
-                            .small_button(tf!("Open in {app}", app = name))
-                            .on_hover_text(tl!("Open it in the Craft app for this kind of file"))
-                            .clicked()
-                        {
-                            acts.push(Action::OpenInCraft(a.index, cmd));
-                        }
-                        if ui.small_button(tl!("Open")).on_hover_text(tl!("Open with the system's app")).clicked() {
-                            acts.push(Action::OpenAttachment(a.index));
-                        }
-                    }
-                    None => {
-                        if ui.small_button(tl!("Open")).clicked() {
-                            acts.push(Action::OpenAttachment(a.index));
-                        }
-                    }
-                }
-                if mime::text_preview_kind(&a.mime, &a.name).is_some() && ui.small_button(tl!("Preview")).clicked() {
-                    acts.push(Action::Run("attachment.preview", json!({"index": a.index})));
-                }
-                if ui.small_button(tl!("Save as…")).clicked() {
-                    acts.push(Action::SaveAttachment(a.index));
-                }
-            });
         });
-    });
+    // Drag the card onto the desktop or another app to copy the file there.
+    if st.can_drag_out {
+        let drag = ui.interact(card.response.rect, ui.id().with(("attachment-drag", key.to_id(), a.index)), Sense::drag());
+        if drag.drag_started() {
+            acts.push(Action::DragOut(a.index));
+        }
+        drag.on_hover_text(tl!("Drag it to a folder or another app to copy it"));
+    }
 }
 
 fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, check_addresses: bool, focus: bool) {
