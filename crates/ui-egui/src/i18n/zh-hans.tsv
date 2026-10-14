@@ -1,0 +1,348 @@
+# MailCraft interface strings: Simplified Chinese (简体中文).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  正在加载文件夹…
+	(Top level)	(顶层)
+	(no subject)	(无主题)
+	1 attachment	1 个附件
+	1. List	1. 列表
+	</>	</>
+	Accounts	帐户
+	Accounts and settings	帐户和设置
+	Add a subject	添加主题
+	Add account…	添加帐户…
+	Add an account	添加帐户
+	Add an email account	添加电子邮件帐户
+	Added to new messages, replies and forwards.	添加到新邮件、回复和转发中。
+	All	全部
+	All Inboxes	所有收件箱
+	All Sent	所有已发送
+	All caught up: nothing in this folder.	全部处理完毕: 此文件夹中没有内容。
+	All folders	所有文件夹
+	Always show from {sender}	始终显示来自 {sender} 的图片
+	Apr	4月
+	Archive	存档
+	Archive (Backspace)	存档 (Backspace)
+	Ask before deleting for good	永久删除前询问
+	At the top of {account}	位于 {account} 的顶层
+	Attach file	附加文件
+	Audio	音频
+	Aug	8月
+	B	B
+	Bcc	密送
+	Bold (Ctrl+B)	加粗 (Ctrl+B)
+	Bottom	底部
+	Bulleted list	项目符号列表
+	Cancel	取消
+	Categorize	分类
+	Category	类别
+	Cc	抄送
+	Cc / Bcc	抄送 / 密送
+	Cc: {names}	抄送: {names}
+	Choose…	选择…
+	Clear search	清除搜索
+	Close	关闭
+	Code	代码
+	Compact	紧凑
+	Connect	连接
+	Connecting…	正在连接…
+	Conversations	对话
+	Create	创建
+	Create rule…	创建规则…
+	Dark	深色
+	Date	日期
+	Dec	12月
+	Delete	删除
+	Delete (Del)	删除 (Del)
+	Delete folder…	删除文件夹…
+	Delete permanently?	永久删除?
+	Delete “{folder}”?	删除“{folder}”?
+	Deleted Items	已删除邮件
+	Discard	放弃
+	Disconnected: {error}	已断开连接: {error}
+	Document	文档
+	Don't run later rules on mail this one matches	此规则匹配的邮件不再运行后续规则
+	Downloading the message…	正在下载邮件…
+	Draft saved	草稿已保存
+	Drafts	草稿
+	Edit	编辑
+	Edit rule	编辑规则
+	Email address	电子邮件地址
+	Enter the password for {email}.	请输入 {email} 的密码。
+	Favorites	收藏夹
+	Feb	2月
+	File	文件
+	Flag	标记
+	Flag / Unflag (Insert)	标记 / 取消标记 (Insert)
+	Flagged	已标记
+	Focused	重点
+	Focused Inbox	重点收件箱
+	Focused Inbox: put newsletters and automatic mail in Other	重点收件箱: 将新闻通讯和自动邮件放入“其他”
+	Folder	文件夹
+	Folder name	文件夹名称
+	Forward	转发
+	Forward (Ctrl+F)	转发 (Ctrl+F)
+	Fri	周五
+	Friday	星期五
+	From	发件人
+	From contains	发件人包含
+	From {names}	来自 {names}
+	Group messages by conversation	按对话分组邮件
+	Has attachments	有附件
+	Has files	有文件
+	Heading	标题
+	Hidden from the other recipients	其他收件人看不到
+	Home	开始
+	I	I
+	If it {condition}: {action}	如果{condition}: {action}
+	Important	重要
+	Inbox	收件箱
+	Incoming mail (IMAP)	接收邮件 (IMAP)
+	Insert a picture (or paste one)	插入图片 (或粘贴)
+	Inside {folder} ({account})	在 {folder} 内 ({account})
+	Is a newsletter or list mail	是新闻通讯或邮件列表邮件
+	Italic (Ctrl+I)	倾斜 (Ctrl+I)
+	Items: {n}	项目: {n}
+	Jan	1月
+	Jul	7月
+	Jun	6月
+	Junk Email	垃圾邮件
+	Language	语言
+	Last month	上个月
+	Last week	上周
+	Later	稍后
+	Later today	今天晚些时候
+	Light	浅色
+	Link	链接
+	Link (Ctrl+K)	链接 (Ctrl+K)
+	Links like {link} aren't opened	不会打开 {link} 这样的链接
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	本地优先: 邮件缓存在这台电脑上，可快速离线搜索。密码保存在系统钥匙串中。
+	Looking up the server settings…	正在查找服务器设置…
+	Mail from {sender}	来自 {sender} 的邮件
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · ArtCraft 应用 · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	邮件列表: 在 {address} 退订
+	Mar	3月
+	Mark all as read	全部标记为已读
+	Mark as read	标记为已读
+	Mark as unread	标记为未读
+	Mark read	已读
+	Mark unread	未读
+	May	5月
+	Message preview	邮件预览
+	Message sent	邮件已发送
+	Messages waiting to be sent	等待发送的邮件
+	Messages without a subject are easy to overlook.	没有主题的邮件很容易被忽略。
+	Mon	周一
+	Monday	星期一
+	Move	移动
+	Move 1 message	移动 1 封邮件
+	Move folder…	移动文件夹…
+	Move to	移动到
+	Move to a folder (Ctrl+Shift+V)	移动到文件夹 (Ctrl+Shift+V)
+	Move to folder	移动到文件夹
+	Move to…	移动到…
+	Move {n} messages	移动 {n} 封邮件
+	Move “{folder}” to	将“{folder}”移动到
+	Name	名称
+	Names <addresses>, separated by ; or ,	姓名 <地址>，用 ; 或 , 分隔
+	New category	新建类别
+	New category…	新建类别…
+	New folder	新建文件夹
+	New folder…	新建文件夹…
+	New mail	新邮件
+	New mail (Ctrl+N)	新邮件 (Ctrl+N)
+	New rule	新建规则
+	New rule…	新建规则…
+	Next week	下周
+	No published settings: the usual server names are filled in. Check them under Server settings.	没有公开的设置: 已填入常用的服务器名称。请在“服务器设置”中检查。
+	No results. Try fewer words, or search all folders.	没有结果。请减少关键词，或搜索所有文件夹。
+	No rules yet.	还没有规则。
+	None (unsafe)	无 (不安全)
+	Not an email address: {address}	不是电子邮件地址: {address}
+	Not junk	非垃圾邮件
+	Not sent: {error}	未发送: {error}
+	Nothing matches this filter.	没有符合此筛选条件的内容。
+	Nov	11月
+	Numbered list	编号列表
+	Oct	10月
+	Off	关
+	Offline	脱机
+	Older	更早
+	On / off	开 / 关
+	Open	打开
+	Open as a PDF to print	以 PDF 打开以便打印
+	Open in {app}	在 {app} 中打开
+	Open it in the Craft app for this kind of file	在适用于此类文件的 Craft 应用中打开
+	Open with the system's app	用系统应用打开
+	Opened as a PDF: print it from the viewer	已以 PDF 打开: 请从查看器打印
+	Options	选项
+	Other	其他
+	Outbox	发件箱
+	Outbox: {n}	发件箱: {n}
+	Outgoing mail (SMTP)	发送邮件 (SMTP)
+	Password	密码
+	Password needed	需要密码
+	Password…	密码…
+	Personal	个人
+	Pick messages from one account to move them to a folder.	请选择同一帐户中的邮件来移动到文件夹。
+	Picture	图片
+	Pictures from the web are hidden to protect your privacy.	为保护你的隐私，已隐藏来自网络的图片。
+	Picture…	图片…
+	Pin	置顶
+	Plain text	纯文本
+	Preview	预览
+	Print	打印
+	Put newsletters and automatic mail in Other	将新闻通讯和自动邮件放入“其他”
+	Quote	引用
+	Reading pane	阅读窗格
+	Remove	移除
+	Remove account?	移除帐户?
+	Remove account…	移除帐户…
+	Remove from Favorites	从收藏夹中移除
+	Remove…	移除…
+	Rename	重命名
+	Rename folder	重命名文件夹
+	Rename folder…	重命名文件夹…
+	Reply	回复
+	Reply (Ctrl+R)	回复 (Ctrl+R)
+	Reply all	全部回复
+	Reply all (Ctrl+Shift+R)	全部回复 (Ctrl+Shift+R)
+	Report junk	报告垃圾邮件
+	Results for “{query}”	“{query}”的结果
+	Right	右侧
+	Rules	规则
+	Rules run on new mail as it arrives in an Inbox, in this order.	新邮件到达收件箱时，按此顺序运行规则。
+	Rules…	规则…
+	Run now	立即运行
+	Run on the folder on screen	在当前显示的文件夹上运行
+	S	S
+	Same as the system	与系统相同
+	Sample mailbox (offline)	示例邮箱 (脱机)
+	Sample mailbox, kept on this computer only	示例邮箱，仅保存在这台电脑上
+	Sat	周六
+	Saturday	星期六
+	Save	保存
+	Save all…	全部保存…
+	Save as PDF…	另存为 PDF…
+	Save as email (.eml)…	另存为邮件 (.eml)…
+	Save as…	另存为…
+	Save draft	保存草稿
+	Save draft (Ctrl+S)	保存草稿 (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	已保存到发件箱: 恢复联网后会发送
+	Saved {n} attachments in {folder}	已将 {n} 个附件保存到 {folder}
+	Saved {path}	已保存 {path}
+	Search folders	搜索文件夹
+	Search mail (from:, subject:, has:attachment…)	搜索邮件 (from:, subject:, has:attachment…)
+	Select a message first.	请先选择一封邮件。
+	Send	发送
+	Send (Ctrl+Enter)	发送 (Ctrl+Enter)
+	Send / Receive	发送/接收
+	Send / Receive all folders (F9)	发送/接收所有文件夹 (F9)
+	Send anyway	仍然发送
+	Send now	立即发送
+	Send without a subject?	不带主题发送?
+	Send without formatting	不带格式发送
+	Sender, recipients or subject contain	发件人、收件人或主题包含
+	Sending…	正在发送…
+	Sent Items	已发送邮件
+	Sep	9月
+	Server settings	服务器设置
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	服务器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
+	Settings found: {source}	已找到设置: {source}
+	Show a desktop notification when new mail arrives	收到新邮件时显示桌面通知
+	Show as plain text	以纯文本显示
+	Show formatted	显示格式
+	Show in Favorites	在收藏夹中显示
+	Show pictures	显示图片
+	Shown as text.	以文本显示。
+	Shown on mail you send	显示在你发送的邮件中
+	Sign in	登录
+	Sign in again	重新登录
+	Sign in again…	重新登录…
+	Sign in with {provider}	使用 {provider} 登录
+	Signature	签名
+	Signature…	签名…
+	Snooze	暂停提醒
+	Stop showing pictures from this sender	不再显示此发件人的图片
+	Strikethrough	删除线
+	Subject	主题
+	Subject contains	主题包含
+	Sun	周日
+	Sunday	星期日
+	Switch to dark mode	切换到深色模式
+	Switch to light mode	切换到浅色模式
+	System	系统
+	Text	文本
+	Text or address	文本或地址
+	The PDF couldn't be opened: {error}	无法打开 PDF: {error}
+	The folder and everything in it will be moved to Deleted Items.	文件夹及其所有内容将移动到“已删除邮件”。
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	文件夹、其子文件夹及其中的所有邮件将被永久删除。此操作无法撤消。
+	The link couldn't be opened: {error}	无法打开链接: {error}
+	The sign-in page couldn't be opened: {error}	无法打开登录页面: {error}
+	Theme	主题
+	Then	则
+	These {n} messages will be deleted for good. This can't be undone.	这 {n} 封邮件将被永久删除。此操作无法撤消。
+	This folder	此文件夹
+	This message couldn't be downloaded: {error}	无法下载此邮件: {error}
+	This message will be deleted for good. This can't be undone.	此邮件将被永久删除。此操作无法撤消。
+	This weekend	本周末
+	Three weeks ago	三周前
+	Thu	周四
+	Thursday	星期四
+	To	收件人
+	To do	待办
+	To or Cc contains	收件人或抄送包含
+	To: {names}	收件人: {names}
+	Today	今天
+	Tomorrow	明天
+	Try again	重试
+	Tue	周二
+	Tuesday	星期二
+	Two weeks ago	两周前
+	Unflag	取消标记
+	Unpin	取消置顶
+	Unread	未读
+	Unread: {n}	未读: {n}
+	Upcoming	即将到来
+	Update folder	更新文件夹
+	Updated {time}	已更新 {time}
+	Updating {folder}…	正在更新 {folder}…
+	User name	用户名
+	Usually the email address	通常是电子邮件地址
+	Video	视频
+	View	视图
+	Waiting in the Outbox. Last try: {error}	在发件箱中等待。上次尝试: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	在发件箱中等待: 恢复联网后会发送。
+	Wed	周三
+	Wednesday	星期三
+	Welcome to MailCraft	欢迎使用 MailCraft
+	When mail	当邮件
+	Without encryption your password travels in the clear. Use only for local test servers.	不加密时，你的密码会以明文传输。仅用于本地测试服务器。
+	Work	工作
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	适用于任何提供 IMAP 和 SMTP 的服务商。你的密码保存在这台电脑的钥匙串中，只会发送到你的邮件服务器。
+	Write your message…	撰写邮件…
+	Yesterday	昨天
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	你的邮件，就在你的电脑上。添加任意 IMAP 帐户: 邮件保存在此设备上，搜索快速，离线也能阅读。你的密码保存在系统钥匙串中。
+	Your name	你的姓名
+	categorize {category}	归类为 {category}
+	folder	文件夹
+	from “{text}”	来自“{text}”
+	in your browser: no password stored	在浏览器中: 不存储密码
+	mentions “{text}”	提到“{text}”
+	move to {folder}	移动到 {folder}
+	subject has “{text}”	主题含有“{text}”
+	you@example.com	you@example.com
+	{app} couldn't open it: {error}	{app} 无法打开它: {error}
+	{a} and {b}	{a} 和 {b}
+	{a}, {b} and others	{a}、{b} 等人
+	{email} (sample)	{email} (示例)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} 及其已下载的邮件将从这台电脑上移除。服务器上不会删除任何内容。
+	{name} could not be opened: {error}	无法打开 {name}: {error}
+	{n} attachments	{n} 个附件
+	{n} messages in this conversation	此对话中有 {n} 封邮件
+	{n} new messages	{n} 封新邮件
+	• List	• 列表
+	Select a message to read it	选择一封邮件进行阅读
+	MailCraft – Sample mailbox	MailCraft – 示例邮箱

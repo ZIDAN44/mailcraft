@@ -119,6 +119,25 @@ impl Services for Desktop {
         };
         cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
     }
+    fn cjk_font(&mut self) -> Option<(Vec<u8>, u32)> {
+        let candidates: &[(&str, u32)] = if cfg!(target_os = "windows") {
+            &[("C:\\Windows\\Fonts\\msyh.ttc", 0), ("C:\\Windows\\Fonts\\YuGothM.ttc", 0), ("C:\\Windows\\Fonts\\msgothic.ttc", 0)]
+        } else if cfg!(target_os = "macos") {
+            &[
+                ("/System/Library/Fonts/PingFang.ttc", 0),
+                ("/System/Library/Fonts/Hiragino Sans GB.ttc", 0),
+                ("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", 0),
+            ]
+        } else {
+            &[
+                ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0),
+                ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", 0),
+                ("/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc", 0),
+                ("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf", 0),
+            ]
+        };
+        candidates.iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, *i)))
+    }
     fn pick_folder(&mut self) -> Option<PathBuf> {
         rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
     }

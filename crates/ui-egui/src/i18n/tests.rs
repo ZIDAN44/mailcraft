@@ -224,6 +224,7 @@ fn every_interface_string_is_translated() {
 fn tags_templates_and_dates() {
     assert_eq!(lang_from_tag("pt_BR.UTF-8").map(Lang::code), Some("pt-br"));
     assert_eq!(lang_from_tag("pt-PT"), None);
+    assert_eq!(lang_from_tag("zh-Hans-CN").map(Lang::code), Some("zh-hans"));
     assert_eq!(lang_from_tag("zh_TW"), None, "no Traditional catalog yet");
     assert_eq!(lang_from_tag("de-AT").map(Lang::code), Some("de"));
     assert_eq!(lang_from_tag("C"), Some(Lang::EN));

@@ -1,0 +1,348 @@
+# MailCraft interface strings: Japanese (日本語).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  フォルダーを読み込んでいます…
+	(Top level)	(最上位)
+	(no subject)	(件名なし)
+	1 attachment	添付ファイル 1 個
+	1. List	1. リスト
+	</>	</>
+	Accounts	アカウント
+	Accounts and settings	アカウントと設定
+	Add a subject	件名を追加
+	Add account…	アカウントを追加…
+	Add an account	アカウントを追加
+	Add an email account	メール アカウントを追加
+	Added to new messages, replies and forwards.	新しいメッセージ、返信、転送に追加されます。
+	All	すべて
+	All Inboxes	すべての受信トレイ
+	All Sent	すべての送信済み
+	All caught up: nothing in this folder.	すべて確認済み: このフォルダーには何もありません。
+	All folders	すべてのフォルダー
+	Always show from {sender}	{sender} からは常に表示
+	Apr	4月
+	Archive	アーカイブ
+	Archive (Backspace)	アーカイブ (Backspace)
+	Ask before deleting for good	完全に削除する前に確認する
+	At the top of {account}	{account} の最上位
+	Attach file	ファイルを添付
+	Audio	オーディオ
+	Aug	8月
+	B	B
+	Bcc	BCC
+	Bold (Ctrl+B)	太字 (Ctrl+B)
+	Bottom	下
+	Bulleted list	箇条書き
+	Cancel	キャンセル
+	Categorize	分類
+	Category	分類項目
+	Cc	CC
+	Cc / Bcc	CC / BCC
+	Cc: {names}	CC: {names}
+	Choose…	選択…
+	Clear search	検索をクリア
+	Close	閉じる
+	Code	コード
+	Compact	コンパクト
+	Connect	接続
+	Connecting…	接続しています…
+	Conversations	スレッド
+	Create	作成
+	Create rule…	ルールを作成…
+	Dark	ダーク
+	Date	日付
+	Dec	12月
+	Delete	削除
+	Delete (Del)	削除 (Del)
+	Delete folder…	フォルダーを削除…
+	Delete permanently?	完全に削除しますか?
+	Delete “{folder}”?	「{folder}」を削除しますか?
+	Deleted Items	削除済みアイテム
+	Discard	破棄
+	Disconnected: {error}	切断されました: {error}
+	Document	ドキュメント
+	Don't run later rules on mail this one matches	このルールに一致したメールには以降のルールを適用しない
+	Downloading the message…	メッセージをダウンロードしています…
+	Draft saved	下書きを保存しました
+	Drafts	下書き
+	Edit	編集
+	Edit rule	ルールを編集
+	Email address	メール アドレス
+	Enter the password for {email}.	{email} のパスワードを入力してください。
+	Favorites	お気に入り
+	Feb	2月
+	File	ファイル
+	Flag	フラグ
+	Flag / Unflag (Insert)	フラグの設定 / 解除 (Insert)
+	Flagged	フラグ付き
+	Focused	優先
+	Focused Inbox	優先受信トレイ
+	Focused Inbox: put newsletters and automatic mail in Other	優先受信トレイ: ニュースレターと自動送信メールを「その他」に入れる
+	Folder	フォルダー
+	Folder name	フォルダー名
+	Forward	転送
+	Forward (Ctrl+F)	転送 (Ctrl+F)
+	Fri	金
+	Friday	金曜日
+	From	差出人
+	From contains	差出人に次を含む
+	From {names}	{names} から
+	Group messages by conversation	メッセージをスレッドでまとめる
+	Has attachments	添付ファイルあり
+	Has files	ファイルあり
+	Heading	見出し
+	Hidden from the other recipients	他の受信者には表示されません
+	Home	ホーム
+	I	I
+	If it {condition}: {action}	{condition}場合: {action}
+	Important	重要
+	Inbox	受信トレイ
+	Incoming mail (IMAP)	受信メール (IMAP)
+	Insert a picture (or paste one)	画像を挿入 (または貼り付け)
+	Inside {folder} ({account})	{folder} の中 ({account})
+	Is a newsletter or list mail	ニュースレターまたはメーリング リストのメール
+	Italic (Ctrl+I)	斜体 (Ctrl+I)
+	Items: {n}	アイテム数: {n}
+	Jan	1月
+	Jul	7月
+	Jun	6月
+	Junk Email	迷惑メール
+	Language	言語
+	Last month	先月
+	Last week	先週
+	Later	後で
+	Later today	今日の後ほど
+	Light	ライト
+	Link	リンク
+	Link (Ctrl+K)	リンク (Ctrl+K)
+	Links like {link} aren't opened	{link} のようなリンクは開きません
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	ローカル優先: メールはこのコンピューターに保存され、オフラインでもすばやく検索できます。パスワードはシステムのキーチェーンに保管されます。
+	Looking up the server settings…	サーバー設定を調べています…
+	Mail from {sender}	{sender} からのメール
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · ArtCraft アプリ · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	メーリング リスト: {address} で登録解除
+	Mar	3月
+	Mark all as read	すべて既読にする
+	Mark as read	既読にする
+	Mark as unread	未読にする
+	Mark read	既読
+	Mark unread	未読
+	May	5月
+	Message preview	メッセージのプレビュー
+	Message sent	メッセージを送信しました
+	Messages waiting to be sent	送信待ちのメッセージ
+	Messages without a subject are easy to overlook.	件名のないメッセージは見落とされがちです。
+	Mon	月
+	Monday	月曜日
+	Move	移動
+	Move 1 message	1 件のメッセージを移動
+	Move folder…	フォルダーを移動…
+	Move to	移動先
+	Move to a folder (Ctrl+Shift+V)	フォルダーへ移動 (Ctrl+Shift+V)
+	Move to folder	フォルダーへ移動
+	Move to…	移動先…
+	Move {n} messages	{n} 件のメッセージを移動
+	Move “{folder}” to	「{folder}」の移動先
+	Name	名前
+	Names <addresses>, separated by ; or ,	名前 <アドレス> を ; または , で区切って入力
+	New category	新しい分類項目
+	New category…	新しい分類項目…
+	New folder	新しいフォルダー
+	New folder…	新しいフォルダー…
+	New mail	新しいメール
+	New mail (Ctrl+N)	新しいメール (Ctrl+N)
+	New rule	新しいルール
+	New rule…	新しいルール…
+	Next week	来週
+	No published settings: the usual server names are filled in. Check them under Server settings.	公開された設定がありません: 一般的なサーバー名を入力しました。「サーバー設定」で確認してください。
+	No results. Try fewer words, or search all folders.	結果がありません。語数を減らすか、すべてのフォルダーを検索してください。
+	No rules yet.	ルールはまだありません。
+	None (unsafe)	なし (安全ではありません)
+	Not an email address: {address}	メール アドレスではありません: {address}
+	Not junk	迷惑メールではない
+	Not sent: {error}	送信されませんでした: {error}
+	Nothing matches this filter.	このフィルターに一致するものはありません。
+	Nov	11月
+	Numbered list	番号付きリスト
+	Oct	10月
+	Off	オフ
+	Offline	オフライン
+	Older	それ以前
+	On / off	オン / オフ
+	Open	開く
+	Open as a PDF to print	印刷用に PDF で開く
+	Open in {app}	{app} で開く
+	Open it in the Craft app for this kind of file	この種類のファイル用の Craft アプリで開く
+	Open with the system's app	システムのアプリで開く
+	Opened as a PDF: print it from the viewer	PDF で開きました: ビューアーから印刷してください
+	Options	オプション
+	Other	その他
+	Outbox	送信トレイ
+	Outbox: {n}	送信トレイ: {n}
+	Outgoing mail (SMTP)	送信メール (SMTP)
+	Password	パスワード
+	Password needed	パスワードが必要です
+	Password…	パスワード…
+	Personal	個人
+	Pick messages from one account to move them to a folder.	1 つのアカウントのメッセージを選んでフォルダーに移動します。
+	Picture	画像
+	Pictures from the web are hidden to protect your privacy.	プライバシー保護のため、Web 上の画像は表示されません。
+	Picture…	画像…
+	Pin	ピン留め
+	Plain text	プレーン テキスト
+	Preview	プレビュー
+	Print	印刷
+	Put newsletters and automatic mail in Other	ニュースレターと自動送信メールを「その他」に入れる
+	Quote	引用
+	Reading pane	閲覧ウィンドウ
+	Remove	削除
+	Remove account?	アカウントを削除しますか?
+	Remove account…	アカウントを削除…
+	Remove from Favorites	お気に入りから削除
+	Remove…	削除…
+	Rename	名前の変更
+	Rename folder	フォルダー名の変更
+	Rename folder…	フォルダー名の変更…
+	Reply	返信
+	Reply (Ctrl+R)	返信 (Ctrl+R)
+	Reply all	全員に返信
+	Reply all (Ctrl+Shift+R)	全員に返信 (Ctrl+Shift+R)
+	Report junk	迷惑メールとして報告
+	Results for “{query}”	「{query}」の検索結果
+	Right	右
+	Rules	ルール
+	Rules run on new mail as it arrives in an Inbox, in this order.	新しいメールが受信トレイに届くと、この順番でルールが適用されます。
+	Rules…	ルール…
+	Run now	今すぐ実行
+	Run on the folder on screen	表示中のフォルダーで実行
+	S	S
+	Same as the system	システムと同じ
+	Sample mailbox (offline)	サンプル メールボックス (オフライン)
+	Sample mailbox, kept on this computer only	このコンピューターだけに保存されるサンプル メールボックス
+	Sat	土
+	Saturday	土曜日
+	Save	保存
+	Save all…	すべて保存…
+	Save as PDF…	PDF として保存…
+	Save as email (.eml)…	メール (.eml) として保存…
+	Save as…	名前を付けて保存…
+	Save draft	下書きを保存
+	Save draft (Ctrl+S)	下書きを保存 (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	送信トレイに保存しました: オンラインに戻ると送信されます
+	Saved {n} attachments in {folder}	{n} 個の添付ファイルを {folder} に保存しました
+	Saved {path}	{path} を保存しました
+	Search folders	フォルダーを検索
+	Search mail (from:, subject:, has:attachment…)	メールを検索 (from:, subject:, has:attachment…)
+	Select a message first.	先にメッセージを選択してください。
+	Send	送信
+	Send (Ctrl+Enter)	送信 (Ctrl+Enter)
+	Send / Receive	送受信
+	Send / Receive all folders (F9)	すべてのフォルダーを送受信 (F9)
+	Send anyway	このまま送信
+	Send now	今すぐ送信
+	Send without a subject?	件名なしで送信しますか?
+	Send without formatting	書式なしで送信
+	Sender, recipients or subject contain	差出人、宛先、件名に次を含む
+	Sending…	送信しています…
+	Sent Items	送信済みアイテム
+	Sep	9月
+	Server settings	サーバー設定
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	サーバー: {imap} (IMAP {imap_port})、{smtp} (SMTP {smtp_port})
+	Settings found: {source}	設定が見つかりました: {source}
+	Show a desktop notification when new mail arrives	新しいメールが届いたらデスクトップ通知を表示する
+	Show as plain text	プレーン テキストで表示
+	Show formatted	書式付きで表示
+	Show in Favorites	お気に入りに表示
+	Show pictures	画像を表示
+	Shown as text.	テキストとして表示しています。
+	Shown on mail you send	送信するメールに表示されます
+	Sign in	サインイン
+	Sign in again	もう一度サインイン
+	Sign in again…	もう一度サインイン…
+	Sign in with {provider}	{provider} でサインイン
+	Signature	署名
+	Signature…	署名…
+	Snooze	再通知
+	Stop showing pictures from this sender	この差出人の画像の表示をやめる
+	Strikethrough	取り消し線
+	Subject	件名
+	Subject contains	件名に次を含む
+	Sun	日
+	Sunday	日曜日
+	Switch to dark mode	ダーク モードに切り替え
+	Switch to light mode	ライト モードに切り替え
+	System	システム
+	Text	テキスト
+	Text or address	テキストまたはアドレス
+	The PDF couldn't be opened: {error}	PDF を開けませんでした: {error}
+	The folder and everything in it will be moved to Deleted Items.	フォルダーとその中身はすべて削除済みアイテムに移動されます。
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	フォルダー、そのサブフォルダー、その中のすべてのメールが完全に削除されます。元に戻すことはできません。
+	The link couldn't be opened: {error}	リンクを開けませんでした: {error}
+	The sign-in page couldn't be opened: {error}	サインイン ページを開けませんでした: {error}
+	Theme	テーマ
+	Then	アクション
+	These {n} messages will be deleted for good. This can't be undone.	これら {n} 件のメッセージは完全に削除されます。元に戻すことはできません。
+	This folder	このフォルダー
+	This message couldn't be downloaded: {error}	このメッセージをダウンロードできませんでした: {error}
+	This message will be deleted for good. This can't be undone.	このメッセージは完全に削除されます。元に戻すことはできません。
+	This weekend	今週末
+	Three weeks ago	3 週間前
+	Thu	木
+	Thursday	木曜日
+	To	宛先
+	To do	To Do
+	To or Cc contains	宛先または CC に次を含む
+	To: {names}	宛先: {names}
+	Today	今日
+	Tomorrow	明日
+	Try again	再試行
+	Tue	火
+	Tuesday	火曜日
+	Two weeks ago	2 週間前
+	Unflag	フラグを解除
+	Unpin	ピン留めを外す
+	Unread	未読
+	Unread: {n}	未読: {n}
+	Upcoming	今後
+	Update folder	フォルダーを更新
+	Updated {time}	{time} に更新
+	Updating {folder}…	{folder} を更新しています…
+	User name	ユーザー名
+	Usually the email address	通常はメール アドレス
+	Video	ビデオ
+	View	表示
+	Waiting in the Outbox. Last try: {error}	送信トレイで待機中。前回の試行: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	送信トレイで待機中: オンラインに戻ると送信されます。
+	Wed	水
+	Wednesday	水曜日
+	Welcome to MailCraft	MailCraft へようこそ
+	When mail	メールが次の条件のとき
+	Without encryption your password travels in the clear. Use only for local test servers.	暗号化しないと、パスワードが平文で送られます。ローカルのテスト サーバーにのみ使用してください。
+	Work	仕事
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP と SMTP に対応したプロバイダーなら使えます。パスワードはこのコンピューターのキーチェーンに保管され、メール サーバーにだけ送信されます。
+	Write your message…	メッセージを入力…
+	Yesterday	昨日
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	あなたのメールを、あなたのコンピューターに。IMAP アカウントを追加すると、メッセージはこのデバイスに保存され、すばやく検索でき、オフラインでも読めます。パスワードはシステムのキーチェーンに保管されます。
+	Your name	名前
+	categorize {category}	{category} に分類する
+	folder	フォルダー
+	from “{text}”	差出人が「{text}」の
+	in your browser: no password stored	ブラウザーで: パスワードは保存されません
+	mentions “{text}”	「{text}」を含む
+	move to {folder}	{folder} に移動する
+	subject has “{text}”	件名に「{text}」を含む
+	you@example.com	you@example.com
+	{app} couldn't open it: {error}	{app} で開けませんでした: {error}
+	{a} and {b}	{a}、{b}
+	{a}, {b} and others	{a}、{b} ほか
+	{email} (sample)	{email} (サンプル)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} とダウンロード済みのメールがこのコンピューターから削除されます。サーバー上では何も削除されません。
+	{name} could not be opened: {error}	{name} を開けませんでした: {error}
+	{n} attachments	添付ファイル {n} 個
+	{n} messages in this conversation	このスレッドのメッセージ {n} 件
+	{n} new messages	{n} 件の新着メッセージ
+	• List	• リスト
+	Select a message to read it	メッセージを選択すると、ここに表示されます
+	MailCraft – Sample mailbox	MailCraft – サンプル メールボックス

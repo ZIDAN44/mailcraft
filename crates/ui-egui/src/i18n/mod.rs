@@ -33,12 +33,14 @@ pub struct LangInfo {
     catalog: OnceLock<HashMap<String, String>>,
 }
 
-pub static LANGUAGES: [LangInfo; 5] = [
+pub static LANGUAGES: [LangInfo; 7] = [
     LangInfo { code: "en", name: "English", source: "", cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "es", name: "Español", source: include_str!("es.tsv"), cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "fr", name: "Français", source: include_str!("fr.tsv"), cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "de", name: "Deutsch", source: include_str!("de.tsv"), cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "pt-br", name: "Português (Brasil)", source: include_str!("pt-br.tsv"), cjk: false, catalog: OnceLock::new() },
+    LangInfo { code: "ja", name: "日本語", source: include_str!("ja.tsv"), cjk: true, catalog: OnceLock::new() },
+    LangInfo { code: "zh-hans", name: "简体中文", source: include_str!("zh-hans.tsv"), cjk: true, catalog: OnceLock::new() },
 ];
 
 fn unescape(text: &str) -> Result<String, String> {
