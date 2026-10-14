@@ -69,6 +69,15 @@ impl Services for Desktop {
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         open::that_detached(path).map_err(|e| e.to_string())
     }
+    fn notify(&mut self, title: &str, body: &str) {
+        let (title, body) = (title.to_string(), body.to_string());
+        // Off the UI thread: the notification service can be slow, or missing.
+        std::thread::spawn(move || {
+            if let Err(e) = notify_rust::Notification::new().summary(&title).body(&body).appname("MailCraft").show() {
+                log::warn!("notification: {e}");
+            }
+        });
+    }
 }
 
 /// The system's UI font, if installed (never bundled).
@@ -185,6 +194,9 @@ fn main() -> eframe::Result {
                 None => Box::new(mailcraft_ui_egui::NullBackend),
             };
             let mut app = MailApp::new(session, backend, Box::new(Desktop));
+            if sample {
+                app.ui.title_base = "MailCraft – Sample mailbox".into();
+            }
             let (regular, bold) = system_fonts();
             app.install_fonts(&cc.egui_ctx, regular, bold);
             if let Some(v) = state_path.as_ref().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()) {

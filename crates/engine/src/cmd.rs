@@ -156,6 +156,16 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.compact}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", |s, v| {
+            s.prefs.confirm_permanent_delete = p::bool(v, "on").unwrap_or(!s.prefs.confirm_permanent_delete);
+            Ok(json!({"on": s.prefs.confirm_permanent_delete}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.notifications", "Desktop notifications", "File › Options › Mail", |s, v| {
+            s.prefs.notify = p::bool(v, "on").unwrap_or(!s.prefs.notify);
+            Ok(json!({"on": s.prefs.notify}))
+        })
+        .params(r#"{"on"?: bool}"#),
         // Accounts
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
             .params(r#"{"email": string, "password"?: string, "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …}"#),

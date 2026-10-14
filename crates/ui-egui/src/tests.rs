@@ -195,6 +195,54 @@ fn recipient_boxes_suggest_people() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Services that remember the notifications shown.
+struct Recorder(std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>);
+
+impl crate::Services for Recorder {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn notify(&mut self, title: &str, body: &str) {
+        self.0.lock().unwrap().push((title.into(), body.into()));
+    }
+}
+
+#[test]
+fn new_mail_is_announced_and_counted_in_the_title() {
+    let (mut a, dir) = app("announce");
+    let shown = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    a.services = Box::new(Recorder(shown.clone()));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.title_shown, "(3) Inbox – MailCraft");
+    assert!(shown.lock().unwrap().is_empty(), "the mail already there isn't news");
+    let m = |uid: u32, who: &str, subject: &str| Summary {
+        key: MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: 1, uid },
+        from: mailcraft_engine::model::EmailAddress::new(who, "x@y.example"),
+        subject: subject.into(),
+        date: NOW - 5,
+        ..Default::default()
+    };
+    a.session.new_mail = vec![m(90, "Zoe Park", "Lunch?")];
+    frame(&ctx, &mut a, vec![]);
+    a.session.new_mail = vec![m(91, "Ann", "a"), m(92, "Bo", "b"), m(93, "Ann", "c")];
+    frame(&ctx, &mut a, vec![]);
+    let got = shown.lock().unwrap().clone();
+    assert_eq!(got[0], ("Zoe Park".to_string(), "Lunch?".to_string()));
+    assert_eq!(got[1], ("3 new messages".to_string(), "From Ann and Bo".to_string()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn long_folders_render_quickly() {
     let (mut a, dir) = app("long");

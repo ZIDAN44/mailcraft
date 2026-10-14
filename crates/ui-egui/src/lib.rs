@@ -53,6 +53,8 @@ pub trait Services {
     fn save_path(&mut self, suggested: &str) -> Option<PathBuf>;
     /// Open a file with the system's default app.
     fn open_path(&mut self, path: &std::path::Path) -> Result<(), String>;
+    /// Show a desktop notification (new mail). The default does nothing.
+    fn notify(&mut self, _title: &str, _body: &str) {}
 }
 
 /// Services for tests: a fixed clock, no dialogs.
@@ -115,6 +117,9 @@ pub struct UiState {
     pub(crate) suggest_field: Option<&'static str>,
     pub(crate) suggest_index: usize,
     pub(crate) suggest_dismissed: Option<String>,
+    /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
+    pub title_base: String,
+    pub(crate) title_shown: String,
 }
 
 pub struct MailApp {
@@ -147,6 +152,8 @@ impl MailApp {
                 suggest_field: None,
                 suggest_index: 0,
                 suggest_dismissed: None,
+                title_base: "MailCraft".into(),
+                title_shown: String::new(),
             },
         }
     }
@@ -190,6 +197,7 @@ impl MailApp {
             return;
         }
         self.pump();
+        self.announce(&ctx);
         // A search started by a command or agent shows its query in the box.
         if let Some((q, _)) = &self.session.search
             && self.ui.search_text.is_empty()
@@ -279,6 +287,44 @@ impl MailApp {
         self.flush_jobs();
         let busy = self.session.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting | SyncStatus::Syncing { .. }));
         ctx.request_repaint_after(std::time::Duration::from_secs(if busy || self.ui.toast.is_some() { 1 } else { 20 }));
+    }
+
+    /// New mail: a desktop notification, the taskbar asking for attention when the window is in
+    /// the background, and the unread count in the window title.
+    fn announce(&mut self, ctx: &egui::Context) {
+        let news = self.session.take_new_mail();
+        if !news.is_empty() {
+            let (title, body) = match news.as_slice() {
+                [m] => (m.from.display().to_string(), if m.subject.is_empty() { "(no subject)".to_string() } else { m.subject.clone() }),
+                many => {
+                    let mut who: Vec<&str> = Vec::new();
+                    for m in many.iter().rev() {
+                        let n = m.from.display();
+                        if !who.contains(&n) {
+                            who.push(n);
+                        }
+                    }
+                    let names = match who.as_slice() {
+                        [a] => (*a).to_string(),
+                        [a, b] => format!("{a} and {b}"),
+                        [a, b, ..] => format!("{a}, {b} and others"),
+                        [] => String::new(),
+                    };
+                    (format!("{} new messages", many.len()), format!("From {names}"))
+                }
+            };
+            self.services.notify(&title, &body);
+            if !ctx.input(|i| i.focused) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
+            }
+        }
+        let unread = self.session.inbox_unread();
+        let view = self.session.view_title();
+        let title = if unread > 0 { format!("({unread}) {view} – {}", self.ui.title_base) } else { format!("{view} – {}", self.ui.title_base) };
+        if title != self.ui.title_shown {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            self.ui.title_shown = title;
+        }
     }
 
     fn act(&mut self, a: Action) {

@@ -316,6 +316,42 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn only_mail_that_arrives_later_is_announced() {
+    let store = temp("notify");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let m = |uid: u32, seen: bool, age: i64| mailcraft_model::Summary {
+        key: mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 9, uid },
+        subject: format!("m{uid}"),
+        date: NOW - age,
+        flags: mailcraft_model::Flags { seen, ..Default::default() },
+        ..Default::default()
+    };
+    let save = |msgs: Vec<mailcraft_model::Summary>| {
+        store.save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 99, highest_modseq: 0, messages: msgs }).unwrap();
+    };
+    // The first sync's backlog is not news.
+    save(vec![m(2, false, 60), m(1, false, 120)]);
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert!(s.take_new_mail().is_empty());
+    // Then: one new unread, one new but already read elsewhere, one old one finally synced.
+    save(vec![m(5, false, 10), m(4, true, 20), m(3, false, 5 * 86_400), m(2, false, 60), m(1, false, 120)]);
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    let news: Vec<String> = s.take_new_mail().into_iter().map(|m| m.subject).collect();
+    assert_eq!(news, vec!["m5".to_string()]);
+    assert!(s.take_new_mail().is_empty(), "announced once");
+    // Switched off: nothing.
+    s.run("view.notifications", &json!({"on": false})).unwrap();
+    save(vec![m(6, false, 1), m(5, false, 10)]);
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert!(s.take_new_mail().is_empty());
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
+#[test]
 fn recipients_are_suggested_from_mail_seen() {
     let mut s = sample_session("contacts");
     let r = s.run("contacts.suggest", &json!({"query": "zo"})).unwrap();

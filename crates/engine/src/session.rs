@@ -133,6 +133,8 @@ pub struct Prefs {
     pub compact: bool,
     /// Ask before deleting permanently.
     pub confirm_permanent_delete: bool,
+    /// Desktop notifications for new mail in an Inbox.
+    pub notify: bool,
     /// Folders the user pinned to Favorites, in order. `None` until the user changes them: the
     /// Inbox, Sent Items and Drafts of a single account are shown.
     pub favorites: Option<Vec<FolderRef>>,
@@ -155,6 +157,7 @@ impl Default for Prefs {
             compact: false,
             confirm_permanent_delete: true,
             favorites: None,
+            notify: true,
         }
     }
 }
@@ -244,6 +247,10 @@ pub struct Session {
     cache: HashMap<(String, String), FolderState>,
     /// Built on first use from the cached mail; dropped when mail arrives.
     contacts: Option<ContactBook>,
+    /// The highest UID seen per Inbox, so only mail that arrives later is announced.
+    seen_uid: HashMap<(String, String), u32>,
+    /// New mail to announce (desktop notifications), oldest first.
+    pub new_mail: Vec<Summary>,
     index: Option<SearchIndex>,
     registry: Arc<Registry>,
     next_id: u64,
@@ -276,6 +283,8 @@ impl Session {
             jobs: Vec::new(),
             cache: HashMap::new(),
             contacts: None,
+            seen_uid: HashMap::new(),
+            new_mail: Vec::new(),
             index: None,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -303,6 +312,12 @@ impl Session {
         }
         for id in local {
             s.recount_local(&id);
+        }
+        // What's already cached isn't new.
+        let inboxes: Vec<(String, String)> =
+            s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone()))).collect();
+        for (a, f) in inboxes {
+            s.note_new_mail(&a, &f);
         }
         s.refresh_outbox();
         s.view = s.default_view();
@@ -452,6 +467,43 @@ impl Session {
         self.cache.remove(&k);
         self.index = None;
         self.contacts = None;
+    }
+
+    /// Remember what an Inbox holds; unread mail above the last high-water mark is new. The first
+    /// look at a folder only sets the mark, so a first sync doesn't announce the backlog.
+    fn note_new_mail(&mut self, account: &str, folder: &str) {
+        if self.folder(account, folder).is_none_or(|f| f.role != FolderRole::Inbox) {
+            return;
+        }
+        let st = self.folder_state(account, folder);
+        let (validity, max) = (st.validity, st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0));
+        let k = (account.to_string(), folder.to_string());
+        let fresh: Vec<Summary> = match self.seen_uid.get(&k) {
+            Some(&seen) => {
+                // Mail older than a day (a resync after a long time away) isn't "new" any more.
+                let cutoff = self.clock.now - 86_400;
+                let st = self.folder_state(account, folder);
+                st.messages.iter().filter(|m| m.key.uid > seen && !m.flags.seen && m.date >= cutoff && m.key.validity == validity).cloned().collect()
+            }
+            None => Vec::new(),
+        };
+        self.seen_uid.insert(k, max);
+        if self.prefs.notify {
+            self.new_mail.extend(fresh.into_iter().rev());
+            // A burst (a first sync, a long time offline) is summed up by the UI; keep it bounded.
+            let excess = self.new_mail.len().saturating_sub(50);
+            self.new_mail.drain(..excess);
+        }
+    }
+
+    /// New mail to announce since the last call.
+    pub fn take_new_mail(&mut self) -> Vec<Summary> {
+        std::mem::take(&mut self.new_mail)
+    }
+
+    /// Unread mail in every Inbox (for the window title and badges).
+    pub fn inbox_unread(&self) -> u32 {
+        self.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum()
     }
 
     /// People to suggest for a recipient box, best first.
@@ -1583,6 +1635,7 @@ impl Session {
             }
             Event::FolderChanged { account, folder } => {
                 self.reload_folder(&account, &folder);
+                self.note_new_mail(&account, &folder);
                 let visible = self.search.is_some() || self.view_folders().iter().any(|(a, f)| *a == account && *f == folder);
                 if visible {
                     self.refresh_list();

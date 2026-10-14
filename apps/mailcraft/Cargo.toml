@@ -24,6 +24,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 rfd = "0.17"
 # Open attachments with the system's default app.
 open = "5"
+# Desktop notifications for new mail (toasts, Notification Center, freedesktop notifications).
+notify-rust = { version = "4", default-features = false, features = ["z"] }
 # Decodes the window icon (assets/app-icon).
 image = { version = "0.25", default-features = false, features = ["png"] }
 # Passwords live in the system keychain, never in MailCraft's files.

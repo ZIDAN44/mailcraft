@@ -508,6 +508,16 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 acts.push(Action::Dialog(Dialog::add_account()));
             }
             ui.add_space(12.0);
+            title(ui, t, "Options");
+            let mut notify = s.prefs.notify;
+            if ui.checkbox(&mut notify, "Show a desktop notification when new mail arrives").changed() {
+                acts.push(Action::Run("view.notifications", json!({"on": notify})));
+            }
+            let mut confirm = s.prefs.confirm_permanent_delete;
+            if ui.checkbox(&mut confirm, "Ask before deleting for good").changed() {
+                acts.push(Action::Run("view.confirmDelete", json!({"on": confirm})));
+            }
+            ui.add_space(12.0);
             ui.separator();
             ui.label(RichText::new(format!("MailCraft {} · an ArtCraft app · MIT OR Apache-2.0", env!("CARGO_PKG_VERSION"))).color(t.faint).small());
             ui.label(
