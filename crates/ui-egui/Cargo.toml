@@ -17,3 +17,5 @@ log = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 # The system's interface language.
 sys-locale = "0.3"
+# PDF attachment thumbnails: a pure-Rust rasterizer (no unsafe code).
+hayro = { version = "0.8", default-features = false }

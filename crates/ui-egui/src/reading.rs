@@ -326,6 +326,70 @@ fn preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey,
     tex
 }
 
+/// The first page of a PDF attachment (cached like pictures).
+fn pdf_preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey, index: usize) -> Option<egui::TextureHandle> {
+    if let Some(t) = st.previews.get(&(key.clone(), index)) {
+        return t.clone();
+    }
+    if st.previews.len() > 64 {
+        st.previews.clear();
+    }
+    let tex = (|| {
+        let raw = s.store.as_ref()?.read_body(key)?;
+        let data = mime::attachment_data(&raw, index)?;
+        let img = crate::thumbs::pdf_first_page(&data, 260, st.fonts.clone())?;
+        Some(ctx.load_texture(format!("pdf-{}-{index}", key.to_id()), img, egui::TextureOptions::LINEAR))
+    })();
+    st.previews.insert((key.clone(), index), tex.clone());
+    tex
+}
+
+/// A frame of a video attachment, asked of the platform (which may take a moment).
+fn video_preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey, a: &mime::AttachmentInfo) -> Option<egui::TextureHandle> {
+    let id = (key.clone(), a.index);
+    if let Some(t) = st.previews.get(&id) {
+        return t.clone();
+    }
+    let path = match st.video_files.get(&id) {
+        Some(p) => p.clone(),
+        None => {
+            // The platform's decoder reads files: put the attachment in one.
+            let written = (|| {
+                let raw = s.store.as_ref()?.read_body(key)?;
+                let data = mime::attachment_data(&raw, a.index)?;
+                let dir = std::env::temp_dir().join("mailcraft-thumbs");
+                std::fs::create_dir_all(&dir).ok()?;
+                let name = format!("{:016x}-{}", mailcraft_engine::store::fnv64(&key.to_id()), mime::sanitize_filename(&a.name));
+                let path = dir.join(name);
+                std::fs::write(&path, &data).ok()?;
+                Some(path)
+            })();
+            let Some(p) = written else {
+                st.previews.insert(id, None);
+                return None;
+            };
+            st.video_files.insert(id.clone(), p.clone());
+            p
+        }
+    };
+    let frame = st.video_frames.entry(path).or_insert(crate::VideoFrame::Pending).clone();
+    match frame {
+        crate::VideoFrame::Pending => {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            None
+        }
+        crate::VideoFrame::Ready(png) => {
+            let tex = decode(ctx, &format!("video-{}-{}", key.to_id(), a.index), &png, 480);
+            st.previews.insert(id, tex.clone());
+            tex
+        }
+        crate::VideoFrame::Unavailable => {
+            st.previews.insert(id, None);
+            None
+        }
+    }
+}
+
 /// Decode a picture from mail or the web into a texture, at most `max` pixels on a side.
 /// Pictures are hostile input: size and allocation are capped before decoding.
 fn decode(ctx: &egui::Context, name: &str, data: &[u8], max: u32) -> Option<egui::TextureHandle> {
@@ -514,7 +578,12 @@ fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mim
 fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let kind = a.kind();
-    let tex = if kind == AttachmentKind::Image { preview(s, st, ui.ctx(), key, a.index) } else { None };
+    let tex = match kind {
+        AttachmentKind::Image => preview(s, st, ui.ctx(), key, a.index),
+        AttachmentKind::Pdf => pdf_preview(s, st, ui.ctx(), key, a.index),
+        AttachmentKind::Video => video_preview(s, st, ui.ctx(), key, a),
+        _ => None,
+    };
     let card =
         egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::same(8)).show(ui, |ui| {
             ui.set_width(220.0);
@@ -526,6 +595,18 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
                     ui.painter().rect_filled(r, 4.0, t.chrome);
                     let img_rect = Rect::from_center_size(r.center(), sz * scale);
                     ui.painter().image(tex.id(), img_rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+                    if kind == AttachmentKind::Video {
+                        // A play mark over the frame.
+                        let c = img_rect.center();
+                        ui.painter().circle_filled(c, 18.0, Color32::from_black_alpha(140));
+                        ui.painter().add(egui::Shape::convex_polygon(
+                            vec![c + vec2(-6.0, -9.0), c + vec2(10.0, 0.0), c + vec2(-6.0, 9.0)],
+                            Color32::WHITE,
+                            egui::Stroke::NONE,
+                        ));
+                    } else if kind == AttachmentKind::Pdf {
+                        ui.painter().rect_stroke(img_rect, 0.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Outside);
+                    }
                     if resp.on_hover_text(tl!("Open")).clicked() {
                         acts.push(Action::OpenAttachment(a.index));
                     }

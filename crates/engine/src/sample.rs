@@ -19,7 +19,7 @@ struct Mail {
     ago: i64,
     seen: bool,
     flagged: bool,
-    attachment: Option<(&'static str, Attach)>,
+    attachments: &'static [(&'static str, Attach)],
     /// A formatted version of the body.
     html: Option<&'static str>,
     reply_to_index: Option<usize>,
@@ -29,6 +29,65 @@ struct Mail {
 enum Attach {
     Png,
     Text(&'static str),
+    Pdf,
+}
+
+/// A one-page PDF drawn in code (a poster proof: sky, sun, hills and a title), so the sample
+/// carries a real PDF.
+pub fn sample_pdf() -> Vec<u8> {
+    // The sun: a circle from four Bézier curves.
+    let (cx, cy, r) = (210.0, 380.0, 80.0);
+    let k = 0.5523 * r;
+    let sun = format!(
+        "{} {cy} m {} {} {} {} {cx} {} c {} {} {} {} {} {cy} c {} {} {} {} {cx} {} c {} {} {} {} {} {cy} c f",
+        cx + r,
+        cx + r,
+        cy + k,
+        cx + k,
+        cy + r,
+        cy + r,
+        cx - k,
+        cy + r,
+        cx - r,
+        cy + k,
+        cx - r,
+        cx - r,
+        cy - k,
+        cx - k,
+        cy - r,
+        cy - r,
+        cx + k,
+        cy - r,
+        cx + r,
+        cy - k,
+        cx + r,
+    );
+    let content = format!(
+        "0.11 0.16 0.33 rg 0 0 420 595 re f\n0.98 0.6 0.2 rg {sun}\n0.2 0.55 0.5 rg 0 0 m 140 220 l 280 0 l f\n\
+         0.13 0.42 0.45 rg 170 0 m 330 250 l 420 140 l 420 0 l f\n\
+         BT /F1 40 Tf 1 1 1 rg 90 515 Td (FESTIVAL) Tj ET\nBT /F1 16 Tf 1 1 1 rg 150 485 Td (Proof 1 of 1) Tj ET"
+    );
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595] /Contents 4 0 R \
+         /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> >> >> >>"
+            .to_string(),
+        format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
+    ];
+    let mut out = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes());
+    for off in offsets {
+        out.extend(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
+    out
 }
 
 const ME: (&str, &str) = ("Riley Moreno", "riley@studio.example");
@@ -98,7 +157,7 @@ fn mails() -> Vec<Mail> {
             ago: 25,
             seen: false,
             flagged: true,
-            attachment: Some(("colour-key.png", Attach::Png)),
+            attachments: &[("colour-key.png", Attach::Png)],
             reply_to_index: None,
             html: None,
         },
@@ -112,7 +171,7 @@ fn mails() -> Vec<Mail> {
             ago: 12,
             seen: false,
             flagged: false,
-            attachment: None,
+            attachments: &[],
             reply_to_index: Some(0),
             html: None,
         },
@@ -126,7 +185,10 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 5,
             seen: true,
             flagged: false,
-            attachment: Some(("proof-notes.txt", Attach::Text("Bleed: 3 mm\nColour profile: coated\nPaper: 170 gsm matte\n"))),
+            attachments: &[
+                ("proof-notes.txt", Attach::Text("Bleed: 3 mm\nColour profile: coated\nPaper: 170 gsm matte\n")),
+                ("festival-poster-proof.pdf", Attach::Pdf),
+            ],
             reply_to_index: None,
             html: None,
         },
@@ -140,7 +202,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 26,
             seen: false,
             flagged: false,
-            attachment: None,
+            attachments: &[],
             reply_to_index: None,
             html: None,
         },
@@ -154,7 +216,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 24 * 3,
             seen: true,
             flagged: false,
-            attachment: None,
+            attachments: &[],
             reply_to_index: None,
             html: Some(
                 "<h2>Winter group show: open call</h2>\
@@ -180,7 +242,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 24 * 6,
             seen: true,
             flagged: false,
-            attachment: Some(("fox-turnaround.png", Attach::Png)),
+            attachments: &[("fox-turnaround.png", Attach::Png)],
             reply_to_index: None,
             html: None,
         },
@@ -194,7 +256,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 24 * 12,
             seen: true,
             flagged: false,
-            attachment: None,
+            attachments: &[],
             reply_to_index: None,
             html: None,
         },
@@ -208,7 +270,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 24 * 2,
             seen: true,
             flagged: false,
-            attachment: None,
+            attachments: &[],
             reply_to_index: None,
             html: None,
         },
@@ -222,7 +284,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 24 * 40,
             seen: true,
             flagged: false,
-            attachment: None,
+            attachments: &[],
             reply_to_index: None,
             html: None,
         },
@@ -236,7 +298,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 24 * 9,
             seen: true,
             flagged: true,
-            attachment: None,
+            attachments: &[],
             reply_to_index: None,
             html: None,
         },
@@ -250,7 +312,7 @@ fn mails() -> Vec<Mail> {
             ago: 60 * 24 * 4,
             seen: false,
             flagged: false,
-            attachment: None,
+            attachments: &[],
             reply_to_index: None,
             html: None,
         },
@@ -298,11 +360,15 @@ pub fn seed_if_empty(store: &Store, now: i64) -> Result<bool, StoreError> {
             Some(parent) => (parent.clone(), vec![parent.clone()]),
             None => (String::new(), Vec::new()),
         };
-        let attachments = match m.attachment {
-            Some((name, Attach::Png)) => vec![OutAttachment { name: name.into(), mime: "image/png".into(), data: sample_png() }],
-            Some((name, Attach::Text(t))) => vec![OutAttachment { name: name.into(), mime: "text/plain".into(), data: t.as_bytes().to_vec() }],
-            None => Vec::new(),
-        };
+        let attachments = m
+            .attachments
+            .iter()
+            .map(|(name, a)| match a {
+                Attach::Png => OutAttachment { name: (*name).into(), mime: "image/png".into(), data: sample_png() },
+                Attach::Text(t) => OutAttachment { name: (*name).into(), mime: "text/plain".into(), data: t.as_bytes().to_vec() },
+                Attach::Pdf => OutAttachment { name: (*name).into(), mime: "application/pdf".into(), data: sample_pdf() },
+            })
+            .collect();
         let d = Draft {
             to: list(m.to),
             cc: list(m.cc),

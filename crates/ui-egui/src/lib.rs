@@ -31,6 +31,8 @@ mod nav;
 mod organize;
 mod reading;
 pub mod theme;
+mod thumbs;
+pub use thumbs::VideoFrame;
 mod widgets;
 
 use std::collections::HashMap;
@@ -101,6 +103,11 @@ pub trait Services {
     /// Open a web address in the browser. The default can't.
     fn open_url(&mut self, _url: &str) -> Result<(), String> {
         Err("not available".into())
+    }
+    /// A frame of a video file for its thumbnail. Called each frame until it isn't
+    /// [`VideoFrame::Pending`], so slow work belongs on another thread.
+    fn video_frame(&mut self, _path: &std::path::Path) -> VideoFrame {
+        VideoFrame::Unavailable
     }
     /// Whether files can be dragged out of the window to other apps (see
     /// [`MailApp::take_drag_out`]).
@@ -202,8 +209,8 @@ pub struct UiState {
     pub(crate) craft_apps: Vec<(&'static str, PathBuf)>,
     /// The interface language setting (`auto` or a language code).
     pub language: String,
-    /// The fonts installed, kept to add a CJK fallback later.
-    fonts: (Option<Vec<u8>>, Option<Vec<u8>>),
+    /// The fonts installed, kept to add a CJK fallback later (and for PDF thumbnails).
+    pub(crate) fonts: (Option<Vec<u8>>, Option<Vec<u8>>),
     /// The language whose CJK font is loaded.
     cjk_loaded: Option<&'static str>,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
@@ -211,6 +218,9 @@ pub struct UiState {
     pub(crate) title_shown: String,
     /// Raise the main window on the next frame.
     focus_main: bool,
+    /// Video attachments written out for the platform to take a frame from, and the frames.
+    pub(crate) video_files: HashMap<(MessageKey, usize), PathBuf>,
+    pub(crate) video_frames: HashMap<PathBuf, VideoFrame>,
     /// The File page, while it's open.
     pub backstage: Option<backstage::Backstage>,
     /// A file to drag out of the window (the app starts the system drag).
@@ -262,6 +272,8 @@ impl MailApp {
                 title_base: "MailCraft".into(),
                 title_shown: String::new(),
                 focus_main: false,
+                video_files: HashMap::new(),
+                video_frames: HashMap::new(),
                 backstage: None,
                 drag_out: None,
                 can_drag_out: false,
@@ -433,6 +445,10 @@ impl MailApp {
             }
         }
         self.toasts(&ctx);
+        // Video thumbnails the cards asked for.
+        for (path, frame) in self.ui.video_frames.iter_mut().filter(|(_, f)| **f == VideoFrame::Pending) {
+            *frame = self.services.video_frame(path);
+        }
 
         for a in acts {
             self.act(a);
