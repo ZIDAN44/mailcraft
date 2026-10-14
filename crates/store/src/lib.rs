@@ -1,0 +1,397 @@
+//! MailCraft's local-first cache.
+//!
+//! Everything the app shows comes from here, so mail stays readable and searchable offline. The
+//! network layer writes what it syncs; the engine reads. Layout under the data folder:
+//!
+//! ```text
+//! accounts.json                       account settings (never passwords)
+//! <account>/folders.json              the folder list with counts
+//! <account>/ops.json                  changes made offline, replayed when online (RFC 4549)
+//! <account>/<folder-hash>/state.json  UIDVALIDITY, UIDNEXT, HIGHESTMODSEQ and the summaries
+//! <account>/<folder-hash>/<validity>/<uid>.eml   downloaded message sources
+//! ```
+//!
+//! Every file is written to a temporary name and renamed into place, so a crash or power cut
+//! leaves either the old or the new version, never half of one.
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+
+use mailcraft_model::{AccountConfig, Folder, MessageKey, Op, Summary};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, thiserror::Error)]
+pub enum StoreError {
+    #[error("{path}: {source}")]
+    Io { path: String, source: io::Error },
+    #[error("{path}: {source}")]
+    Json { path: String, source: serde_json::Error },
+}
+
+pub type Result<T> = std::result::Result<T, StoreError>;
+
+fn io_err(path: &Path) -> impl FnOnce(io::Error) -> StoreError + '_ {
+    move |source| StoreError::Io { path: path.display().to_string(), source }
+}
+
+/// What the cache knows about one folder (RFC 4549 §4.3 and RFC 7162 state).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FolderState {
+    /// UIDVALIDITY when the cache was filled; a different value on the server empties it.
+    pub validity: u32,
+    /// UIDNEXT at the last sync: messages at or above it are new.
+    pub uid_next: u32,
+    /// HIGHESTMODSEQ at the last sync (0 when the server lacks CONDSTORE).
+    pub highest_modseq: u64,
+    /// Newest first.
+    pub messages: Vec<Summary>,
+}
+
+impl FolderState {
+    pub fn find(&self, uid: u32) -> Option<&Summary> {
+        self.messages.iter().find(|m| m.key.uid == uid)
+    }
+
+    pub fn find_mut(&mut self, uid: u32) -> Option<&mut Summary> {
+        self.messages.iter_mut().find(|m| m.key.uid == uid)
+    }
+
+    pub fn unread(&self) -> u32 {
+        u32::try_from(self.messages.iter().filter(|m| !m.flags.seen && !m.flags.deleted).count()).unwrap_or(u32::MAX)
+    }
+}
+
+/// FNV-1a: a stable, dependency-free hash for folder directory names (folder names can hold
+/// characters no file system accepts).
+pub fn fnv64(s: &str) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in s.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
+}
+
+/// Keep only characters that are safe in a path segment.
+fn safe_segment(s: &str) -> String {
+    let v: String = s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(64).collect();
+    if v.is_empty() { format!("x{:x}", fnv64(s)) } else { v }
+}
+
+#[derive(Clone, Debug)]
+pub struct Store {
+    root: PathBuf,
+}
+
+impl Store {
+    /// Open (creating if needed) a cache rooted at `root`.
+    pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
+        let root = root.into();
+        fs::create_dir_all(&root).map_err(io_err(&root))?;
+        Ok(Store { root })
+    }
+
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    fn account_dir(&self, account: &str) -> PathBuf {
+        self.root.join(safe_segment(account))
+    }
+
+    fn folder_dir(&self, account: &str, folder: &str) -> PathBuf {
+        self.account_dir(account).join(format!("f{:016x}", fnv64(folder)))
+    }
+
+    /// Where a message's source is cached.
+    pub fn body_path(&self, key: &MessageKey) -> PathBuf {
+        self.folder_dir(&key.account, &key.folder).join(key.validity.to_string()).join(format!("{}.eml", key.uid))
+    }
+
+    fn read_json<T: DeserializeOwned + Default>(&self, path: &Path) -> Result<T> {
+        match fs::read(path) {
+            Ok(bytes) => match serde_json::from_slice(&bytes) {
+                Ok(v) => Ok(v),
+                Err(source) => {
+                    // A damaged cache file is not worth failing over: it is rebuilt by the next
+                    // sync. Keep the bad copy for diagnosis.
+                    log::warn!("{}: unreadable, starting fresh: {source}", path.display());
+                    let _ = fs::rename(path, path.with_extension("json.bad"));
+                    Ok(T::default())
+                }
+            },
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(T::default()),
+            Err(e) => Err(io_err(path)(e)),
+        }
+    }
+
+    fn write_json<T: Serialize + ?Sized>(&self, path: &Path, value: &T) -> Result<()> {
+        let bytes = serde_json::to_vec(value).map_err(|source| StoreError::Json { path: path.display().to_string(), source })?;
+        write_atomic(path, &bytes)
+    }
+
+    pub fn load_accounts(&self) -> Result<Vec<AccountConfig>> {
+        self.read_json(&self.root.join("accounts.json"))
+    }
+
+    pub fn save_accounts(&self, accounts: &[AccountConfig]) -> Result<()> {
+        self.write_json(&self.root.join("accounts.json"), accounts)
+    }
+
+    pub fn load_folders(&self, account: &str) -> Result<Vec<Folder>> {
+        self.read_json(&self.account_dir(account).join("folders.json"))
+    }
+
+    pub fn save_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
+        self.write_json(&self.account_dir(account).join("folders.json"), folders)
+    }
+
+    pub fn load_folder(&self, account: &str, folder: &str) -> Result<FolderState> {
+        let mut st: FolderState = self.read_json(&self.folder_dir(account, folder).join("state.json"))?;
+        // Keys are rebuilt rather than trusted: a renamed or copied cache stays consistent.
+        for m in &mut st.messages {
+            m.key.account = account.to_string();
+            m.key.folder = folder.to_string();
+            m.key.validity = st.validity;
+        }
+        Ok(st)
+    }
+
+    pub fn save_folder(&self, account: &str, folder: &str, state: &FolderState) -> Result<()> {
+        self.write_json(&self.folder_dir(account, folder).join("state.json"), state)
+    }
+
+    /// Forget a folder's cache (UIDVALIDITY changed, or the folder was deleted on the server).
+    pub fn clear_folder(&self, account: &str, folder: &str) -> Result<()> {
+        let dir = self.folder_dir(account, folder);
+        match fs::remove_dir_all(&dir) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&dir)(e)),
+            _ => Ok(()),
+        }
+    }
+
+    /// Forget everything about an account.
+    pub fn remove_account(&self, account: &str) -> Result<()> {
+        let dir = self.account_dir(account);
+        match fs::remove_dir_all(&dir) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&dir)(e)),
+            _ => Ok(()),
+        }
+    }
+
+    pub fn read_body(&self, key: &MessageKey) -> Option<Vec<u8>> {
+        fs::read(self.body_path(key)).ok()
+    }
+
+    pub fn has_body(&self, key: &MessageKey) -> bool {
+        self.body_path(key).is_file()
+    }
+
+    pub fn write_body(&self, key: &MessageKey, raw: &[u8]) -> Result<()> {
+        write_atomic(&self.body_path(key), raw)
+    }
+
+    pub fn remove_body(&self, key: &MessageKey) {
+        let _ = fs::remove_file(self.body_path(key));
+    }
+
+    pub fn load_ops(&self, account: &str) -> Result<Vec<Op>> {
+        self.read_json(&self.account_dir(account).join("ops.json"))
+    }
+
+    pub fn save_ops(&self, account: &str, ops: &[Op]) -> Result<()> {
+        let path = self.account_dir(account).join("ops.json");
+        if ops.is_empty() {
+            match fs::remove_file(&path) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(io_err(&path)(e)),
+                _ => return Ok(()),
+            }
+        }
+        self.write_json(&path, ops)
+    }
+
+    /// Apply a change to the cached folders at once (optimistic update). Returns the folders that
+    /// changed. Moves only remove from the source: the destination learns the new UID at its
+    /// next sync.
+    pub fn apply_op(&self, account: &str, op: &Op) -> Result<Vec<String>> {
+        let mut folders: Vec<String> = op.keys().iter().filter(|k| k.account == account).map(|k| k.folder.clone()).collect();
+        folders.sort();
+        folders.dedup();
+        for folder in &folders {
+            let mut st = self.load_folder(account, folder)?;
+            let in_folder = |k: &MessageKey| k.account == account && &k.folder == folder && k.validity == st.validity;
+            match op {
+                Op::SetFlag { keys, flag, on } => {
+                    let uids: Vec<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
+                        flag.set(&mut m.flags, *on);
+                    }
+                }
+                Op::Move { keys, to } => {
+                    if to == folder {
+                        continue;
+                    }
+                    let uids: Vec<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    st.messages.retain(|m| !uids.contains(&m.key.uid));
+                }
+                Op::Expunge { keys } => {
+                    let gone: Vec<&MessageKey> = keys.iter().filter(|k| in_folder(k)).collect();
+                    for k in &gone {
+                        self.remove_body(k);
+                    }
+                    st.messages.retain(|m| !gone.iter().any(|k| k.uid == m.key.uid));
+                }
+            }
+            self.save_folder(account, folder, &st)?;
+        }
+        Ok(folders)
+    }
+
+    /// Cached sources across all folders of an account, as (key, path) pairs, for indexing.
+    pub fn cached_bodies(&self, account: &str, folder: &str, validity: u32) -> Vec<u32> {
+        let dir = self.folder_dir(account, folder).join(validity.to_string());
+        let Ok(rd) = fs::read_dir(&dir) else { return Vec::new() };
+        rd.filter_map(|e| e.ok()).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".eml")).and_then(|n| n.parse().ok())).collect()
+    }
+}
+
+/// The per-user data folder: `%APPDATA%\MailCraft` on Windows, `~/Library/Application
+/// Support/MailCraft` on macOS, `$XDG_DATA_HOME/mailcraft` (or `~/.local/share/mailcraft`)
+/// elsewhere. `MAILCRAFT_DATA` overrides it.
+pub fn default_root() -> Option<PathBuf> {
+    if let Some(d) = std::env::var_os("MAILCRAFT_DATA").filter(|d| !d.is_empty()) {
+        return Some(PathBuf::from(d));
+    }
+    if cfg!(target_os = "windows") {
+        return std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("MailCraft"));
+    }
+    let home = std::env::var_os("HOME").map(PathBuf::from)?;
+    if cfg!(target_os = "macos") {
+        return Some(home.join("Library").join("Application Support").join("MailCraft"));
+    }
+    match std::env::var_os("XDG_DATA_HOME").filter(|d| !d.is_empty()) {
+        Some(x) => Some(PathBuf::from(x).join("mailcraft")),
+        None => Some(home.join(".local").join("share").join("mailcraft")),
+    }
+}
+
+/// Write `bytes` to `path` via a temporary file and a rename.
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(io_err(parent))?;
+    }
+    let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+    fs::write(&tmp, bytes).map_err(io_err(&tmp))?;
+    fs::rename(&tmp, path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        io_err(path)(e)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use mailcraft_model::{Flag, Flags};
+
+    use super::*;
+
+    pub(crate) fn temp_store(name: &str) -> Store {
+        let dir = std::env::temp_dir().join(format!("mailcraft-store-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        Store::open(dir).unwrap()
+    }
+
+    fn msg(uid: u32, seen: bool) -> Summary {
+        Summary {
+            key: MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 3, uid },
+            subject: format!("m{uid}"),
+            flags: Flags { seen, ..Default::default() },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn accounts_folders_and_state_round_trip() {
+        let s = temp_store("rt");
+        assert!(s.load_accounts().unwrap().is_empty());
+        let acc = AccountConfig { id: "a1".into(), email: "z@x".into(), ..Default::default() };
+        s.save_accounts(std::slice::from_ref(&acc)).unwrap();
+        assert_eq!(s.load_accounts().unwrap(), vec![acc]);
+
+        let f = Folder { account: "a1".into(), path: "Projets/Caf&AOk-".into(), delimiter: Some('/'), ..Default::default() };
+        s.save_folders("a1", std::slice::from_ref(&f)).unwrap();
+        assert_eq!(s.load_folders("a1").unwrap(), vec![f]);
+
+        let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 77, messages: vec![msg(9, false), msg(4, true)] };
+        s.save_folder("a1", "INBOX", &st).unwrap();
+        let back = s.load_folder("a1", "INBOX").unwrap();
+        assert_eq!(back, st);
+        assert_eq!(back.unread(), 1);
+
+        let k = &st.messages[0].key;
+        assert!(!s.has_body(k));
+        s.write_body(k, b"Subject: x\r\n\r\nhi").unwrap();
+        assert_eq!(s.read_body(k).unwrap(), b"Subject: x\r\n\r\nhi");
+        assert_eq!(s.cached_bodies("a1", "INBOX", 3), vec![9]);
+        s.clear_folder("a1", "INBOX").unwrap();
+        assert!(!s.has_body(k));
+        assert_eq!(s.load_folder("a1", "INBOX").unwrap(), FolderState::default());
+        s.remove_account("a1").unwrap();
+        let _ = fs::remove_dir_all(s.root());
+    }
+
+    #[test]
+    fn damaged_files_start_fresh() {
+        let s = temp_store("bad");
+        fs::write(s.root().join("accounts.json"), b"{not json").unwrap();
+        assert!(s.load_accounts().unwrap().is_empty());
+        assert!(s.root().join("accounts.json.bad").exists());
+        let _ = fs::remove_dir_all(s.root());
+    }
+
+    #[test]
+    fn ops_apply_locally_and_persist() {
+        let s = temp_store("ops");
+        let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false), msg(4, false), msg(2, false)] };
+        s.save_folder("a1", "INBOX", &st).unwrap();
+        let k9 = st.messages[0].key.clone();
+        let k4 = st.messages[1].key.clone();
+
+        let changed = s.apply_op("a1", &Op::SetFlag { keys: vec![k9.clone()], flag: Flag::Seen, on: true }).unwrap();
+        assert_eq!(changed, vec!["INBOX".to_string()]);
+        assert!(s.load_folder("a1", "INBOX").unwrap().find(9).unwrap().flags.seen);
+
+        s.apply_op("a1", &Op::Move { keys: vec![k4.clone()], to: "Archive".into() }).unwrap();
+        assert!(s.load_folder("a1", "INBOX").unwrap().find(4).is_none());
+
+        s.write_body(&k9, b"x").unwrap();
+        s.apply_op("a1", &Op::Expunge { keys: vec![k9.clone()] }).unwrap();
+        assert!(!s.has_body(&k9));
+        assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), 1);
+
+        // A stale key (old UIDVALIDITY) changes nothing.
+        let mut stale = st.messages[2].key.clone();
+        stale.validity = 1;
+        s.apply_op("a1", &Op::Expunge { keys: vec![stale] }).unwrap();
+        assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), 1);
+
+        let ops = vec![Op::Move { keys: vec![k4], to: "Archive".into() }];
+        s.save_ops("a1", &ops).unwrap();
+        assert_eq!(s.load_ops("a1").unwrap(), ops);
+        s.save_ops("a1", &[]).unwrap();
+        assert!(s.load_ops("a1").unwrap().is_empty());
+        let _ = fs::remove_dir_all(s.root());
+    }
+
+    #[test]
+    fn hostile_names_stay_inside_the_root() {
+        let s = temp_store("names");
+        let key = MessageKey { account: "../../etc".into(), folder: "..\\..\\x".into(), validity: 1, uid: 1 };
+        let p = s.body_path(&key);
+        assert!(p.starts_with(s.root()));
+        assert!(!p.to_string_lossy().contains(".."));
+        let _ = fs::remove_dir_all(s.root());
+    }
+}

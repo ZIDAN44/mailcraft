@@ -1,0 +1,16 @@
+[package]
+name = "mailcraft-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft local-first cache: accounts, folders, per-folder sync state, message sources and pending offline changes on disk"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-model = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
