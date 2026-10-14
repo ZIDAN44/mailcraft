@@ -132,14 +132,14 @@ pub enum RuleTest {
 impl RuleTest {
     const ALL: [RuleTest; 6] = [RuleTest::From, RuleTest::To, RuleTest::Subject, RuleTest::AnyText, RuleTest::HasAttachment, RuleTest::Bulk];
     fn label(self) -> &'static str {
-        match self {
+        tl!(match self {
             RuleTest::From => "From contains",
             RuleTest::To => "To or Cc contains",
             RuleTest::Subject => "Subject contains",
             RuleTest::AnyText => "Sender, recipients or subject contain",
             RuleTest::HasAttachment => "Has attachments",
             RuleTest::Bulk => "Is a newsletter or list mail",
-        }
+        })
     }
     fn needs_text(self) -> bool {
         !matches!(self, RuleTest::HasAttachment | RuleTest::Bulk)
@@ -160,7 +160,7 @@ pub enum RuleDo {
 impl RuleDo {
     const ALL: [RuleDo; 7] = [RuleDo::MoveTo, RuleDo::Archive, RuleDo::Delete, RuleDo::Categorize, RuleDo::MarkRead, RuleDo::Flag, RuleDo::Pin];
     fn label(self) -> &'static str {
-        match self {
+        tl!(match self {
             RuleDo::MoveTo => "Move to folder",
             RuleDo::Archive => "Archive",
             RuleDo::Delete => "Delete",
@@ -168,7 +168,7 @@ impl RuleDo {
             RuleDo::MarkRead => "Mark as read",
             RuleDo::Flag => "Flag",
             RuleDo::Pin => "Pin",
-        }
+        })
     }
 }
 
@@ -255,10 +255,10 @@ fn describe(r: &Rule) -> String {
         .conditions
         .iter()
         .map(|c| match c {
-            Condition::From(t) => format!("from “{t}”"),
+            Condition::From(t) => tf!("from “{text}”", text = t),
             Condition::To(t) => format!("to “{t}”"),
-            Condition::Subject(t) => format!("subject has “{t}”"),
-            Condition::AnyText(t) => format!("mentions “{t}”"),
+            Condition::Subject(t) => tf!("subject has “{text}”", text = t),
+            Condition::AnyText(t) => tf!("mentions “{text}”", text = t),
             Condition::HasAttachment => "has attachments".into(),
             Condition::Bulk => "is list mail".into(),
         })
@@ -268,17 +268,17 @@ fn describe(r: &Rule) -> String {
         .actions
         .iter()
         .map(|a| match a {
-            RuleAction::MoveTo(f) => format!("move to {}", mailcraft_engine::model::utf7::decode(f)),
-            RuleAction::MoveToRole(role) => format!("move to {}", role.label().unwrap_or("folder")),
+            RuleAction::MoveTo(f) => tf!("move to {folder}", folder = mailcraft_engine::model::utf7::decode(f)),
+            RuleAction::MoveToRole(role) => tf!("move to {folder}", folder = tl!(role.label().unwrap_or("folder"))),
             RuleAction::MarkRead => "mark read".into(),
             RuleAction::Flag => "flag".into(),
             RuleAction::Pin => "pin".into(),
-            RuleAction::Categorize(c) => format!("categorize {c}"),
+            RuleAction::Categorize(c) => tf!("categorize {category}", category = c),
             RuleAction::Delete => "delete".into(),
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("If it {cond}: {act}")
+    tf!("If it {condition}: {action}", condition = cond, action = act)
 }
 
 impl Dialog {
@@ -320,7 +320,7 @@ impl Dialog {
     pub fn rule_from(sender: &str, _subject: &str) -> Dialog {
         Dialog::EditRule(Box::new(RuleForm {
             index: None,
-            name: format!("Mail from {sender}"),
+            name: tf!("Mail from {sender}", sender = sender),
             test: RuleTest::From,
             text: sender.to_string(),
             action: RuleDo::Archive,
@@ -336,10 +336,10 @@ impl Dialog {
         let get = |k: &str| v.get(k).and_then(serde_json::Value::as_str).unwrap_or("").to_string();
         let mut header = Vec::new();
         if get("kind") == "message" {
-            header.push(("From".to_string(), get("from")));
-            header.push(("To".to_string(), get("to")));
+            header.push((tl!("From").to_string(), get("from")));
+            header.push((tl!("To").to_string(), get("to")));
             if let Some(d) = v.get("date").and_then(serde_json::Value::as_i64).filter(|d| *d > 0) {
-                header.push(("Date".to_string(), mailcraft_engine::model::dates::full_time(d, clock)));
+                header.push((tl!("Date").to_string(), crate::i18n::date(&mailcraft_engine::model::dates::full_time(d, clock))));
             }
         }
         let mut text = get("text");
@@ -371,7 +371,7 @@ impl Dialog {
 }
 
 fn title(ui: &mut Ui, t: &Tokens, s: &str) {
-    ui.label(RichText::new(s).font(theme::bold(18.0)).color(t.text));
+    ui.label(RichText::new(tl!(s)).font(theme::bold(18.0)).color(t.text));
     ui.add_space(6.0);
 }
 
@@ -380,12 +380,12 @@ fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
         .selected_text(match v {
             Security::Tls => "SSL/TLS",
             Security::StartTls => "STARTTLS",
-            Security::None => "None (unsafe)",
+            Security::None => tl!("None (unsafe)"),
         })
         .show_ui(ui, |ui| {
             ui.selectable_value(v, Security::Tls, "SSL/TLS");
             ui.selectable_value(v, Security::StartTls, "STARTTLS");
-            ui.selectable_value(v, Security::None, "None (unsafe)");
+            ui.selectable_value(v, Security::None, tl!("None (unsafe)"));
         });
 }
 
@@ -396,7 +396,7 @@ fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) 
         if widgets::accent_button(ui, crate::icons::Icon::Send, ok, t, ok_enabled).clicked() {
             res.0 = true;
         }
-        if ui.button("Cancel").clicked() {
+        if ui.button(tl!("Cancel")).clicked() {
             res.1 = true;
         }
     });
@@ -404,24 +404,24 @@ fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) 
 }
 
 /// Show the dialog; returns whether it stays open.
-pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, acts: &mut Vec<Action>) -> bool {
     let frame = egui::Frame::new().fill(t.surface).corner_radius(12).inner_margin(Margin::same(22)).stroke(egui::Stroke::new(1.0, t.border));
-    let modal = egui::Modal::new(egui::Id::new("dialog")).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
+    let modal = egui::Modal::new(egui::Id::new("dialog")).frame(frame).show(ctx, |ui| body(ui, d, s, t, language, acts));
     let keep = modal.inner;
     keep && !modal.should_close()
 }
 
-fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::AddAccount(f) => {
             ui.set_width(440.0);
             title(ui, t, "Add an email account");
-            ui.label(RichText::new("Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.").color(t.dim).small());
+            ui.label(RichText::new(tl!("Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small());
             ui.add_space(10.0);
             egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
-                ui.label("Email address");
-                let r =
-                    ui.add(egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com").min_size(vec2(300.0, 26.0)).desired_width(300.0));
+                ui.label(tl!("Email address"));
+                let r = ui
+                    .add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(vec2(300.0, 26.0)).desired_width(300.0));
                 if r.changed() && !f.servers_edited {
                     f.guess();
                     f.found_for = None;
@@ -447,15 +447,17 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     f.found_source = Some(source.clone());
                 }
                 ui.end_row();
-                ui.label("Your name");
-                ui.add(egui::TextEdit::singleline(&mut f.name).hint_text("Shown on mail you send").min_size(vec2(300.0, 26.0)).desired_width(300.0));
+                ui.label(tl!("Your name"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(vec2(300.0, 26.0)).desired_width(300.0),
+                );
                 ui.end_row();
-                ui.label("Password");
+                ui.label(tl!("Password"));
                 ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
                 ui.end_row();
             });
             ui.add_space(6.0);
-            ui.checkbox(&mut f.advanced, "Server settings");
+            ui.checkbox(&mut f.advanced, tl!("Server settings"));
             if f.advanced {
                 egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(10)).show(ui, |ui| {
                     let mut edited = false;
@@ -463,7 +465,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     // Fixed sizes: text boxes inside a Grid can't grow past last frame's column width.
                     let host_w = (w - 196.0).max(140.0);
                     let label = |ui: &mut Ui, s: &str| {
-                        ui.label(RichText::new(s).strong().small());
+                        ui.label(RichText::new(tl!(s)).strong().small());
                     };
                     label(ui, "Incoming mail (IMAP)");
                     ui.horizontal(|ui| {
@@ -490,11 +492,12 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     });
                     ui.add_space(4.0);
                     label(ui, "User name");
-                    edited |= ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text("Usually the email address")).changed();
+                    edited |=
+                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
                     f.servers_edited |= edited;
                     if f.imap_security == Security::None || f.smtp_security == Security::None {
                         ui.label(
-                            RichText::new("Without encryption your password travels in the clear. Use only for local test servers.")
+                            RichText::new(tl!("Without encryption your password travels in the clear. Use only for local test servers."))
                                 .color(t.warn)
                                 .small(),
                         );
@@ -502,25 +505,31 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 });
             } else if !f.imap_host.is_empty() {
                 ui.label(
-                    RichText::new(format!("Servers: {} (IMAP {}), {} (SMTP {})", f.imap_host, f.imap_port, f.smtp_host, f.smtp_port))
-                        .color(t.faint)
-                        .small(),
+                    RichText::new(tf!(
+                        "Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})",
+                        imap = f.imap_host,
+                        imap_port = f.imap_port,
+                        smtp = f.smtp_host,
+                        smtp_port = f.smtp_port
+                    ))
+                    .color(t.faint)
+                    .small(),
                 );
             }
             let email = f.email.trim().to_ascii_lowercase();
             match (&f.found_source, s.discovered.get(&email)) {
                 (Some(src), _) if f.found_for.as_deref() == Some(email.as_str()) => {
-                    ui.label(RichText::new(format!("Settings found: {src}")).color(t.ok).small());
+                    ui.label(RichText::new(tf!("Settings found: {source}", source = src)).color(t.ok).small());
                 }
                 (_, Some(None)) => {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(RichText::new("Looking up the server settings…").color(t.faint).small());
+                        ui.label(RichText::new(tl!("Looking up the server settings…")).color(t.faint).small());
                     });
                 }
                 (_, Some(Some((None, _)))) => {
                     ui.label(
-                        RichText::new("No published settings: the usual server names are filled in. Check them under Server settings.")
+                        RichText::new(tl!("No published settings: the usual server names are filled in. Check them under Server settings."))
                             .color(t.faint)
                             .small(),
                     );
@@ -537,8 +546,14 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.add_space(6.0);
                 let name = if p == "google" { "Google" } else { "Microsoft" };
                 ui.horizontal(|ui| {
-                    if widgets::accent_button(ui, crate::icons::Icon::Person, &format!("Sign in with {name}"), t, !f.email.trim().is_empty())
-                        .clicked()
+                    if widgets::accent_button(
+                        ui,
+                        crate::icons::Icon::Person,
+                        &tf!("Sign in with {provider}", provider = name),
+                        t,
+                        !f.email.trim().is_empty(),
+                    )
+                    .clicked()
                     {
                         f.error = None;
                         let mut params = f.params();
@@ -546,7 +561,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         params["password"] = json!(null);
                         acts.push(Action::Submit("account.add", params));
                     }
-                    ui.label(RichText::new("in your browser: no password stored").color(t.faint).small());
+                    ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
             let ready = !f.email.trim().is_empty() && !f.password.is_empty();
@@ -563,7 +578,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::Password { account, email, password } => {
             ui.set_width(380.0);
             title(ui, t, "Sign in again");
-            ui.label(RichText::new(format!("Enter the password for {email}.")).color(t.dim));
+            ui.label(RichText::new(tf!("Enter the password for {email}.", email = email)).color(t.dim));
             ui.add_space(8.0);
             let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -577,8 +592,12 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::ConfirmDelete { count } => {
             ui.set_width(360.0);
             title(ui, t, "Delete permanently?");
-            let what = if *count == 1 { "This message".to_string() } else { format!("These {count} messages") };
-            ui.label(RichText::new(format!("{what} will be deleted for good. This can't be undone.")).color(t.dim));
+            let what = if *count == 1 {
+                tl!("This message will be deleted for good. This can't be undone.").to_string()
+            } else {
+                tf!("These {n} messages will be deleted for good. This can't be undone.", n = count)
+            };
+            ui.label(RichText::new(what).color(t.dim));
             let (ok, cancel) = buttons(ui, t, "Delete", true);
             if ok {
                 acts.push(Action::Run("mail.delete", json!({"permanent": true})));
@@ -589,7 +608,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::EmptySubject => {
             ui.set_width(360.0);
             title(ui, t, "Send without a subject?");
-            ui.label(RichText::new("Messages without a subject are easy to overlook.").color(t.dim));
+            ui.label(RichText::new(tl!("Messages without a subject are easy to overlook.")).color(t.dim));
             let (ok, cancel) = buttons(ui, t, "Send anyway", true);
             if ok {
                 acts.push(Action::Run("compose.send", json!({"allowEmptySubject": true})));
@@ -601,8 +620,11 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             ui.set_width(380.0);
             title(ui, t, "Remove account?");
             ui.label(
-                RichText::new(format!("{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server."))
-                    .color(t.dim),
+                RichText::new(tf!(
+                    "{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.",
+                    email = email
+                ))
+                .color(t.dim),
             );
             let (ok, cancel) = buttons(ui, t, "Remove", true);
             if ok {
@@ -614,7 +636,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::Signature { account, text } => {
             ui.set_width(420.0);
             title(ui, t, "Signature");
-            ui.label(RichText::new("Added to new messages, replies and forwards.").color(t.dim).small());
+            ui.label(RichText::new(tl!("Added to new messages, replies and forwards.")).color(t.dim).small());
             ui.add(egui::TextEdit::multiline(text).desired_rows(5).desired_width(f32::INFINITY));
             let (ok, cancel) = buttons(ui, t, "Save", true);
             if ok {
@@ -626,17 +648,17 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::MoveTo { filter } => {
             ui.set_width(340.0);
             title(ui, t, "Move to folder");
-            let r = ui.add(egui::TextEdit::singleline(filter).hint_text("Search folders").desired_width(f32::INFINITY));
+            let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
             r.request_focus();
             let mut accounts: Vec<String> = s.selected().into_iter().map(|m| m.key.account).collect();
             accounts.sort_unstable();
             accounts.dedup();
             let Some(account) = accounts.first().and_then(|a| s.account(a)) else {
-                ui.label(RichText::new("Select a message first.").color(t.dim));
+                ui.label(RichText::new(tl!("Select a message first.")).color(t.dim));
                 return !buttons(ui, t, "Close", false).1;
             };
             if accounts.len() > 1 {
-                ui.label(RichText::new("Pick messages from one account to move them to a folder.").color(t.warn).small());
+                ui.label(RichText::new(tl!("Pick messages from one account to move them to a folder.")).color(t.warn).small());
             }
             let needle = filter.to_lowercase();
             let folders: Vec<&Folder> = account
@@ -670,13 +692,13 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 let place = parent.as_deref().and_then(|p| s.folder(account, p)).map(Folder::display_name);
                 let who = s.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
                 let text = match place {
-                    Some(p) => format!("Inside {p} ({who})"),
-                    None => format!("At the top of {who}"),
+                    Some(p) => tf!("Inside {folder} ({account})", folder = p, account = who),
+                    None => tf!("At the top of {account}", account = who),
                 };
                 ui.label(RichText::new(text).color(t.dim).small());
                 ui.add_space(4.0);
             }
-            let r = ui.add(egui::TextEdit::singleline(name).hint_text("Folder name").desired_width(f32::INFINITY));
+            let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
@@ -699,8 +721,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::MoveFolder { account, folder, filter, error } => {
             ui.set_width(340.0);
             let name = s.folder(account, folder).map(Folder::display_name).unwrap_or_default();
-            title(ui, t, &format!("Move “{name}” to"));
-            let r = ui.add(egui::TextEdit::singleline(filter).hint_text("Search folders").desired_width(f32::INFINITY));
+            title(ui, t, &tf!("Move “{folder}” to", folder = name));
+            let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
@@ -709,7 +731,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             let d = acc.folders.iter().find_map(|f| f.delimiter);
             let mut chosen: Option<Option<String>> = None;
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-                if needle.is_empty() && ui.selectable_label(false, RichText::new("(Top level)").italics()).clicked() {
+                if needle.is_empty() && ui.selectable_label(false, RichText::new(tl!("(Top level)")).italics()).clicked() {
                     chosen = Some(None);
                 }
                 for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d)) {
@@ -733,11 +755,11 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         }
         Dialog::DeleteFolder { account, folder, name, permanent, error } => {
             ui.set_width(380.0);
-            title(ui, t, &format!("Delete “{name}”?"));
+            title(ui, t, &tf!("Delete “{folder}”?", folder = name));
             let text = if *permanent {
-                "The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone."
+                tl!("The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.")
             } else {
-                "The folder and everything in it will be moved to Deleted Items."
+                tl!("The folder and everything in it will be moved to Deleted Items.")
             };
             ui.label(RichText::new(text).color(t.dim));
             if let Some(e) = error {
@@ -769,12 +791,12 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 );
             });
             ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button("Close").clicked()).inner
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
         }
         Dialog::NewCategory { name, color, error } => {
             ui.set_width(340.0);
             title(ui, t, "New category");
-            let r = ui.add(egui::TextEdit::singleline(name).hint_text("Name").desired_width(f32::INFINITY));
+            let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Name")).desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
@@ -805,10 +827,10 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::Rules => {
             ui.set_width(520.0);
             title(ui, t, "Rules");
-            ui.label(RichText::new("Rules run on new mail as it arrives in an Inbox, in this order.").color(t.dim).small());
+            ui.label(RichText::new(tl!("Rules run on new mail as it arrives in an Inbox, in this order.")).color(t.dim).small());
             ui.add_space(6.0);
             if s.rules.is_empty() {
-                ui.label(RichText::new("No rules yet.").color(t.faint));
+                ui.label(RichText::new(tl!("No rules yet.")).color(t.faint));
             }
             let mut rules = s.rules.clone();
             let mut changed = false;
@@ -817,19 +839,19 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 for (i, r) in rules.iter_mut().enumerate() {
                     egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(8)).show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            changed |= ui.checkbox(&mut r.enabled, "").on_hover_text("On / off").changed();
+                            changed |= ui.checkbox(&mut r.enabled, "").on_hover_text(tl!("On / off")).changed();
                             ui.vertical(|ui| {
                                 ui.label(RichText::new(&r.name).strong());
                                 ui.label(RichText::new(describe(r)).color(t.dim).small());
                             });
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.small_button("Delete").clicked() {
+                                if ui.small_button(tl!("Delete")).clicked() {
                                     remove = Some(i);
                                 }
-                                if ui.small_button("Edit").clicked() {
+                                if ui.small_button(tl!("Edit")).clicked() {
                                     acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
                                 }
-                                if ui.small_button("Run now").on_hover_text("Run on the folder on screen").clicked() {
+                                if ui.small_button(tl!("Run now")).on_hover_text(tl!("Run on the folder on screen")).clicked() {
                                     acts.push(Action::Run("rules.run", json!({"index": i})));
                                 }
                             });
@@ -844,20 +866,20 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 acts.push(Action::Run("rules.set", json!({"rules": rules})));
             }
             ui.add_space(6.0);
-            if ui.button("New rule…").clicked() {
+            if ui.button(tl!("New rule…")).clicked() {
                 acts.push(Action::Dialog(Dialog::rule_from("", "")));
             }
             ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button("Close").clicked()).inner
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
         }
         Dialog::EditRule(f) => {
             ui.set_width(440.0);
             title(ui, t, if f.index.is_some() { "Edit rule" } else { "New rule" });
             egui::Grid::new("rule").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
-                ui.label("Name");
+                ui.label(tl!("Name"));
                 ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(300.0));
                 ui.end_row();
-                ui.label("When mail");
+                ui.label(tl!("When mail"));
                 egui::ComboBox::from_id_salt("rule-test").width(300.0).selected_text(f.test.label()).show_ui(ui, |ui| {
                     for x in RuleTest::ALL {
                         ui.selectable_value(&mut f.test, x, x.label());
@@ -866,10 +888,10 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.end_row();
                 if f.test.needs_text() {
                     ui.label("");
-                    ui.add(egui::TextEdit::singleline(&mut f.text).hint_text("Text or address").desired_width(300.0));
+                    ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("Text or address")).desired_width(300.0));
                     ui.end_row();
                 }
-                ui.label("Then");
+                ui.label(tl!("Then"));
                 egui::ComboBox::from_id_salt("rule-do").width(300.0).selected_text(f.action.label()).show_ui(ui, |ui| {
                     for x in RuleDo::ALL {
                         if ui.selectable_value(&mut f.action, x, x.label()).changed() {
@@ -880,13 +902,13 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.end_row();
                 match f.action {
                     RuleDo::MoveTo => {
-                        ui.label("Folder");
+                        ui.label(tl!("Folder"));
                         let shown = f
                             .account
                             .as_deref()
                             .and_then(|a| s.folder(a, &f.target))
                             .map(|x| format!("{} ({})", x.display_name(), s.account(&x.account).map(|a| a.config.email.as_str()).unwrap_or_default()))
-                            .unwrap_or_else(|| "Choose…".into());
+                            .unwrap_or_else(|| tl!("Choose…").into());
                         egui::ComboBox::from_id_salt("rule-folder").width(300.0).selected_text(shown).show_ui(ui, |ui| {
                             for a in &s.accounts {
                                 ui.label(RichText::new(&a.config.email).small().color(t.faint));
@@ -902,8 +924,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         ui.end_row();
                     }
                     RuleDo::Categorize => {
-                        ui.label("Category");
-                        let shown = if f.target.is_empty() { "Choose…".to_string() } else { f.target.clone() };
+                        ui.label(tl!("Category"));
+                        let shown = if f.target.is_empty() { tl!("Choose…").to_string() } else { tl!(&f.target).to_string() };
                         egui::ComboBox::from_id_salt("rule-cat").width(300.0).selected_text(shown).show_ui(ui, |ui| {
                             for c in &s.prefs.categories {
                                 ui.selectable_value(&mut f.target, c.name.clone(), &c.name);
@@ -914,7 +936,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     _ => {}
                 }
             });
-            ui.checkbox(&mut f.stop, "Don't run later rules on mail this one matches");
+            ui.checkbox(&mut f.stop, tl!("Don't run later rules on mail this one matches"));
             if let Some(e) = &f.error {
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
             }
@@ -949,20 +971,20 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         ui.vertical(|ui| {
                             ui.label(RichText::new(&a.config.email).strong());
                             let servers = if a.is_local() {
-                                "Sample mailbox, kept on this computer only".to_string()
+                                tl!("Sample mailbox, kept on this computer only").to_string()
                             } else {
                                 format!("{}:{} · {}:{}", a.config.imap.host, a.config.imap.port, a.config.smtp.host, a.config.smtp.port)
                             };
                             ui.label(RichText::new(servers).color(t.faint).small());
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("Remove…").clicked() {
+                            if ui.button(tl!("Remove…")).clicked() {
                                 acts.push(Action::Dialog(Dialog::RemoveAccount { account: a.config.id.clone(), email: a.config.email.clone() }));
                             }
-                            if ui.button("Signature…").clicked() {
+                            if ui.button(tl!("Signature…")).clicked() {
                                 acts.push(Action::Dialog(Dialog::Signature { account: a.config.id.clone(), text: a.config.signature.clone() }));
                             }
-                            if !a.is_local() && ui.button(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" }).clicked() {
+                            if !a.is_local() && ui.button(tl!(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" })).clicked() {
                                 acts.push(Action::SignInAgain(a.config.id.clone()));
                             }
                         });
@@ -971,36 +993,54 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.add_space(4.0);
             }
             ui.add_space(6.0);
-            if ui.button("Add account…").clicked() {
+            if ui.button(tl!("Add account…")).clicked() {
                 acts.push(Action::Dialog(Dialog::add_account()));
             }
             ui.add_space(12.0);
             title(ui, t, "Options");
             let mut notify = s.prefs.notify;
-            if ui.checkbox(&mut notify, "Show a desktop notification when new mail arrives").changed() {
+            if ui.checkbox(&mut notify, tl!("Show a desktop notification when new mail arrives")).changed() {
                 acts.push(Action::Run("view.notifications", json!({"on": notify})));
             }
             let mut focused = s.prefs.focused_inbox;
-            if ui.checkbox(&mut focused, "Focused Inbox: put newsletters and automatic mail in Other").changed() {
+            if ui.checkbox(&mut focused, tl!("Focused Inbox: put newsletters and automatic mail in Other")).changed() {
                 acts.push(Action::Run("view.focused", json!({"on": focused})));
             }
-            if ui.button("Rules…").clicked() {
+            if ui.button(tl!("Rules…")).clicked() {
                 acts.push(Action::Dialog(Dialog::Rules));
             }
+            ui.horizontal(|ui| {
+                ui.label(tl!("Language"));
+                let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());
+                egui::ComboBox::from_id_salt("language").selected_text(current).show_ui(ui, |ui| {
+                    if ui.selectable_label(language == crate::i18n::AUTO, tl!("Same as the system")).clicked() {
+                        acts.push(Action::SetLanguage(crate::i18n::AUTO.into()));
+                    }
+                    for l in crate::i18n::Lang::all() {
+                        if ui.selectable_label(language == l.code(), l.name()).clicked() {
+                            acts.push(Action::SetLanguage(l.code().into()));
+                        }
+                    }
+                });
+            });
             let mut confirm = s.prefs.confirm_permanent_delete;
-            if ui.checkbox(&mut confirm, "Ask before deleting for good").changed() {
+            if ui.checkbox(&mut confirm, tl!("Ask before deleting for good")).changed() {
                 acts.push(Action::Run("view.confirmDelete", json!({"on": confirm})));
             }
             ui.add_space(12.0);
             ui.separator();
-            ui.label(RichText::new(format!("MailCraft {} · an ArtCraft app · MIT OR Apache-2.0", env!("CARGO_PKG_VERSION"))).color(t.faint).small());
             ui.label(
-                RichText::new("Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.")
+                RichText::new(tf!("MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0", version = env!("CARGO_PKG_VERSION")))
+                    .color(t.faint)
+                    .small(),
+            );
+            ui.label(
+                RichText::new(tl!("Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain."))
                     .color(t.faint)
                     .small(),
             );
             ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button("Close").clicked()).inner
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
         }
     }
 }

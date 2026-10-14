@@ -182,7 +182,24 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
 
 /// Use an installed system UI font when the app found one (never bundled: see AGENTS.md).
 pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
+    install_fonts_with(ctx, regular, bold, None);
+}
+
+/// [`install_fonts`] with a fallback for Chinese and Japanese (a font file and its index in a
+/// collection), used after the others.
+pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Option<(Vec<u8>, u32)>) {
     let mut fonts = FontDefinitions::default();
+    if let Some((bytes, index)) = cjk {
+        let mut data = FontData::from_owned(bytes);
+        data.index = index;
+        fonts.font_data.insert("cjk".into(), Arc::new(data));
+        if let Some(f) = fonts.families.get_mut(&FontFamily::Proportional) {
+            f.push("cjk".into());
+        }
+        if let Some(f) = fonts.families.get_mut(&FontFamily::Monospace) {
+            f.push("cjk".into());
+        }
+    }
     if let Some(bytes) = regular {
         fonts.font_data.insert("system".into(), Arc::new(FontData::from_owned(bytes)));
         if let Some(f) = fonts.families.get_mut(&FontFamily::Proportional) {

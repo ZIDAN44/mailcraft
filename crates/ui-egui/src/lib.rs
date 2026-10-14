@@ -7,8 +7,23 @@
 //! [`Services`], so nothing here depends on threads, sockets or a windowing crate.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+/// An interface string in the current language (see [`i18n`]).
+macro_rules! tl {
+    ($s:expr) => {
+        $crate::i18n::t($s)
+    };
+}
+
+/// A translated template with `{name}` values filled in: `tf!("Saved {path}", path = p.display())`.
+macro_rules! tf {
+    ($s:expr $(, $k:ident = $v:expr)* $(,)?) => {
+        $crate::i18n::fmt($crate::i18n::t($s), &[$((stringify!($k), &$v.to_string())),*])
+    };
+}
+
 mod dialogs;
 mod editor;
+pub mod i18n;
 pub mod icons;
 mod list;
 mod nav;
@@ -67,6 +82,11 @@ pub trait Services {
     }
     /// A folder to save into (`None` when cancelled).
     fn pick_folder(&mut self) -> Option<PathBuf> {
+        None
+    }
+    /// An installed font with Chinese and Japanese characters (its bytes and the index in a
+    /// collection), for those interface languages.
+    fn cjk_font(&mut self) -> Option<(Vec<u8>, u32)> {
         None
     }
     /// A picture on the clipboard, as PNG bytes (`None` when there is none).
@@ -132,6 +152,8 @@ pub enum Action {
     InsertPicture,
     /// Paste a picture from the clipboard, if there is one.
     PastePicture,
+    /// Choose the interface language (`auto` or a code).
+    SetLanguage(String),
     /// A link in a message was clicked (web pages open in the browser; `mailto:` starts a message).
     OpenUrl(String),
     /// Run a command for the open dialog: it closes on success and shows the error otherwise.
@@ -166,6 +188,11 @@ pub struct UiState {
     pub(crate) suggest_dismissed: Option<String>,
     /// Installed Craft apps (command, path), found at start-up.
     pub(crate) craft_apps: Vec<(&'static str, PathBuf)>,
+    /// The interface language setting (`auto` or a language code).
+    pub language: String,
+    /// The fonts installed, kept to add a CJK fallback later.
+    fonts: (Option<Vec<u8>>, Option<Vec<u8>>),
+    cjk_loaded: bool,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
     pub title_base: String,
     pub(crate) title_shown: String,
@@ -208,6 +235,9 @@ impl MailApp {
                 suggest_index: 0,
                 suggest_dismissed: None,
                 craft_apps: Vec::new(),
+                language: i18n::AUTO.into(),
+                fonts: (None, None),
+                cjk_loaded: false,
                 title_base: "MailCraft".into(),
                 title_shown: String::new(),
             },
@@ -218,8 +248,26 @@ impl MailApp {
 
     /// Register the UI fonts, preferring an installed system font (call before the first frame).
     pub fn install_fonts(&mut self, ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
+        self.ui.fonts = (regular.clone(), bold.clone());
         theme::install_fonts(ctx, regular, bold);
         self.ui.fonts_ready = true;
+    }
+
+    /// Draw in the chosen language; Chinese and Japanese need a CJK font, loaded on first use.
+    fn apply_language(&mut self, ctx: &egui::Context) {
+        let lang = i18n::Lang::from_pref(&self.ui.language);
+        i18n::set_current(lang);
+        if lang.cjk() && !self.ui.cjk_loaded {
+            self.ui.cjk_loaded = true;
+            match self.services.cjk_font() {
+                Some(cjk) => {
+                    let (r, b) = self.ui.fonts.clone();
+                    theme::install_fonts_with(ctx, r, b, Some(cjk));
+                    ctx.request_repaint();
+                }
+                None => log::warn!("no Chinese/Japanese font found: those characters can't be drawn"),
+            }
+        }
     }
 
     /// Run a command, reporting failures in a toast.
@@ -240,7 +288,7 @@ impl MailApp {
         // Sign-in pages go to the browser.
         for url in std::mem::take(&mut self.session.open_urls) {
             if let Err(e) = self.services.open_url(&url) {
-                self.session.notice(format!("The sign-in page couldn't be opened: {e}"), true);
+                self.session.notice(tf!("The sign-in page couldn't be opened: {error}", error = e), true);
             }
         }
         // Snoozed mail that is due comes back.
@@ -262,6 +310,7 @@ impl MailApp {
             ctx.request_repaint();
             return;
         }
+        self.apply_language(&ctx);
         self.pump();
         self.announce(&ctx);
         // A search started by a command or agent shows its query in the box.
@@ -340,7 +389,8 @@ impl MailApp {
         }
 
         if let Some(mut d) = self.ui.dialog.take() {
-            let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &mut acts);
+            let language = self.ui.language.clone();
+            let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &language, &mut acts);
             if keep && self.ui.dialog.is_none() {
                 self.ui.dialog = Some(d);
             }
@@ -361,7 +411,7 @@ impl MailApp {
         let news = self.session.take_new_mail();
         if !news.is_empty() {
             let (title, body) = match news.as_slice() {
-                [m] => (m.from.display().to_string(), if m.subject.is_empty() { "(no subject)".to_string() } else { m.subject.clone() }),
+                [m] => (m.from.display().to_string(), if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() }),
                 many => {
                     let mut who: Vec<&str> = Vec::new();
                     for m in many.iter().rev() {
@@ -372,11 +422,11 @@ impl MailApp {
                     }
                     let names = match who.as_slice() {
                         [a] => (*a).to_string(),
-                        [a, b] => format!("{a} and {b}"),
-                        [a, b, ..] => format!("{a}, {b} and others"),
+                        [a, b] => tf!("{a} and {b}", a = a, b = b),
+                        [a, b, ..] => tf!("{a}, {b} and others", a = a, b = b),
                         [] => String::new(),
                     };
-                    (format!("{} new messages", many.len()), format!("From {names}"))
+                    (tf!("{n} new messages", n = many.len()), tf!("From {names}", names = names))
                 }
             };
             self.services.notify(&title, &body);
@@ -385,13 +435,14 @@ impl MailApp {
             }
         }
         let unread = self.session.inbox_unread();
-        let view = self.session.view_title();
+        let view = view_title(&self.session);
+        let base = tl!(&self.ui.title_base);
         let title = if self.session.view == mailcraft_engine::View::Empty {
-            self.ui.title_base.clone()
+            base.to_string()
         } else if unread > 0 {
-            format!("({unread}) {view} – {}", self.ui.title_base)
+            format!("({unread}) {view} – {base}")
         } else {
-            format!("{view} – {}", self.ui.title_base)
+            format!("{view} – {base}")
         };
         if title != self.ui.title_shown {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -428,6 +479,7 @@ impl MailApp {
                 }
             },
             Action::SetDark(d) => self.ui.dark = d,
+            Action::SetLanguage(l) => self.ui.language = l,
             Action::OpenUrl(url) => self.open_link(&url),
             Action::SignInAgain(id) => self.sign_in_again(&id),
             Action::OpenInCraft(i, cmd) => {
@@ -435,7 +487,7 @@ impl MailApp {
                 if let Some(path) = self.attachment_to_temp(i)
                     && let Err(e) = self.services.open_with(&app, &path)
                 {
-                    self.session.notice(format!("{} couldn't open it: {e}", app.display()), true);
+                    self.session.notice(tf!("{app} couldn't open it: {error}", app = app.display(), error = e), true);
                 }
             }
             Action::Print => {
@@ -444,8 +496,8 @@ impl MailApp {
                 let path = dir.join(format!("{}.pdf", self.message_file_name()));
                 match self.session.run("message.exportPdf", &json!({"path": path.to_string_lossy()})) {
                     Ok(_) => match self.services.open_path(&path) {
-                        Ok(()) => self.session.notice("Opened as a PDF: print it from the viewer", false),
-                        Err(e) => self.session.notice(format!("The PDF couldn't be opened: {e}"), true),
+                        Ok(()) => self.session.notice(tl!("Opened as a PDF: print it from the viewer"), false),
+                        Err(e) => self.session.notice(tf!("The PDF couldn't be opened: {error}", error = e), true),
                     },
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
@@ -454,7 +506,7 @@ impl MailApp {
                 let (ext, id) = if matches!(a, Action::ExportPdf) { ("pdf", "message.exportPdf") } else { ("eml", "message.saveAs") };
                 if let Some(path) = self.services.save_path(&format!("{}.{ext}", self.message_file_name())) {
                     match self.session.run(id, &json!({"path": path.to_string_lossy()})) {
-                        Ok(_) => self.session.notice(format!("Saved {}", path.display()), false),
+                        Ok(_) => self.session.notice(tf!("Saved {path}", path = path.display()), false),
                         Err(e) => self.session.notice(e.to_string(), true),
                     }
                 }
@@ -464,7 +516,7 @@ impl MailApp {
                     match self.session.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})) {
                         Ok(v) => {
                             let n = v.get("saved").and_then(Value::as_array).map_or(0, Vec::len);
-                            self.session.notice(format!("Saved {n} attachments in {}", dir.display()), false);
+                            self.session.notice(tf!("Saved {n} attachments in {folder}", n = n, folder = dir.display()), false);
                         }
                         Err(e) => self.session.notice(e.to_string(), true),
                     }
@@ -498,7 +550,7 @@ impl MailApp {
                 if let Some(path) = self.attachment_to_temp(i)
                     && let Err(e) = self.services.open_path(&path)
                 {
-                    self.session.notice(format!("{name} could not be opened: {e}"), true);
+                    self.session.notice(tf!("{name} could not be opened: {error}", name = name, error = e), true);
                 }
             }
         }
@@ -539,10 +591,10 @@ impl MailApp {
             self.run("compose.update", json!({"to": to}));
         } else if lower.starts_with("https://") || lower.starts_with("http://") {
             if let Err(e) = self.services.open_url(u) {
-                self.session.notice(format!("The link couldn't be opened: {e}"), true);
+                self.session.notice(tf!("The link couldn't be opened: {error}", error = e), true);
             }
         } else {
-            self.session.notice(format!("Links like {} aren't opened", widgets::shorten(u, 40)), true);
+            self.session.notice(tf!("Links like {link} aren't opened", link = widgets::shorten(u, 40)), true);
         }
     }
 
@@ -675,7 +727,7 @@ impl MailApp {
             let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
             ui.painter().rect_filled(r, 5.0, Color32::WHITE);
             icons::paint(ui.painter(), icons::centered(r, 15.0), Icon::Unread, t.accent);
-            ui.label(RichText::new("MailCraft").font(theme::bold(16.0)).color(Color32::WHITE));
+            ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(Color32::WHITE));
             ui.add_space(16.0);
             let avail = ui.available_width();
             let search_w = (avail * 0.45).clamp(220.0, 620.0);
@@ -687,7 +739,7 @@ impl MailApp {
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), r, Icon::Search, t.dim);
                     let te = egui::TextEdit::singleline(&mut self.ui.search_text)
-                        .hint_text("Search mail (from:, subject:, has:attachment…)")
+                        .hint_text(tl!("Search mail (from:, subject:, has:attachment…)"))
                         .frame(egui::Frame::NONE)
                         .desired_width(search_w - 60.0)
                         .text_color(t.text);
@@ -707,7 +759,7 @@ impl MailApp {
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let dark = t.dark;
-                let (icon, tip) = if dark { (Icon::Sun, "Switch to light mode") } else { (Icon::Moon, "Switch to dark mode") };
+                let (icon, tip) = if dark { (Icon::Sun, tl!("Switch to light mode")) } else { (Icon::Moon, tl!("Switch to dark mode")) };
                 if widgets::bar_icon_button(ui, icon, tip).clicked() {
                     acts.push(Action::SetDark(Some(!dark)));
                 }
@@ -725,7 +777,7 @@ impl MailApp {
             for (tab, label) in [(RibbonTab::Home, "Home"), (RibbonTab::View, "View")] {
                 let on = self.ui.tab == tab;
                 let r = ui.add(
-                    egui::Button::new(RichText::new(label).color(if on { t.accent } else { t.dim }).font(if on {
+                    egui::Button::new(RichText::new(tl!(label)).color(if on { t.accent } else { t.dim }).font(if on {
                         theme::bold(13.5)
                     } else {
                         theme::regular(13.5)
@@ -750,18 +802,23 @@ impl MailApp {
             ui.spacing_mut().item_spacing.x = 2.0;
             match self.ui.tab {
                 RibbonTab::Home => {
-                    if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled("mail.new")).on_hover_text("New mail (Ctrl+N)").clicked() {
+                    if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled("mail.new"))
+                        .on_hover_text(tl!("New mail (Ctrl+N)"))
+                        .clicked()
+                    {
                         acts.push(Action::Run("mail.new", json!({})));
                     }
                     widgets::group_sep(ui, &t);
-                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text("Delete (Del)").clicked() {
+                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
                         if self.needs_delete_confirm() {
                             acts.push(Action::Dialog(Dialog::ConfirmDelete { count: s.selection.len() }));
                         } else {
                             acts.push(Action::Run("mail.delete", json!({})));
                         }
                     }
-                    if widgets::tool_button(ui, Icon::Archive, "Archive", &t, enabled("mail.archive")).on_hover_text("Archive (Backspace)").clicked()
+                    if widgets::tool_button(ui, Icon::Archive, "Archive", &t, enabled("mail.archive"))
+                        .on_hover_text(tl!("Archive (Backspace)"))
+                        .clicked()
                     {
                         acts.push(Action::Run("mail.archive", json!({})));
                     }
@@ -772,7 +829,7 @@ impl MailApp {
                     }
                     widgets::group_sep(ui, &t);
                     if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled("mail.move"))
-                        .on_hover_text("Move to a folder (Ctrl+Shift+V)")
+                        .on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)"))
                         .clicked()
                     {
                         acts.push(Action::Dialog(Dialog::move_to()));
@@ -783,7 +840,7 @@ impl MailApp {
                         ("mail.replyAll", Icon::ReplyAll, "Reply all", "Reply all (Ctrl+Shift+R)"),
                         ("mail.forward", Icon::Forward, "Forward", "Forward (Ctrl+F)"),
                     ] {
-                        if widgets::tool_button(ui, icon, label, &t, enabled(id)).on_hover_text(tip).clicked() {
+                        if widgets::tool_button(ui, icon, label, &t, enabled(id)).on_hover_text(tl!(tip)).clicked() {
                             acts.push(Action::Run(id, json!({})));
                         }
                     }
@@ -796,7 +853,7 @@ impl MailApp {
                     {
                         acts.push(Action::Run("mail.toggleRead", json!({})));
                     }
-                    if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled("mail.flag")).on_hover_text("Flag / Unflag (Insert)").clicked() {
+                    if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled("mail.flag")).on_hover_text(tl!("Flag / Unflag (Insert)")).clicked() {
                         acts.push(Action::Run("mail.flag", json!({})));
                     }
                     let sel = !s.selection.is_empty();
@@ -810,40 +867,41 @@ impl MailApp {
                     egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
                     widgets::group_sep(ui, &t);
                     if widgets::tool_button(ui, Icon::Sync, "Send / Receive", &t, enabled("mail.sync"))
-                        .on_hover_text("Send / Receive all folders (F9)")
+                        .on_hover_text(tl!("Send / Receive all folders (F9)"))
                         .clicked()
                     {
                         acts.push(Action::Run("mail.sync", json!({})));
                     }
                 }
                 RibbonTab::View => {
-                    ui.label(RichText::new("Reading pane").color(t.dim));
+                    ui.label(RichText::new(tl!("Reading pane")).color(t.dim));
                     for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
-                        if ui.selectable_label(s.prefs.reading_pane == v, label).clicked() {
+                        if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
                             acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
                         }
                     }
                     widgets::group_sep(ui, &t);
                     if ui
-                        .selectable_label(s.prefs.focused_inbox, "Focused Inbox")
-                        .on_hover_text("Put newsletters and automatic mail in Other")
+                        .selectable_label(s.prefs.focused_inbox, tl!("Focused Inbox"))
+                        .on_hover_text(tl!("Put newsletters and automatic mail in Other"))
                         .clicked()
                     {
                         acts.push(Action::Run("view.focused", json!({})));
                     }
-                    if ui.selectable_label(s.prefs.conversations, "Conversations").on_hover_text("Group messages by conversation").clicked() {
+                    if ui.selectable_label(s.prefs.conversations, tl!("Conversations")).on_hover_text(tl!("Group messages by conversation")).clicked()
+                    {
                         acts.push(Action::Run("view.conversations", json!({})));
                     }
-                    if ui.selectable_label(s.prefs.show_preview, "Message preview").clicked() {
+                    if ui.selectable_label(s.prefs.show_preview, tl!("Message preview")).clicked() {
                         acts.push(Action::Run("view.preview", json!({})));
                     }
-                    if ui.selectable_label(s.prefs.compact, "Compact").clicked() {
+                    if ui.selectable_label(s.prefs.compact, tl!("Compact")).clicked() {
                         acts.push(Action::Run("view.compact", json!({})));
                     }
                     widgets::group_sep(ui, &t);
-                    ui.label(RichText::new("Theme").color(t.dim));
+                    ui.label(RichText::new(tl!("Theme")).color(t.dim));
                     for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
-                        if ui.selectable_label(self.ui.dark == v, label).clicked() {
+                        if ui.selectable_label(self.ui.dark == v, tl!(label)).clicked() {
                             acts.push(Action::SetDark(v));
                         }
                     }
@@ -858,25 +916,32 @@ impl MailApp {
         let mut again: Option<String> = None;
         ui.horizontal_centered(|ui| {
             let unread = s.list.iter().filter(|m| !m.flags.seen).count();
-            ui.label(RichText::new(format!("Items: {}", s.list.len())).color(t.dim).small());
+            ui.label(RichText::new(tf!("Items: {n}", n = s.list.len())).color(t.dim).small());
             if unread > 0 {
-                ui.label(RichText::new(format!("Unread: {unread}")).color(t.dim).small());
+                ui.label(RichText::new(tf!("Unread: {n}", n = unread)).color(t.dim).small());
             }
             if !s.outbox.is_empty() {
-                ui.label(RichText::new(format!("Outbox: {}", s.outbox.len())).color(t.warn).small());
+                ui.label(RichText::new(tf!("Outbox: {n}", n = s.outbox.len())).color(t.warn).small());
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 for a in s.accounts.iter().rev() {
                     let (color, text) = match &a.status {
-                        SyncStatus::Online { at } => (t.ok, format!("Updated {}", mailcraft_engine::model::dates::list_time(*at, &s.clock))),
-                        SyncStatus::Syncing { folder } => {
-                            (t.accent, format!("Updating {}…", s.folder(&a.config.id, folder).map(|f| f.display_name()).unwrap_or_default()))
+                        SyncStatus::Online { at } => {
+                            (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock))))
                         }
-                        SyncStatus::Connecting => (t.accent, "Connecting…".to_string()),
-                        SyncStatus::Offline if a.is_local() => (t.faint, "Sample mailbox (offline)".to_string()),
-                        SyncStatus::Offline => (t.faint, "Offline".to_string()),
-                        SyncStatus::NeedsPassword { .. } => (t.danger, "Password needed".to_string()),
-                        SyncStatus::Error { error } => (t.warn, format!("Disconnected: {}", widgets::shorten(error, 60))),
+                        SyncStatus::Syncing { folder } => (
+                            t.accent,
+                            tf!(
+                                "Updating {folder}…",
+                                folder =
+                                    s.folder(&a.config.id, folder).map(|f| i18n::tc("folder", &f.display_name()).to_string()).unwrap_or_default()
+                            ),
+                        ),
+                        SyncStatus::Connecting => (t.accent, tl!("Connecting…").to_string()),
+                        SyncStatus::Offline if a.is_local() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
+                        SyncStatus::Offline => (t.faint, tl!("Offline").to_string()),
+                        SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),
+                        SyncStatus::Error { error } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
                     };
                     let r = ui.label(RichText::new(text).color(t.dim).small());
                     let label = a.config.email.clone();
@@ -921,7 +986,8 @@ impl MailApp {
                     .shadow(egui::epaint::Shadow { offset: [0, 2], blur: 10, spread: 0, color: Color32::from_black_alpha(60) })
                     .show(ui, |ui| {
                         ui.set_max_width(420.0);
-                        ui.label(RichText::new(text).color(if error { Color32::WHITE } else { t.surface }));
+                        // Notices from the engine are English; the ones with a fixed text have a translation.
+                        ui.label(RichText::new(tl!(&text)).color(if error { Color32::WHITE } else { t.surface }));
                     });
             },
         );
@@ -929,7 +995,7 @@ impl MailApp {
 
     /// Preferences and theme for the app to save.
     pub fn saved_state(&self) -> Value {
-        json!({ "prefs": self.session.prefs, "dark": self.ui.dark })
+        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language })
     }
 
     pub fn restore_state(&mut self, v: &Value) {
@@ -938,6 +1004,17 @@ impl MailApp {
             self.session.refresh_list();
         }
         self.ui.dark = v.get("dark").and_then(Value::as_bool);
+        if let Some(l) = v.get("language").and_then(Value::as_str).filter(|l| *l == i18n::AUTO || i18n::Lang::from_code(l).is_some()) {
+            self.ui.language = l.to_string();
+        }
+    }
+}
+
+/// The list's title in the interface language.
+pub(crate) fn view_title(s: &Session) -> String {
+    match &s.search {
+        Some((q, _)) => tf!("Results for “{query}”", query = q),
+        None => i18n::tc("folder", &s.view_title()).to_string(),
     }
 }
 

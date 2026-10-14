@@ -1,0 +1,351 @@
+# MailCraft interface strings: French (français).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  Chargement des dossiers…
+	(Top level)	(Niveau supérieur)
+	(no subject)	(sans objet)
+	1 attachment	1 pièce jointe
+	1. List	1. Liste
+	</>	</>
+	Accounts	Comptes
+	Accounts and settings	Comptes et paramètres
+	Add a subject	Ajoutez un objet
+	Add account…	Ajouter un compte…
+	Add an account	Ajouter un compte
+	Add an email account	Ajouter un compte de messagerie
+	Added to new messages, replies and forwards.	Ajoutée aux nouveaux messages, aux réponses et aux transferts.
+	All	Tout
+	All Inboxes	Toutes les boîtes de réception
+	All Sent	Tous les envoyés
+	All caught up: nothing in this folder.	Vous êtes à jour : ce dossier est vide.
+	All folders	Tous les dossiers
+	Always show from {sender}	Toujours afficher pour {sender}
+	Apr	avr.
+	Archive	Archiver
+	Archive (Backspace)	Archiver (Retour arrière)
+	Ask before deleting for good	Demander avant de supprimer définitivement
+	At the top of {account}	En haut de {account}
+	Attach file	Joindre un fichier
+	Audio	Audio
+	Aug	août
+	B	G
+	Bcc	Cci
+	Bold (Ctrl+B)	Gras (Ctrl+B)
+	Bottom	En bas
+	Bulleted list	Liste à puces
+	Cancel	Annuler
+	Categorize	Catégoriser
+	Category	Catégorie
+	Cc	Cc
+	Cc / Bcc	Cc / Cci
+	Cc: {names}	Cc : {names}
+	Choose…	Choisir…
+	Clear search	Effacer la recherche
+	Close	Fermer
+	Code	Code
+	Compact	Compact
+	Connect	Se connecter
+	Connecting…	Connexion…
+	Conversations	Conversations
+	Create	Créer
+	Create rule…	Créer une règle…
+	Dark	Sombre
+	Date	Date
+	Dec	déc.
+	Delete	Supprimer
+	Delete (Del)	Supprimer (Suppr)
+	Delete folder…	Supprimer le dossier…
+	Delete permanently?	Supprimer définitivement ?
+	Delete “{folder}”?	Supprimer « {folder} » ?
+	Deleted Items	Éléments supprimés
+	Discard	Abandonner
+	Disconnected: {error}	Déconnecté : {error}
+	Document	Document
+	Don't run later rules on mail this one matches	Ne pas appliquer les règles suivantes au courrier qui correspond à celle-ci
+	Downloading the message…	Téléchargement du message…
+	Draft saved	Brouillon enregistré
+	Drafts	Brouillons
+	Edit	Modifier
+	Edit rule	Modifier la règle
+	Email address	Adresse e-mail
+	Enter the password for {email}.	Saisissez le mot de passe de {email}.
+	Favorites	Favoris
+	Feb	févr.
+	File	Fichier
+	Flag	Indicateur
+	Flag / Unflag (Insert)	Ajouter / effacer l’indicateur (Inser)
+	Flagged	Avec indicateur
+	Focused	Prioritaire
+	Focused Inbox	Boîte de réception prioritaire
+	Focused Inbox: put newsletters and automatic mail in Other	Boîte de réception prioritaire : mettre les lettres d’information et le courrier automatique dans Autres
+	Folder	Dossier
+	Folder name	Nom du dossier
+	Forward	Transférer
+	Forward (Ctrl+F)	Transférer (Ctrl+F)
+	Fri	ven.
+	Friday	vendredi
+	From	De
+	From contains	L’expéditeur contient
+	From {names}	De {names}
+	Group messages by conversation	Regrouper les messages par conversation
+	Has attachments	Contient des pièces jointes
+	Has files	Contient des fichiers
+	Heading	Titre
+	Hidden from the other recipients	Masqué pour les autres destinataires
+	Home	Accueil
+	I	I
+	If it {condition}: {action}	S’il {condition} : {action}
+	Important	Important
+	Inbox	Boîte de réception
+	Incoming mail (IMAP)	Courrier entrant (IMAP)
+	Insert a picture (or paste one)	Insérer une image (ou la coller)
+	Inside {folder} ({account})	Dans {folder} ({account})
+	Is a newsletter or list mail	Est une lettre d’information ou un message de liste
+	Italic (Ctrl+I)	Italique (Ctrl+I)
+	Items: {n}	Éléments : {n}
+	Jan	janv.
+	Jul	juil.
+	Jun	juin
+	Junk Email	Courrier indésirable
+	Language	Langue
+	Last month	Le mois dernier
+	Last week	La semaine dernière
+	Later	Plus tard
+	Later today	Plus tard dans la journée
+	Light	Clair
+	Link	Lien
+	Link (Ctrl+K)	Lien (Ctrl+K)
+	Links like {link} aren't opened	Les liens comme {link} ne sont pas ouverts
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Local d’abord : le courrier est conservé sur cet ordinateur pour une recherche rapide hors connexion. Les mots de passe restent dans le trousseau du système.
+	Looking up the server settings…	Recherche des paramètres du serveur…
+	Mail from {sender}	Courrier de {sender}
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · une application ArtCraft · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	Liste de diffusion : désabonnement à {address}
+	Mar	mars
+	Mark all as read	Tout marquer comme lu
+	Mark as read	Marquer comme lu
+	Mark as unread	Marquer comme non lu
+	Mark read	Lu
+	Mark unread	Non lu
+	May	mai
+	Message preview	Aperçu du message
+	Message sent	Message envoyé
+	Messages waiting to be sent	Messages en attente d’envoi
+	Messages without a subject are easy to overlook.	Les messages sans objet passent facilement inaperçus.
+	Mon	lun.
+	Monday	lundi
+	Move	Déplacer
+	Move 1 message	Déplacer 1 message
+	Move folder…	Déplacer le dossier…
+	Move to	Déplacer vers
+	Move to a folder (Ctrl+Shift+V)	Déplacer vers un dossier (Ctrl+Maj+V)
+	Move to folder	Déplacer vers le dossier
+	Move to…	Déplacer vers…
+	Move {n} messages	Déplacer {n} messages
+	Move “{folder}” to	Déplacer « {folder} » vers
+	Name	Nom
+	Names <addresses>, separated by ; or ,	Noms <adresses>, séparés par ; ou ,
+	New category	Nouvelle catégorie
+	New category…	Nouvelle catégorie…
+	New folder	Nouveau dossier
+	New folder…	Nouveau dossier…
+	New mail	Nouveau message
+	New mail (Ctrl+N)	Nouveau message (Ctrl+N)
+	New rule	Nouvelle règle
+	New rule…	Nouvelle règle…
+	Next week	La semaine prochaine
+	No published settings: the usual server names are filled in. Check them under Server settings.	Aucun paramètre publié : les noms de serveur habituels ont été remplis. Vérifiez-les dans Paramètres du serveur.
+	No results. Try fewer words, or search all folders.	Aucun résultat. Essayez avec moins de mots ou cherchez dans tous les dossiers.
+	No rules yet.	Aucune règle pour l’instant.
+	None (unsafe)	Aucun (non sécurisé)
+	Not an email address: {address}	Adresse e-mail non valide : {address}
+	Not junk	Courrier légitime
+	Not sent: {error}	Non envoyé : {error}
+	Nothing matches this filter.	Rien ne correspond à ce filtre.
+	Nov	nov.
+	Numbered list	Liste numérotée
+	Oct	oct.
+	Off	Désactivé
+	Offline	Hors connexion
+	Older	Plus ancien
+	On / off	Activer / désactiver
+	Open	Ouvrir
+	Open as a PDF to print	Ouvrir en PDF pour imprimer
+	Open in {app}	Ouvrir dans {app}
+	Open it in the Craft app for this kind of file	L’ouvrir dans l’application Craft pour ce type de fichier
+	Open with the system's app	Ouvrir avec l’application du système
+	Opened as a PDF: print it from the viewer	Ouvert en PDF : imprimez-le depuis la visionneuse
+	Options	Options
+	Other	Autres
+	Outbox	Boîte d’envoi
+	Outbox: {n}	Boîte d’envoi : {n}
+	Outgoing mail (SMTP)	Courrier sortant (SMTP)
+	Password	Mot de passe
+	Password needed	Mot de passe requis
+	Password…	Mot de passe…
+	Personal	Personnel
+	Pick messages from one account to move them to a folder.	Choisissez des messages d’un seul compte pour les déplacer vers un dossier.
+	Picture	Image
+	Pictures from the web are hidden to protect your privacy.	Les images du Web sont masquées pour protéger votre vie privée.
+	Picture…	Image…
+	Pin	Épingler
+	Plain text	Texte brut
+	Preview	Aperçu
+	Print	Imprimer
+	Put newsletters and automatic mail in Other	Mettre les lettres d’information et le courrier automatique dans Autres
+	Quote	Citation
+	Reading pane	Volet de lecture
+	Remove	Retirer
+	Remove account?	Retirer le compte ?
+	Remove account…	Retirer le compte…
+	Remove from Favorites	Retirer des Favoris
+	Remove…	Retirer…
+	Rename	Renommer
+	Rename folder	Renommer le dossier
+	Rename folder…	Renommer le dossier…
+	Reply	Répondre
+	Reply (Ctrl+R)	Répondre (Ctrl+R)
+	Reply all	Répondre à tous
+	Reply all (Ctrl+Shift+R)	Répondre à tous (Ctrl+Maj+R)
+	Report junk	Signaler comme indésirable
+	Results for “{query}”	Résultats pour « {query} »
+	Right	À droite
+	Rules	Règles
+	Rules run on new mail as it arrives in an Inbox, in this order.	Les règles s’appliquent au nouveau courrier à son arrivée dans une boîte de réception, dans cet ordre.
+	Rules…	Règles…
+	Run now	Exécuter maintenant
+	Run on the folder on screen	Exécuter sur le dossier affiché
+	S	B
+	Same as the system	Comme le système
+	Sample mailbox (offline)	Boîte aux lettres d’exemple (hors connexion)
+	Sample mailbox, kept on this computer only	Boîte aux lettres d’exemple, conservée uniquement sur cet ordinateur
+	Sat	sam.
+	Saturday	samedi
+	Save	Enregistrer
+	Save all…	Tout enregistrer…
+	Save as PDF…	Enregistrer en PDF…
+	Save as email (.eml)…	Enregistrer comme e-mail (.eml)…
+	Save as…	Enregistrer sous…
+	Save draft	Enregistrer le brouillon
+	Save draft (Ctrl+S)	Enregistrer le brouillon (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	Placé dans la boîte d’envoi : il sera envoyé à votre retour en ligne
+	Saved {n} attachments in {folder}	{n} pièces jointes enregistrées dans {folder}
+	Saved {path}	Enregistré : {path}
+	Search folders	Rechercher des dossiers
+	Search mail (from:, subject:, has:attachment…)	Rechercher dans le courrier (from:, subject:, has:attachment…)
+	Select a message first.	Sélectionnez d’abord un message.
+	Send	Envoyer
+	Send (Ctrl+Enter)	Envoyer (Ctrl+Entrée)
+	Send / Receive	Envoyer / recevoir
+	Send / Receive all folders (F9)	Envoyer / recevoir tous les dossiers (F9)
+	Send anyway	Envoyer quand même
+	Send now	Envoyer maintenant
+	Send without a subject?	Envoyer sans objet ?
+	Send without formatting	Envoyer sans mise en forme
+	Sender, recipients or subject contain	L’expéditeur, les destinataires ou l’objet contiennent
+	Sending…	Envoi…
+	Sent Items	Éléments envoyés
+	Sep	sept.
+	Server settings	Paramètres du serveur
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Serveurs : {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	Paramètres trouvés : {source}
+	Show a desktop notification when new mail arrives	Afficher une notification de bureau à l’arrivée de nouveau courrier
+	Show as plain text	Afficher en texte brut
+	Show formatted	Afficher avec la mise en forme
+	Show in Favorites	Afficher dans les Favoris
+	Show pictures	Afficher les images
+	Shown as text.	Affiché en texte.
+	Shown on mail you send	Affichée sur le courrier que vous envoyez
+	Sign in	Se connecter
+	Sign in again	Se reconnecter
+	Sign in again…	Se reconnecter…
+	Sign in with {provider}	Se connecter avec {provider}
+	Signature	Signature
+	Signature…	Signature…
+	Snooze	Répéter plus tard
+	Stop showing pictures from this sender	Ne plus afficher les images de cet expéditeur
+	Strikethrough	Barré
+	Subject	Objet
+	Subject contains	L’objet contient
+	Sun	dim.
+	Sunday	dimanche
+	Switch to dark mode	Passer en mode sombre
+	Switch to light mode	Passer en mode clair
+	System	Système
+	Text	Texte
+	Text or address	Texte ou adresse
+	The PDF couldn't be opened: {error}	Impossible d’ouvrir le PDF : {error}
+	The folder and everything in it will be moved to Deleted Items.	Le dossier et tout son contenu seront déplacés dans Éléments supprimés.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Le dossier, ses sous-dossiers et tout le courrier qu’ils contiennent seront supprimés définitivement. Cette action est irréversible.
+	The link couldn't be opened: {error}	Impossible d’ouvrir le lien : {error}
+	The sign-in page couldn't be opened: {error}	Impossible d’ouvrir la page de connexion : {error}
+	Theme	Thème
+	Then	Alors
+	These {n} messages will be deleted for good. This can't be undone.	Ces {n} messages seront supprimés définitivement. Cette action est irréversible.
+	This folder	Ce dossier
+	This message couldn't be downloaded: {error}	Impossible de télécharger ce message : {error}
+	This message will be deleted for good. This can't be undone.	Ce message sera supprimé définitivement. Cette action est irréversible.
+	This weekend	Ce week-end
+	Three weeks ago	Il y a trois semaines
+	Thu	jeu.
+	Thursday	jeudi
+	To	À
+	To do	À faire
+	To or Cc contains	À ou Cc contient
+	To: {names}	À : {names}
+	Today	Aujourd’hui
+	Tomorrow	Demain
+	Try again	Réessayer
+	Tue	mar.
+	Tuesday	mardi
+	Two weeks ago	Il y a deux semaines
+	Unflag	Effacer l’indicateur
+	Unpin	Désépingler
+	Unread	Non lus
+	Unread: {n}	Non lus : {n}
+	Upcoming	À venir
+	Update folder	Actualiser le dossier
+	Updated {time}	Mis à jour {time}
+	Updating {folder}…	Mise à jour de {folder}…
+	User name	Nom d’utilisateur
+	Usually the email address	En général, l’adresse e-mail
+	Video	Vidéo
+	View	Affichage
+	Waiting in the Outbox. Last try: {error}	En attente dans la boîte d’envoi. Dernière tentative : {error}
+	Waiting in the Outbox: it will be sent when you're back online.	En attente dans la boîte d’envoi : il sera envoyé à votre retour en ligne.
+	Wed	mer.
+	Wednesday	mercredi
+	Welcome to MailCraft	Bienvenue dans MailCraft
+	When mail	Quand un message
+	Without encryption your password travels in the clear. Use only for local test servers.	Sans chiffrement, votre mot de passe circule en clair. À réserver aux serveurs de test locaux.
+	Work	Travail
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	Fonctionne avec tout fournisseur proposant IMAP et SMTP. Votre mot de passe est conservé dans le trousseau de cet ordinateur et n’est envoyé qu’à votre serveur de messagerie.
+	Write your message…	Rédigez votre message…
+	Yesterday	Hier
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Votre courrier, sur votre ordinateur. Ajoutez n’importe quel compte IMAP : les messages sont conservés sur cet appareil pour une recherche rapide et une lecture hors connexion. Votre mot de passe reste dans le trousseau du système.
+	Your name	Votre nom
+	categorize {category}	classer dans {category}
+	folder	dossier
+	from “{text}”	vient de « {text} »
+	in your browser: no password stored	dans votre navigateur : aucun mot de passe enregistré
+	mentions “{text}”	mentionne « {text} »
+	move to {folder}	déplacer vers {folder}
+	subject has “{text}”	a « {text} » dans l’objet
+	you@example.com	vous@exemple.com
+	{app} couldn't open it: {error}	{app} n’a pas pu l’ouvrir : {error}
+	{a} and {b}	{a} et {b}
+	{a}, {b} and others	{a}, {b} et d’autres
+	{email} (sample)	{email} (exemple)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} et son courrier téléchargé seront retirés de cet ordinateur. Rien n’est supprimé sur le serveur.
+	{name} could not be opened: {error}	Impossible d’ouvrir {name} : {error}
+	{n} attachments	{n} pièces jointes
+	{n} messages in this conversation	{n} messages dans cette conversation
+	{n} new messages	{n} nouveaux messages
+	• List	• Liste
+	Select a message to read it	Sélectionnez un message pour le lire
+	MailCraft – Sample mailbox	MailCraft – Boîte aux lettres d’exemple
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	Archives

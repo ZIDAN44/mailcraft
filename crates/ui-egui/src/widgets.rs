@@ -8,6 +8,7 @@ use crate::{Action, Dialog};
 
 /// A ribbon button: icon over nothing, label to the right.
 pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
+    let label = tl!(label);
     let font = theme::regular(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     let size = vec2(galley.size().x + 36.0, 30.0);
@@ -24,6 +25,7 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
 
 /// The filled "New mail" button.
 pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
+    let label = tl!(label);
     let font = theme::bold(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.on_accent);
     let size = vec2(galley.size().x + 40.0, 30.0);
@@ -49,7 +51,7 @@ pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
         ui.painter().rect_filled(rect, 6.0, Color32::from_white_alpha(40));
     }
     icons::paint(ui.painter(), icons::centered(rect, 17.0), icon, Color32::WHITE);
-    resp.on_hover_text(tip)
+    resp.on_hover_text(tl!(tip))
 }
 
 /// A small icon button inside panes.
@@ -59,11 +61,12 @@ pub fn tiny_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Respo
         ui.painter().rect_filled(rect, 4.0, t.hover);
     }
     icons::paint(ui.painter(), icons::centered(rect, 13.0), icon, if resp.hovered() { t.text } else { t.dim });
-    resp.on_hover_text(tip)
+    resp.on_hover_text(tl!(tip))
 }
 
 /// A labelled icon button for the reading pane's action row.
 pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response {
+    let label = tl!(label);
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
     let size = vec2(galley.size().x + 34.0, 28.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
@@ -113,9 +116,9 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
                 ui.painter().rect_filled(r, 14.0, t.accent);
                 icons::paint(ui.painter(), icons::centered(r, 38.0), Icon::Unread, t.on_accent);
                 ui.add_space(12.0);
-                ui.label(RichText::new("Welcome to MailCraft").font(theme::bold(22.0)).color(t.text));
+                ui.label(RichText::new(tl!("Welcome to MailCraft")).font(theme::bold(22.0)).color(t.text));
                 ui.add_space(4.0);
-                ui.label(RichText::new("Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.").color(t.dim));
+                ui.label(RichText::new(tl!("Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.")).color(t.dim));
                 ui.add_space(18.0);
                 if accent_button(ui, Icon::Plus, "Add an account", t, true).clicked() {
                     acts.push(Action::Dialog(Dialog::add_account()));

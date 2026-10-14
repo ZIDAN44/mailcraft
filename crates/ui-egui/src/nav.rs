@@ -65,7 +65,7 @@ fn row(
     icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
     let font = if unread > 0 || selected { theme::bold(13.5) } else { theme::regular(13.5) };
     let text_right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
-    let galley = ui.painter().layout(label.to_string(), font, t.text, (text_right - x - 24.0).max(10.0));
+    let galley = ui.painter().layout(tl!(label).to_string(), font, t.text, (text_right - x - 24.0).max(10.0));
     let gy = rect.center().y - galley.size().y / 2.0;
     ui.painter().with_clip_rect(egui::Rect::from_x_y_ranges(x..=text_right, rect.y_range())).galley(egui::pos2(x + 24.0, gy), galley, t.text);
     if unread > 0 {
@@ -103,7 +103,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if !s.outbox.is_empty() {
             let sel = s.view == View::Outbox && s.search.is_none();
             let n = u32::try_from(s.outbox.len()).unwrap_or(u32::MAX);
-            if row(ui, t, Icon::Outbox, "Outbox", n, 0, sel, false, false).on_hover_text("Messages waiting to be sent").clicked() {
+            if row(ui, t, Icon::Outbox, "Outbox", n, 0, sel, false, false).on_hover_text(tl!("Messages waiting to be sent")).clicked() {
                 acts.push(Action::Run("folder.outbox", json!({})));
             }
         }
@@ -119,31 +119,31 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);
             ui.painter().circle_filled(rect.min + vec2(26.0, 15.0), 4.0, theme::account_color(a.config.color));
-            let label = if a.is_local() { format!("{} (sample)", a.config.email) } else { a.config.email.clone() };
+            let label = if a.is_local() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
             ui.painter().with_clip_rect(rect).text(rect.min + vec2(36.0, 15.0), egui::Align2::LEFT_CENTER, label, theme::bold(13.0), t.text);
             if resp.clicked() {
                 state.toggle(ui);
             }
             let config = a.config.clone();
             resp.context_menu(|ui| {
-                if ui.button("Send / Receive").clicked() {
+                if ui.button(tl!("Send / Receive")).clicked() {
                     acts.push(Action::Run("mail.sync", json!({})));
                     ui.close();
                 }
-                if !a.is_local() && ui.button("Sign in again…").clicked() {
+                if !a.is_local() && ui.button(tl!("Sign in again…")).clicked() {
                     acts.push(Action::SignInAgain(config.id.clone()));
                     ui.close();
                 }
-                if ui.button("Signature…").clicked() {
+                if ui.button(tl!("Signature…")).clicked() {
                     acts.push(Action::Dialog(Dialog::Signature { account: config.id.clone(), text: config.signature.clone() }));
                     ui.close();
                 }
-                if ui.button("New folder…").clicked() {
+                if ui.button(tl!("New folder…")).clicked() {
                     acts.push(Action::Dialog(Dialog::new_folder(&config.id, None)));
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(RichText::new("Remove account…").color(t.danger)).clicked() {
+                if ui.button(RichText::new(tl!("Remove account…")).color(t.danger)).clicked() {
                     acts.push(Action::Dialog(Dialog::RemoveAccount { account: config.id.clone(), email: config.email.clone() }));
                     ui.close();
                 }
@@ -153,7 +153,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 continue;
             }
             if a.folders.is_empty() {
-                ui.label(RichText::new("  Loading folders…").color(t.faint).small());
+                ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
             }
             for f in &a.folders {
                 folder_row(s, t, ui, acts, f, f.depth() + 1, false);
@@ -165,14 +165,16 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
 
 fn section(ui: &mut Ui, t: &Tokens, label: &str) {
     ui.add_space(2.0);
-    ui.label(RichText::new(label).font(theme::bold(12.0)).color(t.faint));
+    ui.label(RichText::new(tl!(label)).font(theme::bold(12.0)).color(t.faint));
 }
 
 fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &Folder, depth: usize, favorite: bool) {
     let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
     let name = match s.account(&f.account) {
-        Some(a) if favorite && s.accounts.len() > 1 => format!("{} · {}", f.display_name(), a.config.email.split('@').next().unwrap_or_default()),
-        _ => f.display_name(),
+        Some(a) if favorite && s.accounts.len() > 1 => {
+            format!("{} · {}", crate::i18n::tc("folder", &f.display_name()), a.config.email.split('@').next().unwrap_or_default())
+        }
+        _ => crate::i18n::tc("folder", &f.display_name()).to_string(),
     };
     // Unread counts matter for mail you receive, not for Sent or Drafts.
     let unread = if matches!(f.role, FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Archive) { 0 } else { f.unread };
@@ -200,41 +202,41 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     let account = f.account.clone();
     let is_favorite = s.favorites().iter().any(|r| r.account == f.account && r.folder == f.path);
     resp.context_menu(|ui| {
-        if ui.button("Open").clicked() {
+        if ui.button(tl!("Open")).clicked() {
             acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
             ui.close();
         }
-        if ui.button("Update folder").clicked() {
+        if ui.button(tl!("Update folder")).clicked() {
             acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
             acts.push(Action::Run("folder.sync", json!({})));
             ui.close();
         }
-        if ui.button("Mark all as read").clicked() {
+        if ui.button(tl!("Mark all as read")).clicked() {
             acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
             acts.push(Action::Run("mail.markAllRead", json!({})));
             ui.close();
         }
         ui.separator();
-        if ui.button("New folder…").clicked() {
+        if ui.button(tl!("New folder…")).clicked() {
             acts.push(Action::Dialog(Dialog::new_folder(&account, Some(&path))));
             ui.close();
         }
         if user_folder {
-            if ui.button("Rename folder…").clicked() {
+            if ui.button(tl!("Rename folder…")).clicked() {
                 acts.push(Action::Dialog(Dialog::rename_folder(f)));
                 ui.close();
             }
-            if ui.button("Move folder…").clicked() {
+            if ui.button(tl!("Move folder…")).clicked() {
                 acts.push(Action::Dialog(Dialog::move_folder(f)));
                 ui.close();
             }
-            if ui.button(RichText::new("Delete folder…").color(t.danger)).clicked() {
+            if ui.button(RichText::new(tl!("Delete folder…")).color(t.danger)).clicked() {
                 acts.push(Action::Dialog(Dialog::delete_folder(s, f)));
                 ui.close();
             }
         }
         ui.separator();
-        let label = if is_favorite { "Remove from Favorites" } else { "Show in Favorites" };
+        let label = tl!(if is_favorite { "Remove from Favorites" } else { "Show in Favorites" });
         if ui.button(label).clicked() {
             acts.push(Action::Run("folder.favorite", json!({"account": account, "folder": path, "on": !is_favorite})));
             ui.close();

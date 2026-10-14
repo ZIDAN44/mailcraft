@@ -29,15 +29,18 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let t = st.tokens;
     egui::Frame::new().inner_margin(egui::Margin { left: 14, right: 10, top: 10, bottom: 6 }).show(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(s.view_title()).font(theme::bold(18.0)).color(t.text));
+            ui.label(RichText::new(crate::view_title(s)).font(theme::bold(18.0)).color(t.text));
         });
         ui.add_space(4.0);
         if s.focus_split() {
             ui.horizontal(|ui| {
                 for (other, label) in [(false, "Focused"), (true, "Other")] {
                     let on = s.focus_other == other;
-                    let text =
-                        RichText::new(label).color(if on { t.text } else { t.dim }).font(if on { theme::bold(14.0) } else { theme::regular(14.0) });
+                    let text = RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on {
+                        theme::bold(14.0)
+                    } else {
+                        theme::regular(14.0)
+                    });
                     let r = ui.add(egui::Button::new(text).frame(false));
                     if on {
                         ui.painter().line_segment(
@@ -55,8 +58,11 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         ui.horizontal(|ui| {
             for f in ListFilter::ALL {
                 let on = s.filter == f;
-                let text =
-                    RichText::new(f.label()).color(if on { t.accent } else { t.dim }).font(if on { theme::bold(12.5) } else { theme::regular(12.5) });
+                let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(if on {
+                    theme::bold(12.5)
+                } else {
+                    theme::regular(12.5)
+                });
                 let r = ui.add(egui::Button::new(text).frame(false));
                 if on {
                     ui.painter().line_segment(
@@ -71,10 +77,10 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             if let Some((q, scope)) = &s.search {
                 ui.add_space(8.0);
                 let all = *scope == SearchScope::All;
-                if ui.selectable_label(all, RichText::new("All folders").small()).clicked() && !all {
+                if ui.selectable_label(all, RichText::new(tl!("All folders")).small()).clicked() && !all {
                     acts.push(Action::Run("search.run", json!({"query": q, "scope": "all"})));
                 }
-                if ui.selectable_label(!all, RichText::new("This folder").small()).clicked() && all {
+                if ui.selectable_label(!all, RichText::new(tl!("This folder")).small()).clicked() && all {
                     acts.push(Action::Run("search.run", json!({"query": q, "scope": "current"})));
                 }
             }
@@ -91,11 +97,11 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             icons::paint(ui.painter(), r, if s.search.is_some() { Icon::Search } else { Icon::Inbox }, t.faint);
             ui.add_space(8.0);
             let msg = if s.search.is_some() {
-                "No results. Try fewer words, or search all folders."
+                tl!("No results. Try fewer words, or search all folders.")
             } else if s.filter != ListFilter::All {
-                "Nothing matches this filter."
+                tl!("Nothing matches this filter.")
             } else {
-                "All caught up: nothing in this folder."
+                tl!("All caught up: nothing in this folder.")
             };
             ui.label(RichText::new(msg).color(t.dim));
         });
@@ -138,7 +144,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             match row {
                 Row::Header(label) => {
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
-                    ui.painter().text(r.left_bottom() + vec2(14.0, -8.0), egui::Align2::LEFT_BOTTOM, *label, theme::bold(12.5), t.dim);
+                    ui.painter().text(r.left_bottom() + vec2(14.0, -8.0), egui::Align2::LEFT_BOTTOM, tl!(label), theme::bold(12.5), t.dim);
                 }
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };
@@ -191,11 +197,11 @@ fn message_row(
     let right = r.max.x - 14.0;
     let line1 = r.min.y + if compact { 6.0 } else { 9.0 };
     // Sender (or recipients in Sent) and time.
-    let time = dates::list_time(m.date, &s.clock);
+    let time = crate::i18n::date(&dates::list_time(m.date, &s.clock));
     let time_g = p.layout_no_wrap(time, if unread { theme::bold(12.0) } else { theme::regular(12.0) }, if unread { t.accent } else { t.dim });
     let tw = time_g.size().x;
     p.galley(egui::pos2(right - tw, line1 + 1.0), time_g, t.dim);
-    let who = if sent_view { format!("To: {}", addr::display_list(&m.to)) } else { m.from.display().to_string() };
+    let who = if sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
     let who = if count > 1 { format!("{who}  ({count})") } else { who };
     let who_g = p.layout(who, if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.text, (right - tw - 10.0 - x).max(20.0));
     p.with_clip_rect(Rect::from_x_y_ranges(x..=right - tw - 8.0, r.y_range())).galley(egui::pos2(x, line1), who_g, t.text);
@@ -232,7 +238,7 @@ fn message_row(
             p.circle_filled(egui::pos2(right - icons_w + 7.0, line2 + 8.0), 5.0, theme::category_color(c.color, t.dark));
         }
     }
-    let subject = if m.subject.is_empty() { "(no subject)".to_string() } else { m.subject.clone() };
+    let subject = if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() };
     let subj_color = if unread { t.accent } else { t.text };
     let subj_g = p.layout_no_wrap(subject, if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color);
     let subj_right = right - icons_w.max(if hovered { 70.0 } else { 0.0 }) - 4.0;
@@ -251,7 +257,7 @@ fn message_row(
             (Icon::Flag, if m.flags.flagged { "Unflag" } else { "Flag" }, "mail.flag", json!({})),
             (
                 if m.flags.seen { Icon::Unread } else { Icon::Read },
-                if m.flags.seen { "Mark unread" } else { "Mark read" },
+                tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }),
                 "mail.toggleRead",
                 json!({}),
             ),
@@ -298,7 +304,7 @@ fn message_row(
     if resp.dragged() {
         let n = if selected { s.selection.len() } else { 1 };
         egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), id.with("drag"), egui::PopupAnchor::Pointer).show(|ui| {
-            ui.label(if n == 1 { "Move 1 message".to_string() } else { format!("Move {n} messages") });
+            ui.label(if n == 1 { tl!("Move 1 message").to_string() } else { tf!("Move {n} messages", n = n) });
         });
     }
     let key = m.key.clone();
@@ -313,21 +319,21 @@ fn message_row(
                 ui.close();
             }
         };
-        item(ui, "Reply", Action::Run("mail.reply", json!({})));
-        item(ui, "Reply all", Action::Run("mail.replyAll", json!({})));
-        item(ui, "Forward", Action::Run("mail.forward", json!({})));
+        item(ui, tl!("Reply"), Action::Run("mail.reply", json!({})));
+        item(ui, tl!("Reply all"), Action::Run("mail.replyAll", json!({})));
+        item(ui, tl!("Forward"), Action::Run("mail.forward", json!({})));
         ui.separator();
         item(
             ui,
-            if flags.seen { "Mark as unread" } else { "Mark as read" },
+            tl!(if flags.seen { "Mark as unread" } else { "Mark as read" }),
             Action::Run(if flags.seen { "mail.markUnread" } else { "mail.markRead" }, json!({})),
         );
-        item(ui, if flags.flagged { "Unflag" } else { "Flag" }, Action::Run("mail.flag", json!({})));
+        item(ui, tl!(if flags.flagged { "Unflag" } else { "Flag" }), Action::Run("mail.flag", json!({})));
         ui.separator();
-        item(ui, "Move to…", Action::Dialog(Dialog::move_to()));
-        item(ui, "Archive", Action::Run("mail.archive", json!({})));
-        item(ui, "Report junk", Action::Run("mail.junk", json!({})));
-        item(ui, "Delete", Action::Run("mail.delete", json!({})));
+        item(ui, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
+        item(ui, tl!("Archive"), Action::Run("mail.archive", json!({})));
+        item(ui, tl!("Report junk"), Action::Run("mail.junk", json!({})));
+        item(ui, tl!("Delete"), Action::Run("mail.delete", json!({})));
         ui.separator();
         crate::organize::context_items(ui, s, t, acts, flags.pinned());
     });

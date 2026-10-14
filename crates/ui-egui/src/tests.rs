@@ -34,7 +34,15 @@ fn key(k: Key, modifiers: Modifiers) -> Event {
 
 #[test]
 fn renders_every_state_without_panicking() {
-    let (mut a, dir) = app("states");
+    tour();
+}
+
+/// Every pane layout, state and dialog, in light and dark (also run in the pseudo-language by
+/// the translation tests).
+pub(crate) fn tour() {
+    static RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let (mut a, dir) = app(&format!("states-{n}"));
     let ctx = egui::Context::default();
     for dark in [Some(false), Some(true)] {
         a.ui.dark = dark;

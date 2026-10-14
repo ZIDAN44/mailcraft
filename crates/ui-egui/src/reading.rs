@@ -20,7 +20,7 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
     }
     let t = st.tokens;
     let Some(r) = s.reading.clone() else {
-        empty(ui, &t, if s.list.is_empty() { "" } else { "Select a message to read it" });
+        empty(ui, &t, if s.list.is_empty() { "" } else { tl!("Select a message to read it") });
         return;
     };
     let summary = s.summary(&r.key).cloned();
@@ -33,16 +33,16 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                         ui.horizontal(|ui| {
                             let (ir, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
                             icons::paint(ui.painter(), ir, Icon::Warning, t.warn);
-                            ui.label(RichText::new(format!("This message couldn't be downloaded: {e}")).color(t.dim));
+                            ui.label(RichText::new(tf!("This message couldn't be downloaded: {error}", error = e)).color(t.dim));
                         });
-                        if ui.button("Try again").clicked() {
+                        if ui.button(tl!("Try again")).clicked() {
                             acts.push(Action::Open(r.key.clone()));
                         }
                     }
                     None => {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label(RichText::new("Downloading the message…").color(t.dim));
+                            ui.label(RichText::new(tl!("Downloading the message…")).color(t.dim));
                         });
                     }
                 }
@@ -50,7 +50,7 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
             };
             // Subject.
             ui.horizontal_wrapped(|ui| {
-                let subject = if p.subject.is_empty() { "(no subject)" } else { p.subject.as_str() };
+                let subject = if p.subject.is_empty() { tl!("(no subject)") } else { p.subject.as_str() };
                 ui.label(RichText::new(subject).font(theme::bold(21.0)).color(t.text));
                 if summary.as_ref().is_some_and(|m| m.flags.flagged) {
                     let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
@@ -94,25 +94,25 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                         }
                     });
                     if !p.to.is_empty() {
-                        ui.label(RichText::new(format!("To: {}", addr::display_list(&p.to))).color(t.dim).small())
+                        ui.label(RichText::new(tf!("To: {names}", names = addr::display_list(&p.to))).color(t.dim).small())
                             .on_hover_text(addr::format_list(&p.to));
                     }
                     if !p.cc.is_empty() {
-                        ui.label(RichText::new(format!("Cc: {}", addr::display_list(&p.cc))).color(t.dim).small())
+                        ui.label(RichText::new(tf!("Cc: {names}", names = addr::display_list(&p.cc))).color(t.dim).small())
                             .on_hover_text(addr::format_list(&p.cc));
                     }
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                     let when = summary.as_ref().map_or(p.date, |m| if p.date > 0 { p.date } else { m.date });
-                    ui.label(RichText::new(dates::full_time(when, &s.clock)).color(t.dim).small());
+                    ui.label(RichText::new(crate::i18n::date(&dates::full_time(when, &s.clock))).color(t.dim).small());
                 });
             });
             ui.add_space(8.0);
             if let Some((_, item)) = s.outbox_entry(&r.key) {
                 egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
                     let why = match item.error.as_deref() {
-                        Some(e) if e != "offline" => format!("Waiting in the Outbox. Last try: {}", widgets::shorten(e, 140)),
-                        _ => "Waiting in the Outbox: it will be sent when you're back online.".to_string(),
+                        Some(e) if e != "offline" => tf!("Waiting in the Outbox. Last try: {error}", error = widgets::shorten(e, 140)),
+                        _ => tl!("Waiting in the Outbox: it will be sent when you're back online.").to_string(),
                     };
                     ui.label(RichText::new(why).color(t.text));
                 });
@@ -142,16 +142,16 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                         acts.push(Action::Run("mail.forward", json!({})));
                     }
                     ui.add_space(6.0);
-                    if widgets::pill_button(ui, Icon::Print, "Print", &t).on_hover_text("Open as a PDF to print").clicked() {
+                    if widgets::pill_button(ui, Icon::Print, "Print", &t).on_hover_text(tl!("Open as a PDF to print")).clicked() {
                         acts.push(Action::Print);
                     }
                     let more = widgets::pill_button(ui, Icon::File, "Save", &t);
                     egui::Popup::menu(&more).show(|ui| {
-                        if ui.button("Save as PDF…").clicked() {
+                        if ui.button(tl!("Save as PDF…")).clicked() {
                             acts.push(Action::ExportPdf);
                             ui.close();
                         }
-                        if ui.button("Save as email (.eml)…").clicked() {
+                        if ui.button(tl!("Save as email (.eml)…")).clicked() {
                             acts.push(Action::SaveMessage);
                             ui.close();
                         }
@@ -172,8 +172,12 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
             let files: Vec<_> = p.attachments.iter().filter(|a| (!a.inline || a.kind() == AttachmentKind::Image) && !in_place(a)).cloned().collect();
             if !files.is_empty() {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("{} attachment{}", files.len(), if files.len() == 1 { "" } else { "s" })).color(t.dim).small());
-                    if files.len() > 1 && ui.link(RichText::new("Save all…").small()).clicked() {
+                    ui.label(
+                        RichText::new(if files.len() == 1 { tl!("1 attachment").to_string() } else { tf!("{n} attachments", n = files.len()) })
+                            .color(t.dim)
+                            .small(),
+                    );
+                    if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
                         acts.push(Action::SaveAll);
                     }
                 });
@@ -188,7 +192,7 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                 html_bar(s, &t, ui, p, acts);
             }
             if let Some(u) = &p.unsubscribe {
-                ui.label(RichText::new(format!("Mailing list: unsubscribe at {}", widgets::shorten(u, 80))).color(t.faint).small());
+                ui.label(RichText::new(tf!("Mailing list: unsubscribe at {address}", address = widgets::shorten(u, 80))).color(t.faint).small());
                 ui.add_space(6.0);
             }
             let sep = ui.available_rect_before_wrap();
@@ -211,6 +215,7 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
 }
 
 fn empty(ui: &mut Ui, t: &Tokens, msg: &str) {
+    let msg = tl!(msg);
     ui.centered_and_justified(|ui| {
         ui.vertical_centered(|ui| {
             ui.add_space(ui.available_height() * 0.35);
@@ -226,7 +231,7 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
     egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(
         ui,
         |ui| {
-            ui.label(RichText::new(format!("{} messages in this conversation", thread.len())).color(t.dim).small());
+            ui.label(RichText::new(tf!("{n} messages in this conversation", n = thread.len())).color(t.dim).small());
             for k in thread {
                 let Some(m) = s.summary(k) else { continue };
                 let current = k == open;
@@ -247,7 +252,7 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
                 p.text(
                     rect.right_center() - vec2(8.0, 0.0),
                     egui::Align2::RIGHT_CENTER,
-                    dates::list_time(m.date, &s.clock),
+                    crate::i18n::date(&dates::list_time(m.date, &s.clock)),
                     theme::regular(12.0),
                     t.dim,
                 );
@@ -267,6 +272,10 @@ fn kind_icon(k: AttachmentKind) -> Icon {
 }
 
 fn kind_label(k: AttachmentKind) -> &'static str {
+    tl!(kind_name(k))
+}
+
+fn kind_name(k: AttachmentKind) -> &'static str {
     match k {
         AttachmentKind::Image => "Picture",
         AttachmentKind::Video => "Video",
@@ -330,12 +339,12 @@ fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, p: &mime::Parsed, acts: &mut V
                 ui.horizontal_wrapped(|ui| {
                     let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), ir, Icon::Image, t.dim);
-                    ui.label(RichText::new("Pictures from the web are hidden to protect your privacy.").color(t.dim));
-                    if ui.link("Show pictures").clicked() {
+                    ui.label(RichText::new(tl!("Pictures from the web are hidden to protect your privacy.")).color(t.dim));
+                    if ui.link(tl!("Show pictures")).clicked() {
                         acts.push(Action::Run("message.showPictures", json!({})));
                     }
                     let who = p.from.email.clone();
-                    if !who.is_empty() && ui.link(format!("Always show from {who}")).clicked() {
+                    if !who.is_empty() && ui.link(tf!("Always show from {sender}", sender = who)).clicked() {
                         acts.push(Action::Run("message.showPictures", json!({"always": true})));
                     }
                 });
@@ -345,19 +354,19 @@ fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, p: &mime::Parsed, acts: &mut V
     }
     ui.horizontal(|ui| {
         if formatted {
-            if ui.link(RichText::new("Show as plain text").small()).clicked() {
+            if ui.link(RichText::new(tl!("Show as plain text")).small()).clicked() {
                 acts.push(Action::Run("view.html", json!({"on": false})));
             }
             if !web.is_empty() && s.pictures_allowed() && s.prefs.trusted_senders.contains(&p.from.email.to_ascii_lowercase()) {
                 ui.label(RichText::new("·").color(t.faint).small());
-                if ui.link(RichText::new("Stop showing pictures from this sender").small()).clicked() {
+                if ui.link(RichText::new(tl!("Stop showing pictures from this sender")).small()).clicked() {
                     acts.push(Action::Run("message.blockPictures", json!({})));
                 }
             }
-        } else if !p.rich.is_empty() && ui.link(RichText::new("Show formatted").small()).clicked() {
+        } else if !p.rich.is_empty() && ui.link(RichText::new(tl!("Show formatted")).small()).clicked() {
             acts.push(Action::Run("view.html", json!({"on": true})));
         } else if p.rich.is_empty() {
-            ui.label(RichText::new("Shown as text.").color(t.faint).small());
+            ui.label(RichText::new(tl!("Shown as text.")).color(t.faint).small());
         }
     });
     ui.add_space(6.0);
@@ -492,7 +501,7 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
                 ui.painter().rect_filled(r, 4.0, t.chrome);
                 let img_rect = Rect::from_center_size(r.center(), sz * scale);
                 ui.painter().image(tex.id(), img_rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-                if resp.on_hover_text("Open").clicked() {
+                if resp.on_hover_text(tl!("Open")).clicked() {
                     acts.push(Action::OpenAttachment(a.index));
                 }
                 ui.add_space(4.0);
@@ -512,23 +521,27 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
                     mime::craft_app_for(&a.mime, &a.name).and_then(|(cmd, name)| st.craft_apps.iter().any(|(c, _)| *c == cmd).then_some((cmd, name)));
                 match craft {
                     Some((cmd, name)) => {
-                        if ui.small_button(format!("Open in {name}")).on_hover_text("Open it in the Craft app for this kind of file").clicked() {
+                        if ui
+                            .small_button(tf!("Open in {app}", app = name))
+                            .on_hover_text(tl!("Open it in the Craft app for this kind of file"))
+                            .clicked()
+                        {
                             acts.push(Action::OpenInCraft(a.index, cmd));
                         }
-                        if ui.small_button("Open").on_hover_text("Open with the system's app").clicked() {
+                        if ui.small_button(tl!("Open")).on_hover_text(tl!("Open with the system's app")).clicked() {
                             acts.push(Action::OpenAttachment(a.index));
                         }
                     }
                     None => {
-                        if ui.small_button("Open").clicked() {
+                        if ui.small_button(tl!("Open")).clicked() {
                             acts.push(Action::OpenAttachment(a.index));
                         }
                     }
                 }
-                if mime::text_preview_kind(&a.mime, &a.name).is_some() && ui.small_button("Preview").clicked() {
+                if mime::text_preview_kind(&a.mime, &a.name).is_some() && ui.small_button(tl!("Preview")).clicked() {
                     acts.push(Action::Run("attachment.preview", json!({"index": a.index})));
                 }
-                if ui.small_button("Save as…").clicked() {
+                if ui.small_button(tl!("Save as…")).clicked() {
                     acts.push(Action::SaveAttachment(a.index));
                 }
             });
@@ -538,8 +551,8 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
 
 fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, check_addresses: bool, focus: bool) {
     ui.horizontal(|ui| {
-        ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(label).color(t.dim)));
-        let r = ui.add(egui::TextEdit::singleline(value).hint_text(hint).desired_width(f32::INFINITY));
+        ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(tl!(label)).color(t.dim)));
+        let r = ui.add(egui::TextEdit::singleline(value).hint_text(tl!(hint)).desired_width(f32::INFINITY));
         if focus {
             r.request_focus();
         }
@@ -583,8 +596,8 @@ fn recipient_field(
     }
     let r = ui
         .horizontal(|ui| {
-            ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(label).color(t.dim)));
-            ui.add(egui::TextEdit::singleline(value).hint_text(hint).desired_width(f32::INFINITY))
+            ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(tl!(label)).color(t.dim)));
+            ui.add(egui::TextEdit::singleline(value).hint_text(tl!(hint)).desired_width(f32::INFINITY))
         })
         .inner;
     if focus {
@@ -640,7 +653,7 @@ fn address_check(ui: &mut Ui, t: &Tokens, value: &str, check_addresses: bool) {
     {
         ui.horizontal(|ui| {
             ui.add_space(64.0);
-            ui.label(RichText::new(format!("Not an email address: {bad}")).color(t.danger).small());
+            ui.label(RichText::new(tf!("Not an email address: {address}", address = bad)).color(t.danger).small());
         });
     }
 }
@@ -687,7 +700,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             if widgets::tool_button(ui, Icon::Attach, "Attach file", &t, !c.sending).clicked() {
                 acts.push(Action::AttachFiles);
             }
-            if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text("Save draft (Ctrl+S)").clicked() {
+            if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
                 acts.push(Action::Run("compose.saveDraft", json!({})));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -699,14 +712,14 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         if let Some(e) = &c.error {
             ui.add_space(4.0);
             egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-                ui.label(RichText::new(format!("Not sent: {e}")).color(t.danger));
+                ui.label(RichText::new(tf!("Not sent: {error}", error = e)).color(t.danger));
             });
         }
         ui.add_space(8.0);
         ui.add_enabled_ui(!c.sending, |ui| {
             if accounts.len() > 1 {
                 ui.horizontal(|ui| {
-                    ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new("From").color(t.dim)));
+                    ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(tl!("From")).color(t.dim)));
                     let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
                     egui::ComboBox::from_id_salt("from").selected_text(current).width(ui.available_width() - 8.0).show_ui(ui, |ui| {
                         for (id, label) in &accounts {
@@ -722,7 +735,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             } else {
                 ui.horizontal(|ui| {
                     ui.add_space(62.0);
-                    if ui.link(RichText::new("Cc / Bcc").small()).clicked() {
+                    if ui.link(RichText::new(tl!("Cc / Bcc")).small()).clicked() {
                         c.show_cc = true;
                     }
                 });
@@ -766,19 +779,19 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 ui.add_enabled_ui(!c.plain, |ui| {
                     for f in Fmt::ALL {
                         let text = match f {
-                            Fmt::Bold => RichText::new(f.label()).strong(),
-                            Fmt::Italic => RichText::new(f.label()).italics(),
-                            Fmt::Strike => RichText::new(f.label()).strikethrough(),
-                            _ => RichText::new(f.label()),
+                            Fmt::Bold => RichText::new(tl!(f.label())).strong(),
+                            Fmt::Italic => RichText::new(tl!(f.label())).italics(),
+                            Fmt::Strike => RichText::new(tl!(f.label())).strikethrough(),
+                            _ => RichText::new(tl!(f.label())),
                         };
-                        if ui.add(egui::Button::new(text.size(13.0)).frame(false).min_size(vec2(26.0, 22.0))).on_hover_text(f.tip()).clicked() {
+                        if ui.add(egui::Button::new(text.size(13.0)).frame(false).min_size(vec2(26.0, 22.0))).on_hover_text(tl!(f.tip())).clicked() {
                             format = Some(f);
                         }
                     }
                     ui.add_space(6.0);
                     if ui
-                        .add(egui::Button::new(RichText::new("Picture…").size(13.0)).frame(false))
-                        .on_hover_text("Insert a picture (or paste one)")
+                        .add(egui::Button::new(RichText::new(tl!("Picture…")).size(13.0)).frame(false))
+                        .on_hover_text(tl!("Insert a picture (or paste one)"))
                         .clicked()
                     {
                         acts.push(Action::InsertPicture);
@@ -786,7 +799,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let mut plain = c.plain;
-                    if ui.checkbox(&mut plain, RichText::new("Plain text").small()).on_hover_text("Send without formatting").changed() {
+                    if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
                         c.plain = plain;
                     }
                 });
@@ -828,7 +841,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     .id(body_id)
                     .frame(egui::Frame::NONE)
                     .font(theme::regular(14.5))
-                    .hint_text("Write your message…")
+                    .hint_text(tl!("Write your message…"))
                     .lock_focus(true);
                 if !plain {
                     edit = edit.layouter(&mut layouter);

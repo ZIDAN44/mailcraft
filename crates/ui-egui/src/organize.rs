@@ -23,7 +23,7 @@ pub fn categorize_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
         let clicked = ui
             .horizontal(|ui| {
                 dot(ui, c.color, t.dark);
-                ui.selectable_label(on, &c.name).clicked()
+                ui.selectable_label(on, tl!(&c.name)).clicked()
             })
             .inner;
         if clicked {
@@ -32,7 +32,7 @@ pub fn categorize_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
         }
     }
     ui.separator();
-    if ui.button("New category…").clicked() {
+    if ui.button(tl!("New category…")).clicked() {
         acts.push(Action::Dialog(Dialog::NewCategory {
             name: String::new(),
             color: u8::try_from(s.prefs.categories.len() % 8).unwrap_or(0),
@@ -49,8 +49,8 @@ pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>)
         let when = dates::full_time(at, &s.clock);
         let clicked = ui
             .horizontal(|ui| {
-                let r = ui.selectable_label(false, p.label());
-                ui.label(RichText::new(when).color(t.faint).small());
+                let r = ui.selectable_label(false, tl!(p.label()));
+                ui.label(RichText::new(crate::i18n::date(&when)).color(t.faint).small());
                 r.clicked()
             })
             .inner;
@@ -63,12 +63,12 @@ pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>)
 
 /// Every organising item of the message context menu.
 pub fn context_items(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, pinned: bool) {
-    ui.menu_button("Categorize", |ui| categorize_menu(ui, s, t, acts));
+    ui.menu_button(tl!("Categorize"), |ui| categorize_menu(ui, s, t, acts));
     if ui.button(if pinned { "Unpin" } else { "Pin" }).clicked() {
         acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
         ui.close();
     }
-    ui.menu_button("Snooze", |ui| snooze_menu(ui, s, t, acts));
+    ui.menu_button(tl!("Snooze"), |ui| snooze_menu(ui, s, t, acts));
     if s.focus_split() {
         let (id, label) = if s.focus_other { ("mail.moveToFocused", "Always move to Focused") } else { ("mail.moveToOther", "Always move to Other") };
         if ui.button(label).clicked() {
@@ -77,7 +77,7 @@ pub fn context_items(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action
         }
     }
     if let Some(m) = s.selected().into_iter().next()
-        && ui.button("Create rule…").clicked()
+        && ui.button(tl!("Create rule…")).clicked()
     {
         acts.push(Action::Dialog(Dialog::rule_from(&m.from.email, &m.subject)));
         ui.close();

@@ -15,3 +15,5 @@ serde_json = { workspace = true }
 log = { workspace = true }
 # Attachment thumbnails (pictures arrive in mail, decoded with size limits).
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+# The system's interface language.
+sys-locale = "0.3"
