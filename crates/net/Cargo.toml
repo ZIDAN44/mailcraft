@@ -1,0 +1,20 @@
+[package]
+name = "mailcraft-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft network layer (native only): IMAP client and sync, SMTP submission, per-account workers"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-model = { workspace = true }
+mailcraft-mime = { workspace = true }
+mailcraft-store = { workspace = true }
+imap-proto = { workspace = true }
+lettre = { workspace = true }
+rustls = { workspace = true }
+webpki-roots = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }

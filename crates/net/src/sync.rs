@@ -1,0 +1,210 @@
+//! Folder synchronisation (RFC 4549 §4.3, with CONDSTORE from RFC 7162).
+//!
+//! For each folder, the cache keeps UIDVALIDITY, UIDNEXT, HIGHESTMODSEQ and the summaries.
+//! A sync then costs a handful of round trips however large the folder:
+//!
+//! 1. `SELECT`. A different UIDVALIDITY means every cached UID is meaningless: drop the cache.
+//! 2. **New mail**: headers for `UID FETCH <cached UIDNEXT>:*`. On the first sync, only the newest
+//!    [`SyncOptions::window`] messages are fetched (found with `UID SEARCH ALL`).
+//! 3. **Flag changes**: with CONDSTORE, `UID FETCH … (FLAGS) (CHANGEDSINCE <modseq>)` returns only
+//!    what changed, and nothing at all when HIGHESTMODSEQ hasn't moved. Without it, the flags of
+//!    the cached range are fetched.
+//! 4. **Deletions**: `UID SEARCH UID <cached range>` lists the survivors; the rest are gone.
+//! 5. The newest few message sources are downloaded so they can be read (and searched) offline.
+
+use std::io::{Read, Write};
+
+use mailcraft_mime as mime;
+use mailcraft_model::{Flags, MessageKey, Summary, sort_newest_first};
+use mailcraft_store::{FolderState, Store};
+
+use crate::Result;
+use crate::imap::{Client, Fetched, uid_chunks, uid_set};
+
+#[derive(Clone, Copy, Debug)]
+pub struct SyncOptions {
+    /// How many of the newest messages the first sync of a folder fetches.
+    pub window: usize,
+    /// How many of the newest message sources to keep downloaded.
+    pub prefetch: usize,
+    /// Sources larger than this are only downloaded when opened.
+    pub prefetch_max_bytes: u32,
+}
+
+impl Default for SyncOptions {
+    fn default() -> Self {
+        SyncOptions { window: 1000, prefetch: 40, prefetch_max_bytes: 2 << 20 }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SyncReport {
+    pub new: usize,
+    pub changed: usize,
+    pub removed: usize,
+    pub total: u32,
+    pub unread: u32,
+    /// The cache was emptied because UIDVALIDITY changed.
+    pub reset: bool,
+}
+
+impl SyncReport {
+    pub fn touched(&self) -> bool {
+        self.new + self.changed + self.removed > 0 || self.reset
+    }
+}
+
+const HEADER_ITEMS: &str = "UID FLAGS RFC822.SIZE INTERNALDATE BODY.PEEK[HEADER]";
+
+fn summary(account: &str, folder: &str, validity: u32, f: &Fetched) -> Summary {
+    let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity, uid: f.uid };
+    let flags = Flags::from_imap(f.flags.iter().flatten().map(String::as_str));
+    let raw = f.body.as_deref().or(f.header.as_deref()).unwrap_or_default();
+    let mut s = mime::summary_from_header(raw, key, flags, f.size, f.internal_date.unwrap_or(0));
+    s.modseq = f.modseq;
+    s
+}
+
+/// Bring one folder's cache up to date.
+pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, folder: &str, opts: &SyncOptions) -> Result<SyncReport> {
+    let mut st = store.load_folder(account, folder)?;
+    let info = c.select(folder, false)?;
+    let mut report = SyncReport::default();
+
+    if st.validity != info.validity && (st.validity != 0 || !st.messages.is_empty()) {
+        log::info!("{account}/{folder}: UIDVALIDITY {} → {}, dropping the cache", st.validity, info.validity);
+        store.clear_folder(account, folder)?;
+        st = FolderState::default();
+        report.reset = true;
+    }
+    st.validity = info.validity;
+
+    if info.exists == 0 {
+        report.removed = st.messages.len();
+        st.messages.clear();
+    } else {
+        let known_max = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
+        let known_min = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
+
+        // 3 + 4: changes to what we have (before adding new mail, so only cached UIDs are asked).
+        if known_max > 0 {
+            let range = format!("{known_min}:{known_max}");
+            let condstore = c.has("CONDSTORE") && st.highest_modseq > 0 && info.highest_modseq > 0;
+            let changed = if condstore {
+                if info.highest_modseq == st.highest_modseq {
+                    Vec::new()
+                } else {
+                    c.uid_fetch(&range, "UID FLAGS", &format!("(CHANGEDSINCE {})", st.highest_modseq))?
+                }
+            } else {
+                c.uid_fetch(&range, "UID FLAGS", "")?
+            };
+            for f in changed {
+                if let (Some(m), Some(fl)) = (st.find_mut(f.uid), &f.flags) {
+                    let flags = Flags::from_imap(fl.iter().map(String::as_str));
+                    if m.flags != flags {
+                        m.flags = flags;
+                        report.changed += 1;
+                    }
+                    m.modseq = m.modseq.max(f.modseq);
+                }
+            }
+            let alive = c.uid_search(&format!("UID {range}"))?;
+            let (kept, gone): (Vec<Summary>, Vec<Summary>) =
+                std::mem::take(&mut st.messages).into_iter().partition(|m| alive.binary_search(&m.key.uid).is_ok());
+            for m in &gone {
+                store.remove_body(&m.key);
+            }
+            report.removed = gone.len();
+            st.messages = kept;
+        }
+
+        // 2: new mail.
+        let new_uids: Vec<u32> = if st.uid_next == 0 && known_max == 0 {
+            let all = c.uid_search("ALL")?;
+            let skip = all.len().saturating_sub(opts.window);
+            all.into_iter().skip(skip).collect()
+        } else {
+            let from = st.uid_next.max(known_max.saturating_add(1)).max(1);
+            // `n:*` always returns at least the last message (RFC 3501 §6.4.8): filter.
+            c.uid_search(&format!("UID {from}:*"))?.into_iter().filter(|u| *u >= from).collect()
+        };
+        for chunk in uid_chunks(&new_uids, 200) {
+            for f in c.uid_fetch(&uid_set(&chunk), HEADER_ITEMS, "")? {
+                if st.find(f.uid).is_none() {
+                    st.messages.push(summary(account, folder, st.validity, &f));
+                    report.new += 1;
+                }
+            }
+        }
+    }
+
+    sort_newest_first(&mut st.messages);
+    let max_uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
+    st.uid_next = if info.uid_next > 0 { info.uid_next } else { max_uid.saturating_add(1) };
+    st.highest_modseq = info.highest_modseq;
+    store.save_folder(account, folder, &st)?;
+
+    // 5: prefetch the newest sources (in small batches, saving as we go).
+    prefetch(c, store, account, folder, &mut st, opts)?;
+
+    report.total = info.exists;
+    report.unread = if info.exists == 0 { 0 } else { u32::try_from(c.uid_search("UNSEEN")?.len()).unwrap_or(u32::MAX) };
+    Ok(report)
+}
+
+fn prefetch<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, folder: &str, st: &mut FolderState, opts: &SyncOptions) -> Result<()> {
+    let wanted: Vec<u32> =
+        st.messages.iter().take(opts.prefetch).filter(|m| m.size <= opts.prefetch_max_bytes && !store.has_body(&m.key)).map(|m| m.key.uid).collect();
+    if wanted.is_empty() {
+        return Ok(());
+    }
+    for chunk in uid_chunks(&wanted, 10) {
+        for f in c.uid_fetch(&uid_set(&chunk), "UID BODY.PEEK[]", "")? {
+            let Some(raw) = &f.body else { continue };
+            let Some(m) = st.find_mut(f.uid) else { continue };
+            store.write_body(&m.key, raw)?;
+            fill_from_source(m, raw);
+        }
+        store.save_folder(account, folder, st)?;
+    }
+    Ok(())
+}
+
+/// Complete a header-only summary from the full source (preview, attachment marker).
+pub fn fill_from_source(m: &mut Summary, raw: &[u8]) {
+    let full = mime::summary_from_full(raw, m.key.clone(), m.flags.clone(), m.size, m.date);
+    m.preview = full.preview;
+    m.has_attachments = full.has_attachments;
+    if m.size == 0 {
+        m.size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
+    }
+}
+
+/// Download one message's source (and cache it), updating its summary.
+pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &MessageKey) -> Result<Vec<u8>> {
+    if let Some(raw) = store.read_body(key) {
+        return Ok(raw);
+    }
+    let info = if c.selected() == Some(key.folder.as_str()) { None } else { Some(c.select(&key.folder, false)?) };
+    if let Some(i) = &info
+        && i.validity != key.validity
+    {
+        return Err(crate::NetError::No("the folder changed on the server; refresh and try again".into()));
+    }
+    let fetched = c.uid_fetch(&key.uid.to_string(), "UID BODY.PEEK[]", "")?;
+    let raw = fetched
+        .into_iter()
+        .find(|f| f.uid == key.uid)
+        .and_then(|f| f.body)
+        .ok_or_else(|| crate::NetError::No("the message is no longer on the server".into()))?;
+    store.write_body(key, &raw)?;
+    let mut st = store.load_folder(&key.account, &key.folder)?;
+    if st.validity == key.validity
+        && let Some(m) = st.find_mut(key.uid)
+    {
+        fill_from_source(m, &raw);
+        store.save_folder(&key.account, &key.folder, &st)?;
+    }
+    Ok(raw)
+}
