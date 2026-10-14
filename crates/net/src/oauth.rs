@@ -67,6 +67,18 @@ pub fn provider(id: &str) -> Option<Provider> {
 
 pub use mailcraft_model::oauth_provider_for as provider_for_host;
 
+/// The provider an account signs in with: Graph accounts ask Microsoft for Graph's mail
+/// permissions instead of IMAP's and SMTP's (a token is for one service).
+pub fn provider_for_account(account: &mailcraft_model::AccountConfig) -> Option<Provider> {
+    let mut p = provider(account.oauth.as_deref()?)?;
+    if account.graph.is_some() && p.id == "microsoft" {
+        p.scope = GRAPH_SCOPE.into();
+    }
+    Some(p)
+}
+
+const GRAPH_SCOPE: &str = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access";
+
 /// The providers with a registration, so sign-in can be offered.
 pub fn available() -> Vec<String> {
     ["google", "microsoft"].into_iter().filter(|id| provider(id).is_some()).map(str::to_string).collect()

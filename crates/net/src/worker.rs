@@ -109,7 +109,7 @@ impl Pool {
     /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI
     /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts.
     fn sign_in(&mut self, account: AccountConfig) {
-        let Some(p) = account.oauth.as_deref().and_then(crate::oauth::provider) else {
+        let Some(p) = crate::oauth::provider_for_account(&account) else {
             let error = format!("signing in with {} isn't set up in this copy of MailCraft", account.oauth.as_deref().unwrap_or("that provider"));
             return self.sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
         };
@@ -354,6 +354,7 @@ const POLL_EVERY: Duration = Duration::from_secs(120);
 enum Conn {
     Imap(Client<Stream>),
     Jmap(jmap::Client),
+    Graph(crate::graph::Client),
 }
 
 struct Worker {
@@ -363,7 +364,7 @@ struct Worker {
     sink: Sink,
     opts: SyncOptions,
     conn: Option<Conn>,
-    /// JMAP accounts: message numbers and mailbox ids.
+    /// JMAP and Graph accounts: message numbers and mailbox ids.
     jstate: jmap::State,
     folders: Vec<Folder>,
     ops: Vec<Op>,
@@ -387,7 +388,7 @@ impl Worker {
     fn new(acc: AccountConfig, pw: String, store: Store, sink: Sink, opts: SyncOptions) -> Worker {
         let ops = store.load_ops(&acc.id).unwrap_or_default();
         let folders = store.load_folders(&acc.id).unwrap_or_default();
-        let jstate = if acc.jmap.is_some() { jmap::State::load(&store, &acc.id) } else { jmap::State::default() };
+        let jstate = if acc.is_api() { jmap::State::load(&store, &acc.id) } else { jmap::State::default() };
         Worker {
             acc,
             pw,
@@ -420,7 +421,8 @@ impl Worker {
         {
             return Ok(t.access.clone());
         }
-        let p = crate::oauth::provider(&id).ok_or_else(|| NetError::Auth(format!("signing in with {id} isn't set up in this copy of MailCraft")))?;
+        let p = crate::oauth::provider_for_account(&self.acc)
+            .ok_or_else(|| NetError::Auth(format!("signing in with {id} isn't set up in this copy of MailCraft")))?;
         let t = crate::oauth::refresh(&p, &self.pw)?;
         // Some providers hand out a new refresh token each time: keep the newest.
         if let Some(r) = t.refresh.clone().filter(|r| *r != self.pw) {
@@ -626,6 +628,11 @@ impl Worker {
         self.status(SyncStatus::Connecting);
         let secret = self.secret()?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
+        if let Some(url) = &self.acc.graph {
+            self.conn = Some(Conn::Graph(crate::graph::Client::connect(url, &secret)?));
+            self.backoff = Duration::from_secs(5);
+            return Ok(());
+        }
         if let Some(url) = &self.acc.jmap {
             self.conn = Some(Conn::Jmap(jmap::Client::connect(url, &user, &secret, self.acc.oauth.is_some())?));
             self.backoff = Duration::from_secs(5);
@@ -659,9 +666,9 @@ impl Worker {
         }
     }
 
-    /// Save the JMAP numbering after it changed.
+    /// Save the JMAP / Graph numbering after it changed.
     fn save_jstate(&self) {
-        if self.acc.jmap.is_some()
+        if self.acc.is_api()
             && let Err(e) = self.jstate.save(&self.store, &self.acc.id)
         {
             log::warn!("{}: {e}", self.acc.id);
@@ -675,9 +682,10 @@ impl Worker {
         let listed = match self.conn.as_mut() {
             Some(Conn::Imap(c)) => c.list(&id),
             Some(Conn::Jmap(c)) => jmap::list_folders(c, &mut self.jstate, &id),
+            Some(Conn::Graph(c)) => crate::graph::list_folders(c, &mut self.jstate, &id),
             None => Err(NetError::Closed("not connected".into())),
         };
-        let jmap = matches!(self.conn, Some(Conn::Jmap(_)));
+        let jmap = matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_)));
         if jmap {
             self.save_jstate();
         }
@@ -741,7 +749,7 @@ impl Worker {
 
     /// Forget the numbers of JMAP messages no longer cached (nor waiting in a change).
     fn prune_jmap_numbers(&mut self) {
-        if !matches!(self.conn, Some(Conn::Jmap(_))) {
+        if !matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_))) {
             return;
         }
         let mut keep: std::collections::HashSet<u32> = self.ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
@@ -766,6 +774,11 @@ impl Worker {
             Some(Conn::Imap(c)) => sync_folder(c, &store, &id, path, &opts),
             Some(Conn::Jmap(c)) => {
                 let r = jmap::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
+                self.save_jstate();
+                r
+            }
+            Some(Conn::Graph(c)) => {
+                let r = crate::graph::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
                 self.save_jstate();
                 r
             }
@@ -845,6 +858,13 @@ impl Worker {
                         }
                         return Ok(());
                     }
+                    if let Some(Conn::Graph(c)) = self.conn.as_mut() {
+                        crate::graph::append(c, &self.jstate, &folder, &raw)?;
+                        if let Some(old) = replaces {
+                            crate::graph::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
+                        }
+                        return Ok(());
+                    }
                     let c = self.client()?;
                     c.append(&folder, "\\Draft \\Seen", &raw)?;
                     if let Some(old) = replaces {
@@ -886,6 +906,12 @@ impl Worker {
             self.connect()?;
         }
         if let Some(Conn::Jmap(c)) = &self.conn {
+            if let Some(v) = set {
+                c.set_vacation(v)?;
+            }
+            return c.vacation();
+        }
+        if let Some(Conn::Graph(c)) = &self.conn {
             if let Some(v) = set {
                 c.set_vacation(v)?;
             }
@@ -943,7 +969,8 @@ impl Worker {
         let q = match self.conn.as_mut() {
             Some(Conn::Imap(c)) => c.quota(),
             Some(Conn::Jmap(c)) => c.quota(),
-            None => return,
+            // Graph doesn't tell a mailbox's size to the mailbox's owner.
+            Some(Conn::Graph(_)) | None => return,
         };
         match q {
             Ok(Some((used, limit))) => self.sink.emit(Event::Quota { account: self.id(), used, limit }),
@@ -965,6 +992,7 @@ impl Worker {
             }
             match self.conn.as_mut() {
                 Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key),
+                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
                 _ => fetch_body(self.client()?, &store, &key),
             }
         })();
@@ -985,6 +1013,13 @@ impl Worker {
     /// Hand a message to the server: SMTP, or for JMAP accounts a submission (which also files
     /// the copy in Sent).
     fn deliver(&mut self, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<&str>) -> Result<()> {
+        if self.acc.graph.is_some() {
+            if self.conn.is_none() {
+                self.connect()?;
+            }
+            let Some(Conn::Graph(c)) = &self.conn else { return Err(NetError::Closed("not connected".into())) };
+            return crate::graph::send(c, raw, recipients);
+        }
         if self.acc.jmap.is_some() {
             if self.conn.is_none() {
                 self.connect()?;
@@ -1060,7 +1095,7 @@ impl Worker {
     /// A message went out: tell the engine and file a copy in Sent.
     fn after_sent(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
         self.sink.emit(Event::Sent { account: self.id(), id });
-        if self.acc.jmap.is_some() {
+        if self.acc.is_api() {
             // Filed when it was submitted.
             let sent = sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()));
             if let Some(f) = sent.filter(|_| self.conn.is_some()) {
@@ -1092,6 +1127,7 @@ impl Worker {
             let r = match self.conn.as_mut() {
                 Some(Conn::Imap(c)) => apply_remote(c, &op),
                 Some(Conn::Jmap(c)) => jmap::apply_remote(c, &self.jstate, &op),
+                Some(Conn::Graph(c)) => crate::graph::apply_remote(c, &self.jstate, &op),
                 None => Err(NetError::Closed("not connected".into())),
             };
             match r {

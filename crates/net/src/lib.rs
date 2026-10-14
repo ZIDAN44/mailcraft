@@ -5,6 +5,7 @@
 //!   with the extensions sync relies on: UIDPLUS, MOVE, CONDSTORE, IDLE, SPECIAL-USE, SASL-IR.
 //! * [`sync`]: the folder synchronisation algorithm (RFC 4549, RFC 7162).
 //! * [`jmap`]: the second transport, JMAP (RFC 8620/8621) over HTTPS, synced into the same cache.
+//! * [`graph`]: the third, Microsoft Graph, for Exchange Online accounts.
 //! * [`dav`]: calendars and address books, CalDAV and CardDAV.
 //! * [`pst`]: importing Outlook data files (`.pst`) into an account on this computer.
 //! * [`sieve`]: automatic replies on IMAP servers, through ManageSieve (RFC 5804).
@@ -17,6 +18,7 @@
 pub mod autoconfig;
 pub mod dav;
 pub mod dns;
+pub mod graph;
 pub mod http;
 pub mod imap;
 pub mod jmap;
@@ -32,6 +34,8 @@ pub mod worker;
 mod fake;
 #[cfg(test)]
 mod fake_dav;
+#[cfg(test)]
+mod fake_graph;
 #[cfg(test)]
 mod fake_jmap;
 

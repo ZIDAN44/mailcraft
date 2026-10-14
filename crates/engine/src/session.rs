@@ -1870,7 +1870,7 @@ impl Session {
         config.id = self.new_account_id();
         config.color = u8::try_from(self.accounts.len() % usize::from(ACCOUNT_COLORS)).unwrap_or(0);
         let local = config.is_local();
-        if !local && config.jmap.is_none() && (config.imap.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0) {
+        if !local && !config.is_api() && (config.imap.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0) {
             return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
         }
         let id = config.id.clone();
@@ -1985,6 +1985,7 @@ impl Session {
         let reconnect = a.config.imap != config.imap
             || a.config.smtp != config.smtp
             || a.config.jmap != config.jmap
+            || a.config.graph != config.graph
             || a.config.username != config.username
             || password.is_some();
         a.config = config.clone();

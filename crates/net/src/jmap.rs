@@ -1,4 +1,5 @@
-//! JMAP (RFC 8620 core, RFC 8621 mail): MailCraft's second transport, behind the same
+//! JMAP (RFC 8620 core, RFC 8621 mail): MailCraft's second transport (the third, Microsoft
+//! Graph in [`crate::graph`], shares its numbering and folder paths), behind the same
 //! [`Job`](mailcraft_model::Job)/[`Event`](mailcraft_model::Event) interface as IMAP.
 //!
 //! Every request is one HTTPS POST of a batch of method calls to the session's API URL, signed
@@ -561,7 +562,7 @@ impl State {
         self.numbers.get(&n).map(String::as_str)
     }
 
-    fn mailbox(&self, path: &str) -> Result<&str> {
+    pub(crate) fn mailbox(&self, path: &str) -> Result<&str> {
         self.mailboxes.get(path).map(String::as_str).ok_or_else(|| NetError::No(format!("there is no folder {} on the server", utf7::decode(path))))
     }
 

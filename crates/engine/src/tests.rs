@@ -1206,3 +1206,24 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("notes.txt could not be opened")));
     done(s);
 }
+
+#[test]
+fn exchange_accounts_go_through_microsoft_graph() {
+    let store = temp("graph-account");
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    // Graph signs in with Microsoft: refused when this copy has no registration.
+    assert!(s.run("account.add", &json!({"email": "ana@contoso.example", "graph": true})).is_err());
+    s.oauth_available = vec!["microsoft".into()];
+    let id = s.run("account.add", &json!({"email": "ana@contoso.example", "graph": true})).unwrap()["account"].as_str().unwrap().to_string();
+    let a = s.account(&id).unwrap();
+    assert_eq!(a.config.graph.as_deref(), Some(mailcraft_model::GRAPH_URL));
+    assert_eq!(a.config.oauth.as_deref(), Some("microsoft"));
+    assert!(a.config.is_api() && !a.is_local() && a.config.imap.host.is_empty(), "no IMAP or SMTP");
+    assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { account }] if account.graph.is_some()));
+    // Server settings can't turn it into an IMAP account by accident.
+    s.run("account.update", &json!({"account": id, "name": "Ana Ruiz"})).unwrap();
+    assert_eq!(s.account(&id).unwrap().config.name, "Ana Ruiz");
+    assert_eq!(s.run("account.list", &json!({})).map(|v| v[0]["graph"].clone()).unwrap_or_default(), json!(mailcraft_model::GRAPH_URL));
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    let _ = std::fs::remove_dir_all(root);
+}

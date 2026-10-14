@@ -443,7 +443,7 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account"?: string, "folder"?: string, "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
@@ -977,7 +977,18 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     let guess = AccountConfig::guess(email);
     let local = p::bool(v, "local").unwrap_or(false);
     let jmap = p::str(v, "jmap").map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
-    let plain = local || jmap.is_some();
+    // `graph`: true for Exchange Online through Microsoft Graph (or the API's address).
+    let graph = match v.get("graph") {
+        Some(Value::Bool(true)) => Some(mailcraft_model::GRAPH_URL.to_string()),
+        Some(Value::String(u)) if !u.trim().is_empty() => Some(u.trim().to_string()),
+        _ => None,
+    };
+    let plain = local || jmap.is_some() || graph.is_some();
+    let password = p::str(v, "password").map(str::to_string);
+    // Graph signs in with Microsoft, unless given a token to use as it is.
+    let oauth = p::str(v, "oauth")
+        .map(str::to_string)
+        .or_else(|| (graph.is_some() && password.as_deref().is_none_or(str::is_empty)).then(|| "microsoft".to_string()));
     let config = AccountConfig {
         id: String::new(),
         name: p::str(v, "name").map(str::to_string).unwrap_or(guess.name.clone()),
@@ -987,15 +998,15 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         smtp: if plain { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
         signature: p::str(v, "signature").unwrap_or_default().to_string(),
         color: 0,
-        oauth: p::str(v, "oauth").map(str::to_string),
+        oauth,
         jmap,
+        graph,
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)
     {
         return Err(CmdError::Params(format!("signing in with {o} isn't set up in this copy of MailCraft")));
     }
-    let password = p::str(v, "password").map(str::to_string);
     // `deferSignIn`: add now, ask for the password when the account first connects.
     let defer = p::bool(v, "deferSignIn").unwrap_or(false);
     if !local && !defer && config.oauth.is_none() && password.as_deref().is_none_or(str::is_empty) {
@@ -1032,7 +1043,7 @@ fn update_account(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(_) | Value::Null) => c.jmap = None,
         _ => {}
     }
-    if c.jmap.is_none() {
+    if !c.is_api() {
         c.imap = server(v, "imap", &c.imap)?;
         c.smtp = server(v, "smtp", &c.smtp)?;
         if c.imap.host.is_empty() || c.imap.port == 0 || c.smtp.host.is_empty() || c.smtp.port == 0 {
@@ -1057,6 +1068,7 @@ fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "account": a.config.id,
             "email": a.config.email,
             "name": a.config.name,
+            "graph": a.config.graph,
             "imap": format!("{}:{} ({})", a.config.imap.host, a.config.imap.port, a.config.imap.security.code()),
             "smtp": format!("{}:{} ({})", a.config.smtp.host, a.config.smtp.port, a.config.smtp.security.code()),
             "status": a.status,
