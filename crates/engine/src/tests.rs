@@ -235,6 +235,87 @@ fn compose_reply_and_send_locally() {
 }
 
 #[test]
+fn folders_create_rename_move_delete_and_favorites() {
+    let mut s = sample_session("folders");
+    let a = sample::SAMPLE_ACCOUNT;
+    let paths = |s: &Session| s.account(a).unwrap().folders.iter().map(|f| f.path.clone()).collect::<Vec<_>>();
+    // Default favorites: Inbox, Sent Items, Drafts.
+    assert_eq!(s.favorites().len(), 3);
+
+    s.run("folder.create", &json!({"name": "Clients"})).unwrap();
+    assert!(s.folder(a, "Clients").is_some());
+    assert!(matches!(s.run("folder.create", &json!({"name": "Clients"})), Err(CmdError::Params(_))), "no duplicates");
+    assert!(s.run("folder.create", &json!({"name": "a/b"})).is_err(), "no delimiters in names");
+    s.run("folder.create", &json!({"name": "Café Acme", "parent": "Clients"})).unwrap();
+    let acme = "Clients/Caf&AOk- Acme";
+    assert!(s.folder(a, acme).is_some(), "{:?}", paths(&s));
+    assert_eq!(s.folder(a, acme).unwrap().display_name(), "Café Acme");
+
+    // File a message there, then rename the parent: the folder, its mail and the view follow.
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    s.run("mail.move", &json!({"folder": acme})).unwrap();
+    s.run("folder.open", &json!({"account": a, "folder": acme})).unwrap();
+    assert_eq!(s.list.len(), 1);
+    s.run("folder.favorite", &json!({"folder": "Clients"})).unwrap();
+    assert_eq!(s.favorites().len(), 4);
+    s.run("folder.rename", &json!({"folder": "Clients", "name": "Customers"})).unwrap();
+    let acme = "Customers/Caf&AOk- Acme";
+    assert_eq!(s.view, View::Folder { account: a.into(), folder: acme.into() });
+    assert_eq!(s.list.len(), 1, "the mail moved with the folder");
+    assert!(s.favorites().iter().any(|f| f.folder == "Customers"), "favorites follow a rename");
+    assert!(s.store.as_ref().unwrap().has_body(&s.list[0].key));
+
+    // Move to the top level, and back inside; never into itself.
+    s.run("folder.move", &json!({"folder": acme})).unwrap();
+    assert!(s.folder(a, "Caf&AOk- Acme").is_some());
+    assert!(s.run("folder.move", &json!({"folder": "Customers", "parent": "Customers"})).is_err());
+    // Special folders stay put.
+    assert!(s.run("folder.rename", &json!({"folder": "INBOX", "name": "x"})).is_err());
+    assert!(s.run("folder.delete", &json!({"folder": "Sent"})).is_err());
+
+    // Deleting goes to Deleted Items first, then for good.
+    s.run("folder.delete", &json!({"folder": "Caf&AOk- Acme"})).unwrap();
+    assert!(s.folder(a, "Trash/Caf&AOk- Acme").is_some(), "{:?}", paths(&s));
+    s.run("folder.open", &json!({"account": a, "folder": "Trash/Caf&AOk- Acme"})).unwrap();
+    s.run("folder.delete", &json!({"folder": "Trash/Caf&AOk- Acme"})).unwrap();
+    assert!(s.folder(a, "Trash/Caf&AOk- Acme").is_none());
+    assert_ne!(s.view, View::Folder { account: a.into(), folder: "Trash/Caf&AOk- Acme".into() }, "the view leaves a deleted folder");
+
+    // Changes persist.
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    let s2 = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert!(s2.folder(a, "Customers").is_some());
+    assert!(s2.folder(a, "Clients").is_none());
+    done(s);
+}
+
+#[test]
+fn remote_folder_changes_are_queued_as_jobs() {
+    let store = temp("remote-folders");
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let f = |p: &str, role| mailcraft_model::Folder {
+        account: id.clone(),
+        path: p.into(),
+        delimiter: Some('.'),
+        role,
+        selectable: true,
+        ..Default::default()
+    };
+    // A server that keeps every folder under INBOX.
+    s.apply(Event::Folders { account: id.clone(), folders: vec![f("INBOX", FolderRole::Inbox), f("INBOX.Trash", FolderRole::Trash)] });
+    s.take_jobs();
+    s.run("folder.create", &json!({"name": "Plans"})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Apply { op: Op::CreateFolder { path }, .. }] if path == "INBOX.Plans"));
+    s.run("folder.delete", &json!({"folder": "INBOX.Plans"})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Apply { op: Op::RenameFolder { to, .. }, .. }] if to == "INBOX.Trash.Plans"));
+    s.run("folder.delete", &json!({"folder": "INBOX.Trash.Plans"})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Apply { op: Op::DeleteFolder { path }, .. }] if path == "INBOX.Trash.Plans"));
+    let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
+}
+
+#[test]
 fn remote_accounts_go_through_jobs_and_events() {
     let store = temp("remote");
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));

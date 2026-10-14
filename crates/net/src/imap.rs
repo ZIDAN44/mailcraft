@@ -651,6 +651,57 @@ impl<S: Read + Write> Client<S> {
         Ok(None)
     }
 
+    /// Create a folder and subscribe to it (some clients only show subscribed folders). A folder
+    /// that already exists counts as created.
+    pub fn create(&mut self, folder: &str) -> Result<()> {
+        let cmd = format!("CREATE {}", mailbox_arg(folder));
+        match self.conn.run(&[Part::Text(&cmd)]) {
+            Ok(_) => {}
+            Err(NetError::No(m)) if m.to_ascii_uppercase().contains("ALREADYEXISTS") || m.to_ascii_lowercase().contains("exists") => {}
+            Err(e) => return Err(e),
+        }
+        let _ = self.conn.run(&[Part::Text(&format!("SUBSCRIBE {}", mailbox_arg(folder)))]);
+        Ok(())
+    }
+
+    /// Rename a folder (folders inside it move with it, RFC 3501 §6.3.5).
+    pub fn rename(&mut self, from: &str, to: &str) -> Result<()> {
+        if self.selected.as_deref().is_some_and(|s| s.starts_with(from)) {
+            // Renaming the selected folder is allowed, but leaves the session in an odd state on
+            // some servers: deselect first.
+            self.unselect();
+        }
+        let cmd = format!("RENAME {} {}", mailbox_arg(from), mailbox_arg(to));
+        self.conn.run(&[Part::Text(&cmd)])?;
+        let _ = self.conn.run(&[Part::Text(&format!("UNSUBSCRIBE {}", mailbox_arg(from)))]);
+        let _ = self.conn.run(&[Part::Text(&format!("SUBSCRIBE {}", mailbox_arg(to)))]);
+        Ok(())
+    }
+
+    /// Delete a folder. One that is already gone counts as deleted.
+    pub fn delete(&mut self, folder: &str) -> Result<()> {
+        if self.selected.as_deref().is_some_and(|s| s.starts_with(folder)) {
+            self.unselect();
+        }
+        let _ = self.conn.run(&[Part::Text(&format!("UNSUBSCRIBE {}", mailbox_arg(folder)))]);
+        match self.conn.run(&[Part::Text(&format!("DELETE {}", mailbox_arg(folder)))]) {
+            Ok(_) => Ok(()),
+            Err(NetError::No(m)) if m.to_ascii_uppercase().contains("NONEXISTENT") => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Leave the selected folder (`UNSELECT` when offered; `CLOSE` would expunge).
+    fn unselect(&mut self) {
+        if self.has("UNSELECT") {
+            let _ = self.conn.run(&[Part::Text("UNSELECT")]);
+        } else if self.selected.is_some() {
+            // A failed EXAMINE leaves the selected state without expunging (RFC 3501 §6.3.1).
+            let _ = self.conn.run(&[Part::Text("EXAMINE \"MailCraft no such folder\"")]);
+        }
+        self.selected = None;
+    }
+
     pub fn noop(&mut self) -> Result<Vec<Response<'static>>> {
         self.conn.run(&[Part::Text("NOOP")])
     }

@@ -60,6 +60,37 @@ pub fn registry() -> Registry {
         // Navigation
         CommandSpec::new("folder.open", "Open folder", "Folder pane", open_folder).params(r#"{"account": string, "folder": string}"#),
         CommandSpec::new("folder.unified", "All inboxes", "Folder pane › Favorites", unified).params(r#"{"role"?: "inbox"|"sent"|"drafts"|…}"#),
+        // Folder › Actions
+        CommandSpec::new("folder.create", "New folder", "Folder › New", |s, v| {
+            let account = account_param(s, v)?;
+            s.create_folder(&account, p::str(v, "parent").filter(|x| !x.is_empty()), p::req_str(v, "name")?)
+        })
+        .params(r#"{"name": string, "parent"?: string, "account"?: string}"#)
+        .when(has_account),
+        CommandSpec::new("folder.rename", "Rename folder", "Folder › Actions", |s, v| {
+            let account = account_param(s, v)?;
+            s.rename_folder(&account, p::req_str(v, "folder")?, p::req_str(v, "name")?)
+        })
+        .params(r#"{"folder": string, "name": string, "account"?: string}"#)
+        .when(has_account),
+        CommandSpec::new("folder.move", "Move folder", "Folder › Actions", |s, v| {
+            let account = account_param(s, v)?;
+            s.move_folder(&account, p::req_str(v, "folder")?, p::str(v, "parent").filter(|x| !x.is_empty()))
+        })
+        .params(r#"{"folder": string, "parent"?: string (empty or absent: top level), "account"?: string}"#)
+        .when(has_account),
+        CommandSpec::new("folder.delete", "Delete folder", "Folder › Actions", |s, v| {
+            let account = account_param(s, v)?;
+            s.delete_folder(&account, p::req_str(v, "folder")?, p::bool(v, "permanent").unwrap_or(false))
+        })
+        .params(r#"{"folder": string, "permanent"?: bool, "account"?: string}"#)
+        .when(has_account),
+        CommandSpec::new("folder.favorite", "Show in Favorites", "Folder › Favorites", |s, v| {
+            let account = account_param(s, v)?;
+            s.set_favorite(&account, p::req_str(v, "folder")?, p::bool(v, "on"))
+        })
+        .params(r#"{"folder": string, "on"?: bool, "account"?: string}"#)
+        .when(has_account),
         CommandSpec::new("list.open", "Open message", "Message list", open_message).params(r#"{"key": "account:validity:uid:folder"}"#),
         CommandSpec::new("list.select", "Select", "Message list", select).params(r#"{"key": string, "add"?: bool}"#),
         CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).key("Mod+A"),
@@ -115,6 +146,15 @@ pub fn registry() -> Registry {
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature).params(r#"{"account": string, "signature": string}"#),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
     ])
+}
+
+/// `account` from the params, else the account of the folder on screen.
+fn account_param(s: &Session, v: &Value) -> Result<String, CmdError> {
+    match p::str(v, "account") {
+        Some(a) if s.account(a).is_some() => Ok(a.to_string()),
+        Some(a) => Err(CmdError::Params(format!("no account `{a}`"))),
+        None => s.current_account().map(|a| a.config.id.clone()).ok_or_else(|| CmdError::Disabled("add an account first".into())),
+    }
 }
 
 fn new_mail(s: &mut Session, v: &Value) -> CmdResult {

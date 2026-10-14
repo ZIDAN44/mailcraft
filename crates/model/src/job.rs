@@ -38,13 +38,33 @@ pub enum Op {
     Expunge {
         keys: Vec<MessageKey>,
     },
+    /// Create a folder (`CREATE`, then `SUBSCRIBE`). `path` is the server's name for it.
+    CreateFolder {
+        path: String,
+    },
+    /// Rename or move a folder; folders inside it move with it (`RENAME`).
+    RenameFolder {
+        from: String,
+        to: String,
+    },
+    /// Delete a folder and the mail in it (`DELETE`). The engine deletes subfolders first.
+    DeleteFolder {
+        path: String,
+    },
 }
 
 impl Op {
+    /// The messages a change touches (none for folder changes).
     pub fn keys(&self) -> &[MessageKey] {
         match self {
             Op::SetFlag { keys, .. } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
+            Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => &[],
         }
+    }
+
+    /// Whether this changes the folder list rather than messages.
+    pub fn is_folder_op(&self) -> bool {
+        matches!(self, Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. })
     }
 }
 

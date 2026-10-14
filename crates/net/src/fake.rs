@@ -154,8 +154,49 @@ impl Fake {
                     self.selected = Some(name);
                     ok(self, "[READ-WRITE] ");
                 }
-                None => self.say(&format!("{tag} NO no such mailbox")),
+                None => {
+                    self.selected = None;
+                    self.say(&format!("{tag} NO no such mailbox"));
+                }
             }
+        } else if upper.starts_with("CREATE ") {
+            let name = quoted_arg(rest);
+            if st.mailbox(&name).is_some() {
+                self.say(&format!("{tag} NO [ALREADYEXISTS] exists"));
+            } else {
+                let validity = 500 + u32::try_from(st.boxes.len()).unwrap_or(0);
+                st.boxes.push(Mailbox { name, attr: "", validity, uid_next: 1, msgs: Vec::new() });
+                ok(self, "");
+            }
+        } else if upper.starts_with("RENAME ") {
+            let mut names = rest.split('"').skip(1).step_by(2).map(str::to_string);
+            let (from, to) = (names.next().unwrap_or_default(), names.next().unwrap_or_default());
+            if st.mailbox(&from).is_none() || st.mailbox(&to).is_some() {
+                self.say(&format!("{tag} NO cannot rename"));
+            } else {
+                for b in &mut st.boxes {
+                    if b.name == from {
+                        b.name = to.clone();
+                    } else if let Some(rest) = b.name.strip_prefix(&format!("{from}/")) {
+                        b.name = format!("{to}/{rest}");
+                    }
+                }
+                ok(self, "");
+            }
+        } else if upper.starts_with("DELETE ") {
+            let name = quoted_arg(rest);
+            let before = st.boxes.len();
+            st.boxes.retain(|b| b.name != name);
+            if st.boxes.len() == before {
+                self.say(&format!("{tag} NO [NONEXISTENT] no such mailbox"));
+            } else {
+                ok(self, "");
+            }
+        } else if upper.starts_with("SUBSCRIBE ") || upper.starts_with("UNSUBSCRIBE ") || upper == "UNSELECT" {
+            if upper == "UNSELECT" {
+                self.selected = None;
+            }
+            ok(self, "");
         } else if upper.starts_with("APPEND ") {
             let name = quoted_arg(rest);
             let flags = paren_arg(rest);
@@ -544,6 +585,28 @@ mod tests {
         assert_eq!(arch.msgs.len(), 1);
         assert!(arch.msgs[0].flags.contains(&"\\Seen".to_string()));
         assert_eq!(s.mailbox("Sent").unwrap().msgs[0].raw, b"Subject: sent\r\n\r\nx\r\n");
+    }
+
+    #[test]
+    fn remote_folder_changes() {
+        let st = State::new();
+        st.lock().unwrap().add("Archive", "kept", &[]);
+        let mut c = login(&st);
+        apply_remote(&mut c, &Op::CreateFolder { path: "Clients".into() }).unwrap();
+        // Creating an existing folder is not an error.
+        apply_remote(&mut c, &Op::CreateFolder { path: "Clients".into() }).unwrap();
+        c.select("Archive", false).unwrap();
+        apply_remote(&mut c, &Op::RenameFolder { from: "Archive".into(), to: "Clients/Old".into() }).unwrap();
+        assert!(c.selected().is_none(), "renaming the selected folder deselects it first");
+        apply_remote(&mut c, &Op::DeleteFolder { path: "Projects/Caf&AOk-".into() }).unwrap();
+        // Deleting a folder that's already gone is fine; a refused rename is an error.
+        apply_remote(&mut c, &Op::DeleteFolder { path: "Nowhere".into() }).unwrap();
+        assert!(matches!(apply_remote(&mut c, &Op::RenameFolder { from: "Nope".into(), to: "X".into() }), Err(crate::NetError::No(_))));
+        let names: Vec<String> = c.list("a1").unwrap().into_iter().map(|f| f.path).collect();
+        assert_eq!(names, vec!["INBOX", "Sent", "Clients/Old", "Clients"]);
+        let s = st.lock().unwrap();
+        assert_eq!(s.boxes.iter().find(|b| b.name == "Clients/Old").unwrap().msgs.len(), 1, "the mail moved with the folder");
+        assert!(s.log.iter().any(|l| l.starts_with("SUBSCRIBE \"Clients\"")));
     }
 
     fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {

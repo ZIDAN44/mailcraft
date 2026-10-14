@@ -127,6 +127,16 @@ pub struct Prefs {
     pub compact: bool,
     /// Ask before deleting permanently.
     pub confirm_permanent_delete: bool,
+    /// Folders the user pinned to Favorites, in order. `None` until the user changes them: the
+    /// Inbox, Sent Items and Drafts of a single account are shown.
+    pub favorites: Option<Vec<FolderRef>>,
+}
+
+/// A folder of an account, by path.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FolderRef {
+    pub account: String,
+    pub folder: String,
 }
 
 impl Default for Prefs {
@@ -138,6 +148,7 @@ impl Default for Prefs {
             show_preview: true,
             compact: false,
             confirm_permanent_delete: true,
+            favorites: None,
         }
     }
 }
@@ -573,6 +584,10 @@ impl Session {
     }
 
     fn apply_op_memory(&mut self, account: &str, op: &Op) {
+        if op.is_folder_op() {
+            self.apply_folder_op_memory(account, op);
+            return;
+        }
         let mut unread_delta: HashMap<String, i64> = HashMap::new();
         for ((a, f), st) in self.cache.iter_mut() {
             if a != account {
@@ -597,6 +612,7 @@ impl Session {
                     *unread_delta.entry(f.clone()).or_default() -= i64::try_from(unread).unwrap_or(0);
                     st.messages.retain(|m| !mine.contains(&m.key.uid));
                 }
+                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {}
             }
         }
         if let Some(a) = self.account_mut(account) {
@@ -646,7 +662,250 @@ impl Session {
             }
             Err(e) => self.notice(e.to_string(), true),
         }
+        if op.is_folder_op()
+            && let Ok(mut folders) = store.load_folders(account)
+        {
+            sort_folders(&mut folders);
+            if let Some(a) = self.account_mut(account) {
+                a.folders = folders;
+            }
+        }
         self.recount_local(account);
+    }
+
+    /// A folder-list change, in memory: the account's folders, the open view, cached folder
+    /// contents and Favorites follow a renamed folder; a deleted one disappears.
+    fn apply_folder_op_memory(&mut self, account: &str, op: &Op) {
+        let delimiter = self.delimiter(account);
+        if let Some(a) = self.account_mut(account) {
+            match op {
+                Op::CreateFolder { path } => {
+                    if !a.folders.iter().any(|f| &f.path == path) {
+                        a.folders.push(Folder {
+                            account: account.to_string(),
+                            path: path.clone(),
+                            delimiter,
+                            role: FolderRole::Other,
+                            selectable: true,
+                            unread: 0,
+                            total: 0,
+                        });
+                    }
+                }
+                Op::RenameFolder { from, to } => {
+                    for f in a.folders.iter_mut() {
+                        if let Some(new) = mailcraft_model::rebase_path(&f.path, from, to, f.delimiter.or(delimiter)) {
+                            f.path = new;
+                        }
+                    }
+                }
+                Op::DeleteFolder { path } => a.folders.retain(|f| !mailcraft_model::is_within(&f.path, path, f.delimiter.or(delimiter))),
+                Op::SetFlag { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
+            }
+            sort_folders(&mut a.folders);
+        }
+        match op {
+            Op::CreateFolder { .. } => {}
+            Op::RenameFolder { from, to } => {
+                self.cache.retain(|(acc, f), _| acc != account || !mailcraft_model::is_within(f, from, delimiter));
+                if let View::Folder { account: va, folder } = &mut self.view
+                    && va == account
+                    && let Some(new) = mailcraft_model::rebase_path(folder, from, to, delimiter)
+                {
+                    *folder = new;
+                }
+                if let Some(favs) = self.prefs.favorites.as_mut() {
+                    for fav in favs.iter_mut().filter(|f| f.account == account) {
+                        if let Some(new) = mailcraft_model::rebase_path(&fav.folder, from, to, delimiter) {
+                            fav.folder = new;
+                        }
+                    }
+                }
+            }
+            Op::DeleteFolder { path } => {
+                self.cache.retain(|(acc, f), _| acc != account || !mailcraft_model::is_within(f, path, delimiter));
+                if let Some(favs) = self.prefs.favorites.as_mut() {
+                    favs.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
+                }
+                if matches!(&self.view, View::Folder { account: va, folder } if va == account && mailcraft_model::is_within(folder, path, delimiter))
+                {
+                    self.view = self.default_view();
+                    self.reading = None;
+                    self.selection.clear();
+                    self.focus = None;
+                }
+            }
+            Op::SetFlag { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
+        }
+        self.index = None;
+    }
+
+    // ----- folder management -----
+
+    /// The account's hierarchy delimiter (from any folder that has one).
+    fn delimiter(&self, account: &str) -> Option<char> {
+        self.account(account).and_then(|a| a.folders.iter().find_map(|f| f.delimiter))
+    }
+
+    /// Where top-level folders go: the root, or `INBOX` on servers that keep every folder under
+    /// it (`INBOX.Sent`, `INBOX.Projects`).
+    fn top_parent(&self, account: &str) -> Option<String> {
+        let a = self.account(account)?;
+        let d = self.delimiter(account)?;
+        let others: Vec<&Folder> = a.folders.iter().filter(|f| !f.path.eq_ignore_ascii_case("INBOX")).collect();
+        let inbox = a.folders.iter().find(|f| f.path.eq_ignore_ascii_case("INBOX"))?;
+        (!others.is_empty() && others.iter().all(|f| f.path.starts_with(&format!("{}{d}", inbox.path)))).then(|| inbox.path.clone())
+    }
+
+    fn parent_of(path: &str, delimiter: Option<char>) -> Option<&str> {
+        delimiter.and_then(|d| path.rsplit_once(d)).map(|(p, _)| p)
+    }
+
+    /// A user folder (not Inbox or another special folder) that exists, for changing.
+    fn user_folder(&self, account: &str, path: &str) -> Result<Folder, CmdError> {
+        if self.account(account).is_none() {
+            return Err(CmdError::Params(format!("no account `{account}`")));
+        }
+        let f = self.folder(account, path).cloned().ok_or_else(|| CmdError::Params(format!("no folder `{path}`")))?;
+        if f.role != FolderRole::Other || f.path.eq_ignore_ascii_case("INBOX") {
+            return Err(CmdError::Failed(format!("{} can't be renamed, moved or deleted", f.display_name())));
+        }
+        Ok(f)
+    }
+
+    /// Create a folder called `name` inside `parent` (`None`: at the top).
+    pub fn create_folder(&mut self, account: &str, parent: Option<&str>, name: &str) -> CmdResult {
+        if self.account(account).is_none() {
+            return Err(CmdError::Params(format!("no account `{account}`")));
+        }
+        if let Some(p) = parent
+            && self.folder(account, p).is_none()
+        {
+            return Err(CmdError::Params(format!("no folder `{p}`")));
+        }
+        let parent = parent.map(str::to_string).or_else(|| self.top_parent(account));
+        let path = mailcraft_model::child_path(parent.as_deref(), self.delimiter(account), name).map_err(CmdError::Params)?;
+        if self.folder(account, &path).is_some() {
+            return Err(CmdError::Params(format!("there is already a folder called {}", name.trim())));
+        }
+        self.apply_op(account, Op::CreateFolder { path: path.clone() });
+        Ok(serde_json::json!({ "created": path }))
+    }
+
+    /// Rename a folder (it stays where it is).
+    pub fn rename_folder(&mut self, account: &str, path: &str, name: &str) -> CmdResult {
+        let f = self.user_folder(account, path)?;
+        let d = f.delimiter.or(self.delimiter(account));
+        let to = mailcraft_model::child_path(Self::parent_of(path, d), d, name).map_err(CmdError::Params)?;
+        if to == path {
+            return Ok(serde_json::json!({ "renamed": to }));
+        }
+        if self.folder(account, &to).is_some() {
+            return Err(CmdError::Params(format!("there is already a folder called {}", name.trim())));
+        }
+        self.apply_op(account, Op::RenameFolder { from: path.to_string(), to: to.clone() });
+        Ok(serde_json::json!({ "renamed": to }))
+    }
+
+    /// Move a folder inside another (`None`: to the top).
+    pub fn move_folder(&mut self, account: &str, path: &str, parent: Option<&str>) -> CmdResult {
+        let f = self.user_folder(account, path)?;
+        let d = f.delimiter.or(self.delimiter(account));
+        let d = d.ok_or_else(|| CmdError::Failed("this server has no subfolders".into()))?;
+        let parent = match parent {
+            Some(p) => {
+                if self.folder(account, p).is_none() {
+                    return Err(CmdError::Params(format!("no folder `{p}`")));
+                }
+                if mailcraft_model::is_within(p, path, Some(d)) {
+                    return Err(CmdError::Params("a folder can't be moved into itself".into()));
+                }
+                Some(p.to_string())
+            }
+            None => self.top_parent(account),
+        };
+        let leaf = path.rsplit(d).next().unwrap_or(path);
+        let to = match &parent {
+            Some(p) => format!("{p}{d}{leaf}"),
+            None => leaf.to_string(),
+        };
+        if to == path {
+            return Ok(serde_json::json!({ "moved": to }));
+        }
+        if self.folder(account, &to).is_some() {
+            return Err(CmdError::Params(format!("there is already a folder called {} there", f.display_name())));
+        }
+        self.apply_op(account, Op::RenameFolder { from: path.to_string(), to: to.clone() });
+        Ok(serde_json::json!({ "moved": to }))
+    }
+
+    /// Delete a folder: into Deleted Items, or for good when it is already there (or
+    /// `permanent`, or there is no Deleted Items folder). Subfolders go with it.
+    pub fn delete_folder(&mut self, account: &str, path: &str, permanent: bool) -> CmdResult {
+        let f = self.user_folder(account, path)?;
+        let d = f.delimiter.or(self.delimiter(account));
+        let trash = self.account(account).and_then(|a| a.folder(FolderRole::Trash)).map(|t| t.path.clone());
+        let in_trash = trash.as_deref().is_some_and(|t| mailcraft_model::is_within(path, t, d));
+        if let (Some(trash), Some(d), false, false) = (&trash, d, in_trash, permanent) {
+            // Like deleting mail: the folder waits in Deleted Items.
+            let leaf = path.rsplit(d).next().unwrap_or(path);
+            let mut to = format!("{trash}{d}{leaf}");
+            let mut n = 2;
+            while self.folder(account, &to).is_some() {
+                to = format!("{trash}{d}{leaf} ({n})");
+                n += 1;
+            }
+            self.apply_op(account, Op::RenameFolder { from: path.to_string(), to: to.clone() });
+            return Ok(serde_json::json!({ "moved": to }));
+        }
+        // Deepest first: servers refuse to delete a folder that still has children.
+        let mut doomed: Vec<String> = self
+            .account(account)
+            .map(|a| a.folders.iter().filter(|x| mailcraft_model::is_within(&x.path, path, d)).map(|x| x.path.clone()).collect())
+            .unwrap_or_default();
+        doomed.sort_by_key(|p| std::cmp::Reverse(p.len()));
+        let n = doomed.len();
+        for p in doomed {
+            self.apply_op(account, Op::DeleteFolder { path: p });
+        }
+        Ok(serde_json::json!({ "deleted": n }))
+    }
+
+    /// Favorites as shown: the user's list, or the defaults.
+    pub fn favorites(&self) -> Vec<FolderRef> {
+        match &self.prefs.favorites {
+            Some(list) => list.iter().filter(|r| self.folder(&r.account, &r.folder).is_some()).cloned().collect(),
+            None if self.accounts.len() == 1 => self
+                .accounts
+                .first()
+                .map(|a| {
+                    [FolderRole::Inbox, FolderRole::Sent, FolderRole::Drafts]
+                        .iter()
+                        .filter_map(|r| a.folder(*r))
+                        .map(|f| FolderRef { account: a.config.id.clone(), folder: f.path.clone() })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            None => Vec::new(),
+        }
+    }
+
+    /// Add a folder to Favorites or take it off (`on: None` toggles).
+    pub fn set_favorite(&mut self, account: &str, folder: &str, on: Option<bool>) -> CmdResult {
+        if self.folder(account, folder).is_none() {
+            return Err(CmdError::Params(format!("no folder `{folder}` in account `{account}`")));
+        }
+        let mut list = self.favorites();
+        let r = FolderRef { account: account.to_string(), folder: folder.to_string() };
+        let present = list.contains(&r);
+        let on = on.unwrap_or(!present);
+        if on && !present {
+            list.push(r);
+        } else if !on {
+            list.retain(|x| *x != r);
+        }
+        self.prefs.favorites = Some(list);
+        Ok(serde_json::json!({ "on": on }))
     }
 
     fn recount_local(&mut self, account: &str) {

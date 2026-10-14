@@ -126,6 +126,10 @@ impl Pool {
                 // Offline: change the cache now and keep the change for the next connection.
                 match self.store.apply_op(&account, &op) {
                     Ok(changed) => {
+                        if op.is_folder_op() {
+                            let folders = self.store.load_folders(&account).unwrap_or_default();
+                            self.sink.emit(Event::Folders { account: account.clone(), folders });
+                        }
                         let mut ops = self.store.load_ops(&account).unwrap_or_default();
                         ops.push(op);
                         if let Err(e) = self.store.save_ops(&account, &ops) {
@@ -421,7 +425,8 @@ impl Worker {
     }
 
     /// The folder list, then every folder (Inbox first), staying responsive to opened messages.
-    fn sync_all(&mut self, rx: &Receiver<Job>) {
+    /// Refresh the folder list from the server; `false` when that failed.
+    fn relist(&mut self) -> bool {
         let id = self.id();
         let listed = (|| -> Result<Vec<Folder>> { self.client()?.list(&id) })();
         match listed {
@@ -441,8 +446,18 @@ impl Worker {
                 }
                 self.folders = list;
                 self.publish_folders();
+                true
             }
-            Err(e) => return self.failed(e),
+            Err(e) => {
+                self.failed(e);
+                false
+            }
+        }
+    }
+
+    fn sync_all(&mut self, rx: &Receiver<Job>) {
+        if !self.relist() {
+            return;
         }
         let paths: Vec<String> = self.folders.iter().filter(|f| f.selectable).map(|f| f.path.clone()).collect();
         for path in paths {
@@ -518,6 +533,10 @@ impl Worker {
             Job::Apply { op, .. } => {
                 match self.store.apply_op(&self.acc.id, &op) {
                     Ok(changed) => {
+                        if op.is_folder_op() {
+                            self.folders = self.store.load_folders(&self.acc.id).unwrap_or_default();
+                            self.publish_folders();
+                        }
                         for folder in changed {
                             self.sink.emit(Event::FolderChanged { account: self.id(), folder });
                         }
@@ -604,12 +623,19 @@ impl Worker {
     /// Replay offline changes on the server, oldest first.
     fn replay(&mut self) {
         let mut destinations: Vec<String> = Vec::new();
+        let mut relist = false;
         while let Some(op) = self.ops.first().cloned() {
             let r = (|| -> Result<()> { apply_remote(self.client()?, &op) })();
             match r {
                 Ok(()) => {
-                    if let Op::Move { to, .. } = &op {
-                        destinations.push(to.clone());
+                    match &op {
+                        Op::Move { to, .. } => destinations.push(to.clone()),
+                        Op::RenameFolder { to, .. } => {
+                            relist = true;
+                            destinations.push(to.clone());
+                        }
+                        Op::CreateFolder { .. } | Op::DeleteFolder { .. } => relist = true,
+                        Op::SetFlag { .. } | Op::Expunge { .. } => {}
                     }
                     self.ops.remove(0);
                 }
@@ -630,12 +656,16 @@ impl Worker {
                             let _ = self.store.save_folder(&self.acc.id, f, &st);
                         }
                     }
+                    relist |= op.is_folder_op();
                     self.sink.emit(Event::OpFailed { account: self.id(), op, error: e.to_string() });
                     destinations.extend(folders);
                 }
             }
         }
         let _ = self.store.save_ops(&self.acc.id, &self.ops);
+        if relist {
+            self.relist();
+        }
         destinations.sort();
         destinations.dedup();
         for d in destinations {
@@ -681,6 +711,9 @@ pub fn apply_remote<S: std::io::Read + std::io::Write>(c: &mut Client<S>, op: &O
         Op::SetFlag { keys, flag, on } => by_folder(c, keys, |c, _, set| c.uid_store(set, *on, flag.imap())),
         Op::Move { keys, to } => by_folder(c, keys, |c, folder, set| if folder == to { Ok(()) } else { c.uid_move(set, to) }),
         Op::Expunge { keys } => expunge_keys(c, keys),
+        Op::CreateFolder { path } => c.create(path),
+        Op::RenameFolder { from, to } => c.rename(from, to),
+        Op::DeleteFolder { path } => c.delete(path),
     }
 }
 

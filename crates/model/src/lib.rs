@@ -245,6 +245,49 @@ impl Folder {
     }
 }
 
+/// Whether `path` is `parent` itself or a folder inside it.
+pub fn is_within(path: &str, parent: &str, delimiter: Option<char>) -> bool {
+    path == parent || delimiter.is_some_and(|d| path.strip_prefix(parent).is_some_and(|rest| rest.starts_with(d)))
+}
+
+/// `path` with its `from` prefix replaced by `to` (for folders inside a renamed folder).
+pub fn rebase_path(path: &str, from: &str, to: &str, delimiter: Option<char>) -> Option<String> {
+    if path == from {
+        return Some(to.to_string());
+    }
+    let d = delimiter?;
+    let rest = path.strip_prefix(from)?.strip_prefix(d)?;
+    Some(format!("{to}{d}{rest}"))
+}
+
+/// The server path for a new folder called `name` (a display name, encoded to modified UTF-7)
+/// inside `parent` (`None`: top level). Errors are user-facing.
+pub fn child_path(parent: Option<&str>, delimiter: Option<char>, name: &str) -> Result<String, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("the folder name is empty".into());
+    }
+    if name.chars().any(|c| c.is_control()) || name.chars().count() > 200 {
+        return Err("the folder name has characters that can't be used".into());
+    }
+    if let Some(d) = delimiter
+        && name.contains(d)
+    {
+        return Err(format!("folder names can't contain `{d}` on this server"));
+    }
+    if matches!(name, "." | "..") || name.contains('*') || name.contains('%') {
+        return Err(format!("`{name}` can't be used as a folder name"));
+    }
+    let leaf = utf7::encode(name);
+    match parent.filter(|p| !p.is_empty()) {
+        None => Ok(leaf),
+        Some(p) => match delimiter {
+            Some(d) => Ok(format!("{p}{d}{leaf}")),
+            None => Err("this server has no subfolders".into()),
+        },
+    }
+}
+
 /// Sort folders for the folder pane: special folders in their usual order, then the others by
 /// path so children follow their parents.
 pub fn sort_folders(folders: &mut [Folder]) {
@@ -464,6 +507,22 @@ mod tests {
         let f = Flags::from_imap(["\\Seen", "\\FLAGGED", "$Forwarded", "$Junk"]);
         assert!(f.seen && f.flagged && f.forwarded && !f.answered);
         assert_eq!(f.to_imap(), "\\Seen \\Flagged $Forwarded");
+    }
+
+    #[test]
+    fn folder_paths() {
+        assert!(is_within("A/B", "A", Some('/')));
+        assert!(is_within("A", "A", Some('/')));
+        assert!(!is_within("AB", "A", Some('/')));
+        assert!(!is_within("A/B", "A", None));
+        assert_eq!(rebase_path("A/B/C", "A/B", "X", Some('/')).as_deref(), Some("X/C"));
+        assert_eq!(rebase_path("A/BC", "A/B", "X", Some('/')), None);
+        assert_eq!(child_path(Some("Projects"), Some('/'), "Café").as_deref(), Ok("Projects/Caf&AOk-"));
+        assert_eq!(child_path(None, Some('.'), " Plans ").as_deref(), Ok("Plans"));
+        assert!(child_path(None, Some('/'), "a/b").is_err());
+        assert!(child_path(Some("X"), None, "a").is_err());
+        assert!(child_path(None, None, "  ").is_err());
+        assert!(child_path(None, None, "*").is_err());
     }
 
     #[test]

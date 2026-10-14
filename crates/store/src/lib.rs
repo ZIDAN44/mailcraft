@@ -217,6 +217,9 @@ impl Store {
     /// changed. Moves only remove from the source: the destination learns the new UID at its
     /// next sync.
     pub fn apply_op(&self, account: &str, op: &Op) -> Result<Vec<String>> {
+        if op.is_folder_op() {
+            return self.apply_folder_op(account, op);
+        }
         let mut folders: Vec<String> = op.keys().iter().filter(|k| k.account == account).map(|k| k.folder.clone()).collect();
         folders.sort();
         folders.dedup();
@@ -244,10 +247,62 @@ impl Store {
                     }
                     st.messages.retain(|m| !gone.iter().any(|k| k.uid == m.key.uid));
                 }
+                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {}
             }
             self.save_folder(account, folder, &st)?;
         }
         Ok(folders)
+    }
+
+    /// Folder-list changes: `folders.json` is updated and each folder's cache moves with it (or
+    /// goes, for a deleted folder). Returns the folders whose contents should be shown afresh.
+    fn apply_folder_op(&self, account: &str, op: &Op) -> Result<Vec<String>> {
+        let mut list = self.load_folders(account)?;
+        let delimiter = list.iter().find_map(|f| f.delimiter);
+        let changed = match op {
+            Op::CreateFolder { path } => {
+                if !list.iter().any(|f| &f.path == path) {
+                    list.push(Folder {
+                        account: account.to_string(),
+                        path: path.clone(),
+                        delimiter,
+                        role: mailcraft_model::FolderRole::Other,
+                        selectable: true,
+                        unread: 0,
+                        total: 0,
+                    });
+                }
+                vec![path.clone()]
+            }
+            Op::RenameFolder { from, to } => {
+                let mut moved = Vec::new();
+                for f in list.iter_mut() {
+                    if let Some(new) = mailcraft_model::rebase_path(&f.path, from, to, f.delimiter.or(delimiter)) {
+                        let (src, dst) = (self.folder_dir(account, &f.path), self.folder_dir(account, &new));
+                        if src.exists() {
+                            let _ = fs::remove_dir_all(&dst);
+                            fs::rename(&src, &dst).map_err(io_err(&src))?;
+                        }
+                        f.path = new.clone();
+                        moved.push(new);
+                    }
+                }
+                moved
+            }
+            Op::DeleteFolder { path } => {
+                let gone: Vec<String> =
+                    list.iter().filter(|f| mailcraft_model::is_within(&f.path, path, f.delimiter.or(delimiter))).map(|f| f.path.clone()).collect();
+                for g in &gone {
+                    self.clear_folder(account, g)?;
+                }
+                list.retain(|f| !gone.contains(&f.path));
+                Vec::new()
+            }
+            Op::SetFlag { .. } | Op::Move { .. } | Op::Expunge { .. } => Vec::new(),
+        };
+        mailcraft_model::sort_folders(&mut list);
+        self.save_folders(account, &list)?;
+        Ok(changed)
     }
 
     /// Cached sources across all folders of an account, as (key, path) pairs, for indexing.
@@ -382,6 +437,45 @@ mod tests {
         assert_eq!(s.load_ops("a1").unwrap(), ops);
         s.save_ops("a1", &[]).unwrap();
         assert!(s.load_ops("a1").unwrap().is_empty());
+        let _ = fs::remove_dir_all(s.root());
+    }
+
+    #[test]
+    fn folder_ops_move_caches_with_folders() {
+        let s = temp_store("folders");
+        let f = |p: &str| Folder {
+            account: "a1".into(),
+            path: p.into(),
+            delimiter: Some('/'),
+            role: mailcraft_model::FolderRole::from_name(p, Some('/')),
+            selectable: true,
+            ..Default::default()
+        };
+        s.save_folders("a1", &[f("INBOX"), f("Projects"), f("Projects/Film")]).unwrap();
+        let film = MessageKey { account: "a1".into(), folder: "Projects/Film".into(), validity: 3, uid: 9 };
+        s.save_folder("a1", "Projects/Film", &FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false)] }).unwrap();
+        s.write_body(&film, b"Subject: x\r\n\r\nfilm").unwrap();
+
+        assert_eq!(s.apply_op("a1", &Op::CreateFolder { path: "Clients".into() }).unwrap(), vec!["Clients".to_string()]);
+        // Creating twice keeps one.
+        s.apply_op("a1", &Op::CreateFolder { path: "Clients".into() }).unwrap();
+        assert_eq!(s.load_folders("a1").unwrap().iter().filter(|f| f.path == "Clients").count(), 1);
+
+        // Renaming moves the subfolder and its cached mail along.
+        let changed = s.apply_op("a1", &Op::RenameFolder { from: "Projects".into(), to: "Clients/Work".into() }).unwrap();
+        assert_eq!(changed, vec!["Clients/Work".to_string(), "Clients/Work/Film".to_string()]);
+        let paths: Vec<String> = s.load_folders("a1").unwrap().into_iter().map(|f| f.path).collect();
+        assert!(paths.contains(&"Clients/Work/Film".to_string()) && !paths.contains(&"Projects".to_string()), "{paths:?}");
+        let moved = s.load_folder("a1", "Clients/Work/Film").unwrap();
+        assert_eq!(moved.messages.len(), 1);
+        assert_eq!(s.read_body(&moved.messages[0].key).unwrap(), b"Subject: x\r\n\r\nfilm");
+        assert!(s.load_folder("a1", "Projects/Film").unwrap().messages.is_empty());
+
+        // Deleting takes the subfolders and their caches.
+        s.apply_op("a1", &Op::DeleteFolder { path: "Clients/Work".into() }).unwrap();
+        let paths: Vec<String> = s.load_folders("a1").unwrap().into_iter().map(|f| f.path).collect();
+        assert_eq!(paths, vec!["INBOX".to_string(), "Clients".to_string()]);
+        assert!(!s.has_body(&moved.messages[0].key));
         let _ = fs::remove_dir_all(s.root());
     }
 
