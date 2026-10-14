@@ -15,6 +15,7 @@
 //!   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
 //!   commands                       every engine command, as JSON
 //!   run ID [JSON]                  run an engine command against the cache
+//!   --version                      print the version
 //! ```
 //!
 //! Passwords are read from `MAILCRAFT_PASSWORD` or asked for on the terminal; the CLI never
@@ -147,8 +148,21 @@ fn print(v: &Value) {
     println!("{}", serde_json::to_string_pretty(v).unwrap_or_default());
 }
 
+/// `--version`: the version, plus the commit and date of release builds (packaging/common.sh).
+fn version_line() -> String {
+    let v = format!("mailcraft-cli {}", env!("CARGO_PKG_VERSION"));
+    match (option_env!("MAILCRAFT_BUILD_SHA"), option_env!("MAILCRAFT_BUILD_DATE")) {
+        (Some(sha), Some(date)) if !sha.is_empty() => format!("{v} ({}, {date})", sha.get(..9).unwrap_or(sha)),
+        _ => v,
+    }
+}
+
 fn run() -> Result<(), String> {
     let raw: Vec<String> = std::env::args().skip(1).collect();
+    if raw.iter().any(|a| a == "--version" || a == "-V") {
+        println!("{}", version_line());
+        return Ok(());
+    }
     let args = Args { rest: raw };
     let root =
         args.opt("--data").map(std::path::PathBuf::from).or_else(mailcraft_engine::store::default_root).ok_or("no data folder: pass --data DIR")?;

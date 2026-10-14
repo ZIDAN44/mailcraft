@@ -1,6 +1,6 @@
 //! MailCraft desktop app.
 //!
-//! Usage: `mailcraft [--sample] [--data <folder>] [--light | --dark] [--cmd <id>[=<json>]]…`
+//! Usage: `mailcraft [--version] [--sample] [--data <folder>] [--light | --dark] [--cmd <id>[=<json>]]…`
 //!
 //! `--sample` opens a separate, local-only sample mailbox (no server needed). `--data` (or the
 //! `MAILCRAFT_DATA` environment variable) chooses where mail is cached. `--cmd` runs engine
@@ -17,7 +17,7 @@ use mailcraft_engine::model::dates::Clock;
 use mailcraft_engine::model::{AccountConfig, Event, Job};
 use mailcraft_engine::store::Store;
 use mailcraft_net::worker::{Credentials, Pool};
-use mailcraft_ui_egui::{Backend, MailApp, Services, theme};
+use mailcraft_ui_egui::{Backend, MailApp, Services};
 
 /// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
 struct Keychain;
@@ -92,39 +92,25 @@ fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
     (None, None)
 }
 
-/// The window icon, drawn in code: a white envelope on the app colour.
+/// The window icon: the committed app icon (`cargo xtask icons`), or egui's default if it can't be decoded.
 fn app_icon() -> egui::IconData {
-    let n = 64usize;
-    let mut rgba = vec![0u8; n * n * 4];
-    let c = theme::APP_COLOR;
-    for y in 0..n {
-        for x in 0..n {
-            let (fx, fy) = (x as f32, y as f32);
-            let corner = 12.0f32;
-            let dx = (corner - fx).max(fx - (n as f32 - 1.0 - corner)).max(0.0);
-            let dy = (corner - fy).max(fy - (n as f32 - 1.0 - corner)).max(0.0);
-            let inside = dx * dx + dy * dy <= corner * corner;
-            let env = (12..=52).contains(&x) && (18..=46).contains(&y);
-            let edge = env && (x == 12 || x == 52 || y == 18 || y == 46 || x == 13 || x == 51 || y == 19 || y == 45);
-            let flap = env && {
-                let mid = 32.0;
-                let yy = 18.0 + (fx - mid).abs().mul_add(-0.7, 20.0);
-                (fy - yy).abs() < 1.5
-            };
-            let px = if !inside {
-                [0, 0, 0, 0]
-            } else if edge || flap {
-                [255, 255, 255, 255]
-            } else {
-                [c.r(), c.g(), c.b(), 255]
-            };
-            let i = (y * n + x) * 4;
-            if let Some(slot) = rgba.get_mut(i..i + 4) {
-                slot.copy_from_slice(&px);
-            }
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/ai.storyteller.mailcraft.png");
+    match image::load_from_memory_with_format(PNG, image::ImageFormat::Png) {
+        Ok(img) => {
+            let img = img.into_rgba8();
+            egui::IconData { width: img.width(), height: img.height(), rgba: img.into_raw() }
         }
+        Err(_) => egui::IconData::default(),
     }
-    egui::IconData { rgba, width: n as u32, height: n as u32 }
+}
+
+/// `--version`: the version, plus the commit and date of release builds (packaging/common.sh).
+fn version_line() -> String {
+    let v = format!("mailcraft {}", env!("CARGO_PKG_VERSION"));
+    match (option_env!("MAILCRAFT_BUILD_SHA"), option_env!("MAILCRAFT_BUILD_DATE")) {
+        (Some(sha), Some(date)) if !sha.is_empty() => format!("{v} ({}, {date})", sha.get(..9).unwrap_or(sha)),
+        _ => v,
+    }
 }
 
 struct App {
@@ -147,6 +133,10 @@ impl eframe::App for App {
 
 fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("{}", version_line());
+        return Ok(());
+    }
     let cmd_args = args.clone();
     let sample = args.iter().any(|a| a == "--sample");
     let data =
@@ -173,6 +163,8 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(if sample { "MailCraft – Sample mailbox" } else { "MailCraft" })
+            // Matches the desktop entry (StartupWMClass) and icon name in packaging/linux.
+            .with_app_id("ai.storyteller.mailcraft")
             .with_inner_size([1320.0, 820.0])
             .with_min_inner_size([760.0, 480.0])
             .with_icon(Arc::new(app_icon())),
