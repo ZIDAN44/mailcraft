@@ -1,0 +1,17 @@
+[package]
+name = "mailcraft-ui-egui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft egui front end (folders, message list, reading pane, compose); swappable: nothing below depends on it"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-engine = { workspace = true }
+egui = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+# Attachment thumbnails (pictures arrive in mail, decoded with size limits).
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
