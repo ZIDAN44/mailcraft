@@ -102,6 +102,41 @@ impl Pool {
         }
     }
 
+    /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI
+    /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts.
+    fn sign_in(&mut self, account: AccountConfig) {
+        let Some(p) = account.oauth.as_deref().and_then(crate::oauth::provider) else {
+            let error = format!("signing in with {} isn't set up in this copy of MailCraft", account.oauth.as_deref().unwrap_or("that provider"));
+            return self.sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
+        };
+        let (sink, creds) = (self.sink.clone(), self.creds.clone());
+        let spawned = std::thread::Builder::new().name("mail-sign-in".into()).spawn(move || {
+            let mut open = |url: &str| -> std::result::Result<(), String> {
+                sink.emit(Event::OpenUrl { url: url.to_string() });
+                Ok(())
+            };
+            match crate::oauth::authorize(&p, &account.email, &mut open, Duration::from_secs(5 * 60)) {
+                Ok(t) => match t.refresh {
+                    Some(r) => match creds.set(&account, &r) {
+                        Ok(()) => sink.emit(Event::SignedIn { account: account.id }),
+                        Err(e) => sink.emit(Event::Status {
+                            account: account.id,
+                            status: SyncStatus::NeedsPassword { error: format!("the sign-in couldn't be kept in the keychain: {e}") },
+                        }),
+                    },
+                    None => sink.emit(Event::Status {
+                        account: account.id,
+                        status: SyncStatus::NeedsPassword { error: format!("{} gave no lasting sign-in; try again", p.name) },
+                    }),
+                },
+                Err(e) => sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error: e.to_string() } }),
+            }
+        });
+        if let Err(e) = spawned {
+            log::warn!("sign-in: {e}");
+        }
+    }
+
     fn fetch_url(&mut self, url: String) {
         if self.fetcher.is_none() {
             let (tx, rx) = mpsc::channel::<String>();
@@ -137,6 +172,7 @@ impl Pool {
     pub fn submit(&mut self, job: Job) {
         match job {
             Job::FetchUrl { url } => self.fetch_url(url),
+            Job::SignIn { account } => self.sign_in(account),
             Job::Discover { email } => {
                 let sink = self.sink.clone();
                 let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
@@ -233,7 +269,8 @@ impl Pool {
             return;
         };
         let (tx, rx) = mpsc::channel();
-        let w = Worker::new(account.clone(), pw, self.store.clone(), self.sink.clone(), self.opts);
+        let mut w = Worker::new(account.clone(), pw, self.store.clone(), self.sink.clone(), self.opts);
+        w.creds = Some(self.creds.clone());
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
@@ -293,6 +330,10 @@ struct Worker {
     last_full: Option<Instant>,
     auth_failed: bool,
     closed: bool,
+    /// Where a rotated OAuth refresh token is saved.
+    creds: Option<Arc<dyn Credentials>>,
+    /// The current OAuth access token.
+    access: Option<crate::oauth::Tokens>,
 }
 
 impl Worker {
@@ -314,7 +355,34 @@ impl Worker {
             last_full: None,
             auth_failed: false,
             closed: false,
+            creds: None,
+            access: None,
         }
+    }
+
+    /// What to sign in with: the password, or for OAuth accounts a current access token
+    /// (refreshed from the stored refresh token when needed).
+    fn secret(&mut self) -> Result<String> {
+        let Some(id) = self.acc.oauth.clone() else { return Ok(self.pw.clone()) };
+        if let Some(t) = &self.access
+            && t.expires_at > Instant::now()
+        {
+            return Ok(t.access.clone());
+        }
+        let p = crate::oauth::provider(&id).ok_or_else(|| NetError::Auth(format!("signing in with {id} isn't set up in this copy of MailCraft")))?;
+        let t = crate::oauth::refresh(&p, &self.pw)?;
+        // Some providers hand out a new refresh token each time: keep the newest.
+        if let Some(r) = t.refresh.clone().filter(|r| *r != self.pw) {
+            self.pw = r.clone();
+            if let Some(c) = &self.creds
+                && let Err(e) = c.set(&self.acc, &r)
+            {
+                self.notice(format!("the new sign-in couldn't be saved in the keychain: {e}"));
+            }
+        }
+        let access = t.access.clone();
+        self.access = Some(t);
+        Ok(access)
     }
 
     fn id(&self) -> String {
@@ -457,9 +525,14 @@ impl Worker {
             return Ok(());
         }
         self.status(SyncStatus::Connecting);
+        let secret = self.secret()?;
         let mut c = Client::connect(&self.acc.imap)?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
-        c.login(&user, &self.pw)?;
+        if self.acc.oauth.is_some() {
+            c.login_xoauth2(&user, &secret)?;
+        } else {
+            c.login(&user, &secret)?;
+        }
         self.client = Some(c);
         self.backoff = Duration::from_secs(5);
         Ok(())
@@ -625,7 +698,7 @@ impl Worker {
                 }
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
-            Job::FetchUrl { .. } | Job::Discover { .. } => {}
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } => {}
             Job::Start { .. } | Job::Remove { .. } => {}
         }
     }
@@ -658,7 +731,8 @@ impl Worker {
 
     fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
-        if let Err(e) = smtp::send(&self.acc.smtp, &user, &self.pw, from, recipients, raw) {
+        let sent = self.secret().and_then(|secret| smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw));
+        if let Err(e) = sent {
             if e.is_retryable() {
                 // Offline or asked to wait: keep it in the Outbox and send it on reconnect.
                 let item = OutboxItem {
@@ -694,7 +768,10 @@ impl Worker {
                 // Refused for good: waits for the user to edit or delete it.
                 continue;
             }
-            match smtp::send(&self.acc.smtp, &user, &self.pw, &item.from, &item.recipients, &raw) {
+            let sent = self
+                .secret()
+                .and_then(|secret| smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), &item.from, &item.recipients, &raw));
+            match sent {
                 Ok(()) => {
                     self.store.outbox_remove(&self.acc.id, item.id);
                     let folder = item.sent_folder.take();

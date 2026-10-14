@@ -184,7 +184,8 @@ fn main() -> eframe::Result {
     {
         eprintln!("mailcraft: the sample mailbox couldn't be created: {e}");
     }
-    let session = Session::open(store.clone(), Clock::new(now, offset));
+    let mut session = Session::open(store.clone(), Clock::new(now, offset));
+    session.oauth_available = mailcraft_net::oauth::available();
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
 
     let options = eframe::NativeOptions {

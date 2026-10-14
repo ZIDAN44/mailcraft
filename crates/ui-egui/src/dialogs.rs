@@ -506,6 +506,24 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.add_space(6.0);
                 ui.label(RichText::new(e).color(t.danger));
             }
+            // Providers that sign in through the browser (OAuth), when this copy can.
+            let provider = mailcraft_engine::model::oauth_provider_for(&f.imap_host).filter(|p| s.oauth_available.iter().any(|a| a == p));
+            if let Some(p) = provider {
+                ui.add_space(6.0);
+                let name = if p == "google" { "Google" } else { "Microsoft" };
+                ui.horizontal(|ui| {
+                    if widgets::accent_button(ui, crate::icons::Icon::Person, &format!("Sign in with {name}"), t, !f.email.trim().is_empty())
+                        .clicked()
+                    {
+                        f.error = None;
+                        let mut params = f.params();
+                        params["oauth"] = json!(p);
+                        params["password"] = json!(null);
+                        acts.push(Action::Submit("account.add", params));
+                    }
+                    ui.label(RichText::new("in your browser: no password stored").color(t.faint).small());
+                });
+            }
             let ready = !f.email.trim().is_empty() && !f.password.is_empty();
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
@@ -898,8 +916,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                             if ui.button("Signature…").clicked() {
                                 acts.push(Action::Dialog(Dialog::Signature { account: a.config.id.clone(), text: a.config.signature.clone() }));
                             }
-                            if !a.is_local() && ui.button("Password…").clicked() {
-                                acts.push(Action::Dialog(Dialog::password(&a.config)));
+                            if !a.is_local() && ui.button(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" }).clicked() {
+                                acts.push(Action::SignInAgain(a.config.id.clone()));
                             }
                         });
                     });

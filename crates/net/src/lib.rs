@@ -14,6 +14,7 @@ pub mod autoconfig;
 pub mod dns;
 pub mod http;
 pub mod imap;
+pub mod oauth;
 pub mod smtp;
 pub mod stream;
 pub mod sync;

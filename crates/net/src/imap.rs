@@ -96,6 +96,13 @@ pub fn parse_internal_date(s: &str) -> Option<i64> {
     Some(days * 86_400 + h * 3600 + m * 60 + sec - sign * (zh * 3600 + zm * 60))
 }
 
+fn auth_error(e: NetError) -> NetError {
+    match e {
+        NetError::No(m) | NetError::Bad(m) => NetError::Auth(if m.is_empty() { "the sign-in was refused".into() } else { m }),
+        other => other,
+    }
+}
+
 fn info(o: &imap_proto::Outcome<'_>) -> String {
     o.information.as_deref().unwrap_or("").to_string()
 }
@@ -443,9 +450,46 @@ impl<S: Read + Write> Client<S> {
             self.conn.run(&parts)
         };
         let rs = res.map_err(as_auth)?;
+        self.after_login(&rs)
+    }
+
+    /// Sign in with an OAuth access token (SASL XOAUTH2, as Gmail and Microsoft 365 take it).
+    pub fn login_xoauth2(&mut self, user: &str, token: &str) -> Result<()> {
+        let ir = crate::oauth::xoauth2(user, token);
+        let tag = self.conn.next_tag();
+        let mut collected = Vec::new();
+        if self.has("SASL-IR") {
+            self.conn.send(format!("{tag} AUTHENTICATE XOAUTH2 {ir}\r\n").as_bytes())?;
+        } else {
+            self.conn.send(format!("{tag} AUTHENTICATE XOAUTH2\r\n").as_bytes())?;
+            self.conn.wait_continue(&tag, &mut collected).map_err(auth_error)?;
+            self.conn.send(format!("{ir}\r\n").as_bytes())?;
+        }
+        // A refused token comes back as a challenge carrying the error: answer it empty, then
+        // the server says NO.
+        loop {
+            match self.conn.read()? {
+                Ok(Response::Continue(_)) => self.conn.send(b"\r\n")?,
+                Ok(Response::Done { tag: t, status, outcome }) if t.0 == tag => {
+                    if status != Status::Ok {
+                        return Err(NetError::Auth(if info(&outcome).is_empty() { "the sign-in token was refused".into() } else { info(&outcome) }));
+                    }
+                    collected.push(Response::Done { tag: t, status, outcome });
+                    break;
+                }
+                Ok(Response::Data { status: Status::Bye, outcome }) => return Err(NetError::Closed(info(&outcome))),
+                Ok(other) => collected.push(other),
+                Err(raw) => check_unknown(&tag, &raw).map_err(auth_error)?,
+            }
+        }
+        self.after_login(&collected)
+    }
+
+    /// After signing in: the new capabilities, and the extensions sync uses.
+    fn after_login(&mut self, rs: &[Response<'static>]) -> Result<()> {
         // Capabilities often change after login; take them from the completion or ask.
         let mut got = false;
-        for r in &rs {
+        for r in rs {
             if let Response::Done { outcome, .. } = r
                 && let Some(ResponseCode::Capabilities(list)) = &outcome.code
             {

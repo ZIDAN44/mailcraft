@@ -78,6 +78,22 @@ pub struct AccountConfig {
     /// The colour index the UI uses for this account's marker.
     #[serde(default)]
     pub color: u8,
+    /// Signs in with OAuth through this provider (`google`, `microsoft`) instead of a password;
+    /// the keychain then holds the refresh token.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth: Option<String>,
+}
+
+/// The OAuth provider that runs an IMAP server, when it's one MailCraft knows.
+pub fn oauth_provider_for(imap_host: &str) -> Option<&'static str> {
+    let h = imap_host.trim().to_ascii_lowercase();
+    if h == "imap.gmail.com" || h == "imap.googlemail.com" {
+        Some("google")
+    } else if h == "outlook.office365.com" || h.ends_with(".outlook.com") || h == "imap-mail.outlook.com" {
+        Some("microsoft")
+    } else {
+        None
+    }
 }
 
 impl AccountConfig {
@@ -109,6 +125,7 @@ impl AccountConfig {
             smtp,
             signature: String::new(),
             color: 0,
+            oauth: None,
         }
     }
 }

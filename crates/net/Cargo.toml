@@ -16,6 +16,9 @@ imap-proto = { workspace = true }
 lettre = { workspace = true }
 rustls = { workspace = true }
 webpki-roots = { workspace = true }
+# SHA-256 and randomness for OAuth's PKCE (already rustls's crypto provider).
+ring = "0.17"
+serde_json = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 

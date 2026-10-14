@@ -131,7 +131,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
                 if !a.is_local() && ui.button("Sign in again…").clicked() {
-                    acts.push(Action::Dialog(Dialog::password(&config)));
+                    acts.push(Action::SignInAgain(config.id.clone()));
                     ui.close();
                 }
                 if ui.button("Signature…").clicked() {

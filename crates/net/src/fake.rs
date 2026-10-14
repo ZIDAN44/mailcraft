@@ -95,11 +95,17 @@ pub struct Fake {
     inbuf: Vec<u8>,
     out: VecDeque<u8>,
     literal: Option<(String, usize)>,
+    /// SASL in progress: the tag, and whether the next line is the token (`true`) or the empty
+    /// answer to an error challenge (`false`).
+    sasl: Option<(String, bool)>,
 }
+
+/// The only access token the fake accepts.
+pub const GOOD_TOKEN: &str = "good-token";
 
 impl Fake {
     pub fn connect(st: &Arc<Mutex<State>>) -> Fake {
-        let mut f = Fake { st: st.clone(), selected: None, inbuf: Vec::new(), out: VecDeque::new(), literal: None };
+        let mut f = Fake { st: st.clone(), selected: None, inbuf: Vec::new(), out: VecDeque::new(), literal: None, sasl: None };
         f.say("* OK fake ready");
         f
     }
@@ -135,11 +141,42 @@ impl Fake {
                 self.say("+ go ahead");
                 continue;
             }
+            if let Some((tag, token_next)) = self.sasl.take() {
+                self.sasl_step(&tag, token_next.then_some(line.as_str()));
+                continue;
+            }
             self.command(&line, None);
         }
     }
 
+    /// XOAUTH2: accept the good token; anything else gets an error challenge, then NO.
+    fn sasl_step(&mut self, tag: &str, token: Option<&str>) {
+        match token {
+            Some(t) if t.trim() == crate::oauth::xoauth2("me@studio.example", GOOD_TOKEN) => {
+                let caps = self.st.lock().map(|s| s.caps).unwrap_or("");
+                self.say(&format!("{tag} OK [CAPABILITY {caps}] signed in"));
+            }
+            Some(_) => {
+                self.say("+ eyJzdGF0dXMiOiI0MDEiLCJzY2hlbWVzIjoiYmVhcmVyIn0=");
+                self.sasl = Some((tag.to_string(), false));
+            }
+            None => self.say(&format!("{tag} NO [AUTHENTICATIONFAILED] invalid credentials")),
+        }
+    }
+
     fn command(&mut self, line: &str, literal: Option<Vec<u8>>) {
+        let upper_line = line.to_ascii_uppercase();
+        if let Some(i) = upper_line.find(" AUTHENTICATE XOAUTH2") {
+            let tag = line.get(..i).unwrap_or("").to_string();
+            match line.get(i + " AUTHENTICATE XOAUTH2".len()..).map(str::trim).filter(|r| !r.is_empty()) {
+                Some(ir) => self.sasl_step(&tag, Some(ir)),
+                None => {
+                    self.say("+ ");
+                    self.sasl = Some((tag, true));
+                }
+            }
+            return;
+        }
         let (tag, rest) = line.split_once(' ').unwrap_or((line, ""));
         let st = self.st.clone();
         let mut st = st.lock().unwrap();
@@ -679,6 +716,21 @@ mod tests {
         assert_eq!(arch.msgs.len(), 1);
         assert!(arch.msgs[0].flags.contains(&"\\Seen".to_string()));
         assert_eq!(s.mailbox("Sent").unwrap().msgs[0].raw, b"Subject: sent\r\n\r\nx\r\n");
+    }
+
+    #[test]
+    fn xoauth2_sign_in() {
+        for caps in ["IMAP4rev1 AUTH=XOAUTH2 SASL-IR", "IMAP4rev1 AUTH=XOAUTH2"] {
+            let st = State::new();
+            st.lock().unwrap().caps = caps;
+            let mut c = Client::from_stream(Fake::connect(&st)).unwrap();
+            c.capability().unwrap();
+            c.login_xoauth2("me@studio.example", GOOD_TOKEN).unwrap();
+            assert!(c.list("a1").is_ok(), "signed in with {caps}");
+            let mut c = Client::from_stream(Fake::connect(&st)).unwrap();
+            c.capability().unwrap();
+            assert!(matches!(c.login_xoauth2("me@studio.example", "expired"), Err(crate::NetError::Auth(_))), "{caps}");
+        }
     }
 
     #[test]

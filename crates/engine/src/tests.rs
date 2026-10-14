@@ -316,6 +316,30 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn oauth_accounts_sign_in_through_the_browser() {
+    let store = temp("oauth");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let add = json!({"email": "zoe@gmail.com", "oauth": "google"});
+    assert!(s.run("account.add", &add).is_err(), "not offered without a registration");
+    s.oauth_available = vec!["google".into()];
+    let id = s.run("account.add", &add).unwrap()["account"].as_str().unwrap().to_string();
+    match s.take_jobs().as_slice() {
+        [Job::SignIn { account }] => assert_eq!((account.oauth.as_deref(), account.imap.host.as_str()), (Some("google"), "imap.gmail.com")),
+        other => panic!("{other:?}"),
+    }
+    s.apply(Event::OpenUrl { url: "https://accounts.google.com/o/oauth2/v2/auth?x".into() });
+    assert_eq!(s.open_urls.len(), 1);
+    s.apply(Event::SignedIn { account: id.clone() });
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { password: None, .. }]));
+    s.run("account.signIn", &json!({"account": id})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { .. }]));
+    // Saved with the account (no secret in it).
+    let saved = std::fs::read_to_string(store.root().join("accounts.json")).unwrap();
+    assert!(saved.contains("\"oauth\":\"google\""));
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
+#[test]
 fn server_settings_are_looked_up_once() {
     let mut s = Session::blank();
     assert!(s.run("account.discover", &json!({"email": "nope"})).is_err());

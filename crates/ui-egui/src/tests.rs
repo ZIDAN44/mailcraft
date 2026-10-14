@@ -58,6 +58,7 @@ fn renders_every_state_without_panicking() {
         a.session.prefs.reading_pane = ReadingPane::Right;
         a.run("compose.discard", json!({}));
         let projects = a.session.folder("sample", "Projects").cloned().unwrap();
+        a.session.oauth_available = vec!["google".into()];
         for d in [
             Dialog::add_account(),
             Dialog::move_to(),
@@ -75,6 +76,7 @@ fn renders_every_state_without_panicking() {
             Dialog::NewCategory { name: "Clients".into(), color: 3, error: Some("taken".into()) },
             Dialog::Rules,
             Dialog::rule_from("zoe@studio.example", "x"),
+            Dialog::add_account_with("zoe@gmail.com", true),
         ] {
             a.ui.dialog = Some(d);
             frame(&ctx, &mut a, vec![]);

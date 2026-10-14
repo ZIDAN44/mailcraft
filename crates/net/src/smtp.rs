@@ -13,6 +13,11 @@ use crate::{NetError, Result};
 
 /// Submit `raw` (an RFC 5322 message) from `from` to `recipients`.
 pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
+    send_with(server, user, password, false, from, recipients, raw)
+}
+
+/// [`send`], signing in with an OAuth access token (XOAUTH2) when `oauth`.
+pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
     let from: Address = from.trim().parse().map_err(|e| NetError::Smtp(format!("sender {from}: {e}")))?;
     let mut to = Vec::with_capacity(recipients.len());
     for r in recipients {
@@ -31,6 +36,9 @@ pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recip
     };
     if !user.is_empty() {
         b = b.credentials(Credentials::new(user.to_string(), password.to_string()));
+        if oauth {
+            b = b.authentication(vec![lettre::transport::smtp::authentication::Mechanism::Xoauth2]);
+        }
     }
     let transport = b.build();
     transport.send_raw(&envelope, raw).map_err(|e| {

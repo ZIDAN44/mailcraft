@@ -257,7 +257,7 @@ pub fn registry() -> Registry {
         .params(r#"{"on"?: bool}"#),
         // Accounts
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …}"#),
         CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
             let email = p::req_str(v, "email")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&email) {
@@ -278,6 +278,16 @@ pub fn registry() -> Registry {
         CommandSpec::new("account.remove", "Remove account", "File › Accounts", |s, v| {
             let id = p::req_str(v, "account")?.to_string();
             s.remove_account(&id)
+        })
+        .params(r#"{"account": string}"#),
+        CommandSpec::new("account.signIn", "Sign in with the browser", "File › Accounts", |s, v| {
+            let id = p::req_str(v, "account")?;
+            let config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+            if config.oauth.is_none() {
+                return Err(CmdError::Params("this account signs in with a password".into()));
+            }
+            s.push_job(mailcraft_model::Job::SignIn { account: config });
+            Ok(json!({"signingIn": id}))
         })
         .params(r#"{"account": string}"#),
         CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
@@ -664,11 +674,17 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         smtp: if local { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
         signature: p::str(v, "signature").unwrap_or_default().to_string(),
         color: 0,
+        oauth: p::str(v, "oauth").map(str::to_string),
     };
+    if let Some(o) = &config.oauth
+        && !s.oauth_available.contains(o)
+    {
+        return Err(CmdError::Params(format!("signing in with {o} isn't set up in this copy of MailCraft")));
+    }
     let password = p::str(v, "password").map(str::to_string);
     // `deferSignIn`: add now, ask for the password when the account first connects.
     let defer = p::bool(v, "deferSignIn").unwrap_or(false);
-    if !local && !defer && password.as_deref().is_none_or(str::is_empty) {
+    if !local && !defer && config.oauth.is_none() && password.as_deref().is_none_or(str::is_empty) {
         return Err(CmdError::Params("`password` is required".into()));
     }
     let id = s.add_account(config, password)?;

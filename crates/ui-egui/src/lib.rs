@@ -105,6 +105,8 @@ pub enum Action {
     AttachFiles,
     FocusSearch,
     SetDark(Option<bool>),
+    /// Sign an account in again: the browser for OAuth accounts, else the password dialog.
+    SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).
     InsertPicture,
     /// Paste a picture from the clipboard, if there is one.
@@ -204,6 +206,12 @@ impl MailApp {
         self.session.set_clock(now, offset);
         for e in self.backend.poll() {
             self.session.apply(e);
+        }
+        // Sign-in pages go to the browser.
+        for url in std::mem::take(&mut self.session.open_urls) {
+            if let Err(e) = self.services.open_url(&url) {
+                self.session.notice(format!("The sign-in page couldn't be opened: {e}"), true);
+            }
         }
         // Snoozed mail that is due comes back.
         self.session.tick();
@@ -387,6 +395,7 @@ impl MailApp {
             },
             Action::SetDark(d) => self.ui.dark = d,
             Action::OpenUrl(url) => self.open_link(&url),
+            Action::SignInAgain(id) => self.sign_in_again(&id),
             Action::InsertPicture => {
                 for p in self.services.pick_pictures() {
                     let r = self.session.run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "insert": false}));
@@ -424,6 +433,15 @@ impl MailApp {
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
             }
+        }
+    }
+
+    fn sign_in_again(&mut self, id: &str) {
+        let Some(config) = self.session.account(id).map(|a| a.config.clone()) else { return };
+        if config.oauth.is_some() {
+            self.run("account.signIn", json!({"account": id}));
+        } else {
+            self.ui.dialog = Some(Dialog::password(&config));
         }
     }
 
@@ -747,6 +765,7 @@ impl MailApp {
     fn status_bar(&mut self, ui: &mut Ui) {
         let t = self.ui.tokens;
         let s = &self.session;
+        let mut again: Option<String> = None;
         ui.horizontal_centered(|ui| {
             let unread = s.list.iter().filter(|m| !m.flags.seen).count();
             ui.label(RichText::new(format!("Items: {}", s.list.len())).color(t.dim).small());
@@ -773,7 +792,7 @@ impl MailApp {
                     let label = a.config.email.clone();
                     let r = r.on_hover_text(label);
                     if matches!(a.status, SyncStatus::NeedsPassword { .. }) && r.interact(Sense::click()).clicked() {
-                        self.ui.dialog = Some(Dialog::password(&a.config));
+                        again = Some(a.config.id.clone());
                     }
                     let (dot, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                     ui.painter().circle_filled(dot.center(), 4.0, color);
@@ -781,6 +800,9 @@ impl MailApp {
                 }
             });
         });
+        if let Some(id) = again {
+            self.sign_in_again(&id);
+        }
     }
 
     fn toasts(&mut self, ctx: &egui::Context) {

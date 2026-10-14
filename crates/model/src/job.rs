@@ -102,6 +102,8 @@ pub enum Job {
     FetchUrl { url: String },
     /// Look up the server settings for an address (autoconfiguration).
     Discover { email: String },
+    /// Sign an OAuth account in through the browser; it starts once signed in.
+    SignIn { account: AccountConfig },
 }
 
 impl Job {
@@ -117,6 +119,7 @@ impl Job {
             | Job::SaveDraft { account, .. }
             | Job::FlushOutbox { account } => account,
             Job::FetchUrl { .. } | Job::Discover { .. } => "",
+            Job::SignIn { account } => &account.id,
         }
     }
 }
@@ -211,6 +214,14 @@ pub enum Event {
         email: String,
         config: Option<AccountConfig>,
         source: String,
+    },
+    /// Show this page in the browser (an OAuth sign-in page).
+    OpenUrl {
+        url: String,
+    },
+    /// An OAuth account is signed in (its token is in the keychain): start it.
+    SignedIn {
+        account: String,
     },
     /// Something the user should see in the status bar.
     Notice {

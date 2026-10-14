@@ -300,6 +300,10 @@ pub struct Session {
     pictures_for: BTreeSet<MessageKey>,
     /// Server settings looked up per address (lower case): `None` while looking.
     pub discovered: HashMap<String, Option<(Option<AccountConfig>, String)>>,
+    /// OAuth providers this copy can sign in with (set by the app).
+    pub oauth_available: Vec<String>,
+    /// Pages to show in the browser (OAuth sign-in), oldest first.
+    pub open_urls: Vec<String>,
     index: Option<SearchIndex>,
     registry: Arc<Registry>,
     next_id: u64,
@@ -340,6 +344,8 @@ impl Session {
             pictures: HashMap::new(),
             pictures_for: BTreeSet::new(),
             discovered: HashMap::new(),
+            oauth_available: Vec::new(),
+            open_urls: Vec::new(),
             index: None,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -1707,7 +1713,9 @@ impl Session {
         let id = config.id.clone();
         self.accounts.push(AccountState { config: config.clone(), folders: Vec::new(), status: SyncStatus::Connecting });
         self.save_accounts();
-        if !local {
+        if config.oauth.is_some() {
+            self.jobs.push(Job::SignIn { account: config });
+        } else if !local {
             self.jobs.push(Job::Start { account: config, password: password.map(Secret) });
         }
         if self.accounts.len() == 1 || self.view == View::Empty {
@@ -1858,6 +1866,19 @@ impl Session {
                 self.after_outbox_change();
             }
             Event::OpFailed { error, .. } => self.notice(format!("The server refused a change: {error}"), true),
+            Event::OpenUrl { url } => {
+                if self.open_urls.len() < 8 {
+                    self.open_urls.push(url);
+                }
+            }
+            Event::SignedIn { account } => {
+                if let Some(a) = self.account(&account) {
+                    let config = a.config.clone();
+                    let who = config.email.clone();
+                    self.jobs.push(Job::Start { account: config, password: None });
+                    self.notice(format!("{who} is signed in"), false);
+                }
+            }
             Event::Discovered { email, config, source } => {
                 self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config, source)));
             }
