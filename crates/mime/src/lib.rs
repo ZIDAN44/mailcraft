@@ -181,6 +181,8 @@ pub struct Parsed {
     pub cc: Vec<EmailAddress>,
     pub date: i64,
     pub message_id: String,
+    #[serde(default)]
+    pub in_reply_to: String,
     pub references: Vec<String>,
     /// The body as plain text (from the text part, or converted from HTML).
     pub text: String,
@@ -263,6 +265,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         cc: addrs(m.cc()),
         date: m.date().map(|d| d.to_timestamp()).unwrap_or(0),
         message_id: m.message_id().map(norm_id).unwrap_or_default(),
+        in_reply_to: ids(m.in_reply_to()).into_iter().next().unwrap_or_default(),
         references: ids(m.references()),
         text,
         had_html,

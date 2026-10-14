@@ -12,7 +12,7 @@ use mailcraft_model::thread::{Thread, threads};
 use mailcraft_model::{
     AccountConfig, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,
 };
-use mailcraft_store::{FolderState, Store};
+use mailcraft_store::{FolderState, OutboxItem, Store};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -51,7 +51,12 @@ pub enum View {
     Unified {
         role: FolderRole,
     },
+    /// Messages waiting to be sent, from every account.
+    Outbox,
 }
+
+/// The pseudo-folder of Outbox message keys (NUL never appears in a server's folder names).
+pub const OUTBOX: &str = "\u{0}outbox";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -232,6 +237,8 @@ pub struct Session {
     pub notices: Vec<Notice>,
     /// Bumped whenever `list` changes.
     pub revision: u64,
+    /// Messages waiting in the Outbox, per account (oldest first).
+    pub outbox: Vec<(String, OutboxItem)>,
     jobs: Vec<Job>,
     cache: HashMap<(String, String), FolderState>,
     index: Option<SearchIndex>,
@@ -262,11 +269,13 @@ impl Session {
             clock,
             notices: Vec::new(),
             revision: 0,
+            outbox: Vec::new(),
             jobs: Vec::new(),
             cache: HashMap::new(),
             index: None,
             registry: Arc::new(crate::cmd::registry()),
-            next_id: 1,
+            // Compose ids also name Outbox entries, which outlive a session: start from the clock.
+            next_id: u64::try_from(clock.now.max(0)).unwrap_or(0).saturating_mul(1000),
             seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15,
         };
         if let Some(store) = &s.store {
@@ -291,6 +300,7 @@ impl Session {
         for id in local {
             s.recount_local(&id);
         }
+        s.refresh_outbox();
         s.view = s.default_view();
         s.refresh_list();
         s
@@ -400,7 +410,7 @@ impl Session {
         match &self.view {
             View::Folder { account, folder } => self.folder(account, folder).map(|f| f.role),
             View::Unified { role } => Some(*role),
-            View::Empty => None,
+            View::Empty | View::Outbox => None,
         }
     }
 
@@ -417,6 +427,7 @@ impl Session {
                 FolderRole::Inbox => "All Inboxes".to_string(),
                 r => format!("All {}", r.label().unwrap_or("folders")),
             },
+            View::Outbox => "Outbox".to_string(),
             View::Empty => "MailCraft".to_string(),
         }
     }
@@ -443,7 +454,7 @@ impl Session {
         match &self.view {
             View::Folder { account, folder } => vec![(account.clone(), folder.clone())],
             View::Unified { role } => self.accounts.iter().filter_map(|a| a.folder(*role).map(|f| (a.config.id.clone(), f.path.clone()))).collect(),
-            View::Empty => Vec::new(),
+            View::Empty | View::Outbox => Vec::new(),
         }
     }
 
@@ -451,6 +462,8 @@ impl Session {
     pub fn refresh_list(&mut self) {
         let mut list: Vec<Summary> = if let Some((q, scope)) = self.search.clone() {
             self.search_results(&q, scope)
+        } else if self.view == View::Outbox {
+            self.outbox_summaries()
         } else {
             let mut v = Vec::new();
             for (a, f) in self.view_folders() {
@@ -547,12 +560,16 @@ impl Session {
         self.focus = Some(key.clone());
         let thread = self.thread_of(key);
         self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread });
-        let cached = self.store.as_ref().and_then(|s| s.read_body(key));
+        let cached = if key.folder == OUTBOX {
+            self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
+        } else {
+            self.store.as_ref().and_then(|s| s.read_body(key))
+        };
         match cached {
             Some(raw) => self.show_body(key, &raw),
             None => self.jobs.push(Job::FetchBody { key: key.clone() }),
         }
-        if self.prefs.mark_read_on_open && self.summary(key).is_some_and(|m| !m.flags.seen) {
+        if self.prefs.mark_read_on_open && key.folder != OUTBOX && self.summary(key).is_some_and(|m| !m.flags.seen) {
             self.apply_op(&key.account.clone(), Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true });
         }
     }
@@ -572,6 +589,16 @@ impl Session {
     /// Apply a change: to the in-memory list at once, then to the cache and server (through a
     /// job), or straight to the cache for local accounts.
     pub fn apply_op(&mut self, account: &str, op: Op) {
+        // Outbox entries aren't on a server: mail commands leave them alone.
+        let op = match op {
+            Op::SetFlag { keys, flag, on } => Op::SetFlag { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), flag, on },
+            Op::Move { keys, to } => Op::Move { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), to },
+            Op::Expunge { keys } => Op::Expunge { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect() },
+            other => other,
+        };
+        if !op.is_folder_op() && op.keys().is_empty() {
+            return;
+        }
         let local = self.account(account).is_none_or(AccountState::is_local);
         self.apply_op_memory(account, &op);
         if local {
@@ -1305,6 +1332,112 @@ impl Session {
         Some(key)
     }
 
+    // ----- outbox -----
+
+    /// Re-read the Outbox from disk.
+    pub fn refresh_outbox(&mut self) {
+        let Some(store) = &self.store else { return };
+        self.outbox = self.accounts.iter().flat_map(|a| store.outbox(&a.config.id).into_iter().map(|i| (a.config.id.clone(), i))).collect();
+    }
+
+    fn after_outbox_change(&mut self) {
+        self.refresh_outbox();
+        if self.view == View::Outbox {
+            self.refresh_list();
+        }
+    }
+
+    /// Queued messages, as list rows. Their key is `(account, OUTBOX, 0, n)`, `n` counting from 1
+    /// in Outbox order.
+    fn outbox_summaries(&self) -> Vec<Summary> {
+        let Some(store) = &self.store else { return Vec::new() };
+        let mut out = Vec::new();
+        for (n, (account, item)) in self.outbox.iter().enumerate() {
+            let key = MessageKey { account: account.clone(), folder: OUTBOX.to_string(), validity: 0, uid: u32::try_from(n + 1).unwrap_or(u32::MAX) };
+            let raw = store.outbox_raw(account, item.id).unwrap_or_default();
+            let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
+            let flags = mailcraft_model::Flags { seen: true, ..Default::default() };
+            let mut m = mime::summary_from_full(&raw, key, flags, size, item.queued);
+            m.preview = match &item.error {
+                Some(e) if e != "offline" => format!("Not sent yet: {e}"),
+                _ => "Waiting to be sent".to_string(),
+            };
+            out.push(m);
+        }
+        out
+    }
+
+    /// The Outbox entry behind an Outbox key.
+    pub fn outbox_entry(&self, key: &MessageKey) -> Option<(String, OutboxItem)> {
+        if key.folder != OUTBOX {
+            return None;
+        }
+        let n = usize::try_from(key.uid).ok()?.checked_sub(1)?;
+        self.outbox.get(n).filter(|(a, _)| *a == key.account).cloned()
+    }
+
+    /// Try to send everything in the Outbox now.
+    pub fn send_outbox(&mut self) -> CmdResult {
+        let mut accounts: Vec<String> = self.outbox.iter().map(|(a, _)| a.clone()).collect();
+        accounts.dedup();
+        for a in &accounts {
+            self.jobs.push(Job::FlushOutbox { account: a.clone() });
+        }
+        Ok(serde_json::json!({ "accounts": accounts.len(), "messages": self.outbox.len() }))
+    }
+
+    /// Delete the selected Outbox messages (they are never sent).
+    pub fn delete_outbox_selection(&mut self) -> CmdResult {
+        let gone: Vec<(String, OutboxItem)> = self.selection.iter().filter_map(|k| self.outbox_entry(k)).collect();
+        if let Some(store) = &self.store {
+            for (a, i) in &gone {
+                store.outbox_remove(a, i.id);
+            }
+        }
+        self.reading = None;
+        self.selection.clear();
+        self.focus = None;
+        self.after_outbox_change();
+        Ok(serde_json::json!({ "deleted": gone.len() }))
+    }
+
+    /// Take a message back out of the Outbox to change it: it opens for editing.
+    pub fn edit_outbox(&mut self, key: &MessageKey) -> CmdResult {
+        let (account, item) = self.outbox_entry(key).ok_or_else(|| CmdError::Params("not an Outbox message".into()))?;
+        let store = self.store.clone().ok_or_else(|| CmdError::Failed("no mail cache".into()))?;
+        let raw = store.outbox_raw(&account, item.id).ok_or_else(|| CmdError::Failed("the message is gone".into()))?;
+        let p = mime::parse(&raw).ok_or_else(|| CmdError::Failed("the message can't be read".into()))?;
+        let mut attachments = Vec::new();
+        for a in &p.attachments {
+            if let Some(data) = mime::attachment_data(&raw, a.index) {
+                attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
+            }
+        }
+        // Bcc isn't written into a message: it's the envelope recipients not in To or Cc.
+        let shown: Vec<String> = p.to.iter().chain(&p.cc).map(|a| a.email.to_ascii_lowercase()).collect();
+        let bcc: Vec<String> = item.recipients.iter().filter(|r| !shown.contains(&r.to_ascii_lowercase())).cloned().collect();
+        let id = self.fresh_id();
+        self.compose = Some(Compose {
+            id,
+            account: account.clone(),
+            to: addr::format_list(&p.to),
+            cc: addr::format_list(&p.cc),
+            bcc: bcc.join(", "),
+            show_cc: !p.cc.is_empty() || !bcc.is_empty(),
+            subject: p.subject.clone(),
+            body: p.text.clone(),
+            in_reply_to: p.in_reply_to.clone(),
+            references: p.references.clone(),
+            attachments,
+            ..Default::default()
+        });
+        store.outbox_remove(&account, item.id);
+        self.reading = None;
+        self.selection.clear();
+        self.after_outbox_change();
+        Ok(serde_json::json!({ "compose": id }))
+    }
+
     // ----- accounts -----
 
     /// Add an account (the password goes to the keychain through the `Start` job).
@@ -1460,6 +1593,18 @@ impl Session {
                 } else {
                     self.notice("Message sent", false);
                 }
+                self.after_outbox_change();
+            }
+            Event::Queued { id, error, .. } => {
+                if let Some(c) = self.compose.clone().filter(|c| c.id == id) {
+                    // It's safe in the Outbox: as far as the user is concerned, the message is done.
+                    self.finish_sent(&c);
+                    self.notices.pop();
+                    self.notice("Saved in the Outbox: it will be sent when you're back online", false);
+                } else {
+                    log::info!("outbox {id}: still waiting ({error})");
+                }
+                self.after_outbox_change();
             }
             Event::SendFailed { id, error, .. } => {
                 if let Some(c) = self.compose.as_mut().filter(|c| c.id == id) {
@@ -1467,6 +1612,7 @@ impl Session {
                     c.error = Some(error.clone());
                 }
                 self.notice(format!("Not sent: {error}"), true);
+                self.after_outbox_change();
             }
             Event::OpFailed { error, .. } => self.notice(format!("The server refused a change: {error}"), true),
             Event::Notice { account, message } => {

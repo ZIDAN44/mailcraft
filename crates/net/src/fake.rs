@@ -625,6 +625,67 @@ mod tests {
     }
 
     #[test]
+    fn outbox_holds_mail_until_smtp_is_back() {
+        let st = State::new();
+        let imap_port = serve_tcp(&st);
+        // An SMTP port with nothing listening yet: sending fails at once (connection refused).
+        let smtp_port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            l.local_addr().unwrap().port()
+        };
+        let store = store("outbox");
+        let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig {
+            id: "a1".into(),
+            email: "me@studio.example".into(),
+            username: "me@studio.example".into(),
+            imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
+            smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None },
+            ..Default::default()
+        };
+        // Not started yet: a send goes straight to the Outbox.
+        let raw = b"From: me@studio.example\r\nTo: zoe@studio.example\r\nSubject: queued\r\nMessage-ID: <q@x>\r\n\r\nhi\r\n".to_vec();
+        let send = |id: u64| Job::Send {
+            account: "a1".into(),
+            id,
+            raw: raw.clone(),
+            from: "me@studio.example".into(),
+            recipients: vec!["zoe@studio.example".into()],
+            sent_folder: Some("Sent".into()),
+        };
+        pool.submit(send(1));
+        until(&pool, "queued offline", |e| matches!(e, Event::Queued { id: 1, .. }));
+        assert_eq!(store.outbox("a1").len(), 1);
+
+        // Online, but the SMTP server is down: the next message joins the queue.
+        pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        pool.submit(send(2));
+        until(&pool, "queued on failure", |e| matches!(e, Event::Queued { id: 2, .. }));
+        assert_eq!(store.outbox("a1").len(), 2);
+        assert!(store.outbox("a1")[1].error.as_deref().is_some_and(|e| e.contains("network")), "{:?}", store.outbox("a1"));
+
+        // The server comes back: Send now delivers both, oldest first, and files copies.
+        let (_, log1) = crate::smtp::tests::serve_once_on(std::net::TcpListener::bind(("127.0.0.1", smtp_port)).unwrap());
+        pool.submit(Job::FlushOutbox { account: "a1".into() });
+        until(&pool, "first sent", |e| matches!(e, Event::Sent { id: 1, .. }));
+        assert!(log1.join().unwrap().contains("Subject: queued"));
+        // serve_once takes one message; the second waits for the next server.
+        let (_, log2) = crate::smtp::tests::serve_once_on(std::net::TcpListener::bind(("127.0.0.1", smtp_port)).unwrap());
+        pool.submit(Job::FlushOutbox { account: "a1".into() });
+        until(&pool, "second sent", |e| matches!(e, Event::Sent { id: 2, .. }));
+        assert!(log2.join().unwrap().contains("RCPT TO:<zoe@studio.example>"));
+        assert!(store.outbox("a1").is_empty());
+        let end = Instant::now() + Duration::from_secs(10);
+        while st.lock().unwrap().mailbox("Sent").unwrap().msgs.len() < 2 {
+            assert!(Instant::now() < end, "copies never reached Sent");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        pool.submit(Job::Remove { account: "a1".into() });
+        let _ = std::fs::remove_dir_all(store.root());
+    }
+
+    #[test]
     fn worker_pool_end_to_end_over_tcp() {
         let st = State::new();
         {

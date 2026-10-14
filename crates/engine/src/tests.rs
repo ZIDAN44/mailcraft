@@ -316,6 +316,60 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn offline_sends_wait_in_the_outbox() {
+    let store = temp("outbox");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@example.org", "bcc": "boss@example.org", "subject": "Plans", "body": "See you"})).unwrap();
+    s.run("compose.attach", &json!({"name": "a.txt", "data": [104, 105]})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    let Some(Job::Send { id: send_id, raw, from, recipients, .. }) = s.take_jobs().into_iter().find(|j| matches!(j, Job::Send { .. })) else {
+        panic!()
+    };
+    // The network layer couldn't send: it put the message in the Outbox.
+    let item = mailcraft_store::OutboxItem { id: send_id, from, recipients, queued: NOW, error: Some("offline".into()), ..Default::default() };
+    store.outbox_add(&id, &item, &raw).unwrap();
+    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into() });
+    assert!(s.compose.is_none(), "a queued message is done for the user");
+    assert!(s.notices.last().unwrap().text.contains("Outbox"));
+    assert_eq!(s.outbox.len(), 1);
+
+    s.run("folder.outbox", &json!({})).unwrap();
+    assert_eq!(s.view_title(), "Outbox");
+    assert_eq!(s.list.len(), 1);
+    assert_eq!(s.list[0].subject, "Plans");
+    let key = s.list[0].key.clone();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    assert!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().text.contains("See you"));
+    // Mail commands leave Outbox entries alone; Send now asks the network layer.
+    s.run("mail.flag", &json!({})).unwrap();
+    assert!(s.take_jobs().is_empty());
+    s.run("outbox.send", &json!({})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::FlushOutbox { .. }]));
+
+    // Edit takes it back out, Bcc and attachment included.
+    s.run("outbox.edit", &json!({"key": key.to_id()})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!((c.to.as_str(), c.bcc.as_str(), c.subject.as_str()), ("ann@example.org", "boss@example.org", "Plans"));
+    assert_eq!(c.attachments.len(), 1);
+    assert!(s.outbox.is_empty() && store.outbox(&id).is_empty());
+
+    // Deleting from the Outbox cancels the send.
+    store.outbox_add(&id, &item, &raw).unwrap();
+    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "later".into() });
+    assert_eq!(s.list.len(), 1);
+    s.run("list.selectAll", &json!({})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    assert!(s.list.is_empty() && store.outbox(&id).is_empty());
+    // A later success from the Outbox is just a notice.
+    s.apply(Event::Sent { account: id.clone(), id: 999 });
+    assert_eq!(s.notices.last().unwrap().text, "Message sent");
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
+#[test]
 fn remote_accounts_go_through_jobs_and_events() {
     let store = temp("remote");
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));

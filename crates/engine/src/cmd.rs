@@ -60,6 +60,17 @@ pub fn registry() -> Registry {
         // Navigation
         CommandSpec::new("folder.open", "Open folder", "Folder pane", open_folder).params(r#"{"account": string, "folder": string}"#),
         CommandSpec::new("folder.unified", "All inboxes", "Folder pane › Favorites", unified).params(r#"{"role"?: "inbox"|"sent"|"drafts"|…}"#),
+        CommandSpec::new("folder.outbox", "Outbox", "Folder pane", |s, _| {
+            s.refresh_outbox();
+            s.open_view(View::Outbox);
+            Ok(json!({"messages": s.list.len()}))
+        }),
+        CommandSpec::new("outbox.send", "Send now", "Outbox", |s, _| s.send_outbox()).when(|s| if s.outbox.is_empty() { Some("the Outbox is empty") } else { None }),
+        CommandSpec::new("outbox.edit", "Edit queued message", "Outbox", |s, v| {
+            let k = parse_key(v).or_else(|| s.reading.as_ref().map(|r| r.key.clone())).ok_or_else(|| CmdError::Params("`key` is required".into()))?;
+            s.edit_outbox(&k)
+        })
+        .params(r#"{"key"?: string}"#),
         // Folder › Actions
         CommandSpec::new("folder.create", "New folder", "Folder › New", |s, v| {
             let account = account_param(s, v)?;
@@ -163,6 +174,9 @@ fn new_mail(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
+    if s.view == View::Outbox && s.search.is_none() {
+        return s.delete_outbox_selection();
+    }
     let in_trash = s.view_role() == Some(FolderRole::Trash) && s.search.is_none();
     let all_in_trash =
         s.selected().iter().all(|m| s.account(&m.key.account).and_then(|a| a.folder(FolderRole::Trash)).is_some_and(|t| t.path == m.key.folder));
@@ -198,7 +212,7 @@ fn sync_folder(s: &mut Session, _: &Value) -> CmdResult {
     let folders: Vec<(String, String)> = match &s.view {
         View::Folder { account, folder } => vec![(account.clone(), folder.clone())],
         View::Unified { role } => s.accounts.iter().filter_map(|a| a.folder(*role).map(|f| (a.config.id.clone(), f.path.clone()))).collect(),
-        View::Empty => Vec::new(),
+        View::Empty | View::Outbox => Vec::new(),
     };
     for (account, folder) in folders {
         if s.account(&account).is_some_and(|a| !a.is_local()) {

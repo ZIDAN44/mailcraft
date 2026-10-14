@@ -35,7 +35,16 @@ pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recip
     let transport = b.build();
     transport.send_raw(&envelope, raw).map_err(|e| {
         let msg = e.to_string();
-        if e.is_permanent() && (msg.contains("535") || msg.to_ascii_lowercase().contains("auth")) { NetError::Auth(msg) } else { NetError::Smtp(msg) }
+        if e.is_permanent() {
+            // 5xx: refused for good (a bad recipient, a message too large, a wrong password).
+            if msg.contains("535") || msg.to_ascii_lowercase().contains("auth") { NetError::Auth(msg) } else { NetError::Smtp(msg) }
+        } else if e.is_transient() {
+            // 4xx: the server asks to try again later.
+            NetError::Later(msg)
+        } else {
+            // No answer at all: no network, refused connection, TLS failure or a timeout.
+            NetError::Io(std::io::Error::other(msg))
+        }
     })?;
     Ok(())
 }
@@ -49,7 +58,11 @@ pub(crate) mod tests {
 
     /// A minimal SMTP server on localhost that accepts one message.
     pub(crate) fn serve_once() -> (u16, std::thread::JoinHandle<String>) {
-        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        serve_once_on(TcpListener::bind("127.0.0.1:0").unwrap())
+    }
+
+    /// The same, on a given listener.
+    pub(crate) fn serve_once_on(l: TcpListener) -> (u16, std::thread::JoinHandle<String>) {
         let port = l.local_addr().unwrap().port();
         let h = std::thread::spawn(move || {
             let (s, _) = l.accept().unwrap();

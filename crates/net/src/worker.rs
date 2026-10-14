@@ -14,7 +14,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use mailcraft_model::job::Secret;
 use mailcraft_model::{AccountConfig, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, SyncStatus, sort_folders};
-use mailcraft_store::Store;
+use mailcraft_store::{OutboxItem, Store};
 
 use crate::imap::{Client, uid_set};
 use crate::stream::Stream;
@@ -120,6 +120,14 @@ impl Pool {
                 match self.store.read_body(&key) {
                     Some(raw) => self.sink.emit(Event::Body { key, raw }),
                     None => self.sink.emit(Event::BodyFailed { key, error: "not downloaded yet, and the account is offline".into() }),
+                }
+            }
+            Job::Send { account, id, raw, from, recipients, sent_folder } if !self.workers.contains_key(&account) => {
+                // Not connected: straight into the Outbox.
+                let item = OutboxItem { id, from, recipients, sent_folder, queued: now(), attempts: 0, error: Some("offline".into()) };
+                match self.store.outbox_add(&account, &item, &raw) {
+                    Ok(()) => self.sink.emit(Event::Queued { account, id, error: "offline".into() }),
+                    Err(e) => self.sink.emit(Event::SendFailed { account, id, error: e.to_string() }),
                 }
             }
             Job::Apply { account, op } if !self.workers.contains_key(&account) => {
@@ -417,6 +425,7 @@ impl Worker {
             return;
         }
         self.replay();
+        self.flush_outbox();
         self.last_full = None;
     }
 
@@ -475,6 +484,8 @@ impl Worker {
         }
         if self.client.is_some() {
             self.last_full = Some(Instant::now());
+            // Anything left from a failed attempt gets another try every full sync.
+            self.flush_outbox();
             self.status(SyncStatus::Online { at: now() });
         }
     }
@@ -567,6 +578,7 @@ impl Worker {
                     Err(e) => self.failed(e),
                 }
             }
+            Job::FlushOutbox { .. } => self.flush_outbox(),
             Job::Start { .. } | Job::Remove { .. } => {}
         }
     }
@@ -600,9 +612,64 @@ impl Worker {
     fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         if let Err(e) = smtp::send(&self.acc.smtp, &user, &self.pw, from, recipients, raw) {
-            self.sink.emit(Event::SendFailed { account: self.id(), id, error: e.to_string() });
+            if e.is_retryable() {
+                // Offline or asked to wait: keep it in the Outbox and send it on reconnect.
+                let item = OutboxItem {
+                    id,
+                    from: from.to_string(),
+                    recipients: recipients.to_vec(),
+                    sent_folder,
+                    queued: now(),
+                    attempts: 1,
+                    error: Some(e.to_string()),
+                };
+                match self.store.outbox_add(&self.acc.id, &item, raw) {
+                    Ok(()) => self.sink.emit(Event::Queued { account: self.id(), id, error: e.to_string() }),
+                    Err(se) => {
+                        self.sink.emit(Event::SendFailed { account: self.id(), id, error: format!("{e} (and the Outbox couldn't keep it: {se})") })
+                    }
+                }
+            } else {
+                self.sink.emit(Event::SendFailed { account: self.id(), id, error: e.to_string() });
+            }
             return;
         }
+        self.after_sent(id, raw, sent_folder);
+    }
+
+    /// Send what waits in the Outbox, oldest first. Stops at the first failure that may clear
+    /// up later (still offline); a message refused for good stays, marked with the error.
+    fn flush_outbox(&mut self) {
+        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
+        for mut item in self.store.outbox(&self.acc.id) {
+            let Some(raw) = self.store.outbox_raw(&self.acc.id, item.id) else { continue };
+            if item.error.as_deref().is_some_and(|e| e.starts_with("refused:")) {
+                // Refused for good: waits for the user to edit or delete it.
+                continue;
+            }
+            match smtp::send(&self.acc.smtp, &user, &self.pw, &item.from, &item.recipients, &raw) {
+                Ok(()) => {
+                    self.store.outbox_remove(&self.acc.id, item.id);
+                    let folder = item.sent_folder.take();
+                    self.after_sent(item.id, &raw, folder);
+                }
+                Err(e) => {
+                    let retry = e.is_retryable();
+                    item.attempts = item.attempts.saturating_add(1);
+                    item.error = Some(if retry { e.to_string() } else { format!("refused: {e}") });
+                    let _ = self.store.outbox_update(&self.acc.id, &item);
+                    if retry {
+                        self.sink.emit(Event::Queued { account: self.id(), id: item.id, error: e.to_string() });
+                        return;
+                    }
+                    self.sink.emit(Event::SendFailed { account: self.id(), id: item.id, error: e.to_string() });
+                }
+            }
+        }
+    }
+
+    /// A message went out: tell the engine and file a copy in Sent.
+    fn after_sent(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
         self.sink.emit(Event::Sent { account: self.id(), id });
         // Gmail files sent mail itself; elsewhere keep a copy in Sent.
         let files_itself = self.acc.smtp.host.ends_with("gmail.com") || self.acc.smtp.host.ends_with("googlemail.com");

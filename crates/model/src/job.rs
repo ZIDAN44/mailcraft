@@ -90,6 +90,8 @@ pub enum Job {
     Send { account: String, id: u64, raw: Vec<u8>, from: String, recipients: Vec<String>, sent_folder: Option<String> },
     /// Store a draft (`APPEND` with `\Draft`), replacing an earlier copy.
     SaveDraft { account: String, raw: Vec<u8>, folder: String, replaces: Option<MessageKey> },
+    /// Try to send what waits in the Outbox now.
+    FlushOutbox { account: String },
 }
 
 impl Job {
@@ -102,7 +104,8 @@ impl Job {
             | Job::SyncFolder { account, .. }
             | Job::Apply { account, .. }
             | Job::Send { account, .. }
-            | Job::SaveDraft { account, .. } => account,
+            | Job::SaveDraft { account, .. }
+            | Job::FlushOutbox { account } => account,
         }
     }
 }
@@ -169,6 +172,13 @@ pub enum Event {
         id: u64,
     },
     SendFailed {
+        account: String,
+        id: u64,
+        error: String,
+    },
+    /// The message couldn't be sent yet (offline, or the server asked to try later): it waits in
+    /// the Outbox and goes out when the account is back online.
+    Queued {
         account: String,
         id: u64,
         error: String,

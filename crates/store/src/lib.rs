@@ -64,6 +64,26 @@ impl FolderState {
     }
 }
 
+/// A message waiting in the Outbox (its source is stored next to it as `<id>.eml`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutboxItem {
+    pub id: u64,
+    /// Envelope sender and recipients (Bcc included: it isn't in the message).
+    pub from: String,
+    pub recipients: Vec<String>,
+    /// Where a copy goes once sent.
+    #[serde(default)]
+    pub sent_folder: Option<String>,
+    /// When it was queued (Unix seconds).
+    #[serde(default)]
+    pub queued: i64,
+    #[serde(default)]
+    pub attempts: u32,
+    /// Why the last attempt failed.
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
 /// FNV-1a: a stable, dependency-free hash for folder directory names (folder names can hold
 /// characters no file system accepts).
 pub fn fnv64(s: &str) -> u64 {
@@ -305,6 +325,46 @@ impl Store {
         Ok(changed)
     }
 
+    fn outbox_dir(&self, account: &str) -> PathBuf {
+        self.account_dir(account).join("outbox")
+    }
+
+    /// Queue a message to send when the account is back online.
+    pub fn outbox_add(&self, account: &str, item: &OutboxItem, raw: &[u8]) -> Result<()> {
+        let dir = self.outbox_dir(account);
+        write_atomic(&dir.join(format!("{}.eml", item.id)), raw)?;
+        self.write_json(&dir.join(format!("{}.json", item.id)), item)
+    }
+
+    /// Update a queued message's bookkeeping (attempts, last error).
+    pub fn outbox_update(&self, account: &str, item: &OutboxItem) -> Result<()> {
+        self.write_json(&self.outbox_dir(account).join(format!("{}.json", item.id)), item)
+    }
+
+    /// Queued messages, oldest first.
+    pub fn outbox(&self, account: &str) -> Vec<OutboxItem> {
+        let Ok(rd) = fs::read_dir(self.outbox_dir(account)) else { return Vec::new() };
+        let mut items: Vec<OutboxItem> = rd
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .filter_map(|e| fs::read(e.path()).ok())
+            .filter_map(|b| serde_json::from_slice::<OutboxItem>(&b).ok())
+            .filter(|i| self.outbox_dir(account).join(format!("{}.eml", i.id)).is_file())
+            .collect();
+        items.sort_by_key(|i| (i.queued, i.id));
+        items
+    }
+
+    pub fn outbox_raw(&self, account: &str, id: u64) -> Option<Vec<u8>> {
+        fs::read(self.outbox_dir(account).join(format!("{id}.eml"))).ok()
+    }
+
+    pub fn outbox_remove(&self, account: &str, id: u64) {
+        let dir = self.outbox_dir(account);
+        let _ = fs::remove_file(dir.join(format!("{id}.json")));
+        let _ = fs::remove_file(dir.join(format!("{id}.eml")));
+    }
+
     /// Cached sources across all folders of an account, as (key, path) pairs, for indexing.
     pub fn cached_bodies(&self, account: &str, folder: &str, validity: u32) -> Vec<u32> {
         let dir = self.folder_dir(account, folder).join(validity.to_string());
@@ -476,6 +536,29 @@ mod tests {
         let paths: Vec<String> = s.load_folders("a1").unwrap().into_iter().map(|f| f.path).collect();
         assert_eq!(paths, vec!["INBOX".to_string(), "Clients".to_string()]);
         assert!(!s.has_body(&moved.messages[0].key));
+        let _ = fs::remove_dir_all(s.root());
+    }
+
+    #[test]
+    fn outbox_queues_and_forgets() {
+        let s = temp_store("outbox");
+        assert!(s.outbox("a1").is_empty());
+        let item = |id, queued| OutboxItem { id, from: "z@x".into(), recipients: vec!["a@y".into()], queued, ..Default::default() };
+        s.outbox_add("a1", &item(7, 20), b"Subject: later\r\n\r\nx").unwrap();
+        s.outbox_add("a1", &item(3, 10), b"Subject: first\r\n\r\nx").unwrap();
+        let ids: Vec<u64> = s.outbox("a1").iter().map(|i| i.id).collect();
+        assert_eq!(ids, vec![3, 7], "oldest first");
+        let mut i = s.outbox("a1")[0].clone();
+        i.attempts = 2;
+        i.error = Some("offline".into());
+        s.outbox_update("a1", &i).unwrap();
+        assert_eq!(s.outbox("a1")[0], i);
+        assert_eq!(s.outbox_raw("a1", 7).unwrap(), b"Subject: later\r\n\r\nx");
+        s.outbox_remove("a1", 3);
+        assert_eq!(s.outbox("a1").len(), 1);
+        // Damaged bookkeeping is skipped, not fatal.
+        fs::write(s.root().join("a1").join("outbox").join("9.json"), b"{nope").unwrap();
+        assert_eq!(s.outbox("a1").len(), 1);
         let _ = fs::remove_dir_all(s.root());
     }
 

@@ -44,6 +44,9 @@ pub enum NetError {
     Closed(String),
     #[error("sending failed: {0}")]
     Smtp(String),
+    /// The server asked to try again later (SMTP 4xx).
+    #[error("the server asked to try again later: {0}")]
+    Later(String),
     #[error("{0}")]
     Store(#[from] mailcraft_store::StoreError),
 }
@@ -52,6 +55,11 @@ impl NetError {
     /// Whether the connection is unusable after this error (reconnect needed).
     pub fn is_fatal(&self) -> bool {
         matches!(self, NetError::Io(_) | NetError::Tls(_) | NetError::Closed(_) | NetError::Protocol(_))
+    }
+
+    /// Whether sending may work later (keep the message in the Outbox rather than give up).
+    pub fn is_retryable(&self) -> bool {
+        self.is_fatal() || matches!(self, NetError::Later(_))
     }
 }
 
