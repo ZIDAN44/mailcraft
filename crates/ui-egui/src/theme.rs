@@ -181,6 +181,63 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
 }
 
 /// Use an installed system UI font when the app found one (never bundled: see AGENTS.md).
+/// WCAG relative luminance of an sRGB colour.
+fn luminance(c: [u8; 3]) -> f32 {
+    let ch = |v: u8| {
+        let v = f32::from(v) / 255.0;
+        if v <= 0.039_28 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2])
+}
+
+fn contrast(a: [u8; 3], b: [u8; 3]) -> f32 {
+    let (x, y) = (luminance(a), luminance(b));
+    (x.max(y) + 0.05) / (x.min(y) + 0.05)
+}
+
+fn rgb(c: Color32) -> [u8; 3] {
+    [c.r(), c.g(), c.b()]
+}
+
+/// How saturated a colour is (0 grey … 1 pure).
+fn saturation(c: [u8; 3]) -> f32 {
+    let (hi, lo) = (c.iter().max().copied().unwrap_or(0), c.iter().min().copied().unwrap_or(0));
+    if hi == 0 { 0.0 } else { f32::from(hi - lo) / f32::from(hi) }
+}
+
+/// The colours to draw a message's text with: the sender's text colour and highlight when they
+/// read well on this theme, else adjusted. Grey or white boxes behind text are dropped in dark
+/// mode (the page is dark), real highlights kept with dark or light text as fits.
+pub fn mail_colors(fg: Option<[u8; 3]>, bg: Option<[u8; 3]>, t: &Tokens, default: Color32) -> (Color32, Option<Color32>) {
+    let page = rgb(t.surface);
+    let bg = bg.filter(|b| contrast(*b, page) > 1.15 && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25));
+    let under = bg.unwrap_or(page);
+    let fg = match fg {
+        Some(c) if contrast(c, under) >= 3.0 => Some(c),
+        // Too close to what's under it: a lighter or darker version of the same hue, if that reads.
+        Some(c) => {
+            let towards = if luminance(under) < 0.3 { 255.0 } else { 0.0 };
+            let mix = |v: u8| (f32::from(v) * 0.45 + towards * 0.55) as u8;
+            let m = [mix(c[0]), mix(c[1]), mix(c[2])];
+            (contrast(m, under) >= 3.0).then_some(m)
+        }
+        None => None,
+    };
+    let text = match (fg, bg) {
+        (Some(c), _) => Color32::from_rgb(c[0], c[1], c[2]),
+        // A highlight without its own text colour: black or white, whichever reads.
+        (None, Some(b)) => {
+            if contrast([0, 0, 0], b) >= contrast([255, 255, 255], b) {
+                Color32::BLACK
+            } else {
+                Color32::WHITE
+            }
+        }
+        (None, None) => default,
+    };
+    (text, bg.map(|b| Color32::from_rgb(b[0], b[1], b[2])))
+}
+
 pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
     install_fonts_with(ctx, regular, bold, None);
 }

@@ -1605,6 +1605,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7475d5c5606bb86be8d7986962ba34b233490985cfa76a20d6a23e1eb9563b1c"
 dependencies = [
  "html5ever",
+ "nom",
  "tendril",
  "thiserror 2.0.21",
  "unicode-width",

@@ -279,6 +279,12 @@ pub struct Span {
     /// Part of a heading (`1` for `<h1>` … `6`), shown larger.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub heading: u8,
+    /// The text's colour and its background (a highlight), as the message set them (`style`,
+    /// `<font color>`, `<style>` rules). The reader adjusts them so the text stays readable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<[u8; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background: Option<[u8; 3]>,
 }
 
 fn is_zero(v: &u8) -> bool {
@@ -300,8 +306,9 @@ pub fn html_to_rich(html: &str) -> RichText {
         None => html,
     };
     // Wide enough that paragraphs stay one line each (the UI wraps them to the pane).
-    let marked = mark_headings(html);
-    let result = std::panic::catch_unwind(|| html2text::from_read_rich(marked.as_bytes(), 2000));
+    let marked = close_css_rules(&mark_headings(html));
+    // The message's own CSS is read for colours and hidden parts (`display: none`), nothing else.
+    let result = std::panic::catch_unwind(|| html2text::config::rich().use_doc_css().lines_from_read(marked.as_bytes(), 2000));
     let Ok(Ok(lines)) = result else { return Vec::new() };
     let mut out: RichText = Vec::new();
     let mut blank = 0;
@@ -317,6 +324,8 @@ pub fn html_to_rich(html: &str) -> RichText {
                     html2text::render::RichAnnotation::Code | html2text::render::RichAnnotation::Preformat(_) => sp.code = true,
                     html2text::render::RichAnnotation::Link(l) => sp.link = Some(l.clone()),
                     html2text::render::RichAnnotation::Image(src) => sp.image = Some(src.clone()),
+                    html2text::render::RichAnnotation::Colour(c) => sp.color = Some([c.r, c.g, c.b]),
+                    html2text::render::RichAnnotation::BgColour(c) => sp.background = Some([c.r, c.g, c.b]),
                     _ => {}
                 }
             }
@@ -362,6 +371,16 @@ pub fn html_to_rich(html: &str) -> RichText {
                 first.text = format!("{}• {}", " ".repeat(indent), first.text.get(indent + 2..).unwrap_or(""));
             }
         }
+        // Tables come laid out with box-drawing borders. A layout table (one column) only adds
+        // rules around its text: drop those. A data table's rows line up only in a monospace font.
+        let whole: String = spans.iter().map(|s| s.text.as_str()).collect();
+        if !whole.trim().is_empty() && whole.chars().all(|c| matches!(c, '─' | '━' | '═' | ' ')) {
+            spans.clear();
+        } else if whole.contains(['│', '┼', '┬', '┴']) {
+            for sp in &mut spans {
+                sp.code = true;
+            }
+        }
         spans.retain(|s| !s.text.is_empty() || s.image.is_some());
         if spans.is_empty() {
             blank += 1;
@@ -381,6 +400,22 @@ pub fn html_to_rich(html: &str) -> RichText {
 
 /// Marks where a heading starts, so a paragraph that just begins with `#` isn't taken for one.
 const HEADING_MARK: char = '\u{E000}';
+
+/// End every CSS declaration block in `<style>` elements with a `;` (the last declaration may
+/// lack one, which html2text's parser would otherwise skip with the whole rule).
+fn close_css_rules(html: &str) -> String {
+    let lower = html.to_ascii_lowercase();
+    let mut out = String::with_capacity(html.len() + 64);
+    let mut at = 0;
+    while let Some(start) = lower.get(at..).and_then(|r| r.find("<style")).map(|i| i + at) {
+        let Some(end) = lower.get(start..).and_then(|r| r.find("</style")).map(|i| i + start) else { break };
+        out.push_str(html.get(at..start).unwrap_or(""));
+        out.push_str(&html.get(start..end).unwrap_or("").replace('}', ";}"));
+        at = end;
+    }
+    out.push_str(html.get(at..).unwrap_or(""));
+    out
+}
 
 /// `html` with a mark after every `<h1>`…`<h6>` start tag (and any mark already in it removed).
 fn mark_headings(html: &str) -> String {
@@ -1012,6 +1047,33 @@ iVBORw0KGgo=\r\n\
         assert_eq!(rr.subject, "Re: Café plans");
         // Replying to my own message addresses its recipients.
         assert_eq!(rr.to[0].email, "zoe@studio.example");
+    }
+
+    #[test]
+    fn html_tables() {
+        let html = "<p>Before</p><table><tr><th>Item</th><th>Qty</th></tr><tr><td>Poster A2</td><td>2</td></tr></table>                    <table width=600><tr><td><p>Layout cell</p></td></tr></table><p>After</p>";
+        let rich = html_to_rich(html);
+        let lines: Vec<String> = rich.iter().map(|l| l.iter().map(|s| s.text.as_str()).collect()).collect();
+        let row = rich.iter().find(|l| l.iter().any(|s| s.text.contains("Poster A2"))).unwrap();
+        assert!(row.iter().all(|s| s.code), "data rows line up in monospace");
+        let layout = rich.iter().find(|l| l.iter().any(|s| s.text.contains("Layout cell"))).unwrap();
+        assert!(!layout.iter().any(|s| s.code), "a layout table is just text");
+        assert!(!lines.iter().any(|l| !l.is_empty() && l.chars().all(|c| c == '─')), "no stray rules: {lines:?}");
+    }
+
+    #[test]
+    fn html_colours_and_hidden_parts() {
+        let html = r#"<style>span.warn { font-weight: normal; color: #cc0000 }</style><div style="display:none">preheader text</div>
+<p>Plain <span style="color:#ff0000">red</span> <span style="background-color: yellow">marked</span> <span class="warn">styled</span> <font color="blue">old</font></p>"#;
+        let rich = html_to_rich(html);
+        let spans: Vec<&Span> = rich.iter().flatten().collect();
+        let find = |t: &str| spans.iter().find(|s| s.text.contains(t)).copied();
+        assert_eq!(find("red").and_then(|s| s.color), Some([255, 0, 0]));
+        assert_eq!(find("marked").and_then(|s| s.background), Some([255, 255, 0]));
+        assert_eq!(find("styled").and_then(|s| s.color), Some([0xcc, 0, 0]), "<style> rules");
+        assert!(find("old").and_then(|s| s.color).is_some(), "<font color>");
+        assert_eq!(find("Plain").and_then(|s| s.color), None);
+        assert!(find("preheader").is_none(), "display:none stays hidden");
     }
 
     #[test]

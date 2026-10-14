@@ -436,15 +436,19 @@ fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &m
                 if sp.strike {
                     rt = rt.strikethrough();
                 }
+                let (fg, bg) = theme::mail_colors(sp.color, sp.background, &t, if sp.link.is_some() { t.accent } else { t.text });
+                if let Some(bg) = bg {
+                    rt = rt.background_color(bg);
+                }
                 match &sp.link {
                     Some(link) => {
-                        let r = ui.add(egui::Link::new(rt.color(t.accent))).on_hover_text(link);
+                        let r = ui.add(egui::Link::new(rt.color(fg))).on_hover_text(link);
                         if r.clicked() {
                             acts.push(Action::OpenUrl(link.clone()));
                         }
                     }
                     None => {
-                        ui.label(rt.color(t.text));
+                        ui.label(rt.color(fg));
                     }
                 }
             }

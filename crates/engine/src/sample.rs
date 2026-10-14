@@ -162,6 +162,8 @@ fn mails() -> Vec<Mail> {
                  <p>Our <b>winter group show</b> is open for submissions <i>until the end of the month</i>. \
                  Paintings, prints, photography and short films are all welcome.</p>\
                  <ul><li>Up to <b>three works</b> per artist</li><li>Opening night: the first Friday of December</li></ul>\
+                 <p><span style=\"color:#c62828\">Deadline: 30 November</span> \
+                 <span style=\"background-color:#fff176\">(no late entries)</span></p>\
                  <p><img src=\"cid:poster@gallery.example\" alt=\"Show poster\"></p>\
                  <p>Read the <a href=\"https://gallery.example/open-call\">full guidelines</a> on our website.</p>\
                  <p>See you at the opening!</p>\
