@@ -154,6 +154,8 @@ pub enum Job {
     /// Sync the account's calendars and address books with its CalDAV / CardDAV server (changes
     /// made here first).
     SyncDav { account: String },
+    /// Read an Outlook data file (`.pst`) into an account with no server.
+    ImportPst { account: String, path: String },
 }
 
 impl Job {
@@ -170,7 +172,8 @@ impl Job {
             | Job::FlushOutbox { account }
             | Job::GetVacation { account }
             | Job::SetVacation { account, .. }
-            | Job::SyncDav { account } => account,
+            | Job::SyncDav { account }
+            | Job::ImportPst { account, .. } => account,
             Job::FetchUrl { .. } | Job::Discover { .. } => "",
             Job::SignIn { account } => &account.id,
         }
@@ -294,6 +297,15 @@ pub enum Event {
     DavSynced {
         account: String,
         sync: Box<crate::pim::DavSync>,
+    },
+    /// How a data file import is going (`done`: finished, or failed with `error`). The folders
+    /// come as [`Event::Folders`] first.
+    Imported {
+        account: String,
+        messages: usize,
+        skipped: usize,
+        done: bool,
+        error: Option<String>,
     },
     /// Something the user should see in the status bar.
     Notice {

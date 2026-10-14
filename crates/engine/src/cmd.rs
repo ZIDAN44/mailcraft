@@ -444,6 +444,11 @@ pub fn registry() -> Registry {
         .params(r#"{"account"?: string, "folder"?: string, "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
             .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP)}"#),
+        CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
+            let path = p::req_str(v, "path")?.to_string();
+            s.import_pst(&path)
+        })
+        .params(r#"{"path": string (a .pst file; its mail goes into a new account on this computer)}"#),
         CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
             let email = p::req_str(v, "email")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&email) {

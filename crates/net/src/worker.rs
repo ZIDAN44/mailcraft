@@ -166,6 +166,30 @@ impl Pool {
         }
     }
 
+    /// Import a data file on a thread of its own.
+    fn import_pst(&mut self, account: String, path: String) {
+        let sink = self.sink.clone();
+        let store = self.store.clone();
+        let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
+            let mut progress = |messages| sink.emit(Event::Imported { account: account.clone(), messages, skipped: 0, done: false, error: None });
+            let result = crate::pst::import(std::path::Path::new(&path), &store, &account, &mut progress);
+            match result {
+                Ok(done) => {
+                    let paths: Vec<String> = done.folders.iter().map(|f| f.path.clone()).collect();
+                    sink.emit(Event::Folders { account: account.clone(), folders: done.folders });
+                    for folder in paths {
+                        sink.emit(Event::FolderChanged { account: account.clone(), folder });
+                    }
+                    sink.emit(Event::Imported { account, messages: done.messages, skipped: done.skipped, done: true, error: None });
+                }
+                Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e) }),
+            }
+        });
+        if let Err(e) = spawned {
+            self.sink.emit(Event::Notice { account: String::new(), message: format!("import: {e}") });
+        }
+    }
+
     /// Called (from worker threads) after every event, e.g. to request a UI repaint.
     pub fn set_waker(&self, f: Arc<dyn Fn() + Send + Sync>) {
         if let Ok(mut w) = self.sink.wake.lock() {
@@ -191,6 +215,7 @@ impl Pool {
                     log::warn!("autoconfiguration: {e}");
                 }
             }
+            Job::ImportPst { account, path } => self.import_pst(account, path),
             Job::Start { account, password } => self.start(account, password),
             Job::Remove { account } => {
                 self.stop(&account);
@@ -849,7 +874,7 @@ impl Worker {
                     }
                 }
             }
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } => {}
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } => {}
             Job::Start { .. } | Job::Remove { .. } => {}
         }
     }

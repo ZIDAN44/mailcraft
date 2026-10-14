@@ -2690,6 +2690,8 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-store",
+ "outlook-pst",
+ "outlook-pst-rw",
  "quick-xml",
  "ring",
  "rustls",
@@ -3443,6 +3445,28 @@ checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
 dependencies = [
  "futures-core",
  "pin-project-lite",
+]
+
+[[package]]
+name = "outlook-pst"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "299eace9d895cc31490927d7de779f8e8f3deb5fb6bd1e68eb192aa1da19bd47"
+dependencies = [
+ "byteorder",
+ "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
+name = "outlook-pst-rw"
+version = "1.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "133b2dfbd0c150b480245dd058a81f0e7b5d122d92502f1554b59476fa5decdf"
+dependencies = [
+ "byteorder",
+ "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]

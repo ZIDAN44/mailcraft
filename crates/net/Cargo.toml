@@ -22,8 +22,14 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 # WebDAV answers (CalDAV, CardDAV).
 quick-xml = "0.41"
+# Outlook data files (.pst), for importing them (Microsoft's reader, MIT).
+outlook-pst = "1.2"
 log = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+# Writes .pst files, for the import tests (MIT; same library name as the reader, so renamed).
+pst_rw = { package = "outlook-pst-rw", version = "1.2.14" }
 
 [target.'cfg(windows)'.dependencies]
 # The system's DNS resolvers (account autoconfiguration).

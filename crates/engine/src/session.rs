@@ -56,6 +56,11 @@ impl AccountState {
     pub fn is_local(&self) -> bool {
         self.config.is_local()
     }
+
+    /// An Outlook data file opened here (its "address" is the file's name).
+    pub fn is_data_file(&self) -> bool {
+        self.is_local() && !addr::is_valid_email(&self.config.email)
+    }
 }
 
 /// What the message list shows.
@@ -1862,11 +1867,7 @@ impl Session {
         if config.username.trim().is_empty() {
             config.username = config.email.clone();
         }
-        let mut n = self.accounts.len() + 1;
-        while self.accounts.iter().any(|a| a.config.id == format!("a{n}")) {
-            n += 1;
-        }
-        config.id = format!("a{n}");
+        config.id = self.new_account_id();
         config.color = u8::try_from(self.accounts.len() % usize::from(ACCOUNT_COLORS)).unwrap_or(0);
         let local = config.is_local();
         if !local && config.jmap.is_none() && (config.imap.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0) {
@@ -1891,6 +1892,69 @@ impl Session {
             self.refresh_list();
         }
         Ok(id)
+    }
+
+    fn new_account_id(&self) -> String {
+        let mut n = self.accounts.len() + 1;
+        while self.accounts.iter().any(|a| a.config.id == format!("a{n}")) {
+            n += 1;
+        }
+        format!("a{n}")
+    }
+
+    /// Open an Outlook data file (`.pst`): a new account on this computer, named after the file,
+    /// that the import fills.
+    pub fn import_pst(&mut self, path: &str) -> CmdResult {
+        let path = path.trim();
+        if path.is_empty() {
+            return Err(CmdError::Params("`path` is required".into()));
+        }
+        let file = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
+        let stem = file.rsplit_once('.').map_or(file.as_str(), |(s, _)| s).trim().to_string();
+        let id = self.new_account_id();
+        let config = AccountConfig {
+            id: id.clone(),
+            name: if stem.is_empty() { file.clone() } else { stem },
+            // Shown where an account's address would be; never an address, so never "me".
+            email: file,
+            color: u8::try_from(self.accounts.len() % usize::from(ACCOUNT_COLORS)).unwrap_or(0),
+            ..Default::default()
+        };
+        self.accounts.push(AccountState {
+            config,
+            folders: Vec::new(),
+            status: SyncStatus::Syncing { folder: String::new() },
+            quota: None,
+            vacation: VacationState::Unknown,
+        });
+        self.save_accounts();
+        self.jobs.push(Job::ImportPst { account: id.clone(), path: path.to_string() });
+        Ok(serde_json::json!({ "account": id, "importing": true }))
+    }
+
+    fn imported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {
+        let Some(name) = self.account(account).map(|a| a.config.email.clone()) else { return };
+        if !done {
+            self.notice(format!("{name}: {messages} messages imported so far…"), false);
+            return;
+        }
+        if let Some(a) = self.account_mut(account) {
+            a.status = SyncStatus::Offline;
+        }
+        match error {
+            Some(e) => {
+                // Nothing came in: the account goes again.
+                let _ = self.remove_account(account);
+                self.notice(format!("{name} could not be opened: {e}"), true);
+            }
+            None => {
+                let more = if skipped > 0 { format!(" ({skipped} could not be read)") } else { String::new() };
+                self.notice(format!("{name}: {messages} messages imported{more}"), false);
+                if let Some(inbox) = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()) {
+                    self.open_view(View::Folder { account: account.to_string(), folder: inbox });
+                }
+            }
+        }
     }
 
     pub fn remove_account(&mut self, id: &str) -> CmdResult {
@@ -2001,6 +2065,7 @@ impl Session {
                 }
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
+            Event::Imported { account, messages, skipped, done, error } => self.imported(&account, messages, skipped, done, error),
             Event::Quota { account, used, limit } => {
                 if let Some(a) = self.account_mut(&account) {
                     a.quota = Some((used, limit));

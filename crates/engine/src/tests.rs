@@ -1169,3 +1169,40 @@ fn dav_results_merge_without_losing_local_changes() {
     done(s);
     done(s2);
 }
+
+#[test]
+fn outlook_data_files_open_as_accounts_on_this_computer() {
+    let mut s = sample_session("pst");
+    assert!(s.run("account.importPst", &json!({"path": "  "})).is_err());
+    let id =
+        s.run("account.importPst", &json!({"path": r"C:\Users\me\Documents\Archive 2024.pst"})).unwrap()["account"].as_str().unwrap().to_string();
+    let a = s.account(&id).unwrap();
+    assert_eq!((a.config.name.as_str(), a.config.email.as_str()), ("Archive 2024", "Archive 2024.pst"));
+    assert!(a.is_local());
+    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { account, path }] if *account == id && path.ends_with("Archive 2024.pst")));
+
+    // The import reports progress, then its folders, then that it's done: the Inbox opens.
+    s.apply(Event::Imported { account: id.clone(), messages: 200, skipped: 0, done: false, error: None });
+    assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("200")));
+    let inbox = mailcraft_model::Folder {
+        account: id.clone(),
+        path: "INBOX".into(),
+        delimiter: Some('/'),
+        role: FolderRole::Inbox,
+        selectable: true,
+        unread: 0,
+        total: 0,
+    };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    s.apply(Event::Imported { account: id.clone(), messages: 250, skipped: 2, done: true, error: None });
+    assert!(s.notices.last().is_some_and(|n| n.text.contains("250 messages imported (2 could not be read)")));
+    assert_eq!(s.view, View::Folder { account: id.clone(), folder: "INBOX".into() });
+    assert_eq!(s.account(&id).unwrap().status, SyncStatus::Offline);
+
+    // A file that isn't one: the account goes again.
+    let bad = s.run("account.importPst", &json!({"path": "/tmp/notes.txt"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.apply(Event::Imported { account: bad.clone(), messages: 0, skipped: 0, done: true, error: Some("not an Outlook data file".into()) });
+    assert!(s.account(&bad).is_none());
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("notes.txt could not be opened")));
+    done(s);
+}
