@@ -1,0 +1,418 @@
+# MailCraft interface strings: Korean (한국어).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  폴더를 불러오는 중…
+	(Top level)	(최상위)
+	(no subject)	(제목 없음)
+	1 attachment	첨부 파일 1개
+	1. List	1. 목록
+	</>	</>
+	Accounts	계정
+	Accounts and settings	계정 및 설정
+	Add a subject	제목을 추가하세요
+	Add account…	계정 추가…
+	Add an account	계정 추가
+	Add an email account	이메일 계정 추가
+	Added to new messages, replies and forwards.	새 메시지, 회신, 전달에 추가됩니다.
+	All	전체
+	All Inboxes	모든 받은 편지함
+	All Sent	모든 보낸 편지함
+	All caught up: nothing in this folder.	모두 확인했습니다: 이 폴더에는 아무것도 없습니다.
+	All folders	모든 폴더
+	Always show from {sender}	{sender}에서 온 메일은 항상 표시
+	Apr	4월
+	Archive	보관
+	Archive (Backspace)	보관 (Backspace)
+	Ask before deleting for good	영구 삭제 전에 확인
+	At the top of {account}	{account}의 맨 위
+	Attach file	파일 첨부
+	Audio	오디오
+	Aug	8월
+	B	B
+	Bcc	숨은 참조
+	Bold (Ctrl+B)	굵게 (Ctrl+B)
+	Bottom	아래쪽
+	Bulleted list	글머리 기호 목록
+	Cancel	취소
+	Categorize	분류
+	Category	범주
+	Cc	참조
+	Cc / Bcc	참조 / 숨은 참조
+	Cc: {names}	참조: {names}
+	Choose…	선택…
+	Clear search	검색 지우기
+	Close	닫기
+	Code	코드
+	Compact	간단히
+	Connect	연결
+	Connecting…	연결하는 중…
+	Conversations	대화
+	Create	만들기
+	Create rule…	규칙 만들기…
+	Dark	어둡게
+	Date	날짜
+	Dec	12월
+	Delete	삭제
+	Delete (Del)	삭제 (Del)
+	Delete folder…	폴더 삭제…
+	Delete permanently?	영구적으로 삭제할까요?
+	Delete “{folder}”?	"{folder}"을(를) 삭제할까요?
+	Deleted Items	지운 편지함
+	Discard	버리기
+	Disconnected: {error}	연결 끊김: {error}
+	Document	문서
+	Don't run later rules on mail this one matches	이 규칙에 해당하는 메일에는 다음 규칙을 적용하지 않음
+	Downloading the message…	메시지를 다운로드하는 중…
+	Draft saved	임시 보관함에 저장했습니다
+	Drafts	임시 보관함
+	Edit	편집
+	Edit rule	규칙 편집
+	Email address	이메일 주소
+	Enter the password for {email}.	{email}의 암호를 입력하세요.
+	Favorites	즐겨찾기
+	Feb	2월
+	File	파일
+	Flag	플래그
+	Flag / Unflag (Insert)	플래그 설정 / 해제 (Insert)
+	Flagged	플래그 지정됨
+	Focused	집중
+	Focused Inbox	집중 받은 편지함
+	Focused Inbox: put newsletters and automatic mail in Other	집중 받은 편지함: 뉴스레터와 자동 메일은 기타로
+	Folder	폴더
+	Folder name	폴더 이름
+	Forward	전달
+	Forward (Ctrl+F)	전달 (Ctrl+F)
+	Fri	금
+	Friday	금요일
+	From	보낸 사람
+	From contains	보낸 사람에 포함
+	From {names}	{names}에서
+	Group messages by conversation	대화별로 메시지 묶기
+	Has attachments	첨부 파일 있음
+	Has files	파일 있음
+	Heading	제목
+	Hidden from the other recipients	다른 받는 사람에게는 보이지 않음
+	Home	홈
+	I	I
+	If it {condition}: {action}	{condition} 경우: {action}
+	Important	중요
+	Inbox	받은 편지함
+	Incoming mail (IMAP)	받는 메일 (IMAP)
+	Insert a picture (or paste one)	그림 삽입 (또는 붙여넣기)
+	Inside {folder} ({account})	{folder} 안 ({account})
+	Is a newsletter or list mail	뉴스레터 또는 메일링 리스트 메일
+	Italic (Ctrl+I)	기울임꼴 (Ctrl+I)
+	Items: {n}	항목: {n}
+	Jan	1월
+	Jul	7월
+	Jun	6월
+	Junk Email	정크 메일
+	Language	언어
+	Last month	지난달
+	Last week	지난주
+	Later	나중에
+	Later today	오늘 늦게
+	Light	밝게
+	Link	링크
+	Link (Ctrl+K)	링크 (Ctrl+K)
+	Links like {link} aren't opened	{link} 같은 링크는 열지 않습니다
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	로컬 우선: 메일을 이 컴퓨터에 저장해 오프라인에서도 빠르게 검색합니다. 암호는 시스템 키체인에 보관됩니다.
+	Looking up the server settings…	서버 설정을 찾는 중…
+	Mail from {sender}	{sender}의 메일
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · ArtCraft 앱 · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	메일링 리스트: {address}에서 구독 취소
+	Mar	3월
+	Mark all as read	모두 읽음으로 표시
+	Mark as read	읽음으로 표시
+	Mark as unread	읽지 않음으로 표시
+	Mark read	읽음
+	Mark unread	읽지 않음
+	May	5월
+	Message preview	메시지 미리 보기
+	Message sent	메시지를 보냈습니다
+	Messages waiting to be sent	보내기 대기 중인 메시지
+	Messages without a subject are easy to overlook.	제목이 없는 메시지는 놓치기 쉽습니다.
+	Mon	월
+	Monday	월요일
+	Move	이동
+	Move 1 message	메시지 1개 이동
+	Move folder…	폴더 이동…
+	Move to	이동할 위치
+	Move to a folder (Ctrl+Shift+V)	폴더로 이동 (Ctrl+Shift+V)
+	Move to folder	폴더로 이동
+	Move to…	이동…
+	Move {n} messages	메시지 {n}개 이동
+	Move “{folder}” to	"{folder}" 이동 위치
+	Name	이름
+	Names <addresses>, separated by ; or ,	이름 <주소>, ; 또는 ,로 구분
+	New category	새 범주
+	New category…	새 범주…
+	New folder	새 폴더
+	New folder…	새 폴더…
+	New mail	새 메일
+	New mail (Ctrl+N)	새 메일 (Ctrl+N)
+	New rule	새 규칙
+	New rule…	새 규칙…
+	Next week	다음 주
+	No published settings: the usual server names are filled in. Check them under Server settings.	게시된 설정이 없습니다: 일반적인 서버 이름을 채웠습니다. 서버 설정에서 확인하세요.
+	No results. Try fewer words, or search all folders.	결과가 없습니다. 단어를 줄이거나 모든 폴더를 검색해 보세요.
+	No rules yet.	아직 규칙이 없습니다.
+	None (unsafe)	없음 (안전하지 않음)
+	Not an email address: {address}	이메일 주소가 아닙니다: {address}
+	Not junk	정크 아님
+	Not sent: {error}	보내지 못함: {error}
+	Nothing matches this filter.	이 필터에 맞는 항목이 없습니다.
+	Nov	11월
+	Numbered list	번호 매기기 목록
+	Oct	10월
+	Off	끄기
+	Offline	오프라인
+	Older	이전
+	On / off	켜기 / 끄기
+	Open	열기
+	Open as a PDF to print	인쇄용 PDF로 열기
+	Open in {app}	{app}에서 열기
+	Open it in the Craft app for this kind of file	이 종류의 파일용 Craft 앱에서 열기
+	Open with the system's app	시스템 앱으로 열기
+	Opened as a PDF: print it from the viewer	PDF로 열었습니다: 뷰어에서 인쇄하세요
+	Options	옵션
+	Other	기타
+	Outbox	보낼 편지함
+	Outbox: {n}	보낼 편지함: {n}
+	Outgoing mail (SMTP)	보내는 메일 (SMTP)
+	Password	암호
+	Password needed	암호 필요
+	Password…	암호…
+	Personal	개인
+	Pick messages from one account to move them to a folder.	한 계정의 메시지를 선택해 폴더로 이동하세요.
+	Picture	그림
+	Pictures from the web are hidden to protect your privacy.	개인 정보를 보호하기 위해 웹의 그림을 숨겼습니다.
+	Picture…	그림…
+	Pin	고정
+	Plain text	일반 텍스트
+	Preview	미리 보기
+	Print	인쇄
+	Put newsletters and automatic mail in Other	뉴스레터와 자동 메일을 기타로 보내기
+	Quote	인용
+	Reading pane	읽기 창
+	Remove	제거
+	Remove account?	계정을 제거할까요?
+	Remove account…	계정 제거…
+	Remove from Favorites	즐겨찾기에서 제거
+	Remove…	제거…
+	Rename	이름 바꾸기
+	Rename folder	폴더 이름 바꾸기
+	Rename folder…	폴더 이름 바꾸기…
+	Reply	회신
+	Reply (Ctrl+R)	회신 (Ctrl+R)
+	Reply all	전체 회신
+	Reply all (Ctrl+Shift+R)	전체 회신 (Ctrl+Shift+R)
+	Report junk	정크로 신고
+	Results for “{query}”	"{query}" 검색 결과
+	Right	오른쪽
+	Rules	규칙
+	Rules run on new mail as it arrives in an Inbox, in this order.	새 메일이 받은 편지함에 도착하면 이 순서대로 규칙이 적용됩니다.
+	Rules…	규칙…
+	Run now	지금 실행
+	Run on the folder on screen	표시된 폴더에서 실행
+	S	S
+	Same as the system	시스템과 같게
+	Sample mailbox (offline)	예제 사서함 (오프라인)
+	Sample mailbox, kept on this computer only	이 컴퓨터에만 보관되는 예제 사서함
+	Sat	토
+	Saturday	토요일
+	Save	저장
+	Save all…	모두 저장…
+	Save as PDF…	PDF로 저장…
+	Save as email (.eml)…	이메일로 저장 (.eml)…
+	Save as…	다른 이름으로 저장…
+	Save draft	임시 저장
+	Save draft (Ctrl+S)	임시 저장 (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	보낼 편지함에 저장했습니다: 다시 온라인이 되면 보냅니다
+	Saved {n} attachments in {folder}	첨부 파일 {n}개를 {folder}에 저장했습니다
+	Saved {path}	{path}에 저장했습니다
+	Search folders	폴더 검색
+	Search mail (from:, subject:, has:attachment…)	메일 검색 (from:, subject:, has:attachment…)
+	Select a message first.	먼저 메시지를 선택하세요.
+	Send	보내기
+	Send (Ctrl+Enter)	보내기 (Ctrl+Enter)
+	Send / Receive	보내기/받기
+	Send / Receive all folders (F9)	모든 폴더 보내기/받기 (F9)
+	Send anyway	그래도 보내기
+	Send now	지금 보내기
+	Send without a subject?	제목 없이 보낼까요?
+	Send without formatting	서식 없이 보내기
+	Sender, recipients or subject contain	보낸 사람, 받는 사람 또는 제목에 포함
+	Sending…	보내는 중…
+	Sent Items	보낸 편지함
+	Sep	9월
+	Server settings	서버 설정
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	서버: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	설정을 찾았습니다: {source}
+	Show a desktop notification when new mail arrives	새 메일이 오면 데스크톱 알림 표시
+	Show as plain text	일반 텍스트로 표시
+	Show formatted	서식 있게 표시
+	Show in Favorites	즐겨찾기에 표시
+	Show pictures	그림 표시
+	Shown as text.	텍스트로 표시합니다.
+	Shown on mail you send	보내는 메일에 표시됩니다
+	Sign in	로그인
+	Sign in again	다시 로그인
+	Sign in again…	다시 로그인…
+	Sign in with {provider}	{provider}(으)로 로그인
+	Signature	서명
+	Signature…	서명…
+	Snooze	다시 알림
+	Stop showing pictures from this sender	이 보낸 사람의 그림 표시 중지
+	Strikethrough	취소선
+	Subject	제목
+	Subject contains	제목에 포함
+	Sun	일
+	Sunday	일요일
+	Switch to dark mode	어두운 모드로 전환
+	Switch to light mode	밝은 모드로 전환
+	System	시스템
+	Text	텍스트
+	Text or address	텍스트 또는 주소
+	The PDF couldn't be opened: {error}	PDF를 열 수 없습니다: {error}
+	The folder and everything in it will be moved to Deleted Items.	폴더와 그 안의 모든 항목이 지운 편지함으로 이동합니다.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	폴더, 하위 폴더 및 그 안의 모든 메일이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.
+	The link couldn't be opened: {error}	링크를 열 수 없습니다: {error}
+	The sign-in page couldn't be opened: {error}	로그인 페이지를 열 수 없습니다: {error}
+	Theme	테마
+	Then	동작
+	These {n} messages will be deleted for good. This can't be undone.	메시지 {n}개가 영구적으로 삭제됩니다. 되돌릴 수 없습니다.
+	This folder	이 폴더
+	This message couldn't be downloaded: {error}	이 메시지를 다운로드할 수 없습니다: {error}
+	This message will be deleted for good. This can't be undone.	이 메시지가 영구적으로 삭제됩니다. 되돌릴 수 없습니다.
+	This weekend	이번 주말
+	Three weeks ago	3주 전
+	Thu	목
+	Thursday	목요일
+	To	받는 사람
+	To do	할 일
+	To or Cc contains	받는 사람 또는 참조에 포함
+	To: {names}	받는 사람: {names}
+	Today	오늘
+	Tomorrow	내일
+	Try again	다시 시도
+	Tue	화
+	Tuesday	화요일
+	Two weeks ago	2주 전
+	Unflag	플래그 해제
+	Unpin	고정 해제
+	Unread	읽지 않음
+	Unread: {n}	읽지 않음: {n}
+	Upcoming	예정
+	Update folder	폴더 업데이트
+	Updated {time}	{time}에 업데이트됨
+	Updating {folder}…	{folder} 업데이트 중…
+	User name	사용자 이름
+	Usually the email address	보통 이메일 주소
+	Video	동영상
+	View	보기
+	Waiting in the Outbox. Last try: {error}	보낼 편지함에서 대기 중. 마지막 시도: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	보낼 편지함에서 대기 중: 다시 온라인이 되면 보냅니다.
+	Wed	수
+	Wednesday	수요일
+	Welcome to MailCraft	MailCraft에 오신 것을 환영합니다
+	When mail	메일이 다음과 같을 때
+	Without encryption your password travels in the clear. Use only for local test servers.	암호화하지 않으면 암호가 평문으로 전송됩니다. 로컬 테스트 서버에만 사용하세요.
+	Work	업무
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP과 SMTP를 지원하는 모든 공급자에서 작동합니다. 암호는 이 컴퓨터의 키체인에 보관되고 메일 서버로만 전송됩니다.
+	Write your message…	메시지를 작성하세요…
+	Yesterday	어제
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	내 메일을 내 컴퓨터에. 어떤 IMAP 계정이든 추가하세요: 메시지가 이 기기에 저장되어 빠르게 검색하고 오프라인에서도 읽을 수 있습니다. 암호는 시스템 키체인에 보관됩니다.
+	Your name	이름
+	categorize {category}	{category} 범주로 분류
+	folder	폴더
+	from “{text}”	보낸 사람이 "{text}"인
+	in your browser: no password stored	브라우저에서: 암호를 저장하지 않음
+	mentions “{text}”	"{text}"을(를) 포함하는
+	move to {folder}	{folder}(으)로 이동
+	subject has “{text}”	제목에 "{text}"이(가) 있는
+	you@example.com	you@example.com
+	{app} couldn't open it: {error}	{app}에서 열 수 없습니다: {error}
+	{a} and {b}	{a}, {b}
+	{a}, {b} and others	{a}, {b} 외
+	{email} (sample)	{email} (예제)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email}과(와) 다운로드한 메일이 이 컴퓨터에서 제거됩니다. 서버에서는 아무것도 삭제되지 않습니다.
+	{name} could not be opened: {error}	{name}을(를) 열 수 없습니다: {error}
+	{n} attachments	첨부 파일 {n}개
+	{n} messages in this conversation	이 대화의 메시지 {n}개
+	{n} new messages	새 메시지 {n}개
+	• List	• 목록
+	Select a message to read it	메시지를 선택해 읽으세요
+	MailCraft – Sample mailbox	MailCraft – 예제 사서함
+	Mail server	메일 서버
+	IMAP and SMTP	IMAP 및 SMTP
+	JMAP	JMAP
+	JMAP session address	JMAP 세션 주소
+	Server: {url} (JMAP)	서버: {url} (JMAP)
+	Open in new window	새 창에서 열기
+	{subject} – Message	{subject} – 메시지
+	About	프로그램 정보
+	About MailCraft	MailCraft 정보
+	Account information	계정 정보
+	Account settings	계정 설정
+	An ArtCraft app · MIT OR Apache-2.0	ArtCraft 앱 · MIT OR Apache-2.0
+	Automatic replies	자동 회신
+	Back	뒤로
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	메일 표준을 바탕으로 공개적으로 만들었습니다: 다른 메일 앱의 코드, 아이콘, 자료는 없습니다.
+	Change this account's name, servers and sign-in, or its signature.	이 계정의 이름, 서버, 로그인 또는 서명을 변경합니다.
+	Checking with the server…	서버에 확인하는 중…
+	Compact list	간단한 목록
+	Don't send automatic replies	자동 회신 보내지 않기
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	켜져 있는 동안 보낸 사람마다 하루에 한 번 회신합니다. 메일 서버에 보관되므로 이 컴퓨터가 꺼져 있어도 작동합니다.
+	Empty	비우기
+	Empty Deleted Items…	지운 편지함 비우기…
+	Empty Junk Email…	정크 메일 비우기…
+	Empty “{folder}”?	"{folder}"을(를) 비울까요?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	이 컴퓨터에 다운로드하지 않은 메일을 포함해 안의 모든 항목이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.
+	General	일반
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	다음 날짜까지 부재 중입니다…
+	Inbox and notifications	받은 편지함 및 알림
+	Info	정보
+	Kept on this computer: {size}	이 컴퓨터에 보관: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft는 암호화된 연결로 내 메일 서버하고만 통신합니다. 웹의 그림은 요청할 때만 불러옵니다.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	사서함
+	Mailbox settings	사서함 설정
+	Manage rules	규칙 관리
+	Mark messages as read when opened	메시지를 열면 읽음으로 표시
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	아직 보낸 사람이 없습니다.
+	Not available: the sample mailbox has no server.	사용할 수 없음: 예제 사서함에는 서버가 없습니다.
+	Not available: {error}	사용할 수 없음: {error}
+	On	켜짐
+	On from {from}	{from}부터 켜짐
+	On from {from} until {until}	{from}부터 {until}까지 켜짐
+	On until {until}	{until}까지 켜짐
+	Only between these days	이 기간에만
+	Pictures from the web load only when you ask. These senders' pictures always load:	웹의 그림은 요청할 때만 불러옵니다. 다음 보낸 사람의 그림은 항상 불러옵니다:
+	Privacy	개인 정보
+	Reading	읽기
+	Rules: {n}	규칙: {n}
+	Sample mailbox	예제 사서함
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	메일이 차지하는 공간을 확인하고 지운 편지함과 정크 메일을 비웁니다.
+	Send automatic replies	자동 회신 보내기
+	Server settings…	서버 설정…
+	Show HTML mail formatted (otherwise as plain text)	HTML 메일을 서식 있게 표시 (끄면 일반 텍스트)
+	Show a line of each message in the list	목록에 각 메시지의 한 줄 표시
+	Sort new mail as it arrives: move it, flag it, categorize it.	새 메일이 도착하면 정리: 이동, 플래그, 분류.
+	Source code and issues	소스 코드 및 문제 보고
+	Subject (optional)	제목 (선택 사항)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	부재 중임을 알립니다: 켜져 있는 동안 보낸 사람마다 한 번 회신하며, 이 컴퓨터가 꺼져 있어도 작동합니다.
+	The server doesn't say how much space is used.	서버가 사용 중인 공간을 알려 주지 않습니다.
+	Until	종료
+	{free} free of {total}	{total} 중 {free} 사용 가능
+	{used} used on the server	서버에서 {used} 사용 중
+	this server doesn't offer automatic replies	이 서버는 자동 회신을 지원하지 않습니다
+	this server doesn't offer automatic replies (no ManageSieve)	이 서버는 자동 회신을 지원하지 않습니다 (ManageSieve 없음)
+	the account is offline	계정이 오프라인입니다
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	보관함

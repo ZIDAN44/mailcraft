@@ -1,0 +1,418 @@
+# MailCraft interface strings: Russian (русский).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  Загрузка папок…
+	(Top level)	(Верхний уровень)
+	(no subject)	(без темы)
+	1 attachment	1 вложение
+	1. List	1. Список
+	</>	</>
+	Accounts	Учётные записи
+	Accounts and settings	Учётные записи и настройки
+	Add a subject	Добавьте тему
+	Add account…	Добавить учётную запись…
+	Add an account	Добавить учётную запись
+	Add an email account	Добавить учётную запись почты
+	Added to new messages, replies and forwards.	Добавляется к новым письмам, ответам и пересылкам.
+	All	Все
+	All Inboxes	Все входящие
+	All Sent	Все отправленные
+	All caught up: nothing in this folder.	Всё прочитано: в этой папке ничего нет.
+	All folders	Все папки
+	Always show from {sender}	Всегда показывать от {sender}
+	Apr	апр
+	Archive	Архивировать
+	Archive (Backspace)	Архивировать (Backspace)
+	Ask before deleting for good	Спрашивать перед окончательным удалением
+	At the top of {account}	В начале {account}
+	Attach file	Вложить файл
+	Audio	Аудио
+	Aug	авг
+	B	Ж
+	Bcc	Скрытая копия
+	Bold (Ctrl+B)	Полужирный (Ctrl+B)
+	Bottom	Снизу
+	Bulleted list	Маркированный список
+	Cancel	Отмена
+	Categorize	Распределить по категориям
+	Category	Категория
+	Cc	Копия
+	Cc / Bcc	Копия / Скрытая копия
+	Cc: {names}	Копия: {names}
+	Choose…	Выбрать…
+	Clear search	Очистить поиск
+	Close	Закрыть
+	Code	Код
+	Compact	Компактно
+	Connect	Подключить
+	Connecting…	Подключение…
+	Conversations	Беседы
+	Create	Создать
+	Create rule…	Создать правило…
+	Dark	Тёмная
+	Date	Дата
+	Dec	дек
+	Delete	Удалить
+	Delete (Del)	Удалить (Del)
+	Delete folder…	Удалить папку…
+	Delete permanently?	Удалить окончательно?
+	Delete “{folder}”?	Удалить «{folder}»?
+	Deleted Items	Удалённые
+	Discard	Отменить
+	Disconnected: {error}	Нет связи: {error}
+	Document	Документ
+	Don't run later rules on mail this one matches	Не применять следующие правила к письмам, подходящим под это
+	Downloading the message…	Загрузка письма…
+	Draft saved	Черновик сохранён
+	Drafts	Черновики
+	Edit	Изменить
+	Edit rule	Изменить правило
+	Email address	Адрес электронной почты
+	Enter the password for {email}.	Введите пароль для {email}.
+	Favorites	Избранное
+	Feb	фев
+	File	Файл
+	Flag	Пометить
+	Flag / Unflag (Insert)	Пометить / Снять пометку (Insert)
+	Flagged	Помеченные
+	Focused	Важные
+	Focused Inbox	Важные во входящих
+	Focused Inbox: put newsletters and automatic mail in Other	Важные во входящих: рассылки и автоматические письма — в «Другие»
+	Folder	Папка
+	Folder name	Имя папки
+	Forward	Переслать
+	Forward (Ctrl+F)	Переслать (Ctrl+F)
+	Fri	пт
+	Friday	пятница
+	From	От
+	From contains	Отправитель содержит
+	From {names}	От {names}
+	Group messages by conversation	Группировать письма по беседам
+	Has attachments	С вложениями
+	Has files	С файлами
+	Heading	Заголовок
+	Hidden from the other recipients	Скрыто от других получателей
+	Home	Главная
+	I	К
+	If it {condition}: {action}	Если оно {condition}: {action}
+	Important	Важно
+	Inbox	Входящие
+	Incoming mail (IMAP)	Входящая почта (IMAP)
+	Insert a picture (or paste one)	Вставить изображение (или вставить из буфера)
+	Inside {folder} ({account})	Внутри {folder} ({account})
+	Is a newsletter or list mail	Рассылка или письмо из списка
+	Italic (Ctrl+I)	Курсив (Ctrl+I)
+	Items: {n}	Элементов: {n}
+	Jan	янв
+	Jul	июл
+	Jun	июн
+	Junk Email	Нежелательная почта
+	Language	Язык
+	Last month	В прошлом месяце
+	Last week	На прошлой неделе
+	Later	Позже
+	Later today	Позже сегодня
+	Light	Светлая
+	Link	Ссылка
+	Link (Ctrl+K)	Ссылка (Ctrl+K)
+	Links like {link} aren't opened	Ссылки вида {link} не открываются
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Сначала локально: почта хранится на этом компьютере для быстрого поиска без сети. Пароли остаются в системной связке ключей.
+	Looking up the server settings…	Поиск параметров сервера…
+	Mail from {sender}	Письма от {sender}
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · приложение ArtCraft · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	Список рассылки: отписаться по адресу {address}
+	Mar	мар
+	Mark all as read	Отметить всё как прочитанное
+	Mark as read	Отметить как прочитанное
+	Mark as unread	Отметить как непрочитанное
+	Mark read	Прочитано
+	Mark unread	Не прочитано
+	May	мая
+	Message preview	Просмотр письма
+	Message sent	Письмо отправлено
+	Messages waiting to be sent	Письма, ожидающие отправки
+	Messages without a subject are easy to overlook.	Письма без темы легко пропустить.
+	Mon	пн
+	Monday	понедельник
+	Move	Переместить
+	Move 1 message	Переместить 1 письмо
+	Move folder…	Переместить папку…
+	Move to	Переместить в
+	Move to a folder (Ctrl+Shift+V)	Переместить в папку (Ctrl+Shift+V)
+	Move to folder	Переместить в папку
+	Move to…	Переместить в…
+	Move {n} messages	Переместить письма: {n}
+	Move “{folder}” to	Переместить «{folder}» в
+	Name	Имя
+	Names <addresses>, separated by ; or ,	Имена <адреса> через ; или ,
+	New category	Новая категория
+	New category…	Новая категория…
+	New folder	Новая папка
+	New folder…	Новая папка…
+	New mail	Новое письмо
+	New mail (Ctrl+N)	Новое письмо (Ctrl+N)
+	New rule	Новое правило
+	New rule…	Новое правило…
+	Next week	На следующей неделе
+	No published settings: the usual server names are filled in. Check them under Server settings.	Опубликованных параметров нет: подставлены обычные имена серверов. Проверьте их в разделе «Параметры сервера».
+	No results. Try fewer words, or search all folders.	Ничего не найдено. Попробуйте меньше слов или поиск во всех папках.
+	No rules yet.	Правил пока нет.
+	None (unsafe)	Нет (небезопасно)
+	Not an email address: {address}	Это не адрес электронной почты: {address}
+	Not junk	Не спам
+	Not sent: {error}	Не отправлено: {error}
+	Nothing matches this filter.	Ничего не подходит под этот фильтр.
+	Nov	ноя
+	Numbered list	Нумерованный список
+	Oct	окт
+	Off	Выкл.
+	Offline	Нет сети
+	Older	Раньше
+	On / off	Вкл. / выкл.
+	Open	Открыть
+	Open as a PDF to print	Открыть как PDF для печати
+	Open in {app}	Открыть в {app}
+	Open it in the Craft app for this kind of file	Открыть в приложении Craft для таких файлов
+	Open with the system's app	Открыть в системном приложении
+	Opened as a PDF: print it from the viewer	Открыто как PDF: печатайте из программы просмотра
+	Options	Параметры
+	Other	Другие
+	Outbox	Исходящие
+	Outbox: {n}	Исходящие: {n}
+	Outgoing mail (SMTP)	Исходящая почта (SMTP)
+	Password	Пароль
+	Password needed	Нужен пароль
+	Password…	Пароль…
+	Personal	Личное
+	Pick messages from one account to move them to a folder.	Выберите письма одной учётной записи, чтобы переместить их в папку.
+	Picture	Изображение
+	Pictures from the web are hidden to protect your privacy.	Изображения из интернета скрыты для защиты вашей конфиденциальности.
+	Picture…	Изображение…
+	Pin	Закрепить
+	Plain text	Обычный текст
+	Preview	Предпросмотр
+	Print	Печать
+	Put newsletters and automatic mail in Other	Помещать рассылки и автоматические письма в «Другие»
+	Quote	Цитата
+	Reading pane	Область чтения
+	Remove	Удалить
+	Remove account?	Удалить учётную запись?
+	Remove account…	Удалить учётную запись…
+	Remove from Favorites	Убрать из избранного
+	Remove…	Удалить…
+	Rename	Переименовать
+	Rename folder	Переименовать папку
+	Rename folder…	Переименовать папку…
+	Reply	Ответить
+	Reply (Ctrl+R)	Ответить (Ctrl+R)
+	Reply all	Ответить всем
+	Reply all (Ctrl+Shift+R)	Ответить всем (Ctrl+Shift+R)
+	Report junk	Это спам
+	Results for “{query}”	Результаты для «{query}»
+	Right	Справа
+	Rules	Правила
+	Rules run on new mail as it arrives in an Inbox, in this order.	Правила применяются к новой почте при поступлении во «Входящие», в этом порядке.
+	Rules…	Правила…
+	Run now	Выполнить сейчас
+	Run on the folder on screen	Выполнить для открытой папки
+	S	З
+	Same as the system	Как в системе
+	Sample mailbox (offline)	Пример почтового ящика (без сети)
+	Sample mailbox, kept on this computer only	Пример почтового ящика, хранится только на этом компьютере
+	Sat	сб
+	Saturday	суббота
+	Save	Сохранить
+	Save all…	Сохранить всё…
+	Save as PDF…	Сохранить как PDF…
+	Save as email (.eml)…	Сохранить как письмо (.eml)…
+	Save as…	Сохранить как…
+	Save draft	Сохранить черновик
+	Save draft (Ctrl+S)	Сохранить черновик (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	Сохранено в «Исходящих»: будет отправлено, когда появится сеть
+	Saved {n} attachments in {folder}	Вложений сохранено: {n}, в {folder}
+	Saved {path}	Сохранено: {path}
+	Search folders	Поиск папок
+	Search mail (from:, subject:, has:attachment…)	Поиск в почте (from:, subject:, has:attachment…)
+	Select a message first.	Сначала выберите письмо.
+	Send	Отправить
+	Send (Ctrl+Enter)	Отправить (Ctrl+Enter)
+	Send / Receive	Отправить и получить
+	Send / Receive all folders (F9)	Отправить и получить во всех папках (F9)
+	Send anyway	Всё равно отправить
+	Send now	Отправить сейчас
+	Send without a subject?	Отправить без темы?
+	Send without formatting	Отправить без форматирования
+	Sender, recipients or subject contain	Отправитель, получатели или тема содержат
+	Sending…	Отправка…
+	Sent Items	Отправленные
+	Sep	сен
+	Server settings	Параметры сервера
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Серверы: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	Параметры найдены: {source}
+	Show a desktop notification when new mail arrives	Показывать уведомление на рабочем столе при новой почте
+	Show as plain text	Показать как обычный текст
+	Show formatted	Показать с форматированием
+	Show in Favorites	Показать в избранном
+	Show pictures	Показать изображения
+	Shown as text.	Показано как текст.
+	Shown on mail you send	Видно в отправляемых письмах
+	Sign in	Войти
+	Sign in again	Войти снова
+	Sign in again…	Войти снова…
+	Sign in with {provider}	Войти через {provider}
+	Signature	Подпись
+	Signature…	Подпись…
+	Snooze	Отложить
+	Stop showing pictures from this sender	Больше не показывать изображения от этого отправителя
+	Strikethrough	Зачёркнутый
+	Subject	Тема
+	Subject contains	Тема содержит
+	Sun	вс
+	Sunday	воскресенье
+	Switch to dark mode	Тёмный режим
+	Switch to light mode	Светлый режим
+	System	Система
+	Text	Текст
+	Text or address	Текст или адрес
+	The PDF couldn't be opened: {error}	Не удалось открыть PDF: {error}
+	The folder and everything in it will be moved to Deleted Items.	Папка со всем содержимым будет перемещена в «Удалённые».
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Папка, её вложенные папки и вся почта в них будут удалены окончательно. Это нельзя отменить.
+	The link couldn't be opened: {error}	Не удалось открыть ссылку: {error}
+	The sign-in page couldn't be opened: {error}	Не удалось открыть страницу входа: {error}
+	Theme	Тема оформления
+	Then	Тогда
+	These {n} messages will be deleted for good. This can't be undone.	Эти письма ({n}) будут удалены окончательно. Это нельзя отменить.
+	This folder	Эта папка
+	This message couldn't be downloaded: {error}	Не удалось загрузить это письмо: {error}
+	This message will be deleted for good. This can't be undone.	Это письмо будет удалено окончательно. Это нельзя отменить.
+	This weekend	В эти выходные
+	Three weeks ago	Три недели назад
+	Thu	чт
+	Thursday	четверг
+	To	Кому
+	To do	Задачи
+	To or Cc contains	Кому или копия содержит
+	To: {names}	Кому: {names}
+	Today	Сегодня
+	Tomorrow	Завтра
+	Try again	Повторить
+	Tue	вт
+	Tuesday	вторник
+	Two weeks ago	Две недели назад
+	Unflag	Снять пометку
+	Unpin	Открепить
+	Unread	Непрочитанные
+	Unread: {n}	Непрочитанных: {n}
+	Upcoming	Предстоящие
+	Update folder	Обновить папку
+	Updated {time}	Обновлено {time}
+	Updating {folder}…	Обновление «{folder}»…
+	User name	Имя пользователя
+	Usually the email address	Обычно адрес электронной почты
+	Video	Видео
+	View	Вид
+	Waiting in the Outbox. Last try: {error}	Ждёт в «Исходящих». Последняя попытка: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	Ждёт в «Исходящих»: будет отправлено, когда появится сеть.
+	Wed	ср
+	Wednesday	среда
+	Welcome to MailCraft	Добро пожаловать в MailCraft
+	When mail	Когда письмо
+	Without encryption your password travels in the clear. Use only for local test servers.	Без шифрования пароль передаётся открытым текстом. Используйте только для локальных тестовых серверов.
+	Work	Работа
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	Работает с любым провайдером, поддерживающим IMAP и SMTP. Пароль хранится в связке ключей этого компьютера и отправляется только на ваш почтовый сервер.
+	Write your message…	Напишите письмо…
+	Yesterday	Вчера
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Ваша почта — на вашем компьютере. Добавьте любую учётную запись IMAP: письма хранятся на этом устройстве, поэтому поиск быстрый, а читать можно без сети. Пароль остаётся в системной связке ключей.
+	Your name	Ваше имя
+	categorize {category}	отнести к категории {category}
+	folder	папка
+	from “{text}”	пришло от «{text}»
+	in your browser: no password stored	в браузере: пароль не сохраняется
+	mentions “{text}”	упоминает «{text}»
+	move to {folder}	переместить в {folder}
+	subject has “{text}”	содержит «{text}» в теме
+	you@example.com	vy@primer.ru
+	{app} couldn't open it: {error}	{app} не удалось открыть: {error}
+	{a} and {b}	{a} и {b}
+	{a}, {b} and others	{a}, {b} и другие
+	{email} (sample)	{email} (пример)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} и загруженная почта будут удалены с этого компьютера. На сервере ничего не удаляется.
+	{name} could not be opened: {error}	Не удалось открыть {name}: {error}
+	{n} attachments	Вложений: {n}
+	{n} messages in this conversation	Писем в этой беседе: {n}
+	{n} new messages	Новых писем: {n}
+	• List	• Список
+	Select a message to read it	Выберите письмо, чтобы прочитать его
+	MailCraft – Sample mailbox	MailCraft – Пример почтового ящика
+	Mail server	Почтовый сервер
+	IMAP and SMTP	IMAP и SMTP
+	JMAP	JMAP
+	JMAP session address	Адрес сеанса JMAP
+	Server: {url} (JMAP)	Сервер: {url} (JMAP)
+	Open in new window	Открыть в новом окне
+	{subject} – Message	{subject} – Письмо
+	About	О программе
+	About MailCraft	О MailCraft
+	Account information	Сведения об учётной записи
+	Account settings	Параметры учётной записи
+	An ArtCraft app · MIT OR Apache-2.0	Приложение ArtCraft · MIT OR Apache-2.0
+	Automatic replies	Автоответы
+	Back	Назад
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Создано открыто на основе почтовых стандартов: без кода, значков и материалов других почтовых программ.
+	Change this account's name, servers and sign-in, or its signature.	Измените имя, серверы и вход этой учётной записи или её подпись.
+	Checking with the server…	Запрос к серверу…
+	Compact list	Компактный список
+	Don't send automatic replies	Не отправлять автоответы
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Каждый отправитель получает один ответ в день, пока они включены. Они хранятся на почтовом сервере и работают, даже когда этот компьютер выключен.
+	Empty	Очистить
+	Empty Deleted Items…	Очистить «Удалённые»…
+	Empty Junk Email…	Очистить «Нежелательную почту»…
+	Empty “{folder}”?	Очистить «{folder}»?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	Всё содержимое будет удалено окончательно, включая почту, не загруженную на этот компьютер. Это нельзя отменить.
+	General	Общие
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	Меня не будет до…
+	Inbox and notifications	Входящие и уведомления
+	Info	Сведения
+	Kept on this computer: {size}	На этом компьютере: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft связывается только с вашими почтовыми серверами по зашифрованным соединениям. Изображения из интернета загружаются только по вашей просьбе.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	Почтовый ящик
+	Mailbox settings	Параметры почтового ящика
+	Manage rules	Управление правилами
+	Mark messages as read when opened	Отмечать письма прочитанными при открытии
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	Отправителей пока нет.
+	Not available: the sample mailbox has no server.	Недоступно: у примера почтового ящика нет сервера.
+	Not available: {error}	Недоступно: {error}
+	On	Включены
+	On from {from}	Включены с {from}
+	On from {from} until {until}	Включены с {from} по {until}
+	On until {until}	Включены до {until}
+	Only between these days	Только в эти дни
+	Pictures from the web load only when you ask. These senders' pictures always load:	Изображения из интернета загружаются только по вашей просьбе. Изображения этих отправителей загружаются всегда:
+	Privacy	Конфиденциальность
+	Reading	Чтение
+	Rules: {n}	Правил: {n}
+	Sample mailbox	Пример почтового ящика
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	Узнайте, сколько места занимает почта, и очистите «Удалённые» и «Нежелательную почту».
+	Send automatic replies	Отправлять автоответы
+	Server settings…	Параметры сервера…
+	Show HTML mail formatted (otherwise as plain text)	Показывать HTML-письма с форматированием (иначе как обычный текст)
+	Show a line of each message in the list	Показывать строку каждого письма в списке
+	Sort new mail as it arrives: move it, flag it, categorize it.	Сортируйте новую почту при поступлении: перемещайте, помечайте, распределяйте по категориям.
+	Source code and issues	Исходный код и сообщения об ошибках
+	Subject (optional)	Тема (необязательно)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Сообщите, что вас нет: каждый отправитель получит один ответ, пока они включены, даже если этот компьютер выключен.
+	The server doesn't say how much space is used.	Сервер не сообщает, сколько места занято.
+	Until	По
+	{free} free of {total}	Свободно {free} из {total}
+	{used} used on the server	На сервере занято {used}
+	this server doesn't offer automatic replies	этот сервер не поддерживает автоответы
+	this server doesn't offer automatic replies (no ManageSieve)	этот сервер не поддерживает автоответы (нет ManageSieve)
+	the account is offline	учётная запись не в сети
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	Архив

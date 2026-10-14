@@ -33,14 +33,18 @@ pub struct LangInfo {
     catalog: OnceLock<HashMap<String, String>>,
 }
 
-pub static LANGUAGES: [LangInfo; 7] = [
+pub static LANGUAGES: [LangInfo; 11] = [
     LangInfo { code: "en", name: "English", source: "", cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "es", name: "Español", source: include_str!("es.tsv"), cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "fr", name: "Français", source: include_str!("fr.tsv"), cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "de", name: "Deutsch", source: include_str!("de.tsv"), cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "pt-br", name: "Português (Brasil)", source: include_str!("pt-br.tsv"), cjk: false, catalog: OnceLock::new() },
+    LangInfo { code: "it", name: "Italiano", source: include_str!("it.tsv"), cjk: false, catalog: OnceLock::new() },
+    LangInfo { code: "ru", name: "Русский", source: include_str!("ru.tsv"), cjk: false, catalog: OnceLock::new() },
     LangInfo { code: "ja", name: "日本語", source: include_str!("ja.tsv"), cjk: true, catalog: OnceLock::new() },
+    LangInfo { code: "ko", name: "한국어", source: include_str!("ko.tsv"), cjk: true, catalog: OnceLock::new() },
     LangInfo { code: "zh-hans", name: "简体中文", source: include_str!("zh-hans.tsv"), cjk: true, catalog: OnceLock::new() },
+    LangInfo { code: "zh-hant", name: "繁體中文", source: include_str!("zh-hant.tsv"), cjk: true, catalog: OnceLock::new() },
 ];
 
 fn unescape(text: &str) -> Result<String, String> {
@@ -171,9 +175,9 @@ pub fn lang_from_tag(tag: &str) -> Option<Lang> {
         return Some(Lang::EN);
     }
     if primary == "zh" {
-        // Traditional Chinese has no catalog yet: stay in English rather than show the other script.
-        let traditional = parts.iter().any(|p| matches!(*p, "hant" | "tw" | "hk" | "mo"));
-        return (!traditional).then(|| Lang::from_code("zh-hans")).flatten();
+        // The script decides; without one, the region (Taiwan, Hong Kong, Macau write Traditional).
+        let traditional = parts.iter().any(|p| matches!(*p, "hant" | "tw" | "hk" | "mo")) && !parts.contains(&"hans");
+        return Lang::from_code(if traditional { "zh-hant" } else { "zh-hans" });
     }
     if primary == "pt" {
         return parts.contains(&"br").then(|| Lang::from_code("pt-br")).flatten();

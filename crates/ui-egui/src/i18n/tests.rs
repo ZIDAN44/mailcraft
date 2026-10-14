@@ -257,7 +257,12 @@ fn tags_templates_and_dates() {
     assert_eq!(lang_from_tag("pt_BR.UTF-8").map(Lang::code), Some("pt-br"));
     assert_eq!(lang_from_tag("pt-PT"), None);
     assert_eq!(lang_from_tag("zh-Hans-CN").map(Lang::code), Some("zh-hans"));
-    assert_eq!(lang_from_tag("zh_TW"), None, "no Traditional catalog yet");
+    assert_eq!(lang_from_tag("zh_TW").map(Lang::code), Some("zh-hant"));
+    assert_eq!(lang_from_tag("zh-Hant-HK").map(Lang::code), Some("zh-hant"));
+    assert_eq!(lang_from_tag("zh-Hans-HK").map(Lang::code), Some("zh-hans"), "the script wins over the region");
+    assert_eq!(lang_from_tag("ko-KR").map(Lang::code), Some("ko"));
+    assert_eq!(lang_from_tag("it_IT.UTF-8").map(Lang::code), Some("it"));
+    assert_eq!(lang_from_tag("ru").map(Lang::code), Some("ru"));
     assert_eq!(lang_from_tag("de-AT").map(Lang::code), Some("de"));
     assert_eq!(lang_from_tag("C"), Some(Lang::EN));
     assert_eq!(lang_from_tag("xx"), None);

@@ -1,0 +1,418 @@
+# MailCraft interface strings: Italian (italiano).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  Caricamento delle cartelle…
+	(Top level)	(Livello superiore)
+	(no subject)	(nessun oggetto)
+	1 attachment	1 allegato
+	1. List	1. Elenco
+	</>	</>
+	Accounts	Account
+	Accounts and settings	Account e impostazioni
+	Add a subject	Aggiungi un oggetto
+	Add account…	Aggiungi account…
+	Add an account	Aggiungi un account
+	Add an email account	Aggiungi un account di posta
+	Added to new messages, replies and forwards.	Aggiunta ai nuovi messaggi, alle risposte e agli inoltri.
+	All	Tutti
+	All Inboxes	Tutta la posta in arrivo
+	All Sent	Tutta la posta inviata
+	All caught up: nothing in this folder.	Tutto in ordine: questa cartella è vuota.
+	All folders	Tutte le cartelle
+	Always show from {sender}	Mostra sempre da {sender}
+	Apr	apr
+	Archive	Archivia
+	Archive (Backspace)	Archivia (Backspace)
+	Ask before deleting for good	Chiedi prima di eliminare definitivamente
+	At the top of {account}	In cima a {account}
+	Attach file	Allega file
+	Audio	Audio
+	Aug	ago
+	B	G
+	Bcc	Ccn
+	Bold (Ctrl+B)	Grassetto (Ctrl+B)
+	Bottom	In basso
+	Bulleted list	Elenco puntato
+	Cancel	Annulla
+	Categorize	Categorizza
+	Category	Categoria
+	Cc	Cc
+	Cc / Bcc	Cc / Ccn
+	Cc: {names}	Cc: {names}
+	Choose…	Scegli…
+	Clear search	Cancella la ricerca
+	Close	Chiudi
+	Code	Codice
+	Compact	Compatto
+	Connect	Connetti
+	Connecting…	Connessione…
+	Conversations	Conversazioni
+	Create	Crea
+	Create rule…	Crea regola…
+	Dark	Scuro
+	Date	Data
+	Dec	dic
+	Delete	Elimina
+	Delete (Del)	Elimina (Canc)
+	Delete folder…	Elimina cartella…
+	Delete permanently?	Eliminare definitivamente?
+	Delete “{folder}”?	Eliminare «{folder}»?
+	Deleted Items	Posta eliminata
+	Discard	Scarta
+	Disconnected: {error}	Disconnesso: {error}
+	Document	Documento
+	Don't run later rules on mail this one matches	Non applicare le regole successive alla posta che corrisponde a questa
+	Downloading the message…	Download del messaggio…
+	Draft saved	Bozza salvata
+	Drafts	Bozze
+	Edit	Modifica
+	Edit rule	Modifica regola
+	Email address	Indirizzo email
+	Enter the password for {email}.	Inserisci la password di {email}.
+	Favorites	Preferiti
+	Feb	feb
+	File	File
+	Flag	Contrassegna
+	Flag / Unflag (Insert)	Contrassegna / Rimuovi contrassegno (Ins)
+	Flagged	Contrassegnati
+	Focused	Evidenziata
+	Focused Inbox	Posta in arrivo evidenziata
+	Focused Inbox: put newsletters and automatic mail in Other	Posta in arrivo evidenziata: metti newsletter e posta automatica in Altra
+	Folder	Cartella
+	Folder name	Nome della cartella
+	Forward	Inoltra
+	Forward (Ctrl+F)	Inoltra (Ctrl+F)
+	Fri	ven
+	Friday	venerdì
+	From	Da
+	From contains	Il mittente contiene
+	From {names}	Da {names}
+	Group messages by conversation	Raggruppa i messaggi per conversazione
+	Has attachments	Con allegati
+	Has files	Con file
+	Heading	Titolo
+	Hidden from the other recipients	Nascosto agli altri destinatari
+	Home	Home
+	I	C
+	If it {condition}: {action}	Se {condition}: {action}
+	Important	Importante
+	Inbox	Posta in arrivo
+	Incoming mail (IMAP)	Posta in arrivo (IMAP)
+	Insert a picture (or paste one)	Inserisci un'immagine (o incollala)
+	Inside {folder} ({account})	Dentro {folder} ({account})
+	Is a newsletter or list mail	È una newsletter o un messaggio di una lista
+	Italic (Ctrl+I)	Corsivo (Ctrl+I)
+	Items: {n}	Elementi: {n}
+	Jan	gen
+	Jul	lug
+	Jun	giu
+	Junk Email	Posta indesiderata
+	Language	Lingua
+	Last month	Il mese scorso
+	Last week	La settimana scorsa
+	Later	Più tardi
+	Later today	Più tardi oggi
+	Light	Chiaro
+	Link	Collegamento
+	Link (Ctrl+K)	Collegamento (Ctrl+K)
+	Links like {link} aren't opened	I collegamenti come {link} non vengono aperti
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Prima in locale: la posta resta su questo computer per cercarla velocemente anche offline. Le password restano nel portachiavi di sistema.
+	Looking up the server settings…	Ricerca delle impostazioni del server…
+	Mail from {sender}	Posta di {sender}
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · un'app ArtCraft · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	Mailing list: annulla l'iscrizione su {address}
+	Mar	mar
+	Mark all as read	Segna tutto come letto
+	Mark as read	Segna come letto
+	Mark as unread	Segna come da leggere
+	Mark read	Letto
+	Mark unread	Da leggere
+	May	mag
+	Message preview	Anteprima del messaggio
+	Message sent	Messaggio inviato
+	Messages waiting to be sent	Messaggi in attesa di invio
+	Messages without a subject are easy to overlook.	I messaggi senza oggetto passano facilmente inosservati.
+	Mon	lun
+	Monday	lunedì
+	Move	Sposta
+	Move 1 message	Sposta 1 messaggio
+	Move folder…	Sposta cartella…
+	Move to	Sposta in
+	Move to a folder (Ctrl+Shift+V)	Sposta in una cartella (Ctrl+Maiusc+V)
+	Move to folder	Sposta nella cartella
+	Move to…	Sposta in…
+	Move {n} messages	Sposta {n} messaggi
+	Move “{folder}” to	Sposta «{folder}» in
+	Name	Nome
+	Names <addresses>, separated by ; or ,	Nomi <indirizzi>, separati da ; o ,
+	New category	Nuova categoria
+	New category…	Nuova categoria…
+	New folder	Nuova cartella
+	New folder…	Nuova cartella…
+	New mail	Nuovo messaggio
+	New mail (Ctrl+N)	Nuovo messaggio (Ctrl+N)
+	New rule	Nuova regola
+	New rule…	Nuova regola…
+	Next week	La settimana prossima
+	No published settings: the usual server names are filled in. Check them under Server settings.	Nessuna impostazione pubblicata: sono stati inseriti i nomi di server più comuni. Controllali in Impostazioni del server.
+	No results. Try fewer words, or search all folders.	Nessun risultato. Prova con meno parole o cerca in tutte le cartelle.
+	No rules yet.	Ancora nessuna regola.
+	None (unsafe)	Nessuna (non sicura)
+	Not an email address: {address}	Non è un indirizzo email: {address}
+	Not junk	Non è indesiderata
+	Not sent: {error}	Non inviato: {error}
+	Nothing matches this filter.	Nessun elemento corrisponde a questo filtro.
+	Nov	nov
+	Numbered list	Elenco numerato
+	Oct	ott
+	Off	Disattivato
+	Offline	Offline
+	Older	Meno recenti
+	On / off	Attiva / disattiva
+	Open	Apri
+	Open as a PDF to print	Apri come PDF da stampare
+	Open in {app}	Apri in {app}
+	Open it in the Craft app for this kind of file	Aprilo nell'app Craft per questo tipo di file
+	Open with the system's app	Apri con l'app del sistema
+	Opened as a PDF: print it from the viewer	Aperto come PDF: stampalo dal visualizzatore
+	Options	Opzioni
+	Other	Altra
+	Outbox	Posta in uscita
+	Outbox: {n}	Posta in uscita: {n}
+	Outgoing mail (SMTP)	Posta in uscita (SMTP)
+	Password	Password
+	Password needed	Password richiesta
+	Password…	Password…
+	Personal	Personale
+	Pick messages from one account to move them to a folder.	Scegli messaggi di un solo account per spostarli in una cartella.
+	Picture	Immagine
+	Pictures from the web are hidden to protect your privacy.	Le immagini dal Web sono nascoste per proteggere la tua privacy.
+	Picture…	Immagine…
+	Pin	Aggiungi in cima
+	Plain text	Testo normale
+	Preview	Anteprima
+	Print	Stampa
+	Put newsletters and automatic mail in Other	Metti newsletter e posta automatica in Altra
+	Quote	Citazione
+	Reading pane	Riquadro di lettura
+	Remove	Rimuovi
+	Remove account?	Rimuovere l'account?
+	Remove account…	Rimuovi account…
+	Remove from Favorites	Rimuovi dai Preferiti
+	Remove…	Rimuovi…
+	Rename	Rinomina
+	Rename folder	Rinomina cartella
+	Rename folder…	Rinomina cartella…
+	Reply	Rispondi
+	Reply (Ctrl+R)	Rispondi (Ctrl+R)
+	Reply all	Rispondi a tutti
+	Reply all (Ctrl+Shift+R)	Rispondi a tutti (Ctrl+Maiusc+R)
+	Report junk	Segnala come indesiderata
+	Results for “{query}”	Risultati per «{query}»
+	Right	A destra
+	Rules	Regole
+	Rules run on new mail as it arrives in an Inbox, in this order.	Le regole si applicano alla nuova posta quando arriva in una Posta in arrivo, in quest'ordine.
+	Rules…	Regole…
+	Run now	Esegui ora
+	Run on the folder on screen	Esegui sulla cartella visualizzata
+	S	B
+	Same as the system	Come il sistema
+	Sample mailbox (offline)	Casella di esempio (offline)
+	Sample mailbox, kept on this computer only	Casella di esempio, conservata solo su questo computer
+	Sat	sab
+	Saturday	sabato
+	Save	Salva
+	Save all…	Salva tutto…
+	Save as PDF…	Salva come PDF…
+	Save as email (.eml)…	Salva come email (.eml)…
+	Save as…	Salva con nome…
+	Save draft	Salva bozza
+	Save draft (Ctrl+S)	Salva bozza (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	Salvato in Posta in uscita: verrà inviato quando sarai di nuovo online
+	Saved {n} attachments in {folder}	{n} allegati salvati in {folder}
+	Saved {path}	Salvato {path}
+	Search folders	Cerca cartelle
+	Search mail (from:, subject:, has:attachment…)	Cerca nella posta (from:, subject:, has:attachment…)
+	Select a message first.	Seleziona prima un messaggio.
+	Send	Invia
+	Send (Ctrl+Enter)	Invia (Ctrl+Invio)
+	Send / Receive	Invia / Ricevi
+	Send / Receive all folders (F9)	Invia / Ricevi tutte le cartelle (F9)
+	Send anyway	Invia comunque
+	Send now	Invia ora
+	Send without a subject?	Inviare senza oggetto?
+	Send without formatting	Invia senza formattazione
+	Sender, recipients or subject contain	Mittente, destinatari o oggetto contengono
+	Sending…	Invio…
+	Sent Items	Posta inviata
+	Sep	set
+	Server settings	Impostazioni del server
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Server: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	Impostazioni trovate: {source}
+	Show a desktop notification when new mail arrives	Mostra una notifica sul desktop quando arriva nuova posta
+	Show as plain text	Mostra come testo normale
+	Show formatted	Mostra formattato
+	Show in Favorites	Mostra nei Preferiti
+	Show pictures	Mostra immagini
+	Shown as text.	Mostrato come testo.
+	Shown on mail you send	Mostrato nella posta che invii
+	Sign in	Accedi
+	Sign in again	Accedi di nuovo
+	Sign in again…	Accedi di nuovo…
+	Sign in with {provider}	Accedi con {provider}
+	Signature	Firma
+	Signature…	Firma…
+	Snooze	Posticipa
+	Stop showing pictures from this sender	Smetti di mostrare le immagini di questo mittente
+	Strikethrough	Barrato
+	Subject	Oggetto
+	Subject contains	L'oggetto contiene
+	Sun	dom
+	Sunday	domenica
+	Switch to dark mode	Passa alla modalità scura
+	Switch to light mode	Passa alla modalità chiara
+	System	Sistema
+	Text	Testo
+	Text or address	Testo o indirizzo
+	The PDF couldn't be opened: {error}	Impossibile aprire il PDF: {error}
+	The folder and everything in it will be moved to Deleted Items.	La cartella e tutto il suo contenuto verranno spostati in Posta eliminata.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	La cartella, le sue sottocartelle e tutta la posta che contengono verranno eliminate definitivamente. Non si può annullare.
+	The link couldn't be opened: {error}	Impossibile aprire il collegamento: {error}
+	The sign-in page couldn't be opened: {error}	Impossibile aprire la pagina di accesso: {error}
+	Theme	Tema
+	Then	Allora
+	These {n} messages will be deleted for good. This can't be undone.	Questi {n} messaggi verranno eliminati definitivamente. Non si può annullare.
+	This folder	Questa cartella
+	This message couldn't be downloaded: {error}	Impossibile scaricare questo messaggio: {error}
+	This message will be deleted for good. This can't be undone.	Questo messaggio verrà eliminato definitivamente. Non si può annullare.
+	This weekend	Questo fine settimana
+	Three weeks ago	Tre settimane fa
+	Thu	gio
+	Thursday	giovedì
+	To	A
+	To do	Da fare
+	To or Cc contains	A o Cc contiene
+	To: {names}	A: {names}
+	Today	Oggi
+	Tomorrow	Domani
+	Try again	Riprova
+	Tue	mar
+	Tuesday	martedì
+	Two weeks ago	Due settimane fa
+	Unflag	Rimuovi contrassegno
+	Unpin	Rimuovi dalla cima
+	Unread	Da leggere
+	Unread: {n}	Da leggere: {n}
+	Upcoming	In arrivo
+	Update folder	Aggiorna cartella
+	Updated {time}	Aggiornato {time}
+	Updating {folder}…	Aggiornamento di {folder}…
+	User name	Nome utente
+	Usually the email address	Di solito l'indirizzo email
+	Video	Video
+	View	Visualizza
+	Waiting in the Outbox. Last try: {error}	In attesa in Posta in uscita. Ultimo tentativo: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	In attesa in Posta in uscita: verrà inviato quando sarai di nuovo online.
+	Wed	mer
+	Wednesday	mercoledì
+	Welcome to MailCraft	Benvenuto in MailCraft
+	When mail	Quando la posta
+	Without encryption your password travels in the clear. Use only for local test servers.	Senza crittografia la password viaggia in chiaro. Usalo solo per server di prova locali.
+	Work	Lavoro
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funziona con qualsiasi provider che offra IMAP e SMTP. La password resta nel portachiavi di questo computer e viene inviata solo al tuo server di posta.
+	Write your message…	Scrivi il messaggio…
+	Yesterday	Ieri
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	La tua posta, sul tuo computer. Aggiungi qualsiasi account IMAP: i messaggi restano su questo dispositivo, così li cerchi velocemente e li leggi offline. La password resta nel portachiavi di sistema.
+	Your name	Il tuo nome
+	categorize {category}	categorizza come {category}
+	folder	cartella
+	from “{text}”	arriva da «{text}»
+	in your browser: no password stored	nel browser: nessuna password salvata
+	mentions “{text}”	menziona «{text}»
+	move to {folder}	sposta in {folder}
+	subject has “{text}”	ha «{text}» nell'oggetto
+	you@example.com	tu@esempio.it
+	{app} couldn't open it: {error}	{app} non è riuscita ad aprirlo: {error}
+	{a} and {b}	{a} e {b}
+	{a}, {b} and others	{a}, {b} e altri
+	{email} (sample)	{email} (esempio)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} e la posta scaricata verranno rimossi da questo computer. Sul server non viene eliminato nulla.
+	{name} could not be opened: {error}	Impossibile aprire {name}: {error}
+	{n} attachments	{n} allegati
+	{n} messages in this conversation	{n} messaggi in questa conversazione
+	{n} new messages	{n} nuovi messaggi
+	• List	• Elenco
+	Select a message to read it	Seleziona un messaggio per leggerlo
+	MailCraft – Sample mailbox	MailCraft – Casella di esempio
+	Mail server	Server di posta
+	IMAP and SMTP	IMAP e SMTP
+	JMAP	JMAP
+	JMAP session address	Indirizzo della sessione JMAP
+	Server: {url} (JMAP)	Server: {url} (JMAP)
+	Open in new window	Apri in una nuova finestra
+	{subject} – Message	{subject} – Messaggio
+	About	Informazioni
+	About MailCraft	Informazioni su MailCraft
+	Account information	Informazioni sull'account
+	Account settings	Impostazioni account
+	An ArtCraft app · MIT OR Apache-2.0	Un'app ArtCraft · MIT OR Apache-2.0
+	Automatic replies	Risposte automatiche
+	Back	Indietro
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Creato apertamente a partire dagli standard della posta: nessun codice, icona o risorsa di altre app di posta.
+	Change this account's name, servers and sign-in, or its signature.	Cambia il nome, i server e l'accesso di questo account, o la sua firma.
+	Checking with the server…	Verifica con il server…
+	Compact list	Elenco compatto
+	Don't send automatic replies	Non inviare risposte automatiche
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Ogni mittente riceve una risposta al giorno finché sono attive. Restano sul server di posta, quindi funzionano anche a computer spento.
+	Empty	Svuota
+	Empty Deleted Items…	Svuota Posta eliminata…
+	Empty Junk Email…	Svuota Posta indesiderata…
+	Empty “{folder}”?	Svuotare «{folder}»?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	Tutto il contenuto verrà eliminato definitivamente, compresa la posta non scaricata su questo computer. Non si può annullare.
+	General	Generale
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	Sono fuori fino al…
+	Inbox and notifications	Posta in arrivo e notifiche
+	Info	Info
+	Kept on this computer: {size}	Su questo computer: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft comunica solo con i tuoi server di posta, tramite connessioni crittografate. Le immagini dal Web si caricano solo quando lo chiedi.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	Casella di posta
+	Mailbox settings	Impostazioni della casella
+	Manage rules	Gestisci regole
+	Mark messages as read when opened	Segna i messaggi come letti quando si aprono
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	Ancora nessun mittente.
+	Not available: the sample mailbox has no server.	Non disponibile: la casella di esempio non ha un server.
+	Not available: {error}	Non disponibile: {error}
+	On	Attive
+	On from {from}	Attive dal {from}
+	On from {from} until {until}	Attive dal {from} al {until}
+	On until {until}	Attive fino al {until}
+	Only between these days	Solo tra questi giorni
+	Pictures from the web load only when you ask. These senders' pictures always load:	Le immagini dal Web si caricano solo quando lo chiedi. Le immagini di questi mittenti si caricano sempre:
+	Privacy	Privacy
+	Reading	Lettura
+	Rules: {n}	Regole: {n}
+	Sample mailbox	Casella di esempio
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	Guarda quanto spazio occupa la tua posta e svuota Posta eliminata e Posta indesiderata.
+	Send automatic replies	Invia risposte automatiche
+	Server settings…	Impostazioni del server…
+	Show HTML mail formatted (otherwise as plain text)	Mostra la posta HTML formattata (altrimenti come testo normale)
+	Show a line of each message in the list	Mostra una riga di ogni messaggio nell'elenco
+	Sort new mail as it arrives: move it, flag it, categorize it.	Ordina la nuova posta quando arriva: spostala, contrassegnala, categorizzala.
+	Source code and issues	Codice sorgente e segnalazioni
+	Subject (optional)	Oggetto (facoltativo)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Avvisa che sei via: ogni mittente riceve una risposta finché sono attive, anche a computer spento.
+	The server doesn't say how much space is used.	Il server non indica quanto spazio è usato.
+	Until	Fino al
+	{free} free of {total}	{free} liberi su {total}
+	{used} used on the server	{used} usati sul server
+	this server doesn't offer automatic replies	questo server non offre risposte automatiche
+	this server doesn't offer automatic replies (no ManageSieve)	questo server non offre risposte automatiche (niente ManageSieve)
+	the account is offline	l'account è offline
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	Archivio

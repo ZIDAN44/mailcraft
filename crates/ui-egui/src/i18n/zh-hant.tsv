@@ -1,0 +1,418 @@
+# MailCraft interface strings: Traditional Chinese (繁體中文).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  正在載入資料夾…
+	(Top level)	(最上層)
+	(no subject)	(無主旨)
+	1 attachment	1 個附件
+	1. List	1. 清單
+	</>	</>
+	Accounts	帳戶
+	Accounts and settings	帳戶和設定
+	Add a subject	新增主旨
+	Add account…	新增帳戶…
+	Add an account	新增帳戶
+	Add an email account	新增電子郵件帳戶
+	Added to new messages, replies and forwards.	加到新郵件、回覆和轉寄中。
+	All	全部
+	All Inboxes	所有收件匣
+	All Sent	所有寄件備份
+	All caught up: nothing in this folder.	全部處理完畢: 這個資料夾沒有內容。
+	All folders	所有資料夾
+	Always show from {sender}	一律顯示來自 {sender} 的圖片
+	Apr	4月
+	Archive	封存
+	Archive (Backspace)	封存 (Backspace)
+	Ask before deleting for good	永久刪除前詢問
+	At the top of {account}	位於 {account} 的最上層
+	Attach file	附加檔案
+	Audio	音訊
+	Aug	8月
+	B	B
+	Bcc	密件副本
+	Bold (Ctrl+B)	粗體 (Ctrl+B)
+	Bottom	下方
+	Bulleted list	項目符號清單
+	Cancel	取消
+	Categorize	分類
+	Category	類別
+	Cc	副本
+	Cc / Bcc	副本 / 密件副本
+	Cc: {names}	副本: {names}
+	Choose…	選擇…
+	Clear search	清除搜尋
+	Close	關閉
+	Code	程式碼
+	Compact	精簡
+	Connect	連線
+	Connecting…	正在連線…
+	Conversations	交談
+	Create	建立
+	Create rule…	建立規則…
+	Dark	深色
+	Date	日期
+	Dec	12月
+	Delete	刪除
+	Delete (Del)	刪除 (Del)
+	Delete folder…	刪除資料夾…
+	Delete permanently?	要永久刪除嗎?
+	Delete “{folder}”?	要刪除「{folder}」嗎?
+	Deleted Items	刪除的郵件
+	Discard	捨棄
+	Disconnected: {error}	已中斷連線: {error}
+	Document	文件
+	Don't run later rules on mail this one matches	符合此規則的郵件不再套用後續規則
+	Downloading the message…	正在下載郵件…
+	Draft saved	已儲存草稿
+	Drafts	草稿
+	Edit	編輯
+	Edit rule	編輯規則
+	Email address	電子郵件地址
+	Enter the password for {email}.	請輸入 {email} 的密碼。
+	Favorites	我的最愛
+	Feb	2月
+	File	檔案
+	Flag	標幟
+	Flag / Unflag (Insert)	加上 / 清除標幟 (Insert)
+	Flagged	已加上標幟
+	Focused	焦點
+	Focused Inbox	焦點收件匣
+	Focused Inbox: put newsletters and automatic mail in Other	焦點收件匣: 把電子報和自動郵件放到「其他」
+	Folder	資料夾
+	Folder name	資料夾名稱
+	Forward	轉寄
+	Forward (Ctrl+F)	轉寄 (Ctrl+F)
+	Fri	週五
+	Friday	星期五
+	From	寄件者
+	From contains	寄件者包含
+	From {names}	來自 {names}
+	Group messages by conversation	依交談分組郵件
+	Has attachments	有附件
+	Has files	有檔案
+	Heading	標題
+	Hidden from the other recipients	其他收件者看不到
+	Home	常用
+	I	I
+	If it {condition}: {action}	如果{condition}: {action}
+	Important	重要
+	Inbox	收件匣
+	Incoming mail (IMAP)	內送郵件 (IMAP)
+	Insert a picture (or paste one)	插入圖片 (或貼上)
+	Inside {folder} ({account})	在 {folder} 內 ({account})
+	Is a newsletter or list mail	是電子報或郵寄清單郵件
+	Italic (Ctrl+I)	斜體 (Ctrl+I)
+	Items: {n}	項目: {n}
+	Jan	1月
+	Jul	7月
+	Jun	6月
+	Junk Email	垃圾郵件
+	Language	語言
+	Last month	上個月
+	Last week	上週
+	Later	稍後
+	Later today	今天稍晚
+	Light	淺色
+	Link	連結
+	Link (Ctrl+K)	連結 (Ctrl+K)
+	Links like {link} aren't opened	不會開啟 {link} 這類連結
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	本機優先: 郵件快取在這台電腦上，可快速離線搜尋。密碼保存在系統鑰匙圈中。
+	Looking up the server settings…	正在尋找伺服器設定…
+	Mail from {sender}	來自 {sender} 的郵件
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · ArtCraft 應用程式 · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	郵寄清單: 在 {address} 取消訂閱
+	Mar	3月
+	Mark all as read	全部標示為已讀
+	Mark as read	標示為已讀
+	Mark as unread	標示為未讀
+	Mark read	已讀
+	Mark unread	未讀
+	May	5月
+	Message preview	郵件預覽
+	Message sent	已傳送郵件
+	Messages waiting to be sent	等待傳送的郵件
+	Messages without a subject are easy to overlook.	沒有主旨的郵件很容易被忽略。
+	Mon	週一
+	Monday	星期一
+	Move	移動
+	Move 1 message	移動 1 封郵件
+	Move folder…	移動資料夾…
+	Move to	移到
+	Move to a folder (Ctrl+Shift+V)	移到資料夾 (Ctrl+Shift+V)
+	Move to folder	移到資料夾
+	Move to…	移到…
+	Move {n} messages	移動 {n} 封郵件
+	Move “{folder}” to	將「{folder}」移到
+	Name	名稱
+	Names <addresses>, separated by ; or ,	姓名 <地址>，以 ; 或 , 分隔
+	New category	新類別
+	New category…	新類別…
+	New folder	新資料夾
+	New folder…	新資料夾…
+	New mail	新郵件
+	New mail (Ctrl+N)	新郵件 (Ctrl+N)
+	New rule	新規則
+	New rule…	新規則…
+	Next week	下週
+	No published settings: the usual server names are filled in. Check them under Server settings.	沒有公開的設定: 已填入常用的伺服器名稱。請在「伺服器設定」中確認。
+	No results. Try fewer words, or search all folders.	沒有結果。請減少關鍵字，或搜尋所有資料夾。
+	No rules yet.	還沒有規則。
+	None (unsafe)	無 (不安全)
+	Not an email address: {address}	不是電子郵件地址: {address}
+	Not junk	不是垃圾郵件
+	Not sent: {error}	未傳送: {error}
+	Nothing matches this filter.	沒有符合此篩選條件的項目。
+	Nov	11月
+	Numbered list	編號清單
+	Oct	10月
+	Off	關閉
+	Offline	離線
+	Older	更早
+	On / off	開啟 / 關閉
+	Open	開啟
+	Open as a PDF to print	以 PDF 開啟以便列印
+	Open in {app}	在 {app} 中開啟
+	Open it in the Craft app for this kind of file	在適用於此類檔案的 Craft 應用程式中開啟
+	Open with the system's app	用系統應用程式開啟
+	Opened as a PDF: print it from the viewer	已以 PDF 開啟: 請從檢視器列印
+	Options	選項
+	Other	其他
+	Outbox	寄件匣
+	Outbox: {n}	寄件匣: {n}
+	Outgoing mail (SMTP)	外寄郵件 (SMTP)
+	Password	密碼
+	Password needed	需要密碼
+	Password…	密碼…
+	Personal	個人
+	Pick messages from one account to move them to a folder.	請選擇同一個帳戶的郵件來移到資料夾。
+	Picture	圖片
+	Pictures from the web are hidden to protect your privacy.	為保護您的隱私，已隱藏來自網路的圖片。
+	Picture…	圖片…
+	Pin	釘選
+	Plain text	純文字
+	Preview	預覽
+	Print	列印
+	Put newsletters and automatic mail in Other	把電子報和自動郵件放到「其他」
+	Quote	引文
+	Reading pane	讀取窗格
+	Remove	移除
+	Remove account?	要移除帳戶嗎?
+	Remove account…	移除帳戶…
+	Remove from Favorites	從我的最愛移除
+	Remove…	移除…
+	Rename	重新命名
+	Rename folder	重新命名資料夾
+	Rename folder…	重新命名資料夾…
+	Reply	回覆
+	Reply (Ctrl+R)	回覆 (Ctrl+R)
+	Reply all	全部回覆
+	Reply all (Ctrl+Shift+R)	全部回覆 (Ctrl+Shift+R)
+	Report junk	回報垃圾郵件
+	Results for “{query}”	「{query}」的結果
+	Right	右側
+	Rules	規則
+	Rules run on new mail as it arrives in an Inbox, in this order.	新郵件抵達收件匣時，依此順序套用規則。
+	Rules…	規則…
+	Run now	立即執行
+	Run on the folder on screen	在目前顯示的資料夾上執行
+	S	S
+	Same as the system	與系統相同
+	Sample mailbox (offline)	範例信箱 (離線)
+	Sample mailbox, kept on this computer only	範例信箱，只保存在這台電腦上
+	Sat	週六
+	Saturday	星期六
+	Save	儲存
+	Save all…	全部儲存…
+	Save as PDF…	另存為 PDF…
+	Save as email (.eml)…	另存為電子郵件 (.eml)…
+	Save as…	另存新檔…
+	Save draft	儲存草稿
+	Save draft (Ctrl+S)	儲存草稿 (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	已儲存到寄件匣: 恢復連線後會傳送
+	Saved {n} attachments in {folder}	已將 {n} 個附件儲存到 {folder}
+	Saved {path}	已儲存 {path}
+	Search folders	搜尋資料夾
+	Search mail (from:, subject:, has:attachment…)	搜尋郵件 (from:, subject:, has:attachment…)
+	Select a message first.	請先選擇一封郵件。
+	Send	傳送
+	Send (Ctrl+Enter)	傳送 (Ctrl+Enter)
+	Send / Receive	傳送/接收
+	Send / Receive all folders (F9)	傳送/接收所有資料夾 (F9)
+	Send anyway	仍要傳送
+	Send now	立即傳送
+	Send without a subject?	要不加主旨傳送嗎?
+	Send without formatting	不加格式傳送
+	Sender, recipients or subject contain	寄件者、收件者或主旨包含
+	Sending…	正在傳送…
+	Sent Items	寄件備份
+	Sep	9月
+	Server settings	伺服器設定
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	伺服器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
+	Settings found: {source}	已找到設定: {source}
+	Show a desktop notification when new mail arrives	收到新郵件時顯示桌面通知
+	Show as plain text	以純文字顯示
+	Show formatted	以格式顯示
+	Show in Favorites	在我的最愛中顯示
+	Show pictures	顯示圖片
+	Shown as text.	以文字顯示。
+	Shown on mail you send	顯示在您傳送的郵件中
+	Sign in	登入
+	Sign in again	重新登入
+	Sign in again…	重新登入…
+	Sign in with {provider}	使用 {provider} 登入
+	Signature	簽名
+	Signature…	簽名…
+	Snooze	延後提醒
+	Stop showing pictures from this sender	不再顯示此寄件者的圖片
+	Strikethrough	刪除線
+	Subject	主旨
+	Subject contains	主旨包含
+	Sun	週日
+	Sunday	星期日
+	Switch to dark mode	切換到深色模式
+	Switch to light mode	切換到淺色模式
+	System	系統
+	Text	文字
+	Text or address	文字或地址
+	The PDF couldn't be opened: {error}	無法開啟 PDF: {error}
+	The folder and everything in it will be moved to Deleted Items.	資料夾和其中所有內容將移到「刪除的郵件」。
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	資料夾、其子資料夾和其中所有郵件將永久刪除。此動作無法復原。
+	The link couldn't be opened: {error}	無法開啟連結: {error}
+	The sign-in page couldn't be opened: {error}	無法開啟登入頁面: {error}
+	Theme	佈景主題
+	Then	則
+	These {n} messages will be deleted for good. This can't be undone.	這 {n} 封郵件將永久刪除。此動作無法復原。
+	This folder	此資料夾
+	This message couldn't be downloaded: {error}	無法下載這封郵件: {error}
+	This message will be deleted for good. This can't be undone.	這封郵件將永久刪除。此動作無法復原。
+	This weekend	這個週末
+	Three weeks ago	三週前
+	Thu	週四
+	Thursday	星期四
+	To	收件者
+	To do	待辦
+	To or Cc contains	收件者或副本包含
+	To: {names}	收件者: {names}
+	Today	今天
+	Tomorrow	明天
+	Try again	重試
+	Tue	週二
+	Tuesday	星期二
+	Two weeks ago	兩週前
+	Unflag	清除標幟
+	Unpin	取消釘選
+	Unread	未讀
+	Unread: {n}	未讀: {n}
+	Upcoming	即將到來
+	Update folder	更新資料夾
+	Updated {time}	已更新 {time}
+	Updating {folder}…	正在更新 {folder}…
+	User name	使用者名稱
+	Usually the email address	通常是電子郵件地址
+	Video	影片
+	View	檢視
+	Waiting in the Outbox. Last try: {error}	在寄件匣中等待。上次嘗試: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	在寄件匣中等待: 恢復連線後會傳送。
+	Wed	週三
+	Wednesday	星期三
+	Welcome to MailCraft	歡迎使用 MailCraft
+	When mail	當郵件
+	Without encryption your password travels in the clear. Use only for local test servers.	不加密時，您的密碼會以明文傳輸。只能用於本機測試伺服器。
+	Work	工作
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	適用於任何提供 IMAP 和 SMTP 的服務商。您的密碼保存在這台電腦的鑰匙圈中，只會傳送到您的郵件伺服器。
+	Write your message…	撰寫郵件…
+	Yesterday	昨天
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	您的郵件，就在您的電腦上。新增任何 IMAP 帳戶: 郵件保存在此裝置上，搜尋快速，離線也能閱讀。您的密碼保存在系統鑰匙圈中。
+	Your name	您的姓名
+	categorize {category}	歸類為 {category}
+	folder	資料夾
+	from “{text}”	來自「{text}」
+	in your browser: no password stored	在瀏覽器中: 不儲存密碼
+	mentions “{text}”	提到「{text}」
+	move to {folder}	移到 {folder}
+	subject has “{text}”	主旨含有「{text}」
+	you@example.com	you@example.com
+	{app} couldn't open it: {error}	{app} 無法開啟它: {error}
+	{a} and {b}	{a} 和 {b}
+	{a}, {b} and others	{a}、{b} 等人
+	{email} (sample)	{email} (範例)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} 和已下載的郵件將從這台電腦移除。伺服器上不會刪除任何內容。
+	{name} could not be opened: {error}	無法開啟 {name}: {error}
+	{n} attachments	{n} 個附件
+	{n} messages in this conversation	此交談中有 {n} 封郵件
+	{n} new messages	{n} 封新郵件
+	• List	• 清單
+	Select a message to read it	選擇一封郵件來閱讀
+	MailCraft – Sample mailbox	MailCraft – 範例信箱
+	Mail server	郵件伺服器
+	IMAP and SMTP	IMAP 和 SMTP
+	JMAP	JMAP
+	JMAP session address	JMAP 工作階段位址
+	Server: {url} (JMAP)	伺服器: {url} (JMAP)
+	Open in new window	在新視窗中開啟
+	{subject} – Message	{subject} – 郵件
+	About	關於
+	About MailCraft	關於 MailCraft
+	Account information	帳戶資訊
+	Account settings	帳戶設定
+	An ArtCraft app · MIT OR Apache-2.0	ArtCraft 應用程式 · MIT OR Apache-2.0
+	Automatic replies	自動回覆
+	Back	返回
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	依據電子郵件標準公開打造: 不含其他郵件應用程式的程式碼、圖示或素材。
+	Change this account's name, servers and sign-in, or its signature.	變更這個帳戶的名稱、伺服器和登入方式，或簽名。
+	Checking with the server…	正在向伺服器確認…
+	Compact list	精簡清單
+	Don't send automatic replies	不要傳送自動回覆
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	開啟期間，每位寄件者每天收到一次回覆。回覆保存在郵件伺服器上，即使這台電腦關機也能運作。
+	Empty	清空
+	Empty Deleted Items…	清空刪除的郵件…
+	Empty Junk Email…	清空垃圾郵件…
+	Empty “{folder}”?	要清空「{folder}」嗎?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	其中所有內容將永久刪除，包括未下載到這台電腦的郵件。此動作無法復原。
+	General	一般
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	我將離開到…
+	Inbox and notifications	收件匣和通知
+	Info	資訊
+	Kept on this computer: {size}	保存在這台電腦上: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft 只透過加密連線與您自己的郵件伺服器通訊。來自網路的圖片只在您要求時載入。
+	MailCraft {version}	MailCraft {version}
+	Mailbox	信箱
+	Mailbox settings	信箱設定
+	Manage rules	管理規則
+	Mark messages as read when opened	開啟郵件時標示為已讀
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	還沒有寄件者。
+	Not available: the sample mailbox has no server.	無法使用: 範例信箱沒有伺服器。
+	Not available: {error}	無法使用: {error}
+	On	已開啟
+	On from {from}	從 {from} 起開啟
+	On from {from} until {until}	從 {from} 到 {until} 開啟
+	On until {until}	開啟到 {until}
+	Only between these days	只在這些日期之間
+	Pictures from the web load only when you ask. These senders' pictures always load:	來自網路的圖片只在您要求時載入。以下寄件者的圖片一律載入:
+	Privacy	隱私權
+	Reading	閱讀
+	Rules: {n}	規則: {n}
+	Sample mailbox	範例信箱
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	查看郵件占用的空間，並清空「刪除的郵件」和「垃圾郵件」。
+	Send automatic replies	傳送自動回覆
+	Server settings…	伺服器設定…
+	Show HTML mail formatted (otherwise as plain text)	以格式顯示 HTML 郵件 (否則以純文字顯示)
+	Show a line of each message in the list	在清單中顯示每封郵件的一行內容
+	Sort new mail as it arrives: move it, flag it, categorize it.	在新郵件抵達時整理: 移動、加上標幟、分類。
+	Source code and issues	原始程式碼和問題回報
+	Subject (optional)	主旨 (選填)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	讓別人知道您不在: 開啟期間每位寄件者收到一次回覆，即使這台電腦關機也有效。
+	The server doesn't say how much space is used.	伺服器沒有提供已使用的空間。
+	Until	至
+	{free} free of {total}	共 {total}，可用 {free}
+	{used} used on the server	伺服器上已使用 {used}
+	this server doesn't offer automatic replies	這個伺服器不提供自動回覆
+	this server doesn't offer automatic replies (no ManageSieve)	這個伺服器不提供自動回覆 (沒有 ManageSieve)
+	the account is offline	帳戶目前離線
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	封存

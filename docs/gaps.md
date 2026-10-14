@@ -16,7 +16,6 @@ _Status: v0.1, 2026-10-15._
 | 4 | **Faithful HTML** | HTML mail is shown as formatted text (headings, lists, links, quotes, pictures on request). Layout-heavy newsletters lose their columns and colours; a sanitised HTML renderer would keep them. |
 | 5 | **Drag attachments out** | Attachments open in their app or Craft app and save anywhere, but can't yet be dragged onto the desktop or a `.craft` project (egui has no outgoing OS drag). |
 | 6 | **Video and PDF thumbnails** | Pictures preview inline and text-like files in a preview; PDFs and videos open in PdfCraft / FilmCraft or the system app without a thumbnail. |
-| 7 | **More languages** | English, Spanish, French, German, Brazilian Portuguese, Japanese and Simplified Chinese; others (Traditional Chinese, Korean, Italian…) need a catalog each. |
 | 8 | **Web build** | The engine and UI crates build for wasm32, but the network layer is native; a browser build needs a JMAP-over-`fetch` transport. |
 
 ## Done

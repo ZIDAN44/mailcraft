@@ -121,23 +121,36 @@ impl Services for Desktop {
         };
         cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
     }
-    fn cjk_font(&mut self) -> Option<(Vec<u8>, u32)> {
-        let candidates: &[(&str, u32)] = if cfg!(target_os = "windows") {
-            &[("C:\\Windows\\Fonts\\msyh.ttc", 0), ("C:\\Windows\\Fonts\\YuGothM.ttc", 0), ("C:\\Windows\\Fonts\\msgothic.ttc", 0)]
-        } else if cfg!(target_os = "macos") {
-            &[
-                ("/System/Library/Fonts/PingFang.ttc", 0),
-                ("/System/Library/Fonts/Hiragino Sans GB.ttc", 0),
-                ("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", 0),
-            ]
-        } else {
-            &[
-                ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0),
-                ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", 0),
-                ("/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc", 0),
-                ("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf", 0),
-            ]
+    fn cjk_font(&mut self, lang: &str) -> Option<(Vec<u8>, u32)> {
+        // The language's own font first (Chinese, Japanese and Korean draw shared characters
+        // differently), then any that has the characters at all.
+        let (windows, macos, noto_index): (&[&str], &[&str], u32) = match lang {
+            "ja" => (&["YuGothM.ttc", "msgothic.ttc"], &["ヒラギノ角ゴシック W3.ttc", "Hiragino Sans GB.ttc"], 0),
+            "ko" => (&["malgun.ttf", "gulim.ttc"], &["AppleSDGothicNeo.ttc"], 1),
+            "zh-hant" => (&["msjh.ttc", "mingliu.ttc"], &["PingFang.ttc"], 3),
+            _ => (&["msyh.ttc", "simsun.ttc"], &["PingFang.ttc", "Hiragino Sans GB.ttc"], 2),
         };
+        let mut candidates: Vec<(String, u32)> = Vec::new();
+        if cfg!(target_os = "windows") {
+            let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
+            for f in windows.iter().chain(["msyh.ttc", "YuGothM.ttc", "malgun.ttf"].iter()) {
+                candidates.push((format!("{dir}\\Fonts\\{f}"), 0));
+            }
+        } else if cfg!(target_os = "macos") {
+            for f in macos.iter().chain(["PingFang.ttc", "AppleSDGothicNeo.ttc"].iter()) {
+                candidates.push((format!("/System/Library/Fonts/{f}"), 0));
+            }
+        } else {
+            // Noto Sans CJK collections hold Japanese, Korean, Simplified and Traditional faces.
+            for p in [
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+            ] {
+                candidates.push((p.to_string(), noto_index));
+            }
+            candidates.push(("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf".into(), 0));
+        }
         candidates.iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, *i)))
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {

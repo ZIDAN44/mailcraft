@@ -85,9 +85,9 @@ pub trait Services {
     fn pick_folder(&mut self) -> Option<PathBuf> {
         None
     }
-    /// An installed font with Chinese and Japanese characters (its bytes and the index in a
-    /// collection), for those interface languages.
-    fn cjk_font(&mut self) -> Option<(Vec<u8>, u32)> {
+    /// An installed font for a Chinese, Japanese or Korean interface language (`ja`, `ko`,
+    /// `zh-hans`, `zh-hant`): its bytes and the index in a collection.
+    fn cjk_font(&mut self, _lang: &str) -> Option<(Vec<u8>, u32)> {
         None
     }
     /// A picture on the clipboard, as PNG bytes (`None` when there is none).
@@ -197,7 +197,8 @@ pub struct UiState {
     pub language: String,
     /// The fonts installed, kept to add a CJK fallback later.
     fonts: (Option<Vec<u8>>, Option<Vec<u8>>),
-    cjk_loaded: bool,
+    /// The language whose CJK font is loaded.
+    cjk_loaded: Option<&'static str>,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
     pub title_base: String,
     pub(crate) title_shown: String,
@@ -246,7 +247,7 @@ impl MailApp {
                 craft_apps: Vec::new(),
                 language: i18n::AUTO.into(),
                 fonts: (None, None),
-                cjk_loaded: false,
+                cjk_loaded: None,
                 title_base: "MailCraft".into(),
                 title_shown: String::new(),
                 focus_main: false,
@@ -268,9 +269,9 @@ impl MailApp {
     fn apply_language(&mut self, ctx: &egui::Context) {
         let lang = i18n::Lang::from_pref(&self.ui.language);
         i18n::set_current(lang);
-        if lang.cjk() && !self.ui.cjk_loaded {
-            self.ui.cjk_loaded = true;
-            match self.services.cjk_font() {
+        if lang.cjk() && self.ui.cjk_loaded != Some(lang.code()) {
+            self.ui.cjk_loaded = Some(lang.code());
+            match self.services.cjk_font(lang.code()) {
                 Some(cjk) => {
                     let (r, b) = self.ui.fonts.clone();
                     theme::install_fonts_with(ctx, r, b, Some(cjk));
