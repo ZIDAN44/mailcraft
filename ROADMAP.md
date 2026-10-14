@@ -28,3 +28,5 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-15** — v0.1: workspace, model (threading, search, dates, UTF-7), MIME, store, IMAP client
   and sync (CONDSTORE, IDLE, offline replay), SMTP, worker pool, engine with 44 commands, egui UI
   (three panes, ribbon, dialogs, dark mode), desktop app (keychain, file dialogs), CLI, docs, CI.
+- **2026-10-15** — Packaging and release workflows (Windows MSI incl. ARM64, macOS dmg, Linux
+  AppImage/deb/rpm/Flatpak, FreeBSD) on the shared Craft pipelines; app icon; `--version`.

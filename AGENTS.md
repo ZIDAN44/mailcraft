@@ -40,6 +40,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - Never copy, trace or recreate Outlook/Office icons, images, sounds, templates or wording beyond
   feature names. Icons are drawn in code (`crates/ui-egui/src/icons.rs`); the app colour is MailCraft's own.
 - Every asset file has a row in `ATTRIBUTION.md`; `cargo xtask assets` enforces it.
+- The app icon is MailCraft's own drawing in `xtask/src/icons.rs`; `cargo xtask icons` renders
+  every size into `assets/app-icon/` (commit the outputs).
 - Fonts: use installed system fonts at runtime; never bundle proprietary fonts.
 
 ## Clean room
@@ -68,6 +70,15 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 
 ## Quality gates
 Before every commit: `cargo xtask ci`. Commit after every arc of work that builds.
+
+## Packaging and releases
+- `packaging/` holds the installer scripts (Linux AppImage/deb/rpm/Flatpak, macOS dmg, Windows
+  MSI, FreeBSD); `.github/workflows/` calls them through `storytold/craft-common-actions`
+  (`release.yml` on the `release` branch). Keep app ids (`ai.storyteller.mailcraft`), binary
+  names and the WiX `UpgradeCode` stable.
+- The version lives only in `[workspace.package]` (`cargo xtask version [set X.Y.Z]`).
+- After touching workflows, run `npx actions-up` to keep pinned actions current; the
+  `craft-common-actions@main` references stay on `main` on purpose.
 
 ## Running and looking at the app
 - `cargo run -p mailcraft -- --sample` (local sample mailbox). Script it at start-up:

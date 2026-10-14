@@ -70,6 +70,11 @@ The full list of what's missing, ranked, is in [docs/gaps.md](docs/gaps.md).
 
 ## Quick start
 
+Installers come from the [Releases](https://github.com/ZIDAN44/mailcraft/releases) page once a
+release is cut: `.msi` and a portable zip for Windows (x64, x86, ARM64), a `.dmg` for macOS
+(universal), AppImage, `.deb`, `.rpm`, Flatpak and `.tar.gz` for Linux (x86_64, aarch64, riscv64),
+and a FreeBSD tarball. To run from source:
+
 ```bash
 cargo run --release -p mailcraft -- --sample
 ```
@@ -110,6 +115,24 @@ the real client and sync code. Details in [docs/architecture.md](docs/architectu
 
 Quality gate before every commit: `cargo xtask ci` (fmt, clippy `-D warnings`, tests, layering,
 assets, wasm).
+
+## Packaging and releases
+
+The scripts in [`packaging/`](packaging) build every installer (`packaging/linux/package.sh`,
+`packaging/macos/package.sh`, `packaging/windows/package.ps1`, `packaging/freebsd/package.sh`),
+and the GitHub workflows run them through the shared Craft pipelines in
+[`storytold/craft-common-actions`](https://github.com/storytold/craft-common-actions):
+
+| Workflow | When | What |
+|---|---|---|
+| `ci.yml` | every push and pull request | `cargo xtask ci` on Windows, macOS and Linux |
+| `freebsd.yml` | pushes to `main`, dependency changes | build and test in a FreeBSD VM |
+| `windows-arm64.yml` | pushes to `main`, weekly | cross-build the ARM64 MSI, install and run it on Windows 11 ARM |
+| `packaging-lint.yml` | packaging or workflow changes | actionlint, shellcheck, PowerShell, WiX, desktop entry, AppStream, Flatpak |
+| `release.yml` | a push to the `release` branch, or by hand | sign, notarize and package every platform, then draft a GitHub Release |
+
+The version lives only in `[workspace.package]` of `Cargo.toml` (`cargo xtask version`,
+`cargo xtask version set 0.2.0`). App icons are drawn by `cargo xtask icons`.
 
 ## License and credits
 
