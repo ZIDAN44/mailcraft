@@ -484,3 +484,15 @@
 # A month's full name, where it differs from its short form.
 month	May	5月
 	Add to contacts	添加到联系人
+	Invite	邀请
+	Record the answer	记录答复
+	Remove from calendar	从日历中移除
+	Show in calendar	在日历中显示
+	This event was cancelled.	此事件已取消。
+	{name} accepted.	{name} 已接受。
+	{name} answered.	{name} 已答复。
+	{name} declined.	{name} 已拒绝。
+	{name} said maybe.	{name} 暂定。
+	You accepted.	你已接受。
+	You said maybe.	你已暂定。
+	You declined.	你已拒绝。

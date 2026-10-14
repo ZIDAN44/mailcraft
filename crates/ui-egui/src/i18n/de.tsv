@@ -482,6 +482,18 @@
 	{n} more	{n} weitere
 	{weekday}, {day} {month} {year}	{weekday}, {day}. {month} {year}
 	Add to contacts	Zu Kontakten hinzufügen
+	Invite	Einladen
+	Record the answer	Antwort übernehmen
+	Remove from calendar	Aus dem Kalender entfernen
+	Show in calendar	Im Kalender anzeigen
+	This event was cancelled.	Dieser Termin wurde abgesagt.
+	{name} accepted.	{name} hat zugesagt.
+	{name} answered.	{name} hat geantwortet.
+	{name} declined.	{name} hat abgesagt.
+	{name} said maybe.	{name} hat mit Vielleicht geantwortet.
+	You accepted.	Sie haben zugesagt.
+	You said maybe.	Sie haben mit Vielleicht geantwortet.
+	You declined.	Sie haben abgesagt.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

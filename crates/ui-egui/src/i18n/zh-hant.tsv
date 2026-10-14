@@ -481,6 +481,18 @@
 	{n} more	另外 {n} 個
 	{weekday}, {day} {month} {year}	{year}年{month}{day}日 {weekday}
 	Add to contacts	新增至連絡人
+	Invite	邀請
+	Record the answer	記錄回覆
+	Remove from calendar	從行事曆移除
+	Show in calendar	在行事曆中顯示
+	This event was cancelled.	此活動已取消。
+	{name} accepted.	{name} 已接受。
+	{name} answered.	{name} 已回覆。
+	{name} declined.	{name} 已拒絕。
+	{name} said maybe.	{name} 暫定。
+	You accepted.	您已接受。
+	You said maybe.	您已暫定。
+	You declined.	您已拒絕。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

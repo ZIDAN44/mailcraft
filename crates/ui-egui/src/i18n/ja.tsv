@@ -484,3 +484,15 @@
 # A month's full name, where it differs from its short form.
 month	May	5月
 	Add to contacts	連絡先に追加
+	Invite	招待
+	Record the answer	回答を反映
+	Remove from calendar	予定表から削除
+	Show in calendar	予定表で表示
+	This event was cancelled.	この予定はキャンセルされました。
+	{name} accepted.	{name} が承諾しました。
+	{name} answered.	{name} が回答しました。
+	{name} declined.	{name} が辞退しました。
+	{name} said maybe.	{name} が仮承諾しました。
+	You accepted.	承諾済みです。
+	You said maybe.	仮承諾済みです。
+	You declined.	辞退済みです。

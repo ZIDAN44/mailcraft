@@ -481,6 +481,18 @@
 	{n} more	{n}개 더
 	{weekday}, {day} {month} {year}	{year}년 {month} {day}일 {weekday}
 	Add to contacts	연락처에 추가
+	Invite	초대
+	Record the answer	응답 기록
+	Remove from calendar	일정에서 제거
+	Show in calendar	일정에서 보기
+	This event was cancelled.	이 일정은 취소되었습니다.
+	{name} accepted.	{name}님이 수락했습니다.
+	{name} answered.	{name}님이 응답했습니다.
+	{name} declined.	{name}님이 거절했습니다.
+	{name} said maybe.	{name}님이 미정으로 응답했습니다.
+	You accepted.	수락했습니다.
+	You said maybe.	미정으로 응답했습니다.
+	You declined.	거절했습니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

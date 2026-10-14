@@ -482,6 +482,18 @@
 	{n} more	{n} más
 	{weekday}, {day} {month} {year}	{weekday}, {day} de {month} de {year}
 	Add to contacts	Añadir a contactos
+	Invite	Invitar
+	Record the answer	Anotar la respuesta
+	Remove from calendar	Quitar del calendario
+	Show in calendar	Ver en el calendario
+	This event was cancelled.	Este evento se canceló.
+	{name} accepted.	{name} aceptó.
+	{name} answered.	{name} respondió.
+	{name} declined.	{name} rechazó.
+	{name} said maybe.	{name} dijo que quizá.
+	You accepted.	Aceptaste.
+	You said maybe.	Dijiste que quizá.
+	You declined.	Rechazaste.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

@@ -481,6 +481,18 @@
 	{n} more	ещё {n}
 	{weekday}, {day} {month} {year}	{weekday}, {day} {month} {year}
 	Add to contacts	Добавить в контакты
+	Invite	Пригласить
+	Record the answer	Записать ответ
+	Remove from calendar	Убрать из календаря
+	Show in calendar	Показать в календаре
+	This event was cancelled.	Это событие отменено.
+	{name} accepted.	{name}: принято.
+	{name} answered.	{name}: ответ получен.
+	{name} declined.	{name}: отклонено.
+	{name} said maybe.	{name}: возможно.
+	You accepted.	Вы приняли.
+	You said maybe.	Вы ответили «возможно».
+	You declined.	Вы отклонили.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

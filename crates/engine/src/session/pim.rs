@@ -74,6 +74,7 @@ impl Session {
 
     pub(crate) fn save_pim(&mut self, account: &str) {
         self.contacts = None;
+        self.pim_revision = self.pim_revision.wrapping_add(1);
         let (Some(store), Some(p)) = (&self.store, self.pim.get(account)) else { return };
         if let Err(e) = store.save_account_doc(account, PIM_DOC, p) {
             self.notice(format!("calendar and contacts could not be saved: {e}"), true);
@@ -284,7 +285,7 @@ impl Session {
     }
 
     /// Save, and ask for a sync when the server has something to learn.
-    fn after_pim_change(&mut self, account: &str, remote: bool) {
+    pub(crate) fn after_pim_change(&mut self, account: &str, remote: bool) {
         self.save_pim(account);
         if remote && self.account(account).is_some_and(|a| !a.is_local()) {
             self.jobs.push(Job::SyncDav { account: account.to_string() });

@@ -183,6 +183,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 });
             }
             ui.add_space(12.0);
+            if !in_window {
+                invite_card(s, st, ui, &r.key, acts);
+            }
 
             // Attachments.
             // Pictures the formatted message shows in place aren't listed again as files.
@@ -193,7 +196,17 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                         .as_ref()
                         .is_some_and(|c| p.images.iter().any(|i| i.strip_prefix("cid:").is_some_and(|x| x.eq_ignore_ascii_case(c))))
             };
-            let files: Vec<_> = p.attachments.iter().filter(|a| (!a.inline || a.kind() == AttachmentKind::Image) && !in_place(a)).cloned().collect();
+            // An invitation is shown as its card above, not as a file.
+            let invitation = st.invite.as_ref().is_some_and(|(k, _, i)| k == &r.key && i.is_some()) && !in_window;
+            let is_invite_file = |a: &mime::AttachmentInfo| {
+                invitation && (a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))
+            };
+            let files: Vec<_> = p
+                .attachments
+                .iter()
+                .filter(|a| (!a.inline || a.kind() == AttachmentKind::Image) && !in_place(a) && !is_invite_file(a))
+                .cloned()
+                .collect();
             if !files.is_empty() {
                 ui.horizontal(|ui| {
                     ui.label(
@@ -236,6 +249,100 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             }
         });
     });
+}
+
+/// A meeting invitation (or an answer to one, or a cancellation) carried by the message.
+fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, acts: &mut Vec<Action>) {
+    let fresh = st.invite.as_ref().is_some_and(|(k, rev, _)| k == key && *rev == s.pim_revision);
+    if !fresh {
+        st.invite = Some((key.clone(), s.pim_revision, s.invite()));
+    }
+    let Some(inv) = st.invite.as_ref().and_then(|(_, _, i)| i.clone()) else { return };
+    let t = st.tokens;
+    let e = &inv.event;
+    egui::Frame::new().fill(t.accent_soft).corner_radius(8).inner_margin(Margin::same(12)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
+            icons::paint(ui.painter(), r, Icon::Calendar, t.accent);
+            ui.vertical(|ui| {
+                ui.label(RichText::new(&e.summary).font(theme::bold(15.0)).color(t.text));
+                let when = if e.all_day {
+                    crate::i18n::date(&dates::full_time(e.start - i64::from(s.clock.offset), &s.clock))
+                        .split(' ')
+                        .take(2)
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                } else {
+                    format!("{} – {}", crate::i18n::date(&dates::full_time(e.start, &s.clock)), crate::calendar::hm(e.end, s))
+                };
+                ui.label(RichText::new(when).color(t.dim));
+                if !e.location.is_empty() {
+                    ui.label(RichText::new(&e.location).color(t.dim));
+                }
+            });
+        });
+        ui.add_space(6.0);
+        match inv.method.as_str() {
+            "REQUEST" => {
+                ui.horizontal_wrapped(|ui| {
+                    let current = match inv.answer.as_str() {
+                        "ACCEPTED" => Some("You accepted."),
+                        "TENTATIVE" => Some("You said maybe."),
+                        "DECLINED" => Some("You declined."),
+                        _ => None,
+                    };
+                    if let Some(c) = current {
+                        ui.label(RichText::new(tl!(c)).color(t.text));
+                    }
+                    for (label, code, icon) in
+                        [("Accept", "accepted", Icon::Read), ("Tentative", "tentative", Icon::Clock), ("Decline", "declined", Icon::Close)]
+                    {
+                        if widgets::pill_button(ui, icon, label, &t).clicked() {
+                            acts.push(Action::Run("invite.respond", json!({"answer": code})));
+                        }
+                    }
+                    if inv.in_calendar && ui.link(tl!("Show in calendar")).clicked() {
+                        show_day(e.start, s, acts);
+                    }
+                });
+            }
+            "CANCEL" => {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(tl!("This event was cancelled.")).color(t.danger));
+                    if inv.in_calendar && widgets::pill_button(ui, Icon::Delete, "Remove from calendar", &t).clicked() {
+                        acts.push(Action::Run("invite.apply", json!({})));
+                    }
+                });
+            }
+            _ => {
+                if let Some(who) = &inv.replier {
+                    let name = if who.name.is_empty() { who.email.clone() } else { who.name.clone() };
+                    let line = match who.partstat.as_str() {
+                        "ACCEPTED" => tf!("{name} accepted.", name = name),
+                        "DECLINED" => tf!("{name} declined.", name = name),
+                        "TENTATIVE" => tf!("{name} said maybe.", name = name),
+                        _ => tf!("{name} answered.", name = name),
+                    };
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new(line).color(t.text));
+                        if inv.in_calendar && widgets::pill_button(ui, Icon::Calendar, "Record the answer", &t).clicked() {
+                            acts.push(Action::Run("invite.apply", json!({})));
+                        }
+                    });
+                }
+            }
+        }
+    });
+    ui.add_space(10.0);
+}
+
+/// Show the calendar on the day of a time.
+fn show_day(t: i64, s: &Session, acts: &mut Vec<Action>) {
+    let c = dates::civil(t, &s.clock);
+    acts.push(Action::Run("view.module", json!({"name": "calendar"})));
+    acts.push(Action::Run("calendar.view", json!({"mode": "day"})));
+    acts.push(Action::Run("calendar.goto", json!({"date": format!("{:04}-{:02}-{:02}", c.year, c.month, c.day)})));
 }
 
 fn empty(ui: &mut Ui, t: &Tokens, msg: &str) {

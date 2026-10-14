@@ -30,6 +30,8 @@ enum Attach {
     Png,
     Text(&'static str),
     Pdf,
+    /// An invitation (`METHOD:REQUEST`) to the sample event with this uid.
+    Invite(&'static str),
 }
 
 /// A one-page PDF drawn in code (a poster proof: sky, sun, hills and a title), so the sample
@@ -198,11 +200,11 @@ fn mails() -> Vec<Mail> {
             to: &[ME],
             cc: &[],
             subject: "Sound mix, version 3",
-            body: "Riley,\n\nVersion 3 of the mix is up on the shared drive. I lowered the music under the dialogue in the café scene and added the rain ambience you asked for.\n\nLet me know what you think!\nAna",
+            body: "Riley,\n\nVersion 3 of the mix is up on the shared drive. I lowered the music under the dialogue in the café scene and added the rain ambience you asked for.\n\nCan you come and hear it in the lab tomorrow? I sent an invitation.\n\nLet me know what you think!\nAna",
             ago: 60 * 26,
             seen: false,
             flagged: false,
-            attachments: &[],
+            attachments: &[("invite.ics", Attach::Invite("mix@sample.mailcraft"))],
             reply_to_index: None,
             html: None,
         },
@@ -373,6 +375,14 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
                 Attach::Png => OutAttachment { name: (*name).into(), mime: "image/png".into(), data: sample_png() },
                 Attach::Text(t) => OutAttachment { name: (*name).into(), mime: "text/plain".into(), data: t.as_bytes().to_vec() },
                 Attach::Pdf => OutAttachment { name: (*name).into(), mime: "application/pdf".into(), data: sample_pdf() },
+                Attach::Invite(uid) => {
+                    let events: Vec<_> = sample_pim(now, offset).events.into_iter().map(|e| e.event).filter(|e| e.uid == *uid).collect();
+                    OutAttachment {
+                        name: (*name).into(),
+                        mime: "text/calendar; method=REQUEST".into(),
+                        data: mailcraft_model::ical::write(&events, Some("REQUEST"), date).into_bytes(),
+                    }
+                }
             })
             .collect();
         let d = Draft {

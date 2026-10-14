@@ -328,22 +328,71 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"from"?: date or date-time, "to"?: …} (default: what the calendar shows)"#),
         CommandSpec::new("event.create", "New event", "Calendar › New event", |s, v| {
-            let e = event_from(s, v, mailcraft_model::ical::CalEvent::default())?;
-            s.create_event(p::str(v, "account"), p::str(v, "calendar"), e)
+            let mut e = event_from(s, v, mailcraft_model::ical::CalEvent::default())?;
+            let account = match p::str(v, "account") {
+                Some(a) => a.to_string(),
+                None => s.current_account().map(|a| a.config.id.clone()).ok_or_else(|| CmdError::Disabled("add an account first".into()))?,
+            };
+            // With guests, the user organizes it.
+            if !e.attendees.is_empty() && e.organizer.is_none() {
+                let me = s.account(&account).map(|a| (a.config.name.clone(), a.config.email.clone())).unwrap_or_default();
+                e.organizer = Some(mailcraft_model::ical::Attendee { email: me.1, name: me.0, partstat: "ACCEPTED".into(), rsvp: false });
+            }
+            let r = s.create_event(Some(&account), p::str(v, "calendar"), e.clone())?;
+            if let Some(uid) = r.get("uid").and_then(Value::as_str) {
+                e.uid = uid.to_string();
+                s.send_invitations(&e, &account, "REQUEST")?;
+            }
+            Ok(r)
         })
-        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "account"?: string, "calendar"?: string}"#),
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "account"?: string, "calendar"?: string}"#),
         CommandSpec::new("event.update", "Edit event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let current = s.find_event(&uid).map(|(_, e)| e.event.clone()).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
             let e = event_from(s, v, current)?;
-            s.update_event(&uid, |x| *x = e)
+            let r = s.update_event(&uid, |x| *x = e)?;
+            // The user's own meeting: the guests hear of the change.
+            if let Some((account, stored)) = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone()))
+                && organized_by_me(s, &stored)
+            {
+                s.send_invitations(&stored, &account, "REQUEST")?;
+            }
+            Ok(r)
         })
         .params(r#"{"uid": string, … the fields of event.create to change}"#),
         CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
-            s.delete_event(&uid, p::i64(v, "occurrence"))
+            let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone()));
+            let occurrence = p::i64(v, "occurrence");
+            let r = s.delete_event(&uid, occurrence)?;
+            if let Some((account, mut e)) = before
+                && organized_by_me(s, &e)
+            {
+                // One occurrence off: the guests are told of that one.
+                if let Some(at) = occurrence.filter(|_| e.rrule.is_some()) {
+                    let len = e.end - e.start;
+                    e.recurrence_id = Some(at);
+                    e.rrule = None;
+                    e.start = at;
+                    e.end = at + len;
+                }
+                e.sequence = e.sequence.saturating_add(1);
+                s.send_invitations(&e, &account, "CANCEL")?;
+            }
+            Ok(r)
         })
         .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence)}"#),
+        CommandSpec::new("invite.respond", "Answer the invitation", "Reading pane › Invitation", |s, v| s.respond_to_invite(p::req_str(v, "answer")?))
+            .params(r#"{"answer": "accepted"|"tentative"|"declined"}"#)
+            .when(has_reading),
+        CommandSpec::new("invite.apply", "Update the calendar", "Reading pane › Invitation", |s, _| s.apply_invite())
+            .params("(an answer from a guest, or a cancellation)")
+            .when(has_reading),
+        CommandSpec::new("event.respond", "Answer an invitation", "Calendar › Event", |s, v| {
+            let uid = p::req_str(v, "uid")?.to_string();
+            s.respond_to_event(&uid, p::req_str(v, "answer")?)
+        })
+        .params(r#"{"uid": string, "answer": "accepted"|"tentative"|"declined"}"#),
         CommandSpec::new("contact.list", "People", "People", |s, v| {
             let q = p::str(v, "query").unwrap_or_default();
             Ok(json!(s.people(q).iter().map(|x| json!({"uid": x.card.uid, "name": x.card.display(), "emails": x.card.emails, "phones": x.card.phones, "org": x.card.org, "title": x.card.title, "account": x.account})).collect::<Vec<_>>()))
@@ -1041,6 +1090,23 @@ fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::CalEvent) ->
             *field = x.chars().take(10_000).collect();
         }
     }
+    if let Some(list) = p::str(v, "attendees") {
+        let people = mailcraft_model::addr::parse_list(list).map_err(|bad| CmdError::Params(format!("not an email address: {bad}")))?;
+        let before = std::mem::take(&mut e.attendees);
+        e.attendees = people
+            .into_iter()
+            .take(200)
+            .map(|a| {
+                let known = before.iter().find(|b| b.email.eq_ignore_ascii_case(&a.email));
+                mailcraft_model::ical::Attendee {
+                    partstat: known.map_or_else(|| "NEEDS-ACTION".to_string(), |k| k.partstat.clone()),
+                    rsvp: known.is_none_or(|k| k.rsvp),
+                    email: a.email,
+                    name: a.name,
+                }
+            })
+            .collect();
+    }
     match p::str(v, "repeat").map(str::trim) {
         Some("" | "none" | "never") => e.rrule = None,
         Some(r @ ("daily" | "weekly" | "monthly" | "yearly")) => e.rrule = Some(format!("FREQ={}", r.to_ascii_uppercase())),
@@ -1077,4 +1143,12 @@ fn card_from(v: &Value, mut c: mailcraft_model::vcard::Card) -> Result<mailcraft
         }
     }
     Ok(c)
+}
+
+/// The user organizes this event and it has guests to tell.
+fn organized_by_me(s: &Session, e: &mailcraft_model::ical::CalEvent) -> bool {
+    !e.attendees.is_empty()
+        && e.organizer.as_ref().is_some_and(|o| {
+            s.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(&o.email) || a.config.username.eq_ignore_ascii_case(&o.email))
+        })
 }

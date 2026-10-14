@@ -19,6 +19,7 @@ use serde_json::Value;
 
 use crate::{CmdError, CmdResult, Registry};
 
+pub mod invite;
 mod organize;
 pub mod pim;
 
@@ -300,6 +301,8 @@ pub struct Session {
     pub notices: Vec<Notice>,
     /// Bumped whenever `list` changes.
     pub revision: u64,
+    /// Bumped whenever a calendar or address book changes.
+    pub pim_revision: u64,
     /// Messages waiting in the Outbox, per account (oldest first).
     pub outbox: Vec<(String, OutboxItem)>,
     jobs: Vec<Job>,
@@ -364,6 +367,7 @@ impl Session {
             clock,
             notices: Vec::new(),
             revision: 0,
+            pim_revision: 0,
             outbox: Vec::new(),
             jobs: Vec::new(),
             cache: HashMap::new(),

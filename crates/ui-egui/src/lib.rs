@@ -234,6 +234,8 @@ pub struct UiState {
     pub(crate) people_query: String,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
+    /// The invitation in the open message, worked out once per message and calendar change.
+    pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>)>,
     /// A file to drag out of the window (the app starts the system drag).
     drag_out: Option<PathBuf>,
     /// The platform can drag files out.
@@ -290,6 +292,7 @@ impl MailApp {
                 cal_scrolled: false,
                 people_query: String::new(),
                 person: None,
+                invite: None,
                 drag_out: None,
                 can_drag_out: false,
             },

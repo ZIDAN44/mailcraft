@@ -158,7 +158,7 @@ fn flags_filters_and_conversations() {
     assert_eq!(s.list.len(), 2);
     assert_eq!(s.filter, ListFilter::Flagged);
     s.run("list.filter", &json!({"value": "attachments"})).unwrap();
-    assert_eq!(s.list.len(), 3);
+    assert_eq!(s.list.len(), 4, "a picture, a proof, a turnaround and an invitation");
     s.run("list.filter", &json!({"value": "all"})).unwrap();
 
     s.run("view.conversations", &json!({"on": true})).unwrap();
@@ -989,5 +989,111 @@ fn people_in_the_address_book() {
         assert_eq!(first["uid"], second["uid"]);
         assert_eq!(second["existing"], true);
     }
+    done(s);
+}
+
+/// The calendar carried by the newest message in a folder (as `METHOD`, and the text).
+fn sent_calendar(s: &Session, folder: &str, subject: &str) -> (String, String) {
+    let st = s.store.as_ref().unwrap().load_folder("sample", folder).unwrap();
+    let m = st
+        .messages
+        .iter()
+        .find(|m| m.subject == subject)
+        .unwrap_or_else(|| panic!("no {subject}: {:?}", st.messages.iter().map(|m| &m.subject).collect::<Vec<_>>()));
+    let cal = s.message_calendar(&m.key).unwrap();
+    let raw = String::from_utf8_lossy(&s.store.as_ref().unwrap().read_body(&m.key).unwrap()).to_string();
+    (cal.method.unwrap_or_default(), raw)
+}
+
+#[test]
+fn invitations_are_answered_and_sent() {
+    let mut s = sample_session("invites");
+    let k = s.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    let inv = s.invite().expect("an invitation");
+    assert_eq!((inv.method.as_str(), inv.answer.as_str(), inv.in_calendar), ("REQUEST", "NEEDS-ACTION", true));
+    assert_eq!(inv.event.summary, "Sound mix playback");
+    assert!(s.run("invite.respond", &json!({"answer": "maybe"})).is_err());
+
+    s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    assert_eq!(s.invite().unwrap().answer, "ACCEPTED");
+    let (method, raw) = sent_calendar(&s, "Sent", "Accepted: Sound mix playback");
+    assert_eq!(method, "REPLY");
+    assert!(raw.contains("PARTSTAT=ACCEPTED") && raw.contains("mailto:riley@studio.example"), "{raw}");
+    assert!(raw.to_ascii_lowercase().contains("text/calendar"), "sent as a calendar part");
+    assert!(raw.contains("To: \"Ana Lima\" <ana@soundlab.example>") || raw.contains("ana@soundlab.example"));
+
+    // Declining takes it out of the calendar.
+    s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
+    assert!(s.find_event("mix@sample.mailcraft").is_none());
+    assert_eq!(sent_calendar(&s, "Sent", "Declined: Sound mix playback").0, "REPLY");
+    // Accepting again puts it back.
+    s.run("invite.respond", &json!({"answer": "tentative"})).unwrap();
+    let e = s.find_event("mix@sample.mailcraft").unwrap().1.event.clone();
+    assert!(e.attendees.iter().any(|a| a.email == "riley@studio.example" && a.partstat == "TENTATIVE"));
+    done(s);
+}
+
+#[test]
+fn own_events_invite_and_cancel_guests() {
+    let mut s = sample_session("meetings");
+    let uid = s
+        .run(
+            "event.create",
+            &json!({"summary": "Trailer review", "start": "2026-10-21T15:00", "attendees": "Zoe Park <zoe@studio.example>, sam@studio.example"}),
+        )
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let e = s.find_event(&uid).unwrap().1.event.clone();
+    assert_eq!(e.organizer.as_ref().map(|o| o.email.as_str()), Some("riley@studio.example"));
+    assert!(e.attendees.iter().all(|a| a.partstat == "NEEDS-ACTION" && a.rsvp));
+    let (method, raw) = sent_calendar(&s, "Sent", "Invitation: Trailer review");
+    assert_eq!(method, "REQUEST");
+    assert!(raw.contains("zoe@studio.example") && raw.contains("sam@studio.example"));
+    assert!(s.run("event.create", &json!({"summary": "x", "start": "2026-10-21", "attendees": "not an address"})).is_err());
+
+    // A guest's answer comes back and is recorded.
+    let mut reply = e.clone();
+    reply.attendees = vec![mailcraft_model::ical::Attendee {
+        email: "zoe@studio.example".into(),
+        name: "Zoe Park".into(),
+        partstat: "ACCEPTED".into(),
+        rsvp: false,
+    }];
+    let ics = mailcraft_model::ical::write(&[reply], Some("REPLY"), NOW);
+    let d = mailcraft_mime::Draft {
+        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
+        subject: "Accepted: Trailer review".into(),
+        body: "Zoe accepted.".into(),
+        attachments: vec![mailcraft_mime::OutAttachment {
+            name: "invite.ics".into(),
+            mime: "text/calendar; method=REPLY".into(),
+            data: ics.into_bytes(),
+        }],
+        ..Default::default()
+    };
+    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example"), NOW, "<r1@x>").unwrap();
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 999 };
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, &raw).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    let inv = s.invite().unwrap();
+    assert_eq!((inv.method.as_str(), inv.replier.as_ref().map(|r| r.partstat.as_str())), ("REPLY", Some("ACCEPTED")));
+    s.run("invite.apply", &json!({})).unwrap();
+    let zoe = s.find_event(&uid).unwrap().1.event.attendees.iter().find(|a| a.email == "zoe@studio.example").cloned().unwrap();
+    assert_eq!(zoe.partstat, "ACCEPTED");
+
+    // Called off: the guests are told.
+    s.run("event.delete", &json!({"uid": uid})).unwrap();
+    let (method, raw) = sent_calendar(&s, "Sent", "Cancelled: Trailer review");
+    assert_eq!(method, "CANCEL");
+    assert!(raw.contains("STATUS:CANCELLED"));
     done(s);
 }

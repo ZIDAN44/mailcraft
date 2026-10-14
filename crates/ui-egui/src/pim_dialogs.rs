@@ -33,6 +33,10 @@ pub struct EventForm {
     pub organizer: Option<String>,
     /// (who, their answer).
     pub attendees: Vec<(String, String)>,
+    /// The guests, as typed (`Name <address>, …`): editable on the user's own events.
+    pub guests: String,
+    /// The user can change the guests (a new event, or one they organize).
+    pub can_invite: bool,
     /// The user was invited and hasn't answered.
     pub needs_reply: bool,
     pub read_only: bool,
@@ -75,6 +79,7 @@ impl EventForm {
             start: local_time(start, s),
             end_date: local_date(start + 3600, s),
             end: local_time(start + 3600, s),
+            can_invite: true,
             ..Default::default()
         }
     }
@@ -120,6 +125,13 @@ impl EventForm {
             organizer: e.organizer.as_ref().map(|o| if o.name.is_empty() { o.email.clone() } else { format!("{} <{}>", o.name, o.email) }),
             attendees: e.attendees.iter().map(|a| (if a.name.is_empty() { a.email.clone() } else { a.name.clone() }, a.partstat.clone())).collect(),
             needs_reply: e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION"),
+            guests: e
+                .attendees
+                .iter()
+                .map(|a| if a.name.is_empty() { a.email.clone() } else { format!("{} <{}>", a.name, a.email) })
+                .collect::<Vec<_>>()
+                .join(", "),
+            can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
             read_only,
             error: None,
         })
@@ -140,6 +152,9 @@ impl EventForm {
             "allDay": self.all_day,
             "repeat": if self.repeat.is_empty() { "none" } else { self.repeat.as_str() },
         });
+        if self.can_invite {
+            p["attendees"] = json!(self.guests.trim());
+        }
         match &self.uid {
             Some(u) => p["uid"] = json!(u),
             None => {
@@ -213,6 +228,11 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
             ui.label(tl!("Location"));
             ui.add_sized([w - 90.0, 24.0], egui::TextEdit::singleline(&mut f.location));
             ui.end_row();
+            if f.can_invite {
+                ui.label(tl!("Invite"));
+                ui.add_sized([w - 90.0, 24.0], egui::TextEdit::singleline(&mut f.guests).hint_text(tl!("Names <addresses>, separated by ; or ,")));
+                ui.end_row();
+            }
             if f.uid.is_none() && f.calendars.len() > 1 {
                 ui.label(tl!("Calendar"));
                 let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
