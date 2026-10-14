@@ -4,9 +4,10 @@
 //!
 //! `--sample` opens a separate, local-only sample mailbox (no server needed). `--data` (or the
 //! `MAILCRAFT_DATA` environment variable) chooses where mail is cached. `--cmd` runs engine
-//! commands at start-up (`--cmd 'list.open={"key":"sample:1:1:INBOX"}'`); `ui.file`, `ui.options` and
-//! `ui.about` open the File page; `ui.addAccount` (optionally
-//! `={"email":…,"advanced":true}`) and `ui.settings` open those dialogs.
+//! commands at start-up (`--cmd 'list.open={"key":"sample:1:1:INBOX"}'`); `ui.file` (or
+//! `ui.settings`), `ui.openExport`, `ui.options` and `ui.about` open the File page at that page;
+//! `ui.addAccount` (optionally `={"email":…,"advanced":true}`), `ui.newEvent` and
+//! `ui.newContact` open those dialogs.
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
@@ -234,6 +235,9 @@ impl Services for Desktop {
     fn pick_folder(&mut self) -> Option<PathBuf> {
         rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
     }
+    fn pick_data_file(&mut self) -> Option<PathBuf> {
+        rfd::FileDialog::new().set_title("Open Outlook data file").add_filter("Outlook data files", &["pst"]).pick_file()
+    }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
         rfd::FileDialog::new()
             .set_title("Insert pictures")
@@ -429,6 +433,7 @@ fn main() -> eframe::Result {
                     }
                     "ui.file" | "ui.settings" => app.ui.backstage = Some(Backstage::new(Page::Info)),
                     "ui.options" => app.ui.backstage = Some(Backstage::new(Page::Options)),
+                    "ui.openExport" => app.ui.backstage = Some(Backstage::new(Page::Open)),
                     "ui.about" => app.ui.backstage = Some(Backstage::new(Page::About)),
                     "ui.newEvent" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_event(&app.session, None)),
                     "ui.newContact" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_contact()),

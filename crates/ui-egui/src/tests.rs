@@ -223,7 +223,7 @@ fn double_clicked_mail_opens_in_its_own_window() {
 
 /// The File page: every page, in the tour's languages and themes.
 pub(crate) fn backstage_tour(a: &mut MailApp, ctx: &egui::Context) {
-    for page in [crate::backstage::Page::Info, crate::backstage::Page::Options, crate::backstage::Page::About] {
+    for page in [crate::backstage::Page::Info, crate::backstage::Page::Open, crate::backstage::Page::Options, crate::backstage::Page::About] {
         a.act(crate::Action::Backstage(page));
         frame(ctx, a, vec![]);
     }

@@ -493,6 +493,15 @@
 	You accepted.	수락했습니다.
 	You said maybe.	미정으로 응답했습니다.
 	You declined.	거절했습니다.
+	Open & Export	열기 및 내보내기
+	Open data file	데이터 파일 열기
+	Open Outlook data file	Outlook 데이터 파일 열기
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook 데이터 파일(.pst)의 메일을 가져옵니다. 폴더와 함께 별도의 사서함으로 열리며 이 컴퓨터에 보관됩니다.
+	Open now: {files}	열려 있음: {files}
+	Outlook data file	Outlook 데이터 파일
+	Opened from an Outlook data file, kept on this computer only	Outlook 데이터 파일에서 열었으며 이 컴퓨터에만 보관됩니다
+	Not available: a data file has no server.	사용할 수 없음: 데이터 파일에는 서버가 없습니다.
+	Opening {file}…	{file} 여는 중…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

@@ -493,6 +493,15 @@
 	You accepted.	Вы приняли.
 	You said maybe.	Вы ответили «возможно».
 	You declined.	Вы отклонили.
+	Open & Export	Открыть и экспортировать
+	Open data file	Открыть файл данных
+	Open Outlook data file	Открыть файл данных Outlook
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Перенесите почту из файла данных Outlook (.pst). Он откроется как отдельный почтовый ящик со своими папками и хранится на этом компьютере.
+	Open now: {files}	Сейчас открыты: {files}
+	Outlook data file	Файл данных Outlook
+	Opened from an Outlook data file, kept on this computer only	Открыт из файла данных Outlook, хранится только на этом компьютере
+	Not available: a data file has no server.	Недоступно: у файла данных нет сервера.
+	Opening {file}…	Открытие {file}…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

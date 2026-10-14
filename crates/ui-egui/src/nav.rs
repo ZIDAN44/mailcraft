@@ -119,7 +119,13 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);
             ui.painter().circle_filled(rect.min + vec2(26.0, 15.0), 4.0, theme::account_color(a.config.color));
-            let label = if a.is_local() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
+            let label = if a.is_data_file() {
+                a.config.email.clone()
+            } else if a.is_local() {
+                tf!("{email} (sample)", email = a.config.email)
+            } else {
+                a.config.email.clone()
+            };
             ui.painter().with_clip_rect(rect).text(rect.min + vec2(36.0, 15.0), egui::Align2::LEFT_CENTER, label, theme::bold(13.0), t.text);
             if resp.clicked() {
                 state.toggle(ui);

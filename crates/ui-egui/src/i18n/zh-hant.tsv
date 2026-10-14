@@ -493,6 +493,15 @@
 	You accepted.	您已接受。
 	You said maybe.	您已暫定。
 	You declined.	您已拒絕。
+	Open & Export	開啟和匯出
+	Open data file	開啟資料檔
+	Open Outlook data file	開啟 Outlook 資料檔
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	匯入 Outlook 資料檔 (.pst) 中的郵件。它會連同資料夾作為獨立的信箱開啟，保存在這台電腦上。
+	Open now: {files}	已開啟：{files}
+	Outlook data file	Outlook 資料檔
+	Opened from an Outlook data file, kept on this computer only	從 Outlook 資料檔開啟，僅保存在這台電腦上
+	Not available: a data file has no server.	無法使用：資料檔沒有伺服器。
+	Opening {file}…	正在開啟 {file}…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

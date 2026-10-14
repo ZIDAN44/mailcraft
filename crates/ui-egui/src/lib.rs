@@ -107,6 +107,10 @@ pub trait Services {
     fn open_url(&mut self, _url: &str) -> Result<(), String> {
         Err("not available".into())
     }
+    /// An Outlook data file to open (`None` when cancelled).
+    fn pick_data_file(&mut self) -> Option<PathBuf> {
+        None
+    }
     /// A frame of a video file for its thumbnail. Called each frame until it isn't
     /// [`VideoFrame::Pending`], so slow work belongs on another thread.
     fn video_frame(&mut self, _path: &std::path::Path) -> VideoFrame {
@@ -180,6 +184,8 @@ pub enum Action {
     Backstage(backstage::Page),
     /// An attachment is being dragged out of the window: hand it to the system as a file.
     DragOut(usize),
+    /// Choose an Outlook data file and open it.
+    OpenDataFile,
 }
 
 /// UI-only state.
@@ -603,6 +609,17 @@ impl MailApp {
             Action::FocusSearch => self.ui.focus_search = true,
             Action::FocusMain => self.ui.focus_main = true,
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
+            Action::OpenDataFile => {
+                if let Some(path) = self.services.pick_data_file() {
+                    match self.session.run("account.importPst", &json!({"path": path.to_string_lossy()})) {
+                        Ok(_) => {
+                            self.ui.backstage = None;
+                            self.session.notice(tf!("Opening {file}…", file = path.file_name().unwrap_or_default().to_string_lossy()), false);
+                        }
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
             Action::DragOut(i) => {
                 if self.services.can_drag_out() {
                     self.ui.drag_out = self.attachment_to_temp(i);
@@ -1119,6 +1136,7 @@ impl MailApp {
                         SyncStatus::Online { at } => {
                             (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock))))
                         }
+                        SyncStatus::Syncing { .. } if a.is_data_file() => (t.accent, tf!("Opening {file}…", file = a.config.email)),
                         SyncStatus::Syncing { folder } => (
                             t.accent,
                             tf!(
@@ -1128,6 +1146,7 @@ impl MailApp {
                             ),
                         ),
                         SyncStatus::Connecting => (t.accent, tl!("Connecting…").to_string()),
+                        SyncStatus::Offline if a.is_data_file() => (t.faint, tl!("Outlook data file").to_string()),
                         SyncStatus::Offline if a.is_local() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
                         SyncStatus::Offline => (t.faint, tl!("Offline").to_string()),
                         SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),

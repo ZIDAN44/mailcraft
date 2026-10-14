@@ -494,6 +494,15 @@
 	You accepted.	Vous avez accepté.
 	You said maybe.	Vous avez répondu peut-être.
 	You declined.	Vous avez refusé.
+	Open & Export	Ouvrir et exporter
+	Open data file	Ouvrir un fichier de données
+	Open Outlook data file	Ouvrir un fichier de données Outlook
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Importez le courrier d’un fichier de données Outlook (.pst). Il s’ouvre comme une boîte aux lettres à part, avec ses dossiers, conservée sur cet ordinateur.
+	Open now: {files}	Ouverts : {files}
+	Outlook data file	Fichier de données Outlook
+	Opened from an Outlook data file, kept on this computer only	Ouvert depuis un fichier de données Outlook, conservé sur cet ordinateur uniquement
+	Not available: a data file has no server.	Non disponible : un fichier de données n’a pas de serveur.
+	Opening {file}…	Ouverture de {file}…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

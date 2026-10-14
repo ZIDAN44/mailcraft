@@ -496,3 +496,12 @@ month	May	5月
 	You accepted.	承諾済みです。
 	You said maybe.	仮承諾済みです。
 	You declined.	辞退済みです。
+	Open & Export	開く/エクスポート
+	Open data file	データ ファイルを開く
+	Open Outlook data file	Outlook データ ファイルを開く
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook データ ファイル (.pst) のメールを取り込みます。フォルダーごと独立したメールボックスとして開き、このコンピューターに保存されます。
+	Open now: {files}	開いているファイル: {files}
+	Outlook data file	Outlook データ ファイル
+	Opened from an Outlook data file, kept on this computer only	Outlook データ ファイルから開いたもので、このコンピューターにのみ保存されています
+	Not available: a data file has no server.	利用できません: データ ファイルにはサーバーがありません。
+	Opening {file}…	{file} を開いています…

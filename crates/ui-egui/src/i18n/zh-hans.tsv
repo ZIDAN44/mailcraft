@@ -496,3 +496,12 @@ month	May	5月
 	You accepted.	你已接受。
 	You said maybe.	你已暂定。
 	You declined.	你已拒绝。
+	Open & Export	打开和导出
+	Open data file	打开数据文件
+	Open Outlook data file	打开 Outlook 数据文件
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	导入 Outlook 数据文件 (.pst) 中的邮件。它会连同文件夹作为独立的邮箱打开，保存在这台电脑上。
+	Open now: {files}	已打开：{files}
+	Outlook data file	Outlook 数据文件
+	Opened from an Outlook data file, kept on this computer only	从 Outlook 数据文件打开，仅保存在这台电脑上
+	Not available: a data file has no server.	不可用：数据文件没有服务器。
+	Opening {file}…	正在打开 {file}…

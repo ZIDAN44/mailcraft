@@ -1,6 +1,7 @@
 //! The File page: everything about accounts and the app that isn't about one message. It
 //! replaces the ribbon and panes until the user goes back: Info (the account's settings, its
-//! automatic replies, the space it uses and its rules), Options and About.
+//! automatic replies, the space it uses and its rules), Open & Export (Outlook data files),
+//! Options and About.
 
 use std::collections::{HashMap, HashSet};
 
@@ -15,6 +16,7 @@ use crate::{Action, Dialog, UiState, widgets};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
     Info,
+    Open,
     Options,
     About,
 }
@@ -38,7 +40,9 @@ impl Backstage {
 
 /// What kind of account it is, for the picker.
 fn kind(a: &AccountState) -> &'static str {
-    if a.is_local() {
+    if a.is_data_file() {
+        "Outlook data file"
+    } else if a.is_local() {
         "Sample mailbox"
     } else if a.config.jmap.is_some() {
         "JMAP"
@@ -64,8 +68,12 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 close = true;
             }
             ui.add_space(8.0);
-            for (page, icon, label) in [(Page::Info, Icon::Info, "Info"), (Page::Options, Icon::Gear, "Options"), (Page::About, Icon::Star, "About")]
-            {
+            for (page, icon, label) in [
+                (Page::Info, Icon::Info, "Info"),
+                (Page::Open, Icon::Folder, "Open & Export"),
+                (Page::Options, Icon::Gear, "Options"),
+                (Page::About, Icon::Star, "About"),
+            ] {
                 if rail_item(ui, &t, icon, label, b.page == page).clicked() {
                     b.page = page;
                 }
@@ -78,6 +86,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 ui.set_max_width(820.0);
                 match b.page {
                     Page::Info => info(s, &t, ui, &mut b, acts),
+                    Page::Open => open(s, &t, ui, acts),
                     Page::Options => options(s, st, ui, acts),
                     Page::About => about(&t, ui, acts),
                 }
@@ -168,7 +177,9 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
     }
 
     // Account settings.
-    let servers = if a.is_local() {
+    let servers = if a.is_data_file() {
+        tl!("Opened from an Outlook data file, kept on this computer only").to_string()
+    } else if a.is_local() {
         tl!("Sample mailbox, kept on this computer only").to_string()
     } else if let Some(u) = &a.config.jmap {
         tf!("Server: {url} (JMAP)", url = u)
@@ -210,6 +221,7 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
 
     // Automatic replies.
     let status = match &a.vacation {
+        _ if a.is_data_file() => (t.faint, tl!("Not available: a data file has no server.").to_string()),
         _ if a.is_local() => (t.faint, tl!("Not available: the sample mailbox has no server.").to_string()),
         VacationState::Unknown | VacationState::Loading => (t.faint, tl!("Checking with the server…").to_string()),
         VacationState::Loaded(v) if v.enabled => (
@@ -295,6 +307,28 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
     });
     if r.clicked() {
         acts.push(Action::Dialog(Dialog::Rules));
+    }
+}
+
+/// Open & Export: Outlook data files.
+fn open(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    heading(ui, t, "Open & Export");
+    let r = tile(
+        ui,
+        t,
+        Icon::Folder,
+        "Open data file",
+        "Open Outlook data file",
+        "Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.",
+        |ui| {
+            let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
+            if !files.is_empty() {
+                ui.label(RichText::new(tf!("Open now: {files}", files = files.join(", "))).color(t.faint).small());
+            }
+        },
+    );
+    if r.clicked() {
+        acts.push(Action::OpenDataFile);
     }
 }
 
