@@ -1,0 +1,16 @@
+[package]
+name = "mailcraft-mime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft MIME: parse messages for the list and reading pane, build outgoing mail, reply and forward drafts"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-model = { workspace = true }
+mail-parser = { workspace = true }
+mail-builder = { workspace = true }
+html2text = { workspace = true }
+serde = { workspace = true }
