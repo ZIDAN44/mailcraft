@@ -110,6 +110,12 @@ pub enum Dialog {
     },
     Rules,
     EditRule(Box<RuleForm>),
+    /// An attachment shown as text (a file, or an attached email's header and text).
+    Preview {
+        title: String,
+        header: Vec<(String, String)>,
+        text: String,
+    },
 }
 
 /// What the rule editor offers: one test and one action (rules made elsewhere can have more).
@@ -323,6 +329,25 @@ impl Dialog {
             stop: false,
             error: None,
         }))
+    }
+
+    /// The preview of an attachment, from `attachment.preview`'s answer.
+    pub fn preview(v: &serde_json::Value, clock: &mailcraft_engine::model::dates::Clock) -> Dialog {
+        let get = |k: &str| v.get(k).and_then(serde_json::Value::as_str).unwrap_or("").to_string();
+        let mut header = Vec::new();
+        if get("kind") == "message" {
+            header.push(("From".to_string(), get("from")));
+            header.push(("To".to_string(), get("to")));
+            if let Some(d) = v.get("date").and_then(serde_json::Value::as_i64).filter(|d| *d > 0) {
+                header.push(("Date".to_string(), mailcraft_engine::model::dates::full_time(d, clock)));
+            }
+        }
+        let mut text = get("text");
+        if v.get("truncated").and_then(serde_json::Value::as_bool).unwrap_or(false) {
+            text.push_str("\n… (the rest isn't shown: open the file to see it all)");
+        }
+        let title = if get("kind") == "message" && !get("subject").is_empty() { get("subject") } else { get("name") };
+        Dialog::Preview { title, header, text }
     }
 
     pub fn new_folder(account: &str, parent: Option<&str>) -> Dialog {
@@ -724,6 +749,27 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 acts.push(Action::Submit("folder.delete", json!({"account": account, "folder": folder})));
             }
             !cancel
+        }
+        Dialog::Preview { title: name, header, text } => {
+            let w = (ui.ctx().content_rect().width() * 0.7).clamp(360.0, 900.0);
+            ui.set_width(w);
+            title(ui, t, name);
+            for (k, v) in header.iter() {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(k.as_str()).color(t.dim).small());
+                    ui.label(RichText::new(v.as_str()).small());
+                });
+            }
+            ui.add_space(6.0);
+            let h = (ui.ctx().content_rect().height() * 0.6).max(200.0);
+            egui::ScrollArea::both().max_height(h).auto_shrink([false, true]).show(ui, |ui| {
+                let mut shown = text.as_str();
+                ui.add(
+                    egui::TextEdit::multiline(&mut shown).font(egui::FontId::monospace(13.0)).desired_width(f32::INFINITY).frame(egui::Frame::NONE),
+                );
+            });
+            ui.add_space(6.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button("Close").clicked()).inner
         }
         Dialog::NewCategory { name, color, error } => {
             ui.set_width(340.0);

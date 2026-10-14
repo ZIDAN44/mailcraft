@@ -194,6 +194,41 @@ pub fn kind_of(mime: &str, name: &str) -> AttachmentKind {
     }
 }
 
+/// The Craft app that edits files of this kind (by its command name), when there is one.
+pub fn craft_app_for(mime: &str, name: &str) -> Option<(&'static str, &'static str)> {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    let app = match kind_of(mime, name) {
+        AttachmentKind::Pdf => ("pdfcraft", "PdfCraft"),
+        AttachmentKind::Image => ("photocraft", "PhotoCraft"),
+        AttachmentKind::Video => ("filmcraft", "FilmCraft"),
+        AttachmentKind::Audio => ("soundcraft", "SoundCraft"),
+        _ => match ext.as_str() {
+            "docx" | "doc" | "odt" | "rtf" | "dotx" => ("wordcraft", "WordCraft"),
+            "xlsx" | "xls" | "ods" | "csv" | "xlsm" => ("gridcraft", "GridCraft"),
+            "pptx" | "ppt" | "odp" | "ppsx" => ("deckcraft", "DeckCraft"),
+            _ => return None,
+        },
+    };
+    Some(app)
+}
+
+/// Whether an attachment can be shown as text (and how: `message` for an attached email).
+pub fn text_preview_kind(mime: &str, name: &str) -> Option<&'static str> {
+    let m = mime.to_ascii_lowercase();
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    if m == "message/rfc822" || ext == "eml" {
+        return Some("message");
+    }
+    let texty = m.starts_with("text/")
+        || ["application/json", "application/xml", "application/x-yaml", "application/javascript"].contains(&m.as_str())
+        || [
+            "txt", "md", "csv", "tsv", "json", "xml", "yaml", "yml", "log", "ics", "vcf", "ini", "toml", "rs", "py", "js", "ts", "html", "css", "sh",
+            "srt", "vtt",
+        ]
+        .contains(&ext.as_str());
+    texty.then_some("text")
+}
+
 /// A message ready for the reading pane.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Parsed {

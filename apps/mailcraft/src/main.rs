@@ -69,6 +69,59 @@ impl Services for Desktop {
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         open::that_detached(path).map_err(|e| e.to_string())
     }
+    fn craft_app(&mut self, command: &str) -> Option<PathBuf> {
+        let exe = if cfg!(windows) { format!("{command}.exe") } else { command.to_string() };
+        // On the PATH (the CLI installers and Linux packages put it there)…
+        if let Some(paths) = std::env::var_os("PATH") {
+            for dir in std::env::split_paths(&paths) {
+                let p = dir.join(&exe);
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+        // …or where each platform's installer puts apps.
+        let title = match command {
+            "pdfcraft" => "PdfCraft",
+            "wordcraft" => "WordCraft",
+            "gridcraft" => "GridCraft",
+            "deckcraft" => "DeckCraft",
+            "photocraft" => "PhotoCraft",
+            "filmcraft" => "FilmCraft",
+            "soundcraft" => "SoundCraft",
+            _ => return None,
+        };
+        let mut places: Vec<PathBuf> = Vec::new();
+        if cfg!(windows) {
+            for var in ["ProgramFiles", "LOCALAPPDATA"] {
+                if let Some(base) = std::env::var_os(var) {
+                    let base = PathBuf::from(base);
+                    places.push(base.join(title).join(&exe));
+                    places.push(base.join("Programs").join(title).join(&exe));
+                }
+            }
+        } else if cfg!(target_os = "macos") {
+            places.push(PathBuf::from(format!("/Applications/{title}.app")));
+        } else {
+            places.push(PathBuf::from(format!("/opt/{command}/bin/{command}")));
+        }
+        places.into_iter().find(|p| p.exists())
+    }
+    fn open_with(&mut self, app: &Path, file: &Path) -> Result<(), String> {
+        let mut cmd = if cfg!(target_os = "macos") && app.extension().is_some_and(|e| e == "app") {
+            let mut c = std::process::Command::new("open");
+            c.arg("-a").arg(app).arg(file);
+            c
+        } else {
+            let mut c = std::process::Command::new(app);
+            c.arg(file);
+            c
+        };
+        cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
+    }
+    fn pick_folder(&mut self) -> Option<PathBuf> {
+        rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
+    }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
         rfd::FileDialog::new()
             .set_title("Insert pictures")

@@ -316,6 +316,30 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn attachments_preview_and_save_all() {
+    let mut s = sample_session("attachments");
+    let k = key_of(&s, "Your proof for the festival poster is ready");
+    s.run("list.open", &k).unwrap();
+    let r = s.run("attachment.preview", &json!({"index": 0})).unwrap();
+    assert_eq!((r["kind"].as_str(), r["name"].as_str()), (Some("text"), Some("proof-notes.txt")));
+    assert!(!r["text"].as_str().unwrap().is_empty());
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.open", &k).unwrap();
+    assert!(s.run("attachment.preview", &json!({"index": 0})).is_err(), "a picture isn't text");
+    let dir = s.store.as_ref().unwrap().root().join("out");
+    std::fs::create_dir_all(&dir).unwrap();
+    s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})).unwrap();
+    let again = s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})).unwrap();
+    assert!(again["saved"][0].as_str().unwrap().contains("(2)"), "names already taken get a number");
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+    assert!(s.run("attachment.saveAll", &json!({"dir": "/no/such/folder"})).is_err());
+    assert_eq!(mailcraft_mime::craft_app_for("application/pdf", "a.pdf"), Some(("pdfcraft", "PdfCraft")));
+    assert_eq!(mailcraft_mime::craft_app_for("application/octet-stream", "q.XLSX").map(|a| a.0), Some("gridcraft"));
+    assert_eq!(mailcraft_mime::text_preview_kind("message/rfc822", "fwd.eml"), Some("message"));
+    done(s);
+}
+
+#[test]
 fn oauth_accounts_sign_in_through_the_browser() {
     let store = temp("oauth");
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));

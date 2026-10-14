@@ -156,7 +156,12 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
             };
             let files: Vec<_> = p.attachments.iter().filter(|a| (!a.inline || a.kind() == AttachmentKind::Image) && !in_place(a)).cloned().collect();
             if !files.is_empty() {
-                ui.label(RichText::new(format!("{} attachment{}", files.len(), if files.len() == 1 { "" } else { "s" })).color(t.dim).small());
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("{} attachment{}", files.len(), if files.len() == 1 { "" } else { "s" })).color(t.dim).small());
+                    if files.len() > 1 && ui.link(RichText::new("Save all…").small()).clicked() {
+                        acts.push(Action::SaveAll);
+                    }
+                });
                 ui.horizontal_wrapped(|ui| {
                     for a in &files {
                         attachment_card(s, st, ui, &r.key, a, acts);
@@ -486,9 +491,27 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
                     ui.label(RichText::new(format!("{} · {}", kind_label(kind), widgets::human_size(a.size))).color(t.faint).small());
                 });
             });
-            ui.horizontal(|ui| {
-                if ui.small_button("Open").clicked() {
-                    acts.push(Action::OpenAttachment(a.index));
+            ui.horizontal_wrapped(|ui| {
+                // The Craft app for the file, when it's installed; else the system's choice.
+                let craft =
+                    mime::craft_app_for(&a.mime, &a.name).and_then(|(cmd, name)| st.craft_apps.iter().any(|(c, _)| *c == cmd).then_some((cmd, name)));
+                match craft {
+                    Some((cmd, name)) => {
+                        if ui.small_button(format!("Open in {name}")).on_hover_text("Open it in the Craft app for this kind of file").clicked() {
+                            acts.push(Action::OpenInCraft(a.index, cmd));
+                        }
+                        if ui.small_button("Open").on_hover_text("Open with the system's app").clicked() {
+                            acts.push(Action::OpenAttachment(a.index));
+                        }
+                    }
+                    None => {
+                        if ui.small_button("Open").clicked() {
+                            acts.push(Action::OpenAttachment(a.index));
+                        }
+                    }
+                }
+                if mime::text_preview_kind(&a.mime, &a.name).is_some() && ui.small_button("Preview").clicked() {
+                    acts.push(Action::Run("attachment.preview", json!({"index": a.index})));
                 }
                 if ui.small_button("Save as…").clicked() {
                     acts.push(Action::SaveAttachment(a.index));

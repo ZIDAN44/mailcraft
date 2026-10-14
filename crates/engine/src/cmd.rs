@@ -208,6 +208,8 @@ pub fn registry() -> Registry {
         .params(r#"{"query": string, "limit"?: number}"#),
         // Attachments
         CommandSpec::new("attachment.save", "Save attachment", "Reading pane", save_attachment).params(r#"{"index": number, "path": string}"#).when(has_reading),
+        CommandSpec::new("attachment.saveAll", "Save all attachments", "Reading pane", save_all_attachments).params(r#"{"dir": string}"#).when(has_reading),
+        CommandSpec::new("attachment.preview", "Preview attachment", "Reading pane", preview_attachment).params(r#"{"index": number}"#).when(has_reading),
         // View
         CommandSpec::new("view.readingPane", "Reading pane", "View › Layout", reading_pane).params(r#"{"value": "right"|"bottom"|"off"}"#),
         CommandSpec::new("view.conversations", "Show as conversations", "View › Messages", |s, v| {
@@ -633,6 +635,54 @@ fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))?;
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     Ok(json!({"saved": path, "bytes": data.len()}))
+}
+
+/// Save every attachment (not the pictures inside the text) into a folder; names that are
+/// taken get a number.
+fn save_all_attachments(s: &mut Session, v: &Value) -> CmdResult {
+    let dir = std::path::PathBuf::from(p::req_str(v, "dir")?);
+    if !dir.is_dir() {
+        return Err(CmdError::Params(format!("{} is not a folder", dir.display())));
+    }
+    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+    let parsed = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+    let raw = s.store.as_ref().and_then(|st| st.read_body(&r.key)).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
+    let mut saved = Vec::new();
+    for a in parsed.attachments.iter().filter(|a| !a.inline) {
+        let Some(data) = mailcraft_mime::attachment_data(&raw, a.index) else { continue };
+        let name = sanitize_filename(&a.name);
+        let (stem, ext) = name.rsplit_once('.').map_or((name.clone(), String::new()), |(s, e)| (s.to_string(), format!(".{e}")));
+        let mut path = dir.join(&name);
+        let mut n = 2;
+        while path.exists() && n < 1000 {
+            path = dir.join(format!("{stem} ({n}){ext}"));
+            n += 1;
+        }
+        std::fs::write(&path, &data).map_err(|e| CmdError::Failed(format!("{}: {e}", path.display())))?;
+        saved.push(path.to_string_lossy().to_string());
+    }
+    Ok(json!({"saved": saved}))
+}
+
+/// An attachment as text, for previewing (`message` kind: an attached email, parsed).
+fn preview_attachment(s: &mut Session, v: &Value) -> CmdResult {
+    let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
+    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+    let parsed = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+    let a = parsed.attachments.iter().find(|a| a.index == index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))?;
+    let kind = mailcraft_mime::text_preview_kind(&a.mime, &a.name).ok_or_else(|| CmdError::Failed(format!("{} can't be shown as text", a.name)))?;
+    let raw = s.store.as_ref().and_then(|st| st.read_body(&r.key)).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
+    let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Failed("the attachment can't be read".into()))?;
+    if kind == "message" {
+        let m = mailcraft_mime::parse(&data).ok_or_else(|| CmdError::Failed("the attached message can't be read".into()))?;
+        return Ok(
+            json!({"kind": "message", "name": a.name, "subject": m.subject, "from": m.from.to_string(), "to": mailcraft_model::addr::format_list(&m.to), "date": m.date, "text": m.text}),
+        );
+    }
+    // At most 512 KB, cut on a character boundary.
+    const MAX: usize = 512 << 10;
+    let text = String::from_utf8_lossy(data.get(..MAX).unwrap_or(&data)).to_string();
+    Ok(json!({"kind": "text", "name": a.name, "text": text, "truncated": data.len() > MAX}))
 }
 
 fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {

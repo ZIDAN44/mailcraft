@@ -57,6 +57,18 @@ pub trait Services {
     fn open_path(&mut self, path: &std::path::Path) -> Result<(), String>;
     /// Show a desktop notification (new mail). The default does nothing.
     fn notify(&mut self, _title: &str, _body: &str) {}
+    /// Where an installed Craft app is (`pdfcraft`, `wordcraft`…), if it is.
+    fn craft_app(&mut self, _command: &str) -> Option<PathBuf> {
+        None
+    }
+    /// Open a file with a given app.
+    fn open_with(&mut self, _app: &std::path::Path, _file: &std::path::Path) -> Result<(), String> {
+        Err("not available".into())
+    }
+    /// A folder to save into (`None` when cancelled).
+    fn pick_folder(&mut self) -> Option<PathBuf> {
+        None
+    }
     /// A picture on the clipboard, as PNG bytes (`None` when there is none).
     fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
         None
@@ -105,6 +117,10 @@ pub enum Action {
     AttachFiles,
     FocusSearch,
     SetDark(Option<bool>),
+    /// Open an attachment in a Craft app (its command name).
+    OpenInCraft(usize, &'static str),
+    /// Save every attachment of the open message into a folder.
+    SaveAll,
     /// Sign an account in again: the browser for OAuth accounts, else the password dialog.
     SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).
@@ -143,6 +159,8 @@ pub struct UiState {
     pub(crate) suggest_field: Option<&'static str>,
     pub(crate) suggest_index: usize,
     pub(crate) suggest_dismissed: Option<String>,
+    /// Installed Craft apps (command, path), found at start-up.
+    pub(crate) craft_apps: Vec<(&'static str, PathBuf)>,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
     pub title_base: String,
     pub(crate) title_shown: String,
@@ -156,9 +174,13 @@ pub struct MailApp {
 }
 
 impl MailApp {
-    pub fn new(session: Session, backend: Box<dyn Backend>, services: Box<dyn Services>) -> MailApp {
+    pub fn new(session: Session, backend: Box<dyn Backend>, mut services: Box<dyn Services>) -> MailApp {
         let seen = session.notices.len();
-        MailApp {
+        let craft_apps: Vec<(&'static str, PathBuf)> = ["pdfcraft", "wordcraft", "gridcraft", "deckcraft", "photocraft", "filmcraft", "soundcraft"]
+            .into_iter()
+            .filter_map(|c| services.craft_app(c).map(|p| (c, p)))
+            .collect();
+        let mut app = MailApp {
             session,
             backend,
             services,
@@ -180,10 +202,13 @@ impl MailApp {
                 suggest_field: None,
                 suggest_index: 0,
                 suggest_dismissed: None,
+                craft_apps: Vec::new(),
                 title_base: "MailCraft".into(),
                 title_shown: String::new(),
             },
-        }
+        };
+        app.ui.craft_apps = craft_apps;
+        app
     }
 
     /// Register the UI fonts, preferring an installed system font (call before the first frame).
@@ -371,6 +396,10 @@ impl MailApp {
 
     fn act(&mut self, a: Action) {
         match a {
+            Action::Run("attachment.preview", p) => match self.session.run("attachment.preview", &p) {
+                Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
+                Err(e) => self.session.notice(e.to_string(), true),
+            },
             Action::Run(id, p) => {
                 if id == "search.clear" {
                     self.ui.search_text.clear();
@@ -396,6 +425,25 @@ impl MailApp {
             Action::SetDark(d) => self.ui.dark = d,
             Action::OpenUrl(url) => self.open_link(&url),
             Action::SignInAgain(id) => self.sign_in_again(&id),
+            Action::OpenInCraft(i, cmd) => {
+                let Some(app) = self.ui.craft_apps.iter().find(|(c, _)| *c == cmd).map(|(_, p)| p.clone()) else { return };
+                if let Some(path) = self.attachment_to_temp(i)
+                    && let Err(e) = self.services.open_with(&app, &path)
+                {
+                    self.session.notice(format!("{} couldn't open it: {e}", app.display()), true);
+                }
+            }
+            Action::SaveAll => {
+                if let Some(dir) = self.services.pick_folder() {
+                    match self.session.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})) {
+                        Ok(v) => {
+                            let n = v.get("saved").and_then(Value::as_array).map_or(0, Vec::len);
+                            self.session.notice(format!("Saved {n} attachments in {}", dir.display()), false);
+                        }
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
             Action::InsertPicture => {
                 for p in self.services.pick_pictures() {
                     let r = self.session.run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "insert": false}));
@@ -421,16 +469,10 @@ impl MailApp {
             }
             Action::OpenAttachment(i) => {
                 let name = self.attachment_name(i);
-                let dir = std::env::temp_dir().join("mailcraft-open");
-                let _ = std::fs::create_dir_all(&dir);
-                let path = dir.join(mailcraft_engine::mime::sanitize_filename(&name));
-                match self.session.run("attachment.save", &json!({"index": i, "path": path.to_string_lossy()})) {
-                    Ok(_) => {
-                        if let Err(e) = self.services.open_path(&path) {
-                            self.session.notice(format!("{name} could not be opened: {e}"), true);
-                        }
-                    }
-                    Err(e) => self.session.notice(e.to_string(), true),
+                if let Some(path) = self.attachment_to_temp(i)
+                    && let Err(e) = self.services.open_path(&path)
+                {
+                    self.session.notice(format!("{name} could not be opened: {e}"), true);
                 }
             }
         }
@@ -475,6 +517,21 @@ impl MailApp {
             }
         } else {
             self.session.notice(format!("Links like {} aren't opened", widgets::shorten(u, 40)), true);
+        }
+    }
+
+    /// Write an attachment to a temporary file to hand to another app.
+    fn attachment_to_temp(&mut self, i: usize) -> Option<PathBuf> {
+        let name = self.attachment_name(i);
+        let dir = std::env::temp_dir().join("mailcraft-open");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(mailcraft_engine::mime::sanitize_filename(&name));
+        match self.session.run("attachment.save", &json!({"index": i, "path": path.to_string_lossy()})) {
+            Ok(_) => Some(path),
+            Err(e) => {
+                self.session.notice(e.to_string(), true);
+                None
+            }
         }
     }
 
