@@ -20,7 +20,10 @@ Message sources live next to it as `<validity>/<uid>.eml`. A message is identifi
 
 ## A folder sync (`crates/net/src/sync.rs`)
 
-1. **SELECT** the folder (with `(CONDSTORE)` when the server offers it).
+1. **SELECT** the folder (with `(CONDSTORE)` when the server offers it). With QRESYNC enabled and a
+   cached state, the SELECT carries `(QRESYNC (<uidvalidity> <modseq> <cached range>))` and the
+   server answers steps 3 and 4 itself: `VANISHED (EARLIER)` lists the expunged UIDs and FETCH
+   responses carry the changed flags (RFC 7162 §3.2.5), so only new mail is left to ask for.
 2. **UIDVALIDITY check.** If it differs from the cache, every cached UID is meaningless: drop the
    folder's cache, including pending changes for it, and start over (RFC 4549 §4.1).
 3. **Flag changes** for cached messages:
@@ -42,7 +45,8 @@ Message sources live next to it as `<validity>/<uid>.eml`. A message is identifi
 ## The worker loop
 
 - On start: connect (TLS, or STARTTLS with a fresh capability list), authenticate (`AUTHENTICATE PLAIN`
-  with SASL-IR when offered, else `LOGIN`; non-ASCII credentials go as literals), `ENABLE CONDSTORE`.
+  with SASL-IR when offered, else `LOGIN`; non-ASCII credentials go as literals), `ENABLE QRESYNC`
+  (or `ENABLE CONDSTORE` without it).
 - Replay pending offline changes, then **sync all**: `LIST` (special-use roles from RFC 6154
   attributes, or the usual names), then every selectable folder, Inbox first. Opened messages jump
   the queue between folders, so the UI stays responsive during a long first sync.
@@ -68,6 +72,10 @@ Keys whose UIDVALIDITY no longer matches are skipped rather than applied to what
 UID. If the server refuses a change, it is dropped, the folder's sync state is reset (forcing a full
 flag comparison) and the user is told.
 
+Folder changes (create, rename, move, delete) are pending actions too: `CREATE` + `SUBSCRIBE`,
+`RENAME` (subfolders follow; the cache directories move with them), `DELETE`. Deleting a folder
+first moves it into Deleted Items, like mail.
+
 ## Sending
 
 Messages are built with `mail-builder` (Bcc never written into the message), submitted over SMTP
@@ -75,8 +83,9 @@ Messages are built with `mail-builder` (Bcc never written into the message), sub
 `APPEND (\Seen)` — except on Gmail, which files sent mail itself. Replies set `In-Reply-To` and
 `References` (trimmed per RFC 5322 §3.6.4) and the original gets `\Answered` (or `$Forwarded`).
 
-## What's next
-
-- QRESYNC (RFC 7162 §3.2) to learn expunges with `VANISHED` instead of a UID search.
-- JMAP (RFC 8620/8621) as a second transport behind the same `Job`/`Event` interface.
-- An outbox: queue sends made offline instead of failing them.
+**Outbox.** A message that can't go out now (no network, refused connection, TLS failure, a
+timeout, or an SMTP 4xx "try later") is written to `<account>/outbox/<id>.eml` with its envelope in
+`<id>.json`, and the compose window closes as if sent. The worker tries again after connecting,
+after every full sync and on *Send now*, oldest first, stopping at the first failure that may
+clear up. A permanent refusal (5xx) keeps the message in the Outbox with the error until the user
+edits or deletes it.

@@ -23,6 +23,8 @@ pub struct Mailbox {
     pub validity: u32,
     pub uid_next: u32,
     pub msgs: Vec<Msg>,
+    /// Expunged UIDs and the modseq of their removal (for QRESYNC's VANISHED).
+    pub expunged: Vec<(u32, u64)>,
 }
 
 pub struct State {
@@ -37,10 +39,10 @@ impl State {
     pub fn new() -> Arc<Mutex<State>> {
         Arc::new(Mutex::new(State {
             boxes: vec![
-                Mailbox { name: "INBOX".into(), attr: "", validity: 100, uid_next: 1, msgs: Vec::new() },
-                Mailbox { name: "Sent".into(), attr: "\\Sent", validity: 200, uid_next: 1, msgs: Vec::new() },
-                Mailbox { name: "Archive".into(), attr: "\\Archive", validity: 300, uid_next: 1, msgs: Vec::new() },
-                Mailbox { name: "Projects/Caf&AOk-".into(), attr: "", validity: 400, uid_next: 1, msgs: Vec::new() },
+                Mailbox { name: "INBOX".into(), attr: "", validity: 100, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
+                Mailbox { name: "Sent".into(), attr: "\\Sent", validity: 200, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
+                Mailbox { name: "Archive".into(), attr: "\\Archive", validity: 300, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
+                Mailbox { name: "Projects/Caf&AOk-".into(), attr: "", validity: 400, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
             ],
             modseq: 10,
             caps: "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE",
@@ -50,6 +52,26 @@ impl State {
 
     pub fn mailbox(&mut self, name: &str) -> Option<&mut Mailbox> {
         self.boxes.iter_mut().find(|b| b.name == name)
+    }
+
+    /// Remove a message the way another client would (recorded for VANISHED).
+    pub fn expunge(&mut self, mailbox: &str, uid: u32) {
+        self.modseq += 1;
+        let ms = self.modseq;
+        if let Some(b) = self.mailbox(mailbox) {
+            b.msgs.retain(|m| m.uid != uid);
+            b.expunged.push((uid, ms));
+        }
+    }
+
+    /// Set a message's flags the way another client would.
+    pub fn set_flags(&mut self, mailbox: &str, uid: u32, flags: &[&str]) {
+        self.modseq += 1;
+        let ms = self.modseq;
+        if let Some(m) = self.mailbox(mailbox).and_then(|b| b.msgs.iter_mut().find(|m| m.uid == uid)) {
+            m.flags = flags.iter().map(|s| s.to_string()).collect();
+            m.modseq = ms;
+        }
     }
 
     pub fn add(&mut self, mailbox: &str, subject: &str, flags: &[&str]) -> u32 {
@@ -134,7 +156,11 @@ impl Fake {
                 self.say(&format!("{tag} NO [AUTHENTICATIONFAILED] wrong password"));
             }
         } else if upper.starts_with("ENABLE") {
-            self.say("* ENABLED CONDSTORE");
+            if upper.contains("QRESYNC") && st.caps.contains("QRESYNC") {
+                self.say("* ENABLED QRESYNC");
+            } else {
+                self.say("* ENABLED CONDSTORE");
+            }
             ok(self, "");
         } else if upper.starts_with("LIST") {
             for b in &st.boxes {
@@ -144,6 +170,11 @@ impl Fake {
         } else if upper.starts_with("SELECT ") || upper.starts_with("EXAMINE ") {
             let name = quoted_arg(rest);
             let modseq = st.modseq;
+            // `(QRESYNC (validity modseq …))`
+            let qresync: Option<(u32, u64)> = upper.split("(QRESYNC (").nth(1).and_then(|r| {
+                let mut w = r.split([' ', ')']);
+                Some((w.next()?.parse().ok()?, w.next()?.parse().ok()?))
+            });
             match st.mailbox(&name) {
                 Some(b) => {
                     let (n, v, next) = (b.msgs.len(), b.validity, b.uid_next);
@@ -151,6 +182,23 @@ impl Fake {
                     self.say(&format!("* OK [UIDVALIDITY {v}] ok"));
                     self.say(&format!("* OK [UIDNEXT {next}] ok"));
                     self.say(&format!("* OK [HIGHESTMODSEQ {modseq}] ok"));
+                    if let Some((qv, qm)) = qresync.filter(|(qv, _)| *qv == v) {
+                        let _ = qv;
+                        let gone: Vec<String> = b.expunged.iter().filter(|(_, m)| *m > qm).map(|(u, _)| u.to_string()).collect();
+                        let changed: Vec<String> = b
+                            .msgs
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, m)| m.modseq > qm)
+                            .map(|(i, m)| format!("* {} FETCH (UID {} FLAGS ({}) MODSEQ ({}))", i + 1, m.uid, m.flags.join(" "), m.modseq))
+                            .collect();
+                        if !gone.is_empty() {
+                            self.say(&format!("* VANISHED (EARLIER) {}", gone.join(",")));
+                        }
+                        for c in changed {
+                            self.say(&c);
+                        }
+                    }
                     self.selected = Some(name);
                     ok(self, "[READ-WRITE] ");
                 }
@@ -165,7 +213,7 @@ impl Fake {
                 self.say(&format!("{tag} NO [ALREADYEXISTS] exists"));
             } else {
                 let validity = 500 + u32::try_from(st.boxes.len()).unwrap_or(0);
-                st.boxes.push(Mailbox { name, attr: "", validity, uid_next: 1, msgs: Vec::new() });
+                st.boxes.push(Mailbox { name, attr: "", validity, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() });
                 ok(self, "");
             }
         } else if upper.starts_with("RENAME ") {
@@ -292,6 +340,7 @@ impl Fake {
                     if verb == "MOVE" {
                         let (go, stay): (Vec<Msg>, Vec<Msg>) = std::mem::take(&mut b.msgs).into_iter().partition(|m| in_set(m.uid, set, max));
                         b.msgs = stay;
+                        b.expunged.extend(go.iter().map(|m| (m.uid, modseq_now + 1)));
                         moved = go;
                     } else {
                         moved = b
@@ -303,7 +352,10 @@ impl Fake {
                     }
                 } else if verb == "EXPUNGE" || upper == "EXPUNGE" {
                     let set = words.get(2).copied().unwrap_or("1:*");
-                    b.msgs.retain(|m| !(in_set(m.uid, set, max) && m.flags.iter().any(|f| f == "\\Deleted")));
+                    let gone: Vec<u32> =
+                        b.msgs.iter().filter(|m| in_set(m.uid, set, max) && m.flags.iter().any(|f| f == "\\Deleted")).map(|m| m.uid).collect();
+                    b.msgs.retain(|m| !gone.contains(&m.uid));
+                    b.expunged.extend(gone.iter().map(|u| (*u, modseq_now + 1)));
                 } else {
                     extra = "BAD".into();
                 }
@@ -319,7 +371,7 @@ impl Fake {
                         d.msgs.push(m);
                     }
                 }
-            } else if upper.contains("STORE") {
+            } else if upper.contains("STORE") || upper.contains("EXPUNGE") {
                 st.modseq += 1;
             }
             for l in lines {
@@ -518,6 +570,48 @@ mod tests {
         assert_eq!(cache.validity, 101);
         assert!(cache.messages.iter().all(|m| m.key.validity == 101));
         assert_eq!(cache.messages.len(), 3);
+        let _ = std::fs::remove_dir_all(store.root());
+    }
+
+    #[test]
+    fn qresync_learns_expunges_and_flags_from_select() {
+        let st = State::new();
+        {
+            let mut s = st.lock().unwrap();
+            s.caps = "IMAP4rev1 UIDPLUS MOVE CONDSTORE QRESYNC ENABLE";
+            for i in 0..5 {
+                s.add("INBOX", &format!("m{i}"), &[]);
+            }
+        }
+        let store = store("qresync");
+        let opts = SyncOptions::default();
+        let mut c = login(&st);
+        assert!(c.qresync());
+        sync_folder(&mut c, &store, "a1", "INBOX", &opts).unwrap();
+        {
+            let mut s = st.lock().unwrap();
+            s.expunge("INBOX", 2);
+            s.expunge("INBOX", 4);
+            s.set_flags("INBOX", 3, &["\\Seen", "\\Flagged"]);
+            s.add("INBOX", "new", &[]);
+            s.log.clear();
+        }
+        let r = sync_folder(&mut c, &store, "a1", "INBOX", &opts).unwrap();
+        assert_eq!((r.new, r.changed, r.removed), (1, 1, 2));
+        let cache = store.load_folder("a1", "INBOX").unwrap();
+        let uids: Vec<u32> = cache.messages.iter().map(|m| m.key.uid).collect();
+        assert_eq!(uids, vec![6, 5, 3, 1]);
+        assert!(cache.find(3).unwrap().flags.flagged);
+        let log = st.lock().unwrap().log.clone();
+        assert!(log.iter().any(|l| l.contains("(QRESYNC (100 ")), "{log:?}");
+        // No flag fetch and no UID search over the cached range: the SELECT said it all.
+        assert!(!log.iter().any(|l| l.contains("UID SEARCH UID 1:5") || l.contains("CHANGEDSINCE")), "{log:?}");
+
+        // A new UIDVALIDITY still starts over.
+        st.lock().unwrap().mailbox("INBOX").unwrap().validity = 101;
+        let r = sync_folder(&mut c, &store, "a1", "INBOX", &opts).unwrap();
+        assert!(r.reset);
+        assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 4);
         let _ = std::fs::remove_dir_all(store.root());
     }
 

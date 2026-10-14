@@ -122,6 +122,10 @@ pub struct SelectInfo {
     pub read_only: bool,
 }
 
+/// What a QRESYNC `SELECT` reports: the usual data, the UID ranges expunged since the cached
+/// state, and the messages whose flags changed.
+pub type Resync = (SelectInfo, Vec<std::ops::RangeInclusive<u32>>, Vec<Fetched>);
+
 /// Buffered protocol connection.
 pub struct Conn<S> {
     s: S,
@@ -330,6 +334,8 @@ pub struct Client<S> {
     conn: Conn<S>,
     caps: HashSet<String>,
     selected: Option<String>,
+    /// QRESYNC is enabled on this connection (RFC 7162 §3.2.3).
+    qresync: bool,
 }
 
 fn caps_from(list: &[Capability<'_>]) -> HashSet<String> {
@@ -365,7 +371,7 @@ impl Client<Stream> {
                 let Stream::Plain(sock) = c.conn.into_inner() else {
                     return Err(NetError::Tls("connection already encrypted".into()));
                 };
-                let mut c = Client { conn: Conn::new(stream::tls(sock, &cfg.host)?), caps: HashSet::new(), selected: None };
+                let mut c = Client { conn: Conn::new(stream::tls(sock, &cfg.host)?), caps: HashSet::new(), selected: None, qresync: false };
                 // Capabilities learned before TLS must be discarded (RFC 3501 §6.2.1).
                 c.capability()?;
                 Ok(c)
@@ -377,7 +383,7 @@ impl Client<Stream> {
 impl<S: Read + Write> Client<S> {
     /// Wrap a connected stream and read the server greeting.
     pub fn from_stream(s: S) -> Result<Client<S>> {
-        let mut c = Client { conn: Conn::new(s), caps: HashSet::new(), selected: None };
+        let mut c = Client { conn: Conn::new(s), caps: HashSet::new(), selected: None, qresync: false };
         match c.conn.read()? {
             Ok(Response::Data { status: Status::Ok | Status::PreAuth, outcome }) => {
                 if let Some(ResponseCode::Capabilities(list)) = &outcome.code {
@@ -450,10 +456,22 @@ impl<S: Read + Write> Client<S> {
         if !got {
             self.capability()?;
         }
-        if self.has("ENABLE") && self.has("CONDSTORE") {
+        if self.has("ENABLE") && self.has("QRESYNC") {
+            // QRESYNC implies CONDSTORE. Only an ENABLED reply naming it turns it on.
+            if let Ok(rs) = self.conn.run(&[Part::Text("ENABLE QRESYNC")]) {
+                self.qresync = rs.iter().any(|r| {
+                    matches!(r, Response::Capabilities(list) if list.iter().any(|c| matches!(c, Capability::Atom(a) if a.eq_ignore_ascii_case("QRESYNC"))))
+                });
+            }
+        } else if self.has("ENABLE") && self.has("CONDSTORE") {
             let _ = self.conn.run(&[Part::Text("ENABLE CONDSTORE")]);
         }
         Ok(())
+    }
+
+    /// Whether QRESYNC is on for this connection.
+    pub fn qresync(&self) -> bool {
+        self.qresync
     }
 
     /// All folders, with special-use roles.
@@ -502,12 +520,37 @@ impl<S: Read + Write> Client<S> {
     pub fn select(&mut self, folder: &str, read_only: bool) -> Result<SelectInfo> {
         let verb = if read_only { "EXAMINE " } else { "SELECT " };
         let arg = mailbox_arg(folder);
-        let condstore = if self.has("CONDSTORE") { " (CONDSTORE)" } else { "" };
+        let condstore = if self.has("CONDSTORE") || self.qresync { " (CONDSTORE)" } else { "" };
         let cmd = format!("{verb}{arg}{condstore}");
         let rs = self.conn.run(&[Part::Text(&cmd)])?;
+        let (info, _, _) = self.selected_from(folder, rs);
+        Ok(info)
+    }
+
+    /// `SELECT … (QRESYNC (validity modseq known-uids))` (RFC 7162 §3.2.5): besides the usual
+    /// data, the server reports what was expunged (`VANISHED (EARLIER)`, as UID ranges) and the
+    /// flags that changed since `modseq`, in one round trip. Only for a cache whose UIDVALIDITY
+    /// is `validity`: when the server's differs it sends neither, and the caller starts over.
+    pub fn select_qresync(&mut self, folder: &str, validity: u32, modseq: u64, known: &str) -> Result<Resync> {
+        let known = if known.is_empty() { String::new() } else { format!(" {known}") };
+        let cmd = format!("SELECT {} (QRESYNC ({validity} {modseq}{known}))", mailbox_arg(folder));
+        let rs = self.conn.run(&[Part::Text(&cmd)])?;
+        Ok(self.selected_from(folder, rs))
+    }
+
+    fn selected_from(&mut self, folder: &str, rs: Vec<Response<'static>>) -> Resync {
         let mut info = SelectInfo::default();
+        let mut vanished = Vec::new();
+        let mut changed = Vec::new();
         for r in rs {
             match r {
+                Response::Vanished { uids, .. } => vanished.extend(uids),
+                Response::Fetch(_, attrs) => {
+                    let f = fetched(attrs);
+                    if f.uid != 0 {
+                        changed.push(f);
+                    }
+                }
                 Response::MailboxData(MailboxDatum::Exists(n)) => info.exists = n,
                 Response::Data { outcome, .. } | Response::Done { outcome, .. } => match outcome.code {
                     Some(ResponseCode::UidValidity(v)) => info.validity = v,
@@ -520,7 +563,7 @@ impl<S: Read + Write> Client<S> {
             }
         }
         self.selected = Some(folder.to_string());
-        Ok(info)
+        (info, vanished, changed)
     }
 
     pub fn selected(&self) -> Option<&str> {
@@ -570,21 +613,7 @@ impl<S: Read + Write> Client<S> {
         let mut out: Vec<Fetched> = Vec::new();
         for r in rs {
             let Response::Fetch(_, attrs) = r else { continue };
-            let mut f = Fetched::default();
-            for a in attrs {
-                match a {
-                    AttributeValue::Uid(u) => f.uid = u,
-                    AttributeValue::Flags(fl) => f.flags = Some(fl.iter().map(|x| x.to_string()).collect()),
-                    AttributeValue::Rfc822Size(n) => f.size = n,
-                    AttributeValue::InternalDate(d) => f.internal_date = parse_internal_date(&d),
-                    AttributeValue::ModSeq(m) => f.modseq = m,
-                    AttributeValue::BodySection { section: None, data, .. } | AttributeValue::Rfc822(data) => f.body = data.map(|d| d.into_owned()),
-                    AttributeValue::BodySection { section: Some(_), data, .. } | AttributeValue::Rfc822Header(data) => {
-                        f.header = data.map(|d| d.into_owned())
-                    }
-                    _ => {}
-                }
-            }
+            let f = fetched(attrs);
             // Unsolicited FETCHes without a UID (flag pushes for other messages) are skipped.
             if f.uid == 0 {
                 continue;
@@ -748,6 +777,26 @@ impl<S: Read + Write + Timeouts> Client<S> {
         let rs = self.conn.finish(&tag, Vec::new())?;
         Ok(changed || rs.iter().any(is_change))
     }
+}
+
+/// One FETCH response's attributes.
+fn fetched(attrs: Vec<AttributeValue<'_>>) -> Fetched {
+    let mut f = Fetched::default();
+    for a in attrs {
+        match a {
+            AttributeValue::Uid(u) => f.uid = u,
+            AttributeValue::Flags(fl) => f.flags = Some(fl.iter().map(|x| x.to_string()).collect()),
+            AttributeValue::Rfc822Size(n) => f.size = n,
+            AttributeValue::InternalDate(d) => f.internal_date = parse_internal_date(&d),
+            AttributeValue::ModSeq(m) => f.modseq = m,
+            AttributeValue::BodySection { section: None, data, .. } | AttributeValue::Rfc822(data) => f.body = data.map(|d| d.into_owned()),
+            AttributeValue::BodySection { section: Some(_), data, .. } | AttributeValue::Rfc822Header(data) => {
+                f.header = data.map(|d| d.into_owned())
+            }
+            _ => {}
+        }
+    }
+    f
 }
 
 fn is_change(r: &Response<'_>) -> bool {

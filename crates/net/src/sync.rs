@@ -11,6 +11,10 @@
 //!    the cached range are fetched.
 //! 4. **Deletions**: `UID SEARCH UID <cached range>` lists the survivors; the rest are gone.
 //! 5. The newest few message sources are downloaded so they can be read (and searched) offline.
+//!
+//! With QRESYNC (RFC 7162 §3.2) steps 3 and 4 collapse into the `SELECT`: the server lists the
+//! UIDs expunged since the cached HIGHESTMODSEQ (`VANISHED (EARLIER)`) and the changed flags, so
+//! a large folder no longer needs a UID search over everything cached.
 
 use std::io::{Read, Write};
 
@@ -68,7 +72,16 @@ fn summary(account: &str, folder: &str, validity: u32, f: &Fetched) -> Summary {
 /// Bring one folder's cache up to date.
 pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, folder: &str, opts: &SyncOptions) -> Result<SyncReport> {
     let mut st = store.load_folder(account, folder)?;
-    let info = c.select(folder, false)?;
+    let cached_max = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
+    let cached_min = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
+    // QRESYNC: expunges and flag changes arrive with the SELECT itself (RFC 7162 §3.2.5).
+    let quick = c.qresync() && st.validity != 0 && st.highest_modseq > 0 && cached_max > 0;
+    let (info, quick) = if quick {
+        let (info, vanished, changed) = c.select_qresync(folder, st.validity, st.highest_modseq, &format!("{cached_min}:{cached_max}"))?;
+        (info, Some((vanished, changed)))
+    } else {
+        (c.select(folder, false)?, None)
+    };
     let mut report = SyncReport::default();
 
     if st.validity != info.validity && (st.validity != 0 || !st.messages.is_empty()) {
@@ -77,11 +90,32 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
         st = FolderState::default();
         report.reset = true;
     }
+    let quick = if report.reset { None } else { quick };
     st.validity = info.validity;
 
     if info.exists == 0 {
         report.removed = st.messages.len();
         st.messages.clear();
+    } else if let Some((vanished, changed)) = quick {
+        // 3 + 4 from what the server just said.
+        for f in changed {
+            if let (Some(m), Some(fl)) = (st.find_mut(f.uid), &f.flags) {
+                let flags = Flags::from_imap(fl.iter().map(String::as_str));
+                if m.flags != flags {
+                    m.flags = flags;
+                    report.changed += 1;
+                }
+                m.modseq = m.modseq.max(f.modseq);
+            }
+        }
+        let (kept, gone): (Vec<Summary>, Vec<Summary>) =
+            std::mem::take(&mut st.messages).into_iter().partition(|m| !vanished.iter().any(|r| r.contains(&m.key.uid)));
+        for m in &gone {
+            store.remove_body(&m.key);
+        }
+        report.removed = gone.len();
+        st.messages = kept;
+        new_mail(c, &mut st, account, folder, cached_max, &mut report)?;
     } else {
         let known_max = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
         let known_min = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
@@ -120,22 +154,13 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
         }
 
         // 2: new mail.
-        let new_uids: Vec<u32> = if st.uid_next == 0 && known_max == 0 {
+        if st.uid_next == 0 && known_max == 0 {
             let all = c.uid_search("ALL")?;
             let skip = all.len().saturating_sub(opts.window);
-            all.into_iter().skip(skip).collect()
+            let first: Vec<u32> = all.into_iter().skip(skip).collect();
+            fetch_headers(c, &mut st, account, folder, &first, &mut report)?;
         } else {
-            let from = st.uid_next.max(known_max.saturating_add(1)).max(1);
-            // `n:*` always returns at least the last message (RFC 3501 §6.4.8): filter.
-            c.uid_search(&format!("UID {from}:*"))?.into_iter().filter(|u| *u >= from).collect()
-        };
-        for chunk in uid_chunks(&new_uids, 200) {
-            for f in c.uid_fetch(&uid_set(&chunk), HEADER_ITEMS, "")? {
-                if st.find(f.uid).is_none() {
-                    st.messages.push(summary(account, folder, st.validity, &f));
-                    report.new += 1;
-                }
-            }
+            new_mail(c, &mut st, account, folder, known_max, &mut report)?;
         }
     }
 
@@ -151,6 +176,40 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
     report.total = info.exists;
     report.unread = if info.exists == 0 { 0 } else { u32::try_from(c.uid_search("UNSEEN")?.len()).unwrap_or(u32::MAX) };
     Ok(report)
+}
+
+/// Headers for every message at or above the cached UIDNEXT.
+fn new_mail<S: Read + Write>(
+    c: &mut Client<S>,
+    st: &mut FolderState,
+    account: &str,
+    folder: &str,
+    known_max: u32,
+    report: &mut SyncReport,
+) -> Result<()> {
+    let from = st.uid_next.max(known_max.saturating_add(1)).max(1);
+    // `n:*` always returns at least the last message (RFC 3501 §6.4.8): filter.
+    let uids: Vec<u32> = c.uid_search(&format!("UID {from}:*"))?.into_iter().filter(|u| *u >= from).collect();
+    fetch_headers(c, st, account, folder, &uids, report)
+}
+
+fn fetch_headers<S: Read + Write>(
+    c: &mut Client<S>,
+    st: &mut FolderState,
+    account: &str,
+    folder: &str,
+    uids: &[u32],
+    report: &mut SyncReport,
+) -> Result<()> {
+    for chunk in uid_chunks(uids, 200) {
+        for f in c.uid_fetch(&uid_set(&chunk), HEADER_ITEMS, "")? {
+            if st.find(f.uid).is_none() {
+                st.messages.push(summary(account, folder, st.validity, &f));
+                report.new += 1;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn prefetch<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, folder: &str, st: &mut FolderState, opts: &SyncOptions) -> Result<()> {
