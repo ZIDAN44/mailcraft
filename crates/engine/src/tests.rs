@@ -316,6 +316,22 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn recipients_are_suggested_from_mail_seen() {
+    let mut s = sample_session("contacts");
+    let r = s.run("contacts.suggest", &json!({"query": "zo"})).unwrap();
+    assert_eq!(r[0]["email"], "zoe@studio.example");
+    assert_eq!(r[0]["address"], "Zoe Park <zoe@studio.example>");
+    // Someone you wrote to (the print shop, in Sent Items) is suggested by any part of the name.
+    let r = s.run("contacts.suggest", &json!({"query": "shop"})).unwrap();
+    assert_eq!(r[0]["email"], "orders@printshop.example");
+    assert!(r[0]["sent"].as_u64().unwrap() >= 1);
+    // Your own address isn't.
+    assert_eq!(s.run("contacts.suggest", &json!({"query": "riley"})).unwrap().as_array().unwrap().len(), 0);
+    assert!(s.run("contacts.suggest", &json!({})).is_err());
+    done(s);
+}
+
+#[test]
 fn offline_sends_wait_in_the_outbox() {
     let store = temp("outbox");
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));

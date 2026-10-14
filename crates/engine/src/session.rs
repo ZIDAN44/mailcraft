@@ -5,6 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use mailcraft_mime::{self as mime, OutAttachment, Parsed, ReplyMode};
+use mailcraft_model::contacts::{Contact, ContactBook};
 use mailcraft_model::dates::{Clock, DateGroup};
 use mailcraft_model::job::Secret;
 use mailcraft_model::search::{Doc, Index, Query, summary_text};
@@ -241,6 +242,8 @@ pub struct Session {
     pub outbox: Vec<(String, OutboxItem)>,
     jobs: Vec<Job>,
     cache: HashMap<(String, String), FolderState>,
+    /// Built on first use from the cached mail; dropped when mail arrives.
+    contacts: Option<ContactBook>,
     index: Option<SearchIndex>,
     registry: Arc<Registry>,
     next_id: u64,
@@ -272,6 +275,7 @@ impl Session {
             outbox: Vec::new(),
             jobs: Vec::new(),
             cache: HashMap::new(),
+            contacts: None,
             index: None,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -447,6 +451,24 @@ impl Session {
         let k = (account.to_string(), folder.to_string());
         self.cache.remove(&k);
         self.index = None;
+        self.contacts = None;
+    }
+
+    /// People to suggest for a recipient box, best first.
+    pub fn suggest_contacts(&mut self, query: &str, limit: usize) -> Vec<Contact> {
+        if self.contacts.is_none() {
+            let mine: Vec<String> = self.accounts.iter().flat_map(|a| [a.config.email.clone(), a.config.username.clone()]).collect();
+            let folders: Vec<(String, String)> =
+                self.accounts.iter().flat_map(|a| a.folders.iter().filter(|f| f.selectable).map(|f| (a.config.id.clone(), f.path.clone()))).collect();
+            let mut book = ContactBook::new();
+            for (a, f) in folders {
+                for m in &self.folder_state(&a, &f).messages {
+                    book.add(m, &mine);
+                }
+            }
+            self.contacts = Some(book);
+        }
+        self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default()
     }
 
     /// The folders the view draws from.

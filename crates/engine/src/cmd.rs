@@ -125,6 +125,17 @@ pub fn registry() -> Registry {
             .when(has_compose),
         CommandSpec::new("compose.saveDraft", "Save draft", "Message", |s, _| s.save_draft()).key("Mod+S").when(has_compose),
         CommandSpec::new("compose.discard", "Discard", "Message", discard).when(has_compose),
+        CommandSpec::new("contacts.suggest", "Suggest recipients", "Message › To", |s, v| {
+            let q = p::req_str(v, "query")?.to_string();
+            let limit = p::u64(v, "limit").map_or(8, |n| usize::try_from(n).unwrap_or(8).clamp(1, 100));
+            let list: Vec<Value> = s
+                .suggest_contacts(&q, limit)
+                .into_iter()
+                .map(|c| json!({"name": c.address.name, "email": c.address.email, "address": c.address.to_string(), "sent": c.sent, "received": c.received}))
+                .collect();
+            Ok(json!(list))
+        })
+        .params(r#"{"query": string, "limit"?: number}"#),
         // Attachments
         CommandSpec::new("attachment.save", "Save attachment", "Reading pane", save_attachment).params(r#"{"index": number, "path": string}"#).when(has_reading),
         // View
