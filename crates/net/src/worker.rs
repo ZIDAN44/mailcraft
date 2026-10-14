@@ -79,6 +79,8 @@ pub struct Pool {
     workers: HashMap<String, Handle>,
     configs: HashMap<String, AccountConfig>,
     pub opts: SyncOptions,
+    /// Picture downloads, on their own thread so they never wait behind a sync.
+    fetcher: Option<Sender<String>>,
 }
 
 fn now() -> i64 {
@@ -96,6 +98,32 @@ impl Pool {
             workers: HashMap::new(),
             configs: HashMap::new(),
             opts: SyncOptions::default(),
+            fetcher: None,
+        }
+    }
+
+    fn fetch_url(&mut self, url: String) {
+        if self.fetcher.is_none() {
+            let (tx, rx) = mpsc::channel::<String>();
+            let sink = self.sink.clone();
+            let spawned = std::thread::Builder::new().name("mail-pictures".into()).spawn(move || {
+                for url in rx {
+                    let r = crate::http::get(&url, MAX_PICTURE);
+                    let e = match r {
+                        Ok(resp) if resp.ok() => Event::Fetched { url, data: Some(resp.body), error: None },
+                        Ok(resp) => Event::Fetched { url, data: None, error: Some(format!("HTTP {}", resp.status)) },
+                        Err(e) => Event::Fetched { url, data: None, error: Some(e.to_string()) },
+                    };
+                    sink.emit(e);
+                }
+            });
+            match spawned {
+                Ok(_) => self.fetcher = Some(tx),
+                Err(e) => return self.sink.emit(Event::Fetched { url, data: None, error: Some(e.to_string()) }),
+            }
+        }
+        if let Some(tx) = &self.fetcher {
+            let _ = tx.send(url);
         }
     }
 
@@ -108,6 +136,7 @@ impl Pool {
 
     pub fn submit(&mut self, job: Job) {
         match job {
+            Job::FetchUrl { url } => self.fetch_url(url),
             Job::Start { account, password } => self.start(account, password),
             Job::Remove { account } => {
                 self.stop(&account);
@@ -227,6 +256,9 @@ impl Drop for Pool {
         self.shutdown();
     }
 }
+
+/// Largest picture downloaded for a message.
+const MAX_PICTURE: usize = 8 << 20;
 
 const FULL_SYNC_EVERY: Duration = Duration::from_secs(15 * 60);
 const IDLE_FOR: Duration = Duration::from_secs(10 * 60);
@@ -579,6 +611,7 @@ impl Worker {
                 }
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
+            Job::FetchUrl { .. } => {}
             Job::Start { .. } | Job::Remove { .. } => {}
         }
     }

@@ -98,6 +98,8 @@ pub enum Job {
     SaveDraft { account: String, raw: Vec<u8>, folder: String, replaces: Option<MessageKey> },
     /// Try to send what waits in the Outbox now.
     FlushOutbox { account: String },
+    /// Download a picture a message links to (only after the user asked to see pictures).
+    FetchUrl { url: String },
 }
 
 impl Job {
@@ -112,6 +114,7 @@ impl Job {
             | Job::Send { account, .. }
             | Job::SaveDraft { account, .. }
             | Job::FlushOutbox { account } => account,
+            Job::FetchUrl { .. } => "",
         }
     }
 }
@@ -194,6 +197,12 @@ pub enum Event {
         account: String,
         op: Op,
         error: String,
+    },
+    /// A downloaded picture (`data`), or why it couldn't be fetched.
+    Fetched {
+        url: String,
+        data: Option<Vec<u8>>,
+        error: Option<String>,
     },
     /// Something the user should see in the status bar.
     Notice {
