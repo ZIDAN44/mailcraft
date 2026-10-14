@@ -100,6 +100,13 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 folder_row(s, t, ui, acts, f, 0, true);
             }
         }
+        if !s.outbox.is_empty() {
+            let sel = s.view == View::Outbox && s.search.is_none();
+            let n = u32::try_from(s.outbox.len()).unwrap_or(u32::MAX);
+            if row(ui, t, Icon::Outbox, "Outbox", n, 0, sel, false, false).on_hover_text("Messages waiting to be sent").clicked() {
+                acts.push(Action::Run("folder.outbox", json!({})));
+            }
+        }
         ui.add_space(8.0);
         for a in &s.accounts {
             let id = ui.make_persistent_id(("acct", &a.config.id));

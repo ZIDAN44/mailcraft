@@ -97,7 +97,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     } else {
         None
     };
-    let sent_view = matches!(s.view_role(), Some(FolderRole::Sent | FolderRole::Drafts));
+    let sent_view = matches!(s.view_role(), Some(FolderRole::Sent | FolderRole::Drafts)) || s.view == mailcraft_engine::View::Outbox;
 
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("list").show_viewport(ui, |ui, viewport| {
         ui.set_height(total);

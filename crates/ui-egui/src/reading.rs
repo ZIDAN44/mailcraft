@@ -90,18 +90,41 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                 });
             });
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 6.0;
-                if widgets::pill_button(ui, Icon::Reply, "Reply", &t).clicked() {
-                    acts.push(Action::Run("mail.reply", json!({})));
-                }
-                if widgets::pill_button(ui, Icon::ReplyAll, "Reply all", &t).clicked() {
-                    acts.push(Action::Run("mail.replyAll", json!({})));
-                }
-                if widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
-                    acts.push(Action::Run("mail.forward", json!({})));
-                }
-            });
+            if let Some((_, item)) = s.outbox_entry(&r.key) {
+                egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+                    let why = match item.error.as_deref() {
+                        Some(e) if e != "offline" => format!("Waiting in the Outbox. Last try: {}", widgets::shorten(e, 140)),
+                        _ => "Waiting in the Outbox: it will be sent when you're back online.".to_string(),
+                    };
+                    ui.label(RichText::new(why).color(t.text));
+                });
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    if widgets::pill_button(ui, Icon::Send, "Send now", &t).clicked() {
+                        acts.push(Action::Run("outbox.send", json!({})));
+                    }
+                    if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
+                        acts.push(Action::Run("outbox.edit", json!({"key": r.key.to_id()})));
+                    }
+                    if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
+                        acts.push(Action::Run("mail.delete", json!({})));
+                    }
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    if widgets::pill_button(ui, Icon::Reply, "Reply", &t).clicked() {
+                        acts.push(Action::Run("mail.reply", json!({})));
+                    }
+                    if widgets::pill_button(ui, Icon::ReplyAll, "Reply all", &t).clicked() {
+                        acts.push(Action::Run("mail.replyAll", json!({})));
+                    }
+                    if widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
+                        acts.push(Action::Run("mail.forward", json!({})));
+                    }
+                });
+            }
             ui.add_space(12.0);
 
             // Attachments.

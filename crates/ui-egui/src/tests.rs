@@ -90,6 +90,25 @@ fn renders_every_state_without_panicking() {
         frame(&ctx, &mut a, vec![]);
         a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
     }
+    // The Outbox: its folder row, list and reading pane.
+    let store = a.session.store.clone().unwrap();
+    let item = mailcraft_engine::store::OutboxItem {
+        id: 5,
+        from: "riley@studio.example".into(),
+        recipients: vec!["ann@x.example".into()],
+        queued: NOW,
+        error: Some("network: refused".into()),
+        ..Default::default()
+    };
+    store.outbox_add("sample", &item, b"From: riley@studio.example\r\nTo: ann@x.example\r\nSubject: Waiting\r\n\r\nLater.\r\n").unwrap();
+    a.session.refresh_outbox();
+    frame(&ctx, &mut a, vec![]);
+    a.run("folder.outbox", json!({}));
+    let k = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.subject.as_str()), Some("Waiting"));
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
     // Statuses and a notice toast.
     for st in [
         SyncStatus::Connecting,

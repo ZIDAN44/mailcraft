@@ -603,6 +603,9 @@ impl MailApp {
             if unread > 0 {
                 ui.label(RichText::new(format!("Unread: {unread}")).color(t.dim).small());
             }
+            if !s.outbox.is_empty() {
+                ui.label(RichText::new(format!("Outbox: {}", s.outbox.len())).color(t.warn).small());
+            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 for a in s.accounts.iter().rev() {
                     let (color, text) = match &a.status {
