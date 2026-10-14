@@ -1,0 +1,478 @@
+//! The command registry: every user-visible action, by id.
+//!
+//! Shortcuts follow the ones mail users already know: Ctrl+N new, Ctrl+R reply, Ctrl+Shift+R
+//! reply all, Ctrl+F forward, Ctrl+Q / Ctrl+U read / unread, Insert flag, Delete, Backspace
+//! archive, Ctrl+Shift+V move, F9 send/receive, Ctrl+Enter send.
+
+use mailcraft_mime::{OutAttachment, ReplyMode, mime_from_name, sanitize_filename};
+use mailcraft_model::{AccountConfig, Flag, FolderRole, Security, ServerConfig};
+use serde_json::{Value, json};
+
+use crate::session::{ListFilter, MoveTarget, ReadingPane, SearchScope, View, parse_key};
+use crate::{CmdError, CmdResult, CommandSpec, Registry, Session, p};
+
+fn has_selection(s: &Session) -> Option<&'static str> {
+    if s.selection.is_empty() { Some("no message selected") } else { None }
+}
+
+fn has_reading(s: &Session) -> Option<&'static str> {
+    match &s.reading {
+        Some(r) if r.parsed.is_some() => None,
+        Some(_) => Some("the message is still downloading"),
+        None => Some("open a message first"),
+    }
+}
+
+fn has_compose(s: &Session) -> Option<&'static str> {
+    if s.compose.is_some() { None } else { Some("no message is being written") }
+}
+
+fn has_account(s: &Session) -> Option<&'static str> {
+    if s.accounts.is_empty() { Some("add an account first") } else { None }
+}
+
+pub fn registry() -> Registry {
+    Registry::new(vec![
+        // Home › New
+        CommandSpec::new("mail.new", "New mail", "Home › New", new_mail).key("Mod+N").params(r#"{"account"?: string}"#).when(has_account),
+        // Home › Delete
+        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).when(has_selection),
+        CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
+            .key("Backspace")
+            .when(has_selection),
+        CommandSpec::new("mail.junk", "Report junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Junk))).when(has_selection),
+        CommandSpec::new("mail.notJunk", "Not junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Inbox))).when(has_selection),
+        // Home › Respond
+        CommandSpec::new("mail.reply", "Reply", "Home › Respond", |s, _| s.reply_compose(ReplyMode::Reply)).key("Mod+R").when(has_reading),
+        CommandSpec::new("mail.replyAll", "Reply all", "Home › Respond", |s, _| s.reply_compose(ReplyMode::ReplyAll)).key("Mod+Shift+R").when(has_reading),
+        CommandSpec::new("mail.forward", "Forward", "Home › Respond", |s, _| s.reply_compose(ReplyMode::Forward)).key("Mod+F").when(has_reading),
+        // Home › Move
+        CommandSpec::new("mail.move", "Move to", "Home › Move", move_to).key("Mod+Shift+V").params(r#"{"folder": string}"#).when(has_selection),
+        // Home › Tags
+        CommandSpec::new("mail.markRead", "Mark as read", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(true))).key("Mod+Q").when(has_selection),
+        CommandSpec::new("mail.markUnread", "Mark as unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(false))).key("Mod+U").when(has_selection),
+        CommandSpec::new("mail.toggleRead", "Read / Unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, None)).when(has_selection),
+        CommandSpec::new("mail.flag", "Flag / Unflag", "Home › Tags", |s, v| s.flag_selection(Flag::Flagged, p::bool(v, "on"))).key("Insert").params(r#"{"on"?: bool}"#).when(has_selection),
+        CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read).when(has_account),
+        // Send / Receive
+        CommandSpec::new("mail.sync", "Send / Receive all folders", "Home › Send / Receive", |s, _| Ok(json!({"accounts": s.sync_all()}))).key("F9").when(has_account),
+        CommandSpec::new("folder.sync", "Update folder", "Home › Send / Receive", sync_folder).key("Shift+F9").when(has_account),
+        // Navigation
+        CommandSpec::new("folder.open", "Open folder", "Folder pane", open_folder).params(r#"{"account": string, "folder": string}"#),
+        CommandSpec::new("folder.unified", "All inboxes", "Folder pane › Favorites", unified).params(r#"{"role"?: "inbox"|"sent"|"drafts"|…}"#),
+        CommandSpec::new("list.open", "Open message", "Message list", open_message).params(r#"{"key": "account:validity:uid:folder"}"#),
+        CommandSpec::new("list.select", "Select", "Message list", select).params(r#"{"key": string, "add"?: bool}"#),
+        CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).key("Mod+A"),
+        CommandSpec::new("list.next", "Next message", "Message list", |s, _| step(s, 1)).key("Down / J"),
+        CommandSpec::new("list.prev", "Previous message", "Message list", |s, _| step(s, -1)).key("Up / K"),
+        CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"}"#),
+        CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
+        CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
+        // Search
+        CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(r#"{"query": string, "scope"?: "all"|"current"}"#),
+        CommandSpec::new("search.clear", "Clear search", "Search box", |s, _| Ok(json!({"results": s.run_search("", SearchScope::All)}))).key("Escape"),
+        // Compose
+        CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
+            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: string}"#)
+            .when(has_compose),
+        CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
+        CommandSpec::new("compose.removeAttachment", "Remove attachment", "Message › Insert", remove_attachment).params(r#"{"index": number}"#).when(has_compose),
+        CommandSpec::new("compose.send", "Send", "Message", |s, v| s.send_compose(p::bool(v, "allowEmptySubject").unwrap_or(false)))
+            .key("Mod+Enter / Alt+S")
+            .params(r#"{"allowEmptySubject"?: bool}"#)
+            .when(has_compose),
+        CommandSpec::new("compose.saveDraft", "Save draft", "Message", |s, _| s.save_draft()).key("Mod+S").when(has_compose),
+        CommandSpec::new("compose.discard", "Discard", "Message", discard).when(has_compose),
+        // Attachments
+        CommandSpec::new("attachment.save", "Save attachment", "Reading pane", save_attachment).params(r#"{"index": number, "path": string}"#).when(has_reading),
+        // View
+        CommandSpec::new("view.readingPane", "Reading pane", "View › Layout", reading_pane).params(r#"{"value": "right"|"bottom"|"off"}"#),
+        CommandSpec::new("view.conversations", "Show as conversations", "View › Messages", |s, v| {
+            s.prefs.conversations = p::bool(v, "on").unwrap_or(!s.prefs.conversations);
+            s.refresh_list();
+            Ok(json!({"on": s.prefs.conversations}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.preview", "Message preview", "View › Messages", |s, v| {
+            s.prefs.show_preview = p::bool(v, "on").unwrap_or(!s.prefs.show_preview);
+            Ok(json!({"on": s.prefs.show_preview}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.compact", "Compact list", "View › Layout", |s, v| {
+            s.prefs.compact = p::bool(v, "on").unwrap_or(!s.prefs.compact);
+            Ok(json!({"on": s.prefs.compact}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        // Accounts
+        CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
+            .params(r#"{"email": string, "password"?: string, "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …}"#),
+        CommandSpec::new("account.remove", "Remove account", "File › Accounts", |s, v| {
+            let id = p::req_str(v, "account")?.to_string();
+            s.remove_account(&id)
+        })
+        .params(r#"{"account": string}"#),
+        CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
+        CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature).params(r#"{"account": string, "signature": string}"#),
+        CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
+    ])
+}
+
+fn new_mail(s: &mut Session, v: &Value) -> CmdResult {
+    let c = s.new_compose(p::str(v, "account"))?;
+    Ok(json!({"compose": c.id}))
+}
+
+fn delete(s: &mut Session, v: &Value) -> CmdResult {
+    let in_trash = s.view_role() == Some(FolderRole::Trash) && s.search.is_none();
+    let all_in_trash =
+        s.selected().iter().all(|m| s.account(&m.key.account).and_then(|a| a.folder(FolderRole::Trash)).is_some_and(|t| t.path == m.key.folder));
+    if p::bool(v, "permanent").unwrap_or(false) || in_trash || all_in_trash {
+        return s.expunge_selection();
+    }
+    s.move_selection(MoveTarget::Role(FolderRole::Trash))
+}
+
+fn move_to(s: &mut Session, v: &Value) -> CmdResult {
+    let folder = p::req_str(v, "folder")?;
+    if let Some(role) = folder.strip_prefix("role:").and_then(FolderRole::from_code) {
+        return s.move_selection(MoveTarget::Role(role));
+    }
+    s.move_selection(MoveTarget::Folder(folder.to_string()))
+}
+
+fn mark_all_read(s: &mut Session, _: &Value) -> CmdResult {
+    let keys: Vec<_> = s.list.iter().filter(|m| !m.flags.seen).map(|m| m.key.clone()).collect();
+    let n = keys.len();
+    let mut by_account: std::collections::BTreeMap<String, Vec<_>> = Default::default();
+    for k in keys {
+        by_account.entry(k.account.clone()).or_default().push(k);
+    }
+    for (a, keys) in by_account {
+        s.apply_op(&a, mailcraft_model::Op::SetFlag { keys, flag: Flag::Seen, on: true });
+    }
+    Ok(json!({"count": n}))
+}
+
+fn sync_folder(s: &mut Session, _: &Value) -> CmdResult {
+    let mut n = 0;
+    let folders: Vec<(String, String)> = match &s.view {
+        View::Folder { account, folder } => vec![(account.clone(), folder.clone())],
+        View::Unified { role } => s.accounts.iter().filter_map(|a| a.folder(*role).map(|f| (a.config.id.clone(), f.path.clone()))).collect(),
+        View::Empty => Vec::new(),
+    };
+    for (account, folder) in folders {
+        if s.account(&account).is_some_and(|a| !a.is_local()) {
+            s.push_job(mailcraft_model::Job::SyncFolder { account, folder });
+            n += 1;
+        }
+    }
+    Ok(json!({"folders": n}))
+}
+
+fn open_folder(s: &mut Session, v: &Value) -> CmdResult {
+    let account = p::req_str(v, "account")?.to_string();
+    let folder = p::req_str(v, "folder")?.to_string();
+    if s.folder(&account, &folder).is_none() {
+        return Err(CmdError::Params(format!("no folder `{folder}` in account `{account}`")));
+    }
+    s.open_view(View::Folder { account, folder });
+    Ok(json!({"messages": s.list.len()}))
+}
+
+fn unified(s: &mut Session, v: &Value) -> CmdResult {
+    let role = match p::str(v, "role") {
+        Some(r) => FolderRole::from_code(r).ok_or_else(|| CmdError::Params(format!("unknown folder role `{r}`")))?,
+        None => FolderRole::Inbox,
+    };
+    s.open_view(View::Unified { role });
+    Ok(json!({"messages": s.list.len()}))
+}
+
+fn key_param(s: &Session, v: &Value) -> Result<mailcraft_model::MessageKey, CmdError> {
+    let k = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required (account:validity:uid:folder)".into()))?;
+    if s.summary(&k).is_none() {
+        return Err(CmdError::Params(format!("`{}` is not in the list", k.to_id())));
+    }
+    Ok(k)
+}
+
+fn open_message(s: &mut Session, v: &Value) -> CmdResult {
+    let k = key_param(s, v)?;
+    s.open_message(&k);
+    Ok(json!({"key": k.to_id()}))
+}
+
+fn select(s: &mut Session, v: &Value) -> CmdResult {
+    let k = key_param(s, v)?;
+    if p::bool(v, "add").unwrap_or(false) {
+        if let Some(i) = s.selection.iter().position(|x| *x == k) {
+            s.selection.remove(i);
+        } else {
+            s.selection.push(k);
+        }
+    } else {
+        s.selection = vec![k];
+    }
+    Ok(json!({"selected": s.selection.len()}))
+}
+
+fn select_all(s: &mut Session, _: &Value) -> CmdResult {
+    s.selection = s.list.iter().map(|m| m.key.clone()).collect();
+    Ok(json!({"selected": s.selection.len()}))
+}
+
+fn step(s: &mut Session, dir: i64) -> CmdResult {
+    let rows: Vec<usize> = s.rows().iter().filter_map(|r| if let crate::Row::Message { index, .. } = r { Some(*index) } else { None }).collect();
+    if rows.is_empty() {
+        return Ok(json!({"key": null}));
+    }
+    let cur = s.focus.as_ref().and_then(|k| s.list.iter().position(|m| &m.key == k)).and_then(|i| rows.iter().position(|&r| r == i));
+    let next = match cur {
+        None => 0,
+        Some(c) => {
+            let n = i64::try_from(c).unwrap_or(0).saturating_add(dir).clamp(0, i64::try_from(rows.len()).unwrap_or(1) - 1);
+            usize::try_from(n).unwrap_or(0)
+        }
+    };
+    let Some(key) = rows.get(next).and_then(|&i| s.list.get(i)).map(|m| m.key.clone()) else { return Ok(json!({"key": null})) };
+    s.open_message(&key);
+    Ok(json!({"key": key.to_id()}))
+}
+
+fn filter(s: &mut Session, v: &Value) -> CmdResult {
+    let value = p::req_str(v, "value")?;
+    s.filter = ListFilter::ALL
+        .into_iter()
+        .find(|f| f.code().eq_ignore_ascii_case(value))
+        .ok_or_else(|| CmdError::Params(format!("unknown filter `{value}`")))?;
+    s.refresh_list();
+    Ok(json!({"messages": s.list.len()}))
+}
+
+fn summary_json(m: &mailcraft_model::Summary) -> Value {
+    json!({
+        "key": m.key.to_id(),
+        "date": m.date,
+        "from": m.from.to_string(),
+        "subject": m.subject,
+        "preview": m.preview,
+        "unread": !m.flags.seen,
+        "flagged": m.flags.flagged,
+        "attachments": m.has_attachments,
+    })
+}
+
+fn list_messages(s: &mut Session, v: &Value) -> CmdResult {
+    let limit = p::u64(v, "limit").map_or(50, |n| usize::try_from(n).unwrap_or(usize::MAX).min(10_000));
+    Ok(json!({
+        "view": s.view_title(),
+        "total": s.list.len(),
+        "messages": s.list.iter().take(limit).map(summary_json).collect::<Vec<_>>(),
+    }))
+}
+
+fn read_message(s: &mut Session, v: &Value) -> CmdResult {
+    if parse_key(v).is_some() {
+        let k = key_param(s, v)?;
+        if s.reading.as_ref().is_none_or(|r| r.key != k) {
+            s.open_message(&k);
+        }
+    }
+    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+    match &r.parsed {
+        Some(m) => Ok(json!({
+            "key": r.key.to_id(),
+            "subject": m.subject,
+            "from": m.from.to_string(),
+            "to": mailcraft_model::addr::format_list(&m.to),
+            "cc": mailcraft_model::addr::format_list(&m.cc),
+            "date": m.date,
+            "text": m.text,
+            "attachments": m.attachments.iter().map(|a| json!({"index": a.index, "name": a.name, "mime": a.mime, "size": a.size})).collect::<Vec<_>>(),
+        })),
+        None => Ok(json!({"key": r.key.to_id(), "pending": true, "error": r.error})),
+    }
+}
+
+fn search(s: &mut Session, v: &Value) -> CmdResult {
+    let q = p::req_str(v, "query")?.to_string();
+    let scope = match p::str(v, "scope") {
+        Some(x) if x.eq_ignore_ascii_case("current") => SearchScope::Current,
+        _ => SearchScope::All,
+    };
+    let n = s.run_search(&q, scope);
+    Ok(json!({"results": n}))
+}
+
+fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
+    let account = p::str(v, "account").map(str::to_string);
+    if let Some(a) = &account
+        && s.account(a).is_none()
+    {
+        return Err(CmdError::Params(format!("no account `{a}`")));
+    }
+    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    if c.sending {
+        return Err(CmdError::Disabled("the message is being sent".into()));
+    }
+    let cap = |x: &str| x.chars().take(1 << 20).collect::<String>();
+    for (k, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("subject", &mut c.subject), ("body", &mut c.body)] {
+        if let Some(x) = p::str(v, k) {
+            *field = cap(x);
+        }
+    }
+    if !c.cc.is_empty() || !c.bcc.is_empty() {
+        c.show_cc = true;
+    }
+    if let Some(a) = account {
+        c.account = a;
+    }
+    Ok(json!({"compose": c.id}))
+}
+
+/// Largest attachment accepted (most servers refuse messages over 25–35 MB).
+const ATTACH_MAX: usize = 25 << 20;
+
+fn attach(s: &mut Session, v: &Value) -> CmdResult {
+    let (name, data) = if let Some(path) = p::str(v, "path") {
+        let pb = std::path::PathBuf::from(path);
+        let meta = std::fs::metadata(&pb).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+        if meta.len() > ATTACH_MAX as u64 {
+            return Err(CmdError::Failed(format!("{path} is larger than 25 MB")));
+        }
+        let data = std::fs::read(&pb).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+        (pb.file_name().and_then(|n| n.to_str()).unwrap_or("attachment").to_string(), data)
+    } else {
+        let name = p::req_str(v, "name")?.to_string();
+        let data: Vec<u8> = v
+            .get("data")
+            .and_then(Value::as_array)
+            .ok_or_else(|| CmdError::Params("`path`, or `name` and `data`, are required".into()))?
+            .iter()
+            .take(ATTACH_MAX + 1)
+            .map(|b| b.as_u64().and_then(|x| u8::try_from(x).ok()).ok_or_else(|| CmdError::Params("`data` must be bytes".into())))
+            .collect::<Result<_, _>>()?;
+        (name, data)
+    };
+    if data.len() > ATTACH_MAX {
+        return Err(CmdError::Failed("attachments are limited to 25 MB".into()));
+    }
+    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let total: usize = c.attachments.iter().map(|a| a.data.len()).sum::<usize>() + data.len();
+    if total > ATTACH_MAX {
+        return Err(CmdError::Failed("attachments are limited to 25 MB in total".into()));
+    }
+    let name = sanitize_filename(&name);
+    let mime = mime_from_name(&name).to_string();
+    c.attachments.push(OutAttachment { name: name.clone(), mime, data });
+    Ok(json!({"attached": name, "count": c.attachments.len()}))
+}
+
+fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
+    let i = p::u64(v, "index").ok_or_else(|| CmdError::Params("`index` is required".into()))?;
+    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let i = usize::try_from(i).map_err(|_| CmdError::Params("bad index".into()))?;
+    if i >= c.attachments.len() {
+        return Err(CmdError::Params(format!("no attachment {i}")));
+    }
+    let a = c.attachments.remove(i);
+    Ok(json!({"removed": a.name}))
+}
+
+fn discard(s: &mut Session, _: &Value) -> CmdResult {
+    let c = s.compose.take();
+    Ok(json!({"discarded": c.map(|c| c.id)}))
+}
+
+fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
+    let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
+    let path = p::req_str(v, "path")?;
+    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+    let raw = s.store.as_ref().and_then(|st| st.read_body(&r.key)).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
+    let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))?;
+    std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    Ok(json!({"saved": path, "bytes": data.len()}))
+}
+
+fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
+    s.prefs.reading_pane = match p::req_str(v, "value")?.to_ascii_lowercase().as_str() {
+        "right" => ReadingPane::Right,
+        "bottom" => ReadingPane::Bottom,
+        "off" => ReadingPane::Off,
+        other => return Err(CmdError::Params(format!("unknown reading pane position `{other}`"))),
+    };
+    Ok(json!({"value": p::req_str(v, "value")?}))
+}
+
+fn server(v: &Value, prefix: &str, guess: &ServerConfig) -> Result<ServerConfig, CmdError> {
+    let host = p::str(v, &format!("{prefix}Host")).map(|h| h.trim().to_string()).unwrap_or_else(|| guess.host.clone());
+    let port = match p::u64(v, &format!("{prefix}Port")) {
+        Some(n) => u16::try_from(n).map_err(|_| CmdError::Params(format!("{prefix}Port: {n} is not a port")))?,
+        None => guess.port,
+    };
+    let security = match p::str(v, &format!("{prefix}Security")) {
+        Some(x) => Security::from_code(x).ok_or_else(|| CmdError::Params(format!("{prefix}Security: unknown `{x}`")))?,
+        None => guess.security,
+    };
+    if host.contains(char::is_whitespace) || host.contains('/') {
+        return Err(CmdError::Params(format!("{prefix}Host: `{host}` is not a server name")));
+    }
+    Ok(ServerConfig { host, port, security })
+}
+
+fn add_account(s: &mut Session, v: &Value) -> CmdResult {
+    let email = p::req_str(v, "email")?;
+    let guess = AccountConfig::guess(email);
+    let local = p::bool(v, "local").unwrap_or(false);
+    let config = AccountConfig {
+        id: String::new(),
+        name: p::str(v, "name").map(str::to_string).unwrap_or(guess.name.clone()),
+        email: email.to_string(),
+        username: p::str(v, "username").map(str::to_string).unwrap_or(guess.username.clone()),
+        imap: if local { ServerConfig::default() } else { server(v, "imap", &guess.imap)? },
+        smtp: if local { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
+        signature: p::str(v, "signature").unwrap_or_default().to_string(),
+        color: 0,
+    };
+    let password = p::str(v, "password").map(str::to_string);
+    // `deferSignIn`: add now, ask for the password when the account first connects.
+    let defer = p::bool(v, "deferSignIn").unwrap_or(false);
+    if !local && !defer && password.as_deref().is_none_or(str::is_empty) {
+        return Err(CmdError::Params("`password` is required".into()));
+    }
+    let id = s.add_account(config, password)?;
+    Ok(json!({"account": id}))
+}
+
+fn set_password(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_str(v, "account")?;
+    let pw = p::req_str(v, "password")?;
+    if pw.is_empty() {
+        return Err(CmdError::Params("`password` is empty".into()));
+    }
+    let config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    s.update_account(config, Some(pw.to_string()))
+}
+
+fn set_signature(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_str(v, "account")?;
+    let mut config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    config.signature = p::req_str(v, "signature")?.chars().take(10_000).collect();
+    s.update_account(config, None)
+}
+
+fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
+    Ok(json!(s
+        .accounts
+        .iter()
+        .map(|a| json!({
+            "account": a.config.id,
+            "email": a.config.email,
+            "name": a.config.name,
+            "imap": format!("{}:{} ({})", a.config.imap.host, a.config.imap.port, a.config.imap.security.code()),
+            "smtp": format!("{}:{} ({})", a.config.smtp.host, a.config.smtp.port, a.config.smtp.security.code()),
+            "status": a.status,
+            "folders": a.folders.iter().map(|f| json!({"path": f.path, "name": f.display_name(), "role": f.role.code(), "unread": f.unread, "total": f.total})).collect::<Vec<_>>(),
+        }))
+        .collect::<Vec<_>>()))
+}

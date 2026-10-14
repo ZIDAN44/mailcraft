@@ -1,0 +1,1234 @@
+//! The session: accounts, the current view and its message list, the open message, the message
+//! being written, preferences, and the queue of jobs for the network layer.
+
+use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
+
+use mailcraft_mime::{self as mime, OutAttachment, Parsed, ReplyMode};
+use mailcraft_model::dates::{Clock, DateGroup};
+use mailcraft_model::job::Secret;
+use mailcraft_model::search::{Doc, Index, Query, summary_text};
+use mailcraft_model::thread::{Thread, threads};
+use mailcraft_model::{
+    AccountConfig, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,
+};
+use mailcraft_store::{FolderState, Store};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::{CmdError, CmdResult, Registry};
+
+/// One account and what the session knows about it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AccountState {
+    pub config: AccountConfig,
+    pub folders: Vec<Folder>,
+    pub status: SyncStatus,
+}
+
+impl AccountState {
+    pub fn folder(&self, role: FolderRole) -> Option<&Folder> {
+        self.folders.iter().find(|f| f.role == role)
+    }
+
+    /// A local-only account (the sample mailbox): no server, changes apply to the cache alone.
+    pub fn is_local(&self) -> bool {
+        self.config.imap.host.trim().is_empty()
+    }
+}
+
+/// What the message list shows.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum View {
+    /// Nothing yet (no accounts).
+    Empty,
+    Folder {
+        account: String,
+        folder: String,
+    },
+    /// The same folder of every account (Favorites › All Inboxes).
+    Unified {
+        role: FolderRole,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ListFilter {
+    #[default]
+    All,
+    Unread,
+    Flagged,
+    Attachments,
+}
+
+impl ListFilter {
+    pub const ALL: [ListFilter; 4] = [ListFilter::All, ListFilter::Unread, ListFilter::Flagged, ListFilter::Attachments];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ListFilter::All => "All",
+            ListFilter::Unread => "Unread",
+            ListFilter::Flagged => "Flagged",
+            ListFilter::Attachments => "Has files",
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            ListFilter::All => "all",
+            ListFilter::Unread => "unread",
+            ListFilter::Flagged => "flagged",
+            ListFilter::Attachments => "attachments",
+        }
+    }
+
+    fn keeps(self, m: &Summary) -> bool {
+        match self {
+            ListFilter::All => true,
+            ListFilter::Unread => !m.flags.seen,
+            ListFilter::Flagged => m.flags.flagged,
+            ListFilter::Attachments => m.has_attachments,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SearchScope {
+    /// Every folder of every account.
+    #[default]
+    All,
+    /// The folder (or unified view) on screen.
+    Current,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReadingPane {
+    #[default]
+    Right,
+    Bottom,
+    Off,
+}
+
+/// Settings the user changes from the View tab (saved by the app).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Prefs {
+    pub reading_pane: ReadingPane,
+    /// Group the list by conversation.
+    pub conversations: bool,
+    pub mark_read_on_open: bool,
+    /// Show the first line of text under each message.
+    pub show_preview: bool,
+    /// Tighter rows.
+    pub compact: bool,
+    /// Ask before deleting permanently.
+    pub confirm_permanent_delete: bool,
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Prefs {
+            reading_pane: ReadingPane::Right,
+            conversations: false,
+            mark_read_on_open: true,
+            show_preview: true,
+            compact: false,
+            confirm_permanent_delete: true,
+        }
+    }
+}
+
+/// A line in the message list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Row {
+    /// A date heading (`Today`, `Last week`…).
+    Header(&'static str),
+    /// A message (index into [`Session::list`]); with conversations on, the newest message of a
+    /// conversation and how many messages (and unread ones) it holds.
+    Message { index: usize, count: usize, unread: usize },
+}
+
+/// The message open in the reading pane.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reading {
+    pub key: MessageKey,
+    pub parsed: Option<Parsed>,
+    pub error: Option<String>,
+    /// The other messages of its conversation in this list, oldest first.
+    pub thread: Vec<MessageKey>,
+}
+
+/// A message being written.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Compose {
+    pub id: u64,
+    pub account: String,
+    pub to: String,
+    pub cc: String,
+    pub bcc: String,
+    pub subject: String,
+    pub body: String,
+    pub attachments: Vec<OutAttachment>,
+    pub in_reply_to: String,
+    pub references: Vec<String>,
+    pub mode: Option<ReplyMode>,
+    /// The message replied to or forwarded (it gets `\Answered` / `$Forwarded` once sent).
+    pub source: Option<MessageKey>,
+    pub sending: bool,
+    pub error: Option<String>,
+    /// The copy saved in Drafts, replaced on the next save.
+    pub draft: Option<MessageKey>,
+    pub show_cc: bool,
+}
+
+/// A status-bar message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Notice {
+    pub text: String,
+    pub at: i64,
+    pub error: bool,
+}
+
+struct SearchIndex {
+    index: Index,
+    keys: Vec<MessageKey>,
+    bodies: HashMap<MessageKey, String>,
+    scope: SearchScope,
+    view: View,
+}
+
+pub struct Session {
+    pub store: Option<Store>,
+    pub accounts: Vec<AccountState>,
+    pub view: View,
+    pub filter: ListFilter,
+    /// The active search (query text and scope).
+    pub search: Option<(String, SearchScope)>,
+    /// The messages on screen, newest first.
+    pub list: Vec<Summary>,
+    /// Conversations over `list` (when [`Prefs::conversations`] is on).
+    pub threads: Vec<Thread>,
+    pub selection: Vec<MessageKey>,
+    pub focus: Option<MessageKey>,
+    pub reading: Option<Reading>,
+    pub compose: Option<Compose>,
+    pub prefs: Prefs,
+    pub clock: Clock,
+    pub notices: Vec<Notice>,
+    /// Bumped whenever `list` changes.
+    pub revision: u64,
+    jobs: Vec<Job>,
+    cache: HashMap<(String, String), FolderState>,
+    index: Option<SearchIndex>,
+    registry: Arc<Registry>,
+    next_id: u64,
+    seed: u64,
+}
+
+const NOTICE_MAX: usize = 50;
+const ACCOUNT_COLORS: u8 = 8;
+
+impl Session {
+    /// A session over a cache. Remote accounts get a `Start` job (password from the keychain).
+    pub fn open(store: Option<Store>, clock: Clock) -> Session {
+        let mut s = Session {
+            store,
+            accounts: Vec::new(),
+            view: View::Empty,
+            filter: ListFilter::All,
+            search: None,
+            list: Vec::new(),
+            threads: Vec::new(),
+            selection: Vec::new(),
+            focus: None,
+            reading: None,
+            compose: None,
+            prefs: Prefs::default(),
+            clock,
+            notices: Vec::new(),
+            revision: 0,
+            jobs: Vec::new(),
+            cache: HashMap::new(),
+            index: None,
+            registry: Arc::new(crate::cmd::registry()),
+            next_id: 1,
+            seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15,
+        };
+        if let Some(store) = &s.store {
+            let accounts = store.load_accounts().unwrap_or_else(|e| {
+                log::warn!("accounts: {e}");
+                Vec::new()
+            });
+            for config in accounts {
+                let mut folders = store.load_folders(&config.id).unwrap_or_default();
+                sort_folders(&mut folders);
+                s.accounts.push(AccountState { config, folders, status: SyncStatus::Offline });
+            }
+        }
+        let mut local = Vec::new();
+        for a in &s.accounts {
+            if a.is_local() {
+                local.push(a.config.id.clone());
+            } else {
+                s.jobs.push(Job::Start { account: a.config.clone(), password: None });
+            }
+        }
+        for id in local {
+            s.recount_local(&id);
+        }
+        s.view = s.default_view();
+        s.refresh_list();
+        s
+    }
+
+    /// A session with no cache (tests, previews).
+    pub fn blank() -> Session {
+        Session::open(None, Clock::default())
+    }
+
+    pub fn registry(&self) -> Arc<Registry> {
+        self.registry.clone()
+    }
+
+    /// Run a command by id. Disabled commands fail with [`CmdError::Disabled`]. A panic inside a
+    /// command is caught and reported as an error rather than taking the app down.
+    pub fn run(&mut self, id: &str, params: &Value) -> CmdResult {
+        let reg = self.registry.clone();
+        let spec = reg.get(id).ok_or_else(|| CmdError::Unknown(id.to_string()))?;
+        if let Some(why) = (spec.enabled)(self) {
+            return Err(CmdError::Disabled(why.to_string()));
+        }
+        let run = spec.run;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
+        match result {
+            Ok(r) => r,
+            Err(_) => {
+                log::error!("command {id} panicked");
+                self.refresh_list();
+                Err(CmdError::Failed(format!("{id} failed unexpectedly")))
+            }
+        }
+    }
+
+    /// Jobs for the network layer, oldest first.
+    pub fn take_jobs(&mut self) -> Vec<Job> {
+        std::mem::take(&mut self.jobs)
+    }
+
+    pub fn push_job(&mut self, job: Job) {
+        self.jobs.push(job);
+    }
+
+    pub fn set_clock(&mut self, now: i64, offset: i32) {
+        self.clock = Clock::new(now, offset);
+    }
+
+    pub fn notice(&mut self, text: impl Into<String>, error: bool) {
+        self.notices.push(Notice { text: text.into(), at: self.clock.now, error });
+        if self.notices.len() > NOTICE_MAX {
+            self.notices.remove(0);
+        }
+    }
+
+    fn fresh_id(&mut self) -> u64 {
+        self.next_id += 1;
+        self.next_id
+    }
+
+    fn random(&mut self) -> u64 {
+        // xorshift64*: unique Message-IDs, not cryptography.
+        let mut x = self.seed.max(1);
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.seed = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    // ----- accounts and folders -----
+
+    pub fn account(&self, id: &str) -> Option<&AccountState> {
+        self.accounts.iter().find(|a| a.config.id == id)
+    }
+
+    fn account_mut(&mut self, id: &str) -> Option<&mut AccountState> {
+        self.accounts.iter_mut().find(|a| a.config.id == id)
+    }
+
+    pub fn folder(&self, account: &str, path: &str) -> Option<&Folder> {
+        self.account(account).and_then(|a| a.folders.iter().find(|f| f.path == path))
+    }
+
+    fn default_view(&self) -> View {
+        if self.accounts.len() > 1 {
+            return View::Unified { role: FolderRole::Inbox };
+        }
+        match self.accounts.first() {
+            Some(a) => {
+                let folder = a.folder(FolderRole::Inbox).map(|f| f.path.clone()).unwrap_or_else(|| "INBOX".to_string());
+                View::Folder { account: a.config.id.clone(), folder }
+            }
+            None => View::Empty,
+        }
+    }
+
+    /// The account the view belongs to (or the first one, for unified views).
+    pub fn current_account(&self) -> Option<&AccountState> {
+        match &self.view {
+            View::Folder { account, .. } => self.account(account),
+            _ => self.accounts.first(),
+        }
+    }
+
+    /// The role of the folder on screen.
+    pub fn view_role(&self) -> Option<FolderRole> {
+        match &self.view {
+            View::Folder { account, folder } => self.folder(account, folder).map(|f| f.role),
+            View::Unified { role } => Some(*role),
+            View::Empty => None,
+        }
+    }
+
+    /// The view's title for the list header.
+    pub fn view_title(&self) -> String {
+        if let Some((q, _)) = &self.search {
+            return format!("Results for “{q}”");
+        }
+        match &self.view {
+            View::Folder { account, folder } => {
+                self.folder(account, folder).map(Folder::display_name).unwrap_or_else(|| mailcraft_model::utf7::decode(folder))
+            }
+            View::Unified { role } => match role {
+                FolderRole::Inbox => "All Inboxes".to_string(),
+                r => format!("All {}", r.label().unwrap_or("folders")),
+            },
+            View::Empty => "MailCraft".to_string(),
+        }
+    }
+
+    /// The cached state of a folder, loaded from disk on first use.
+    pub fn folder_state(&mut self, account: &str, folder: &str) -> &FolderState {
+        let k = (account.to_string(), folder.to_string());
+        if !self.cache.contains_key(&k) {
+            let st = self.store.as_ref().and_then(|s| s.load_folder(account, folder).ok()).unwrap_or_default();
+            self.cache.insert(k.clone(), st);
+        }
+        static EMPTY: std::sync::OnceLock<FolderState> = std::sync::OnceLock::new();
+        self.cache.get(&k).unwrap_or_else(|| EMPTY.get_or_init(FolderState::default))
+    }
+
+    fn reload_folder(&mut self, account: &str, folder: &str) {
+        let k = (account.to_string(), folder.to_string());
+        self.cache.remove(&k);
+        self.index = None;
+    }
+
+    /// The folders the view draws from.
+    fn view_folders(&self) -> Vec<(String, String)> {
+        match &self.view {
+            View::Folder { account, folder } => vec![(account.clone(), folder.clone())],
+            View::Unified { role } => self.accounts.iter().filter_map(|a| a.folder(*role).map(|f| (a.config.id.clone(), f.path.clone()))).collect(),
+            View::Empty => Vec::new(),
+        }
+    }
+
+    /// Rebuild the list from the view, search and filter, keeping the selection where possible.
+    pub fn refresh_list(&mut self) {
+        let mut list: Vec<Summary> = if let Some((q, scope)) = self.search.clone() {
+            self.search_results(&q, scope)
+        } else {
+            let mut v = Vec::new();
+            for (a, f) in self.view_folders() {
+                v.extend(self.folder_state(&a, &f).messages.iter().filter(|m| !m.flags.deleted).cloned());
+            }
+            v
+        };
+        let filter = self.filter;
+        list.retain(|m| filter.keeps(m));
+        sort_newest_first(&mut list);
+        self.threads = if self.prefs.conversations { threads(&list) } else { Vec::new() };
+        let alive: BTreeSet<&MessageKey> = list.iter().map(|m| &m.key).collect();
+        self.selection.retain(|k| alive.contains(k));
+        if self.focus.as_ref().is_some_and(|k| !alive.contains(k)) {
+            self.focus = None;
+        }
+        if let Some(r) = &self.reading
+            && !alive.contains(&r.key)
+            && self.search.is_none()
+        {
+            self.reading = None;
+        }
+        self.list = list;
+        self.revision = self.revision.wrapping_add(1);
+    }
+
+    /// The list as rows with date headings (and conversations, when on).
+    pub fn rows(&self) -> Vec<Row> {
+        let mut out = Vec::with_capacity(self.list.len() + 8);
+        let mut last: Option<DateGroup> = None;
+        let mut push = |out: &mut Vec<Row>, index: usize, count: usize, unread: usize, date: i64| {
+            let g = DateGroup::of(date, &self.clock);
+            if last != Some(g) {
+                out.push(Row::Header(g.label()));
+                last = Some(g);
+            }
+            out.push(Row::Message { index, count, unread });
+        };
+        if self.prefs.conversations {
+            for t in &self.threads {
+                let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, |m| m.date)) else { continue };
+                let unread = t.messages.iter().filter(|&&i| self.list.get(i).is_some_and(|m| !m.flags.seen)).count();
+                push(&mut out, newest, t.messages.len(), unread, t.latest);
+            }
+        } else {
+            for (i, m) in self.list.iter().enumerate() {
+                push(&mut out, i, 1, usize::from(!m.flags.seen), m.date);
+            }
+        }
+        out
+    }
+
+    pub fn summary(&self, key: &MessageKey) -> Option<&Summary> {
+        self.list.iter().find(|m| &m.key == key)
+    }
+
+    /// The selected messages (in list order).
+    pub fn selected(&self) -> Vec<Summary> {
+        self.list.iter().filter(|m| self.selection.contains(&m.key)).cloned().collect()
+    }
+
+    /// The conversation a message belongs to in the current list.
+    fn thread_of(&self, key: &MessageKey) -> Vec<MessageKey> {
+        let Some(i) = self.list.iter().position(|m| &m.key == key) else { return Vec::new() };
+        let ts;
+        let threads = if self.prefs.conversations {
+            &self.threads
+        } else {
+            ts = threads(&self.list);
+            &ts
+        };
+        threads
+            .iter()
+            .find(|t| t.messages.contains(&i))
+            .map(|t| t.messages.iter().filter_map(|&j| self.list.get(j).map(|m| m.key.clone())).collect())
+            .unwrap_or_default()
+    }
+
+    // ----- opening and selecting -----
+
+    pub fn open_view(&mut self, view: View) {
+        self.view = view;
+        self.search = None;
+        self.index = None;
+        self.selection.clear();
+        self.focus = None;
+        self.reading = None;
+        self.refresh_list();
+    }
+
+    /// Select one message and show it in the reading pane.
+    pub fn open_message(&mut self, key: &MessageKey) {
+        self.selection = vec![key.clone()];
+        self.focus = Some(key.clone());
+        let thread = self.thread_of(key);
+        self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread });
+        let cached = self.store.as_ref().and_then(|s| s.read_body(key));
+        match cached {
+            Some(raw) => self.show_body(key, &raw),
+            None => self.jobs.push(Job::FetchBody { key: key.clone() }),
+        }
+        if self.prefs.mark_read_on_open && self.summary(key).is_some_and(|m| !m.flags.seen) {
+            self.apply_op(&key.account.clone(), Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true });
+        }
+    }
+
+    fn show_body(&mut self, key: &MessageKey, raw: &[u8]) {
+        let parsed = mime::parse(raw);
+        if let Some(r) = self.reading.as_mut()
+            && &r.key == key
+        {
+            r.error = if parsed.is_none() { Some("this message could not be read".into()) } else { None };
+            r.parsed = parsed;
+        }
+    }
+
+    // ----- changing mail -----
+
+    /// Apply a change: to the in-memory list at once, then to the cache and server (through a
+    /// job), or straight to the cache for local accounts.
+    pub fn apply_op(&mut self, account: &str, op: Op) {
+        let local = self.account(account).is_none_or(AccountState::is_local);
+        self.apply_op_memory(account, &op);
+        if local {
+            self.apply_op_local(account, &op);
+        } else {
+            self.jobs.push(Job::Apply { account: account.to_string(), op });
+        }
+        self.index = None;
+        self.refresh_list();
+    }
+
+    fn apply_op_memory(&mut self, account: &str, op: &Op) {
+        let mut unread_delta: HashMap<String, i64> = HashMap::new();
+        for ((a, f), st) in self.cache.iter_mut() {
+            if a != account {
+                continue;
+            }
+            let mine: Vec<u32> = op.keys().iter().filter(|k| &k.folder == f && k.validity == st.validity).map(|k| k.uid).collect();
+            if mine.is_empty() {
+                continue;
+            }
+            match op {
+                Op::SetFlag { flag, on, .. } => {
+                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid)) {
+                        if *flag == Flag::Seen && m.flags.seen != *on {
+                            *unread_delta.entry(f.clone()).or_default() += if *on { -1 } else { 1 };
+                        }
+                        flag.set(&mut m.flags, *on);
+                    }
+                }
+                Op::Move { to, .. } if to == f => {}
+                Op::Move { .. } | Op::Expunge { .. } => {
+                    let unread = st.messages.iter().filter(|m| mine.contains(&m.key.uid) && !m.flags.seen).count();
+                    *unread_delta.entry(f.clone()).or_default() -= i64::try_from(unread).unwrap_or(0);
+                    st.messages.retain(|m| !mine.contains(&m.key.uid));
+                }
+            }
+        }
+        if let Some(a) = self.account_mut(account) {
+            for (f, d) in unread_delta {
+                if let Some(folder) = a.folders.iter_mut().find(|x| x.path == f) {
+                    folder.unread = u32::try_from((i64::from(folder.unread) + d).max(0)).unwrap_or(0);
+                }
+            }
+        }
+    }
+
+    /// Local accounts: change the cache directly, including filing moved messages in their
+    /// destination with new UIDs.
+    fn apply_op_local(&mut self, account: &str, op: &Op) {
+        let Some(store) = self.store.clone() else { return };
+        if let Op::Move { keys, to } = op {
+            let mut dest = store.load_folder(account, to).unwrap_or_default();
+            if dest.validity == 0 {
+                dest.validity = 1;
+            }
+            for k in keys {
+                let Ok(src) = store.load_folder(account, &k.folder) else { continue };
+                if k.folder == *to {
+                    continue;
+                }
+                let Some(m) = src.find(k.uid) else { continue };
+                let uid = dest.uid_next.max(dest.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1);
+                dest.uid_next = uid + 1;
+                let mut moved = m.clone();
+                moved.key = MessageKey { account: account.to_string(), folder: to.clone(), validity: dest.validity, uid };
+                if let Some(raw) = store.read_body(k) {
+                    let _ = store.write_body(&moved.key, &raw);
+                }
+                dest.messages.push(moved);
+            }
+            sort_newest_first(&mut dest.messages);
+            if let Err(e) = store.save_folder(account, to, &dest) {
+                self.notice(e.to_string(), true);
+            }
+            self.reload_folder(account, to);
+        }
+        match store.apply_op(account, op) {
+            Ok(changed) => {
+                for f in changed {
+                    self.reload_folder(account, &f);
+                }
+            }
+            Err(e) => self.notice(e.to_string(), true),
+        }
+        self.recount_local(account);
+    }
+
+    fn recount_local(&mut self, account: &str) {
+        let paths: Vec<String> = self.account(account).map(|a| a.folders.iter().map(|f| f.path.clone()).collect()).unwrap_or_default();
+        let mut counts = Vec::new();
+        for p in paths {
+            let st = self.folder_state(account, &p);
+            counts.push((p, st.unread(), u32::try_from(st.messages.len()).unwrap_or(u32::MAX)));
+        }
+        let mut changed = false;
+        if let Some(a) = self.account_mut(account) {
+            for (p, unread, total) in counts {
+                if let Some(f) = a.folders.iter_mut().find(|f| f.path == p)
+                    && (f.unread != unread || f.total != total)
+                {
+                    f.unread = unread;
+                    f.total = total;
+                    changed = true;
+                }
+            }
+        }
+        // Local accounts have no server to report counts: keep them on disk.
+        if changed
+            && let (Some(store), Some(a)) = (&self.store, self.account(account))
+            && let Err(e) = store.save_folders(account, &a.folders)
+        {
+            log::warn!("{account}: folder counts not saved: {e}");
+        }
+    }
+
+    /// The message to show after `gone` leave the list: the next one down, else the one above.
+    fn successor(&self, gone: &[MessageKey]) -> Option<MessageKey> {
+        let last = self.list.iter().rposition(|m| gone.contains(&m.key))?;
+        self.list
+            .iter()
+            .skip(last + 1)
+            .find(|m| !gone.contains(&m.key))
+            .or_else(|| self.list.iter().take(last).rev().find(|m| !gone.contains(&m.key)))
+            .map(|m| m.key.clone())
+    }
+
+    /// Move the selection to a folder of the same role in each message's account (Archive,
+    /// Deleted Items, Junk), or to an explicit folder.
+    pub fn move_selection(&mut self, target: MoveTarget) -> CmdResult {
+        let sel = self.selected();
+        if sel.is_empty() {
+            return Err(CmdError::Disabled("no message selected".into()));
+        }
+        let next = self.successor(&self.selection.clone());
+        let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
+        for m in &sel {
+            by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
+        }
+        let mut moved = 0usize;
+        let mut accounts: Vec<String> = by_account.keys().cloned().collect();
+        accounts.sort();
+        for a in accounts {
+            let keys = by_account.remove(&a).unwrap_or_default();
+            let dest = match &target {
+                MoveTarget::Folder(f) => Some(f.clone()),
+                MoveTarget::Role(r) => self.account(&a).and_then(|acc| acc.folder(*r)).map(|f| f.path.clone()),
+            };
+            let Some(dest) = dest else {
+                let what = match target {
+                    MoveTarget::Role(r) => r.label().unwrap_or("that folder"),
+                    MoveTarget::Folder(_) => "that folder",
+                };
+                return Err(CmdError::Failed(format!("this account has no {what} folder")));
+            };
+            if self.folder(&a, &dest).is_none() {
+                return Err(CmdError::Params(format!("no folder `{dest}`")));
+            }
+            let keys: Vec<MessageKey> = keys.into_iter().filter(|k| k.folder != dest).collect();
+            moved += keys.len();
+            if !keys.is_empty() {
+                self.apply_op(&a, Op::Move { keys, to: dest });
+            }
+        }
+        self.after_removal(next);
+        Ok(serde_json::json!({ "moved": moved }))
+    }
+
+    /// Delete permanently.
+    pub fn expunge_selection(&mut self) -> CmdResult {
+        let sel = self.selected();
+        if sel.is_empty() {
+            return Err(CmdError::Disabled("no message selected".into()));
+        }
+        let next = self.successor(&self.selection.clone());
+        let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
+        for m in &sel {
+            by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
+        }
+        let n = sel.len();
+        for (a, keys) in by_account {
+            self.apply_op(&a, Op::Expunge { keys });
+        }
+        self.after_removal(next);
+        Ok(serde_json::json!({ "deleted": n }))
+    }
+
+    fn after_removal(&mut self, next: Option<MessageKey>) {
+        self.reading = None;
+        self.selection.clear();
+        self.focus = None;
+        if let Some(k) = next
+            && self.list.iter().any(|m| m.key == k)
+        {
+            // Show the next message, but don't mark it read just because something was deleted.
+            let mark = self.prefs.mark_read_on_open;
+            self.prefs.mark_read_on_open = false;
+            self.open_message(&k);
+            self.prefs.mark_read_on_open = mark;
+        }
+    }
+
+    /// Set or clear a flag on the selection (`on: None` toggles, following the first message).
+    pub fn flag_selection(&mut self, flag: Flag, on: Option<bool>) -> CmdResult {
+        let sel = self.selected();
+        let first = sel.first().ok_or_else(|| CmdError::Disabled("no message selected".into()))?;
+        let current = match flag {
+            Flag::Seen => first.flags.seen,
+            Flag::Flagged => first.flags.flagged,
+            Flag::Answered => first.flags.answered,
+            Flag::Forwarded => first.flags.forwarded,
+            Flag::Deleted => first.flags.deleted,
+        };
+        let on = on.unwrap_or(!current);
+        let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
+        for m in &sel {
+            by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
+        }
+        for (a, keys) in by_account {
+            self.apply_op(&a, Op::SetFlag { keys, flag, on });
+        }
+        Ok(serde_json::json!({ "on": on, "count": sel.len() }))
+    }
+
+    // ----- search -----
+
+    fn ensure_index(&mut self, scope: SearchScope) {
+        if self.index.as_ref().is_some_and(|ix| ix.scope == scope && (scope == SearchScope::All || ix.view == self.view)) {
+            return;
+        }
+        let folders: Vec<(String, String)> = match scope {
+            SearchScope::Current => self.view_folders(),
+            SearchScope::All => {
+                self.accounts.iter().flat_map(|a| a.folders.iter().filter(|f| f.selectable).map(|f| (a.config.id.clone(), f.path.clone()))).collect()
+            }
+        };
+        let mut index = Index::new();
+        let mut keys = Vec::new();
+        let mut bodies = HashMap::new();
+        for (a, f) in folders {
+            let msgs = self.folder_state(&a, &f).messages.clone();
+            for m in msgs {
+                let doc = u32::try_from(keys.len()).unwrap_or(u32::MAX);
+                index.add(doc, &summary_text(&m));
+                if let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(&m.key))
+                    && let Some(p) = mime::parse(&raw)
+                {
+                    let text: String = p.text.chars().take(50_000).collect();
+                    index.add(doc, &text);
+                    for att in &p.attachments {
+                        index.add(doc, &att.name);
+                    }
+                    bodies.insert(m.key.clone(), text);
+                }
+                keys.push(m.key);
+            }
+        }
+        self.index = Some(SearchIndex { index, keys, bodies, scope, view: self.view.clone() });
+    }
+
+    fn search_results(&mut self, q: &str, scope: SearchScope) -> Vec<Summary> {
+        let query = Query::parse(q);
+        if query.is_empty() {
+            return Vec::new();
+        }
+        self.ensure_index(scope);
+        let Some(ix) = self.index.take() else { return Vec::new() };
+        let mut out = Vec::new();
+        for doc in ix.index.candidates(&query) {
+            let Some(key) = ix.keys.get(doc as usize) else { continue };
+            let Some(m) = self.folder_state(&key.account, &key.folder).find(key.uid).cloned() else { continue };
+            if query.matches(&Doc { summary: &m, body: ix.bodies.get(key).map(String::as_str) }) {
+                out.push(m);
+            }
+        }
+        self.index = Some(ix);
+        out
+    }
+
+    pub fn run_search(&mut self, query: &str, scope: SearchScope) -> usize {
+        let q = query.trim();
+        self.search = if q.is_empty() { None } else { Some((q.to_string(), scope)) };
+        self.selection.clear();
+        self.focus = None;
+        self.reading = None;
+        self.refresh_list();
+        self.list.len()
+    }
+
+    // ----- writing -----
+
+    fn me(&self, account: &str) -> Vec<String> {
+        let mut v: Vec<String> = self.accounts.iter().map(|a| a.config.email.clone()).collect();
+        if let Some(a) = self.account(account) {
+            v.push(a.config.username.clone());
+        }
+        v
+    }
+
+    fn signature(&self, account: &str) -> String {
+        self.account(account).map(|a| a.config.signature.clone()).unwrap_or_default()
+    }
+
+    pub fn new_compose(&mut self, account: Option<&str>) -> Result<&mut Compose, CmdError> {
+        let account = match account {
+            Some(a) => self.account(a).map(|a| a.config.id.clone()),
+            None => self.current_account().map(|a| a.config.id.clone()),
+        }
+        .ok_or_else(|| CmdError::Disabled("add an account first".into()))?;
+        let sig = self.signature(&account);
+        let id = self.fresh_id();
+        let body = if sig.trim().is_empty() { String::new() } else { format!("\n\n-- \n{}", sig.trim_end()) };
+        self.compose = Some(Compose { id, account, body, ..Default::default() });
+        self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
+    }
+
+    pub fn reply_compose(&mut self, mode: ReplyMode) -> CmdResult {
+        let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        let parsed = r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+        let account = r.key.account.clone();
+        let sig = self.signature(&account);
+        let d = mime::reply(&parsed, mode, &self.me(&account), &self.clock, &sig);
+        let id = self.fresh_id();
+        let mut attachments = Vec::new();
+        if mode == ReplyMode::Forward
+            && let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(&r.key))
+        {
+            for a in parsed.attachments.iter().filter(|a| !a.inline) {
+                if let Some(data) = mime::attachment_data(&raw, a.index) {
+                    attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
+                }
+            }
+        }
+        self.compose = Some(Compose {
+            id,
+            account,
+            to: addr::format_list(&d.to),
+            cc: addr::format_list(&d.cc),
+            show_cc: !d.cc.is_empty(),
+            subject: d.subject,
+            body: d.body,
+            in_reply_to: d.in_reply_to,
+            references: d.references,
+            attachments,
+            mode: Some(mode),
+            source: Some(r.key),
+            ..Default::default()
+        });
+        Ok(serde_json::json!({ "compose": id }))
+    }
+
+    fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
+        let parse = |field: &str, s: &str| addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")));
+        Ok(mime::Draft {
+            to: parse("To", &c.to)?,
+            cc: parse("Cc", &c.cc)?,
+            bcc: parse("Bcc", &c.bcc)?,
+            subject: c.subject.trim().to_string(),
+            body: c.body.clone(),
+            in_reply_to: c.in_reply_to.clone(),
+            references: c.references.clone(),
+            attachments: c.attachments.clone(),
+        })
+    }
+
+    fn compose_bytes(&mut self, c: &Compose, d: &mime::Draft) -> Result<(Vec<u8>, String), CmdError> {
+        let acc = self.account(&c.account).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
+        let from = mailcraft_model::EmailAddress::new(acc.config.name.clone(), acc.config.email.clone());
+        let email = acc.config.email.clone();
+        let now = self.clock.now;
+        let mid = mime::new_message_id(&email, now, self.random());
+        let raw = mime::build(d, &from, now, &mid).map_err(CmdError::Failed)?;
+        Ok((raw, email))
+    }
+
+    pub fn send_compose(&mut self, allow_empty_subject: bool) -> CmdResult {
+        let c = self.compose.clone().ok_or_else(|| CmdError::Disabled("nothing to send".into()))?;
+        if c.sending {
+            return Err(CmdError::Disabled("already sending".into()));
+        }
+        let d = self.compose_draft(&c)?;
+        if d.recipients().is_empty() {
+            return Err(CmdError::Params("add at least one recipient".into()));
+        }
+        if d.subject.is_empty() && !allow_empty_subject {
+            return Err(CmdError::Params("the subject is empty (send with {\"allowEmptySubject\": true} to send anyway)".into()));
+        }
+        let (raw, from) = self.compose_bytes(&c, &d)?;
+        let local = self.account(&c.account).is_none_or(AccountState::is_local);
+        let sent_folder = self.account(&c.account).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone());
+        if local {
+            if let Some(folder) = &sent_folder {
+                self.file_locally(&c.account, folder, &raw, true);
+            }
+            self.finish_sent(&c);
+            return Ok(serde_json::json!({ "sent": c.id, "local": true }));
+        }
+        self.jobs.push(Job::Send { account: c.account.clone(), id: c.id, raw, from, recipients: d.recipients(), sent_folder });
+        if let Some(cm) = self.compose.as_mut() {
+            cm.sending = true;
+            cm.error = None;
+        }
+        Ok(serde_json::json!({ "sending": c.id }))
+    }
+
+    fn finish_sent(&mut self, c: &Compose) {
+        if let (Some(src), Some(mode)) = (&c.source, c.mode) {
+            let flag = if mode == ReplyMode::Forward { Flag::Forwarded } else { Flag::Answered };
+            self.apply_op(&src.account.clone(), Op::SetFlag { keys: vec![src.clone()], flag, on: true });
+        }
+        if let Some(draft) = &c.draft {
+            self.apply_op(&draft.account.clone(), Op::Expunge { keys: vec![draft.clone()] });
+        }
+        if self.compose.as_ref().is_some_and(|x| x.id == c.id) {
+            self.compose = None;
+        }
+        self.notice("Message sent", false);
+    }
+
+    /// Save the message being written to Drafts.
+    pub fn save_draft(&mut self) -> CmdResult {
+        let c = self.compose.clone().ok_or_else(|| CmdError::Disabled("nothing to save".into()))?;
+        // Drafts may hold unfinished addresses: keep only the valid ones.
+        let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
+        let d = mime::Draft {
+            to: lenient(&c.to),
+            cc: lenient(&c.cc),
+            bcc: lenient(&c.bcc),
+            subject: c.subject.clone(),
+            body: c.body.clone(),
+            in_reply_to: c.in_reply_to.clone(),
+            references: c.references.clone(),
+            attachments: c.attachments.clone(),
+        };
+        let folder = self
+            .account(&c.account)
+            .and_then(|a| a.folder(FolderRole::Drafts))
+            .map(|f| f.path.clone())
+            .ok_or_else(|| CmdError::Failed("this account has no Drafts folder".into()))?;
+        let (raw, _) = self.compose_bytes(&c, &d)?;
+        if self.account(&c.account).is_none_or(AccountState::is_local) {
+            if let Some(old) = &c.draft {
+                self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
+            }
+            let key = self.file_locally(&c.account, &folder, &raw, false);
+            if let Some(cm) = self.compose.as_mut() {
+                cm.draft = key;
+            }
+        } else {
+            self.jobs.push(Job::SaveDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() });
+            if let Some(cm) = self.compose.as_mut() {
+                // The server assigns the new copy's UID; the old one is replaced by the worker.
+                cm.draft = None;
+            }
+        }
+        self.notice("Draft saved", false);
+        Ok(serde_json::json!({ "saved": c.id }))
+    }
+
+    /// File a message in a local account's folder; returns its key.
+    fn file_locally(&mut self, account: &str, folder: &str, raw: &[u8], seen: bool) -> Option<MessageKey> {
+        let store = self.store.clone()?;
+        let mut st = store.load_folder(account, folder).unwrap_or_default();
+        if st.validity == 0 {
+            st.validity = 1;
+        }
+        let uid = st.uid_next.max(st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1);
+        st.uid_next = uid + 1;
+        let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: st.validity, uid };
+        let flags = mailcraft_model::Flags { seen, draft: !seen, ..Default::default() };
+        let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
+        let s = mime::summary_from_full(raw, key.clone(), flags, size, self.clock.now);
+        let _ = store.write_body(&key, raw);
+        st.messages.push(s);
+        sort_newest_first(&mut st.messages);
+        if let Err(e) = store.save_folder(account, folder, &st) {
+            self.notice(e.to_string(), true);
+            return None;
+        }
+        self.reload_folder(account, folder);
+        self.recount_local(account);
+        self.refresh_list();
+        Some(key)
+    }
+
+    // ----- accounts -----
+
+    /// Add an account (the password goes to the keychain through the `Start` job).
+    pub fn add_account(&mut self, mut config: AccountConfig, password: Option<String>) -> Result<String, CmdError> {
+        config.email = config.email.trim().to_string();
+        if !addr::is_valid_email(&config.email) {
+            return Err(CmdError::Params(format!("`{}` is not an email address", config.email)));
+        }
+        if self.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(&config.email)) {
+            return Err(CmdError::Params(format!("{} is already added", config.email)));
+        }
+        if config.username.trim().is_empty() {
+            config.username = config.email.clone();
+        }
+        let mut n = self.accounts.len() + 1;
+        while self.accounts.iter().any(|a| a.config.id == format!("a{n}")) {
+            n += 1;
+        }
+        config.id = format!("a{n}");
+        config.color = u8::try_from(self.accounts.len() % usize::from(ACCOUNT_COLORS)).unwrap_or(0);
+        let local = config.imap.host.trim().is_empty();
+        if !local && (config.imap.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0) {
+            return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
+        }
+        let id = config.id.clone();
+        self.accounts.push(AccountState { config: config.clone(), folders: Vec::new(), status: SyncStatus::Connecting });
+        self.save_accounts();
+        if !local {
+            self.jobs.push(Job::Start { account: config, password: password.map(Secret) });
+        }
+        if self.accounts.len() == 1 || self.view == View::Empty {
+            self.view = View::Folder { account: id.clone(), folder: "INBOX".into() };
+            self.refresh_list();
+        }
+        Ok(id)
+    }
+
+    pub fn remove_account(&mut self, id: &str) -> CmdResult {
+        if self.account(id).is_none() {
+            return Err(CmdError::Params(format!("no account `{id}`")));
+        }
+        self.accounts.retain(|a| a.config.id != id);
+        self.cache.retain(|(a, _), _| a != id);
+        if let Some(store) = &self.store
+            && let Err(e) = store.remove_account(id)
+        {
+            self.notice(e.to_string(), true);
+        }
+        self.save_accounts();
+        self.jobs.push(Job::Remove { account: id.to_string() });
+        if self.compose.as_ref().is_some_and(|c| c.account == id) {
+            self.compose = None;
+        }
+        let view = self.default_view();
+        self.open_view(view);
+        Ok(serde_json::json!({ "removed": id }))
+    }
+
+    pub fn update_account(&mut self, config: AccountConfig, password: Option<String>) -> CmdResult {
+        let id = config.id.clone();
+        let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
+        let reconnect = a.config.imap != config.imap || a.config.smtp != config.smtp || a.config.username != config.username || password.is_some();
+        a.config = config.clone();
+        let local = a.is_local();
+        self.save_accounts();
+        if reconnect && !local {
+            self.jobs.push(Job::Start { account: config, password: password.map(Secret) });
+        }
+        Ok(serde_json::json!({ "updated": id }))
+    }
+
+    fn save_accounts(&mut self) {
+        let configs: Vec<AccountConfig> = self.accounts.iter().map(|a| a.config.clone()).collect();
+        if let Some(store) = &self.store
+            && let Err(e) = store.save_accounts(&configs)
+        {
+            self.notice(format!("account settings could not be saved: {e}"), true);
+        }
+    }
+
+    /// Ask every account to sync now.
+    pub fn sync_all(&mut self) -> usize {
+        let ids: Vec<String> = self.accounts.iter().filter(|a| !a.is_local()).map(|a| a.config.id.clone()).collect();
+        for id in &ids {
+            self.jobs.push(Job::SyncAll { account: id.clone() });
+        }
+        ids.len()
+    }
+
+    // ----- events -----
+
+    /// Apply an event from the network layer.
+    pub fn apply(&mut self, e: Event) {
+        match e {
+            Event::Status { account, status } => {
+                if let SyncStatus::NeedsPassword { error } = &status {
+                    let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
+                    let why = if error.is_empty() { String::new() } else { format!(": {error}") };
+                    self.notice(format!("{who} needs its password{why}"), true);
+                }
+                if let Some(a) = self.account_mut(&account) {
+                    a.status = status;
+                }
+            }
+            Event::Folders { account, mut folders } => {
+                sort_folders(&mut folders);
+                let first = self.account(&account).is_some_and(|a| a.folders.is_empty());
+                if let Some(a) = self.account_mut(&account) {
+                    a.folders = folders;
+                }
+                // A view on a folder that no longer exists falls back to the Inbox.
+                let missing = matches!(&self.view, View::Folder { account: va, folder } if *va == account && self.folder(va, folder).is_none());
+                if missing {
+                    let inbox =
+                        self.account(&account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()).unwrap_or_else(|| "INBOX".into());
+                    self.open_view(View::Folder { account: account.clone(), folder: inbox });
+                } else if first {
+                    self.refresh_list();
+                }
+                self.index = None;
+            }
+            Event::FolderChanged { account, folder } => {
+                self.reload_folder(&account, &folder);
+                let visible = self.search.is_some() || self.view_folders().iter().any(|(a, f)| *a == account && *f == folder);
+                if visible {
+                    self.refresh_list();
+                }
+                if let Some(r) = &self.reading
+                    && r.key.account == account
+                    && r.key.folder == folder
+                {
+                    let key = r.key.clone();
+                    let thread = self.thread_of(&key);
+                    if let Some(r) = self.reading.as_mut() {
+                        r.thread = thread;
+                    }
+                }
+            }
+            Event::Body { key, raw } => {
+                self.show_body(&key, &raw);
+                self.index = None;
+            }
+            Event::BodyFailed { key, error } => {
+                if let Some(r) = self.reading.as_mut()
+                    && r.key == key
+                {
+                    r.error = Some(error);
+                }
+            }
+            Event::Sent { id, .. } => {
+                if let Some(c) = self.compose.clone().filter(|c| c.id == id) {
+                    self.finish_sent(&c);
+                } else {
+                    self.notice("Message sent", false);
+                }
+            }
+            Event::SendFailed { id, error, .. } => {
+                if let Some(c) = self.compose.as_mut().filter(|c| c.id == id) {
+                    c.sending = false;
+                    c.error = Some(error.clone());
+                }
+                self.notice(format!("Not sent: {error}"), true);
+            }
+            Event::OpFailed { error, .. } => self.notice(format!("The server refused a change: {error}"), true),
+            Event::Notice { account, message } => {
+                let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or(account);
+                self.notice(format!("{who}: {message}"), true);
+            }
+        }
+    }
+}
+
+/// Where a move goes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MoveTarget {
+    Role(FolderRole),
+    Folder(String),
+}
+
+/// `{"key": "a1:7:42:INBOX"}` or `{"account":…,"folder":…,"validity":…,"uid":…}`.
+pub fn parse_key(v: &Value) -> Option<MessageKey> {
+    if let Some(s) = v.get("key").and_then(Value::as_str) {
+        return MessageKey::from_id(s);
+    }
+    serde_json::from_value::<MessageKey>(v.clone()).ok().filter(|k| !k.account.is_empty())
+}
