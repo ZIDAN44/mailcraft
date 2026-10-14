@@ -71,6 +71,15 @@ impl Dialog {
         Dialog::AddAccount(Box::default())
     }
 
+    /// The add-account dialog with the address filled in (servers guessed from it).
+    pub fn add_account_with(email: &str, advanced: bool) -> Dialog {
+        let mut f = AccountForm { email: email.trim().to_string(), advanced, ..Default::default() };
+        if !f.email.is_empty() {
+            f.guess();
+        }
+        Dialog::AddAccount(Box::new(f))
+    }
+
     pub fn move_to() -> Dialog {
         Dialog::MoveTo { filter: String::new() }
     }
@@ -137,16 +146,17 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             ui.add_space(10.0);
             egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
                 ui.label("Email address");
-                let r = ui.add(egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com").desired_width(300.0));
+                let r =
+                    ui.add(egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com").min_size(vec2(300.0, 26.0)).desired_width(300.0));
                 if r.changed() && !f.servers_edited {
                     f.guess();
                 }
                 ui.end_row();
                 ui.label("Your name");
-                ui.add(egui::TextEdit::singleline(&mut f.name).hint_text("Shown on mail you send").desired_width(300.0));
+                ui.add(egui::TextEdit::singleline(&mut f.name).hint_text("Shown on mail you send").min_size(vec2(300.0, 26.0)).desired_width(300.0));
                 ui.end_row();
                 ui.label("Password");
-                ui.add(egui::TextEdit::singleline(&mut f.password).password(true).desired_width(300.0));
+                ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
                 ui.end_row();
             });
             ui.add_space(6.0);
@@ -154,22 +164,38 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             if f.advanced {
                 egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(10)).show(ui, |ui| {
                     let mut edited = false;
-                    egui::Grid::new("servers").num_columns(4).spacing(vec2(8.0, 8.0)).show(ui, |ui| {
-                        ui.label(RichText::new("Incoming (IMAP)").strong());
-                        edited |= ui.add(egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com").desired_width(170.0)).changed();
-                        edited |= ui.add(egui::TextEdit::singleline(&mut f.imap_port).desired_width(44.0)).changed();
+                    let w = ui.available_width();
+                    // Fixed sizes: text boxes inside a Grid can't grow past last frame's column width.
+                    let host_w = (w - 196.0).max(140.0);
+                    let label = |ui: &mut Ui, s: &str| {
+                        ui.label(RichText::new(s).strong().small());
+                    };
+                    label(ui, "Incoming mail (IMAP)");
+                    ui.horizontal(|ui| {
+                        edited |= ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com")).changed();
+                        edited |= ui
+                            .add_sized(
+                                [56.0, 26.0],
+                                egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").horizontal_align(egui::Align::Center),
+                            )
+                            .changed();
                         security_combo(ui, "imapsec", &mut f.imap_security);
-                        ui.end_row();
-                        ui.label(RichText::new("Outgoing (SMTP)").strong());
-                        edited |= ui.add(egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com").desired_width(170.0)).changed();
-                        edited |= ui.add(egui::TextEdit::singleline(&mut f.smtp_port).desired_width(44.0)).changed();
-                        security_combo(ui, "smtpsec", &mut f.smtp_security);
-                        ui.end_row();
-                        ui.label("User name");
-                        edited |=
-                            ui.add(egui::TextEdit::singleline(&mut f.username).hint_text("Usually the email address").desired_width(170.0)).changed();
-                        ui.end_row();
                     });
+                    ui.add_space(4.0);
+                    label(ui, "Outgoing mail (SMTP)");
+                    ui.horizontal(|ui| {
+                        edited |= ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com")).changed();
+                        edited |= ui
+                            .add_sized(
+                                [56.0, 26.0],
+                                egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").horizontal_align(egui::Align::Center),
+                            )
+                            .changed();
+                        security_combo(ui, "smtpsec", &mut f.smtp_security);
+                    });
+                    ui.add_space(4.0);
+                    label(ui, "User name");
+                    edited |= ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text("Usually the email address")).changed();
                     f.servers_edited |= edited;
                     if f.imap_security == Security::None || f.smtp_security == Security::None {
                         ui.label(

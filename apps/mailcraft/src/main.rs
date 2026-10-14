@@ -4,8 +4,8 @@
 //!
 //! `--sample` opens a separate, local-only sample mailbox (no server needed). `--data` (or the
 //! `MAILCRAFT_DATA` environment variable) chooses where mail is cached. `--cmd` runs engine
-//! commands at start-up (`--cmd 'list.open={"key":"sample:1:1:INBOX"}'`); `ui.addAccount` and
-//! `ui.settings` open those dialogs.
+//! commands at start-up (`--cmd 'list.open={"key":"sample:1:1:INBOX"}'`); `ui.addAccount` (optionally
+//! `={"email":…,"advanced":true}`) and `ui.settings` open those dialogs.
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
@@ -206,7 +206,13 @@ fn main() -> eframe::Result {
             for c in args.windows(2).filter(|w| w.first().is_some_and(|a| a == "--cmd")).filter_map(|w| w.get(1)) {
                 let (id, params) = c.split_once('=').unwrap_or((c.as_str(), "{}"));
                 match id {
-                    "ui.addAccount" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::add_account()),
+                    "ui.addAccount" => {
+                        let p: serde_json::Value = serde_json::from_str(params).unwrap_or_default();
+                        app.ui.dialog = Some(mailcraft_ui_egui::Dialog::add_account_with(
+                            p.get("email").and_then(|v| v.as_str()).unwrap_or_default(),
+                            p.get("advanced").and_then(|v| v.as_bool()).unwrap_or(false),
+                        ));
+                    }
                     "ui.settings" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::Settings),
                     _ => match serde_json::from_str(params) {
                         Ok(p) => app.run(id, p),

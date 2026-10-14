@@ -123,7 +123,7 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.panel_fill = t.surface;
     v.window_fill = t.surface;
     // Text boxes: a touch darker than the pane, so fields read as fields.
-    v.extreme_bg_color = if t.dark { Color32::from_rgb(0x1A, 0x1C, 0x1F) } else { Color32::from_rgb(0xF4, 0xF6, 0xF8) };
+    v.extreme_bg_color = if t.dark { Color32::from_rgb(0x1A, 0x1C, 0x1F) } else { Color32::WHITE };
     v.faint_bg_color = t.chrome;
     v.window_stroke = Stroke::new(1.0, t.border);
     v.selection.bg_fill = t.accent.gamma_multiply(if t.dark { 0.55 } else { 0.35 });
@@ -141,7 +141,8 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
     v.widgets.inactive.bg_fill = if t.dark { Color32::from_rgb(0x2C, 0x2F, 0x34) } else { Color32::from_rgb(0xF1, 0xF3, 0xF5) };
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.inactive.bg_stroke = Stroke::NONE;
+    // A hairline so text boxes and drop-downs read as fields on any background.
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, if t.dark { Color32::from_rgb(0x3E, 0x42, 0x48) } else { Color32::from_rgb(0xCF, 0xD4, 0xDA) });
     v.widgets.hovered.weak_bg_fill = t.hover;
     v.widgets.hovered.bg_fill = t.hover;
     v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.border);
