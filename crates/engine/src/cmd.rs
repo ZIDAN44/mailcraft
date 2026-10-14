@@ -273,6 +273,24 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.notify}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.markReadOnOpen", "Mark as read when opened", "File › Options › Mail", |s, v| {
+            s.prefs.mark_read_on_open = p::bool(v, "on").unwrap_or(!s.prefs.mark_read_on_open);
+            Ok(json!({"on": s.prefs.mark_read_on_open}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.trustSender", "Show pictures from a sender", "File › Options › Privacy", |s, v| {
+            let who = p::req_str(v, "address")?.trim().to_ascii_lowercase();
+            if !mailcraft_model::addr::is_valid_email(&who) {
+                return Err(CmdError::Params(format!("`{who}` is not an email address")));
+            }
+            if p::bool(v, "on").unwrap_or(true) {
+                s.prefs.trusted_senders.insert(who.clone());
+            } else {
+                s.prefs.trusted_senders.remove(&who);
+            }
+            Ok(json!({"trusted": s.prefs.trusted_senders.iter().collect::<Vec<_>>()}))
+        })
+        .params(r#"{"address": string, "on"?: bool}"#),
         // Accounts
         CommandSpec::new("folder.empty", "Empty folder", "Folder › Empty", |s, v| {
             let account = account_param(s, v)?;

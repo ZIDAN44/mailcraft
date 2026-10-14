@@ -68,6 +68,7 @@ pub(crate) fn tour() {
         a.run("message.popOut", json!({"key": k.to_id()}));
         frame(&ctx, &mut a, vec![]);
         a.run("message.closeWindow", json!({"key": k.to_id()}));
+        backstage_tour(&mut a, &ctx);
         let projects = a.session.folder("sample", "Projects").cloned().unwrap();
         a.session.oauth_available = vec!["google".into()];
         for d in [
@@ -75,7 +76,18 @@ pub(crate) fn tour() {
             Dialog::move_to(),
             Dialog::ConfirmDelete { count: 2 },
             Dialog::EmptySubject,
-            Dialog::Settings,
+            Dialog::edit_account(&a.session.accounts[0].config),
+            Dialog::vacation(
+                "sample",
+                &mailcraft_engine::model::job::Vacation {
+                    enabled: true,
+                    subject: "Away".into(),
+                    text: "Back soon".into(),
+                    from: Some("2026-10-15".into()),
+                    until: None,
+                },
+            ),
+            Dialog::ConfirmEmpty { account: "sample".into(), folder: "Trash".into(), name: "Deleted Items".into() },
             Dialog::RemoveAccount { account: "sample".into(), email: "x".into() },
             Dialog::Signature { account: "sample".into(), text: "sig".into() },
             Dialog::Password { account: "sample".into(), email: "x".into(), password: String::new() },
@@ -205,6 +217,65 @@ fn double_clicked_mail_opens_in_its_own_window() {
     frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.windows.is_empty(), "Escape closes the window");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The File page: every page, in the tour's languages and themes.
+pub(crate) fn backstage_tour(a: &mut MailApp, ctx: &egui::Context) {
+    for page in [crate::backstage::Page::Info, crate::backstage::Page::Options, crate::backstage::Page::About] {
+        a.act(crate::Action::Backstage(page));
+        frame(ctx, a, vec![]);
+    }
+    a.ui.backstage = None;
+}
+
+#[test]
+fn the_file_page_shows_accounts_replies_space_and_options() {
+    let (mut a, dir) = app("backstage");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    backstage_tour(&mut a, &ctx);
+    // A server account: its automatic replies are asked for once, and shown when they arrive.
+    let id = a.session.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.take_jobs();
+    a.act(crate::Action::Backstage(crate::backstage::Page::Info));
+    if let Some(b) = a.ui.backstage.as_mut() {
+        b.account = Some(id.clone());
+    }
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(matches!(a.session.account(&id).unwrap().vacation, mailcraft_engine::VacationState::Loading), "asked the server");
+    a.session.apply(mailcraft_engine::model::Event::Vacation {
+        account: id.clone(),
+        vacation: Some(mailcraft_engine::model::job::Vacation {
+            enabled: true,
+            text: "Away".into(),
+            until: Some("2026-10-20".into()),
+            ..Default::default()
+        }),
+        error: None,
+    });
+    a.session.apply(mailcraft_engine::model::Event::Quota { account: id.clone(), used: 3 << 30, limit: 15 << 30 });
+    frame(&ctx, &mut a, vec![]);
+    // The replies dialog saves through the command; bad dates are reported in it.
+    let mut d = Dialog::vacation(&id, &Default::default());
+    if let Dialog::Vacation(f) = &mut d {
+        f.enabled = true;
+        f.text = "Back Monday".into();
+        f.dated = true;
+        f.until = "20 October".into();
+    }
+    a.ui.dialog = Some(d);
+    let p = match &a.ui.dialog {
+        Some(Dialog::Vacation(f)) => f.params(),
+        _ => serde_json::Value::Null,
+    };
+    a.act(crate::Action::Submit("account.setVacation", p));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Vacation(f)) if f.error.as_deref().is_some_and(|e| e.contains("not a date"))));
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    // Escape leaves the File page too.
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(a.ui.backstage.is_none() && a.ui.dialog.is_none());
     let _ = std::fs::remove_dir_all(dir);
 }
 

@@ -21,6 +21,7 @@ macro_rules! tf {
     };
 }
 
+pub mod backstage;
 mod dialogs;
 mod editor;
 pub mod i18n;
@@ -160,6 +161,8 @@ pub enum Action {
     Submit(&'static str, Value),
     /// Bring the main window to the front (after acting from a message window).
     FocusMain,
+    /// Open the File page at a page.
+    Backstage(backstage::Page),
 }
 
 /// UI-only state.
@@ -200,6 +203,8 @@ pub struct UiState {
     pub(crate) title_shown: String,
     /// Raise the main window on the next frame.
     focus_main: bool,
+    /// The File page, while it's open.
+    pub backstage: Option<backstage::Backstage>,
 }
 
 pub struct MailApp {
@@ -245,6 +250,7 @@ impl MailApp {
                 title_base: "MailCraft".into(),
                 title_shown: String::new(),
                 focus_main: false,
+                backstage: None,
             },
         };
         app.ui.craft_apps = craft_apps;
@@ -337,11 +343,13 @@ impl MailApp {
         egui::Panel::top("topbar").exact_size(46.0).frame(egui::Frame::new().fill(t.accent).inner_margin(Margin::symmetric(12, 6))).show(ui, |ui| {
             self.top_bar(ui, &mut acts);
         });
-        egui::Panel::top("ribbon")
-            .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 4)).stroke(egui::Stroke::new(1.0, t.border)))
-            .show(ui, |ui| {
-                self.ribbon(ui, &mut acts);
-            });
+        if self.ui.backstage.is_none() {
+            egui::Panel::top("ribbon")
+                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 4)).stroke(egui::Stroke::new(1.0, t.border)))
+                .show(ui, |ui| {
+                    self.ribbon(ui, &mut acts);
+                });
+        }
         egui::Panel::bottom("status").exact_size(26.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3))).show(
             ui,
             |ui| {
@@ -349,7 +357,9 @@ impl MailApp {
             },
         );
 
-        if self.session.accounts.is_empty() {
+        if self.ui.backstage.is_some() {
+            backstage::show(&self.session, &mut self.ui, ui, &mut acts);
+        } else if self.session.accounts.is_empty() {
             egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
                 widgets::welcome(ui, &t, &mut acts);
             });
@@ -396,8 +406,7 @@ impl MailApp {
         self.message_windows(&ctx, &mut acts);
 
         if let Some(mut d) = self.ui.dialog.take() {
-            let language = self.ui.language.clone();
-            let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &language, &mut acts);
+            let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &mut acts);
             if keep && self.ui.dialog.is_none() {
                 self.ui.dialog = Some(d);
             }
@@ -514,6 +523,7 @@ impl MailApp {
             Action::Dialog(d) => self.ui.dialog = Some(d),
             Action::FocusSearch => self.ui.focus_search = true,
             Action::FocusMain => self.ui.focus_main = true,
+            Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
             Action::Submit(id, p) => match self.session.run(id, &p) {
                 Ok(_) => self.ui.dialog = None,
                 Err(e) => {
@@ -681,6 +691,12 @@ impl MailApp {
             }
             return;
         }
+        if self.ui.backstage.is_some() {
+            if ctx.input(|i| i.key_pressed(Key::Escape)) {
+                self.ui.backstage = None;
+            }
+            return;
+        }
         let typing = ctx.text_edit_focused();
         let pressed: Vec<(Key, egui::Modifiers)> = ctx.input(|i| {
             i.events
@@ -808,7 +824,7 @@ impl MailApp {
                     acts.push(Action::SetDark(Some(!dark)));
                 }
                 if widgets::bar_icon_button(ui, Icon::Gear, "Accounts and settings").clicked() {
-                    acts.push(Action::Dialog(Dialog::Settings));
+                    acts.push(Action::Backstage(backstage::Page::Info));
                 }
             });
         });
@@ -818,6 +834,9 @@ impl MailApp {
         let t = self.ui.tokens;
         let s = &self.session;
         ui.horizontal(|ui| {
+            if ui.add(egui::Button::new(RichText::new(tl!("File")).color(t.dim).font(theme::regular(13.5))).frame(false)).clicked() {
+                acts.push(Action::Backstage(backstage::Page::Info));
+            }
             for (tab, label) in [(RibbonTab::Home, "Home"), (RibbonTab::View, "View")] {
                 let on = self.ui.tab == tab;
                 let r = ui.add(

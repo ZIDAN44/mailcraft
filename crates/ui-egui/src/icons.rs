@@ -42,6 +42,11 @@ pub enum Icon {
     Clock,
     Tag,
     Print,
+    Back,
+    Info,
+    Away,
+    Storage,
+    Funnel,
 }
 
 struct Pen<'a> {
@@ -244,6 +249,36 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Clock => {
             pen.circle(8.0, 8.5, 6.0);
             pen.line(&[(8.0, 5.0), (8.0, 8.5), (10.5, 10.0)]);
+        }
+        Icon::Back => {
+            pen.circle(8.0, 8.0, 6.8);
+            pen.line(&[(8.0, 4.5), (4.5, 8.0), (8.0, 11.5)]);
+            pen.line(&[(4.5, 8.0), (11.5, 8.0)]);
+        }
+        Icon::Info => {
+            pen.circle(8.0, 8.0, 6.5);
+            pen.line(&[(8.0, 7.0), (8.0, 11.5)]);
+            pen.line(&[(8.0, 4.4), (8.0, 4.9)]);
+        }
+        Icon::Away => {
+            // A door, and an arrow leaving through it.
+            pen.line(&[(8.5, 5.0), (8.5, 1.5), (1.5, 1.5), (1.5, 14.5), (8.5, 14.5), (8.5, 11.0)]);
+            pen.line(&[(5.0, 8.0), (14.5, 8.0)]);
+            pen.line(&[(11.5, 5.0), (14.5, 8.0), (11.5, 11.0)]);
+        }
+        Icon::Storage => {
+            // A stack of discs: flat ellipses joined at the sides.
+            let ellipse = |cy: f32, a0: f32, a1: f32| -> Vec<(f32, f32)> {
+                (0..=16).map(|i| a0 + (a1 - a0) * i as f32 / 16.0).map(|a| (8.0 + 5.5 * a.cos(), cy + 2.0 * a.sin())).collect()
+            };
+            pen.closed(&ellipse(3.5, 0.0, 2.0 * PI));
+            pen.line(&[(2.5, 3.5), (2.5, 12.5)]);
+            pen.line(&[(13.5, 3.5), (13.5, 12.5)]);
+            pen.line(&ellipse(8.0, 0.0, PI));
+            pen.line(&ellipse(12.5, 0.0, PI));
+        }
+        Icon::Funnel => {
+            pen.closed(&[(1.5, 2.5), (14.5, 2.5), (9.5, 8.5), (9.5, 14.0), (6.5, 12.5), (6.5, 8.5)]);
         }
         Icon::Print => {
             pen.rect(4.0, 1.5, 12.0, 5.5);

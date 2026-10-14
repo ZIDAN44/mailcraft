@@ -14,9 +14,10 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         include_str!("../widgets.rs"),
         include_str!("../organize.rs"),
         include_str!("../editor.rs"),
+        include_str!("../backstage.rs"),
     ];
     // (prefix, which string literals after it are interface text)
-    let prefixes: [(&str, &[usize]); 15] = [
+    let prefixes: [(&str, &[usize]); 20] = [
         ("tl!(", &[0]),
         ("tf!(", &[0]),
         ("tool_button(ui, Icon::", &[0]),
@@ -32,6 +33,11 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         ("label(ui, ", &[0]),
         ("field(ui, &t, ", &[0, 1]),
         ("recipient_field(ui, st, ", &[1, 2]),
+        ("tile(ui, t, Icon::", &[0, 1, 2]),
+        ("rail_item(ui, &t, Icon::", &[0]),
+        ("heading(ui, ", &[0]),
+        ("group(ui, ", &[0]),
+        ("check(ui, s.prefs.", &[0]),
     ];
     let mut out = BTreeSet::new();
     for src in sources {
@@ -188,6 +194,32 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         "Sender, recipients or subject contain",
         "Has attachments",
         "MailCraft – Sample mailbox",
+        // The File page: lists and calls laid out over several lines.
+        "Info",
+        "Options",
+        "About",
+        "Back",
+        "Sample mailbox",
+        "JMAP",
+        "Google (IMAP)",
+        "Microsoft 365 (IMAP)",
+        "IMAP and SMTP",
+        "Same as the system",
+        "Empty Deleted Items…",
+        "Empty Junk Email…",
+        "Automatic replies",
+        "Account settings",
+        "Mailbox",
+        "Mailbox settings",
+        "Manage rules",
+        "Rules",
+        "Change this account's name, servers and sign-in, or its signature.",
+        "Tell people you're away: each sender gets one reply while they're on, even when this computer is off.",
+        "See how much space your mail takes, and empty Deleted Items and Junk Email.",
+        "Sort new mail as it arrives: move it, flag it, categorize it.",
+        "Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.",
+        "MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.",
+        "Built in the open from the email standards: no code, icons or assets from other mail apps.",
         "Is a newsletter or list mail",
         "Move to folder",
         "Delete",

@@ -353,3 +353,63 @@
 	Server: {url} (JMAP)	服务器: {url} (JMAP)
 	Open in new window	在新窗口中打开
 	{subject} – Message	{subject} – 邮件
+	About	关于
+	About MailCraft	关于 MailCraft
+	Account information	帐户信息
+	Account settings	帐户设置
+	An ArtCraft app · MIT OR Apache-2.0	ArtCraft 应用 · MIT OR Apache-2.0
+	Automatic replies	自动答复
+	Back	返回
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	依据电子邮件标准公开构建: 不含其他邮件应用的代码、图标或素材。
+	Change this account's name, servers and sign-in, or its signature.	更改此帐户的名称、服务器和登录方式，或签名。
+	Checking with the server…	正在向服务器查询…
+	Compact list	紧凑列表
+	Don't send automatic replies	不发送自动答复
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	开启期间，每位发件人每天收到一次答复。答复保存在邮件服务器上，因此即使这台电脑关机也能工作。
+	Empty	清空
+	Empty Deleted Items…	清空已删除邮件…
+	Empty Junk Email…	清空垃圾邮件…
+	Empty “{folder}”?	清空“{folder}”?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	其中所有内容将被永久删除，包括未下载到这台电脑的邮件。此操作无法撤消。
+	General	常规
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	我将离开至…
+	Inbox and notifications	收件箱和通知
+	Info	信息
+	Kept on this computer: {size}	保存在这台电脑上: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft 只通过加密连接与你自己的邮件服务器通信。来自网络的图片只在你要求时加载。
+	MailCraft {version}	MailCraft {version}
+	Mailbox	邮箱
+	Mailbox settings	邮箱设置
+	Manage rules	管理规则
+	Mark messages as read when opened	打开邮件时标记为已读
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	还没有发件人。
+	Not available: the sample mailbox has no server.	不可用: 示例邮箱没有服务器。
+	Not available: {error}	不可用: {error}
+	On	已开启
+	On from {from}	从 {from} 起开启
+	On from {from} until {until}	从 {from} 到 {until} 开启
+	On until {until}	开启至 {until}
+	Only between these days	仅在这些日期之间
+	Pictures from the web load only when you ask. These senders' pictures always load:	来自网络的图片只在你要求时加载。这些发件人的图片始终加载:
+	Privacy	隐私
+	Reading	阅读
+	Rules: {n}	规则: {n}
+	Sample mailbox	示例邮箱
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	查看邮件占用的空间，并清空已删除邮件和垃圾邮件。
+	Send automatic replies	发送自动答复
+	Server settings…	服务器设置…
+	Show HTML mail formatted (otherwise as plain text)	以格式显示 HTML 邮件 (否则显示为纯文本)
+	Show a line of each message in the list	在列表中显示每封邮件的一行内容
+	Sort new mail as it arrives: move it, flag it, categorize it.	在新邮件到达时整理: 移动、标记、分类。
+	Source code and issues	源代码和问题反馈
+	Subject (optional)	主题 (可选)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	告知他人你不在: 开启期间每位发件人收到一次答复，即使这台电脑关机也有效。
+	The server doesn't say how much space is used.	服务器未提供已用空间信息。
+	Until	至
+	{free} free of {total}	共 {total}，可用 {free}
+	{used} used on the server	服务器上已用 {used}
+	this server doesn't offer automatic replies	此服务器不提供自动答复
+	this server doesn't offer automatic replies (no ManageSieve)	此服务器不提供自动答复 (没有 ManageSieve)
+	the account is offline	帐户处于脱机状态

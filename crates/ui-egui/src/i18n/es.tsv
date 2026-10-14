@@ -354,6 +354,66 @@
 	Server: {url} (JMAP)	Servidor: {url} (JMAP)
 	Open in new window	Abrir en una ventana nueva
 	{subject} – Message	{subject} – Mensaje
+	About	Acerca de
+	About MailCraft	Acerca de MailCraft
+	Account information	Información de la cuenta
+	Account settings	Configuración de la cuenta
+	An ArtCraft app · MIT OR Apache-2.0	Una aplicación de ArtCraft · MIT OR Apache-2.0
+	Automatic replies	Respuestas automáticas
+	Back	Volver
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Creado de forma abierta a partir de los estándares de correo: sin código, iconos ni recursos de otras aplicaciones de correo.
+	Change this account's name, servers and sign-in, or its signature.	Cambia el nombre, los servidores y el inicio de sesión de esta cuenta, o su firma.
+	Checking with the server…	Consultando al servidor…
+	Compact list	Lista compacta
+	Don't send automatic replies	No enviar respuestas automáticas
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Cada remitente recibe una respuesta al día mientras están activadas. Se guardan en tu servidor de correo, así que funcionan aunque este equipo esté apagado.
+	Empty	Vaciar
+	Empty Deleted Items…	Vaciar Elementos eliminados…
+	Empty Junk Email…	Vaciar Correo no deseado…
+	Empty “{folder}”?	¿Vaciar «{folder}»?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	Todo lo que contiene se eliminará definitivamente, incluido el correo no descargado en este equipo. No se puede deshacer.
+	General	General
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	Estoy fuera hasta…
+	Inbox and notifications	Bandeja de entrada y notificaciones
+	Info	Información
+	Kept on this computer: {size}	Guardado en este equipo: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft solo se comunica con tus propios servidores de correo, mediante conexiones cifradas. Las imágenes de la web solo se cargan cuando lo pides.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	Buzón
+	Mailbox settings	Configuración del buzón
+	Manage rules	Administrar reglas
+	Mark messages as read when opened	Marcar los mensajes como leídos al abrirlos
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	Todavía no hay remitentes.
+	Not available: the sample mailbox has no server.	No disponible: el buzón de ejemplo no tiene servidor.
+	Not available: {error}	No disponible: {error}
+	On	Activadas
+	On from {from}	Activadas desde el {from}
+	On from {from} until {until}	Activadas del {from} al {until}
+	On until {until}	Activadas hasta el {until}
+	Only between these days	Solo entre estos días
+	Pictures from the web load only when you ask. These senders' pictures always load:	Las imágenes de la web solo se cargan cuando lo pides. Las imágenes de estos remitentes se cargan siempre:
+	Privacy	Privacidad
+	Reading	Lectura
+	Rules: {n}	Reglas: {n}
+	Sample mailbox	Buzón de ejemplo
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	Consulta cuánto espacio ocupa tu correo y vacía Elementos eliminados y Correo no deseado.
+	Send automatic replies	Enviar respuestas automáticas
+	Server settings…	Configuración del servidor…
+	Show HTML mail formatted (otherwise as plain text)	Mostrar el correo HTML con formato (si no, como texto sin formato)
+	Show a line of each message in the list	Mostrar una línea de cada mensaje en la lista
+	Sort new mail as it arrives: move it, flag it, categorize it.	Ordena el correo nuevo cuando llega: muévelo, márcalo o categorízalo.
+	Source code and issues	Código fuente e incidencias
+	Subject (optional)	Asunto (opcional)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Avisa de que estás fuera: cada remitente recibe una respuesta mientras están activadas, aunque este equipo esté apagado.
+	The server doesn't say how much space is used.	El servidor no indica cuánto espacio se usa.
+	Until	Hasta
+	{free} free of {total}	{free} libres de {total}
+	{used} used on the server	{used} usados en el servidor
+	this server doesn't offer automatic replies	este servidor no ofrece respuestas automáticas
+	this server doesn't offer automatic replies (no ManageSieve)	este servidor no ofrece respuestas automáticas (sin ManageSieve)
+	the account is offline	la cuenta está sin conexión
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

@@ -4,11 +4,13 @@
 //!
 //! `--sample` opens a separate, local-only sample mailbox (no server needed). `--data` (or the
 //! `MAILCRAFT_DATA` environment variable) chooses where mail is cached. `--cmd` runs engine
-//! commands at start-up (`--cmd 'list.open={"key":"sample:1:1:INBOX"}'`); `ui.addAccount` (optionally
+//! commands at start-up (`--cmd 'list.open={"key":"sample:1:1:INBOX"}'`); `ui.file`, `ui.options` and
+//! `ui.about` open the File page; `ui.addAccount` (optionally
 //! `={"email":…,"advanced":true}`) and `ui.settings` open those dialogs.
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+use mailcraft_ui_egui::backstage::{Backstage, Page};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -312,7 +314,9 @@ fn main() -> eframe::Result {
                             p.get("advanced").and_then(|v| v.as_bool()).unwrap_or(false),
                         ));
                     }
-                    "ui.settings" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::Settings),
+                    "ui.file" | "ui.settings" => app.ui.backstage = Some(Backstage::new(Page::Info)),
+                    "ui.options" => app.ui.backstage = Some(Backstage::new(Page::Options)),
+                    "ui.about" => app.ui.backstage = Some(Backstage::new(Page::About)),
                     _ => match serde_json::from_str(params) {
                         Ok(p) => app.run(id, p),
                         Err(e) => eprintln!("--cmd {id}: bad JSON: {e}"),

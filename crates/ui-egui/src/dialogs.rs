@@ -70,6 +70,170 @@ impl AccountForm {
     }
 }
 
+/// The server settings of an existing account.
+#[derive(Clone, Debug, Default)]
+pub struct EditForm {
+    pub account: String,
+    pub email: String,
+    pub name: String,
+    pub username: String,
+    pub jmap: bool,
+    pub jmap_url: String,
+    pub imap_host: String,
+    pub imap_port: String,
+    pub imap_security: Security,
+    pub smtp_host: String,
+    pub smtp_port: String,
+    pub smtp_security: Security,
+    pub error: Option<String>,
+}
+
+impl EditForm {
+    pub(crate) fn params(&self) -> serde_json::Value {
+        let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
+        if self.jmap {
+            return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "jmap": self.jmap_url.trim()});
+        }
+        json!({
+            "account": self.account,
+            "name": self.name.trim(),
+            "username": self.username.trim(),
+            "jmap": null,
+            "imapHost": self.imap_host.trim(),
+            "imapPort": port(&self.imap_port),
+            "imapSecurity": self.imap_security.code(),
+            "smtpHost": self.smtp_host.trim(),
+            "smtpPort": port(&self.smtp_port),
+            "smtpSecurity": self.smtp_security.code(),
+        })
+    }
+}
+
+/// Automatic replies being edited.
+#[derive(Clone, Debug, Default)]
+pub struct VacationForm {
+    pub account: String,
+    pub enabled: bool,
+    pub subject: String,
+    pub text: String,
+    /// Only between two days.
+    pub dated: bool,
+    pub from: String,
+    pub until: String,
+    pub error: Option<String>,
+}
+
+impl VacationForm {
+    pub(crate) fn params(&self) -> serde_json::Value {
+        let day = |d: &str| if self.dated && !d.trim().is_empty() { json!(d.trim()) } else { serde_json::Value::Null };
+        json!({
+            "account": self.account,
+            "enabled": self.enabled,
+            "subject": self.subject.trim(),
+            "text": self.text,
+            "from": day(&self.from),
+            "until": day(&self.until),
+        })
+    }
+}
+
+fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.set_width(480.0);
+    title(ui, t, "Server settings");
+    ui.label(RichText::new(&f.email).color(t.dim));
+    ui.add_space(8.0);
+    let w = ui.available_width();
+    let host_w = (w - 196.0).max(140.0);
+    let label = |ui: &mut Ui, s: &str| {
+        ui.label(RichText::new(tl!(s)).strong().small());
+    };
+    label(ui, "Your name");
+    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+    ui.add_space(4.0);
+    label(ui, "User name");
+    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        label(ui, "Mail server");
+        ui.radio_value(&mut f.jmap, false, tl!("IMAP and SMTP"));
+        ui.radio_value(&mut f.jmap, true, tl!("JMAP"));
+    });
+    if f.jmap {
+        label(ui, "JMAP session address");
+        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+    } else {
+        label(ui, "Incoming mail (IMAP)");
+        ui.horizontal(|ui| {
+            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com"));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").horizontal_align(egui::Align::Center));
+            security_combo(ui, "edit-imapsec", &mut f.imap_security);
+        });
+        ui.add_space(4.0);
+        label(ui, "Outgoing mail (SMTP)");
+        ui.horizontal(|ui| {
+            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com"));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").horizontal_align(egui::Align::Center));
+            security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
+        });
+        if f.imap_security == Security::None || f.smtp_security == Security::None {
+            ui.label(
+                RichText::new(tl!("Without encryption your password travels in the clear. Use only for local test servers.")).color(t.warn).small(),
+            );
+        }
+    }
+    if let Some(e) = &f.error {
+        ui.add_space(6.0);
+        ui.label(RichText::new(e).color(t.danger));
+    }
+    let (ok, cancel) = buttons(ui, t, "Save", true);
+    if ok {
+        f.error = None;
+        acts.push(Action::Submit("account.update", f.params()));
+    }
+    !cancel
+}
+
+fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.set_width(520.0);
+    title(ui, t, "Automatic replies");
+    ui.label(
+        RichText::new(tl!(
+            "Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off."
+        ))
+        .color(t.dim)
+        .small(),
+    );
+    ui.add_space(8.0);
+    ui.radio_value(&mut f.enabled, false, tl!("Don't send automatic replies"));
+    ui.radio_value(&mut f.enabled, true, tl!("Send automatic replies"));
+    ui.add_enabled_ui(f.enabled, |ui| {
+        ui.add_space(4.0);
+        ui.checkbox(&mut f.dated, tl!("Only between these days"));
+        if f.dated {
+            ui.horizontal(|ui| {
+                ui.label(tl!("From"));
+                ui.add_sized([110.0, 26.0], egui::TextEdit::singleline(&mut f.from).hint_text("YYYY-MM-DD"));
+                ui.label(tl!("Until"));
+                ui.add_sized([110.0, 26.0], egui::TextEdit::singleline(&mut f.until).hint_text("YYYY-MM-DD"));
+            });
+        }
+        ui.add_space(4.0);
+        ui.add_sized([ui.available_width(), 26.0], egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")));
+        ui.add_space(4.0);
+        ui.add(egui::TextEdit::multiline(&mut f.text).hint_text(tl!("I'm away until…")).desired_rows(6).desired_width(f32::INFINITY));
+    });
+    if let Some(e) = &f.error {
+        ui.add_space(6.0);
+        ui.label(RichText::new(e).color(t.danger));
+    }
+    let (ok, cancel) = buttons(ui, t, "Save", !f.enabled || !f.text.trim().is_empty());
+    if ok {
+        f.error = None;
+        acts.push(Action::Submit("account.setVacation", f.params()));
+    }
+    !cancel
+}
+
 #[derive(Clone, Debug)]
 pub enum Dialog {
     AddAccount(Box<AccountForm>),
@@ -93,7 +257,15 @@ pub enum Dialog {
         account: String,
         text: String,
     },
-    Settings,
+    /// An account's name, user name and servers.
+    EditAccount(Box<EditForm>),
+    /// An account's automatic replies.
+    Vacation(Box<VacationForm>),
+    ConfirmEmpty {
+        account: String,
+        folder: String,
+        name: String,
+    },
     /// New folder (in `parent`), or rename `rename`.
     FolderName {
         account: String,
@@ -311,6 +483,37 @@ impl Dialog {
         Dialog::MoveTo { filter: String::new() }
     }
 
+    pub fn edit_account(a: &AccountConfig) -> Dialog {
+        Dialog::EditAccount(Box::new(EditForm {
+            account: a.id.clone(),
+            email: a.email.clone(),
+            name: a.name.clone(),
+            username: a.username.clone(),
+            jmap: a.jmap.is_some(),
+            jmap_url: a.jmap.clone().unwrap_or_default(),
+            imap_host: a.imap.host.clone(),
+            imap_port: a.imap.port.to_string(),
+            imap_security: a.imap.security,
+            smtp_host: a.smtp.host.clone(),
+            smtp_port: a.smtp.port.to_string(),
+            smtp_security: a.smtp.security,
+            error: None,
+        }))
+    }
+
+    pub fn vacation(account: &str, v: &mailcraft_engine::model::job::Vacation) -> Dialog {
+        Dialog::Vacation(Box::new(VacationForm {
+            account: account.to_string(),
+            enabled: v.enabled,
+            subject: v.subject.clone(),
+            text: v.text.clone(),
+            dated: v.from.is_some() || v.until.is_some(),
+            from: v.from.clone().unwrap_or_default(),
+            until: v.until.clone().unwrap_or_default(),
+            error: None,
+        }))
+    }
+
     pub fn password(a: &AccountConfig) -> Dialog {
         Dialog::Password { account: a.id.clone(), email: a.email.clone(), password: String::new() }
     }
@@ -324,6 +527,8 @@ impl Dialog {
             | Dialog::DeleteFolder { error, .. }
             | Dialog::NewCategory { error, .. } => *error = Some(e),
             Dialog::EditRule(f) => f.error = Some(e),
+            Dialog::EditAccount(f) => f.error = Some(e),
+            Dialog::Vacation(f) => f.error = Some(e),
             _ => {}
         }
     }
@@ -416,14 +621,14 @@ fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) 
 }
 
 /// Show the dialog; returns whether it stays open.
-pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, acts: &mut Vec<Action>) -> bool {
+pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let frame = egui::Frame::new().fill(t.surface).corner_radius(12).inner_margin(Margin::same(22)).stroke(egui::Stroke::new(1.0, t.border));
-    let modal = egui::Modal::new(egui::Id::new("dialog")).frame(frame).show(ctx, |ui| body(ui, d, s, t, language, acts));
+    let modal = egui::Modal::new(egui::Id::new("dialog")).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
     let keep = modal.inner;
     keep && !modal.should_close()
 }
 
-fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, acts: &mut Vec<Action>) -> bool {
+fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::AddAccount(f) => {
             ui.set_width(440.0);
@@ -989,85 +1194,23 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, ac
             }
             !cancel
         }
-        Dialog::Settings => {
-            ui.set_width(460.0);
-            title(ui, t, "Accounts");
-            for a in &s.accounts {
-                egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(10)).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label(RichText::new(&a.config.email).strong());
-                            let servers = if a.is_local() {
-                                tl!("Sample mailbox, kept on this computer only").to_string()
-                            } else {
-                                format!("{}:{} · {}:{}", a.config.imap.host, a.config.imap.port, a.config.smtp.host, a.config.smtp.port)
-                            };
-                            ui.label(RichText::new(servers).color(t.faint).small());
-                        });
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(tl!("Remove…")).clicked() {
-                                acts.push(Action::Dialog(Dialog::RemoveAccount { account: a.config.id.clone(), email: a.config.email.clone() }));
-                            }
-                            if ui.button(tl!("Signature…")).clicked() {
-                                acts.push(Action::Dialog(Dialog::Signature { account: a.config.id.clone(), text: a.config.signature.clone() }));
-                            }
-                            if !a.is_local() && ui.button(tl!(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" })).clicked() {
-                                acts.push(Action::SignInAgain(a.config.id.clone()));
-                            }
-                        });
-                    });
-                });
-                ui.add_space(4.0);
-            }
-            ui.add_space(6.0);
-            if ui.button(tl!("Add account…")).clicked() {
-                acts.push(Action::Dialog(Dialog::add_account()));
-            }
-            ui.add_space(12.0);
-            title(ui, t, "Options");
-            let mut notify = s.prefs.notify;
-            if ui.checkbox(&mut notify, tl!("Show a desktop notification when new mail arrives")).changed() {
-                acts.push(Action::Run("view.notifications", json!({"on": notify})));
-            }
-            let mut focused = s.prefs.focused_inbox;
-            if ui.checkbox(&mut focused, tl!("Focused Inbox: put newsletters and automatic mail in Other")).changed() {
-                acts.push(Action::Run("view.focused", json!({"on": focused})));
-            }
-            if ui.button(tl!("Rules…")).clicked() {
-                acts.push(Action::Dialog(Dialog::Rules));
-            }
-            ui.horizontal(|ui| {
-                ui.label(tl!("Language"));
-                let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());
-                egui::ComboBox::from_id_salt("language").selected_text(current).show_ui(ui, |ui| {
-                    if ui.selectable_label(language == crate::i18n::AUTO, tl!("Same as the system")).clicked() {
-                        acts.push(Action::SetLanguage(crate::i18n::AUTO.into()));
-                    }
-                    for l in crate::i18n::Lang::all() {
-                        if ui.selectable_label(language == l.code(), l.name()).clicked() {
-                            acts.push(Action::SetLanguage(l.code().into()));
-                        }
-                    }
-                });
-            });
-            let mut confirm = s.prefs.confirm_permanent_delete;
-            if ui.checkbox(&mut confirm, tl!("Ask before deleting for good")).changed() {
-                acts.push(Action::Run("view.confirmDelete", json!({"on": confirm})));
-            }
-            ui.add_space(12.0);
-            ui.separator();
+        Dialog::EditAccount(f) => edit_account(ui, f, t, acts),
+        Dialog::Vacation(f) => vacation(ui, f, t, acts),
+        Dialog::ConfirmEmpty { account, folder, name } => {
+            ui.set_width(400.0);
+            title(ui, t, &tf!("Empty “{folder}”?", folder = name));
             ui.label(
-                RichText::new(tf!("MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0", version = env!("CARGO_PKG_VERSION")))
-                    .color(t.faint)
-                    .small(),
+                RichText::new(tl!(
+                    "Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone."
+                ))
+                .color(t.dim),
             );
-            ui.label(
-                RichText::new(tl!("Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain."))
-                    .color(t.faint)
-                    .small(),
-            );
-            ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
+            let (ok, cancel) = buttons(ui, t, "Empty", true);
+            if ok {
+                acts.push(Action::Run("folder.empty", json!({"account": account, "folder": folder})));
+                return false;
+            }
+            !cancel
         }
     }
 }
