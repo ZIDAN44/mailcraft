@@ -414,3 +414,73 @@
 	this server doesn't offer automatic replies (no ManageSieve)	此服务器不提供自动答复 (没有 ManageSieve)
 	the account is offline	帐户处于脱机状态
 	Drag it to a folder or another app to copy it	拖到文件夹或其他应用中即可复制
+	Accept	接受
+	Accepted	已接受
+	Add a title	添加标题
+	All day	全天
+	April	4月
+	Attendees: {names}	与会者: {names}
+	August	8月
+	Calendar	日历
+	Calendars	日历
+	Changes apply to every occurrence.	更改将应用于每次重复。
+	Company	公司
+	Custom	自定义
+	Day	日
+	December	12月
+	Decline	拒绝
+	Declined	已拒绝
+	Delete the series	删除整个系列
+	Delete this occurrence	删除这一次
+	Edit contact	编辑联系人
+	Email	邮件
+	Ends	结束
+	Event	事件
+	Every day	每天
+	Every month	每月
+	Every week	每周
+	Every year	每年
+	February	2月
+	In the address book of {account}	在 {account} 的通讯录中
+	January	1月
+	Job title	职务
+	July	7月
+	June	6月
+	Location	地点
+	Mail	邮件
+	March	3月
+	Month	月
+	Never	从不
+	New contact	新建联系人
+	New event	新建事件
+	Next	下一个
+	Next month	下个月
+	No answer yet	尚未答复
+	No contacts yet.	还没有联系人。
+	No one matches.	没有匹配的人。
+	Notes	备注
+	November	11月
+	October	10月
+	One address per line	每行一个地址
+	Organizer: {name}	组织者: {name}
+	People	联系人
+	Phone	电话
+	Pick someone to see their details	选择一个人查看详细信息
+	Previous	上一个
+	Previous month	上个月
+	Repeat	重复
+	Search people	搜索联系人
+	September	9月
+	Starts	开始
+	Tentative	暂定
+	Week	周
+	Your answer:	你的答复:
+	{from} {month_from} – {to} {month} {year}	{year}年{month_from}{from}日 – {month}{to}日
+	{from} – {to} {month} {year}	{year}年{month}{from}日 – {to}日
+	{month} {year}	{year}年{month}
+	{n} more	另外 {n} 个
+	{weekday}, {day} {month} {year}	{year}年{month}{day}日 {weekday}
+
+# A month's full name, where it differs from its short form.
+month	May	5月
+	Add to contacts	添加到联系人

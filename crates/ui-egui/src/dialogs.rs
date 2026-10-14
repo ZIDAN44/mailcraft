@@ -266,6 +266,8 @@ pub enum Dialog {
         folder: String,
         name: String,
     },
+    Event(Box<crate::pim_dialogs::EventForm>),
+    Contact(Box<crate::pim_dialogs::ContactForm>),
     /// New folder (in `parent`), or rename `rename`.
     FolderName {
         account: String,
@@ -483,6 +485,24 @@ impl Dialog {
         Dialog::MoveTo { filter: String::new() }
     }
 
+    /// A new event (at a time, or the next hour).
+    pub fn new_event(s: &Session, at: Option<i64>) -> Dialog {
+        Dialog::Event(Box::new(crate::pim_dialogs::EventForm::new(s, at)))
+    }
+
+    /// An event, opened at one of its occurrences.
+    pub fn open_event(s: &Session, uid: &str, occurrence: i64) -> Option<Dialog> {
+        crate::pim_dialogs::EventForm::open(s, uid, occurrence).map(|f| Dialog::Event(Box::new(f)))
+    }
+
+    pub fn new_contact() -> Dialog {
+        Dialog::Contact(Box::default())
+    }
+
+    pub fn edit_contact(c: &mailcraft_engine::model::vcard::Card) -> Dialog {
+        Dialog::Contact(Box::new(crate::pim_dialogs::ContactForm::edit(c)))
+    }
+
     pub fn edit_account(a: &AccountConfig) -> Dialog {
         Dialog::EditAccount(Box::new(EditForm {
             account: a.id.clone(),
@@ -528,6 +548,8 @@ impl Dialog {
             | Dialog::NewCategory { error, .. } => *error = Some(e),
             Dialog::EditRule(f) => f.error = Some(e),
             Dialog::EditAccount(f) => f.error = Some(e),
+            Dialog::Event(f) => f.error = Some(e),
+            Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
             _ => {}
         }
@@ -1195,6 +1217,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             !cancel
         }
         Dialog::EditAccount(f) => edit_account(ui, f, t, acts),
+        Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
+        Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),
         Dialog::Vacation(f) => vacation(ui, f, t, acts),
         Dialog::ConfirmEmpty { account, folder, name } => {
             ui.set_width(400.0);

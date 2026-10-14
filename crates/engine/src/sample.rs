@@ -325,6 +325,12 @@ fn list(v: &[(&str, &str)]) -> Vec<EmailAddress> {
 
 /// Fill `store` with the sample account if it holds no accounts yet. Returns whether it did.
 pub fn seed_if_empty(store: &Store, now: i64) -> Result<bool, StoreError> {
+    seed_if_empty_at(store, now, 0)
+}
+
+/// [`seed_if_empty`] with the local UTC offset (seconds), so the sample's events fall in local
+/// working hours.
+pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, StoreError> {
     if !store.load_accounts()?.is_empty() {
         return Ok(false);
     }
@@ -423,18 +429,18 @@ pub fn seed_if_empty(store: &Store, now: i64) -> Result<bool, StoreError> {
     }
     store.save_folders(SAMPLE_ACCOUNT, &folders)?;
     store.save_accounts(&[account])?;
-    store.save_account_doc(SAMPLE_ACCOUNT, crate::session::pim::PIM_DOC, &sample_pim(now))?;
+    store.save_account_doc(SAMPLE_ACCOUNT, crate::session::pim::PIM_DOC, &sample_pim(now, offset))?;
     Ok(true)
 }
 
-/// The sample calendar (a week around `now`) and address book.
-pub fn sample_pim(now: i64) -> mailcraft_model::pim::Pim {
+/// The sample calendar (a week around `now`, in local time) and address book.
+pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
     use mailcraft_model::ical::{Attendee, CalEvent};
     use mailcraft_model::pim::{LOCAL, Pim, StoredCard, StoredEvent};
     use mailcraft_model::vcard::{Card, Typed};
-    let today = now.div_euclid(86_400);
+    let today = (now + offset).div_euclid(86_400);
     let monday = today - (today + 3).rem_euclid(7);
-    let at = |day: i64, h: i64, m: i64| day * 86_400 + h * 3600 + m * 60;
+    let at = |day: i64, h: i64, m: i64| day * 86_400 + h * 3600 + m * 60 - offset;
     let who = |name: &str, email: &str, partstat: &str| Attendee { email: email.into(), name: name.into(), partstat: partstat.into(), rsvp: false };
     let ev = |uid: &str, summary: &str, start: i64, end: i64| CalEvent {
         uid: format!("{uid}@sample.mailcraft"),

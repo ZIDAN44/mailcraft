@@ -170,7 +170,8 @@ fn run() -> Result<(), String> {
     let store = Store::open(&root).map_err(|e| e.to_string())?;
     let cmd = args.positional(0).unwrap_or_else(|| "help".into());
     if cmd == "sample" {
-        let made = mailcraft_engine::sample::seed_if_empty(&store, clock().now).map_err(|e| e.to_string())?;
+        let c = clock();
+        let made = mailcraft_engine::sample::seed_if_empty_at(&store, c.now, i64::from(c.offset)).map_err(|e| e.to_string())?;
         println!("{}", if made { format!("sample mailbox created in {}", root.display()) } else { "the data folder already has accounts".into() });
         return Ok(());
     }

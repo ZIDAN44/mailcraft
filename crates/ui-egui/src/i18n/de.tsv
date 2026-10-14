@@ -415,6 +415,76 @@
 	this server doesn't offer automatic replies (no ManageSieve)	dieser Server bietet keine automatischen Antworten an (kein ManageSieve)
 	the account is offline	das Konto ist offline
 	Drag it to a folder or another app to copy it	In einen Ordner oder eine andere App ziehen, um es zu kopieren
+	Accept	Zusagen
+	Accepted	Zugesagt
+	Add a title	Titel hinzufügen
+	All day	Ganztägig
+	April	April
+	Attendees: {names}	Teilnehmer: {names}
+	August	August
+	Calendar	Kalender
+	Calendars	Kalender
+	Changes apply to every occurrence.	Änderungen gelten für alle Termine der Serie.
+	Company	Firma
+	Custom	Benutzerdefiniert
+	Day	Tag
+	December	Dezember
+	Decline	Absagen
+	Declined	Abgesagt
+	Delete the series	Serie löschen
+	Delete this occurrence	Diesen Termin löschen
+	Edit contact	Kontakt bearbeiten
+	Email	E-Mail
+	Ends	Ende
+	Event	Termin
+	Every day	Täglich
+	Every month	Monatlich
+	Every week	Wöchentlich
+	Every year	Jährlich
+	February	Februar
+	In the address book of {account}	Im Adressbuch von {account}
+	January	Januar
+	Job title	Position
+	July	Juli
+	June	Juni
+	Location	Ort
+	Mail	E-Mail
+	March	März
+	Month	Monat
+	Never	Nie
+	New contact	Neuer Kontakt
+	New event	Neuer Termin
+	Next	Weiter
+	Next month	Nächster Monat
+	No answer yet	Noch keine Antwort
+	No contacts yet.	Noch keine Kontakte.
+	No one matches.	Niemand gefunden.
+	Notes	Notizen
+	November	November
+	October	Oktober
+	One address per line	Eine Adresse pro Zeile
+	Organizer: {name}	Organisator: {name}
+	People	Kontakte
+	Phone	Telefon
+	Pick someone to see their details	Wählen Sie jemanden aus, um die Details zu sehen
+	Previous	Zurück
+	Previous month	Vorheriger Monat
+	Repeat	Wiederholen
+	Search people	Kontakte suchen
+	September	September
+	Starts	Beginn
+	Tentative	Vorläufig
+	Week	Woche
+	Your answer:	Ihre Antwort:
+	{from} {month_from} – {to} {month} {year}	{from}. {month_from} – {to}. {month} {year}
+	{from} – {to} {month} {year}	{from}.–{to}. {month} {year}
+	{month} {year}	{month} {year}
+	{n} more	{n} weitere
+	{weekday}, {day} {month} {year}	{weekday}, {day}. {month} {year}
+	Add to contacts	Zu Kontakten hinzufügen
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
+
+# A month's full name, where it differs from its short form.
+month	May	Mai

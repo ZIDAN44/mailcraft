@@ -414,6 +414,76 @@
 	this server doesn't offer automatic replies (no ManageSieve)	這個伺服器不提供自動回覆 (沒有 ManageSieve)
 	the account is offline	帳戶目前離線
 	Drag it to a folder or another app to copy it	拖曳到資料夾或其他應用程式即可複製
+	Accept	接受
+	Accepted	已接受
+	Add a title	新增標題
+	All day	全天
+	April	4月
+	Attendees: {names}	與會者: {names}
+	August	8月
+	Calendar	行事曆
+	Calendars	行事曆
+	Changes apply to every occurrence.	變更會套用到每次重複。
+	Company	公司
+	Custom	自訂
+	Day	日
+	December	12月
+	Decline	拒絕
+	Declined	已拒絕
+	Delete the series	刪除整個系列
+	Delete this occurrence	刪除這一次
+	Edit contact	編輯連絡人
+	Email	郵件
+	Ends	結束
+	Event	活動
+	Every day	每天
+	Every month	每月
+	Every week	每週
+	Every year	每年
+	February	2月
+	In the address book of {account}	在 {account} 的通訊錄中
+	January	1月
+	Job title	職稱
+	July	7月
+	June	6月
+	Location	地點
+	Mail	郵件
+	March	3月
+	Month	月
+	Never	永不
+	New contact	新增連絡人
+	New event	新增活動
+	Next	下一個
+	Next month	下個月
+	No answer yet	尚未回覆
+	No contacts yet.	還沒有連絡人。
+	No one matches.	沒有符合的人。
+	Notes	附註
+	November	11月
+	October	10月
+	One address per line	每行一個地址
+	Organizer: {name}	召集人: {name}
+	People	連絡人
+	Phone	電話
+	Pick someone to see their details	選擇一個人以查看詳細資料
+	Previous	上一個
+	Previous month	上個月
+	Repeat	重複
+	Search people	搜尋連絡人
+	September	9月
+	Starts	開始
+	Tentative	暫定
+	Week	週
+	Your answer:	您的回覆:
+	{from} {month_from} – {to} {month} {year}	{year}年{month_from}{from}日 – {month}{to}日
+	{from} – {to} {month} {year}	{year}年{month}{from}日 – {to}日
+	{month} {year}	{year}年{month}
+	{n} more	另外 {n} 個
+	{weekday}, {day} {month} {year}	{year}年{month}{day}日 {weekday}
+	Add to contacts	新增至連絡人
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存
+
+# A month's full name, where it differs from its short form.
+month	May	5月

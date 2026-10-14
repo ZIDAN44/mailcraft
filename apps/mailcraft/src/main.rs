@@ -367,7 +367,7 @@ fn main() -> eframe::Result {
     });
     if sample
         && let Some(s) = &store
-        && let Err(e) = mailcraft_engine::sample::seed_if_empty(s, now)
+        && let Err(e) = mailcraft_engine::sample::seed_if_empty_at(s, now, i64::from(offset))
     {
         eprintln!("mailcraft: the sample mailbox couldn't be created: {e}");
     }
@@ -430,6 +430,8 @@ fn main() -> eframe::Result {
                     "ui.file" | "ui.settings" => app.ui.backstage = Some(Backstage::new(Page::Info)),
                     "ui.options" => app.ui.backstage = Some(Backstage::new(Page::Options)),
                     "ui.about" => app.ui.backstage = Some(Backstage::new(Page::About)),
+                    "ui.newEvent" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_event(&app.session, None)),
+                    "ui.newContact" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_contact()),
                     _ => match serde_json::from_str(params) {
                         Ok(p) => app.run(id, p),
                         Err(e) => eprintln!("--cmd {id}: bad JSON: {e}"),

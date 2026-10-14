@@ -414,6 +414,76 @@
 	this server doesn't offer automatic replies (no ManageSieve)	이 서버는 자동 회신을 지원하지 않습니다 (ManageSieve 없음)
 	the account is offline	계정이 오프라인입니다
 	Drag it to a folder or another app to copy it	폴더나 다른 앱으로 끌어 복사
+	Accept	수락
+	Accepted	수락함
+	Add a title	제목 추가
+	All day	종일
+	April	4월
+	Attendees: {names}	참석자: {names}
+	August	8월
+	Calendar	일정
+	Calendars	일정
+	Changes apply to every occurrence.	변경 내용은 모든 반복에 적용됩니다.
+	Company	회사
+	Custom	사용자 지정
+	Day	일
+	December	12월
+	Decline	거절
+	Declined	거절함
+	Delete the series	반복 일정 전체 삭제
+	Delete this occurrence	이 일정만 삭제
+	Edit contact	연락처 편집
+	Email	메일
+	Ends	종료
+	Event	일정
+	Every day	매일
+	Every month	매월
+	Every week	매주
+	Every year	매년
+	February	2월
+	In the address book of {account}	{account}의 주소록
+	January	1월
+	Job title	직함
+	July	7월
+	June	6월
+	Location	위치
+	Mail	메일
+	March	3월
+	Month	월
+	Never	안 함
+	New contact	새 연락처
+	New event	새 일정
+	Next	다음
+	Next month	다음 달
+	No answer yet	아직 응답 없음
+	No contacts yet.	아직 연락처가 없습니다.
+	No one matches.	일치하는 사람이 없습니다.
+	Notes	메모
+	November	11월
+	October	10월
+	One address per line	한 줄에 주소 하나
+	Organizer: {name}	주최자: {name}
+	People	사람
+	Phone	전화
+	Pick someone to see their details	사람을 선택하면 세부 정보가 표시됩니다
+	Previous	이전
+	Previous month	이전 달
+	Repeat	반복
+	Search people	사람 검색
+	September	9월
+	Starts	시작
+	Tentative	미정
+	Week	주
+	Your answer:	응답:
+	{from} {month_from} – {to} {month} {year}	{year}년 {month_from} {from}일 – {month} {to}일
+	{from} – {to} {month} {year}	{year}년 {month} {from}일 – {to}일
+	{month} {year}	{year}년 {month}
+	{n} more	{n}개 더
+	{weekday}, {day} {month} {year}	{year}년 {month} {day}일 {weekday}
+	Add to contacts	연락처에 추가
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함
+
+# A month's full name, where it differs from its short form.
+month	May	5월

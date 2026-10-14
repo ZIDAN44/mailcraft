@@ -415,6 +415,76 @@
 	this server doesn't offer automatic replies (no ManageSieve)	este servidor não oferece respostas automáticas (sem ManageSieve)
 	the account is offline	a conta está offline
 	Drag it to a folder or another app to copy it	Arraste para uma pasta ou outro aplicativo para copiar
+	Accept	Aceitar
+	Accepted	Aceita
+	Add a title	Adicione um título
+	All day	Dia inteiro
+	April	abril
+	Attendees: {names}	Participantes: {names}
+	August	agosto
+	Calendar	Calendário
+	Calendars	Calendários
+	Changes apply to every occurrence.	As alterações valem para todas as ocorrências.
+	Company	Empresa
+	Custom	Personalizado
+	Day	Dia
+	December	dezembro
+	Decline	Recusar
+	Declined	Recusada
+	Delete the series	Excluir a série
+	Delete this occurrence	Excluir esta ocorrência
+	Edit contact	Editar contato
+	Email	Email
+	Ends	Termina
+	Event	Evento
+	Every day	Todos os dias
+	Every month	Todos os meses
+	Every week	Todas as semanas
+	Every year	Todos os anos
+	February	fevereiro
+	In the address book of {account}	No catálogo de endereços de {account}
+	January	janeiro
+	Job title	Cargo
+	July	julho
+	June	junho
+	Location	Local
+	Mail	Email
+	March	março
+	Month	Mês
+	Never	Nunca
+	New contact	Novo contato
+	New event	Novo evento
+	Next	Próximo
+	Next month	Próximo mês
+	No answer yet	Sem resposta
+	No contacts yet.	Ainda não há contatos.
+	No one matches.	Ninguém corresponde.
+	Notes	Notas
+	November	novembro
+	October	outubro
+	One address per line	Um endereço por linha
+	Organizer: {name}	Organizador: {name}
+	People	Pessoas
+	Phone	Telefone
+	Pick someone to see their details	Escolha alguém para ver os detalhes
+	Previous	Anterior
+	Previous month	Mês anterior
+	Repeat	Repetir
+	Search people	Pesquisar pessoas
+	September	setembro
+	Starts	Começa
+	Tentative	Provisório
+	Week	Semana
+	Your answer:	Sua resposta:
+	{from} {month_from} – {to} {month} {year}	{from} de {month_from} – {to} de {month} de {year}
+	{from} – {to} {month} {year}	{from}–{to} de {month} de {year}
+	{month} {year}	{month} de {year}
+	{n} more	mais {n}
+	{weekday}, {day} {month} {year}	{weekday}, {day} de {month} de {year}
+	Add to contacts	Adicionar aos contatos
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo
+
+# A month's full name, where it differs from its short form.
+month	May	maio

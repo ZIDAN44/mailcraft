@@ -29,6 +29,7 @@ pub enum Icon {
     Close,
     ChevronDown,
     ChevronRight,
+    ChevronLeft,
     Star,
     Image,
     File,
@@ -47,6 +48,10 @@ pub enum Icon {
     Away,
     Storage,
     Funnel,
+    Calendar,
+    People,
+    Phone,
+    Location,
 }
 
 struct Pen<'a> {
@@ -210,6 +215,7 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         }
         Icon::ChevronDown => pen.line(&[(4.0, 6.0), (8.0, 10.0), (12.0, 6.0)]),
         Icon::ChevronRight => pen.line(&[(6.0, 4.0), (10.0, 8.0), (6.0, 12.0)]),
+        Icon::ChevronLeft => pen.line(&[(10.0, 4.0), (6.0, 8.0), (10.0, 12.0)]),
         Icon::Star => {
             let pts: Vec<(f32, f32)> = (0..10)
                 .map(|i| {
@@ -276,6 +282,40 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(13.5, 3.5), (13.5, 12.5)]);
             pen.line(&ellipse(8.0, 0.0, PI));
             pen.line(&ellipse(12.5, 0.0, PI));
+        }
+        Icon::Calendar => {
+            pen.rect(1.5, 3.0, 14.5, 14.5);
+            pen.line(&[(1.5, 6.5), (14.5, 6.5)]);
+            pen.line(&[(5.0, 1.5), (5.0, 4.5)]);
+            pen.line(&[(11.0, 1.5), (11.0, 4.5)]);
+            for (x, y) in [(5.0, 9.5), (8.0, 9.5), (11.0, 9.5), (5.0, 12.0), (8.0, 12.0)] {
+                pen.line(&[(x - 0.6, y), (x + 0.6, y)]);
+            }
+        }
+        Icon::People => {
+            pen.circle(6.0, 5.5, 2.6);
+            pen.arc(6.0, 14.5, 5.0, PI, 2.0 * PI);
+            pen.arc(11.5, 6.0, 2.2, -PI * 0.6, PI * 0.6);
+            pen.arc(11.5, 14.5, 4.0, -PI * 0.5, 0.0);
+        }
+        Icon::Phone => {
+            pen.closed(&[
+                (3.0, 2.0),
+                (6.0, 2.0),
+                (7.0, 5.5),
+                (5.0, 7.0),
+                (9.0, 11.0),
+                (10.5, 9.0),
+                (14.0, 10.0),
+                (14.0, 13.0),
+                (12.0, 14.5),
+                (2.0, 4.0),
+            ]);
+        }
+        Icon::Location => {
+            pen.circle(8.0, 6.0, 2.0);
+            pen.line(&[(3.6, 8.0), (8.0, 15.0), (12.4, 8.0)]);
+            pen.arc(8.0, 6.0, 4.8, PI * 0.82, PI * 2.18);
         }
         Icon::Funnel => {
             pen.closed(&[(1.5, 2.5), (14.5, 2.5), (9.5, 8.5), (9.5, 14.0), (6.5, 12.5), (6.5, 8.5)]);

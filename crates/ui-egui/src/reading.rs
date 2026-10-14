@@ -112,6 +112,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                         if !p.from.name.is_empty() {
                             ui.label(RichText::new(format!("<{}>", p.from.email)).color(t.dim));
                         }
+                        let known = s.people(&p.from.email).iter().any(|x| x.card.emails.iter().any(|e| e.value.eq_ignore_ascii_case(&p.from.email)));
+                        if !known && !p.from.email.is_empty() && widgets::tiny_icon_button(ui, Icon::Person, "Add to contacts", &t).clicked() {
+                            acts.push(Action::Run("contact.fromMessage", json!({})));
+                        }
                     });
                     if !p.to.is_empty() {
                         ui.label(RichText::new(tf!("To: {names}", names = addr::display_list(&p.to))).color(t.dim).small())

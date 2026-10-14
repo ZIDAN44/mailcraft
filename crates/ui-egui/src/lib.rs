@@ -22,6 +22,7 @@ macro_rules! tf {
 }
 
 pub mod backstage;
+mod calendar;
 mod dialogs;
 mod editor;
 pub mod i18n;
@@ -29,6 +30,8 @@ pub mod icons;
 mod list;
 mod nav;
 mod organize;
+mod people;
+mod pim_dialogs;
 mod reading;
 pub mod theme;
 mod thumbs;
@@ -40,7 +43,7 @@ use std::path::PathBuf;
 
 use egui::{Align, Color32, Key, Layout, Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::model::{Event, Job, MessageKey, SyncStatus};
-use mailcraft_engine::{ReadingPane, Session};
+use mailcraft_engine::{CalMode, Module, ReadingPane, Session};
 use serde_json::{Value, json};
 
 pub use dialogs::Dialog;
@@ -223,6 +226,14 @@ pub struct UiState {
     pub(crate) video_frames: HashMap<PathBuf, VideoFrame>,
     /// The File page, while it's open.
     pub backstage: Option<backstage::Backstage>,
+    /// The month the calendar's small month shows (`year * 12 + month - 1`; `None`: the day on
+    /// screen's).
+    pub(crate) mini_month: Option<i64>,
+    /// The hours were scrolled to the working day once.
+    pub(crate) cal_scrolled: bool,
+    pub(crate) people_query: String,
+    /// The person whose card is shown (uid).
+    pub(crate) person: Option<String>,
     /// A file to drag out of the window (the app starts the system drag).
     drag_out: Option<PathBuf>,
     /// The platform can drag files out.
@@ -275,6 +286,10 @@ impl MailApp {
                 video_files: HashMap::new(),
                 video_frames: HashMap::new(),
                 backstage: None,
+                mini_month: None,
+                cal_scrolled: false,
+                people_query: String::new(),
+                person: None,
                 drag_out: None,
                 can_drag_out: false,
             },
@@ -397,42 +412,62 @@ impl MailApp {
                 widgets::welcome(ui, &t, &mut acts);
             });
         } else {
+            let module = self.session.module;
             egui::Panel::left("nav")
                 .resizable(true)
-                .default_size(230.0)
+                .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
                 .size_range(170.0..=380.0)
                 .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)))
                 .show(ui, |ui| {
-                    nav::show(&self.session, &t, ui, &mut acts);
+                    egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
+                        module_switch(ui, &t, module, &mut acts);
+                    });
+                    match module {
+                        Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
+                        Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
+                        Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
+                    }
                 });
             let pane = self.session.prefs.reading_pane;
             let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
-            match pane {
-                ReadingPane::Right => {
-                    egui::Panel::left("list").resizable(true).default_size(390.0).size_range(280.0..=720.0).frame(list_frame).show(ui, |ui| {
-                        list::show(&self.session, &mut self.ui, ui, &mut acts);
-                    });
+            match (module, pane) {
+                (Module::Calendar, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                        calendar::show(&self.session, &mut self.ui, ui, &mut acts);
                     });
                 }
-                ReadingPane::Bottom => {
-                    egui::Panel::top("list").resizable(true).default_size(300.0).size_range(140.0..=900.0).frame(list_frame).show(ui, |ui| {
-                        list::show(&self.session, &mut self.ui, ui, &mut acts);
-                    });
+                (Module::People, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                        people::show(&self.session, &mut self.ui, ui, &mut acts);
                     });
                 }
-                ReadingPane::Off => {
-                    egui::CentralPanel::default().frame(list_frame).show(ui, |ui| {
-                        if self.session.compose.is_some() {
-                            reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
-                        } else {
+                (Module::Mail, pane) => match pane {
+                    ReadingPane::Right => {
+                        egui::Panel::left("list").resizable(true).default_size(390.0).size_range(280.0..=720.0).frame(list_frame).show(ui, |ui| {
                             list::show(&self.session, &mut self.ui, ui, &mut acts);
-                        }
-                    });
-                }
+                        });
+                        egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                            reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                        });
+                    }
+                    ReadingPane::Bottom => {
+                        egui::Panel::top("list").resizable(true).default_size(300.0).size_range(140.0..=900.0).frame(list_frame).show(ui, |ui| {
+                            list::show(&self.session, &mut self.ui, ui, &mut acts);
+                        });
+                        egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                            reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                        });
+                    }
+                    ReadingPane::Off => {
+                        egui::CentralPanel::default().frame(list_frame).show(ui, |ui| {
+                            if self.session.compose.is_some() {
+                                reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                            } else {
+                                list::show(&self.session, &mut self.ui, ui, &mut acts);
+                            }
+                        });
+                    }
+                },
             }
         }
 
@@ -524,7 +559,11 @@ impl MailApp {
             }
         }
         let unread = self.session.inbox_unread();
-        let view = view_title(&self.session);
+        let view = match self.session.module {
+            Module::Mail => view_title(&self.session),
+            Module::Calendar => tl!("Calendar").to_string(),
+            Module::People => tl!("People").to_string(),
+        };
         let base = tl!(&self.ui.title_base);
         let title = if self.session.view == mailcraft_engine::View::Empty {
             base.to_string()
@@ -567,7 +606,12 @@ impl MailApp {
                 }
             }
             Action::Submit(id, p) => match self.session.run(id, &p) {
-                Ok(_) => self.ui.dialog = None,
+                Ok(v) => {
+                    if id == "contact.create" {
+                        self.ui.person = v.get("uid").and_then(Value::as_str).map(str::to_string);
+                    }
+                    self.ui.dialog = None;
+                }
                 Err(e) => {
                     if let Some(d) = self.ui.dialog.as_mut() {
                         d.set_error(e.to_string().trim_start_matches("bad parameters: ").to_string());
@@ -903,6 +947,44 @@ impl MailApp {
         });
         ui.add_space(2.0);
         let enabled = |id: &str| s.registry().get(id).is_some_and(|c| (c.enabled)(s).is_none());
+        if s.module != Module::Mail {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                if s.module == Module::Calendar {
+                    if widgets::accent_button(ui, Icon::Calendar, "New event", &t, !s.accounts.is_empty()).clicked() {
+                        acts.push(Action::Dialog(Dialog::new_event(s, None)));
+                    }
+                    widgets::group_sep(ui, &t);
+                    if widgets::tool_button(ui, Icon::Clock, "Today", &t, true).clicked() {
+                        acts.push(Action::Run("calendar.goto", json!({"date": "today"})));
+                    }
+                    widgets::group_sep(ui, &t);
+                    for (mode, label, code) in [(CalMode::Day, "Day", "day"), (CalMode::Week, "Week", "week"), (CalMode::Month, "Month", "month")] {
+                        let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
+                        if r.clicked() {
+                            acts.push(Action::Run("calendar.view", json!({"mode": code})));
+                        }
+                    }
+                } else {
+                    if widgets::accent_button(ui, Icon::Person, "New contact", &t, !s.accounts.is_empty()).clicked() {
+                        acts.push(Action::Dialog(Dialog::new_contact()));
+                    }
+                    widgets::group_sep(ui, &t);
+                    let picked = self.ui.person.as_deref().and_then(|u| s.find_person(u));
+                    if widgets::tool_button(ui, Icon::Drafts, "Edit", &t, picked.is_some()).clicked()
+                        && let Some(p) = &picked
+                    {
+                        acts.push(Action::Dialog(Dialog::edit_contact(&p.card)));
+                    }
+                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, picked.is_some()).clicked()
+                        && let Some(p) = &picked
+                    {
+                        acts.push(Action::Run("contact.delete", json!({"uid": p.card.uid})));
+                    }
+                }
+            });
+            return;
+        }
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
             match self.ui.tab {
@@ -1161,6 +1243,28 @@ fn window_toolbar(ui: &mut Ui, s: &Session, t: &Tokens, key: &MessageKey, acts: 
         if widgets::tool_button(ui, Icon::Print, "Print", t, true).clicked() {
             acts.push(Action::Open(key.clone()));
             acts.push(Action::Print);
+        }
+    });
+}
+
+/// Mail, Calendar and People, at the bottom of the side pane.
+fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        for (m, icon, label, code) in [
+            (Module::Mail, Icon::Unread, "Mail", "mail"),
+            (Module::Calendar, Icon::Calendar, "Calendar", "calendar"),
+            (Module::People, Icon::People, "People", "people"),
+        ] {
+            let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
+            let on = m == module;
+            if on || resp.hovered() {
+                ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
+            }
+            icons::paint(ui.painter(), icons::centered(r, 19.0), icon, if on { t.accent } else { t.dim });
+            if resp.on_hover_text(tl!(label)).clicked() {
+                acts.push(Action::Run("view.module", json!({"name": code})));
+            }
         }
     });
 }

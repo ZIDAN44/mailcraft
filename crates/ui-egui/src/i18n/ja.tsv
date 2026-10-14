@@ -414,3 +414,73 @@
 	this server doesn't offer automatic replies (no ManageSieve)	このサーバーは自動応答に対応していません (ManageSieve なし)
 	the account is offline	アカウントはオフラインです
 	Drag it to a folder or another app to copy it	フォルダーや他のアプリにドラッグしてコピー
+	Accept	承諾
+	Accepted	承諾済み
+	Add a title	タイトルを追加
+	All day	終日
+	April	4月
+	Attendees: {names}	出席者: {names}
+	August	8月
+	Calendar	予定表
+	Calendars	予定表
+	Changes apply to every occurrence.	変更はすべての回に適用されます。
+	Company	会社
+	Custom	カスタム
+	Day	日
+	December	12月
+	Decline	辞退
+	Declined	辞退済み
+	Delete the series	定期的な予定をすべて削除
+	Delete this occurrence	この回を削除
+	Edit contact	連絡先を編集
+	Email	メール
+	Ends	終了
+	Event	予定
+	Every day	毎日
+	Every month	毎月
+	Every week	毎週
+	Every year	毎年
+	February	2月
+	In the address book of {account}	{account} のアドレス帳
+	January	1月
+	Job title	役職
+	July	7月
+	June	6月
+	Location	場所
+	Mail	メール
+	March	3月
+	Month	月
+	Never	なし
+	New contact	新しい連絡先
+	New event	新しい予定
+	Next	次へ
+	Next month	翌月
+	No answer yet	未回答
+	No contacts yet.	連絡先はまだありません。
+	No one matches.	一致する人はいません。
+	Notes	メモ
+	November	11月
+	October	10月
+	One address per line	1 行に 1 アドレス
+	Organizer: {name}	開催者: {name}
+	People	連絡先
+	Phone	電話
+	Pick someone to see their details	人を選ぶと詳細が表示されます
+	Previous	前へ
+	Previous month	前月
+	Repeat	繰り返し
+	Search people	連絡先を検索
+	September	9月
+	Starts	開始
+	Tentative	仮承諾
+	Week	週
+	Your answer:	回答:
+	{from} {month_from} – {to} {month} {year}	{year}年{month_from}{from}日～{month}{to}日
+	{from} – {to} {month} {year}	{year}年{month}{from}日～{to}日
+	{month} {year}	{year}年{month}
+	{n} more	他 {n} 件
+	{weekday}, {day} {month} {year}	{year}年{month}{day}日 ({weekday})
+
+# A month's full name, where it differs from its short form.
+month	May	5月
+	Add to contacts	連絡先に追加

@@ -69,6 +69,7 @@ pub(crate) fn tour() {
         frame(&ctx, &mut a, vec![]);
         a.run("message.closeWindow", json!({"key": k.to_id()}));
         backstage_tour(&mut a, &ctx);
+        pim_tour(&mut a, &ctx);
         let projects = a.session.folder("sample", "Projects").cloned().unwrap();
         a.session.oauth_available = vec!["google".into()];
         for d in [
@@ -227,6 +228,87 @@ pub(crate) fn backstage_tour(a: &mut MailApp, ctx: &egui::Context) {
         frame(ctx, a, vec![]);
     }
     a.ui.backstage = None;
+}
+
+/// Calendar (each view, an event open) and People (someone picked, the form open).
+pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
+    a.run("view.module", json!({"name": "calendar"}));
+    for mode in ["day", "week", "month"] {
+        a.run("calendar.view", json!({"mode": mode}));
+        frame(ctx, a, vec![]);
+    }
+    let item =
+        a.session.agenda(a.session.local_midnight(a.session.cal_days().0), a.session.local_midnight(a.session.cal_days().1)).into_iter().next();
+    if let Some(it) = item {
+        a.ui.dialog = Dialog::open_event(&a.session, &it.uid, it.occurrence);
+        frame(ctx, a, vec![]);
+    }
+    a.ui.dialog = Some(Dialog::new_event(&a.session, None));
+    frame(ctx, a, vec![]);
+    a.ui.dialog = None;
+    a.run("view.module", json!({"name": "people"}));
+    frame(ctx, a, vec![]);
+    a.ui.person = a.session.people("").first().map(|p| p.card.uid.clone());
+    frame(ctx, a, vec![]);
+    if let Some(p) = a.session.people("").first() {
+        a.ui.dialog = Some(Dialog::edit_contact(&p.card));
+        frame(ctx, a, vec![]);
+    }
+    a.ui.dialog = None;
+    a.ui.people_query = "nobody-at-all".into();
+    frame(ctx, a, vec![]);
+    a.ui.people_query.clear();
+    a.run("view.module", json!({"name": "mail"}));
+    frame(ctx, a, vec![]);
+}
+
+#[test]
+fn calendar_and_people_forms_save_through_commands() {
+    let (mut a, dir) = app("pim-forms");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    pim_tour(&mut a, &ctx);
+    // A new event from the form.
+    let mut d = Dialog::new_event(&a.session, Some(NOW + 3 * 86_400));
+    let params = match &mut d {
+        Dialog::Event(f) => {
+            f.summary = "Grade the trailer".into();
+            f.location = "Suite B".into();
+            f.repeat = "weekly".into();
+            f.params()
+        }
+        _ => serde_json::Value::Null,
+    };
+    a.ui.dialog = Some(d);
+    a.act(crate::Action::Submit("event.create", params));
+    assert!(a.ui.dialog.is_none(), "saved and closed");
+    let (from, to) = (NOW, NOW + 30 * 86_400);
+    let made: Vec<_> = a.session.agenda(from, to).into_iter().filter(|i| i.summary == "Grade the trailer").collect();
+    assert!(made.len() >= 4 && made.iter().all(|i| i.recurring && i.location == "Suite B"), "{made:?}");
+    // Reopened, it shows what was saved; a bad time keeps the form open with the reason.
+    let mut d = Dialog::open_event(&a.session, &made[0].uid, made[0].occurrence).unwrap();
+    let params = match &mut d {
+        Dialog::Event(f) => {
+            assert_eq!((f.summary.as_str(), f.repeat.as_str(), f.recurring), ("Grade the trailer", "weekly", true));
+            f.start = "25:00".into();
+            f.params()
+        }
+        _ => serde_json::Value::Null,
+    };
+    a.ui.dialog = Some(d);
+    a.act(crate::Action::Submit("event.update", params));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Event(f)) if f.error.is_some()));
+    // A person from the form is picked afterwards.
+    a.ui.dialog = Some(Dialog::new_contact());
+    let mut f = crate::pim_dialogs::ContactForm { name: "Mira Chen".into(), emails: "mira@colour.example".into(), ..Default::default() };
+    a.act(crate::Action::Submit("contact.create", f.params()));
+    let picked = a.ui.person.clone().unwrap();
+    assert_eq!(a.session.find_person(&picked).unwrap().card.display(), "Mira Chen");
+    f.emails = "not an address".into();
+    a.ui.dialog = Some(Dialog::new_contact());
+    a.act(crate::Action::Submit("contact.create", f.params()));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Contact(f)) if f.error.is_some()));
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]

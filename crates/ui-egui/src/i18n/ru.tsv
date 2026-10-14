@@ -414,6 +414,76 @@
 	this server doesn't offer automatic replies (no ManageSieve)	этот сервер не поддерживает автоответы (нет ManageSieve)
 	the account is offline	учётная запись не в сети
 	Drag it to a folder or another app to copy it	Перетащите в папку или другое приложение, чтобы скопировать
+	Accept	Принять
+	Accepted	Принято
+	Add a title	Добавьте название
+	All day	Весь день
+	April	Апрель
+	Attendees: {names}	Участники: {names}
+	August	Август
+	Calendar	Календарь
+	Calendars	Календари
+	Changes apply to every occurrence.	Изменения применяются ко всем повторениям.
+	Company	Организация
+	Custom	Особое
+	Day	День
+	December	Декабрь
+	Decline	Отклонить
+	Declined	Отклонено
+	Delete the series	Удалить всю серию
+	Delete this occurrence	Удалить это повторение
+	Edit contact	Изменить контакт
+	Email	Почта
+	Ends	Окончание
+	Event	Событие
+	Every day	Каждый день
+	Every month	Каждый месяц
+	Every week	Каждую неделю
+	Every year	Каждый год
+	February	Февраль
+	In the address book of {account}	В адресной книге {account}
+	January	Январь
+	Job title	Должность
+	July	Июль
+	June	Июнь
+	Location	Место
+	Mail	Почта
+	March	Март
+	Month	Месяц
+	Never	Никогда
+	New contact	Новый контакт
+	New event	Новое событие
+	Next	Вперёд
+	Next month	Следующий месяц
+	No answer yet	Ответа пока нет
+	No contacts yet.	Контактов пока нет.
+	No one matches.	Никто не найден.
+	Notes	Заметки
+	November	Ноябрь
+	October	Октябрь
+	One address per line	По одному адресу в строке
+	Organizer: {name}	Организатор: {name}
+	People	Люди
+	Phone	Телефон
+	Pick someone to see their details	Выберите человека, чтобы увидеть сведения
+	Previous	Назад
+	Previous month	Предыдущий месяц
+	Repeat	Повтор
+	Search people	Поиск людей
+	September	Сентябрь
+	Starts	Начало
+	Tentative	Под вопросом
+	Week	Неделя
+	Your answer:	Ваш ответ:
+	{from} {month_from} – {to} {month} {year}	{from} {month_from} – {to} {month} {year}
+	{from} – {to} {month} {year}	{from}–{to} {month} {year}
+	{month} {year}	{month} {year}
+	{n} more	ещё {n}
+	{weekday}, {day} {month} {year}	{weekday}, {day} {month} {year}
+	Add to contacts	Добавить в контакты
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив
+
+# A month's full name, where it differs from its short form.
+month	May	Май
