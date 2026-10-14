@@ -347,5 +347,11 @@
 	Select a message to read it	Sélectionnez un message pour le lire
 	MailCraft – Sample mailbox	MailCraft – Boîte aux lettres d’exemple
 
+	Mail server	Serveur de messagerie
+	IMAP and SMTP	IMAP et SMTP
+	JMAP	JMAP
+	JMAP session address	Adresse de la session JMAP
+	Server: {url} (JMAP)	Serveur : {url} (JMAP)
+
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

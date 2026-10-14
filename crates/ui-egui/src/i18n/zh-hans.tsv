@@ -346,3 +346,8 @@
 	• List	• 列表
 	Select a message to read it	选择一封邮件进行阅读
 	MailCraft – Sample mailbox	MailCraft – 示例邮箱
+	Mail server	邮件服务器
+	IMAP and SMTP	IMAP 和 SMTP
+	JMAP	JMAP
+	JMAP session address	JMAP 会话地址
+	Server: {url} (JMAP)	服务器: {url} (JMAP)

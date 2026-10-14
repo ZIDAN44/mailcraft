@@ -6,6 +6,7 @@
 //!   accounts                       list accounts and folders
 //!   add --email E [--name N] [--username U] [--imap HOST:PORT] [--smtp HOST:PORT]
 //!       [--imap-security tls|starttls|none] [--smtp-security tls|starttls|none]
+//!       [--jmap SESSION-URL]   (a JMAP account instead of IMAP and SMTP)
 //!                                  add an account (servers guessed from the address)
 //!   test [--account ID]            sign in to IMAP and list the folders
 //!   sync [--account ID]            download new mail into the cache
@@ -133,7 +134,7 @@ fn drive(s: &mut Session, pool: &mut Pool, timeout: Duration, mut done: impl FnM
 
 fn start(s: &mut Session, store: &Store, account: &str) -> Result<Pool, String> {
     let config = s.account(account).map(|a| a.config.clone()).ok_or("no such account")?;
-    if config.imap.host.is_empty() {
+    if config.is_local() {
         return Err("the sample account has no server".into());
     }
     let pw = password(&config.email)?;
@@ -180,15 +181,19 @@ fn run() -> Result<(), String> {
         "add" => {
             let email = args.opt("--email").ok_or("--email is required")?;
             let mut p = json!({"email": email});
-            for (flag, key) in
-                [("--name", "name"), ("--username", "username"), ("--imap-security", "imapSecurity"), ("--smtp-security", "smtpSecurity")]
-            {
+            for (flag, key) in [
+                ("--name", "name"),
+                ("--username", "username"),
+                ("--imap-security", "imapSecurity"),
+                ("--smtp-security", "smtpSecurity"),
+                ("--jmap", "jmap"),
+            ] {
                 if let Some(v) = args.opt(flag) {
                     p[key] = json!(v);
                 }
             }
             // No servers given: look them up (the domain's autoconfig, the ISP database, DNS).
-            if args.opt("--imap").is_none() && args.opt("--smtp").is_none() {
+            if args.opt("--imap").is_none() && args.opt("--smtp").is_none() && args.opt("--jmap").is_none() {
                 match mailcraft_net::autoconfig::discover(&email) {
                     Some(f) => {
                         eprintln!("settings found: {}", f.source);

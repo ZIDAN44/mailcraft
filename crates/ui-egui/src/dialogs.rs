@@ -24,6 +24,9 @@ pub struct AccountForm {
     pub smtp_host: String,
     pub smtp_port: String,
     pub smtp_security: Security,
+    /// Syncs over JMAP instead of IMAP and SMTP, through this session address.
+    pub jmap: bool,
+    pub jmap_url: String,
     pub error: Option<String>,
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
@@ -41,8 +44,17 @@ impl AccountForm {
         self.smtp_security = g.smtp.security;
     }
 
-    fn params(&self) -> serde_json::Value {
+    pub(crate) fn params(&self) -> serde_json::Value {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
+        if self.jmap {
+            return json!({
+                "email": self.email.trim(),
+                "name": self.name.trim(),
+                "password": self.password,
+                "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
+                "jmap": self.jmap_url.trim(),
+            });
+        }
         json!({
             "email": self.email.trim(),
             "name": self.name.trim(),
@@ -467,6 +479,19 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, ac
                     let label = |ui: &mut Ui, s: &str| {
                         ui.label(RichText::new(tl!(s)).strong().small());
                     };
+                    ui.horizontal(|ui| {
+                        label(ui, "Mail server");
+                        ui.radio_value(&mut f.jmap, false, tl!("IMAP and SMTP"));
+                        ui.radio_value(&mut f.jmap, true, tl!("JMAP"));
+                    });
+                    if f.jmap {
+                        label(ui, "JMAP session address");
+                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+                        ui.add_space(4.0);
+                        label(ui, "User name");
+                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+                        return;
+                    }
                     label(ui, "Incoming mail (IMAP)");
                     ui.horizontal(|ui| {
                         edited |= ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com")).changed();
@@ -503,6 +528,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, ac
                         );
                     }
                 });
+            } else if f.jmap && !f.jmap_url.trim().is_empty() {
+                ui.label(RichText::new(tf!("Server: {url} (JMAP)", url = f.jmap_url.trim())).color(t.faint).small());
             } else if !f.imap_host.is_empty() {
                 ui.label(
                     RichText::new(tf!(
@@ -564,10 +591,10 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, language: &str, ac
                     ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
-            let ready = !f.email.trim().is_empty() && !f.password.is_empty();
+            let ready = !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
-                if f.imap_host.is_empty() {
+                if !f.jmap && f.imap_host.is_empty() {
                     f.guess();
                 }
                 f.error = None;

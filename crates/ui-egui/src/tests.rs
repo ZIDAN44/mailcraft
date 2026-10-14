@@ -85,6 +85,7 @@ pub(crate) fn tour() {
             Dialog::Rules,
             Dialog::rule_from("zoe@studio.example", "x"),
             Dialog::add_account_with("zoe@gmail.com", true),
+            jmap_form(),
             Dialog::Preview {
                 title: "notes.txt".into(),
                 header: vec![("From".into(), "Zoe".into())],
@@ -165,6 +166,31 @@ fn keyboard_shortcuts_run_commands() {
     frame(&ctx, &mut a, vec![key(Key::Delete, Modifiers::NONE)]);
     assert_eq!(a.session.list.len(), n);
     frame(&ctx, &mut a, vec![key(Key::M, Modifiers::COMMAND | Modifiers::SHIFT)]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+fn jmap_form() -> Dialog {
+    let mut d = Dialog::add_account_with("zoe@fastmail.example", true);
+    if let Dialog::AddAccount(f) = &mut d {
+        f.jmap = true;
+        f.jmap_url = " https://api.fastmail.example/jmap/session".into();
+        f.password = "pw".into();
+    }
+    d
+}
+
+#[test]
+fn the_account_form_adds_jmap_accounts() {
+    let (mut a, dir) = app("jmap-form");
+    let p = match jmap_form() {
+        Dialog::AddAccount(f) => f.params(),
+        _ => serde_json::Value::Null,
+    };
+    assert_eq!(p["jmap"], "https://api.fastmail.example/jmap/session");
+    assert!(p.get("imapHost").is_none(), "no IMAP servers for a JMAP account");
+    a.act(crate::Action::Submit("account.add", p));
+    let added = a.session.accounts.iter().find(|x| x.config.email == "zoe@fastmail.example").unwrap();
+    assert!(added.config.jmap.is_some() && !added.is_local());
     let _ = std::fs::remove_dir_all(dir);
 }
 

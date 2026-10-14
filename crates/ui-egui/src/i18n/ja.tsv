@@ -346,3 +346,8 @@
 	• List	• リスト
 	Select a message to read it	メッセージを選択すると、ここに表示されます
 	MailCraft – Sample mailbox	MailCraft – サンプル メールボックス
+	Mail server	メール サーバー
+	IMAP and SMTP	IMAP と SMTP
+	JMAP	JMAP
+	JMAP session address	JMAP セッションのアドレス
+	Server: {url} (JMAP)	サーバー: {url} (JMAP)
