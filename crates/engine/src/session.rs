@@ -143,6 +143,10 @@ pub struct Prefs {
     pub focused_inbox: bool,
     /// Senders the user moved: `true` always Focused, `false` always Other.
     pub focus_overrides: std::collections::BTreeMap<String, bool>,
+    /// Show HTML mail formatted (`false`: as plain text).
+    pub show_html: bool,
+    /// Senders whose pictures from the web load without asking (lower-case addresses).
+    pub trusted_senders: BTreeSet<String>,
     /// Folders the user pinned to Favorites, in order. `None` until the user changes them: the
     /// Inbox, Sent Items and Drafts of a single account are shown.
     pub favorites: Option<Vec<FolderRef>>,
@@ -169,6 +173,8 @@ impl Default for Prefs {
             categories: mailcraft_model::organize::default_categories(),
             focused_inbox: false,
             focus_overrides: std::collections::BTreeMap::new(),
+            show_html: true,
+            trusted_senders: BTreeSet::new(),
         }
     }
 }
@@ -268,6 +274,10 @@ pub struct Session {
     pub snoozes: Vec<mailcraft_model::organize::Snooze>,
     /// The Other tab of a Focused/Other Inbox is showing.
     pub focus_other: bool,
+    /// Pictures from the web, by address: downloaded only after the user asked.
+    pub pictures: HashMap<String, Picture>,
+    /// Messages whose pictures the user asked to see this time.
+    pictures_for: BTreeSet<MessageKey>,
     index: Option<SearchIndex>,
     registry: Arc<Registry>,
     next_id: u64,
@@ -305,6 +315,8 @@ impl Session {
             rules: Vec::new(),
             snoozes: Vec::new(),
             focus_other: false,
+            pictures: HashMap::new(),
+            pictures_for: BTreeSet::new(),
             index: None,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -707,6 +719,63 @@ impl Session {
             r.error = if parsed.is_none() { Some("this message could not be read".into()) } else { None };
             r.parsed = parsed;
         }
+        self.request_pictures();
+    }
+
+    // ----- pictures from the web -----
+
+    /// Web pictures of the open message (none for plain-text mail).
+    pub fn remote_pictures(&self) -> Vec<String> {
+        self.reading
+            .as_ref()
+            .and_then(|r| r.parsed.as_ref())
+            .map(|p| p.images.iter().filter(|u| u.starts_with("https://") || u.starts_with("http://")).take(MAX_PICTURES).cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Whether the open message's web pictures may load: the user asked, for this message or
+    /// for everything from its sender.
+    pub fn pictures_allowed(&self) -> bool {
+        let Some(r) = &self.reading else { return false };
+        let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
+        self.pictures_for.contains(&r.key) || (!sender.is_empty() && self.prefs.trusted_senders.contains(&sender))
+    }
+
+    /// Ask the network layer for the open message's pictures, when allowed.
+    fn request_pictures(&mut self) {
+        if !self.pictures_allowed() {
+            return;
+        }
+        if self.pictures.len() > 400 {
+            self.pictures.retain(|_, p| matches!(p, Picture::Loading));
+        }
+        for url in self.remote_pictures() {
+            if !self.pictures.contains_key(&url) {
+                self.pictures.insert(url.clone(), Picture::Loading);
+                self.jobs.push(Job::FetchUrl { url });
+            }
+        }
+    }
+
+    /// Show the open message's pictures (`always`: and everything from its sender from now on).
+    pub fn show_pictures(&mut self, always: bool) -> CmdResult {
+        let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        self.pictures_for.insert(r.key.clone());
+        let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
+        if always && !sender.is_empty() && self.prefs.trusted_senders.len() < 10_000 {
+            self.prefs.trusted_senders.insert(sender.clone());
+        }
+        self.request_pictures();
+        Ok(serde_json::json!({ "pictures": self.remote_pictures().len(), "trusted": always.then_some(sender) }))
+    }
+
+    /// Stop loading pictures from the open message's sender automatically.
+    pub fn block_pictures(&mut self) -> CmdResult {
+        let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        self.pictures_for.remove(&r.key);
+        let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
+        let was = self.prefs.trusted_senders.remove(&sender);
+        Ok(serde_json::json!({ "untrusted": was }))
     }
 
     // ----- changing mail -----
@@ -1348,6 +1417,7 @@ impl Session {
             in_reply_to: c.in_reply_to.clone(),
             references: c.references.clone(),
             attachments: c.attachments.clone(),
+            ..Default::default()
         })
     }
 
@@ -1419,6 +1489,7 @@ impl Session {
             in_reply_to: c.in_reply_to.clone(),
             references: c.references.clone(),
             attachments: c.attachments.clone(),
+            ..Default::default()
         };
         let folder = self
             .account(&c.account)
@@ -1755,12 +1826,30 @@ impl Session {
                 self.after_outbox_change();
             }
             Event::OpFailed { error, .. } => self.notice(format!("The server refused a change: {error}"), true),
+            Event::Fetched { url, data, error } => {
+                let p = match (data, error) {
+                    (Some(d), _) => Picture::Ready(Arc::new(d)),
+                    (None, e) => Picture::Failed(e.unwrap_or_default()),
+                };
+                self.pictures.insert(url, p);
+            }
             Event::Notice { account, message } => {
                 let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or(account);
                 self.notice(format!("{who}: {message}"), true);
             }
         }
     }
+}
+
+/// Most web pictures loaded for one message.
+const MAX_PICTURES: usize = 60;
+
+/// A picture from the web.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Picture {
+    Loading,
+    Ready(Arc<Vec<u8>>),
+    Failed(String),
 }
 
 /// Where a move goes.

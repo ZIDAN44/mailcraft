@@ -161,6 +161,15 @@ pub fn registry() -> Registry {
         CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"}"#),
         CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
         CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
+        CommandSpec::new("message.showPictures", "Show pictures", "Reading pane", |s, v| s.show_pictures(p::bool(v, "always").unwrap_or(false)))
+            .params(r#"{"always"?: bool}"#)
+            .when(has_reading),
+        CommandSpec::new("message.blockPictures", "Don't show pictures from this sender", "Reading pane", |s, _| s.block_pictures()).when(has_reading),
+        CommandSpec::new("view.html", "Show HTML formatted", "View › Messages", |s, v| {
+            s.prefs.show_html = p::bool(v, "on").unwrap_or(!s.prefs.show_html);
+            Ok(json!({"on": s.prefs.show_html}))
+        })
+        .params(r#"{"on"?: bool}"#),
         // Search
         CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(r#"{"query": string, "scope"?: "all"|"current"}"#),
         CommandSpec::new("search.clear", "Clear search", "Search box", |s, _| Ok(json!({"results": s.run_search("", SearchScope::All)}))).key("Escape"),

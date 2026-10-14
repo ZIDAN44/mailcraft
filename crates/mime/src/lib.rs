@@ -13,6 +13,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 use mail_builder::MessageBuilder;
+use mail_builder::mime::MimePart;
 use mail_parser::{Address, HeaderValue, Message, MessageParser, MimeHeaders};
 use mailcraft_model::dates::{Clock, full_time};
 use mailcraft_model::thread::norm_id;
@@ -145,6 +146,9 @@ pub struct AttachmentInfo {
     pub mime: String,
     pub size: usize,
     pub inline: bool,
+    /// `Content-ID` without angle brackets, for pictures the HTML shows (`cid:`).
+    #[serde(default)]
+    pub content_id: Option<String>,
 }
 
 impl AttachmentInfo {
@@ -205,9 +209,208 @@ pub struct Parsed {
     pub text: String,
     /// Whether the original had an HTML body (shown converted).
     pub had_html: bool,
+    /// The HTML body, formatted (empty for plain-text mail).
+    #[serde(default)]
+    pub rich: RichText,
+    /// Every picture the HTML body shows (`cid:` and web addresses).
+    #[serde(default)]
+    pub images: Vec<String>,
     pub attachments: Vec<AttachmentInfo>,
     /// `List-Unsubscribe` target, when the sender offers one.
     pub unsubscribe: Option<String>,
+}
+
+/// A run of text in a rich (HTML) message, with its formatting.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Span {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bold: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub italic: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub strike: bool,
+    /// Code or preformatted text (shown in a monospace font).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub code: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
+    /// A picture (`src`: `cid:…` for one in the message, `https:` for one on the web); the text
+    /// is its description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
+    /// Part of a heading (`1` for `<h1>` … `6`), shown larger.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub heading: u8,
+}
+
+fn is_zero(v: &u8) -> bool {
+    *v == 0
+}
+
+/// Lines of a rich message, each a list of spans.
+pub type RichText = Vec<Vec<Span>>;
+
+/// Most lines kept of a rich rendering (the rest is shown as text).
+const RICH_MAX_LINES: usize = 20_000;
+
+/// HTML → lines of formatted spans: paragraphs, emphasis, links, list bullets, quotes, tables
+/// laid out as text, and pictures by reference. No scripts, styles or remote loads: what comes
+/// out is plain data. Never panics; empty when conversion fails.
+pub fn html_to_rich(html: &str) -> RichText {
+    let html = match html.char_indices().nth(HTML_MAX) {
+        Some((i, _)) => html.get(..i).unwrap_or(html),
+        None => html,
+    };
+    // Wide enough that paragraphs stay one line each (the UI wraps them to the pane).
+    let marked = mark_headings(html);
+    let result = std::panic::catch_unwind(|| html2text::from_read_rich(marked.as_bytes(), 2000));
+    let Ok(Ok(lines)) = result else { return Vec::new() };
+    let mut out: RichText = Vec::new();
+    let mut blank = 0;
+    for line in lines.into_iter().take(RICH_MAX_LINES) {
+        let mut spans: Vec<Span> = Vec::new();
+        for ts in line.tagged_strings() {
+            let mut sp = Span { text: ts.s.clone(), ..Default::default() };
+            for a in &ts.tag {
+                match a {
+                    html2text::render::RichAnnotation::Strong => sp.bold = true,
+                    html2text::render::RichAnnotation::Emphasis => sp.italic = true,
+                    html2text::render::RichAnnotation::Strikeout => sp.strike = true,
+                    html2text::render::RichAnnotation::Code | html2text::render::RichAnnotation::Preformat(_) => sp.code = true,
+                    html2text::render::RichAnnotation::Link(l) => sp.link = Some(l.clone()),
+                    html2text::render::RichAnnotation::Image(src) => sp.image = Some(src.clone()),
+                    _ => {}
+                }
+            }
+            // Merge with the previous span when the formatting is the same.
+            match spans.last_mut() {
+                Some(last) if Span { text: String::new(), ..last.clone() } == Span { text: String::new(), ..sp.clone() } => {
+                    last.text.push_str(&sp.text)
+                }
+                _ => spans.push(sp),
+            }
+        }
+        if let Some(last) = spans.last_mut() {
+            let trimmed = last.text.trim_end().len();
+            last.text.truncate(trimmed);
+        }
+        // Headings come out as `## <mark>Title` (see `mark_headings`): drop both, keep the level.
+        let mut level = 0u8;
+        for sp in &mut spans {
+            if let Some(i) = sp.text.find(HEADING_MARK) {
+                let before = sp.text.get(..i).unwrap_or("");
+                level = u8::try_from(before.chars().filter(|c| *c == '#').count().clamp(1, 6)).unwrap_or(1);
+                sp.text = sp.text.get(i + HEADING_MARK.len_utf8()..).unwrap_or("").to_string();
+            }
+        }
+        if level > 0 {
+            if let Some(first) = spans.first_mut()
+                && first.text.trim_start_matches('#').trim().is_empty()
+                && first.image.is_none()
+            {
+                first.text.clear();
+            }
+            for sp in &mut spans {
+                sp.heading = level;
+            }
+        }
+        for sp in &mut spans {
+            sp.text = sp.text.replace(HEADING_MARK, "");
+        }
+        // List bullets (`* item`, indented when nested) as real bullets.
+        if let Some(first) = spans.first_mut() {
+            let indent = first.text.len() - first.text.trim_start_matches(' ').len();
+            if first.text.get(indent..).is_some_and(|r| r.starts_with("* ")) {
+                first.text = format!("{}• {}", " ".repeat(indent), first.text.get(indent + 2..).unwrap_or(""));
+            }
+        }
+        spans.retain(|s| !s.text.is_empty() || s.image.is_some());
+        if spans.is_empty() {
+            blank += 1;
+            if blank > 1 || out.is_empty() {
+                continue;
+            }
+        } else {
+            blank = 0;
+        }
+        out.push(spans);
+    }
+    while out.last().is_some_and(Vec::is_empty) {
+        out.pop();
+    }
+    out
+}
+
+/// Marks where a heading starts, so a paragraph that just begins with `#` isn't taken for one.
+const HEADING_MARK: char = '\u{E000}';
+
+/// `html` with a mark after every `<h1>`…`<h6>` start tag (and any mark already in it removed).
+fn mark_headings(html: &str) -> String {
+    let html = html.replace(HEADING_MARK, "");
+    let lower = html.to_ascii_lowercase();
+    let mut out = String::with_capacity(html.len() + 64);
+    let mut last = 0;
+    let mut from = 0;
+    while let Some(i) = lower.get(from..).and_then(|r| r.find("<h")) {
+        let start = from + i;
+        let is_heading = lower.as_bytes().get(start + 2).is_some_and(|b| (b'1'..=b'6').contains(b))
+            && lower.as_bytes().get(start + 3).is_some_and(|b| *b == b'>' || b.is_ascii_whitespace());
+        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        if is_heading {
+            out.push_str(html.get(last..=end).unwrap_or(""));
+            out.push(HEADING_MARK);
+            last = end + 1;
+        }
+        from = end + 1;
+    }
+    out.push_str(html.get(last..).unwrap_or(""));
+    out
+}
+
+/// Web pictures a rich message refers to (`http:`/`https:` only), in order, without repeats.
+pub fn remote_images(rich: &RichText) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for sp in rich.iter().flatten() {
+        if let Some(src) = &sp.image
+            && (src.starts_with("https://") || src.starts_with("http://"))
+            && !out.contains(src)
+        {
+            out.push(src.clone());
+        }
+    }
+    out
+}
+
+/// Every `<img src>` of an HTML body, in order, without repeats (at most 200). Pictures without
+/// a description (tracking pixels, mostly) leave no trace in the formatted text, so they are
+/// found here, to be blocked or shown like the rest.
+pub fn html_images(html: &str) -> Vec<String> {
+    let lower = html.to_ascii_lowercase();
+    let mut out: Vec<String> = Vec::new();
+    let mut from = 0;
+    while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
+        let start = from + i;
+        let end = lower.get(start..).and_then(|r| r.find('>')).map_or(lower.len(), |e| start + e);
+        let tag_lower = lower.get(start..end).unwrap_or("");
+        let tag = html.get(start..end).unwrap_or("");
+        if let Some(p) = tag_lower.find(" src=").or_else(|| tag_lower.find("\nsrc=")) {
+            let v = tag.get(p + 5..).unwrap_or("");
+            let src = match v.chars().next() {
+                Some(q @ ('"' | '\'')) => v.get(1..).and_then(|r| r.split(q).next()).unwrap_or(""),
+                _ => v.split([' ', '\t', '\n', '/']).next().unwrap_or(""),
+            };
+            let src = src.trim().replace("&amp;", "&");
+            if !src.is_empty() && src.len() < 4096 && !out.contains(&src) {
+                out.push(src);
+            }
+        }
+        from = end.max(start + 4);
+        if out.len() >= 200 {
+            break;
+        }
+    }
+    out
 }
 
 /// HTML → readable text. Never panics; returns an empty string when conversion fails.
@@ -248,6 +451,10 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     let m = MessageParser::default().parse(raw)?;
     // mail-parser lists text parts among the HTML bodies too (converted); only real HTML counts.
     let real_html = m.html_bodies().any(|p| p.is_text_html());
+    let (rich, images) = match m.body_html(0).filter(|_| real_html) {
+        Some(h) => (html_to_rich(&h), html_images(&h)),
+        None => (Vec::new(), Vec::new()),
+    };
     let (text, had_html) = match (m.text_body_count() > 0, m.body_text(0), m.body_html(0)) {
         // Prefer the HTML version when the text part is an auto-generated stub.
         (_, Some(t), Some(h)) if t.trim().is_empty() => (html_to_text(&h), true),
@@ -265,7 +472,14 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
                 .map(|c| format!("{}/{}", c.ctype(), c.subtype().unwrap_or("octet-stream")).to_ascii_lowercase())
                 .unwrap_or_else(|| "application/octet-stream".into());
             let name = p.attachment_name().map(sanitize_filename).unwrap_or_else(|| format!("attachment-{}{}", index + 1, ext_for_mime(&mime)));
-            AttachmentInfo { index, name, mime, size: p.len(), inline: p.is_inline_part() }
+            AttachmentInfo {
+                index,
+                name,
+                mime,
+                size: p.len(),
+                inline: p.is_inline_part(),
+                content_id: p.content_id().map(|c| c.trim().trim_matches(['<', '>']).to_string()),
+            }
         })
         .collect();
     let unsubscribe = match m.list_unsubscribe() {
@@ -286,6 +500,8 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         references: ids(m.references()),
         text,
         had_html,
+        rich,
+        images,
         attachments,
         unsubscribe,
     })
@@ -379,6 +595,22 @@ pub struct Draft {
     pub references: Vec<String>,
     #[serde(default)]
     pub attachments: Vec<OutAttachment>,
+    /// A formatted version of `body`: sent as `multipart/alternative` next to the text.
+    #[serde(default)]
+    pub html: Option<String>,
+    /// Pictures the HTML shows by `cid:` (sent inline, `multipart/related`).
+    #[serde(default)]
+    pub inline: Vec<InlinePicture>,
+}
+
+/// A picture inside a formatted message.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InlinePicture {
+    /// The `Content-ID` the HTML refers to (`<img src="cid:…">`).
+    pub cid: String,
+    pub name: String,
+    pub mime: String,
+    pub data: Vec<u8>,
 }
 
 impl Draft {
@@ -427,10 +659,41 @@ pub fn build(d: &Draft, from: &EmailAddress, date: i64, message_id: &str) -> Res
         b = b.references(d.references.clone());
     }
     b = b.header("X-Mailer", mail_builder::headers::raw::Raw::new(format!("MailCraft {}", env!("CARGO_PKG_VERSION"))));
-    b = b.text_body(d.body.replace("\r\n", "\n"));
-    for a in &d.attachments {
-        let mime = if a.mime.is_empty() { mime_from_name(&a.name).to_string() } else { a.mime.clone() };
-        b = b.attachment(mime, sanitize_filename(&a.name), a.data.clone());
+    let attachments = || {
+        d.attachments.iter().map(|a| {
+            let mime = if a.mime.is_empty() { mime_from_name(&a.name).to_string() } else { a.mime.clone() };
+            MimePart::new(mime, a.data.clone()).attachment(sanitize_filename(&a.name))
+        })
+    };
+    match &d.html {
+        None => {
+            b = b.text_body(d.body.replace("\r\n", "\n"));
+            for a in &d.attachments {
+                let mime = if a.mime.is_empty() { mime_from_name(&a.name).to_string() } else { a.mime.clone() };
+                b = b.attachment(mime, sanitize_filename(&a.name), a.data.clone());
+            }
+        }
+        Some(html) => {
+            // mixed( related( alternative(text, html), pictures… ), attachments… ): the pictures
+            // belong with the HTML that shows them (RFC 2387), the files with the message.
+            let alt = MimePart::new(
+                "multipart/alternative",
+                vec![MimePart::new("text/plain", d.body.replace("\r\n", "\n")), MimePart::new("text/html", html.clone())],
+            );
+            let mut related = vec![alt];
+            for p in &d.inline {
+                let mime = if p.mime.is_empty() { mime_from_name(&p.name).to_string() } else { p.mime.clone() };
+                related.push(MimePart::new(mime, p.data.clone()).inline().cid(p.cid.clone()));
+            }
+            let mut root = if related.len() == 1 { related.remove(0) } else { MimePart::new("multipart/related", related) };
+            let files: Vec<MimePart<'_>> = attachments().collect();
+            if !files.is_empty() {
+                let mut parts = vec![root];
+                parts.extend(files);
+                root = MimePart::new("multipart/mixed", parts);
+            }
+            b = b.body(root);
+        }
     }
     b.write_to_vec().map_err(|e| e.to_string())
 }
@@ -589,6 +852,34 @@ iVBORw0KGgo=\r\n\
     }
 
     #[test]
+    fn rich_html_keeps_formatting_links_and_pictures() {
+        let r = html_to_rich(
+            "<p>Hello <b>bold</b> and <i>slanted</i> <a href=\"https://x.example/a\">link</a>.</p><p><img src=\"cid:logo@x\" alt=\"Logo\"><img src=\"https://t.example/p.gif\" alt=\"\"></p><pre>code</pre><script>alert(1)</script>",
+        );
+        let all: Vec<&Span> = r.iter().flatten().collect();
+        assert!(all.iter().any(|s| s.bold && s.text.contains("bold")));
+        assert!(all.iter().any(|s| s.italic && s.text.contains("slanted")));
+        assert!(all.iter().any(|s| s.link.as_deref() == Some("https://x.example/a") && s.text.contains("link")));
+        assert!(all.iter().any(|s| s.image.as_deref() == Some("cid:logo@x")));
+        assert!(all.iter().any(|s| s.code && s.text.contains("code")));
+        assert!(!all.iter().any(|s| s.text.contains("alert")), "scripts never show");
+        let h = html_to_rich("<h2>Big news</h2><p># not a heading</p>");
+        assert_eq!((h[0][0].text.as_str(), h[0][0].heading), ("Big news", 2));
+        assert!(h.iter().flatten().any(|s| s.heading == 0 && s.text.starts_with('#')), "{h:?}");
+        assert!(remote_images(&r).is_empty(), "a picture without a description leaves no text");
+        assert!(html_to_rich("").is_empty());
+        let p = parse(MULTI).unwrap();
+        assert!(!p.rich.is_empty());
+        assert_eq!(p.images, vec!["https://tracker.example/p.gif".to_string()]);
+        assert_eq!(
+            html_images("<IMG alt=x SRC='https://a.example/1.png?x=1&amp;y=2'><img src=cid:k@x><img src=\"cid:k@x\"><img>"),
+            vec!["https://a.example/1.png?x=1&y=2".to_string(), "cid:k@x".to_string()]
+        );
+        assert_eq!(remote_images(&html_to_rich("<img src=\"https://a.example/x.png\" alt=\"Map\">")), vec!["https://a.example/x.png".to_string()]);
+        assert!(parse(SIMPLE).unwrap().rich.is_empty(), "plain mail has no rich body");
+    }
+
+    #[test]
     fn html_and_attachments() {
         let p = parse(MULTI).unwrap();
         assert!(p.had_html);
@@ -616,6 +907,7 @@ iVBORw0KGgo=\r\n\
             in_reply_to: "m1@studio.example".into(),
             references: vec!["m0@studio.example".into(), "m1@studio.example".into()],
             attachments: vec![OutAttachment { name: "board.png".into(), mime: String::new(), data: vec![1, 2, 3, 4] }],
+            ..Default::default()
         };
         let raw = build(&d, &EmailAddress::new("Zoe Park", "zoe@studio.example"), 1_791_963_000, "x1@studio.example").unwrap();
         let text = String::from_utf8_lossy(&raw);
@@ -633,6 +925,28 @@ iVBORw0KGgo=\r\n\
         assert_eq!(s.references, d.references);
         assert_eq!(s.in_reply_to, "m1@studio.example");
         assert_eq!(d.recipients(), vec!["ann@studio.example", "kim@studio.example", "secret@studio.example"]);
+    }
+
+    #[test]
+    fn formatted_mail_with_inline_pictures() {
+        let d = Draft {
+            to: vec![EmailAddress::new("", "ann@studio.example")],
+            subject: "Look".into(),
+            body: "See the picture.".into(),
+            html: Some("<p>See the <b>picture</b>.</p><img src=\"cid:pic1@mailcraft\" alt=\"pic\">".into()),
+            inline: vec![InlinePicture { cid: "pic1@mailcraft".into(), name: "p.png".into(), mime: "image/png".into(), data: vec![9, 9] }],
+            ..Default::default()
+        };
+        let raw = build(&d, &EmailAddress::new("", "z@studio.example"), 0, "f@x").unwrap();
+        let text = String::from_utf8_lossy(&raw).to_ascii_lowercase();
+        assert!(text.contains("multipart/alternative") && text.contains("multipart/related"), "{text}");
+        let p = parse(&raw).unwrap();
+        assert_eq!(p.text.trim(), "See the picture.");
+        assert!(p.rich.iter().flatten().any(|s| s.bold && s.text == "picture"));
+        assert_eq!(p.images, vec!["cid:pic1@mailcraft".to_string()]);
+        let pic = p.attachments.iter().find(|a| a.content_id.as_deref() == Some("pic1@mailcraft")).unwrap();
+        assert!(pic.inline);
+        assert_eq!(attachment_data(&raw, pic.index).unwrap(), vec![9, 9]);
     }
 
     #[test]

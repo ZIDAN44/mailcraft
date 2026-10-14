@@ -20,6 +20,8 @@ struct Mail {
     seen: bool,
     flagged: bool,
     attachment: Option<(&'static str, Attach)>,
+    /// A formatted version of the body.
+    html: Option<&'static str>,
     reply_to_index: Option<usize>,
 }
 
@@ -98,6 +100,7 @@ fn mails() -> Vec<Mail> {
             flagged: true,
             attachment: Some(("colour-key.png", Attach::Png)),
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "INBOX",
@@ -111,6 +114,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: None,
             reply_to_index: Some(0),
+            html: None,
         },
         Mail {
             folder: "INBOX",
@@ -124,6 +128,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: Some(("proof-notes.txt", Attach::Text("Bleed: 3 mm\nColour profile: coated\nPaper: 170 gsm matte\n"))),
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "INBOX",
@@ -137,6 +142,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: None,
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "INBOX",
@@ -150,6 +156,17 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: None,
             reply_to_index: None,
+            html: Some(
+                "<h2>Winter group show: open call</h2>\
+                 <p>Dear artists,</p>\
+                 <p>Our <b>winter group show</b> is open for submissions <i>until the end of the month</i>. \
+                 Paintings, prints, photography and short films are all welcome.</p>\
+                 <ul><li>Up to <b>three works</b> per artist</li><li>Opening night: the first Friday of December</li></ul>\
+                 <p><img src=\"cid:poster@gallery.example\" alt=\"Show poster\"></p>\
+                 <p>Read the <a href=\"https://gallery.example/open-call\">full guidelines</a> on our website.</p>\
+                 <p>See you at the opening!</p>\
+                 <img src=\"https://gallery.example/track/open.gif\" width=\"1\" height=\"1\" alt=\"\">",
+            ),
         },
         Mail {
             folder: "INBOX",
@@ -163,6 +180,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: Some(("fox-turnaround.png", Attach::Png)),
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "INBOX",
@@ -176,6 +194,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: None,
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "Sent",
@@ -189,6 +208,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: None,
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "Archive",
@@ -202,6 +222,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: None,
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "Projects/Short film",
@@ -215,6 +236,7 @@ fn mails() -> Vec<Mail> {
             flagged: true,
             attachment: None,
             reply_to_index: None,
+            html: None,
         },
         Mail {
             folder: "Junk",
@@ -228,6 +250,7 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachment: None,
             reply_to_index: None,
+            html: None,
         },
     ]
 }
@@ -287,6 +310,17 @@ pub fn seed_if_empty(store: &Store, now: i64) -> Result<bool, StoreError> {
             in_reply_to,
             references,
             attachments,
+            html: m.html.map(str::to_string),
+            inline: if m.html.is_some_and(|h| h.contains("cid:poster@gallery.example")) {
+                vec![mime::InlinePicture {
+                    cid: "poster@gallery.example".into(),
+                    name: "poster.png".into(),
+                    mime: "image/png".into(),
+                    data: sample_png(),
+                }]
+            } else {
+                Vec::new()
+            },
         };
         let mut raw = mime::build(&d, &EmailAddress::new(m.from.0, m.from.1), date, &id)
             .map_err(|e| StoreError::Io { path: "sample".into(), source: std::io::Error::other(e) })?;

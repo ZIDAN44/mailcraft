@@ -316,6 +316,50 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn web_pictures_load_only_when_asked() {
+    let store = temp("pictures");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let key = |uid| mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid };
+    let msgs = vec![
+        mailcraft_model::Summary { key: key(1), subject: "News".into(), date: NOW, ..Default::default() },
+        mailcraft_model::Summary { key: key(2), subject: "More".into(), date: NOW - 1, ..Default::default() },
+    ];
+    store.save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 1, uid_next: 3, highest_modseq: 0, messages: msgs }).unwrap();
+    let html = |n: u32| {
+        format!(
+            "From: Shop <news@shop.example>\r\nSubject: n\r\nContent-Type: text/html\r\n\r\n<p>Sale</p><img src=\"https://cdn.shop.example/{n}.png\">"
+        )
+    };
+    store.write_body(&key(1), html(1).as_bytes()).unwrap();
+    store.write_body(&key(2), html(2).as_bytes()).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.take_jobs();
+    s.run("list.open", &json!({"key": key(1).to_id()})).unwrap();
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FetchUrl { .. })), "nothing loads by itself");
+    assert!(!s.pictures_allowed());
+    assert_eq!(s.remote_pictures(), vec!["https://cdn.shop.example/1.png".to_string()]);
+    s.run("message.showPictures", &json!({})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::FetchUrl { url }] if url == "https://cdn.shop.example/1.png"));
+    s.apply(Event::Fetched { url: "https://cdn.shop.example/1.png".into(), data: Some(vec![1, 2]), error: None });
+    assert!(matches!(s.pictures.get("https://cdn.shop.example/1.png"), Some(crate::Picture::Ready(_))));
+    // Once only: the next message from the sender still asks…
+    s.run("list.open", &json!({"key": key(2).to_id()})).unwrap();
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FetchUrl { .. })));
+    // …until the sender is trusted; then pictures load on opening, and blocking stops that.
+    s.run("message.showPictures", &json!({"always": true})).unwrap();
+    s.take_jobs();
+    s.run("list.open", &json!({"key": key(1).to_id()})).unwrap();
+    assert!(s.pictures_allowed());
+    s.run("message.blockPictures", &json!({})).unwrap();
+    assert!(!s.pictures_allowed());
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
+#[test]
 fn categories_pins_and_focused_inbox() {
     let mut s = sample_session("organize");
     let k = key_of(&s, "Character turnarounds");

@@ -145,7 +145,15 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
             ui.add_space(12.0);
 
             // Attachments.
-            let files: Vec<_> = p.attachments.iter().filter(|a| !a.inline || a.kind() == AttachmentKind::Image).cloned().collect();
+            // Pictures the formatted message shows in place aren't listed again as files.
+            let formatted = s.prefs.show_html && !p.rich.is_empty();
+            let in_place = |a: &mime::AttachmentInfo| {
+                formatted
+                    && a.content_id
+                        .as_ref()
+                        .is_some_and(|c| p.images.iter().any(|i| i.strip_prefix("cid:").is_some_and(|x| x.eq_ignore_ascii_case(c))))
+            };
+            let files: Vec<_> = p.attachments.iter().filter(|a| (!a.inline || a.kind() == AttachmentKind::Image) && !in_place(a)).cloned().collect();
             if !files.is_empty() {
                 ui.label(RichText::new(format!("{} attachment{}", files.len(), if files.len() == 1 { "" } else { "s" })).color(t.dim).small());
                 ui.horizontal_wrapped(|ui| {
@@ -156,8 +164,7 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
                 ui.add_space(10.0);
             }
             if p.had_html {
-                ui.label(RichText::new("Shown as text: links and pictures from the web are never loaded automatically.").color(t.faint).small());
-                ui.add_space(6.0);
+                html_bar(s, &t, ui, p, acts);
             }
             if let Some(u) = &p.unsubscribe {
                 ui.label(RichText::new(format!("Mailing list: unsubscribe at {}", widgets::shorten(u, 80))).color(t.faint).small());
@@ -166,14 +173,18 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
             let sep = ui.available_rect_before_wrap();
             ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
             ui.add_space(12.0);
-            let mut text = p.text.as_str();
-            ui.add(
-                egui::TextEdit::multiline(&mut text)
-                    .frame(egui::Frame::NONE)
-                    .desired_width(f32::INFINITY)
-                    .font(theme::regular(14.5))
-                    .text_color(t.text),
-            );
+            if s.prefs.show_html && !p.rich.is_empty() {
+                rich_body(s, st, ui, &r.key, p, acts);
+            } else {
+                let mut text = p.text.as_str();
+                ui.add(
+                    egui::TextEdit::multiline(&mut text)
+                        .frame(egui::Frame::NONE)
+                        .desired_width(f32::INFINITY)
+                        .font(theme::regular(14.5))
+                        .text_color(t.text),
+                );
+            }
         });
     });
 }
@@ -259,26 +270,191 @@ fn preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey,
     let tex = (|| {
         let raw = s.store.as_ref()?.read_body(key)?;
         let data = mime::attachment_data(&raw, index)?;
-        if data.len() > 30 << 20 {
-            return None;
-        }
-        let mut limits = image::Limits::default();
-        limits.max_image_width = Some(12_000);
-        limits.max_image_height = Some(12_000);
-        limits.max_alloc = Some(256 << 20);
-        let mut reader = image::ImageReader::new(std::io::Cursor::new(&data)).with_guessed_format().ok()?;
-        reader.limits(limits);
-        let decoded = reader.decode().ok()?;
-        // Shrink large pictures; never enlarge small ones (the painter scales them crisply).
-        let img = if decoded.width() > 480 || decoded.height() > 480 { decoded.thumbnail(480, 480) } else { decoded }.to_rgba8();
-        let size = [img.width() as usize, img.height() as usize];
-        let ci = egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw());
-        // Pixel art and tiny swatches stay crisp when scaled up.
-        let filter = if size[0].max(size[1]) < 96 { egui::TextureOptions::NEAREST } else { egui::TextureOptions::LINEAR };
-        Some(ctx.load_texture(format!("att-{}-{index}", key.to_id()), ci, filter))
+        decode(ctx, &format!("att-{}-{index}", key.to_id()), &data, 480)
     })();
     st.previews.insert((key.clone(), index), tex.clone());
     tex
+}
+
+/// Decode a picture from mail or the web into a texture, at most `max` pixels on a side.
+/// Pictures are hostile input: size and allocation are capped before decoding.
+fn decode(ctx: &egui::Context, name: &str, data: &[u8], max: u32) -> Option<egui::TextureHandle> {
+    if data.len() > 30 << 20 {
+        return None;
+    }
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(12_000);
+    limits.max_image_height = Some(12_000);
+    limits.max_alloc = Some(256 << 20);
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(data)).with_guessed_format().ok()?;
+    reader.limits(limits);
+    let decoded = reader.decode().ok()?;
+    // Shrink large pictures; never enlarge small ones (the painter scales them crisply).
+    let img = if decoded.width() > max || decoded.height() > max { decoded.thumbnail(max, max) } else { decoded }.to_rgba8();
+    let size = [img.width() as usize, img.height() as usize];
+    let ci = egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw());
+    // Pixel art and tiny swatches stay crisp when scaled up.
+    let filter = if size[0].max(size[1]) < 96 { egui::TextureOptions::NEAREST } else { egui::TextureOptions::LINEAR };
+    Some(ctx.load_texture(name, ci, filter))
+}
+
+/// Above an HTML message: whether its web pictures are hidden, and a switch to plain text.
+fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, p: &mime::Parsed, acts: &mut Vec<Action>) {
+    let web = s.remote_pictures();
+    let formatted = s.prefs.show_html && !p.rich.is_empty();
+    if !web.is_empty() && !s.pictures_allowed() && formatted {
+        egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(
+            ui,
+            |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                    icons::paint(ui.painter(), ir, Icon::Image, t.dim);
+                    ui.label(RichText::new("Pictures from the web are hidden to protect your privacy.").color(t.dim));
+                    if ui.link("Show pictures").clicked() {
+                        acts.push(Action::Run("message.showPictures", json!({})));
+                    }
+                    let who = p.from.email.clone();
+                    if !who.is_empty() && ui.link(format!("Always show from {who}")).clicked() {
+                        acts.push(Action::Run("message.showPictures", json!({"always": true})));
+                    }
+                });
+            },
+        );
+        ui.add_space(6.0);
+    }
+    ui.horizontal(|ui| {
+        if formatted {
+            if ui.link(RichText::new("Show as plain text").small()).clicked() {
+                acts.push(Action::Run("view.html", json!({"on": false})));
+            }
+            if !web.is_empty() && s.pictures_allowed() && s.prefs.trusted_senders.contains(&p.from.email.to_ascii_lowercase()) {
+                ui.label(RichText::new("·").color(t.faint).small());
+                if ui.link(RichText::new("Stop showing pictures from this sender").small()).clicked() {
+                    acts.push(Action::Run("message.blockPictures", json!({})));
+                }
+            }
+        } else if !p.rich.is_empty() && ui.link(RichText::new("Show formatted").small()).clicked() {
+            acts.push(Action::Run("view.html", json!({"on": true})));
+        } else if p.rich.is_empty() {
+            ui.label(RichText::new("Shown as text.").color(t.faint).small());
+        }
+    });
+    ui.add_space(6.0);
+}
+
+/// An HTML message, formatted: emphasis, code, links (opened in the browser on click) and
+/// pictures: those inside the message always, those on the web only once allowed.
+fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, acts: &mut Vec<Action>) {
+    let t = st.tokens;
+    let allowed = s.pictures_allowed();
+    let mut shown: Vec<&str> = Vec::new();
+    let width = ui.available_width();
+    for line in &p.rich {
+        if line.is_empty() {
+            ui.add_space(9.0);
+            continue;
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            for sp in line {
+                if let Some(src) = &sp.image {
+                    shown.push(src.as_str());
+                    if !picture(s, st, ui, key, p, src, allowed, width) {
+                        let alt = if sp.text.trim().is_empty() { "picture" } else { sp.text.trim() };
+                        ui.label(RichText::new(format!("[{alt}]")).color(t.faint));
+                    }
+                    continue;
+                }
+                let font = if sp.heading > 0 {
+                    theme::bold(match sp.heading {
+                        1 => 22.0,
+                        2 => 19.0,
+                        3 => 17.0,
+                        _ => 15.5,
+                    })
+                } else if sp.code {
+                    egui::FontId::monospace(13.5)
+                } else if sp.bold {
+                    theme::bold(14.5)
+                } else {
+                    theme::regular(14.5)
+                };
+                let mut rt = RichText::new(&sp.text).font(font);
+                if sp.italic {
+                    rt = rt.italics();
+                }
+                if sp.strike {
+                    rt = rt.strikethrough();
+                }
+                match &sp.link {
+                    Some(link) => {
+                        let r = ui.add(egui::Link::new(rt.color(t.accent))).on_hover_text(link);
+                        if r.clicked() {
+                            acts.push(Action::OpenUrl(link.clone()));
+                        }
+                    }
+                    None => {
+                        ui.label(rt.color(t.text));
+                    }
+                }
+            }
+        });
+    }
+    // Pictures without a description have no place in the text: show them after it.
+    if allowed {
+        let rest: Vec<&String> = p.images.iter().filter(|u| !shown.contains(&u.as_str())).collect();
+        if !rest.is_empty() {
+            ui.add_space(8.0);
+            ui.horizontal_wrapped(|ui| {
+                for src in rest {
+                    picture(s, st, ui, key, p, src, allowed, width);
+                }
+            });
+        }
+    }
+}
+
+/// Draw one picture of an HTML message; `false` when it can't be shown (yet).
+#[allow(clippy::too_many_arguments)]
+fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, src: &str, allowed: bool, width: f32) -> bool {
+    let tex = if let Some(cid) = src.strip_prefix("cid:") {
+        let Some(index) = p.attachments.iter().find(|a| a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(cid))).map(|a| a.index) else {
+            return false;
+        };
+        preview(s, st, ui.ctx(), key, index)
+    } else {
+        if !allowed {
+            return false;
+        }
+        match s.pictures.get(src) {
+            Some(mailcraft_engine::Picture::Ready(bytes)) => {
+                if let Some(t) = st.web_pictures.get(src) {
+                    t.clone()
+                } else {
+                    if st.web_pictures.len() > 200 {
+                        st.web_pictures.clear();
+                    }
+                    let t = decode(ui.ctx(), &format!("web-{src}"), bytes, 1200);
+                    st.web_pictures.insert(src.to_string(), t.clone());
+                    t
+                }
+            }
+            Some(mailcraft_engine::Picture::Loading) => {
+                ui.spinner();
+                return true;
+            }
+            _ => None,
+        }
+    };
+    let Some(tex) = tex else { return false };
+    let sz = tex.size_vec2();
+    // Tracking pixels and spacers: nothing to see.
+    if sz.x <= 3.0 && sz.y <= 3.0 {
+        return true;
+    }
+    let scale = (width.min(900.0) / sz.x).min(1.0);
+    ui.add(egui::Image::new(&tex).fit_to_exact_size(sz * scale));
+    true
 }
 
 fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, acts: &mut Vec<Action>) {

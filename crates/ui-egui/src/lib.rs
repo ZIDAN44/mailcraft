@@ -56,6 +56,10 @@ pub trait Services {
     fn open_path(&mut self, path: &std::path::Path) -> Result<(), String>;
     /// Show a desktop notification (new mail). The default does nothing.
     fn notify(&mut self, _title: &str, _body: &str) {}
+    /// Open a web address in the browser. The default can't.
+    fn open_url(&mut self, _url: &str) -> Result<(), String> {
+        Err("not available".into())
+    }
 }
 
 /// Services for tests: a fixed clock, no dialogs.
@@ -92,6 +96,8 @@ pub enum Action {
     AttachFiles,
     FocusSearch,
     SetDark(Option<bool>),
+    /// A link in a message was clicked (web pages open in the browser; `mailto:` starts a message).
+    OpenUrl(String),
     /// Run a command for the open dialog: it closes on success and shows the error otherwise.
     Submit(&'static str, Value),
 }
@@ -106,6 +112,8 @@ pub struct UiState {
     focus_search: bool,
     pub dialog: Option<Dialog>,
     previews: HashMap<(MessageKey, usize), Option<egui::TextureHandle>>,
+    /// Decoded web pictures, by address.
+    web_pictures: HashMap<String, Option<egui::TextureHandle>>,
     pub toast: Option<(String, bool, f64)>,
     seen_notices: usize,
     scroll_to_focus: bool,
@@ -145,6 +153,7 @@ impl MailApp {
                 focus_search: false,
                 dialog: None,
                 previews: HashMap::new(),
+                web_pictures: HashMap::new(),
                 toast: None,
                 seen_notices: seen,
                 scroll_to_focus: false,
@@ -355,6 +364,7 @@ impl MailApp {
                 }
             },
             Action::SetDark(d) => self.ui.dark = d,
+            Action::OpenUrl(url) => self.open_link(&url),
             Action::AttachFiles => {
                 for p in self.services.pick_files() {
                     self.run("compose.attach", json!({"path": p.to_string_lossy()}));
@@ -380,6 +390,24 @@ impl MailApp {
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
             }
+        }
+    }
+
+    /// Follow a link from a message: only web pages and mail addresses, never local files or
+    /// other schemes.
+    fn open_link(&mut self, url: &str) {
+        let u = url.trim();
+        let lower = u.to_ascii_lowercase();
+        if let Some(rest) = u.get(7..).filter(|_| lower.starts_with("mailto:")) {
+            let to = rest.split('?').next().unwrap_or("").replace("%40", "@");
+            self.run("mail.new", json!({}));
+            self.run("compose.update", json!({"to": to}));
+        } else if lower.starts_with("https://") || lower.starts_with("http://") {
+            if let Err(e) = self.services.open_url(u) {
+                self.session.notice(format!("The link couldn't be opened: {e}"), true);
+            }
+        } else {
+            self.session.notice(format!("Links like {} aren't opened", widgets::shorten(u, 40)), true);
         }
     }
 

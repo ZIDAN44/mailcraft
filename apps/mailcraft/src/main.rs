@@ -69,6 +69,9 @@ impl Services for Desktop {
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         open::that_detached(path).map_err(|e| e.to_string())
     }
+    fn open_url(&mut self, url: &str) -> Result<(), String> {
+        open::that_detached(url).map_err(|e| e.to_string())
+    }
     fn notify(&mut self, title: &str, body: &str) {
         let (title, body) = (title.to_string(), body.to_string());
         // Off the UI thread: the notification service can be slow, or missing.
