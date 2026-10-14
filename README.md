@@ -13,6 +13,14 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/ZIDAN44/mailcraft/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ZIDAN44/mailcraft/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Written in Rust" src="https://img.shields.io/badge/written%20in-Rust-0e7c86?style=flat-square&logo=rust&logoColor=white">
+  <img alt="Runs on Windows, macOS and Linux" src="https://img.shields.io/badge/runs%20on-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1f9aa6?style=flat-square">
+  <img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-0e7c86?style=flat-square">
+  <img alt="Agent-drivable: commands and CLI" src="https://img.shields.io/badge/agents-commands%20%C2%B7%20CLI-1f9aa6?style=flat-square">
+</p>
+
+<p align="center">
   <img src="docs/images/reading.png" alt="MailCraft with the sample mailbox: the folder pane on the left with Favorites and the account's folders and unread counts, the Inbox grouped under Today, Yesterday, Tuesday, Monday and Last week, and the reading pane showing a flagged message with its two-message conversation, sender card, Reply buttons and a picture attachment with a preview" width="100%">
 </p>
 
