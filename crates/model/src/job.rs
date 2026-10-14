@@ -29,6 +29,12 @@ pub enum Op {
         flag: Flag,
         on: bool,
     },
+    /// Add or remove a keyword (a category, `$Pinned`).
+    SetKeyword {
+        keys: Vec<MessageKey>,
+        keyword: String,
+        on: bool,
+    },
     /// Move to another folder of the same account.
     Move {
         keys: Vec<MessageKey>,
@@ -57,7 +63,7 @@ impl Op {
     /// The messages a change touches (none for folder changes).
     pub fn keys(&self) -> &[MessageKey] {
         match self {
-            Op::SetFlag { keys, .. } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
+            Op::SetFlag { keys, .. } | Op::SetKeyword { keys, .. } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
             Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => &[],
         }
     }

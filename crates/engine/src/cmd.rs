@@ -54,6 +54,57 @@ pub fn registry() -> Registry {
         CommandSpec::new("mail.toggleRead", "Read / Unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, None)).when(has_selection),
         CommandSpec::new("mail.flag", "Flag / Unflag", "Home › Tags", |s, v| s.flag_selection(Flag::Flagged, p::bool(v, "on"))).key("Insert").params(r#"{"on"?: bool}"#).when(has_selection),
         CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read).when(has_account),
+        CommandSpec::new("mail.categorize", "Categorize", "Home › Tags", |s, v| s.categorize_selection(p::req_str(v, "category")?, p::bool(v, "on")))
+            .params(r#"{"category": string, "on"?: bool}"#)
+            .when(has_selection),
+        CommandSpec::new("mail.pin", "Pin / Unpin", "Home › Tags", |s, v| s.pin_selection(p::bool(v, "on"))).params(r#"{"on"?: bool}"#).when(has_selection),
+        CommandSpec::new("mail.snooze", "Snooze", "Home › Tags", snooze)
+            .params(r#"{"preset": "later"|"tomorrow"|"weekend"|"nextWeek"} | {"until": unix seconds}"#)
+            .when(has_selection),
+        CommandSpec::new("mail.unsnooze", "Unsnooze", "Home › Tags", |s, _| s.unsnooze_selection()).when(has_selection),
+        CommandSpec::new("mail.moveToFocused", "Move to Focused", "Home › Move", |s, _| s.set_focus_for_selection(true)).when(has_selection),
+        CommandSpec::new("mail.moveToOther", "Move to Other", "Home › Move", |s, _| s.set_focus_for_selection(false)).when(has_selection),
+        // Categories
+        CommandSpec::new("category.list", "Categories", "Home › Tags › Categorize", |s, _| {
+            Ok(json!(s.prefs.categories.iter().map(|c| json!({"name": c.name, "keyword": c.keyword, "color": c.color})).collect::<Vec<_>>()))
+        }),
+        CommandSpec::new("category.create", "New category", "Home › Tags › Categorize", |s, v| {
+            s.add_category(p::req_str(v, "name")?, p::u64(v, "color").and_then(|c| u8::try_from(c).ok()))
+        })
+        .params(r#"{"name": string, "color"?: number}"#),
+        CommandSpec::new("category.delete", "Delete category", "Home › Tags › Categorize", |s, v| s.remove_category(p::req_str(v, "name")?))
+            .params(r#"{"name": string}"#),
+        // Rules
+        CommandSpec::new("rules.list", "Rules", "Home › Rules", |s, _| Ok(json!(s.rules))),
+        CommandSpec::new("rules.set", "Replace rules", "Home › Rules", |s, v| {
+            let rules = v.get("rules").cloned().ok_or_else(|| CmdError::Params("`rules` is required".into()))?;
+            let rules = serde_json::from_value(rules).map_err(|e| CmdError::Params(format!("rules: {e}")))?;
+            s.set_rules(rules)
+        })
+        .params(r#"{"rules": [Rule]} (see rules.add)"#),
+        CommandSpec::new("rules.add", "New rule", "Home › Rules", |s, v| {
+            let rule = v.get("rule").cloned().ok_or_else(|| CmdError::Params("`rule` is required".into()))?;
+            let rule = serde_json::from_value(rule).map_err(|e| CmdError::Params(format!("rule: {e}")))?;
+            let mut rules = s.rules.clone();
+            rules.push(rule);
+            s.set_rules(rules)
+        })
+        .params(
+            r#"{"rule": {"name": string, "conditions": [{"if": "from"|"to"|"subject"|"anyText", "value": string} | {"if": "hasAttachment"|"bulk"}], "matchAll"?: bool, "actions": [{"do": "moveTo", "value": folder} | {"do": "moveToRole", "value": "archive"|…} | {"do": "categorize", "value": name} | {"do": "markRead"|"flag"|"pin"|"delete"}], "account"?: string, "stop"?: bool, "enabled"?: bool}}"#,
+        ),
+        CommandSpec::new("rules.delete", "Delete rule", "Home › Rules", |s, v| {
+            let i = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
+            if i >= s.rules.len() {
+                return Err(CmdError::Params(format!("no rule {i}")));
+            }
+            let mut rules = s.rules.clone();
+            rules.remove(i);
+            s.set_rules(rules)
+        })
+        .params(r#"{"index": number}"#),
+        CommandSpec::new("rules.run", "Run rules now", "Home › Rules", |s, v| s.run_rules_now(p::u64(v, "index").and_then(|i| usize::try_from(i).ok())))
+            .params(r#"{"index"?: number}"#)
+            .when(has_account),
         // Send / Receive
         CommandSpec::new("mail.sync", "Send / Receive all folders", "Home › Send / Receive", |s, _| Ok(json!({"accounts": s.sync_all()}))).key("F9").when(has_account),
         CommandSpec::new("folder.sync", "Update folder", "Home › Send / Receive", sync_folder).key("Shift+F9").when(has_account),
@@ -156,6 +207,25 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.compact}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.focused", "Focused Inbox", "View › Messages", |s, v| {
+            s.prefs.focused_inbox = p::bool(v, "on").unwrap_or(!s.prefs.focused_inbox);
+            s.focus_other = false;
+            s.refresh_list();
+            Ok(json!({"on": s.prefs.focused_inbox}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("list.focusTab", "Focused / Other", "Message list", |s, v| {
+            s.focus_other = match p::req_str(v, "value")? {
+                x if x.eq_ignore_ascii_case("other") => true,
+                x if x.eq_ignore_ascii_case("focused") => false,
+                x => return Err(CmdError::Params(format!("unknown tab `{x}`"))),
+            };
+            s.selection.clear();
+            s.reading = None;
+            s.refresh_list();
+            Ok(json!({"messages": s.list.len()}))
+        })
+        .params(r#"{"value": "focused"|"other"}"#),
         CommandSpec::new("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", |s, v| {
             s.prefs.confirm_permanent_delete = p::bool(v, "on").unwrap_or(!s.prefs.confirm_permanent_delete);
             Ok(json!({"on": s.prefs.confirm_permanent_delete}))
@@ -213,6 +283,17 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
         return s.move_selection(MoveTarget::Role(role));
     }
     s.move_selection(MoveTarget::Folder(folder.to_string()))
+}
+
+fn snooze(s: &mut Session, v: &Value) -> CmdResult {
+    let until = match (p::str(v, "preset"), v.get("until").and_then(Value::as_i64)) {
+        (Some(code), _) => {
+            mailcraft_model::organize::SnoozeUntil::from_code(code).ok_or_else(|| CmdError::Params(format!("unknown preset `{code}`")))?.at(&s.clock)
+        }
+        (None, Some(t)) => t,
+        (None, None) => return Err(CmdError::Params("`preset` or `until` is required".into())),
+    };
+    s.snooze_selection(until)
 }
 
 fn mark_all_read(s: &mut Session, _: &Value) -> CmdResult {

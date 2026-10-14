@@ -316,6 +316,116 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn categories_pins_and_focused_inbox() {
+    let mut s = sample_session("organize");
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    s.run("mail.categorize", &json!({"category": "work"})).unwrap();
+    assert!(s.selected()[0].flags.has("$label2"), "Work is Thunderbird's $label2");
+    assert!(s.run("mail.categorize", &json!({"category": "Nope"})).is_err());
+    s.run("category.create", &json!({"name": "Festival"})).unwrap();
+    s.run("mail.categorize", &json!({"category": "festival"})).unwrap();
+    let names: Vec<String> = s.categories_of(&s.selected()[0]).iter().map(|c| c.name.clone()).collect();
+    assert_eq!(names, vec!["Work".to_string(), "Festival".to_string()]);
+    // Search by category name or keyword.
+    assert_eq!(s.run("search.run", &json!({"query": "category:work"})).unwrap()["results"], 1);
+    assert_eq!(s.run("search.run", &json!({"query": "category:festival"})).unwrap()["results"], 1);
+    s.run("search.clear", &json!({})).unwrap();
+    // Stored with the message (local account: in the cache).
+    let st = s.store.as_ref().unwrap().load_folder("sample", "INBOX").unwrap();
+    assert!(st.messages.iter().find(|m| m.subject == "Character turnarounds").unwrap().flags.has("festival"));
+
+    // Pinned mail comes first, under its own heading.
+    s.run("list.select", &k).unwrap();
+    s.run("mail.pin", &json!({})).unwrap();
+    let rows = s.rows();
+    assert_eq!(rows[0], Row::Header("Pinned"));
+    let Row::Message { index, .. } = rows[1] else { panic!() };
+    assert_eq!(s.list[index].subject, "Character turnarounds");
+    assert_eq!(s.run("search.run", &json!({"query": "is:pinned"})).unwrap()["results"], 1);
+    s.run("search.clear", &json!({})).unwrap();
+
+    // Focused Inbox: list mail goes to Other; a sender can be moved for good.
+    s.run("view.focused", &json!({"on": true})).unwrap();
+    let focused: Vec<String> = s.list.iter().map(|m| m.subject.clone()).collect();
+    assert!(!focused.contains(&"Open call: winter group show".to_string()), "{focused:?}");
+    s.run("list.focusTab", &json!({"value": "other"})).unwrap();
+    assert_eq!(s.list.len(), 1);
+    assert_eq!(s.list[0].subject, "Open call: winter group show");
+    let k2 = json!({"key": s.list[0].key.to_id()});
+    s.run("list.select", &k2).unwrap();
+    s.run("mail.moveToFocused", &json!({})).unwrap();
+    assert!(s.list.is_empty());
+    s.run("list.focusTab", &json!({"value": "focused"})).unwrap();
+    assert_eq!(s.list.len(), 7);
+    done(s);
+}
+
+#[test]
+fn snoozed_mail_comes_back_unread() {
+    let mut s = sample_session("snooze");
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    s.run("mail.snooze", &json!({"until": NOW + 3600})).unwrap();
+    assert!(!s.list.iter().any(|m| m.subject == "Character turnarounds"));
+    let snoozed = s.account("sample").unwrap().folders.iter().find(|f| f.path == "Snoozed").cloned().expect("a Snoozed folder is made");
+    s.run("folder.open", &json!({"account": "sample", "folder": snoozed.path})).unwrap();
+    assert_eq!(s.list.len(), 1);
+    assert_eq!(s.snoozes.len(), 1);
+    // Saved, so a restart still brings it back.
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    let mut s = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW + 60, 0));
+    assert_eq!(s.snoozes.len(), 1);
+    s.tick();
+    assert_eq!(s.snoozes.len(), 1, "not due yet");
+    s.set_clock(NOW + 3601, 0);
+    s.tick();
+    assert!(s.snoozes.is_empty());
+    let back = s.folder_state("sample", "INBOX").messages.iter().find(|m| m.subject == "Character turnarounds").cloned().unwrap();
+    assert!(!back.flags.seen, "it comes back unread");
+    assert!(s.run("mail.snooze", &json!({"preset": "someday"})).is_err());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn rules_file_new_mail_as_it_arrives() {
+    let mut s = sample_session("rules");
+    s.run(
+        "rules.add",
+        &json!({"rule": {"name": "Zoe to Archive", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "categorize", "value": "Work"}, {"do": "moveToRole", "value": "archive"}]}}),
+    )
+    .unwrap();
+    assert!(s.run("rules.add", &json!({"rule": {"name": "x", "conditions": [], "actions": [{"do": "categorize", "value": "Nope"}]}})).is_err());
+    // A message from Zoe arrives in the Inbox.
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder("sample", "INBOX").unwrap();
+    let mut m = st.messages[0].clone();
+    m.key.uid = 500;
+    m.subject = "Fresh from Zoe".into();
+    m.from = mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example");
+    m.flags.seen = false;
+    m.date = NOW;
+    st.messages.insert(0, m);
+    store.save_folder("sample", "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    assert!(!s.list.iter().any(|m| m.subject == "Fresh from Zoe"), "filed away by the rule");
+    assert!(s.take_new_mail().is_empty(), "filed mail isn't announced");
+    s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    let filed = s.list.iter().find(|m| m.subject == "Fresh from Zoe").unwrap();
+    assert!(filed.flags.has("$label2"));
+    // Rules persist, and can run on a folder by hand.
+    let s2 = Session::open(Some(Store::open(store.root()).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert_eq!(s2.rules.len(), 1);
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    assert_eq!(s.run("rules.run", &json!({})).unwrap()["matched"], 1, "Zoe's older message in the Inbox");
+    assert!(!s.list.iter().any(|m| m.from.email == "zoe@studio.example"));
+    s.run("rules.delete", &json!({"index": 0})).unwrap();
+    assert!(s.rules.is_empty());
+    done(s);
+}
+
+#[test]
 fn only_mail_that_arrives_later_is_announced() {
     let store = temp("notify");
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));

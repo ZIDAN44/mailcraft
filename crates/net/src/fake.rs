@@ -682,6 +682,24 @@ mod tests {
     }
 
     #[test]
+    fn keywords_round_trip_with_the_server() {
+        let st = State::new();
+        st.lock().unwrap().add("INBOX", "tagged", &[]);
+        let store = store("keywords");
+        let mut c = login(&st);
+        let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 100, uid: 1 };
+        apply_remote(&mut c, &Op::SetKeyword { keys: vec![key.clone()], keyword: "$label2".into(), on: true }).unwrap();
+        apply_remote(&mut c, &Op::SetKeyword { keys: vec![key.clone()], keyword: "$Pinned".into(), on: true }).unwrap();
+        // Not an atom: never sent.
+        apply_remote(&mut c, &Op::SetKeyword { keys: vec![key], keyword: "two words".into(), on: true }).unwrap();
+        assert!(!st.lock().unwrap().log.iter().any(|l| l.contains("two words")));
+        sync_folder(&mut c, &store, "a1", "INBOX", &SyncOptions::default()).unwrap();
+        let m = store.load_folder("a1", "INBOX").unwrap().messages[0].clone();
+        assert!(m.flags.has("$label2") && m.flags.pinned(), "{:?}", m.flags);
+        let _ = std::fs::remove_dir_all(store.root());
+    }
+
+    #[test]
     fn remote_folder_changes() {
         let st = State::new();
         st.lock().unwrap().add("Archive", "kept", &[]);

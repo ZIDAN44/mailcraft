@@ -116,7 +116,24 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         has_attachments,
         preview: preview(&text),
         modseq: 0,
+        bulk: is_bulk(m),
     }
+}
+
+/// Mail sent in bulk: lists, newsletters, notifications (RFC 2369 `List-*`, RFC 2919 `List-Id`,
+/// RFC 3834 `Auto-Submitted`, the de-facto `Precedence: bulk|list|junk`, and no-reply senders).
+fn is_bulk(m: &Message<'_>) -> bool {
+    let has = |name: &str| m.header_raw(name).is_some_and(|v| !v.trim().is_empty());
+    let precedence = m.header_raw("Precedence").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
+    let auto = m.header_raw("Auto-Submitted").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
+    let from = m.from().and_then(|a| a.first()).and_then(|a| a.address()).unwrap_or_default().to_ascii_lowercase();
+    has("List-Id")
+        || has("List-Unsubscribe")
+        || matches!(precedence.as_str(), "bulk" | "list" | "junk")
+        || (!auto.is_empty() && auto != "no")
+        || from.starts_with("noreply@")
+        || from.starts_with("no-reply@")
+        || from.starts_with("donotreply@")
 }
 
 /// An attachment as the reading pane lists it.
@@ -546,6 +563,18 @@ iVBORw0KGgo=\r\n\
         assert_eq!(s.preview, "Hello team, Let's meet at the café.");
         assert!(!s.has_attachments);
         assert_eq!(s.size, 321);
+    }
+
+    #[test]
+    fn bulk_mail_is_recognised() {
+        let s = |head: &str| summary_from_header(format!("{head}From: a@x.example\r\nSubject: s\r\n\r\nb").as_bytes(), key(), Flags::default(), 0, 0);
+        assert!(!s("").bulk);
+        assert!(s("List-Id: <news.x.example>\r\n").bulk);
+        assert!(s("List-Unsubscribe: <mailto:u@x.example>\r\n").bulk);
+        assert!(s("Precedence: bulk\r\n").bulk);
+        assert!(s("Auto-Submitted: auto-generated\r\n").bulk);
+        assert!(!s("Auto-Submitted: no\r\n").bulk);
+        assert!(summary_from_header(b"From: noreply@shop.example\r\n\r\nx", key(), Flags::default(), 0, 0).bulk);
     }
 
     #[test]

@@ -101,6 +101,13 @@ fn safe_segment(s: &str) -> String {
     if v.is_empty() { format!("x{:x}", fnv64(s)) } else { v }
 }
 
+/// A document name kept inside the data folder.
+fn safe_doc(name: &str) -> String {
+    let v: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')).take(64).collect();
+    let v = v.trim_start_matches('.').to_string();
+    if v.is_empty() { "doc.json".into() } else { v }
+}
+
 #[derive(Clone, Debug)]
 pub struct Store {
     root: PathBuf,
@@ -151,6 +158,16 @@ impl Store {
     fn write_json<T: Serialize + ?Sized>(&self, path: &Path, value: &T) -> Result<()> {
         let bytes = serde_json::to_vec(value).map_err(|source| StoreError::Json { path: path.display().to_string(), source })?;
         write_atomic(path, &bytes)
+    }
+
+    /// A small document at the top of the data folder (`rules.json`, `snoozes.json`); empty when
+    /// missing or damaged. `name` is a plain file name.
+    pub fn load_doc<T: DeserializeOwned + Default>(&self, name: &str) -> Result<T> {
+        self.read_json(&self.root.join(safe_doc(name)))
+    }
+
+    pub fn save_doc<T: Serialize + ?Sized>(&self, name: &str, value: &T) -> Result<()> {
+        self.write_json(&self.root.join(safe_doc(name)), value)
     }
 
     pub fn load_accounts(&self) -> Result<Vec<AccountConfig>> {
@@ -253,6 +270,12 @@ impl Store {
                         flag.set(&mut m.flags, *on);
                     }
                 }
+                Op::SetKeyword { keys, keyword, on } => {
+                    let uids: Vec<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
+                        m.flags.set_keyword(keyword, *on);
+                    }
+                }
                 Op::Move { keys, to } => {
                     if to == folder {
                         continue;
@@ -318,7 +341,7 @@ impl Store {
                 list.retain(|f| !gone.contains(&f.path));
                 Vec::new()
             }
-            Op::SetFlag { .. } | Op::Move { .. } | Op::Expunge { .. } => Vec::new(),
+            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } => Vec::new(),
         };
         mailcraft_model::sort_folders(&mut list);
         self.save_folders(account, &list)?;

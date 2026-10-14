@@ -702,7 +702,7 @@ impl Worker {
                             destinations.push(to.clone());
                         }
                         Op::CreateFolder { .. } | Op::DeleteFolder { .. } => relist = true,
-                        Op::SetFlag { .. } | Op::Expunge { .. } => {}
+                        Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
                     }
                     self.ops.remove(0);
                 }
@@ -776,6 +776,11 @@ fn expunge_keys<S: std::io::Read + std::io::Write>(c: &mut Client<S>, keys: &[Me
 pub fn apply_remote<S: std::io::Read + std::io::Write>(c: &mut Client<S>, op: &Op) -> Result<()> {
     match op {
         Op::SetFlag { keys, flag, on } => by_folder(c, keys, |c, _, set| c.uid_store(set, *on, flag.imap())),
+        // A keyword that isn't an atom would make the command malformed: the engine never sends one.
+        Op::SetKeyword { keys, keyword, on } if mailcraft_model::is_keyword(keyword) => {
+            by_folder(c, keys, |c, _, set| c.uid_store(set, *on, keyword))
+        }
+        Op::SetKeyword { .. } => Ok(()),
         Op::Move { keys, to } => by_folder(c, keys, |c, folder, set| if folder == to { Ok(()) } else { c.uid_move(set, to) }),
         Op::Expunge { keys } => expunge_keys(c, keys),
         Op::CreateFolder { path } => c.create(path),

@@ -48,6 +48,11 @@ impl ContactBook {
         self.by_email.is_empty()
     }
 
+    /// What the book knows about an address.
+    pub fn get(&self, email: &str) -> Option<&Contact> {
+        self.by_email.get(&email.trim().to_ascii_lowercase())
+    }
+
     fn note(&mut self, a: &EmailAddress, date: i64, sent: bool) {
         let email = a.email.trim().to_ascii_lowercase();
         if !crate::addr::is_valid_email(&email) || email.contains("noreply") || email.contains("no-reply") || email.starts_with("mailer-daemon@") {

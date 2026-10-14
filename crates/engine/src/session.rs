@@ -19,6 +19,8 @@ use serde_json::Value;
 
 use crate::{CmdError, CmdResult, Registry};
 
+mod organize;
+
 /// One account and what the session knows about it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AccountState {
@@ -135,6 +137,12 @@ pub struct Prefs {
     pub confirm_permanent_delete: bool,
     /// Desktop notifications for new mail in an Inbox.
     pub notify: bool,
+    /// The categories offered, in order.
+    pub categories: Vec<mailcraft_model::organize::Category>,
+    /// Split the Inbox into Focused and Other.
+    pub focused_inbox: bool,
+    /// Senders the user moved: `true` always Focused, `false` always Other.
+    pub focus_overrides: std::collections::BTreeMap<String, bool>,
     /// Folders the user pinned to Favorites, in order. `None` until the user changes them: the
     /// Inbox, Sent Items and Drafts of a single account are shown.
     pub favorites: Option<Vec<FolderRef>>,
@@ -158,6 +166,9 @@ impl Default for Prefs {
             confirm_permanent_delete: true,
             favorites: None,
             notify: true,
+            categories: mailcraft_model::organize::default_categories(),
+            focused_inbox: false,
+            focus_overrides: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -251,6 +262,12 @@ pub struct Session {
     seen_uid: HashMap<(String, String), u32>,
     /// New mail to announce (desktop notifications), oldest first.
     pub new_mail: Vec<Summary>,
+    /// Inbox rules, run on mail as it arrives (`rules.json`).
+    pub rules: Vec<mailcraft_model::organize::Rule>,
+    /// Snoozed messages and when they come back (`snoozes.json`).
+    pub snoozes: Vec<mailcraft_model::organize::Snooze>,
+    /// The Other tab of a Focused/Other Inbox is showing.
+    pub focus_other: bool,
     index: Option<SearchIndex>,
     registry: Arc<Registry>,
     next_id: u64,
@@ -285,6 +302,9 @@ impl Session {
             contacts: None,
             seen_uid: HashMap::new(),
             new_mail: Vec::new(),
+            rules: Vec::new(),
+            snoozes: Vec::new(),
+            focus_other: false,
             index: None,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -292,6 +312,8 @@ impl Session {
             seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15,
         };
         if let Some(store) = &s.store {
+            s.rules = store.load_doc("rules.json").unwrap_or_default();
+            s.snoozes = store.load_doc("snoozes.json").unwrap_or_default();
             let accounts = store.load_accounts().unwrap_or_else(|e| {
                 log::warn!("accounts: {e}");
                 Vec::new()
@@ -478,16 +500,18 @@ impl Session {
         let st = self.folder_state(account, folder);
         let (validity, max) = (st.validity, st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0));
         let k = (account.to_string(), folder.to_string());
-        let fresh: Vec<Summary> = match self.seen_uid.get(&k) {
+        let arrived: Vec<Summary> = match self.seen_uid.get(&k) {
             Some(&seen) => {
-                // Mail older than a day (a resync after a long time away) isn't "new" any more.
-                let cutoff = self.clock.now - 86_400;
-                let st = self.folder_state(account, folder);
-                st.messages.iter().filter(|m| m.key.uid > seen && !m.flags.seen && m.date >= cutoff && m.key.validity == validity).cloned().collect()
+                self.folder_state(account, folder).messages.iter().filter(|m| m.key.uid > seen && m.key.validity == validity).cloned().collect()
             }
             None => Vec::new(),
         };
         self.seen_uid.insert(k, max);
+        // Rules first; what they file away or mark read isn't announced.
+        let quiet = self.run_rules(&arrived);
+        // Mail older than a day (a resync after a long time away) isn't "new" any more.
+        let cutoff = self.clock.now - 86_400;
+        let fresh: Vec<Summary> = arrived.into_iter().filter(|m| !m.flags.seen && m.date >= cutoff && !quiet.contains(&m.key)).collect();
         if self.prefs.notify {
             self.new_mail.extend(fresh.into_iter().rev());
             // A burst (a first sync, a long time offline) is summed up by the UI; keep it bounded.
@@ -508,6 +532,12 @@ impl Session {
 
     /// People to suggest for a recipient box, best first.
     pub fn suggest_contacts(&mut self, query: &str, limit: usize) -> Vec<Contact> {
+        self.ensure_contacts();
+        self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default()
+    }
+
+    /// Build the address book from the cache if it isn't built.
+    fn ensure_contacts(&mut self) {
         if self.contacts.is_none() {
             let mine: Vec<String> = self.accounts.iter().flat_map(|a| [a.config.email.clone(), a.config.username.clone()]).collect();
             let folders: Vec<(String, String)> =
@@ -520,7 +550,6 @@ impl Session {
             }
             self.contacts = Some(book);
         }
-        self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default()
     }
 
     /// The folders the view draws from.
@@ -547,6 +576,11 @@ impl Session {
         };
         let filter = self.filter;
         list.retain(|m| filter.keeps(m));
+        if self.focus_split() {
+            self.ensure_contacts();
+            let other = self.focus_other;
+            list.retain(|m| self.is_focused(m) != other);
+        }
         sort_newest_first(&mut list);
         self.threads = if self.prefs.conversations { threads(&list) } else { Vec::new() };
         let alive: BTreeSet<&MessageKey> = list.iter().map(|m| &m.key).collect();
@@ -576,16 +610,33 @@ impl Session {
             }
             out.push(Row::Message { index, count, unread });
         };
+        // Pinned mail first, under its own heading (searches keep plain date order).
+        let pins = self.search.is_none();
+        let pinned = |i: usize| pins && self.list.get(i).is_some_and(|m| m.flags.pinned());
+        let mut pinned_rows = Vec::new();
         if self.prefs.conversations {
             for t in &self.threads {
                 let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, |m| m.date)) else { continue };
                 let unread = t.messages.iter().filter(|&&i| self.list.get(i).is_some_and(|m| !m.flags.seen)).count();
-                push(&mut out, newest, t.messages.len(), unread, t.latest);
+                if t.messages.iter().any(|&i| pinned(i)) {
+                    pinned_rows.push(Row::Message { index: newest, count: t.messages.len(), unread });
+                } else {
+                    push(&mut out, newest, t.messages.len(), unread, t.latest);
+                }
             }
         } else {
             for (i, m) in self.list.iter().enumerate() {
-                push(&mut out, i, 1, usize::from(!m.flags.seen), m.date);
+                if pinned(i) {
+                    pinned_rows.push(Row::Message { index: i, count: 1, unread: usize::from(!m.flags.seen) });
+                } else {
+                    push(&mut out, i, 1, usize::from(!m.flags.seen), m.date);
+                }
             }
+        }
+        if !pinned_rows.is_empty() {
+            pinned_rows.insert(0, Row::Header("Pinned"));
+            pinned_rows.extend(out);
+            return pinned_rows;
         }
         out
     }
@@ -666,6 +717,7 @@ impl Session {
         // Outbox entries aren't on a server: mail commands leave them alone.
         let op = match op {
             Op::SetFlag { keys, flag, on } => Op::SetFlag { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), flag, on },
+            Op::SetKeyword { keys, keyword, on } => Op::SetKeyword { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), keyword, on },
             Op::Move { keys, to } => Op::Move { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), to },
             Op::Expunge { keys } => Op::Expunge { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect() },
             other => other,
@@ -705,6 +757,11 @@ impl Session {
                             *unread_delta.entry(f.clone()).or_default() += if *on { -1 } else { 1 };
                         }
                         flag.set(&mut m.flags, *on);
+                    }
+                }
+                Op::SetKeyword { keyword, on, .. } => {
+                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid)) {
+                        m.flags.set_keyword(keyword, *on);
                     }
                 }
                 Op::Move { to, .. } if to == f => {}
@@ -801,7 +858,7 @@ impl Session {
                     }
                 }
                 Op::DeleteFolder { path } => a.folders.retain(|f| !mailcraft_model::is_within(&f.path, path, f.delimiter.or(delimiter))),
-                Op::SetFlag { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
+                Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
             }
             sort_folders(&mut a.folders);
         }
@@ -836,7 +893,7 @@ impl Session {
                     self.focus = None;
                 }
             }
-            Op::SetFlag { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
+            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
         }
         self.index = None;
     }
@@ -1182,7 +1239,15 @@ impl Session {
     }
 
     fn search_results(&mut self, q: &str, scope: SearchScope) -> Vec<Summary> {
-        let query = Query::parse(q);
+        let mut query = Query::parse(q);
+        // `category:Work` means the Work category's keyword (`$label2`).
+        for c in &mut query.clauses {
+            if let mailcraft_model::search::Term::Keyword(k) = &mut c.term
+                && let Some(cat) = self.category(k)
+            {
+                *k = cat.keyword.clone();
+            }
+        }
         if query.is_empty() {
             return Vec::new();
         }

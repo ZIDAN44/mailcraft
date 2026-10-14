@@ -288,8 +288,18 @@ pub fn seed_if_empty(store: &Store, now: i64) -> Result<bool, StoreError> {
             references,
             attachments,
         };
-        let raw = mime::build(&d, &EmailAddress::new(m.from.0, m.from.1), date, &id)
+        let mut raw = mime::build(&d, &EmailAddress::new(m.from.0, m.from.1), date, &id)
             .map_err(|e| StoreError::Io { path: "sample".into(), source: std::io::Error::other(e) })?;
+        // The newsletter and the prize mail come from mailing lists (they land in Other).
+        if let Some(list) = match m.from.1 {
+            "hello@gallery.example" => Some("news.gallery.example"),
+            "win@prizes.example" => Some("offers.prizes.example"),
+            _ => None,
+        } {
+            let domain = list.split_once('.').map_or(list, |(_, d)| d);
+            let head = format!("List-Id: <{list}>\r\nList-Unsubscribe: <mailto:leave@{domain}>\r\n");
+            raw = [head.as_bytes(), &raw].concat();
+        }
         ids.push(id);
         let Some((path, st)) = states.iter_mut().find(|(p, _)| p == m.folder) else { continue };
         let uid = st.uid_next;

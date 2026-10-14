@@ -10,6 +10,7 @@ pub mod addr;
 pub mod contacts;
 pub mod dates;
 pub mod job;
+pub mod organize;
 pub mod search;
 pub mod thread;
 pub mod utf7;
@@ -340,6 +341,39 @@ pub struct Flags {
     /// `$Forwarded` (RFC 5550).
     #[serde(default)]
     pub forwarded: bool,
+    /// Other keywords (RFC 3501 §2.3.2): categories (`$label1`, `work`…), `$Pinned`, `$Junk`…
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keywords: Vec<String>,
+}
+
+/// The keyword that pins a message to the top of its folder.
+pub const PINNED: &str = "$Pinned";
+
+/// Whether `k` can be sent as an IMAP keyword: an atom (no spaces, brackets, wildcards, quotes or
+/// controls), not a system flag, at most 64 characters.
+pub fn is_keyword(k: &str) -> bool {
+    !k.is_empty() && k.len() <= 64 && !k.starts_with('\\') && k.chars().all(|c| c.is_ascii_graphic() && !"(){%*\"\\]".contains(c))
+}
+
+/// A keyword for a category name (`To do` → `to_do`), for categories made in MailCraft.
+pub fn keyword_for(name: &str) -> String {
+    if !name.is_ascii() {
+        // Keywords are ASCII atoms: other scripts get a stable hash of the name.
+        let mut h: u32 = 2_166_136_261;
+        for b in name.trim().to_lowercase().bytes() {
+            h = (h ^ u32::from(b)).wrapping_mul(16_777_619);
+        }
+        return format!("cat_{h:08x}");
+    }
+    let k: String = name
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_whitespace() { '_' } else { c })
+        .filter(|c| c.is_ascii_graphic() && !"(){%*\"\\]".contains(*c))
+        .take(64)
+        .collect();
+    if k.is_empty() || k.starts_with('$') { format!("cat_{k}") } else { k }
 }
 
 impl Flags {
@@ -353,10 +387,36 @@ impl Flags {
                 "\\draft" => f.draft = true,
                 "\\deleted" => f.deleted = true,
                 "$forwarded" => f.forwarded = true,
+                other
+                    if !other.starts_with('\\')
+                        && is_keyword(fl)
+                        && f.keywords.len() < 32
+                        && !f.keywords.iter().any(|k| k.eq_ignore_ascii_case(fl)) =>
+                {
+                    f.keywords.push(fl.to_string());
+                }
                 _ => {}
             }
         }
+        f.keywords.sort_by_key(|k| k.to_ascii_lowercase());
         f
+    }
+
+    pub fn has(&self, keyword: &str) -> bool {
+        self.keywords.iter().any(|k| k.eq_ignore_ascii_case(keyword))
+    }
+
+    /// Add or remove a keyword.
+    pub fn set_keyword(&mut self, keyword: &str, on: bool) {
+        self.keywords.retain(|k| !k.eq_ignore_ascii_case(keyword));
+        if on {
+            self.keywords.push(keyword.to_string());
+            self.keywords.sort_by_key(|k| k.to_ascii_lowercase());
+        }
+    }
+
+    pub fn pinned(&self) -> bool {
+        self.has(PINNED)
     }
 
     /// The flags as an IMAP flag list (without parentheses).
@@ -374,6 +434,7 @@ impl Flags {
                 v.push(name);
             }
         }
+        v.extend(self.keywords.iter().map(String::as_str));
         v.join(" ")
     }
 }
@@ -445,6 +506,10 @@ pub struct Summary {
     /// CONDSTORE modification sequence of the last flag change seen (RFC 7162).
     #[serde(default)]
     pub modseq: u64,
+    /// Sent in bulk: a mailing list, newsletter or automatic message (`List-Id`,
+    /// `List-Unsubscribe`, `Precedence: bulk`, `Auto-Submitted`). Such mail goes to Other.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bulk: bool,
 }
 
 impl Summary {
@@ -505,9 +570,26 @@ mod tests {
 
     #[test]
     fn flags_round_trip() {
-        let f = Flags::from_imap(["\\Seen", "\\FLAGGED", "$Forwarded", "$Junk"]);
+        let f = Flags::from_imap(["\\Seen", "\\FLAGGED", "$Forwarded", "$Junk", "\\Recent", "work", "WORK"]);
         assert!(f.seen && f.flagged && f.forwarded && !f.answered);
-        assert_eq!(f.to_imap(), "\\Seen \\Flagged $Forwarded");
+        assert_eq!(f.keywords, vec!["$Junk".to_string(), "work".to_string()]);
+        assert_eq!(f.to_imap(), "\\Seen \\Flagged $Forwarded $Junk work");
+        let mut f = Flags::default();
+        f.set_keyword(PINNED, true);
+        assert!(f.pinned() && f.has("$pinned"));
+        f.set_keyword("$PINNED", false);
+        assert!(!f.pinned());
+    }
+
+    #[test]
+    fn keywords() {
+        assert!(is_keyword("$label1") && is_keyword("to_do"));
+        assert!(!is_keyword("two words") && !is_keyword("\\Seen") && !is_keyword("a(b") && !is_keyword(""));
+        assert_eq!(keyword_for("To do"), "to_do");
+        assert!(keyword_for("Café").starts_with("cat_") && is_keyword(&keyword_for("Café")));
+        assert_eq!(keyword_for("Café"), keyword_for(" café "));
+        assert_eq!(keyword_for("$x"), "cat_$x");
+        assert!(is_keyword(&keyword_for("Projects: Film!")));
     }
 
     #[test]

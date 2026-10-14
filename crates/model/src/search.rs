@@ -38,6 +38,9 @@ pub enum Term {
     HasAttachment(bool),
     Unread(bool),
     Flagged(bool),
+    /// Carries a keyword (`keyword:x`; `category:` names are mapped to keywords by the caller,
+    /// and match the keyword spelled as the name too). `is:pinned` is the `$Pinned` keyword.
+    Keyword(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -124,10 +127,12 @@ impl Query {
                         "read" => Some(Term::Unread(false)),
                         "flagged" => Some(Term::Flagged(true)),
                         "unflagged" => Some(Term::Flagged(false)),
+                        "pinned" => Some(Term::Keyword(crate::PINNED.to_string())),
                         _ => text_term(Field::Any, &tok),
                     },
                     "isread" => yes_no(v).map(|b| Term::Unread(!b)),
                     "isflagged" => yes_no(v).map(Term::Flagged),
+                    "keyword" | "category" | "label" | "tag" => Some(Term::Keyword(v.trim_matches('"').to_string())),
                     _ => text_term(Field::Any, &tok),
                 },
                 _ => text_term(Field::Any, &tok),
@@ -202,6 +207,7 @@ fn clause_matches(term: &Term, doc: &Doc<'_>) -> bool {
         Term::HasAttachment(b) => m.has_attachments == *b,
         Term::Unread(b) => !m.flags.seen == *b,
         Term::Flagged(b) => m.flags.flagged == *b,
+        Term::Keyword(k) => m.flags.has(k) || m.flags.has(&crate::keyword_for(k)),
         Term::Phrase(f, p) => field_text(f, doc).to_lowercase().contains(p.as_str()),
         Term::Words(f, ws) => {
             let text = field_text(f, doc);
