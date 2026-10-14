@@ -38,6 +38,8 @@ pub struct Data {
     /// (email id, from, recipients)
     pub submissions: Vec<(String, String, Vec<String>)>,
     pub calls: Vec<String>,
+    /// The VacationResponse singleton.
+    pub vacation: Value,
     next: u32,
 }
 
@@ -211,6 +213,29 @@ impl Data {
                 }
                 (name.into(), json!({"accountId": ACCOUNT, "created": created}))
             }
+            "Quota/get" => (
+                name.into(),
+                json!({"accountId": ACCOUNT, "list": [
+                    {"id": "q1", "resourceType": "count", "used": self.emails.len(), "hardLimit": 1000, "scope": "account"},
+                    {"id": "q2", "resourceType": "octets", "used": self.blobs.values().map(Vec::len).sum::<usize>(), "hardLimit": 1_000_000, "scope": "account"},
+                ]}),
+            ),
+            "VacationResponse/get" => {
+                let mut v = if self.vacation.is_object() { self.vacation.clone() } else { json!({"isEnabled": false}) };
+                v["id"] = json!("singleton");
+                (name.into(), json!({"accountId": ACCOUNT, "list": [v]}))
+            }
+            "VacationResponse/set" => {
+                let patch = args["update"]["singleton"].clone();
+                if patch["textBody"].as_str().is_some_and(|t| t.contains("refuse")) {
+                    return (
+                        name.into(),
+                        json!({"accountId": ACCOUNT, "notUpdated": {"singleton": {"type": "invalidProperties", "description": "not allowed"}}}),
+                    );
+                }
+                self.vacation = patch;
+                (name.into(), json!({"accountId": ACCOUNT, "updated": {"singleton": null}}))
+            }
             "Identity/get" => (name.into(), json!({"accountId": ACCOUNT, "list": [{"id": "I1", "email": USER, "name": "Me"}]})),
             "EmailSubmission/set" => {
                 let mut created = Map::new();
@@ -285,7 +310,7 @@ pub fn serve(data: Data) -> Server {
             let mut d = shared.lock().unwrap();
             if path == "/.well-known/jmap" {
                 let session = json!({
-                    "capabilities": {"urn:ietf:params:jmap:core": {"maxObjectsInGet": 100}, "urn:ietf:params:jmap:mail": {}, "urn:ietf:params:jmap:submission": {}},
+                    "capabilities": {"urn:ietf:params:jmap:core": {"maxObjectsInGet": 100}, "urn:ietf:params:jmap:mail": {}, "urn:ietf:params:jmap:submission": {}, "urn:ietf:params:jmap:quota": {}, "urn:ietf:params:jmap:vacationresponse": {}},
                     "accounts": {ACCOUNT: {"name": USER}},
                     "primaryAccounts": {"urn:ietf:params:jmap:mail": ACCOUNT, "urn:ietf:params:jmap:submission": ACCOUNT},
                     "username": USER,
@@ -450,6 +475,29 @@ mod tests {
         pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
         until(&pool, "new mail", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
         assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages[0].subject, "Festival poster");
+
+        // Mailbox settings: the space used, automatic replies, emptying Deleted Items.
+        assert!(seen.iter().any(|e| matches!(e, Event::Quota { used, limit: 1_000_000, .. } if *used > 0)), "the quota comes with a full sync");
+        pool.submit(Job::GetVacation { account: "a1".into() });
+        until(&pool, "replies read", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if !v.enabled));
+        let away = mailcraft_model::job::Vacation {
+            enabled: true,
+            subject: "Away".into(),
+            text: "Back on Monday".into(),
+            from: Some("2026-10-15".into()),
+            until: Some("2026-10-20".into()),
+        };
+        pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
+        until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
+        assert_eq!(data.lock().unwrap().vacation["toDate"], "2026-10-20T23:59:59Z");
+        pool.submit(Job::SetVacation { account: "a1".into(), vacation: mailcraft_model::job::Vacation { text: "refuse".into(), ..away.clone() } });
+        until(&pool, "a refused change", |e| matches!(e, Event::Vacation { vacation: Some(v), error: Some(_), .. } if *v == away));
+        let trash = data.lock().unwrap().by_name("Trash").unwrap().id.clone();
+        for i in 0..3 {
+            data.lock().unwrap().deliver(&trash, &mail(&format!("Old {i}"), &format!("t{i}")), &[], "2024-01-01T00:00:00Z");
+        }
+        pool.submit(Job::Apply { account: "a1".into(), op: Op::EmptyFolder { path: "Trash".into() } });
+        eventually("Trash emptied", || !data.lock().unwrap().emails.iter().any(|e| e.mailboxes.contains(&trash)));
 
         // Delete for good.
         let gone = store.load_folder("a1", "INBOX").unwrap().messages.iter().find(|m| m.subject == "Storyboard").unwrap().key.clone();

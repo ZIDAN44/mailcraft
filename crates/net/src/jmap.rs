@@ -30,6 +30,8 @@ use crate::{NetError, Result};
 const CORE: &str = "urn:ietf:params:jmap:core";
 const MAIL: &str = "urn:ietf:params:jmap:mail";
 const SUBMISSION: &str = "urn:ietf:params:jmap:submission";
+const QUOTA: &str = "urn:ietf:params:jmap:quota";
+const VACATION: &str = "urn:ietf:params:jmap:vacationresponse";
 
 /// Largest JSON response accepted.
 const MAX_JSON: usize = 32 << 20;
@@ -59,6 +61,8 @@ pub struct Client {
     upload: String,
     account: String,
     submission: bool,
+    quota: bool,
+    vacation: bool,
     max_get: usize,
 }
 
@@ -131,6 +135,8 @@ impl Client {
             upload: template_url(&base, str_at(&v, "uploadUrl")?)?,
             account: account.to_string(),
             submission: caps.get(SUBMISSION).is_some(),
+            quota: caps.get(QUOTA).is_some(),
+            vacation: caps.get(VACATION).is_some(),
             max_get: usize::try_from(max_get).unwrap_or(500).clamp(1, 1000),
             auth,
         })
@@ -296,6 +302,72 @@ impl Client {
             )],
         )?;
         set_error(r.first(), "notCreated").map_err(|e| NetError::Smtp(e.to_string()))
+    }
+}
+
+impl Client {
+    /// Space used and the limit in bytes for the whole account (RFC 9425); `None` without quotas.
+    pub fn quota(&self) -> Result<Option<(u64, u64)>> {
+        if !self.quota {
+            return Ok(None);
+        }
+        let r = self.call(&[CORE, QUOTA], vec![("Quota/get", json!({"accountId": self.account, "ids": null}))])?;
+        let octets = list(r.first(), "list")
+            .iter()
+            .filter(|q| q.get("resourceType").and_then(Value::as_str) == Some("octets"))
+            .filter(|q| q.get("scope").and_then(Value::as_str).is_none_or(|s| s == "account"))
+            .find_map(|q| Some((q.get("used")?.as_u64()?, q.get("hardLimit").and_then(Value::as_u64).unwrap_or(0))));
+        Ok(octets)
+    }
+
+    /// The automatic replies (RFC 8621 §8); an error when the server offers none.
+    pub fn vacation(&self) -> Result<mailcraft_model::job::Vacation> {
+        if !self.vacation {
+            return Err(NetError::No("this server doesn't offer automatic replies".into()));
+        }
+        let r = self.call(&[CORE, VACATION], vec![("VacationResponse/get", json!({"accountId": self.account, "ids": ["singleton"]}))])?;
+        let v = list(r.first(), "list").first().cloned().unwrap_or(Value::Null);
+        let day =
+            |k: &str| v.get(k).and_then(Value::as_str).and_then(|d| d.get(..10)).filter(|d| mailcraft_model::job::is_day(d)).map(str::to_string);
+        Ok(mailcraft_model::job::Vacation {
+            enabled: v.get("isEnabled").and_then(Value::as_bool).unwrap_or(false),
+            subject: v.get("subject").and_then(Value::as_str).unwrap_or_default().to_string(),
+            text: v.get("textBody").and_then(Value::as_str).unwrap_or_default().to_string(),
+            from: day("fromDate"),
+            until: day("toDate"),
+        })
+    }
+
+    pub fn set_vacation(&self, v: &mailcraft_model::job::Vacation) -> Result<()> {
+        if !self.vacation {
+            return Err(NetError::No("this server doesn't offer automatic replies".into()));
+        }
+        // Dates are whole days: from the start of the first to the end of the last.
+        let from = v.from.as_ref().map(|d| format!("{d}T00:00:00Z"));
+        let to = v.until.as_ref().map(|d| format!("{d}T23:59:59Z"));
+        let patch = json!({
+            "isEnabled": v.enabled,
+            "subject": if v.subject.trim().is_empty() { Value::Null } else { Value::String(v.subject.clone()) },
+            "textBody": v.text,
+            "fromDate": from,
+            "toDate": to,
+        });
+        let r = self.call(&[CORE, VACATION], vec![("VacationResponse/set", json!({"accountId": self.account, "update": {"singleton": patch}}))])?;
+        set_error(r.first(), "notUpdated")
+    }
+
+    /// Destroy every message in a mailbox, in batches.
+    fn empty(&self, mailbox: &str) -> Result<()> {
+        for _ in 0..1000 {
+            let r = self
+                .mail(vec![("Email/query", json!({"accountId": self.account, "filter": {"inMailbox": mailbox}, "limit": self.max_get.min(500)}))])?;
+            let ids: Vec<String> = list(r.first(), "ids").iter().filter_map(|v| v.as_str().map(str::to_string)).collect();
+            if ids.is_empty() {
+                return Ok(());
+            }
+            self.set_emails(Map::new(), ids)?;
+        }
+        Err(NetError::No("the folder didn't empty".into()))
     }
 }
 
@@ -650,6 +722,7 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
             let id = st.mailbox(path)?.to_string();
             c.set_mailboxes(json!({"destroy": [id], "onDestroyRemoveEmails": true})).map(|_| ())
         }
+        Op::EmptyFolder { path } => c.empty(st.mailbox(path)?),
     }
 }
 

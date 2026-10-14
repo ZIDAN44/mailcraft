@@ -45,7 +45,7 @@ impl State {
                 Mailbox { name: "Projects/Caf&AOk-".into(), attr: "", validity: 400, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
             ],
             modseq: 10,
-            caps: "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE",
+            caps: "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA",
             log: Vec::new(),
         }))
     }
@@ -192,6 +192,11 @@ impl Fake {
             } else {
                 self.say(&format!("{tag} NO [AUTHENTICATIONFAILED] wrong password"));
             }
+        } else if upper.starts_with("GETQUOTAROOT") {
+            let used: usize = st.boxes.iter().flat_map(|b| b.msgs.iter()).map(|m| m.raw.len()).sum::<usize>() / 1024 + 1;
+            self.say("* QUOTAROOT INBOX \"\"");
+            self.say(&format!("* QUOTA \"\" (STORAGE {used} 1024)"));
+            ok(self, "");
         } else if upper.starts_with("ENABLE") {
             if upper.contains("QRESYNC") && st.caps.contains("QRESYNC") {
                 self.say("* ENABLED QRESYNC");
@@ -786,6 +791,62 @@ mod tests {
             }
         }
         panic!("timed out waiting for {what}; saw {seen:?}");
+    }
+
+    #[test]
+    fn mailbox_settings_over_imap_and_managesieve() {
+        let st = State::new();
+        st.lock().unwrap().mailbox("Archive").unwrap().msgs.push(Msg {
+            uid: 1,
+            flags: Vec::new(),
+            raw: b"Subject: old
+
+x"
+            .to_vec(),
+            modseq: 1,
+        });
+        st.lock().unwrap().mailbox("Archive").unwrap().uid_next = 2;
+        let imap_port = serve_tcp(&st);
+        let (sieve_port, sieve) = crate::sieve::tests::serve(crate::sieve::tests::Fake {
+            scripts: Vec::new(),
+            active: None,
+            sieve: "fileinto vacation date relational include",
+            log: Vec::new(),
+        });
+        let store = store("mailbox");
+        let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+        pool.sieve_port = sieve_port;
+        let account = AccountConfig {
+            id: "a1".into(),
+            email: "me@studio.example".into(),
+            username: "me@studio.example".into(),
+            imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
+            smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+            ..Default::default()
+        };
+        pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+        let seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        assert!(seen.iter().any(|e| matches!(e, Event::Quota { limit: 1_048_576, used, .. } if *used >= 1024)), "GETQUOTAROOT, in bytes");
+
+        pool.submit(Job::GetVacation { account: "a1".into() });
+        until(&pool, "replies read", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if !v.enabled));
+        let away = mailcraft_model::job::Vacation { enabled: true, subject: "Away".into(), text: "Back soon".into(), from: None, until: None };
+        pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
+        until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
+        assert_eq!(sieve.lock().unwrap().active.as_deref(), Some(crate::sieve::SCRIPT));
+
+        // Emptying a folder removes what isn't downloaded too.
+        pool.submit(Job::Apply { account: "a1".into(), op: Op::EmptyFolder { path: "Archive".into() } });
+        let end = Instant::now() + Duration::from_secs(10);
+        while !st.lock().unwrap().mailbox("Archive").unwrap().msgs.is_empty() {
+            assert!(Instant::now() < end, "never emptied");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        pool.submit(Job::Remove { account: "a1".into() });
+        // An offline account answers at once.
+        pool.submit(Job::GetVacation { account: "a1".into() });
+        until(&pool, "offline answer", |e| matches!(e, Event::Vacation { vacation: None, error: Some(_), .. }));
+        let _ = std::fs::remove_dir_all(store.root());
     }
 
     #[test]

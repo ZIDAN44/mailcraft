@@ -57,6 +57,49 @@ pub enum Op {
     DeleteFolder {
         path: String,
     },
+    /// Delete every message in a folder for good (Deleted Items, Junk Email), including those
+    /// not downloaded.
+    EmptyFolder {
+        path: String,
+    },
+}
+
+/// Automatic replies (out of office): sent once per sender while on, between the dates when
+/// set. Kept on the server, so they work while this computer is off.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Vacation {
+    pub enabled: bool,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub text: String,
+    /// First and last day (`YYYY-MM-DD`), when limited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub until: Option<String>,
+}
+
+/// A `YYYY-MM-DD` date that is a real day.
+pub fn is_day(s: &str) -> bool {
+    let b = s.as_bytes();
+    if b.len() != 10 || b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-') {
+        return false;
+    }
+    let num = |a: usize, z: usize| s.get(a..z).filter(|x| x.bytes().all(|c| c.is_ascii_digit())).and_then(|x| x.parse::<u32>().ok());
+    match (num(0, 4), num(5, 7), num(8, 10)) {
+        (Some(y), Some(m), Some(d)) => {
+            let days = match m {
+                1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+                4 | 6 | 9 | 11 => 30,
+                2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
+                2 => 28,
+                _ => 0,
+            };
+            y >= 1970 && (1..=days).contains(&d)
+        }
+        _ => false,
+    }
 }
 
 impl Op {
@@ -64,7 +107,7 @@ impl Op {
     pub fn keys(&self) -> &[MessageKey] {
         match self {
             Op::SetFlag { keys, .. } | Op::SetKeyword { keys, .. } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
-            Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => &[],
+            Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => &[],
         }
     }
 
@@ -104,6 +147,10 @@ pub enum Job {
     Discover { email: String },
     /// Sign an OAuth account in through the browser; it starts once signed in.
     SignIn { account: AccountConfig },
+    /// Read the account's automatic replies from the server.
+    GetVacation { account: String },
+    /// Change them.
+    SetVacation { account: String, vacation: Vacation },
 }
 
 impl Job {
@@ -117,7 +164,9 @@ impl Job {
             | Job::Apply { account, .. }
             | Job::Send { account, .. }
             | Job::SaveDraft { account, .. }
-            | Job::FlushOutbox { account } => account,
+            | Job::FlushOutbox { account }
+            | Job::GetVacation { account }
+            | Job::SetVacation { account, .. } => account,
             Job::FetchUrl { .. } | Job::Discover { .. } => "",
             Job::SignIn { account } => &account.id,
         }
@@ -223,6 +272,20 @@ pub enum Event {
     SignedIn {
         account: String,
     },
+    /// How much of the account's space on the server is used and its limit, in bytes (`limit`
+    /// 0: no limit published).
+    Quota {
+        account: String,
+        used: u64,
+        limit: u64,
+    },
+    /// The account's automatic replies as the server has them; `None` with an error when it
+    /// offers none (or they couldn't be read or changed).
+    Vacation {
+        account: String,
+        vacation: Option<Vacation>,
+        error: Option<String>,
+    },
     /// Something the user should see in the status bar.
     Notice {
         account: String,
@@ -238,6 +301,16 @@ mod tests {
     fn secrets_never_print() {
         let j = Job::Start { account: AccountConfig::default(), password: Some(Secret("hunter2".into())) };
         assert!(!format!("{j:?}").contains("hunter2"));
+    }
+
+    #[test]
+    fn days() {
+        for ok in ["2026-10-15", "2024-02-29", "2000-02-29"] {
+            assert!(is_day(ok), "{ok}");
+        }
+        for bad in ["2026-02-29", "1900-02-29", "2026-13-01", "2026-1-01", "26-10-15", "2026-10-15T00", "", "2026-10-00", "abcd-ef-gh"] {
+            assert!(!is_day(bad), "{bad}");
+        }
     }
 
     #[test]

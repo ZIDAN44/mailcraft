@@ -7,7 +7,7 @@ use std::sync::Arc;
 use mailcraft_mime::{self as mime, OutAttachment, Parsed, ReplyMode};
 use mailcraft_model::contacts::{Contact, ContactBook};
 use mailcraft_model::dates::{Clock, DateGroup};
-use mailcraft_model::job::Secret;
+use mailcraft_model::job::{Secret, Vacation};
 use mailcraft_model::search::{Doc, Index, Query, summary_text};
 use mailcraft_model::thread::{Thread, threads};
 use mailcraft_model::{
@@ -27,6 +27,22 @@ pub struct AccountState {
     pub config: AccountConfig,
     pub folders: Vec<Folder>,
     pub status: SyncStatus,
+    /// Space used on the server and its limit in bytes, once reported.
+    pub quota: Option<(u64, u64)>,
+    /// The automatic replies as last read from the server.
+    pub vacation: VacationState,
+}
+
+/// What is known of an account's automatic replies.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum VacationState {
+    #[default]
+    Unknown,
+    /// Asked the server.
+    Loading,
+    Loaded(Vacation),
+    /// The server offers none, or reading or changing them failed.
+    Failed(String),
 }
 
 impl AccountState {
@@ -371,7 +387,7 @@ impl Session {
             for config in accounts {
                 let mut folders = store.load_folders(&config.id).unwrap_or_default();
                 sort_folders(&mut folders);
-                s.accounts.push(AccountState { config, folders, status: SyncStatus::Offline });
+                s.accounts.push(AccountState { config, folders, status: SyncStatus::Offline, quota: None, vacation: VacationState::Unknown });
             }
         }
         let mut local = Vec::new();
@@ -870,7 +886,7 @@ impl Session {
             Op::Expunge { keys } => Op::Expunge { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect() },
             other => other,
         };
-        if !op.is_folder_op() && op.keys().is_empty() {
+        if !op.is_folder_op() && !matches!(op, Op::EmptyFolder { .. }) && op.keys().is_empty() {
             return;
         }
         let local = self.account(account).is_none_or(AccountState::is_local);
@@ -887,6 +903,20 @@ impl Session {
     fn apply_op_memory(&mut self, account: &str, op: &Op) {
         if op.is_folder_op() {
             self.apply_folder_op_memory(account, op);
+            return;
+        }
+        if let Op::EmptyFolder { path } = op {
+            if let Some(st) = self.cache.get_mut(&(account.to_string(), path.clone())) {
+                st.messages.clear();
+            }
+            if let Some(f) = self.account_mut(account).and_then(|a| a.folders.iter_mut().find(|f| &f.path == path)) {
+                f.unread = 0;
+                f.total = 0;
+            }
+            self.selection.retain(|k| !(k.account == account && &k.folder == path));
+            if self.reading.as_ref().is_some_and(|r| r.key.account == account && &r.key.folder == path) {
+                self.reading = None;
+            }
             return;
         }
         let mut unread_delta: HashMap<String, i64> = HashMap::new();
@@ -918,7 +948,7 @@ impl Session {
                     *unread_delta.entry(f.clone()).or_default() -= i64::try_from(unread).unwrap_or(0);
                     st.messages.retain(|m| !mine.contains(&m.key.uid));
                 }
-                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {}
+                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
             }
         }
         if let Some(a) = self.account_mut(account) {
@@ -1006,7 +1036,7 @@ impl Session {
                     }
                 }
                 Op::DeleteFolder { path } => a.folders.retain(|f| !mailcraft_model::is_within(&f.path, path, f.delimiter.or(delimiter))),
-                Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
+                Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
             }
             sort_folders(&mut a.folders);
         }
@@ -1041,9 +1071,71 @@ impl Session {
                     self.focus = None;
                 }
             }
-            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } => {}
+            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
         }
         self.index = None;
+    }
+
+    // ----- mailbox settings -----
+
+    /// Delete everything in a folder for good (only Deleted Items and Junk Email).
+    pub fn empty_folder(&mut self, account: &str, folder: &str) -> CmdResult {
+        let f = self.folder(account, folder).ok_or_else(|| CmdError::Params(format!("no folder `{folder}`")))?;
+        if !matches!(f.role, FolderRole::Trash | FolderRole::Junk) {
+            return Err(CmdError::Params("only Deleted Items and Junk Email can be emptied".into()));
+        }
+        self.apply_op(account, Op::EmptyFolder { path: folder.to_string() });
+        Ok(serde_json::json!({ "emptied": folder }))
+    }
+
+    /// Ask the server for an account's automatic replies.
+    pub fn load_vacation(&mut self, account: &str) -> CmdResult {
+        let a = self.account_mut(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if a.is_local() {
+            a.vacation = VacationState::Failed("the sample mailbox has no server".into());
+        } else {
+            a.vacation = VacationState::Loading;
+            self.jobs.push(Job::GetVacation { account: account.to_string() });
+        }
+        Ok(self.vacation_json(account))
+    }
+
+    /// Change an account's automatic replies on the server.
+    pub fn set_vacation(&mut self, account: &str, v: Vacation) -> CmdResult {
+        for d in [&v.from, &v.until].into_iter().flatten() {
+            if !mailcraft_model::job::is_day(d) {
+                return Err(CmdError::Params(format!("`{d}` is not a date (YYYY-MM-DD)")));
+            }
+        }
+        if let (Some(a), Some(b)) = (&v.from, &v.until)
+            && a > b
+        {
+            return Err(CmdError::Params("the last day is before the first".into()));
+        }
+        if v.enabled && v.text.trim().is_empty() {
+            return Err(CmdError::Params("write the reply first".into()));
+        }
+        let a = self.account_mut(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if a.is_local() {
+            return Err(CmdError::Params("the sample mailbox has no server".into()));
+        }
+        a.vacation = VacationState::Loading;
+        self.jobs.push(Job::SetVacation { account: account.to_string(), vacation: v });
+        Ok(self.vacation_json(account))
+    }
+
+    pub fn vacation_json(&self, account: &str) -> serde_json::Value {
+        match self.account(account).map(|a| &a.vacation) {
+            Some(VacationState::Loaded(v)) => serde_json::json!({"vacation": v}),
+            Some(VacationState::Loading) => serde_json::json!({"pending": true}),
+            Some(VacationState::Failed(e)) => serde_json::json!({"error": e}),
+            _ => serde_json::json!({}),
+        }
+    }
+
+    /// Bytes of mail cached on this computer for an account.
+    pub fn cache_size(&self, account: &str) -> u64 {
+        self.store.as_ref().map_or(0, |s| s.account_size(account))
     }
 
     // ----- folder management -----
@@ -1756,7 +1848,13 @@ impl Session {
             return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
         }
         let id = config.id.clone();
-        self.accounts.push(AccountState { config: config.clone(), folders: Vec::new(), status: SyncStatus::Connecting });
+        self.accounts.push(AccountState {
+            config: config.clone(),
+            folders: Vec::new(),
+            status: SyncStatus::Connecting,
+            quota: None,
+            vacation: VacationState::Unknown,
+        });
         self.save_accounts();
         if config.oauth.is_some() {
             self.jobs.push(Job::SignIn { account: config });
@@ -1794,7 +1892,11 @@ impl Session {
     pub fn update_account(&mut self, config: AccountConfig, password: Option<String>) -> CmdResult {
         let id = config.id.clone();
         let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
-        let reconnect = a.config.imap != config.imap || a.config.smtp != config.smtp || a.config.username != config.username || password.is_some();
+        let reconnect = a.config.imap != config.imap
+            || a.config.smtp != config.smtp
+            || a.config.jmap != config.jmap
+            || a.config.username != config.username
+            || password.is_some();
         a.config = config.clone();
         let local = a.is_local();
         self.save_accounts();
@@ -1870,6 +1972,28 @@ impl Session {
                     if let Some(r) = self.reading.as_mut() {
                         r.thread = thread;
                     }
+                }
+            }
+            Event::Quota { account, used, limit } => {
+                if let Some(a) = self.account_mut(&account) {
+                    a.quota = Some((used, limit));
+                }
+            }
+            Event::Vacation { account, vacation, error } => {
+                let mut failed = None;
+                if let Some(a) = self.account_mut(&account) {
+                    a.vacation = match (vacation, error) {
+                        (Some(v), None) => VacationState::Loaded(v),
+                        (Some(v), Some(e)) => {
+                            // Read back after a change that failed: show what the server has.
+                            failed = Some(e);
+                            VacationState::Loaded(v)
+                        }
+                        (None, e) => VacationState::Failed(e.unwrap_or_else(|| "this server doesn't offer automatic replies".into())),
+                    };
+                }
+                if let Some(e) = failed {
+                    self.notice(format!("automatic replies weren't changed: {e}"), true);
                 }
             }
             Event::Body { key, raw } => {

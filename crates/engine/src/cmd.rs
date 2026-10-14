@@ -274,6 +274,19 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"on"?: bool}"#),
         // Accounts
+        CommandSpec::new("folder.empty", "Empty folder", "Folder › Empty", |s, v| {
+            let account = account_param(s, v)?;
+            let folder = match (p::str(v, "folder"), p::str(v, "role")) {
+                (Some(f), _) => f.to_string(),
+                (None, Some(r)) => {
+                    let role = FolderRole::from_code(r).ok_or_else(|| CmdError::Params(format!("unknown folder role `{r}`")))?;
+                    s.account(&account).and_then(|a| a.folder(role)).map(|f| f.path.clone()).ok_or_else(|| CmdError::Params(format!("the account has no {r} folder")))?
+                }
+                (None, None) => return Err(CmdError::Params("`folder` or `role` is required".into())),
+            };
+            s.empty_folder(&account, &folder)
+        })
+        .params(r#"{"account"?: string, "folder"?: string, "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
             .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP)}"#),
         CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
@@ -311,6 +324,38 @@ pub fn registry() -> Registry {
         CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature).params(r#"{"account": string, "signature": string}"#),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
+        CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
+            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "jmap"?: string|null}"#,
+        ),
+        CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
+            let id = account_param(s, v)?;
+            let a = s.account(&id).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+            let quota = a.quota.map(|(used, limit)| json!({"used": used, "limit": limit}));
+            Ok(json!({"account": id, "quota": quota, "cached": s.cache_size(&id)}))
+        })
+        .params(r#"{"account"?: string}"#),
+        CommandSpec::new("account.vacation", "Automatic replies", "File › Info › Automatic replies", |s, v| {
+            let id = account_param(s, v)?;
+            if p::bool(v, "refresh").unwrap_or(true) {
+                s.load_vacation(&id)
+            } else {
+                Ok(s.vacation_json(&id))
+            }
+        })
+        .params(r#"{"account"?: string, "refresh"?: bool} (asks the server; call with refresh=false for the answer)"#),
+        CommandSpec::new("account.setVacation", "Turn automatic replies on or off", "File › Info › Automatic replies", |s, v| {
+            let id = account_param(s, v)?;
+            let day = |k: &str| p::str(v, k).map(str::trim).filter(|d| !d.is_empty()).map(str::to_string);
+            let vacation = mailcraft_model::job::Vacation {
+                enabled: p::bool(v, "enabled").unwrap_or(true),
+                subject: p::str(v, "subject").unwrap_or_default().chars().take(200).collect(),
+                text: p::str(v, "text").unwrap_or_default().chars().take(20_000).collect(),
+                from: day("from"),
+                until: day("until"),
+            };
+            s.set_vacation(&id, vacation)
+        })
+        .params(r#"{"account"?: string, "enabled": bool, "subject"?: string, "text": string, "from"?: "YYYY-MM-DD", "until"?: "YYYY-MM-DD"}"#),
     ])
 }
 
@@ -808,6 +853,33 @@ fn set_password(s: &mut Session, v: &Value) -> CmdResult {
     }
     let config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
     s.update_account(config, Some(pw.to_string()))
+}
+
+fn update_account(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_str(v, "account")?;
+    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    if c.is_local() {
+        return Err(CmdError::Params("the sample mailbox has no server settings".into()));
+    }
+    if let Some(n) = p::str(v, "name") {
+        c.name = n.trim().chars().take(200).collect();
+    }
+    if let Some(u) = p::str(v, "username").map(str::trim).filter(|u| !u.is_empty()) {
+        c.username = u.to_string();
+    }
+    match v.get("jmap") {
+        Some(Value::String(u)) if !u.trim().is_empty() => c.jmap = Some(u.trim().to_string()),
+        Some(Value::String(_) | Value::Null) => c.jmap = None,
+        _ => {}
+    }
+    if c.jmap.is_none() {
+        c.imap = server(v, "imap", &c.imap)?;
+        c.smtp = server(v, "smtp", &c.smtp)?;
+        if c.imap.host.is_empty() || c.imap.port == 0 || c.smtp.host.is_empty() || c.smtp.port == 0 {
+            return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
+        }
+    }
+    s.update_account(c, None)
 }
 
 fn set_signature(s: &mut Session, v: &Value) -> CmdResult {

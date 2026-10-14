@@ -5,6 +5,7 @@
 //!   with the extensions sync relies on: UIDPLUS, MOVE, CONDSTORE, IDLE, SPECIAL-USE, SASL-IR.
 //! * [`sync`]: the folder synchronisation algorithm (RFC 4549, RFC 7162).
 //! * [`jmap`]: the second transport, JMAP (RFC 8620/8621) over HTTPS, synced into the same cache.
+//! * [`sieve`]: automatic replies on IMAP servers, through ManageSieve (RFC 5804).
 //! * [`smtp`]: message submission through `lettre` (RFC 6409, implicit TLS per RFC 8314).
 //! * [`worker`]: one thread per account that runs the engine's [`Job`](mailcraft_model::Job)s
 //!   and reports [`Event`](mailcraft_model::Event)s, keeping a connection open, idling on the
@@ -17,6 +18,7 @@ pub mod http;
 pub mod imap;
 pub mod jmap;
 pub mod oauth;
+pub mod sieve;
 pub mod smtp;
 pub mod stream;
 pub mod sync;

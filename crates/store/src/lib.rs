@@ -219,6 +219,21 @@ impl Store {
         }
     }
 
+    /// Bytes an account's cache takes on disk (message sources, summaries, the Outbox).
+    pub fn account_size(&self, account: &str) -> u64 {
+        fn size(p: &Path, depth: usize) -> u64 {
+            let Ok(rd) = fs::read_dir(p) else { return 0 };
+            rd.filter_map(|e| e.ok())
+                .map(|e| match e.file_type() {
+                    Ok(t) if t.is_dir() && depth < 8 => size(&e.path(), depth + 1),
+                    Ok(t) if t.is_file() => e.metadata().map(|m| m.len()).unwrap_or(0),
+                    _ => 0,
+                })
+                .fold(0u64, u64::saturating_add)
+        }
+        size(&self.account_dir(account), 0)
+    }
+
     /// Forget everything about an account.
     pub fn remove_account(&self, account: &str) -> Result<()> {
         let dir = self.account_dir(account);
@@ -266,6 +281,21 @@ impl Store {
         if op.is_folder_op() {
             return self.apply_folder_op(account, op);
         }
+        if let Op::EmptyFolder { path } = op {
+            let mut st = self.load_folder(account, path)?;
+            for m in &st.messages {
+                self.remove_body(&m.key);
+            }
+            st.messages.clear();
+            self.save_folder(account, path, &st)?;
+            let mut list = self.load_folders(account)?;
+            for f in list.iter_mut().filter(|f| &f.path == path) {
+                f.total = 0;
+                f.unread = 0;
+            }
+            self.save_folders(account, &list)?;
+            return Ok(vec![path.clone()]);
+        }
         let mut folders: Vec<String> = op.keys().iter().filter(|k| k.account == account).map(|k| k.folder.clone()).collect();
         folders.sort();
         folders.dedup();
@@ -299,7 +329,7 @@ impl Store {
                     }
                     st.messages.retain(|m| !gone.iter().any(|k| k.uid == m.key.uid));
                 }
-                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {}
+                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
             }
             self.save_folder(account, folder, &st)?;
         }
@@ -350,7 +380,7 @@ impl Store {
                 list.retain(|f| !gone.contains(&f.path));
                 Vec::new()
             }
-            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } => Vec::new(),
+            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => Vec::new(),
         };
         mailcraft_model::sort_folders(&mut list);
         self.save_folders(account, &list)?;

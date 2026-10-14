@@ -707,6 +707,34 @@ impl<S: Read + Write> Client<S> {
         self.conn.run(&[Part::Text(&cmd)]).map(|_| ())
     }
 
+    /// Space used on the server and its limit, in bytes (`GETQUOTAROOT`, RFC 9208); `None` when the
+    /// server has no QUOTA extension or no storage limit for the Inbox.
+    pub fn quota(&mut self) -> Result<Option<(u64, u64)>> {
+        if !self.has("QUOTA") && !self.caps.iter().any(|c| c.starts_with("QUOTA=")) {
+            return Ok(None);
+        }
+        let rs = self.conn.run(&[Part::Text("GETQUOTAROOT INBOX")])?;
+        for r in rs {
+            if let Response::Quota(q) = r
+                && let Some(res) = q.resources.iter().find(|r| r.name == imap_proto::rfc2087::QuotaResourceName::Storage)
+            {
+                // Units of 1024 octets.
+                return Ok(Some((res.usage.saturating_mul(1024), res.limit.saturating_mul(1024))));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Delete every message in a folder for good.
+    pub fn empty(&mut self, folder: &str) -> Result<()> {
+        let info = self.select(folder, false)?;
+        if info.exists == 0 {
+            return Ok(());
+        }
+        self.uid_store("1:*", true, "\\Deleted")?;
+        self.conn.run(&[Part::Text("EXPUNGE")]).map(|_| ())
+    }
+
     /// Store a message in a folder; returns its UID when the server says (UIDPLUS `APPENDUID`).
     pub fn append(&mut self, folder: &str, flags: &str, raw: &[u8]) -> Result<Option<u32>> {
         let head = format!("APPEND {} ({flags}) ", mailbox_arg(folder));

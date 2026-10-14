@@ -80,6 +80,8 @@ pub struct Pool {
     workers: HashMap<String, Handle>,
     configs: HashMap<String, AccountConfig>,
     pub opts: SyncOptions,
+    /// Where ManageSieve listens on IMAP hosts (automatic replies); tests change it.
+    pub sieve_port: u16,
     /// Picture downloads, on their own thread so they never wait behind a sync.
     fetcher: Option<Sender<String>>,
 }
@@ -99,6 +101,7 @@ impl Pool {
             workers: HashMap::new(),
             configs: HashMap::new(),
             opts: SyncOptions::default(),
+            sieve_port: crate::sieve::PORT,
             fetcher: None,
         }
     }
@@ -210,6 +213,9 @@ impl Pool {
                     Err(e) => self.sink.emit(Event::SendFailed { account, id, error: e.to_string() }),
                 }
             }
+            Job::GetVacation { account } | Job::SetVacation { account, .. } if !self.workers.contains_key(&account) => {
+                self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
+            }
             Job::Apply { account, op } if !self.workers.contains_key(&account) => {
                 // Offline: change the cache now and keep the change for the next connection.
                 match self.store.apply_op(&account, &op) {
@@ -272,6 +278,7 @@ impl Pool {
         let (tx, rx) = mpsc::channel();
         let mut w = Worker::new(account.clone(), pw, self.store.clone(), self.sink.clone(), self.opts);
         w.creds = Some(self.creds.clone());
+        w.sieve_port = self.sieve_port;
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
@@ -341,6 +348,8 @@ struct Worker {
     closed: bool,
     /// Where a rotated OAuth refresh token is saved.
     creds: Option<Arc<dyn Credentials>>,
+    /// The ManageSieve port (4190; tests use their own).
+    sieve_port: u16,
     /// The current OAuth access token.
     access: Option<crate::oauth::Tokens>,
 }
@@ -368,6 +377,7 @@ impl Worker {
             closed: false,
             creds: None,
             access: None,
+            sieve_port: crate::sieve::PORT,
         }
     }
 
@@ -639,6 +649,9 @@ impl Worker {
             self.sync_one(&path);
         }
         if self.conn.is_some() {
+            self.report_quota();
+        }
+        if self.conn.is_some() {
             self.prune_jmap_numbers();
             self.last_full = Some(Instant::now());
             // Anything left from a failed attempt gets another try every full sync.
@@ -766,8 +779,77 @@ impl Worker {
                 }
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
+            Job::GetVacation { .. } => {
+                let r = self.vacation(None);
+                self.report_vacation(r, None);
+            }
+            Job::SetVacation { vacation, .. } => {
+                let r = self.vacation(Some(&vacation));
+                match r {
+                    Ok(v) => self.report_vacation(Ok(v), None),
+                    // Show what the server still has, with why the change failed.
+                    Err(e) => {
+                        let back = self.vacation(None);
+                        self.report_vacation(back, Some(e.to_string()));
+                    }
+                }
+            }
             Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } => {}
             Job::Start { .. } | Job::Remove { .. } => {}
+        }
+    }
+
+    /// Read (and first change, when `set`) the automatic replies: JMAP's own, or a Sieve script
+    /// through ManageSieve on the IMAP host.
+    fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
+        if self.conn.is_none() {
+            self.connect()?;
+        }
+        if let Some(Conn::Jmap(c)) = &self.conn {
+            if let Some(v) = set {
+                c.set_vacation(v)?;
+            }
+            return c.vacation();
+        }
+        let secret = self.secret()?;
+        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
+        let mut s = crate::sieve::Client::connect(&self.acc.imap, self.sieve_port).map_err(|e| match e {
+            NetError::Io(_) => NetError::No("this server doesn't offer automatic replies (no ManageSieve)".into()),
+            e => e,
+        })?;
+        if self.acc.oauth.is_some() {
+            s.login_xoauth2(&user, &secret)?;
+        } else {
+            s.login(&user, &secret)?;
+        }
+        if let Some(v) = set {
+            s.set_vacation(v)?;
+        }
+        let v = s.vacation();
+        s.logout();
+        v
+    }
+
+    fn report_vacation(&self, r: Result<mailcraft_model::job::Vacation>, failed: Option<String>) {
+        let (vacation, error) = match r {
+            Ok(v) => (Some(v), failed),
+            Err(e) => (None, Some(failed.unwrap_or_else(|| e.to_string()))),
+        };
+        self.sink.emit(Event::Vacation { account: self.id(), vacation, error });
+    }
+
+    /// Report the space used on the server (when it publishes a quota).
+    fn report_quota(&mut self) {
+        let q = match self.conn.as_mut() {
+            Some(Conn::Imap(c)) => c.quota(),
+            Some(Conn::Jmap(c)) => c.quota(),
+            None => return,
+        };
+        match q {
+            Ok(Some((used, limit))) => self.sink.emit(Event::Quota { account: self.id(), used, limit }),
+            Ok(None) => {}
+            Err(e) if e.is_fatal() => self.failed(e),
+            Err(e) => log::info!("{}: quota: {e}", self.acc.id),
         }
     }
 
@@ -921,6 +1003,7 @@ impl Worker {
                             destinations.push(to.clone());
                         }
                         Op::CreateFolder { .. } | Op::DeleteFolder { .. } => relist = true,
+                        Op::EmptyFolder { path } => destinations.push(path.clone()),
                         Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
                     }
                     self.ops.remove(0);
@@ -1005,6 +1088,7 @@ pub fn apply_remote<S: std::io::Read + std::io::Write>(c: &mut Client<S>, op: &O
         Op::CreateFolder { path } => c.create(path),
         Op::RenameFolder { from, to } => c.rename(from, to),
         Op::DeleteFolder { path } => c.delete(path),
+        Op::EmptyFolder { path } => c.empty(path),
     }
 }
 

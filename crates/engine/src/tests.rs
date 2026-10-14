@@ -353,6 +353,62 @@ hi
 }
 
 #[test]
+fn mailbox_settings_commands() {
+    // Emptying Deleted Items (the sample mailbox: straight to the cache).
+    let mut s = sample_session("mailbox");
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let first = s.list[0].key.clone();
+    s.run("list.select", &json!({"key": first.to_id()})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Trash"})).unwrap();
+    assert!(!s.list.is_empty());
+    assert!(s.run("folder.empty", &json!({"account": "sample", "folder": "INBOX"})).is_err(), "only Deleted Items and Junk");
+    s.run("folder.empty", &json!({"account": "sample", "role": "trash"})).unwrap();
+    assert!(s.list.is_empty() && s.store.as_ref().unwrap().load_folder("sample", "Trash").unwrap().messages.is_empty());
+    assert!(s.run("account.mailbox", &json!({"account": "sample"})).unwrap()["cached"].as_u64().unwrap() > 0);
+    assert!(s.run("account.setVacation", &json!({"account": "sample", "text": "x"})).is_err(), "no server");
+    assert!(s.run("account.update", &json!({"account": "sample", "imapHost": "x"})).is_err());
+    done(s);
+
+    // A server account: replies, quota and settings go through jobs and events.
+    let mut s = Session::open(Some(temp("mailbox-remote")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    assert_eq!(s.run("account.vacation", &json!({"account": id})).unwrap()["pending"], true);
+    assert!(matches!(s.take_jobs().as_slice(), [Job::GetVacation { .. }]));
+    s.apply(Event::Vacation { account: id.clone(), vacation: None, error: Some("no ManageSieve".into()) });
+    assert_eq!(s.run("account.vacation", &json!({"account": id, "refresh": false})).unwrap()["error"], "no ManageSieve");
+    for bad in [
+        json!({"text": "x", "from": "tomorrow"}),
+        json!({"text": "x", "from": "2026-10-20", "until": "2026-10-19"}),
+        json!({"enabled": true, "text": " "}),
+    ] {
+        let mut p = bad.clone();
+        p["account"] = json!(id);
+        assert!(s.run("account.setVacation", &p).is_err(), "{bad}");
+    }
+    s.run("account.setVacation", &json!({"account": id, "subject": "Away", "text": "Back Monday", "until": "2026-10-20"})).unwrap();
+    assert!(
+        matches!(s.take_jobs().as_slice(), [Job::SetVacation { vacation, .. }] if vacation.enabled && vacation.until.as_deref() == Some("2026-10-20"))
+    );
+    let v = mailcraft_model::job::Vacation { enabled: true, text: "Back Monday".into(), ..Default::default() };
+    s.apply(Event::Vacation { account: id.clone(), vacation: Some(v.clone()), error: Some("refused".into()) });
+    assert_eq!(s.run("account.vacation", &json!({"account": id, "refresh": false})).unwrap()["vacation"]["text"], "Back Monday");
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("refused")));
+    s.apply(Event::Quota { account: id.clone(), used: 5 << 20, limit: 1 << 30 });
+    assert_eq!(s.run("account.mailbox", &json!({"account": id})).unwrap()["quota"]["used"], 5 << 20);
+    // Server settings: a change reconnects; JMAP replaces IMAP and back.
+    s.run("account.update", &json!({"account": id, "imapHost": "imap.example.org", "imapPort": 993, "name": "Zoe"})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.imap.host == "imap.example.org" && account.name == "Zoe"));
+    s.run("account.update", &json!({"account": id, "jmap": "https://api.example.org/jmap/session"})).unwrap();
+    assert!(s.account(&id).unwrap().config.jmap.is_some());
+    s.run("account.update", &json!({"account": id, "jmap": null})).unwrap();
+    assert!(s.account(&id).unwrap().config.jmap.is_none());
+    assert!(s.run("account.update", &json!({"account": id, "imapHost": "bad host"})).is_err());
+    done(s);
+}
+
+#[test]
 fn jmap_accounts_need_no_imap_servers() {
     let store = temp("jmap-account");
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
