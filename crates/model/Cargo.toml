@@ -1,0 +1,14 @@
+[package]
+name = "mailcraft-model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft data model: accounts, folders, messages, threading, search queries, dates (pure, wasm-safe)"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+unicode-segmentation = { workspace = true }

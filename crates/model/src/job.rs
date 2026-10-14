@@ -1,0 +1,187 @@
+//! The engine is sans-I/O: it never touches the network. It queues [`Job`]s, the network layer
+//! runs them (one worker per account) and answers with [`Event`]s, which the engine applies.
+//! The same split lets tests drive the engine with scripted events, and lets a web build plug in
+//! a different transport.
+
+use std::fmt;
+
+use serde::{Deserialize, Serialize};
+
+use crate::{AccountConfig, Flag, Folder, MessageKey};
+
+/// A password in transit. Its `Debug` form is redacted so it never reaches a log.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Secret(pub String);
+
+impl fmt::Debug for Secret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(if self.0.is_empty() { "Secret(<empty>)" } else { "Secret(<redacted>)" })
+    }
+}
+
+/// A change to the mailbox the user makes, applied to the local cache at once and replayed on
+/// the server when it can be reached (RFC 4549's "pending actions").
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "camelCase")]
+pub enum Op {
+    SetFlag {
+        keys: Vec<MessageKey>,
+        flag: Flag,
+        on: bool,
+    },
+    /// Move to another folder of the same account.
+    Move {
+        keys: Vec<MessageKey>,
+        to: String,
+    },
+    /// Delete permanently (`\Deleted` + `UID EXPUNGE`).
+    Expunge {
+        keys: Vec<MessageKey>,
+    },
+}
+
+impl Op {
+    pub fn keys(&self) -> &[MessageKey] {
+        match self {
+            Op::SetFlag { keys, .. } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
+        }
+    }
+}
+
+/// Work for the network layer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "job", rename_all = "camelCase")]
+pub enum Job {
+    /// Start (or restart) the worker for an account. `password` is set when the user just typed
+    /// it (the app stores it in the system keychain); otherwise the keychain is asked.
+    Start { account: AccountConfig, password: Option<Secret> },
+    /// Stop the worker and forget the stored password.
+    Remove { account: String },
+    /// Refresh the folder list and every folder.
+    SyncAll { account: String },
+    /// Refresh one folder (new mail, flag changes, deletions).
+    SyncFolder { account: String, folder: String },
+    /// Download a message's full source.
+    FetchBody { key: MessageKey },
+    /// Apply a mailbox change on the server.
+    Apply { account: String, op: Op },
+    /// Submit a message over SMTP, then file a copy in the Sent folder (when the server doesn't
+    /// already, which the worker can't know: so always when a Sent folder exists).
+    Send { account: String, id: u64, raw: Vec<u8>, from: String, recipients: Vec<String>, sent_folder: Option<String> },
+    /// Store a draft (`APPEND` with `\Draft`), replacing an earlier copy.
+    SaveDraft { account: String, raw: Vec<u8>, folder: String, replaces: Option<MessageKey> },
+}
+
+impl Job {
+    pub fn account(&self) -> &str {
+        match self {
+            Job::Start { account, .. } => &account.id,
+            Job::FetchBody { key } => &key.account,
+            Job::Remove { account }
+            | Job::SyncAll { account }
+            | Job::SyncFolder { account, .. }
+            | Job::Apply { account, .. }
+            | Job::Send { account, .. }
+            | Job::SaveDraft { account, .. } => account,
+        }
+    }
+}
+
+/// How an account's connection is doing.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum SyncStatus {
+    #[default]
+    Offline,
+    Connecting,
+    Syncing {
+        folder: String,
+    },
+    /// Connected and up to date as of `at` (Unix seconds).
+    Online {
+        at: i64,
+    },
+    /// The server refused the login: the user must enter the password again.
+    NeedsPassword {
+        error: String,
+    },
+    /// The last attempt failed; the worker retries with back-off.
+    Error {
+        error: String,
+    },
+}
+
+impl SyncStatus {
+    pub fn is_online(&self) -> bool {
+        matches!(self, SyncStatus::Online { .. } | SyncStatus::Syncing { .. })
+    }
+}
+
+/// What the network layer reports back.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "event", rename_all = "camelCase")]
+pub enum Event {
+    Status {
+        account: String,
+        status: SyncStatus,
+    },
+    /// The folder list (with counts) changed.
+    Folders {
+        account: String,
+        folders: Vec<Folder>,
+    },
+    /// A folder's cached contents changed on disk: reload it.
+    FolderChanged {
+        account: String,
+        folder: String,
+    },
+    /// A message's source arrived (it is cached on disk too).
+    Body {
+        key: MessageKey,
+        raw: Vec<u8>,
+    },
+    BodyFailed {
+        key: MessageKey,
+        error: String,
+    },
+    Sent {
+        account: String,
+        id: u64,
+    },
+    SendFailed {
+        account: String,
+        id: u64,
+        error: String,
+    },
+    /// A mailbox change could not be applied on the server (it was rolled back locally).
+    OpFailed {
+        account: String,
+        op: Op,
+        error: String,
+    },
+    /// Something the user should see in the status bar.
+    Notice {
+        account: String,
+        message: String,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn secrets_never_print() {
+        let j = Job::Start { account: AccountConfig::default(), password: Some(Secret("hunter2".into())) };
+        assert!(!format!("{j:?}").contains("hunter2"));
+    }
+
+    #[test]
+    fn jobs_serialize_tagged() {
+        let j = Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() };
+        let v = serde_json::to_value(&j).unwrap();
+        assert_eq!(v["job"], "syncFolder");
+        assert_eq!(serde_json::from_value::<Job>(v).unwrap(), j);
+        assert_eq!(j.account(), "a1");
+    }
+}
