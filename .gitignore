@@ -1,0 +1,7 @@
+/target
+/target-*/
+/dist
+plan/
+*.tmp*
+.DS_Store
+/.claude/
