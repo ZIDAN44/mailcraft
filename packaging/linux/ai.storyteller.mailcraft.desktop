@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=MailCraft
+GenericName=Email
+Comment=Read, write and organise your email
+Exec=mailcraft
+TryExec=mailcraft
+Icon=ai.storyteller.mailcraft
+Terminal=false
+StartupNotify=true
+StartupWMClass=ai.storyteller.mailcraft
+Categories=Network;Email;Office;
+Keywords=email;mail;e-mail;imap;smtp;inbox;outlook;

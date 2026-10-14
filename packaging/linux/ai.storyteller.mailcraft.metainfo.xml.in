@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata (software centres, Flathub). Template: package.sh and the Flatpak
+     manifest substitute @VERSION@ and @DATE@ from Cargo.toml and the build date. -->
+<component type="desktop-application">
+  <id>ai.storyteller.mailcraft</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>MailCraft</name>
+  <summary>Local-first email over IMAP and SMTP</summary>
+  <developer id="ai.storyteller">
+    <name>Learning Machines LLC</name>
+  </developer>
+  <description>
+    <p>
+      MailCraft is an email client with the familiar three-pane workflow: folders, a message
+      list grouped by date, a reading pane, Reply, Reply all and Forward, flags, Archive and
+      Delete. It works with any IMAP and SMTP provider and several accounts at once, with an
+      All Inboxes view.
+    </p>
+    <p>
+      Mail is cached on your computer, so it opens instantly, searches fast and stays readable
+      offline; changes made offline are sent when you reconnect. Passwords are kept in the
+      system keyring and only go to your own mail servers. HTML mail is shown as text, so
+      remote images and trackers are never loaded.
+    </p>
+    <p>
+      Every action is also a command that the command line and AI agents can drive.
+    </p>
+  </description>
+  <launchable type="desktop-id">ai.storyteller.mailcraft.desktop</launchable>
+  <icon type="stock">ai.storyteller.mailcraft</icon>
+  <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
+  <url type="homepage">https://github.com/ZIDAN44/mailcraft</url>
+  <url type="bugtracker">https://github.com/ZIDAN44/mailcraft/issues</url>
+  <url type="help">https://github.com/ZIDAN44/mailcraft</url>
+  <url type="contact">https://discord.gg/artcraft</url>
+  <categories>
+    <category>Network</category>
+    <category>Email</category>
+  </categories>
+  <keywords>
+    <keyword>email</keyword>
+    <keyword>mail</keyword>
+    <keyword>imap</keyword>
+    <keyword>smtp</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="light">#9fdde3</color>
+    <color type="primary" scheme_preference="dark">#0b6670</color>
+  </branding>
+  <requires>
+    <display_length compare="ge">760</display_length>
+  </requires>
+  <recommends>
+    <internet>always</internet>
+  </recommends>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <provides>
+    <binary>mailcraft</binary>
+  </provides>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

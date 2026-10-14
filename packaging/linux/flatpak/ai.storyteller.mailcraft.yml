@@ -1,0 +1,66 @@
+# Flatpak manifest for MailCraft, ready for a Flathub submission.
+#
+# Flatpak builds run offline, so the crate sources must be vendored first. From the repo root:
+#
+#   curl -fsSLO https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
+#   python3 flatpak-cargo-generator.py Cargo.lock -o packaging/linux/flatpak/cargo-sources.json
+#   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/ai.storyteller.mailcraft.yml
+#   flatpak run ai.storyteller.mailcraft
+#
+# For Flathub, replace the `dir` source with a `git` source pinned to a release tag and commit.
+# The release's .flatpak bundles are built from ai.storyteller.mailcraft.bundle.yml instead (it
+# repackages the Linux tarball); keep runtime-version and finish-args identical in both.
+id: ai.storyteller.mailcraft
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: mailcraft
+finish-args:
+  # Display: Wayland first; X11 only when no Wayland compositor is running.
+  - --socket=wayland
+  - --socket=fallback-x11
+  # X11 shared memory (MIT-SHM). Without it the X11 fallback is slow or fails.
+  - --share=ipc
+  # GPU access for the wgpu renderer (Vulkan, or GL as a fallback).
+  - --device=dri
+  # IMAP and SMTP: MailCraft talks to the user's own mail servers directly.
+  - --share=network
+  # Passwords live in the user's keyring (Secret Service: GNOME Keyring, KWallet, KeePassXC).
+  - --talk-name=org.freedesktop.secrets
+  # Attach and Save dialogs go through the file-chooser portal (rfd), and attachments open with
+  # the OpenURI portal, so picked files work anywhere without broad filesystem access.
+  # Downloads is granted so saved attachments land in the usual place.
+  - --filesystem=xdg-download
+  # Deliberately not granted: home/host filesystem access and sound. The mail cache lives in the
+  # sandbox's own data folder (~/.var/app/ai.storyteller.mailcraft/data/mailcraft).
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+modules:
+  - name: mailcraft
+    buildsystem: simple
+    build-options:
+      env:
+        CARGO_HOME: /run/build/mailcraft/cargo
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      - cargo --offline build --release --locked -p mailcraft -p mailcraft-cli
+      - install -Dm755 target/release/mailcraft /app/bin/mailcraft
+      - install -Dm755 target/release/mailcraft-cli /app/bin/mailcraft-cli
+      - install -Dm644 packaging/linux/ai.storyteller.mailcraft.desktop /app/share/applications/ai.storyteller.mailcraft.desktop
+      - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
+      - >-
+        version=$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml);
+        install -d /app/share/metainfo;
+        sed -e "s/@VERSION@/$version/" -e "s/@DATE@/$(date -u +%Y-%m-%d)/"
+        packaging/linux/ai.storyteller.mailcraft.metainfo.xml.in > /app/share/metainfo/ai.storyteller.mailcraft.metainfo.xml
+    sources:
+      - type: dir
+        path: ../../..
+        skip:
+          - target
+          - dist
+          - build-flatpak
+          - .flatpak-builder
+      - cargo-sources.json

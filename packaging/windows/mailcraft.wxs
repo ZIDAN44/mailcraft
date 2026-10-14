@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MailCraft MSI (WiX Toolset v5: `dotnet tool install -g wix`). Built by package.ps1:
+
+    wix build mailcraft.wxs -arch x64 -d Version=1.2.3 -d BinDir=... -d IconPath=... -o out.msi
+
+  Per-machine install into Program Files, a Start Menu shortcut, and mailcraft.exe on the App
+  Paths list (so Win+R `mailcraft` starts it). MailCraft opens no file types yet, so it registers none.
+
+  UpgradeCode is fixed for MailCraft forever (playbook §6); never change it.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="MailCraft"
+      Manufacturer="Learning Machines LLC"
+      Version="$(var.Version)"
+      UpgradeCode="F1EC42C6-A525-406B-878C-789DC52E1958"
+      Scope="perMachine"
+      Compressed="yes"
+      Language="1033">
+    <SummaryInformation Description="MailCraft email" Manufacturer="Learning Machines LLC" />
+    <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
+         (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+        DowngradeErrorMessage="A newer version of MailCraft is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="MailcraftIcon.ico" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="MailcraftIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/ZIDAN44/mailcraft" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/ZIDAN44/mailcraft/releases" />
+    <Property Id="ARPHELPLINK" Value="https://discord.gg/artcraft" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="MailCraft" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="MailCraft" Level="1">
+      <ComponentGroupRef Id="MailcraftFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="MailcraftFiles" Directory="INSTALLFOLDER">
+      <Component Id="MailcraftApp" Guid="91B16AB2-5D6F-482D-B2D4-9886A392A893">
+        <File Id="MailcraftExe" Source="$(var.BinDir)\mailcraft.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="MailCraft"
+              Description="MailCraft email" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+              Icon="MailcraftIcon.ico" IconIndex="0" />
+        </File>
+        <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\mailcraft.exe" Value="[#MailcraftExe]" Type="string" />
+      </Component>
+
+      <Component Id="MailcraftCli">
+        <File Id="MailcraftCliExe" Source="$(var.BinDir)\mailcraft-cli.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>
