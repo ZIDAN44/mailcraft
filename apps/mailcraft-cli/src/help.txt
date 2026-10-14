@@ -1,0 +1,14 @@
+mailcraft-cli [--data DIR] <command>
+  sample                         create the local sample mailbox in DIR
+  accounts                       list accounts and folders
+  add --email E [--name N] [--username U] [--imap HOST:PORT] [--smtp HOST:PORT]
+      [--imap-security tls|starttls|none] [--smtp-security tls|starttls|none]
+                                 add an account (servers guessed from the address)
+  test [--account ID]            sign in to IMAP and list the folders
+  sync [--account ID]            download new mail into the cache
+  list [--account ID] [--folder PATH] [--limit N]
+  read KEY                       print a message (KEY from `list`)
+  search QUERY                   search the cache (from:, subject:, has:attachment…)
+  send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
+  commands                       every engine command, as JSON
+  run ID [JSON]                  run an engine command against the cache

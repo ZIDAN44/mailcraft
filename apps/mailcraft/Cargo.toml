@@ -1,0 +1,36 @@
+[package]
+name = "mailcraft"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "MailCraft desktop app"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-engine = { workspace = true }
+mailcraft-net = { workspace = true }
+mailcraft-ui-egui = { workspace = true }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
+egui = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+# The local UTC offset for message times.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Native file dialogs (attach, save as).
+rfd = "0.17"
+# Open attachments with the system's default app.
+open = "5"
+# Passwords live in the system keychain, never in MailCraft's files.
+keyring = { version = "3.6", default-features = false }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6", default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+keyring = { version = "3.6", default-features = false, features = ["async-secret-service", "async-io", "crypto-rust"] }
