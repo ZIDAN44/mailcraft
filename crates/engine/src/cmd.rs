@@ -178,6 +178,16 @@ pub fn registry() -> Registry {
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: string}"#)
             .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
+        CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
+            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool"#)
+            .when(has_compose),
+        CommandSpec::new("compose.format", "Plain text / Formatted", "Message › Format", |s, v| {
+            let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            c.plain = p::bool(v, "plain").unwrap_or(!c.plain);
+            Ok(json!({"plain": c.plain}))
+        })
+        .params(r#"{"plain"?: bool}"#)
+        .when(has_compose),
         CommandSpec::new("compose.removeAttachment", "Remove attachment", "Message › Insert", remove_attachment).params(r#"{"index": number}"#).when(has_compose),
         CommandSpec::new("compose.send", "Send", "Message", |s, v| s.send_compose(p::bool(v, "allowEmptySubject").unwrap_or(false)))
             .key("Mod+Enter / Alt+S")
@@ -498,7 +508,8 @@ fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
 /// Largest attachment accepted (most servers refuse messages over 25–35 MB).
 const ATTACH_MAX: usize = 25 << 20;
 
-fn attach(s: &mut Session, v: &Value) -> CmdResult {
+/// A file from `path`, or `name` and `data` (bytes), at most 25 MB.
+fn file_param(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
     let (name, data) = if let Some(path) = p::str(v, "path") {
         let pb = std::path::PathBuf::from(path);
         let meta = std::fs::metadata(&pb).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
@@ -522,8 +533,18 @@ fn attach(s: &mut Session, v: &Value) -> CmdResult {
     if data.len() > ATTACH_MAX {
         return Err(CmdError::Failed("attachments are limited to 25 MB".into()));
     }
+    Ok((name, data))
+}
+
+/// What a message being written carries, in bytes.
+fn compose_size(c: &crate::Compose) -> usize {
+    c.attachments.iter().map(|a| a.data.len()).sum::<usize>() + c.inline.iter().map(|p| p.data.len()).sum::<usize>()
+}
+
+fn attach(s: &mut Session, v: &Value) -> CmdResult {
+    let (name, data) = file_param(v)?;
     let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-    let total: usize = c.attachments.iter().map(|a| a.data.len()).sum::<usize>() + data.len();
+    let total: usize = compose_size(c) + data.len();
     if total > ATTACH_MAX {
         return Err(CmdError::Failed("attachments are limited to 25 MB in total".into()));
     }
@@ -531,6 +552,34 @@ fn attach(s: &mut Session, v: &Value) -> CmdResult {
     let mime = mime_from_name(&name).to_string();
     c.attachments.push(OutAttachment { name: name.clone(), mime, data });
     Ok(json!({"attached": name, "count": c.attachments.len()}))
+}
+
+/// Place a picture in the text. With `"insert": false` the mark isn't added to the text (the
+/// editor puts it at the cursor itself).
+fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
+    let (name, data) = file_param(v)?;
+    let name = sanitize_filename(&name);
+    let mime = mime_from_name(&name).to_string();
+    if !mime.starts_with("image/") {
+        return Err(CmdError::Params(format!("{name} isn't a picture")));
+    }
+    let cid = s.new_cid();
+    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    if compose_size(c) + data.len() > ATTACH_MAX {
+        return Err(CmdError::Failed("pictures and attachments are limited to 25 MB in total".into()));
+    }
+    let alt = name.rsplit_once('.').map_or(name.as_str(), |(n, _)| n).replace([']', '['], "");
+    let mark = format!("![{alt}](cid:{cid})");
+    c.inline.push(mailcraft_mime::InlinePicture { cid: cid.clone(), name, mime, data });
+    c.plain = false;
+    if p::bool(v, "insert").unwrap_or(true) {
+        if !c.body.is_empty() && !c.body.ends_with('\n') {
+            c.body.push('\n');
+        }
+        c.body.push_str(&mark);
+        c.body.push('\n');
+    }
+    Ok(json!({"cid": cid, "mark": mark}))
 }
 
 fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {

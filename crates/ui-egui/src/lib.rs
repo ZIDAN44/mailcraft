@@ -8,6 +8,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod dialogs;
+mod editor;
 pub mod icons;
 mod list;
 mod nav;
@@ -56,6 +57,14 @@ pub trait Services {
     fn open_path(&mut self, path: &std::path::Path) -> Result<(), String>;
     /// Show a desktop notification (new mail). The default does nothing.
     fn notify(&mut self, _title: &str, _body: &str) {}
+    /// A picture on the clipboard, as PNG bytes (`None` when there is none).
+    fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
+        None
+    }
+    /// Pictures to insert (an empty list when cancelled). The default offers the file picker.
+    fn pick_pictures(&mut self) -> Vec<PathBuf> {
+        self.pick_files()
+    }
     /// Open a web address in the browser. The default can't.
     fn open_url(&mut self, _url: &str) -> Result<(), String> {
         Err("not available".into())
@@ -96,6 +105,10 @@ pub enum Action {
     AttachFiles,
     FocusSearch,
     SetDark(Option<bool>),
+    /// Insert a picture at the cursor of the message being written (from a file).
+    InsertPicture,
+    /// Paste a picture from the clipboard, if there is one.
+    PastePicture,
     /// A link in a message was clicked (web pages open in the browser; `mailto:` starts a message).
     OpenUrl(String),
     /// Run a command for the open dialog: it closes on success and shows the error otherwise.
@@ -121,6 +134,8 @@ pub struct UiState {
     fonts_ready: bool,
     /// The compose form last shown, to focus its first field when a new one opens.
     pub(crate) compose_shown: Option<u64>,
+    /// The body's cursor (characters), where pictures go.
+    pub(crate) compose_cursor: usize,
     /// The recipient box showing suggestions (`to`, `cc`, `bcc`), the highlighted one, and the
     /// text for which Escape hid them.
     pub(crate) suggest_field: Option<&'static str>,
@@ -159,6 +174,7 @@ impl MailApp {
                 scroll_to_focus: false,
                 fonts_ready: false,
                 compose_shown: None,
+                compose_cursor: 0,
                 suggest_field: None,
                 suggest_index: 0,
                 suggest_dismissed: None,
@@ -365,6 +381,18 @@ impl MailApp {
             },
             Action::SetDark(d) => self.ui.dark = d,
             Action::OpenUrl(url) => self.open_link(&url),
+            Action::InsertPicture => {
+                for p in self.services.pick_pictures() {
+                    let r = self.session.run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "insert": false}));
+                    self.place_picture(r);
+                }
+            }
+            Action::PastePicture => {
+                if let Some(png) = self.services.clipboard_picture() {
+                    let r = self.session.run("compose.insertPicture", &json!({"name": "pasted.png", "data": png, "insert": false}));
+                    self.place_picture(r);
+                }
+            }
             Action::AttachFiles => {
                 for p in self.services.pick_files() {
                     self.run("compose.attach", json!({"path": p.to_string_lossy()}));
@@ -390,6 +418,21 @@ impl MailApp {
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
             }
+        }
+    }
+
+    /// Put a picture's mark at the body's cursor.
+    fn place_picture(&mut self, r: mailcraft_engine::CmdResult) {
+        match r {
+            Ok(v) => {
+                let mark = v.get("mark").and_then(Value::as_str).unwrap_or("").to_string();
+                if let Some(c) = self.session.compose.as_mut() {
+                    let at = c.body.char_indices().nth(self.ui.compose_cursor).map_or(c.body.len(), |(b, _)| b);
+                    c.body.insert_str(at, &format!("{mark}\n"));
+                    self.ui.compose_cursor += mark.chars().count() + 1;
+                }
+            }
+            Err(e) => self.session.notice(e.to_string(), true),
         }
     }
 

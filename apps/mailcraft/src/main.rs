@@ -69,6 +69,21 @@ impl Services for Desktop {
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         open::that_detached(path).map_err(|e| e.to_string())
     }
+    fn pick_pictures(&mut self) -> Vec<PathBuf> {
+        rfd::FileDialog::new()
+            .set_title("Insert pictures")
+            .add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
+            .pick_files()
+            .unwrap_or_default()
+    }
+    fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
+        let img = arboard::Clipboard::new().ok()?.get_image().ok()?;
+        let (w, h) = (u32::try_from(img.width).ok()?, u32::try_from(img.height).ok()?);
+        let rgba = image::RgbaImage::from_raw(w, h, img.bytes.into_owned())?;
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgba8(rgba).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
+        Some(png)
+    }
     fn open_url(&mut self, url: &str) -> Result<(), String> {
         open::that_detached(url).map_err(|e| e.to_string())
     }

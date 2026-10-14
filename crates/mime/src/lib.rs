@@ -12,6 +12,8 @@
 //! additionally fenced with `catch_unwind` and size caps, since mail is hostile input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod markup;
+
 use mail_builder::MessageBuilder;
 use mail_builder::mime::MimePart;
 use mail_parser::{Address, HeaderValue, Message, MessageParser, MimeHeaders};

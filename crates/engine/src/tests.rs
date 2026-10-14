@@ -316,6 +316,39 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn formatted_messages_go_out_as_html_with_pictures() {
+    let mut s = sample_session("rich");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plan", "body": "Hi **Ann**,\n- frames\n- sound\n"})).unwrap();
+    let png = crate::sample::sample_png();
+    let r = s.run("compose.insertPicture", &json!({"name": "board.png", "data": png})).unwrap();
+    assert!(r["mark"].as_str().unwrap().starts_with("![board](cid:"));
+    assert!(s.run("compose.insertPicture", &json!({"name": "notes.txt", "data": [1]})).is_err(), "pictures only");
+    s.run("compose.send", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    let k = key_of(&s, "Plan");
+    s.run("list.open", &k).unwrap();
+    let p = s.reading.as_ref().unwrap().parsed.clone().unwrap();
+    assert!(p.had_html);
+    assert!(p.rich.iter().flatten().any(|sp| sp.bold && sp.text == "Ann"));
+    assert!(p.text.starts_with("Hi Ann,\n- frames"), "{}", p.text);
+    assert_eq!(p.images.len(), 1);
+    assert!(p.attachments.iter().any(|a| a.inline && a.content_id.is_some()));
+
+    // Plain text: the marks go as typed, no HTML.
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plain", "body": "Keep **these** stars"})).unwrap();
+    s.run("compose.format", &json!({"plain": true})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    let k = key_of(&s, "Plain");
+    s.run("list.open", &k).unwrap();
+    let p = s.reading.as_ref().unwrap().parsed.clone().unwrap();
+    assert!(!p.had_html && p.text.contains("**these**"));
+    done(s);
+}
+
+#[test]
 fn web_pictures_load_only_when_asked() {
     let store = temp("pictures");
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));

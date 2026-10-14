@@ -220,6 +220,26 @@ pub struct Compose {
     /// The copy saved in Drafts, replaced on the next save.
     pub draft: Option<MessageKey>,
     pub show_cc: bool,
+    /// Send as plain text only (the formatting marks are then sent as typed).
+    #[serde(default)]
+    pub plain: bool,
+    /// Pictures placed in the text (`![name](cid:…)`).
+    #[serde(default)]
+    pub inline: Vec<mime::InlinePicture>,
+}
+
+impl Compose {
+    /// The text, HTML and pictures to send: formatted when the text uses formatting or has
+    /// pictures (and the message isn't set to plain text), else plain text alone.
+    pub fn bodies(&self) -> (String, Option<String>, Vec<mime::InlinePicture>) {
+        let used = mime::markup::pictures(&self.body);
+        let pictures: Vec<mime::InlinePicture> = self.inline.iter().filter(|p| used.contains(&p.cid)).cloned().collect();
+        if self.plain || (!mime::markup::has_formatting(&self.body) && pictures.is_empty()) {
+            (self.body.clone(), None, Vec::new())
+        } else {
+            (mime::markup::to_text(&self.body), Some(mime::markup::to_html(&self.body)), pictures)
+        }
+    }
 }
 
 /// A status-bar message.
@@ -411,6 +431,11 @@ impl Session {
     fn fresh_id(&mut self) -> u64 {
         self.next_id += 1;
         self.next_id
+    }
+
+    /// A fresh `Content-ID` for a picture placed in a message.
+    pub fn new_cid(&mut self) -> String {
+        format!("{:016x}@mailcraft", self.random())
     }
 
     fn random(&mut self) -> u64 {
@@ -1408,16 +1433,18 @@ impl Session {
 
     fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
         let parse = |field: &str, s: &str| addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")));
+        let (body, html, inline) = c.bodies();
         Ok(mime::Draft {
             to: parse("To", &c.to)?,
             cc: parse("Cc", &c.cc)?,
             bcc: parse("Bcc", &c.bcc)?,
             subject: c.subject.trim().to_string(),
-            body: c.body.clone(),
+            body,
             in_reply_to: c.in_reply_to.clone(),
             references: c.references.clone(),
             attachments: c.attachments.clone(),
-            ..Default::default()
+            html,
+            inline,
         })
     }
 
@@ -1480,16 +1507,18 @@ impl Session {
         let c = self.compose.clone().ok_or_else(|| CmdError::Disabled("nothing to save".into()))?;
         // Drafts may hold unfinished addresses: keep only the valid ones.
         let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
+        let (body, html, inline) = c.bodies();
         let d = mime::Draft {
             to: lenient(&c.to),
             cc: lenient(&c.cc),
             bcc: lenient(&c.bcc),
             subject: c.subject.clone(),
-            body: c.body.clone(),
+            body,
             in_reply_to: c.in_reply_to.clone(),
             references: c.references.clone(),
             attachments: c.attachments.clone(),
-            ..Default::default()
+            html,
+            inline,
         };
         let folder = self
             .account(&c.account)

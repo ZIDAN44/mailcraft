@@ -24,6 +24,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 rfd = "0.17"
 # Open attachments with the system's default app.
 open = "5"
+# Pictures pasted into a message.
+arboard = { version = "3", default-features = false, features = ["image-data"] }
 # Desktop notifications for new mail (toasts, Notification Center, freedesktop notifications).
 notify-rust = { version = "4", default-features = false, features = ["z"] }
 # Decodes the window icon (assets/app-icon).

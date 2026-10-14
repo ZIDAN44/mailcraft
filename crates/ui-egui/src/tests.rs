@@ -217,6 +217,35 @@ impl crate::Services for Recorder {
     fn notify(&mut self, title: &str, body: &str) {
         self.0.lock().unwrap().push((title.into(), body.into()));
     }
+    fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
+        Some(mailcraft_engine::sample::sample_png())
+    }
+}
+
+#[test]
+fn the_editor_formats_and_takes_pasted_pictures() {
+    let (mut a, dir) = app("editor");
+    a.services = Box::new(Recorder(Default::default()));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run(
+        "compose.update",
+        json!({"to": "ann@x.example", "subject": "s", "body": "# Plan
+Hi **Ann**, see [this](https://x.example)
+- one
+> quote"}),
+    );
+    frame(&ctx, &mut a, vec![]);
+    a.ui.compose_cursor = 0;
+    a.act(crate::Action::PastePicture);
+    let c = a.session.compose.clone().unwrap();
+    assert!(c.body.starts_with("![pasted](cid:"), "{}", c.body);
+    assert_eq!(c.inline.len(), 1);
+    frame(&ctx, &mut a, vec![]);
+    a.run("compose.format", json!({"plain": true}));
+    frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]

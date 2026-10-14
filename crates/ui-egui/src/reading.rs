@@ -8,6 +8,7 @@ use mailcraft_engine::model::{MessageKey, addr, dates};
 use mailcraft_engine::{Session, model::EmailAddress};
 use serde_json::json;
 
+use crate::editor::{self, Fmt};
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, UiState, widgets};
@@ -718,19 +719,99 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 });
             }
             ui.add_space(6.0);
+            let body_id = egui::Id::new(("compose-body", c.id));
+            // The format bar: buttons act on the body's selection (from the last frame).
+            let mut format: Option<Fmt> = None;
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.spacing_mut().button_padding = vec2(6.0, 2.0);
+                ui.add_enabled_ui(!c.plain, |ui| {
+                    for f in Fmt::ALL {
+                        let text = match f {
+                            Fmt::Bold => RichText::new(f.label()).strong(),
+                            Fmt::Italic => RichText::new(f.label()).italics(),
+                            Fmt::Strike => RichText::new(f.label()).strikethrough(),
+                            _ => RichText::new(f.label()),
+                        };
+                        if ui.add(egui::Button::new(text.size(13.0)).frame(false).min_size(vec2(26.0, 22.0))).on_hover_text(f.tip()).clicked() {
+                            format = Some(f);
+                        }
+                    }
+                    ui.add_space(6.0);
+                    if ui
+                        .add(egui::Button::new(RichText::new("Picture…").size(13.0)).frame(false))
+                        .on_hover_text("Insert a picture (or paste one)")
+                        .clicked()
+                    {
+                        acts.push(Action::InsertPicture);
+                    }
+                });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let mut plain = c.plain;
+                    if ui.checkbox(&mut plain, RichText::new("Plain text").small()).on_hover_text("Send without formatting").changed() {
+                        c.plain = plain;
+                    }
+                });
+            });
+            // Keyboard: Ctrl+B, Ctrl+I, Ctrl+K while writing.
+            if !c.plain && ui.memory(|m| m.has_focus(body_id)) {
+                ui.input_mut(|i| {
+                    for (key, f) in [(egui::Key::B, Fmt::Bold), (egui::Key::I, Fmt::Italic), (egui::Key::K, Fmt::Link)] {
+                        if i.consume_key(egui::Modifiers::COMMAND, key) {
+                            format = Some(f);
+                        }
+                    }
+                });
+            }
+            if let Some(f) = format {
+                let mut state = egui::TextEdit::load_state(ui.ctx(), body_id).unwrap_or_default();
+                let n = c.body.chars().count();
+                let sel = state.cursor.char_range().map_or(n..n, |r| {
+                    let s = r.as_sorted_char_range();
+                    s.start.0.min(n)..s.end.0.min(n)
+                });
+                let new = editor::apply(&mut c.body, sel, f);
+                state
+                    .cursor
+                    .set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(new.start), egui::text::CCursor::new(new.end))));
+                state.store(ui.ctx(), body_id);
+                ui.memory_mut(|m| m.request_focus(body_id));
+            }
             let sep = ui.available_rect_before_wrap();
             ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
             ui.add_space(6.0);
+            let plain = c.plain;
+            let tokens = t;
             egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| {
                 let h = ui.available_height().max(200.0);
-                let r = ui.add_sized(
-                    vec2(ui.available_width(), h),
-                    egui::TextEdit::multiline(&mut c.body)
-                        .frame(egui::Frame::NONE)
-                        .font(theme::regular(14.5))
-                        .hint_text("Write your message…")
-                        .lock_focus(true),
-                );
+                let mut layouter =
+                    |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| ui.painter().layout_job(editor::layout(buf.as_str(), &tokens, wrap));
+                let mut edit = egui::TextEdit::multiline(&mut c.body)
+                    .id(body_id)
+                    .frame(egui::Frame::NONE)
+                    .font(theme::regular(14.5))
+                    .hint_text("Write your message…")
+                    .lock_focus(true);
+                if !plain {
+                    edit = edit.layouter(&mut layouter);
+                }
+                let r = ui.add_sized(vec2(ui.available_width(), h), edit);
+                // Where a picture goes when one is inserted or pasted.
+                if let Some(state) = egui::TextEdit::load_state(ui.ctx(), r.id)
+                    && let Some(range) = state.cursor.char_range()
+                {
+                    st.compose_cursor = range.primary.index.0;
+                }
+                // A picture on the clipboard is pasted as a picture.
+                if r.has_focus()
+                    && ui.input(|i| {
+                        i.events
+                            .iter()
+                            .any(|e| matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command))
+                    })
+                {
+                    acts.push(Action::PastePicture);
+                }
                 if focus_body {
                     r.request_focus();
                     // Replies start above the quoted text.
