@@ -9,8 +9,7 @@ use mailcraft_model::vcard::Card;
 
 use super::*;
 
-/// Where an account's calendars and address books are kept.
-pub const PIM_DOC: &str = "pim.json";
+pub use mailcraft_model::pim::PIM_DOC;
 
 /// The part of the app on screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -290,6 +289,77 @@ impl Session {
         if remote && self.account(account).is_some_and(|a| !a.is_local()) {
             self.jobs.push(Job::SyncDav { account: account.to_string() });
         }
+    }
+
+    // ----- syncing with the server -----
+
+    /// Merge what a CalDAV / CardDAV sync found. Changes made here since stay (and go to the
+    /// server next time); everything else follows the server.
+    pub fn apply_dav(&mut self, account: &str, sync: &mailcraft_model::pim::DavSync) {
+        let p = self.pim_mut(account);
+        p.caldav_home = sync.caldav_home.clone().or_else(|| Some(String::new()));
+        p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
+        p.dav_checked = Some(sync.checked);
+        p.deleted.retain(|t| !sync.deleted.contains(&t.href));
+        // What was stored: its address and version, and no longer to send (unless it changed
+        // again meanwhile).
+        for x in &sync.pushed_events {
+            for e in p.events.iter_mut().filter(|e| e.event.uid == x.event.uid && e.event.recurrence_id == x.event.recurrence_id) {
+                e.href = x.href.clone();
+                e.etag = x.etag.clone();
+                e.dirty &= e.event != x.event;
+            }
+        }
+        for x in &sync.pushed_cards {
+            for c in p.cards.iter_mut().filter(|c| c.card.uid == x.card.uid) {
+                c.href = x.href.clone();
+                c.etag = x.etag.clone();
+                c.dirty &= c.card != x.card;
+            }
+        }
+        if let Some(server) = &sync.calendars {
+            // The calendar on this computer goes once the server has calendars, unless it holds
+            // events (they stay there).
+            let keep_local = server.is_empty() || p.events.iter().any(|e| e.calendar == LOCAL);
+            let mut list: Vec<mailcraft_model::pim::CalendarInfo> = server.clone();
+            if keep_local && let Some(l) = p.calendars.iter().find(|c| c.id == LOCAL) {
+                list.push(l.clone());
+            }
+            p.events.retain(|e| e.calendar == LOCAL || list.iter().any(|c| c.id == e.calendar) || e.dirty);
+            for cal in &sync.synced_calendars {
+                p.events.retain(|e| &e.calendar != cal || e.dirty || e.href.is_empty() || sync.kept.contains(&e.href));
+                for x in sync.events.iter().filter(|x| &x.calendar == cal) {
+                    if !p.events.iter().any(|e| e.dirty && e.event.uid == x.event.uid) {
+                        p.events.retain(|e| !(e.event.uid == x.event.uid && e.event.recurrence_id == x.event.recurrence_id && !e.dirty));
+                        p.events.push(x.clone());
+                    }
+                }
+            }
+            p.calendars = list;
+        }
+        if let Some(server) = &sync.books {
+            let keep_local = server.is_empty() || p.cards.iter().any(|c| c.book == LOCAL);
+            let mut list: Vec<mailcraft_model::pim::BookInfo> = server.clone();
+            if keep_local && let Some(l) = p.books.iter().find(|b| b.id == LOCAL) {
+                list.push(l.clone());
+            }
+            p.cards.retain(|c| c.book == LOCAL || list.iter().any(|b| b.id == c.book) || c.dirty);
+            for book in &sync.synced_books {
+                p.cards.retain(|c| &c.book != book || c.dirty || c.href.is_empty() || sync.kept.contains(&c.href));
+                for x in sync.cards.iter().filter(|x| &x.book == book) {
+                    if !p.cards.iter().any(|c| c.dirty && c.card.uid == x.card.uid) {
+                        p.cards.retain(|c| c.card.uid != x.card.uid);
+                        p.cards.push(x.clone());
+                    }
+                }
+            }
+            p.books = list;
+        }
+        p.ensure_defaults();
+        for e in sync.errors.iter().take(3) {
+            self.notice(format!("calendars and contacts: {e}"), true);
+        }
+        self.save_pim(account);
     }
 
     // ----- people -----

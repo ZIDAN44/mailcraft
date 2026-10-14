@@ -9,6 +9,9 @@ use crate::vcard::Card;
 /// The id of a calendar or address book that lives on this computer only.
 pub const LOCAL: &str = "local";
 
+/// Where an account's calendars and address books are kept in its cache.
+pub const PIM_DOC: &str = "pim.json";
+
 /// A calendar.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarInfo {
@@ -86,6 +89,45 @@ pub struct Pim {
     pub cards: Vec<StoredCard>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub deleted: Vec<Tombstone>,
+    /// Where the server keeps the user's calendars and address books (found once); empty when
+    /// it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caldav_home: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub carddav_home: Option<String>,
+    /// When the server was last asked where they are.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dav_checked: Option<i64>,
+}
+
+/// What a CalDAV / CardDAV sync found, for the engine to merge into its [`Pim`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DavSync {
+    /// The homes found (`None`: the server offers none).
+    pub caldav_home: Option<String>,
+    pub carddav_home: Option<String>,
+    pub checked: i64,
+    /// The server's calendars (`None`: no CalDAV).
+    pub calendars: Option<Vec<CalendarInfo>>,
+    /// The events of the calendars read in full (`synced_calendars`), except those unchanged
+    /// (`kept`, by href).
+    pub events: Vec<StoredEvent>,
+    pub synced_calendars: Vec<String>,
+    /// Calendars that didn't change: what the engine has stays.
+    pub unchanged_calendars: Vec<String>,
+    pub books: Option<Vec<BookInfo>>,
+    pub cards: Vec<StoredCard>,
+    pub synced_books: Vec<String>,
+    pub unchanged_books: Vec<String>,
+    /// Items read again unchanged (their etag matched).
+    pub kept: Vec<String>,
+    /// Changes stored on the server, with their new addresses and etags.
+    pub pushed_events: Vec<StoredEvent>,
+    pub pushed_cards: Vec<StoredCard>,
+    /// Deletions done (by href).
+    pub deleted: Vec<String>,
+    /// What couldn't be stored or deleted (tried again next time).
+    pub errors: Vec<String>,
 }
 
 impl Pim {

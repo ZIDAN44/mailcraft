@@ -1097,3 +1097,75 @@ fn own_events_invite_and_cancel_guests() {
     assert!(raw.contains("STATUS:CANCELLED"));
     done(s);
 }
+
+#[test]
+fn dav_results_merge_without_losing_local_changes() {
+    use mailcraft_model::ical::CalEvent;
+    use mailcraft_model::pim::{CalendarInfo, DavSync, StoredEvent};
+    let mut s = Session::open(Some(temp("dav-merge")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let cal = "https://dav.example.org/cal/work/".to_string();
+    let ev = |uid: &str, summary: &str, href: &str| StoredEvent {
+        calendar: cal.clone(),
+        href: href.into(),
+        etag: "\"1\"".into(),
+        event: CalEvent { uid: uid.into(), summary: summary.into(), start: NOW + 3600, end: NOW + 7200, ..Default::default() },
+        dirty: false,
+    };
+    let first = DavSync {
+        caldav_home: Some("https://dav.example.org/cal/".into()),
+        calendars: Some(vec![CalendarInfo { id: cal.clone(), name: "Work".into(), color: 2, read_only: false, ctag: "a".into() }]),
+        events: vec![ev("a", "Review", &format!("{cal}a.ics")), ev("b", "Lunch", &format!("{cal}b.ics"))],
+        synced_calendars: vec![cal.clone()],
+        checked: NOW,
+        ..Default::default()
+    };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(first) });
+    let p = s.pim.get(&id).unwrap();
+    assert_eq!(p.calendars.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Work"], "the empty calendar on this computer gives way");
+    assert_eq!(p.events.len(), 2);
+    assert!(s.agenda(NOW, NOW + 86_400).iter().any(|i| i.summary == "Review" && i.color == 2));
+
+    // An edit here goes to the server; the server meanwhile dropped "Lunch".
+    s.take_jobs();
+    s.run("event.update", &json!({"uid": "a", "summary": "Review (moved)"})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })), "a sync is asked for");
+    let mut pushed = s.find_event("a").unwrap().1.clone();
+    pushed.etag = "\"2\"".into();
+    pushed.dirty = false;
+    let second = DavSync {
+        caldav_home: Some("https://dav.example.org/cal/".into()),
+        calendars: Some(vec![CalendarInfo { id: cal.clone(), name: "Work".into(), color: 2, read_only: false, ctag: "b".into() }]),
+        events: vec![pushed.clone()],
+        synced_calendars: vec![cal.clone()],
+        pushed_events: vec![pushed],
+        checked: NOW,
+        ..Default::default()
+    };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(second) });
+    let p = s.pim.get(&id).unwrap();
+    assert_eq!(p.events.len(), 1, "Lunch is gone from the server");
+    assert!(!p.events[0].dirty && p.events[0].etag == "\"2\"" && p.events[0].event.summary == "Review (moved)");
+
+    // A change made while a sync was out stays to be sent.
+    s.run("event.update", &json!({"uid": "a", "summary": "Review (moved again)"})).unwrap();
+    let stale = DavSync {
+        calendars: Some(vec![CalendarInfo { id: cal.clone(), name: "Work".into(), color: 2, read_only: false, ctag: "c".into() }]),
+        events: vec![ev("a", "Review (moved)", &format!("{cal}a.ics"))],
+        synced_calendars: vec![cal.clone()],
+        caldav_home: Some("https://dav.example.org/cal/".into()),
+        ..Default::default()
+    };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(stale) });
+    let e = s.find_event("a").unwrap().1.clone();
+    assert!(e.dirty && e.event.summary == "Review (moved again)", "{e:?}");
+    // A server without calendars: the one on this computer stays.
+    let none = DavSync { checked: NOW, ..Default::default() };
+    let mut s2 = Session::open(Some(temp("dav-none")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id2 = s2.run("account.add", &json!({"email": "ann@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s2.apply(Event::DavSynced { account: id2.clone(), sync: Box::new(none) });
+    assert_eq!(s2.pim.get(&id2).unwrap().calendars[0].id, mailcraft_model::pim::LOCAL);
+    assert_eq!(s2.pim.get(&id2).unwrap().caldav_home.as_deref(), Some(""), "remembered as none");
+    done(s);
+    done(s2);
+}

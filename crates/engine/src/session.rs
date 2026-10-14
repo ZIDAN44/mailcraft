@@ -2000,6 +2000,7 @@ impl Session {
                     }
                 }
             }
+            Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
             Event::Quota { account, used, limit } => {
                 if let Some(a) = self.account_mut(&account) {
                     a.quota = Some((used, limit));

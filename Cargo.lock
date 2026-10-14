@@ -2690,6 +2690,7 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-store",
+ "quick-xml",
  "ring",
  "rustls",
  "serde",

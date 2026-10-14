@@ -20,6 +20,8 @@ webpki-roots = { workspace = true }
 ring = "0.17"
 serde = { workspace = true }
 serde_json = { workspace = true }
+# WebDAV answers (CalDAV, CardDAV).
+quick-xml = "0.41"
 log = { workspace = true }
 thiserror = { workspace = true }
 

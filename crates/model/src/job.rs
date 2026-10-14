@@ -290,6 +290,11 @@ pub enum Event {
         vacation: Option<Vacation>,
         error: Option<String>,
     },
+    /// A CalDAV / CardDAV sync's result, to merge.
+    DavSynced {
+        account: String,
+        sync: Box<crate::pim::DavSync>,
+    },
     /// Something the user should see in the status bar.
     Notice {
         account: String,

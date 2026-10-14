@@ -703,6 +703,7 @@ impl Worker {
         }
         if self.conn.is_some() {
             self.report_quota();
+            self.sync_dav();
         }
         if self.conn.is_some() {
             self.prune_jmap_numbers();
@@ -832,8 +833,7 @@ impl Worker {
                 }
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
-            // Calendars and address books sync in their own pass (net::dav).
-            Job::SyncDav { .. } => {}
+            Job::SyncDav { .. } => self.sync_dav(),
             Job::GetVacation { .. } => {
                 let r = self.vacation(None);
                 self.report_vacation(r, None);
@@ -891,6 +891,26 @@ impl Worker {
             Err(e) => (None, Some(failed.unwrap_or_else(|| e.to_string()))),
         };
         self.sink.emit(Event::Vacation { account: self.id(), vacation, error });
+    }
+
+    /// Sync calendars and address books with the account's CalDAV / CardDAV server (password
+    /// accounts: OAuth tokens are for mail only).
+    fn sync_dav(&mut self) {
+        if self.acc.oauth.is_some() {
+            return;
+        }
+        let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
+        let dav = crate::dav::Dav::new(&user, &self.pw);
+        match crate::dav::sync(&dav, &self.acc.email, &self.acc.imap.host, &pim, now()) {
+            Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
+            Err(e) => {
+                log::info!("{}: calendars and contacts: {e}", self.acc.id);
+                if matches!(e, NetError::Auth(_)) {
+                    self.notice(format!("calendars and contacts: {e}"));
+                }
+            }
+        }
     }
 
     /// Report the space used on the server (when it publishes a quota).
