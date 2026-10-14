@@ -59,6 +59,8 @@ pub struct Client {
     api: String,
     download: String,
     upload: String,
+    /// The push template (RFC 8620 §7.3), when the server offers one.
+    events: Option<String>,
     account: String,
     submission: bool,
     quota: bool,
@@ -133,6 +135,7 @@ impl Client {
             // Templates keep their braces: resolve only the part before them.
             download: template_url(&base, str_at(&v, "downloadUrl")?)?,
             upload: template_url(&base, str_at(&v, "uploadUrl")?)?,
+            events: v.get("eventSourceUrl").and_then(Value::as_str).and_then(|t| template_url(&base, t).ok()),
             account: account.to_string(),
             submission: caps.get(SUBMISSION).is_some(),
             quota: caps.get(QUOTA).is_some(),
@@ -306,6 +309,14 @@ impl Client {
 }
 
 impl Client {
+    /// Listen for changes (`state` events, with `ping`s to keep the line open); `None` when the
+    /// server doesn't push.
+    pub fn events(&self) -> Result<Option<http::EventStream<crate::stream::Stream>>> {
+        let Some(t) = &self.events else { return Ok(None) };
+        let url = expand(t, &[("types", "*"), ("closeafter", "no"), ("ping", "30")]);
+        http::open_events(&url, &[("Authorization", &self.auth)]).map(Some)
+    }
+
     /// Space used and the limit in bytes for the whole account (RFC 9425); `None` without quotas.
     pub fn quota(&self) -> Result<Option<(u64, u64)>> {
         if !self.quota {

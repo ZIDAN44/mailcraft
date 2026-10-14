@@ -40,6 +40,8 @@ pub struct Data {
     pub calls: Vec<String>,
     /// The VacationResponse singleton.
     pub vacation: Value,
+    /// Open event streams (push).
+    pub listeners: Vec<std::sync::mpsc::Sender<String>>,
     next: u32,
 }
 
@@ -55,6 +57,12 @@ impl Data {
         id
     }
 
+    /// Tell the event streams that mail changed.
+    fn notify(&mut self) {
+        let change = json!({"@type": "StateChange", "changed": {ACCOUNT: {"Email": format!("s{}", self.next)}}}).to_string();
+        self.listeners.retain(|l| l.send(change.clone()).is_ok());
+    }
+
     pub fn deliver(&mut self, mailbox: &str, raw: &[u8], keywords: &[&str], received: &str) -> String {
         let blob = self.id("B");
         self.blobs.insert(blob.clone(), raw.to_vec());
@@ -66,6 +74,7 @@ impl Data {
             keywords: keywords.iter().map(|k| k.to_string()).collect(),
             received: received.into(),
         });
+        self.notify();
         id
     }
 
@@ -116,6 +125,9 @@ impl Data {
 
     fn method(&mut self, name: &str, args: &Value, earlier: &BTreeMap<String, Value>) -> (String, Value) {
         self.calls.push(name.to_string());
+        if name.ends_with("/set") || name.ends_with("/import") {
+            self.notify();
+        }
         let ids = |args: &Value| -> Option<Vec<String>> {
             if let Some(r) = args.get("#ids") {
                 let of = r.get("resultOf")?.as_str()?;
@@ -280,11 +292,22 @@ pub fn serve(data: Data) -> Server {
     let auth = format!("Basic {}", crate::imap::base64(format!("{USER}:{PASSWORD}").as_bytes()));
     std::thread::spawn(move || {
         for conn in l.incoming() {
-            let Ok(mut s) = conn else { continue };
+            let Ok(s) = conn else { continue };
+            let (shared, auth) = (shared.clone(), auth.clone());
+            std::thread::spawn(move || handle(s, &shared, &auth));
+        }
+    });
+    Server { base, data }
+}
+
+/// One connection: one request (`Connection: close`), or an event stream held open.
+fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
+    {
+        {
             let mut reader = BufReader::new(s.try_clone().unwrap());
             let mut first = String::new();
             if reader.read_line(&mut first).unwrap_or(0) == 0 {
-                continue;
+                return;
             }
             let (mut len, mut authorized) = (0usize, false);
             loop {
@@ -304,10 +327,28 @@ pub fn serve(data: Data) -> Server {
             let _ = reader.read_exact(&mut body);
             if !authorized {
                 respond(&mut s, 401, b"{}", "application/json");
-                continue;
+                return;
             }
             let path = first.split(' ').nth(1).unwrap_or("/").to_string();
             let mut d = shared.lock().unwrap();
+            if path.starts_with("/events/") {
+                assert!(path.contains("types=%2A") || path.contains("types=*"), "{path}");
+                let (tx, rx) = std::sync::mpsc::channel::<String>();
+                d.listeners.push(tx);
+                drop(d);
+                let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n");
+                loop {
+                    let msg = match rx.recv_timeout(std::time::Duration::from_secs(1)) {
+                        Ok(m) => format!("event: state\r\ndata: {m}\r\n\r\n"),
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ": keep-alive\n\nevent: ping\ndata: {\"interval\":1}\n\n".to_string(),
+                        Err(_) => break,
+                    };
+                    if s.write_all(format!("{:x}\r\n{msg}\r\n", msg.len()).as_bytes()).is_err() {
+                        break;
+                    }
+                }
+                return;
+            }
             if path == "/.well-known/jmap" {
                 let session = json!({
                     "capabilities": {"urn:ietf:params:jmap:core": {"maxObjectsInGet": 100}, "urn:ietf:params:jmap:mail": {}, "urn:ietf:params:jmap:submission": {}, "urn:ietf:params:jmap:quota": {}, "urn:ietf:params:jmap:vacationresponse": {}},
@@ -317,7 +358,7 @@ pub fn serve(data: Data) -> Server {
                     "apiUrl": "/api/",
                     "downloadUrl": "/download/{accountId}/{blobId}/{name}?accept={type}",
                     "uploadUrl": "/upload/{accountId}/",
-                    "eventSourceUrl": "/events/",
+                    "eventSourceUrl": "/events/?types={types}&closeafter={closeafter}&ping={ping}",
                     "state": "1",
                 });
                 respond(&mut s, 200, session.to_string().as_bytes(), "application/json");
@@ -348,8 +389,7 @@ pub fn serve(data: Data) -> Server {
                 respond(&mut s, 404, b"", "text/plain");
             }
         }
-    });
-    Server { base, data }
+    }
 }
 
 #[cfg(test)]
@@ -470,11 +510,12 @@ mod tests {
         pool.submit(Job::Apply { account: "a1".into(), op: Op::DeleteFolder { path: "Clients".into() } });
         eventually("deleted", || data.lock().unwrap().by_name("Clients").is_none());
 
-        // New mail arrives; a refresh finds it.
+        // New mail arrives: the server pushes the change and the Inbox updates by itself.
         data.lock().unwrap().deliver(&inbox, &mail("Festival poster", "m4"), &[], "2024-05-07T08:00:00Z");
-        pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
-        until(&pool, "new mail", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
-        assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages[0].subject, "Festival poster");
+        until(&pool, "new mail, pushed", |e| {
+            matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX")
+                && store.load_folder("a1", "INBOX").unwrap().messages.first().is_some_and(|m| m.subject == "Festival poster")
+        });
 
         // Mailbox settings: the space used, automatic replies, emptying Deleted Items.
         assert!(seen.iter().any(|e| matches!(e, Event::Quota { used, limit: 1_000_000, .. } if *used > 0)), "the quota comes with a full sync");

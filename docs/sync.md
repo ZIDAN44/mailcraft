@@ -111,4 +111,7 @@ method calls, signed in with Basic authentication or an OAuth bearer token.
 - **Sending** uploads the message, imports it into Sent (`$seen`) and submits it with
   `EmailSubmission/set` from the identity for the sender; a refused submission removes the copy.
   Offline sends use the same Outbox. Drafts are imported with `$draft`.
-- New mail is found by polling the Inbox every two minutes (JMAP push is not used yet).
+- **Push.** Between jobs the worker holds the session's event stream open (RFC 8620 §7.3,
+  `text/event-stream`), reading it in half-second slices so jobs never wait, the way IMAP holds
+  IDLE; a `state` event syncs the Inbox. Servers without an event stream are polled every two
+  minutes.

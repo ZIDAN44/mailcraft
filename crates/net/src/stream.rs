@@ -56,6 +56,12 @@ impl Timeouts for Stream {
     }
 }
 
+impl Timeouts for TcpStream {
+    fn set_read_timeout(&mut self, t: Option<Duration>) -> io::Result<()> {
+        TcpStream::set_read_timeout(self, t)
+    }
+}
+
 fn tls_config() -> Result<Arc<ClientConfig>> {
     static CONFIG: OnceLock<std::result::Result<Arc<ClientConfig>, String>> = OnceLock::new();
     CONFIG

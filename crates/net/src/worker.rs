@@ -350,6 +350,8 @@ struct Worker {
     creds: Option<Arc<dyn Credentials>>,
     /// The ManageSieve port (4190; tests use their own).
     sieve_port: u16,
+    /// The JMAP server can't push: poll instead.
+    no_push: bool,
     /// The current OAuth access token.
     access: Option<crate::oauth::Tokens>,
 }
@@ -378,6 +380,7 @@ impl Worker {
             creds: None,
             access: None,
             sieve_port: crate::sieve::PORT,
+            no_push: false,
         }
     }
 
@@ -476,6 +479,9 @@ impl Worker {
     /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
     fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
         let inbox = self.inbox();
+        if matches!(self.conn, Some(Conn::Jmap(_))) && !self.no_push && inbox.is_some() && self.wait_for_push(rx) {
+            return;
+        }
         let idle = matches!(&self.conn, Some(Conn::Imap(c)) if c.has("IDLE"));
         if !idle || inbox.is_none() {
             match rx.recv_timeout(POLL_EVERY) {
@@ -516,6 +522,51 @@ impl Worker {
             Ok(false) => {}
             Err(e) => self.failed(e),
         }
+    }
+
+    /// JMAP push: hold the server's event stream open (as IMAP holds IDLE), checking for jobs
+    /// between short reads; a `state` event means something changed. `false` when the server
+    /// can't push (the caller polls instead).
+    fn wait_for_push(&mut self, rx: &Receiver<Job>) -> bool {
+        let Some(Conn::Jmap(c)) = &self.conn else { return false };
+        let mut es = match c.events() {
+            Ok(Some(es)) => es,
+            Ok(None) => {
+                self.no_push = true;
+                return false;
+            }
+            Err(e @ NetError::Auth(_)) => {
+                self.failed(e);
+                return true;
+            }
+            Err(e) => {
+                // Push not working (a proxy, an old server): poll from now on.
+                log::info!("{}: no JMAP push: {e}", self.acc.id);
+                self.no_push = true;
+                return false;
+            }
+        };
+        let end = Instant::now() + IDLE_FOR;
+        let mut changed = false;
+        while Instant::now() < end && !changed {
+            self.drain(rx);
+            if self.closed || !self.queue.is_empty() {
+                return true;
+            }
+            match es.next(Duration::from_millis(500)) {
+                Ok(Some(e)) => changed = e.event == "state",
+                Ok(None) => {}
+                Err(e) => {
+                    // Dropped: reopened on the next wait.
+                    log::info!("{}: JMAP push ended: {e}", self.acc.id);
+                    break;
+                }
+            }
+        }
+        if changed && let Some(f) = self.inbox() {
+            self.sync_one(&f);
+        }
+        true
     }
 
     fn inbox(&self) -> Option<String> {
