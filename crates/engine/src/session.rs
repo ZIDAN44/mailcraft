@@ -36,7 +36,7 @@ impl AccountState {
 
     /// A local-only account (the sample mailbox): no server, changes apply to the cache alone.
     pub fn is_local(&self) -> bool {
-        self.config.imap.host.trim().is_empty()
+        self.config.is_local()
     }
 }
 
@@ -1709,8 +1709,8 @@ impl Session {
         }
         config.id = format!("a{n}");
         config.color = u8::try_from(self.accounts.len() % usize::from(ACCOUNT_COLORS)).unwrap_or(0);
-        let local = config.imap.host.trim().is_empty();
-        if !local && (config.imap.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0) {
+        let local = config.is_local();
+        if !local && config.jmap.is_none() && (config.imap.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0) {
             return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
         }
         let id = config.id.clone();

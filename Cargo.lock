@@ -2192,6 +2192,7 @@ dependencies = [
  "mailcraft-store",
  "ring",
  "rustls",
+ "serde",
  "serde_json",
  "thiserror 2.0.21",
  "webpki-roots",

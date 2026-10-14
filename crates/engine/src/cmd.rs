@@ -261,7 +261,7 @@ pub fn registry() -> Registry {
         .params(r#"{"on"?: bool}"#),
         // Accounts
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP)}"#),
         CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
             let email = p::req_str(v, "email")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&email) {
@@ -757,16 +757,19 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     let email = p::req_str(v, "email")?;
     let guess = AccountConfig::guess(email);
     let local = p::bool(v, "local").unwrap_or(false);
+    let jmap = p::str(v, "jmap").map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+    let plain = local || jmap.is_some();
     let config = AccountConfig {
         id: String::new(),
         name: p::str(v, "name").map(str::to_string).unwrap_or(guess.name.clone()),
         email: email.to_string(),
         username: p::str(v, "username").map(str::to_string).unwrap_or(guess.username.clone()),
-        imap: if local { ServerConfig::default() } else { server(v, "imap", &guess.imap)? },
-        smtp: if local { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
+        imap: if plain { ServerConfig::default() } else { server(v, "imap", &guess.imap)? },
+        smtp: if plain { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
         signature: p::str(v, "signature").unwrap_or_default().to_string(),
         color: 0,
         oauth: p::str(v, "oauth").map(str::to_string),
+        jmap,
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)

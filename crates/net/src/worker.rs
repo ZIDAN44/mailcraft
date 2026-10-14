@@ -17,6 +17,7 @@ use mailcraft_model::{AccountConfig, Event, Flag, Folder, FolderRole, Job, Messa
 use mailcraft_store::{OutboxItem, Store};
 
 use crate::imap::{Client, uid_set};
+use crate::jmap;
 use crate::stream::Stream;
 use crate::sync::{SyncOptions, fetch_body, sync_folder};
 use crate::{NetError, Result, smtp};
@@ -315,13 +316,21 @@ const FULL_SYNC_EVERY: Duration = Duration::from_secs(15 * 60);
 const IDLE_FOR: Duration = Duration::from_secs(10 * 60);
 const POLL_EVERY: Duration = Duration::from_secs(120);
 
+/// The connection to an account's server.
+enum Conn {
+    Imap(Client<Stream>),
+    Jmap(jmap::Client),
+}
+
 struct Worker {
     acc: AccountConfig,
     pw: String,
     store: Store,
     sink: Sink,
     opts: SyncOptions,
-    client: Option<Client<Stream>>,
+    conn: Option<Conn>,
+    /// JMAP accounts: message numbers and mailbox ids.
+    jstate: jmap::State,
     folders: Vec<Folder>,
     ops: Vec<Op>,
     queue: VecDeque<Job>,
@@ -340,13 +349,15 @@ impl Worker {
     fn new(acc: AccountConfig, pw: String, store: Store, sink: Sink, opts: SyncOptions) -> Worker {
         let ops = store.load_ops(&acc.id).unwrap_or_default();
         let folders = store.load_folders(&acc.id).unwrap_or_default();
+        let jstate = if acc.jmap.is_some() { jmap::State::load(&store, &acc.id) } else { jmap::State::default() };
         Worker {
             acc,
             pw,
             store,
             sink,
             opts,
-            client: None,
+            conn: None,
+            jstate,
             folders,
             ops,
             queue: VecDeque::new(),
@@ -421,7 +432,7 @@ impl Worker {
                 self.handle(job);
                 continue;
             }
-            if self.client.is_none() {
+            if self.conn.is_none() {
                 if self.auth_failed {
                     match rx.recv() {
                         Ok(j) => self.queue.push_back(j),
@@ -447,7 +458,7 @@ impl Worker {
             }
             self.wait_for_mail(&rx);
         }
-        if let Some(c) = self.client.as_mut() {
+        if let Some(Conn::Imap(c)) = self.conn.as_mut() {
             c.logout();
         }
     }
@@ -455,7 +466,7 @@ impl Worker {
     /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
     fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
         let inbox = self.inbox();
-        let idle = self.client.as_ref().is_some_and(|c| c.has("IDLE"));
+        let idle = matches!(&self.conn, Some(Conn::Imap(c)) if c.has("IDLE"));
         if !idle || inbox.is_none() {
             match rx.recv_timeout(POLL_EVERY) {
                 Ok(j) => self.queue.push_back(j),
@@ -470,7 +481,7 @@ impl Worker {
         }
         let Some(inbox) = inbox else { return };
         let result = (|| -> Result<bool> {
-            let c = self.client.as_mut().ok_or_else(|| NetError::Closed("not connected".into()))?;
+            let Some(Conn::Imap(c)) = self.conn.as_mut() else { return Err(NetError::Closed("not connected".into())) };
             if c.selected() != Some(inbox.as_str()) {
                 c.select(&inbox, false)?;
             }
@@ -506,12 +517,12 @@ impl Worker {
         log::warn!("{}: {e}", self.acc.id);
         match e {
             NetError::Auth(m) => {
-                self.client = None;
+                self.conn = None;
                 self.auth_failed = true;
                 self.status(SyncStatus::NeedsPassword { error: m });
             }
             e if e.is_fatal() => {
-                self.client = None;
+                self.conn = None;
                 self.next_attempt = Instant::now() + self.backoff;
                 self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
                 self.status(SyncStatus::Error { error: e.to_string() });
@@ -521,19 +532,24 @@ impl Worker {
     }
 
     fn connect(&mut self) -> Result<()> {
-        if self.client.is_some() {
+        if self.conn.is_some() {
             return Ok(());
         }
         self.status(SyncStatus::Connecting);
         let secret = self.secret()?;
-        let mut c = Client::connect(&self.acc.imap)?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
+        if let Some(url) = &self.acc.jmap {
+            self.conn = Some(Conn::Jmap(jmap::Client::connect(url, &user, &secret, self.acc.oauth.is_some())?));
+            self.backoff = Duration::from_secs(5);
+            return Ok(());
+        }
+        let mut c = Client::connect(&self.acc.imap)?;
         if self.acc.oauth.is_some() {
             c.login_xoauth2(&user, &secret)?;
         } else {
             c.login(&user, &secret)?;
         }
-        self.client = Some(c);
+        self.conn = Some(Conn::Imap(c));
         self.backoff = Duration::from_secs(5);
         Ok(())
     }
@@ -549,17 +565,38 @@ impl Worker {
     }
 
     fn client(&mut self) -> Result<&mut Client<Stream>> {
-        self.client.as_mut().ok_or_else(|| NetError::Closed("not connected".into()))
+        match self.conn.as_mut() {
+            Some(Conn::Imap(c)) => Ok(c),
+            _ => Err(NetError::Closed("not connected".into())),
+        }
+    }
+
+    /// Save the JMAP numbering after it changed.
+    fn save_jstate(&self) {
+        if self.acc.jmap.is_some()
+            && let Err(e) = self.jstate.save(&self.store, &self.acc.id)
+        {
+            log::warn!("{}: {e}", self.acc.id);
+        }
     }
 
     /// The folder list, then every folder (Inbox first), staying responsive to opened messages.
     /// Refresh the folder list from the server; `false` when that failed.
     fn relist(&mut self) -> bool {
         let id = self.id();
-        let listed = (|| -> Result<Vec<Folder>> { self.client()?.list(&id) })();
+        let listed = match self.conn.as_mut() {
+            Some(Conn::Imap(c)) => c.list(&id),
+            Some(Conn::Jmap(c)) => jmap::list_folders(c, &mut self.jstate, &id),
+            None => Err(NetError::Closed("not connected".into())),
+        };
+        let jmap = matches!(self.conn, Some(Conn::Jmap(_)));
+        if jmap {
+            self.save_jstate();
+        }
         match listed {
             Ok(mut list) => {
-                for f in &mut list {
+                // JMAP lists the counts; IMAP's come from each folder's sync.
+                for f in list.iter_mut().filter(|_| !jmap) {
                     if let Some(old) = self.folders.iter().find(|o| o.path == f.path) {
                         f.unread = old.unread;
                         f.total = old.total;
@@ -596,17 +633,33 @@ impl Worker {
             for j in urgent {
                 self.handle(j);
             }
-            if self.closed || self.client.is_none() {
+            if self.closed || self.conn.is_none() {
                 return;
             }
             self.sync_one(&path);
         }
-        if self.client.is_some() {
+        if self.conn.is_some() {
+            self.prune_jmap_numbers();
             self.last_full = Some(Instant::now());
             // Anything left from a failed attempt gets another try every full sync.
             self.flush_outbox();
             self.status(SyncStatus::Online { at: now() });
         }
+    }
+
+    /// Forget the numbers of JMAP messages no longer cached (nor waiting in a change).
+    fn prune_jmap_numbers(&mut self) {
+        if !matches!(self.conn, Some(Conn::Jmap(_))) {
+            return;
+        }
+        let mut keep: std::collections::HashSet<u32> = self.ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
+        for f in &self.folders {
+            if let Ok(st) = self.store.load_folder(&self.acc.id, &f.path) {
+                keep.extend(st.messages.iter().map(|m| m.key.uid));
+            }
+        }
+        self.jstate.prune(&keep);
+        self.save_jstate();
     }
 
     fn publish_folders(&self) {
@@ -617,7 +670,15 @@ impl Worker {
     fn sync_one(&mut self, path: &str) {
         self.status(SyncStatus::Syncing { folder: path.to_string() });
         let (store, opts, id) = (self.store.clone(), self.opts, self.id());
-        let result = self.client().and_then(|c| sync_folder(c, &store, &id, path, &opts));
+        let result = match self.conn.as_mut() {
+            Some(Conn::Imap(c)) => sync_folder(c, &store, &id, path, &opts),
+            Some(Conn::Jmap(c)) => {
+                let r = jmap::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
+                self.save_jstate();
+                r
+            }
+            None => Err(NetError::Closed("not connected".into())),
+        };
         match result {
             Ok(r) => {
                 let first = self.folders.iter().find(|f| f.path == path).is_some_and(|f| f.total == 0 && r.total > 0);
@@ -643,7 +704,7 @@ impl Worker {
     fn handle(&mut self, job: Job) {
         match job {
             Job::SyncAll { .. } => {
-                if self.client.is_none() {
+                if self.conn.is_none() {
                     self.auth_failed = false;
                     self.next_attempt = Instant::now();
                     self.connect_and_sync();
@@ -651,11 +712,11 @@ impl Worker {
                 self.last_full = None;
             }
             Job::SyncFolder { folder, .. } => {
-                if self.client.is_none() {
+                if self.conn.is_none() {
                     self.next_attempt = Instant::now();
                     self.connect_and_sync();
                 }
-                if self.client.is_some() {
+                if self.conn.is_some() {
                     self.sync_one(&folder);
                 }
             }
@@ -675,15 +736,22 @@ impl Worker {
                 }
                 self.ops.push(op);
                 let _ = self.store.save_ops(&self.acc.id, &self.ops);
-                if self.client.is_some() {
+                if self.conn.is_some() {
                     self.replay();
                 }
             }
             Job::Send { id, raw, from, recipients, sent_folder, .. } => self.send(id, &raw, &from, &recipients, sent_folder),
             Job::SaveDraft { raw, folder, replaces, .. } => {
                 let r = (|| -> Result<()> {
-                    if self.client.is_none() {
+                    if self.conn.is_none() {
                         self.connect()?;
+                    }
+                    if let Some(Conn::Jmap(c)) = self.conn.as_mut() {
+                        jmap::append(c, &self.jstate, &folder, &raw, &["$draft", "$seen"])?;
+                        if let Some(old) = replaces {
+                            jmap::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
+                        }
+                        return Ok(());
                     }
                     let c = self.client()?;
                     c.append(&folder, "\\Draft \\Seen", &raw)?;
@@ -710,10 +778,13 @@ impl Worker {
         }
         let store = self.store.clone();
         let r = (|| -> Result<Vec<u8>> {
-            if self.client.is_none() {
+            if self.conn.is_none() {
                 self.connect()?;
             }
-            fetch_body(self.client()?, &store, &key)
+            match self.conn.as_mut() {
+                Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key),
+                _ => fetch_body(self.client()?, &store, &key),
+            }
         })();
         match r {
             Ok(raw) => {
@@ -729,9 +800,24 @@ impl Worker {
         }
     }
 
-    fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
+    /// Hand a message to the server: SMTP, or for JMAP accounts a submission (which also files
+    /// the copy in Sent).
+    fn deliver(&mut self, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<&str>) -> Result<()> {
+        if self.acc.jmap.is_some() {
+            if self.conn.is_none() {
+                self.connect()?;
+            }
+            let sent = sent_folder.map(str::to_string).or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()));
+            let Some(Conn::Jmap(c)) = &self.conn else { return Err(NetError::Closed("not connected".into())) };
+            return jmap::send(c, &self.jstate, sent.as_deref(), raw, from, recipients);
+        }
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
-        let sent = self.secret().and_then(|secret| smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw));
+        let secret = self.secret()?;
+        smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw)
+    }
+
+    fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
+        let sent = self.deliver(raw, from, recipients, sent_folder.as_deref());
         if let Err(e) = sent {
             if e.is_retryable() {
                 // Offline or asked to wait: keep it in the Outbox and send it on reconnect.
@@ -761,16 +847,13 @@ impl Worker {
     /// Send what waits in the Outbox, oldest first. Stops at the first failure that may clear
     /// up later (still offline); a message refused for good stays, marked with the error.
     fn flush_outbox(&mut self) {
-        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         for mut item in self.store.outbox(&self.acc.id) {
             let Some(raw) = self.store.outbox_raw(&self.acc.id, item.id) else { continue };
             if item.error.as_deref().is_some_and(|e| e.starts_with("refused:")) {
                 // Refused for good: waits for the user to edit or delete it.
                 continue;
             }
-            let sent = self
-                .secret()
-                .and_then(|secret| smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), &item.from, &item.recipients, &raw));
+            let sent = self.deliver(&raw, &item.from, &item.recipients, item.sent_folder.as_deref());
             match sent {
                 Ok(()) => {
                     self.store.outbox_remove(&self.acc.id, item.id);
@@ -795,11 +878,19 @@ impl Worker {
     /// A message went out: tell the engine and file a copy in Sent.
     fn after_sent(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
         self.sink.emit(Event::Sent { account: self.id(), id });
+        if self.acc.jmap.is_some() {
+            // Filed when it was submitted.
+            let sent = sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()));
+            if let Some(f) = sent.filter(|_| self.conn.is_some()) {
+                self.sync_one(&f);
+            }
+            return;
+        }
         // Gmail files sent mail itself; elsewhere keep a copy in Sent.
         let files_itself = self.acc.smtp.host.ends_with("gmail.com") || self.acc.smtp.host.ends_with("googlemail.com");
         if let Some(folder) = sent_folder.filter(|_| !files_itself) {
             let r = (|| -> Result<()> {
-                if self.client.is_none() {
+                if self.conn.is_none() {
                     self.connect()?;
                 }
                 self.client()?.append(&folder, "\\Seen", raw).map(|_| ())
@@ -816,7 +907,11 @@ impl Worker {
         let mut destinations: Vec<String> = Vec::new();
         let mut relist = false;
         while let Some(op) = self.ops.first().cloned() {
-            let r = (|| -> Result<()> { apply_remote(self.client()?, &op) })();
+            let r = match self.conn.as_mut() {
+                Some(Conn::Imap(c)) => apply_remote(c, &op),
+                Some(Conn::Jmap(c)) => jmap::apply_remote(c, &self.jstate, &op),
+                None => Err(NetError::Closed("not connected".into())),
+            };
             match r {
                 Ok(()) => {
                     match &op {
@@ -860,7 +955,7 @@ impl Worker {
         destinations.sort();
         destinations.dedup();
         for d in destinations {
-            if self.client.is_some() {
+            if self.conn.is_some() {
                 self.sync_one(&d);
             }
         }

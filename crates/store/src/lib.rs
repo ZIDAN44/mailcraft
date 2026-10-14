@@ -170,6 +170,15 @@ impl Store {
         self.write_json(&self.root.join(safe_doc(name)), value)
     }
 
+    /// A small document kept with an account's cache (removed with it).
+    pub fn load_account_doc<T: DeserializeOwned + Default>(&self, account: &str, name: &str) -> Result<T> {
+        self.read_json(&self.account_dir(account).join(safe_doc(name)))
+    }
+
+    pub fn save_account_doc<T: Serialize + ?Sized>(&self, account: &str, name: &str, value: &T) -> Result<()> {
+        self.write_json(&self.account_dir(account).join(safe_doc(name)), value)
+    }
+
     pub fn load_accounts(&self) -> Result<Vec<AccountConfig>> {
         self.read_json(&self.root.join("accounts.json"))
     }

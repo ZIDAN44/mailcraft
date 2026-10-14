@@ -82,6 +82,10 @@ pub struct AccountConfig {
     /// the keychain then holds the refresh token.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth: Option<String>,
+    /// Syncs and sends over JMAP (RFC 8620/8621) through this session URL instead of IMAP and
+    /// SMTP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jmap: Option<String>,
 }
 
 /// The OAuth provider that runs an IMAP server, when it's one MailCraft knows.
@@ -126,7 +130,13 @@ impl AccountConfig {
             signature: String::new(),
             color: 0,
             oauth: None,
+            jmap: None,
         }
+    }
+
+    /// Kept on this computer only, with no server (the sample mailbox).
+    pub fn is_local(&self) -> bool {
+        self.imap.host.trim().is_empty() && self.jmap.is_none()
     }
 }
 

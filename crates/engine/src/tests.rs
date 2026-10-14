@@ -316,6 +316,27 @@ fn remote_folder_changes_are_queued_as_jobs() {
 }
 
 #[test]
+fn jmap_accounts_need_no_imap_servers() {
+    let store = temp("jmap-account");
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s
+        .run("account.add", &json!({"email": "zoe@fastmail.example", "password": "pw", "jmap": " https://api.fastmail.example/jmap/session "}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let a = s.account(&id).unwrap();
+    assert_eq!(a.config.jmap.as_deref(), Some("https://api.fastmail.example/jmap/session"));
+    assert!(a.config.imap.host.is_empty() && !a.is_local(), "a server account, not the sample");
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.jmap.is_some()));
+    // Saved and read back.
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    let s2 = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert!(s2.account(&id).is_some_and(|a| a.config.jmap.is_some()));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn messages_save_as_eml_and_pdf() {
     let mut s = sample_session("export");
     let k = key_of(&s, "Storyboard review on Thursday");

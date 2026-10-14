@@ -89,3 +89,26 @@ timeout, or an SMTP 4xx "try later") is written to `<account>/outbox/<id>.eml` w
 after every full sync and on *Send now*, oldest first, stopping at the first failure that may
 clear up. A permanent refusal (5xx) keeps the message in the Outbox with the error until the user
 edits or deletes it.
+
+## JMAP accounts (`crates/net/src/jmap.rs`)
+
+An account with a JMAP session address (`AccountConfig::jmap`, RFC 8620/8621) syncs over HTTPS
+instead of IMAP and SMTP, behind the same jobs and events. Each request is one POST of a batch of
+method calls, signed in with Basic authentication or an OAuth bearer token.
+
+- **Keys.** JMAP message ids are strings that stay the same across mailboxes. The worker numbers
+  them as it first sees them (`<account>/jmap.json`, numbers never reused) and uses the number as
+  the UID, with a constant UIDVALIDITY of 1, so the cache, the engine and offline changes are the
+  same as for IMAP. Numbers no cached message or pending change uses are pruned after a full sync.
+- **Folders** are named by their path of mailbox names joined by `/` (the Inbox is `INBOX`); the
+  mailbox id behind each path is kept with the numbers. Roles come from the mailbox `role`.
+- **A folder sync** is two requests: `Email/query` (newest first, up to the window) with an
+  `Email/get` of the keywords by back-reference and the mailbox's counts, then the `headers` of
+  the messages not cached yet. Mail that leaves the window leaves the cache. The newest sources
+  are downloaded as blobs.
+- **Changes** are `Email/set` patches (`keywords/$seen`, `mailboxIds/<id>`), destroys for
+  permanent deletion, and `Mailbox/set` for folders.
+- **Sending** uploads the message, imports it into Sent (`$seen`) and submits it with
+  `EmailSubmission/set` from the identity for the sender; a refused submission removes the copy.
+  Offline sends use the same Outbox. Drafts are imported with `$draft`.
+- New mail is found by polling the Inbox every two minutes (JMAP push is not used yet).
