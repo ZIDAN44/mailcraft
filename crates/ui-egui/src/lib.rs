@@ -462,25 +462,36 @@ impl MailApp {
         if !bidi::covers_rtl() {
             self.ui.rtl_font = self.services.rtl_font();
         }
-        theme::install_fonts_with(ctx, regular, bold, None, self.ui.rtl_font.clone());
+        theme::install_fonts_with(ctx, regular, bold, Vec::new(), self.ui.rtl_font.clone());
         self.ui.fonts_ready = true;
     }
 
-    /// Draw in the chosen language; Chinese and Japanese need a CJK font, loaded on first use.
+    /// Draw in the chosen language. Chinese, Japanese and Korean fonts are always there as
+    /// fallbacks (the language menu names them in their own script, and mail may be in them),
+    /// the chosen language's own first: they draw shared characters differently.
     fn apply_language(&mut self, ctx: &egui::Context) {
         let lang = i18n::Lang::from_pref(&self.ui.language);
         i18n::set_current(lang);
-        if lang.cjk() && self.ui.cjk_loaded != Some(lang.code()) {
-            self.ui.cjk_loaded = Some(lang.code());
-            match self.services.cjk_font(lang.code()) {
-                Some(cjk) => {
-                    let (r, b) = self.ui.fonts.clone();
-                    theme::install_fonts_with(ctx, r, b, Some(cjk), self.ui.rtl_font.clone());
-                    ctx.request_repaint();
+        let first = if lang.cjk() { lang.code() } else { "zh-hans" };
+        if self.ui.cjk_loaded != Some(first) {
+            self.ui.cjk_loaded = Some(first);
+            // Korean has its own font; Simplified Chinese's covers Japanese kana too.
+            let second = if first == "ko" { "zh-hans" } else { "ko" };
+            let mut cjk: Vec<(Vec<u8>, u32)> = Vec::new();
+            for code in [first, second] {
+                if let Some(f) = self.services.cjk_font(code)
+                    && !cjk.iter().any(|(b, i)| *i == f.1 && b.len() == f.0.len())
+                {
+                    cjk.push(f);
                 }
-                // The built-in fallbacks draw them (installed with the other fonts).
-                None if craft_fonts::has_script("Jpan") || craft_fonts::has_script("Hans") => {}
-                None => log::warn!("no Chinese/Japanese font found: those characters can't be drawn"),
+            }
+            if !cjk.is_empty() {
+                let (r, b) = self.ui.fonts.clone();
+                theme::install_fonts_with(ctx, r, b, cjk, self.ui.rtl_font.clone());
+                ctx.request_repaint();
+            } else if lang.cjk() && !(craft_fonts::has_script("Jpan") || craft_fonts::has_script("Hans")) {
+                // (Otherwise the built-in fallbacks, installed with the other fonts, draw them.)
+                log::warn!("no Chinese/Japanese/Korean font found: those characters can't be drawn");
             }
         }
     }

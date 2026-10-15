@@ -254,13 +254,13 @@ pub fn mail_colors_on(fg: Option<[u8; 3]>, bg: Option<[u8; 3]>, page: [u8; 3], t
 }
 
 pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
-    install_fonts_with(ctx, regular, bold, None, None);
+    install_fonts_with(ctx, regular, bold, Vec::new(), None);
 }
 
-/// [`install_fonts`] with fallbacks, used after the others: for Chinese and Japanese (a font
-/// file and its index in a collection), and for Arabic and Hebrew when the main font hasn't
-/// them.
-pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Option<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
+/// [`install_fonts`] with fallbacks, used after the others: for Chinese, Japanese and Korean
+/// (font files and their index in a collection, first preferred), and for Arabic and Hebrew
+/// when the main font hasn't them.
+pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
     crate::bidi::set_coverage(regular.as_deref());
     let mut fonts = FontDefinitions::default();
     if let Some(bytes) = rtl {
@@ -271,15 +271,15 @@ pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: O
             }
         }
     }
-    if let Some((bytes, index)) = cjk {
+    for (i, (bytes, index)) in cjk.into_iter().enumerate() {
         let mut data = FontData::from_owned(bytes);
         data.index = index;
-        fonts.font_data.insert("cjk".into(), Arc::new(data));
-        if let Some(f) = fonts.families.get_mut(&FontFamily::Proportional) {
-            f.push("cjk".into());
-        }
-        if let Some(f) = fonts.families.get_mut(&FontFamily::Monospace) {
-            f.push("cjk".into());
+        let name = format!("cjk-{i}");
+        fonts.font_data.insert(name.clone(), Arc::new(data));
+        for family in [FontFamily::Proportional, FontFamily::Monospace] {
+            if let Some(f) = fonts.families.get_mut(&family) {
+                f.push(name.clone());
+            }
         }
     }
     add_craft_fallbacks(&mut fonts);
