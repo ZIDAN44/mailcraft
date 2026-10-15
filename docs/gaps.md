@@ -14,7 +14,7 @@ _Status: v0.1, 2026-10-15._
 | 1 | **HTML layout** | HTML mail shows formatted, with its colours, highlights and tables, and hidden parts stay hidden; but it's laid out as one column of text. Newsletters built from nested layout tables lose their columns. A sanitised HTML/CSS layout engine would keep them. |
 | 2 | **On-premises Exchange** | Exchange Online works through Microsoft Graph, mail, calendars and contacts. On-premises Exchange without IMAP needs EWS (SOAP); ActiveSync is licensed and out of scope. |
 | 3 | **Outlook data files: tasks, and files inside attached messages** | `.pst` files open with their mail, contacts and calendar, and accounts export to `.pst` (mail). Tasks and notes are skipped; an attached message comes in without its own attachments (the reader doesn't expose them); export writes mail only (the writer has no contact or appointment items) and leaves out flags. |
-| 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch` and needs the server to allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts need a relay; push needs EventSource with credentials (polling instead); the mail cache is in memory (IndexedDB would keep it between visits). |
+| 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts would need a relay server, which MailCraft doesn't have. |
 | 5 | **Right-to-left languages** | Eleven interface languages; Arabic, Hebrew and Persian need egui to lay out bidirectional text. |
 | 6 | **Drag attachments out on Linux** | Works on Windows and macOS; Linux would need GTK's drag source. |
 
@@ -72,4 +72,5 @@ _Status: v0.1, 2026-10-15._
   off: folders, sync, changes, drafts, sending, automatic replies, calendars and contacts (both
   ways).
 - **Web build:** `apps/mailcraft-web`, the same window in the browser over JMAP and `fetch`, with
+  push (the event stream read through `fetch`), the cache kept in IndexedDB between visits,
   downloads, the browser's file picker and a `?sample` mailbox.

@@ -18,6 +18,7 @@
 //! the headers of the ones not cached yet. Mail that falls out of the window leaves the cache.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod sse;
 pub mod url;
 
 use std::collections::{BTreeMap, HashMap};

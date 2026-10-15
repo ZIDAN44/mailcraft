@@ -1,5 +1,6 @@
 //! The browser shell: the eframe web runner, the browser's `Services`, and what the page keeps
-//! in local storage between visits.
+//! between visits: the cache in IndexedDB (local storage when that's unavailable), settings in
+//! local storage.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -15,7 +16,7 @@ use crate::backend::WebBackend;
 
 const CANVAS_ID: &str = "mailcraft_canvas";
 const LOADING_ID: &str = "mailcraft_loading";
-/// Where the account list and settings are kept (no passwords, no mail).
+/// Where the account list and settings are kept without IndexedDB (no passwords, no mail).
 const FILES_KEY: &str = "mailcraft.files";
 const UI_KEY: &str = "mailcraft.ui";
 /// Most bytes kept in local storage (browsers allow about 5 MB a site).
@@ -32,6 +33,25 @@ pub fn start() {
             log::error!("missing <canvas id=\"{CANVAS_ID}\">");
             return;
         };
+        let sample = query().contains("sample");
+        // The cache from the last visit.
+        let (db, kept) = if sample {
+            (None, Vec::new())
+        } else {
+            match crate::idb::open().await {
+                Ok(db) => {
+                    let kept = crate::idb::load(&db).await.unwrap_or_else(|e| {
+                        log::warn!("the kept mail could not be read: {e}");
+                        Vec::new()
+                    });
+                    (Some(db), kept)
+                }
+                Err(e) => {
+                    log::warn!("no IndexedDB ({e}): only settings are kept");
+                    (None, Vec::new())
+                }
+            }
+        };
         let mut options = eframe::WebOptions::default();
         if query().contains("webgl")
             && let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup
@@ -42,8 +62,7 @@ pub fn start() {
             .start(
                 canvas,
                 options,
-                Box::new(|cc| {
-                    let sample = query().contains("sample");
+                Box::new(move |cc| {
                     let (now, offset) = clock();
                     let store = if sample {
                         let s = Store::memory();
@@ -51,11 +70,25 @@ pub fn start() {
                             log::error!("the sample mailbox couldn't be made: {e}");
                         }
                         s
+                    } else if !kept.is_empty() {
+                        Store::memory_from(kept)
                     } else {
+                        // A first visit with IndexedDB, or none: what local storage has.
                         let kept: Vec<(String, String)> =
                             cc.storage.and_then(|s| s.get_string(FILES_KEY)).and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
-                        Store::memory_from(kept.into_iter().map(|(p, v)| (p, v.into_bytes())).collect())
+                        let s = Store::memory_from(kept.into_iter().map(|(p, v)| (p, v.into_bytes())).collect());
+                        // Into IndexedDB from now on.
+                        if let Some(db) = &db {
+                            let all: Vec<_> = s.snapshot(|_| true).into_iter().map(|(p, v)| (p, Some(v))).collect();
+                            if let Err(e) = crate::idb::save(db, &all) {
+                                log::warn!("the mail cache wasn't kept: {e}");
+                            }
+                        }
+                        s
                     };
+                    if db.is_some() {
+                        store.track_changes();
+                    }
                     let mut session = Session::open(Some(store.clone()), Clock::new(now, offset));
                     session.jmap_only = true;
                     let backend = WebBackend::new(store.clone(), cc.egui_ctx.clone());
@@ -67,7 +100,7 @@ pub fn start() {
                     if let Some(v) = cc.storage.and_then(|s| s.get_string(UI_KEY)).and_then(|j| serde_json::from_str(&j).ok()) {
                         app.restore_state(&v);
                     }
-                    Ok(Box::new(WebShell { app, store, sample }))
+                    Ok(Box::new(WebShell { app, store, sample, db }))
                 }),
             )
             .await;
@@ -97,16 +130,35 @@ struct WebShell {
     app: MailApp,
     store: Store,
     sample: bool,
+    /// Where the cache is kept between visits.
+    db: Option<web_sys::IdbDatabase>,
 }
 
 impl eframe::App for WebShell {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        // What changed in the cache this frame goes to IndexedDB.
+        if let Some(db) = &self.db {
+            let changes: Vec<_> = self.store.take_changes().into_iter().filter(|(p, _)| !p.ends_with(".bad")).collect();
+            if !changes.is_empty()
+                && let Err(e) = crate::idb::save(db, &changes)
+            {
+                log::warn!("the mail cache wasn't kept: {e}");
+            }
+        }
     }
 
-    /// Keep the account list, folder lists and settings (not mail, never passwords).
+    /// Keep the settings, and without IndexedDB the account and folder lists (not mail, never
+    /// passwords).
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         if self.sample {
+            return;
+        }
+        if let Ok(j) = serde_json::to_string(&self.app.saved_state()) {
+            storage.set_string(UI_KEY, j);
+        }
+        if self.db.is_some() {
+            storage.remove_string(FILES_KEY);
             return;
         }
         let keep = |p: &str| p.ends_with(".json") && !p.ends_with(".bad") && !p.contains("/outbox/");
@@ -121,9 +173,6 @@ impl eframe::App for WebShell {
             && let Ok(j) = serde_json::to_string(&files)
         {
             storage.set_string(FILES_KEY, j);
-        }
-        if let Ok(j) = serde_json::to_string(&self.app.saved_state()) {
-            storage.set_string(UI_KEY, j);
         }
     }
 

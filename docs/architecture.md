@@ -12,7 +12,7 @@
             └──────────────────────────────────────────────────────────┘
 
             ┌──────────── apps/mailcraft-web (eframe web runner) ─────────┐
-            │  the same ui-egui and engine; store in memory; downloads    │
+            │  the same ui-egui and engine; store in memory ⇄ IndexedDB    │
             │  WebBackend: jobs run per account ── jmap (L2) over fetch ──▶ JMAP
             └──────────────────────────────────────────────────────────────┘
 ```
@@ -45,10 +45,12 @@ on this computer only: the pool applies its changes to the cache directly.
 
 ## The browser (`apps/mailcraft-web`)
 
-The same `MailApp` runs in eframe's web runner. The store is `Store::memory()`; the account list,
-folder lists and settings are kept in the page's local storage (no mail, never passwords). The
-`WebBackend` runs each account's jobs in order on the browser's event loop with `mailcraft-jmap`
-over `fetch`, polls the Inbox every two minutes, and answers what a browser can't do (IMAP,
+The same `MailApp` runs in eframe's web runner. The store is `Store::memory()`, loaded from
+IndexedDB at start; it notes the files that change (`Store::take_changes`) and each frame's
+changes are written back, so mail stays between visits (settings stay in local storage; never
+passwords). The `WebBackend` runs each account's jobs in order on the browser's event loop with
+`mailcraft-jmap` over `fetch`, holds the push stream open (read through `fetch`, parsed by
+`mailcraft_jmap::sse`), polls as the fallback, and answers what a browser can't do (IMAP,
 OAuth sign-in, data files) with an explanation. `Services` tells the UI files are downloads and
 that the file picker answers on a later frame. `Session::jmap_only` keeps the account form to
 JMAP.

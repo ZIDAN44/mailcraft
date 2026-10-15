@@ -31,5 +31,8 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = [
     "Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Location",
     "Blob", "BlobPropertyBag", "Url",
-    "Headers", "Request", "RequestInit", "RequestMode", "RequestCredentials", "Response",
+    "Headers", "Request", "RequestInit", "RequestMode", "RequestCredentials", "RequestCache", "Response",
+    "ReadableStream", "ReadableStreamDefaultReader", "AbortController", "AbortSignal",
+    "IdbFactory", "IdbOpenDbRequest", "IdbRequest", "IdbDatabase", "IdbTransaction", "IdbTransactionMode", "IdbObjectStore",
+    "DomStringList", "Event",
 ] }

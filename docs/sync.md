@@ -176,7 +176,9 @@ behind `catch_unwind`, unreadable items are skipped and counted, and sizes are c
 
 ## In the browser (`apps/mailcraft-web`)
 
-The web build keeps the cache in memory and runs each account's jobs in order over JMAP and
-`fetch`. The Inbox is polled every two minutes and everything every eight checks (a browser's
-EventSource can't send the credentials JMAP push needs). Passwords stay in the tab; after a
+The web build keeps the cache in memory, mirrored to IndexedDB, and runs each account's jobs in
+order over JMAP and `fetch`. New mail comes by push: the session's event stream is read through
+`fetch` (an `EventSource` can't send the `Authorization` header), a `state` event syncs the Inbox,
+and the Inbox syncs once whenever the stream opens. Without push the Inbox is polled every two
+minutes; everything syncs every eight checks either way. Passwords stay in the tab; after a
 reload the account asks for its password again.

@@ -625,7 +625,13 @@ mod tests {
         let port = std::env::var("MAILCRAFT_FAKE_JMAP_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8775);
         let server = serve_at(d, port);
         println!("JMAP at {}/.well-known/jmap ({USER} / {PASSWORD})", server.base);
-        std::thread::sleep(Duration::from_secs(600));
+        // New mail now and then, to watch push bring it in.
+        for n in 1..=10 {
+            std::thread::sleep(Duration::from_secs(60));
+            let subject = format!("Pushed message {n}");
+            server.data.lock().unwrap().deliver(&inbox, &mail(&subject, &format!("push{n}")), &[], "2026-10-15T12:00:00Z");
+            println!("delivered {subject}");
+        }
     }
 
     fn jmap_number(store: &Store, id: &str) -> Option<u32> {
