@@ -1815,11 +1815,15 @@ impl Session {
     fn search_results(&mut self, q: &str, scope: SearchScope) -> Vec<Summary> {
         let mut query = Query::parse(q);
         // `category:Work` means the Work category's keyword (`$label2`).
+        // `is:categorized` means one of the categories.
         for c in &mut query.clauses {
             if let mailcraft_model::search::Term::Keyword(k) = &mut c.term
                 && let Some(cat) = self.category(k)
             {
                 *k = cat.keyword.clone();
+            }
+            if let mailcraft_model::search::Term::Categorized(ks) = &mut c.term {
+                *ks = self.prefs.categories.iter().map(|c| c.keyword.clone()).collect();
             }
         }
         if query.is_empty() {

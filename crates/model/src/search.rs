@@ -41,6 +41,11 @@ pub enum Term {
     /// Carries a keyword (`keyword:x`; `category:` names are mapped to keywords by the caller,
     /// and match the keyword spelled as the name too). `is:pinned` is the `$Pinned` keyword.
     Keyword(String),
+    /// Marked high importance by its sender (`is:important`).
+    Important,
+    /// Carries one of these keywords (`is:categorized`: the caller fills in its categories'
+    /// keywords; left empty, any keyword that isn't a system one, `$…`, counts).
+    Categorized(Vec<String>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -128,6 +133,8 @@ impl Query {
                         "flagged" => Some(Term::Flagged(true)),
                         "unflagged" => Some(Term::Flagged(false)),
                         "pinned" => Some(Term::Keyword(crate::PINNED.to_string())),
+                        "important" => Some(Term::Important),
+                        "categorized" | "categorised" => Some(Term::Categorized(Vec::new())),
                         _ => text_term(Field::Any, &tok),
                     },
                     "isread" => yes_no(v).map(|b| Term::Unread(!b)),
@@ -208,6 +215,9 @@ fn clause_matches(term: &Term, doc: &Doc<'_>) -> bool {
         Term::Unread(b) => !m.flags.seen == *b,
         Term::Flagged(b) => m.flags.flagged == *b,
         Term::Keyword(k) => m.flags.has(k) || m.flags.has(&crate::keyword_for(k)),
+        Term::Important => m.importance > 0,
+        Term::Categorized(ks) if ks.is_empty() => m.flags.keywords.iter().any(|k| !k.starts_with('$')),
+        Term::Categorized(ks) => ks.iter().any(|k| m.flags.has(k)),
         Term::Phrase(f, p) => field_text(f, doc).to_lowercase().contains(p.as_str()),
         Term::Words(f, ws) => {
             let text = field_text(f, doc);
@@ -339,6 +349,13 @@ mod tests {
         assert!(q("-from:ann", &m));
         assert!(q("zoe@studio.example", &m));
         assert!(q("body:sketches", &m));
+        assert!(!q("is:important", &m) && !q("is:categorized", &m));
+        let mut m2 = m.clone();
+        m2.importance = 1;
+        m2.flags.keywords = vec!["$Pinned".into(), "work".into()];
+        assert!(q("is:important is:categorized", &m2));
+        let label = Query { clauses: vec![Clause { term: Term::Categorized(vec!["$label1".into()]), negated: false }] };
+        assert!(!label.matches(&Doc { summary: &m2, body: None }));
         assert!(Query::parse("").matches(&Doc { summary: &m, body: None }));
     }
 

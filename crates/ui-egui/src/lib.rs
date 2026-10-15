@@ -45,7 +45,7 @@ use std::path::PathBuf;
 
 use egui::{Align, Color32, Key, Layout, Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::model::{Event, Job, MessageKey, SyncStatus};
-use mailcraft_engine::{CalMode, Module, ReadingPane, Session};
+use mailcraft_engine::{CalMode, Module, ReadingPane, SearchScope, Session};
 use serde_json::{Value, json};
 
 pub use dialogs::Dialog;
@@ -200,6 +200,8 @@ pub enum RibbonTab {
     Home,
     SendReceive,
     View,
+    /// While searching, as Outlook's Search tab: the scope, terms to narrow it, Close Search.
+    Search,
 }
 
 /// Something a pane asks for; run after drawing so panes only borrow what they read.
@@ -318,6 +320,13 @@ pub struct UiState {
     pub tab: RibbonTab,
     pub search_text: String,
     focus_search: bool,
+    /// The search box has the keyboard focus (the Search tab stays while it does).
+    search_focused: bool,
+    /// Put the search box's cursor at the end when it next takes the focus.
+    search_cursor_end: bool,
+    /// Where the ribbon was last drawn (a click on the Search tab's buttons takes the focus
+    /// from the box, and mustn't close the tab).
+    ribbon_rect: Option<egui::Rect>,
     pub dialog: Option<Dialog>,
     previews: HashMap<(MessageKey, usize), Option<egui::TextureHandle>>,
     /// Decoded web pictures, by address.
@@ -410,6 +419,9 @@ impl MailApp {
                 tab: RibbonTab::Home,
                 search_text: String::new(),
                 focus_search: false,
+                search_focused: false,
+                search_cursor_end: false,
+                ribbon_rect: None,
                 dialog: None,
                 previews: HashMap::new(),
                 web_pictures: HashMap::new(),
@@ -592,6 +604,7 @@ impl MailApp {
                 .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 4)).stroke(egui::Stroke::new(1.0, t.border)))
                 .show(ui, |ui| {
                     self.ribbon(ui, &mut acts);
+                    self.ui.ribbon_rect = Some(ui.min_rect());
                 });
         }
         egui::Panel::bottom("status").exact_size(26.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3))).show(
@@ -1387,6 +1400,19 @@ impl MailApp {
                         .desired_width(search_w - 60.0)
                         .text_color(t.text);
                     let resp = ui.add(te);
+                    // Into the search box: the Search tab, as Outlook switches to it.
+                    if resp.gained_focus() {
+                        self.ui.tab = RibbonTab::Search;
+                    }
+                    self.ui.search_focused = resp.has_focus();
+                    if self.ui.search_cursor_end {
+                        self.ui.search_cursor_end = false;
+                        if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), resp.id) {
+                            let end = egui::text::CCursor::new(self.ui.search_text.chars().count());
+                            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+                            state.store(ui.ctx(), resp.id);
+                        }
+                    }
                     if self.ui.focus_search {
                         resp.request_focus();
                         self.ui.focus_search = false;
@@ -1416,11 +1442,19 @@ impl MailApp {
     fn ribbon(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         let s = &self.session;
+        // The Search tab goes when the search does (and the box isn't being typed in).
+        let on_ribbon = self.ui.ribbon_rect.zip(ui.ctx().pointer_latest_pos()).is_some_and(|(r, p)| r.contains(p));
+        if self.ui.tab == RibbonTab::Search && s.search.is_none() && !self.ui.search_focused && !on_ribbon {
+            self.ui.tab = RibbonTab::Home;
+        }
+        let searching = self.ui.tab == RibbonTab::Search || s.search.is_some();
         ui.horizontal(|ui| {
             if ui.add(egui::Button::new(RichText::new(tl!("File")).color(t.dim).font(theme::regular(13.5))).frame_when_inactive(false)).clicked() {
                 acts.push(Action::Backstage(backstage::Page::Info));
             }
-            for (tab, label) in [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View")] {
+            let tabs =
+                [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View"), (RibbonTab::Search, "Search")];
+            for (tab, label) in tabs.into_iter().filter(|(tab, _)| *tab != RibbonTab::Search || searching) {
                 let on = self.ui.tab == tab;
                 let r = ui.add(
                     egui::Button::new(RichText::new(tl!(label)).color(if on { t.accent } else { t.dim }).font(if on {
@@ -1482,11 +1516,13 @@ impl MailApp {
             });
             return;
         }
+        let confirm_delete = self.needs_delete_confirm();
+        let ust = &mut self.ui;
         // A narrow window scrolls the ribbon sideways rather than cutting buttons off.
         egui::ScrollArea::horizontal().id_salt("ribbon").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                match self.ui.tab {
+                match ust.tab {
                     RibbonTab::Home => {
                         if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled("mail.new"))
                             .on_hover_text(tl!("New mail (Ctrl+N)"))
@@ -1512,7 +1548,7 @@ impl MailApp {
                         });
                         widgets::group_sep(ui, &t);
                         if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
-                            if self.needs_delete_confirm() {
+                            if confirm_delete {
                                 acts.push(Action::Dialog(Dialog::ConfirmDelete { count: s.selection.len() }));
                             } else {
                                 acts.push(Action::Run("mail.delete", json!({})));
@@ -1610,7 +1646,7 @@ impl MailApp {
                             acts.push(Action::Run("outbox.send", json!({})));
                         }
                         // Working offline: no connections; mail you send waits in the Outbox.
-                        if self.ui.has_files {
+                        if ust.has_files {
                             widgets::group_sep(ui, &t);
                             let off = s.prefs.work_offline;
                             if ui
@@ -1620,6 +1656,63 @@ impl MailApp {
                             {
                                 acts.push(Action::Run("mail.workOffline", json!({"on": !off})));
                             }
+                        }
+                    }
+                    RibbonTab::Search => {
+                        let query = s.search.as_ref().map(|(q, _)| q.clone()).unwrap_or_else(|| ust.search_text.clone());
+                        let all = s.search.as_ref().is_none_or(|(_, scope)| *scope == SearchScope::All);
+                        ui.label(RichText::new(tl!("Look in")).color(t.dim));
+                        for (on, label, scope) in [(all, "All folders", "all"), (!all, "This folder", "current")] {
+                            if ui.selectable_label(on, tl!(label)).clicked() && !on && !query.trim().is_empty() {
+                                acts.push(Action::Run("search.run", json!({"query": query, "scope": scope})));
+                            }
+                        }
+                        widgets::group_sep(ui, &t);
+                        // Terms to type a name after: put in the box, ready for it.
+                        for (icon, label, term) in
+                            [(Icon::Person, "From", "from:"), (Icon::Send, "Sent To", "to:"), (Icon::Read, "Subject", "subject:")]
+                        {
+                            if widgets::tool_button(ui, icon, label, &t, true).clicked() {
+                                let text = &mut ust.search_text;
+                                if !text.is_empty() && !text.ends_with(' ') {
+                                    text.push(' ');
+                                }
+                                text.push_str(term);
+                                ust.focus_search = true;
+                                ust.search_cursor_end = true;
+                            }
+                        }
+                        // Terms that narrow at once: on, or off again.
+                        for (icon, label, term) in [
+                            (Icon::Attach, "Has Attachments", "has:attachment"),
+                            (Icon::Unread, "Unread", "is:unread"),
+                            (Icon::Tag, "Categorized", "is:categorized"),
+                            (Icon::Flag, "Flagged", "is:flagged"),
+                            (Icon::Warning, "Important", "is:important"),
+                        ] {
+                            let words: Vec<&str> = query.split_whitespace().collect();
+                            let on = words.iter().any(|w| w.eq_ignore_ascii_case(term));
+                            if widgets::tool_toggle(ui, icon, label, &t, on).clicked() {
+                                let q = if on {
+                                    words.iter().filter(|w| !w.eq_ignore_ascii_case(term)).copied().collect::<Vec<_>>().join(" ")
+                                } else if query.trim().is_empty() {
+                                    term.to_string()
+                                } else {
+                                    format!("{} {term}", query.trim_end())
+                                };
+                                ust.search_text = q.clone();
+                                if q.trim().is_empty() {
+                                    acts.push(Action::Run("search.clear", json!({})));
+                                } else {
+                                    acts.push(Action::Run("search.run", json!({"query": q, "scope": if all { "all" } else { "current" }})));
+                                }
+                            }
+                        }
+                        widgets::group_sep(ui, &t);
+                        if widgets::tool_button(ui, Icon::Close, "Close Search", &t, true).clicked() {
+                            acts.push(Action::Run("search.clear", json!({})));
+                            ust.search_text.clear();
+                            ust.tab = RibbonTab::Home;
                         }
                     }
                     RibbonTab::View => {
@@ -1662,7 +1755,7 @@ impl MailApp {
                         widgets::group_sep(ui, &t);
                         ui.label(RichText::new(tl!("Theme")).color(t.dim));
                         for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
-                            if ui.selectable_label(self.ui.dark == v, tl!(label)).clicked() {
+                            if ui.selectable_label(ust.dark == v, tl!(label)).clicked() {
                                 acts.push(Action::SetDark(v));
                             }
                         }
