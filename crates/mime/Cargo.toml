@@ -13,4 +13,6 @@ mailcraft-model = { workspace = true }
 mail-parser = { workspace = true }
 mail-builder = { workspace = true }
 html2text = { workspace = true }
+# HTML layout (tables and columns): its tokenizer (html2text uses the same version).
+html5ever = "0.40"
 serde = { workspace = true }

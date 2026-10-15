@@ -11,7 +11,7 @@ _Status: v0.1, 2026-10-15._
 
 | # | Gap | Notes |
 |---|---|---|
-| 1 | **HTML layout** | HTML mail shows formatted, with its colours, highlights and tables, and hidden parts stay hidden; but it's laid out as one column of text. Newsletters built from nested layout tables lose their columns. A sanitised HTML/CSS layout engine would keep them. |
+| 1 | **HTML layout beyond tables** | Mail laid out with tables keeps its columns, widths, coloured bands and centring; layouts made with CSS alone (floats, flexbox, grid, positioning) and background pictures still flow as one column. |
 | 2 | **On-premises Exchange** | Exchange Online works through Microsoft Graph, mail, calendars and contacts. On-premises Exchange without IMAP needs EWS (SOAP); ActiveSync is licensed and out of scope. |
 | 3 | **Outlook data files: tasks, and files inside attached messages** | `.pst` files open with their mail, contacts and calendar, and accounts export to `.pst` (mail). Tasks and notes are skipped; an attached message comes in without its own attachments (the reader doesn't expose them); export writes mail only (the writer has no contact or appointment items) and leaves out flags. |
 | 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts would need a relay server, which MailCraft doesn't have. |
@@ -33,7 +33,9 @@ _Status: v0.1, 2026-10-15._
 - **Notifications:** desktop notifications for new mail, unread count in the window title.
 - **Organising:** colour categories (IMAP keywords), pinning, snooze, inbox rules, Focused/Other.
 - **HTML mail:** shown formatted with its colours, highlights and tables (adjusted for contrast);
-  pictures from the web only on request, remembered per sender.
+  newsletters laid out with tables keep their columns (side by side when there's room, one under
+  the other when not), widths, coloured cells and centring; pictures from the web only on
+  request, remembered per sender.
 - **Rich-text compose:** written as it will look (no marks), from the Message ribbon or with
   Outlook's shortcuts: font size, bold, italic, underline, strikethrough, font and highlight
   colours, bullets and numbering, alignment, indent, clear formatting, links and pictures, with

@@ -12,6 +12,7 @@
 //! additionally fenced with `catch_unwind` and size caps, since mail is hostile input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod layout;
 pub mod markup;
 pub mod rich;
 
@@ -27,7 +28,7 @@ use serde::{Deserialize, Serialize};
 /// Longest preview kept in a summary, in characters.
 pub const PREVIEW_CHARS: usize = 200;
 /// HTML larger than this is cut before conversion (the rest is rarely more than markup).
-const HTML_MAX: usize = 4 << 20;
+pub(crate) const HTML_MAX: usize = 4 << 20;
 
 fn addrs(a: Option<&Address<'_>>) -> Vec<EmailAddress> {
     a.map(|a| a.iter().filter_map(|x| x.address().map(|e| EmailAddress::new(x.name().unwrap_or_default().trim(), e.trim()))).collect())
@@ -251,6 +252,9 @@ pub struct Parsed {
     /// The HTML body, formatted (empty for plain-text mail).
     #[serde(default)]
     pub rich: RichText,
+    /// The HTML body's columns, for mail laid out with tables (empty otherwise: `rich` flows).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layout: Vec<layout::Block>,
     /// Every picture the HTML body shows (`cid:` and web addresses).
     #[serde(default)]
     pub images: Vec<String>,
@@ -525,9 +529,9 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     let m = MessageParser::default().parse(raw)?;
     // mail-parser lists text parts among the HTML bodies too (converted); only real HTML counts.
     let real_html = m.html_bodies().any(|p| p.is_text_html());
-    let (rich, images) = match m.body_html(0).filter(|_| real_html) {
-        Some(h) => (html_to_rich(&h), html_images(&h)),
-        None => (Vec::new(), Vec::new()),
+    let (rich, images, layout) = match m.body_html(0).filter(|_| real_html) {
+        Some(h) => (html_to_rich(&h), html_images(&h), layout::html_layout(&h)),
+        None => (Vec::new(), Vec::new(), Vec::new()),
     };
     let (text, had_html) = match (m.text_body_count() > 0, m.body_text(0), m.body_html(0)) {
         // Prefer the HTML version when the text part is an auto-generated stub.
@@ -575,6 +579,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         text,
         had_html,
         rich,
+        layout,
         images,
         attachments,
         unsubscribe,

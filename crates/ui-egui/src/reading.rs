@@ -1,7 +1,7 @@
 //! The reading pane (the open message with its conversation and attachments) and the inline
 //! compose form that replaces it while a message is being written.
 
-use egui::{Color32, Margin, Rect, RichText, Sense, Ui, vec2};
+use egui::{Align, Color32, Margin, Rect, RichText, Sense, Ui, vec2};
 use mailcraft_engine::mime::{self, AttachmentKind};
 use mailcraft_engine::model::contacts::Contact;
 use mailcraft_engine::model::{MessageKey, addr, dates};
@@ -576,110 +576,273 @@ fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, p: &mime::Parsed, acts: &mut V
 }
 
 /// An HTML message, formatted: emphasis, code, links (opened in the browser on click) and
-/// pictures: those inside the message always, those on the web only once allowed.
+/// pictures: those inside the message always, those on the web only once allowed. Mail laid out
+/// with tables keeps its columns ([`mime::layout`]).
 fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let allowed = s.pictures_allowed();
-    let mut shown: Vec<&str> = Vec::new();
+    let mut shown: Vec<String> = Vec::new();
     let width = ui.available_width();
-    for line in &p.rich {
-        if line.is_empty() {
-            ui.add_space(9.0);
-            continue;
-        }
-        // A line with right-to-left text is laid out whole, in order (its links show, but as text).
-        if line.iter().any(|sp| crate::bidi::has_rtl(&sp.text)) && line.iter().all(|sp| sp.image.is_none()) {
-            let mut job = egui::text::LayoutJob::default();
-            for sp in line {
-                let (fg, bg) = theme::mail_colors(sp.color, sp.background, &t, if sp.link.is_some() { t.accent } else { t.text });
-                let font = if sp.heading > 0 {
-                    theme::bold(match sp.heading {
-                        1 => 22.0,
-                        2 => 19.0,
-                        3 => 17.0,
-                        _ => 15.5,
-                    })
-                } else if sp.code {
-                    egui::FontId::monospace(13.5)
-                } else if sp.bold {
-                    theme::bold(14.5)
-                } else {
-                    theme::regular(14.5)
-                };
-                let format = egui::TextFormat {
-                    font_id: font,
-                    color: fg,
-                    background: bg.unwrap_or(Color32::TRANSPARENT),
-                    italics: sp.italic,
-                    strikethrough: if sp.strike { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
-                    underline: if sp.link.is_some() { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
-                    ..Default::default()
-                };
-                job.append(&sp.text, 0.0, format);
-            }
-            job.wrap.max_width = width;
-            let job = ui.fonts_mut(|f| crate::bidi::job(f, job));
-            ui.add(egui::Label::new(job).selectable(false));
-            continue;
-        }
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            for sp in line {
-                if let Some(src) = &sp.image {
-                    shown.push(src.as_str());
-                    if !picture(s, st, ui, key, p, src, allowed, width) {
-                        let alt = if sp.text.trim().is_empty() { "picture" } else { sp.text.trim() };
-                        ui.label(RichText::new(format!("[{alt}]")).color(t.faint));
-                    }
-                    continue;
-                }
-                let font = if sp.heading > 0 {
-                    theme::bold(match sp.heading {
-                        1 => 22.0,
-                        2 => 19.0,
-                        3 => 17.0,
-                        _ => 15.5,
-                    })
-                } else if sp.code {
-                    egui::FontId::monospace(13.5)
-                } else if sp.bold {
-                    theme::bold(14.5)
-                } else {
-                    theme::regular(14.5)
-                };
-                let mut rt = RichText::new(&sp.text).font(font);
-                if sp.italic {
-                    rt = rt.italics();
-                }
-                if sp.strike {
-                    rt = rt.strikethrough();
-                }
-                let (fg, bg) = theme::mail_colors(sp.color, sp.background, &t, if sp.link.is_some() { t.accent } else { t.text });
-                if let Some(bg) = bg {
-                    rt = rt.background_color(bg);
-                }
-                match &sp.link {
-                    Some(link) => {
-                        let r = ui.add(egui::Link::new(rt.color(fg))).on_hover_text(link);
-                        if r.clicked() {
-                            acts.push(Action::OpenUrl(link.clone()));
-                        }
-                    }
-                    None => {
-                        ui.label(rt.color(fg));
-                    }
-                }
-            }
-        });
+    let mut body = Body { s, key, p, allowed, shown: &mut shown, acts };
+    if p.layout.is_empty() {
+        body.lines(st, ui, &p.rich, width, theme::surface_rgb(&t), Align::Min);
+    } else {
+        body.blocks(st, ui, &p.layout, width, theme::surface_rgb(&t), mime::layout::Align::Left, 0);
     }
     // Pictures without a description have no place in the text: show them after it.
     if allowed {
-        let rest: Vec<&String> = p.images.iter().filter(|u| !shown.contains(&u.as_str())).collect();
+        let rest: Vec<&String> = p.images.iter().filter(|u| !shown.contains(u)).collect();
         if !rest.is_empty() {
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
                 for src in rest {
                     picture(s, st, ui, key, p, src, allowed, width);
+                }
+            });
+        }
+    }
+}
+
+/// What drawing a message body needs.
+struct Body<'a> {
+    s: &'a Session,
+    key: &'a MessageKey,
+    p: &'a mime::Parsed,
+    allowed: bool,
+    /// Pictures drawn in place.
+    shown: &'a mut Vec<String>,
+    acts: &'a mut Vec<Action>,
+}
+
+/// Narrower than this, a table's columns go one under the other.
+const MIN_COLUMN: f32 = 140.0;
+
+fn span_font(sp: &mime::Span) -> egui::FontId {
+    if sp.heading > 0 {
+        theme::bold(match sp.heading {
+            1 => 22.0,
+            2 => 19.0,
+            3 => 17.0,
+            _ => 15.5,
+        })
+    } else if sp.code {
+        egui::FontId::monospace(13.5)
+    } else if sp.bold {
+        theme::bold(14.5)
+    } else {
+        theme::regular(14.5)
+    }
+}
+
+impl Body<'_> {
+    /// Formatted lines `width` wide, on a background of `page` (for the text's contrast).
+    fn lines(&mut self, st: &mut UiState, ui: &mut Ui, lines: &mime::RichText, width: f32, page: [u8; 3], align: Align) {
+        let t = st.tokens;
+        for line in lines {
+            if line.is_empty() {
+                ui.add_space(9.0);
+                continue;
+            }
+            // A line with right-to-left text is laid out whole, in order (its links show, but as text).
+            if line.iter().any(|sp| crate::bidi::has_rtl(&sp.text)) && line.iter().all(|sp| sp.image.is_none()) {
+                let mut job = egui::text::LayoutJob::default();
+                for sp in line {
+                    let (fg, bg) = theme::mail_colors_on(sp.color, sp.background, page, &t, if sp.link.is_some() { t.accent } else { t.text });
+                    let format = egui::TextFormat {
+                        font_id: span_font(sp),
+                        color: fg,
+                        background: bg.unwrap_or(Color32::TRANSPARENT),
+                        italics: sp.italic,
+                        strikethrough: if sp.strike { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
+                        underline: if sp.link.is_some() { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
+                        ..Default::default()
+                    };
+                    job.append(&sp.text, 0.0, format);
+                }
+                job.wrap.max_width = width;
+                let job = ui.fonts_mut(|f| crate::bidi::job(f, job));
+                ui.add(egui::Label::new(job).selectable(false));
+                continue;
+            }
+            // Centred or right-aligned: pictures in the middle (or at the end), and a line that
+            // fits moved over (a wrapped line keeps to the left).
+            if align != Align::Min {
+                if line.iter().all(|sp| sp.image.is_some() || sp.text.trim().is_empty()) {
+                    ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(align), |ui| {
+                        ui.set_width(width);
+                        for sp in line {
+                            self.span(st, ui, sp, width, page);
+                        }
+                    });
+                    continue;
+                }
+                let line_w: f32 =
+                    line.iter().map(|sp| ui.fonts_mut(|f| f.layout_no_wrap(sp.text.clone(), span_font(sp), Color32::WHITE).size().x)).sum();
+                if line.iter().all(|sp| sp.image.is_none()) && line_w < width {
+                    let space = if align == Align::Center { (width - line_w) / 2.0 } else { width - line_w };
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        ui.add_space(space.max(0.0));
+                        for sp in line {
+                            self.span(st, ui, sp, width, page);
+                        }
+                    });
+                    continue;
+                }
+            }
+            let layout = egui::Layout::left_to_right(Align::BOTTOM).with_main_wrap(true);
+            ui.allocate_ui_with_layout(vec2(width, 0.0), layout, |ui| {
+                ui.set_max_width(width);
+                ui.spacing_mut().item_spacing.x = 0.0;
+                for sp in line {
+                    self.span(st, ui, sp, width, page);
+                }
+            });
+        }
+    }
+
+    /// One span: text (a link when it has one) or a picture.
+    fn span(&mut self, st: &mut UiState, ui: &mut Ui, sp: &mime::Span, width: f32, page: [u8; 3]) {
+        let t = st.tokens;
+        if let Some(src) = &sp.image {
+            self.shown.push(src.clone());
+            if !picture(self.s, st, ui, self.key, self.p, src, self.allowed, width) {
+                let alt = if sp.text.trim().is_empty() { "picture" } else { sp.text.trim() };
+                ui.label(RichText::new(format!("[{alt}]")).color(t.faint));
+            }
+            return;
+        }
+        let mut rt = RichText::new(&sp.text).font(span_font(sp));
+        if sp.italic {
+            rt = rt.italics();
+        }
+        if sp.strike {
+            rt = rt.strikethrough();
+        }
+        let (fg, bg) = theme::mail_colors_on(sp.color, sp.background, page, &t, if sp.link.is_some() { t.accent } else { t.text });
+        if let Some(bg) = bg {
+            rt = rt.background_color(bg);
+        }
+        match &sp.link {
+            Some(link) => {
+                let r = ui.add(egui::Link::new(rt.color(fg))).on_hover_text(link);
+                if r.clicked() {
+                    self.acts.push(Action::OpenUrl(link.clone()));
+                }
+            }
+            None => {
+                ui.label(rt.color(fg));
+            }
+        }
+    }
+
+    /// Laid-out parts `width` wide.
+    #[allow(clippy::too_many_arguments)]
+    fn blocks(
+        &mut self,
+        st: &mut UiState,
+        ui: &mut Ui,
+        blocks: &[mime::layout::Block],
+        width: f32,
+        page: [u8; 3],
+        align: mime::layout::Align,
+        depth: usize,
+    ) {
+        use mime::layout::{Align as A, Block, Width};
+        let main_align = |a: A| match a {
+            A::Left => Align::Min,
+            A::Center => Align::Center,
+            A::Right => Align::Max,
+        };
+        for b in blocks {
+            match b {
+                Block::Text(lines) => self.lines(st, ui, lines, width, page, main_align(align)),
+                Block::Table(table) if depth < 16 => {
+                    let tw = match table.width {
+                        Some(Width::Px(px)) => (px as f32).min(width),
+                        Some(Width::Percent(pc)) => width * f32::from(pc) / 100.0,
+                        None => width,
+                    }
+                    .max(1.0);
+                    let indent = match table.align {
+                        A::Center => (width - tw) / 2.0,
+                        A::Right => width - tw,
+                        A::Left => 0.0,
+                    }
+                    .max(0.0);
+                    let tbg = theme::box_color(table.background, page, &st.tokens);
+                    let page = tbg.unwrap_or(page);
+                    ui.horizontal_top(|ui| {
+                        ui.add_space(indent);
+                        ui.allocate_ui_with_layout(vec2(tw, 0.0), egui::Layout::top_down(Align::Min), |ui| {
+                            ui.set_width(tw);
+                            let fill = tbg.map_or(Color32::TRANSPARENT, |c| Color32::from_rgb(c[0], c[1], c[2]));
+                            egui::Frame::new().fill(fill).show(ui, |ui| {
+                                ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
+                                for row in &table.rows {
+                                    self.row(st, ui, row, tw, page, depth);
+                                }
+                            });
+                        });
+                    });
+                }
+                Block::Table(_) => {}
+            }
+        }
+    }
+
+    /// A table row: its cells side by side, or one under the other when there's no room.
+    fn row(&mut self, st: &mut UiState, ui: &mut Ui, row: &[mime::layout::Cell], width: f32, page: [u8; 3], depth: usize) {
+        use mime::layout::Width;
+        const PAD: f32 = 6.0;
+        // Widths: what cells ask for, the rest shared by the others.
+        let asked: Vec<Option<f32>> = row
+            .iter()
+            .map(|c| match c.width {
+                Some(Width::Px(px)) => Some(px as f32),
+                Some(Width::Percent(pc)) => Some(width * f32::from(pc) / 100.0),
+                None => None,
+            })
+            .collect();
+        let fixed: f32 = asked.iter().flatten().sum();
+        let free = asked.iter().filter(|a| a.is_none()).count();
+        let mut widths: Vec<f32> = if fixed > width || (free > 0 && width - fixed < MIN_COLUMN * free as f32) {
+            // Asked for more than there is: shared out in proportion.
+            let total: f32 = asked.iter().map(|a| a.unwrap_or(MIN_COLUMN)).sum::<f32>().max(1.0);
+            asked.iter().map(|a| a.unwrap_or(MIN_COLUMN) / total * width).collect()
+        } else {
+            let each = if free > 0 { (width - fixed) / free as f32 } else { 0.0 };
+            asked.iter().map(|a| a.unwrap_or(each)).collect()
+        };
+        // Cells that ask for nothing extra (spacers) next to wider ones.
+        let used: f32 = widths.iter().sum();
+        if used < width
+            && let Some(last) = widths.last_mut()
+        {
+            *last += width - used;
+        }
+        let stack = row.len() > 1 && widths.iter().zip(row).any(|(w, c)| *w < MIN_COLUMN && !c.blocks.is_empty());
+        let cell = |this: &mut Self, st: &mut UiState, ui: &mut Ui, c: &mime::layout::Cell, w: f32| {
+            let bg = theme::box_color(c.background, page, &st.tokens);
+            let fill = bg.map_or(Color32::TRANSPARENT, |b| Color32::from_rgb(b[0], b[1], b[2]));
+            ui.allocate_ui_with_layout(vec2(w, 0.0), egui::Layout::top_down(Align::Min), |ui| {
+                ui.set_width(w);
+                egui::Frame::new().fill(fill).inner_margin(PAD).show(ui, |ui| {
+                    let inner = (w - 2.0 * PAD).max(1.0);
+                    ui.set_width(inner);
+                    this.blocks(st, ui, &c.blocks, inner, bg.unwrap_or(page), c.align, depth + 1);
+                });
+            });
+        };
+        if stack {
+            for c in row.iter().filter(|c| !c.blocks.is_empty()) {
+                cell(self, st, ui, c, width);
+            }
+        } else {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                for (c, w) in row.iter().zip(&widths) {
+                    cell(self, st, ui, c, *w);
                 }
             });
         }

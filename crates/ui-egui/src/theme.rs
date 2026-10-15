@@ -209,8 +209,23 @@ fn saturation(c: [u8; 3]) -> f32 {
 /// read well on this theme, else adjusted. Grey or white boxes behind text are dropped in dark
 /// mode (the page is dark), real highlights kept with dark or light text as fits.
 pub fn mail_colors(fg: Option<[u8; 3]>, bg: Option<[u8; 3]>, t: &Tokens, default: Color32) -> (Color32, Option<Color32>) {
-    let page = rgb(t.surface);
-    let bg = bg.filter(|b| contrast(*b, page) > 1.15 && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25));
+    mail_colors_on(fg, bg, rgb(t.surface), t, default)
+}
+
+/// The page colour messages are drawn on.
+pub fn surface_rgb(t: &Tokens) -> [u8; 3] {
+    rgb(t.surface)
+}
+
+/// A box's colour (a highlight, a table cell's background) on `page`, when it's kept: one too
+/// close to the page goes, and grey or white ones go in dark mode (the page is dark).
+pub fn box_color(bg: Option<[u8; 3]>, page: [u8; 3], t: &Tokens) -> Option<[u8; 3]> {
+    bg.filter(|b| contrast(*b, page) > 1.15 && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25))
+}
+
+/// [`mail_colors`] for text on `page` (a coloured table cell's background).
+pub fn mail_colors_on(fg: Option<[u8; 3]>, bg: Option<[u8; 3]>, page: [u8; 3], t: &Tokens, default: Color32) -> (Color32, Option<Color32>) {
+    let bg = box_color(bg, page, t);
     let under = bg.unwrap_or(page);
     let fg = match fg {
         Some(c) if contrast(c, under) >= 3.0 => Some(c),

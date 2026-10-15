@@ -2703,6 +2703,7 @@ name = "mailcraft-mime"
 version = "0.1.0"
 dependencies = [
  "html2text",
+ "html5ever",
  "mail-builder",
  "mail-parser",
  "mailcraft-model",

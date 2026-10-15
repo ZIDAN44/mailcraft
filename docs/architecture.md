@@ -22,7 +22,7 @@
 | Layer | Crate | Depends on | Notes |
 |---|---|---|---|
 | L0 | `mailcraft-model` | — | Pure data + algorithms; `Job`/`Event` are defined here so `net` and `engine` agree without depending on each other |
-| L1 | `mailcraft-mime` | model | `mail-parser`, `mail-builder`, `html2text` |
+| L1 | `mailcraft-mime` | model | `mail-parser`, `mail-builder`, `html2text` (formatted text), `html5ever` (the tokenizer, for table layouts) |
 | L1 | `mailcraft-store` | model | Plain files + JSON; atomic writes; no database engine |
 | L1 | `mailcraft-print` | — | Messages laid out as PDF pages with an embedded TrueType font (`ttf-parser`, `miniz_oxide`) |
 | L2 | `mailcraft-jmap` | model, mime, store | The JMAP transport, written once as async code over a two-method `Http` trait: the desktop runs it over `net`'s client (answers are ready at once, so a no-op `block_on` drives it), the browser over `fetch`. Portable, wasm-safe |

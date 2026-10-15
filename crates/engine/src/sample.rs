@@ -220,17 +220,27 @@ fn mails() -> Vec<Mail> {
             flagged: false,
             attachments: &[],
             reply_to_index: None,
+            // Laid out like a newsletter: a centred table, a coloured band, two columns.
             html: Some(
-                "<h2>Winter group show: open call</h2>\
+                "<div style=\"display:none\">Submissions close 30 November</div>\
+                 <table width=\"600\" align=\"center\" cellpadding=\"0\" cellspacing=\"0\">\
+                 <tr><td align=\"center\" bgcolor=\"#2e7d6b\" style=\"color:#ffffff\">\
+                 <h2>Winter group show: open call</h2></td></tr>\
+                 <tr><td><table width=\"100%\"><tr>\
+                 <td width=\"60%\" valign=\"top\">\
                  <p>Dear artists,</p>\
                  <p>Our <b>winter group show</b> is open for submissions <i>until the end of the month</i>. \
                  Paintings, prints, photography and short films are all welcome.</p>\
                  <ul><li>Up to <b>three works</b> per artist</li><li>Opening night: the first Friday of December</li></ul>\
+                 </td>\
+                 <td width=\"40%\" valign=\"top\" align=\"center\">\
+                 <p><img src=\"cid:poster@gallery.example\" alt=\"Show poster\"></p>\
                  <p><span style=\"color:#c62828\">Deadline: 30 November</span> \
                  <span style=\"background-color:#fff176\">(no late entries)</span></p>\
-                 <p><img src=\"cid:poster@gallery.example\" alt=\"Show poster\"></p>\
+                 </td></tr></table></td></tr>\
+                 <tr><td align=\"center\">\
                  <p>Read the <a href=\"https://gallery.example/open-call\">full guidelines</a> on our website.</p>\
-                 <p>See you at the opening!</p>\
+                 <p>See you at the opening!</p></td></tr></table>\
                  <img src=\"https://gallery.example/track/open.gif\" width=\"1\" height=\"1\" alt=\"\">",
             ),
         },
