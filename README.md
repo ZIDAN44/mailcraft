@@ -22,13 +22,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/reading.png" alt="MailCraft with the sample mailbox: the folder pane on the left with Favorites and the account's folders and unread counts, the Inbox grouped under Today, Yesterday, Tuesday, Monday and Last week, and the reading pane showing a flagged message with its two-message conversation, sender card, Reply buttons and a picture attachment with a preview" width="100%">
+  <img src="docs/images/reading.png" alt="MailCraft with the sample mailbox: the folder pane on the left with Favorites and the account's folders and unread counts, the ribbon with Categorize, Pin and Snooze, the Inbox grouped under Today, Yesterday, Monday and Last week, and the reading pane showing a flagged message with its two-message conversation, sender card, Reply, Print and Save buttons and a picture attachment with a preview" width="100%">
 </p>
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/search-dark.png" alt="Dark mode with a search for storyboard across all folders, the results grouped as a conversation" width="100%"><p align="center"><sub><b>Search</b> across every folder, offline, with <code>from:</code>, <code>subject:</code>, <code>has:attachment</code>, <code>is:unread</code>; conversations; dark mode.</sub></p></td>
-<td width="50%"><img src="docs/images/compose.png" alt="Writing a reply in the reading pane: Send, Attach file, Save draft and Discard, the To and Subject fields filled in, the cursor above the signature and the quoted original" width="100%"><p align="center"><sub><b>Write</b> in place: replies quote the original under your signature, with attachments, Cc/Bcc and drafts.</sub></p></td>
+<td width="50%"><img src="docs/images/search-dark.png" alt="Dark mode with a search for storyboard across all folders, both messages of the conversation found and the reply open" width="100%"><p align="center"><sub><b>Search</b> across every folder, offline, with <code>from:</code>, <code>subject:</code>, <code>has:attachment</code>, <code>is:unread</code>; conversations; dark mode.</sub></p></td>
+<td width="50%"><img src="docs/images/compose.png" alt="Writing a reply in the reading pane: the formatting toolbar, Attach File, Link and Pictures, Save draft, Bcc, Discard and Pop out, the From, To and Subject fields filled in, the cursor above the signature and the original message below" width="100%"><p align="center"><sub><b>Write</b> in place: replies quote the original under your signature, with attachments, Cc/Bcc and drafts.</sub></p></td>
 </tr>
 </table>
 
