@@ -52,11 +52,31 @@ pub struct Imported {
 /// `progress` with the number of messages imported so far, every so often.
 pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(usize)) -> Result<Imported, String> {
     let mut out = Out { store, account, folders: Vec::new(), states: HashMap::new(), imported: 0, skipped: 0, progress, pim: Pim::default() };
+    // `!BDN` then the client magic: `SM` a data file, `SO` Outlook's offline copy of a server
+    // account (MS-PST 2.2.2.6).
+    let mut head = [0u8; 10];
+    if std::fs::File::open(path).and_then(|mut f| io::Read::read_exact(&mut f, &mut head)).is_ok()
+        && head.starts_with(b"!BDN")
+        && head.get(8..10) == Some(b"SO")
+    {
+        return Err("this is Outlook's offline copy of a server account (.ost), not a data file: add the account itself to see its mail".into());
+    }
     let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<()> {
-        if let Ok(pst) = UnicodePstFile::open(path) { read_unicode(pst, &mut out) } else { read_ansi(AnsiPstFile::open(path)?, &mut out) }
+        match UnicodePstFile::open(path) {
+            Ok(pst) => read_unicode(pst, &mut out),
+            // Locked by Outlook: say so, rather than trying it as the older format.
+            Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => Err(e),
+            Err(_) => read_ansi(AnsiPstFile::open(path)?, &mut out),
+        }
     }));
     match read {
         Ok(Ok(())) => {}
+        // Windows' sharing and lock violations: Outlook (or another program) has it open.
+        Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => {
+            return Err(
+                "Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again".into()
+            );
+        }
         // Nothing found at all: say why; otherwise keep what was read.
         Ok(Err(e)) if out.folders.is_empty() => return Err(format!("not an Outlook data file, or it is damaged ({e})")),
         Ok(Err(e)) => log::warn!("{}: the rest of the data file could not be read: {e}", path.display()),
@@ -118,7 +138,14 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
         };
         // Mail folders (no class means mail, in old files), contacts and calendars.
         let class = sub.properties().get(0x3613).and_then(text_of).unwrap_or_default();
-        let mail = class.is_empty() || class.starts_with("IPF.Note") || class.starts_with("IPF.Imap");
+        let mail = (class.is_empty() || class.starts_with("IPF.Note") || class.starts_with("IPF.Imap"))
+            // Outlook's RSS Feeds folder is its own bookkeeping, not mail.
+            && !class.starts_with("IPF.Note.OutlookHomepage");
+        // Outlook's own Outbox, when it has nothing waiting (MailCraft has an Outbox of its own).
+        let empty = sub.contents_table().is_none_or(|t| t.rows_matrix().next().is_none());
+        if empty && special_folder(store, 0x35E2) == Some(u32::from(row.id())) {
+            continue;
+        }
         if !mail {
             if class.starts_with("IPF.Contact") || class.starts_with("IPF.Appointment") || class.starts_with("IPF.Task") {
                 read_items(store, &*sub, read, out);
@@ -143,6 +170,15 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
         out.save_folder(&path);
         visit(store, &*sub, Some(&path), depth + 1, read, out);
     }
+}
+
+/// The node of one of the store's special folders (`0x35E2`: the Outbox), from its entry id
+/// (flags, the store's 16-byte key, then the node id).
+fn special_folder(store: &dyn PstStore, prop: u16) -> Option<u32> {
+    let (_, v) = store.properties().iter().find(|(id, _)| **id == prop)?;
+    let PropertyValue::Binary(b) = v else { return None };
+    let id = b.buffer().get(20..24)?;
+    Some(u32::from_le_bytes([*id.first()?, *id.get(1)?, *id.get(2)?, *id.get(3)?]))
 }
 
 /// A contacts or calendar folder's items.
@@ -612,6 +648,18 @@ mod tests {
     }
 
     #[test]
+    fn an_offline_copy_is_explained() {
+        let dir = std::env::temp_dir().join(format!("mailcraft-ost-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("me@example.com.ost");
+        std::fs::write(&file, b"!BDN    SO$ rest").unwrap();
+        let store = Store::open(dir.join("cache")).unwrap();
+        let e = import(&file, &store, "a1", &mut |_| {}).unwrap_err();
+        assert!(e.contains(".ost") && e.contains("add the account"), "{e}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn junk_is_refused_and_nothing_is_written() {
         let dir = std::env::temp_dir().join(format!("mailcraft-pst-junk-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -693,5 +741,47 @@ mod tests {
         assert!(names.contains(&"notes.txt"), "{names:?}");
         assert!(!names.contains(&"chart.png"), "the picture goes inline: {names:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod real_files {
+    /// Import a real data file named by `MAILCRAFT_PST` (counts only).
+    #[test]
+    #[ignore]
+    fn imports_the_file_in_mailcraft_pst() {
+        let Ok(path) = std::env::var("MAILCRAFT_PST") else { return };
+        let dir = std::env::temp_dir().join(format!("mailcraft-real-pst-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = mailcraft_store::Store::open(&dir).unwrap();
+        let t = std::time::Instant::now();
+        let r = super::import(std::path::Path::new(&path), &store, "r1", &mut |_| {});
+        match r {
+            Ok(done) => {
+                eprintln!(
+                    "messages {} contacts {} events {} skipped {} in {:?}",
+                    done.messages,
+                    done.contacts,
+                    done.events,
+                    done.skipped,
+                    t.elapsed()
+                );
+                let (mut parsed, mut html, mut files, mut dated) = (0, 0, 0, 0);
+                for f in &done.folders {
+                    eprintln!("  {:30} {:?} total {} unread {}", f.path, f.role, f.total, f.unread);
+                    for m in store.load_folder("r1", &f.path).unwrap().messages {
+                        dated += usize::from(m.date > 0);
+                        if let Some(p) = store.read_body(&m.key).and_then(|raw| mailcraft_mime::parse(&raw)) {
+                            parsed += 1;
+                            html += usize::from(p.had_html);
+                            files += p.attachments.len();
+                        }
+                    }
+                }
+                eprintln!("parsed {parsed} (html {html}, attachments {files}, dated {dated})");
+            }
+            Err(e) => eprintln!("FAILED: {e}"),
+        }
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
