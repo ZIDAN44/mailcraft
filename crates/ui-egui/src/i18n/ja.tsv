@@ -576,3 +576,4 @@ month	May	5月
 	POP and SMTP	POP と SMTP
 	Remove mail from the server once it's downloaded	ダウンロード後にサーバーからメールを削除する
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	サーバー: {pop} (POP {pop_port})、{smtp} (SMTP {smtp_port})
+	Fonts	フォント

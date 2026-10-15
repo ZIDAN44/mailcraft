@@ -871,3 +871,22 @@ fn new_mail_writes_in_its_own_window_and_replies_pop_out() {
     assert!(!c.window && c.body.contains("\nSent: "));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Fonts built in from craft-fonts (`CRAFT_FONTS_DIR`) are the last fallbacks, with their
+/// licences; without them nothing changes.
+#[test]
+fn craft_fonts_are_the_last_fallbacks() {
+    let ctx = egui::Context::default();
+    // (Not install_fonts: that notes the main font's coverage, which other tests share.)
+    let mut defs = egui::FontDefinitions::default();
+    crate::theme::add_craft_fallbacks(&mut defs);
+    ctx.set_fonts(defs);
+    ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    let fonts = crate::craft_fonts::CRAFT_FONTS;
+    for f in fonts {
+        assert!(!f.bytes.is_empty() && f.licence_text.len() > 100, "{} comes with its licence", f.family);
+    }
+    // Arabic is drawn (from Noto Sans Arabic) when the build has it; nothing breaks when it hasn't.
+    let arabic = ctx.fonts_mut(|f| f.has_glyphs(&egui::FontId::proportional(14.0), "مرحبا"));
+    assert_eq!(arabic, crate::craft_fonts::has_script("Arab"));
+}

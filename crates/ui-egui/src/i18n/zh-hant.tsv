@@ -573,6 +573,7 @@
 	POP and SMTP	POP 和 SMTP
 	Remove mail from the server once it's downloaded	下載後從伺服器移除郵件
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	伺服器：{pop} (POP {pop_port})，{smtp} (SMTP {smtp_port})
+	Fonts	字型
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

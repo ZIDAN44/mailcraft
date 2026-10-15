@@ -24,6 +24,7 @@ macro_rules! tf {
 pub mod backstage;
 pub mod bidi;
 mod calendar;
+pub mod craft_fonts;
 mod dialogs;
 pub mod i18n;
 pub mod icons;
@@ -387,6 +388,8 @@ impl MailApp {
                     theme::install_fonts_with(ctx, r, b, Some(cjk), self.ui.rtl_font.clone());
                     ctx.request_repaint();
                 }
+                // The built-in fallbacks draw them (installed with the other fonts).
+                None if craft_fonts::has_script("Jpan") || craft_fonts::has_script("Hans") => {}
                 None => log::warn!("no Chinese/Japanese font found: those characters can't be drawn"),
             }
         }

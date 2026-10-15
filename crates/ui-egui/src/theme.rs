@@ -282,6 +282,7 @@ pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: O
             f.push("cjk".into());
         }
     }
+    add_craft_fallbacks(&mut fonts);
     if let Some(bytes) = regular {
         fonts.font_data.insert("system".into(), Arc::new(FontData::from_owned(bytes)));
         if let Some(f) = fonts.families.get_mut(&FontFamily::Proportional) {
@@ -297,6 +298,19 @@ pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: O
     bold_list.extend(fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default());
     fonts.families.insert(bold_family, bold_list);
     ctx.set_fonts(fonts);
+}
+
+/// Last of all, the fonts built in from craft-fonts (none unless built with them).
+pub(crate) fn add_craft_fallbacks(fonts: &mut FontDefinitions) {
+    for (i, f) in crate::craft_fonts::fallbacks().enumerate() {
+        let name = format!("craft-{i}");
+        fonts.font_data.insert(name.clone(), Arc::new(FontData::from_static(f.bytes)));
+        for family in [FontFamily::Proportional, FontFamily::Monospace] {
+            if let Some(list) = fonts.families.get_mut(&family) {
+                list.push(name.clone());
+            }
+        }
+    }
 }
 
 pub fn bold(size: f32) -> egui::FontId {

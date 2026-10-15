@@ -573,6 +573,7 @@
 	POP and SMTP	POP e SMTP
 	Remove mail from the server once it's downloaded	Rimuovi la posta dal server dopo averla scaricata
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Server: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	Tipi di carattere
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

@@ -573,6 +573,7 @@
 	POP and SMTP	POP и SMTP
 	Remove mail from the server once it's downloaded	Удалять почту с сервера после загрузки
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Серверы: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	Шрифты
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

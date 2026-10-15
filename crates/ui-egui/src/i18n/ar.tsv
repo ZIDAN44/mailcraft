@@ -575,3 +575,4 @@ month	May	مايو
 	POP and SMTP	POP و SMTP
 	Remove mail from the server once it's downloaded	إزالة البريد من الخادم بعد تنزيله
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	الخوادم: {pop} (POP {pop_port})، {smtp} (SMTP {smtp_port})
+	Fonts	الخطوط

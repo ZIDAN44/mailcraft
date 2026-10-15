@@ -573,6 +573,7 @@
 	POP and SMTP	POP 및 SMTP
 	Remove mail from the server once it's downloaded	다운로드한 후 서버에서 메일 제거
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	서버: {pop}(POP {pop_port}), {smtp}(SMTP {smtp_port})
+	Fonts	글꼴
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

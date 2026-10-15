@@ -574,6 +574,7 @@
 	POP and SMTP	POP y SMTP
 	Remove mail from the server once it's downloaded	Quitar el correo del servidor una vez descargado
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Servidores: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	Fuentes
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

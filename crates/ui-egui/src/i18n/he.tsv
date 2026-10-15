@@ -575,3 +575,4 @@ month	May	מאי
 	POP and SMTP	POP ו-SMTP
 	Remove mail from the server once it's downloaded	הסר דואר מהשרת לאחר הורדתו
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	שרתים: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	גופנים

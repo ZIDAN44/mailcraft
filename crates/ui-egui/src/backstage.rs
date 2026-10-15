@@ -481,4 +481,18 @@ fn about(t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     if ui.link(tl!("Source code and issues")).clicked() {
         acts.push(Action::OpenUrl("https://github.com/ZIDAN44/mailcraft".into()));
     }
+    // Fonts built in from craft-fonts travel with their licences.
+    if !crate::craft_fonts::CRAFT_FONTS.is_empty() {
+        ui.add_space(12.0);
+        ui.label(RichText::new(tl!("Fonts")).font(theme::bold(14.0)).color(t.text));
+        for f in crate::craft_fonts::CRAFT_FONTS {
+            egui::CollapsingHeader::new(RichText::new(format!("{} {} · {}", f.family, f.style, f.licence)).color(t.dim))
+                .id_salt(("craft-font", f.family, f.style))
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical().max_height(220.0).id_salt(("craft-font-licence", f.family, f.style)).show(ui, |ui| {
+                        ui.label(RichText::new(f.licence_text).small().color(t.dim));
+                    });
+                });
+        }
+    }
 }

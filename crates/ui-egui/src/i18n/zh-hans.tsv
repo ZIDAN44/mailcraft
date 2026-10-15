@@ -576,3 +576,4 @@ month	May	5月
 	POP and SMTP	POP 和 SMTP
 	Remove mail from the server once it's downloaded	下载后从服务器删除邮件
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	服务器：{pop} (POP {pop_port})，{smtp} (SMTP {smtp_port})
+	Fonts	字体
