@@ -178,6 +178,8 @@ pub struct Prefs {
     /// How the message list is arranged (View › Arrange by), and turned the other way round.
     pub arrange: Arrange,
     pub reverse_sort: bool,
+    /// Work offline (Send / Receive › Work Offline): no account connects; kept across starts.
+    pub work_offline: bool,
 }
 
 /// What the message list is sorted and grouped by.
@@ -314,6 +316,7 @@ impl Default for Prefs {
             new_mail_window: true,
             arrange: Arrange::Date,
             reverse_sort: false,
+            work_offline: false,
         }
     }
 }
@@ -2267,6 +2270,19 @@ impl Session {
     }
 
     /// Ask every account to sync now.
+    /// Work offline, or connect again: every account's connection closes (changes, sent mail and
+    /// drafts wait on this computer) or opens. Ahead of anything queued, so what follows sees it.
+    pub fn set_work_offline(&mut self, on: bool) {
+        self.prefs.work_offline = on;
+        self.jobs.retain(|j| !matches!(j, Job::WorkOffline { .. }));
+        self.jobs.insert(0, Job::WorkOffline { on });
+        if on {
+            for a in self.accounts.iter_mut().filter(|a| !a.is_local()) {
+                a.status = SyncStatus::Offline;
+            }
+        }
+    }
+
     pub fn sync_all(&mut self) -> usize {
         let ids: Vec<String> = self.accounts.iter().filter(|a| !a.is_local()).map(|a| a.config.id.clone()).collect();
         for id in &ids {

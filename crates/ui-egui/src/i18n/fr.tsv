@@ -605,6 +605,12 @@
 	With attachments	Avec pièces jointes
 	Without attachments	Sans pièces jointes
 	(nobody)	(personne)
+	Send / Receive all folders	Envoyer/Recevoir tous les dossiers
+	Send all	Tout envoyer
+	Send what's waiting in the Outbox	Envoyer ce qui attend dans la Boîte d'envoi
+	Work offline	Travailler hors connexion
+	Working offline	Travail hors connexion
+	Close every connection: changes, mail you send and drafts wait on this computer	Fermer toutes les connexions : les modifications, le courrier envoyé et les brouillons attendent sur cet ordinateur
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

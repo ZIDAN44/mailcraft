@@ -605,6 +605,12 @@
 	With attachments	Com anexos
 	Without attachments	Sem anexos
 	(nobody)	(ninguém)
+	Send / Receive all folders	Enviar/Receber todas as pastas
+	Send all	Enviar tudo
+	Send what's waiting in the Outbox	Enviar o que está na Caixa de Saída
+	Work offline	Trabalhar offline
+	Working offline	Trabalhando offline
+	Close every connection: changes, mail you send and drafts wait on this computer	Fechar todas as conexões: alterações, emails enviados e rascunhos aguardam neste computador
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

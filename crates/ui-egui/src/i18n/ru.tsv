@@ -604,6 +604,12 @@
 	With attachments	С вложениями
 	Without attachments	Без вложений
 	(nobody)	(никто)
+	Send / Receive all folders	Отправить и получить почту во всех папках
+	Send all	Отправить все
+	Send what's waiting in the Outbox	Отправить то, что ждёт в папке «Исходящие»
+	Work offline	Автономная работа
+	Working offline	Автономный режим
+	Close every connection: changes, mail you send and drafts wait on this computer	Закрыть все подключения: изменения, отправленная почта и черновики ждут на этом компьютере
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

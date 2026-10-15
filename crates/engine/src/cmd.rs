@@ -31,6 +31,11 @@ fn has_account(s: &Session) -> Option<&'static str> {
     if s.accounts.is_empty() { Some("add an account first") } else { None }
 }
 
+/// Connecting needs an account, and not working offline.
+fn can_connect(s: &Session) -> Option<&'static str> {
+    has_account(s).or(if s.prefs.work_offline { Some("working offline") } else { None })
+}
+
 pub fn registry() -> Registry {
     Registry::new(vec![
         // Home › New
@@ -106,8 +111,14 @@ pub fn registry() -> Registry {
             .params(r#"{"index"?: number}"#)
             .when(has_account),
         // Send / Receive
-        CommandSpec::new("mail.sync", "Send / Receive all folders", "Home › Send / Receive", |s, _| Ok(json!({"accounts": s.sync_all()}))).key("F9").when(has_account),
-        CommandSpec::new("folder.sync", "Update folder", "Home › Send / Receive", sync_folder).key("Shift+F9").when(has_account),
+        CommandSpec::new("mail.sync", "Send / Receive all folders", "Send / Receive", |s, _| Ok(json!({"accounts": s.sync_all()}))).key("F9").when(can_connect),
+        CommandSpec::new("folder.sync", "Update folder", "Send / Receive", sync_folder).key("Shift+F9").when(can_connect),
+        CommandSpec::new("mail.workOffline", "Work offline", "Send / Receive", |s, v| {
+            let on = p::bool(v, "on").unwrap_or(!s.prefs.work_offline);
+            s.set_work_offline(on);
+            Ok(json!({"on": on}))
+        })
+        .params(r#"{"on"?: bool}"#),
         // Navigation
         CommandSpec::new("folder.open", "Open folder", "Folder pane", open_folder).params(r#"{"account": string, "folder": string}"#),
         CommandSpec::new("folder.unified", "All inboxes", "Folder pane › Favorites", unified).params(r#"{"role"?: "inbox"|"sent"|"drafts"|…}"#),

@@ -607,3 +607,9 @@ month	May	5月
 	With attachments	添付ファイルあり
 	Without attachments	添付ファイルなし
 	(nobody)	(なし)
+	Send / Receive all folders	すべてのフォルダーを送受信
+	Send all	すべて送信
+	Send what's waiting in the Outbox	送信トレイで待機中のメールを送信
+	Work offline	オフライン作業
+	Working offline	オフライン作業中
+	Close every connection: changes, mail you send and drafts wait on this computer	すべての接続を閉じます。変更、送信するメール、下書きはこのコンピューターで待機します

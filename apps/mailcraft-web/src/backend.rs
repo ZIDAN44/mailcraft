@@ -413,7 +413,8 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::Discover { .. }
         | Job::SignIn { .. }
         | Job::ImportPst { .. }
-        | Job::ExportPst { .. } => {}
+        | Job::ExportPst { .. }
+        | Job::WorkOffline { .. } => {}
     }
 }
 

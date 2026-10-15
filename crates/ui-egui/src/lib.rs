@@ -198,6 +198,7 @@ impl Services for NullServices {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RibbonTab {
     Home,
+    SendReceive,
     View,
 }
 
@@ -1270,7 +1271,7 @@ impl MailApp {
             if ui.add(egui::Button::new(RichText::new(tl!("File")).color(t.dim).font(theme::regular(13.5))).frame(false)).clicked() {
                 acts.push(Action::Backstage(backstage::Page::Info));
             }
-            for (tab, label) in [(RibbonTab::Home, "Home"), (RibbonTab::View, "View")] {
+            for (tab, label) in [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View")] {
                 let on = self.ui.tab == tab;
                 let r = ui.add(
                     egui::Button::new(RichText::new(tl!(label)).color(if on { t.accent } else { t.dim }).font(if on {
@@ -1407,6 +1408,32 @@ impl MailApp {
                         acts.push(Action::Run("mail.sync", json!({})));
                     }
                 }
+                RibbonTab::SendReceive => {
+                    if widgets::tool_button(ui, Icon::Sync, "Send / Receive all folders", &t, enabled("mail.sync")).on_hover_text("F9").clicked() {
+                        acts.push(Action::Run("mail.sync", json!({})));
+                    }
+                    if widgets::tool_button(ui, Icon::Folder, "Update folder", &t, enabled("folder.sync")).on_hover_text("Shift+F9").clicked() {
+                        acts.push(Action::Run("folder.sync", json!({})));
+                    }
+                    if widgets::tool_button(ui, Icon::Send, "Send all", &t, enabled("outbox.send") && !s.prefs.work_offline)
+                        .on_hover_text(tl!("Send what's waiting in the Outbox"))
+                        .clicked()
+                    {
+                        acts.push(Action::Run("outbox.send", json!({})));
+                    }
+                    // Working offline: no connections; mail you send waits in the Outbox.
+                    if self.ui.has_files {
+                        widgets::group_sep(ui, &t);
+                        let off = s.prefs.work_offline;
+                        if ui
+                            .selectable_label(off, tl!("Work offline"))
+                            .on_hover_text(tl!("Close every connection: changes, mail you send and drafts wait on this computer"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("mail.workOffline", json!({"on": !off})));
+                        }
+                    }
+                }
                 RibbonTab::View => {
                     ui.label(RichText::new(tl!("Reading pane")).color(t.dim));
                     for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
@@ -1462,6 +1489,9 @@ impl MailApp {
             }
             if !s.outbox.is_empty() {
                 ui.label(RichText::new(tf!("Outbox: {n}", n = s.outbox.len())).color(t.warn).small());
+            }
+            if s.prefs.work_offline {
+                ui.label(RichText::new(tl!("Working offline")).color(t.warn).small());
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 for a in s.accounts.iter().rev() {
@@ -1541,9 +1571,14 @@ impl MailApp {
     }
 
     pub fn restore_state(&mut self, v: &Value) {
-        if let Some(p) = v.get("prefs").and_then(|p| serde_json::from_value(p.clone()).ok()) {
+        if let Some(p) = v.get("prefs").and_then(|p| serde_json::from_value::<mailcraft_engine::Prefs>(p.clone()).ok()) {
+            let offline = p.work_offline;
             self.session.prefs = p;
             self.session.refresh_list();
+            // Still working offline from last time: before any account connects.
+            if offline {
+                self.session.set_work_offline(true);
+            }
         }
         self.ui.dark = v.get("dark").and_then(Value::as_bool);
         if let Some(l) = v.get("language").and_then(Value::as_str).filter(|l| *l == i18n::AUTO || i18n::Lang::from_code(l).is_some()) {

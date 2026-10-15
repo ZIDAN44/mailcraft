@@ -1423,3 +1423,20 @@ fn the_list_is_arranged_by_sender_size_flag_and_reversed() {
     s.run("view.arrange", &json!({"by": "date"})).unwrap();
     assert_eq!(s.rows()[0], Row::Header("Today"));
 }
+
+/// Send / Receive › Work Offline: ahead of anything queued, kept in the settings, and nothing
+/// connects meanwhile.
+#[test]
+fn working_offline_comes_first_and_stops_send_receive() {
+    let store = temp("offline");
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap();
+    s.run("mail.workOffline", &json!({})).unwrap();
+    assert!(s.prefs.work_offline);
+    assert!(s.run("mail.sync", &json!({})).is_err(), "nothing connects");
+    assert!(matches!(s.take_jobs().first(), Some(Job::WorkOffline { on: true })), "before the account starts");
+    s.run("mail.workOffline", &json!({"on": false})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::WorkOffline { on: false }]));
+    assert!(s.run("mail.sync", &json!({})).is_ok());
+    let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
+}

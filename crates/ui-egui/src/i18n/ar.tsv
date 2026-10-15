@@ -606,3 +606,9 @@ month	May	مايو
 	With attachments	مع مرفقات
 	Without attachments	بدون مرفقات
 	(nobody)	(لا أحد)
+	Send / Receive all folders	إرسال/تلقي كل المجلدات
+	Send all	إرسال الكل
+	Send what's waiting in the Outbox	إرسال ما ينتظر في «صندوق الصادر»
+	Work offline	العمل دون اتصال
+	Working offline	العمل دون اتصال
+	Close every connection: changes, mail you send and drafts wait on this computer	إغلاق كل الاتصالات: تنتظر التغييرات والبريد الذي ترسله والمسودات على هذا الكمبيوتر

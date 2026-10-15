@@ -604,6 +604,12 @@
 	With attachments	有附件
 	Without attachments	無附件
 	(nobody)	(無人)
+	Send / Receive all folders	傳送/接收所有資料夾
+	Send all	全部傳送
+	Send what's waiting in the Outbox	傳送寄件匣中等待的郵件
+	Work offline	離線工作
+	Working offline	正在離線工作
+	Close every connection: changes, mail you send and drafts wait on this computer	關閉所有連線：變更、要傳送的郵件和草稿都在這台電腦上等待
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

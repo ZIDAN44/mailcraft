@@ -607,3 +607,9 @@ month	May	5月
 	With attachments	有附件
 	Without attachments	无附件
 	(nobody)	(无人)
+	Send / Receive all folders	发送/接收所有文件夹
+	Send all	全部发送
+	Send what's waiting in the Outbox	发送发件箱中等待的邮件
+	Work offline	脱机工作
+	Working offline	正在脱机工作
+	Close every connection: changes, mail you send and drafts wait on this computer	关闭所有连接：更改、要发送的邮件和草稿都在这台电脑上等待
