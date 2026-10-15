@@ -446,6 +446,7 @@ fn pop_accounts_download_and_can_start_from_a_data_file() {
     let pop = a.config.pop.clone().unwrap();
     assert_eq!((pop.host.as_str(), pop.port, pop.security), ("mail.example.org", 995, mailcraft_model::Security::Tls));
     assert!(a.config.imap.host.is_empty() && !a.config.pop_delete && !a.is_local());
+    assert_eq!((a.config.pop_keep_days, a.config.pop_delete_with_trash), (Some(14), false), "for 14 days, as Outlook's default");
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.pop.is_some()));
     assert!(s.run("account.list", &json!({})).unwrap().to_string().contains("mail.example.org:995"));
     // Changed: the other server and removing mail once it's down.
@@ -454,6 +455,9 @@ fn pop_accounts_download_and_can_start_from_a_data_file() {
     let a = s.account(&id).unwrap();
     assert_eq!(a.config.pop.as_ref().map(|p| (p.host.as_str(), p.port)), Some(("pop.example.org", 110)));
     assert!(a.config.pop_delete);
+    s.run("account.update", &json!({"account": id, "popDelete": false, "popKeepDays": 0, "popDeleteWithTrash": true})).unwrap();
+    let a = s.account(&id).unwrap();
+    assert_eq!((a.config.pop_delete, a.config.pop_keep_days, a.config.pop_delete_with_trash), (false, None, true), "0: kept for good");
     s.take_jobs();
     assert!(s.run("account.add", &json!({"email": "ana@example.org", "password": "pw", "pop": true, "popHost": " "})).is_err(), "a server is needed");
 

@@ -467,7 +467,7 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account"?: string, "folder"?: string, "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
@@ -520,7 +520,7 @@ pub fn registry() -> Registry {
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature).params(r#"{"account": string, "signature": string}"#),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
-            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool}"#,
+            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool}"#,
         ),
         CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
             let id = account_param(s, v)?;
@@ -1112,6 +1112,13 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         ews,
         pop,
         pop_delete: p::bool(v, "popDelete").unwrap_or(false),
+        // A copy stays on the server for 14 days unless asked otherwise (0: for good).
+        pop_keep_days: match v.get("popKeepDays").and_then(serde_json::Value::as_u64) {
+            None => Some(14),
+            Some(0) => None,
+            Some(n) => Some(u32::try_from(n).unwrap_or(u32::MAX)),
+        },
+        pop_delete_with_trash: p::bool(v, "popDeleteWithTrash").unwrap_or(false),
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)
@@ -1177,6 +1184,12 @@ fn update_account(s: &mut Session, v: &Value) -> CmdResult {
         c.smtp = server(v, "smtp", &c.smtp)?;
         if let Some(d) = p::bool(v, "popDelete") {
             c.pop_delete = d;
+        }
+        if let Some(n) = v.get("popKeepDays").and_then(serde_json::Value::as_u64) {
+            c.pop_keep_days = (n > 0).then(|| u32::try_from(n).unwrap_or(u32::MAX));
+        }
+        if let Some(d) = p::bool(v, "popDeleteWithTrash") {
+            c.pop_delete_with_trash = d;
         }
     } else if !c.is_api() {
         c.imap = server(v, "imap", &c.imap)?;

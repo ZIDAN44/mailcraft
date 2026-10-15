@@ -2114,6 +2114,8 @@ impl Session {
             || a.config.ews != config.ews
             || a.config.pop != config.pop
             || a.config.pop_delete != config.pop_delete
+            || a.config.pop_keep_days != config.pop_keep_days
+            || a.config.pop_delete_with_trash != config.pop_delete_with_trash
             || a.config.username != config.username
             || password.is_some();
         a.config = config.clone();

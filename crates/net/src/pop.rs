@@ -25,7 +25,91 @@ const MAX_MESSAGE: usize = 64 << 20;
 /// Messages listed at most.
 const MAX_MESSAGES: usize = 200_000;
 /// The ids of downloaded messages, kept with the account.
+/// Before: the ids downloaded, a list (still read, once).
 const SEEN_DOC: &str = "pop-seen.json";
+/// What's known of each message on the server (by its `UIDL` id): see [`Kept`].
+const STATE_DOC: &str = "pop-state.json";
+
+/// A message downloaded from the server: when, which message it is here, and whether it's been
+/// deleted here for good.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Kept {
+    pub at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gone: bool,
+}
+
+/// When the server's copy goes, as the account says.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Keep {
+    /// Removed as soon as it's downloaded.
+    pub remove_now: bool,
+    /// Kept this many days after it's downloaded.
+    pub days: Option<u32>,
+    /// Removed once it's deleted here for good.
+    pub with_trash: bool,
+}
+
+impl Keep {
+    pub fn of(acc: &AccountConfig) -> Keep {
+        Keep { remove_now: acc.pop_delete, days: acc.pop_keep_days.filter(|d| *d > 0), with_trash: acc.pop_delete_with_trash }
+    }
+
+    fn removes(&self, k: &Kept, now: i64) -> bool {
+        self.remove_now || self.days.is_some_and(|d| now.saturating_sub(k.at) >= i64::from(d).saturating_mul(86_400)) || (self.with_trash && k.gone)
+    }
+}
+
+type State = std::collections::BTreeMap<String, Kept>;
+
+fn load_state(store: &Store, account: &str, now: i64) -> State {
+    if let Ok(s) = store.load_account_doc::<State>(account, STATE_DOC)
+        && !s.is_empty()
+    {
+        return s;
+    }
+    // From before: the ids only, as if downloaded now.
+    let seen: Vec<String> = store.load_account_doc(account, SEEN_DOC).unwrap_or_default();
+    seen.into_iter().map(|id| (id, Kept { at: now, ..Default::default() })).collect()
+}
+
+/// Note that messages here were deleted for good (their server copies can go, when the account
+/// says so).
+pub fn deleted_for_good(store: &Store, account: &str, keys: &[MessageKey]) -> Result<()> {
+    if keys.is_empty() {
+        return Ok(());
+    }
+    let ids: Vec<String> = keys.iter().map(MessageKey::to_id).collect();
+    let mut state: State = store.load_account_doc(account, STATE_DOC).unwrap_or_default();
+    let mut changed = false;
+    for k in state.values_mut().filter(|k| k.key.as_ref().is_some_and(|id| ids.contains(id))) {
+        k.gone = true;
+        changed = true;
+    }
+    if changed {
+        store.save_account_doc(account, STATE_DOC, &state)?;
+    }
+    Ok(())
+}
+
+/// A message moved here: the server's record follows it.
+fn moved(store: &Store, account: &str, pairs: &[(MessageKey, MessageKey)]) -> Result<()> {
+    let mut state: State = store.load_account_doc(account, STATE_DOC).unwrap_or_default();
+    let mut changed = false;
+    for (old, new) in pairs {
+        let (old, new) = (old.to_id(), new.to_id());
+        for k in state.values_mut().filter(|k| k.key.as_deref() == Some(old.as_str())) {
+            k.key = Some(new.clone());
+            changed = true;
+        }
+    }
+    if changed {
+        store.save_account_doc(account, STATE_DOC, &state)?;
+    }
+    Ok(())
+}
 /// The folders a POP account has on this computer.
 pub const FOLDERS: [(&str, FolderRole); 5] = [
     ("INBOX", FolderRole::Inbox),
@@ -210,9 +294,10 @@ pub fn folders(store: &Store, account: &str) -> Result<Vec<Folder>> {
     Ok(list)
 }
 
-/// Download what's new into the Inbox (removing it from the server when the account says so).
-pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, inbox: &str, delete: bool) -> Result<SyncReport> {
-    let mut seen: Vec<String> = store.load_account_doc(account, SEEN_DOC).unwrap_or_default();
+/// Download what's new into the Inbox, and remove from the server what the account says should go
+/// (`keep`): at once, so many days after downloading, or once deleted here for good.
+pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, inbox: &str, keep: &Keep, now: i64) -> Result<SyncReport> {
+    let mut state = load_state(store, account, now);
     let listed = c.uidl()?;
     let mut fs = store.load_folder(account, inbox)?;
     if fs.validity == 0 {
@@ -221,8 +306,8 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
     }
     let mut report = SyncReport::default();
     for (n, id) in &listed {
-        if seen.contains(id) {
-            if delete {
+        if let Some(k) = state.get(id) {
+            if keep.removes(k, now) {
                 c.dele(*n)?;
             }
             continue;
@@ -232,23 +317,22 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
         let key = MessageKey { account: account.to_string(), folder: inbox.to_string(), validity: fs.validity, uid };
         store.write_body(&key, &raw)?;
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
+        state.insert(id.clone(), Kept { at: now, key: Some(key.to_id()), gone: false });
         fs.messages.push(mime::summary_from_full(&raw, key, Flags::default(), size, 0));
         fs.uid_next = uid.saturating_add(1);
-        seen.push(id.clone());
         report.new += 1;
         // Saved as it goes: a dropped connection loses nothing already downloaded.
         sort_newest_first(&mut fs.messages);
         store.save_folder(account, inbox, &fs)?;
-        store.save_account_doc(account, SEEN_DOC, &seen)?;
-        if delete {
+        store.save_account_doc(account, STATE_DOC, &state)?;
+        if keep.remove_now {
             c.dele(*n)?;
         }
     }
-    // Forget the ids the server no longer has (unless removing: then they're all gone anyway).
-    if !delete {
-        seen.retain(|s| listed.iter().any(|(_, id)| id == s));
-        store.save_account_doc(account, SEEN_DOC, &seen)?;
-    }
+    // Forget the ids the server no longer has (one removed now is still listed until QUIT, so it
+    // goes from here next time).
+    state.retain(|id, _| listed.iter().any(|(_, l)| l == id));
+    store.save_account_doc(account, STATE_DOC, &state)?;
     report.total = u32::try_from(fs.messages.len()).unwrap_or(u32::MAX);
     report.unread = fs.unread();
     Ok(report)
@@ -285,6 +369,7 @@ pub fn move_locally(store: &Store, account: &str, keys: &[MessageKey], to: &str)
         dest.validity = 1;
     }
     let mut changed = Vec::new();
+    let mut pairs = Vec::new();
     let mut sources: Vec<&str> = keys.iter().map(|k| k.folder.as_str()).filter(|f| *f != to).collect();
     sources.sort_unstable();
     sources.dedup();
@@ -304,6 +389,7 @@ pub fn move_locally(store: &Store, account: &str, keys: &[MessageKey], to: &str)
             }
             store.remove_body(&old);
             dest.uid_next = key.uid.saturating_add(1);
+            pairs.push((old, key.clone()));
             m.key = key;
             dest.messages.push(m);
         }
@@ -314,6 +400,7 @@ pub fn move_locally(store: &Store, account: &str, keys: &[MessageKey], to: &str)
         sort_newest_first(&mut dest.messages);
         store.save_folder(account, to, &dest)?;
         changed.push(to.to_string());
+        moved(store, account, &pairs)?;
     }
     Ok(changed)
 }
@@ -428,7 +515,8 @@ mod tests {
         let list = folders(&store, "p1").unwrap();
         assert_eq!(list.iter().filter(|f| f.role == FolderRole::Inbox).count(), 1);
         let mut c = open(&acc, "pw").unwrap();
-        let r = fetch_new(&mut c, &store, "p1", "INBOX", false).unwrap();
+        let keep = Keep::default();
+        let r = fetch_new(&mut c, &store, "p1", "INBOX", &keep, 1_000).unwrap();
         c.quit().unwrap();
         assert_eq!((r.new, r.total, r.unread), (2, 2, 2));
         let st = store.load_folder("p1", "INBOX").unwrap();
@@ -437,19 +525,62 @@ mod tests {
         assert!(raw.contains("\r\n.a line starting with a dot\r\n"), "dot-stuffing undone: {raw}");
         // Again: nothing new; the server still has both.
         let mut c = open(&acc, "pw").unwrap();
-        assert_eq!(fetch_new(&mut c, &store, "p1", "INBOX", false).unwrap().new, 0);
+        assert_eq!(fetch_new(&mut c, &store, "p1", "INBOX", &keep, 1_000).unwrap().new, 0);
         c.quit().unwrap();
         assert_eq!(server.drop.lock().unwrap().len(), 2);
         // New mail, and removing from the server.
         server.drop.lock().unwrap().push(("u3".into(), mail("Three", "")));
         let mut c = open(&acc, "pw").unwrap();
-        assert_eq!(fetch_new(&mut c, &store, "p1", "INBOX", true).unwrap().new, 1);
+        assert_eq!(fetch_new(&mut c, &store, "p1", "INBOX", &Keep { remove_now: true, ..keep }, 1_000).unwrap().new, 1);
         c.quit().unwrap();
         assert!(server.drop.lock().unwrap().is_empty(), "removed after downloading");
         assert_eq!(store.load_folder("p1", "INBOX").unwrap().messages.len(), 3);
         // A copy filed here.
         let k = file_locally(&store, "p1", "Sent Items", &mail("Sent", ""), Flags { seen: true, ..Default::default() }, 1).unwrap();
         assert!(store.has_body(&k));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// As Outlook's POP settings: a copy stays on the server for so many days, or until it's
+    /// deleted here for good.
+    #[test]
+    fn server_copies_go_after_days_or_once_deleted_for_good() {
+        let day = 86_400;
+        let server = fake::serve(vec![("u1".into(), mail("One", "")), ("u2".into(), mail("Two", "")), ("u3".into(), mail("Three", ""))]);
+        let dir = std::env::temp_dir().join(format!("mailcraft-pop-keep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let cfg = ServerConfig { host: "127.0.0.1".into(), port: server.port, security: Security::None };
+        let acc = AccountConfig { id: "p1".into(), email: "me@pop.example".into(), pop: Some(cfg), ..Default::default() };
+        folders(&store, "p1").unwrap();
+        let keep = Keep { remove_now: false, days: Some(14), with_trash: true };
+        let sync = |now: i64| {
+            let mut c = open(&acc, "pw").unwrap();
+            let r = fetch_new(&mut c, &store, "p1", "INBOX", &keep, now).unwrap();
+            c.quit().unwrap();
+            r
+        };
+        assert_eq!(sync(0).new, 3);
+        let on_server = || server.drop.lock().unwrap().iter().map(|(id, _)| id.clone()).collect::<Vec<_>>();
+        // One moved to Deleted Items and deleted there for good: its server copy goes.
+        let inbox = store.load_folder("p1", "INBOX").unwrap();
+        let one = inbox.messages.iter().find(|m| m.subject == "One").unwrap().key.clone();
+        move_locally(&store, "p1", &[one], "Deleted Items").unwrap();
+        let moved = store.load_folder("p1", "Deleted Items").unwrap().messages[0].key.clone();
+        deleted_for_good(&store, "p1", &[moved]).unwrap();
+        assert_eq!(sync(day).new, 0);
+        assert_eq!(on_server(), ["u2", "u3"]);
+        // Thirteen days on, both stay; fourteen, they go (and aren't downloaded again).
+        sync(13 * day);
+        assert_eq!(on_server().len(), 2);
+        server.drop.lock().unwrap().push(("u4".into(), mail("Four", "")));
+        assert_eq!(sync(14 * day).new, 1);
+        assert_eq!(on_server(), ["u4"], "the new one stays its fourteen days");
+        assert_eq!(store.load_folder("p1", "INBOX").unwrap().messages.len(), 3, "this computer keeps them all");
+        // From before: the seen list carries over, nothing downloaded twice.
+        store.save_account_doc("p1", STATE_DOC, &State::new()).unwrap();
+        store.save_account_doc("p1", SEEN_DOC, &vec!["u4".to_string()]).unwrap();
+        assert_eq!(sync(15 * day).new, 0);
         let _ = std::fs::remove_dir_all(dir);
     }
 

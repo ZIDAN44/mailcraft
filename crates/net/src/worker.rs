@@ -850,7 +850,7 @@ impl Worker {
                 let secret = self.secret();
                 (|| {
                     let mut c = crate::pop::open(&self.acc, &secret?)?;
-                    let r = crate::pop::fetch_new(&mut c, &store, &id, path, self.acc.pop_delete)?;
+                    let r = crate::pop::fetch_new(&mut c, &store, &id, path, &crate::pop::Keep::of(&self.acc), now())?;
                     let _ = c.quit();
                     Ok(r)
                 })()
@@ -901,7 +901,20 @@ impl Worker {
             }
             Job::FetchBody { key } => self.fetch(key),
             Job::Apply { op, .. } => {
-                // POP: a move is carried out here (there's no server copy to come back).
+                // POP: a move is carried out here (there's no server copy to come back); what's
+                // deleted for good is noted, for removing the server's copy when the account says.
+                if self.acc.pop.is_some() {
+                    let gone: Vec<mailcraft_model::MessageKey> = match &op {
+                        Op::Expunge { keys } => keys.clone(),
+                        Op::EmptyFolder { path } => {
+                            self.store.load_folder(&self.acc.id, path).map(|f| f.messages.into_iter().map(|m| m.key).collect()).unwrap_or_default()
+                        }
+                        _ => Vec::new(),
+                    };
+                    if let Err(e) = crate::pop::deleted_for_good(&self.store, &self.acc.id, &gone) {
+                        self.notice(e.to_string());
+                    }
+                }
                 let applied = match &op {
                     Op::Move { keys, to } if self.acc.pop.is_some() => crate::pop::move_locally(&self.store, &self.acc.id, keys, to),
                     _ => self.store.apply_op(&self.acc.id, &op).map_err(NetError::from),

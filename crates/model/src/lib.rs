@@ -105,6 +105,13 @@ pub struct AccountConfig {
     /// POP: remove mail from the server once it's downloaded (otherwise a copy stays there).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pop_delete: bool,
+    /// POP, keeping a copy on the server: remove it this many days after it's downloaded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pop_keep_days: Option<u32>,
+    /// POP, keeping a copy on the server: remove it once it's deleted here for good (from
+    /// Deleted Items).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pop_delete_with_trash: bool,
 }
 
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
@@ -160,6 +167,8 @@ impl AccountConfig {
             ews: None,
             pop: None,
             pop_delete: false,
+            pop_keep_days: None,
+            pop_delete_with_trash: false,
         }
     }
 
