@@ -13,7 +13,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         include_str!("../dialogs.rs"),
         include_str!("../widgets.rs"),
         include_str!("../organize.rs"),
-        include_str!("../editor.rs"),
+        include_str!("../rich_edit.rs"),
         include_str!("../backstage.rs"),
         include_str!("../calendar.rs"),
         include_str!("../people.rs"),
@@ -113,9 +113,37 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     for p in SnoozeUntil::ALL {
         out.insert(p.label().to_string());
     }
-    for f in crate::editor::Fmt::ALL {
-        out.insert(f.label().to_string());
-        out.insert(f.tip().to_string());
+    // The message editor's ribbon and dialogs.
+    for s in [
+        "Bold (Ctrl+B)",
+        "Italic (Ctrl+I)",
+        "Underline (Ctrl+U)",
+        "Strikethrough",
+        "Text highlight color",
+        "Font color",
+        "No color",
+        "Automatic",
+        "Bullets (Ctrl+Shift+L)",
+        "Numbering",
+        "Decrease indent (Ctrl+Shift+T)",
+        "Increase indent (Ctrl+T)",
+        "Align left (Ctrl+L)",
+        "Center (Ctrl+E)",
+        "Align right (Ctrl+R)",
+        "Clear all formatting (Ctrl+Space)",
+        "Address Book",
+        "Attach File",
+        "Link",
+        "Pictures",
+        "To ->",
+        "Cc ->",
+        "Bcc ->",
+        "All addresses",
+        "Contacts",
+        "Yes",
+        "No",
+    ] {
+        out.insert(s.to_string());
     }
     for c in mailcraft_engine::model::organize::default_categories() {
         out.insert(c.name);

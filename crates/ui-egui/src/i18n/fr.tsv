@@ -519,6 +519,42 @@
 	Untitled	Sans titre
 	Write new messages in a window of their own	Écrire les nouveaux messages dans une fenêtre à part
 	Saved in Drafts	Enregistré dans Brouillons
+	Underline (Ctrl+U)	Souligné (Ctrl+U)
+	Text highlight color	Couleur de surbrillance du texte
+	Font color	Couleur de police
+	No color	Aucune couleur
+	Automatic	Automatique
+	Bullets (Ctrl+Shift+L)	Puces (Ctrl+Maj+L)
+	Numbering	Numérotation
+	Decrease indent (Ctrl+Shift+T)	Diminuer le retrait (Ctrl+Maj+T)
+	Increase indent (Ctrl+T)	Augmenter le retrait (Ctrl+T)
+	Align left (Ctrl+L)	Aligner à gauche (Ctrl+L)
+	Center (Ctrl+E)	Centrer (Ctrl+E)
+	Align right (Ctrl+R)	Aligner à droite (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	Effacer toute la mise en forme (Ctrl+Espace)
+	Address Book	Carnet d’adresses
+	Ctrl+Shift+B	Ctrl+Maj+B
+	Attach File	Joindre un fichier
+	Ctrl+K	Ctrl+K
+	Pictures	Images
+	Address	Adresse
+	Insert	Insérer
+	Remove link	Supprimer le lien
+	Select Names	Sélectionner des noms
+	Search	Rechercher
+	Name or address	Nom ou adresse
+	All addresses	Toutes les adresses
+	Contacts	Contacts
+	Email Address	Adresse de messagerie
+	No one found.	Personne trouvé.
+	To ->	À ->
+	Cc ->	Cc ->
+	Bcc ->	Cci ->
+	OK	OK
+	Want to save your changes?	Voulez-vous enregistrer vos modifications ?
+	The message is kept in Drafts if you save it.	Si vous l’enregistrez, le message est conservé dans Brouillons.
+	Yes	Oui
+	No	Non
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

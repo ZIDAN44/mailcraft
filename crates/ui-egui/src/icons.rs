@@ -55,6 +55,17 @@ pub enum Icon {
     /// A window with an arrow leaving it (pop out), and the reverse (pop in).
     PopOut,
     PopIn,
+    /// The message editor's ribbon.
+    ListBullet,
+    ListNumber,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
+    IndentMore,
+    IndentLess,
+    Link,
+    ClearFormat,
+    AddressBook,
 }
 
 struct Pen<'a> {
@@ -84,6 +95,9 @@ impl Pen<'_> {
     }
     fn circle(&self, x: f32, y: f32, rad: f32) {
         self.p.circle_stroke(self.pt(x, y), rad / 16.0 * self.r.width(), self.s);
+    }
+    fn dot(&self, x: f32, y: f32, rad: f32) {
+        self.p.circle_filled(self.pt(x, y), rad / 16.0 * self.r.width(), self.s.color);
     }
     fn arc(&self, cx: f32, cy: f32, rad: f32, a0: f32, a1: f32) {
         let n = 14;
@@ -258,6 +272,63 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Clock => {
             pen.circle(8.0, 8.5, 6.0);
             pen.line(&[(8.0, 5.0), (8.0, 8.5), (10.5, 10.0)]);
+        }
+        Icon::ListBullet => {
+            for y in [4.0, 8.0, 12.0] {
+                pen.dot(2.8, y, 1.1);
+                pen.line(&[(6.0, y), (14.5, y)]);
+            }
+        }
+        Icon::ListNumber => {
+            pen.line(&[(2.0, 2.8), (3.2, 2.0), (3.2, 5.6)]);
+            pen.line(&[(1.8, 7.8), (3.0, 7.0), (4.2, 7.8), (1.8, 10.2), (4.4, 10.2)]);
+            pen.line(&[(1.8, 12.2), (4.2, 12.2), (3.0, 13.4), (4.2, 14.6), (1.8, 14.8)]);
+            for y in [4.0, 9.0, 13.5] {
+                pen.line(&[(6.5, y), (14.5, y)]);
+            }
+        }
+        Icon::AlignLeft | Icon::AlignCenter | Icon::AlignRight => {
+            for (i, y) in [3.0f32, 6.3, 9.6, 12.9].iter().enumerate() {
+                let w = if i % 2 == 0 { 12.5 } else { 8.0 };
+                let x0 = match icon {
+                    Icon::AlignLeft => 1.8,
+                    Icon::AlignCenter => 8.0 - w / 2.0,
+                    _ => 14.2 - w,
+                };
+                pen.line(&[(x0, *y), (x0 + w, *y)]);
+            }
+        }
+        Icon::IndentMore | Icon::IndentLess => {
+            for y in [2.5, 13.5] {
+                pen.line(&[(1.8, y), (14.5, y)]);
+            }
+            for y in [6.2, 9.8] {
+                pen.line(&[(7.0, y), (14.5, y)]);
+            }
+            if icon == Icon::IndentMore {
+                pen.line(&[(1.8, 5.5), (4.6, 8.0), (1.8, 10.5)]);
+            } else {
+                pen.line(&[(4.6, 5.5), (1.8, 8.0), (4.6, 10.5)]);
+            }
+        }
+        Icon::Link => {
+            pen.line(&[(7.0, 9.0), (9.0, 7.0)]);
+            pen.closed(&[(5.6, 7.6), (3.0, 10.2), (3.0, 12.4), (3.6, 13.0), (5.8, 13.0), (8.4, 10.4)]);
+            pen.closed(&[(7.6, 5.6), (10.2, 3.0), (12.4, 3.0), (13.0, 3.6), (13.0, 5.8), (10.4, 8.4)]);
+        }
+        Icon::ClearFormat => {
+            pen.line(&[(3.0, 3.0), (11.5, 3.0)]);
+            pen.line(&[(7.2, 3.0), (5.0, 13.0)]);
+            pen.line(&[(9.5, 9.0), (14.0, 13.5)]);
+            pen.line(&[(14.0, 9.0), (9.5, 13.5)]);
+        }
+        Icon::AddressBook => {
+            pen.rect(3.0, 1.5, 13.5, 14.5);
+            pen.line(&[(1.5, 4.5), (4.5, 4.5)]);
+            pen.line(&[(1.5, 8.0), (4.5, 8.0)]);
+            pen.line(&[(1.5, 11.5), (4.5, 11.5)]);
+            pen.circle(8.5, 6.5, 1.8);
+            pen.line(&[(5.8, 11.8), (6.6, 10.0), (10.4, 10.0), (11.2, 11.8)]);
         }
         Icon::PopOut => {
             pen.line(&[(7.0, 2.5), (2.5, 2.5), (2.5, 13.5), (13.5, 13.5), (13.5, 9.0)]);

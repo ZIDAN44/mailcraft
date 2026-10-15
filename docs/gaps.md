@@ -35,8 +35,10 @@ _Status: v0.1, 2026-10-15._
 - **Organising:** colour categories (IMAP keywords), pinning, snooze, inbox rules, Focused/Other.
 - **HTML mail:** shown formatted with its colours, highlights and tables (adjusted for contrast);
   pictures from the web only on request, remembered per sender.
-- **Rich-text compose:** bold, italic, strikethrough, headings, lists, quotes, links and code with a
-  `text/html` alternative; pictures inserted or pasted inline.
+- **Rich-text compose:** written as it will look (no marks), from the Message ribbon or with
+  Outlook's shortcuts: font size, bold, italic, underline, strikethrough, font and highlight
+  colours, bullets and numbering, alignment, indent, clear formatting, links and pictures, with
+  undo; sent as HTML with a plain-text twin.
 - **Autoconfig:** the domain's autoconfig, the Mozilla ISPDB, MX and SRV records (RFC 6186).
 - **OAuth 2.0:** Gmail and Microsoft 365 through the browser (RFC 8252 + PKCE), XOAUTH2 for IMAP
   and SMTP.
@@ -51,8 +53,10 @@ _Status: v0.1, 2026-10-15._
 - **Messages in windows:** double-click (or *Open in new window*) opens a message in a window of
   its own, as in Outlook; new mail is written in a window of its own (an option), replies start
   in the reading pane and pop out; closing a message window keeps it in Drafts.
-- **Writing like Outlook:** the tall Send button beside From, To and Cc, underlined fields, and
-  the original under a rule with its From / Sent / To / Subject (sent as `<hr>` and bold labels).
+- **Writing like Outlook:** the tall Send button beside From, To and Cc (which open the
+  address book, Select Names), underlined fields, the original under a rule with its From / Sent /
+  To / Subject and its own formatting, and "Want to save your changes?" on closing a message
+  window.
 - **The File page:** account information, server settings, automatic replies (Sieve vacation over
   ManageSieve, JMAP's VacationResponse or Graph's mailbox settings), the space used (IMAP QUOTA,
   JMAP Quota), emptying Deleted Items and Junk, rules, Options and About.

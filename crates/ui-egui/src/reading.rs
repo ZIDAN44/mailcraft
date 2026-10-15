@@ -8,13 +8,13 @@ use mailcraft_engine::model::{MessageKey, addr, dates};
 use mailcraft_engine::{Session, model::EmailAddress};
 use serde_json::json;
 
-use crate::editor::{self, Fmt};
 use crate::icons::{self, Icon};
+use crate::rich_edit;
 use crate::theme::{self, Tokens};
 use crate::{Action, UiState, widgets};
 
 pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
-    if s.compose.as_ref().is_some_and(|c| !c.window) {
+    if s.compose.as_ref().is_some_and(|c| crate::compose_inline(c, ui.ctx())) {
         compose(s, st, ui, acts, false);
         return;
     }
@@ -507,7 +507,7 @@ fn video_preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &Messa
 
 /// Decode a picture from mail or the web into a texture, at most `max` pixels on a side.
 /// Pictures are hostile input: size and allocation are capped before decoding.
-fn decode(ctx: &egui::Context, name: &str, data: &[u8], max: u32) -> Option<egui::TextureHandle> {
+pub(crate) fn decode(ctx: &egui::Context, name: &str, data: &[u8], max: u32) -> Option<egui::TextureHandle> {
     if data.len() > 30 << 20 {
         return None;
     }
@@ -836,7 +836,7 @@ fn recipient_field(
     hint: &str,
     focus: bool,
     suggestions: &[Contact],
-) {
+) -> bool {
     let t = st.tokens;
     let showing = st.suggest_field == Some(name) && !suggestions.is_empty();
     let mut take: Option<usize> = None;
@@ -860,12 +860,12 @@ fn recipient_field(
     }
     let (pressed, r) = ui
         .horizontal(|ui| {
-            // The field's button: a click puts the cursor in its box.
+            // The field's button opens the address book (the caller's to show).
             let b = label_button(ui, &t, label, true);
             (b.clicked(), underlined(ui, &t, egui::TextEdit::singleline(value).hint_text(tl!(hint))))
         })
         .inner;
-    if focus || pressed {
+    if focus {
         r.request_focus();
     }
     if r.changed() {
@@ -909,6 +909,7 @@ fn recipient_field(
     }
     // Half-typed addresses are fine while typing; check once the box is left.
     address_check(ui, &t, value, !r.has_focus());
+    pressed
 }
 
 fn address_check(ui: &mut Ui, t: &Tokens, value: &str, check_addresses: bool) {
@@ -951,6 +952,11 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         _ => Vec::new(),
     };
     let Some(c) = s.compose.as_mut() else { return };
+    // The editor's state belongs to one message.
+    if st.editor.as_ref().is_none_or(|e| e.id != c.id) {
+        st.editor = Some(rich_edit::Editor::new(c.id));
+    }
+    let Some(mut ed) = st.editor.take() else { return };
     // A newly opened message: start in To (new mail) or the body (replies).
     let fresh = st.compose_shown != Some(c.id);
     st.compose_shown = Some(c.id);
@@ -963,35 +969,50 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             acts.push(Action::Run("compose.send", json!({})));
         }
     };
-    // In a window of its own the main window's shortcuts don't reach it: the message's own.
-    if in_window && !c.sending {
-        let (send_key, save_key) =
-            ui.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter), i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)));
-        if send_key {
+    // Alt+S sends, as in Outlook; in a window of its own the main window's shortcuts don't reach
+    // it, so Ctrl+Enter and Ctrl+S are the message's own there.
+    if !c.sending {
+        let (alt_s, send_key, save_key) = ui.input_mut(|i| {
+            (
+                i.consume_key(egui::Modifiers::ALT, egui::Key::S),
+                in_window && i.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter),
+                in_window && i.consume_key(egui::Modifiers::COMMAND, egui::Key::S),
+            )
+        });
+        if alt_s || send_key {
             send(c, acts);
         }
         if save_key {
             acts.push(Action::Run("compose.saveDraft", json!({})));
         }
     }
-    egui::Frame::new().inner_margin(Margin { left: 20, right: 20, top: 10, bottom: 14 }).show(ui, |ui| {
-        // The message's commands; Discard and Pop out (or in) at the right, as in Outlook.
+    egui::Frame::new().inner_margin(Margin { left: 16, right: 16, top: 8, bottom: 12 }).show(ui, |ui| {
+        // The Message ribbon.
+        egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            rich_edit::ribbon(ui, &t, &mut ed, c, acts);
+        });
+        ui.add_space(4.0);
+        // Drafts, Bcc and the format; Discard and Pop out (or in) at the right, as in Outlook.
         ui.horizontal(|ui| {
-            if widgets::tool_button(ui, Icon::Attach, "Attach file", &t, !c.sending).clicked() {
-                acts.push(Action::AttachFiles);
-            }
             if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
                 acts.push(Action::Run("compose.saveDraft", json!({})));
             }
             if widgets::tool_button(ui, Icon::Person, if c.show_cc { "Hide Bcc" } else { "Bcc" }, &t, !c.sending).clicked() {
                 c.show_cc = !c.show_cc;
             }
+            let mut plain = c.plain;
+            if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
+                c.plain = plain;
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let (icon, label, id) =
                     if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
-                if widgets::tool_button(ui, icon, label, &t, true)
-                    .on_hover_text(tl!(if in_window { "Back to the reading pane" } else { "Write it in a window of its own" }))
-                    .clicked()
+                // Where windows can't open (the browser), messages stay in the reading pane.
+                if !ui.ctx().embed_viewports()
+                    && widgets::tool_button(ui, icon, label, &t, true)
+                        .on_hover_text(tl!(if in_window { "Back to the reading pane" } else { "Write it in a window of its own" }))
+                        .clicked()
                 {
                     acts.push(Action::Run(id, json!({})));
                 }
@@ -1006,7 +1027,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 ui.label(RichText::new(tf!("Not sent: {error}", error = e)).color(t.danger));
             });
         }
-        ui.add_space(10.0);
+        ui.add_space(6.0);
         ui.add_enabled_ui(!c.sending, |ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
             // Send beside the address rows (From, To, Cc and Bcc when shown).
@@ -1033,10 +1054,22 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                             ui.add(egui::Label::new(RichText::new(current).color(t.dim)).truncate());
                         });
                     });
-                    recipient_field(ui, st, "to", "To", &mut c.to, "Names <addresses>, separated by ; or ,", focus_to, &suggestions);
-                    recipient_field(ui, st, "cc", "Cc", &mut c.cc, "", false, &suggestions);
-                    if c.show_cc {
-                        recipient_field(ui, st, "bcc", "Bcc", &mut c.bcc, "Hidden from the other recipients", false, &suggestions);
+                    // To, Cc and Bcc open the address book, as in Outlook.
+                    for (name, label, hint) in
+                        [("to", "To", "Names <addresses>, separated by ; or ,"), ("cc", "Cc", ""), ("bcc", "Bcc", "Hidden from the other recipients")]
+                    {
+                        if name == "bcc" && !c.show_cc {
+                            continue;
+                        }
+                        let value = match name {
+                            "to" => &mut c.to,
+                            "cc" => &mut c.cc,
+                            _ => &mut c.bcc,
+                        };
+                        if recipient_field(ui, st, name, label, value, hint, name == "to" && focus_to, &suggestions) {
+                            let d = crate::Dialog::select_names(c, name);
+                            acts.push(Action::Dialog(d));
+                        }
                     }
                 });
             });
@@ -1072,109 +1105,24 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     }
                 });
             }
-            ui.add_space(6.0);
-            let body_id = egui::Id::new(("compose-body", c.id));
-            // The format bar: buttons act on the body's selection (from the last frame).
-            let mut format: Option<Fmt> = None;
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                ui.spacing_mut().button_padding = vec2(6.0, 2.0);
-                ui.add_enabled_ui(!c.plain, |ui| {
-                    for f in Fmt::ALL {
-                        let text = match f {
-                            Fmt::Bold => RichText::new(tl!(f.label())).strong(),
-                            Fmt::Italic => RichText::new(tl!(f.label())).italics(),
-                            Fmt::Strike => RichText::new(tl!(f.label())).strikethrough(),
-                            _ => RichText::new(tl!(f.label())),
-                        };
-                        if ui.add(egui::Button::new(text.size(13.0)).frame(false).min_size(vec2(26.0, 22.0))).on_hover_text(tl!(f.tip())).clicked() {
-                            format = Some(f);
-                        }
-                    }
-                    ui.add_space(6.0);
-                    if ui
-                        .add(egui::Button::new(RichText::new(tl!("Picture…")).size(13.0)).frame(false))
-                        .on_hover_text(tl!("Insert a picture (or paste one)"))
-                        .clicked()
-                    {
-                        acts.push(Action::InsertPicture);
-                    }
-                });
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let mut plain = c.plain;
-                    if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
-                        c.plain = plain;
-                    }
-                });
-            });
-            // Keyboard: Ctrl+B, Ctrl+I, Ctrl+K while writing.
-            if !c.plain && ui.memory(|m| m.has_focus(body_id)) {
-                ui.input_mut(|i| {
-                    for (key, f) in [(egui::Key::B, Fmt::Bold), (egui::Key::I, Fmt::Italic), (egui::Key::K, Fmt::Link)] {
-                        if i.consume_key(egui::Modifiers::COMMAND, key) {
-                            format = Some(f);
-                        }
-                    }
-                });
-            }
-            if let Some(f) = format {
-                let mut state = egui::TextEdit::load_state(ui.ctx(), body_id).unwrap_or_default();
-                let n = c.body.chars().count();
-                let sel = state.cursor.char_range().map_or(n..n, |r| {
-                    let s = r.as_sorted_char_range();
-                    s.start.0.min(n)..s.end.0.min(n)
-                });
-                let new = editor::apply(&mut c.body, sel, f);
-                state
-                    .cursor
-                    .set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(new.start), egui::text::CCursor::new(new.end))));
-                state.store(ui.ctx(), body_id);
-                ui.memory_mut(|m| m.request_focus(body_id));
-            }
+            ui.add_space(4.0);
             let sep = ui.available_rect_before_wrap();
             ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
-            ui.add_space(6.0);
-            let plain = c.plain;
-            let tokens = t;
+            ui.add_space(8.0);
+            let body_id = rich_edit::body_id(c);
+            // A picture on the clipboard is pasted as a picture.
+            if ui.memory(|m| m.has_focus(body_id))
+                && ui.input(|i| {
+                    i.events.iter().any(|e| matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command))
+                })
+            {
+                acts.push(Action::PastePicture);
+            }
             egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| {
-                let h = ui.available_height().max(200.0);
-                let mut layouter =
-                    |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| ui.painter().layout_job(editor::layout(buf.as_str(), &tokens, wrap));
-                let mut edit = egui::TextEdit::multiline(&mut c.body)
-                    .id(body_id)
-                    .frame(egui::Frame::NONE)
-                    .font(theme::regular(14.5))
-                    .hint_text(tl!("Write your message…"))
-                    .lock_focus(true);
-                if !plain {
-                    edit = edit.layouter(&mut layouter);
-                }
-                let r = ui.add_sized(vec2(ui.available_width(), h), edit);
-                // Where a picture goes when one is inserted or pasted.
-                if let Some(state) = egui::TextEdit::load_state(ui.ctx(), r.id)
-                    && let Some(range) = state.cursor.char_range()
-                {
-                    st.compose_cursor = range.primary.index.0;
-                }
-                // A picture on the clipboard is pasted as a picture.
-                if r.has_focus()
-                    && ui.input(|i| {
-                        i.events
-                            .iter()
-                            .any(|e| matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command))
-                    })
-                {
-                    acts.push(Action::PastePicture);
-                }
-                if focus_body {
-                    r.request_focus();
-                    // Replies start above the quoted text.
-                    if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
-                        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(0))));
-                        state.store(ui.ctx(), r.id);
-                    }
-                }
+                // Replies start above the quoted text.
+                rich_edit::body(ui, &t, &mut ed, c, focus_body.then_some(0), acts);
             });
         });
     });
+    st.editor = Some(ed);
 }

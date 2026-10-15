@@ -24,7 +24,6 @@ macro_rules! tf {
 pub mod backstage;
 mod calendar;
 mod dialogs;
-mod editor;
 pub mod i18n;
 pub mod icons;
 mod list;
@@ -33,6 +32,7 @@ mod organize;
 mod people;
 mod pim_dialogs;
 mod reading;
+mod rich_edit;
 pub mod theme;
 mod thumbs;
 pub use thumbs::VideoFrame;
@@ -49,6 +49,12 @@ use serde_json::{Value, json};
 pub use dialogs::Dialog;
 use icons::Icon;
 use theme::Tokens;
+
+/// Whether the message being written shows in the reading pane: when it isn't popped out, or
+/// where windows of its own can't open (the browser).
+pub(crate) fn compose_inline(c: &mailcraft_engine::Compose, ctx: &egui::Context) -> bool {
+    !c.window || ctx.embed_viewports()
+}
 
 /// The network side: the desktop app plugs in `mailcraft-net`'s worker pool.
 pub trait Backend {
@@ -227,7 +233,8 @@ pub struct UiState {
     /// The compose form last shown, to focus its first field when a new one opens.
     pub(crate) compose_shown: Option<u64>,
     /// The body's cursor (characters), where pictures go.
-    pub(crate) compose_cursor: usize,
+    /// The message editor's state (selection, undo, what's typed next).
+    pub(crate) editor: Option<rich_edit::Editor>,
     /// The recipient box showing suggestions (`to`, `cc`, `bcc`), the highlighted one, and the
     /// text for which Escape hid them.
     pub(crate) suggest_field: Option<&'static str>,
@@ -301,7 +308,7 @@ impl MailApp {
                 scroll_to_focus: false,
                 fonts_ready: false,
                 compose_shown: None,
-                compose_cursor: 0,
+                editor: None,
                 suggest_field: None,
                 suggest_index: 0,
                 suggest_dismissed: None,
@@ -383,7 +390,7 @@ impl MailApp {
         // Files chosen in the browser's picker.
         for (purpose, name, data) in self.services.take_picked() {
             if purpose == "picture" {
-                let r = self.session.run("compose.insertPicture", &json!({"name": name, "data": data, "insert": false}));
+                let r = self.session.run("compose.insertPicture", &json!({"name": name, "data": data, "at": self.picture_at()}));
                 self.place_picture(r);
             } else {
                 self.run("compose.attach", json!({"name": name, "data": data}));
@@ -513,10 +520,23 @@ impl MailApp {
         self.message_windows(&ctx, &mut acts);
         self.compose_window(&ctx, &mut acts);
 
+        // The address book reads the session's people.
+        if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
+            && f.stale
+        {
+            f.list = self.session.address_book(if f.people_only { "people" } else { "all" }, &f.query);
+            f.stale = false;
+        }
+        // A message window's own dialogs show in that window.
+        let in_window = self.session.compose.as_ref().is_some_and(|c| !compose_inline(c, &ctx));
         if let Some(mut d) = self.ui.dialog.take() {
-            let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &mut acts);
-            if keep && self.ui.dialog.is_none() {
+            if in_window && d.for_compose() {
                 self.ui.dialog = Some(d);
+            } else {
+                let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &mut acts);
+                if keep && self.ui.dialog.is_none() {
+                    self.ui.dialog = Some(d);
+                }
             }
         }
         self.toasts(&ctx);
@@ -539,7 +559,7 @@ impl MailApp {
     /// The message being written, when it's in a window of its own (new mail, or popped out).
     /// Closing the window keeps it in Drafts.
     fn compose_window(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
-        let Some(c) = self.session.compose.as_ref().filter(|c| c.window) else { return };
+        let Some(c) = self.session.compose.as_ref().filter(|c| !compose_inline(c, ctx)) else { return };
         let t = self.ui.tokens;
         let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
         let id = egui::ViewportId::from_hash_of(("compose-window", c.id));
@@ -550,15 +570,31 @@ impl MailApp {
         let (session, st) = (&mut self.session, &mut self.ui);
         let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
             let mut mine: Vec<Action> = Vec::new();
-            let closing = ui.input(|i| i.viewport().close_requested());
+            let mut closing = ui.input(|i| i.viewport().close_requested());
+            // Something written: ask first, as Outlook does.
+            if closing && session.compose_written() {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                st.dialog = Some(Dialog::SaveChanges);
+                closing = false;
+            }
             egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                 reading::compose_window(session, st, ui, &mut mine);
             });
+            if let Some(mut d) = st.dialog.take() {
+                if d.for_compose() {
+                    let keep = dialogs::show(ui.ctx(), &mut d, session, &t, &mut mine);
+                    if keep && st.dialog.is_none() {
+                        st.dialog = Some(d);
+                    }
+                } else {
+                    st.dialog = Some(d);
+                }
+            }
             acts.extend(mine);
             closing
         });
         if close {
-            acts.push(Action::Run("compose.close", json!({})));
+            acts.push(Action::Run("compose.close", json!({"save": false})));
         }
     }
 
@@ -778,13 +814,13 @@ impl MailApp {
             }
             Action::InsertPicture => {
                 for p in self.services.pick_pictures() {
-                    let r = self.session.run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "insert": false}));
+                    let r = self.session.run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "at": self.picture_at()}));
                     self.place_picture(r);
                 }
             }
             Action::PastePicture => {
                 if let Some(png) = self.services.clipboard_picture() {
-                    let r = self.session.run("compose.insertPicture", &json!({"name": "pasted.png", "data": png, "insert": false}));
+                    let r = self.session.run("compose.insertPicture", &json!({"name": "pasted.png", "data": png, "at": self.picture_at()}));
                     self.place_picture(r);
                 }
             }
@@ -820,14 +856,18 @@ impl MailApp {
     }
 
     /// Put a picture's mark at the body's cursor.
+    /// Where a picture goes: at the cursor in the message.
+    fn picture_at(&self) -> usize {
+        let n = self.session.compose.as_ref().map_or(0, |c| c.body.chars().count());
+        self.ui.editor.as_ref().filter(|e| self.session.compose.as_ref().is_some_and(|c| c.id == e.id)).map_or(n, |e| e.sel.start.min(n))
+    }
+
     fn place_picture(&mut self, r: mailcraft_engine::CmdResult) {
         match r {
-            Ok(v) => {
-                let mark = v.get("mark").and_then(Value::as_str).unwrap_or("").to_string();
-                if let Some(c) = self.session.compose.as_mut() {
-                    let at = c.body.char_indices().nth(self.ui.compose_cursor).map_or(c.body.len(), |(b, _)| b);
-                    c.body.insert_str(at, &format!("{mark}\n"));
-                    self.ui.compose_cursor += mark.chars().count() + 1;
+            // In place: the cursor goes after it.
+            Ok(_) => {
+                if let Some(e) = self.ui.editor.as_mut() {
+                    e.sel = e.sel.start + 1..e.sel.start + 1;
                 }
             }
             Err(e) => self.session.notice(e.to_string(), true),
@@ -934,6 +974,16 @@ impl MailApp {
                 combo.push_str("Shift+");
             }
             combo.push_str(&name);
+            // Writing a message: its own keys (formatting, Ctrl+R aligns right…), not the main
+            // window's; Ctrl+Shift+B opens the address book from any of its boxes.
+            if typing && let Some(c) = self.session.compose.as_ref().filter(|c| compose_inline(c, ctx)) {
+                if combo == "Mod+Shift+B" {
+                    self.ui.dialog = Some(Dialog::select_names(c, "to"));
+                }
+                if !matches!(combo.as_str(), "Mod+S" | "Mod+Enter") {
+                    continue;
+                }
+            }
             if combo == "Mod+E" {
                 self.ui.focus_search = true;
                 continue;

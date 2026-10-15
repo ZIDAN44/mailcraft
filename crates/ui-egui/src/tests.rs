@@ -497,28 +497,100 @@ fn attachments_drag_out_as_files() {
 }
 
 #[test]
-fn the_editor_formats_and_takes_pasted_pictures() {
+fn the_editor_formats_as_you_see_it_with_outlooks_keys() {
+    use mailcraft_engine::mime::rich::{Align, List, PICTURE};
     let (mut a, dir) = app("editor");
     a.services = Box::new(Recorder(Default::default()));
+    a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
-    a.run(
-        "compose.update",
-        json!({"to": "ann@x.example", "subject": "s", "body": "# Plan
-Hi **Ann**, see [this](https://x.example)
-- one
-> quote"}),
-    );
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Plan", "body": ""}));
     frame(&ctx, &mut a, vec![]);
-    a.ui.compose_cursor = 0;
+    let id = crate::rich_edit::body_id(a.session.compose.as_ref().unwrap());
+    let compose_id = a.session.compose.as_ref().unwrap().id;
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(&ctx, &mut a, vec![]);
+    let c = |a: &MailApp| a.session.compose.clone().unwrap();
+    // Bold on, then typing: bold text, and no marks in it.
+    frame(&ctx, &mut a, vec![key(Key::B, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![Event::Text("Hello".into())]);
+    assert_eq!(c(&a).body, "Hello");
+    assert!(c(&a).styles.style(0).bold && c(&a).styles.style(4).bold);
+    // Off again: plain.
+    frame(&ctx, &mut a, vec![key(Key::B, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![Event::Text(" world".into())]);
+    assert_eq!(c(&a).body, "Hello world");
+    assert!(!c(&a).styles.style(7).bold);
+    // Select "Hello" and underline it.
+    let mut state = egui::TextEdit::load_state(&ctx, id).unwrap_or_default();
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(5))));
+    state.store(&ctx, id);
+    frame(&ctx, &mut a, vec![key(Key::U, Modifiers::COMMAND)]);
+    assert!(c(&a).styles.style(2).underline && !c(&a).styles.style(7).underline);
+    // Bullets (Ctrl+Shift+L), then undo (Ctrl+Z) and redo (Ctrl+Y).
+    frame(&ctx, &mut a, vec![key(Key::L, Modifiers::COMMAND | Modifiers::SHIFT)]);
+    assert_eq!(c(&a).styles.para(0).list, List::Bullet);
+    frame(&ctx, &mut a, vec![key(Key::Z, Modifiers::COMMAND)]);
+    assert_eq!(c(&a).styles.para(0).list, List::None);
+    frame(&ctx, &mut a, vec![key(Key::Y, Modifiers::COMMAND)]);
+    assert_eq!(c(&a).styles.para(0).list, List::Bullet);
+    // Ctrl+R aligns right while writing (it doesn't reply), Ctrl+E centres.
+    frame(&ctx, &mut a, vec![key(Key::R, Modifiers::COMMAND)]);
+    assert_eq!(c(&a).id, compose_id, "still the same message");
+    assert_eq!(c(&a).styles.para(0).align, Align::Right);
+    frame(&ctx, &mut a, vec![key(Key::E, Modifiers::COMMAND)]);
+    assert_eq!(c(&a).styles.para(0).align, Align::Center);
+    // Bigger (Ctrl+]), on "Hello" selected again (undo leaves the cursor collapsed).
+    let mut state = egui::TextEdit::load_state(&ctx, id).unwrap_or_default();
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(5))));
+    state.store(&ctx, id);
+    frame(&ctx, &mut a, vec![key(Key::CloseBracket, Modifiers::COMMAND)]);
+    assert_eq!(c(&a).styles.style(0).size(), 12);
+    // Sent as HTML with what was seen.
+    let (text, html, _) = c(&a).bodies();
+    let html = html.unwrap();
+    assert!(text.starts_with("• Hello world"), "{text}");
+    assert!(html.contains("<ul>") && html.contains("<u>Hello</u>") && html.contains("text-align:center"), "{html}");
+    // Ctrl+Shift+B: the address book.
+    frame(&ctx, &mut a, vec![key(Key::B, Modifiers::COMMAND | Modifiers::SHIFT)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(matches!(a.ui.dialog, Some(Dialog::SelectNames(_))));
+    a.ui.dialog = None;
+    // A pasted picture goes in at the cursor.
     a.act(crate::Action::PastePicture);
-    let c = a.session.compose.clone().unwrap();
-    assert!(c.body.starts_with("![pasted](cid:"), "{}", c.body);
-    assert_eq!(c.inline.len(), 1);
     frame(&ctx, &mut a, vec![]);
+    assert!(c(&a).body.contains(PICTURE) && c(&a).inline.len() == 1);
     a.run("compose.format", json!({"plain": true}));
     frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_address_book_adds_people_to_to_cc_and_bcc() {
+    let (mut a, dir) = app("names");
+    let ctx = egui::Context::default();
+    a.session.prefs.new_mail_window = false;
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    assert!(f.list.iter().any(|x| x.email == "zoe@studio.example"), "everyone mail was exchanged with: {:?}", f.list);
+    f.query = "zoe".into();
+    f.stale = true;
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    assert!(!f.list.is_empty() && f.list.iter().all(|x| x.email.contains("zoe") || x.name.to_lowercase().contains("zoe")));
+    f.to = "Zoe Park <zoe@studio.example>; ".into();
+    f.cc = "ann@x.example".into();
+    // OK: the fields go to the message.
+    let p = json!({"to": f.to.trim(), "cc": f.cc.trim(), "bcc": ""});
+    a.act(crate::Action::Submit("compose.update", p));
+    let c = a.session.compose.clone().unwrap();
+    assert!(c.to.contains("zoe@studio.example") && c.cc == "ann@x.example");
     let _ = std::fs::remove_dir_all(dir);
 }
 

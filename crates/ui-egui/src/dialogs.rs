@@ -242,6 +242,10 @@ fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action
 #[derive(Clone, Debug)]
 pub enum Dialog {
     AddAccount(Box<AccountForm>),
+    /// Outlook's Select Names: the address book, to add people to To, Cc and Bcc.
+    SelectNames(Box<NamesForm>),
+    /// Closing a message window with something written in it.
+    SaveChanges,
     Password {
         account: String,
         email: String,
@@ -477,6 +481,23 @@ impl Dialog {
         Dialog::AddAccount(Box::default())
     }
 
+    /// The address book for the message being written; a double-click adds to `field`.
+    pub fn select_names(c: &mailcraft_engine::Compose, field: &'static str) -> Dialog {
+        Dialog::SelectNames(Box::new(NamesForm {
+            target: field,
+            to: c.to.clone(),
+            cc: c.cc.clone(),
+            bcc: c.bcc.clone(),
+            stale: true,
+            ..Default::default()
+        }))
+    }
+
+    /// Dialogs that belong to the message being written (shown in its window when it has one).
+    pub fn for_compose(&self) -> bool {
+        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject)
+    }
+
     /// The add-account dialog with the address filled in (servers guessed from it).
     pub fn add_account_with(email: &str, advanced: bool) -> Dialog {
         let mut f = AccountForm { email: email.trim().to_string(), advanced, ..Default::default() };
@@ -645,6 +666,125 @@ fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) 
         }
     });
     res
+}
+
+/// The address book being looked at.
+#[derive(Clone, Debug, Default)]
+pub struct NamesForm {
+    pub query: String,
+    /// `all` (everyone known) or `people` (Contacts).
+    pub people_only: bool,
+    pub list: Vec<mailcraft_engine::model::EmailAddress>,
+    /// The list must be read again (the search or the book changed).
+    pub stale: bool,
+    pub selected: Option<usize>,
+    /// The field a double-click adds to (`to`, `cc`, `bcc`).
+    pub target: &'static str,
+    pub to: String,
+    pub cc: String,
+    pub bcc: String,
+}
+
+/// Add `a` to a recipient field (`a; b` as Outlook writes them), unless it's there.
+fn add_to(field: &mut String, a: &mailcraft_engine::model::EmailAddress) {
+    if field.to_lowercase().contains(&a.email.to_lowercase()) {
+        return;
+    }
+    let f = field.trim().trim_end_matches([';', ',']).trim().to_string();
+    *field = if f.is_empty() { format!("{a}; ") } else { format!("{f}; {a}; ") };
+}
+
+fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.set_width(620.0);
+    title(ui, t, "Select Names");
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tl!("Search")).strong());
+        let r = ui.add(egui::TextEdit::singleline(&mut f.query).desired_width(240.0).hint_text(tl!("Name or address")));
+        if ui.memory(|m| m.focused().is_none()) {
+            r.request_focus();
+        }
+        if r.changed() {
+            f.stale = true;
+            f.selected = None;
+        }
+        ui.add_space(12.0);
+        ui.label(RichText::new(tl!("Address Book")).strong());
+        let shown = if f.people_only { tl!("Contacts") } else { tl!("All addresses") };
+        egui::ComboBox::from_id_salt("address-book").selected_text(shown).show_ui(ui, |ui| {
+            for (people, label) in [(false, "All addresses"), (true, "Contacts")] {
+                if ui.selectable_label(f.people_only == people, tl!(label)).clicked() && f.people_only != people {
+                    f.people_only = people;
+                    f.stale = true;
+                    f.selected = None;
+                }
+            }
+        });
+    });
+    ui.add_space(6.0);
+    let mut add: Option<&'static str> = None;
+    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4).show(ui, |ui| {
+        ui.set_min_size(vec2(ui.available_width(), 230.0));
+        egui::Grid::new("names-head").num_columns(2).min_col_width(250.0).show(ui, |ui| {
+            ui.label(RichText::new(tl!("Name")).color(t.dim).small());
+            ui.label(RichText::new(tl!("Email Address")).color(t.dim).small());
+        });
+        ui.separator();
+        egui::ScrollArea::vertical().max_height(210.0).auto_shrink([false, false]).show(ui, |ui| {
+            if f.list.is_empty() && !f.stale {
+                ui.label(RichText::new(tl!("No one found.")).color(t.faint));
+            }
+            for (i, a) in f.list.iter().enumerate() {
+                let on = f.selected == Some(i);
+                // A row: name and address, left-aligned as in Outlook's list.
+                let r = ui.horizontal(|ui| {
+                    let name = if a.name.is_empty() { a.email.clone() } else { a.name.clone() };
+                    let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), egui::Sense::click());
+                    if on || r.hovered() {
+                        ui.painter().rect_filled(rect, 3.0, if on { t.accent_soft } else { t.hover });
+                    }
+                    let left = rect.left_center();
+                    ui.painter().text(left + vec2(6.0, 0.0), egui::Align2::LEFT_CENTER, name, theme::regular(13.5), t.text);
+                    ui.painter().text(left + vec2(256.0, 0.0), egui::Align2::LEFT_CENTER, &a.email, theme::regular(13.5), t.dim);
+                    r
+                });
+                if r.inner.clicked() {
+                    f.selected = Some(i);
+                }
+                if r.inner.double_clicked() {
+                    f.selected = Some(i);
+                    add = Some(f.target);
+                }
+            }
+        });
+    });
+    ui.add_space(8.0);
+    for (name, label) in [("to", "To ->"), ("cc", "Cc ->"), ("bcc", "Bcc ->")] {
+        ui.horizontal(|ui| {
+            if ui.add_sized(vec2(72.0, 24.0), egui::Button::new(tl!(label))).clicked() {
+                add = Some(name);
+            }
+            let field = match name {
+                "to" => &mut f.to,
+                "cc" => &mut f.cc,
+                _ => &mut f.bcc,
+            };
+            ui.add(egui::TextEdit::singleline(field).desired_width(f32::INFINITY));
+        });
+    }
+    if let (Some(target), Some(a)) = (add, f.selected.and_then(|i| f.list.get(i)).cloned()) {
+        let field = match target {
+            "to" => &mut f.to,
+            "cc" => &mut f.cc,
+            _ => &mut f.bcc,
+        };
+        add_to(field, &a);
+    }
+    let (ok, cancel) = buttons(ui, t, "OK", true);
+    if ok {
+        acts.push(Action::Submit("compose.update", json!({"to": f.to.trim(), "cc": f.cc.trim(), "bcc": f.bcc.trim()})));
+        return true;
+    }
+    !cancel
 }
 
 /// Show the dialog; returns whether it stays open.
@@ -912,6 +1052,28 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 return false;
             }
             !cancel
+        }
+        Dialog::SelectNames(f) => select_names(ui, f, t, acts),
+        Dialog::SaveChanges => {
+            ui.set_width(380.0);
+            title(ui, t, "Want to save your changes?");
+            ui.label(RichText::new(tl!("The message is kept in Drafts if you save it.")).color(t.dim));
+            ui.add_space(10.0);
+            let mut keep = true;
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(tl!("Cancel")).clicked() {
+                    keep = false;
+                }
+                if ui.button(tl!("No")).clicked() {
+                    acts.push(Action::Run("compose.close", json!({"save": false})));
+                    keep = false;
+                }
+                if widgets::accent_button(ui, crate::icons::Icon::Drafts, "Yes", t, true).clicked() {
+                    acts.push(Action::Run("compose.close", json!({"save": true})));
+                    keep = false;
+                }
+            });
+            keep
         }
         Dialog::EmptySubject => {
             ui.set_width(360.0);

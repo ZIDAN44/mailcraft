@@ -519,6 +519,42 @@
 	Untitled	Ohne Titel
 	Write new messages in a window of their own	Neue Nachrichten in einem eigenen Fenster schreiben
 	Saved in Drafts	In Entwürfen gespeichert
+	Underline (Ctrl+U)	Unterstrichen (Strg+U)
+	Text highlight color	Texthervorhebungsfarbe
+	Font color	Schriftfarbe
+	No color	Keine Farbe
+	Automatic	Automatisch
+	Bullets (Ctrl+Shift+L)	Aufzählungszeichen (Strg+Umschalt+L)
+	Numbering	Nummerierung
+	Decrease indent (Ctrl+Shift+T)	Einzug verkleinern (Strg+Umschalt+T)
+	Increase indent (Ctrl+T)	Einzug vergrößern (Strg+T)
+	Align left (Ctrl+L)	Linksbündig (Strg+L)
+	Center (Ctrl+E)	Zentriert (Strg+E)
+	Align right (Ctrl+R)	Rechtsbündig (Strg+R)
+	Clear all formatting (Ctrl+Space)	Alle Formatierungen löschen (Strg+Leertaste)
+	Address Book	Adressbuch
+	Ctrl+Shift+B	Strg+Umschalt+B
+	Attach File	Datei anfügen
+	Ctrl+K	Strg+K
+	Pictures	Bilder
+	Address	Adresse
+	Insert	Einfügen
+	Remove link	Link entfernen
+	Select Names	Namen auswählen
+	Search	Suchen
+	Name or address	Name oder Adresse
+	All addresses	Alle Adressen
+	Contacts	Kontakte
+	Email Address	E-Mail-Adresse
+	No one found.	Niemand gefunden.
+	To ->	An ->
+	Cc ->	Cc ->
+	Bcc ->	Bcc ->
+	OK	OK
+	Want to save your changes?	Möchten Sie die Änderungen speichern?
+	The message is kept in Drafts if you save it.	Wenn Sie sie speichern, bleibt die Nachricht in Entwürfe.
+	Yes	Ja
+	No	Nein
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

@@ -521,3 +521,39 @@ month	May	5月
 	Untitled	无标题
 	Write new messages in a window of their own	在单独的窗口中撰写新邮件
 	Saved in Drafts	已保存到草稿
+	Underline (Ctrl+U)	下划线 (Ctrl+U)
+	Text highlight color	以不同颜色突出显示文本
+	Font color	字体颜色
+	No color	无颜色
+	Automatic	自动
+	Bullets (Ctrl+Shift+L)	项目符号 (Ctrl+Shift+L)
+	Numbering	编号
+	Decrease indent (Ctrl+Shift+T)	减少缩进量 (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	增加缩进量 (Ctrl+T)
+	Align left (Ctrl+L)	左对齐 (Ctrl+L)
+	Center (Ctrl+E)	居中 (Ctrl+E)
+	Align right (Ctrl+R)	右对齐 (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	清除所有格式 (Ctrl+空格)
+	Address Book	通讯簿
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	附加文件
+	Ctrl+K	Ctrl+K
+	Pictures	图片
+	Address	地址
+	Insert	插入
+	Remove link	删除链接
+	Select Names	选择姓名
+	Search	搜索
+	Name or address	姓名或地址
+	All addresses	所有地址
+	Contacts	联系人
+	Email Address	电子邮件地址
+	No one found.	未找到任何人。
+	To ->	收件人 ->
+	Cc ->	抄送 ->
+	Bcc ->	密件抄送 ->
+	OK	确定
+	Want to save your changes?	是否保存更改?
+	The message is kept in Drafts if you save it.	如果保存，邮件会留在草稿中。
+	Yes	是
+	No	否

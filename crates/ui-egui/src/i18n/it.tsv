@@ -518,6 +518,42 @@
 	Untitled	Senza titolo
 	Write new messages in a window of their own	Scrivi i nuovi messaggi in una finestra a parte
 	Saved in Drafts	Salvato in Bozze
+	Underline (Ctrl+U)	Sottolineato (Ctrl+U)
+	Text highlight color	Colore evidenziazione testo
+	Font color	Colore carattere
+	No color	Nessun colore
+	Automatic	Automatico
+	Bullets (Ctrl+Shift+L)	Elenco puntato (Ctrl+Maiusc+L)
+	Numbering	Numerazione
+	Decrease indent (Ctrl+Shift+T)	Riduci rientro (Ctrl+Maiusc+T)
+	Increase indent (Ctrl+T)	Aumenta rientro (Ctrl+T)
+	Align left (Ctrl+L)	Allinea a sinistra (Ctrl+L)
+	Center (Ctrl+E)	Centra (Ctrl+E)
+	Align right (Ctrl+R)	Allinea a destra (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	Cancella formattazione (Ctrl+Spazio)
+	Address Book	Rubrica
+	Ctrl+Shift+B	Ctrl+Maiusc+B
+	Attach File	Allega file
+	Ctrl+K	Ctrl+K
+	Pictures	Immagini
+	Address	Indirizzo
+	Insert	Inserisci
+	Remove link	Rimuovi collegamento
+	Select Names	Seleziona nomi
+	Search	Cerca
+	Name or address	Nome o indirizzo
+	All addresses	Tutti gli indirizzi
+	Contacts	Contatti
+	Email Address	Indirizzo di posta
+	No one found.	Nessuno trovato.
+	To ->	A ->
+	Cc ->	Cc ->
+	Bcc ->	Ccn ->
+	OK	OK
+	Want to save your changes?	Salvare le modifiche?
+	The message is kept in Drafts if you save it.	Se la salvi, il messaggio resta in Bozze.
+	Yes	Sì
+	No	No
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

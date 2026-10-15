@@ -521,3 +521,39 @@ month	May	5月
 	Untitled	無題
 	Write new messages in a window of their own	新しいメッセージを別のウィンドウで書く
 	Saved in Drafts	下書きに保存しました
+	Underline (Ctrl+U)	下線 (Ctrl+U)
+	Text highlight color	蛍光ペンの色
+	Font color	フォントの色
+	No color	色なし
+	Automatic	自動
+	Bullets (Ctrl+Shift+L)	箇条書き (Ctrl+Shift+L)
+	Numbering	段落番号
+	Decrease indent (Ctrl+Shift+T)	インデントを減らす (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	インデントを増やす (Ctrl+T)
+	Align left (Ctrl+L)	左揃え (Ctrl+L)
+	Center (Ctrl+E)	中央揃え (Ctrl+E)
+	Align right (Ctrl+R)	右揃え (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	すべての書式をクリア (Ctrl+Space)
+	Address Book	アドレス帳
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	ファイルの添付
+	Ctrl+K	Ctrl+K
+	Pictures	画像
+	Address	アドレス
+	Insert	挿入
+	Remove link	リンクの削除
+	Select Names	名前の選択
+	Search	検索
+	Name or address	名前またはアドレス
+	All addresses	すべてのアドレス
+	Contacts	連絡先
+	Email Address	電子メール アドレス
+	No one found.	見つかりませんでした。
+	To ->	宛先 ->
+	Cc ->	CC ->
+	Bcc ->	BCC ->
+	OK	OK
+	Want to save your changes?	変更を保存しますか?
+	The message is kept in Drafts if you save it.	保存すると、メッセージは下書きに残ります。
+	Yes	はい
+	No	いいえ

@@ -518,6 +518,42 @@
 	Untitled	제목 없음
 	Write new messages in a window of their own	새 메시지를 별도의 창에서 작성
 	Saved in Drafts	임시 보관함에 저장됨
+	Underline (Ctrl+U)	밑줄(Ctrl+U)
+	Text highlight color	텍스트 강조 색
+	Font color	글꼴 색
+	No color	색 없음
+	Automatic	자동
+	Bullets (Ctrl+Shift+L)	글머리 기호(Ctrl+Shift+L)
+	Numbering	번호 매기기
+	Decrease indent (Ctrl+Shift+T)	내어쓰기(Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	들여쓰기(Ctrl+T)
+	Align left (Ctrl+L)	왼쪽 맞춤(Ctrl+L)
+	Center (Ctrl+E)	가운데 맞춤(Ctrl+E)
+	Align right (Ctrl+R)	오른쪽 맞춤(Ctrl+R)
+	Clear all formatting (Ctrl+Space)	모든 서식 지우기(Ctrl+Space)
+	Address Book	주소록
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	파일 첨부
+	Ctrl+K	Ctrl+K
+	Pictures	그림
+	Address	주소
+	Insert	삽입
+	Remove link	링크 제거
+	Select Names	이름 선택
+	Search	검색
+	Name or address	이름 또는 주소
+	All addresses	모든 주소
+	Contacts	연락처
+	Email Address	전자 메일 주소
+	No one found.	아무도 없습니다.
+	To ->	받는 사람 ->
+	Cc ->	참조 ->
+	Bcc ->	숨은 참조 ->
+	OK	확인
+	Want to save your changes?	변경 내용을 저장하시겠습니까?
+	The message is kept in Drafts if you save it.	저장하면 메시지가 임시 보관함에 보관됩니다.
+	Yes	예
+	No	아니요
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

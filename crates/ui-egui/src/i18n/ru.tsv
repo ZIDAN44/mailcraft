@@ -518,6 +518,42 @@
 	Untitled	Без названия
 	Write new messages in a window of their own	Писать новые сообщения в отдельном окне
 	Saved in Drafts	Сохранено в черновиках
+	Underline (Ctrl+U)	Подчёркнутый (Ctrl+U)
+	Text highlight color	Цвет выделения текста
+	Font color	Цвет шрифта
+	No color	Нет цвета
+	Automatic	Авто
+	Bullets (Ctrl+Shift+L)	Маркеры (Ctrl+Shift+L)
+	Numbering	Нумерация
+	Decrease indent (Ctrl+Shift+T)	Уменьшить отступ (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	Увеличить отступ (Ctrl+T)
+	Align left (Ctrl+L)	По левому краю (Ctrl+L)
+	Center (Ctrl+E)	По центру (Ctrl+E)
+	Align right (Ctrl+R)	По правому краю (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	Очистить всё форматирование (Ctrl+Пробел)
+	Address Book	Адресная книга
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	Вложить файл
+	Ctrl+K	Ctrl+K
+	Pictures	Рисунки
+	Address	Адрес
+	Insert	Вставить
+	Remove link	Удалить ссылку
+	Select Names	Выбор имён
+	Search	Поиск
+	Name or address	Имя или адрес
+	All addresses	Все адреса
+	Contacts	Контакты
+	Email Address	Адрес электронной почты
+	No one found.	Никого не найдено.
+	To ->	Кому ->
+	Cc ->	Копия ->
+	Bcc ->	Скрытая ->
+	OK	ОК
+	Want to save your changes?	Сохранить изменения?
+	The message is kept in Drafts if you save it.	Если сохранить, сообщение останется в черновиках.
+	Yes	Да
+	No	Нет
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

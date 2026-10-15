@@ -518,6 +518,42 @@
 	Untitled	未命名
 	Write new messages in a window of their own	在獨立的視窗中撰寫新郵件
 	Saved in Drafts	已儲存至草稿
+	Underline (Ctrl+U)	底線 (Ctrl+U)
+	Text highlight color	文字醒目提示色彩
+	Font color	字型色彩
+	No color	無色彩
+	Automatic	自動
+	Bullets (Ctrl+Shift+L)	項目符號 (Ctrl+Shift+L)
+	Numbering	編號
+	Decrease indent (Ctrl+Shift+T)	減少縮排 (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	增加縮排 (Ctrl+T)
+	Align left (Ctrl+L)	靠左對齊 (Ctrl+L)
+	Center (Ctrl+E)	置中 (Ctrl+E)
+	Align right (Ctrl+R)	靠右對齊 (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	清除所有格式設定 (Ctrl+空白鍵)
+	Address Book	通訊錄
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	附加檔案
+	Ctrl+K	Ctrl+K
+	Pictures	圖片
+	Address	網址
+	Insert	插入
+	Remove link	移除連結
+	Select Names	選取名稱
+	Search	搜尋
+	Name or address	名稱或地址
+	All addresses	所有地址
+	Contacts	連絡人
+	Email Address	電子郵件地址
+	No one found.	找不到任何人。
+	To ->	收件者 ->
+	Cc ->	副本 ->
+	Bcc ->	密件副本 ->
+	OK	確定
+	Want to save your changes?	要儲存變更嗎?
+	The message is kept in Drafts if you save it.	如果儲存，郵件會留在草稿中。
+	Yes	是
+	No	否
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存
