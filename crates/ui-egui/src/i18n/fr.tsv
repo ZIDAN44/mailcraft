@@ -632,6 +632,8 @@
 	Read receipt	Accusé de lecture
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Demander aux destinataires de confirmer la lecture (leur messagerie peut ne pas le faire, ou leur demander)
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Fonctionne avec tout fournisseur : IMAP ou POP avec SMTP, JMAP ou Exchange. Votre mot de passe est conservé dans le trousseau de cet ordinateur et n'est envoyé qu'à votre serveur de messagerie.
+	Run it now on the mail already in the Inbox	L'exécuter maintenant sur le courrier déjà dans la Boîte de réception
+	Run on the mail already in the Inbox	Exécuter sur le courrier déjà dans la Boîte de réception
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

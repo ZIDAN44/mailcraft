@@ -631,6 +631,8 @@
 	Read receipt	讀取回條
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	請收件者確認已讀（對方的郵件應用程式可能不傳送，或會詢問對方）
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	適用於任何提供者：IMAP 或 POP 加 SMTP、JMAP 或 Exchange。密碼儲存在這台電腦的鑰匙圈中，只會傳送到你的郵件伺服器。
+	Run it now on the mail already in the Inbox	立即對收件匣中已有的郵件執行
+	Run on the mail already in the Inbox	對收件匣中已有的郵件執行
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

@@ -633,3 +633,5 @@ month	May	مايو
 	Read receipt	إيصال القراءة
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	اطلب من المستلمين تأكيد قراءتها (قد لا يفعل تطبيق البريد لديهم ذلك، أو قد يسألهم)
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	يعمل مع أي مزوّد: IMAP أو POP مع SMTP، أو JMAP، أو Exchange. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى خادم بريدك.
+	Run it now on the mail already in the Inbox	تشغيلها الآن على البريد الموجود في «علبة الوارد»
+	Run on the mail already in the Inbox	تشغيل على البريد الموجود في «علبة الوارد»

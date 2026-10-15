@@ -364,16 +364,34 @@ impl Session {
     }
 
     /// Run the rules (or one of them) on the messages on screen now.
-    pub fn run_rules_now(&mut self, only: Option<usize>) -> CmdResult {
+    /// Run the rules (or one) now, on the list on screen or (`inbox`) on the mail already in the
+    /// Inbox of the accounts they apply to, as Outlook's "run this rule now".
+    pub fn run_rules_now(&mut self, only: Option<usize>, inbox: bool) -> CmdResult {
         let saved = self.rules.clone();
         if let Some(i) = only {
             let r = saved.get(i).cloned().ok_or_else(|| CmdError::Params(format!("no rule {i}")))?;
             self.rules = vec![Rule { enabled: true, ..r }];
         }
-        let msgs = self.list.clone();
+        let msgs: Vec<Summary> = if inbox {
+            let only_account = only.and_then(|i| saved.get(i)).and_then(|r| r.account.clone());
+            let inboxes: Vec<(String, String)> = self
+                .accounts
+                .iter()
+                .filter(|a| only_account.as_ref().is_none_or(|o| *o == a.config.id))
+                .filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone())))
+                .collect();
+            inboxes
+                .iter()
+                .flat_map(|(a, f)| self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).cloned().collect::<Vec<_>>())
+                .collect()
+        } else {
+            self.list.clone()
+        };
         let n = msgs.iter().filter(|m| !actions_for(&self.rules, m).is_empty()).count();
         self.run_rules(&msgs);
         self.rules = saved;
+        let what = if n == 1 { "1 message".to_string() } else { format!("{n} messages") };
+        self.notice(format!("Rules ran on the mail there now: {what} matched"), false);
         Ok(serde_json::json!({ "matched": n }))
     }
 

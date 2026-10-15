@@ -634,3 +634,5 @@ month	May	5月
 	Read receipt	已读回执
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	请收件人确认已读（对方的邮件应用可能不发送，或会询问对方）
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	适用于任何提供商：IMAP 或 POP 加 SMTP、JMAP 或 Exchange。密码保存在这台电脑的钥匙串中，只会发送到你的邮件服务器。
+	Run it now on the mail already in the Inbox	立即对收件箱中已有的邮件运行
+	Run on the mail already in the Inbox	对收件箱中已有的邮件运行

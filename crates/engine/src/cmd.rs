@@ -108,8 +108,10 @@ pub fn registry() -> Registry {
             s.set_rules(rules)
         })
         .params(r#"{"index": number}"#),
-        CommandSpec::new("rules.run", "Run rules now", "Home › Rules", |s, v| s.run_rules_now(p::u64(v, "index").and_then(|i| usize::try_from(i).ok())))
-            .params(r#"{"index"?: number}"#)
+        CommandSpec::new("rules.run", "Run rules now", "Home › Rules", |s, v| {
+            s.run_rules_now(p::u64(v, "index").and_then(|i| usize::try_from(i).ok()), p::bool(v, "inbox").unwrap_or(false))
+        })
+        .params(r#"{"index"?: number, "inbox"?: bool (the mail already in the Inbox, not the list on screen)}"#)
             .when(has_account),
         // Send / Receive
         CommandSpec::new("mail.sync", "Send / Receive all folders", "Send / Receive", |s, _| Ok(json!({"accounts": s.sync_all()}))).key("F9").when(can_connect),

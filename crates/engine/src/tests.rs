@@ -1532,3 +1532,17 @@ fn a_folder_made_in_the_inbox_shows_under_it() {
     assert_eq!(order.get(inbox + 1), Some(&path), "right under the Inbox: {order:?}");
     assert_eq!(s.folder("sample", &path).map(mailcraft_model::Folder::depth), Some(1));
 }
+
+/// A rule can run right away on the mail already in the Inbox, whatever folder is on screen, as
+/// Outlook's "run this rule now".
+#[test]
+fn a_rule_runs_now_on_the_inbox() {
+    let mut s = sample_session("rule-now");
+    s.run("rules.add", &json!({"rule": {"name": "Zoe to Archive", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "moveToRole", "value": "archive"}]}})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    let r = s.run("rules.run", &json!({"index": 0, "inbox": true})).unwrap();
+    assert_eq!(r["matched"], 1);
+    assert!(s.notices.last().is_some_and(|n| n.text.contains("1 message matched")));
+    assert!(!s.folder_state("sample", "INBOX").messages.iter().any(|m| m.from.email == "zoe@studio.example"), "moved out of the Inbox");
+    assert!(s.list.iter().any(|m| m.from.email == "zoe@studio.example"), "and into Archive, on screen");
+}

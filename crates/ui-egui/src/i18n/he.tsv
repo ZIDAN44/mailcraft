@@ -633,3 +633,5 @@ month	May	מאי
 	Read receipt	אישור קריאה
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	בקש מהנמענים לאשר שקראו (ייתכן שתוכנת הדואר שלהם לא תעשה זאת, או שתשאל אותם)
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	עובד עם כל ספק: IMAP או POP עם SMTP, ‏JMAP או Exchange. הסיסמה נשמרת במחזיק המפתחות של המחשב הזה ונשלחת רק לשרת הדואר שלך.
+	Run it now on the mail already in the Inbox	הפעל אותו עכשיו על הדואר שכבר בתיבת הדואר הנכנס
+	Run on the mail already in the Inbox	הפעל על הדואר שכבר בתיבת הדואר הנכנס

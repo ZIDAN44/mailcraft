@@ -632,6 +632,8 @@
 	Read receipt	Lesebestätigung
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Die Empfänger bitten, das Lesen zu bestätigen (ihr Mailprogramm tut es vielleicht nicht oder fragt sie)
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funktioniert mit jedem Anbieter: IMAP oder POP mit SMTP, JMAP oder Exchange. Ihr Kennwort wird im Schlüsselbund dieses Computers gespeichert und nur an Ihren Mailserver gesendet.
+	Run it now on the mail already in the Inbox	Jetzt auf die E-Mails im Posteingang anwenden
+	Run on the mail already in the Inbox	Auf die E-Mails im Posteingang anwenden
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

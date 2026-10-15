@@ -631,6 +631,8 @@
 	Read receipt	읽음 확인
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	받는 사람에게 읽었는지 확인을 요청합니다(메일 앱이 보내지 않거나 받는 사람에게 물을 수 있음)
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP 또는 POP와 SMTP, JMAP, Exchange를 지원하는 모든 공급자에서 작동합니다. 암호는 이 컴퓨터의 키체인에 보관되며 메일 서버로만 전송됩니다.
+	Run it now on the mail already in the Inbox	받은 편지함에 이미 있는 메일에 지금 실행
+	Run on the mail already in the Inbox	받은 편지함에 이미 있는 메일에 실행
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

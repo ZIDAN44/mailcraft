@@ -530,6 +530,8 @@ pub struct RuleForm {
     /// The account whose folders `MoveTo` offers (and the only one it applies to).
     pub account: Option<String>,
     pub stop: bool,
+    /// Run it on the mail already in the Inbox once saved (Outlook's "run this rule now").
+    pub run_now: bool,
     pub error: Option<String>,
 }
 
@@ -590,7 +592,18 @@ impl RuleForm {
             Some(RuleAction::Flag) => (RuleDo::Flag, String::new()),
             Some(RuleAction::Pin) | None => (RuleDo::Pin, String::new()),
         };
-        RuleForm { index: Some(index), name: r.name.clone(), test, text, action, target, account: r.account.clone(), stop: r.stop, error: None }
+        RuleForm {
+            index: Some(index),
+            name: r.name.clone(),
+            test,
+            text,
+            action,
+            target,
+            account: r.account.clone(),
+            stop: r.stop,
+            run_now: false,
+            error: None,
+        }
     }
 }
 
@@ -745,6 +758,7 @@ impl Dialog {
             target: String::new(),
             account: None,
             stop: false,
+            run_now: true,
             error: None,
         }))
     }
@@ -1560,8 +1574,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                                 if ui.small_button(tl!("Edit")).clicked() {
                                     acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
                                 }
-                                if ui.small_button(tl!("Run now")).on_hover_text(tl!("Run on the folder on screen")).clicked() {
-                                    acts.push(Action::Run("rules.run", json!({"index": i})));
+                                if ui.small_button(tl!("Run now")).on_hover_text(tl!("Run on the mail already in the Inbox")).clicked() {
+                                    acts.push(Action::Run("rules.run", json!({"index": i, "inbox": true})));
                                 }
                             });
                         });
@@ -1646,6 +1660,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 }
             });
             ui.checkbox(&mut f.stop, tl!("Don't run later rules on mail this one matches"));
+            ui.checkbox(&mut f.run_now, tl!("Run it now on the mail already in the Inbox"));
             if let Some(e) = &f.error {
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
             }
@@ -1654,17 +1669,24 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 match f.to_rule() {
                     Ok(rule) => {
                         let mut rules = s.rules.clone();
-                        match f.index.filter(|i| *i < rules.len()) {
+                        let at = match f.index.filter(|i| *i < rules.len()) {
                             Some(i) => {
                                 let enabled = rules.get(i).is_none_or(|r| r.enabled);
                                 if let Some(slot) = rules.get_mut(i) {
                                     *slot = Rule { enabled, ..rule };
                                 }
+                                i
                             }
-                            None => rules.push(rule),
-                        }
+                            None => {
+                                rules.push(rule);
+                                rules.len() - 1
+                            }
+                        };
                         f.error = None;
                         acts.push(Action::Submit("rules.set", json!({"rules": rules})));
+                        if f.run_now {
+                            acts.push(Action::Run("rules.run", json!({"index": at, "inbox": true})));
+                        }
                     }
                     Err(e) => f.error = Some(e),
                 }
