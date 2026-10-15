@@ -16,7 +16,7 @@ _Status: v0.1, 2026-10-15._
 | 3 | **Outlook data files: tasks, and files inside attached messages** | `.pst` files open with their mail, contacts and calendar, and accounts export to `.pst` (mail). Tasks and notes are skipped; an attached message comes in without its own attachments (the reader doesn't expose them); export writes mail only (the writer has no contact or appointment items) and leaves out flags. |
 | 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts would need a relay server, which MailCraft doesn't have. |
 | 5 | **Right-to-left: the window itself** | Arabic and Hebrew interfaces, and right-to-left mail, read right to left; but the window isn't mirrored (the folder pane stays on the left), the message editor shows right-to-left lines as egui lays them out, and right-to-left mail bodies can't be selected. egui has no bidirectional layout of its own (MailCraft orders each line itself). |
-| 6 | **Drag attachments out on Linux** | Works on Windows and macOS; Linux would need GTK's drag source. |
+| 6 | **Drag attachments out under Wayland** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND); a native Wayland window would need the compositor's data-device drag, which needs the window's own Wayland connection. |
 
 ## Done
 
@@ -46,7 +46,7 @@ _Status: v0.1, 2026-10-15._
 - **Attachments:** text-like previews, attached emails, PDF thumbnails (first page) and video
   frames (from ffmpeg when it's installed, otherwise the system's own thumbnailer: the Windows
   Shell, Quick Look, or a Linux video thumbnailer), Open in the Craft app for the file, Save all,
-  dragging out to other apps.
+  dragging out to other apps (on Linux and the BSDs under X11, through XDND).
 - **Print and export:** print through a PDF, Save as PDF, Save as `.eml`.
 - **Languages:** twelve besides English (Spanish, French, German, Brazilian Portuguese, Italian,
   Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew), following the

@@ -26,6 +26,8 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 struct Keychain;
 
 mod video;
+#[cfg(all(unix, not(target_os = "macos")))]
+mod xdnd;
 
 const SERVICE: &str = "MailCraft";
 
@@ -180,7 +182,9 @@ impl Services for Desktop {
         candidates.iter().find_map(|p| std::fs::read(p).ok())
     }
     fn can_drag_out(&self) -> bool {
+        // Elsewhere, under X11 only: a Wayland window isn't an X window.
         cfg!(any(target_os = "windows", target_os = "macos"))
+            || (std::env::var_os("DISPLAY").is_some() && std::env::var_os("WAYLAND_DISPLAY").is_none())
     }
     fn video_frame(&mut self, path: &Path) -> VideoFrame {
         if let Some(slot) = self.frames.get(path) {
@@ -295,7 +299,30 @@ fn drag_out(frame: &eframe::Frame, path: PathBuf) {
     }
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+/// Hand a file to X11's drag and drop (XDND), on a thread of its own while the button is held.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn drag_out(frame: &eframe::Frame, path: PathBuf) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let own = match frame.window_handle().map(|h| h.as_raw()) {
+        Ok(RawWindowHandle::Xlib(h)) => u32::try_from(h.window).ok(),
+        Ok(RawWindowHandle::Xcb(h)) => Some(h.window.get()),
+        _ => None,
+    };
+    let Some(own) = own else {
+        log::info!("drag out: not an X11 window");
+        return;
+    };
+    let spawned = std::thread::Builder::new().name("drag-out".into()).spawn(move || {
+        if let Err(e) = xdnd::drag(None, own, &path) {
+            log::warn!("drag out: {e}");
+        }
+    });
+    if let Err(e) = spawned {
+        log::warn!("drag out: {e}");
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", unix)))]
 fn drag_out(_frame: &eframe::Frame, _path: PathBuf) {}
 
 struct App {

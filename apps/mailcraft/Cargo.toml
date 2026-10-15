@@ -45,7 +45,14 @@ keyring = { version = "3.6", default-features = false, features = ["apple-native
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["async-secret-service", "async-io", "crypto-rust"] }
+# Dragging attachments out under X11 (XDND), in safe Rust; and the window's id for it.
+x11rb = "0.13"
+raw-window-handle = "0.6"
 
-# Dragging attachments out of the window to other apps (on Linux it would need GTK).
+[target.'cfg(all(unix, not(target_os = "macos")))'.dev-dependencies]
+# The drag test plays the user on a virtual X server (Xvfb).
+x11rb = { version = "0.13", features = ["xtest"] }
+
+# Dragging attachments out of the window to other apps (Linux and the BSDs: `xdnd.rs`).
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
 drag = "2.1"

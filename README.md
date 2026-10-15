@@ -160,6 +160,6 @@ MIT OR Apache-2.0. Built on [`mail-parser`](https://github.com/stalwartlabs/mail
 [`rustls`](https://github.com/rustls/rustls) and [`ring`](https://github.com/briansmith/ring), [`html2text`](https://github.com/jugglerchris/rust-html2text) (MIT),
 [`ttf-parser`](https://github.com/harfbuzz/ttf-parser) and [`miniz_oxide`](https://github.com/Frommi/miniz_oxide) (MIT / Apache-2.0),
 [`quick-xml`](https://github.com/tafia/quick-xml) (MIT), [`hayro`](https://github.com/LaurenzV/hayro) (MIT / Apache-2.0),
-[`outlook-pst`](https://github.com/microsoft/outlook-pst-rs) (Microsoft, MIT), [`outlook-pst-rw`](https://github.com/dongs0104/outlook-pst-rs) (MIT), [`drag`](https://github.com/crabnebula-dev/drag-rs) (MIT / Apache-2.0) and
+[`outlook-pst`](https://github.com/microsoft/outlook-pst-rs) (Microsoft, MIT), [`outlook-pst-rw`](https://github.com/dongs0104/outlook-pst-rs) (MIT), [`drag`](https://github.com/crabnebula-dev/drag-rs) (MIT / Apache-2.0), [`x11rb`](https://github.com/psychon/x11rb) (MIT / Apache-2.0) and
 [`egui`](https://github.com/emilk/egui). Microsoft Outlook is a trademark of Microsoft; MailCraft is
 not affiliated with it and uses none of its code, icons or assets.

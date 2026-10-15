@@ -2656,9 +2656,11 @@ dependencies = [
  "mailcraft-ui-egui",
  "notify-rust",
  "open",
+ "raw-window-handle",
  "rfd",
  "serde_json",
  "winresource",
+ "x11rb",
 ]
 
 [[package]]
