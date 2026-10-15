@@ -211,6 +211,19 @@ pub fn registry() -> Registry {
             .when(has_compose),
         CommandSpec::new("compose.saveDraft", "Save draft", "Message", |s, _| s.save_draft()).key("Mod+S").when(has_compose),
         CommandSpec::new("compose.discard", "Discard", "Message", discard).when(has_compose),
+        CommandSpec::new("compose.popOut", "Pop out", "Message", |s, _| {
+            let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            c.window = true;
+            Ok(json!({"window": true}))
+        })
+        .when(has_compose),
+        CommandSpec::new("compose.popIn", "Pop in", "Message", |s, _| {
+            let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            c.window = false;
+            Ok(json!({"window": false}))
+        })
+        .when(has_compose),
+        CommandSpec::new("compose.close", "Close", "Message", close_compose).params(r#"{"save"?: bool (keep it in Drafts; default true)}"#).when(has_compose),
         CommandSpec::new("contacts.suggest", "Suggest recipients", "Message › To", |s, v| {
             let q = p::req_str(v, "query")?.to_string();
             let limit = p::u64(v, "limit").map_or(8, |n| usize::try_from(n).unwrap_or(8).clamp(1, 100));
@@ -271,6 +284,11 @@ pub fn registry() -> Registry {
         CommandSpec::new("view.notifications", "Desktop notifications", "File › Options › Mail", |s, v| {
             s.prefs.notify = p::bool(v, "on").unwrap_or(!s.prefs.notify);
             Ok(json!({"on": s.prefs.notify}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.newMailWindow", "New messages in their own window", "File › Options › Mail", |s, v| {
+            s.prefs.new_mail_window = p::bool(v, "on").unwrap_or(!s.prefs.new_mail_window);
+            Ok(json!({"on": s.prefs.new_mail_window}))
         })
         .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.markReadOnOpen", "Mark as read when opened", "File › Options › Mail", |s, v| {
@@ -841,6 +859,31 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     }
     let a = c.attachments.remove(i);
     Ok(json!({"removed": a.name}))
+}
+
+/// Close the message being written: kept in Drafts (unless `save` is false or nothing was
+/// written), as closing a message window in Outlook offers.
+fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
+    let c = s.compose.clone().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let signature = s.account(&c.account).map(|a| a.config.signature.trim().to_string()).unwrap_or_default();
+    let body = c.body.trim();
+    let written = !(c.to.trim().is_empty()
+        && c.cc.trim().is_empty()
+        && c.bcc.trim().is_empty()
+        && c.subject.trim().is_empty()
+        && c.attachments.is_empty()
+        && (body.is_empty() || body.trim_start_matches("--").trim() == signature));
+    let saved = if p::bool(v, "save").unwrap_or(true) && written && !c.sending {
+        s.save_draft()?;
+        true
+    } else {
+        false
+    };
+    s.compose = None;
+    if saved {
+        s.notice("Saved in Drafts", false);
+    }
+    Ok(json!({"closed": c.id, "saved": saved}))
 }
 
 fn discard(s: &mut Session, _: &Value) -> CmdResult {

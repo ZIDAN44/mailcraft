@@ -785,10 +785,12 @@ fn prefixed(prefix: &str, subject: &str) -> String {
     if already { subject.trim().to_string() } else { format!("{prefix} {base}") }
 }
 
+/// The original under a reply or forward, the way Outlook lays it out: a rule, then who sent it
+/// to whom and when, then its text as it was.
 fn header_block(p: &Parsed, clock: &Clock) -> String {
-    let mut s = String::new();
+    let mut s = format!("{}\n", markup::RULE);
     s.push_str(&format!("From: {}\n", p.from));
-    s.push_str(&format!("Date: {}\n", full_time(p.date, clock)));
+    s.push_str(&format!("Sent: {}\n", full_time(p.date, clock)));
     if !p.to.is_empty() {
         s.push_str(&format!("To: {}\n", mailcraft_model::addr::format_list(&p.to)));
     }
@@ -807,7 +809,7 @@ pub fn reply(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signatur
     match mode {
         ReplyMode::Forward => {
             d.subject = prefixed("Fwd:", &p.subject);
-            d.body = format!("{sig}\n\n----- Forwarded message -----\n{}\n{}", header_block(p, clock), p.text);
+            d.body = format!("{sig}\n\n{}\n{}", header_block(p, clock), p.text);
         }
         ReplyMode::Reply | ReplyMode::ReplyAll => {
             d.subject = prefixed("Re:", &p.subject);
@@ -824,8 +826,7 @@ pub fn reply(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signatur
                 }
                 d.cc = cc;
             }
-            let quoted: String = p.text.lines().map(|l| if l.is_empty() { ">\n".to_string() } else { format!("> {l}\n") }).collect();
-            d.body = format!("{sig}\n\nOn {}, {} wrote:\n{}", full_time(p.date, clock), p.from.display(), quoted);
+            d.body = format!("{sig}\n\n{}\n{}", header_block(p, clock), p.text);
             if !p.message_id.is_empty() {
                 d.in_reply_to = p.message_id.clone();
                 d.references = p.references.clone();
@@ -1057,7 +1058,25 @@ iVBORw0KGgo=\r\n\
         assert!(r.cc.is_empty());
         assert_eq!(r.in_reply_to, "m1@studio.example");
         assert_eq!(r.references, vec!["m0@studio.example".to_string(), "m1@studio.example".into()]);
-        assert!(r.body.contains("> Hello team,"));
+        // Outlook's layout: a rule, who sent it to whom and when, then the original as it was.
+        let tail = &r.body[r.body.find(markup::RULE).unwrap()..];
+        assert!(tail.starts_with(&format!("{}\nFrom: Zoe Park <zoe@studio.example>\nSent: ", markup::RULE)), "{tail}");
+        assert!(
+            tail.contains("\nTo: Ann <ann@studio.example>; ops@studio.example\nCc: Kim <kim@studio.example>\nSubject: Café plans\n\nHello team,"),
+            "{tail:?}"
+        );
+        assert!(!r.body.contains("wrote:"));
+        // Sent formatted: the rule is a rule, the labels bold, the rest plain text.
+        let html = markup::to_html(&r.body);
+        assert!(
+            html.contains("<hr") && html.contains("<b>From:</b> Zoe Park &lt;zoe@studio.example&gt;") && html.contains("<b>Subject:</b> Café plans")
+        );
+        assert!(html.contains("Hello team,") && !html.contains("<b>Hello"));
+        assert!(markup::has_formatting(&r.body));
+        assert_eq!(
+            markup::header_lines("x\n____________\nFrom: a\n  b\nTo: c\n\nFrom: not a header"),
+            [false, false, true, true, true, false, false]
+        );
         let all = reply(&p, ReplyMode::ReplyAll, &me, &clock, "Ann");
         let cc: Vec<&str> = all.cc.iter().map(|a| a.email.as_str()).collect();
         assert_eq!(cc, vec!["ops@studio.example", "kim@studio.example"]);

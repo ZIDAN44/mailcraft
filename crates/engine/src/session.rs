@@ -173,6 +173,8 @@ pub struct Prefs {
     /// Folders the user pinned to Favorites, in order. `None` until the user changes them: the
     /// Inbox, Sent Items and Drafts of a single account are shown.
     pub favorites: Option<Vec<FolderRef>>,
+    /// New messages open in a window of their own (replies start in the reading pane).
+    pub new_mail_window: bool,
 }
 
 /// A folder of an account, by path.
@@ -198,6 +200,7 @@ impl Default for Prefs {
             focus_overrides: std::collections::BTreeMap::new(),
             show_html: true,
             trusted_senders: BTreeSet::new(),
+            new_mail_window: true,
         }
     }
 }
@@ -252,6 +255,9 @@ pub struct Compose {
     /// Pictures placed in the text (`![name](cid:…)`).
     #[serde(default)]
     pub inline: Vec<mime::InlinePicture>,
+    /// Written in a window of its own rather than the reading pane.
+    #[serde(default)]
+    pub window: bool,
 }
 
 impl Compose {
@@ -1571,7 +1577,8 @@ impl Session {
         let sig = self.signature(&account);
         let id = self.fresh_id();
         let body = if sig.trim().is_empty() { String::new() } else { format!("\n\n-- \n{}", sig.trim_end()) };
-        self.compose = Some(Compose { id, account, body, ..Default::default() });
+        let window = self.prefs.new_mail_window;
+        self.compose = Some(Compose { id, account, body, window, ..Default::default() });
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
 

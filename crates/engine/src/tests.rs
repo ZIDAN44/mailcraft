@@ -199,8 +199,14 @@ fn compose_reply_and_send_locally() {
     let c = s.compose.clone().unwrap();
     assert_eq!(c.to, "Print Shop <orders@printshop.example>");
     assert_eq!(c.subject, "Re: Your proof for the festival poster is ready");
-    assert!(c.body.contains("> The proof for order 4471"));
+    assert!(c.body.contains("\nFrom: Print Shop <orders@printshop.example>\nSent: "));
+    assert!(c.body.contains("The proof for order 4471"));
     assert!(c.body.contains("Riley Moreno · Studio Lantern"));
+    assert!(!c.window, "replies start in the reading pane");
+    s.run("compose.popOut", &json!({})).unwrap();
+    assert!(s.compose.as_ref().unwrap().window);
+    s.run("compose.popIn", &json!({})).unwrap();
+    assert!(!s.compose.as_ref().unwrap().window);
     s.run("compose.update", &json!({"body": "Approved, thank you!\n"})).unwrap();
     s.run("compose.send", &json!({})).unwrap();
     assert!(s.compose.is_none());
@@ -1226,4 +1232,31 @@ fn exchange_accounts_go_through_microsoft_graph() {
     assert_eq!(s.run("account.list", &json!({})).map(|v| v[0]["graph"].clone()).unwrap_or_default(), json!(mailcraft_model::GRAPH_URL));
     let root = s.store.as_ref().unwrap().root().to_path_buf();
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn new_mail_opens_in_a_window_and_closing_keeps_a_draft() {
+    let mut s = sample_session("compose-window");
+    s.run("mail.new", &json!({})).unwrap();
+    assert!(s.compose.as_ref().unwrap().window, "new mail opens in its own window");
+    // Nothing written (just the signature): closing leaves nothing behind.
+    let v = s.run("compose.close", &json!({})).unwrap();
+    assert_eq!(v["saved"], false);
+    assert!(s.compose.is_none());
+
+    s.run("view.newMailWindow", &json!({"on": false})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    assert!(!s.compose.as_ref().unwrap().window, "unless the option is off");
+    s.run("compose.update", &json!({"to": "zoe@studio.example", "subject": "Plans"})).unwrap();
+    let v = s.run("compose.close", &json!({})).unwrap();
+    assert_eq!(v["saved"], true);
+    assert!(s.compose.is_none());
+    assert!(s.notices.last().is_some_and(|n| n.text == "Saved in Drafts"));
+    s.run("folder.open", &json!({"account": "sample", "folder": "Drafts"})).unwrap();
+    assert!(s.list.iter().any(|m| m.subject == "Plans"));
+    // Closing without keeping it.
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"subject": "Gone"})).unwrap();
+    assert_eq!(s.run("compose.close", &json!({"save": false})).unwrap()["saved"], false);
+    done(s);
 }

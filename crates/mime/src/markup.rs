@@ -10,10 +10,38 @@
 //! | `![name](cid:…)` | a picture sent with the message |
 //! | `# `, `## `, `### ` at the start of a line | headings |
 //! | `- ` or `* `, `1. ` | bulleted and numbered lists |
-//! | `> ` | quoted text (replies quote this way) |
+//! | `> ` | quoted text |
+//! | a line of underscores | a rule; the `From:`, `Sent:`, `To:`, `Cc:`, `Subject:` lines right after it (the original under a reply) show their labels in bold |
 //!
 //! Bare web addresses become links. Everything else is text: `<`, `&` and quotes are escaped, so
 //! nothing typed can turn into markup the recipient's client would run.
+
+/// The rule above the original in a reply or forward (as Outlook writes it in plain text).
+pub const RULE: &str = "________________________________";
+
+/// The labels of the original's header under a rule.
+const HEADER_LABELS: [&str; 6] = ["From:", "Sent:", "Date:", "To:", "Cc:", "Subject:"];
+
+/// The length of the header label a line starts with (`From:`…), if it does.
+pub fn header_label(line: &str) -> Option<usize> {
+    HEADER_LABELS.iter().find(|l| line.starts_with(*l)).map(|l| l.len())
+}
+
+/// Which lines are the original's header: right after a rule, up to the first line that isn't
+/// one (a label, or a long value's continuation).
+pub fn header_lines(text: &str) -> Vec<bool> {
+    let mut inside = false;
+    text.split('\n')
+        .map(|line| {
+            if block(line).0 == Block::Rule {
+                inside = true;
+                return false;
+            }
+            inside = inside && (header_label(line).is_some() || line.starts_with([' ', '\t']));
+            inside
+        })
+        .collect()
+}
 
 /// One piece of a line, for the editor's styling and the converters.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,6 +73,8 @@ pub enum Block {
     Quote,
     /// The `-- ` line before a signature.
     SigDash,
+    /// A rule (a line of underscores).
+    Rule,
     Blank,
 }
 
@@ -56,6 +86,9 @@ pub fn block(line: &str) -> (Block, usize) {
     }
     if t == "--" {
         return (Block::SigDash, 0);
+    }
+    if t.len() >= 8 && t.chars().all(|c| c == '_') {
+        return (Block::Rule, 0);
     }
     let hashes = line.chars().take_while(|c| *c == '#').count();
     if (1..=3).contains(&hashes) && line.get(hashes..).is_some_and(|r| r.starts_with(' ')) {
@@ -163,7 +196,7 @@ pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
 pub fn has_formatting(text: &str) -> bool {
     text.lines().any(|l| {
         let (b, start) = block(l);
-        matches!(b, Block::Heading(_) | Block::Bullet | Block::Numbered)
+        matches!(b, Block::Heading(_) | Block::Bullet | Block::Numbered | Block::Rule)
             || inlines(l.get(start..).unwrap_or("")).iter().any(|p| !matches!(p, Inline::Text(_) | Inline::Url(_)))
     })
 }
@@ -213,7 +246,9 @@ pub fn to_html(text: &str) -> String {
         }
     };
     let mut para_lines = 0;
-    for line in text.replace("\r\n", "\n").split('\n') {
+    let text = text.replace("\r\n", "\n");
+    let header = header_lines(&text);
+    for (n, line) in text.split('\n').enumerate() {
         let (b, start) = block(line);
         let content = line.get(start..).unwrap_or("");
         let want = match b {
@@ -221,7 +256,7 @@ pub fn to_html(text: &str) -> String {
             Block::Numbered => Some("ol"),
             Block::Quote => Some("blockquote"),
             Block::Para | Block::SigDash => Some("p"),
-            Block::Heading(_) | Block::Blank => None,
+            Block::Heading(_) | Block::Blank | Block::Rule => None,
         };
         if want != open {
             close(&mut out, &mut open);
@@ -238,12 +273,18 @@ pub fn to_html(text: &str) -> String {
         match b {
             Block::Blank => {}
             Block::Heading(n) => out.push_str(&format!("<h{n}>{}</h{n}>\n", inline_html(content))),
+            Block::Rule => out.push_str("<hr style=\"border:none; border-top:1px solid #e1e1e1; margin:1em 0\">\n"),
             Block::Bullet | Block::Numbered => out.push_str(&format!("<li>{}</li>\n", inline_html(content))),
             Block::Quote | Block::Para | Block::SigDash => {
                 if para_lines > 0 {
                     out.push_str("<br>\n");
                 }
-                out.push_str(&if b == Block::SigDash { "-- ".to_string() } else { inline_html(content) });
+                let label = header.get(n).copied().unwrap_or(false).then(|| header_label(line)).flatten();
+                out.push_str(&match (b, label) {
+                    (Block::SigDash, _) => "-- ".to_string(),
+                    (_, Some(l)) => format!("<b>{}</b>{}", esc(&line[..l]), inline_html(&line[l..])),
+                    _ => inline_html(content),
+                });
                 para_lines += 1;
             }
         }
@@ -264,6 +305,7 @@ pub fn to_text(text: &str) -> String {
             Block::Bullet => format!("- {}", inline_text(content)),
             Block::Numbered | Block::Quote => format!("{}{}", line.get(..start).unwrap_or(""), inline_text(content)),
             Block::SigDash => "-- ".to_string(),
+            Block::Rule => line.trim_end().to_string(),
             Block::Para => inline_text(content),
             Block::Blank => String::new(),
         });
