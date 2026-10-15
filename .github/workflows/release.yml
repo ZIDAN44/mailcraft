@@ -30,6 +30,10 @@ jobs:
       app-name: mailcraft
       app-title: MailCraft
       version: ${{ inputs.version }}
+      # storytold/craft-fonts, pinned (bump deliberately): Arabic, Japanese, Chinese and Thai
+      # fallback fonts, built in through CRAFT_FONTS_DIR (crates/ui-egui/build.rs). The web job
+      # fetches the same commit itself (CRAFT_FONTS_REF in packaging/web/package.sh).
+      craft-fonts-ref: 3d9ab3a132ed0eff457e424226a435a901da30d3
       # The browser app (apps/mailcraft-web, JMAP over fetch): packaging/web/package.sh.
       has-web: true
     secrets:

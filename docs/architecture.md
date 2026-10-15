@@ -79,6 +79,11 @@ Interface text is English in the code and looked up in a catalog per language
 (`crates/ui-egui/src/i18n/*.tsv`: context, English, translation) through `tl!` and `tf!`; anything
 untranslated shows in English. Commands, the CLI and mail stay English. The language follows the
 system unless one is chosen in Settings; Chinese and Japanese load an installed CJK font.
+Release builds also compile in fonts from [storytold/craft-fonts](https://github.com/storytold/craft-fonts)
+(Arabic, Japanese, Chinese, Thai; in the browser only the small ones) as the last fallbacks, with
+their licences on the About page. It is an optional build input, never a Cargo dependency:
+`CRAFT_FONTS_DIR=<checkout>` makes `crates/ui-egui/build.rs` embed what its manifest lists;
+unset, the table is empty and nothing changes.
 
 egui shapes each run of text in its script's direction but lays runs out left to right, with no
 bidirectional algorithm. `ui-egui/src/bidi.rs` orders right-to-left text itself: each line goes
