@@ -173,7 +173,7 @@ pub fn registry() -> Registry {
         CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).key("Mod+A"),
         CommandSpec::new("list.next", "Next message", "Message list", |s, _| step(s, 1)).key("Down / J"),
         CommandSpec::new("list.prev", "Previous message", "Message list", |s, _| step(s, -1)).key("Up / K"),
-        CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"|"categorized"|"toMe"}"#),
+        CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"|"categorized"|"important"|"toMe"}"#),
         CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
         CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
         CommandSpec::new("message.popOut", "Open in new window", "Message list › Open", |s, v| {
@@ -206,7 +206,7 @@ pub fn registry() -> Registry {
         CommandSpec::new("search.clear", "Clear search", "Search box", |s, _| Ok(json!({"results": s.run_search("", SearchScope::All)}))).key("Escape"),
         // Compose
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
-            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string}"#)
+            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "importance"?: "high"|"normal"|"low", "readReceipt"?: bool}"#)
             .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
@@ -828,6 +828,17 @@ fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     }
     if !c.bcc.is_empty() {
         c.show_cc = true;
+    }
+    if let Some(i) = p::str(v, "importance") {
+        c.importance = match i {
+            "high" => 1,
+            "low" => -1,
+            "normal" => 0,
+            other => return Err(CmdError::Params(format!("importance `{other}` isn't high, normal or low"))),
+        };
+    }
+    if let Some(r) = p::bool(v, "readReceipt") {
+        c.read_receipt = r;
     }
     if let Some(a) = account {
         c.account = a;

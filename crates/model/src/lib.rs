@@ -591,6 +591,13 @@ pub struct Summary {
     /// `List-Unsubscribe`, `Precedence: bulk`, `Auto-Submitted`). Such mail goes to Other.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub bulk: bool,
+    /// How important the sender marked it: 1 high, -1 low, 0 normal (`Importance`, `X-Priority`).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub importance: i8,
+}
+
+fn is_zero(n: &i8) -> bool {
+    *n == 0
 }
 
 impl Summary {

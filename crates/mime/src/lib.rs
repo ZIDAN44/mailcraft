@@ -123,6 +123,30 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         preview: preview(&text),
         modseq: 0,
         bulk: is_bulk(m),
+        importance: importance(m),
+    }
+}
+
+/// How important the sender marked a message: 1 high, -1 low, 0 normal. `Importance` (RFC 2156),
+/// else the de-facto `X-Priority` (1–2 high, 4–5 low), else `Priority` (urgent, non-urgent).
+pub(crate) fn importance(m: &Message<'_>) -> i8 {
+    let h = |name: &str| m.header_raw(name).map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
+    match h("Importance").as_str() {
+        "high" => return 1,
+        "low" => return -1,
+        "normal" => return 0,
+        _ => {}
+    }
+    match h("X-Priority").chars().find(char::is_ascii_digit) {
+        Some('1' | '2') => return 1,
+        Some('4' | '5') => return -1,
+        Some(_) => return 0,
+        None => {}
+    }
+    match h("Priority").as_str() {
+        "urgent" => 1,
+        "non-urgent" => -1,
+        _ => 0,
     }
 }
 
@@ -689,6 +713,12 @@ pub struct Draft {
     /// Pictures the HTML shows by `cid:` (sent inline, `multipart/related`).
     #[serde(default)]
     pub inline: Vec<InlinePicture>,
+    /// High (1) or low (-1) importance; 0 sends no header.
+    #[serde(default)]
+    pub importance: i8,
+    /// Ask for a read receipt (RFC 8098 `Disposition-Notification-To`, to the sender).
+    #[serde(default)]
+    pub read_receipt: bool,
 }
 
 /// A picture inside a formatted message.
@@ -747,6 +777,19 @@ pub fn build(d: &Draft, from: &EmailAddress, date: i64, message_id: &str) -> Res
         b = b.references(d.references.clone());
     }
     b = b.header("X-Mailer", mail_builder::headers::raw::Raw::new(format!("MailCraft {}", env!("CARGO_PKG_VERSION"))));
+    // Importance as RFC 2156 says, and as X-Priority, which most mail programs read.
+    let raw = mail_builder::headers::raw::Raw::new;
+    match d.importance.signum() {
+        1 => b = b.header("Importance", raw("high")).header("X-Priority", raw("1")),
+        -1 => b = b.header("Importance", raw("low")).header("X-Priority", raw("5")),
+        _ => {}
+    }
+    if d.read_receipt && !from.email.trim().is_empty() {
+        b = b.header(
+            "Disposition-Notification-To",
+            mail_builder::headers::address::Address::new_address(None::<String>, from.email.trim().to_string()),
+        );
+    }
     // Boundaries come from the message itself: unique per message and part, the same every time
     // (mail-builder would read the clock, which the browser doesn't have).
     let seed = format!("{:016x}", fnv(&format!("{message_id}\u{0}{date}")));
@@ -1171,5 +1214,34 @@ iVBORw0KGgo=\r\n\
         assert_eq!(new_message_id("bad", -5, 0), "0.0000000000000000@mailcraft.invalid");
         assert_eq!(preview("a\n\n  b   c\n> q\n-- \nsig"), "a b c");
         assert_eq!(preview(&"x".repeat(500)).chars().count(), PREVIEW_CHARS + 1);
+    }
+}
+
+#[cfg(test)]
+mod importance_tests {
+    use super::*;
+
+    /// High and low importance, and a read receipt, go out as headers other mail programs read,
+    /// and come back as the message's importance.
+    #[test]
+    fn importance_and_read_receipts_round_trip() {
+        let from = EmailAddress::new("Riley", "riley@studio.example");
+        let k = MessageKey { account: "a".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+        for (importance, header, priority) in [(1, "Importance: high", "X-Priority: 1"), (-1, "Importance: low", "X-Priority: 5")] {
+            let d = Draft { subject: "Hi".into(), body: "x".into(), importance, read_receipt: true, ..Default::default() };
+            let raw = build(&d, &from, 1_700_000_000, "m@x").unwrap();
+            let text = String::from_utf8_lossy(&raw);
+            assert!(text.contains(header) && text.contains(priority), "{text}");
+            assert!(text.contains("Disposition-Notification-To: <riley@studio.example>"), "{text}");
+            assert_eq!(summary_from_full(&raw, k.clone(), Flags::default(), 1, 0).importance, importance);
+        }
+        let plain = build(&Draft { subject: "Hi".into(), body: "x".into(), ..Default::default() }, &from, 1_700_000_000, "m@x").unwrap();
+        let text = String::from_utf8_lossy(&plain);
+        assert!(!text.contains("Importance") && !text.contains("Disposition-Notification-To"));
+        // Other mail programs' ways of saying it.
+        for (h, want) in [("X-Priority: 2 (High)", 1), ("X-Priority: 3", 0), ("Priority: non-urgent", -1), ("Importance: HIGH", 1)] {
+            let raw = format!("From: a@b.example\r\nSubject: s\r\n{h}\r\n\r\nbody\r\n");
+            assert_eq!(summary_from_full(raw.as_bytes(), k.clone(), Flags::default(), 1, 0).importance, want, "{h}");
+        }
     }
 }

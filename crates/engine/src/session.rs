@@ -94,6 +94,8 @@ pub enum ListFilter {
     Attachments,
     /// Carrying a category.
     Categorized,
+    /// Marked high importance by the sender.
+    Important,
     /// Sent to the account's address, or copied to it.
     ToMe,
 }
@@ -102,8 +104,15 @@ impl ListFilter {
     /// The filters shown as tabs above the list.
     pub const ALL: [ListFilter; 4] = [ListFilter::All, ListFilter::Unread, ListFilter::Flagged, ListFilter::Attachments];
     /// Every filter (the Home tab's Filter menu).
-    pub const EVERY: [ListFilter; 6] =
-        [ListFilter::All, ListFilter::Unread, ListFilter::Flagged, ListFilter::Attachments, ListFilter::Categorized, ListFilter::ToMe];
+    pub const EVERY: [ListFilter; 7] = [
+        ListFilter::All,
+        ListFilter::Unread,
+        ListFilter::Flagged,
+        ListFilter::Attachments,
+        ListFilter::Categorized,
+        ListFilter::Important,
+        ListFilter::ToMe,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -112,6 +121,7 @@ impl ListFilter {
             ListFilter::Flagged => "Flagged",
             ListFilter::Attachments => "Has files",
             ListFilter::Categorized => "Categorized",
+            ListFilter::Important => "Important",
             ListFilter::ToMe => "To or Cc me",
         }
     }
@@ -123,6 +133,7 @@ impl ListFilter {
             ListFilter::Flagged => "flagged",
             ListFilter::Attachments => "attachments",
             ListFilter::Categorized => "categorized",
+            ListFilter::Important => "important",
             ListFilter::ToMe => "toMe",
         }
     }
@@ -403,6 +414,12 @@ pub struct Compose {
     /// Written in a window of its own rather than the reading pane.
     #[serde(default)]
     pub window: bool,
+    /// High (1) or low (-1) importance.
+    #[serde(default)]
+    pub importance: i8,
+    /// Ask the recipients for a read receipt.
+    #[serde(default)]
+    pub read_receipt: bool,
 }
 
 impl Compose {
@@ -911,6 +928,7 @@ impl Session {
             ListFilter::Flagged => m.flags.flagged,
             ListFilter::Attachments => m.has_attachments,
             ListFilter::Categorized => self.prefs.categories.iter().any(|c| m.flags.has(&c.keyword)),
+            ListFilter::Important => m.importance > 0,
             ListFilter::ToMe => self.account(&m.key.account).is_some_and(|a| {
                 let me = a.config.email.trim();
                 !me.is_empty() && m.to.iter().chain(&m.cc).any(|r| r.email.trim().eq_ignore_ascii_case(me))
@@ -1908,6 +1926,8 @@ impl Session {
             attachments: c.attachments.clone(),
             html,
             inline,
+            importance: c.importance,
+            read_receipt: c.read_receipt,
         })
     }
 
@@ -1982,6 +2002,8 @@ impl Session {
             attachments: c.attachments.clone(),
             html,
             inline,
+            importance: c.importance,
+            read_receipt: c.read_receipt,
         };
         let folder = self
             .account(&c.account)
