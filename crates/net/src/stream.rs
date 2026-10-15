@@ -79,7 +79,13 @@ fn tls_config() -> Result<Arc<ClientConfig>> {
 
 /// Open a TCP connection, trying each resolved address in turn.
 pub fn tcp(host: &str, port: u16) -> Result<TcpStream> {
-    let addrs = (host, port).to_socket_addrs().map_err(|e| NetError::Io(io::Error::new(e.kind(), format!("{host}: {e}"))))?;
+    // A name that doesn't resolve is almost always a mistyped or guessed server name.
+    let addrs = (host, port).to_socket_addrs().map_err(|e| {
+        NetError::Io(io::Error::new(
+            e.kind(),
+            format!("no server called {host} could be found: check the server name in Server settings, and that this computer is online ({e})"),
+        ))
+    })?;
     let mut last = io::Error::new(io::ErrorKind::NotFound, format!("{host}: no address"));
     for a in addrs {
         match TcpStream::connect_timeout(&a, CONNECT_TIMEOUT) {
@@ -105,4 +111,14 @@ pub fn tls(sock: TcpStream, host: &str) -> Result<Stream> {
         s.conn.complete_io(&mut s.sock).map_err(|e| NetError::Tls(e.to_string()))?;
     }
     Ok(Stream::Tls(Box::new(s)))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_server_name_that_does_not_exist_says_what_to_check() {
+        // `.invalid` never resolves (RFC 2606).
+        let e = super::tcp("mail.no-such-host.invalid", 995).err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(e.contains("no server called mail.no-such-host.invalid") && e.contains("Server settings"), "{e}");
+    }
 }
