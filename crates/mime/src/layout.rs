@@ -250,13 +250,50 @@ impl Node {
         self.align()
     }
 
+    /// Whether a table or side-by-side boxes are somewhere inside.
     fn has_table(&self, depth: usize) -> bool {
         depth < MAX_DEPTH * 4
             && !self.hidden()
             && self.kids.iter().any(|k| match k {
-                Kid::El(n) => n.tag == "table" || n.has_table(depth + 1),
+                Kid::El(n) => n.tag == "table" || n.columns().is_some() || n.has_table(depth + 1),
                 Kid::Text(_) => false,
             })
+    }
+
+    /// A box that sits beside its neighbours: `inline-block`, a table cell, or floated.
+    fn beside(&self) -> bool {
+        self.style("display").is_some_and(|d| matches!(d.as_str(), "inline-block" | "table-cell" | "inline-flex" | "inline-table"))
+            || self.style("float").is_some_and(|f| f == "left" || f == "right")
+    }
+
+    /// Boxes laid out side by side with CSS alone (flexbox in a row, a grid, or `inline-block` /
+    /// floated / table-cell children), as rows of boxes; `None` when they stack.
+    fn columns(&self) -> Option<Vec<Vec<&Node>>> {
+        let kids: Vec<&Node> = self.kids.iter().filter_map(|k| if let Kid::El(n) = k { Some(n) } else { None }).filter(|n| !n.hidden()).collect();
+        if kids.len() < 2 || matches!(self.tag.as_str(), "table" | "tr" | "tbody" | "thead" | "tfoot" | "ul" | "ol" | "p") {
+            return None;
+        }
+        // Loose text between the boxes means they are inline in a paragraph.
+        if self.kids.iter().any(|k| matches!(k, Kid::Text(t) if !t.trim().is_empty())) {
+            return None;
+        }
+        let display = self.style("display").unwrap_or_default();
+        if display == "flex" || display == "inline-flex" {
+            let dir = self.style("flex-direction").unwrap_or_default();
+            let wraps = self.style("flex-wrap").is_some_and(|w| w.starts_with("wrap"));
+            return (!dir.starts_with("column") && !wraps).then(|| vec![kids]);
+        }
+        if display == "grid" || display == "inline-grid" {
+            let template = self.style("grid-template-columns").unwrap_or_default();
+            let tracks = if let Some(rest) = template.strip_prefix("repeat(") {
+                rest.split(',').next().and_then(|n| n.trim().parse::<usize>().ok()).unwrap_or(1)
+            } else {
+                template.split_whitespace().count()
+            }
+            .clamp(1, 12);
+            return (tracks > 1).then(|| kids.chunks(tracks).map(<[&Node]>::to_vec).collect());
+        }
+        kids.iter().all(|k| k.beside()).then(|| vec![kids])
     }
 
     /// Rows (through table sections), each its cells.
@@ -399,6 +436,36 @@ fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 }
                 out.push(Block::Table(Table { rows, width: n.width(), align: n.table_align(), background: n.background() }));
             }
+            // Boxes side by side with CSS: a table of one row per line of boxes.
+            Kid::El(n) if depth < MAX_DEPTH && n.columns().is_some() => {
+                flush(&mut pending, &mut out, ctx);
+                let rows: Vec<Vec<Cell>> = n
+                    .columns()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|row| {
+                        row.into_iter()
+                            .map(|c| {
+                                ctx.cells += 1;
+                                // A box's own content (its children when it has them, else itself).
+                                let content = if c.kids.is_empty() { vec![] } else { blocks(&c.kids, ctx, depth + 1) };
+                                Cell {
+                                    blocks: if ctx.cells > MAX_CELLS { Vec::new() } else { content },
+                                    width: c.width(),
+                                    background: c.background(),
+                                    align: c.align(),
+                                    span: 1,
+                                }
+                            })
+                            .filter(|c| !c.blocks.is_empty() || c.background.is_some())
+                            .collect::<Vec<Cell>>()
+                    })
+                    .filter(|r| !r.is_empty())
+                    .collect();
+                if !rows.is_empty() {
+                    out.push(Block::Table(Table { rows, width: n.width(), align: n.table_align(), background: n.background() }));
+                }
+            }
             // A wrapper around tables (`<div>`, `<center>`): its parts in turn.
             Kid::El(n) if depth < MAX_DEPTH && n.has_table(0) => {
                 flush(&mut pending, &mut out, ctx);
@@ -434,7 +501,8 @@ fn has_columns(b: &[Block]) -> bool {
 
 /// The layout of an HTML message: empty when it has no columns (the text flows instead).
 pub fn html_layout(html: &str) -> Vec<Block> {
-    if !html.to_ascii_lowercase().contains("<table") {
+    let lower = html.to_ascii_lowercase();
+    if !(lower.contains("<table") || lower.contains("flex") || lower.contains("grid") || lower.contains("inline-block") || lower.contains("float")) {
         return Vec::new();
     }
     let html = match html.char_indices().nth(crate::HTML_MAX) {
@@ -532,6 +600,32 @@ mod tests {
         let all = format!("{b:?}");
         assert!(!all.contains("Preheader") && !all.contains("Hidden by a rule"), "{all}");
         assert!(text(b.last().unwrap()).contains("Footer"));
+    }
+
+    #[test]
+    fn css_columns_are_columns_too() {
+        // Flexbox, a grid and inline-block boxes, no tables.
+        let flex = html_layout(
+            r#"<div style="display:flex"><div style="width:30%"><p>Left</p></div><div style="background-color:#eee"><p>Right</p></div></div>"#,
+        );
+        let Block::Table(t) = &flex[0] else { panic!("{flex:?}") };
+        assert_eq!(t.rows[0].len(), 2);
+        assert_eq!(t.rows[0][0].width, Some(Width::Percent(30)));
+        assert_eq!(t.rows[0][1].background, Some([0xee, 0xee, 0xee]));
+        let grid = html_layout(r#"<div style="display: grid; grid-template-columns: repeat(2, 1fr)"><div>a</div><div>b</div><div>c</div></div>"#);
+        let Block::Table(t) = &grid[0] else { panic!("{grid:?}") };
+        assert_eq!(t.rows.iter().map(Vec::len).collect::<Vec<_>>(), [2, 1]);
+        let inline = html_layout(
+            r#"<div><div style="display:inline-block;width:280px">One</div> <div style="display:inline-block;width:280px">Two</div></div>"#,
+        );
+        assert!(matches!(&inline[0], Block::Table(t) if t.rows[0].len() == 2), "{inline:?}");
+        let floats = html_layout(r#"<div><div style="float:left">One</div><div style="float:right">Two</div></div>"#);
+        assert!(!floats.is_empty());
+        // Stacked flexbox, inline text with spans: no columns.
+        assert!(html_layout(r#"<div style="display:flex;flex-direction:column"><div>a</div><div>b</div></div>"#).is_empty());
+        assert!(
+            html_layout(r#"<p>Hello <span style="display:inline-block">a</span> and <span style="display:inline-block">b</span></p>"#).is_empty()
+        );
     }
 
     #[test]
