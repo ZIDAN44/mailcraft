@@ -1433,6 +1433,12 @@ impl MailApp {
                         acts.push(Action::Run("view.compact", json!({})));
                     }
                     widgets::group_sep(ui, &t);
+                    let r = ui.button(tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label())));
+                    egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
+                    if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
+                        acts.push(Action::Run("view.reverseSort", json!({})));
+                    }
+                    widgets::group_sep(ui, &t);
                     ui.label(RichText::new(tl!("Theme")).color(t.dim));
                     for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
                         if ui.selectable_label(self.ui.dark == v, tl!(label)).clicked() {

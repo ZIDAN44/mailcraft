@@ -587,6 +587,23 @@
 	Remove it from the server after	Rimuoverla dal server dopo
 	days	giorni
 	Remove it from the server once it's deleted from Deleted Items	Rimuoverla dal server quando viene eliminata da Posta eliminata
+	Arrange by: {field}	Disponi per: {field}
+	By {field} ⏷	Per {field} ⏷
+	Reverse sort	Inverti ordinamento
+	Size	Dimensione
+	Flag status	Stato contrassegno
+	Attachments	Allegati
+	Under 10 KB	Meno di 10 KB
+	10 to 25 KB	Da 10 a 25 KB
+	25 to 100 KB	Da 25 a 100 KB
+	100 to 500 KB	Da 100 a 500 KB
+	500 KB to 1 MB	Da 500 KB a 1 MB
+	1 to 5 MB	Da 1 a 5 MB
+	Over 5 MB	Oltre 5 MB
+	Not flagged	Non contrassegnato
+	With attachments	Con allegati
+	Without attachments	Senza allegati
+	(nobody)	(nessuno)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

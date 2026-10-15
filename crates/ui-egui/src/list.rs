@@ -74,6 +74,23 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     acts.push(Action::Run("list.filter", json!({"value": f.code()})));
                 }
             }
+            // How the list is arranged, and which way round (as Outlook's "By Date" above its list).
+            if s.search.is_none() {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let rev = s.prefs.reverse_sort;
+                    if ui
+                        .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame(false))
+                        .on_hover_text(tl!("Reverse sort"))
+                        .clicked()
+                    {
+                        acts.push(Action::Run("view.reverseSort", json!({})));
+                    }
+                    let r = ui.add(
+                        egui::Button::new(RichText::new(tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()))).color(t.dim).small()).frame(false),
+                    );
+                    egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
+                });
+            }
             if let Some((q, scope)) = &s.search {
                 ui.add_space(8.0);
                 let all = *scope == SearchScope::All;
@@ -113,7 +130,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let mut y = 0.0;
     for r in &rows {
         tops.push(y);
-        y += if matches!(r, Row::Header(_)) { HEADER_H } else { mh };
+        y += if matches!(r, Row::Header(_) | Row::Group(_)) { HEADER_H } else { mh };
     }
     let total = y;
     let focus_index = s.focus.as_ref().and_then(|k| s.list.iter().position(|m| &m.key == k));
@@ -146,6 +163,11 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
                     ui.painter().text(r.left_bottom() + vec2(14.0, -8.0), egui::Align2::LEFT_BOTTOM, tl!(label), theme::bold(12.5), t.dim);
                 }
+                Row::Group(name) => {
+                    let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
+                    let (name, _) = crate::bidi::shown(name);
+                    ui.painter().text(r.left_bottom() + vec2(14.0, -8.0), egui::Align2::LEFT_BOTTOM, name.as_ref(), theme::bold(12.5), t.dim);
+                }
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
@@ -154,6 +176,21 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
         }
     });
+}
+
+/// Arrange the list by…, as a menu (the list's own and the View tab's).
+pub(crate) fn arrange_menu(ui: &mut Ui, s: &Session, acts: &mut Vec<Action>) {
+    for a in mailcraft_engine::Arrange::ALL {
+        if ui.selectable_label(s.prefs.arrange == a, tl!(a.label())).clicked() {
+            acts.push(Action::Run("view.arrange", json!({"by": a.code()})));
+            ui.close();
+        }
+    }
+    ui.separator();
+    if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
+        acts.push(Action::Run("view.reverseSort", json!({})));
+        ui.close();
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

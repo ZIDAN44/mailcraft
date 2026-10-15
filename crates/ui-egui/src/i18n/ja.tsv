@@ -590,3 +590,20 @@ month	May	5月
 	Remove it from the server after	次の期間後にサーバーから削除:
 	days	日
 	Remove it from the server once it's deleted from Deleted Items	[削除済みアイテム] から削除したらサーバーからも削除する
+	Arrange by: {field}	並べ替え: {field}
+	By {field} ⏷	{field} 順 ⏷
+	Reverse sort	逆順に並べ替え
+	Size	サイズ
+	Flag status	フラグの状態
+	Attachments	添付ファイル
+	Under 10 KB	10 KB 未満
+	10 to 25 KB	10～25 KB
+	25 to 100 KB	25～100 KB
+	100 to 500 KB	100～500 KB
+	500 KB to 1 MB	500 KB～1 MB
+	1 to 5 MB	1～5 MB
+	Over 5 MB	5 MB 超
+	Not flagged	フラグなし
+	With attachments	添付ファイルあり
+	Without attachments	添付ファイルなし
+	(nobody)	(なし)

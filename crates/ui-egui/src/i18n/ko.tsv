@@ -587,6 +587,23 @@
 	Remove it from the server after	다음 기간 후 서버에서 제거:
 	days	일
 	Remove it from the server once it's deleted from Deleted Items	지운 편지함에서 삭제하면 서버에서도 제거
+	Arrange by: {field}	정렬 기준: {field}
+	By {field} ⏷	{field} 기준 ⏷
+	Reverse sort	역순 정렬
+	Size	크기
+	Flag status	플래그 상태
+	Attachments	첨부 파일
+	Under 10 KB	10KB 미만
+	10 to 25 KB	10~25KB
+	25 to 100 KB	25~100KB
+	100 to 500 KB	100~500KB
+	500 KB to 1 MB	500KB~1MB
+	1 to 5 MB	1~5MB
+	Over 5 MB	5MB 초과
+	Not flagged	플래그 없음
+	With attachments	첨부 파일 있음
+	Without attachments	첨부 파일 없음
+	(nobody)	(없음)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

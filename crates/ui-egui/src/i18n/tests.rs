@@ -119,6 +119,10 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     for p in SnoozeUntil::ALL {
         out.insert(p.label().to_string());
     }
+    for a in mailcraft_engine::Arrange::ALL {
+        out.insert(a.label().to_string());
+    }
+    out.extend(mailcraft_engine::ARRANGE_HEADINGS.map(str::to_string));
     // The message editor's ribbon and dialogs.
     for s in [
         "Bold (Ctrl+B)",

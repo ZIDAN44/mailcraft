@@ -587,6 +587,23 @@
 	Remove it from the server after	Удалять её с сервера через
 	days	дн.
 	Remove it from the server once it's deleted from Deleted Items	Удалять её с сервера после удаления из папки «Удаленные»
+	Arrange by: {field}	Упорядочить по: {field}
+	By {field} ⏷	По: {field} ⏷
+	Reverse sort	Обратный порядок
+	Size	Размер
+	Flag status	Флажок
+	Attachments	Вложения
+	Under 10 KB	Меньше 10 КБ
+	10 to 25 KB	От 10 до 25 КБ
+	25 to 100 KB	От 25 до 100 КБ
+	100 to 500 KB	От 100 до 500 КБ
+	500 KB to 1 MB	От 500 КБ до 1 МБ
+	1 to 5 MB	От 1 до 5 МБ
+	Over 5 MB	Больше 5 МБ
+	Not flagged	Без флажка
+	With attachments	С вложениями
+	Without attachments	Без вложений
+	(nobody)	(никто)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -589,3 +589,20 @@ month	May	מאי
 	Remove it from the server after	הסר אותו מהשרת אחרי
 	days	ימים
 	Remove it from the server once it's deleted from Deleted Items	הסר אותו מהשרת כשהוא נמחק מ'פריטים שנמחקו'
+	Arrange by: {field}	סדר לפי: {field}
+	By {field} ⏷	לפי {field} ⏷
+	Reverse sort	הפוך מיון
+	Size	גודל
+	Flag status	מצב סימון
+	Attachments	קבצים מצורפים
+	Under 10 KB	פחות מ-10 KB
+	10 to 25 KB	10 עד 25 KB
+	25 to 100 KB	25 עד 100 KB
+	100 to 500 KB	100 עד 500 KB
+	500 KB to 1 MB	500 KB עד 1 MB
+	1 to 5 MB	1 עד 5 MB
+	Over 5 MB	יותר מ-5 MB
+	Not flagged	לא מסומן
+	With attachments	עם קבצים מצורפים
+	Without attachments	ללא קבצים מצורפים
+	(nobody)	(אף אחד)

@@ -588,6 +588,23 @@
 	Remove it from the server after	Vom Server entfernen nach
 	days	Tagen
 	Remove it from the server once it's deleted from Deleted Items	Vom Server entfernen, sobald sie aus „Gelöschte Elemente“ gelöscht wird
+	Arrange by: {field}	Anordnen nach: {field}
+	By {field} ⏷	Nach {field} ⏷
+	Reverse sort	Sortierung umkehren
+	Size	Größe
+	Flag status	Kennzeichnungsstatus
+	Attachments	Anlagen
+	Under 10 KB	Unter 10 KB
+	10 to 25 KB	10 bis 25 KB
+	25 to 100 KB	25 bis 100 KB
+	100 to 500 KB	100 bis 500 KB
+	500 KB to 1 MB	500 KB bis 1 MB
+	1 to 5 MB	1 bis 5 MB
+	Over 5 MB	Über 5 MB
+	Not flagged	Nicht gekennzeichnet
+	With attachments	Mit Anlagen
+	Without attachments	Ohne Anlagen
+	(nobody)	(niemand)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

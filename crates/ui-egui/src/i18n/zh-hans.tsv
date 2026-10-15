@@ -590,3 +590,20 @@ month	May	5月
 	Remove it from the server after	在以下天数后从服务器删除：
 	days	天
 	Remove it from the server once it's deleted from Deleted Items	从“已删除邮件”中删除后，也从服务器删除
+	Arrange by: {field}	排列方式：{field}
+	By {field} ⏷	按{field} ⏷
+	Reverse sort	反向排序
+	Size	大小
+	Flag status	标记状态
+	Attachments	附件
+	Under 10 KB	小于 10 KB
+	10 to 25 KB	10 至 25 KB
+	25 to 100 KB	25 至 100 KB
+	100 to 500 KB	100 至 500 KB
+	500 KB to 1 MB	500 KB 至 1 MB
+	1 to 5 MB	1 至 5 MB
+	Over 5 MB	大于 5 MB
+	Not flagged	未标记
+	With attachments	有附件
+	Without attachments	无附件
+	(nobody)	(无人)

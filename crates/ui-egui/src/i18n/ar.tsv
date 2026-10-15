@@ -589,3 +589,20 @@ month	May	مايو
 	Remove it from the server after	إزالتها من الخادم بعد
 	days	يومًا
 	Remove it from the server once it's deleted from Deleted Items	إزالتها من الخادم بعد حذفها من «العناصر المحذوفة»
+	Arrange by: {field}	ترتيب حسب: {field}
+	By {field} ⏷	حسب {field} ⏷
+	Reverse sort	عكس الترتيب
+	Size	الحجم
+	Flag status	حالة العلامة
+	Attachments	المرفقات
+	Under 10 KB	أقل من 10 ك.ب
+	10 to 25 KB	من 10 إلى 25 ك.ب
+	25 to 100 KB	من 25 إلى 100 ك.ب
+	100 to 500 KB	من 100 إلى 500 ك.ب
+	500 KB to 1 MB	من 500 ك.ب إلى 1 م.ب
+	1 to 5 MB	من 1 إلى 5 م.ب
+	Over 5 MB	أكثر من 5 م.ب
+	Not flagged	غير معلّمة
+	With attachments	مع مرفقات
+	Without attachments	بدون مرفقات
+	(nobody)	(لا أحد)
