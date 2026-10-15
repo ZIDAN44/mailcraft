@@ -25,6 +25,8 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 /// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
 struct Keychain;
 
+#[cfg(windows)]
+mod toast;
 mod video;
 #[cfg(all(unix, not(target_os = "macos")))]
 mod xdnd;
@@ -234,7 +236,14 @@ impl Services for Desktop {
         let (title, body) = (title.to_string(), body.to_string());
         // Off the UI thread: the notification service can be slow, or missing.
         std::thread::spawn(move || {
-            if let Err(e) = notify_rust::Notification::new().summary(&title).body(&body).appname("MailCraft").show() {
+            let mut n = notify_rust::Notification::new();
+            n.summary(&title).body(&body).appname("MailCraft");
+            // Windows names a toast after its app id (PowerShell's when none is given).
+            #[cfg(windows)]
+            if toast::registered() {
+                n.app_id(toast::APP_ID);
+            }
+            if let Err(e) = n.show() {
                 log::warn!("notification: {e}");
             }
         });

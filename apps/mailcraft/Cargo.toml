@@ -39,6 +39,8 @@ winresource = "0.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["windows-native"] }
+# Notifications under MailCraft's name: its app id's name and icon, per user (`toast.rs`).
+windows-registry = "0.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["apple-native"] }
