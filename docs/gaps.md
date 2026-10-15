@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.8, 2026-10-15._
+_Status: v0.9, 2026-10-15._
 
 ## Open
 
@@ -120,6 +120,8 @@ mailbox; packaging for every desktop.
   kept before comes into them by itself. File › Options › Data files shows and moves the folder
   (at the next start, every file checked before the old ones go); each account's Mailbox
   settings show its file and save a copy as a `.pst`.
+
+### v0.9 — Outlook's everyday commands
 - **POP server copies, as Outlook's settings:** kept on the server, removed after a number of
   days (14 for new accounts) and/or once deleted from Deleted Items.
 - **From an audit against Outlook:** View › Arrange by (date, sender, recipient, subject, size,

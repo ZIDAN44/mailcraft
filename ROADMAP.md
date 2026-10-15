@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.8 — POP and Outlook's own data files (2026-10-15). Each milestone below is a version: v0.1 was
+**Stage:** v0.9 — Outlook's everyday commands (2026-10-15). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -37,7 +37,10 @@ local-first, media-aware v1); the fuller request is
    mirrored right-to-left windows, `.pst` tasks and the calendar and contacts exported beside it.
 8. **v0.8 — POP and Outlook's own data files** ✅ POP accounts with folders on this computer,
    starting from an existing `.pst`, and real Outlook `.pst` files checked end to end.
-9. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+9. **v0.9 — Outlook's everyday commands** ✅ From an audit against Outlook: Arrange by, a Send /
+   Receive tab with Work offline, Undo, more filters, Ignore, importance and read receipts, File's
+   Save As and Print, POP copies removed after days; drafts no longer lost offline.
+10. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
 
 ## Progress log
@@ -68,4 +71,10 @@ local-first, media-aware v1); the fuller request is
   calendar and contacts exported beside the `.pst`.
 - **2026-10-15** — **v0.8**: POP accounts (downloaded mail in folders on this computer, a copy left
   on the server), "use an existing data file", and real Outlook `.pst` files checked: open files,
-  `.ost` files, RSS Feeds and the Outbox handled.
+  `.ost` files, RSS Feeds and the Outbox handled; each account in a `.mailcraft` data file in
+  Documents\MailCraft Files.
+- **2026-10-15** — **v0.9**: an audit against Outlook: Arrange by and Reverse sort, a Send / Receive
+  tab with Work offline, Undo, Filter (categorized, important, to me), Ignore a conversation, New
+  items, a minimizable folder pane, File › Save As / Save Attachments / Print / Exit, importance
+  and read receipts, POP server copies removed after days or once deleted; drafts that can't
+  reach the server are kept.
