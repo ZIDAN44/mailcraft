@@ -625,6 +625,9 @@
 	Folder pane	Painel de pastas
 	Minimize the folder pane	Minimizar o painel de pastas
 	Show the folder pane	Mostrar o painel de pastas
+	Save As	Salvar como
+	Save Attachments	Salvar anexos
+	Exit	Sair
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

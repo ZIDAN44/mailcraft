@@ -624,6 +624,9 @@
 	Folder pane	Область папок
 	Minimize the folder pane	Свернуть область папок
 	Show the folder pane	Показать область папок
+	Save As	Сохранить как
+	Save Attachments	Сохранить вложения
+	Exit	Выход
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -75,15 +75,35 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 close = true;
             }
             ui.add_space(8.0);
-            for (page, icon, label) in [
-                (Page::Info, Icon::Info, "Info"),
-                (Page::Open, Icon::Folder, "Open & Export"),
-                (Page::Options, Icon::Gear, "Options"),
-                (Page::About, Icon::Star, "About"),
-            ] {
+            for (page, icon, label) in [(Page::Info, Icon::Info, "Info"), (Page::Open, Icon::Folder, "Open & Export")] {
                 if rail_item(ui, &t, icon, label, b.page == page).clicked() {
                     b.page = page;
                 }
+            }
+            // The open message, as Outlook's File › Save As, Save Attachments and Print.
+            ui.add_space(8.0);
+            let open = s.reading.as_ref().and_then(|r| r.parsed.as_ref());
+            let attachments = open.is_some_and(|p| !p.attachments.is_empty());
+            for (icon, label, on, action) in [
+                (Icon::File, "Save As", open.is_some(), Action::SaveMessage),
+                (Icon::Attach, "Save Attachments", attachments, Action::SaveAll),
+                (Icon::Print, "Print", open.is_some(), Action::Print),
+            ] {
+                let r = ui.add_enabled_ui(on, |ui| rail_item(ui, &t, icon, label, false)).inner;
+                if on && r.clicked() {
+                    acts.push(action);
+                    close = true;
+                }
+            }
+            ui.add_space(8.0);
+            for (page, icon, label) in [(Page::Options, Icon::Gear, "Options"), (Page::About, Icon::Star, "About")] {
+                if rail_item(ui, &t, icon, label, b.page == page).clicked() {
+                    b.page = page;
+                }
+            }
+            // Close MailCraft (the desktop app; a browser tab is closed by the browser).
+            if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         },
     );
@@ -114,13 +134,25 @@ fn rail_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, on: bool) -> egui
         ui.painter().rect_filled(egui::Rect::from_min_size(r.min, vec2(3.0, r.height())), 0.0, t.accent);
     }
     let ir = egui::Rect::from_center_size(r.left_center() + vec2(26.0, 0.0), vec2(18.0, 18.0));
-    icons::paint(ui.painter(), ir, icon, if on { t.accent } else { t.dim });
+    let enabled = ui.is_enabled();
+    icons::paint(
+        ui.painter(),
+        ir,
+        icon,
+        if on {
+            t.accent
+        } else if enabled {
+            t.dim
+        } else {
+            t.faint
+        },
+    );
     ui.painter().text(
         r.left_center() + vec2(46.0, 0.0),
         egui::Align2::LEFT_CENTER,
         tl!(label),
         if on { theme::bold(14.0) } else { theme::regular(14.0) },
-        t.text,
+        if enabled { t.text } else { t.faint },
     );
     resp
 }

@@ -625,6 +625,9 @@
 	Folder pane	Panel de carpetas
 	Minimize the folder pane	Minimizar el panel de carpetas
 	Show the folder pane	Mostrar el panel de carpetas
+	Save As	Guardar como
+	Save Attachments	Guardar datos adjuntos
+	Exit	Salir
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

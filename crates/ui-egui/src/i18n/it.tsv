@@ -624,6 +624,9 @@
 	Folder pane	Riquadro delle cartelle
 	Minimize the folder pane	Riduci il riquadro delle cartelle
 	Show the folder pane	Mostra il riquadro delle cartelle
+	Save As	Salva con nome
+	Save Attachments	Salva allegati
+	Exit	Esci
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

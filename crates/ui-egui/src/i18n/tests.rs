@@ -127,6 +127,9 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     for s in [
         "Ignore the conversation",
         "Minimize the folder pane",
+        "Save As",
+        "Save Attachments",
+        "Exit",
         "Show the folder pane",
         "Stop ignoring the conversation",
         "Bold (Ctrl+B)",

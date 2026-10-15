@@ -625,6 +625,9 @@
 	Folder pane	Volet Dossiers
 	Minimize the folder pane	Réduire le volet Dossiers
 	Show the folder pane	Afficher le volet Dossiers
+	Save As	Enregistrer sous
+	Save Attachments	Enregistrer les pièces jointes
+	Exit	Quitter
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

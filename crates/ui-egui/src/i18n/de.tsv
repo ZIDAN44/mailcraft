@@ -625,6 +625,9 @@
 	Folder pane	Ordnerbereich
 	Minimize the folder pane	Ordnerbereich minimieren
 	Show the folder pane	Ordnerbereich anzeigen
+	Save As	Speichern unter
+	Save Attachments	Anlagen speichern
+	Exit	Beenden
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
