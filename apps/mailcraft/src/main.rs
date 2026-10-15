@@ -445,6 +445,13 @@ fn main() -> eframe::Result {
     session.oauth_available = mailcraft_net::oauth::available();
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
 
+    // The main window opens where it was, at the size it was, maximized if it was.
+    let main_place: Option<mailcraft_ui_egui::WindowPlace> = state_path
+        .as_ref()
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+        .and_then(|v| v.get("windows")?.get("main").cloned())
+        .and_then(|m| serde_json::from_value(m).ok());
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(if sample { "MailCraft – Sample mailbox" } else { "MailCraft" })
@@ -454,6 +461,10 @@ fn main() -> eframe::Result {
             .with_min_inner_size([760.0, 480.0])
             .with_icon(Arc::new(app_icon())),
         ..Default::default()
+    };
+    let options = match main_place {
+        Some(p) => eframe::NativeOptions { viewport: p.apply(options.viewport), ..options },
+        None => options,
     };
     eframe::run_native(
         "MailCraft",

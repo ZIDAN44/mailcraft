@@ -922,3 +922,17 @@ fn craft_fonts_are_the_last_fallbacks() {
     let arabic = ctx.fonts_mut(|f| f.has_glyphs(&egui::FontId::proportional(14.0), "مرحبا"));
     assert_eq!(arabic, crate::craft_fonts::has_script("Arab"));
 }
+
+/// A remembered window place is used only when it's sensible: a real size, roughly on a screen.
+#[test]
+fn window_places_open_only_where_they_make_sense() {
+    use crate::WindowPlace;
+    let p = |x: f32, y: f32, w: f32, h: f32| WindowPlace { x, y, w, h, maximized: false };
+    assert!(p(213.0, 157.0, 1011.0, 707.0).usable().is_some());
+    assert!(p(-1920.0, 40.0, 900.0, 700.0).usable().is_some(), "a screen to the left");
+    assert!(p(100.0, 100.0, 50.0, 40.0).usable().is_none(), "too small to use");
+    assert!(p(-32000.0, -32000.0, 900.0, 700.0).usable().is_none(), "Windows' minimized spot");
+    assert!(p(f32::NAN, 0.0, 900.0, 700.0).usable().is_none());
+    let v: WindowPlace = serde_json::from_value(json!({"x": 1.0, "y": 2.0, "w": 800.0, "h": 600.0})).unwrap();
+    assert!(!v.maximized, "saved before maximized was kept");
+}

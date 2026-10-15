@@ -255,8 +255,58 @@ pub enum Action {
     CancelDataMove,
 }
 
+/// Where a window was and how big (in points), and whether it was maximized: its normal place is
+/// kept while maximized, so Restore goes back to it, as Outlook does.
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WindowPlace {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    #[serde(default)]
+    pub maximized: bool,
+}
+
+impl WindowPlace {
+    /// Note where a window is now (nothing while it's minimized; while maximized, only that).
+    pub fn note(place: &mut Option<WindowPlace>, ui: &Ui) {
+        let v = ui.input(|i| i.viewport().clone());
+        if v.minimized == Some(true) {
+            return;
+        }
+        let maximized = v.maximized == Some(true);
+        if maximized {
+            if let Some(p) = place.as_mut() {
+                p.maximized = true;
+            }
+            return;
+        }
+        if let (Some(outer), Some(inner)) = (v.outer_rect, v.inner_rect) {
+            *place = Some(WindowPlace { x: outer.min.x, y: outer.min.y, w: inner.width(), h: inner.height(), maximized: false });
+        }
+    }
+
+    /// A place that's sensible to open at: a real size, and on a screen as far as can be told.
+    pub fn usable(self) -> Option<WindowPlace> {
+        let fine = |v: f32| v.is_finite();
+        (fine(self.x) && fine(self.y) && self.w >= 200.0 && self.h >= 150.0 && self.w < 20_000.0 && self.h < 20_000.0)
+            .then_some(self)
+            .filter(|p| p.x > -2_000.0 && p.y > -200.0 && p.x < 20_000.0 && p.y < 20_000.0)
+    }
+
+    /// Open a window where this place says.
+    pub fn apply(self, b: egui::ViewportBuilder) -> egui::ViewportBuilder {
+        match self.usable() {
+            Some(p) => b.with_position([p.x, p.y]).with_inner_size([p.w, p.h]).with_maximized(p.maximized),
+            None => b,
+        }
+    }
+}
+
 /// UI-only state.
 pub struct UiState {
+    /// Where the main window, the last message window and the last compose window were.
+    pub places: std::collections::BTreeMap<String, WindowPlace>,
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
@@ -378,6 +428,7 @@ impl MailApp {
                 rtl_font: None,
                 cjk_loaded: None,
                 title_base: "MailCraft".into(),
+                places: Default::default(),
                 page_message: None,
                 title_shown: String::new(),
                 focus_main: false,
@@ -477,6 +528,11 @@ impl MailApp {
     /// The whole window.
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
+        let mut main = self.ui.places.get("main").copied();
+        WindowPlace::note(&mut main, ui);
+        if let Some(p) = main {
+            self.ui.places.insert("main".into(), p);
+        }
         if !self.ui.fonts_ready {
             // Fonts take effect from the next frame; drawing now would miss the bold family.
             self.install_fonts(&ctx, None, None);
@@ -681,8 +737,18 @@ impl MailApp {
             .with_title(i18n::as_written(|| tf!("{subject} – Message", subject = subject)))
             .with_inner_size([900.0, 720.0])
             .with_min_inner_size([520.0, 420.0]);
+        // Where the last one was, and its size.
+        let builder = match self.ui.places.get("compose") {
+            Some(p) => p.apply(builder),
+            None => builder,
+        };
         let (session, st) = (&mut self.session, &mut self.ui);
         let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+            let mut place = st.places.get("compose").copied();
+            WindowPlace::note(&mut place, ui);
+            if let Some(p) = place {
+                st.places.insert("compose".into(), p);
+            }
             let mut mine: Vec<Action> = Vec::new();
             let mut closing = ui.input(|i| i.viewport().close_requested());
             // Something written: ask first, as Outlook does.
@@ -772,8 +838,18 @@ impl MailApp {
                 .with_title(i18n::as_written(|| tf!("{subject} – Message", subject = subject)))
                 .with_inner_size([940.0, 740.0])
                 .with_min_inner_size([480.0, 360.0]);
+            // Where the last one was, and its size.
+            let builder = match self.ui.places.get("message") {
+                Some(p) => p.apply(builder),
+                None => builder,
+            };
             let (session, st) = (&mut self.session, &mut self.ui);
             let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+                let mut place = st.places.get("message").copied();
+                WindowPlace::note(&mut place, ui);
+                if let Some(p) = place {
+                    st.places.insert("message".into(), p);
+                }
                 let mut mine: Vec<Action> = Vec::new();
                 let closing = ui.input(|i| i.viewport().close_requested() || i.key_pressed(Key::Escape));
                 egui::Panel::top(egui::Id::new(("message-window-bar", key.to_id())))
@@ -1673,7 +1749,7 @@ impl MailApp {
 
     /// Preferences and theme for the app to save.
     pub fn saved_state(&self) -> Value {
-        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language })
+        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language, "windows": self.ui.places })
     }
 
     pub fn restore_state(&mut self, v: &Value) {
@@ -1687,6 +1763,9 @@ impl MailApp {
             }
         }
         self.ui.dark = v.get("dark").and_then(Value::as_bool);
+        if let Some(w) = v.get("windows").and_then(|w| serde_json::from_value(w.clone()).ok()) {
+            self.ui.places = w;
+        }
         if let Some(l) = v.get("language").and_then(Value::as_str).filter(|l| *l == i18n::AUTO || i18n::Lang::from_code(l).is_some()) {
             self.ui.language = l.to_string();
         }
