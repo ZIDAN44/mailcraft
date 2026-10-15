@@ -637,7 +637,6 @@
 	Save As…	다른 이름으로 저장…
 	Save All Attachments…	모든 첨부 파일 저장…
 	This picture can't be shown.	이 그림을 표시할 수 없습니다.
-	{name} · {kind}. Double-click to open it.	{name} · {kind}. 두 번 클릭하여 엽니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

@@ -407,23 +407,6 @@ fn kind_icon(k: AttachmentKind) -> Icon {
     }
 }
 
-fn kind_label(k: AttachmentKind) -> &'static str {
-    tl!(kind_name(k))
-}
-
-fn kind_name(k: AttachmentKind) -> &'static str {
-    match k {
-        AttachmentKind::Image => "Picture",
-        AttachmentKind::Video => "Video",
-        AttachmentKind::Audio => "Audio",
-        AttachmentKind::Pdf => "PDF",
-        AttachmentKind::Text => "Text",
-        AttachmentKind::Archive => "Archive",
-        AttachmentKind::Document => "Document",
-        AttachmentKind::Other => "File",
-    }
-}
-
 /// Decode an image attachment into a thumbnail texture (cached; `None` if it isn't a picture
 /// we can read). Pictures come from mail, so size is capped before decoding.
 fn preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey, index: usize) -> Option<egui::TextureHandle> {
@@ -1015,7 +998,7 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
         acts.push(Action::DragOut(a.index));
     }
     if !on_more {
-        resp.on_hover_text(tf!("{name} · {kind}. Double-click to open it.", name = a.name, kind = tl!(kind_label(kind))));
+        resp.on_hover_text(a.name.clone());
     }
 }
 

@@ -638,7 +638,6 @@
 	Save As…	Guardar como…
 	Save All Attachments…	Guardar todos los datos adjuntos…
 	This picture can't be shown.	Esta imagen no se puede mostrar.
-	{name} · {kind}. Double-click to open it.	{name} · {kind}. Haz doble clic para abrirlo.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo
