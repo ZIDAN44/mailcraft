@@ -565,6 +565,7 @@
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	用於你所屬組織執行的 Exchange 伺服器，透過 Exchange Web Services。使用你的網路使用者名稱與密碼登入。
 	Found automatically when left empty	留空時自動尋找
 	Its calendar and contacts go beside it, as .ics and .vcf files.	行事曆和連絡人會以 .ics 和 .vcf 檔案存放在旁邊。
+	You can close this window.	可以關閉此視窗了。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

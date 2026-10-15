@@ -568,3 +568,4 @@ month	May	5月
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	組織が運用する Exchange サーバー向け (Exchange Web Services 経由)。ネットワークのユーザー名とパスワードでサインインします。
 	Found automatically when left empty	空欄の場合は自動的に検出されます
 	Its calendar and contacts go beside it, as .ics and .vcf files.	予定表と連絡先は、その横に .ics と .vcf ファイルとして保存されます。
+	You can close this window.	このウィンドウは閉じてかまいません。

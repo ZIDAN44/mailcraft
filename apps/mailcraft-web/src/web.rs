@@ -100,6 +100,10 @@ pub fn start() {
                     if let Some(v) = cc.storage.and_then(|s| s.get_string(UI_KEY)).and_then(|j| serde_json::from_str(&j).ok()) {
                         app.restore_state(&v);
                     }
+                    // A message's own window (opened from a message's pop-out).
+                    if let Some(key) = param("open") {
+                        app.show_message_page(&key);
+                    }
                     Ok(Box::new(WebShell { app, store, sample, db }))
                 }),
             )
@@ -115,6 +119,13 @@ pub fn start() {
 
 fn query() -> String {
     web_sys::window().and_then(|w| w.location().search().ok()).unwrap_or_default()
+}
+
+/// A `?name=value` parameter of the page's address, decoded.
+fn param(name: &str) -> Option<String> {
+    let q = query();
+    let raw = q.trim_start_matches('?').split('&').find_map(|kv| kv.strip_prefix(&format!("{name}=")))?;
+    js_sys::decode_uri_component(raw).ok().map(String::from)
 }
 
 /// Unix seconds and the local UTC offset in seconds.
@@ -209,6 +220,23 @@ impl Services for WebServices {
     }
     fn downloads(&self) -> bool {
         true
+    }
+    fn open_message_window(&mut self, key: &str) -> bool {
+        let Some(w) = web_sys::window() else { return false };
+        let path = w.location().pathname().unwrap_or_else(|_| "/".into());
+        // The same mailbox (the sample stays the sample) in a window of its own, message-sized and
+        // a little in from this one's corner, as web mail opens one (not a tab, not maximised).
+        let sample = if query().contains("sample") { "sample&" } else { "" };
+        let url = format!("{path}?{sample}open={}", String::from(js_sys::encode_uri_component(key)));
+        let at = |v: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>| v.ok().and_then(|x| x.as_f64()).unwrap_or(0.0) as i32 + 60;
+        let features = format!("popup=yes,width=940,height=740,left={},top={}", at(w.screen_x()), at(w.screen_y()));
+        // A blocked pop-up opens nothing: then the message shows in a window drawn in the page.
+        matches!(w.open_with_url_and_target_and_features(&url, "_blank", &features), Ok(Some(_)))
+    }
+    fn close_page(&mut self) {
+        if let Some(w) = web_sys::window() {
+            let _ = w.close();
+        }
     }
     fn download(&mut self, name: &str, bytes: &[u8]) {
         if let Err(e) = download(name, bytes) {

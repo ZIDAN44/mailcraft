@@ -565,6 +565,7 @@
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Per i server Exchange gestiti dalla tua organizzazione, tramite Exchange Web Services. Accede con nome utente e password di rete.
 	Found automatically when left empty	Trovato automaticamente se lasciato vuoto
 	Its calendar and contacts go beside it, as .ics and .vcf files.	Il calendario e i contatti vengono salvati accanto, come file .ics e .vcf.
+	You can close this window.	Puoi chiudere questa finestra.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

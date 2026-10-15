@@ -565,6 +565,7 @@
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	조직에서 운영하는 Exchange 서버용(Exchange Web Services 사용). 네트워크 사용자 이름과 암호로 로그인합니다.
 	Found automatically when left empty	비워 두면 자동으로 찾습니다
 	Its calendar and contacts go beside it, as .ics and .vcf files.	일정과 연락처는 옆에 .ics 및 .vcf 파일로 저장됩니다.
+	You can close this window.	이 창을 닫아도 됩니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

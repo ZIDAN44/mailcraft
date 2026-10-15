@@ -221,6 +221,55 @@ fn the_account_form_adds_exchange_accounts() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// The browser's services: a popped-out message goes to a browser window of its own.
+struct PageServices(std::rc::Rc<std::cell::RefCell<Vec<String>>>);
+
+impl crate::Services for PageServices {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Err("no".into())
+    }
+    fn open_message_window(&mut self, key: &str) -> bool {
+        self.0.borrow_mut().push(key.to_string());
+        true
+    }
+    fn close_page(&mut self) {
+        self.0.borrow_mut().push("closed".into());
+    }
+}
+
+#[test]
+fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
+    let (a, dir) = app("tabs");
+    let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(PageServices(opened.clone())));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list[0].key.clone();
+    a.run("message.popOut", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(*opened.borrow(), [k.to_id()], "a browser window, not one drawn in the page");
+    assert!(a.session.windows.is_empty());
+    // The new window shows only that message; done with, it closes.
+    let mut tab = MailApp::new(a.session, Box::new(NullBackend), Box::new(PageServices(opened.clone())));
+    tab.show_message_page(&k.to_id());
+    frame(&ctx, &mut tab, vec![]);
+    assert_eq!(tab.ui.page_message.as_ref(), Some(&k));
+    assert_eq!(tab.session.windows.len(), 1, "shown in place, not opened again");
+    tab.act(crate::Action::Run("message.closeWindow", json!({"key": k.to_id()})));
+    frame(&ctx, &mut tab, vec![]);
+    assert_eq!(opened.borrow().last().map(String::as_str), Some("closed"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn double_clicked_mail_opens_in_its_own_window() {
     let (mut a, dir) = app("windows");

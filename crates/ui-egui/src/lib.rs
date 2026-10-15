@@ -118,6 +118,13 @@ pub trait Services {
     fn open_url(&mut self, _url: &str) -> Result<(), String> {
         Err("not available".into())
     }
+    /// Open a message (its key) in a browser window of its own, as web mail does; `false` when windows are
+    /// windows here.
+    fn open_message_window(&mut self, _key: &str) -> bool {
+        false
+    }
+    /// Close this page (a message's own window, when it's done).
+    fn close_page(&mut self) {}
     /// An Outlook data file to open (`None` when cancelled).
     fn pick_data_file(&mut self) -> Option<PathBuf> {
         None
@@ -259,6 +266,8 @@ pub struct UiState {
     cjk_loaded: Option<&'static str>,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
     pub title_base: String,
+    /// This page is a message's own window (the browser): only that message is shown.
+    pub page_message: Option<MessageKey>,
     pub(crate) title_shown: String,
     /// Raise the main window on the next frame.
     focus_main: bool,
@@ -327,6 +336,7 @@ impl MailApp {
                 rtl_font: None,
                 cjk_loaded: None,
                 title_base: "MailCraft".into(),
+                page_message: None,
                 title_shown: String::new(),
                 focus_main: false,
                 video_files: HashMap::new(),
@@ -448,6 +458,21 @@ impl MailApp {
 
         let mut acts: Vec<Action> = Vec::new();
         let t = self.ui.tokens;
+        if let Some(key) = self.ui.page_message.clone() {
+            self.message_page(ui, &key, &mut acts);
+            if let Some(mut d) = self.ui.dialog.take() {
+                let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &mut acts);
+                if keep && self.ui.dialog.is_none() {
+                    self.ui.dialog = Some(d);
+                }
+            }
+            self.toasts(&ctx);
+            for a in acts {
+                self.act(a);
+            }
+            self.flush_jobs();
+            return;
+        }
         egui::Panel::top("topbar").exact_size(46.0).frame(egui::Frame::new().fill(t.accent).inner_margin(Margin::symmetric(12, 6))).show(ui, |ui| {
             self.top_bar(ui, &mut acts);
         });
@@ -616,10 +641,57 @@ impl MailApp {
         }
     }
 
+    /// Show only one message, as its own window does (`key` from [`MessageKey::to_id`]).
+    pub fn show_message_page(&mut self, key: &str) {
+        let Some(k) = MessageKey::from_id(key) else { return };
+        if self.session.run("message.popOut", &json!({"key": key})).is_ok() {
+            self.ui.page_message = Some(k);
+        }
+    }
+
+    /// A message's own window: its toolbar and the message; a reply written here; closed when done.
+    fn message_page(&mut self, ui: &mut Ui, key: &MessageKey, acts: &mut Vec<Action>) {
+        let t = self.ui.tokens;
+        if self.session.compose.is_some() {
+            egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                reading::show(&mut self.session, &mut self.ui, ui, acts);
+            });
+            return;
+        }
+        let Some(w) = self.session.windows.iter().find(|w| &w.key == key).cloned() else {
+            // Done with: the window goes (a browser may refuse; then this says so).
+            self.services.close_page();
+            egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                ui.centered_and_justified(|ui| ui.label(RichText::new(tl!("You can close this window.")).color(t.dim)));
+            });
+            return;
+        };
+        let subject =
+            w.parsed.as_ref().map(|p| p.subject.clone()).filter(|s| !s.trim().is_empty()).unwrap_or_else(|| tl!("(no subject)").to_string());
+        let title = i18n::as_written(|| tf!("{subject} – Message", subject = subject));
+        if title != self.ui.title_shown {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            self.ui.title_shown = title;
+        }
+        egui::Panel::top("message-page-bar")
+            .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 6)).stroke(egui::Stroke::new(1.0, t.border)))
+            .show(ui, |ui| window_toolbar(ui, &self.session, &t, key, acts));
+        egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+            reading::window(&mut self.session, &mut self.ui, ui, w, acts);
+        });
+    }
+
     /// Messages opened in windows of their own (double-click), each a native window with the
-    /// message's own toolbar.
+    /// message's own toolbar; in the browser, each in a browser window of its own.
     fn message_windows(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
+        if self.ui.page_message.is_none() {
+            for w in self.session.windows.clone() {
+                if self.services.open_message_window(&w.key.to_id()) {
+                    self.session.close_window(&w.key);
+                }
+            }
+        }
         for w in self.session.windows.clone() {
             let key = w.key.clone();
             let subject =
