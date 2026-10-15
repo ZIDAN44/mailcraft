@@ -527,10 +527,15 @@ fn server_settings_are_looked_up_once() {
 fn formatted_messages_go_out_as_html_with_pictures() {
     let mut s = sample_session("rich");
     s.run("mail.new", &json!({})).unwrap();
-    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plan", "body": "Hi **Ann**,\n- frames\n- sound\n"})).unwrap();
+    // Agents and the command line can write with marks.
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plan", "body": "Hi **Ann**,\n- frames\n- sound\n", "marks": true})).unwrap();
+    let c = s.compose.as_ref().unwrap();
+    assert_eq!(c.body, "Hi Ann,\nframes\nsound\n");
+    assert!(c.styles.style(3).bold && c.styles.para(1).list == mailcraft_mime::rich::List::Bullet);
     let png = crate::sample::sample_png();
     let r = s.run("compose.insertPicture", &json!({"name": "board.png", "data": png})).unwrap();
-    assert!(r["mark"].as_str().unwrap().starts_with("![board](cid:"));
+    assert!(r["cid"].as_str().is_some());
+    assert!(s.compose.as_ref().unwrap().body.ends_with(mailcraft_mime::rich::PICTURE));
     assert!(s.run("compose.insertPicture", &json!({"name": "notes.txt", "data": [1]})).is_err(), "pictures only");
     s.run("compose.send", &json!({})).unwrap();
     s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
@@ -539,7 +544,7 @@ fn formatted_messages_go_out_as_html_with_pictures() {
     let p = s.reading.as_ref().unwrap().parsed.clone().unwrap();
     assert!(p.had_html);
     assert!(p.rich.iter().flatten().any(|sp| sp.bold && sp.text == "Ann"));
-    assert!(p.text.starts_with("Hi Ann,\n- frames"), "{}", p.text);
+    assert!(p.text.starts_with("Hi Ann,\n• frames"), "{}", p.text);
     assert_eq!(p.images.len(), 1);
     assert!(p.attachments.iter().any(|a| a.inline && a.content_id.is_some()));
 

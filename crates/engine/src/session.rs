@@ -248,13 +248,17 @@ pub struct Compose {
     pub error: Option<String>,
     /// The copy saved in Drafts, replaced on the next save.
     pub draft: Option<MessageKey>,
+    /// The Bcc row is shown.
     pub show_cc: bool,
-    /// Send as plain text only (the formatting marks are then sent as typed).
+    /// Send as plain text only (lists written out, the rest of the formatting dropped).
     #[serde(default)]
     pub plain: bool,
-    /// Pictures placed in the text (`![name](cid:…)`).
+    /// The pictures placed in the text (each where a [`mime::rich::PICTURE`] stands).
     #[serde(default)]
     pub inline: Vec<mime::InlinePicture>,
+    /// How the text looks: a style for each character and paragraph.
+    #[serde(default)]
+    pub styles: mime::rich::Styles,
     /// Written in a window of its own rather than the reading pane.
     #[serde(default)]
     pub window: bool,
@@ -264,13 +268,22 @@ impl Compose {
     /// The text, HTML and pictures to send: formatted when the text uses formatting or has
     /// pictures (and the message isn't set to plain text), else plain text alone.
     pub fn bodies(&self) -> (String, Option<String>, Vec<mime::InlinePicture>) {
-        let used = mime::markup::pictures(&self.body);
+        let mut styles = self.styles.clone();
+        styles.fit(&self.body);
+        let used = mime::rich::pictures(&self.body, &styles);
         let pictures: Vec<mime::InlinePicture> = self.inline.iter().filter(|p| used.contains(&p.cid)).cloned().collect();
-        if self.plain || (!mime::markup::has_formatting(&self.body) && pictures.is_empty()) {
-            (self.body.clone(), None, Vec::new())
+        let text = mime::rich::to_text(&self.body, &styles);
+        if self.plain || (styles.is_plain() && pictures.is_empty()) {
+            (text, None, Vec::new())
         } else {
-            (mime::markup::to_text(&self.body), Some(mime::markup::to_html(&self.body)), pictures)
+            (text, Some(mime::rich::to_html(&self.body, &styles)), pictures)
         }
+    }
+
+    /// Set the text (and forget its formatting).
+    pub fn set_text(&mut self, text: String) {
+        self.styles = mime::rich::Styles::plain(&text);
+        self.body = text;
     }
 }
 
@@ -636,6 +649,38 @@ impl Session {
     pub fn suggest_contacts(&mut self, query: &str, limit: usize) -> Vec<Contact> {
         self.ensure_contacts();
         self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default()
+    }
+
+    /// Whether anything was written in the message being written (more than its signature):
+    /// closing it then asks whether to keep it.
+    pub fn compose_written(&self) -> bool {
+        let Some(c) = &self.compose else { return false };
+        let signature = self.account(&c.account).map(|a| a.config.signature.trim().to_string()).unwrap_or_default();
+        let body = c.body.trim();
+        !(c.to.trim().is_empty()
+            && c.cc.trim().is_empty()
+            && c.bcc.trim().is_empty()
+            && c.subject.trim().is_empty()
+            && c.attachments.is_empty()
+            && (body.is_empty() || body.trim_start_matches("--").trim() == signature))
+    }
+
+    /// The address book, as Outlook's Select Names dialog lists it: `people` for the people
+    /// saved in Contacts, anything else for everyone known (Contacts and everyone mail was
+    /// exchanged with). Filtered by `query` (name or address), sorted by name.
+    pub fn address_book(&mut self, source: &str, query: &str) -> Vec<EmailAddress> {
+        const MAX: usize = 2000;
+        if source == "people" {
+            let mut v: Vec<EmailAddress> = self
+                .people(query)
+                .into_iter()
+                .flat_map(|p| p.card.emails.iter().map(|e| EmailAddress::new(p.card.display(), e.value.clone())).collect::<Vec<_>>())
+                .collect();
+            v.truncate(MAX);
+            return v;
+        }
+        self.ensure_contacts();
+        self.contacts.as_ref().map(|b| b.list(query, MAX).into_iter().map(|c| c.address).collect()).unwrap_or_default()
     }
 
     /// Build the address book from the cache if it isn't built.
@@ -1587,7 +1632,7 @@ impl Session {
         let parsed = r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
         let account = r.key.account.clone();
         let sig = self.signature(&account);
-        let d = mime::reply(&parsed, mode, &self.me(&account), &self.clock, &sig);
+        let (d, styles) = mime::reply_doc(&parsed, mode, &self.me(&account), &self.clock, &sig);
         let id = self.fresh_id();
         let mut attachments = Vec::new();
         if mode == ReplyMode::Forward
@@ -1604,9 +1649,9 @@ impl Session {
             account,
             to: addr::format_list(&d.to),
             cc: addr::format_list(&d.cc),
-            show_cc: !d.cc.is_empty(),
             subject: d.subject,
             body: d.body,
+            styles,
             in_reply_to: d.in_reply_to,
             references: d.references,
             attachments,
@@ -1848,7 +1893,7 @@ impl Session {
             to: addr::format_list(&p.to),
             cc: addr::format_list(&p.cc),
             bcc: bcc.join(", "),
-            show_cc: !p.cc.is_empty() || !bcc.is_empty(),
+            show_cc: !bcc.is_empty(),
             subject: p.subject.clone(),
             body: p.text.clone(),
             in_reply_to: p.in_reply_to.clone(),

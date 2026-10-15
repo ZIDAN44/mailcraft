@@ -120,6 +120,24 @@ impl ContactBook {
     }
 }
 
+impl ContactBook {
+    /// Everyone known whose name or address contains `query` (everyone for an empty one), by
+    /// name: the address book's list.
+    pub fn list(&self, query: &str, limit: usize) -> Vec<Contact> {
+        let q = query.trim().to_lowercase();
+        let mut v: Vec<Contact> = self
+            .by_email
+            .values()
+            .filter(|c| q.is_empty() || c.address.name.to_lowercase().contains(&q) || c.address.email.to_lowercase().contains(&q))
+            .cloned()
+            .collect();
+        let key = |c: &Contact| if c.address.name.trim().is_empty() { c.address.email.to_lowercase() } else { c.address.name.to_lowercase() };
+        v.sort_by_key(key);
+        v.truncate(limit);
+        v
+    }
+}
+
 /// The address being typed in a recipient box: the text after the last `,` or `;`.
 pub fn last_token(field: &str) -> &str {
     field.rsplit([',', ';']).next().unwrap_or("").trim_start()

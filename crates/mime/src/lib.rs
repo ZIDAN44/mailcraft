@@ -13,6 +13,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod markup;
+pub mod rich;
 
 use mail_builder::MessageBuilder;
 use mail_builder::headers::content_type::ContentType;
@@ -786,30 +787,58 @@ fn prefixed(prefix: &str, subject: &str) -> String {
 }
 
 /// The original under a reply or forward, the way Outlook lays it out: a rule, then who sent it
-/// to whom and when, then its text as it was.
-fn header_block(p: &Parsed, clock: &Clock) -> String {
-    let mut s = format!("{}\n", markup::RULE);
-    s.push_str(&format!("From: {}\n", p.from));
-    s.push_str(&format!("Sent: {}\n", full_time(p.date, clock)));
+/// to whom and when (labels in bold), then the original with its own formatting.
+fn quoted_original(p: &Parsed, clock: &Clock) -> (String, rich::Styles) {
+    let mut lines: Vec<(&str, String)> = vec![("From:", p.from.to_string()), ("Sent:", full_time(p.date, clock))];
     if !p.to.is_empty() {
-        s.push_str(&format!("To: {}\n", mailcraft_model::addr::format_list(&p.to)));
+        lines.push(("To:", mailcraft_model::addr::format_list(&p.to)));
     }
     if !p.cc.is_empty() {
-        s.push_str(&format!("Cc: {}\n", mailcraft_model::addr::format_list(&p.cc)));
+        lines.push(("Cc:", mailcraft_model::addr::format_list(&p.cc)));
     }
-    s.push_str(&format!("Subject: {}\n", p.subject));
-    s
+    lines.push(("Subject:", p.subject.clone()));
+    // The rule: an empty paragraph drawn as a line.
+    let mut text = String::new();
+    let mut styles = rich::Styles::plain("");
+    if let Some(first) = styles.paras.first_mut() {
+        first.rule = true;
+    }
+    let bold = rich::Style { bold: true, ..Default::default() };
+    for (label, value) in lines {
+        let line = format!("\n{label} {value}");
+        let mut st = rich::Styles::plain(&line);
+        st.restyle(&line, 1..1 + label.chars().count(), |_| bold.clone());
+        rich::append(&mut text, &mut styles, &line, &st);
+    }
+    let (orig, ost) = if p.had_html && !p.rich.is_empty() { rich::from_rich(&p.rich) } else { (p.text.clone(), rich::Styles::plain(&p.text)) };
+    rich::append(&mut text, &mut styles, "\n\n", &rich::Styles::plain("\n\n"));
+    rich::append(&mut text, &mut styles, &orig, &ost);
+    (text, styles)
 }
 
-/// A reply or forward of `p`. `me` are the user's own addresses, left out of Reply All.
+/// A reply or forward of `p`, as plain text. `me` are the user's own addresses, left out of
+/// Reply All.
 pub fn reply(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signature: &str) -> Draft {
+    let (mut d, styles) = reply_doc(p, mode, me, clock, signature);
+    d.body = rich::to_text(&d.body, &styles);
+    d
+}
+
+/// A reply or forward of `p` to edit: the draft (its body the editable text) and the text's
+/// styles.
+pub fn reply_doc(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signature: &str) -> (Draft, rich::Styles) {
     let mine = |a: &EmailAddress| me.iter().any(|m| m.eq_ignore_ascii_case(a.email.trim()));
     let sig = if signature.trim().is_empty() { String::new() } else { format!("\n\n-- \n{}", signature.trim_end()) };
+    // The cursor's line, the signature, a blank line, then the original under its rule.
+    let mut body = sig;
+    let mut styles = rich::Styles::plain(&body);
+    rich::append(&mut body, &mut styles, "\n\n", &rich::Styles::plain("\n\n"));
+    let (orig, ost) = quoted_original(p, clock);
+    rich::append(&mut body, &mut styles, &orig, &ost);
     let mut d = Draft::default();
     match mode {
         ReplyMode::Forward => {
             d.subject = prefixed("Fwd:", &p.subject);
-            d.body = format!("{sig}\n\n{}\n{}", header_block(p, clock), p.text);
         }
         ReplyMode::Reply | ReplyMode::ReplyAll => {
             d.subject = prefixed("Re:", &p.subject);
@@ -826,7 +855,6 @@ pub fn reply(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signatur
                 }
                 d.cc = cc;
             }
-            d.body = format!("{sig}\n\n{}\n{}", header_block(p, clock), p.text);
             if !p.message_id.is_empty() {
                 d.in_reply_to = p.message_id.clone();
                 d.references = p.references.clone();
@@ -840,7 +868,8 @@ pub fn reply(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signatur
             }
         }
     }
-    d
+    d.body = body;
+    (d, styles)
 }
 
 #[cfg(test)]

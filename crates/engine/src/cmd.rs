@@ -191,11 +191,11 @@ pub fn registry() -> Registry {
         CommandSpec::new("search.clear", "Clear search", "Search box", |s, _| Ok(json!({"results": s.run_search("", SearchScope::All)}))).key("Escape"),
         // Compose
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
-            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: string}"#)
+            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string}"#)
             .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
-            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool"#)
+            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end)"#)
             .when(has_compose),
         CommandSpec::new("compose.format", "Plain text / Formatted", "Message › Format", |s, v| {
             let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
@@ -416,6 +416,12 @@ pub fn registry() -> Registry {
             Ok(json!(s.people(q).iter().map(|x| json!({"uid": x.card.uid, "name": x.card.display(), "emails": x.card.emails, "phones": x.card.phones, "org": x.card.org, "title": x.card.title, "account": x.account})).collect::<Vec<_>>()))
         })
         .params(r#"{"query"?: string}"#),
+        CommandSpec::new("contact.addressBook", "Address book", "Message › Names", |s, v| {
+            let list = s.address_book(p::str(v, "source").unwrap_or("all"), p::str(v, "query").unwrap_or_default());
+            Ok(json!(list.iter().map(|a| json!({"name": a.name, "email": a.email})).collect::<Vec<_>>()))
+        })
+        .key("Mod+Shift+B")
+        .params(r#"{"query"?: string, "source"?: "all" | "people"}"#),
         CommandSpec::new("contact.create", "New contact", "People › New contact", |s, v| {
             let c = card_from(v, mailcraft_model::vcard::Card::default())?;
             s.create_card(p::str(v, "account"), c)
@@ -759,12 +765,21 @@ fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
         return Err(CmdError::Disabled("the message is being sent".into()));
     }
     let cap = |x: &str| x.chars().take(1 << 20).collect::<String>();
-    for (k, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("subject", &mut c.subject), ("body", &mut c.body)] {
+    for (k, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("subject", &mut c.subject)] {
         if let Some(x) = p::str(v, k) {
             *field = cap(x);
         }
     }
-    if !c.cc.is_empty() || !c.bcc.is_empty() {
+    if let Some(x) = p::str(v, "body") {
+        if p::bool(v, "marks").unwrap_or(false) {
+            let (text, styles) = mailcraft_mime::rich::from_markup(&cap(x));
+            c.body = text;
+            c.styles = styles;
+        } else {
+            c.set_text(cap(x));
+        }
+    }
+    if !c.bcc.is_empty() {
         c.show_cc = true;
     }
     if let Some(a) = account {
@@ -836,18 +851,26 @@ fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
     if compose_size(c) + data.len() > ATTACH_MAX {
         return Err(CmdError::Failed("pictures and attachments are limited to 25 MB in total".into()));
     }
-    let alt = name.rsplit_once('.').map_or(name.as_str(), |(n, _)| n).replace([']', '['], "");
-    let mark = format!("![{alt}](cid:{cid})");
     c.inline.push(mailcraft_mime::InlinePicture { cid: cid.clone(), name, mime, data });
     c.plain = false;
     if p::bool(v, "insert").unwrap_or(true) {
-        if !c.body.is_empty() && !c.body.ends_with('\n') {
-            c.body.push('\n');
-        }
-        c.body.push_str(&mark);
-        c.body.push('\n');
+        let n = c.body.chars().count();
+        let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
+        insert_picture_at(c, at, &cid);
     }
-    Ok(json!({"cid": cid, "mark": mark}))
+    Ok(json!({"cid": cid}))
+}
+
+/// Put picture `cid` into the text at character `at`.
+pub fn insert_picture_at(c: &mut crate::session::Compose, at: usize, cid: &str) {
+    use mailcraft_mime::rich::{PICTURE, Style};
+    let old = c.body.clone();
+    let byte = old.char_indices().nth(at).map_or(old.len(), |(b, _)| b);
+    c.body.insert(byte, PICTURE);
+    let mut styles = std::mem::take(&mut c.styles);
+    styles.edit_at(&old, &c.body, &Style::default(), Some(at + 1));
+    styles.restyle(&c.body, at..at + 1, |s| Style { picture: Some(cid.to_string()), ..s.clone() });
+    c.styles = styles;
 }
 
 fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
@@ -865,14 +888,7 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// written), as closing a message window in Outlook offers.
 fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-    let signature = s.account(&c.account).map(|a| a.config.signature.trim().to_string()).unwrap_or_default();
-    let body = c.body.trim();
-    let written = !(c.to.trim().is_empty()
-        && c.cc.trim().is_empty()
-        && c.bcc.trim().is_empty()
-        && c.subject.trim().is_empty()
-        && c.attachments.is_empty()
-        && (body.is_empty() || body.trim_start_matches("--").trim() == signature));
+    let written = s.compose_written();
     let saved = if p::bool(v, "save").unwrap_or(true) && written && !c.sending {
         s.save_draft()?;
         true
