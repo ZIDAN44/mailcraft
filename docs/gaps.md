@@ -120,3 +120,15 @@ mailbox; packaging for every desktop.
   kept before comes into them by itself. File › Options › Data files shows and moves the folder
   (at the next start, every file checked before the old ones go); each account's Mailbox
   settings show its file and save a copy as a `.pst`.
+- **POP server copies, as Outlook's settings:** kept on the server, removed after a number of
+  days (14 for new accounts) and/or once deleted from Deleted Items.
+- **From an audit against Outlook:** View › Arrange by (date, sender, recipient, subject, size,
+  flag, attachments) and Reverse sort, with their headings; a Send / Receive tab with Send all
+  and Work offline (kept across starts; drafts, sent mail and changes wait on this computer);
+  Undo (Ctrl+Z) for moves, deletes, flags and categories; Filter (categorized, important, to or
+  Cc me); Delete › Ignore the conversation; New items (event, contact); a minimizable folder
+  pane; File › Save As, Save Attachments, Print and Exit; High / Low importance and read
+  receipts when writing, and the importance of incoming mail in the list.
+- **Bugs fixed along the way:** a draft whose save failed (offline, server down) was lost; it's
+  kept and saved when the account connects. Grouped list headings were spaced as messages; the
+  ribbon cut off its last buttons in a narrow window.
