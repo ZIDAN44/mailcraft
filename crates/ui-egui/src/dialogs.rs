@@ -942,6 +942,15 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     f.smtp_host = c.smtp.host.clone();
                     f.smtp_port = c.smtp.port.to_string();
                     f.smtp_security = c.smtp.security;
+                    // The provider's POP server when it named one, else one named after the IMAP server.
+                    match &c.pop {
+                        Some(p) => {
+                            f.pop_host = p.host.clone();
+                            f.pop_port = p.port.to_string();
+                            f.pop_security = p.security;
+                        }
+                        None => f.guess_pop(),
+                    }
                     f.username = if c.username.eq_ignore_ascii_case(&email) { String::new() } else { c.username.clone() };
                     f.found_for = Some(email.clone());
                     f.found_source = Some(source.clone());

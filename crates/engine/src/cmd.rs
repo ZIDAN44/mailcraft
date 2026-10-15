@@ -488,7 +488,9 @@ pub fn registry() -> Registry {
                 return Err(CmdError::Params(format!("`{email}` is not an email address")));
             }
             match s.discovered.get(&email) {
-                Some(Some((Some(c), source))) => Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "username": c.username})),
+                Some(Some((Some(c), source))) => {
+                    Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "pop": c.pop, "username": c.username}))
+                }
                 Some(Some((None, _))) => Ok(json!({"found": false})),
                 Some(None) => Ok(json!({"pending": true})),
                 None => {

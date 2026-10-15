@@ -4,13 +4,17 @@
 //!    `https://<domain>/.well-known/autoconfig/mail/config-v1.1.xml` (Mozilla's autoconfig
 //!    format, the de-facto standard);
 //! 2. the public ISP database (`https://autoconfig.thunderbird.net/v1.1/<domain>`);
-//! 3. the same database for the domain of its mail exchanger (MX), which covers domains hosted
-//!    by Google, Microsoft and the like;
-//! 4. DNS SRV records (RFC 6186: `_imaps._tcp`, `_imap._tcp`, `_submissions._tcp`,
+//! 3. for the domain of its mail exchanger (MX), which covers domains hosted by Google,
+//!    Microsoft, Spacemail and the like: the same database, then that provider's own
+//!    configuration (`https://autoconfig.<provider>/mail/config-v1.1.xml`);
+//! 4. the host an `_autodiscover._tcp` SRV record names (where Outlook looks), for the same
+//!    configuration file;
+//! 5. DNS SRV records (RFC 6186: `_imaps._tcp`, `_imap._tcp`, `_submissions._tcp`,
 //!    `_submission._tcp`).
 //!
-//! The first answer wins. Only the domain is sent anywhere, and only when the user types an
-//! address into the account dialog. Everything fetched is hostile input: sizes are capped and
+//! The first answer wins; a POP server offered alongside is kept (`pop`) for POP accounts. Only
+//! the domain's own server is told the address; the others are asked about the domain, and
+//! only when the user types an address into the account dialog. Everything fetched is hostile input: sizes are capped and
 //! a bad file is simply skipped.
 
 use mailcraft_model::{AccountConfig, Security, ServerConfig};
@@ -71,8 +75,9 @@ fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
     ok.then_some((ServerConfig { host: host.to_ascii_lowercase(), port, security }, user))
 }
 
-/// The best IMAP and SMTP servers of a Mozilla autoconfig file. Encrypted servers are preferred;
-/// one without encryption is only taken when nothing else is offered.
+/// The best IMAP and SMTP servers of a Mozilla autoconfig file, and its POP server when it has
+/// one (in `pop`). Encrypted servers are preferred; one without encryption is only taken when
+/// nothing else is offered.
 pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
     let pick = |tag: &str, kind: &str| -> Option<(ServerConfig, String)> {
         let mut all: Vec<(ServerConfig, String)> =
@@ -90,6 +95,7 @@ pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
     c.imap = imap;
     c.smtp = smtp;
     c.username = user;
+    c.pop = pick("incomingServer", "pop3").map(|(s, _)| s);
     Some(c)
 }
 
@@ -139,11 +145,23 @@ pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
     }
     if let Some(mx) = (l.mx)(&domain).into_iter().next() {
         let base = base_domain(&mx);
-        if base != domain
-            && let Some(c) = try_url(l, &format!("https://autoconfig.thunderbird.net/v1.1/{base}"))
-        {
-            return Some(Found { config: c, source: format!("the ISP database ({base} handles this domain's mail)") });
+        if base != domain {
+            if let Some(c) = try_url(l, &format!("https://autoconfig.thunderbird.net/v1.1/{base}")) {
+                return Some(Found { config: c, source: format!("the ISP database ({base} handles this domain's mail)") });
+            }
+            // The mail provider's own configuration (asked about the domain, not the address).
+            if let Some(c) = try_url(l, &format!("https://autoconfig.{base}/mail/config-v1.1.xml?emaildomain={domain}")) {
+                return Some(Found { config: c, source: base });
+            }
         }
+    }
+    // Where Outlook looks: the host an `_autodiscover._tcp` record names, which providers point
+    // at their configuration server.
+    if let Some((host, _)) = (l.srv)(&format!("_autodiscover._tcp.{domain}"))
+        && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
+        && let Some(c) = try_url(l, &format!("https://{host}/mail/config-v1.1.xml?emaildomain={domain}"))
+    {
+        return Some(Found { config: c, source: base_domain(&host) });
     }
     let imap = (l.srv)(&format!("_imaps._tcp.{domain}"))
         .map(|(h, p)| ServerConfig { host: h, port: p, security: Security::Tls })
@@ -215,6 +233,45 @@ mod tests {
         let f = discover("someone@gmail.com").unwrap();
         assert_eq!(f.config.imap.host, "imap.gmail.com");
         println!("gmail.com: {} ({}); smtp {}:{}", f.config.imap.host, f.source, f.config.smtp.host, f.config.smtp.port);
+    }
+
+    /// A domain hosted by a provider that publishes its own configuration (not in the ISP
+    /// database) and points Outlook at it with an `_autodiscover._tcp` record.
+    #[test]
+    fn hosted_domains_find_their_provider() {
+        const HOSTED: &str = r#"<clientConfig version="1.1"><emailProvider id="mailhost.example">
+            <incomingServer type="imap"><hostname>mail.mailhost.example</hostname><port>993</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></incomingServer>
+            <incomingServer type="pop3"><hostname>mail.mailhost.example</hostname><port>995</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></incomingServer>
+            <outgoingServer type="smtp"><hostname>mail.mailhost.example</hostname><port>587</port><socketType>STARTTLS</socketType></outgoingServer>
+            <outgoingServer type="smtp"><hostname>mail.mailhost.example</hostname><port>465</port><socketType>SSL</socketType></outgoingServer>
+        </emailProvider></clientConfig>"#;
+        // Through the mail exchanger's provider.
+        let mut asked = Vec::new();
+        let mut fetch = |url: &str| {
+            asked.push(url.to_string());
+            url.starts_with("https://autoconfig.mailhost.example/").then(|| HOSTED.to_string())
+        };
+        let mut mx = |_: &str| vec!["mx1.mailhost.example".to_string()];
+        let mut srv = |_: &str| None;
+        let f = discover_with("zoe@studio.example", &mut Lookups { fetch: &mut fetch, mx: &mut mx, srv: &mut srv }).unwrap();
+        assert_eq!(f.source, "mailhost.example");
+        assert_eq!((f.config.imap.host.as_str(), f.config.smtp.port, f.config.smtp.security), ("mail.mailhost.example", 465, Security::Tls));
+        assert_eq!(f.config.pop, Some(ServerConfig { host: "mail.mailhost.example".into(), port: 995, security: Security::Tls }));
+        assert_eq!(f.config.username, "zoe@studio.example");
+        assert!(
+            asked.iter().filter(|u| !u.contains("autoconfig.studio.example")).all(|u| !u.contains("zoe")),
+            "only the domain's own server is told the address"
+        );
+        // Through the `_autodiscover._tcp` record, when the mail exchanger says nothing.
+        let mut fetch = |url: &str| url.starts_with("https://autoconfig.mailhost.example/").then(|| HOSTED.to_string());
+        let mut no_mx = |_: &str| Vec::new();
+        let mut srv = |name: &str| (name == "_autodiscover._tcp.studio.example").then(|| ("autoconfig.mailhost.example".to_string(), 443));
+        let f = discover_with("zoe@studio.example", &mut Lookups { fetch: &mut fetch, mx: &mut no_mx, srv: &mut srv }).unwrap();
+        assert_eq!((f.source.as_str(), f.config.pop.map(|p| p.port)), ("mailhost.example", Some(995)));
+        // A record naming something that isn't a host name is ignored.
+        let mut fetch = |_: &str| None;
+        let mut srv = |name: &str| name.starts_with("_autodiscover").then(|| ("evil/../x".to_string(), 443));
+        assert!(discover_with("zoe@studio.example", &mut Lookups { fetch: &mut fetch, mx: &mut no_mx, srv: &mut srv }).is_none());
     }
 
     #[test]
