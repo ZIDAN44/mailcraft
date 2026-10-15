@@ -50,7 +50,9 @@ $azureVars = 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE
 $haveAzure = -not ($azureVars | Where-Object { -not [Environment]::GetEnvironmentVariable($_) })
 
 if (-not $haveCert -and -not $haveAzure) {
-  Write-Warn "Windows signing secrets not set (WINDOWS_CERTIFICATE or AZURE_*): leaving unsigned: $($Files -join ', ')"
+  $msg = "Windows signing secrets not set (WINDOWS_CERTIFICATE or AZURE_*): leaving unsigned: $($Files -join ', ')"
+  # A build meant to be unsigned (UNSIGNED_BUILD=1, the test release) notes it instead of warning.
+  if ($env:UNSIGNED_BUILD -eq '1' -and $env:GITHUB_ACTIONS) { Write-Output "::notice::$msg" } else { Write-Warn $msg }
   exit 0
 }
 

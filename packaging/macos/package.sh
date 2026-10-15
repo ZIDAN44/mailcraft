@@ -45,7 +45,12 @@ CLI_ZIP="$DIST/mailcraft-cli-$VERSION-macos-$ARCH.zip"
 
 NOTARIZE=0
 if [ "$IDENTITY" = "-" ]; then
-  warn "macOS: ad-hoc signing (no MACOS_SIGN_IDENTITY); artifacts are not notarized"
+  # A build meant to be unsigned (UNSIGNED_BUILD=1, the test release) notes it instead of warning.
+  if [ "${UNSIGNED_BUILD:-}" = 1 ] && [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "::notice::macOS: ad-hoc signing (no MACOS_SIGN_IDENTITY); artifacts are not notarized"
+  else
+    warn "macOS: ad-hoc signing (no MACOS_SIGN_IDENTITY); artifacts are not notarized"
+  fi
 elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
   NOTARIZE=1
 else

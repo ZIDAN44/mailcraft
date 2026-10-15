@@ -47,8 +47,8 @@ warn() {
   if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::warning::$*"; else echo "warning: $*" >&2; fi
 }
 
-# Copy licence and readme files that exist into a package directory. MailCraft bundles no fonts
-# (it uses the system's at runtime), so there are no font licences to ship.
+# Copy licence and readme files that exist into a package directory. Fonts built in from
+# craft-fonts (CRAFT_FONTS_DIR) carry their licences inside the app (File › About).
 copy_docs() {
   local dest="$1" f
   for f in README.md LICENSE LICENSE-MIT LICENSE-APACHE ATTRIBUTION.md; do

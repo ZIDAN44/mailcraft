@@ -20,7 +20,8 @@ CRAFT_FONTS_REF="${CRAFT_FONTS_REF:-3d9ab3a132ed0eff457e424226a435a901da30d3}"
 if [ "${1:-}" != "--skip-build" ]; then
   command -v trunk >/dev/null || { echo "error: trunk not found (cargo install trunk --locked)" >&2; exit 1; }
   if [ -z "${CRAFT_FONTS_DIR:-}" ] && [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    FONTS="$CARGO_TARGET_DIR/craft-fonts"
+    # Outside the target folder: the build cache's cleanup walks that and trips over a checkout.
+    FONTS="${RUNNER_TEMP:-$CARGO_TARGET_DIR}/craft-fonts"
     rm -rf "$FONTS"
     git init -q "$FONTS"
     git -C "$FONTS" fetch -q --depth 1 https://github.com/storytold/craft-fonts.git "$CRAFT_FONTS_REF"
