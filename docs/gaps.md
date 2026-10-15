@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.9, 2026-10-15._
+_Status: v0.10, 2026-10-15._
 
 ## Open
 
@@ -134,3 +134,15 @@ mailbox; packaging for every desktop.
 - **Bugs fixed along the way:** a draft whose save failed (offline, server down) was lost; it's
   kept and saved when the account connects. Grouped list headings were spaced as messages; the
   ribbon cut off its last buttons in a narrow window.
+
+### v0.10 — Windows, folders and rules as Outlook keeps them
+- **Windows remembered:** the main window opens where it was and at its size, maximized if it
+  was (Restore returns to its normal size); message and compose windows open where the last one
+  was.
+- **Subfolders where they belong:** a folder made in the Inbox shows under the Inbox (it showed
+  after Deleted Items); the account menu's New folder starts in the folder open now.
+- **Run a rule now:** a new rule can run at once on the mail already in the Inbox, as Outlook's
+  rule wizard offers; Run now in the rules list does the same.
+- **Attachments in message windows:** Open, Save as, Preview, drag-out and the window's Save As /
+  Print acted on the reading pane's message and failed; they act on the window's. A file no app
+  opens gets Windows' "Open with" chooser.

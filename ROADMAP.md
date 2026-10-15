@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.9 — Outlook's everyday commands (2026-10-15). Each milestone below is a version: v0.1 was
+**Stage:** v0.10 — Windows, folders and rules as Outlook keeps them (2026-10-15). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -40,7 +40,9 @@ local-first, media-aware v1); the fuller request is
 9. **v0.9 — Outlook's everyday commands** ✅ From an audit against Outlook: Arrange by, a Send /
    Receive tab with Work offline, Undo, more filters, Ignore, importance and read receipts, File's
    Save As and Print, POP copies removed after days; drafts no longer lost offline.
-10. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+10. **v0.10 — Windows, folders and rules as Outlook keeps them** ✅ Remembered window places and
+   sizes, subfolders under their parents, rules run at once, attachments in message windows.
+11. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
 
 ## Progress log
@@ -78,3 +80,6 @@ local-first, media-aware v1); the fuller request is
   items, a minimizable folder pane, File › Save As / Save Attachments / Print / Exit, importance
   and read receipts, POP server copies removed after days or once deleted; drafts that can't
   reach the server are kept.
+- **2026-10-15** — **v0.10**: windows open where they were (maximized too), a folder made in the
+  Inbox shows under it, a new rule runs at once on the Inbox, and a message window's attachments
+  open.
