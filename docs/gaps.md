@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.7, 2026-10-15._
+_Status: v0.8, 2026-10-15._
 
 ## Open
 
@@ -105,3 +105,13 @@ mailbox; packaging for every desktop.
   reading pane on the left), and right-to-left paragraphs line up on the right while writing.
 - **Outlook data files:** tasks with a due date come into the calendar; export writes the
   calendar and contacts beside the `.pst` as `.ics` and `.vcf`.
+
+### v0.8 — POP and Outlook's own data files
+- **POP accounts** (RFC 1939, SSL/TLS or STARTTLS): new Inbox mail is downloaded once and kept in
+  folders on this computer, with a copy left on the server unless asked otherwise, as Outlook's
+  POP accounts do. Drafts, Sent Items and moves stay on this computer.
+- **"Use an existing data file":** a POP account can start from an old `.pst`, whose mail comes
+  in before the account first connects.
+- **Real Outlook data files:** checked against `.pst` files from a current Outlook; a file Outlook
+  has open says so, an `.ost` (Outlook's offline copy of a server account) is explained, and the
+  RSS Feeds folder and an empty Outbox aren't brought in.

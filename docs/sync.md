@@ -205,6 +205,24 @@ attachments, pictures shown by `cid:`, embedded messages, read and follow-up fla
 original internet headers when it came in by mail. The file is hostile input: the reader runs
 behind `catch_unwind`, unreadable items are skipped and counted, and sizes are capped.
 
+Outlook keeps its data files open, with byte-range locks, while it runs (in the notification area
+too): opening one then says so instead of trying the older ANSI format. An `.ost` (client magic
+`SO`) is Outlook's offline copy of a server account and is refused with that explanation. The RSS
+Feeds folder (`IPF.Note.OutlookHomepage`) isn't mail, and an empty Outbox (the store's 0x35E2) is
+skipped.
+
+## POP accounts (`crates/net/src/pop.rs`)
+
+A POP account (RFC 1939; SSL/TLS, `STLS` or none; `USER`/`PASS` or `AUTH XOAUTH2`) has the
+folders Outlook gives one, all on this computer: Inbox, Drafts, Sent Items, Deleted Items and
+Junk Email. Syncing the Inbox opens a session, lists `UIDL`, downloads (`RETR`) each message
+not seen before into the cache, saving the seen ids (`pop-seen.json`) after every message, and
+quits; with `popDelete` each one is then marked `DELE`, else a copy stays on the server. Lines
+and messages are capped and nothing with CR or LF is ever sent. Every other change (flags,
+moves, deletes, drafts, the sent copy) is made in the cache only; the worker carries out moves
+itself, since no server copy comes back. `account.add` with `pst` holds the account's first
+connection until that data file has come into it (Outlook's "use an existing data file").
+
 ## In the browser (`apps/mailcraft-web`)
 
 The web build keeps the cache in memory, mirrored to IndexedDB, and runs each account's jobs in

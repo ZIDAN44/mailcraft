@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.7 — the open gaps closed (2026-10-15). Each milestone below is a version: v0.1 was
+**Stage:** v0.8 — POP and Outlook's own data files (2026-10-15). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -35,7 +35,9 @@ local-first, media-aware v1); the fuller request is
    drag-out everywhere.
 7. **v0.7 — The open gaps closed** ✅ CSS layouts, EWS calendars, contacts and Autodiscover,
    mirrored right-to-left windows, `.pst` tasks and the calendar and contacts exported beside it.
-8. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+8. **v0.8 — POP and Outlook's own data files** ✅ POP accounts with folders on this computer,
+   starting from an existing `.pst`, and real Outlook `.pst` files checked end to end.
+9. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
 
 ## Progress log
@@ -64,3 +66,6 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-15** — **v0.7**: CSS columns (flexbox, grid, inline-block, floats); EWS calendars,
   contacts and Autodiscover; mirrored windows for Arabic and Hebrew; `.pst` tasks, and the
   calendar and contacts exported beside the `.pst`.
+- **2026-10-15** — **v0.8**: POP accounts (downloaded mail in folders on this computer, a copy left
+  on the server), "use an existing data file", and real Outlook `.pst` files checked: open files,
+  `.ost` files, RSS Feeds and the Outbox handled.
