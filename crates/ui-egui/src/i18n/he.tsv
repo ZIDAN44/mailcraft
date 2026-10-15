@@ -568,3 +568,10 @@ month	May	מאי
 	Found automatically when left empty	יימצא אוטומטית אם יישאר ריק
 	Its calendar and contacts go beside it, as .ics and .vcf files.	לוח השנה ואנשי הקשר נשמרים לידו, כקובצי ‎.ics ו-‎.vcf.
 	You can close this window.	אפשר לסגור את החלון הזה.
+	Browse…	עיון…
+	Existing Outlook data file (optional)	קובץ נתונים קיים של Outlook (אופציונלי)
+	Incoming mail (POP)	דואר נכנס (POP)
+	Mail from an old .pst comes in first	הדואר מקובץ ‎.pst‏ ישן מגיע קודם
+	POP and SMTP	POP ו-SMTP
+	Remove mail from the server once it's downloaded	הסר דואר מהשרת לאחר הורדתו
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	שרתים: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})

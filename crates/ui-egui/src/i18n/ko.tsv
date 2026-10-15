@@ -566,6 +566,13 @@
 	Found automatically when left empty	비워 두면 자동으로 찾습니다
 	Its calendar and contacts go beside it, as .ics and .vcf files.	일정과 연락처는 옆에 .ics 및 .vcf 파일로 저장됩니다.
 	You can close this window.	이 창을 닫아도 됩니다.
+	Browse…	찾아보기…
+	Existing Outlook data file (optional)	기존 Outlook 데이터 파일(선택 사항)
+	Incoming mail (POP)	받는 메일(POP)
+	Mail from an old .pst comes in first	이전 .pst의 메일을 먼저 가져옵니다
+	POP and SMTP	POP 및 SMTP
+	Remove mail from the server once it's downloaded	다운로드한 후 서버에서 메일 제거
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	서버: {pop}(POP {pop_port}), {smtp}(SMTP {smtp_port})
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

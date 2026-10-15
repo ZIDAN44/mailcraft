@@ -50,6 +50,8 @@ fn kind(a: &AccountState) -> &'static str {
         "Exchange server (EWS)"
     } else if a.config.jmap.is_some() {
         "JMAP"
+    } else if a.config.pop.is_some() {
+        "POP and SMTP"
     } else {
         match a.config.oauth.as_deref() {
             Some("google") => "Google (IMAP)",
@@ -191,6 +193,14 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
         tf!("Server: {url} (JMAP)", url = u)
     } else if let Some(u) = &a.config.ews {
         tf!("Server: {url} (EWS)", url = u)
+    } else if let Some(p) = &a.config.pop {
+        tf!(
+            "Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})",
+            pop = p.host,
+            pop_port = p.port,
+            smtp = a.config.smtp.host,
+            smtp_port = a.config.smtp.port
+        )
     } else {
         tf!(
             "Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})",

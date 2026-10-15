@@ -567,6 +567,13 @@
 	Found automatically when left empty	Wird automatisch gefunden, wenn leer
 	Its calendar and contacts go beside it, as .ics and .vcf files.	Kalender und Kontakte werden daneben als .ics- und .vcf-Dateien gespeichert.
 	You can close this window.	Sie können dieses Fenster schließen.
+	Browse…	Durchsuchen…
+	Existing Outlook data file (optional)	Vorhandene Outlook-Datendatei (optional)
+	Incoming mail (POP)	Posteingang (POP)
+	Mail from an old .pst comes in first	E-Mails aus einer alten .pst werden zuerst übernommen
+	POP and SMTP	POP und SMTP
+	Remove mail from the server once it's downloaded	E-Mails nach dem Herunterladen vom Server entfernen
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Server: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

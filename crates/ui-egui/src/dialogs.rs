@@ -32,6 +32,15 @@ pub struct AccountForm {
     /// An organisation's own Exchange server through EWS, at this address or server name.
     pub ews: bool,
     pub ews_url: String,
+    /// Downloads mail over POP3 into folders on this computer (sends over SMTP).
+    pub pop: bool,
+    pub pop_host: String,
+    pub pop_port: String,
+    pub pop_security: Security,
+    /// POP: remove mail from the server once it's downloaded.
+    pub pop_delete: bool,
+    /// POP: an existing Outlook data file whose mail comes in first (Outlook's "use an existing data file").
+    pub pst: String,
     pub error: Option<String>,
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
@@ -47,6 +56,17 @@ impl AccountForm {
         self.smtp_host = g.smtp.host;
         self.smtp_port = g.smtp.port.to_string();
         self.smtp_security = g.smtp.security;
+        self.guess_pop();
+    }
+
+    /// The POP server named after the IMAP one (pop.example.com for imap.example.com).
+    fn guess_pop(&mut self) {
+        self.pop_host = match self.imap_host.strip_prefix("imap.") {
+            Some(rest) => format!("pop.{rest}"),
+            None => self.imap_host.clone(),
+        };
+        self.pop_port = "995".into();
+        self.pop_security = Security::Tls;
     }
 
     pub(crate) fn params(&self) -> serde_json::Value {
@@ -72,6 +92,26 @@ impl AccountForm {
                 "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
                 "jmap": self.jmap_url.trim(),
             });
+        }
+        if self.pop {
+            let mut p = json!({
+                "email": self.email.trim(),
+                "name": self.name.trim(),
+                "password": self.password,
+                "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
+                "pop": true,
+                "popHost": self.pop_host.trim(),
+                "popPort": port(&self.pop_port),
+                "popSecurity": self.pop_security.code(),
+                "popDelete": self.pop_delete,
+                "smtpHost": self.smtp_host.trim(),
+                "smtpPort": port(&self.smtp_port),
+                "smtpSecurity": self.smtp_security.code(),
+            });
+            if !self.pst.trim().is_empty() {
+                p["pst"] = json!(self.pst.trim());
+            }
+            return p;
         }
         json!({
             "email": self.email.trim(),
@@ -99,6 +139,10 @@ pub struct EditForm {
     pub jmap_url: String,
     /// An Exchange server's EWS address (EWS accounts only).
     pub ews: Option<String>,
+    /// A POP account's POP3 server (host, port, security).
+    pub pop: Option<(String, String, Security)>,
+    /// POP: mail is removed from the server once it's downloaded.
+    pub pop_delete: bool,
     pub imap_host: String,
     pub imap_port: String,
     pub imap_security: Security,
@@ -116,6 +160,20 @@ impl EditForm {
         }
         if self.jmap {
             return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "jmap": self.jmap_url.trim()});
+        }
+        if let Some((host, p, security)) = &self.pop {
+            return json!({
+                "account": self.account,
+                "name": self.name.trim(),
+                "username": self.username.trim(),
+                "popHost": host.trim(),
+                "popPort": port(p),
+                "popSecurity": security.code(),
+                "popDelete": self.pop_delete,
+                "smtpHost": self.smtp_host.trim(),
+                "smtpPort": port(&self.smtp_port),
+                "smtpSecurity": self.smtp_security.code(),
+            });
         }
         json!({
             "account": self.account,
@@ -179,6 +237,21 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
     if let Some(url) = f.ews.as_mut() {
         label(ui, "Exchange server");
         ui.add_sized([w, 26.0], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
+    } else if let Some((host, port, security)) = f.pop.as_mut() {
+        label(ui, "Incoming mail (POP)");
+        ui.horizontal(|ui| {
+            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(host).hint_text("pop.example.com"));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(port).hint_text("995").horizontal_align(egui::Align::Center));
+            security_combo(ui, "edit-popsec", security);
+        });
+        ui.checkbox(&mut f.pop_delete, tl!("Remove mail from the server once it's downloaded"));
+        ui.add_space(4.0);
+        label(ui, "Outgoing mail (SMTP)");
+        ui.horizontal(|ui| {
+            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com"));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").horizontal_align(egui::Align::Center));
+            security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
+        });
     } else {
         ui.horizontal(|ui| {
             label(ui, "Mail server");
@@ -190,7 +263,7 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
     if f.jmap && f.ews.is_none() {
         label(ui, "JMAP session address");
         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
-    } else if f.ews.is_none() {
+    } else if f.ews.is_none() && f.pop.is_none() {
         label(ui, "Incoming mail (IMAP)");
         ui.horizontal(|ui| {
             ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com"));
@@ -562,6 +635,8 @@ impl Dialog {
             jmap: a.jmap.is_some(),
             jmap_url: a.jmap.clone().unwrap_or_default(),
             ews: a.ews.clone(),
+            pop: a.pop.as_ref().map(|p| (p.host.clone(), p.port.to_string(), p.security)),
+            pop_delete: a.pop_delete,
             imap_host: a.imap.host.clone(),
             imap_port: a.imap.port.to_string(),
             imap_security: a.imap.security,
@@ -827,7 +902,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             title(ui, t, "Add an email account");
             if s.jmap_only {
                 // The browser: JMAP only, and its address is needed.
-                (f.jmap, f.graph, f.ews, f.advanced) = (true, false, false, true);
+                (f.jmap, f.graph, f.ews, f.pop, f.advanced) = (true, false, false, false, true);
                 ui.label(
                     RichText::new(tl!(
                         "In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server."
@@ -898,7 +973,9 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         ui.label(RichText::new(tl!(s)).strong().small());
                     };
                     if !s.jmap_only {
-                        let mut kind = if f.ews {
+                        let mut kind = if f.pop {
+                            4
+                        } else if f.ews {
                             3
                         } else if f.graph {
                             2
@@ -908,11 +985,15 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         ui.horizontal_wrapped(|ui| {
                             label(ui, "Mail server");
                             ui.radio_value(&mut kind, 0, tl!("IMAP and SMTP"));
+                            ui.radio_value(&mut kind, 4, tl!("POP and SMTP"));
                             ui.radio_value(&mut kind, 1, tl!("JMAP"));
                             ui.radio_value(&mut kind, 2, tl!("Exchange (Microsoft 365)"));
                             ui.radio_value(&mut kind, 3, tl!("Exchange server (EWS)"));
                         });
-                        (f.jmap, f.graph, f.ews) = (kind == 1, kind == 2, kind == 3);
+                        if kind == 4 && !f.pop && f.pop_host.is_empty() {
+                            f.guess_pop();
+                        }
+                        (f.jmap, f.graph, f.ews, f.pop) = (kind == 1, kind == 2, kind == 3, kind == 4);
                     }
                     if f.graph {
                         ui.label(
@@ -947,17 +1028,34 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
                         return;
                     }
-                    label(ui, "Incoming mail (IMAP)");
-                    ui.horizontal(|ui| {
-                        edited |= ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com")).changed();
-                        edited |= ui
-                            .add_sized(
-                                [56.0, 26.0],
-                                egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").horizontal_align(egui::Align::Center),
-                            )
-                            .changed();
-                        security_combo(ui, "imapsec", &mut f.imap_security);
-                    });
+                    if f.pop {
+                        label(ui, "Incoming mail (POP)");
+                        ui.horizontal(|ui| {
+                            edited |=
+                                ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.pop_host).hint_text("pop.example.com")).changed();
+                            edited |= ui
+                                .add_sized(
+                                    [56.0, 26.0],
+                                    egui::TextEdit::singleline(&mut f.pop_port).hint_text("995").horizontal_align(egui::Align::Center),
+                                )
+                                .changed();
+                            security_combo(ui, "popsec", &mut f.pop_security);
+                        });
+                        ui.checkbox(&mut f.pop_delete, tl!("Remove mail from the server once it's downloaded"));
+                    } else {
+                        label(ui, "Incoming mail (IMAP)");
+                        ui.horizontal(|ui| {
+                            edited |=
+                                ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com")).changed();
+                            edited |= ui
+                                .add_sized(
+                                    [56.0, 26.0],
+                                    egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").horizontal_align(egui::Align::Center),
+                                )
+                                .changed();
+                            security_combo(ui, "imapsec", &mut f.imap_security);
+                        });
+                    }
                     ui.add_space(4.0);
                     label(ui, "Outgoing mail (SMTP)");
                     ui.horizontal(|ui| {
@@ -975,7 +1073,22 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     edited |=
                         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
                     f.servers_edited |= edited;
-                    if f.imap_security == Security::None || f.smtp_security == Security::None {
+                    if f.pop {
+                        // Outlook's "use an existing data file": mail kept from before comes in first.
+                        ui.add_space(4.0);
+                        label(ui, "Existing Outlook data file (optional)");
+                        ui.horizontal(|ui| {
+                            ui.add_sized(
+                                [w - 90.0, 26.0],
+                                egui::TextEdit::singleline(&mut f.pst).hint_text(tl!("Mail from an old .pst comes in first")),
+                            );
+                            if ui.button(tl!("Browse…")).clicked() {
+                                acts.push(Action::PickAccountDataFile);
+                            }
+                        });
+                    }
+                    let incoming = if f.pop { f.pop_security } else { f.imap_security };
+                    if incoming == Security::None || f.smtp_security == Security::None {
                         ui.label(
                             RichText::new(tl!("Without encryption your password travels in the clear. Use only for local test servers."))
                                 .color(t.warn)
@@ -989,6 +1102,18 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.label(RichText::new(tf!("Server: {url} (EWS)", url = f.ews_url.trim())).color(t.faint).small());
             } else if f.jmap && !f.jmap_url.trim().is_empty() {
                 ui.label(RichText::new(tf!("Server: {url} (JMAP)", url = f.jmap_url.trim())).color(t.faint).small());
+            } else if f.pop && !f.pop_host.is_empty() {
+                ui.label(
+                    RichText::new(tf!(
+                        "Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})",
+                        pop = f.pop_host,
+                        pop_port = f.pop_port,
+                        smtp = f.smtp_host,
+                        smtp_port = f.smtp_port
+                    ))
+                    .color(t.faint)
+                    .small(),
+                );
             } else if !f.imap_host.is_empty() {
                 ui.label(
                     RichText::new(tf!(
@@ -1062,6 +1187,9 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             if ok {
                 if !f.jmap && !f.ews && f.imap_host.is_empty() {
                     f.guess();
+                }
+                if f.pop && f.pop_host.trim().is_empty() {
+                    f.guess_pop();
                 }
                 f.error = None;
                 acts.push(Action::Submit("account.add", f.params()));

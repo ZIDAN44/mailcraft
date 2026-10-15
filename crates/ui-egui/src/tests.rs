@@ -103,6 +103,7 @@ pub(crate) fn tour() {
             Dialog::add_account_with("zoe@gmail.com", true),
             jmap_form(),
             graph_form(),
+            pop_form(),
             Dialog::Preview {
                 title: "notes.txt".into(),
                 header: vec![("From".into(), "Zoe".into())],
@@ -191,6 +192,21 @@ fn jmap_form() -> Dialog {
     if let Dialog::AddAccount(f) = &mut d {
         f.jmap = true;
         f.jmap_url = " https://api.fastmail.example/jmap/session".into();
+        f.password = "pw".into();
+    }
+    d
+}
+
+fn pop_form() -> Dialog {
+    let mut d = Dialog::add_account_with("ana@example.org", true);
+    if let Dialog::AddAccount(f) = &mut d {
+        f.imap_host = "imap.example.org".into();
+        f.smtp_host = "smtp.example.org".into();
+        f.pop = true;
+        f.pop_host = "pop.example.org".into();
+        f.pop_port = "995".into();
+        f.pop_security = mailcraft_engine::model::Security::Tls;
+        f.pst = "C:/Mail/old.pst".into();
         f.password = "pw".into();
     }
     d
@@ -448,6 +464,25 @@ fn the_account_form_adds_jmap_accounts() {
     a.act(crate::Action::Submit("account.add", p));
     let added = a.session.accounts.iter().find(|x| x.config.email == "zoe@fastmail.example").unwrap();
     assert!(added.config.jmap.is_some() && !added.is_local());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_account_form_adds_pop_accounts_with_their_old_data_file() {
+    let (mut a, dir) = app("pop-form");
+    let p = match pop_form() {
+        Dialog::AddAccount(f) => f.params(),
+        _ => serde_json::Value::Null,
+    };
+    assert_eq!((p["pop"].clone(), p["popHost"].clone(), p["popPort"].clone()), (json!(true), json!("pop.example.org"), json!(995)));
+    assert_eq!((p["popDelete"].clone(), p["pst"].clone()), (json!(false), json!("C:/Mail/old.pst")), "a copy stays on the server");
+    assert!(p.get("imapHost").is_none(), "no IMAP server for a POP account");
+    a.act(crate::Action::Submit("account.add", p));
+    let added = a.session.accounts.iter().find(|x| x.config.email == "ana@example.org").unwrap();
+    assert!(added.config.pop.is_some() && !added.is_local());
+    // Its server settings edit the POP server.
+    let Dialog::EditAccount(e) = Dialog::edit_account(&added.config) else { panic!() };
+    assert_eq!(e.params()["popHost"], "pop.example.org");
     let _ = std::fs::remove_dir_all(dir);
 }
 

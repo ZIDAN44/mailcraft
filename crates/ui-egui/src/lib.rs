@@ -221,6 +221,8 @@ pub enum Action {
     DragOut(usize),
     /// Choose an Outlook data file and open it.
     OpenDataFile,
+    /// Choose an existing data file for the account being added (its mail comes in first).
+    PickAccountDataFile,
     /// Choose where to write an account's mail as an Outlook data file.
     ExportDataFile(String),
 }
@@ -796,6 +798,13 @@ impl MailApp {
             Action::FocusSearch => self.ui.focus_search = true,
             Action::FocusMain => self.ui.focus_main = true,
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
+            Action::PickAccountDataFile => {
+                if let Some(path) = self.services.pick_data_file()
+                    && let Some(dialogs::Dialog::AddAccount(f)) = self.ui.dialog.as_mut()
+                {
+                    f.pst = path.to_string_lossy().into_owned();
+                }
+            }
             Action::OpenDataFile => {
                 if let Some(path) = self.services.pick_data_file() {
                     match self.session.run("account.importPst", &json!({"path": path.to_string_lossy()})) {

@@ -568,3 +568,10 @@ month	May	مايو
 	Found automatically when left empty	يُعثر عليه تلقائيًا إذا تُرك فارغًا
 	Its calendar and contacts go beside it, as .ics and .vcf files.	يُحفظ التقويم وجهات الاتصال بجانبه، كملفات .ics و.vcf.
 	You can close this window.	يمكنك إغلاق هذه النافذة.
+	Browse…	استعراض…
+	Existing Outlook data file (optional)	ملف بيانات Outlook موجود (اختياري)
+	Incoming mail (POP)	البريد الوارد (POP)
+	Mail from an old .pst comes in first	يُستورد بريد ملف ‎.pst‏ القديم أولًا
+	POP and SMTP	POP و SMTP
+	Remove mail from the server once it's downloaded	إزالة البريد من الخادم بعد تنزيله
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	الخوادم: {pop} (POP {pop_port})، {smtp} (SMTP {smtp_port})

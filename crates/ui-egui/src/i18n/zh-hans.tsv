@@ -569,3 +569,10 @@ month	May	5月
 	Found automatically when left empty	留空时自动查找
 	Its calendar and contacts go beside it, as .ics and .vcf files.	日历和联系人以 .ics 和 .vcf 文件保存在旁边。
 	You can close this window.	可以关闭此窗口了。
+	Browse…	浏览…
+	Existing Outlook data file (optional)	现有的 Outlook 数据文件（可选）
+	Incoming mail (POP)	接收邮件 (POP)
+	Mail from an old .pst comes in first	先导入旧 .pst 中的邮件
+	POP and SMTP	POP 和 SMTP
+	Remove mail from the server once it's downloaded	下载后从服务器删除邮件
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	服务器：{pop} (POP {pop_port})，{smtp} (SMTP {smtp_port})

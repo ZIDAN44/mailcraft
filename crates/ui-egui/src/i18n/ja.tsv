@@ -569,3 +569,10 @@ month	May	5月
 	Found automatically when left empty	空欄の場合は自動的に検出されます
 	Its calendar and contacts go beside it, as .ics and .vcf files.	予定表と連絡先は、その横に .ics と .vcf ファイルとして保存されます。
 	You can close this window.	このウィンドウは閉じてかまいません。
+	Browse…	参照…
+	Existing Outlook data file (optional)	既存の Outlook データ ファイル (省略可)
+	Incoming mail (POP)	受信メール (POP)
+	Mail from an old .pst comes in first	古い .pst のメールを最初に取り込みます
+	POP and SMTP	POP と SMTP
+	Remove mail from the server once it's downloaded	ダウンロード後にサーバーからメールを削除する
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	サーバー: {pop} (POP {pop_port})、{smtp} (SMTP {smtp_port})

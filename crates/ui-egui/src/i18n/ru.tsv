@@ -566,6 +566,13 @@
 	Found automatically when left empty	Определяется автоматически, если оставить пустым
 	Its calendar and contacts go beside it, as .ics and .vcf files.	Календарь и контакты сохраняются рядом, в файлах .ics и .vcf.
 	You can close this window.	Это окно можно закрыть.
+	Browse…	Обзор…
+	Existing Outlook data file (optional)	Существующий файл данных Outlook (необязательно)
+	Incoming mail (POP)	Входящая почта (POP)
+	Mail from an old .pst comes in first	Сначала загружается почта из старого .pst
+	POP and SMTP	POP и SMTP
+	Remove mail from the server once it's downloaded	Удалять почту с сервера после загрузки
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Серверы: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив
