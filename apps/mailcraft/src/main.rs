@@ -6,7 +6,7 @@
 //! `MAILCRAFT_DATA` environment variable) chooses where mail is cached. `--cmd` runs engine
 //! commands at start-up (`--cmd 'list.open={"key":"sample:1:1:INBOX"}'`); `ui.file` (or
 //! `ui.settings`), `ui.openExport`, `ui.options` and `ui.about` open the File page at that page;
-//! `ui.addAccount` (optionally `={"email":…,"advanced":true,"graph":true}`), `ui.newEvent` and
+//! `ui.addAccount` (optionally `={"email":…,"advanced":true,"graph":true}` or `"pop":true`), `ui.newEvent` and
 //! `ui.newContact` open those dialogs.
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
@@ -429,6 +429,7 @@ fn main() -> eframe::Result {
                         );
                         if let mailcraft_ui_egui::Dialog::AddAccount(f) = &mut d {
                             f.graph = p.get("graph").and_then(|v| v.as_bool()).unwrap_or(false);
+                            f.pop = p.get("pop").and_then(|v| v.as_bool()).unwrap_or(false);
                         }
                         app.ui.dialog = Some(d);
                     }
