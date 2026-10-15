@@ -633,6 +633,11 @@
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Работает с любым поставщиком: IMAP или POP с SMTP, JMAP или Exchange. Пароль хранится в связке ключей этого компьютера и отправляется только на ваш почтовый сервер.
 	Run it now on the mail already in the Inbox	Применить сейчас к почте во «Входящих»
 	Run on the mail already in the Inbox	Применить к почте во «Входящих»
+	More options	Другие действия
+	Save As…	Сохранить как…
+	Save All Attachments…	Сохранить все вложения…
+	This picture can't be shown.	Не удаётся показать это изображение.
+	{name} · {kind}. Double-click to open it.	{name} · {kind}. Дважды щёлкните, чтобы открыть.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

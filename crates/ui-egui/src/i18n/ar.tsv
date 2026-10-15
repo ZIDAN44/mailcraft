@@ -635,3 +635,8 @@ month	May	مايو
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	يعمل مع أي مزوّد: IMAP أو POP مع SMTP، أو JMAP، أو Exchange. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى خادم بريدك.
 	Run it now on the mail already in the Inbox	تشغيلها الآن على البريد الموجود في «علبة الوارد»
 	Run on the mail already in the Inbox	تشغيل على البريد الموجود في «علبة الوارد»
+	More options	خيارات أخرى
+	Save As…	حفظ باسم…
+	Save All Attachments…	حفظ كل المرفقات…
+	This picture can't be shown.	لا يمكن عرض هذه الصورة.
+	{name} · {kind}. Double-click to open it.	{name} · {kind}. انقر نقرًا مزدوجًا لفتحه.

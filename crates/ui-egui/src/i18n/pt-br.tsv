@@ -634,6 +634,11 @@
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funciona com qualquer provedor: IMAP ou POP com SMTP, JMAP ou Exchange. Sua senha fica no chaveiro deste computador e só é enviada ao seu servidor de email.
 	Run it now on the mail already in the Inbox	Executá-la agora nos emails que já estão na Caixa de Entrada
 	Run on the mail already in the Inbox	Executar nos emails que já estão na Caixa de Entrada
+	More options	Mais opções
+	Save As…	Salvar como…
+	Save All Attachments…	Salvar todos os anexos…
+	This picture can't be shown.	Esta imagem não pode ser exibida.
+	{name} · {kind}. Double-click to open it.	{name} · {kind}. Clique duas vezes para abrir.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

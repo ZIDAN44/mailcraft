@@ -441,6 +441,21 @@ fn preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey,
     tex
 }
 
+/// A picture attachment at a size to look at (decoded once and kept by egui while it's shown).
+pub(crate) fn big_picture(s: &Session, ctx: &egui::Context, key: &MessageKey, index: usize) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new(("big-picture", key.to_id(), index));
+    if let Some(t) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {
+        return t;
+    }
+    let tex = (|| {
+        let raw = s.store.as_ref()?.read_body(key)?;
+        let data = mime::attachment_data(&raw, index)?;
+        decode(ctx, &format!("big-{}-{index}", key.to_id()), &data, 2048)
+    })();
+    ctx.data_mut(|d| d.insert_temp(id, tex.clone()));
+    tex
+}
+
 /// The first page of a PDF attachment (cached like pictures).
 fn pdf_preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey, index: usize) -> Option<egui::TextureHandle> {
     if let Some(t) = st.previews.get(&(key.clone(), index)) {
@@ -892,92 +907,96 @@ fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mim
     true
 }
 
+/// An attachment as Outlook shows one: a small chip with a thumbnail (or the kind's icon), the
+/// name and size, and a ▾ menu. Double-click opens it; right-click gives the menu too; dragging it
+/// out (once the pointer moves) copies the file to another app. The chip senses the pointer under
+/// its button, so a press on ▾ or the chip never starts a drag by itself.
 fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let kind = a.kind();
-    let tex = match kind {
+    let thumb = match kind {
         AttachmentKind::Image => preview(s, st, ui.ctx(), key, a.index),
         AttachmentKind::Pdf => pdf_preview(s, st, ui.ctx(), key, a.index),
         AttachmentKind::Video => video_preview(s, st, ui.ctx(), key, a),
         _ => None,
     };
-    let card =
-        egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::same(8)).show(ui, |ui| {
-            ui.set_width(220.0);
-            ui.vertical(|ui| {
-                if let Some(tex) = &tex {
-                    let sz = tex.size_vec2();
-                    let scale = (204.0 / sz.x).min(130.0 / sz.y).min(8.0);
-                    let (r, resp) = ui.allocate_exact_size(vec2(204.0, 130.0), Sense::click());
-                    ui.painter().rect_filled(r, 4.0, t.chrome);
-                    let img_rect = Rect::from_center_size(r.center(), sz * scale);
-                    ui.painter().image(tex.id(), img_rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-                    if kind == AttachmentKind::Video {
-                        // A play mark over the frame.
-                        let c = img_rect.center();
-                        ui.painter().circle_filled(c, 18.0, Color32::from_black_alpha(140));
-                        ui.painter().add(egui::Shape::convex_polygon(
-                            vec![c + vec2(-6.0, -9.0), c + vec2(10.0, 0.0), c + vec2(-6.0, 9.0)],
-                            Color32::WHITE,
-                            egui::Stroke::NONE,
-                        ));
-                    } else if kind == AttachmentKind::Pdf {
-                        ui.painter().rect_stroke(img_rect, 0.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Outside);
-                    }
-                    if resp.on_hover_text(tl!("Open")).clicked() {
-                        acts.push(Action::OpenAttachment(a.index));
-                    }
-                    ui.add_space(4.0);
-                }
+    // The Craft app for the file, when it's installed.
+    let craft = mime::craft_app_for(&a.mime, &a.name).and_then(|(cmd, name)| st.craft_apps.iter().any(|(c, _)| *c == cmd).then_some((cmd, name)));
+    let text_preview = mime::text_preview_kind(&a.mime, &a.name).is_some();
+    let menu = |ui: &mut Ui, acts: &mut Vec<Action>| {
+        if kind == AttachmentKind::Image && ui.button(tl!("Preview")).clicked() {
+            acts.push(Action::Dialog(crate::Dialog::PicturePreview { key: key.clone(), index: a.index, name: a.name.clone() }));
+            ui.close();
+        }
+        if text_preview && ui.button(tl!("Preview")).clicked() {
+            acts.push(Action::Run("attachment.preview", json!({"index": a.index})));
+            ui.close();
+        }
+        if ui.button(tl!("Open")).clicked() {
+            acts.push(Action::OpenAttachment(a.index));
+            ui.close();
+        }
+        if let Some((cmd, name)) = craft
+            && ui.button(tf!("Open in {app}", app = name)).clicked()
+        {
+            acts.push(Action::OpenInCraft(a.index, cmd));
+            ui.close();
+        }
+        ui.separator();
+        if ui.button(tl!("Save As…")).clicked() {
+            acts.push(Action::SaveAttachment(a.index));
+            ui.close();
+        }
+        if ui.button(tl!("Save All Attachments…")).clicked() {
+            acts.push(Action::SaveAll);
+            ui.close();
+        }
+    };
+    let id = ui.id().with(("attachment", key.to_id(), a.index));
+    let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
+    let chip = ui.scope_builder(egui::UiBuilder::new().id_salt(id).sense(Sense::click_and_drag()), |ui| {
+        egui::Frame::new()
+            .fill(if hovered { t.hover } else { t.surface })
+            .stroke(egui::Stroke::new(1.0, if hovered { t.accent } else { t.border }))
+            .corner_radius(6)
+            .inner_margin(Margin::symmetric(6, 5))
+            .show(ui, |ui| {
+                ui.set_width(236.0);
                 ui.horizontal(|ui| {
-                    let (ir, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
-                    ui.painter().rect_filled(ir, 5.0, t.accent_soft);
-                    icons::paint(ui.painter(), icons::centered(ir, 16.0), kind_icon(kind), t.accent);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(widgets::shorten(&a.name, 26)).color(t.text).small()).on_hover_text(&a.name);
-                        ui.label(RichText::new(format!("{} · {}", kind_label(kind), widgets::human_size(a.size))).color(t.faint).small());
-                    });
-                });
-                ui.horizontal_wrapped(|ui| {
-                    // The Craft app for the file, when it's installed; else the system's choice.
-                    let craft = mime::craft_app_for(&a.mime, &a.name)
-                        .and_then(|(cmd, name)| st.craft_apps.iter().any(|(c, _)| *c == cmd).then_some((cmd, name)));
-                    match craft {
-                        Some((cmd, name)) => {
-                            if ui
-                                .small_button(tf!("Open in {app}", app = name))
-                                .on_hover_text(tl!("Open it in the Craft app for this kind of file"))
-                                .clicked()
-                            {
-                                acts.push(Action::OpenInCraft(a.index, cmd));
-                            }
-                            if ui.small_button(tl!("Open")).on_hover_text(tl!("Open with the system's app")).clicked() {
-                                acts.push(Action::OpenAttachment(a.index));
-                            }
+                    let (r, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
+                    match &thumb {
+                        Some(tex) => {
+                            let sz = tex.size_vec2();
+                            let scale = (34.0 / sz.x).min(34.0 / sz.y);
+                            ui.painter().rect_filled(r, 3.0, t.chrome);
+                            let img = Rect::from_center_size(r.center(), sz * scale);
+                            ui.painter().image(tex.id(), img, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
                         }
                         None => {
-                            if ui.small_button(tl!("Open")).clicked() {
-                                acts.push(Action::OpenAttachment(a.index));
-                            }
+                            ui.painter().rect_filled(r, 5.0, t.accent_soft);
+                            icons::paint(ui.painter(), icons::centered(r, 18.0), kind_icon(kind), t.accent);
                         }
                     }
-                    if mime::text_preview_kind(&a.mime, &a.name).is_some() && ui.small_button(tl!("Preview")).clicked() {
-                        acts.push(Action::Run("attachment.preview", json!({"index": a.index})));
-                    }
-                    if ui.small_button(tl!("Save as…")).clicked() {
-                        acts.push(Action::SaveAttachment(a.index));
-                    }
+                    ui.vertical(|ui| {
+                        ui.set_width(156.0);
+                        ui.label(RichText::new(widgets::shorten(&a.name, 24)).color(t.text).small());
+                        ui.label(RichText::new(widgets::human_size(a.size)).color(t.faint).small());
+                    });
+                    let more = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More options", &t);
+                    egui::Popup::menu(&more).show(|ui| menu(ui, acts));
                 });
             });
-        });
-    // Drag the card onto the desktop or another app to copy the file there.
-    if st.can_drag_out {
-        let drag = ui.interact(card.response.rect, ui.id().with(("attachment-drag", key.to_id(), a.index)), Sense::drag());
-        if drag.drag_started() {
-            acts.push(Action::DragOut(a.index));
-        }
-        drag.on_hover_text(tl!("Drag it to a folder or another app to copy it"));
+    });
+    let resp = chip.response;
+    if resp.double_clicked() {
+        acts.push(Action::OpenAttachment(a.index));
     }
+    resp.context_menu(|ui| menu(ui, acts));
+    // Drag it onto the desktop or another app to copy the file there.
+    if st.can_drag_out && resp.drag_started() {
+        acts.push(Action::DragOut(a.index));
+    }
+    resp.on_hover_text(tf!("{name} · {kind}. Double-click to open it.", name = a.name, kind = tl!(kind_label(kind))));
 }
 
 /// Width of the labels and label buttons left of the message's fields.

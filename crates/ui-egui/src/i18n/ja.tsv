@@ -636,3 +636,8 @@ month	May	5月
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP または POP と SMTP、JMAP、Exchange に対応したどのプロバイダーでも使えます。パスワードはこのコンピューターのキーチェーンに保存され、メール サーバーにのみ送信されます。
 	Run it now on the mail already in the Inbox	受信トレイにあるメールに今すぐ実行する
 	Run on the mail already in the Inbox	受信トレイにあるメールに実行
+	More options	その他のオプション
+	Save As…	名前を付けて保存…
+	Save All Attachments…	すべての添付ファイルを保存…
+	This picture can't be shown.	この画像は表示できません。
+	{name} · {kind}. Double-click to open it.	{name} · {kind}。ダブルクリックで開きます。

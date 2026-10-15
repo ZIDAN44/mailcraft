@@ -957,7 +957,9 @@ impl MailApp {
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
             Action::InWindow(key, inner) => {
                 // The window's message stands in as the open one while the action runs.
-                if let Some(w) = self.session.windows.iter().find(|w| w.key == key).cloned() {
+                if self.session.reading.as_ref().is_some_and(|r| r.key == key) {
+                    self.act(*inner);
+                } else if let Some(w) = self.session.windows.iter().find(|w| w.key == key).cloned() {
                     let main = self.session.reading.replace(w);
                     self.act(*inner);
                     self.session.reading = main;

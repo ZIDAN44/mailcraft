@@ -88,15 +88,7 @@ impl Services for Desktop {
         rfd::FileDialog::new().set_title("Save as").set_file_name(suggested).save_file()
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
-        match open::that_detached(path) {
-            Ok(()) => Ok(()),
-            // No app for this kind of file: Windows' "Open with" chooser, as Outlook offers.
-            #[cfg(windows)]
-            Err(_) if path.is_file() => {
-                std::process::Command::new("rundll32.exe").arg("shell32.dll,OpenAs_RunDLL").arg(path).spawn().map(drop).map_err(|e| e.to_string())
-            }
-            Err(e) => Err(e.to_string()),
-        }
+        shell_open(path.as_os_str())
     }
     fn data_folder(&self) -> Option<(PathBuf, bool)> {
         self.data.clone().map(|d| (d, self.base.is_some()))
@@ -263,7 +255,7 @@ impl Services for Desktop {
         Some(png)
     }
     fn open_url(&mut self, url: &str) -> Result<(), String> {
-        open::that_detached(url).map_err(|e| e.to_string())
+        shell_open(std::ffi::OsStr::new(url))
     }
     fn notify(&mut self, title: &str, body: &str) {
         let (title, body) = (title.to_string(), body.to_string());
@@ -280,6 +272,23 @@ impl Services for Desktop {
                 log::warn!("notification: {e}");
             }
         });
+    }
+}
+
+/// Open a file or a web address with the system's choice of app, as Explorer would.
+///
+/// On Windows this goes through `rundll32 shell32.dll,ShellExec_RunDLL`, a process of its own:
+/// opening from MailCraft (directly, or through the hidden PowerShell the `open` crate starts)
+/// silently did nothing for apps such as Acrobat, and a file no app opens gets Windows' "How do
+/// you want to open this file?", as Outlook does.
+fn shell_open(target: &std::ffi::OsStr) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("rundll32.exe").arg("shell32.dll,ShellExec_RunDLL").arg(target).spawn().map(drop).map_err(|e| e.to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        open::that_detached(target).map_err(|e| e.to_string())
     }
 }
 

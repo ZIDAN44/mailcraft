@@ -633,6 +633,11 @@
 	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP 또는 POP와 SMTP, JMAP, Exchange를 지원하는 모든 공급자에서 작동합니다. 암호는 이 컴퓨터의 키체인에 보관되며 메일 서버로만 전송됩니다.
 	Run it now on the mail already in the Inbox	받은 편지함에 이미 있는 메일에 지금 실행
 	Run on the mail already in the Inbox	받은 편지함에 이미 있는 메일에 실행
+	More options	추가 옵션
+	Save As…	다른 이름으로 저장…
+	Save All Attachments…	모든 첨부 파일 저장…
+	This picture can't be shown.	이 그림을 표시할 수 없습니다.
+	{name} · {kind}. Double-click to open it.	{name} · {kind}. 두 번 클릭하여 엽니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

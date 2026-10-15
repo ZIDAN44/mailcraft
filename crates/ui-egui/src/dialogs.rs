@@ -455,6 +455,12 @@ pub enum Dialog {
     },
     Rules,
     EditRule(Box<RuleForm>),
+    /// A picture attachment, larger.
+    PicturePreview {
+        key: mailcraft_engine::model::MessageKey,
+        index: usize,
+        name: String,
+    },
     /// An attachment shown as text (a file, or an attached email's header and text).
     Preview {
         title: String,
@@ -1494,6 +1500,30 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 acts.push(Action::Submit("folder.delete", json!({"account": account, "folder": folder})));
             }
             !cancel
+        }
+        Dialog::PicturePreview { key, index, name } => {
+            let w = (ui.ctx().content_rect().width() * 0.75).clamp(360.0, 1200.0);
+            let h = (ui.ctx().content_rect().height() * 0.7).max(240.0);
+            ui.set_width(w);
+            title(ui, t, name);
+            match crate::reading::big_picture(s, ui.ctx(), key, *index) {
+                Some(tex) => {
+                    let sz = tex.size_vec2();
+                    let scale = (w / sz.x).min(h / sz.y).min(1.0);
+                    ui.vertical_centered(|ui| ui.add(egui::Image::new(&tex).fit_to_exact_size(sz * scale)));
+                }
+                None => {
+                    ui.label(RichText::new(tl!("This picture can't be shown.")).color(t.dim));
+                }
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.button(tl!("Open")).clicked() {
+                    acts.push(Action::InWindow(key.clone(), Box::new(Action::OpenAttachment(*index))));
+                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
+            })
+            .inner
         }
         Dialog::Preview { title: name, header, text } => {
             let w = (ui.ctx().content_rect().width() * 0.7).clamp(360.0, 900.0);
