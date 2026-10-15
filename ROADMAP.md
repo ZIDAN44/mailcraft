@@ -81,5 +81,5 @@ local-first, media-aware v1); the fuller request is
   and read receipts, POP server copies removed after days or once deleted; drafts that can't
   reach the server are kept.
 - **2026-10-15** — **v0.10**: windows open where they were (maximized too), a folder made in the
-  Inbox shows under it, a new rule runs at once on the Inbox, and a message window's attachments
-  open.
+  Inbox shows under it, a new rule runs at once on the Inbox, attachments as Outlook's chips that
+  open with a double-click, and notifications for mail rules file away.

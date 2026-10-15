@@ -143,6 +143,9 @@ mailbox; packaging for every desktop.
   after Deleted Items); the account menu's New folder starts in the folder open now.
 - **Run a rule now:** a new rule can run at once on the mail already in the Inbox, as Outlook's
   rule wizard offers; Run now in the rules list does the same.
-- **Attachments in message windows:** Open, Save as, Preview, drag-out and the window's Save As /
-  Print acted on the reading pane's message and failed; they act on the window's. A file no app
-  opens gets Windows' "Open with" chooser.
+- **Attachments open, as Outlook's:** small chips with a thumbnail, name and size; double-click
+  opens one, ▾ (or right-click) gives Preview, Open, Save As and Save All Attachments. Open never
+  worked: a press on it started a drag-out, and on Windows the file was handed over in a way
+  apps such as Acrobat ignored. A message window's attachments act on its own message.
+- **New mail filed by rules is announced**, as Outlook does (not what a rule deletes or marks
+  read).
