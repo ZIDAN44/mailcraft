@@ -186,6 +186,8 @@ pub struct Prefs {
     /// Ignored conversations (Delete › Ignore): their messages' Message-IDs; replies to any of
     /// them go to Deleted Items as they arrive.
     pub ignored: BTreeSet<String>,
+    /// The folder pane minimized to a narrow strip (View › Folder pane, or its ‹ button).
+    pub folder_pane_minimized: bool,
 }
 
 /// What the message list is sorted and grouped by.
@@ -337,6 +339,7 @@ impl Default for Prefs {
             reverse_sort: false,
             work_offline: false,
             ignored: BTreeSet::new(),
+            folder_pane_minimized: false,
         }
     }
 }

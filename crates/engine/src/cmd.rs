@@ -288,6 +288,11 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.reverse_sort}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.folderPane", "Minimize the folder pane", "View › Layout", |s, v| {
+            s.prefs.folder_pane_minimized = p::bool(v, "minimized").unwrap_or(!s.prefs.folder_pane_minimized);
+            Ok(json!({"minimized": s.prefs.folder_pane_minimized}))
+        })
+        .params(r#"{"minimized"?: bool}"#),
         CommandSpec::new("view.focused", "Focused Inbox", "View › Messages", |s, v| {
             s.prefs.focused_inbox = p::bool(v, "on").unwrap_or(!s.prefs.focused_inbox);
             s.focus_other = false;
