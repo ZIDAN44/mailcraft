@@ -3,7 +3,8 @@
 //! The file is read with Microsoft's MIT-licensed `outlook-pst` crate (MS-PST): the folder tree
 //! under the top of the mailbox becomes folders, and each mail item is written out again as a
 //! standard message (RFC 5322 / MIME) from its properties (MS-OXCMSG / MS-OXPROPS), keeping the
-//! original headers when the item has them. Calendars, contacts, tasks and notes are left out.
+//! original headers when the item has them. Contacts and calendar items go to the account's address
+//! book and calendar (see `pst_pim`); tasks and notes are left out.
 //!
 //! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
 //! can't be read are skipped and counted, and sizes are capped.
@@ -14,6 +15,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
+use mailcraft_model::pim::{LOCAL, PIM_DOC, Pim, StoredCard, StoredEvent};
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, sort_newest_first, utf7};
 use mailcraft_store::{FolderState, Store};
 use outlook_pst::ltp::prop_context::PropertyValue;
@@ -39,6 +41,9 @@ const MAX_NESTING: usize = 3;
 pub struct Imported {
     pub folders: Vec<Folder>,
     pub messages: usize,
+    /// Contacts and calendar items.
+    pub contacts: usize,
+    pub events: usize,
     /// Items that couldn't be read or written.
     pub skipped: usize,
 }
@@ -46,7 +51,7 @@ pub struct Imported {
 /// Import the data file at `path` into `account`'s cache (an account with no server). Calls
 /// `progress` with the number of messages imported so far, every so often.
 pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(usize)) -> Result<Imported, String> {
-    let mut out = Out { store, account, folders: Vec::new(), states: HashMap::new(), imported: 0, skipped: 0, progress };
+    let mut out = Out { store, account, folders: Vec::new(), states: HashMap::new(), imported: 0, skipped: 0, progress, pim: Pim::default() };
     let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<()> {
         if let Ok(pst) = UnicodePstFile::open(path) { read_unicode(pst, &mut out) } else { read_ansi(AnsiPstFile::open(path)?, &mut out) }
     }));
@@ -66,6 +71,7 @@ macro_rules! reader {
         fn $name(pst: $file, out: &mut Out<'_>) -> io::Result<()> {
             let store = <$store>::read(Rc::new(pst))?;
             let any: Rc<dyn PstStore> = store.clone();
+            let named = crate::pst_pim::Named::of(&*any);
             let read = |entry: &EntryId| -> io::Result<Item> {
                 let m = <$message>::read(store.clone(), entry, None)?;
                 let mut files = Vec::new();
@@ -73,12 +79,12 @@ macro_rules! reader {
                     for row in table.rows_matrix() {
                         let node = NodeId::from(u32::from(row.id()));
                         match <$attachment>::read(m.clone(), node, None) {
-                            Ok(a) => files.extend(attachment(&*a, 0)),
+                            Ok(a) => files.extend(attachment(&*a, 0, &named)),
                             Err(e) => log::info!("an attachment could not be read: {e}"),
                         }
                     }
                 }
-                Ok(item(&*m, files))
+                Ok(item(&*m, files, &named))
             };
             walk(&*any, &read, out)
         }
@@ -110,9 +116,14 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
                 continue;
             }
         };
-        // Mail folders only (no class means mail, in old files).
+        // Mail folders (no class means mail, in old files), contacts and calendars.
         let class = sub.properties().get(0x3613).and_then(text_of).unwrap_or_default();
-        if !(class.is_empty() || class.starts_with("IPF.Note") || class.starts_with("IPF.Imap")) {
+        let mail = class.is_empty() || class.starts_with("IPF.Note") || class.starts_with("IPF.Imap");
+        if !mail {
+            if class.starts_with("IPF.Contact") || class.starts_with("IPF.Appointment") {
+                read_items(store, &*sub, read, out);
+                visit(store, &*sub, parent, depth + 1, read, out);
+            }
             continue;
         }
         let name = sub.properties().get(0x3001).and_then(text_of).unwrap_or_default();
@@ -134,6 +145,20 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
     }
 }
 
+/// A contacts or calendar folder's items.
+fn read_items(store: &dyn PstStore, folder: &dyn PstFolder, read: &ReadItem<'_>, out: &mut Out<'_>) {
+    let Some(contents) = folder.contents_table() else { return };
+    for row in contents.rows_matrix() {
+        match store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e)) {
+            Ok(i) => out.add_pim(i),
+            Err(e) => {
+                log::info!("an item could not be read: {e}");
+                out.skipped += 1;
+            }
+        }
+    }
+}
+
 /// A mail item, as read.
 #[derive(Default)]
 struct Item {
@@ -152,6 +177,8 @@ struct Item {
     headers: String,
     flags: Flags,
     files: Vec<File>,
+    /// A contact's or appointment's own properties.
+    extra: Option<crate::pst_pim::Extra>,
 }
 
 enum File {
@@ -159,10 +186,14 @@ enum File {
     Message(Box<Item>),
 }
 
-fn item(m: &dyn Message, files: Vec<File>) -> Item {
+fn item(m: &dyn Message, files: Vec<File>, named: &crate::pst_pim::Named) -> Item {
     let p = |id: u16| m.properties().get(id);
     let s = |id: u16| p(id).and_then(text_of).unwrap_or_default();
     let mut it = Item { class: s(0x001A), files, ..Default::default() };
+    let class = it.class.to_ascii_lowercase();
+    if class.starts_with("ipm.contact") || class.starts_with("ipm.appointment") {
+        it.extra = Some(crate::pst_pim::extract(&p, named));
+    }
     // A subject may start with a prefix marker (0x01, length).
     it.subject = {
         let raw = s(0x0037);
@@ -212,7 +243,7 @@ fn item(m: &dyn Message, files: Vec<File>) -> Item {
 }
 
 /// An attachment's file, or the message it holds.
-fn attachment(a: &dyn Attachment, nesting: usize) -> Option<File> {
+fn attachment(a: &dyn Attachment, nesting: usize, named: &crate::pst_pim::Named) -> Option<File> {
     let p = |id: u16| a.properties().get(id);
     let s = |id: u16| p(id).and_then(text_of).unwrap_or_default();
     // Hidden attachments (e.g. a contact picture) aren't part of the message.
@@ -230,7 +261,7 @@ fn attachment(a: &dyn Attachment, nesting: usize) -> Option<File> {
         }
         AttachmentData::Message(m) if nesting < MAX_NESTING => {
             // The embedded message's own attachments need its concrete type: left out.
-            Some(File::Message(Box::new(item(&**m, Vec::new()))))
+            Some(File::Message(Box::new(item(&**m, Vec::new(), named))))
         }
         AttachmentData::Message(_) => None,
     }
@@ -255,7 +286,7 @@ fn rows(table: &dyn TableContext) -> Vec<HashMap<u16, PropertyValue>> {
     out
 }
 
-fn text_of(v: &PropertyValue) -> Option<String> {
+pub(crate) fn text_of(v: &PropertyValue) -> Option<String> {
     match v {
         PropertyValue::Unicode(u) => Some(String::from_utf16_lossy(u.buffer()).trim_end_matches('\0').to_string()),
         PropertyValue::String8(s) => Some(decode(s.buffer(), 0).trim_end_matches('\0').to_string()),
@@ -264,7 +295,7 @@ fn text_of(v: &PropertyValue) -> Option<String> {
 }
 
 /// A FILETIME (100 ns since 1601) as Unix seconds.
-fn time_of(v: &PropertyValue) -> Option<i64> {
+pub(crate) fn time_of(v: &PropertyValue) -> Option<i64> {
     match v {
         PropertyValue::Time(t) if *t > 0 => Some(t / 10_000_000 - 11_644_473_600),
         _ => None,
@@ -385,6 +416,8 @@ struct Out<'a> {
     imported: usize,
     skipped: usize,
     progress: &'a mut dyn FnMut(usize),
+    /// Contacts and calendar items read so far.
+    pim: Pim,
 }
 
 impl Out<'_> {
@@ -421,6 +454,23 @@ impl Out<'_> {
         });
         self.states.insert(path.clone(), FolderState { validity: 1, uid_next: 1, ..Default::default() });
         path
+    }
+
+    /// A contact or calendar item (anything else in their folders is left out).
+    fn add_pim(&mut self, it: Item) {
+        let Some(x) = &it.extra else { return };
+        let n = self.pim.events.len() + self.pim.cards.len();
+        let uid = format!("pst-{}-{n}@mailcraft.invalid", self.account);
+        if it.class.to_ascii_lowercase().starts_with("ipm.contact") {
+            let card = crate::pst_pim::card_of(x, &it.body, uid);
+            self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
+        } else {
+            let people: Vec<EmailAddress> = it.to.iter().chain(&it.cc).cloned().collect();
+            match crate::pst_pim::event_of(x, &it.subject, &it.body, &it.from, &people, uid) {
+                Some(event) => self.pim.events.push(StoredEvent { calendar: LOCAL.into(), event, ..Default::default() }),
+                None => self.skipped += 1,
+            }
+        }
     }
 
     fn add_message(&mut self, path: &str, it: Item) {
@@ -483,7 +533,12 @@ impl Out<'_> {
             self.save_folder(&p);
         }
         self.store.save_folders(self.account, &self.folders).map_err(|e| e.to_string())?;
-        Ok(Imported { folders: self.folders, messages: self.imported, skipped: self.skipped })
+        let (contacts, events) = (self.pim.cards.len(), self.pim.events.len());
+        if contacts + events > 0 {
+            self.pim.ensure_defaults();
+            self.store.save_account_doc(self.account, PIM_DOC, &self.pim).map_err(|e| e.to_string())?;
+        }
+        Ok(Imported { folders: self.folders, messages: self.imported, contacts, events, skipped: self.skipped })
     }
 }
 

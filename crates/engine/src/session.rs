@@ -2003,6 +2003,15 @@ impl Session {
                 self.notice(format!("{name} could not be opened: {e}"), true);
             }
             None => {
+                // The file's contacts and calendar came in too.
+                if let Some(store) = self.store.clone()
+                    && let Ok(mut p) = store.load_account_doc::<mailcraft_model::pim::Pim>(account, mailcraft_model::pim::PIM_DOC)
+                {
+                    p.ensure_defaults();
+                    self.pim.insert(account.to_string(), p);
+                    self.contacts = None;
+                    self.pim_revision = self.pim_revision.wrapping_add(1);
+                }
                 let more = if skipped > 0 { format!(" ({skipped} could not be read)") } else { String::new() };
                 self.notice(format!("{name}: {messages} messages imported{more}"), false);
                 if let Some(inbox) = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()) {

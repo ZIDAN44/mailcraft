@@ -1225,7 +1225,17 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         total: 0,
     };
     s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    // The file's contacts were written next to its mail: they show once it's done.
+    let mut pim = mailcraft_model::pim::Pim::default();
+    pim.cards.push(mailcraft_model::pim::StoredCard {
+        book: mailcraft_model::pim::LOCAL.into(),
+        card: mailcraft_model::vcard::Card { uid: "c1".into(), name: "Ana Lima".into(), ..Default::default() },
+        ..Default::default()
+    });
+    s.store.clone().unwrap().save_account_doc(&id, mailcraft_model::pim::PIM_DOC, &pim).unwrap();
     s.apply(Event::Imported { account: id.clone(), messages: 250, skipped: 2, done: true, error: None });
+    assert!(s.pim[&id].cards.iter().any(|c| c.card.name == "Ana Lima"));
+    assert!(!s.pim[&id].calendars.is_empty(), "with a calendar to add to");
     assert!(s.notices.last().is_some_and(|n| n.text.contains("250 messages imported (2 could not be read)")));
     assert_eq!(s.view, View::Folder { account: id.clone(), folder: "INBOX".into() });
     assert_eq!(s.account(&id).unwrap().status, SyncStatus::Offline);

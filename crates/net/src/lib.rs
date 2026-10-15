@@ -25,6 +25,7 @@ pub mod imap;
 pub mod jmap;
 pub mod oauth;
 pub mod pst;
+mod pst_pim;
 pub mod sieve;
 pub mod smtp;
 pub mod stream;
