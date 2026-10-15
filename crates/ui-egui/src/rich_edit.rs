@@ -403,7 +403,12 @@ fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, shift: &[f32
 /// Lay the text out; centred and right-aligned paragraphs that fit on one line are moved over.
 fn layout(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32) -> Arc<Galley> {
     let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[]));
-    if plain || st.paras.iter().all(|p| p.align == Align::Left) {
+    // A right-to-left paragraph left as it was sits against the right edge.
+    let lines: Vec<&str> = text.split('\n').collect();
+    let align_of = |n: usize, a: Align| {
+        if a == Align::Left && lines.get(n).is_some_and(|l| crate::bidi::has_rtl(l) && crate::bidi::paragraph_rtl(l)) { Align::Right } else { a }
+    };
+    if plain || st.paras.iter().enumerate().all(|(n, p)| align_of(n, p.align) == Align::Left) {
         return first;
     }
     let mut shift = vec![0.0; st.paras.len()];
@@ -417,13 +422,14 @@ fn layout(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32) 
                 break;
             }
         }
-        if p.align != Align::Left
+        let align = align_of(n, p.align);
+        if align != Align::Left
             && row == start + 1
             && let Some(r) = first.rows.get(start)
         {
             let room = (wrap - r.rect().max.x).max(0.0);
             if let Some(s) = shift.get_mut(n) {
-                *s = if p.align == Align::Center { room / 2.0 } else { room };
+                *s = if align == Align::Center { room / 2.0 } else { room };
             }
         }
     }

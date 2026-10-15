@@ -473,7 +473,11 @@ impl MailApp {
             });
         } else {
             let module = self.session.module;
-            egui::Panel::left("nav")
+            // Right-to-left languages mirror the window: folders on the right, then the list,
+            // the reading pane on the left.
+            let rtl = i18n::current().rtl();
+            let start = |id: &'static str| if rtl { egui::Panel::right(id) } else { egui::Panel::left(id) };
+            start("nav")
                 .resizable(true)
                 .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
                 .size_range(170.0..=380.0)
@@ -503,7 +507,7 @@ impl MailApp {
                 }
                 (Module::Mail, pane) => match pane {
                     ReadingPane::Right => {
-                        egui::Panel::left("list").resizable(true).default_size(390.0).size_range(280.0..=720.0).frame(list_frame).show(ui, |ui| {
+                        start("list").resizable(true).default_size(390.0).size_range(280.0..=720.0).frame(list_frame).show(ui, |ui| {
                             list::show(&self.session, &mut self.ui, ui, &mut acts);
                         });
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
