@@ -672,6 +672,19 @@
 	Follow up. Overdue: it was due {date}.	Seguimiento. Atrasado: vencía el {date}.
 	This message was sent with high importance.	Este mensaje se envió con importancia alta.
 	This message was sent with low importance.	Este mensaje se envió con importancia baja.
+	Delay delivery	Retrasar entrega
+	Don't send before	No enviar antes de
+	Have replies sent to another address	Hacer que las respuestas se envíen a otra dirección
+	Held in the Outbox: it will be sent {when}.	Retenido en la Bandeja de salida: se enviará el {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	Guardarlo en la Bandeja de salida y enviarlo más tarde (MailCraft debe estar abierto entonces)
+	Replies to	Respuestas a
+	Send right away	Enviar de inmediato
+	Sends {when}	Se envía el {when}
+	Set	Establecer
+	Where replies go instead of to you	A dónde van las respuestas en lugar de a usted
+	In 1 hour	Dentro de 1 hora
+	Tomorrow morning	Mañana por la mañana
+	Monday morning	El lunes por la mañana
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

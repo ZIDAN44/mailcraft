@@ -674,3 +674,16 @@ month	May	5月
 	Follow up. Overdue: it was due {date}.	后续处理。已过期:原定 {date} 到期。
 	This message was sent with high importance.	此邮件以高重要性发送。
 	This message was sent with low importance.	此邮件以低重要性发送。
+	Delay delivery	延迟传递
+	Don't send before	在此之前不发送
+	Have replies sent to another address	将答复发送到其他地址
+	Held in the Outbox: it will be sent {when}.	保留在发件箱中:将于 {when} 发送。
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	保留在发件箱中稍后发送(届时 MailCraft 需要在运行)
+	Replies to	答复发送至
+	Send right away	立即发送
+	Sends {when}	{when} 发送
+	Set	设置
+	Where replies go instead of to you	答复改为发送到的地址
+	In 1 hour	1 小时后
+	Tomorrow morning	明天上午
+	Monday morning	星期一上午

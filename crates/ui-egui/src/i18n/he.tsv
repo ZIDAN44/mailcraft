@@ -673,3 +673,16 @@ month	May	מאי
 	Follow up. Overdue: it was due {date}.	מעקב. באיחור: היעד היה {date}.
 	This message was sent with high importance.	הודעה זו נשלחה בחשיבות גבוהה.
 	This message was sent with low importance.	הודעה זו נשלחה בחשיבות נמוכה.
+	Delay delivery	השהה מסירה
+	Don't send before	אל תשלח לפני
+	Have replies sent to another address	שלח תשובות לכתובת אחרת
+	Held in the Outbox: it will be sent {when}.	מוחזקת בתיבת הדואר היוצא: תישלח ב-{when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	השאר בתיבת הדואר היוצא ושלח מאוחר יותר (MailCraft צריך לפעול אז)
+	Replies to	תשובות אל
+	Send right away	שלח מיד
+	Sends {when}	נשלחת ב-{when}
+	Set	הגדר
+	Where replies go instead of to you	לאן יגיעו התשובות במקומך
+	In 1 hour	בעוד שעה
+	Tomorrow morning	מחר בבוקר
+	Monday morning	יום שני בבוקר

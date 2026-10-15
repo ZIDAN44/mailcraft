@@ -671,6 +671,19 @@
 	Follow up. Overdue: it was due {date}.	Completamento. In ritardo: scadeva il {date}.
 	This message was sent with high importance.	Questo messaggio è stato inviato con priorità alta.
 	This message was sent with low importance.	Questo messaggio è stato inviato con priorità bassa.
+	Delay delivery	Ritarda recapito
+	Don't send before	Non inviare prima di
+	Have replies sent to another address	Fai inviare le risposte a un altro indirizzo
+	Held in the Outbox: it will be sent {when}.	Trattenuto in Posta in uscita: verrà inviato il {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	Tenerlo in Posta in uscita e inviarlo più tardi (MailCraft deve essere aperto in quel momento)
+	Replies to	Risposte a
+	Send right away	Invia subito
+	Sends {when}	Invio il {when}
+	Set	Imposta
+	Where replies go instead of to you	Dove vanno le risposte invece che a te
+	In 1 hour	Tra 1 ora
+	Tomorrow morning	Domani mattina
+	Monday morning	Lunedì mattina
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

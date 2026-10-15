@@ -673,3 +673,16 @@ month	May	مايو
 	Follow up. Overdue: it was due {date}.	متابعة. متأخرة: كانت مستحقة في {date}.
 	This message was sent with high importance.	أُرسلت هذه الرسالة بأهمية عالية.
 	This message was sent with low importance.	أُرسلت هذه الرسالة بأهمية منخفضة.
+	Delay delivery	تأخير التسليم
+	Don't send before	عدم الإرسال قبل
+	Have replies sent to another address	إرسال الردود إلى عنوان آخر
+	Held in the Outbox: it will be sent {when}.	محتجزة في علبة الصادر: ستُرسل في {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	إبقاؤها في علبة الصادر وإرسالها لاحقاً (يجب أن يكون MailCraft قيد التشغيل حينها)
+	Replies to	الردود إلى
+	Send right away	الإرسال فوراً
+	Sends {when}	تُرسل في {when}
+	Set	تعيين
+	Where replies go instead of to you	إلى أين تذهب الردود بدلاً منك
+	In 1 hour	خلال ساعة
+	Tomorrow morning	صباح الغد
+	Monday morning	صباح الاثنين

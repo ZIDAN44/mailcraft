@@ -671,6 +671,19 @@
 	Follow up. Overdue: it was due {date}.	К исполнению. Просрочено: срок был {date}.
 	This message was sent with high importance.	Это сообщение отправлено с высокой важностью.
 	This message was sent with low importance.	Это сообщение отправлено с низкой важностью.
+	Delay delivery	Задержать доставку
+	Don't send before	Не отправлять до
+	Have replies sent to another address	Отправлять ответы на другой адрес
+	Held in the Outbox: it will be sent {when}.	Задержано в папке «Исходящие»: будет отправлено {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	Оставить в папке «Исходящие» и отправить позже (MailCraft должен быть запущен)
+	Replies to	Ответы на
+	Send right away	Отправить сразу
+	Sends {when}	Отправка {when}
+	Set	Задать
+	Where replies go instead of to you	Куда приходят ответы вместо вас
+	In 1 hour	Через 1 час
+	Tomorrow morning	Завтра утром
+	Monday morning	В понедельник утром
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

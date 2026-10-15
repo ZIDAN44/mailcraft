@@ -165,6 +165,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
                     let why = match item.error.as_deref() {
                         Some(e) if e != "offline" => tf!("Waiting in the Outbox. Last try: {error}", error = widgets::shorten(e, 140)),
+                        _ if item.not_before > s.clock.now => {
+                            tf!("Held in the Outbox: it will be sent {when}.", when = crate::i18n::date(&dates::full_time(item.not_before, &s.clock)))
+                        }
                         _ => tl!("Waiting in the Outbox: it will be sent when you're back online.").to_string(),
                     };
                     ui.label(RichText::new(why).color(t.text));
@@ -173,7 +176,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     if widgets::pill_button(ui, Icon::Send, "Send now", &t).clicked() {
-                        acts.push(Action::Run("outbox.send", json!({})));
+                        acts.push(Action::Run("outbox.send", json!({"key": r.key.to_id()})));
                     }
                     if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
                         acts.push(Action::Run("outbox.edit", json!({"key": r.key.to_id()})));
@@ -1046,6 +1049,74 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
 /// Height of an attachment chip.
 const CHIP_H: f32 = 42.0;
 
+/// When to send a held-back message: in an hour, tomorrow or Monday morning, a time of one's
+/// own, or at once again.
+fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, clock: &dates::Clock) {
+    let today = dates::today(clock);
+    let at = |day: i64, minutes: i64| day.saturating_mul(86_400) - i64::from(clock.offset) + minutes * 60;
+    let weekday = (today + 3).rem_euclid(7);
+    let presets = [
+        ("In 1 hour", (clock.now + 3600) / 60 * 60),
+        ("Tomorrow morning", at(today + 1, 8 * 60)),
+        ("Monday morning", at(today + 7 - weekday, 8 * 60)),
+    ];
+    for (label, when) in presets {
+        let clicked = ui
+            .horizontal(|ui| {
+                let r = ui.selectable_label(c.send_after == Some(when), tl!(label));
+                ui.label(RichText::new(crate::i18n::date(&dates::full_time(when, clock))).color(t.faint).small());
+                r.clicked()
+            })
+            .inner;
+        if clicked {
+            c.send_after = Some(when);
+            ui.close();
+        }
+    }
+    ui.separator();
+    // A day and time of one's own (local), kept while the menu is open.
+    let id = egui::Id::new(("delay-custom", c.id));
+    let (mut day, mut time) = ui.data(|d| d.get_temp::<(String, String)>(id)).unwrap_or_else(|| {
+        let c0 = dates::civil(c.send_after.unwrap_or(clock.now + 3600), clock);
+        (format!("{:04}-{:02}-{:02}", c0.year, c0.month, c0.day), format!("{:02}:{:02}", c0.hour, c0.minute))
+    });
+    ui.label(RichText::new(tl!("Don't send before")).color(t.dim).small());
+    let mut chosen = None;
+    ui.horizontal(|ui| {
+        ui.add(egui::TextEdit::singleline(&mut day).desired_width(90.0).hint_text("YYYY-MM-DD"));
+        ui.add(egui::TextEdit::singleline(&mut time).desired_width(50.0).hint_text("HH:MM"));
+        let parsed = parse_local(&day, &time).map(|(d, m)| at(d, m));
+        if ui.add_enabled(parsed.is_some_and(|w| w > clock.now), egui::Button::new(tl!("Set"))).clicked() {
+            chosen = parsed;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(id, (day, time)));
+    if let Some(w) = chosen {
+        c.send_after = Some(w);
+        ui.close();
+    }
+    if c.send_after.is_some() {
+        ui.separator();
+        if ui.button(tl!("Send right away")).clicked() {
+            c.send_after = None;
+            ui.close();
+        }
+    }
+}
+
+/// A local `YYYY-MM-DD` and `HH:MM` as (day, minutes into it).
+pub(crate) fn parse_local(day: &str, time: &str) -> Option<(i64, i64)> {
+    if !mailcraft_engine::model::job::is_day(day.trim()) {
+        return None;
+    }
+    let d = day.trim();
+    let num = |a: usize, z: usize| d.get(a..z).and_then(|x| x.parse::<u32>().ok());
+    let days = dates::days_from_civil(i64::from(num(0, 4)?), num(5, 7)?, num(8, 10)?);
+    let (h, m) = time.trim().split_once(':')?;
+    let (h, m) = (h.trim().parse::<i64>().ok()?, m.trim().parse::<i64>().ok()?);
+    ((0..24).contains(&h) && (0..60).contains(&m)).then_some((days, h * 60 + m))
+}
+
 /// Width of the labels and label buttons left of the message's fields.
 const LABEL_W: f32 = 76.0;
 const ROW_H: f32 = 30.0;
@@ -1219,6 +1290,9 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         }
         _ => Vec::new(),
     };
+    let clock = s.clock;
+    // Delay Delivery holds mail in the Outbox, which only a server account's sends from.
+    let can_delay = s.compose.as_ref().and_then(|c| s.account(&c.account)).is_some_and(|a| !a.is_local());
     let Some(c) = s.compose.as_mut() else { return };
     // The editor's state belongs to one message.
     if st.editor.as_ref().is_none_or(|e| e.id != c.id) {
@@ -1289,6 +1363,22 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             {
                 c.read_receipt = receipt;
             }
+            // Outlook's Delay Delivery and Direct Replies To.
+            if can_delay {
+                let label = match c.send_after {
+                    Some(at) => tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &clock))),
+                    None => tl!("Delay delivery").to_string(),
+                };
+                let r = widgets::tool_toggle(ui, Icon::Clock, &label, &t, c.send_after.is_some())
+                    .on_hover_text(tl!("Keep it in the Outbox and send it later (MailCraft has to be running then)"));
+                egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| delay_menu(ui, &t, c, &clock));
+            }
+            if widgets::tool_toggle(ui, Icon::Reply, "Replies to", &t, c.show_reply_to || !c.reply_to.is_empty())
+                .on_hover_text(tl!("Have replies sent to another address"))
+                .clicked()
+            {
+                c.show_reply_to = !c.show_reply_to;
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let (icon, label, id) =
                     if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
@@ -1357,6 +1447,12 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     }
                 });
             });
+            if c.show_reply_to || !c.reply_to.is_empty() {
+                ui.horizontal(|ui| {
+                    ui.add_space(76.0);
+                    ui.vertical(|ui| field(ui, &t, "Replies to", &mut c.reply_to, "Where replies go instead of to you", true, false));
+                });
+            }
             ui.horizontal(|ui| {
                 ui.add_space(76.0);
                 ui.vertical(|ui| field(ui, &t, "Subject", &mut c.subject, "Add a subject", false, false));

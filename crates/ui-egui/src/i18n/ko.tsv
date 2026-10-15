@@ -671,6 +671,19 @@
 	Follow up. Overdue: it was due {date}.	후속 조치. 기한 지남: {date}까지였습니다.
 	This message was sent with high importance.	이 메시지는 높은 중요도로 보낸 것입니다.
 	This message was sent with low importance.	이 메시지는 낮은 중요도로 보낸 것입니다.
+	Delay delivery	배달 지연
+	Don't send before	다음 시간 이전에 보내지 않음
+	Have replies sent to another address	회신을 다른 주소로 받기
+	Held in the Outbox: it will be sent {when}.	보낼 편지함에 보류됨: {when}에 보내집니다.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	보낼 편지함에 두었다가 나중에 보냅니다(그때 MailCraft가 실행 중이어야 함)
+	Replies to	회신 받을 주소
+	Send right away	바로 보내기
+	Sends {when}	{when}에 보냄
+	Set	설정
+	Where replies go instead of to you	나 대신 회신을 받을 주소
+	In 1 hour	1시간 후
+	Tomorrow morning	내일 아침
+	Monday morning	월요일 아침
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

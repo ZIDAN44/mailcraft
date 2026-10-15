@@ -671,6 +671,19 @@
 	Follow up. Overdue: it was due {date}.	待處理。已逾期:原定 {date} 到期。
 	This message was sent with high importance.	此郵件以高重要性傳送。
 	This message was sent with low importance.	此郵件以低重要性傳送。
+	Delay delivery	延遲傳遞
+	Don't send before	在此之前不傳送
+	Have replies sent to another address	將回覆傳送到其他地址
+	Held in the Outbox: it will be sent {when}.	保留在寄件匣中:將於 {when} 傳送。
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	保留在寄件匣中稍後傳送(屆時 MailCraft 必須在執行)
+	Replies to	回覆傳送至
+	Send right away	立即傳送
+	Sends {when}	{when} 傳送
+	Set	設定
+	Where replies go instead of to you	回覆改為傳送到的地址
+	In 1 hour	1 小時後
+	Tomorrow morning	明天上午
+	Monday morning	星期一上午
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

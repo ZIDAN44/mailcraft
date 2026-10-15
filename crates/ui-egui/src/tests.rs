@@ -945,3 +945,26 @@ fn window_places_open_only_where_they_make_sense() {
     let v: WindowPlace = serde_json::from_value(json!({"x": 1.0, "y": 2.0, "w": 800.0, "h": 600.0})).unwrap();
     assert!(!v.maximized, "saved before maximized was kept");
 }
+
+#[test]
+fn delay_delivery_and_replies_to_draw_while_writing() {
+    let (mut a, dir) = app("compose-delay");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    // Delay Delivery shows for a server account (the Outbox sends it later), with its time.
+    let id = a.session.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.prefs.new_mail_window = false;
+    a.run("mail.new", json!({}));
+    a.run(
+        "compose.update",
+        json!({"account": id, "to": "ann@example.org", "subject": "Later", "replyTo": "desk@example.org", "sendAfter": NOW + 3600}),
+    );
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert!(a.session.compose.as_ref().is_some_and(|c| c.send_after == Some(NOW + 3600) && c.reply_to == "desk@example.org"));
+    assert_eq!(super::reading::parse_local("2026-10-16", "08:30"), Some((20_742, 510)));
+    assert_eq!(super::reading::parse_local("2026-02-30", "08:30"), None);
+    assert_eq!(super::reading::parse_local("2026-10-16", "24:00"), None);
+    let _ = std::fs::remove_dir_all(dir);
+}

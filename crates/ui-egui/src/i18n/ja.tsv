@@ -674,3 +674,16 @@ month	May	5月
 	Follow up. Overdue: it was due {date}.	フォローアップ。期限切れ: 期限は {date} でした。
 	This message was sent with high importance.	このメッセージは重要度 - 高で送信されました。
 	This message was sent with low importance.	このメッセージは重要度 - 低で送信されました。
+	Delay delivery	配信タイミング
+	Don't send before	次の日時以降に送信
+	Have replies sent to another address	返信を別のアドレスに送信する
+	Held in the Outbox: it will be sent {when}.	送信トレイで保留中: {when} に送信されます。
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	送信トレイに保留して後で送信します (その時点で MailCraft が起動している必要があります)
+	Replies to	返信先
+	Send right away	すぐに送信
+	Sends {when}	{when} に送信
+	Set	設定
+	Where replies go instead of to you	あなたの代わりに返信が届くアドレス
+	In 1 hour	1 時間後
+	Tomorrow morning	明日の朝
+	Monday morning	月曜日の朝
