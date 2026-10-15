@@ -1,0 +1,18 @@
+[package]
+name = "mailcraft-jmap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft's JMAP mail transport (RFC 8620/8621) over any HTTP client: the desktop's sockets or the browser's fetch (portable, wasm)"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-model = { workspace = true }
+mailcraft-mime = { workspace = true }
+mailcraft-store = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }

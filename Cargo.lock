@@ -2660,6 +2660,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-jmap"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "mailcraft-mime",
+ "mailcraft-model",
+ "mailcraft-store",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "mailcraft-mime"
 version = "0.1.0"
 dependencies = [
@@ -2687,6 +2700,7 @@ dependencies = [
  "ipconfig",
  "lettre",
  "log",
+ "mailcraft-jmap",
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-store",

@@ -12,6 +12,7 @@ workspace = true
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-store = { workspace = true }
+mailcraft-jmap = { workspace = true }
 imap-proto = { workspace = true }
 lettre = { workspace = true }
 rustls = { workspace = true }

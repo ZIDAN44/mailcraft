@@ -510,7 +510,9 @@ mod tests {
         pool.submit(Job::Apply { account: "a1".into(), op: Op::DeleteFolder { path: "Clients".into() } });
         eventually("deleted", || data.lock().unwrap().by_name("Clients").is_none());
 
-        // New mail arrives: the server pushes the change and the Inbox updates by itself.
+        // New mail arrives: the server pushes the change and the Inbox updates by itself (once
+        // the worker is listening again after its last sync).
+        eventually("listening for changes", || !data.lock().unwrap().listeners.is_empty());
         data.lock().unwrap().deliver(&inbox, &mail("Festival poster", "m4"), &[], "2024-05-07T08:00:00Z");
         until(&pool, "new mail, pushed", |e| {
             matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX")

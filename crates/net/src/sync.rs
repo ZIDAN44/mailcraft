@@ -25,38 +25,7 @@ use mailcraft_store::{FolderState, Store};
 use crate::Result;
 use crate::imap::{Client, Fetched, uid_chunks, uid_set};
 
-#[derive(Clone, Copy, Debug)]
-pub struct SyncOptions {
-    /// How many of the newest messages the first sync of a folder fetches.
-    pub window: usize,
-    /// How many of the newest message sources to keep downloaded.
-    pub prefetch: usize,
-    /// Sources larger than this are only downloaded when opened.
-    pub prefetch_max_bytes: u32,
-}
-
-impl Default for SyncOptions {
-    fn default() -> Self {
-        SyncOptions { window: 1000, prefetch: 40, prefetch_max_bytes: 2 << 20 }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct SyncReport {
-    pub new: usize,
-    pub changed: usize,
-    pub removed: usize,
-    pub total: u32,
-    pub unread: u32,
-    /// The cache was emptied because UIDVALIDITY changed.
-    pub reset: bool,
-}
-
-impl SyncReport {
-    pub fn touched(&self) -> bool {
-        self.new + self.changed + self.removed > 0 || self.reset
-    }
-}
+pub use mailcraft_jmap::{SyncOptions, SyncReport, fill_from_source};
 
 const HEADER_ITEMS: &str = "UID FLAGS RFC822.SIZE INTERNALDATE BODY.PEEK[HEADER]";
 
@@ -228,16 +197,6 @@ fn prefetch<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, fo
         store.save_folder(account, folder, st)?;
     }
     Ok(())
-}
-
-/// Complete a header-only summary from the full source (preview, attachment marker).
-pub fn fill_from_source(m: &mut Summary, raw: &[u8]) {
-    let full = mime::summary_from_full(raw, m.key.clone(), m.flags.clone(), m.size, m.date);
-    m.preview = full.preview;
-    m.has_attachments = full.has_attachments;
-    if m.size == 0 {
-        m.size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-    }
 }
 
 /// Download one message's source (and cache it), updating its summary.
