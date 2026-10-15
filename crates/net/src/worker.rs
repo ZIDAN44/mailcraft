@@ -223,7 +223,7 @@ impl Pool {
                 let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
                     let found = crate::autoconfig::discover(&email);
                     let (config, source) = match found {
-                        Some(f) => (Some(f.config), f.source),
+                        Some(f) => (Some(Box::new(f.config)), f.source),
                         None => (None, String::new()),
                     };
                     sink.emit(Event::Discovered { email, config, source });
@@ -374,6 +374,8 @@ enum Conn {
     Jmap(jmap::Client),
     Graph(crate::graph::Client),
     Ews(crate::ews::Client),
+    /// POP3: signed in once to check the password; every download is a session of its own.
+    Pop,
 }
 
 struct Worker {
@@ -663,6 +665,12 @@ impl Worker {
             self.backoff = Duration::from_secs(5);
             return Ok(());
         }
+        if self.acc.pop.is_some() {
+            crate::pop::open(&self.acc, &secret)?.quit()?;
+            self.conn = Some(Conn::Pop);
+            self.backoff = Duration::from_secs(5);
+            return Ok(());
+        }
         if let Some(url) = &self.acc.ews {
             // `autodiscover`: found the first time, then kept.
             let url = if url == crate::ews::AUTODISCOVER {
@@ -732,6 +740,7 @@ impl Worker {
             Some(Conn::Jmap(c)) => jmap::list_folders(c, &mut self.jstate, &id),
             Some(Conn::Graph(c)) => crate::graph::list_folders(c, &mut self.jstate, &id),
             Some(Conn::Ews(c)) => crate::ews::list_folders(c, &mut self.jstate, &id),
+            Some(Conn::Pop) => crate::pop::folders(&self.store, &id),
             None => Err(NetError::Closed("not connected".into())),
         };
         let jmap = matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_)));
@@ -836,6 +845,17 @@ impl Worker {
                 self.save_jstate();
                 r
             }
+            // POP: the Inbox is downloaded; every other folder is here only.
+            Some(Conn::Pop) if self.folders.iter().any(|f| f.path == path && f.role == FolderRole::Inbox) => {
+                let secret = self.secret();
+                (|| {
+                    let mut c = crate::pop::open(&self.acc, &secret?)?;
+                    let r = crate::pop::fetch_new(&mut c, &store, &id, path, self.acc.pop_delete)?;
+                    let _ = c.quit();
+                    Ok(r)
+                })()
+            }
+            Some(Conn::Pop) => Ok(crate::pop::local_counts(&store, &id, path)),
             None => Err(NetError::Closed("not connected".into())),
         };
         match result {
@@ -881,7 +901,12 @@ impl Worker {
             }
             Job::FetchBody { key } => self.fetch(key),
             Job::Apply { op, .. } => {
-                match self.store.apply_op(&self.acc.id, &op) {
+                // POP: a move is carried out here (there's no server copy to come back).
+                let applied = match &op {
+                    Op::Move { keys, to } if self.acc.pop.is_some() => crate::pop::move_locally(&self.store, &self.acc.id, keys, to),
+                    _ => self.store.apply_op(&self.acc.id, &op).map_err(NetError::from),
+                };
+                match applied {
                     Ok(changed) => {
                         if op.is_folder_op() {
                             self.folders = self.store.load_folders(&self.acc.id).unwrap_or_default();
@@ -904,6 +929,14 @@ impl Worker {
                 let r = (|| -> Result<()> {
                     if self.conn.is_none() {
                         self.connect()?;
+                    }
+                    if let Some(Conn::Pop) = self.conn.as_ref() {
+                        let flags = mailcraft_model::Flags { draft: true, seen: true, ..Default::default() };
+                        crate::pop::file_locally(&self.store, &self.acc.id, &folder, &raw, flags, now())?;
+                        if let Some(old) = replaces {
+                            self.store.apply_op(&self.acc.id, &Op::Expunge { keys: vec![old] })?;
+                        }
+                        return Ok(());
                     }
                     if let Some(Conn::Jmap(c)) = self.conn.as_mut() {
                         jmap::append(c, &self.jstate, &folder, &raw, &["$draft", "$seen"])?;
@@ -965,6 +998,9 @@ impl Worker {
     fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
         if self.conn.is_none() {
             self.connect()?;
+        }
+        if let Some(Conn::Pop) = &self.conn {
+            return Err(NetError::No("POP accounts have no automatic replies on the server".into()));
         }
         if let Some(Conn::Jmap(c)) = &self.conn {
             if let Some(v) = set {
@@ -1039,7 +1075,8 @@ impl Worker {
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         let dav = crate::dav::Dav::new(&user, &self.pw);
-        match crate::dav::sync(&dav, &self.acc.email, &self.acc.imap.host, &pim, now()) {
+        let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
+        match crate::dav::sync(&dav, &self.acc.email, host, &pim, now()) {
             Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
             Err(e) => {
                 log::info!("{}: calendars and contacts: {e}", self.acc.id);
@@ -1056,7 +1093,7 @@ impl Worker {
             Some(Conn::Imap(c)) => c.quota(),
             Some(Conn::Jmap(c)) => c.quota(),
             // Graph doesn't tell a mailbox's size to the mailbox's owner.
-            Some(Conn::Graph(_) | Conn::Ews(_)) | None => return,
+            Some(Conn::Graph(_) | Conn::Ews(_) | Conn::Pop) | None => return,
         };
         match q {
             Ok(Some((used, limit))) => self.sink.emit(Event::Quota { account: self.id(), used, limit }),
@@ -1080,6 +1117,8 @@ impl Worker {
                 Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key),
                 Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
                 Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key),
+                // POP mail is downloaded whole: what isn't here isn't anywhere.
+                Some(Conn::Pop) => store.read_body(&key).ok_or_else(|| NetError::No("this message isn't on this computer".into())),
                 _ => fetch_body(self.client()?, &store, &key),
             }
         })();
@@ -1204,6 +1243,11 @@ impl Worker {
                 if self.conn.is_none() {
                     self.connect()?;
                 }
+                // POP: Sent Items is on this computer.
+                if let Some(Conn::Pop) = self.conn.as_ref() {
+                    let flags = mailcraft_model::Flags { seen: true, ..Default::default() };
+                    return crate::pop::file_locally(&self.store, &self.acc.id, &folder, raw, flags, now()).map(drop);
+                }
                 self.client()?.append(&folder, "\\Seen", raw).map(|_| ())
             })();
             match r {
@@ -1223,6 +1267,8 @@ impl Worker {
                 Some(Conn::Jmap(c)) => jmap::apply_remote(c, &self.jstate, &op),
                 Some(Conn::Graph(c)) => crate::graph::apply_remote(c, &self.jstate, &op),
                 Some(Conn::Ews(c)) => crate::ews::apply_remote(c, &self.jstate, &op),
+                // POP: changes are made here only (the cache has them already).
+                Some(Conn::Pop) => Ok(()),
                 None => Err(NetError::Closed("not connected".into())),
             };
             match r {

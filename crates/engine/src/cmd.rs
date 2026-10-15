@@ -467,7 +467,7 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account"?: string, "folder"?: string, "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
@@ -518,7 +518,7 @@ pub fn registry() -> Registry {
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature).params(r#"{"account": string, "signature": string}"#),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
-            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "jmap"?: string|null}"#,
+            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool}"#,
         ),
         CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
             let id = account_param(s, v)?;
@@ -1079,6 +1079,16 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     if s.jmap_only && jmap.is_none() {
         return Err(CmdError::Params("in the browser, MailCraft works with JMAP accounts only".into()));
     }
+    // `pop`: true to download mail over POP3 (popHost, popPort, popSecurity) and send over SMTP.
+    let pop = if p::bool(v, "pop").unwrap_or(false) {
+        let host = match guess.imap.host.strip_prefix("imap.") {
+            Some(rest) => format!("pop.{rest}"),
+            None => guess.imap.host.clone(),
+        };
+        Some(server(v, "pop", &ServerConfig { host, port: 995, security: Security::Tls })?)
+    } else {
+        None
+    };
     let plain = local || jmap.is_some() || graph.is_some() || ews.is_some();
     let password = p::str(v, "password").map(str::to_string);
     // Graph signs in with Microsoft, unless given a token to use as it is.
@@ -1090,7 +1100,7 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         name: p::str(v, "name").map(str::to_string).unwrap_or(guess.name.clone()),
         email: email.to_string(),
         username: p::str(v, "username").map(str::to_string).unwrap_or(guess.username.clone()),
-        imap: if plain { ServerConfig::default() } else { server(v, "imap", &guess.imap)? },
+        imap: if plain || pop.is_some() { ServerConfig::default() } else { server(v, "imap", &guess.imap)? },
         smtp: if plain { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
         signature: p::str(v, "signature").unwrap_or_default().to_string(),
         color: 0,
@@ -1098,6 +1108,8 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         jmap,
         graph,
         ews,
+        pop,
+        pop_delete: p::bool(v, "popDelete").unwrap_or(false),
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)
@@ -1110,6 +1122,10 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         return Err(CmdError::Params("`password` is required".into()));
     }
     let id = s.add_account(config, password)?;
+    // `pst`: an existing data file whose mail comes into the account first.
+    if let Some(path) = p::str(v, "pst").map(str::trim).filter(|p| !p.is_empty()) {
+        s.attach_data_file(&id, path)?;
+    }
     Ok(json!({"account": id}))
 }
 
@@ -1154,7 +1170,13 @@ fn update_account(s: &mut Session, v: &Value) -> CmdResult {
     {
         c.ews = Some(ews_url(u));
     }
-    if !c.is_api() {
+    if let Some(pop) = c.pop.clone() {
+        c.pop = Some(server(v, "pop", &pop)?);
+        c.smtp = server(v, "smtp", &c.smtp)?;
+        if let Some(d) = p::bool(v, "popDelete") {
+            c.pop_delete = d;
+        }
+    } else if !c.is_api() {
         c.imap = server(v, "imap", &c.imap)?;
         c.smtp = server(v, "smtp", &c.smtp)?;
         if c.imap.host.is_empty() || c.imap.port == 0 || c.smtp.host.is_empty() || c.smtp.port == 0 {
@@ -1180,6 +1202,7 @@ fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "email": a.config.email,
             "name": a.config.name,
             "graph": a.config.graph,
+            "pop": a.config.pop.as_ref().map(|p| format!("{}:{} ({})", p.host, p.port, p.security.code())),
             "ews": a.config.ews,
             "imap": format!("{}:{} ({})", a.config.imap.host, a.config.imap.port, a.config.imap.security.code()),
             "smtp": format!("{}:{} ({})", a.config.smtp.host, a.config.smtp.port, a.config.smtp.security.code()),

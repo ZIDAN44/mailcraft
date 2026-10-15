@@ -98,6 +98,13 @@ pub struct AccountConfig {
     /// SMTP; signs in with the user name (`DOMAIN\user` or an address) and password.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ews: Option<String>,
+    /// Downloads mail from this POP3 server (RFC 1939) into folders kept on this computer, instead
+    /// of syncing over IMAP; sends over `smtp`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pop: Option<ServerConfig>,
+    /// POP: remove mail from the server once it's downloaded (otherwise a copy stays there).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pop_delete: bool,
 }
 
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
@@ -151,12 +158,14 @@ impl AccountConfig {
             jmap: None,
             graph: None,
             ews: None,
+            pop: None,
+            pop_delete: false,
         }
     }
 
     /// Kept on this computer only, with no server (the sample mailbox).
     pub fn is_local(&self) -> bool {
-        self.imap.host.trim().is_empty() && self.jmap.is_none() && self.graph.is_none() && self.ews.is_none()
+        self.imap.host.trim().is_empty() && self.jmap.is_none() && self.graph.is_none() && self.ews.is_none() && self.pop.is_none()
     }
 
     /// Whether the account works through a web API (JMAP, Graph or EWS) rather than IMAP and

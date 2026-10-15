@@ -271,7 +271,7 @@ pub enum Event {
     /// Server settings found for an address (`None`: nothing published; guess instead).
     Discovered {
         email: String,
-        config: Option<AccountConfig>,
+        config: Option<Box<AccountConfig>>,
         source: String,
     },
     /// Show this page in the browser (an OAuth sign-in page).

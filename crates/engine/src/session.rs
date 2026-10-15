@@ -349,6 +349,8 @@ pub struct Session {
     pictures_for: BTreeSet<MessageKey>,
     /// Server settings looked up per address (lower case): `None` while looking.
     pub discovered: HashMap<String, Option<(Option<AccountConfig>, String)>>,
+    /// Accounts waiting for a data file to come in before they connect (their start).
+    held: HashMap<String, Job>,
     /// OAuth providers this copy can sign in with (set by the app).
     pub oauth_available: Vec<String>,
     /// Only JMAP accounts can be added (the browser, which can't open IMAP or SMTP connections).
@@ -406,6 +408,7 @@ impl Session {
             pictures: HashMap::new(),
             pictures_for: BTreeSet::new(),
             discovered: HashMap::new(),
+            held: HashMap::new(),
             oauth_available: Vec::new(),
             jmap_only: false,
             print_fonts: None,
@@ -1925,7 +1928,11 @@ impl Session {
         config.id = self.new_account_id();
         config.color = u8::try_from(self.accounts.len() % usize::from(ACCOUNT_COLORS)).unwrap_or(0);
         let local = config.is_local();
-        if !local && !config.is_api() && (config.imap.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0) {
+        let incoming = config.pop.as_ref().unwrap_or(&config.imap);
+        if !local
+            && !config.is_api()
+            && (incoming.host.trim().is_empty() || incoming.port == 0 || config.smtp.host.trim().is_empty() || config.smtp.port == 0)
+        {
             return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
         }
         let id = config.id.clone();
@@ -2011,6 +2018,28 @@ impl Session {
         }
     }
 
+    /// Bring an existing data file's mail into a new account before it first connects (Outlook's
+    /// "use an existing data file" for POP accounts).
+    pub fn attach_data_file(&mut self, account: &str, path: &str) -> CmdResult {
+        let path = path.trim();
+        if path.is_empty() {
+            return Err(CmdError::Params("`path` is required".into()));
+        }
+        if self.account(account).is_none() {
+            return Err(CmdError::Params(format!("no account `{account}`")));
+        }
+        // Connecting waits for the file, so the two don't write the Inbox at once.
+        if let Some(i) = self.jobs.iter().position(|j| matches!(j, Job::Start { .. } | Job::SignIn { .. }) && j.account() == account) {
+            let start = self.jobs.remove(i);
+            self.held.insert(account.to_string(), start);
+        }
+        if let Some(a) = self.account_mut(account) {
+            a.status = SyncStatus::Syncing { folder: String::new() };
+        }
+        self.jobs.push(Job::ImportPst { account: account.to_string(), path: path.to_string() });
+        Ok(serde_json::json!({ "account": account, "importing": true }))
+    }
+
     fn imported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {
         let Some(name) = self.account(account).map(|a| a.config.email.clone()) else { return };
         if !done {
@@ -2019,6 +2048,14 @@ impl Session {
         }
         if let Some(a) = self.account_mut(account) {
             a.status = SyncStatus::Offline;
+        }
+        // An account that was waiting for its data file connects now.
+        if let Some(start) = self.held.remove(account) {
+            self.jobs.push(start);
+            if let Some(e) = &error {
+                self.notice(format!("{name}: the data file could not be opened: {e}"), true);
+                return;
+            }
         }
         match error {
             Some(e) => {
@@ -2075,6 +2112,8 @@ impl Session {
             || a.config.jmap != config.jmap
             || a.config.graph != config.graph
             || a.config.ews != config.ews
+            || a.config.pop != config.pop
+            || a.config.pop_delete != config.pop_delete
             || a.config.username != config.username
             || password.is_some();
         a.config = config.clone();
@@ -2235,7 +2274,7 @@ impl Session {
                 }
             }
             Event::Discovered { email, config, source } => {
-                self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config, source)));
+                self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config.map(|c| *c), source)));
             }
             Event::Fetched { url, data, error } => {
                 let p = match (data, error) {

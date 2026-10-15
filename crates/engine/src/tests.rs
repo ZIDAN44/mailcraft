@@ -436,6 +436,50 @@ fn jmap_accounts_need_no_imap_servers() {
 }
 
 #[test]
+fn pop_accounts_download_and_can_start_from_a_data_file() {
+    let store = temp("pop-account");
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    // The POP server is guessed from the address; a copy stays on the server unless asked.
+    let id =
+        s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "pop": true})).unwrap()["account"].as_str().unwrap().to_string();
+    let a = s.account(&id).unwrap();
+    let pop = a.config.pop.clone().unwrap();
+    assert_eq!((pop.host.as_str(), pop.port, pop.security), ("mail.example.org", 995, mailcraft_model::Security::Tls));
+    assert!(a.config.imap.host.is_empty() && !a.config.pop_delete && !a.is_local());
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.pop.is_some()));
+    assert!(s.run("account.list", &json!({})).unwrap().to_string().contains("mail.example.org:995"));
+    // Changed: the other server and removing mail once it's down.
+    s.run("account.update", &json!({"account": id, "popHost": "pop.example.org", "popPort": 110, "popSecurity": "starttls", "popDelete": true}))
+        .unwrap();
+    let a = s.account(&id).unwrap();
+    assert_eq!(a.config.pop.as_ref().map(|p| (p.host.as_str(), p.port)), Some(("pop.example.org", 110)));
+    assert!(a.config.pop_delete);
+    s.take_jobs();
+    assert!(s.run("account.add", &json!({"email": "ana@example.org", "password": "pw", "pop": true, "popHost": " "})).is_err(), "a server is needed");
+
+    // An existing data file comes in first; then the account connects.
+    let id = s.run("account.add", &json!({"email": "ana@example.org", "password": "pw", "pop": true, "pst": "C:/Mail/old.pst"})).unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { path, .. }] if path == "C:/Mail/old.pst"), "held until the file is in");
+    s.apply(Event::Imported { account: id.clone(), messages: 40, skipped: 0, done: true, error: None });
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.id == id));
+    // A file that can't be read: the account stays, and connects anyway.
+    let id =
+        s.run("account.add", &json!({"email": "bo@example.org", "password": "pw", "pop": true, "pst": "C:/Mail/locked.pst"})).unwrap()["account"]
+            .as_str()
+            .unwrap()
+            .to_string();
+    s.take_jobs();
+    s.apply(Event::Imported { account: id.clone(), messages: 0, skipped: 0, done: true, error: Some("Outlook has this data file open".into()) });
+    assert!(s.account(&id).is_some());
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("Outlook has this data file open")));
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }]));
+    let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
+}
+
+#[test]
 fn messages_save_as_eml_and_pdf() {
     let mut s = sample_session("export");
     let k = key_of(&s, "Storyboard review on Thursday");
@@ -518,7 +562,7 @@ fn server_settings_are_looked_up_once() {
     assert!(s.take_jobs().is_empty(), "asked once");
     let mut c = mailcraft_model::AccountConfig::guess("zoe@example.org");
     c.imap.host = "imap.example.org".into();
-    s.apply(Event::Discovered { email: "zoe@example.org".into(), config: Some(c), source: "example.org".into() });
+    s.apply(Event::Discovered { email: "zoe@example.org".into(), config: Some(Box::new(c)), source: "example.org".into() });
     let r = s.run("account.discover", &json!({"email": "zoe@example.org"})).unwrap();
     assert_eq!((r["found"].as_bool(), r["imap"]["host"].as_str()), (Some(true), Some("imap.example.org")));
 }

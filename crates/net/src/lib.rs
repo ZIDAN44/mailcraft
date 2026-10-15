@@ -27,6 +27,7 @@ pub mod imap;
 pub mod jmap;
 pub mod ntlm;
 pub mod oauth;
+pub mod pop;
 pub mod pst;
 pub mod pst_export;
 mod pst_pim;
