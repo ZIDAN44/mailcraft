@@ -48,8 +48,14 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
             let mut rest = src;
             while let Some(i) = rest.find(p) {
                 rest = &rest[i + p.len()..];
-                // String literals up to the end of the line.
-                let line = &rest[..rest.find('\n').unwrap_or(rest.len())];
+                // String literals up to the end of the line (the next line, when rustfmt put the
+                // text there).
+                let mut line = &rest[..rest.find('\n').unwrap_or(rest.len())];
+                if line.trim().is_empty()
+                    && let Some(next) = rest.get(line.len() + 1..)
+                {
+                    line = &next[..next.find('\n').unwrap_or(next.len())];
+                }
                 let mut lits: Vec<String> = Vec::new();
                 let mut chars = line.chars();
                 while let Some(c) = chars.next() {
