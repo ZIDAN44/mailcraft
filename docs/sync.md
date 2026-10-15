@@ -164,8 +164,14 @@ servers that don't offer IMAP. Every call is SOAP over HTTPS.
 - **Sending** is `CreateItem` with the MIME source and `SendAndSaveCopy` (the copy goes to Sent
   Items); envelope-only recipients go in a `Bcc:` header. Drafts are `CreateItem` with `SaveOnly`,
   marked unsent.
-- **Automatic replies** are `Get`/`SetUserOofSettings`. Calendars, contacts and the quota aren't
-  synced over EWS yet.
+- **Automatic replies** are `Get`/`SetUserOofSettings`. There is no quota over EWS.
+- **Finding the server:** an account added without one asks Autodiscover (POX, MS-OXDSCLI) at the
+  domain's `autodiscover.` host and the domain itself, signed in as the user, following one
+  redirect; the EWS address found is kept with the account.
+- **Calendars and contacts** (`crates/net/src/ews_pim.rs`) are the mailbox's Calendar and
+  Contacts folders, synced like CalDAV / CardDAV: changes here first (appointments updated field
+  by field, contacts made again, never any meeting mail), then both folders read in full.
+  Recurrences go through Graph's pattern-and-range shape, so one RRULE mapping serves both.
 
 ## Calendars and address books (`crates/net/src/dav.rs`)
 
