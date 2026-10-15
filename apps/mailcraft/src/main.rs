@@ -88,7 +88,15 @@ impl Services for Desktop {
         rfd::FileDialog::new().set_title("Save as").set_file_name(suggested).save_file()
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
-        open::that_detached(path).map_err(|e| e.to_string())
+        match open::that_detached(path) {
+            Ok(()) => Ok(()),
+            // No app for this kind of file: Windows' "Open with" chooser, as Outlook offers.
+            #[cfg(windows)]
+            Err(_) if path.is_file() => {
+                std::process::Command::new("rundll32.exe").arg("shell32.dll,OpenAs_RunDLL").arg(path).spawn().map(drop).map_err(|e| e.to_string())
+            }
+            Err(e) => Err(e.to_string()),
+        }
     }
     fn data_folder(&self) -> Option<(PathBuf, bool)> {
         self.data.clone().map(|d| (d, self.base.is_some()))

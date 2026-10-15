@@ -586,6 +586,32 @@ fn attachments_drag_out_as_files() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A message's own window: its attachment buttons work on its message, not the one in the
+/// reading pane (they used to act on the reading pane's, and fail).
+#[test]
+fn a_message_windows_attachments_are_its_own() {
+    let (mut a, dir) = app("window-attachments");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.services = Box::new(Recorder(Default::default()));
+    a.ui.can_drag_out = true;
+    // The reading pane shows a message without attachments; a window, one with.
+    let plain = a.session.list.iter().find(|m| !m.has_attachments).map(|m| m.key.clone()).unwrap();
+    let with = a.session.list.iter().find(|m| m.has_attachments).map(|m| m.key.clone()).unwrap();
+    a.run("message.popOut", json!({"key": with.to_id()}));
+    a.run("list.open", json!({"key": plain.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(plain.clone()));
+    let w = a.session.windows.iter().find(|w| w.key == with).cloned().expect("the window");
+    let index = w.parsed.as_ref().and_then(|p| p.attachments.first()).map(|x| x.index).unwrap();
+    a.act(crate::Action::InWindow(with.clone(), Box::new(crate::Action::DragOut(index))));
+    let path = a.take_drag_out().expect("the window's attachment, as a file");
+    let name = w.parsed.as_ref().and_then(|p| p.attachments.first()).map(|x| x.name.clone()).unwrap();
+    assert!(path.is_file() && path.file_name().is_some_and(|n| n.to_string_lossy() == name), "{path:?}");
+    assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(plain), "the reading pane is as it was");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn the_editor_formats_as_you_see_it_with_outlooks_keys() {
     use mailcraft_engine::mime::rich::{Align, List, PICTURE};

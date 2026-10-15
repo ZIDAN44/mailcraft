@@ -243,6 +243,8 @@ pub enum Action {
     OpenDataFile,
     /// Choose an existing data file for the account being added (its mail comes in first).
     PickAccountDataFile,
+    /// An action from a message's own window, on that message (its attachments, Save As, Print).
+    InWindow(MessageKey, Box<Action>),
     /// Choose where to write an account's mail as an Outlook data file.
     ExportDataFile(String),
     /// Show a folder in the system's file manager.
@@ -781,7 +783,19 @@ impl MailApp {
                     reading::window(session, st, ui, w.clone(), &mut mine);
                 });
                 let leave = mine.iter().any(|a| matches!(a, Action::Run("message.closeWindow", _)));
-                acts.extend(mine);
+                // What works on "the open message" works on this window's message.
+                acts.extend(mine.into_iter().map(|a| match a {
+                    Action::OpenAttachment(_)
+                    | Action::SaveAttachment(_)
+                    | Action::OpenInCraft(..)
+                    | Action::DragOut(_)
+                    | Action::SaveAll
+                    | Action::Print
+                    | Action::ExportPdf
+                    | Action::SaveMessage
+                    | Action::Run("attachment.preview", _) => Action::InWindow(key.clone(), Box::new(a)),
+                    a => a,
+                }));
                 closing && !leave
             });
             if close {
@@ -865,6 +879,14 @@ impl MailApp {
             Action::FocusSearch => self.ui.focus_search = true,
             Action::FocusMain => self.ui.focus_main = true,
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
+            Action::InWindow(key, inner) => {
+                // The window's message stands in as the open one while the action runs.
+                if let Some(w) = self.session.windows.iter().find(|w| w.key == key).cloned() {
+                    let main = self.session.reading.replace(w);
+                    self.act(*inner);
+                    self.session.reading = main;
+                }
+            }
             Action::PickAccountDataFile => {
                 if let Some(path) = self.services.pick_data_file()
                     && let Some(dialogs::Dialog::AddAccount(f)) = self.ui.dialog.as_mut()
