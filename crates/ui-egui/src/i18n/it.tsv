@@ -621,6 +621,9 @@
 	Ignore the conversation	Ignora la conversazione
 	Stop ignoring the conversation	Non ignorare più la conversazione
 	Its messages, and replies that arrive later, go to Deleted Items	I suoi messaggi, e le risposte che arrivano dopo, vanno in Posta eliminata
+	Folder pane	Riquadro delle cartelle
+	Minimize the folder pane	Riduci il riquadro delle cartelle
+	Show the folder pane	Mostra il riquadro delle cartelle
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

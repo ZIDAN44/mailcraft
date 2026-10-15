@@ -621,6 +621,9 @@
 	Ignore the conversation	忽略此交談
 	Stop ignoring the conversation	停止忽略此交談
 	Its messages, and replies that arrive later, go to Deleted Items	其中的郵件以及之後收到的回覆都會移到「刪除的郵件」
+	Folder pane	資料夾窗格
+	Minimize the folder pane	最小化資料夾窗格
+	Show the folder pane	顯示資料夾窗格
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

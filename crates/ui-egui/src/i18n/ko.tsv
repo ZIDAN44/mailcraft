@@ -621,6 +621,9 @@
 	Ignore the conversation	대화 무시
 	Stop ignoring the conversation	대화 무시 중지
 	Its messages, and replies that arrive later, go to Deleted Items	해당 메시지와 나중에 도착하는 회신은 지운 편지함으로 이동합니다
+	Folder pane	폴더 창
+	Minimize the folder pane	폴더 창 최소화
+	Show the folder pane	폴더 창 표시
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

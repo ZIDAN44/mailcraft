@@ -622,6 +622,9 @@
 	Ignore the conversation	Ignorar a conversa
 	Stop ignoring the conversation	Parar de ignorar a conversa
 	Its messages, and replies that arrive later, go to Deleted Items	Suas mensagens, e as respostas que chegarem depois, vão para Itens Excluídos
+	Folder pane	Painel de pastas
+	Minimize the folder pane	Minimizar o painel de pastas
+	Show the folder pane	Mostrar o painel de pastas
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

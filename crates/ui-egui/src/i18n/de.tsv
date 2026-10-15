@@ -622,6 +622,9 @@
 	Ignore the conversation	Unterhaltung ignorieren
 	Stop ignoring the conversation	Unterhaltung nicht mehr ignorieren
 	Its messages, and replies that arrive later, go to Deleted Items	Ihre Nachrichten und spätere Antworten kommen in „Gelöschte Elemente“
+	Folder pane	Ordnerbereich
+	Minimize the folder pane	Ordnerbereich minimieren
+	Show the folder pane	Ordnerbereich anzeigen
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

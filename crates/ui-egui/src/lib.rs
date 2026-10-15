@@ -544,21 +544,48 @@ impl MailApp {
             // the reading pane on the left.
             let rtl = i18n::current().rtl();
             let start = |id: &'static str| if rtl { egui::Panel::right(id) } else { egui::Panel::left(id) };
-            start("nav")
-                .resizable(true)
-                .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
-                .size_range(170.0..=380.0)
-                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)))
-                .show(ui, |ui| {
-                    egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
-                        module_switch(ui, &t, module, &mut acts);
+            // Minimized: a narrow strip with the way back and the modules, as Outlook's.
+            let minimized = self.session.prefs.folder_pane_minimized;
+            if minimized {
+                start("nav-min")
+                    .resizable(false)
+                    .exact_size(52.0)
+                    .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(4, 8)))
+                    .show(ui, |ui| {
+                        ui.vertical_centered(|ui| {
+                            let chevron = if rtl { Icon::ChevronLeft } else { Icon::ChevronRight };
+                            if widgets::tiny_icon_button(ui, chevron, "Show the folder pane", &t).clicked() {
+                                acts.push(Action::Run("view.folderPane", json!({"minimized": false})));
+                            }
+                            ui.add_space(10.0);
+                            module_switch_vertical(ui, &t, module, &mut acts);
+                        });
                     });
-                    match module {
-                        Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
-                        Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
-                        Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
-                    }
-                });
+            }
+            if !minimized {
+                start("nav")
+                    .resizable(true)
+                    .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
+                    .size_range(170.0..=380.0)
+                    .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)))
+                    .show(ui, |ui| {
+                        egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
+                            module_switch(ui, &t, module, &mut acts);
+                        });
+                        // Minimize, as Outlook's ‹ at the top of its folder pane.
+                        ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                            let chevron = if rtl { Icon::ChevronRight } else { Icon::ChevronLeft };
+                            if widgets::tiny_icon_button(ui, chevron, "Minimize the folder pane", &t).clicked() {
+                                acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
+                            }
+                        });
+                        match module {
+                            Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
+                            Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
+                            Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
+                        }
+                    });
+            }
             let pane = self.session.prefs.reading_pane;
             let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
             match (module, pane) {
@@ -1224,7 +1251,12 @@ impl MailApp {
             icons::paint(ui.painter(), icons::centered(r, 15.0), Icon::Unread, t.accent);
             ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(Color32::WHITE));
             ui.add_space(6.0);
-            // Undo the last move, delete, flag or category (Ctrl+Z), as Outlook's quick access.
+            // Quick access, as Outlook's title bar: Send / Receive all folders, and Undo the last
+            // move, delete, flag or category (Ctrl+Z).
+            let can_sync = self.session.registry().get("mail.sync").is_some_and(|c| (c.enabled)(&self.session).is_none());
+            if can_sync && widgets::bar_icon_button(ui, Icon::Sync, tl!("Send / Receive all folders (F9)")).clicked() {
+                acts.push(Action::Run("mail.sync", json!({})));
+            }
             if !self.session.undo.is_empty() && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)")).clicked() {
                 acts.push(Action::Run("edit.undo", json!({})));
             }
@@ -1339,187 +1371,193 @@ impl MailApp {
             });
             return;
         }
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            match self.ui.tab {
-                RibbonTab::Home => {
-                    if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled("mail.new"))
-                        .on_hover_text(tl!("New mail (Ctrl+N)"))
-                        .clicked()
-                    {
-                        acts.push(Action::Run("mail.new", json!({})));
-                    }
-                    // New items of other kinds, as Outlook's New Email drop-down.
-                    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "New items", &t);
-                    egui::Popup::menu(&r).show(|ui| {
-                        if ui.button(tl!("Email message")).clicked() {
-                            acts.push(Action::Run("mail.new", json!({})));
-                            ui.close();
-                        }
-                        if ui.button(tl!("Event")).clicked() {
-                            acts.push(Action::Dialog(Dialog::new_event(s, None)));
-                            ui.close();
-                        }
-                        if ui.button(tl!("Contact")).clicked() {
-                            acts.push(Action::Dialog(Dialog::new_contact()));
-                            ui.close();
-                        }
-                    });
-                    widgets::group_sep(ui, &t);
-                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
-                        if self.needs_delete_confirm() {
-                            acts.push(Action::Dialog(Dialog::ConfirmDelete { count: s.selection.len() }));
-                        } else {
-                            acts.push(Action::Run("mail.delete", json!({})));
-                        }
-                    }
-                    // Ignore the conversation, as Outlook's Delete drop-down.
-                    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More delete options", &t);
-                    egui::Popup::menu(&r).show(|ui| {
-                        let ignoring = !s.selection.is_empty() && s.selected().iter().all(|m| s.is_ignored(m));
-                        let label = if ignoring { "Stop ignoring the conversation" } else { "Ignore the conversation" };
-                        if ui
-                            .add_enabled(enabled("mail.ignore"), egui::Button::new(tl!(label)))
-                            .on_hover_text(tl!("Its messages, and replies that arrive later, go to Deleted Items"))
+        // A narrow window scrolls the ribbon sideways rather than cutting buttons off.
+        egui::ScrollArea::horizontal().id_salt("ribbon").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                match self.ui.tab {
+                    RibbonTab::Home => {
+                        if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled("mail.new"))
+                            .on_hover_text(tl!("New mail (Ctrl+N)"))
                             .clicked()
                         {
-                            acts.push(Action::Run("mail.ignore", json!({})));
-                            ui.close();
+                            acts.push(Action::Run("mail.new", json!({})));
                         }
-                    });
-                    if widgets::tool_button(ui, Icon::Archive, "Archive", &t, enabled("mail.archive"))
-                        .on_hover_text(tl!("Archive (Backspace)"))
-                        .clicked()
-                    {
-                        acts.push(Action::Run("mail.archive", json!({})));
-                    }
-                    let in_junk = s.view_role() == Some(mailcraft_engine::model::FolderRole::Junk);
-                    let (jid, jl) = if in_junk { ("mail.notJunk", "Not junk") } else { ("mail.junk", "Report junk") };
-                    if widgets::tool_button(ui, Icon::Junk, jl, &t, enabled(jid)).clicked() {
-                        acts.push(Action::Run(jid, json!({})));
-                    }
-                    widgets::group_sep(ui, &t);
-                    if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled("mail.move"))
-                        .on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)"))
-                        .clicked()
-                    {
-                        acts.push(Action::Dialog(Dialog::move_to()));
-                    }
-                    widgets::group_sep(ui, &t);
-                    for (id, icon, label, tip) in [
-                        ("mail.reply", Icon::Reply, "Reply", "Reply (Ctrl+R)"),
-                        ("mail.replyAll", Icon::ReplyAll, "Reply all", "Reply all (Ctrl+Shift+R)"),
-                        ("mail.forward", Icon::Forward, "Forward", "Forward (Ctrl+F)"),
-                    ] {
-                        if widgets::tool_button(ui, icon, label, &t, enabled(id)).on_hover_text(tl!(tip)).clicked() {
-                            acts.push(Action::Run(id, json!({})));
-                        }
-                    }
-                    widgets::group_sep(ui, &t);
-                    let first_unread = s.selected().first().is_some_and(|m| !m.flags.seen);
-                    let (ricon, rlabel) = if first_unread { (Icon::Read, "Mark read") } else { (Icon::Unread, "Mark unread") };
-                    if widgets::tool_button(ui, ricon, rlabel, &t, enabled("mail.toggleRead"))
-                        .on_hover_text("Read / Unread (Ctrl+Q / Ctrl+U)")
-                        .clicked()
-                    {
-                        acts.push(Action::Run("mail.toggleRead", json!({})));
-                    }
-                    if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled("mail.flag")).on_hover_text(tl!("Flag / Unflag (Insert)")).clicked() {
-                        acts.push(Action::Run("mail.flag", json!({})));
-                    }
-                    let sel = !s.selection.is_empty();
-                    let r = widgets::tool_button(ui, Icon::Tag, "Categorize", &t, sel);
-                    egui::Popup::menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));
-                    let pinned = s.selected().first().is_some_and(|m| m.flags.pinned());
-                    if widgets::tool_button(ui, Icon::Pin, if pinned { "Unpin" } else { "Pin" }, &t, sel).clicked() {
-                        acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
-                    }
-                    let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
-                    egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
-                    // Show only some mail, as Outlook's Filter Email.
-                    let r = widgets::tool_button(ui, Icon::Funnel, "Filter", &t, true);
-                    egui::Popup::menu(&r).show(|ui| {
-                        for f in mailcraft_engine::ListFilter::EVERY {
-                            if ui.selectable_label(s.filter == f, tl!(f.label())).clicked() {
-                                acts.push(Action::Run("list.filter", json!({"value": f.code()})));
+                        // New items of other kinds, as Outlook's New Email drop-down.
+                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "New items", &t);
+                        egui::Popup::menu(&r).show(|ui| {
+                            if ui.button(tl!("Email message")).clicked() {
+                                acts.push(Action::Run("mail.new", json!({})));
                                 ui.close();
                             }
-                        }
-                    });
-                    widgets::group_sep(ui, &t);
-                    if widgets::tool_button(ui, Icon::Sync, "Send / Receive", &t, enabled("mail.sync"))
-                        .on_hover_text(tl!("Send / Receive all folders (F9)"))
-                        .clicked()
-                    {
-                        acts.push(Action::Run("mail.sync", json!({})));
-                    }
-                }
-                RibbonTab::SendReceive => {
-                    if widgets::tool_button(ui, Icon::Sync, "Send / Receive all folders", &t, enabled("mail.sync")).on_hover_text("F9").clicked() {
-                        acts.push(Action::Run("mail.sync", json!({})));
-                    }
-                    if widgets::tool_button(ui, Icon::Folder, "Update folder", &t, enabled("folder.sync")).on_hover_text("Shift+F9").clicked() {
-                        acts.push(Action::Run("folder.sync", json!({})));
-                    }
-                    if widgets::tool_button(ui, Icon::Send, "Send all", &t, enabled("outbox.send") && !s.prefs.work_offline)
-                        .on_hover_text(tl!("Send what's waiting in the Outbox"))
-                        .clicked()
-                    {
-                        acts.push(Action::Run("outbox.send", json!({})));
-                    }
-                    // Working offline: no connections; mail you send waits in the Outbox.
-                    if self.ui.has_files {
+                            if ui.button(tl!("Event")).clicked() {
+                                acts.push(Action::Dialog(Dialog::new_event(s, None)));
+                                ui.close();
+                            }
+                            if ui.button(tl!("Contact")).clicked() {
+                                acts.push(Action::Dialog(Dialog::new_contact()));
+                                ui.close();
+                            }
+                        });
                         widgets::group_sep(ui, &t);
-                        let off = s.prefs.work_offline;
-                        if ui
-                            .selectable_label(off, tl!("Work offline"))
-                            .on_hover_text(tl!("Close every connection: changes, mail you send and drafts wait on this computer"))
+                        if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
+                            if self.needs_delete_confirm() {
+                                acts.push(Action::Dialog(Dialog::ConfirmDelete { count: s.selection.len() }));
+                            } else {
+                                acts.push(Action::Run("mail.delete", json!({})));
+                            }
+                        }
+                        // Ignore the conversation, as Outlook's Delete drop-down.
+                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More delete options", &t);
+                        egui::Popup::menu(&r).show(|ui| {
+                            let ignoring = !s.selection.is_empty() && s.selected().iter().all(|m| s.is_ignored(m));
+                            let label = if ignoring { "Stop ignoring the conversation" } else { "Ignore the conversation" };
+                            if ui
+                                .add_enabled(enabled("mail.ignore"), egui::Button::new(tl!(label)))
+                                .on_hover_text(tl!("Its messages, and replies that arrive later, go to Deleted Items"))
+                                .clicked()
+                            {
+                                acts.push(Action::Run("mail.ignore", json!({})));
+                                ui.close();
+                            }
+                        });
+                        if widgets::tool_button(ui, Icon::Archive, "Archive", &t, enabled("mail.archive"))
+                            .on_hover_text(tl!("Archive (Backspace)"))
                             .clicked()
                         {
-                            acts.push(Action::Run("mail.workOffline", json!({"on": !off})));
+                            acts.push(Action::Run("mail.archive", json!({})));
+                        }
+                        let in_junk = s.view_role() == Some(mailcraft_engine::model::FolderRole::Junk);
+                        let (jid, jl) = if in_junk { ("mail.notJunk", "Not junk") } else { ("mail.junk", "Report junk") };
+                        if widgets::tool_button(ui, Icon::Junk, jl, &t, enabled(jid)).clicked() {
+                            acts.push(Action::Run(jid, json!({})));
+                        }
+                        widgets::group_sep(ui, &t);
+                        if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled("mail.move"))
+                            .on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)"))
+                            .clicked()
+                        {
+                            acts.push(Action::Dialog(Dialog::move_to()));
+                        }
+                        widgets::group_sep(ui, &t);
+                        for (id, icon, label, tip) in [
+                            ("mail.reply", Icon::Reply, "Reply", "Reply (Ctrl+R)"),
+                            ("mail.replyAll", Icon::ReplyAll, "Reply all", "Reply all (Ctrl+Shift+R)"),
+                            ("mail.forward", Icon::Forward, "Forward", "Forward (Ctrl+F)"),
+                        ] {
+                            if widgets::tool_button(ui, icon, label, &t, enabled(id)).on_hover_text(tl!(tip)).clicked() {
+                                acts.push(Action::Run(id, json!({})));
+                            }
+                        }
+                        widgets::group_sep(ui, &t);
+                        let first_unread = s.selected().first().is_some_and(|m| !m.flags.seen);
+                        let (ricon, rlabel) = if first_unread { (Icon::Read, "Mark read") } else { (Icon::Unread, "Mark unread") };
+                        if widgets::tool_button(ui, ricon, rlabel, &t, enabled("mail.toggleRead"))
+                            .on_hover_text("Read / Unread (Ctrl+Q / Ctrl+U)")
+                            .clicked()
+                        {
+                            acts.push(Action::Run("mail.toggleRead", json!({})));
+                        }
+                        if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled("mail.flag"))
+                            .on_hover_text(tl!("Flag / Unflag (Insert)"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("mail.flag", json!({})));
+                        }
+                        let sel = !s.selection.is_empty();
+                        let r = widgets::tool_button(ui, Icon::Tag, "Categorize", &t, sel);
+                        egui::Popup::menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));
+                        let pinned = s.selected().first().is_some_and(|m| m.flags.pinned());
+                        if widgets::tool_button(ui, Icon::Pin, if pinned { "Unpin" } else { "Pin" }, &t, sel).clicked() {
+                            acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
+                        }
+                        let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
+                        egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
+                        // Show only some mail, as Outlook's Filter Email.
+                        let r = widgets::tool_button(ui, Icon::Funnel, "Filter", &t, true);
+                        egui::Popup::menu(&r).show(|ui| {
+                            for f in mailcraft_engine::ListFilter::EVERY {
+                                if ui.selectable_label(s.filter == f, tl!(f.label())).clicked() {
+                                    acts.push(Action::Run("list.filter", json!({"value": f.code()})));
+                                    ui.close();
+                                }
+                            }
+                        });
+                    }
+                    RibbonTab::SendReceive => {
+                        if widgets::tool_button(ui, Icon::Sync, "Send / Receive all folders", &t, enabled("mail.sync")).on_hover_text("F9").clicked()
+                        {
+                            acts.push(Action::Run("mail.sync", json!({})));
+                        }
+                        if widgets::tool_button(ui, Icon::Folder, "Update folder", &t, enabled("folder.sync")).on_hover_text("Shift+F9").clicked() {
+                            acts.push(Action::Run("folder.sync", json!({})));
+                        }
+                        if widgets::tool_button(ui, Icon::Send, "Send all", &t, enabled("outbox.send") && !s.prefs.work_offline)
+                            .on_hover_text(tl!("Send what's waiting in the Outbox"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("outbox.send", json!({})));
+                        }
+                        // Working offline: no connections; mail you send waits in the Outbox.
+                        if self.ui.has_files {
+                            widgets::group_sep(ui, &t);
+                            let off = s.prefs.work_offline;
+                            if ui
+                                .selectable_label(off, tl!("Work offline"))
+                                .on_hover_text(tl!("Close every connection: changes, mail you send and drafts wait on this computer"))
+                                .clicked()
+                            {
+                                acts.push(Action::Run("mail.workOffline", json!({"on": !off})));
+                            }
+                        }
+                    }
+                    RibbonTab::View => {
+                        ui.label(RichText::new(tl!("Reading pane")).color(t.dim));
+                        for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
+                            if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
+                                acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
+                            }
+                        }
+                        widgets::group_sep(ui, &t);
+                        if ui
+                            .selectable_label(s.prefs.focused_inbox, tl!("Focused Inbox"))
+                            .on_hover_text(tl!("Put newsletters and automatic mail in Other"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("view.focused", json!({})));
+                        }
+                        if ui
+                            .selectable_label(s.prefs.conversations, tl!("Conversations"))
+                            .on_hover_text(tl!("Group messages by conversation"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("view.conversations", json!({})));
+                        }
+                        if ui.selectable_label(s.prefs.show_preview, tl!("Message preview")).clicked() {
+                            acts.push(Action::Run("view.preview", json!({})));
+                        }
+                        if ui.selectable_label(s.prefs.compact, tl!("Compact")).clicked() {
+                            acts.push(Action::Run("view.compact", json!({})));
+                        }
+                        if ui.selectable_label(!s.prefs.folder_pane_minimized, tl!("Folder pane")).clicked() {
+                            acts.push(Action::Run("view.folderPane", json!({})));
+                        }
+                        widgets::group_sep(ui, &t);
+                        let r = ui.button(tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label())));
+                        egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
+                        if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
+                            acts.push(Action::Run("view.reverseSort", json!({})));
+                        }
+                        widgets::group_sep(ui, &t);
+                        ui.label(RichText::new(tl!("Theme")).color(t.dim));
+                        for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
+                            if ui.selectable_label(self.ui.dark == v, tl!(label)).clicked() {
+                                acts.push(Action::SetDark(v));
+                            }
                         }
                     }
                 }
-                RibbonTab::View => {
-                    ui.label(RichText::new(tl!("Reading pane")).color(t.dim));
-                    for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
-                        if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
-                            acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
-                        }
-                    }
-                    widgets::group_sep(ui, &t);
-                    if ui
-                        .selectable_label(s.prefs.focused_inbox, tl!("Focused Inbox"))
-                        .on_hover_text(tl!("Put newsletters and automatic mail in Other"))
-                        .clicked()
-                    {
-                        acts.push(Action::Run("view.focused", json!({})));
-                    }
-                    if ui.selectable_label(s.prefs.conversations, tl!("Conversations")).on_hover_text(tl!("Group messages by conversation")).clicked()
-                    {
-                        acts.push(Action::Run("view.conversations", json!({})));
-                    }
-                    if ui.selectable_label(s.prefs.show_preview, tl!("Message preview")).clicked() {
-                        acts.push(Action::Run("view.preview", json!({})));
-                    }
-                    if ui.selectable_label(s.prefs.compact, tl!("Compact")).clicked() {
-                        acts.push(Action::Run("view.compact", json!({})));
-                    }
-                    widgets::group_sep(ui, &t);
-                    let r = ui.button(tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label())));
-                    egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
-                    if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
-                        acts.push(Action::Run("view.reverseSort", json!({})));
-                    }
-                    widgets::group_sep(ui, &t);
-                    ui.label(RichText::new(tl!("Theme")).color(t.dim));
-                    for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
-                        if ui.selectable_label(self.ui.dark == v, tl!(label)).clicked() {
-                            acts.push(Action::SetDark(v));
-                        }
-                    }
-                }
-            }
+            });
         });
     }
 
@@ -1711,6 +1749,25 @@ fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>
             }
         }
     });
+}
+
+/// Mail, Calendar and People one above another (the minimized folder pane).
+fn module_switch_vertical(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>) {
+    for (m, icon, label, code) in [
+        (Module::Mail, Icon::Unread, "Mail", "mail"),
+        (Module::Calendar, Icon::Calendar, "Calendar", "calendar"),
+        (Module::People, Icon::People, "People", "people"),
+    ] {
+        let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
+        let on = m == module;
+        if on || resp.hovered() {
+            ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
+        }
+        icons::paint(ui.painter(), icons::centered(r, 19.0), icon, if on { t.accent } else { t.dim });
+        if resp.on_hover_text(tl!(label)).clicked() {
+            acts.push(Action::Run("view.module", json!({"name": code})));
+        }
+    }
 }
 
 /// The list's title in the interface language.

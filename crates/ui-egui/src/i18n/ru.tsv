@@ -621,6 +621,9 @@
 	Ignore the conversation	Пропускать беседу
 	Stop ignoring the conversation	Больше не пропускать беседу
 	Its messages, and replies that arrive later, go to Deleted Items	Её сообщения и ответы, которые придут позже, попадают в «Удаленные»
+	Folder pane	Область папок
+	Minimize the folder pane	Свернуть область папок
+	Show the folder pane	Показать область папок
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

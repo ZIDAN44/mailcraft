@@ -622,6 +622,9 @@
 	Ignore the conversation	Ignorer la conversation
 	Stop ignoring the conversation	Ne plus ignorer la conversation
 	Its messages, and replies that arrive later, go to Deleted Items	Ses messages, et les réponses qui arrivent ensuite, vont dans Éléments supprimés
+	Folder pane	Volet Dossiers
+	Minimize the folder pane	Réduire le volet Dossiers
+	Show the folder pane	Afficher le volet Dossiers
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

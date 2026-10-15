@@ -126,6 +126,8 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     // The message editor's ribbon and dialogs; labels chosen at run time.
     for s in [
         "Ignore the conversation",
+        "Minimize the folder pane",
+        "Show the folder pane",
         "Stop ignoring the conversation",
         "Bold (Ctrl+B)",
         "Italic (Ctrl+I)",
