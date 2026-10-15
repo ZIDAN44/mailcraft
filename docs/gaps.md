@@ -17,7 +17,6 @@ _Status: v0.1, 2026-10-15._
 | 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch` and needs the server to allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts need a relay; push needs EventSource with credentials (polling instead); the mail cache is in memory (IndexedDB would keep it between visits). |
 | 5 | **Right-to-left languages** | Eleven interface languages; Arabic, Hebrew and Persian need egui to lay out bidirectional text. |
 | 6 | **Drag attachments out on Linux** | Works on Windows and macOS; Linux would need GTK's drag source. |
-| 7 | **Video thumbnails without ffmpeg** | Video attachments get a frame when `ffmpeg` is installed; otherwise they show a plain tile. |
 
 ## Done
 
@@ -43,7 +42,9 @@ _Status: v0.1, 2026-10-15._
 - **OAuth 2.0:** Gmail and Microsoft 365 through the browser (RFC 8252 + PKCE), XOAUTH2 for IMAP
   and SMTP.
 - **Attachments:** text-like previews, attached emails, PDF thumbnails (first page) and video
-  frames, Open in the Craft app for the file, Save all, dragging out to other apps.
+  frames (from ffmpeg when it's installed, otherwise the system's own thumbnailer: the Windows
+  Shell, Quick Look, or a Linux video thumbnailer), Open in the Craft app for the file, Save all,
+  dragging out to other apps.
 - **Print and export:** print through a PDF, Save as PDF, Save as `.eml`.
 - **Languages:** ten besides English (Spanish, French, German, Brazilian Portuguese, Italian,
   Russian, Japanese, Korean, Simplified and Traditional Chinese), following the system or chosen

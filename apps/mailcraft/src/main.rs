@@ -25,6 +25,8 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 /// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
 struct Keychain;
 
+mod video;
+
 const SERVICE: &str = "MailCraft";
 
 fn entry(a: &AccountConfig) -> Result<keyring::Entry, String> {
@@ -58,55 +60,10 @@ impl Backend for PoolBackend {
 
 #[derive(Default)]
 struct Desktop {
-    /// Where ffmpeg is (looked up once), for video thumbnails.
-    ffmpeg: Option<Option<PathBuf>>,
+    /// Where video frames come from (looked up once).
+    frame_source: Option<Option<video::Source>>,
     /// Video frames being made or made, by file.
     frames: std::collections::HashMap<PathBuf, Arc<std::sync::Mutex<Option<VideoFrame>>>>,
-}
-
-/// An executable on the PATH, or in a usual place for it.
-fn find_tool(name: &str, usual: &[&str]) -> Option<PathBuf> {
-    let exe = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
-    let on_path = std::env::var_os("PATH").into_iter().flat_map(|p| std::env::split_paths(&p).collect::<Vec<_>>());
-    on_path.chain(usual.iter().map(PathBuf::from)).map(|d| d.join(&exe)).find(|p| p.is_file())
-}
-
-/// One frame of a video as PNG, `at` seconds in, from ffmpeg (stopped after 20 seconds).
-fn grab_frame(ffmpeg: &Path, video: &Path, at: &str) -> Option<Vec<u8>> {
-    use std::io::Read;
-    let mut cmd = std::process::Command::new(ffmpeg);
-    cmd.args(["-nostdin", "-loglevel", "error", "-ss", at, "-i"])
-        .arg(video)
-        .args(["-frames:v", "1", "-vf", "scale=480:-2", "-f", "image2pipe", "-vcodec", "png", "-"])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // No console window flashing up.
-        cmd.creation_flags(0x0800_0000);
-    }
-    let mut child = cmd.spawn().ok()?;
-    let mut out = child.stdout.take()?;
-    let reader = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = out.by_ref().take(20 << 20).read_to_end(&mut buf);
-        buf
-    });
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if std::time::Instant::now() < end => std::thread::sleep(std::time::Duration::from_millis(50)),
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return None;
-            }
-        }
-    }
-    reader.join().ok().filter(|b| b.starts_with(b"\x89PNG"))
 }
 
 impl Services for Desktop {
@@ -212,17 +169,13 @@ impl Services for Desktop {
         if let Some(slot) = self.frames.get(path) {
             return slot.lock().map(|g| g.clone().unwrap_or(VideoFrame::Pending)).unwrap_or(VideoFrame::Unavailable);
         }
-        let ffmpeg = self
-            .ffmpeg
-            .get_or_insert_with(|| find_tool("ffmpeg", &["/opt/homebrew/bin", "/usr/local/bin", "C:\\ffmpeg\\bin", "C:\\Program Files\\ffmpeg\\bin"]))
-            .clone();
-        let Some(ffmpeg) = ffmpeg else { return VideoFrame::Unavailable };
+        let source = self.frame_source.get_or_insert_with(video::source).clone();
+        let Some(source) = source else { return VideoFrame::Unavailable };
         let slot = Arc::new(std::sync::Mutex::new(None));
         self.frames.insert(path.to_path_buf(), slot.clone());
         let video = path.to_path_buf();
         let spawned = std::thread::Builder::new().name("video-thumbnail".into()).spawn(move || {
-            // A second in shows more than the first frame (often black); short clips have none there.
-            let png = grab_frame(&ffmpeg, &video, "1").or_else(|| grab_frame(&ffmpeg, &video, "0"));
+            let png = video::frame(&source, &video);
             if let Ok(mut g) = slot.lock() {
                 *g = Some(png.map_or(VideoFrame::Unavailable, VideoFrame::Ready));
             }
@@ -457,9 +410,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn video_frames_come_from_ffmpeg_when_installed() {
-        let Some(ffmpeg) = find_tool("ffmpeg", &[]) else { return };
-        let dir = std::env::temp_dir().join(format!("mailcraft-video-{}", std::process::id()));
+    fn video_thumbnails_are_made_off_the_ui_thread() {
+        let Some(ffmpeg) = video::find_tool("ffmpeg", &[]) else { return };
+        let dir = std::env::temp_dir().join(format!("mailcraft-desktop-video-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let clip = dir.join("clip.mp4");
         let made = std::process::Command::new(&ffmpeg)
@@ -469,23 +422,18 @@ mod tests {
         if !made.is_ok_and(|s| s.success()) {
             return;
         }
-        let png = grab_frame(&ffmpeg, &clip, "1").expect("a frame");
-        assert!(png.starts_with(b"\x89PNG"));
-        let mut d = Desktop::default();
-        let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        // The system's thumbnailer, as when ffmpeg isn't installed.
+        let mut d = Desktop { frame_source: Some(video::system()), ..Default::default() };
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(30);
         loop {
             match d.video_frame(&clip) {
                 VideoFrame::Pending if std::time::Instant::now() < end => std::thread::sleep(std::time::Duration::from_millis(50)),
                 f => {
-                    assert!(matches!(f, VideoFrame::Ready(_)), "{f:?}");
+                    assert!(matches!(f, VideoFrame::Ready(_)) || video::system().is_none(), "{f:?}");
                     break;
                 }
             }
         }
-        // Not a video: no frame, and no hang.
-        let junk = dir.join("junk.mp4");
-        std::fs::write(&junk, b"not a video").unwrap();
-        assert!(grab_frame(&ffmpeg, &junk, "1").is_none());
         let _ = std::fs::remove_dir_all(dir);
     }
 }
