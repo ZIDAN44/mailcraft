@@ -169,10 +169,15 @@ fn tile(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, title: &str, about: &s
         let (r, resp) = ui.allocate_exact_size(vec2(104.0, 92.0), Sense::click());
         let fill = if resp.hovered() { t.hover } else { t.surface };
         ui.painter().rect(r, 6.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-        icons::paint(ui.painter(), egui::Rect::from_center_size(r.center_top() + vec2(0.0, 30.0), vec2(28.0, 28.0)), icon, t.accent);
-        let galley = ui.painter().layout(tl!(label).to_string(), theme::regular(12.5), t.text, 96.0);
-        let pos = r.center_top() + vec2(-galley.size().x / 2.0, 54.0);
-        ui.painter().galley(pos, galley, t.text);
+        // The icon over its label, the two centred in the tile together (a label in two lines,
+        // as some languages need, moves the icon up), each line of the label centred.
+        let mut job = egui::text::LayoutJob::simple(tl!(label).to_string(), theme::regular(12.5), t.text, 100.0);
+        job.halign = egui::Align::Center;
+        let galley = ui.painter().layout_job(job);
+        let block = 28.0 + 8.0 + galley.size().y;
+        let top = r.center().y - block / 2.0;
+        icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(r.center().x, top + 14.0), vec2(28.0, 28.0)), icon, t.accent);
+        ui.painter().galley(egui::pos2(r.center().x, top + 36.0), galley, t.text);
         ui.add_space(14.0);
         ui.vertical(|ui| {
             ui.label(RichText::new(tl!(title)).font(theme::bold(16.0)).color(t.text));

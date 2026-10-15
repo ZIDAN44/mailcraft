@@ -684,6 +684,15 @@
 	In 1 hour	1시간 후
 	Tomorrow morning	내일 아침
 	Monday morning	월요일 아침
+	and	그리고
+	or	또는
+	delete	삭제
+	flag	플래그 지정
+	has attachments	첨부 파일이 있음
+	is list mail	메일링 리스트 메일임
+	mark read	읽음으로 표시
+	pin	고정
+	to “{text}”	받는 사람 “{text}”
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

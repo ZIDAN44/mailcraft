@@ -684,6 +684,15 @@
 	In 1 hour	Через 1 час
 	Tomorrow morning	Завтра утром
 	Monday morning	В понедельник утром
+	and	и
+	or	или
+	delete	удалить
+	flag	пометить флажком
+	has attachments	содержит вложения
+	is list mail	это рассылка
+	mark read	отметить как прочитанное
+	pin	закрепить
+	to “{text}”	кому «{text}»
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

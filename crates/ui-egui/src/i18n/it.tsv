@@ -684,6 +684,15 @@
 	In 1 hour	Tra 1 ora
 	Tomorrow morning	Domani mattina
 	Monday morning	Lunedì mattina
+	and	e
+	or	o
+	delete	elimina
+	flag	contrassegna
+	has attachments	ha allegati
+	is list mail	è posta di una lista
+	mark read	segna come letto
+	pin	aggiungi
+	to “{text}”	a “{text}”
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

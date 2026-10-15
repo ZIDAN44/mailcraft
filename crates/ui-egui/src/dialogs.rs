@@ -626,31 +626,48 @@ impl RuleForm {
 }
 
 /// One line describing a rule.
-fn describe(r: &Rule) -> String {
+/// A folder as the folder pane names it, with the folders it's in: `Inbox › gzamer`.
+fn folder_path_label(s: &Session, path: &str) -> String {
+    // The folder's own delimiter; "/" (the commonest) for one not synced yet.
+    let delimiter = s.accounts.iter().flat_map(|a| &a.folders).find(|f| f.path == path).map_or(Some('/'), |f| f.delimiter);
+    let decoded = mailcraft_engine::model::utf7::decode(path);
+    let parts: Vec<&str> = match delimiter {
+        Some(d) => decoded.split(d).collect(),
+        None => vec![decoded.as_str()],
+    };
+    parts
+        .iter()
+        .enumerate()
+        .map(|(i, p)| if i == 0 && p.eq_ignore_ascii_case("INBOX") { tl!("Inbox").to_string() } else { crate::i18n::tc("folder", p).to_string() })
+        .collect::<Vec<_>>()
+        .join(" › ")
+}
+
+fn describe(s: &Session, r: &Rule) -> String {
     let cond = r
         .conditions
         .iter()
         .map(|c| match c {
             Condition::From(t) => tf!("from “{text}”", text = t),
-            Condition::To(t) => format!("to “{t}”"),
+            Condition::To(t) => tf!("to “{text}”", text = t),
             Condition::Subject(t) => tf!("subject has “{text}”", text = t),
             Condition::AnyText(t) => tf!("mentions “{text}”", text = t),
-            Condition::HasAttachment => "has attachments".into(),
-            Condition::Bulk => "is list mail".into(),
+            Condition::HasAttachment => tl!("has attachments").to_string(),
+            Condition::Bulk => tl!("is list mail").to_string(),
         })
         .collect::<Vec<_>>()
-        .join(if r.match_all { " and " } else { " or " });
+        .join(&format!(" {} ", if r.match_all { tl!("and") } else { tl!("or") }));
     let act = r
         .actions
         .iter()
         .map(|a| match a {
-            RuleAction::MoveTo(f) => tf!("move to {folder}", folder = mailcraft_engine::model::utf7::decode(f)),
+            RuleAction::MoveTo(f) => tf!("move to {folder}", folder = folder_path_label(s, f)),
             RuleAction::MoveToRole(role) => tf!("move to {folder}", folder = tl!(role.label().unwrap_or("folder"))),
-            RuleAction::MarkRead => "mark read".into(),
-            RuleAction::Flag => "flag".into(),
-            RuleAction::Pin => "pin".into(),
+            RuleAction::MarkRead => tl!("mark read").to_string(),
+            RuleAction::Flag => tl!("flag").to_string(),
+            RuleAction::Pin => tl!("pin").to_string(),
             RuleAction::Categorize(c) => tf!("categorize {category}", category = c),
-            RuleAction::Delete => "delete".into(),
+            RuleAction::Delete => tl!("delete").to_string(),
         })
         .collect::<Vec<_>>()
         .join(", ");
@@ -1644,24 +1661,33 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             let mut remove = None;
             egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
                 for (i, r) in rules.iter_mut().enumerate() {
-                    egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(8)).show(ui, |ui| {
+                    // The rule's switch, name and buttons on one line; what it does under the
+                    // name, wrapping, so the buttons never cover it.
+                    egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        let mut name_x = ui.min_rect().left();
                         ui.horizontal(|ui| {
                             changed |= ui.checkbox(&mut r.enabled, "").on_hover_text(tl!("On / off")).changed();
-                            ui.vertical(|ui| {
-                                ui.label(RichText::new(&r.name).strong());
-                                ui.label(RichText::new(describe(r)).color(t.dim).small());
-                            });
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.small_button(tl!("Delete")).clicked() {
+                                if ui.button(tl!("Delete")).clicked() {
                                     remove = Some(i);
                                 }
-                                if ui.small_button(tl!("Edit")).clicked() {
+                                if ui.button(tl!("Edit")).clicked() {
                                     acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
                                 }
-                                if ui.small_button(tl!("Run now")).on_hover_text(tl!("Run on the mail already in the Inbox")).clicked() {
+                                if ui.button(tl!("Run now")).on_hover_text(tl!("Run on the mail already in the Inbox")).clicked() {
                                     acts.push(Action::Run("rules.run", json!({"index": i, "inbox": true})));
                                 }
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    let name = RichText::new(&r.name).strong().color(if r.enabled { t.text } else { t.faint });
+                                    name_x = ui.add(egui::Label::new(name).truncate()).rect.left();
+                                });
                             });
+                        });
+                        ui.horizontal(|ui| {
+                            // Under the name, lined up with it.
+                            ui.add_space((name_x - ui.min_rect().left()).max(0.0));
+                            ui.add(egui::Label::new(RichText::new(describe(s, r)).color(t.dim).small()).wrap());
                         });
                     });
                     ui.add_space(4.0);

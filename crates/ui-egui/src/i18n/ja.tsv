@@ -687,3 +687,12 @@ month	May	5月
 	In 1 hour	1 時間後
 	Tomorrow morning	明日の朝
 	Monday morning	月曜日の朝
+	and	かつ
+	or	または
+	delete	削除
+	flag	フラグを設定
+	has attachments	添付ファイルがある
+	is list mail	メーリング リストのメール
+	mark read	開封済みにする
+	pin	ピン留め
+	to “{text}”	宛先「{text}」

@@ -684,6 +684,15 @@
 	In 1 hour	1 小時後
 	Tomorrow morning	明天上午
 	Monday morning	星期一上午
+	and	且
+	or	或
+	delete	刪除
+	flag	加上旗標
+	has attachments	含有附件
+	is list mail	是郵寄清單郵件
+	mark read	標示為已讀
+	pin	釘選
+	to “{text}”	寄給「{text}」
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

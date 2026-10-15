@@ -685,6 +685,15 @@
 	In 1 hour	In 1 Stunde
 	Tomorrow morning	Morgen früh
 	Monday morning	Montag früh
+	and	und
+	or	oder
+	delete	löschen
+	flag	kennzeichnen
+	has attachments	Anlagen hat
+	is list mail	Listen-Mail ist
+	mark read	als gelesen markieren
+	pin	anheften
+	to “{text}”	an „{text}“
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
