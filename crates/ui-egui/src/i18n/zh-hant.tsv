@@ -321,7 +321,6 @@
 	When mail	當郵件
 	Without encryption your password travels in the clear. Use only for local test servers.	不加密時，您的密碼會以明文傳輸。只能用於本機測試伺服器。
 	Work	工作
-	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	適用於任何提供 IMAP 和 SMTP 的服務商。您的密碼保存在這台電腦的鑰匙圈中，只會傳送到您的郵件伺服器。
 	Write your message…	撰寫郵件…
 	Yesterday	昨天
 	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	您的郵件，就在您的電腦上。新增任何 IMAP 帳戶: 郵件保存在此裝置上，搜尋快速，離線也能閱讀。您的密碼保存在系統鑰匙圈中。
@@ -631,6 +630,7 @@
 	Low importance	重要性 - 低
 	Read receipt	讀取回條
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	請收件者確認已讀（對方的郵件應用程式可能不傳送，或會詢問對方）
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	適用於任何提供者：IMAP 或 POP 加 SMTP、JMAP 或 Exchange。密碼儲存在這台電腦的鑰匙圈中，只會傳送到你的郵件伺服器。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

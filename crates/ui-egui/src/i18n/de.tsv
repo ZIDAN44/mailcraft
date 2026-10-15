@@ -321,7 +321,6 @@
 	When mail	Wenn eine E-Mail
 	Without encryption your password travels in the clear. Use only for local test servers.	Ohne Verschlüsselung wird Ihr Kennwort im Klartext übertragen. Nur für lokale Testserver verwenden.
 	Work	Arbeit
-	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funktioniert mit jedem Anbieter, der IMAP und SMTP anbietet. Ihr Kennwort wird im Schlüsselbund dieses Computers aufbewahrt und nur an Ihren Mailserver gesendet.
 	Write your message…	Nachricht schreiben…
 	Yesterday	Gestern
 	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Ihre E-Mails, auf Ihrem Computer. Fügen Sie ein beliebiges IMAP-Konto hinzu: Nachrichten werden auf diesem Gerät gespeichert, damit sie schnell durchsucht und offline gelesen werden können. Ihr Kennwort bleibt im Schlüsselbund des Systems.
@@ -632,6 +631,7 @@
 	Low importance	Wichtigkeit: niedrig
 	Read receipt	Lesebestätigung
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Die Empfänger bitten, das Lesen zu bestätigen (ihr Mailprogramm tut es vielleicht nicht oder fragt sie)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funktioniert mit jedem Anbieter: IMAP oder POP mit SMTP, JMAP oder Exchange. Ihr Kennwort wird im Schlüsselbund dieses Computers gespeichert und nur an Ihren Mailserver gesendet.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

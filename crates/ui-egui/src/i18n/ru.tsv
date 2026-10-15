@@ -321,7 +321,6 @@
 	When mail	Когда письмо
 	Without encryption your password travels in the clear. Use only for local test servers.	Без шифрования пароль передаётся открытым текстом. Используйте только для локальных тестовых серверов.
 	Work	Работа
-	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	Работает с любым провайдером, поддерживающим IMAP и SMTP. Пароль хранится в связке ключей этого компьютера и отправляется только на ваш почтовый сервер.
 	Write your message…	Напишите письмо…
 	Yesterday	Вчера
 	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Ваша почта — на вашем компьютере. Добавьте любую учётную запись IMAP: письма хранятся на этом устройстве, поэтому поиск быстрый, а читать можно без сети. Пароль остаётся в системной связке ключей.
@@ -631,6 +630,7 @@
 	Low importance	Низкая важность
 	Read receipt	Уведомление о прочтении
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Попросить получателей подтвердить прочтение (их почтовая программа может этого не сделать или спросить их)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Работает с любым поставщиком: IMAP или POP с SMTP, JMAP или Exchange. Пароль хранится в связке ключей этого компьютера и отправляется только на ваш почтовый сервер.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

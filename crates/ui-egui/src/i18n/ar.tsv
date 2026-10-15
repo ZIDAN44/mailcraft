@@ -321,7 +321,6 @@
 	When mail	عندما يكون البريد
 	Without encryption your password travels in the clear. Use only for local test servers.	بلا تشفير تنتقل كلمة المرور مكشوفة. استخدمه فقط مع خوادم الاختبار المحلية.
 	Work	العمل
-	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	يعمل مع أي مزوّد يوفر IMAP وSMTP. تُحفظ كلمة المرور في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى خادم بريدك.
 	Write your message…	اكتب رسالتك…
 	Yesterday	أمس
 	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	بريدك على جهازك. أضف أي حساب IMAP: تُحفظ الرسائل على هذا الجهاز فيسهل البحث فيها وقراءتها دون اتصال. تبقى كلمة المرور في سلسلة مفاتيح النظام.
@@ -633,3 +632,4 @@ month	May	مايو
 	Low importance	أهمية منخفضة
 	Read receipt	إيصال القراءة
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	اطلب من المستلمين تأكيد قراءتها (قد لا يفعل تطبيق البريد لديهم ذلك، أو قد يسألهم)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	يعمل مع أي مزوّد: IMAP أو POP مع SMTP، أو JMAP، أو Exchange. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى خادم بريدك.

@@ -321,7 +321,6 @@
 	When mail	메일이 다음과 같을 때
 	Without encryption your password travels in the clear. Use only for local test servers.	암호화하지 않으면 암호가 평문으로 전송됩니다. 로컬 테스트 서버에만 사용하세요.
 	Work	업무
-	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP과 SMTP를 지원하는 모든 공급자에서 작동합니다. 암호는 이 컴퓨터의 키체인에 보관되고 메일 서버로만 전송됩니다.
 	Write your message…	메시지를 작성하세요…
 	Yesterday	어제
 	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	내 메일을 내 컴퓨터에. 어떤 IMAP 계정이든 추가하세요: 메시지가 이 기기에 저장되어 빠르게 검색하고 오프라인에서도 읽을 수 있습니다. 암호는 시스템 키체인에 보관됩니다.
@@ -631,6 +630,7 @@
 	Low importance	낮은 중요도
 	Read receipt	읽음 확인
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	받는 사람에게 읽었는지 확인을 요청합니다(메일 앱이 보내지 않거나 받는 사람에게 물을 수 있음)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP 또는 POP와 SMTP, JMAP, Exchange를 지원하는 모든 공급자에서 작동합니다. 암호는 이 컴퓨터의 키체인에 보관되며 메일 서버로만 전송됩니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

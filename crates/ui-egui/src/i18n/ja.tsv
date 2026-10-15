@@ -321,7 +321,6 @@
 	When mail	メールが次の条件のとき
 	Without encryption your password travels in the clear. Use only for local test servers.	暗号化しないと、パスワードが平文で送られます。ローカルのテスト サーバーにのみ使用してください。
 	Work	仕事
-	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP と SMTP に対応したプロバイダーなら使えます。パスワードはこのコンピューターのキーチェーンに保管され、メール サーバーにだけ送信されます。
 	Write your message…	メッセージを入力…
 	Yesterday	昨日
 	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	あなたのメールを、あなたのコンピューターに。IMAP アカウントを追加すると、メッセージはこのデバイスに保存され、すばやく検索でき、オフラインでも読めます。パスワードはシステムのキーチェーンに保管されます。
@@ -634,3 +633,4 @@ month	May	5月
 	Low importance	重要度 - 低
 	Read receipt	開封確認
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	受信者に開封の確認を求めます (受信者のメール アプリが応答しない場合や、確認を求める場合があります)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP または POP と SMTP、JMAP、Exchange に対応したどのプロバイダーでも使えます。パスワードはこのコンピューターのキーチェーンに保存され、メール サーバーにのみ送信されます。

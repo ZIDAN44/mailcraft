@@ -321,7 +321,6 @@
 	When mail	Cuando el correo
 	Without encryption your password travels in the clear. Use only for local test servers.	Sin cifrado, tu contraseña viaja en claro. Úsalo solo con servidores de prueba locales.
 	Work	Trabajo
-	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funciona con cualquier proveedor que ofrezca IMAP y SMTP. Tu contraseña se guarda en el llavero de este equipo y solo se envía a tu servidor de correo.
 	Write your message…	Escribe tu mensaje…
 	Yesterday	Ayer
 	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Tu correo, en tu equipo. Agrega cualquier cuenta IMAP: los mensajes se guardan en este dispositivo para buscar rápido y leer sin conexión. Tu contraseña se queda en el llavero del sistema.
@@ -632,6 +631,7 @@
 	Low importance	Importancia baja
 	Read receipt	Confirmación de lectura
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Pedir a los destinatarios que confirmen que lo han leído (puede que su aplicación de correo no lo haga, o que les pregunte)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funciona con cualquier proveedor: IMAP o POP con SMTP, JMAP o Exchange. Tu contraseña se guarda en el llavero de este equipo y solo se envía a tu servidor de correo.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

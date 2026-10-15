@@ -964,7 +964,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     .small(),
                 );
             } else {
-                ui.label(RichText::new(tl!("Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small());
+                ui.label(RichText::new(tl!("Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small());
             }
             ui.add_space(10.0);
             egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
