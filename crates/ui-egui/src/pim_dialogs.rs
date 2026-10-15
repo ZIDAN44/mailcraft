@@ -1,10 +1,11 @@
 //! The event and contact forms.
 
-use egui::{RichText, Ui};
+use egui::{Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Session;
 use mailcraft_engine::model::dates;
 use serde_json::{Value, json};
 
+use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, widgets};
 
@@ -177,77 +178,153 @@ fn partstat_label(p: &str) -> &'static str {
     }
 }
 
-pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(500.0);
-    ui.label(RichText::new(tl!(if f.uid.is_some() { "Event" } else { "New event" })).font(theme::bold(18.0)).color(t.text));
-    ui.add_space(6.0);
-    let w = ui.available_width();
-    ui.add_enabled_ui(!f.read_only, |ui| {
-        ui.add_sized([w, 28.0], egui::TextEdit::singleline(&mut f.summary).hint_text(tl!("Add a title")).font(theme::regular(15.0)));
-        ui.add_space(6.0);
-        egui::Grid::new("event-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-            ui.label(tl!("Starts"));
-            ui.horizontal(|ui| {
-                ui.add_sized([104.0, 24.0], egui::TextEdit::singleline(&mut f.date).hint_text("YYYY-MM-DD"));
-                if !f.all_day {
-                    ui.add_sized([60.0, 24.0], egui::TextEdit::singleline(&mut f.start).hint_text("09:00"));
-                }
-            });
-            ui.end_row();
-            ui.label(tl!("Ends"));
-            ui.horizontal(|ui| {
-                ui.add_sized([104.0, 24.0], egui::TextEdit::singleline(&mut f.end_date).hint_text("YYYY-MM-DD"));
-                if !f.all_day {
-                    ui.add_sized([60.0, 24.0], egui::TextEdit::singleline(&mut f.end).hint_text("10:00"));
-                }
-                ui.checkbox(&mut f.all_day, tl!("All day"));
-            });
-            ui.end_row();
-            ui.label(tl!("Repeat"));
-            let custom = !matches!(f.repeat.as_str(), "" | "daily" | "weekly" | "monthly" | "yearly");
-            let label = |r: &str| -> String {
-                match r {
-                    "" => tl!("Never").to_string(),
-                    "daily" => tl!("Every day").to_string(),
-                    "weekly" => tl!("Every week").to_string(),
-                    "monthly" => tl!("Every month").to_string(),
-                    "yearly" => tl!("Every year").to_string(),
-                    _ => tl!("Custom").to_string(),
-                }
-            };
-            egui::ComboBox::from_id_salt("event-repeat").selected_text(label(&f.repeat)).show_ui(ui, |ui| {
-                for r in ["", "daily", "weekly", "monthly", "yearly"] {
-                    ui.selectable_value(&mut f.repeat, r.to_string(), label(r));
-                }
-                if custom {
-                    let keep = f.repeat.clone();
-                    ui.selectable_value(&mut f.repeat, keep, tl!("Custom"));
-                }
-            });
-            ui.end_row();
-            ui.label(tl!("Location"));
-            ui.add_sized([w - 90.0, 24.0], egui::TextEdit::singleline(&mut f.location));
-            ui.end_row();
-            if f.can_invite {
-                ui.label(tl!("Invite"));
-                ui.add_sized([w - 90.0, 24.0], egui::TextEdit::singleline(&mut f.guests).hint_text(tl!("Names <addresses>, separated by ; or ,")));
-                ui.end_row();
+/// Width of the forms' label column.
+const LABEL_W: f32 = 104.0;
+/// Height of a one-line field.
+const FIELD_H: f32 = 30.0;
+
+/// A form's heading: a round badge (an icon, or a person's initials) and the title.
+fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str) {
+    ui.horizontal(|ui| {
+        let (r, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
+        ui.painter().circle_filled(r.center(), 20.0, t.accent_soft);
+        match badge {
+            Ok(icon) => icons::paint(ui.painter(), icons::centered(r, 20.0), icon, t.accent),
+            Err(initials) => {
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initials, theme::bold(15.0), t.accent);
             }
-            if f.uid.is_none() && f.calendars.len() > 1 {
-                ui.label(tl!("Calendar"));
-                let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
-                egui::ComboBox::from_id_salt("event-calendar").selected_text(name).show_ui(ui, |ui| {
-                    for (i, c) in f.calendars.iter().enumerate() {
-                        ui.selectable_value(&mut f.calendar, i, &c.2);
-                    }
-                });
-                ui.end_row();
+        }
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!(title)).font(theme::bold(19.0)).color(t.text));
+    });
+    ui.add_space(12.0);
+}
+
+/// A labelled row of a form: an optional icon and the label in a column of their own, the
+/// field (or fields) after, lined up with the field's first line.
+/// `icons_used`: the form puts icons before labels, so a row without one is indented to match.
+fn form_row(ui: &mut Ui, t: &Tokens, icons_used: bool, icon: Option<Icon>, label: &str, add: impl FnOnce(&mut Ui)) {
+    ui.horizontal_top(|ui| {
+        let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, FIELD_H), Sense::hover());
+        let mut x = r.left();
+        if let Some(icon) = icon {
+            icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(x + 8.0, r.center().y), vec2(16.0, 16.0)), icon, t.dim);
+        }
+        if icons_used {
+            x += 24.0;
+        }
+        ui.painter().text(egui::pos2(x, r.center().y), egui::Align2::LEFT_CENTER, tl!(label), theme::regular(13.0), t.dim);
+        add(ui);
+    });
+    ui.add_space(8.0);
+}
+
+/// A one-line field of a form, `width` wide (the rest of the row when infinite).
+fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> egui::Response {
+    let w = if width.is_finite() { width } else { ui.available_width() };
+    ui.add(
+        egui::TextEdit::singleline(value)
+            .hint_text(hint)
+            .desired_width(w)
+            .min_size(vec2(w, FIELD_H))
+            .margin(Margin::symmetric(8, 6))
+            .vertical_align(egui::Align::Center),
+    )
+}
+
+/// A field of several lines, the rest of the row wide.
+fn area(ui: &mut Ui, value: &mut String, hint: &str, rows: usize) -> egui::Response {
+    let w = ui.available_width();
+    ui.add(egui::TextEdit::multiline(value).hint_text(hint).desired_width(w).desired_rows(rows).margin(Margin::symmetric(8, 6)))
+}
+
+/// The line above a form's buttons.
+fn footer_rule(ui: &mut Ui, t: &Tokens) {
+    ui.add_space(6.0);
+    let r = ui.available_rect_before_wrap();
+    ui.painter().line_segment([r.left_top(), r.right_top()], egui::Stroke::new(1.0, t.border));
+    ui.add_space(10.0);
+}
+
+pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.set_width(540.0);
+    form_header(ui, t, Ok(Icon::Calendar), if f.uid.is_some() { "Event" } else { "New event" });
+    ui.add_enabled_ui(!f.read_only, |ui| {
+        let w = ui.available_width();
+        ui.add(
+            egui::TextEdit::singleline(&mut f.summary)
+                .hint_text(tl!("Add a title"))
+                .font(theme::bold(16.0))
+                .desired_width(w)
+                .min_size(vec2(w, 36.0))
+                .margin(Margin::symmetric(10, 8))
+                .vertical_align(egui::Align::Center),
+        );
+        ui.add_space(12.0);
+        form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {
+            field(ui, &mut f.date, "YYYY-MM-DD", 120.0);
+            if !f.all_day {
+                field(ui, &mut f.start, "09:00", 70.0);
             }
         });
-        ui.add_space(4.0);
-        ui.add(egui::TextEdit::multiline(&mut f.description).hint_text(tl!("Notes")).desired_rows(3).desired_width(f32::INFINITY));
+        form_row(ui, t, true, None, "Ends", |ui| {
+            field(ui, &mut f.end_date, "YYYY-MM-DD", 120.0);
+            if !f.all_day {
+                field(ui, &mut f.end, "10:00", 70.0);
+            }
+            ui.add_space(6.0);
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.checkbox(&mut f.all_day, tl!("All day"));
+            });
+        });
+        let custom = !matches!(f.repeat.as_str(), "" | "daily" | "weekly" | "monthly" | "yearly");
+        let label = |r: &str| -> String {
+            match r {
+                "" => tl!("Never").to_string(),
+                "daily" => tl!("Every day").to_string(),
+                "weekly" => tl!("Every week").to_string(),
+                "monthly" => tl!("Every month").to_string(),
+                "yearly" => tl!("Every year").to_string(),
+                _ => tl!("Custom").to_string(),
+            }
+        };
+        form_row(ui, t, true, Some(Icon::Sync), "Repeat", |ui| {
+            ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                egui::ComboBox::from_id_salt("event-repeat").width(194.0).selected_text(label(&f.repeat)).show_ui(ui, |ui| {
+                    for r in ["", "daily", "weekly", "monthly", "yearly"] {
+                        ui.selectable_value(&mut f.repeat, r.to_string(), label(r));
+                    }
+                    if custom {
+                        let keep = f.repeat.clone();
+                        ui.selectable_value(&mut f.repeat, keep, tl!("Custom"));
+                    }
+                });
+            });
+        });
+        form_row(ui, t, true, Some(Icon::Location), "Location", |ui| {
+            field(ui, &mut f.location, tl!("Add a place"), f32::INFINITY);
+        });
+        if f.can_invite {
+            form_row(ui, t, true, Some(Icon::People), "Invite", |ui| {
+                field(ui, &mut f.guests, tl!("Names <addresses>, separated by ; or ,"), f32::INFINITY);
+            });
+        }
+        if f.uid.is_none() && f.calendars.len() > 1 {
+            let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
+            form_row(ui, t, true, Some(Icon::Calendar), "Calendar", |ui| {
+                ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    egui::ComboBox::from_id_salt("event-calendar").width(254.0).selected_text(name).show_ui(ui, |ui| {
+                        for (i, c) in f.calendars.iter().enumerate() {
+                            ui.selectable_value(&mut f.calendar, i, &c.2);
+                        }
+                    });
+                });
+            });
+        }
+        area(ui, &mut f.description, tl!("Notes"), 4);
     });
     if f.recurring {
+        ui.add_space(4.0);
         ui.label(RichText::new(tl!("Changes apply to every occurrence.")).color(t.faint).small());
     }
     if let Some(o) = &f.organizer {
@@ -275,7 +352,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         ui.add_space(6.0);
         ui.label(RichText::new(e).color(t.danger));
     }
-    ui.add_space(10.0);
+    footer_rule(ui, t);
     let mut keep = true;
     ui.horizontal(|ui| {
         if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
@@ -348,35 +425,33 @@ impl ContactForm {
 }
 
 pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(440.0);
-    ui.label(RichText::new(tl!(if f.uid.is_some() { "Edit contact" } else { "New contact" })).font(theme::bold(18.0)).color(t.text));
-    ui.add_space(6.0);
-    egui::Grid::new("contact-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-        let w = 320.0;
-        ui.label(tl!("Name"));
-        ui.add_sized([w, 24.0], egui::TextEdit::singleline(&mut f.name));
-        ui.end_row();
-        ui.label(tl!("Email"));
-        ui.add_sized([w, 44.0], egui::TextEdit::multiline(&mut f.emails).hint_text(tl!("One address per line")).desired_rows(2));
-        ui.end_row();
-        ui.label(tl!("Phone"));
-        ui.add_sized([w, 44.0], egui::TextEdit::multiline(&mut f.phones).desired_rows(2));
-        ui.end_row();
-        ui.label(tl!("Company"));
-        ui.add_sized([w, 24.0], egui::TextEdit::singleline(&mut f.org));
-        ui.end_row();
-        ui.label(tl!("Job title"));
-        ui.add_sized([w, 24.0], egui::TextEdit::singleline(&mut f.title));
-        ui.end_row();
-        ui.label(tl!("Notes"));
-        ui.add_sized([w, 60.0], egui::TextEdit::multiline(&mut f.note).desired_rows(3));
-        ui.end_row();
+    ui.set_width(500.0);
+    // The person's initials once a name is typed, as the people list shows them.
+    let initials: String = f.name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
+    let badge = if initials.is_empty() { Ok(Icon::Person) } else { Err(initials) };
+    form_header(ui, t, badge, if f.uid.is_some() { "Edit contact" } else { "New contact" });
+    form_row(ui, t, false, None, "Name", |ui| {
+        field(ui, &mut f.name, tl!("First and last name"), f32::INFINITY);
+    });
+    form_row(ui, t, false, None, "Company", |ui| {
+        field(ui, &mut f.org, "", f32::INFINITY);
+    });
+    form_row(ui, t, false, None, "Job title", |ui| {
+        field(ui, &mut f.title, "", f32::INFINITY);
+    });
+    form_row(ui, t, false, None, "Email", |ui| {
+        area(ui, &mut f.emails, tl!("One address per line"), 1);
+    });
+    form_row(ui, t, false, None, "Phone", |ui| {
+        area(ui, &mut f.phones, tl!("One number per line"), 1);
+    });
+    form_row(ui, t, false, None, "Notes", |ui| {
+        area(ui, &mut f.note, "", 3);
     });
     if let Some(e) = &f.error {
-        ui.add_space(6.0);
         ui.label(RichText::new(e).color(t.danger));
     }
-    ui.add_space(10.0);
+    footer_rule(ui, t);
     let mut keep = true;
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if widgets::accent_button(ui, crate::icons::Icon::Person, "Save", t, !f.name.trim().is_empty() || !f.emails.trim().is_empty()).clicked() {
