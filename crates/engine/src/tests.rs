@@ -1520,3 +1520,15 @@ fn ignored_conversations_stay_in_deleted_items() {
     assert_eq!(s.run("mail.ignore", &json!({})).unwrap()["ignoring"], false);
     assert!(!s.selected().iter().any(|m| s.is_ignored(m)), "no longer ignored");
 }
+
+/// A folder made in the Inbox shows under it, as Outlook shows one.
+#[test]
+fn a_folder_made_in_the_inbox_shows_under_it() {
+    let mut s = sample_session("subfolder");
+    let r = s.run("folder.create", &json!({"account": "sample", "parent": "INBOX", "name": "Clients"})).unwrap();
+    let path = r["created"].as_str().unwrap().to_string();
+    let order: Vec<String> = s.account("sample").unwrap().folders.iter().map(|f| f.path.clone()).collect();
+    let inbox = order.iter().position(|p| p == "INBOX").unwrap();
+    assert_eq!(order.get(inbox + 1), Some(&path), "right under the Inbox: {order:?}");
+    assert_eq!(s.folder("sample", &path).map(mailcraft_model::Folder::depth), Some(1));
+}

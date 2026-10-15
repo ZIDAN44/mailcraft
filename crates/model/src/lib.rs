@@ -362,11 +362,23 @@ pub fn child_path(parent: Option<&str>, delimiter: Option<char>, name: &str) -> 
 }
 
 /// Sort folders for the folder pane: special folders in their usual order, then the others by
-/// path so children follow their parents.
+/// path so children follow their parents. A folder of the user's goes with the folder at the top
+/// of its path, so one made in the Inbox shows under the Inbox, as Outlook shows it.
 pub fn sort_folders(folders: &mut [Folder]) {
-    folders.sort_by(|a, b| {
-        let top = |f: &Folder| if f.role == FolderRole::Other { 6 } else { f.role.rank() };
-        top(a).cmp(&top(b)).then_with(|| utf7::decode(&a.path).to_lowercase().cmp(&utf7::decode(&b.path).to_lowercase()))
+    let roles: std::collections::HashMap<String, FolderRole> = folders.iter().map(|f| (f.path.clone(), f.role)).collect();
+    folders.sort_by_cached_key(|f| {
+        let parts: Vec<String> = match f.delimiter {
+            Some(d) => f.path.split(d).map(|p| utf7::decode(p).to_lowercase()).collect(),
+            None => vec![utf7::decode(&f.path).to_lowercase()],
+        };
+        // A special folder keeps its own place; another goes where its top folder is.
+        let role = if f.role == FolderRole::Other {
+            let top = f.delimiter.and_then(|d| f.path.split(d).next()).unwrap_or(&f.path);
+            roles.get(top).copied().unwrap_or(FolderRole::Other)
+        } else {
+            f.role
+        };
+        (if role == FolderRole::Other { 6 } else { role.rank() }, parts)
     });
 }
 
@@ -615,6 +627,35 @@ pub fn sort_newest_first(list: &mut [Summary]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_folder_made_in_another_follows_it() {
+        let f = |path: &str, role: FolderRole| Folder {
+            account: "a".into(),
+            path: path.into(),
+            delimiter: Some('/'),
+            role,
+            selectable: true,
+            unread: 0,
+            total: 0,
+        };
+        let mut list = vec![
+            f("Projects", FolderRole::Other),
+            f("Deleted Items", FolderRole::Trash),
+            f("INBOX/gzamer", FolderRole::Other),
+            f("Sent Items", FolderRole::Sent),
+            f("INBOX", FolderRole::Inbox),
+            f("Projects/Short film", FolderRole::Other),
+            f("[Gmail]/Sent Mail", FolderRole::Sent),
+            f("[Gmail]", FolderRole::Other),
+        ];
+        sort_folders(&mut list);
+        let order: Vec<&str> = list.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(
+            order,
+            ["INBOX", "INBOX/gzamer", "[Gmail]/Sent Mail", "Sent Items", "Deleted Items", "[Gmail]", "Projects", "Projects/Short film"],
+        );
+    }
 
     #[test]
     fn guesses_servers_from_the_domain() {

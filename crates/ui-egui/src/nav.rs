@@ -145,7 +145,12 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
                 if ui.button(tl!("New folder…")).clicked() {
-                    acts.push(Action::Dialog(Dialog::new_folder(&config.id, None)));
+                    // In the folder open now (as Outlook's New Folder starts), else at the top.
+                    let here = match &s.view {
+                        View::Folder { account, folder } if *account == config.id => Some(folder.as_str()),
+                        _ => None,
+                    };
+                    acts.push(Action::Dialog(Dialog::new_folder(&config.id, here)));
                     ui.close();
                 }
                 ui.separator();
