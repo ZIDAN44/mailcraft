@@ -560,3 +560,8 @@
 	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	כתוב את הדואר של חשבון, עם התיקיות שלו, לקובץ נתונים של Outlook ‏(.pst) ש-Outlook ואפליקציות דואר אחרות יכולות לפתוח. דואר שמעולם לא הורד לא נכלל.
 folder	Archive	ארכיון
 month	May	מאי
+	Exchange server (EWS)	שרת Exchange ‏(EWS)
+	Exchange server	שרת Exchange
+	Server: {url} (EWS)	שרת: {url} (EWS)
+	DOMAIN\\user, or the email address	DOMAIN\\user, או כתובת הדואר האלקטרוני
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	לשרתי Exchange שהארגון שלך מפעיל, דרך Exchange Web Services. נכנסים עם שם המשתמש והסיסמה ברשת.

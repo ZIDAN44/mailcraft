@@ -46,6 +46,8 @@ fn kind(a: &AccountState) -> &'static str {
         "Sample mailbox"
     } else if a.config.graph.is_some() {
         "Exchange (Microsoft Graph)"
+    } else if a.config.ews.is_some() {
+        "Exchange server (EWS)"
     } else if a.config.jmap.is_some() {
         "JMAP"
     } else {
@@ -187,6 +189,8 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
         tf!("Server: {url} (Microsoft Graph)", url = u)
     } else if let Some(u) = &a.config.jmap {
         tf!("Server: {url} (JMAP)", url = u)
+    } else if let Some(u) = &a.config.ews {
+        tf!("Server: {url} (EWS)", url = u)
     } else {
         tf!(
             "Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})",

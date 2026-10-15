@@ -12,7 +12,7 @@ _Status: v0.1, 2026-10-15._
 | # | Gap | Notes |
 |---|---|---|
 | 1 | **HTML layout beyond tables** | Mail laid out with tables keeps its columns, widths, coloured bands and centring; layouts made with CSS alone (floats, flexbox, grid, positioning) and background pictures still flow as one column. |
-| 2 | **On-premises Exchange** | Exchange Online works through Microsoft Graph, mail, calendars and contacts. On-premises Exchange without IMAP needs EWS (SOAP); ActiveSync is licensed and out of scope. |
+| 2 | **On-premises Exchange: calendars and finding the server** | Mail and automatic replies work through EWS (NTLM or Basic); its calendars and contacts aren't synced over EWS yet, the server's address is typed in (no Autodiscover), and Kerberos-only servers can't be signed in to. ActiveSync is licensed and out of scope. |
 | 3 | **Outlook data files: tasks, and files inside attached messages** | `.pst` files open with their mail, contacts and calendar, and accounts export to `.pst` (mail). Tasks and notes are skipped; an attached message comes in without its own attachments (the reader doesn't expose them); export writes mail only (the writer has no contact or appointment items) and leaves out flags. |
 | 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts would need a relay server, which MailCraft doesn't have. |
 | 5 | **Right-to-left: the window itself** | Arabic and Hebrew interfaces, and right-to-left mail, read right to left; but the window isn't mirrored (the folder pane stays on the left), the message editor shows right-to-left lines as egui lays them out, and right-to-left mail bodies can't be selected. egui has no bidirectional layout of its own (MailCraft orders each line itself). |
@@ -73,6 +73,8 @@ _Status: v0.1, 2026-10-15._
 - **Outlook data files:** File › Open & Export opens a `.pst` as a mailbox on this computer, with
   its folders, messages, attachments and flags, its contacts and its calendar (recurrences
   included); and writes any account's mail to a new `.pst`.
+- **On-premises Exchange:** Exchange Web Services as a fourth transport, signed in with NTLMv2
+  (or Basic): folders, sync, changes, drafts, sending and automatic replies.
 - **Exchange Online:** Microsoft Graph as a third transport, for organisations that switch IMAP
   off: folders, sync, changes, drafts, sending, automatic replies, calendars and contacts (both
   ways).

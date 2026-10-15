@@ -559,6 +559,11 @@
 	Export	Exporter
 	Export to Outlook data file	Exporter vers un fichier de données Outlook
 	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	Enregistre le courrier d'un compte, avec ses dossiers, dans un fichier de données Outlook (.pst) que Outlook et d'autres applications de messagerie peuvent ouvrir. Le courrier jamais téléchargé est omis.
+	Exchange server (EWS)	Serveur Exchange (EWS)
+	Exchange server	Serveur Exchange
+	Server: {url} (EWS)	Serveur : {url} (EWS)
+	DOMAIN\\user, or the email address	DOMAINE\\utilisateur, ou l'adresse e-mail
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Pour les serveurs Exchange gérés par votre organisation, via Exchange Web Services. La connexion se fait avec votre nom d'utilisateur et votre mot de passe réseau.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

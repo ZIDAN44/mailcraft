@@ -561,3 +561,8 @@ month	May	5月
 	Export	エクスポート
 	Export to Outlook data file	Outlook データ ファイルにエクスポート
 	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	アカウントのメールをフォルダーごと、Outlook や他のメール アプリで開ける Outlook データ ファイル (.pst) に書き出します。ダウンロードされていないメールは含まれません。
+	Exchange server (EWS)	Exchange サーバー (EWS)
+	Exchange server	Exchange サーバー
+	Server: {url} (EWS)	サーバー: {url} (EWS)
+	DOMAIN\\user, or the email address	ドメイン\\ユーザー、またはメール アドレス
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	組織が運用する Exchange サーバー向け (Exchange Web Services 経由)。ネットワークのユーザー名とパスワードでサインインします。

@@ -6,7 +6,7 @@
             │                                                          │
    input ──▶│  ui-egui (L6) ──commands──▶ engine::Session (L4)         │
             │      ▲  reads state              │  queues Jobs           │
-            │      └──────────────── Events ◀──┼── net::Pool (L3) ◀── IMAP·SMTP·JMAP·Graph·DAV
+            │      └──────────────── Events ◀──┼── net::Pool (L3) ◀── IMAP·SMTP·JMAP·Graph·EWS·DAV
             │                                  ▼        │               │
             │                          store (L1) ◀─────┘ writes cache  │
             └──────────────────────────────────────────────────────────┘
@@ -26,7 +26,7 @@
 | L1 | `mailcraft-store` | model | Plain files + JSON; atomic writes; no database engine |
 | L1 | `mailcraft-print` | — | Messages laid out as PDF pages with an embedded TrueType font (`ttf-parser`, `miniz_oxide`) |
 | L2 | `mailcraft-jmap` | model, mime, store | The JMAP transport, written once as async code over a two-method `Http` trait: the desktop runs it over `net`'s client (answers are ready at once, so a no-op `block_on` drives it), the browser over `fetch`. Portable, wasm-safe |
-| L3 | `mailcraft-net` | model, mime, store, jmap | Native only. IMAP (`imap-proto`), SMTP (`lettre`), JMAP push, Microsoft Graph, CalDAV/CardDAV (`quick-xml`), ManageSieve, a small HTTP/1.1 client, DNS for autoconfiguration, OAuth, Outlook data files (`outlook-pst` to read, `outlook-pst-rw` to write); TLS through `rustls` |
+| L3 | `mailcraft-net` | model, mime, store, jmap | Native only. IMAP (`imap-proto`), SMTP (`lettre`), JMAP push, Microsoft Graph, Exchange Web Services with NTLM, CalDAV/CardDAV (`quick-xml`), ManageSieve, a small HTTP/1.1 client, DNS for autoconfiguration, OAuth, Outlook data files (`outlook-pst` to read, `outlook-pst-rw` to write); TLS through `rustls` |
 | L4 | `mailcraft-engine` | model, mime, store | Sans-I/O, wasm-safe |
 | L6 | `mailcraft-ui-egui` | engine | egui only; platform services behind traits; interface languages (`i18n/*.tsv`) |
 
@@ -35,9 +35,10 @@
 
 ## Transports
 
-An account syncs over one of three transports behind the same `Job`s and `Event`s, chosen by its
-configuration: IMAP + SMTP (`imap`, `smtp`), JMAP (`jmap`, a session address) or Microsoft Graph
-(`graph`, Exchange Online). JMAP and Graph number their string message ids the same way
+An account syncs over one of four transports behind the same `Job`s and `Event`s, chosen by its
+configuration: IMAP + SMTP (`imap`, `smtp`), JMAP (`jmap`, a session address), Microsoft Graph
+(`graph`, Exchange Online) or Exchange Web Services (`ews`, on-premises Exchange). JMAP, Graph and
+EWS number their string message ids the same way
 (`jmap::State`), so the engine and cache only ever see IMAP-style keys. Calendars and address
 books sync over CalDAV / CardDAV for password accounts, and automatic replies over ManageSieve on
 IMAP hosts. An account with none of these (the sample mailbox, an opened Outlook data file) lives
@@ -107,7 +108,8 @@ appears in exactly one conversation.
 - `net`: a scripted stream for framing edge cases, an in-memory IMAP server (`fake.rs`) for the sync
   algorithm and server-side changes, a local SMTP stub, an end-to-end test of the threaded worker
   pool over real TCP sockets, and in-memory JMAP (`fake_jmap.rs`), Microsoft Graph
-  (`fake_graph.rs`), CalDAV/CardDAV (`fake_dav.rs`) and ManageSieve servers driving accounts
+  (`fake_graph.rs`), Exchange Web Services with NTLM (`fake_ews.rs`; NTLM also against the
+  MS-NLMP test vectors), CalDAV/CardDAV (`fake_dav.rs`) and ManageSieve servers driving accounts
   through the same pool. Outlook data files are exported with `outlook-pst-rw` and read back
   by the importer; contact and appointment mapping and recurrence patterns are tested on their own. HTTP, DNS, autoconfig and OAuth run against local stubs. `serve_for_the_browser` (ignored)
   keeps a JMAP server with CORS running for trying the web app by hand.

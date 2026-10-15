@@ -558,6 +558,11 @@
 	Export	내보내기
 	Export to Outlook data file	Outlook 데이터 파일로 내보내기
 	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	계정의 메일을 폴더와 함께 Outlook 및 다른 메일 앱에서 열 수 있는 Outlook 데이터 파일(.pst)로 저장합니다. 다운로드되지 않은 메일은 제외됩니다.
+	Exchange server (EWS)	Exchange 서버(EWS)
+	Exchange server	Exchange 서버
+	Server: {url} (EWS)	서버: {url}(EWS)
+	DOMAIN\\user, or the email address	도메인\\사용자 또는 이메일 주소
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	조직에서 운영하는 Exchange 서버용(Exchange Web Services 사용). 네트워크 사용자 이름과 암호로 로그인합니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

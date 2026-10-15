@@ -561,3 +561,8 @@ month	May	5月
 	Export	导出
 	Export to Outlook data file	导出到 Outlook 数据文件
 	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	将帐户的邮件连同文件夹写入 Outlook 和其他邮件应用可以打开的 Outlook 数据文件 (.pst)。从未下载的邮件不包括在内。
+	Exchange server (EWS)	Exchange 服务器 (EWS)
+	Exchange server	Exchange 服务器
+	Server: {url} (EWS)	服务器：{url} (EWS)
+	DOMAIN\\user, or the email address	域\\用户，或电子邮件地址
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	用于你所在组织运行的 Exchange 服务器，通过 Exchange Web Services。使用你的网络用户名和密码登录。

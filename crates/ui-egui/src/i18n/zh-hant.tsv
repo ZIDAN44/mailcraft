@@ -558,6 +558,11 @@
 	Export	匯出
 	Export to Outlook data file	匯出到 Outlook 資料檔
 	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	將帳戶的郵件連同資料夾寫入 Outlook 和其他郵件應用程式可以開啟的 Outlook 資料檔 (.pst)。從未下載的郵件不包含在內。
+	Exchange server (EWS)	Exchange 伺服器 (EWS)
+	Exchange server	Exchange 伺服器
+	Server: {url} (EWS)	伺服器：{url} (EWS)
+	DOMAIN\\user, or the email address	網域\\使用者，或電子郵件地址
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	用於你所屬組織執行的 Exchange 伺服器，透過 Exchange Web Services。使用你的網路使用者名稱與密碼登入。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

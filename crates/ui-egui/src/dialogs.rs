@@ -29,6 +29,9 @@ pub struct AccountForm {
     pub jmap_url: String,
     /// Exchange Online through Microsoft Graph (signs in with Microsoft in the browser).
     pub graph: bool,
+    /// An organisation's own Exchange server through EWS, at this address or server name.
+    pub ews: bool,
+    pub ews_url: String,
     pub error: Option<String>,
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
@@ -50,6 +53,15 @@ impl AccountForm {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
         if self.graph {
             return json!({"email": self.email.trim(), "name": self.name.trim(), "graph": true});
+        }
+        if self.ews {
+            return json!({
+                "email": self.email.trim(),
+                "name": self.name.trim(),
+                "password": self.password,
+                "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
+                "ews": self.ews_url.trim(),
+            });
         }
         if self.jmap {
             return json!({
@@ -84,6 +96,8 @@ pub struct EditForm {
     pub username: String,
     pub jmap: bool,
     pub jmap_url: String,
+    /// An Exchange server's EWS address (EWS accounts only).
+    pub ews: Option<String>,
     pub imap_host: String,
     pub imap_port: String,
     pub imap_security: Security,
@@ -96,6 +110,9 @@ pub struct EditForm {
 impl EditForm {
     pub(crate) fn params(&self) -> serde_json::Value {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
+        if let Some(u) = &self.ews {
+            return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "ews": u.trim()});
+        }
         if self.jmap {
             return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "jmap": self.jmap_url.trim()});
         }
@@ -158,15 +175,21 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
     label(ui, "User name");
     ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
     ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        label(ui, "Mail server");
-        ui.radio_value(&mut f.jmap, false, tl!("IMAP and SMTP"));
-        ui.radio_value(&mut f.jmap, true, tl!("JMAP"));
-    });
-    if f.jmap {
+    if let Some(url) = f.ews.as_mut() {
+        label(ui, "Exchange server");
+        ui.add_sized([w, 26.0], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
+    } else {
+        ui.horizontal(|ui| {
+            label(ui, "Mail server");
+            ui.radio_value(&mut f.jmap, false, tl!("IMAP and SMTP"));
+            ui.radio_value(&mut f.jmap, true, tl!("JMAP"));
+        });
+    }
+    // (An Exchange server's address is all EWS needs.)
+    if f.jmap && f.ews.is_none() {
         label(ui, "JMAP session address");
         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
-    } else {
+    } else if f.ews.is_none() {
         label(ui, "Incoming mail (IMAP)");
         ui.horizontal(|ui| {
             ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com"));
@@ -537,6 +560,7 @@ impl Dialog {
             username: a.username.clone(),
             jmap: a.jmap.is_some(),
             jmap_url: a.jmap.clone().unwrap_or_default(),
+            ews: a.ews.clone(),
             imap_host: a.imap.host.clone(),
             imap_port: a.imap.port.to_string(),
             imap_security: a.imap.security,
@@ -802,7 +826,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             title(ui, t, "Add an email account");
             if s.jmap_only {
                 // The browser: JMAP only, and its address is needed.
-                (f.jmap, f.graph, f.advanced) = (true, false, true);
+                (f.jmap, f.graph, f.ews, f.advanced) = (true, false, false, true);
                 ui.label(
                     RichText::new(tl!(
                         "In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server."
@@ -873,14 +897,21 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         ui.label(RichText::new(tl!(s)).strong().small());
                     };
                     if !s.jmap_only {
-                        let mut kind = if f.graph { 2 } else { u8::from(f.jmap) };
+                        let mut kind = if f.ews {
+                            3
+                        } else if f.graph {
+                            2
+                        } else {
+                            u8::from(f.jmap)
+                        };
                         ui.horizontal_wrapped(|ui| {
                             label(ui, "Mail server");
                             ui.radio_value(&mut kind, 0, tl!("IMAP and SMTP"));
                             ui.radio_value(&mut kind, 1, tl!("JMAP"));
                             ui.radio_value(&mut kind, 2, tl!("Exchange (Microsoft 365)"));
+                            ui.radio_value(&mut kind, 3, tl!("Exchange server (EWS)"));
                         });
-                        (f.jmap, f.graph) = (kind == 1, kind == 2);
+                        (f.jmap, f.graph, f.ews) = (kind == 1, kind == 2, kind == 3);
                     }
                     if f.graph {
                         ui.label(
@@ -890,6 +921,21 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                             .color(t.dim)
                             .small(),
                         );
+                        return;
+                    }
+                    if f.ews {
+                        ui.label(
+                            RichText::new(tl!(
+                                "For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password."
+                            ))
+                            .color(t.dim)
+                            .small(),
+                        );
+                        label(ui, "Exchange server");
+                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.ews_url).hint_text("mail.example.com"));
+                        ui.add_space(4.0);
+                        label(ui, "User name");
+                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
                         return;
                     }
                     if f.jmap {
@@ -938,6 +984,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 });
             } else if f.graph {
                 ui.label(RichText::new(tl!("Exchange (Microsoft 365)")).color(t.faint).small());
+            } else if f.ews && !f.ews_url.trim().is_empty() {
+                ui.label(RichText::new(tf!("Server: {url} (EWS)", url = f.ews_url.trim())).color(t.faint).small());
             } else if f.jmap && !f.jmap_url.trim().is_empty() {
                 ui.label(RichText::new(tf!("Server: {url} (JMAP)", url = f.jmap_url.trim())).color(t.faint).small());
             } else if !f.imap_host.is_empty() {
@@ -1008,10 +1056,14 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
-            let ready = !f.graph && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
+            let ready = !f.graph
+                && !f.email.trim().is_empty()
+                && !f.password.is_empty()
+                && (!f.jmap || !f.jmap_url.trim().is_empty())
+                && (!f.ews || !f.ews_url.trim().is_empty());
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
-                if !f.jmap && f.imap_host.is_empty() {
+                if !f.jmap && !f.ews && f.imap_host.is_empty() {
                     f.guess();
                 }
                 f.error = None;
