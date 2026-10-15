@@ -175,6 +175,117 @@ pub struct Prefs {
     pub favorites: Option<Vec<FolderRef>>,
     /// New messages open in a window of their own (replies start in the reading pane).
     pub new_mail_window: bool,
+    /// How the message list is arranged (View › Arrange by), and turned the other way round.
+    pub arrange: Arrange,
+    pub reverse_sort: bool,
+}
+
+/// What the message list is sorted and grouped by.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Arrange {
+    /// Newest first, under Today, Yesterday… (conversations, when on, apply here).
+    #[default]
+    Date,
+    /// By sender, A to Z.
+    From,
+    /// By the first recipient, A to Z.
+    To,
+    /// By subject (without Re:, Fwd:…), A to Z.
+    Subject,
+    /// Largest first, under size ranges.
+    Size,
+    /// Flagged first.
+    Flag,
+    /// With attachments first.
+    Attachments,
+}
+
+impl Arrange {
+    pub const ALL: [Arrange; 7] = [Arrange::Date, Arrange::From, Arrange::To, Arrange::Subject, Arrange::Size, Arrange::Flag, Arrange::Attachments];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Arrange::Date => "date",
+            Arrange::From => "from",
+            Arrange::To => "to",
+            Arrange::Subject => "subject",
+            Arrange::Size => "size",
+            Arrange::Flag => "flag",
+            Arrange::Attachments => "attachments",
+        }
+    }
+
+    pub fn from_code(s: &str) -> Option<Arrange> {
+        Arrange::ALL.into_iter().find(|a| a.code() == s)
+    }
+
+    /// The name shown in the View tab and above the list.
+    pub fn label(self) -> &'static str {
+        match self {
+            Arrange::Date => "Date",
+            Arrange::From => "From",
+            Arrange::To => "To",
+            Arrange::Subject => "Subject",
+            Arrange::Size => "Size",
+            Arrange::Flag => "Flag status",
+            Arrange::Attachments => "Attachments",
+        }
+    }
+}
+
+/// Who a message is shown under: a name, else the address, else nothing.
+fn person(a: Option<&mailcraft_model::EmailAddress>) -> String {
+    a.map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }).unwrap_or_default()
+}
+
+/// The fixed headings an arranged list shows (for translations).
+pub const ARRANGE_HEADINGS: [&str; 13] = [
+    "Under 10 KB",
+    "10 to 25 KB",
+    "25 to 100 KB",
+    "100 to 500 KB",
+    "500 KB to 1 MB",
+    "1 to 5 MB",
+    "Over 5 MB",
+    "Flagged",
+    "Not flagged",
+    "With attachments",
+    "Without attachments",
+    "(no subject)",
+    "(nobody)",
+];
+
+/// The size range a message is shown under.
+fn size_group(size: u32) -> &'static str {
+    match size {
+        0..10_240 => "Under 10 KB",
+        10_240..25_600 => "10 to 25 KB",
+        25_600..102_400 => "25 to 100 KB",
+        102_400..512_000 => "100 to 500 KB",
+        512_000..1_048_576 => "500 KB to 1 MB",
+        1_048_576..5_242_880 => "1 to 5 MB",
+        _ => "Over 5 MB",
+    }
+}
+
+/// Sort a list as `arrange` says (each one's natural order; `reverse` the other way), newest
+/// first among equals.
+pub fn arrange_list(list: &mut [Summary], arrange: Arrange, reverse: bool) {
+    let text = |s: String| s.to_lowercase();
+    list.sort_by(|a, b| {
+        let primary = match arrange {
+            Arrange::Date => b.date.cmp(&a.date),
+            Arrange::From => text(person(Some(&a.from))).cmp(&text(person(Some(&b.from)))),
+            Arrange::To => text(person(a.to.first())).cmp(&text(person(b.to.first()))),
+            Arrange::Subject => text(a.base_subject()).cmp(&text(b.base_subject())),
+            Arrange::Size => b.size.cmp(&a.size),
+            Arrange::Flag => b.flags.flagged.cmp(&a.flags.flagged),
+            Arrange::Attachments => b.has_attachments.cmp(&a.has_attachments),
+        };
+        let primary = if reverse { primary.reverse() } else { primary };
+        primary.then_with(|| b.date.cmp(&a.date)).then_with(|| b.key.cmp(&a.key))
+    });
 }
 
 /// A folder of an account, by path.
@@ -201,6 +312,8 @@ impl Default for Prefs {
             show_html: true,
             trusted_senders: BTreeSet::new(),
             new_mail_window: true,
+            arrange: Arrange::Date,
+            reverse_sort: false,
         }
     }
 }
@@ -208,8 +321,10 @@ impl Default for Prefs {
 /// A line in the message list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Row {
-    /// A date heading (`Today`, `Last week`…).
+    /// A date heading (`Today`, `Last week`…), or another heading of a fixed text.
     Header(&'static str),
+    /// A heading that's a name (a sender, a recipient, a subject), shown as it is.
+    Group(String),
     /// A message (index into [`Session::list`]); with conversations on, the newest message of a
     /// conversation and how many messages (and unread ones) it holds.
     Message { index: usize, count: usize, unread: usize },
@@ -739,8 +854,8 @@ impl Session {
             let other = self.focus_other;
             list.retain(|m| self.is_focused(m) != other);
         }
-        sort_newest_first(&mut list);
-        self.threads = if self.prefs.conversations { threads(&list) } else { Vec::new() };
+        arrange_list(&mut list, self.prefs.arrange, self.prefs.reverse_sort);
+        self.threads = if self.prefs.conversations && self.prefs.arrange == Arrange::Date { threads(&list) } else { Vec::new() };
         let alive: BTreeSet<&MessageKey> = list.iter().map(|m| &m.key).collect();
         self.selection.retain(|k| alive.contains(k));
         if self.focus.as_ref().is_some_and(|k| !alive.contains(k)) {
@@ -759,12 +874,27 @@ impl Session {
     /// The list as rows with date headings (and conversations, when on).
     pub fn rows(&self) -> Vec<Row> {
         let mut out = Vec::with_capacity(self.list.len() + 8);
-        let mut last: Option<DateGroup> = None;
+        let mut last: Option<Row> = None;
+        let arrange = self.prefs.arrange;
         let mut push = |out: &mut Vec<Row>, index: usize, count: usize, unread: usize, date: i64| {
-            let g = DateGroup::of(date, &self.clock);
-            if last != Some(g) {
-                out.push(Row::Header(g.label()));
-                last = Some(g);
+            // The heading this message goes under, as the list is arranged.
+            let m = self.list.get(index);
+            let heading = match arrange {
+                Arrange::Date => Row::Header(DateGroup::of(date, &self.clock).label()),
+                Arrange::From => Row::Group(m.map(|m| person(Some(&m.from))).unwrap_or_default()),
+                Arrange::To => Row::Group(m.map(|m| person(m.to.first())).unwrap_or_default()),
+                Arrange::Subject => Row::Group(m.map(Summary::base_subject).unwrap_or_default()),
+                Arrange::Size => Row::Header(size_group(m.map_or(0, |m| m.size))),
+                Arrange::Flag => Row::Header(if m.is_some_and(|m| m.flags.flagged) { "Flagged" } else { "Not flagged" }),
+                Arrange::Attachments => Row::Header(if m.is_some_and(|m| m.has_attachments) { "With attachments" } else { "Without attachments" }),
+            };
+            let heading = match heading {
+                Row::Group(g) if g.trim().is_empty() => Row::Header(if arrange == Arrange::Subject { "(no subject)" } else { "(nobody)" }),
+                h => h,
+            };
+            if last.as_ref() != Some(&heading) {
+                out.push(heading.clone());
+                last = Some(heading);
             }
             out.push(Row::Message { index, count, unread });
         };
@@ -772,7 +902,7 @@ impl Session {
         let pins = self.search.is_none();
         let pinned = |i: usize| pins && self.list.get(i).is_some_and(|m| m.flags.pinned());
         let mut pinned_rows = Vec::new();
-        if self.prefs.conversations {
+        if self.prefs.conversations && !self.threads.is_empty() {
             for t in &self.threads {
                 let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, |m| m.date)) else { continue };
                 let unread = t.messages.iter().filter(|&&i| self.list.get(i).is_some_and(|m| !m.flags.seen)).count();

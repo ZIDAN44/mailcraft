@@ -1393,3 +1393,33 @@ fn new_mail_opens_in_a_window_and_closing_keeps_a_draft() {
     assert_eq!(s.run("compose.close", &json!({"save": false})).unwrap()["saved"], false);
     done(s);
 }
+
+/// View › Arrange by, as Outlook's: sorted and grouped by sender, size, flag…, and the other way
+/// round.
+#[test]
+fn the_list_is_arranged_by_sender_size_flag_and_reversed() {
+    let mut s = sample_session("arrange");
+    let dates: Vec<i64> = s.list.iter().map(|m| m.date).collect();
+    assert!(dates.windows(2).all(|w| w[0] >= w[1]), "newest first by default");
+    s.run("view.arrange", &json!({"by": "from"})).unwrap();
+    let names: Vec<String> =
+        s.list.iter().map(|m| if m.from.name.is_empty() { m.from.email.to_lowercase() } else { m.from.name.to_lowercase() }).collect();
+    assert!(names.windows(2).all(|w| w[0] <= w[1]), "senders A to Z: {names:?}");
+    assert!(s.rows().iter().any(|r| matches!(r, Row::Group(g) if g == "Zoe Park")), "under each sender");
+    s.run("view.reverseSort", &json!({})).unwrap();
+    let names: Vec<String> =
+        s.list.iter().map(|m| if m.from.name.is_empty() { m.from.email.to_lowercase() } else { m.from.name.to_lowercase() }).collect();
+    assert!(names.windows(2).all(|w| w[0] >= w[1]), "Z to A reversed");
+    s.run("view.arrange", &json!({"by": "size"})).unwrap();
+    assert!(!s.prefs.reverse_sort, "a new arrangement starts in its own order");
+    assert!(s.list.windows(2).all(|w| w[0].size >= w[1].size), "largest first");
+    assert!(s.rows().iter().any(|r| matches!(r, Row::Header(h) if crate::ARRANGE_HEADINGS.contains(h))));
+    s.run("view.arrange", &json!({"by": "flag"})).unwrap();
+    let rows = s.rows();
+    let at = |h: &'static str| rows.iter().position(|r| *r == Row::Header(h));
+    assert!(matches!((at("Flagged"), at("Not flagged")), (Some(a), Some(b)) if a < b), "{rows:?}");
+    assert!(s.list.first().is_some_and(|m| m.flags.flagged), "flagged first");
+    assert!(s.run("view.arrange", &json!({"by": "colour"})).is_err());
+    s.run("view.arrange", &json!({"by": "date"})).unwrap();
+    assert_eq!(s.rows()[0], Row::Header("Today"));
+}

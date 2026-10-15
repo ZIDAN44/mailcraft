@@ -257,6 +257,22 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.compact}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.arrange", "Arrange by", "View › Arrangement", |s, v| {
+            let by = p::req_str(v, "by")?;
+            s.prefs.arrange =
+                crate::session::Arrange::from_code(by).ok_or_else(|| CmdError::Params(format!("`{by}` isn't date, from, to, subject, size, flag or attachments")))?;
+            // A new arrangement starts in its natural order.
+            s.prefs.reverse_sort = p::bool(v, "reverse").unwrap_or(false);
+            s.refresh_list();
+            Ok(json!({"by": s.prefs.arrange.code(), "reverse": s.prefs.reverse_sort}))
+        })
+        .params(r#"{"by": "date"|"from"|"to"|"subject"|"size"|"flag"|"attachments", "reverse"?: bool}"#),
+        CommandSpec::new("view.reverseSort", "Reverse sort", "View › Arrangement", |s, v| {
+            s.prefs.reverse_sort = p::bool(v, "on").unwrap_or(!s.prefs.reverse_sort);
+            s.refresh_list();
+            Ok(json!({"on": s.prefs.reverse_sort}))
+        })
+        .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.focused", "Focused Inbox", "View › Messages", |s, v| {
             s.prefs.focused_inbox = p::bool(v, "on").unwrap_or(!s.prefs.focused_inbox);
             s.focus_other = false;

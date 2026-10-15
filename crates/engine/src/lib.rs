@@ -23,8 +23,8 @@ pub use mailcraft_mime as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_store as store;
 pub use session::{
-    AccountState, Compose, FolderRef, ListFilter, MoveTarget, Notice, Picture, Prefs, Reading, ReadingPane, Row, SearchScope, Session, VacationState,
-    View,
+    ARRANGE_HEADINGS, AccountState, Arrange, Compose, FolderRef, ListFilter, MoveTarget, Notice, Picture, Prefs, Reading, ReadingPane, Row,
+    SearchScope, Session, VacationState, View,
     invite::Invite,
     parse_key,
     pim::{AgendaItem, CalMode, Module, Person, parse_local},
