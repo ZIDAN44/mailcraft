@@ -20,8 +20,15 @@ impl Session {
         let first = sel.first().ok_or_else(|| CmdError::Disabled("no message selected".into()))?;
         let on = on.unwrap_or(!first.flags.has(keyword));
         let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
+        let mut changed: HashMap<String, Vec<MessageKey>> = HashMap::new();
         for m in &sel {
             by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
+            if m.flags.has(keyword) != on {
+                changed.entry(m.key.account.clone()).or_default().push(m.key.clone());
+            }
+        }
+        for (a, keys) in changed {
+            self.remember(Undo::Ops { account: a, ops: vec![Op::SetKeyword { keys, keyword: keyword.to_string(), on: !on }] });
         }
         for (a, keys) in by_account {
             self.apply_op(&a, Op::SetKeyword { keys, keyword: keyword.to_string(), on });

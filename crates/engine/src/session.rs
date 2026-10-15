@@ -236,6 +236,19 @@ impl Arrange {
     }
 }
 
+/// A change the user made that Undo can put back.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Undo {
+    /// Messages moved (deleted to Deleted Items, archived, moved): found again in `to` by their
+    /// Message-ID (a move gives them new keys) and moved back where each came from.
+    Move { account: String, to: String, back: Vec<(String, String)> },
+    /// Flags or keywords changed: the changes that put them back.
+    Ops { account: String, ops: Vec<Op> },
+}
+
+/// Changes Undo remembers.
+const UNDO_DEPTH: usize = 20;
+
 /// Who a message is shown under: a name, else the address, else nothing.
 fn person(a: Option<&mailcraft_model::EmailAddress>) -> String {
     a.map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }).unwrap_or_default()
@@ -441,6 +454,8 @@ pub struct Session {
     pub prefs: Prefs,
     pub clock: Clock,
     pub notices: Vec<Notice>,
+    /// What the last changes can be put back to, newest last (Undo, Ctrl+Z).
+    pub undo: Vec<Undo>,
     /// Bumped whenever `list` changes.
     pub revision: u64,
     /// Bumped whenever a calendar or address book changes.
@@ -512,6 +527,7 @@ impl Session {
             prefs: Prefs::default(),
             clock,
             notices: Vec::new(),
+            undo: Vec::new(),
             revision: 0,
             pim_revision: 0,
             outbox: Vec::new(),
@@ -1599,6 +1615,14 @@ impl Session {
             let keys: Vec<MessageKey> = keys.into_iter().filter(|k| k.folder != dest).collect();
             moved += keys.len();
             if !keys.is_empty() {
+                // Undo finds them again by Message-ID (those without one can't come back).
+                let back: Vec<(String, String)> = keys
+                    .iter()
+                    .filter_map(|k| self.summary(k).filter(|m| !m.message_id.is_empty()).map(|m| (m.message_id.clone(), k.folder.clone())))
+                    .collect();
+                if !back.is_empty() {
+                    self.remember(Undo::Move { account: a.clone(), to: dest.clone(), back });
+                }
                 self.apply_op(&a, Op::Move { keys, to: dest });
             }
         }
@@ -1644,22 +1668,66 @@ impl Session {
     pub fn flag_selection(&mut self, flag: Flag, on: Option<bool>) -> CmdResult {
         let sel = self.selected();
         let first = sel.first().ok_or_else(|| CmdError::Disabled("no message selected".into()))?;
-        let current = match flag {
-            Flag::Seen => first.flags.seen,
-            Flag::Flagged => first.flags.flagged,
-            Flag::Answered => first.flags.answered,
-            Flag::Forwarded => first.flags.forwarded,
-            Flag::Deleted => first.flags.deleted,
-        };
+        let current = flag.get(&first.flags);
         let on = on.unwrap_or(!current);
         let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
+        // Undo puts back only the ones that changed.
+        let mut changed: HashMap<String, Vec<MessageKey>> = HashMap::new();
         for m in &sel {
             by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
+            if flag.get(&m.flags) != on {
+                changed.entry(m.key.account.clone()).or_default().push(m.key.clone());
+            }
+        }
+        for (a, keys) in changed {
+            self.remember(Undo::Ops { account: a, ops: vec![Op::SetFlag { keys, flag, on: !on }] });
         }
         for (a, keys) in by_account {
             self.apply_op(&a, Op::SetFlag { keys, flag, on });
         }
         Ok(serde_json::json!({ "on": on, "count": sel.len() }))
+    }
+
+    fn remember(&mut self, u: Undo) {
+        self.undo.push(u);
+        if self.undo.len() > UNDO_DEPTH {
+            self.undo.remove(0);
+        }
+    }
+
+    /// Put the last change back (Undo).
+    pub fn undo_last(&mut self) -> CmdResult {
+        let u = self.undo.pop().ok_or_else(|| CmdError::Disabled("nothing to undo".into()))?;
+        match u {
+            Undo::Ops { account, ops } => {
+                for op in ops {
+                    self.apply_op(&account, op);
+                }
+                Ok(serde_json::json!({ "undone": "changes" }))
+            }
+            Undo::Move { account, to, back } => {
+                // Where each one is now: the destination's messages with that Message-ID.
+                let here = self.folder_state(&account, &to).messages.clone();
+                let mut by_folder: std::collections::BTreeMap<String, Vec<MessageKey>> = std::collections::BTreeMap::new();
+                let mut used: BTreeSet<MessageKey> = BTreeSet::new();
+                for (id, from) in &back {
+                    if let Some(m) = here.iter().find(|m| &m.message_id == id && !used.contains(&m.key)) {
+                        used.insert(m.key.clone());
+                        by_folder.entry(from.clone()).or_default().push(m.key.clone());
+                    }
+                }
+                if by_folder.is_empty() {
+                    // Not there yet (the server is still moving them): try again in a moment.
+                    self.undo.push(Undo::Move { account, to, back });
+                    return Err(CmdError::Failed("still being moved; try Undo again in a moment".into()));
+                }
+                let n = used.len();
+                for (from, keys) in by_folder {
+                    self.apply_op(&account, Op::Move { keys, to: from });
+                }
+                Ok(serde_json::json!({ "undone": "move", "count": n }))
+            }
+        }
     }
 
     // ----- search -----

@@ -1440,3 +1440,26 @@ fn working_offline_comes_first_and_stops_send_receive() {
     assert!(s.run("mail.sync", &json!({})).is_ok());
     let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
 }
+
+/// Undo (Ctrl+Z) puts back the last move, delete, flag or category: moved mail is found again
+/// by its Message-ID, as a move gives it a new key.
+#[test]
+fn undo_puts_back_moves_flags_and_categories() {
+    let mut s = sample_session("undo");
+    assert!(s.run("edit.undo", &json!({})).is_err(), "nothing to undo yet");
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.select", &k).unwrap();
+    let was_flagged = s.selected()[0].flags.flagged;
+    s.run("mail.flag", &json!({})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    let m = s.list.iter().find(|m| m.subject == "Storyboard review on Thursday").unwrap();
+    assert_eq!(m.flags.flagged, was_flagged, "the flag is back");
+    s.run("list.select", &k).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    assert!(!s.list.iter().any(|m| m.subject == "Storyboard review on Thursday"), "gone from the Inbox");
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.list.iter().any(|m| m.subject == "Storyboard review on Thursday"), "back in the Inbox");
+    let trash = s.account("sample").and_then(|a| a.folder(FolderRole::Trash)).map(|f| f.path.clone()).unwrap();
+    assert!(!s.folder_state("sample", &trash).messages.iter().any(|m| m.subject == "Storyboard review on Thursday"));
+    assert!(s.undo.is_empty());
+}

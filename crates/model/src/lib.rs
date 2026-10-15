@@ -541,6 +541,16 @@ impl Flag {
             Flag::Deleted => flags.deleted = on,
         }
     }
+
+    pub fn get(self, flags: &Flags) -> bool {
+        match self {
+            Flag::Seen => flags.seen,
+            Flag::Flagged => flags.flagged,
+            Flag::Answered => flags.answered,
+            Flag::Forwarded => flags.forwarded,
+            Flag::Deleted => flags.deleted,
+        }
+    }
 }
 
 /// What the message list shows for a message: everything from its header, its flags and size,
