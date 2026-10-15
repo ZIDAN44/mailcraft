@@ -170,12 +170,15 @@ fn message_row(
 ) {
     let id = ui.make_persistent_id(("row", &m.key));
     let resp = ui.interact(r, id, Sense::click_and_drag());
+    // The pointer anywhere on the row, its own buttons included (egui hovers only the button
+    // under the pointer, and the buttons must stay while they're pointed at).
+    let hovered = ui.rect_contains_pointer(r) && !ui.ctx().is_being_dragged(id) || resp.hovered();
     let selected = s.selection.contains(&m.key);
     let unread = if count > 1 { unread_in_thread > 0 } else { !m.flags.seen };
     let p = ui.painter_at(r);
     let fill = if selected {
         t.accent_soft
-    } else if resp.hovered() {
+    } else if hovered {
         t.hover
     } else {
         Color32::TRANSPARENT
@@ -214,7 +217,6 @@ fn message_row(
         let ir = Rect::from_min_size(egui::pos2(right - *w + 3.0, line2 + 1.0), vec2(14.0, 14.0));
         icons::paint(&p, ir, ic, color);
     };
-    let hovered = resp.hovered();
     if !hovered {
         if m.flags.pinned() {
             marker(Icon::Pin, t.accent, &mut icons_w);
