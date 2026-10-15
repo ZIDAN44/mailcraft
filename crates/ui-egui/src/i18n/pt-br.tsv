@@ -661,6 +661,17 @@
 	Quick print	Impressão rápida
 	Always move to Focused	Sempre mover para Destaques
 	Always move to Other	Sempre mover para Outros
+	Follow up	Acompanhamento
+	No date	Sem data
+	Mark complete	Marcar como concluído
+	Clear flag	Limpar sinalizador
+	This week	Esta semana
+	Follow up.	Acompanhamento.
+	Follow up. Due today.	Acompanhamento. Vence hoje.
+	Follow up. Due {date}.	Acompanhamento. Vence em {date}.
+	Follow up. Overdue: it was due {date}.	Acompanhamento. Atrasado: vencia em {date}.
+	This message was sent with high importance.	Esta mensagem foi enviada com alta prioridade.
+	This message was sent with low importance.	Esta mensagem foi enviada com baixa prioridade.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

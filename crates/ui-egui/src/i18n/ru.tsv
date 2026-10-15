@@ -660,6 +660,17 @@
 	Quick print	Быстрая печать
 	Always move to Focused	Всегда перемещать в «Отсортированные»
 	Always move to Other	Всегда перемещать в «Другие»
+	Follow up	К исполнению
+	No date	Без даты
+	Mark complete	Отметить как выполненное
+	Clear flag	Снять флажок
+	This week	На этой неделе
+	Follow up.	К исполнению.
+	Follow up. Due today.	К исполнению. Срок — сегодня.
+	Follow up. Due {date}.	К исполнению. Срок — {date}.
+	Follow up. Overdue: it was due {date}.	К исполнению. Просрочено: срок был {date}.
+	This message was sent with high importance.	Это сообщение отправлено с высокой важностью.
+	This message was sent with low importance.	Это сообщение отправлено с низкой важностью.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

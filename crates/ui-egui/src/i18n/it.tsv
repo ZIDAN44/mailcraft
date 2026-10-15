@@ -660,6 +660,17 @@
 	Quick print	Stampa rapida
 	Always move to Focused	Sposta sempre in Evidenziata
 	Always move to Other	Sposta sempre in Altra
+	Follow up	Completamento
+	No date	Nessuna data
+	Mark complete	Segna come completato
+	Clear flag	Cancella contrassegno
+	This week	Questa settimana
+	Follow up.	Completamento.
+	Follow up. Due today.	Completamento. Scade oggi.
+	Follow up. Due {date}.	Completamento. Scade il {date}.
+	Follow up. Overdue: it was due {date}.	Completamento. In ritardo: scadeva il {date}.
+	This message was sent with high importance.	Questo messaggio è stato inviato con priorità alta.
+	This message was sent with low importance.	Questo messaggio è stato inviato con priorità bassa.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

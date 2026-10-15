@@ -662,3 +662,14 @@ month	May	مايو
 	Quick print	طباعة سريعة
 	Always move to Focused	النقل دائماً إلى البريد الأهم
 	Always move to Other	النقل دائماً إلى أخرى
+	Follow up	متابعة
+	No date	بلا تاريخ
+	Mark complete	وضع علامة مكتمل
+	Clear flag	مسح العلامة
+	This week	هذا الأسبوع
+	Follow up.	متابعة.
+	Follow up. Due today.	متابعة. مستحقة اليوم.
+	Follow up. Due {date}.	متابعة. مستحقة في {date}.
+	Follow up. Overdue: it was due {date}.	متابعة. متأخرة: كانت مستحقة في {date}.
+	This message was sent with high importance.	أُرسلت هذه الرسالة بأهمية عالية.
+	This message was sent with low importance.	أُرسلت هذه الرسالة بأهمية منخفضة.

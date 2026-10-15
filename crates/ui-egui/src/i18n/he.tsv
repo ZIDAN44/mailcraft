@@ -662,3 +662,14 @@ month	May	מאי
 	Quick print	הדפסה מהירה
 	Always move to Focused	העבר תמיד למיקוד
 	Always move to Other	העבר תמיד לאחר
+	Follow up	מעקב
+	No date	ללא תאריך
+	Mark complete	סמן כהושלם
+	Clear flag	נקה דגל
+	This week	השבוע
+	Follow up.	מעקב.
+	Follow up. Due today.	מעקב. היעד היום.
+	Follow up. Due {date}.	מעקב. היעד: {date}.
+	Follow up. Overdue: it was due {date}.	מעקב. באיחור: היעד היה {date}.
+	This message was sent with high importance.	הודעה זו נשלחה בחשיבות גבוהה.
+	This message was sent with low importance.	הודעה זו נשלחה בחשיבות נמוכה.

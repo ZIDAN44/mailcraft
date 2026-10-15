@@ -661,6 +661,17 @@
 	Quick print	Impression rapide
 	Always move to Focused	Toujours déplacer vers Prioritaire
 	Always move to Other	Toujours déplacer vers Autres
+	Follow up	Assurer un suivi
+	No date	Sans date
+	Mark complete	Marquer comme terminé
+	Clear flag	Effacer l'indicateur
+	This week	Cette semaine
+	Follow up.	Assurer un suivi.
+	Follow up. Due today.	Assurer un suivi. Échéance aujourd'hui.
+	Follow up. Due {date}.	Assurer un suivi. Échéance : {date}.
+	Follow up. Overdue: it was due {date}.	Assurer un suivi. En retard : échéance le {date}.
+	This message was sent with high importance.	Ce message a été envoyé avec une importance haute.
+	This message was sent with low importance.	Ce message a été envoyé avec une importance faible.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

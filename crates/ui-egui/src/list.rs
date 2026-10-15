@@ -374,31 +374,32 @@ fn message_row(
         if !s.selection.contains(&key) {
             acts.push(Action::Run("list.select", json!({"key": key.to_id()})));
         }
-        let mut item = |ui: &mut Ui, label: &str, act: Action| {
+        let item = |ui: &mut Ui, acts: &mut Vec<Action>, label: &str, act: Action| {
             if ui.button(label).clicked() {
                 acts.push(act);
                 ui.close();
             }
         };
-        item(ui, tl!("Open in new window"), Action::Run("message.popOut", json!({"key": key.to_id()})));
+        item(ui, acts, tl!("Open in new window"), Action::Run("message.popOut", json!({"key": key.to_id()})));
         ui.separator();
-        item(ui, tl!("Reply"), Action::Run("mail.reply", json!({})));
-        item(ui, tl!("Reply all"), Action::Run("mail.replyAll", json!({})));
-        item(ui, tl!("Forward"), Action::Run("mail.forward", json!({})));
-        item(ui, tl!("Quick print"), Action::Print);
+        item(ui, acts, tl!("Reply"), Action::Run("mail.reply", json!({})));
+        item(ui, acts, tl!("Reply all"), Action::Run("mail.replyAll", json!({})));
+        item(ui, acts, tl!("Forward"), Action::Run("mail.forward", json!({})));
+        item(ui, acts, tl!("Quick print"), Action::Print);
         ui.separator();
         item(
             ui,
+            acts,
             tl!(if flags.seen { "Mark as unread" } else { "Mark as read" }),
             Action::Run(if flags.seen { "mail.markUnread" } else { "mail.markRead" }, json!({})),
         );
-        item(ui, tl!(if flags.flagged { "Unflag" } else { "Flag" }), Action::Run("mail.flag", json!({})));
+        ui.menu_button(tl!("Follow up"), |ui| crate::organize::follow_up_menu(ui, s, t, acts));
         ui.separator();
-        item(ui, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
-        item(ui, tl!("Archive"), Action::Run("mail.archive", json!({})));
-        item(ui, tl!("Report junk"), Action::Run("mail.junk", json!({})));
-        item(ui, tl!("Ignore"), Action::Run("mail.ignore", json!({})));
-        item(ui, tl!("Delete"), Action::Run("mail.delete", json!({})));
+        item(ui, acts, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
+        item(ui, acts, tl!("Archive"), Action::Run("mail.archive", json!({})));
+        item(ui, acts, tl!("Report junk"), Action::Run("mail.junk", json!({})));
+        item(ui, acts, tl!("Ignore"), Action::Run("mail.ignore", json!({})));
+        item(ui, acts, tl!("Delete"), Action::Run("mail.delete", json!({})));
         ui.separator();
         // Find related, as Outlook's: the conversation, or everything from the sender.
         ui.menu_button(tl!("Find related"), |ui| {

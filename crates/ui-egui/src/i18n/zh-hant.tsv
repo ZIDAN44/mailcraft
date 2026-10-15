@@ -660,6 +660,17 @@
 	Quick print	快速列印
 	Always move to Focused	一律移至「焦點」
 	Always move to Other	一律移至「其他」
+	Follow up	待處理
+	No date	無日期
+	Mark complete	標示為完成
+	Clear flag	清除旗標
+	This week	本週
+	Follow up.	待處理。
+	Follow up. Due today.	待處理。今天到期。
+	Follow up. Due {date}.	待處理。{date} 到期。
+	Follow up. Overdue: it was due {date}.	待處理。已逾期:原定 {date} 到期。
+	This message was sent with high importance.	此郵件以高重要性傳送。
+	This message was sent with low importance.	此郵件以低重要性傳送。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

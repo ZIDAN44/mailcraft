@@ -61,6 +61,39 @@ pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>)
     }
 }
 
+/// The Follow Up menu, as Outlook's: flag for today, tomorrow, this week, next week or no day
+/// (each with its date), Mark complete, Clear flag.
+pub fn follow_up_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
+    for f in dates::FollowUp::ALL {
+        let label = crate::i18n::date(&dates::day_label(f.due(&s.clock)));
+        let clicked = ui
+            .horizontal(|ui| {
+                let r = ui.selectable_label(false, tl!(f.label()));
+                ui.label(RichText::new(label).color(t.faint).small());
+                r.clicked()
+            })
+            .inner;
+        if clicked {
+            acts.push(Action::Run("mail.flag", json!({"due": f.code()})));
+            ui.close();
+        }
+    }
+    if ui.selectable_label(false, tl!("No date")).clicked() {
+        acts.push(Action::Run("mail.flag", json!({"due": "none"})));
+        ui.close();
+    }
+    ui.separator();
+    let flagged = s.selected().iter().any(|m| m.flags.flagged);
+    if ui.add_enabled(flagged, egui::Button::new(tl!("Mark complete"))).clicked() {
+        acts.push(Action::Run("mail.flag", json!({"complete": true})));
+        ui.close();
+    }
+    if ui.add_enabled(flagged, egui::Button::new(tl!("Clear flag"))).clicked() {
+        acts.push(Action::Run("mail.flag", json!({"on": false})));
+        ui.close();
+    }
+}
+
 /// Every organising item of the message context menu.
 pub fn context_items(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, pinned: bool) {
     ui.menu_button(tl!("Categorize"), |ui| categorize_menu(ui, s, t, acts));

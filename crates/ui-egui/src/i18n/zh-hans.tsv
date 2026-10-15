@@ -663,3 +663,14 @@ month	May	5月
 	Quick print	快速打印
 	Always move to Focused	始终移到“重点”
 	Always move to Other	始终移到“其他”
+	Follow up	后续标志
+	No date	无日期
+	Mark complete	标记为完成
+	Clear flag	清除标志
+	This week	本周
+	Follow up.	后续处理。
+	Follow up. Due today.	后续处理。今天到期。
+	Follow up. Due {date}.	后续处理。{date} 到期。
+	Follow up. Overdue: it was due {date}.	后续处理。已过期:原定 {date} 到期。
+	This message was sent with high importance.	此邮件以高重要性发送。
+	This message was sent with low importance.	此邮件以低重要性发送。

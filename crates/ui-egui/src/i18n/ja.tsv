@@ -663,3 +663,14 @@ month	May	5月
 	Quick print	クイック印刷
 	Always move to Focused	常に [優先] に移動
 	Always move to Other	常に [その他] に移動
+	Follow up	フラグの設定
+	No date	日付なし
+	Mark complete	完了にする
+	Clear flag	フラグをクリア
+	This week	今週
+	Follow up.	フォローアップ。
+	Follow up. Due today.	フォローアップ。期限は今日です。
+	Follow up. Due {date}.	フォローアップ。期限は {date} です。
+	Follow up. Overdue: it was due {date}.	フォローアップ。期限切れ: 期限は {date} でした。
+	This message was sent with high importance.	このメッセージは重要度 - 高で送信されました。
+	This message was sent with low importance.	このメッセージは重要度 - 低で送信されました。

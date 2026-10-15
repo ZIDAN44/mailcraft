@@ -132,6 +132,35 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 });
             });
             ui.add_space(8.0);
+            // What Outlook says above a message: its follow-up date, its importance.
+            let due = summary.as_ref().and_then(|m| s.follow_up_due(m));
+            let flagged = summary.as_ref().is_some_and(|m| m.flags.flagged);
+            let importance = summary.as_ref().map_or(0, |m| m.importance);
+            if flagged || importance != 0 {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    if flagged {
+                        let today = dates::today(&s.clock);
+                        let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                        icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
+                        let text = match due {
+                            Some(d) if d < today => tf!("Follow up. Overdue: it was due {date}.", date = crate::i18n::date(&dates::day_label(d))),
+                            Some(d) if d == today => tl!("Follow up. Due today.").to_string(),
+                            Some(d) => tf!("Follow up. Due {date}.", date = crate::i18n::date(&dates::day_label(d))),
+                            None => tl!("Follow up.").to_string(),
+                        };
+                        let overdue = due.is_some_and(|d| d < today);
+                        ui.label(RichText::new(text).color(if overdue { t.danger } else { t.dim }).small());
+                        ui.add_space(10.0);
+                    }
+                    if importance > 0 {
+                        ui.label(RichText::new(tl!("This message was sent with high importance.")).color(t.danger).small());
+                    } else if importance < 0 {
+                        ui.label(RichText::new(tl!("This message was sent with low importance.")).color(t.dim).small());
+                    }
+                });
+                ui.add_space(6.0);
+            }
             if let Some((_, item)) = s.outbox_entry(&r.key) {
                 egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
                     let why = match item.error.as_deref() {

@@ -1618,6 +1618,9 @@ impl MailApp {
                         {
                             acts.push(Action::Run("mail.flag", json!({})));
                         }
+                        // Follow Up: when it's due, as Outlook's flag drop-down.
+                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Follow up", &t);
+                        egui::Popup::menu(&r).show(|ui| organize::follow_up_menu(ui, s, &t, acts));
                         let sel = !s.selection.is_empty();
                         let r = widgets::tool_button(ui, Icon::Tag, "Categorize", &t, sel);
                         egui::Popup::menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));

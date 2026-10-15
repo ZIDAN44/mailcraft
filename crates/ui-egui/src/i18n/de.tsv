@@ -661,6 +661,17 @@
 	Quick print	Schnelldruck
 	Always move to Focused	Immer in „Relevant“ verschieben
 	Always move to Other	Immer in „Sonstige“ verschieben
+	Follow up	Nachverfolgung
+	No date	Kein Datum
+	Mark complete	Als erledigt markieren
+	Clear flag	Kennzeichnung löschen
+	This week	Diese Woche
+	Follow up.	Nachverfolgung.
+	Follow up. Due today.	Nachverfolgung. Heute fällig.
+	Follow up. Due {date}.	Nachverfolgung. Fällig am {date}.
+	Follow up. Overdue: it was due {date}.	Nachverfolgung. Überfällig: fällig war {date}.
+	This message was sent with high importance.	Diese Nachricht wurde mit hoher Wichtigkeit gesendet.
+	This message was sent with low importance.	Diese Nachricht wurde mit niedriger Wichtigkeit gesendet.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
