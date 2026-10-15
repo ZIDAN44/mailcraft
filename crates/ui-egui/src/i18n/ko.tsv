@@ -571,7 +571,6 @@
 	Incoming mail (POP)	받는 메일(POP)
 	Mail from an old .pst comes in first	이전 .pst의 메일을 먼저 가져옵니다
 	POP and SMTP	POP 및 SMTP
-	Remove mail from the server once it's downloaded	다운로드한 후 서버에서 메일 제거
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	서버: {pop}(POP {pop_port}), {smtp}(SMTP {smtp_port})
 	Fonts	글꼴
 	Data files	데이터 파일
@@ -584,6 +583,10 @@
 	Your mail is now kept in {folder}	이제 메일이 {folder}에 보관됩니다
 	Your mail moves there the next time MailCraft starts.	다음에 MailCraft를 시작할 때 메일이 그곳으로 이동합니다.
 	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	각 계정의 메일, 연락처, 일정은 이 폴더의 MailCraft 데이터 파일(.mailcraft)에 보관됩니다. Outlook이 각 계정을 Outlook 파일의 .pst에 보관하는 것과 같습니다. 연 Outlook 데이터 파일은 여기에 자체 .mailcraft 파일이 만들어지며, Outlook 파일은 그대로 남습니다. .pst로 사본을 만들려면 정보에서 Outlook 데이터 파일로 저장을 사용하세요.
+	Keep a copy of downloaded mail on the server	다운로드한 메일의 사본을 서버에 보관
+	Remove it from the server after	다음 기간 후 서버에서 제거:
+	days	일
+	Remove it from the server once it's deleted from Deleted Items	지운 편지함에서 삭제하면 서버에서도 제거
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

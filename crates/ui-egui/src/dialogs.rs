@@ -37,14 +37,66 @@ pub struct AccountForm {
     pub pop_host: String,
     pub pop_port: String,
     pub pop_security: Security,
-    /// POP: remove mail from the server once it's downloaded.
-    pub pop_delete: bool,
+    /// POP: when the server's copy of downloaded mail goes.
+    pub pop_keep: PopKeep,
     /// POP: an existing Outlook data file whose mail comes in first (Outlook's "use an existing data file").
     pub pst: String,
     pub error: Option<String>,
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
     pub found_source: Option<String>,
+}
+
+/// When a POP server's copy of downloaded mail goes: kept (for so many days, or until it's deleted
+/// here for good), or removed at once.
+#[derive(Clone, Debug)]
+pub struct PopKeep {
+    pub keep: bool,
+    pub for_days: bool,
+    pub days: String,
+    pub until_deleted: bool,
+}
+
+impl Default for PopKeep {
+    /// A copy stays on the server for 14 days.
+    fn default() -> Self {
+        PopKeep { keep: true, for_days: true, days: "14".into(), until_deleted: false }
+    }
+}
+
+impl PopKeep {
+    fn of(c: &AccountConfig) -> PopKeep {
+        PopKeep {
+            keep: !c.pop_delete,
+            for_days: c.pop_keep_days.is_some(),
+            days: c.pop_keep_days.unwrap_or(14).to_string(),
+            until_deleted: c.pop_delete_with_trash,
+        }
+    }
+
+    /// `popDelete`, `popKeepDays` (0: for good) and `popDeleteWithTrash`.
+    fn params(&self, p: &mut serde_json::Value) {
+        let days = if self.keep && self.for_days { self.days.trim().parse::<u32>().ok().filter(|d| *d > 0).unwrap_or(14) } else { 0 };
+        p["popDelete"] = json!(!self.keep);
+        p["popKeepDays"] = json!(days);
+        p["popDeleteWithTrash"] = json!(self.keep && self.until_deleted);
+    }
+
+    fn ui(&mut self, ui: &mut Ui) {
+        ui.checkbox(&mut self.keep, tl!("Keep a copy of downloaded mail on the server"));
+        ui.add_enabled_ui(self.keep, |ui| {
+            ui.horizontal(|ui| {
+                ui.add_space(22.0);
+                ui.checkbox(&mut self.for_days, tl!("Remove it from the server after"));
+                ui.add_enabled(self.for_days, egui::TextEdit::singleline(&mut self.days).desired_width(36.0).horizontal_align(egui::Align::Center));
+                ui.label(tl!("days"));
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(22.0);
+                ui.checkbox(&mut self.until_deleted, tl!("Remove it from the server once it's deleted from Deleted Items"));
+            });
+        });
+    }
 }
 
 impl AccountForm {
@@ -103,11 +155,11 @@ impl AccountForm {
                 "popHost": self.pop_host.trim(),
                 "popPort": port(&self.pop_port),
                 "popSecurity": self.pop_security.code(),
-                "popDelete": self.pop_delete,
                 "smtpHost": self.smtp_host.trim(),
                 "smtpPort": port(&self.smtp_port),
                 "smtpSecurity": self.smtp_security.code(),
             });
+            self.pop_keep.params(&mut p);
             if !self.pst.trim().is_empty() {
                 p["pst"] = json!(self.pst.trim());
             }
@@ -141,8 +193,8 @@ pub struct EditForm {
     pub ews: Option<String>,
     /// A POP account's POP3 server (host, port, security).
     pub pop: Option<(String, String, Security)>,
-    /// POP: mail is removed from the server once it's downloaded.
-    pub pop_delete: bool,
+    /// POP: when the server's copy of downloaded mail goes.
+    pub pop_keep: PopKeep,
     pub imap_host: String,
     pub imap_port: String,
     pub imap_security: Security,
@@ -162,18 +214,19 @@ impl EditForm {
             return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "jmap": self.jmap_url.trim()});
         }
         if let Some((host, p, security)) = &self.pop {
-            return json!({
+            let mut v = json!({
                 "account": self.account,
                 "name": self.name.trim(),
                 "username": self.username.trim(),
                 "popHost": host.trim(),
                 "popPort": port(p),
                 "popSecurity": security.code(),
-                "popDelete": self.pop_delete,
                 "smtpHost": self.smtp_host.trim(),
                 "smtpPort": port(&self.smtp_port),
                 "smtpSecurity": self.smtp_security.code(),
             });
+            self.pop_keep.params(&mut v);
+            return v;
         }
         json!({
             "account": self.account,
@@ -244,7 +297,7 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
             ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(port).hint_text("995").horizontal_align(egui::Align::Center));
             security_combo(ui, "edit-popsec", security);
         });
-        ui.checkbox(&mut f.pop_delete, tl!("Remove mail from the server once it's downloaded"));
+        f.pop_keep.ui(ui);
         ui.add_space(4.0);
         label(ui, "Outgoing mail (SMTP)");
         ui.horizontal(|ui| {
@@ -636,7 +689,7 @@ impl Dialog {
             jmap_url: a.jmap.clone().unwrap_or_default(),
             ews: a.ews.clone(),
             pop: a.pop.as_ref().map(|p| (p.host.clone(), p.port.to_string(), p.security)),
-            pop_delete: a.pop_delete,
+            pop_keep: PopKeep::of(a),
             imap_host: a.imap.host.clone(),
             imap_port: a.imap.port.to_string(),
             imap_security: a.imap.security,
@@ -1050,7 +1103,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                                 .changed();
                             security_combo(ui, "popsec", &mut f.pop_security);
                         });
-                        ui.checkbox(&mut f.pop_delete, tl!("Remove mail from the server once it's downloaded"));
+                        f.pop_keep.ui(ui);
                     } else {
                         label(ui, "Incoming mail (IMAP)");
                         ui.horizontal(|ui| {

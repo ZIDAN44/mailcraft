@@ -574,7 +574,6 @@ month	May	5月
 	Incoming mail (POP)	受信メール (POP)
 	Mail from an old .pst comes in first	古い .pst のメールを最初に取り込みます
 	POP and SMTP	POP と SMTP
-	Remove mail from the server once it's downloaded	ダウンロード後にサーバーからメールを削除する
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	サーバー: {pop} (POP {pop_port})、{smtp} (SMTP {smtp_port})
 	Fonts	フォント
 	Data files	データ ファイル
@@ -587,3 +586,7 @@ month	May	5月
 	Your mail is now kept in {folder}	メールは {folder} に保存されるようになりました
 	Your mail moves there the next time MailCraft starts.	次回 MailCraft の起動時にメールがそこへ移動します。
 	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	各アカウントのメール、連絡先、予定表は、このフォルダーの MailCraft データ ファイル (.mailcraft) に保存されます。Outlook が各アカウントを Outlook ファイルの .pst に保存するのと同じです。開いた Outlook データ ファイルにはここに専用の .mailcraft ファイルが作られ、Outlook のファイルはそのまま残ります。.pst としてコピーが必要な場合は、[情報] の [Outlook データ ファイルとして保存] を使います。
+	Keep a copy of downloaded mail on the server	ダウンロードしたメールのコピーをサーバーに残す
+	Remove it from the server after	次の期間後にサーバーから削除:
+	days	日
+	Remove it from the server once it's deleted from Deleted Items	[削除済みアイテム] から削除したらサーバーからも削除する

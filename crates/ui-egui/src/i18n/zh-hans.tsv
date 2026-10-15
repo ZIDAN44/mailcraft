@@ -574,7 +574,6 @@ month	May	5月
 	Incoming mail (POP)	接收邮件 (POP)
 	Mail from an old .pst comes in first	先导入旧 .pst 中的邮件
 	POP and SMTP	POP 和 SMTP
-	Remove mail from the server once it's downloaded	下载后从服务器删除邮件
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	服务器：{pop} (POP {pop_port})，{smtp} (SMTP {smtp_port})
 	Fonts	字体
 	Data files	数据文件
@@ -587,3 +586,7 @@ month	May	5月
 	Your mail is now kept in {folder}	你的邮件现在保存在 {folder}
 	Your mail moves there the next time MailCraft starts.	下次启动 MailCraft 时邮件将移到那里。
 	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	每个帐户的邮件、联系人和日历都保存在此文件夹中的 MailCraft 数据文件 (.mailcraft) 里，就像 Outlook 把每个帐户保存在 Outlook 文件中的 .pst 里一样。你打开的 Outlook 数据文件会在这里获得自己的 .mailcraft 文件；Outlook 的文件保持原样。如需 .pst 副本，请在“信息”中使用“另存为 Outlook 数据文件”。
+	Keep a copy of downloaded mail on the server	在服务器上保留已下载邮件的副本
+	Remove it from the server after	在以下天数后从服务器删除：
+	days	天
+	Remove it from the server once it's deleted from Deleted Items	从“已删除邮件”中删除后，也从服务器删除

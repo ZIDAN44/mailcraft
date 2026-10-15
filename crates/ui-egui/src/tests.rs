@@ -476,13 +476,19 @@ fn the_account_form_adds_pop_accounts_with_their_old_data_file() {
     };
     assert_eq!((p["pop"].clone(), p["popHost"].clone(), p["popPort"].clone()), (json!(true), json!("pop.example.org"), json!(995)));
     assert_eq!((p["popDelete"].clone(), p["pst"].clone()), (json!(false), json!("C:/Mail/old.pst")), "a copy stays on the server");
+    assert_eq!((p["popKeepDays"].clone(), p["popDeleteWithTrash"].clone()), (json!(14), json!(false)), "for 14 days, as Outlook's default");
     assert!(p.get("imapHost").is_none(), "no IMAP server for a POP account");
     a.act(crate::Action::Submit("account.add", p));
     let added = a.session.accounts.iter().find(|x| x.config.email == "ana@example.org").unwrap();
     assert!(added.config.pop.is_some() && !added.is_local());
-    // Its server settings edit the POP server.
-    let Dialog::EditAccount(e) = Dialog::edit_account(&added.config) else { panic!() };
+    assert_eq!(added.config.pop_keep_days, Some(14));
+    // Its server settings edit the POP server, and when the server's copy goes.
+    let Dialog::EditAccount(mut e) = Dialog::edit_account(&added.config) else { panic!() };
     assert_eq!(e.params()["popHost"], "pop.example.org");
+    (e.pop_keep.for_days, e.pop_keep.until_deleted) = (false, true);
+    assert_eq!((e.params()["popKeepDays"].clone(), e.params()["popDeleteWithTrash"].clone()), (json!(0), json!(true)));
+    e.pop_keep.keep = false;
+    assert_eq!((e.params()["popDelete"].clone(), e.params()["popDeleteWithTrash"].clone()), (json!(true), json!(false)));
     let _ = std::fs::remove_dir_all(dir);
 }
 

@@ -571,7 +571,6 @@
 	Incoming mail (POP)	Входящая почта (POP)
 	Mail from an old .pst comes in first	Сначала загружается почта из старого .pst
 	POP and SMTP	POP и SMTP
-	Remove mail from the server once it's downloaded	Удалять почту с сервера после загрузки
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Серверы: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
 	Fonts	Шрифты
 	Data files	Файлы данных
@@ -584,6 +583,10 @@
 	Your mail is now kept in {folder}	Теперь ваша почта хранится в {folder}
 	Your mail moves there the next time MailCraft starts.	Почта будет перемещена туда при следующем запуске MailCraft.
 	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	Почта, контакты и календарь каждой учётной записи хранятся в файле данных MailCraft (.mailcraft) в этой папке — так же, как Outlook хранит каждую учётную запись в .pst в папке «Файлы Outlook». Открытый файл данных Outlook получает здесь собственный файл .mailcraft; файл Outlook остаётся без изменений. Чтобы получить копию в .pst, используйте «Сохранить как файл данных Outlook» в разделе «Сведения».
+	Keep a copy of downloaded mail on the server	Оставлять копию загруженной почты на сервере
+	Remove it from the server after	Удалять её с сервера через
+	days	дн.
+	Remove it from the server once it's deleted from Deleted Items	Удалять её с сервера после удаления из папки «Удаленные»
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

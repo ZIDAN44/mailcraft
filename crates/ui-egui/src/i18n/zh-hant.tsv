@@ -571,7 +571,6 @@
 	Incoming mail (POP)	內送郵件 (POP)
 	Mail from an old .pst comes in first	先匯入舊 .pst 中的郵件
 	POP and SMTP	POP 和 SMTP
-	Remove mail from the server once it's downloaded	下載後從伺服器移除郵件
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	伺服器：{pop} (POP {pop_port})，{smtp} (SMTP {smtp_port})
 	Fonts	字型
 	Data files	資料檔
@@ -584,6 +583,10 @@
 	Your mail is now kept in {folder}	你的郵件現在儲存在 {folder}
 	Your mail moves there the next time MailCraft starts.	下次啟動 MailCraft 時郵件將移到那裡。
 	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	每個帳戶的郵件、連絡人和行事曆都儲存在此資料夾中的 MailCraft 資料檔 (.mailcraft) 裡，就像 Outlook 把每個帳戶儲存在 Outlook 檔案中的 .pst 裡一樣。你開啟的 Outlook 資料檔會在這裡取得自己的 .mailcraft 檔；Outlook 的檔案保持原樣。如需 .pst 複本，請在「資訊」中使用「另存為 Outlook 資料檔」。
+	Keep a copy of downloaded mail on the server	在伺服器上保留已下載郵件的複本
+	Remove it from the server after	在以下天數後從伺服器移除：
+	days	天
+	Remove it from the server once it's deleted from Deleted Items	從「刪除的郵件」中刪除後，也從伺服器移除
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

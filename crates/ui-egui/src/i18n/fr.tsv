@@ -572,7 +572,6 @@
 	Incoming mail (POP)	Courrier entrant (POP)
 	Mail from an old .pst comes in first	Le courrier d'un ancien .pst est importé en premier
 	POP and SMTP	POP et SMTP
-	Remove mail from the server once it's downloaded	Supprimer le courrier du serveur une fois téléchargé
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Serveurs : {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
 	Fonts	Polices
 	Data files	Fichiers de données
@@ -585,6 +584,10 @@
 	Your mail is now kept in {folder}	Votre courrier est désormais conservé dans {folder}
 	Your mail moves there the next time MailCraft starts.	Votre courrier y sera déplacé au prochain démarrage de MailCraft.
 	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	Le courrier, les contacts et le calendrier de chaque compte sont conservés dans un fichier de données MailCraft (.mailcraft) dans ce dossier, comme Outlook conserve chaque compte dans un .pst dans Fichiers Outlook. Un fichier de données Outlook que vous ouvrez obtient ici son propre fichier .mailcraft ; le fichier d'Outlook reste tel quel. Pour en avoir une copie en .pst, utilisez Enregistrer comme fichier de données Outlook sous Infos.
+	Keep a copy of downloaded mail on the server	Conserver une copie du courrier téléchargé sur le serveur
+	Remove it from the server after	La supprimer du serveur après
+	days	jours
+	Remove it from the server once it's deleted from Deleted Items	La supprimer du serveur une fois supprimée des Éléments supprimés
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives
