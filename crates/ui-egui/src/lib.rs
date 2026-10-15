@@ -121,6 +121,23 @@ pub trait Services {
     fn can_drag_out(&self) -> bool {
         false
     }
+    /// Whether files are handed over as downloads (the browser, which has no files) instead of
+    /// saved through [`Services::save_path`].
+    fn downloads(&self) -> bool {
+        false
+    }
+    /// Hand `bytes` to the user as a download named `name`.
+    fn download(&mut self, _name: &str, _bytes: &[u8]) {}
+    /// Start choosing files without waiting (the browser): `purpose` is `attach` or `picture`,
+    /// and the files arrive through [`Services::take_picked`]. `false` (the default) means
+    /// [`Services::pick_files`] answers at once.
+    fn pick_later(&mut self, _purpose: &str) -> bool {
+        false
+    }
+    /// Files chosen since the last call: (purpose, name, bytes).
+    fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {
+        Vec::new()
+    }
 }
 
 /// Services for tests: a fixed clock, no dialogs.
@@ -357,6 +374,15 @@ impl MailApp {
         for url in std::mem::take(&mut self.session.open_urls) {
             if let Err(e) = self.services.open_url(&url) {
                 self.session.notice(tf!("The sign-in page couldn't be opened: {error}", error = e), true);
+            }
+        }
+        // Files chosen in the browser's picker.
+        for (purpose, name, data) in self.services.take_picked() {
+            if purpose == "picture" {
+                let r = self.session.run("compose.insertPicture", &json!({"name": name, "data": data, "insert": false}));
+                self.place_picture(r);
+            } else {
+                self.run("compose.attach", json!({"name": name, "data": data}));
             }
         }
         // Snoozed mail that is due comes back.
@@ -650,6 +676,43 @@ impl MailApp {
                     self.session.notice(tf!("{app} couldn't open it: {error}", app = app.display(), error = e), true);
                 }
             }
+            Action::Print | Action::ExportPdf if self.services.downloads() => {
+                let name = format!("{}.pdf", self.message_file_name());
+                match self.session.message_pdf() {
+                    Ok(b) => self.services.download(&name, &b),
+                    Err(e) => self.session.notice(e.to_string(), true),
+                }
+            }
+            Action::SaveMessage if self.services.downloads() => {
+                let name = format!("{}.eml", self.message_file_name());
+                match self.session.message_source() {
+                    Ok(b) => self.services.download(&name, &b),
+                    Err(e) => self.session.notice(e.to_string(), true),
+                }
+            }
+            Action::SaveAttachment(i) | Action::OpenAttachment(i) if self.services.downloads() => {
+                let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(i));
+                match self.session.attachment_bytes(i) {
+                    Ok(b) => self.services.download(&name, &b),
+                    Err(e) => self.session.notice(e.to_string(), true),
+                }
+            }
+            Action::SaveAll if self.services.downloads() => {
+                let files: Vec<(usize, String)> = self
+                    .session
+                    .reading
+                    .as_ref()
+                    .and_then(|r| r.parsed.as_ref())
+                    .map(|p| p.attachments.iter().filter(|a| !a.inline).map(|a| (a.index, a.name.clone())).collect())
+                    .unwrap_or_default();
+                for (i, name) in files {
+                    if let Ok(b) = self.session.attachment_bytes(i) {
+                        self.services.download(&mailcraft_engine::mime::sanitize_filename(&name), &b);
+                    }
+                }
+            }
+            Action::InsertPicture if self.services.pick_later("picture") => {}
+            Action::AttachFiles if self.services.pick_later("attach") => {}
             Action::Print => {
                 let dir = std::env::temp_dir().join("mailcraft-print");
                 let _ = std::fs::create_dir_all(&dir);

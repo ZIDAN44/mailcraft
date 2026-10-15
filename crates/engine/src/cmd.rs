@@ -848,12 +848,53 @@ fn discard(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"discarded": c.map(|c| c.id)}))
 }
 
+impl Session {
+    /// The open message's attachment `index`, as bytes.
+    pub fn attachment_bytes(&self, index: usize) -> Result<Vec<u8>, CmdError> {
+        let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        let raw = self.store.as_ref().and_then(|st| st.read_body(&r.key)).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
+        mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))
+    }
+
+    /// The open message's source (`.eml`).
+    pub fn message_source(&self) -> Result<Vec<u8>, CmdError> {
+        let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        if r.key.folder == crate::session::OUTBOX {
+            self.outbox_entry(&r.key).and_then(|(a, i)| self.store.as_ref().and_then(|st| st.outbox_raw(&a, i.id)))
+        } else {
+            self.store.as_ref().and_then(|st| st.read_body(&r.key))
+        }
+        .ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))
+    }
+
+    /// The open message as a PDF: subject, header, text and the names of its attachments.
+    pub fn message_pdf(&self) -> Result<Vec<u8>, CmdError> {
+        let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        let m = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+        let mut header = vec![("From".to_string(), m.from.to_string())];
+        if !m.to.is_empty() {
+            header.push(("To".into(), mailcraft_model::addr::format_list(&m.to)));
+        }
+        if !m.cc.is_empty() {
+            header.push(("Cc".into(), mailcraft_model::addr::format_list(&m.cc)));
+        }
+        if m.date > 0 {
+            header.push(("Date".into(), mailcraft_model::dates::full_time(m.date, &self.clock)));
+        }
+        let files: Vec<String> = m.attachments.iter().filter(|a| !a.inline).map(|a| a.name.clone()).collect();
+        if !files.is_empty() {
+            header.push(("Attachments".into(), files.join(", ")));
+        }
+        let doc = mailcraft_print::Doc { title: m.subject.clone(), header, body: m.text.clone() };
+        let fonts = self.print_fonts.as_ref().map(|(r, b)| mailcraft_print::Fonts { regular: r, bold: b.as_deref() });
+        mailcraft_print::pdf(&doc, fonts).map_err(CmdError::Failed)
+    }
+}
+
 fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
     let path = p::req_str(v, "path")?;
-    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-    let raw = s.store.as_ref().and_then(|st| st.read_body(&r.key)).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
-    let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))?;
+    let data = s.attachment_bytes(index)?;
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     Ok(json!({"saved": path, "bytes": data.len()}))
 }
@@ -909,39 +950,15 @@ fn preview_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// The open message's source, as an `.eml` file.
 fn save_message(s: &mut Session, v: &Value) -> CmdResult {
     let path = p::req_str(v, "path")?;
-    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-    let raw = if r.key.folder == crate::session::OUTBOX {
-        s.outbox_entry(&r.key).and_then(|(a, i)| s.store.as_ref().and_then(|st| st.outbox_raw(&a, i.id)))
-    } else {
-        s.store.as_ref().and_then(|st| st.read_body(&r.key))
-    }
-    .ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
+    let raw = s.message_source()?;
     std::fs::write(path, &raw).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     Ok(json!({"saved": path, "bytes": raw.len()}))
 }
 
-/// The open message as a PDF: subject, header, text and the names of its attachments.
+/// The open message as a PDF.
 fn export_pdf(s: &mut Session, v: &Value) -> CmdResult {
     let path = p::req_str(v, "path")?;
-    let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-    let m = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
-    let mut header = vec![("From".to_string(), m.from.to_string())];
-    if !m.to.is_empty() {
-        header.push(("To".into(), mailcraft_model::addr::format_list(&m.to)));
-    }
-    if !m.cc.is_empty() {
-        header.push(("Cc".into(), mailcraft_model::addr::format_list(&m.cc)));
-    }
-    if m.date > 0 {
-        header.push(("Date".into(), mailcraft_model::dates::full_time(m.date, &s.clock)));
-    }
-    let files: Vec<String> = m.attachments.iter().filter(|a| !a.inline).map(|a| a.name.clone()).collect();
-    if !files.is_empty() {
-        header.push(("Attachments".into(), files.join(", ")));
-    }
-    let doc = mailcraft_print::Doc { title: m.subject.clone(), header, body: m.text.clone() };
-    let fonts = s.print_fonts.as_ref().map(|(r, b)| mailcraft_print::Fonts { regular: r, bold: b.as_deref() });
-    let bytes = mailcraft_print::pdf(&doc, fonts).map_err(CmdError::Failed)?;
+    let bytes = s.message_pdf()?;
     std::fs::write(path, &bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     Ok(json!({"saved": path, "bytes": bytes.len()}))
 }

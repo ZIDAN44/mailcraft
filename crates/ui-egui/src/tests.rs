@@ -610,3 +610,69 @@ fn long_folders_render_quickly() {
     assert!(per.as_millis() < 400, "frame took {per:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The browser's services: no files, so downloads and a picker that answers later.
+#[derive(Default)]
+struct WebLike {
+    downloads: std::rc::Rc<std::cell::RefCell<Vec<(String, usize)>>>,
+    picked: Vec<(String, String, Vec<u8>)>,
+    asked: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+}
+
+impl crate::Services for WebLike {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        panic!("the browser can't pick files at once")
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        panic!("the browser has no paths")
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        panic!("the browser has no paths")
+    }
+    fn downloads(&self) -> bool {
+        true
+    }
+    fn download(&mut self, name: &str, bytes: &[u8]) {
+        self.downloads.borrow_mut().push((name.to_string(), bytes.len()));
+    }
+    fn pick_later(&mut self, purpose: &str) -> bool {
+        self.asked.borrow_mut().push(purpose.to_string());
+        self.picked.push((purpose.to_string(), "notes.txt".into(), b"remember".to_vec()));
+        true
+    }
+    fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {
+        std::mem::take(&mut self.picked)
+    }
+}
+
+#[test]
+fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
+    let store = Store::memory();
+    sample::seed_if_empty(&store, NOW).unwrap();
+    let s = Session::open(Some(store), Clock::new(NOW, 0));
+    let web = WebLike::default();
+    let (downloads, asked) = (web.downloads.clone(), web.asked.clone());
+    let mut a = MailApp::new(s, Box::new(NullBackend), Box::new(web));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let key = a.session.list.iter().find(|m| m.has_attachments).map(|m| m.key.clone()).unwrap();
+    a.session.open_message(&key);
+    frame(&ctx, &mut a, vec![]);
+    let first =
+        a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).and_then(|p| p.attachments.iter().find(|x| !x.inline)).map(|x| x.index).unwrap();
+    for act in [crate::Action::SaveMessage, crate::Action::ExportPdf, crate::Action::SaveAttachment(first), crate::Action::SaveAll] {
+        a.act(act);
+    }
+    let got = downloads.borrow().clone();
+    assert!(got.len() >= 4, "{got:?}");
+    assert!(got[0].0.ends_with(".eml") && got[1].0.ends_with(".pdf") && got.iter().all(|(_, n)| *n > 0), "{got:?}");
+
+    a.run("mail.new", json!({}));
+    a.act(crate::Action::AttachFiles);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(asked.borrow().as_slice(), ["attach"]);
+    assert!(a.session.compose.as_ref().is_some_and(|c| c.attachments.iter().any(|x| x.name == "notes.txt")));
+}
