@@ -85,7 +85,10 @@ impl Client {
     }
 
     fn request(&self, mut r: Request) -> Result<Value> {
-        r = r.header("Authorization", &self.auth).header("Accept", "application/json").header("Prefer", "IdType=\"ImmutableId\"");
+        r = r
+            .header("Authorization", &self.auth)
+            .header("Accept", "application/json")
+            .header("Prefer", "IdType=\"ImmutableId\", outlook.timezone=\"UTC\"");
         let resp = http::send(&r)?;
         check(&resp)?;
         if resp.body.iter().all(u8::is_ascii_whitespace) {
@@ -94,23 +97,23 @@ impl Client {
         json_body(&resp.body)
     }
 
-    fn get(&self, path: &str) -> Result<Value> {
+    pub(crate) fn get(&self, path: &str) -> Result<Value> {
         self.request(Request::get(&format!("{}{path}", self.base), MAX_JSON))
     }
 
-    fn post(&self, path: &str, body: &Value) -> Result<Value> {
+    pub(crate) fn post(&self, path: &str, body: &Value) -> Result<Value> {
         let bytes = serde_json::to_vec(body).map_err(|e| NetError::Protocol(e.to_string()))?;
         self.request(Request::post(&format!("{}{path}", self.base), "application/json", bytes, MAX_JSON))
     }
 
-    fn send_raw(&self, method: &str, path: &str, content_type: &str, body: Vec<u8>) -> Result<Value> {
+    pub(crate) fn send_raw(&self, method: &str, path: &str, content_type: &str, body: Vec<u8>) -> Result<Value> {
         let mut r = Request::post(&format!("{}{path}", self.base), content_type, body, MAX_JSON);
         r.method = method.into();
         self.request(r)
     }
 
     /// Every item of a listing, following `@odata.nextLink` (on the same server only).
-    fn all(&self, path: &str, limit: usize) -> Result<Vec<Value>> {
+    pub(crate) fn all(&self, path: &str, limit: usize) -> Result<Vec<Value>> {
         let origin = http::Url::parse(&self.base)?.origin();
         let mut out = Vec::new();
         let mut url = format!("{}{path}", self.base);

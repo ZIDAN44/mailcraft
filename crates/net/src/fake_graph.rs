@@ -38,6 +38,10 @@ pub struct Data {
     /// MIME sources handed to `sendMail`.
     pub sent: Vec<Vec<u8>>,
     pub replies: Value,
+    /// Calendars (id, name), events (with a `calendar` field) and contacts, as Graph has them.
+    pub calendars: Vec<(String, String)>,
+    pub events: Vec<Value>,
+    pub contacts: Vec<Value>,
     /// Every request, as `METHOD path`.
     pub calls: Vec<String>,
     next: u32,
@@ -249,6 +253,51 @@ impl Data {
                 self.replies = r;
                 ok(json!({}))
             }
+            ("GET", ["me", "calendars"]) => {
+                let list: Vec<Value> = self.calendars.iter().map(|(id, name)| json!({"id": id, "name": name, "canEdit": true})).collect();
+                ok(json!({ "value": list }))
+            }
+            ("GET", ["me", "calendars", cal, "events"]) => {
+                let list: Vec<Value> = self.events.iter().filter(|e| e["calendar"] == *cal).cloned().collect();
+                ok(json!({ "value": list }))
+            }
+            ("POST", ["me", "calendars", cal, "events"]) => {
+                let id = self.id("EV");
+                let mut e = input.clone();
+                e["id"] = json!(id);
+                e["iCalUId"] = json!(format!("ical-{id}"));
+                e["changeKey"] = json!("ck1");
+                e["calendar"] = json!(cal);
+                self.events.push(e.clone());
+                (201, e.to_string().into_bytes(), "application/json")
+            }
+            ("PATCH", ["me", "events", id]) => match self.events.iter_mut().find(|e| e["id"] == *id) {
+                Some(e) => {
+                    for (k, v) in input.as_object().cloned().unwrap_or_default() {
+                        e[k.as_str()] = v;
+                    }
+                    e["changeKey"] = json!("ck2");
+                    ok(e.clone())
+                }
+                None => not_found(),
+            },
+            ("DELETE", ["me", "events", id]) => {
+                self.events.retain(|e| e["id"] != *id);
+                (204, Vec::new(), "text/plain")
+            }
+            ("GET", ["me", "contacts"]) => ok(json!({ "value": self.contacts })),
+            ("POST", ["me", "contacts"]) => {
+                let id = self.id("CT");
+                let mut c = input.clone();
+                c["id"] = json!(id);
+                c["changeKey"] = json!("ck1");
+                self.contacts.push(c.clone());
+                (201, c.to_string().into_bytes(), "application/json")
+            }
+            ("DELETE", ["me", "contacts", id]) => {
+                self.contacts.retain(|c| c["id"] != *id);
+                (204, Vec::new(), "text/plain")
+            }
             _ => not_found(),
         }
     }
@@ -320,7 +369,7 @@ pub fn serve(data: Data) -> Server {
                 }
                 authorized |=
                     line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == format!("Bearer {TOKEN}"));
-                immutable |= line.trim_end() == "Prefer: IdType=\"ImmutableId\"";
+                immutable |= line.starts_with("Prefer: IdType=\"ImmutableId\"");
             }
             let mut body = vec![0u8; len];
             let _ = reader.read_exact(&mut body);
@@ -375,6 +424,68 @@ mod tests {
     fn mail(subject: &str, id: &str) -> Vec<u8> {
         format!("From: Zoe Park <zoe@contoso.example>\r\nTo: me@contoso.example\r\nSubject: {subject}\r\nMessage-ID: <{id}@x>\r\n\r\nHello about {subject}.\r\n")
             .into_bytes()
+    }
+
+    #[test]
+    fn exchange_calendars_and_contacts_sync_both_ways() {
+        use mailcraft_model::ical::CalEvent;
+        use mailcraft_model::pim::{LOCAL, Pim, StoredCard, StoredEvent, Tombstone};
+        use mailcraft_model::vcard::{Card, Typed};
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"));
+        d.calendars.push(("CAL1".into(), "Calendar".into()));
+        d.events.push(json!({"id": "OLD", "calendar": "CAL1", "iCalUId": "old", "subject": "Gone", "start": {"dateTime": "2026-10-01T09:00:00.0000000"}, "end": {"dateTime": "2026-10-01T10:00:00.0000000"}}));
+        d.events.push(json!({"id": "E1", "calendar": "CAL1", "iCalUId": "standup", "subject": "Stand-up", "changeKey": "x",
+            "start": {"dateTime": "2026-10-05T09:00:00.0000000"}, "end": {"dateTime": "2026-10-05T09:15:00.0000000"},
+            "recurrence": {"pattern": {"type": "weekly", "interval": 1, "daysOfWeek": ["monday", "wednesday", "friday"]}, "range": {"type": "noEnd"}}}));
+        d.contacts.push(json!({"id": "C1", "displayName": "Ana Lima", "emailAddresses": [{"address": "ana@contoso.example"}]}));
+        let server = serve(d);
+        let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+        // Here: a new event and person, and a deleted event.
+        let mut pim = Pim::default();
+        pim.events.push(StoredEvent {
+            calendar: LOCAL.into(),
+            event: CalEvent {
+                uid: "local-1".into(),
+                summary: "Poster review".into(),
+                start: 1_792_000_000,
+                end: 1_792_003_600,
+                ..Default::default()
+            },
+            dirty: true,
+            ..Default::default()
+        });
+        pim.cards.push(StoredCard {
+            book: LOCAL.into(),
+            card: Card {
+                uid: "p1".into(),
+                name: "Ben Ito".into(),
+                emails: vec![Typed { value: "ben@contoso.example".into(), kind: String::new() }],
+                ..Default::default()
+            },
+            dirty: true,
+            ..Default::default()
+        });
+        pim.deleted.push(Tombstone { href: "OLD".into(), etag: String::new() });
+        let sync = crate::graph_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+        assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+        {
+            let d = server.data.lock().unwrap();
+            assert!(!d.events.iter().any(|e| e["id"] == "OLD"), "deleted on the server");
+            assert!(d.events.iter().any(|e| e["subject"] == "Poster review" && e["calendar"] == "CAL1"), "new event in the default calendar");
+            assert!(d.contacts.iter().any(|c| c["displayName"] == "Ben Ito"));
+        }
+        assert_eq!(sync.deleted, ["OLD"]);
+        assert_eq!(sync.pushed_events[0].calendar, "CAL1");
+        assert!(sync.pushed_cards[0].href.starts_with("contact:"));
+        // Read back: the recurring stand-up with its rule, both people.
+        let standup = sync.events.iter().find(|e| e.event.summary == "Stand-up").unwrap();
+        assert_eq!(standup.event.rrule.as_deref(), Some("FREQ=WEEKLY;BYDAY=MO,WE,FR"));
+        assert_eq!(standup.event.end - standup.event.start, 900);
+        assert_eq!(sync.events.len(), 2);
+        assert_eq!(sync.cards.len(), 2);
+        assert_eq!(sync.calendars.as_ref().map(Vec::len), Some(1));
+        assert!(server.data.lock().unwrap().calls.iter().all(|c| !c.contains("contacts/p1")), "a local uid is never sent as an id");
     }
 
     #[test]

@@ -77,7 +77,7 @@ pub fn provider_for_account(account: &mailcraft_model::AccountConfig) -> Option<
     Some(p)
 }
 
-const GRAPH_SCOPE: &str = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access";
+const GRAPH_SCOPE: &str = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite offline_access";
 
 /// The providers with a registration, so sign-in can be offered.
 pub fn available() -> Vec<String> {

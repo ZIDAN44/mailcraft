@@ -1177,6 +1177,26 @@ fn dav_results_merge_without_losing_local_changes() {
     s2.apply(Event::DavSynced { account: id2.clone(), sync: Box::new(none) });
     assert_eq!(s2.pim.get(&id2).unwrap().calendars[0].id, mailcraft_model::pim::LOCAL);
     assert_eq!(s2.pim.get(&id2).unwrap().caldav_home.as_deref(), Some(""), "remembered as none");
+    // An event made on this computer, stored in the server's calendar (Exchange gives it a new
+    // uid): one event after the merge, the server's.
+    s2.run("event.create", &json!({"summary": "Poster review", "start": NOW + 3600, "end": NOW + 7200})).unwrap();
+    let local = s2.pim.get(&id2).unwrap().events[0].clone();
+    let server_cal = "CAL1".to_string();
+    let pushed = StoredEvent { calendar: server_cal.clone(), href: "EV1".into(), etag: "ck".into(), event: local.event.clone(), dirty: false };
+    let read = StoredEvent { event: CalEvent { uid: "ical-EV1".into(), ..local.event.clone() }, ..pushed.clone() };
+    let merged = DavSync {
+        caldav_home: Some("graph".into()),
+        calendars: Some(vec![CalendarInfo { id: server_cal.clone(), name: "Calendar".into(), color: 0, read_only: false, ctag: String::new() }]),
+        events: vec![read],
+        synced_calendars: vec![server_cal],
+        pushed_events: vec![pushed],
+        checked: NOW,
+        ..Default::default()
+    };
+    s2.apply(Event::DavSynced { account: id2.clone(), sync: Box::new(merged) });
+    let p = s2.pim.get(&id2).unwrap();
+    assert_eq!(p.events.iter().filter(|e| e.event.summary == "Poster review").count(), 1, "{:?}", p.events);
+    assert_eq!(p.events[0].event.uid, "ical-EV1");
     done(s);
     done(s2);
 }

@@ -958,6 +958,15 @@ impl Worker {
     /// Sync calendars and address books with the account's CalDAV / CardDAV server (password
     /// accounts: OAuth tokens are for mail only).
     fn sync_dav(&mut self) {
+        // Exchange Online: its calendars and contacts through Graph.
+        if let Some(Conn::Graph(c)) = &self.conn {
+            let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+            match crate::graph_pim::sync(c, &pim, now()) {
+                Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
+                Err(e) => log::info!("{}: calendars and contacts: {e}", self.acc.id),
+            }
+            return;
+        }
         if self.acc.oauth.is_some() {
             return;
         }

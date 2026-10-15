@@ -307,6 +307,8 @@ impl Session {
             for e in p.events.iter_mut().filter(|e| e.event.uid == x.event.uid && e.event.recurrence_id == x.event.recurrence_id) {
                 e.href = x.href.clone();
                 e.etag = x.etag.clone();
+                // Stored in another calendar (a new event goes to the server's default one).
+                e.calendar = x.calendar.clone();
                 e.dirty &= e.event != x.event;
             }
         }
@@ -314,6 +316,7 @@ impl Session {
             for c in p.cards.iter_mut().filter(|c| c.card.uid == x.card.uid) {
                 c.href = x.href.clone();
                 c.etag = x.etag.clone();
+                c.book = x.book.clone();
                 c.dirty &= c.card != x.card;
             }
         }
