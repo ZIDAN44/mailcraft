@@ -94,6 +94,13 @@ pub struct OutboxItem {
     /// Why the last attempt failed.
     #[serde(default)]
     pub error: Option<String>,
+    /// Held back until then (Unix seconds; 0 = send at once): Outlook's Delay Delivery.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub not_before: i64,
+}
+
+fn is_zero(n: &i64) -> bool {
+    *n == 0
 }
 
 /// FNV-1a: a stable, dependency-free hash for folder directory names (folder names can hold

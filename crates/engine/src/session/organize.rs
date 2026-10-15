@@ -163,6 +163,7 @@ impl Session {
     /// Bring back snoozed mail that is due. Called often (each frame, each CLI run): cheap when
     /// nothing is due.
     pub fn tick(&mut self) {
+        self.flush_due_outbox();
         let now = self.clock.now;
         if !self.snoozes.iter().any(|s| s.until <= now) {
             return;

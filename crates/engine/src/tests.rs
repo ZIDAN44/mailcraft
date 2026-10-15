@@ -1607,3 +1607,44 @@ fn mail_a_rule_deletes_is_not_announced() {
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     assert!(!s.take_new_mail().iter().any(|m| m.subject == "Deleted on arrival"));
 }
+
+#[test]
+fn delay_delivery_holds_mail_in_the_outbox_until_its_time() {
+    let mut s = Session::open(Some(temp("delay")), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap();
+    s.take_jobs();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run(
+        "compose.update",
+        &json!({"to": "ann@example.org", "subject": "Later", "body": "Hi", "replyTo": "Desk <desk@example.org>", "sendAfter": NOW + 3600}),
+    )
+    .unwrap();
+    assert!(s.run("compose.update", &json!({"replyTo": "not an address"})).is_ok());
+    assert!(s.run("compose.send", &json!({})).is_err(), "a bad Replies to address is caught");
+    s.run("compose.update", &json!({"replyTo": "Desk <desk@example.org>"})).unwrap();
+    assert_eq!(s.run("compose.send", &json!({})).unwrap()["sendAfter"], NOW + 3600);
+    assert!(s.compose.is_none());
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::Send { .. })), "held back, not sent");
+    let (account, item) = s.outbox.first().cloned().unwrap();
+    assert_eq!(item.not_before, NOW + 3600);
+    let raw = s.store.as_ref().unwrap().outbox_raw(&account, item.id).unwrap();
+    assert!(String::from_utf8_lossy(&raw).contains("Reply-To: \"Desk\" <desk@example.org>"));
+    // Not yet: nothing asks for it. Its time: the account is asked, once.
+    s.tick();
+    assert!(s.take_jobs().is_empty());
+    s.set_clock(NOW + 3601, 0);
+    s.tick();
+    s.tick();
+    assert_eq!(s.take_jobs().iter().filter(|j| matches!(j, Job::FlushOutbox { .. })).count(), 1);
+    // Send now sends a held-back message at once.
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@example.org", "subject": "Tomorrow", "body": "x", "sendAfter": NOW + 86_400})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    s.run("folder.outbox", &json!({})).unwrap();
+    let k = s.list.iter().find(|m| m.subject == "Tomorrow").unwrap().key.clone();
+    assert!(s.list.iter().find(|m| m.subject == "Tomorrow").unwrap().preview.starts_with("Will be sent"));
+    s.run("outbox.send", &json!({"key": k.to_id()})).unwrap();
+    assert!(s.outbox.iter().all(|(_, i)| i.not_before == 0 || i.not_before <= NOW + 3601));
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FlushOutbox { .. })));
+    done(s);
+}

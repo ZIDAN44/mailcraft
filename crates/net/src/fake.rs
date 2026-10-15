@@ -946,6 +946,16 @@ y"
         assert_eq!(store.outbox("a1").len(), 2);
         assert!(store.outbox("a1")[1].error.as_deref().is_some_and(|e| e.contains("network")), "{:?}", store.outbox("a1"));
 
+        // A message held back for tomorrow (Delay Delivery) isn't sent with them.
+        let later = mailcraft_store::OutboxItem {
+            id: 3,
+            from: "me@studio.example".into(),
+            recipients: vec!["zoe@studio.example".into()],
+            not_before: crate::worker::now() + 86_400,
+            ..Default::default()
+        };
+        store.outbox_add("a1", &later, &raw).unwrap();
+
         // The server comes back: Send now delivers both, oldest first, and files copies.
         let (_, log1) = crate::smtp::tests::serve_once_on(std::net::TcpListener::bind(("127.0.0.1", smtp_port)).unwrap());
         pool.submit(Job::FlushOutbox { account: "a1".into() });
@@ -956,7 +966,7 @@ y"
         pool.submit(Job::FlushOutbox { account: "a1".into() });
         until(&pool, "second sent", |e| matches!(e, Event::Sent { id: 2, .. }));
         assert!(log2.join().unwrap().contains("RCPT TO:<zoe@studio.example>"));
-        assert!(store.outbox("a1").is_empty());
+        assert_eq!(store.outbox("a1").iter().map(|i| i.id).collect::<Vec<_>>(), vec![3], "the held-back one waits");
         let end = Instant::now() + Duration::from_secs(10);
         while st.lock().unwrap().mailbox("Sent").unwrap().msgs.len() < 2 {
             assert!(Instant::now() < end, "copies never reached Sent");

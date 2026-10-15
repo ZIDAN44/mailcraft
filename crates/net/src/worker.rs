@@ -111,7 +111,7 @@ fn keep_draft(store: &Store, account: &str, folder: &str, replaces: Option<mailc
     store.save_account_doc(account, PENDING_DRAFTS, &list).map_err(NetError::from)
 }
 
-fn now() -> i64 {
+pub(crate) fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX)).unwrap_or(0)
 }
 
@@ -304,7 +304,7 @@ impl Pool {
             }
             Job::Send { account, id, raw, from, recipients, sent_folder } if !self.workers.contains_key(&account) => {
                 // Not connected: straight into the Outbox.
-                let item = OutboxItem { id, from, recipients, sent_folder, queued: now(), attempts: 0, error: Some("offline".into()) };
+                let item = OutboxItem { id, from, recipients, sent_folder, queued: now(), attempts: 0, error: Some("offline".into()), not_before: 0 };
                 match self.store.outbox_add(&account, &item, &raw) {
                     Ok(()) => self.sink.emit(Event::Queued { account, id, error: "offline".into() }),
                     Err(e) => self.sink.emit(Event::SendFailed { account, id, error: e.to_string() }),
@@ -1276,6 +1276,7 @@ impl Worker {
                     queued: now(),
                     attempts: 1,
                     error: Some(e.to_string()),
+                    not_before: 0,
                 };
                 match self.store.outbox_add(&self.acc.id, &item, raw) {
                     Ok(()) => self.sink.emit(Event::Queued { account: self.id(), id, error: e.to_string() }),
@@ -1295,7 +1296,12 @@ impl Worker {
     /// up later (still offline); a message refused for good stays, marked with the error.
     fn flush_outbox(&mut self) {
         for mut item in self.store.outbox(&self.acc.id) {
+            // Held back (Delay Delivery) until its time; then dated when it goes.
+            if item.not_before > now() {
+                continue;
+            }
             let Some(raw) = self.store.outbox_raw(&self.acc.id, item.id) else { continue };
+            let raw = if item.not_before > 0 { mailcraft_mime::with_date(&raw, now()) } else { raw };
             if item.error.as_deref().is_some_and(|e| e.starts_with("refused:")) {
                 // Refused for good: waits for the user to edit or delete it.
                 continue;

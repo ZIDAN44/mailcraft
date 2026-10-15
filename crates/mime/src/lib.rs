@@ -696,6 +696,9 @@ pub struct OutAttachment {
 /// An outgoing message being written.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Draft {
+    /// Where replies go, when not to the sender (Outlook's "Have replies sent to").
+    #[serde(default)]
+    pub reply_to: Vec<EmailAddress>,
     pub to: Vec<EmailAddress>,
     pub cc: Vec<EmailAddress>,
     pub bcc: Vec<EmailAddress>,
@@ -762,6 +765,33 @@ pub fn new_message_id(from_email: &str, time: i64, seed: u64) -> String {
 
 /// Serialise a draft to RFC 5322 bytes. Bcc is never written into the message (it travels only
 /// in the SMTP envelope).
+/// The message with its `Date:` set to `date` (a message held back to be sent later is dated
+/// when it goes, as Outlook dates delayed mail). Messages without a header block come back as
+/// they were.
+pub fn with_date(raw: &[u8], date: i64) -> Vec<u8> {
+    let Some(end) = raw.windows(4).position(|w| w == b"\r\n\r\n") else { return raw.to_vec() };
+    let head = &raw[..end + 2];
+    let mut out = Vec::with_capacity(raw.len() + 40);
+    let mut skipping = false;
+    let mut replaced = false;
+    for line in head.split_inclusive(|b| *b == b'\n') {
+        let folded = line.first().is_some_and(|b| *b == b' ' || *b == b'\t');
+        if skipping && folded {
+            continue;
+        }
+        skipping = false;
+        if !replaced && !folded && line.len() >= 5 && line[..5].eq_ignore_ascii_case(b"date:") {
+            out.extend_from_slice(format!("Date: {}\r\n", mail_builder::headers::date::Date::new(date.max(0)).to_rfc822()).as_bytes());
+            skipping = true;
+            replaced = true;
+            continue;
+        }
+        out.extend_from_slice(line);
+    }
+    out.extend_from_slice(&raw[end + 2..]);
+    out
+}
+
 pub fn build(d: &Draft, from: &EmailAddress, date: i64, message_id: &str) -> Result<Vec<u8>, String> {
     let mut b = MessageBuilder::new().from(b_addr(from)).subject(d.subject.clone()).date(date.max(0)).message_id(message_id.to_string());
     if !d.to.is_empty() {
@@ -769,6 +799,9 @@ pub fn build(d: &Draft, from: &EmailAddress, date: i64, message_id: &str) -> Res
     }
     if !d.cc.is_empty() {
         b = b.cc(b_list(&d.cc));
+    }
+    if !d.reply_to.is_empty() {
+        b = b.reply_to(b_list(&d.reply_to));
     }
     if !d.in_reply_to.is_empty() {
         b = b.in_reply_to(d.in_reply_to.clone());
@@ -1097,6 +1130,15 @@ iVBORw0KGgo=\r\n\
         assert_eq!(build(&d, &EmailAddress::new("Zoe Park", "zoe@studio.example"), 1_791_963_000, "x1@studio.example").unwrap(), raw);
         let other = build(&d, &EmailAddress::new("Zoe Park", "zoe@studio.example"), 1_791_963_000, "x2@studio.example").unwrap();
         assert_ne!(other, raw);
+        // Replies sent elsewhere; a held-back message dated when it goes.
+        let to_desk = Draft { reply_to: vec![EmailAddress::new("Desk", "desk@studio.example")], ..d.clone() };
+        let raw2 = build(&to_desk, &EmailAddress::new("Zoe Park", "zoe@studio.example"), 1_791_963_000, "x3@studio.example").unwrap();
+        assert_eq!(parse(&raw2).unwrap().reply_to, to_desk.reply_to);
+        let later = with_date(&raw2, 1_792_000_000);
+        let p2 = parse(&later).unwrap();
+        assert_eq!((p2.date, p2.subject.as_str(), p2.text.trim()), (1_792_000_000, d.subject.as_str(), "Hi Ann,\nhere it is."));
+        assert_eq!(String::from_utf8_lossy(&later).matches("Date:").count(), 1);
+        assert_eq!(with_date(b"no header block", 5), b"no header block".to_vec());
         let rich = Draft {
             html: Some("<p>Hi <b>Ann</b><img src=\"cid:pic@x\"></p>".into()),
             inline: vec![InlinePicture { cid: "pic@x".into(), name: "pic.png".into(), mime: "image/png".into(), data: vec![9, 9] }],

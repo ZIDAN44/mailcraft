@@ -411,6 +411,7 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
             })
             .collect();
         let d = Draft {
+            reply_to: Vec::new(),
             to: list(m.to),
             cc: list(m.cc),
             bcc: Vec::new(),

@@ -425,6 +425,15 @@ pub struct Compose {
     /// Ask the recipients for a read receipt.
     #[serde(default)]
     pub read_receipt: bool,
+    /// Where replies go, when not to the sender (Outlook's "Have replies sent to").
+    #[serde(default)]
+    pub reply_to: String,
+    /// Hold it in the Outbox until then (Unix seconds): Outlook's Delay Delivery.
+    #[serde(default)]
+    pub send_after: Option<i64>,
+    /// The Replies to row is shown.
+    #[serde(default)]
+    pub show_reply_to: bool,
 }
 
 impl Compose {
@@ -494,6 +503,8 @@ pub struct Session {
     pub pim_revision: u64,
     /// Messages waiting in the Outbox, per account (oldest first).
     pub outbox: Vec<(String, OutboxItem)>,
+    /// Held-back Outbox messages already asked to be sent when their time came.
+    flushed: BTreeSet<u64>,
     jobs: Vec<Job>,
     cache: HashMap<(String, String), FolderState>,
     /// Built on first use from the cached mail; dropped when mail arrives.
@@ -563,6 +574,7 @@ impl Session {
             revision: 0,
             pim_revision: 0,
             outbox: Vec::new(),
+            flushed: BTreeSet::new(),
             jobs: Vec::new(),
             cache: HashMap::new(),
             contacts: None,
@@ -1979,17 +1991,7 @@ impl Session {
         let subject = r.parsed.as_ref().map(|p| p.subject.trim().to_string()).unwrap_or_default();
         let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() });
         if let Some(c) = self.compose.as_mut() {
-            c.set_text(if sig.trim().is_empty() {
-                String::new()
-            } else {
-                format!(
-                    "
-
--- 
-{}",
-                    sig.trim_end()
-                )
-            });
+            c.set_text(if sig.trim().is_empty() { String::new() } else { format!("\n\n-- \n{}", sig.trim_end()) });
             c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw }];
         }
         Ok(out)
@@ -1999,6 +2001,7 @@ impl Session {
         let parse = |field: &str, s: &str| addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")));
         let (body, html, inline) = c.bodies();
         Ok(mime::Draft {
+            reply_to: parse("Replies to", &c.reply_to)?,
             to: parse("To", &c.to)?,
             cc: parse("Cc", &c.cc)?,
             bcc: parse("Bcc", &c.bcc)?,
@@ -2039,6 +2042,27 @@ impl Session {
         let (raw, from) = self.compose_bytes(&c, &d)?;
         let local = self.account(&c.account).is_none_or(AccountState::is_local);
         let sent_folder = self.account(&c.account).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone());
+        // Delay Delivery: into the Outbox, sent once it's time (the app has to be running then).
+        if let Some(at) = c.send_after.filter(|at| *at > self.clock.now && !local) {
+            let item = OutboxItem {
+                id: c.id,
+                from,
+                recipients: d.recipients(),
+                sent_folder,
+                queued: self.clock.now,
+                attempts: 0,
+                error: None,
+                not_before: at,
+            };
+            let store = self.store.as_ref().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
+            store.outbox_add(&c.account, &item, &raw).map_err(|e| CmdError::Failed(format!("the Outbox couldn't keep it: {e}")))?;
+            self.after_outbox_change();
+            self.finish_sent(&c);
+            // finish_sent says "sent"; it isn't yet.
+            self.notices.pop();
+            self.notice(format!("It will be sent {}", mailcraft_model::dates::full_time(at, &self.clock)), false);
+            return Ok(serde_json::json!({ "queued": c.id, "sendAfter": at }));
+        }
         if local {
             if let Some(folder) = &sent_folder {
                 self.file_locally(&c.account, folder, &raw, true);
@@ -2075,6 +2099,7 @@ impl Session {
         let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
         let (body, html, inline) = c.bodies();
         let d = mime::Draft {
+            reply_to: lenient(&c.reply_to),
             to: lenient(&c.to),
             cc: lenient(&c.cc),
             bcc: lenient(&c.bcc),
@@ -2167,6 +2192,7 @@ impl Session {
             let mut m = mime::summary_from_full(&raw, key, flags, size, item.queued);
             m.preview = match &item.error {
                 Some(e) if e != "offline" => format!("Not sent yet: {e}"),
+                _ if item.not_before > self.clock.now => format!("Will be sent {}", mailcraft_model::dates::full_time(item.not_before, &self.clock)),
                 _ => "Waiting to be sent".to_string(),
             };
             out.push(m);
@@ -2181,6 +2207,42 @@ impl Session {
         }
         let n = usize::try_from(key.uid).ok()?.checked_sub(1)?;
         self.outbox.get(n).filter(|(a, _)| *a == key.account).cloned()
+    }
+
+    /// Send one held-back Outbox message now (Delay Delivery off), as its Send now button.
+    pub fn send_outbox_now(&mut self, key: &MessageKey) -> CmdResult {
+        let (account, mut item) = self.outbox_entry(key).ok_or_else(|| CmdError::Params("not an Outbox message".into()))?;
+        if item.not_before != 0 {
+            item.not_before = 0;
+            if let Some(store) = &self.store {
+                store.outbox_update(&account, &item).map_err(|e| CmdError::Failed(e.to_string()))?;
+            }
+            self.after_outbox_change();
+        }
+        self.jobs.push(Job::FlushOutbox { account });
+        Ok(serde_json::json!({ "sending": item.id }))
+    }
+
+    /// Ask the accounts holding Outbox mail whose time has come to send it. Called with
+    /// [`Session::tick`]; each message is asked for once.
+    pub(crate) fn flush_due_outbox(&mut self) {
+        let now = self.clock.now;
+        let due: Vec<(String, u64)> = self
+            .outbox
+            .iter()
+            .filter(|(_, i)| i.not_before != 0 && i.not_before <= now && !self.flushed.contains(&i.id))
+            .map(|(a, i)| (a.clone(), i.id))
+            .collect();
+        let mut accounts: Vec<String> = Vec::new();
+        for (a, id) in due {
+            self.flushed.insert(id);
+            if !accounts.contains(&a) {
+                accounts.push(a);
+            }
+        }
+        for account in accounts {
+            self.jobs.push(Job::FlushOutbox { account });
+        }
     }
 
     /// Try to send everything in the Outbox now.
