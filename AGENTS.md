@@ -56,11 +56,12 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 | Layer | Crate | Job |
 |---|---|---|
 | L0 | `model` | data model, jobs/events, threading, search, dates (pure, wasm) |
-| L1 | `mime`, `store`, `print` | MIME parse/build; the on-disk cache; PDF export |
-| L3 | `net` | IMAP client + sync, SMTP, JMAP, HTTP/DNS/OAuth, worker pool (native only) |
+| L1 | `mime`, `store`, `print` | MIME parse/build; the cache (on disk, or in memory for the browser); PDF export |
+| L2 | `jmap` | the JMAP transport, async over any HTTP client (portable, wasm) |
+| L3 | `net` | IMAP client + sync, SMTP, JMAP push, Microsoft Graph, CalDAV/CardDAV, ManageSieve, `.pst` import, HTTP/DNS/OAuth, worker pool (native only) |
 | L4 | `engine` | sans-I/O `Session` + command registry |
 | L6 | `ui-egui` | egui front end |
-| apps | `mailcraft`, `mailcraft-cli` | binaries |
+| apps | `mailcraft`, `mailcraft-cli`, `mailcraft-web` | binaries (the web app: `trunk build --release` in `apps/mailcraft-web`) |
 
 - **Everything is a command** (`crates/engine/src/cmd.rs`): id, label, location, shortcut, params
   doc, `enabled`, `run`. The ribbon, shortcuts, CLI and `--cmd` all dispatch by id. Commands never
@@ -89,4 +90,7 @@ Before every commit: `cargo xtask ci`. Commit after every arc of work that build
   `--cmd ui.addAccount`, `--cmd ui.file` / `ui.options` / `ui.about` (the File page).
 - For UI work, look at the result: screenshot **the MailCraft window only** and read the PNG.
 - Headless frames: `crates/ui-egui/src/tests.rs` renders every pane layout and dialog.
+- Browser: `trunk serve` in `apps/mailcraft-web`, then `/?sample`; a local JMAP server with CORS:
+  `cargo test -p mailcraft-net serve_for_the_browser -- --ignored` (`me@studio.example` / `pw`).
+  Portable code must not read the clock or temporary files: std panics there on wasm32.
 - CLI: `mailcraft-cli commands`, `mailcraft-cli run <id> '<json>'`, `sync`, `list`, `read`, `search`, `send`.
