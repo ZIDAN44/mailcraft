@@ -237,6 +237,23 @@ fn compose_reply_and_send_locally() {
     assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 1);
     s.run("compose.discard", &json!({})).unwrap();
     assert!(s.compose.is_none());
+
+    // Forward as attachment: the whole original as an .eml, sent as it is (not base64).
+    s.run("mail.forwardAsAttachment", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!(c.subject, "Fwd: Character turnarounds");
+    assert!(!c.body.contains("Here are the first turnarounds"), "the original isn't quoted");
+    let a = &c.attachments[0];
+    assert_eq!((c.attachments.len(), a.name.as_str(), a.mime.as_str()), (1, "Character turnarounds.eml", "message/rfc822"));
+    assert!(String::from_utf8_lossy(&a.data).contains("Subject: Character turnarounds"));
+    s.run("compose.update", &json!({"to": "ana@soundlab.example"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    let k = s.list.iter().find(|m| m.subject == "Fwd: Character turnarounds").unwrap().key.clone();
+    let sent = s.store.as_ref().unwrap().read_body(&k).unwrap();
+    let sent = String::from_utf8_lossy(&sent);
+    let part = sent.split("Content-Type: message/rfc822").nth(1).unwrap();
+    assert!(part.contains("Subject: Character turnarounds") && !part[..300.min(part.len())].contains("base64"));
     done(s);
 }
 
@@ -368,7 +385,13 @@ fn mailbox_settings_commands() {
     s.run("mail.delete", &json!({})).unwrap();
     s.run("folder.open", &json!({"account": "sample", "folder": "Trash"})).unwrap();
     assert!(!s.list.is_empty());
-    assert!(s.run("folder.empty", &json!({"account": "sample", "folder": "INBOX"})).is_err(), "only Deleted Items and Junk");
+    // Delete All elsewhere moves everything to Deleted Items, as Outlook's.
+    let inbox = s.store.as_ref().unwrap().load_folder("sample", "INBOX").unwrap().messages.len();
+    let moved = s.run("folder.empty", &json!({"account": "sample", "folder": "INBOX"})).unwrap()["moved"].as_u64().unwrap();
+    assert!(inbox > 0 && moved == u64::try_from(inbox).unwrap());
+    assert!(s.store.as_ref().unwrap().load_folder("sample", "INBOX").unwrap().messages.is_empty());
+    s.run("folder.open", &json!({"account": "sample", "folder": "Trash"})).unwrap();
+    assert!(s.list.len() > inbox);
     s.run("folder.empty", &json!({"account": "sample", "role": "trash"})).unwrap();
     assert!(s.list.is_empty() && s.store.as_ref().unwrap().load_folder("sample", "Trash").unwrap().messages.is_empty());
     assert!(s.run("account.mailbox", &json!({"account": "sample"})).unwrap()["cached"].as_u64().unwrap() > 0);

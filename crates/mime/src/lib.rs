@@ -801,6 +801,13 @@ pub fn build(d: &Draft, from: &EmailAddress, date: i64, message_id: &str) -> Res
         .iter()
         .map(|a| {
             let mime = if a.mime.is_empty() { mime_from_name(&a.name).to_string() } else { a.mime.clone() };
+            // An attached message goes as it is (RFC 2046 §5.2.1: 7bit or 8bit, never base64).
+            if mime.eq_ignore_ascii_case("message/rfc822") {
+                let cte = if a.data.is_ascii() { "7bit" } else { "8bit" };
+                return MimePart::new(mime, a.data.clone())
+                    .attachment(sanitize_filename(&a.name))
+                    .header("Content-Transfer-Encoding", mail_builder::headers::raw::Raw::new(cte));
+            }
             MimePart::new(mime, a.data.clone()).attachment(sanitize_filename(&a.name))
         })
         .collect();

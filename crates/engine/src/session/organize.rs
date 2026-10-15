@@ -368,7 +368,6 @@ impl Session {
         quiet
     }
 
-    /// Run the rules (or one of them) on the messages on screen now.
     /// Run the rules (or one) now, on the list on screen or (`inbox`) on the mail already in the
     /// Inbox of the accounts they apply to, as Outlook's "run this rule now".
     pub fn run_rules_now(&mut self, only: Option<usize>, inbox: bool) -> CmdResult {

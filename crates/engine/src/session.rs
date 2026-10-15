@@ -1364,7 +1364,18 @@ impl Session {
     pub fn empty_folder(&mut self, account: &str, folder: &str) -> CmdResult {
         let f = self.folder(account, folder).ok_or_else(|| CmdError::Params(format!("no folder `{folder}`")))?;
         if !matches!(f.role, FolderRole::Trash | FolderRole::Junk) {
-            return Err(CmdError::Params("only Deleted Items and Junk Email can be emptied".into()));
+            // Any other folder: everything goes to Deleted Items, as Outlook's Delete All.
+            let trash = self
+                .account(account)
+                .and_then(|a| a.folder(FolderRole::Trash))
+                .map(|t| t.path.clone())
+                .ok_or_else(|| CmdError::Params("the account has no Deleted Items folder".into()))?;
+            let keys: Vec<MessageKey> = self.folder_state(account, folder).messages.iter().map(|m| m.key.clone()).collect();
+            let n = keys.len();
+            if n > 0 {
+                self.apply_op(account, Op::Move { keys, to: trash });
+            }
+            return Ok(serde_json::json!({ "moved": n, "to": "trash" }));
         }
         self.apply_op(account, Op::EmptyFolder { path: folder.to_string() });
         Ok(serde_json::json!({ "emptied": folder }))
@@ -1914,6 +1925,33 @@ impl Session {
             ..Default::default()
         });
         Ok(serde_json::json!({ "compose": id }))
+    }
+
+    /// Forward the open message as an attachment, as Outlook's More › Forward as Attachment: the
+    /// original goes along whole (an `.eml`), the new message holds only the signature.
+    pub fn forward_as_attachment(&mut self) -> CmdResult {
+        let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        let raw =
+            self.store.as_ref().and_then(|s| s.read_body(&r.key)).ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+        let out = self.reply_compose(ReplyMode::Forward)?;
+        let sig = self.signature(&r.key.account);
+        let subject = r.parsed.as_ref().map(|p| p.subject.trim().to_string()).unwrap_or_default();
+        let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() });
+        if let Some(c) = self.compose.as_mut() {
+            c.set_text(if sig.trim().is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "
+
+-- 
+{}",
+                    sig.trim_end()
+                )
+            });
+            c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw }];
+        }
+        Ok(out)
     }
 
     fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
