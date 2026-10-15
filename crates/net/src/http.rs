@@ -1,7 +1,8 @@
 //! A small HTTP/1.1 client (RFC 9112) for the few things mail needs from the web: pictures in a
 //! message once the user asks for them, account autoconfiguration, OAuth token requests and JMAP.
 //!
-//! One request per connection (`Connection: close`), TLS through the same rustls setup as IMAP,
+//! One request per connection (`Connection: close`), or several on a [`Conn`] kept open (NTLM
+//! signs in a connection, not a request); TLS through the same rustls setup as IMAP,
 //! `Content-Length` and `chunked` bodies, a handful of redirects. Responses are hostile input:
 //! header and body sizes are capped and every number is checked.
 
@@ -182,17 +183,61 @@ fn once(req: &Request, url: &Url) -> Result<Response> {
 
 /// Write the request and read the response on an open connection.
 pub fn exchange<S: Read + Write>(s: &mut S, req: &Request, url: &Url) -> Result<Response> {
-    write_request(s, req, url)?;
+    write_request(s, req, url, false)?;
     read_response(s, req.max, req.method == "HEAD")
 }
 
-fn write_request<S: Write>(s: &mut S, req: &Request, url: &Url) -> Result<()> {
+/// A connection kept open for several requests to one server (no redirects followed).
+pub struct Conn {
+    s: Stream,
+    url: Url,
+    /// The server said it closes the connection after the last answer.
+    closing: bool,
+}
+
+impl Conn {
+    pub fn open(url: &str) -> Result<Conn> {
+        let url = Url::parse(url)?;
+        let sock = stream::tcp(&url.host, url.port)?;
+        let s = if url.https { stream::tls(sock, &url.host)? } else { Stream::Plain(sock) };
+        Ok(Conn { s, url, closing: false })
+    }
+
+    /// Whether this connection reaches `url`'s server.
+    pub fn reaches(&self, url: &str) -> bool {
+        Url::parse(url).is_ok_and(|u| u.https == self.url.https && u.host.eq_ignore_ascii_case(&self.url.host) && u.port == self.url.port)
+    }
+
+    /// Whether another request can go on it.
+    pub fn usable(&self) -> bool {
+        !self.closing
+    }
+
+    /// Send a request to this server and read its answer.
+    pub fn send(&mut self, req: &Request) -> Result<Response> {
+        if self.closing {
+            return Err(NetError::Closed("the server closed the connection".into()));
+        }
+        let url = Url::parse(&req.url)?;
+        if !self.reaches(&req.url) {
+            return Err(NetError::Protocol("a request for another server".into()));
+        }
+        write_request(&mut self.s, req, &url, true)?;
+        let resp = read_response(&mut self.s, req.max, req.method == "HEAD")?;
+        self.closing = resp.header("Connection").is_some_and(|c| c.eq_ignore_ascii_case("close"))
+            || (resp.header("Content-Length").is_none() && resp.header("Transfer-Encoding").is_none() && resp.status != 204 && resp.status != 304);
+        Ok(resp)
+    }
+}
+
+fn write_request<S: Write>(s: &mut S, req: &Request, url: &Url, keep: bool) -> Result<()> {
     let host = if url.port == default_port(url.https) { url.host.clone() } else { format!("{}:{}", url.host, url.port) };
     let mut head = format!(
-        "{} {} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: MailCraft/{}\r\nConnection: close\r\n",
+        "{} {} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: MailCraft/{}\r\nConnection: {}\r\n",
         req.method,
         url.path,
-        env!("CARGO_PKG_VERSION")
+        env!("CARGO_PKG_VERSION"),
+        if keep { "keep-alive" } else { "close" }
     );
     if !req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("Accept")) {
         head.push_str("Accept: */*\r\n");
@@ -359,7 +404,7 @@ pub fn open_events(url: &str, headers: &[(&str, &str)]) -> Result<EventStream<St
     for (k, v) in headers {
         req = req.header(k, v);
     }
-    write_request(&mut s, &req, &u)?;
+    write_request(&mut s, &req, &u, false)?;
     let (status, hs, rest) = read_head(&mut s)?;
     let get = |n: &str| hs.iter().find(|(k, _)| k.eq_ignore_ascii_case(n)).map(|(_, v)| v.to_ascii_lowercase());
     match status {

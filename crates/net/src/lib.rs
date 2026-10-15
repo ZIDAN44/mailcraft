@@ -23,6 +23,7 @@ pub mod graph_pim;
 pub mod http;
 pub mod imap;
 pub mod jmap;
+pub mod ntlm;
 pub mod oauth;
 pub mod pst;
 pub mod pst_export;

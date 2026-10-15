@@ -2723,6 +2723,7 @@ dependencies = [
 name = "mailcraft-net"
 version = "0.1.0"
 dependencies = [
+ "hmac",
  "imap-proto",
  "ipconfig",
  "lettre",
@@ -2731,6 +2732,8 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-store",
+ "md-5",
+ "md4",
  "outlook-pst",
  "outlook-pst-rw",
  "quick-xml",
@@ -2803,6 +2806,25 @@ dependencies = [
  "log",
  "tendril",
  "web_atoms",
+]
+
+[[package]]
+name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if",
+ "digest",
+]
+
+[[package]]
+name = "md4"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da5ac363534dce5fabf69949225e174fbf111a498bf0ff794c8ea1fba9f3dda"
+dependencies = [
+ "digest",
 ]
 
 [[package]]
