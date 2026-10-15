@@ -38,6 +38,17 @@ pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -
     resp
 }
 
+/// A "⋯" button in the style of [`pill_button`], for a menu of more actions.
+pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());
+    let fill = if resp.hovered() { t.hover } else { t.surface };
+    ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    for dx in [-6.0, 0.0, 6.0] {
+        ui.painter().circle_filled(rect.center() + vec2(dx, 0.0), 1.6, t.dim);
+    }
+    resp.on_hover_text(tl!(tip))
+}
+
 /// The filled "New mail" button.
 pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);

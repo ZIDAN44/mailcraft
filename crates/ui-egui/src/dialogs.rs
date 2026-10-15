@@ -420,10 +420,22 @@ pub enum Dialog {
     EditAccount(Box<EditForm>),
     /// An account's automatic replies.
     Vacation(Box<VacationForm>),
+    /// Empty Deleted Items or Junk for good (`for_good`), or Delete All in another folder:
+    /// everything to Deleted Items.
     ConfirmEmpty {
         account: String,
         folder: String,
         name: String,
+        for_good: bool,
+    },
+    /// A folder's Properties: where it is, how many messages, how much is on this computer.
+    FolderProperties {
+        name: String,
+        account: String,
+        location: String,
+        total: usize,
+        unread: usize,
+        size: u64,
     },
     Event(Box<crate::pim_dialogs::EventForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
@@ -683,6 +695,45 @@ impl Dialog {
     /// A new event (at a time, or the next hour).
     pub fn new_event(s: &Session, at: Option<i64>) -> Dialog {
         Dialog::Event(Box::new(crate::pim_dialogs::EventForm::new(s, at)))
+    }
+
+    /// A meeting about a message, as Outlook's Reply with Meeting: its subject, its sender and
+    /// the others it went to as guests (not the user), and its text as the description.
+    pub fn meeting_from(s: &Session, p: &mailcraft_engine::mime::Parsed) -> Dialog {
+        let mut f = crate::pim_dialogs::EventForm::new(s, None);
+        f.summary = p.subject.clone();
+        let mine = |e: &str| s.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(e.trim()));
+        let mut guests: Vec<mailcraft_engine::model::EmailAddress> = Vec::new();
+        for a in std::iter::once(&p.from).chain(&p.to).chain(&p.cc) {
+            if !a.email.trim().is_empty() && !mine(&a.email) && !guests.iter().any(|g| g.email.eq_ignore_ascii_case(&a.email)) {
+                guests.push(a.clone());
+            }
+        }
+        f.guests = mailcraft_engine::model::addr::format_list(&guests);
+        f.description = p.text.chars().take(4000).collect();
+        Dialog::Event(Box::new(f))
+    }
+
+    /// A folder's Properties, from what this computer keeps of it.
+    pub fn folder_properties(s: &Session, f: &mailcraft_engine::model::Folder) -> Dialog {
+        let kept = s.store.as_ref().and_then(|st| st.load_folder(&f.account, &f.path).ok()).unwrap_or_default();
+        let total = if kept.messages.is_empty() { f.total as usize } else { kept.messages.len() };
+        let unread = if kept.messages.is_empty() { f.unread as usize } else { kept.messages.iter().filter(|m| !m.flags.seen).count() };
+        let email = s.account(&f.account).map(|a| a.config.email.clone()).unwrap_or_default();
+        Dialog::FolderProperties {
+            name: crate::i18n::tc("folder", &f.display_name()).to_string(),
+            location: {
+                let decoded = mailcraft_engine::model::utf7::decode(&f.path);
+                match f.delimiter {
+                    Some(d) => decoded.split(d).collect::<Vec<_>>().join(" › "),
+                    None => decoded,
+                }
+            },
+            account: email,
+            total,
+            unread,
+            size: kept.messages.iter().map(|m| u64::from(m.size)).sum(),
+        }
     }
 
     /// An event, opened at one of its occurrences.
@@ -1727,19 +1778,44 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             !cancel
         }
         Dialog::EditAccount(f) => edit_account(ui, f, t, acts),
+        Dialog::FolderProperties { name, account, location, total, unread, size } => {
+            ui.set_width(380.0);
+            title(ui, t, &tf!("{folder} Properties", folder = name));
+            egui::Grid::new("folder-props").num_columns(2).spacing(vec2(16.0, 6.0)).show(ui, |ui| {
+                let rows = [
+                    (tl!("Account"), account.clone()),
+                    (tl!("Location"), location.clone()),
+                    (tl!("Messages"), total.to_string()),
+                    (tl!("Unread"), unread.to_string()),
+                    (tl!("Size on this computer"), widgets::human_size(usize::try_from(*size).unwrap_or(usize::MAX))),
+                ];
+                for (label, value) in rows {
+                    ui.label(RichText::new(label).color(t.dim));
+                    ui.label(value);
+                    ui.end_row();
+                }
+            });
+            ui.add_space(8.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
+        }
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
         Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),
         Dialog::Vacation(f) => vacation(ui, f, t, acts),
-        Dialog::ConfirmEmpty { account, folder, name } => {
+        Dialog::ConfirmEmpty { account, folder, name, for_good } => {
             ui.set_width(400.0);
-            title(ui, t, &tf!("Empty “{folder}”?", folder = name));
-            ui.label(
-                RichText::new(tl!(
-                    "Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone."
-                ))
-                .color(t.dim),
-            );
-            let (ok, cancel) = buttons(ui, t, "Empty", true);
+            if *for_good {
+                title(ui, t, &tf!("Empty “{folder}”?", folder = name));
+                ui.label(
+                    RichText::new(tl!(
+                        "Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone."
+                    ))
+                    .color(t.dim),
+                );
+            } else {
+                title(ui, t, &tf!("Delete everything in “{folder}”?", folder = name));
+                ui.label(RichText::new(tl!("Every message in it will be moved to Deleted Items.")).color(t.dim));
+            }
+            let (ok, cancel) = buttons(ui, t, if *for_good { "Empty" } else { "Delete all" }, true);
             if ok {
                 acts.push(Action::Run("folder.empty", json!({"account": account, "folder": folder})));
                 return false;

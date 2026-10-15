@@ -369,6 +369,7 @@ fn message_row(
     }
     let key = m.key.clone();
     let flags = m.flags.clone();
+    let (subject, sender) = (m.subject.clone(), m.from.email.clone());
     resp.context_menu(|ui| {
         if !s.selection.contains(&key) {
             acts.push(Action::Run("list.select", json!({"key": key.to_id()})));
@@ -384,6 +385,7 @@ fn message_row(
         item(ui, tl!("Reply"), Action::Run("mail.reply", json!({})));
         item(ui, tl!("Reply all"), Action::Run("mail.replyAll", json!({})));
         item(ui, tl!("Forward"), Action::Run("mail.forward", json!({})));
+        item(ui, tl!("Quick print"), Action::Print);
         ui.separator();
         item(
             ui,
@@ -395,8 +397,23 @@ fn message_row(
         item(ui, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
         item(ui, tl!("Archive"), Action::Run("mail.archive", json!({})));
         item(ui, tl!("Report junk"), Action::Run("mail.junk", json!({})));
+        item(ui, tl!("Ignore"), Action::Run("mail.ignore", json!({})));
         item(ui, tl!("Delete"), Action::Run("mail.delete", json!({})));
         ui.separator();
+        // Find related, as Outlook's: the conversation, or everything from the sender.
+        ui.menu_button(tl!("Find related"), |ui| {
+            let topic = mailcraft_engine::model::thread::base_subject(&subject);
+            let searches = [
+                ("Messages in this conversation", format!("subject:\"{}\"", topic.replace('"', ""))),
+                ("Messages from sender", format!("from:{sender}")),
+            ];
+            for (label, query) in searches {
+                if ui.button(tl!(label)).clicked() {
+                    acts.push(Action::Search(query));
+                    ui.close();
+                }
+            }
+        });
         crate::organize::context_items(ui, s, t, acts, flags.pinned());
     });
     // Reply actions need the message open.

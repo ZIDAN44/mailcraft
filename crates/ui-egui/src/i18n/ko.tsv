@@ -639,6 +639,27 @@
 	This picture can't be shown.	이 그림을 표시할 수 없습니다.
 	Close Search	검색 닫기
 	Look in	찾을 위치
+	Account	계정
+	Account settings…	계정 설정…
+	Delete all…	모두 삭제…
+	Delete all	모두 삭제
+	Delete everything in “{folder}”?	“{folder}”의 모든 항목을 삭제할까요?
+	Every message in it will be moved to Deleted Items.	안의 모든 메시지가 지운 편지함으로 이동합니다.
+	Find related	관련 항목 찾기
+	Messages in this conversation	이 대화의 메시지
+	Messages from sender	보낸 사람의 메시지
+	Forward as attachment	첨부 파일로 전달
+	Reply with meeting	모임으로 회신
+	More actions	추가 작업
+	Ignore	무시
+	Messages	메시지
+	Open file location	파일 위치 열기
+	Properties…	속성…
+	{folder} Properties	{folder} 속성
+	Size on this computer	이 컴퓨터의 크기
+	Quick print	빠른 인쇄
+	Always move to Focused	항상 [중요]로 이동
+	Always move to Other	항상 [기타]로 이동
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

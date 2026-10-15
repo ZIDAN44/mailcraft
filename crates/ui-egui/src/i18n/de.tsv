@@ -640,6 +640,27 @@
 	This picture can't be shown.	Dieses Bild kann nicht angezeigt werden.
 	Close Search	Suche schließen
 	Look in	Suchen in
+	Account	Konto
+	Account settings…	Kontoeinstellungen…
+	Delete all…	Alle löschen…
+	Delete all	Alle löschen
+	Delete everything in “{folder}”?	Alles in „{folder}“ löschen?
+	Every message in it will be moved to Deleted Items.	Alle Nachrichten darin werden nach „Gelöschte Elemente“ verschoben.
+	Find related	Verwandte suchen
+	Messages in this conversation	Nachrichten in dieser Unterhaltung
+	Messages from sender	Nachrichten vom Absender
+	Forward as attachment	Als Anlage weiterleiten
+	Reply with meeting	Mit Besprechung antworten
+	More actions	Weitere Aktionen
+	Ignore	Ignorieren
+	Messages	Nachrichten
+	Open file location	Dateispeicherort öffnen
+	Properties…	Eigenschaften…
+	{folder} Properties	Eigenschaften von {folder}
+	Size on this computer	Größe auf diesem Computer
+	Quick print	Schnelldruck
+	Always move to Focused	Immer in „Relevant“ verschieben
+	Always move to Other	Immer in „Sonstige“ verschieben
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

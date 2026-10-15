@@ -359,6 +359,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                         account: id.clone(),
                         folder: f.path.clone(),
                         name: crate::i18n::tc("folder", &f.display_name()).to_string(),
+                        for_good: true,
                     }));
                 }
             }

@@ -639,6 +639,27 @@
 	This picture can't be shown.	Не удаётся показать это изображение.
 	Close Search	Закрыть поиск
 	Look in	Искать в
+	Account	Учетная запись
+	Account settings…	Настройки учетной записи…
+	Delete all…	Удалить все…
+	Delete all	Удалить все
+	Delete everything in “{folder}”?	Удалить все в «{folder}»?
+	Every message in it will be moved to Deleted Items.	Все сообщения из нее будут перемещены в «Удаленные».
+	Find related	Найти связанные
+	Messages in this conversation	Сообщения этой беседы
+	Messages from sender	Сообщения от отправителя
+	Forward as attachment	Переслать как вложение
+	Reply with meeting	Ответить приглашением на собрание
+	More actions	Другие действия
+	Ignore	Пропустить
+	Messages	Сообщения
+	Open file location	Открыть расположение файла
+	Properties…	Свойства…
+	{folder} Properties	Свойства: {folder}
+	Size on this computer	Размер на этом компьютере
+	Quick print	Быстрая печать
+	Always move to Focused	Всегда перемещать в «Отсортированные»
+	Always move to Other	Всегда перемещать в «Другие»
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

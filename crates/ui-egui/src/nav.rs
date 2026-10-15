@@ -140,6 +140,18 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::SignInAgain(config.id.clone()));
                     ui.close();
                 }
+                // The account's data file, as Outlook's Open File Location; its settings.
+                if let Some(file) = s.store.as_ref().map(|store| store.account_path(&config.id)).filter(|p| p.exists())
+                    && ui.button(tl!("Open file location")).clicked()
+                {
+                    let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), std::path::Path::to_path_buf) };
+                    acts.push(Action::OpenFolder(dir));
+                    ui.close();
+                }
+                if !a.is_local() && ui.button(tl!("Account settings…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::edit_account(&config)));
+                    ui.close();
+                }
                 if ui.button(tl!("Signature…")).clicked() {
                     acts.push(Action::Dialog(Dialog::Signature { account: config.id.clone(), text: config.signature.clone() }));
                     ui.close();
@@ -227,6 +239,17 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
             acts.push(Action::Run("mail.markAllRead", json!({})));
             ui.close();
         }
+        // Delete All, as Outlook's: Deleted Items and Junk are emptied for good, any other
+        // folder's mail goes to Deleted Items.
+        if f.selectable && ui.button(tl!("Delete all…")).clicked() {
+            acts.push(Action::Dialog(Dialog::ConfirmEmpty {
+                account: account.clone(),
+                folder: path.clone(),
+                name: crate::i18n::tc("folder", &f.display_name()).to_string(),
+                for_good: matches!(f.role, FolderRole::Trash | FolderRole::Junk),
+            }));
+            ui.close();
+        }
         ui.separator();
         if ui.button(tl!("New folder…")).clicked() {
             acts.push(Action::Dialog(Dialog::new_folder(&account, Some(&path))));
@@ -250,6 +273,11 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
         let label = tl!(if is_favorite { "Remove from Favorites" } else { "Show in Favorites" });
         if ui.button(label).clicked() {
             acts.push(Action::Run("folder.favorite", json!({"account": account, "folder": path, "on": !is_favorite})));
+            ui.close();
+        }
+        ui.separator();
+        if ui.button(tl!("Properties…")).clicked() {
+            acts.push(Action::Dialog(Dialog::folder_properties(s, f)));
             ui.close();
         }
     });

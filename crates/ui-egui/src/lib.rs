@@ -213,6 +213,8 @@ pub enum Action {
     SaveAttachment(usize),
     AttachFiles,
     FocusSearch,
+    /// Search every folder for this (shown in the box, with the Search tab).
+    Search(String),
     SetDark(Option<bool>),
     /// Print the open message (as a PDF opened in the system's viewer).
     Print,
@@ -977,6 +979,11 @@ impl MailApp {
             }
             Action::Dialog(d) => self.ui.dialog = Some(d),
             Action::FocusSearch => self.ui.focus_search = true,
+            Action::Search(q) => {
+                self.ui.search_text = q.clone();
+                self.ui.tab = RibbonTab::Search;
+                self.run("search.run", json!({"query": q, "scope": "all"}));
+            }
             Action::FocusMain => self.ui.focus_main = true,
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
             Action::InWindow(key, inner) => {

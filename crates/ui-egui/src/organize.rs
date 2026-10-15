@@ -64,14 +64,14 @@ pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>)
 /// Every organising item of the message context menu.
 pub fn context_items(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, pinned: bool) {
     ui.menu_button(tl!("Categorize"), |ui| categorize_menu(ui, s, t, acts));
-    if ui.button(if pinned { "Unpin" } else { "Pin" }).clicked() {
+    if ui.button(tl!(if pinned { "Unpin" } else { "Pin" })).clicked() {
         acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
         ui.close();
     }
     ui.menu_button(tl!("Snooze"), |ui| snooze_menu(ui, s, t, acts));
     if s.focus_split() {
         let (id, label) = if s.focus_other { ("mail.moveToFocused", "Always move to Focused") } else { ("mail.moveToOther", "Always move to Other") };
-        if ui.button(label).clicked() {
+        if ui.button(tl!(label)).clicked() {
             acts.push(Action::Run(id, json!({})));
             ui.close();
         }

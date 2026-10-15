@@ -180,6 +180,18 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                             ui.close();
                         }
                     });
+                    // More, as Outlook's ⋯ beside Forward.
+                    let more = widgets::more_pill(ui, "More actions", &t);
+                    egui::Popup::menu(&more).show(|ui| {
+                        if ui.button(tl!("Reply with meeting")).clicked() {
+                            acts.push(Action::Dialog(crate::Dialog::meeting_from(s, p)));
+                            ui.close();
+                        }
+                        if ui.button(tl!("Forward as attachment")).clicked() {
+                            acts.push(Action::Run("mail.forwardAsAttachment", json!({})));
+                            ui.close();
+                        }
+                    });
                 });
             }
             ui.add_space(12.0);

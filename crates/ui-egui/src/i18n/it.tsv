@@ -639,6 +639,27 @@
 	This picture can't be shown.	Impossibile mostrare questa immagine.
 	Close Search	Chiudi ricerca
 	Look in	Cerca in
+	Account	Account
+	Account settings…	Impostazioni account…
+	Delete all…	Elimina tutto…
+	Delete all	Elimina tutto
+	Delete everything in “{folder}”?	Eliminare tutto in “{folder}”?
+	Every message in it will be moved to Deleted Items.	Tutti i messaggi verranno spostati in Posta eliminata.
+	Find related	Trova correlati
+	Messages in this conversation	Messaggi di questa conversazione
+	Messages from sender	Messaggi del mittente
+	Forward as attachment	Inoltra come allegato
+	Reply with meeting	Rispondi con riunione
+	More actions	Altre azioni
+	Ignore	Ignora
+	Messages	Messaggi
+	Open file location	Apri percorso file
+	Properties…	Proprietà…
+	{folder} Properties	Proprietà di {folder}
+	Size on this computer	Dimensioni su questo computer
+	Quick print	Stampa rapida
+	Always move to Focused	Sposta sempre in Evidenziata
+	Always move to Other	Sposta sempre in Altra
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

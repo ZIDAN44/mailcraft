@@ -640,6 +640,27 @@
 	This picture can't be shown.	Esta imagem não pode ser exibida.
 	Close Search	Fechar pesquisa
 	Look in	Procurar em
+	Account	Conta
+	Account settings…	Configurações da conta…
+	Delete all…	Excluir tudo…
+	Delete all	Excluir tudo
+	Delete everything in “{folder}”?	Excluir tudo em “{folder}”?
+	Every message in it will be moved to Deleted Items.	Todas as mensagens serão movidas para Itens Excluídos.
+	Find related	Localizar relacionados
+	Messages in this conversation	Mensagens desta conversa
+	Messages from sender	Mensagens do remetente
+	Forward as attachment	Encaminhar como anexo
+	Reply with meeting	Responder com reunião
+	More actions	Mais ações
+	Ignore	Ignorar
+	Messages	Mensagens
+	Open file location	Abrir local do arquivo
+	Properties…	Propriedades…
+	{folder} Properties	Propriedades de {folder}
+	Size on this computer	Tamanho neste computador
+	Quick print	Impressão rápida
+	Always move to Focused	Sempre mover para Destaques
+	Always move to Other	Sempre mover para Outros
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

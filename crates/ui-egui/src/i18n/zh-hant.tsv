@@ -639,6 +639,27 @@
 	This picture can't be shown.	無法顯示此圖片。
 	Close Search	關閉搜尋
 	Look in	搜尋範圍
+	Account	帳戶
+	Account settings…	帳戶設定…
+	Delete all…	全部刪除…
+	Delete all	全部刪除
+	Delete everything in “{folder}”?	刪除「{folder}」中的所有內容?
+	Every message in it will be moved to Deleted Items.	其中的所有郵件都會移到「刪除的郵件」。
+	Find related	尋找相關項目
+	Messages in this conversation	此交談中的郵件
+	Messages from sender	來自寄件者的郵件
+	Forward as attachment	以附件轉寄
+	Reply with meeting	以會議回覆
+	More actions	更多動作
+	Ignore	忽略
+	Messages	郵件
+	Open file location	開啟檔案位置
+	Properties…	內容…
+	{folder} Properties	{folder} 內容
+	Size on this computer	在此電腦上的大小
+	Quick print	快速列印
+	Always move to Focused	一律移至「焦點」
+	Always move to Other	一律移至「其他」
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存
