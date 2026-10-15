@@ -1448,6 +1448,14 @@ fn window_toolbar(ui: &mut Ui, s: &Session, t: &Tokens, key: &MessageKey, acts: 
             acts.push(Action::Open(key.clone()));
             acts.push(Action::Print);
         }
+        // Drawn inside the page (the browser), the window has no title bar to close it from.
+        if ui.ctx().embed_viewports() {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if widgets::tool_button(ui, Icon::Close, "Close", t, true).clicked() {
+                    acts.push(close());
+                }
+            });
+        }
     });
 }
 
