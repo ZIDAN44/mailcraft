@@ -18,7 +18,7 @@ use std::sync::Arc;
 use mailcraft_engine::Session;
 use mailcraft_engine::model::dates::Clock;
 use mailcraft_engine::model::{AccountConfig, Event, Job};
-use mailcraft_engine::store::Store;
+use mailcraft_engine::store::{Store, location};
 use mailcraft_net::worker::{Credentials, Pool};
 use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 
@@ -68,6 +68,12 @@ struct Desktop {
     frame_source: Option<Option<video::Source>>,
     /// Video frames being made or made, by file.
     frames: std::collections::HashMap<PathBuf, Arc<std::sync::Mutex<Option<VideoFrame>>>>,
+    /// The data files' folder in use, and the app folder whose data files can be moved (`None`
+    /// when the place was chosen at start: `--data`, `--sample`, `MAILCRAFT_DATA`).
+    data: Option<PathBuf>,
+    base: Option<PathBuf>,
+    /// How a move carried out at this start went (told once).
+    moved: Option<Result<PathBuf, String>>,
 }
 
 impl Services for Desktop {
@@ -83,6 +89,25 @@ impl Services for Desktop {
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         open::that_detached(path).map_err(|e| e.to_string())
+    }
+    fn data_folder(&self) -> Option<(PathBuf, bool)> {
+        self.data.clone().map(|d| (d, self.base.is_some()))
+    }
+    fn take_data_moved(&mut self) -> Option<Result<PathBuf, String>> {
+        self.moved.take()
+    }
+    fn pending_data_move(&self) -> Option<PathBuf> {
+        self.base.as_deref().and_then(location::pending_move)
+    }
+    fn move_data_folder(&mut self, to: Option<&Path>) -> Result<Option<PathBuf>, String> {
+        let base = self.base.as_deref().ok_or("the data folder was chosen when MailCraft started")?;
+        match to {
+            Some(to) => location::schedule_move(base, to).map(Some),
+            None => {
+                location::cancel_move(base);
+                Ok(None)
+            }
+        }
     }
     fn craft_app(&mut self, command: &str) -> Option<PathBuf> {
         let exe = if cfg!(windows) { format!("{command}.exe") } else { command.to_string() };
@@ -363,16 +388,42 @@ fn main() -> eframe::Result {
     }
     let cmd_args = args.clone();
     let sample = args.iter().any(|a| a == "--sample");
+    // Each account is a data file in Documents\MailCraft Files (as Outlook keeps .pst files in
+    // Outlook Files); the account list and the app's state stay in the app folder. The data files'
+    // folder can be moved (File › Options) when it's the usual one: a move asked for is carried
+    // out now, before anything opens them.
+    let base = (!sample && !args.iter().any(|a| a == "--data") && std::env::var_os("MAILCRAFT_DATA").is_none_or(|d| d.is_empty()))
+        .then(location::base_root)
+        .flatten();
+    let mut moved = match base.as_deref().map(location::apply_pending_move) {
+        Some(Ok(Some(to))) => Some(Ok(to)),
+        Some(Err(e)) => Some(Err(e)),
+        _ => None,
+    };
     let data =
         args.iter().position(|a| a == "--data").and_then(|i| args.get(i + 1)).map(PathBuf::from).or_else(mailcraft_engine::store::default_root);
     let root = data.map(|d| if sample { d.join("sample") } else { d });
+    // The sample mailbox stays a folder of files; anything else keeps its data files beside it
+    // (`--data`) or in Documents.
+    let files =
+        (!sample).then(|| root.as_ref().map(|r| base.as_deref().map_or_else(|| r.join(location::FILES_FOLDER), location::files_dir))).flatten();
 
     let (now, offset) = Desktop::default().clock();
-    let store = root.as_ref().and_then(|r| match Store::open(r) {
-        Ok(s) => Some(s),
-        Err(e) => {
-            eprintln!("mailcraft: the mail cache can't be opened ({e}); running without one");
-            None
+    let store = root.as_ref().and_then(|r| {
+        let opened = match &files {
+            Some(f) => Store::open_packed(r, f).or_else(|e| {
+                // Folders from before that couldn't come into data files stay as they are.
+                moved = Some(Err(e.to_string()));
+                Store::open(r)
+            }),
+            None => Store::open(r),
+        };
+        match opened {
+            Ok(s) => Some(s),
+            Err(e) => {
+                eprintln!("mailcraft: the mail cache can't be opened ({e}); running without one");
+                None
+            }
         }
     });
     if sample
@@ -382,6 +433,7 @@ fn main() -> eframe::Result {
         eprintln!("mailcraft: the sample mailbox couldn't be created: {e}");
     }
     let mut session = Session::open(store.clone(), Clock::new(now, offset));
+    let desktop_data = store.as_ref().and_then(Store::data_files_dir);
     session.oauth_available = mailcraft_net::oauth::available();
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
 
@@ -409,7 +461,7 @@ fn main() -> eframe::Result {
                 }
                 None => Box::new(mailcraft_ui_egui::NullBackend),
             };
-            let mut app = MailApp::new(session, backend, Box::new(Desktop::default()));
+            let mut app = MailApp::new(session, backend, Box::new(Desktop { data: desktop_data, base, moved, ..Default::default() }));
             if sample {
                 app.ui.title_base = "MailCraft – Sample mailbox".into();
             }

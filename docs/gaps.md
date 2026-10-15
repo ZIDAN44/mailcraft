@@ -115,3 +115,8 @@ mailbox; packaging for every desktop.
 - **Real Outlook data files:** checked against `.pst` files from a current Outlook; a file Outlook
   has open says so, an `.ost` (Outlook's offline copy of a server account) is explained, and the
   RSS Feeds folder and an empty Outbox aren't brought in.
+- **Data files, as Outlook's:** each account is one `.mailcraft` file in Documents\MailCraft
+  Files (an opened `.pst` gets one too), as Outlook keeps `.pst` files in Outlook Files; mail
+  kept before comes into them by itself. File › Options › Data files shows and moves the folder
+  (at the next start, every file checked before the old ones go); each account's Mailbox
+  settings show its file and save a copy as a `.pst`.

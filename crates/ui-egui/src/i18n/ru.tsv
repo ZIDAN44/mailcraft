@@ -574,6 +574,16 @@
 	Remove mail from the server once it's downloaded	Удалять почту с сервера после загрузки
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Серверы: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
 	Fonts	Шрифты
+	Data files	Файлы данных
+	Open folder	Открыть папку
+	Move…	Переместить…
+	Save as an Outlook data file…	Сохранить как файл данных Outlook…
+	Moves to {folder} the next time MailCraft starts.	Будет перемещено в {folder} при следующем запуске MailCraft.
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	Выбрано при запуске MailCraft (--data или MAILCRAFT_DATA), поэтому переместить отсюда нельзя.
+	Your mail couldn't be moved, so it stays where it was: {error}	Не удалось переместить почту, она осталась на месте: {error}
+	Your mail is now kept in {folder}	Теперь ваша почта хранится в {folder}
+	Your mail moves there the next time MailCraft starts.	Почта будет перемещена туда при следующем запуске MailCraft.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	Почта, контакты и календарь каждой учётной записи хранятся в файле данных MailCraft (.mailcraft) в этой папке — так же, как Outlook хранит каждую учётную запись в .pst в папке «Файлы Outlook». Открытый файл данных Outlook получает здесь собственный файл .mailcraft; файл Outlook остаётся без изменений. Чтобы получить копию в .pst, используйте «Сохранить как файл данных Outlook» в разделе «Сведения».
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

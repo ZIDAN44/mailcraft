@@ -130,6 +130,24 @@ pub trait Services {
     fn pick_data_file(&mut self) -> Option<PathBuf> {
         None
     }
+    /// The folder MailCraft keeps its data in, and whether it can be moved from here (not when
+    /// it was chosen at start, or in the browser).
+    fn data_folder(&self) -> Option<(PathBuf, bool)> {
+        None
+    }
+    /// How a move carried out at this start went: the new folder, or why nothing moved.
+    fn take_data_moved(&mut self) -> Option<Result<PathBuf, String>> {
+        None
+    }
+    /// Where the data moves when MailCraft next starts, if a move was asked for.
+    fn pending_data_move(&self) -> Option<PathBuf> {
+        None
+    }
+    /// Ask for the data to move into `to` when MailCraft next starts (`None` forgets the move);
+    /// the folder it will be in.
+    fn move_data_folder(&mut self, _to: Option<&std::path::Path>) -> Result<Option<PathBuf>, String> {
+        Err("not available".into())
+    }
     /// A frame of a video file for its thumbnail. Called each frame until it isn't
     /// [`VideoFrame::Pending`], so slow work belongs on another thread.
     fn video_frame(&mut self, _path: &std::path::Path) -> VideoFrame {
@@ -226,6 +244,12 @@ pub enum Action {
     PickAccountDataFile,
     /// Choose where to write an account's mail as an Outlook data file.
     ExportDataFile(String),
+    /// Show a folder in the system's file manager.
+    OpenFolder(PathBuf),
+    /// Choose a folder to move MailCraft's data into (at the next start).
+    MoveDataFolder,
+    /// Forget a move asked for.
+    CancelDataMove,
 }
 
 /// UI-only state.
@@ -233,6 +257,9 @@ pub struct UiState {
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
+    /// Where the data is kept and whether it can be moved; where it moves at the next start.
+    pub data_folder: Option<(PathBuf, bool)>,
+    pub pending_move: Option<PathBuf>,
     /// `None` follows the system.
     pub dark: Option<bool>,
     pub tab: RibbonTab,
@@ -306,6 +333,13 @@ impl MailApp {
     pub fn new(session: Session, backend: Box<dyn Backend>, mut services: Box<dyn Services>) -> MailApp {
         let seen = session.notices.len();
         let has_files = !services.downloads();
+        let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
+        let mut session = session;
+        match services.take_data_moved() {
+            Some(Ok(to)) => session.notice(tf!("Your mail is now kept in {folder}", folder = to.display().to_string()), false),
+            Some(Err(e)) => session.notice(tf!("Your mail couldn't be moved, so it stays where it was: {error}", error = e), true),
+            None => {}
+        }
         let craft_apps: Vec<(&'static str, PathBuf)> = ["pdfcraft", "wordcraft", "gridcraft", "deckcraft", "photocraft", "filmcraft", "soundcraft"]
             .into_iter()
             .filter_map(|c| services.craft_app(c).map(|p| (c, p)))
@@ -317,6 +351,8 @@ impl MailApp {
             ui: UiState {
                 tokens: Tokens::light(),
                 has_files,
+                data_folder,
+                pending_move,
                 dark: None,
                 tab: RibbonTab::Home,
                 search_text: String::new(),
@@ -831,6 +867,31 @@ impl MailApp {
                         Err(e) => self.session.notice(e.to_string(), true),
                     }
                 }
+            }
+            Action::OpenFolder(path) => {
+                if let Err(e) = self.services.open_path(&path) {
+                    self.session.notice(e, true);
+                }
+            }
+            Action::MoveDataFolder => {
+                if let Some(to) = self.services.pick_folder() {
+                    match self.services.move_data_folder(Some(&to)) {
+                        Ok(Some(target)) if self.ui.data_folder.as_ref().is_some_and(|(d, _)| *d == target) => {
+                            self.ui.pending_move = None;
+                        }
+                        Ok(target) => {
+                            self.ui.pending_move = target;
+                            self.session.notice(tl!("Your mail moves there the next time MailCraft starts.").to_string(), false);
+                        }
+                        Err(e) => self.session.notice(e, true),
+                    }
+                }
+            }
+            Action::CancelDataMove => {
+                if let Err(e) = self.services.move_data_folder(None) {
+                    self.session.notice(e, true);
+                }
+                self.ui.pending_move = None;
             }
             Action::DragOut(i) => {
                 if self.services.can_drag_out() {

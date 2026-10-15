@@ -576,3 +576,13 @@ month	May	מאי
 	Remove mail from the server once it's downloaded	הסר דואר מהשרת לאחר הורדתו
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	שרתים: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
 	Fonts	גופנים
+	Data files	קובצי נתונים
+	Open folder	פתח תיקייה
+	Move…	העבר…
+	Save as an Outlook data file…	שמור כקובץ נתונים של Outlook…
+	Moves to {folder} the next time MailCraft starts.	יועבר אל {folder} בפעם הבאה ש-MailCraft יופעל.
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	נבחר כש-MailCraft הופעל (‎--data או MAILCRAFT_DATA), ולכן אי אפשר להעביר אותו מכאן.
+	Your mail couldn't be moved, so it stays where it was: {error}	לא ניתן היה להעביר את הדואר, ולכן הוא נשאר במקומו: {error}
+	Your mail is now kept in {folder}	הדואר שלך נשמר עכשיו ב-{folder}
+	Your mail moves there the next time MailCraft starts.	הדואר יועבר לשם בפעם הבאה ש-MailCraft יופעל.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	הדואר, אנשי הקשר ולוח השנה של כל חשבון נשמרים בקובץ נתונים של MailCraft ‏(.mailcraft) בתיקייה הזו, כמו ש-Outlook שומר כל חשבון בקובץ ‎.pst‏ בתיקייה 'קובצי Outlook'. קובץ נתונים של Outlook שאתה פותח מקבל כאן קובץ ‎.mailcraft‏ משלו; הקובץ של Outlook נשאר כפי שהיה. כדי לקבל עותק כ-‎.pst‏, השתמש ב'שמור כקובץ נתונים של Outlook' תחת 'מידע'.

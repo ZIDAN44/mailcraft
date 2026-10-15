@@ -4,6 +4,7 @@
 //! Options and About.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use egui::{Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::{AccountState, ReadingPane, Session, VacationState};
@@ -91,7 +92,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             egui::Frame::new().inner_margin(Margin { left: 36, right: 36, top: 24, bottom: 32 }).show(ui, |ui| {
                 ui.set_max_width(820.0);
                 match b.page {
-                    Page::Info => info(s, &t, ui, &mut b, acts),
+                    Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, acts),
                     Page::Options => options(s, st, ui, acts),
                     Page::About => about(&t, ui, acts),
@@ -153,7 +154,7 @@ fn tile(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, title: &str, about: &s
     out.unwrap_or_else(|| ui.label(""))
 }
 
-fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
+fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Account information");
     let Some(a) = b.account.as_deref().and_then(|id| s.account(id)).or_else(|| s.accounts.first()) else {
         ui.label(RichText::new(tl!("Add an email account")).color(t.dim));
@@ -299,6 +300,20 @@ fn info(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
             None => {}
         }
         ui.label(RichText::new(tf!("Kept on this computer: {size}", size = size(cached))).color(t.faint).small());
+        // Where, as Outlook shows a data file's place; and a copy as one.
+        if has_files && let Some(file) = s.store.as_ref().map(|store| store.account_path(&id)) {
+            ui.label(RichText::new(file.display().to_string()).color(t.faint).small());
+            ui.horizontal(|ui| {
+                if ui.add(egui::Button::new(tl!("Open folder")).small()).clicked() {
+                    // The folder the data file is in (or the account's own folder).
+                    let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), Path::to_path_buf) };
+                    acts.push(Action::OpenFolder(dir));
+                }
+                if ui.add(egui::Button::new(tl!("Save as an Outlook data file…")).small()).clicked() {
+                    acts.push(Action::ExportDataFile(id.clone()));
+                }
+            });
+        }
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             for (role, label) in [
@@ -417,6 +432,45 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
             });
         });
     });
+    // Where the data files are (one per account, as Outlook's .pst files); movable as those are.
+    if let Some((dir, movable)) = &st.data_folder {
+        group(ui, "Data files", &mut |ui| {
+            ui.label(
+                RichText::new(tl!(
+                    "Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info."
+                ))
+                .color(t.dim),
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(dir.display().to_string()).color(t.text));
+                if ui.small_button(tl!("Open folder")).clicked() {
+                    acts.push(Action::OpenFolder(dir.clone()));
+                }
+                if *movable && ui.small_button(tl!("Move…")).clicked() {
+                    acts.push(Action::MoveDataFolder);
+                }
+            });
+            if let Some(to) = &st.pending_move {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(tf!("Moves to {folder} the next time MailCraft starts.", folder = to.display().to_string()))
+                            .color(t.warn)
+                            .small(),
+                    );
+                    if ui.small_button(tl!("Cancel")).clicked() {
+                        acts.push(Action::CancelDataMove);
+                    }
+                });
+            } else if !*movable {
+                ui.label(
+                    RichText::new(tl!("Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here."))
+                        .color(t.faint)
+                        .small(),
+                );
+            }
+        });
+    }
     group(ui, "Reading", &mut |ui| {
         ui.horizontal(|ui| {
             ui.label(tl!("Reading pane"));

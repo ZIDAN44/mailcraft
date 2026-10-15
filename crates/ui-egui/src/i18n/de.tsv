@@ -575,6 +575,16 @@
 	Remove mail from the server once it's downloaded	E-Mails nach dem Herunterladen vom Server entfernen
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Server: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
 	Fonts	Schriftarten
+	Data files	Datendateien
+	Open folder	Ordner öffnen
+	Move…	Verschieben…
+	Save as an Outlook data file…	Als Outlook-Datendatei speichern…
+	Moves to {folder} the next time MailCraft starts.	Wird beim nächsten Start von MailCraft nach {folder} verschoben.
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	Beim Start von MailCraft festgelegt (--data oder MAILCRAFT_DATA), daher hier nicht verschiebbar.
+	Your mail couldn't be moved, so it stays where it was: {error}	Ihre E-Mails konnten nicht verschoben werden und bleiben, wo sie waren: {error}
+	Your mail is now kept in {folder}	Ihre E-Mails werden jetzt in {folder} gespeichert
+	Your mail moves there the next time MailCraft starts.	Ihre E-Mails werden beim nächsten Start von MailCraft dorthin verschoben.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	E-Mails, Kontakte und Kalender jedes Kontos werden in einer MailCraft-Datendatei (.mailcraft) in diesem Ordner gespeichert, so wie Outlook jedes Konto in einer .pst unter Outlook-Dateien speichert. Eine geöffnete Outlook-Datendatei erhält hier eine eigene .mailcraft-Datei; die Outlook-Datei bleibt unverändert. Für eine Kopie als .pst verwenden Sie unter Informationen „Als Outlook-Datendatei speichern“.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

@@ -576,3 +576,13 @@ month	May	مايو
 	Remove mail from the server once it's downloaded	إزالة البريد من الخادم بعد تنزيله
 	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	الخوادم: {pop} (POP {pop_port})، {smtp} (SMTP {smtp_port})
 	Fonts	الخطوط
+	Data files	ملفات البيانات
+	Open folder	فتح المجلد
+	Move…	نقل…
+	Save as an Outlook data file…	حفظ كملف بيانات Outlook…
+	Moves to {folder} the next time MailCraft starts.	سيُنقل إلى {folder} عند تشغيل MailCraft في المرة القادمة.
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	اختير عند تشغيل MailCraft (‏--data أو MAILCRAFT_DATA)، لذا لا يمكن نقله من هنا.
+	Your mail couldn't be moved, so it stays where it was: {error}	تعذّر نقل بريدك، لذا بقي في مكانه: {error}
+	Your mail is now kept in {folder}	يُحفظ بريدك الآن في {folder}
+	Your mail moves there the next time MailCraft starts.	سيُنقل بريدك إلى هناك عند تشغيل MailCraft في المرة القادمة.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	يُحفظ بريد كل حساب وجهات اتصاله وتقويمه في ملف بيانات MailCraft ‏(.mailcraft) في هذا المجلد، كما يحفظ Outlook كل حساب في ملف ‎.pst‏ ضمن ملفات Outlook. يحصل ملف بيانات Outlook الذي تفتحه على ملف ‎.mailcraft‏ خاص به هنا، ويبقى ملف Outlook كما هو. للحصول على نسخة ‎.pst‏، استخدم «حفظ كملف بيانات Outlook» ضمن «معلومات».

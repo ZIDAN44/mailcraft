@@ -45,6 +45,18 @@ IMAP hosts. An account with none of these (the sample mailbox, an opened Outlook
 on this computer only: the pool applies its changes to the cache directly. A POP account
 (`pop`) is the same after its mail is downloaded: only the Inbox talks to the server.
 
+Each account is one data file, `<address>.mailcraft`, in Documents\MailCraft Files, as Outlook
+keeps an account in `<address> - <name>.pst` in Documents\Outlook Files
+(`crates/store/src/packed.rs`): a crash-safe single-file database (redb) holding the account's
+cache, keyed by the paths the store always used. The account list and the app's own state stay
+in the per-user app folder (`%APPDATA%\MailCraft`). `.pst` is only read (an Outlook data file
+opened gets a `.mailcraft` file of its own; Outlook's file isn't touched) and written (export).
+Account folders from before are brought into data files when the store opens, and removed once
+read back. The data files' folder can be moved (`crates/store/src/location.rs`): `location.json`
+in the app folder points at it, and a move asked for (`move-pending.json`) is carried out at the
+next start, before anything opens the files, every file checked before the old ones go. The
+sample mailbox and the browser keep plain files and memory.
+
 ## The browser (`apps/mailcraft-web`)
 
 The same `MailApp` runs in eframe's web runner. The store is `Store::memory()`, loaded from
