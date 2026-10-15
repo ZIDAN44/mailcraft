@@ -118,7 +118,8 @@ fn safe_doc(name: &str) -> String {
 #[derive(Clone, Debug)]
 enum Files {
     Disk,
-    Memory(Arc<Mutex<BTreeMap<PathBuf, Vec<u8>>>>),
+    /// The files, and the paths changed since they were last taken (when that's tracked).
+    Memory(Arc<Mutex<BTreeMap<PathBuf, Vec<u8>>>>, Arc<Mutex<Option<std::collections::BTreeSet<PathBuf>>>>),
 }
 
 fn not_found() -> io::Error {
@@ -131,18 +132,29 @@ impl Files {
         f(&mut g)
     }
 
+    /// Note changed paths, when changes are tracked.
+    fn mark<'a>(&self, paths: impl IntoIterator<Item = &'a Path>) {
+        if let Files::Memory(_, changed) = self {
+            let mut g = changed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(set) = g.as_mut() {
+                set.extend(paths.into_iter().map(Path::to_path_buf));
+            }
+        }
+    }
+
     fn read(&self, p: &Path) -> io::Result<Vec<u8>> {
         match self {
             Files::Disk => fs::read(p),
-            Files::Memory(m) => Files::with(m, |m| m.get(p).cloned().ok_or_else(not_found)),
+            Files::Memory(m, _) => Files::with(m, |m| m.get(p).cloned().ok_or_else(not_found)),
         }
     }
 
     fn write(&self, p: &Path, bytes: &[u8]) -> Result<()> {
         match self {
             Files::Disk => write_atomic(p, bytes),
-            Files::Memory(m) => {
+            Files::Memory(m, _) => {
                 Files::with(m, |m| m.insert(p.to_path_buf(), bytes.to_vec()));
+                self.mark([p]);
                 Ok(())
             }
         }
@@ -151,50 +163,70 @@ impl Files {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         match self {
             Files::Disk => fs::rename(from, to),
-            Files::Memory(m) => Files::with(m, |m| {
-                let moving: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(from)).cloned().collect();
-                if moving.is_empty() {
+            Files::Memory(m, _) => {
+                let moved = Files::with(m, |m| {
+                    let moving: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(from)).cloned().collect();
+                    let mut moved = Vec::new();
+                    for k in moving {
+                        if let (Some(v), Ok(rest)) = (m.remove(&k), k.strip_prefix(from)) {
+                            let new = if rest.as_os_str().is_empty() { to.to_path_buf() } else { to.join(rest) };
+                            m.insert(new.clone(), v);
+                            moved.extend([k, new]);
+                        }
+                    }
+                    moved
+                });
+                if moved.is_empty() {
                     return Err(not_found());
                 }
-                for k in moving {
-                    if let (Some(v), Ok(rest)) = (m.remove(&k), k.strip_prefix(from)) {
-                        m.insert(if rest.as_os_str().is_empty() { to.to_path_buf() } else { to.join(rest) }, v);
-                    }
-                }
+                self.mark(moved.iter().map(PathBuf::as_path));
                 Ok(())
-            }),
+            }
         }
     }
 
     fn remove_file(&self, p: &Path) -> io::Result<()> {
         match self {
             Files::Disk => fs::remove_file(p),
-            Files::Memory(m) => Files::with(m, |m| m.remove(p).map(|_| ()).ok_or_else(not_found)),
+            Files::Memory(m, _) => {
+                Files::with(m, |m| m.remove(p).map(|_| ()).ok_or_else(not_found))?;
+                self.mark([p]);
+                Ok(())
+            }
         }
     }
 
     fn remove_dir_all(&self, p: &Path) -> io::Result<()> {
         match self {
             Files::Disk => fs::remove_dir_all(p),
-            Files::Memory(m) => Files::with(m, |m| {
-                let before = m.len();
-                m.retain(|k, _| !k.starts_with(p));
-                if m.len() == before { Err(not_found()) } else { Ok(()) }
-            }),
+            Files::Memory(m, _) => {
+                let gone: Vec<PathBuf> = Files::with(m, |m| {
+                    let gone: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(p)).cloned().collect();
+                    for k in &gone {
+                        m.remove(k);
+                    }
+                    gone
+                });
+                if gone.is_empty() {
+                    return Err(not_found());
+                }
+                self.mark(gone.iter().map(PathBuf::as_path));
+                Ok(())
+            }
         }
     }
 
     fn is_file(&self, p: &Path) -> bool {
         match self {
             Files::Disk => p.is_file(),
-            Files::Memory(m) => Files::with(m, |m| m.contains_key(p)),
+            Files::Memory(m, _) => Files::with(m, |m| m.contains_key(p)),
         }
     }
 
     fn exists(&self, p: &Path) -> bool {
         match self {
             Files::Disk => p.exists(),
-            Files::Memory(m) => Files::with(m, |m| m.keys().any(|k| k.starts_with(p))),
+            Files::Memory(m, _) => Files::with(m, |m| m.keys().any(|k| k.starts_with(p))),
         }
     }
 
@@ -208,7 +240,7 @@ impl Files {
                     .filter_map(|e| Some((e.file_name().to_str()?.to_string(), e.path())))
                     .collect()
             }
-            Files::Memory(m) => Files::with(m, |m| {
+            Files::Memory(m, _) => Files::with(m, |m| {
                 m.keys().filter(|k| k.parent() == Some(dir)).filter_map(|k| Some((k.file_name()?.to_str()?.to_string(), k.clone()))).collect()
             }),
         }
@@ -228,7 +260,7 @@ impl Files {
         }
         match self {
             Files::Disk => walk(dir, 0),
-            Files::Memory(m) => {
+            Files::Memory(m, _) => {
                 Files::with(m, |m| m.iter().filter(|(k, _)| k.starts_with(dir)).map(|(_, v)| v.len() as u64).fold(0u64, u64::saturating_add))
             }
         }
@@ -251,13 +283,13 @@ impl Store {
 
     /// A cache kept in memory only (clones share it).
     pub fn memory() -> Store {
-        Store { root: PathBuf::from("memory"), files: Files::Memory(Arc::default()) }
+        Store { root: PathBuf::from("memory"), files: Files::Memory(Arc::default(), Arc::default()) }
     }
 
     /// A memory cache holding files from an earlier [`Store::snapshot`].
     pub fn memory_from(files: Vec<(String, Vec<u8>)>) -> Store {
         let s = Store::memory();
-        if let Files::Memory(m) = &s.files {
+        if let Files::Memory(m, _) = &s.files {
             // Paths stay inside the cache.
             let inside = files.into_iter().filter(|(p, _)| !p.split('/').any(|seg| seg.is_empty() || seg == "." || seg == ".."));
             let entries: BTreeMap<PathBuf, Vec<u8>> = inside.map(|(p, v)| (p.split('/').fold(s.root.clone(), |acc, seg| acc.join(seg)), v)).collect();
@@ -269,7 +301,7 @@ impl Store {
     /// A memory cache's files whose relative path (`a1/folders.json`) `keep` accepts; empty for
     /// a cache on disk.
     pub fn snapshot(&self, keep: impl Fn(&str) -> bool) -> Vec<(String, Vec<u8>)> {
-        let Files::Memory(m) = &self.files else { return Vec::new() };
+        let Files::Memory(m, _) = &self.files else { return Vec::new() };
         Files::with(m, |m| {
             m.iter()
                 .filter_map(|(k, v)| {
@@ -285,7 +317,39 @@ impl Store {
 
     /// Whether the cache lives in memory.
     pub fn is_memory(&self) -> bool {
-        matches!(self.files, Files::Memory(_))
+        matches!(self.files, Files::Memory(..))
+    }
+
+    /// Start noting which files of a memory cache change, for [`Store::take_changes`].
+    pub fn track_changes(&self) {
+        if let Files::Memory(_, changed) = &self.files {
+            let mut g = changed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            g.get_or_insert_with(Default::default);
+        }
+    }
+
+    /// The files of a memory cache changed since the last call (once [`Store::track_changes`]
+    /// started): relative path and the bytes now, `None` for a file removed. Lets the browser
+    /// keep the cache between visits.
+    pub fn take_changes(&self) -> Vec<(String, Option<Vec<u8>>)> {
+        let Files::Memory(m, changed) = &self.files else { return Vec::new() };
+        let paths = {
+            let mut g = changed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            match g.as_mut() {
+                Some(set) => std::mem::take(set),
+                None => return Vec::new(),
+            }
+        };
+        Files::with(m, |m| {
+            paths
+                .into_iter()
+                .filter_map(|k| {
+                    let rel = k.strip_prefix(&self.root).ok()?;
+                    let rel: Vec<&str> = rel.iter().map(|s| s.to_str()).collect::<Option<_>>()?;
+                    Some((rel.join("/"), m.get(&k).cloned()))
+                })
+                .collect()
+        })
     }
 
     pub fn root(&self) -> &Path {
@@ -790,6 +854,40 @@ mod tests {
         assert!(p.starts_with(s.root()));
         assert!(!p.to_string_lossy().contains(".."));
         let _ = fs::remove_dir_all(s.root());
+    }
+
+    #[test]
+    fn a_memory_cache_reports_its_changes_once_asked() {
+        let s = Store::memory();
+        s.save_doc("rules.json", &vec![1]).unwrap();
+        assert!(s.take_changes().is_empty(), "not tracked yet");
+        s.save_folders("a1", &[Folder { account: "a1".into(), path: "Projects".into(), delimiter: Some('/'), ..Default::default() }]).unwrap();
+        s.track_changes();
+        s.save_doc("rules.json", &vec![2]).unwrap();
+        let key = MessageKey { account: "a1".into(), folder: "Projects".into(), validity: 1, uid: 4 };
+        s.write_body(
+            &key,
+            b"Subject: x
+
+hi",
+        )
+        .unwrap();
+        let changes = s.take_changes();
+        assert_eq!(changes.len(), 2, "{changes:?}");
+        assert!(changes.contains(&("rules.json".into(), Some(b"[2]".to_vec()))));
+        let body = changes.iter().find(|(p, _)| p.ends_with("/4.eml")).unwrap();
+        assert!(body.0.starts_with("a1/f"));
+        assert!(s.take_changes().is_empty(), "taken");
+        // A rename is a removal and a write; removing an account removes each file.
+        s.apply_op("a1", &Op::RenameFolder { from: "Projects".into(), to: "Work".into() }).unwrap();
+        let changes = s.take_changes();
+        assert!(changes.iter().any(|(p, v)| p == &body.0 && v.is_none()), "{changes:?}");
+        assert!(changes.iter().any(|(p, v)| p.ends_with("/4.eml") && p != &body.0 && v.is_some()));
+        s.remove_account("a1").unwrap();
+        assert!(s.take_changes().iter().filter(|(p, _)| p.ends_with(".eml")).all(|(_, v)| v.is_none()));
+        // A store kept from them comes back the same.
+        let back = Store::memory_from(s.snapshot(|_| true));
+        assert_eq!(back.load_doc::<Vec<i32>>("rules.json").unwrap(), vec![2]);
     }
 
     #[test]
