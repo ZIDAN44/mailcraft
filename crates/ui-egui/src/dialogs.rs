@@ -660,7 +660,19 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::AddAccount(f) => {
             ui.set_width(440.0);
             title(ui, t, "Add an email account");
-            ui.label(RichText::new(tl!("Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small());
+            if s.jmap_only {
+                // The browser: JMAP only, and its address is needed.
+                (f.jmap, f.graph, f.advanced) = (true, false, true);
+                ui.label(
+                    RichText::new(tl!(
+                        "In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server."
+                    ))
+                    .color(t.dim)
+                    .small(),
+                );
+            } else {
+                ui.label(RichText::new(tl!("Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small());
+            }
             ui.add_space(10.0);
             egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
                 ui.label(tl!("Email address"));
@@ -673,7 +685,11 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 }
                 // Look the settings up once the address is typed (when the box is left).
                 let email = f.email.trim().to_ascii_lowercase();
-                if (r.lost_focus() || f.advanced) && mailcraft_engine::model::addr::is_valid_email(&email) && !s.discovered.contains_key(&email) {
+                if !s.jmap_only
+                    && (r.lost_focus() || f.advanced)
+                    && mailcraft_engine::model::addr::is_valid_email(&email)
+                    && !s.discovered.contains_key(&email)
+                {
                     acts.push(Action::Run("account.discover", json!({"email": email})));
                 }
                 if !f.servers_edited
@@ -704,7 +720,9 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 }
             });
             ui.add_space(6.0);
-            ui.checkbox(&mut f.advanced, tl!("Server settings"));
+            if !s.jmap_only {
+                ui.checkbox(&mut f.advanced, tl!("Server settings"));
+            }
             if f.advanced {
                 egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(10)).show(ui, |ui| {
                     let mut edited = false;
@@ -714,14 +732,16 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     let label = |ui: &mut Ui, s: &str| {
                         ui.label(RichText::new(tl!(s)).strong().small());
                     };
-                    let mut kind = if f.graph { 2 } else { u8::from(f.jmap) };
-                    ui.horizontal_wrapped(|ui| {
-                        label(ui, "Mail server");
-                        ui.radio_value(&mut kind, 0, tl!("IMAP and SMTP"));
-                        ui.radio_value(&mut kind, 1, tl!("JMAP"));
-                        ui.radio_value(&mut kind, 2, tl!("Exchange (Microsoft 365)"));
-                    });
-                    (f.jmap, f.graph) = (kind == 1, kind == 2);
+                    if !s.jmap_only {
+                        let mut kind = if f.graph { 2 } else { u8::from(f.jmap) };
+                        ui.horizontal_wrapped(|ui| {
+                            label(ui, "Mail server");
+                            ui.radio_value(&mut kind, 0, tl!("IMAP and SMTP"));
+                            ui.radio_value(&mut kind, 1, tl!("JMAP"));
+                            ui.radio_value(&mut kind, 2, tl!("Exchange (Microsoft 365)"));
+                        });
+                        (f.jmap, f.graph) = (kind == 1, kind == 2);
+                    }
                     if f.graph {
                         ui.label(
                             RichText::new(tl!(
@@ -865,6 +885,10 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             ui.label(RichText::new(tf!("Enter the password for {email}.", email = email)).color(t.dim));
             ui.add_space(8.0);
             let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
+            // The one thing to type: ready for it.
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             let (ok, cancel) = buttons(ui, t, "Sign in", !password.is_empty());
             if (ok || enter) && !password.is_empty() {

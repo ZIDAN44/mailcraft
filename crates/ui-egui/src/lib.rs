@@ -208,6 +208,8 @@ pub enum Action {
 /// UI-only state.
 pub struct UiState {
     pub tokens: Tokens,
+    /// The platform has files (temporary ones for other apps): not in the browser.
+    pub has_files: bool,
     /// `None` follows the system.
     pub dark: Option<bool>,
     pub tab: RibbonTab,
@@ -275,6 +277,7 @@ pub struct MailApp {
 impl MailApp {
     pub fn new(session: Session, backend: Box<dyn Backend>, mut services: Box<dyn Services>) -> MailApp {
         let seen = session.notices.len();
+        let has_files = !services.downloads();
         let craft_apps: Vec<(&'static str, PathBuf)> = ["pdfcraft", "wordcraft", "gridcraft", "deckcraft", "photocraft", "filmcraft", "soundcraft"]
             .into_iter()
             .filter_map(|c| services.craft_app(c).map(|p| (c, p)))
@@ -285,6 +288,7 @@ impl MailApp {
             services,
             ui: UiState {
                 tokens: Tokens::light(),
+                has_files,
                 dark: None,
                 tab: RibbonTab::Home,
                 search_text: String::new(),
@@ -444,7 +448,7 @@ impl MailApp {
             backstage::show(&self.session, &mut self.ui, ui, &mut acts);
         } else if self.session.accounts.is_empty() {
             egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
-                widgets::welcome(ui, &t, &mut acts);
+                widgets::welcome(ui, &t, self.session.jmap_only, &mut acts);
             });
         } else {
             let module = self.session.module;
@@ -830,6 +834,9 @@ impl MailApp {
 
     /// Write an attachment to a temporary file to hand to another app.
     fn attachment_to_temp(&mut self, i: usize) -> Option<PathBuf> {
+        if !self.ui.has_files {
+            return None;
+        }
         let name = self.attachment_name(i);
         let dir = std::env::temp_dir().join("mailcraft-open");
         let _ = std::fs::create_dir_all(&dir);

@@ -510,3 +510,5 @@ month	May	5月
 	Server: {url} (Microsoft Graph)	サーバー: {url} (Microsoft Graph)
 	Signing in with Microsoft isn't set up in this copy of MailCraft.	この MailCraft では Microsoft でのサインインが設定されていません。
 	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	IMAP が無効になっている職場や学校のアカウント向けに、Microsoft Graph で同期します。ブラウザーで Microsoft にサインインするため、パスワードは保存されません。
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	ブラウザーでは、MailCraft は JMAP プロバイダーで動作します。パスワードはこのタブの中だけに保持され、メール サーバーにのみ送信されます。
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	ブラウザーでメールを。JMAP アカウント (Fastmail など) を追加してください。MailCraft はメール サーバーと直接通信し、パスワードはこのタブの中だけに保持されます。

@@ -508,6 +508,8 @@
 	Server: {url} (Microsoft Graph)	Servidor: {url} (Microsoft Graph)
 	Signing in with Microsoft isn't set up in this copy of MailCraft.	El inicio de sesión con Microsoft no está configurado en esta copia de MailCraft.
 	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Sincroniza mediante Microsoft Graph, para cuentas profesionales o educativas con IMAP desactivado. Inicias sesión con Microsoft en el navegador: no se guarda ninguna contraseña.
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	En el navegador, MailCraft funciona con proveedores JMAP. Tu contraseña se queda solo en esta pestaña y solo se envía a tu servidor de correo.
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	Tu correo en el navegador. Añade una cuenta JMAP (como Fastmail): MailCraft habla directamente con tu servidor de correo y tu contraseña se queda solo en esta pestaña.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

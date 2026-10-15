@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>MailCraft</title>
+  <link data-trunk rel="icon" href="../../assets/app-icon/mailcraft.ico" />
+  <link data-trunk rel="rust" data-bin="mailcraft-web" data-wasm-opt="z" data-weak-refs />
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #f3f4f6; }
+    @media (prefers-color-scheme: dark) { html, body { background: #17181c; } }
+    #mailcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #mailcraft_loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #666; font: 14px system-ui, sans-serif; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <canvas id="mailcraft_canvas"></canvas>
+  <div id="mailcraft_loading">Loading MailCraft&hellip;</div>
+</body>
+</html>

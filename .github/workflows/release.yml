@@ -1,6 +1,6 @@
 # Builds, signs and packages MailCraft for every platform, then drafts a GitHub Release:
 # macOS universal (.dmg + CLI zip), Windows x64/x86/arm64 (.msi + portable zip), Linux
-# x86_64/aarch64 (AppImage, deb, rpm, tar.gz, Flatpak), Linux riscv64 and FreeBSD. Runs on a
+# x86_64/aarch64 (AppImage, deb, rpm, tar.gz, Flatpak), Linux riscv64, FreeBSD and the web. Runs on a
 # push to the `release` branch, or by hand with an optional version override for a test run.
 # The scripts it calls live in packaging/; the version comes from Cargo.toml.
 name: Release
@@ -30,9 +30,8 @@ jobs:
       app-name: mailcraft
       app-title: MailCraft
       version: ${{ inputs.version }}
-      # No web build yet: the engine and UI crates build for wasm, but there is no browser app
-      # (and a browser can't open IMAP/SMTP sockets; that needs a JMAP or relay transport).
-      has-web: false
+      # The browser app (apps/mailcraft-web, JMAP over fetch): packaging/web/package.sh.
+      has-web: true
     secrets:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

@@ -1000,6 +1000,9 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(u)) if !u.trim().is_empty() => Some(u.trim().to_string()),
         _ => None,
     };
+    if s.jmap_only && jmap.is_none() {
+        return Err(CmdError::Params("in the browser, MailCraft works with JMAP accounts only".into()));
+    }
     let plain = local || jmap.is_some() || graph.is_some();
     let password = p::str(v, "password").map(str::to_string);
     // Graph signs in with Microsoft, unless given a token to use as it is.

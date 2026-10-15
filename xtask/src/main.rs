@@ -19,7 +19,7 @@ commands:
   ci       fmt --check, clippy -D warnings, tests, layers, assets, wasm (stops at the first failure)
   layers   enforce the crate layering (docs/architecture.md)
   assets   check that every asset file is attributed in ATTRIBUTION.md
-  wasm     cargo check --target wasm32-unknown-unknown for the portable crates
+  wasm     cargo check --target wasm32-unknown-unknown for the portable crates and the web app
   icons    render the app icon into assets/app-icon/ (PNGs, SVG, .ico, .icns)
   ico      pack PNGs into a Windows .ico: ico <out.ico> <in.png>…
   version  print the workspace version; `version set X.Y.Z[-pre]` changes it (release builds)
@@ -170,6 +170,8 @@ fn cmd_wasm() -> Result<(), String> {
     for (name, _) in LAYERS.iter().filter(|(n, _)| !NATIVE_ONLY.contains(n)) {
         c.args(["-p", name]);
     }
+    // The browser app itself.
+    c.args(["-p", "mailcraft-web"]);
     run(c, "cargo check --target wasm32-unknown-unknown (portable crates)")
 }
 

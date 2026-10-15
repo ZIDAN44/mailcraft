@@ -510,3 +510,5 @@ month	May	5月
 	Server: {url} (Microsoft Graph)	服务器：{url} (Microsoft Graph)
 	Signing in with Microsoft isn't set up in this copy of MailCraft.	此 MailCraft 副本未设置 Microsoft 登录。
 	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	通过 Microsoft Graph 同步，适用于关闭了 IMAP 的工作或学校帐户。在浏览器中使用 Microsoft 登录：不会保存密码。
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	在浏览器中，MailCraft 支持 JMAP 提供商。你的密码只保存在此标签页中，并且只会发送到你的邮件服务器。
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	在浏览器中收发邮件。添加一个 JMAP 帐户（例如 Fastmail）：MailCraft 直接与你的邮件服务器通信，你的密码只保存在此标签页中。

@@ -332,6 +332,8 @@ pub struct Session {
     pub discovered: HashMap<String, Option<(Option<AccountConfig>, String)>>,
     /// OAuth providers this copy can sign in with (set by the app).
     pub oauth_available: Vec<String>,
+    /// Only JMAP accounts can be added (the browser, which can't open IMAP or SMTP connections).
+    pub jmap_only: bool,
     /// The fonts PDFs embed (regular, bold): the system's, set by the app.
     pub print_fonts: Option<(Vec<u8>, Option<Vec<u8>>)>,
     /// Pages to show in the browser (OAuth sign-in), oldest first.
@@ -386,6 +388,7 @@ impl Session {
             pictures_for: BTreeSet::new(),
             discovered: HashMap::new(),
             oauth_available: Vec::new(),
+            jmap_only: false,
             print_fonts: None,
             open_urls: Vec::new(),
             pim: HashMap::new(),

@@ -507,6 +507,8 @@
 	Server: {url} (Microsoft Graph)	Сервер: {url} (Microsoft Graph)
 	Signing in with Microsoft isn't set up in this copy of MailCraft.	Вход через Microsoft не настроен в этой копии MailCraft.
 	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Синхронизация через Microsoft Graph — для рабочих и учебных учётных записей с отключённым IMAP. Вход выполняется через Microsoft в браузере: пароль не сохраняется.
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	В браузере MailCraft работает с провайдерами JMAP. Пароль хранится только в этой вкладке и отправляется только на ваш почтовый сервер.
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	Ваша почта в браузере. Добавьте учётную запись JMAP (например, Fastmail): MailCraft обращается напрямую к вашему почтовому серверу, а пароль хранится только в этой вкладке.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -461,6 +461,10 @@ fn video_preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &Messa
     if let Some(t) = st.previews.get(&id) {
         return t.clone();
     }
+    // The platform's decoder reads files, and the browser has none.
+    if !st.has_files {
+        return None;
+    }
     let path = match st.video_files.get(&id) {
         Some(p) => p.clone(),
         None => {

@@ -106,7 +106,7 @@ pub fn shorten(s: &str, max: usize) -> String {
 }
 
 /// First run: no accounts yet.
-pub fn welcome(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
+pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>) {
     ui.vertical_centered(|ui| {
         ui.add_space((ui.available_height() * 0.18).max(20.0));
         egui::Frame::new().fill(t.surface).stroke(Stroke::new(1.0, t.border)).corner_radius(CornerRadius::same(12)).inner_margin(egui::Margin::same(32)).show(ui, |ui| {
@@ -118,7 +118,12 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
                 ui.add_space(12.0);
                 ui.label(RichText::new(tl!("Welcome to MailCraft")).font(theme::bold(22.0)).color(t.text));
                 ui.add_space(4.0);
-                ui.label(RichText::new(tl!("Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.")).color(t.dim));
+                let about = if jmap_only {
+                    "Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only."
+                } else {
+                    "Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain."
+                };
+                ui.label(RichText::new(tl!(about)).color(t.dim));
                 ui.add_space(18.0);
                 if accent_button(ui, Icon::Plus, "Add an account", t, true).clicked() {
                     acts.push(Action::Dialog(Dialog::add_account()));

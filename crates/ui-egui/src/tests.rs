@@ -670,6 +670,14 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     assert!(got.len() >= 4, "{got:?}");
     assert!(got[0].0.ends_with(".eml") && got[1].0.ends_with(".pdf") && got.iter().all(|(_, n)| *n > 0), "{got:?}");
 
+    // Only JMAP accounts: the form asks for the session address, and nothing else is accepted.
+    a.session.jmap_only = true;
+    a.ui.dialog = Some(Dialog::add_account_with("zoe@fastmail.example", false));
+    frame(&ctx, &mut a, vec![]);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.jmap && f.advanced));
+    a.ui.dialog = None;
+    assert!(a.session.run("account.add", &json!({"email": "zoe@example.com", "password": "pw", "imapHost": "imap.example.com"})).is_err());
+
     a.run("mail.new", json!({}));
     a.act(crate::Action::AttachFiles);
     frame(&ctx, &mut a, vec![]);
