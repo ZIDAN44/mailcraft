@@ -1,7 +1,7 @@
 //! The session: accounts, the current view and its message list, the open message, the message
 //! being written, preferences, and the queue of jobs for the network layer.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 use mailcraft_mime::{self as mime, OutAttachment, Parsed, ReplyMode};
@@ -199,6 +199,10 @@ pub struct Prefs {
     pub ignored: BTreeSet<String>,
     /// The folder pane minimized to a narrow strip (View › Folder pane, or its ‹ button).
     pub folder_pane_minimized: bool,
+    /// When flagged messages are due (Follow Up › Today, Tomorrow…): Message-ID → local day.
+    /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
+    #[serde(default)]
+    pub follow_up: BTreeMap<String, i64>,
 }
 
 /// What the message list is sorted and grouped by.
@@ -350,6 +354,7 @@ impl Default for Prefs {
             reverse_sort: false,
             work_offline: false,
             ignored: BTreeSet::new(),
+            follow_up: BTreeMap::new(),
             folder_pane_minimized: false,
         }
     }
@@ -1742,7 +1747,43 @@ impl Session {
         for (a, keys) in by_account {
             self.apply_op(&a, Op::SetFlag { keys, flag, on });
         }
+        // Unflagged: no longer due.
+        if flag == Flag::Flagged && !on {
+            for m in &sel {
+                self.prefs.follow_up.remove(&follow_up_id(m));
+            }
+        }
         Ok(serde_json::json!({ "on": on, "count": sel.len() }))
+    }
+
+    /// Flag the selection for follow-up by a day (`None`: no date), or (`complete`) mark it
+    /// done: unflagged, its date forgotten.
+    pub fn follow_up_selection(&mut self, due: Option<i64>, complete: bool) -> CmdResult {
+        let sel = self.selected();
+        if sel.is_empty() {
+            return Err(CmdError::Disabled("no message selected".into()));
+        }
+        self.flag_selection(Flag::Flagged, Some(!complete))?;
+        for m in &sel {
+            let id = follow_up_id(m);
+            match due.filter(|_| !complete) {
+                Some(d) if self.prefs.follow_up.len() < 10_000 || self.prefs.follow_up.contains_key(&id) => {
+                    self.prefs.follow_up.insert(id, d);
+                }
+                _ => {
+                    self.prefs.follow_up.remove(&id);
+                }
+            }
+        }
+        Ok(serde_json::json!({ "flagged": !complete, "due": due.filter(|_| !complete).map(mailcraft_model::dates::day_string), "count": sel.len() }))
+    }
+
+    /// When a flagged message is due, if a day was given.
+    pub fn follow_up_due(&self, m: &Summary) -> Option<i64> {
+        if !m.flags.flagged {
+            return None;
+        }
+        self.prefs.follow_up.get(&follow_up_id(m)).copied()
     }
 
     fn remember(&mut self, u: Undo) {
@@ -2623,4 +2664,9 @@ pub fn parse_key(v: &Value) -> Option<MessageKey> {
         return MessageKey::from_id(s);
     }
     serde_json::from_value::<MessageKey>(v.clone()).ok().filter(|k| !k.account.is_empty())
+}
+
+/// What a follow-up date is kept under: the Message-ID, or (without one) the message's place.
+fn follow_up_id(m: &Summary) -> String {
+    if m.message_id.trim().is_empty() { m.key.to_id() } else { m.message_id.trim().to_string() }
 }

@@ -59,7 +59,10 @@ pub fn registry() -> Registry {
         CommandSpec::new("mail.markRead", "Mark as read", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(true))).key("Mod+Q").when(has_selection),
         CommandSpec::new("mail.markUnread", "Mark as unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(false))).key("Mod+U").when(has_selection),
         CommandSpec::new("mail.toggleRead", "Read / Unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, None)).when(has_selection),
-        CommandSpec::new("mail.flag", "Flag / Unflag", "Home › Tags", |s, v| s.flag_selection(Flag::Flagged, p::bool(v, "on"))).key("Insert").params(r#"{"on"?: bool}"#).when(has_selection),
+        CommandSpec::new("mail.flag", "Flag / Unflag", "Home › Tags", flag)
+            .key("Insert")
+            .params(r#"{"on"?: bool, "due"?: "today"|"tomorrow"|"thisWeek"|"nextWeek"|"none"|"YYYY-MM-DD" (Follow Up: flag, due then), "complete"?: true (Mark Complete: unflag, forget the date)}"#)
+            .when(has_selection),
         CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read).when(has_account),
         CommandSpec::new("mail.categorize", "Categorize", "Home › Tags", |s, v| s.categorize_selection(p::req_str(v, "category")?, p::bool(v, "on")))
             .params(r#"{"category": string, "on"?: bool}"#)
@@ -637,6 +640,28 @@ fn snooze(s: &mut Session, v: &Value) -> CmdResult {
         (None, None) => return Err(CmdError::Params("`preset` or `until` is required".into())),
     };
     s.snooze_selection(until)
+}
+
+/// Flag or unflag; or Follow Up by a day, or Mark Complete.
+fn flag(s: &mut Session, v: &Value) -> CmdResult {
+    if p::bool(v, "complete") == Some(true) {
+        return s.follow_up_selection(None, true);
+    }
+    match p::str(v, "due") {
+        None => s.flag_selection(Flag::Flagged, p::bool(v, "on")),
+        Some(d) if d.eq_ignore_ascii_case("none") => s.follow_up_selection(None, false),
+        Some(d) => {
+            let day = match mailcraft_model::dates::FollowUp::from_code(d) {
+                Some(f) => f.due(&s.clock),
+                None if mailcraft_model::job::is_day(d) => {
+                    let num = |a: usize, z: usize| d.get(a..z).and_then(|x| x.parse::<u32>().ok()).unwrap_or(1);
+                    mailcraft_model::dates::days_from_civil(i64::from(num(0, 4)), num(5, 7), num(8, 10))
+                }
+                None => return Err(CmdError::Params(format!("`due`: not today, tomorrow, thisWeek, nextWeek, none or a date: `{d}`"))),
+            };
+            s.follow_up_selection(Some(day), false)
+        }
+    }
 }
 
 fn mark_all_read(s: &mut Session, _: &Value) -> CmdResult {

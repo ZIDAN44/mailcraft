@@ -171,9 +171,94 @@ pub fn full_time(t: i64, clock: &Clock) -> String {
     format!("{} {:04}-{:02}-{:02} {:02}:{:02}", weekday_name(&c), c.year, c.month, c.day, c.hour, c.minute)
 }
 
+/// When a flagged message is due, as Outlook's Follow Up menu offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FollowUp {
+    Today,
+    Tomorrow,
+    /// The last working day of this week (Friday), or today from Friday on.
+    ThisWeek,
+    /// Friday next week.
+    NextWeek,
+}
+
+impl FollowUp {
+    pub const ALL: [FollowUp; 4] = [FollowUp::Today, FollowUp::Tomorrow, FollowUp::ThisWeek, FollowUp::NextWeek];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            FollowUp::Today => "today",
+            FollowUp::Tomorrow => "tomorrow",
+            FollowUp::ThisWeek => "thisWeek",
+            FollowUp::NextWeek => "nextWeek",
+        }
+    }
+
+    pub fn from_code(s: &str) -> Option<FollowUp> {
+        FollowUp::ALL.into_iter().find(|f| f.code().eq_ignore_ascii_case(s))
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            FollowUp::Today => "Today",
+            FollowUp::Tomorrow => "Tomorrow",
+            FollowUp::ThisWeek => "This week",
+            FollowUp::NextWeek => "Next week",
+        }
+    }
+
+    /// The local day it's due (days since 1970-01-01).
+    pub fn due(self, clock: &Clock) -> i64 {
+        let today = clock.local_day(clock.now);
+        // 0 = Monday … 6 = Sunday; Friday is 4.
+        let weekday = (today + 3).rem_euclid(7);
+        match self {
+            FollowUp::Today => today,
+            FollowUp::Tomorrow => today + 1,
+            FollowUp::ThisWeek => today + (4 - weekday).max(0),
+            FollowUp::NextWeek => today + (7 - weekday) + 4,
+        }
+    }
+}
+
+/// Today, as a local day (days since 1970-01-01).
+pub fn today(clock: &Clock) -> i64 {
+    clock.local_day(clock.now)
+}
+
+/// A local day as `YYYY-MM-DD`.
+pub fn day_string(day: i64) -> String {
+    let (y, m, d) = civil_from_days(day);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// A local day as the reading pane shows it: `Fri 2026-10-16`.
+pub fn day_label(day: i64) -> String {
+    let (y, m, d) = civil_from_days(day);
+    let weekday = WEEKDAYS.get((day + 3).rem_euclid(7) as usize).copied().unwrap_or("");
+    format!("{weekday} {y:04}-{m:02}-{d:02}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn follow_up_days() {
+        // NOW is a Wednesday, 2026-10-14.
+        let clock = Clock::new(NOW, 0);
+        let day = |f: FollowUp| day_string(f.due(&clock));
+        assert_eq!(day(FollowUp::Today), "2026-10-14");
+        assert_eq!(day(FollowUp::Tomorrow), "2026-10-15");
+        assert_eq!(day(FollowUp::ThisWeek), "2026-10-16");
+        assert_eq!(day(FollowUp::NextWeek), "2026-10-23");
+        // On a Saturday, "this week" is today.
+        let sat = Clock::new(NOW + 3 * 86_400, 0);
+        assert_eq!(day_string(FollowUp::ThisWeek.due(&sat)), "2026-10-17");
+        assert_eq!(day_string(FollowUp::NextWeek.due(&sat)), "2026-10-23");
+        assert_eq!(day_label(FollowUp::ThisWeek.due(&clock)), "Fri 2026-10-16");
+        assert_eq!(FollowUp::from_code("nextweek"), Some(FollowUp::NextWeek));
+    }
 
     // 2026-10-14 12:00:00 UTC, a Wednesday.
     const NOW: i64 = 1_791_979_200;
