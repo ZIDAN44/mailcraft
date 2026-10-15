@@ -152,3 +152,22 @@ mailbox; packaging for every desktop.
   pointer, which stays an arrow, and a click selects a chip.
 - **New mail filed by rules is announced**, as Outlook does (not what a rule deletes or marks
   read).
+- **From a second audit against Outlook:**
+  - **Search tab** while searching: where to look, From / Sent To / Subject, Has Attachments,
+    Unread, Categorized, Flagged and Important (`is:important`, `is:categorized`), Close Search.
+  - **Follow Up:** flag for today, tomorrow, this week, next week or no date, Mark complete and
+    Clear flag (the ribbon's Flag ▾ and the right-click menu); the reading pane says when it's
+    due (red once overdue) and when mail came with high or low importance. The day is kept on
+    this computer, as Outlook keeps it for IMAP accounts.
+  - **Delay delivery** (held in the Outbox until its time, dated when it goes; MailCraft has to
+    be running) and **Replies to** (a Reply-To) while writing.
+  - **Menus as Outlook's:** Quick print, Ignore and Find related on a message; Reply with
+    meeting and Forward as attachment (the original as an `.eml`) under the reading pane's ⋯;
+    Delete all… (to Deleted Items) and Properties… on a folder; Open file location and Account
+    settings… on an account.
+  - **Hover everywhere:** rows light up in a tint of the app colour (the grey was all but
+    invisible on the folder pane), buttons in a stronger grey; the list's filter tabs, By Date,
+    the File and ribbon tabs, calendar events, days and hours, and colour swatches gained one.
+  - **Fixed:** the language menu drew Japanese, Korean and Chinese as boxes unless the interface
+    was in one of them (and so did mail in them); a chip's tooltip said "Double-click to open
+    it"; "Pin", "Unpin" and "Always move to Focused/Other" weren't translated.

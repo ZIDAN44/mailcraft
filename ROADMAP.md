@@ -41,7 +41,9 @@ local-first, media-aware v1); the fuller request is
    Receive tab with Work offline, Undo, more filters, Ignore, importance and read receipts, File's
    Save As and Print, POP copies removed after days; drafts no longer lost offline.
 10. **v0.10 — Windows, folders and rules as Outlook keeps them** ✅ Remembered window places and
-   sizes, subfolders under their parents, rules run at once, attachments in message windows.
+   sizes, subfolders under their parents, rules run at once, attachments in message windows; from
+   a second audit: the Search tab, Follow Up dates, Delay delivery and Replies to, Outlook's menu
+   items, hover everywhere.
 11. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
 
@@ -83,3 +85,6 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-15** — **v0.10**: windows open where they were (maximized too), a folder made in the
   Inbox shows under it, a new rule runs at once on the Inbox, attachments as Outlook's chips that
   open with a double-click, and notifications for mail rules file away.
+- **2026-10-16** — **v0.10**: a second audit against Outlook: a Search tab, Follow Up with dates,
+  Delay delivery and Replies to, Forward as attachment, Reply with meeting, Find related, Delete
+  all and folder Properties, hover on every control; CJK names drawn in any interface language.
