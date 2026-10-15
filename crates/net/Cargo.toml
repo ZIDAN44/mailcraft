@@ -25,12 +25,10 @@ serde_json = { workspace = true }
 quick-xml = "0.41"
 # Outlook data files (.pst), for importing them (Microsoft's reader, MIT).
 outlook-pst = "1.2"
+# Writes them, for exporting (MIT; a fork of the reader with the same library name, so renamed).
+pst_rw = { package = "outlook-pst-rw", version = "1.2.14" }
 log = { workspace = true }
 thiserror = { workspace = true }
-
-[dev-dependencies]
-# Writes .pst files, for the import tests (MIT; same library name as the reader, so renamed).
-pst_rw = { package = "outlook-pst-rw", version = "1.2.14" }
 
 [target.'cfg(windows)'.dependencies]
 # The system's DNS resolvers (account autoconfiguration).

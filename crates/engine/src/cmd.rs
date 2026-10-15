@@ -473,6 +473,15 @@ pub fn registry() -> Registry {
             s.import_pst(&path)
         })
         .params(r#"{"path": string (a .pst file; its mail goes into a new account on this computer)}"#),
+        CommandSpec::new("account.exportPst", "Export to Outlook data file", "File › Open & Export", |s, v| {
+            let path = p::req_str(v, "path")?.to_string();
+            let account = match p::str(v, "account") {
+                Some(a) => a.to_string(),
+                None => s.current_account().map(|a| a.config.id.clone()).ok_or_else(|| CmdError::Params("there is no account to export".into()))?,
+            };
+            s.export_pst(&account, &path)
+        })
+        .params(r#"{"path": string (the .pst file to write; one already there is replaced), "account"?: string (default: the current one)}"#),
         CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
             let email = p::req_str(v, "email")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&email) {

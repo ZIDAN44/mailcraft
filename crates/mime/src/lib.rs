@@ -592,6 +592,15 @@ pub fn summary_from_full(raw: &[u8], key: MessageKey, flags: Flags, size: u32, f
     s
 }
 
+/// The HTML body as written, for a message that has one.
+pub fn html_body(raw: &[u8]) -> Option<String> {
+    let m = MessageParser::default().parse(raw)?;
+    if !m.html_bodies().any(|p| p.is_text_html()) {
+        return None;
+    }
+    m.body_html(0).map(|h| h.into_owned())
+}
+
 /// The bytes of attachment `index`.
 pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     let m = MessageParser::default().parse(raw)?;

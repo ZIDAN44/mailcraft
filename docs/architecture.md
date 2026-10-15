@@ -26,7 +26,7 @@
 | L1 | `mailcraft-store` | model | Plain files + JSON; atomic writes; no database engine |
 | L1 | `mailcraft-print` | — | Messages laid out as PDF pages with an embedded TrueType font (`ttf-parser`, `miniz_oxide`) |
 | L2 | `mailcraft-jmap` | model, mime, store | The JMAP transport, written once as async code over a two-method `Http` trait: the desktop runs it over `net`'s client (answers are ready at once, so a no-op `block_on` drives it), the browser over `fetch`. Portable, wasm-safe |
-| L3 | `mailcraft-net` | model, mime, store, jmap | Native only. IMAP (`imap-proto`), SMTP (`lettre`), JMAP push, Microsoft Graph, CalDAV/CardDAV (`quick-xml`), ManageSieve, a small HTTP/1.1 client, DNS for autoconfiguration, OAuth, Outlook data files (`outlook-pst`); TLS through `rustls` |
+| L3 | `mailcraft-net` | model, mime, store, jmap | Native only. IMAP (`imap-proto`), SMTP (`lettre`), JMAP push, Microsoft Graph, CalDAV/CardDAV (`quick-xml`), ManageSieve, a small HTTP/1.1 client, DNS for autoconfiguration, OAuth, Outlook data files (`outlook-pst` to read, `outlook-pst-rw` to write); TLS through `rustls` |
 | L4 | `mailcraft-engine` | model, mime, store | Sans-I/O, wasm-safe |
 | L6 | `mailcraft-ui-egui` | engine | egui only; platform services behind traits; interface languages (`i18n/*.tsv`) |
 
@@ -97,8 +97,8 @@ appears in exactly one conversation.
   algorithm and server-side changes, a local SMTP stub, an end-to-end test of the threaded worker
   pool over real TCP sockets, and in-memory JMAP (`fake_jmap.rs`), Microsoft Graph
   (`fake_graph.rs`), CalDAV/CardDAV (`fake_dav.rs`) and ManageSieve servers driving accounts
-  through the same pool. Outlook data files are written by `outlook-pst-rw` in the tests and read
-  back. HTTP, DNS, autoconfig and OAuth run against local stubs. `serve_for_the_browser` (ignored)
+  through the same pool. Outlook data files are exported with `outlook-pst-rw` and read back
+  by the importer; contact and appointment mapping and recurrence patterns are tested on their own. HTTP, DNS, autoconfig and OAuth run against local stubs. `serve_for_the_browser` (ignored)
   keeps a JMAP server with CORS running for trying the web app by hand.
 - `jmap`: the session, URLs and paths against canned answers.
 - `engine`: commands against the sample mailbox and scripted network events; every command with junk params.

@@ -334,6 +334,29 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     if r.clicked() {
         acts.push(Action::OpenDataFile);
     }
+    let current = s.current_account().map(|a| a.config.id.clone());
+    let r = tile(
+        ui,
+        t,
+        Icon::Outbox,
+        "Export",
+        "Export to Outlook data file",
+        "Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.",
+        |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for a in &s.accounts {
+                    if ui.button(RichText::new(&a.config.email).small()).clicked() {
+                        acts.push(Action::ExportDataFile(a.config.id.clone()));
+                    }
+                }
+            });
+        },
+    );
+    if r.clicked()
+        && let Some(id) = current
+    {
+        acts.push(Action::ExportDataFile(id));
+    }
 }
 
 fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {

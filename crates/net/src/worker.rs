@@ -166,6 +166,23 @@ impl Pool {
         }
     }
 
+    /// Export to a data file on a thread of its own.
+    fn export_pst(&mut self, account: String, path: String, name: String) {
+        let sink = self.sink.clone();
+        let store = self.store.clone();
+        let spawned = std::thread::Builder::new().name("mail-export".into()).spawn(move || {
+            let mut progress = |messages| sink.emit(Event::Exported { account: account.clone(), messages, skipped: 0, done: false, error: None });
+            let event = match crate::pst_export::export(&store, &account, &name, std::path::Path::new(&path), &mut progress) {
+                Ok(done) => Event::Exported { account, messages: done.messages, skipped: done.skipped, done: true, error: None },
+                Err(e) => Event::Exported { account, messages: 0, skipped: 0, done: true, error: Some(e) },
+            };
+            sink.emit(event);
+        });
+        if let Err(e) = spawned {
+            self.sink.emit(Event::Notice { account: String::new(), message: format!("export: {e}") });
+        }
+    }
+
     /// Import a data file on a thread of its own.
     fn import_pst(&mut self, account: String, path: String) {
         let sink = self.sink.clone();
@@ -216,6 +233,7 @@ impl Pool {
                 }
             }
             Job::ImportPst { account, path } => self.import_pst(account, path),
+            Job::ExportPst { account, path, name } => self.export_pst(account, path, name),
             Job::Start { account, password } => self.start(account, password),
             Job::Remove { account } => {
                 self.stop(&account);
@@ -905,7 +923,7 @@ impl Worker {
                     }
                 }
             }
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } => {}
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } | Job::ExportPst { .. } => {}
             Job::Start { .. } | Job::Remove { .. } => {}
         }
     }

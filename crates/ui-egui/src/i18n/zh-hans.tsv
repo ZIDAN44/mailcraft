@@ -557,3 +557,7 @@ month	May	5月
 	The message is kept in Drafts if you save it.	如果保存，邮件会留在草稿中。
 	Yes	是
 	No	否
+	Exporting to {file}…	正在导出到 {file}…
+	Export	导出
+	Export to Outlook data file	导出到 Outlook 数据文件
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	将帐户的邮件连同文件夹写入 Outlook 和其他邮件应用可以打开的 Outlook 数据文件 (.pst)。从未下载的邮件不包括在内。

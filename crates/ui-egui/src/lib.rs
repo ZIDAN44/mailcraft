@@ -209,6 +209,8 @@ pub enum Action {
     DragOut(usize),
     /// Choose an Outlook data file and open it.
     OpenDataFile,
+    /// Choose where to write an account's mail as an Outlook data file.
+    ExportDataFile(String),
 }
 
 /// UI-only state.
@@ -708,6 +710,19 @@ impl MailApp {
                         Ok(_) => {
                             self.ui.backstage = None;
                             self.session.notice(tf!("Opening {file}…", file = path.file_name().unwrap_or_default().to_string_lossy()), false);
+                        }
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
+            Action::ExportDataFile(account) => {
+                let name = self.session.account(&account).map(|a| a.config.name.clone()).unwrap_or_default();
+                let name = mailcraft_engine::mime::sanitize_filename(if name.trim().is_empty() { "Mail" } else { name.trim() });
+                if let Some(path) = self.services.save_path(&format!("{name}.pst")) {
+                    match self.session.run("account.exportPst", &json!({"account": account, "path": path.to_string_lossy()})) {
+                        Ok(_) => {
+                            self.ui.backstage = None;
+                            self.session.notice(tf!("Exporting to {file}…", file = path.file_name().unwrap_or_default().to_string_lossy()), false);
                         }
                         Err(e) => self.session.notice(e.to_string(), true),
                     }

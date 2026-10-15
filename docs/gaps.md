@@ -12,8 +12,8 @@ _Status: v0.1, 2026-10-15._
 | # | Gap | Notes |
 |---|---|---|
 | 1 | **HTML layout** | HTML mail shows formatted, with its colours, highlights and tables, and hidden parts stay hidden; but it's laid out as one column of text. Newsletters built from nested layout tables lose their columns. A sanitised HTML/CSS layout engine would keep them. |
-| 2 | **Exchange calendars and on-premises Exchange** | Exchange Online mail works through Microsoft Graph; its calendars and contacts don't sync yet (Graph's `/events` and `/contacts` would). On-premises Exchange without IMAP needs EWS (SOAP); ActiveSync is licensed and out of scope. |
-| 3 | **Outlook data files: export, and more than mail** | `.pst` files open (import) with their mail folders; calendar, contact and task items in them are skipped, and attachments of embedded messages are left out. Writing `.pst` (export) isn't there. |
+| 2 | **On-premises Exchange** | Exchange Online works through Microsoft Graph, mail, calendars and contacts. On-premises Exchange without IMAP needs EWS (SOAP); ActiveSync is licensed and out of scope. |
+| 3 | **Outlook data files: tasks, and files inside attached messages** | `.pst` files open with their mail, contacts and calendar, and accounts export to `.pst` (mail). Tasks and notes are skipped; an attached message comes in without its own attachments (the reader doesn't expose them); export writes mail only (the writer has no contact or appointment items) and leaves out flags. |
 | 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch` and needs the server to allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts need a relay; push needs EventSource with credentials (polling instead); the mail cache is in memory (IndexedDB would keep it between visits). |
 | 5 | **Right-to-left languages** | Eleven interface languages; Arabic, Hebrew and Persian need egui to lay out bidirectional text. |
 | 6 | **Drag attachments out on Linux** | Works on Windows and macOS; Linux would need GTK's drag source. |
@@ -65,8 +65,10 @@ _Status: v0.1, 2026-10-15._
   RFC 6764); meeting invitations by mail (iTIP/iMIP): accept, tentative, decline, and inviting
   guests.
 - **Outlook data files:** File › Open & Export opens a `.pst` as a mailbox on this computer, with
-  its folders, messages, attachments and flags.
+  its folders, messages, attachments and flags, its contacts and its calendar (recurrences
+  included); and writes any account's mail to a new `.pst`.
 - **Exchange Online:** Microsoft Graph as a third transport, for organisations that switch IMAP
-  off: folders, sync, changes, drafts, sending and automatic replies.
+  off: folders, sync, changes, drafts, sending, automatic replies, calendars and contacts (both
+  ways).
 - **Web build:** `apps/mailcraft-web`, the same window in the browser over JMAP and `fetch`, with
   downloads, the browser's file picker and a `?sample` mailbox.

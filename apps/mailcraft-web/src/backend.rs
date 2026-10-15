@@ -399,7 +399,13 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
         Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
-        Job::Start { .. } | Job::Remove { .. } | Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } => {}
+        Job::Start { .. }
+        | Job::Remove { .. }
+        | Job::FetchUrl { .. }
+        | Job::Discover { .. }
+        | Job::SignIn { .. }
+        | Job::ImportPst { .. }
+        | Job::ExportPst { .. } => {}
     }
 }
 
@@ -455,6 +461,16 @@ impl Backend for WebBackend {
                     skipped: 0,
                     done: true,
                     error: Some("opening Outlook data files needs the desktop app".into()),
+                },
+            ),
+            Job::ExportPst { account, .. } => emit(
+                sh,
+                Event::Exported {
+                    account,
+                    messages: 0,
+                    skipped: 0,
+                    done: true,
+                    error: Some("writing Outlook data files needs the desktop app".into()),
                 },
             ),
             Job::Start { account, password } => {

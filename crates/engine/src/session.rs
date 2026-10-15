@@ -1987,6 +1987,30 @@ impl Session {
         Ok(serde_json::json!({ "account": id, "importing": true }))
     }
 
+    /// Write an account's mail to an Outlook data file at `path`.
+    pub fn export_pst(&mut self, account: &str, path: &str) -> CmdResult {
+        let path = path.trim();
+        if path.is_empty() {
+            return Err(CmdError::Params("`path` is required".into()));
+        }
+        let a = self.account(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let name = if a.config.name.trim().is_empty() { a.config.email.clone() } else { a.config.name.clone() };
+        self.jobs.push(Job::ExportPst { account: account.to_string(), path: path.to_string(), name });
+        Ok(serde_json::json!({ "account": account, "exporting": true }))
+    }
+
+    fn exported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {
+        let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
+        match (done, error) {
+            (false, _) => self.notice(format!("{name}: {messages} messages exported so far…"), false),
+            (true, Some(e)) => self.notice(format!("{name} could not be exported: {e}"), true),
+            (true, None) => {
+                let more = if skipped > 0 { format!(" ({skipped} not on this computer were left out)") } else { String::new() };
+                self.notice(format!("{name}: {messages} messages exported{more}"), false);
+            }
+        }
+    }
+
     fn imported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {
         let Some(name) = self.account(account).map(|a| a.config.email.clone()) else { return };
         if !done {
@@ -2131,6 +2155,7 @@ impl Session {
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
             Event::Imported { account, messages, skipped, done, error } => self.imported(&account, messages, skipped, done, error),
+            Event::Exported { account, messages, skipped, done, error } => self.exported(&account, messages, skipped, done, error),
             Event::Quota { account, used, limit } => {
                 if let Some(a) = self.account_mut(&account) {
                     a.quota = Some((used, limit));

@@ -61,7 +61,7 @@
 
 | Area | Highlights |
 |---|---|
-| **Accounts** | Any IMAP + SMTP provider, JMAP (RFC 8620/8621), or Exchange Online through Microsoft Graph; several accounts with an *All Inboxes* favorite; server settings found from the address (the domain's autoconfig, the Mozilla ISPDB, MX and SRV records); Gmail and Microsoft 365 sign-in through the browser (OAuth 2.0); SSL/TLS or STARTTLS; passwords in the system keychain; Outlook data files (`.pst`) open as mailboxes of their own |
+| **Accounts** | Any IMAP + SMTP provider, JMAP (RFC 8620/8621), or Exchange Online through Microsoft Graph; several accounts with an *All Inboxes* favorite; server settings found from the address (the domain's autoconfig, the Mozilla ISPDB, MX and SRV records); Gmail and Microsoft 365 sign-in through the browser (OAuth 2.0); SSL/TLS or STARTTLS; passwords in the system keychain; Outlook data files (`.pst`) open as mailboxes of their own, with their contacts and calendar, and any account exports to one |
 | **Sync** | Folder list with special-use roles (RFC 6154); per-folder incremental sync (new mail, flag changes via CONDSTORE, deletions via QRESYNC); UIDVALIDITY resets; IDLE on the Inbox for instant new mail; newest messages prefetched for offline reading; changes made offline replayed; back-off reconnects; desktop notifications for new mail |
 | **Reading** | Date-grouped list (Today, Yesterday, weekdays, Last week…), unread bars and bold, flags, attachment and replied markers, previews; reading pane right, bottom or off; double-click opens a message in its own window; conversations (JWZ threading); HTML shown formatted (headings, lists, links, quotes, colours, tables) with web pictures on request, remembered per sender; picture, PDF and video thumbnails; attachments dragged out to other apps; Print, Save as PDF, Save as `.eml` |
 | **Organising** | Delete (to Deleted Items; permanent there, with confirmation), Archive, Report junk / Not junk, Move to (dialog or drag), Read / Unread, Flag, Pin, Snooze, colour categories, Mark all as read; Focused / Other; inbox rules; filters: Unread, Flagged, Has files; multi-select with Ctrl and Shift; folders created, renamed, moved and deleted; favourites |
@@ -160,6 +160,6 @@ MIT OR Apache-2.0. Built on [`mail-parser`](https://github.com/stalwartlabs/mail
 [`rustls`](https://github.com/rustls/rustls) and [`ring`](https://github.com/briansmith/ring), [`html2text`](https://github.com/jugglerchris/rust-html2text) (MIT),
 [`ttf-parser`](https://github.com/harfbuzz/ttf-parser) and [`miniz_oxide`](https://github.com/Frommi/miniz_oxide) (MIT / Apache-2.0),
 [`quick-xml`](https://github.com/tafia/quick-xml) (MIT), [`hayro`](https://github.com/LaurenzV/hayro) (MIT / Apache-2.0),
-[`outlook-pst`](https://github.com/microsoft/outlook-pst-rs) (Microsoft, MIT), [`drag`](https://github.com/crabnebula-dev/drag-rs) (MIT / Apache-2.0) and
+[`outlook-pst`](https://github.com/microsoft/outlook-pst-rs) (Microsoft, MIT), [`outlook-pst-rw`](https://github.com/dongs0104/outlook-pst-rs) (MIT), [`drag`](https://github.com/crabnebula-dev/drag-rs) (MIT / Apache-2.0) and
 [`egui`](https://github.com/emilk/egui). Microsoft Outlook is a trademark of Microsoft; MailCraft is
 not affiliated with it and uses none of its code, icons or assets.

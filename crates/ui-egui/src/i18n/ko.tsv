@@ -554,6 +554,10 @@
 	The message is kept in Drafts if you save it.	저장하면 메시지가 임시 보관함에 보관됩니다.
 	Yes	예
 	No	아니요
+	Exporting to {file}…	{file}(으)로 내보내는 중…
+	Export	내보내기
+	Export to Outlook data file	Outlook 데이터 파일로 내보내기
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	계정의 메일을 폴더와 함께 Outlook 및 다른 메일 앱에서 열 수 있는 Outlook 데이터 파일(.pst)로 저장합니다. 다운로드되지 않은 메일은 제외됩니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

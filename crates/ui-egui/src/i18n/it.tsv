@@ -554,6 +554,10 @@
 	The message is kept in Drafts if you save it.	Se la salvi, il messaggio resta in Bozze.
 	Yes	Sì
 	No	No
+	Exporting to {file}…	Esportazione in {file}…
+	Export	Esporta
+	Export to Outlook data file	Esporta in file di dati di Outlook
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	Scrive la posta di un account, con le sue cartelle, in un file di dati di Outlook (.pst) che Outlook e altre app di posta possono aprire. La posta mai scaricata viene esclusa.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

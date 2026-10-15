@@ -156,6 +156,8 @@ pub enum Job {
     SyncDav { account: String },
     /// Read an Outlook data file (`.pst`) into an account with no server.
     ImportPst { account: String, path: String },
+    /// Write the account's mail to an Outlook data file, which opens as `name`.
+    ExportPst { account: String, path: String, name: String },
 }
 
 impl Job {
@@ -173,7 +175,8 @@ impl Job {
             | Job::GetVacation { account }
             | Job::SetVacation { account, .. }
             | Job::SyncDav { account }
-            | Job::ImportPst { account, .. } => account,
+            | Job::ImportPst { account, .. }
+            | Job::ExportPst { account, .. } => account,
             Job::FetchUrl { .. } | Job::Discover { .. } => "",
             Job::SignIn { account } => &account.id,
         }
@@ -301,6 +304,14 @@ pub enum Event {
     /// How a data file import is going (`done`: finished, or failed with `error`). The folders
     /// come as [`Event::Folders`] first.
     Imported {
+        account: String,
+        messages: usize,
+        skipped: usize,
+        done: bool,
+        error: Option<String>,
+    },
+    /// How an export to a data file is going (`done`: finished, or failed with `error`).
+    Exported {
         account: String,
         messages: usize,
         skipped: usize,

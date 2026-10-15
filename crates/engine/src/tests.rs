@@ -1245,6 +1245,21 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     s.apply(Event::Imported { account: bad.clone(), messages: 0, skipped: 0, done: true, error: Some("not an Outlook data file".into()) });
     assert!(s.account(&bad).is_none());
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("notes.txt could not be opened")));
+
+    // Exporting: the current account, or the one asked for, to the file given.
+    s.take_jobs();
+    assert!(s.run("account.exportPst", &json!({"path": ""})).is_err());
+    assert!(s.run("account.exportPst", &json!({"path": "out.pst", "account": "nope"})).is_err());
+    s.run("account.exportPst", &json!({"path": "C:/out/Archive.pst", "account": id})).unwrap();
+    assert!(
+        matches!(s.take_jobs().as_slice(), [Job::ExportPst { account, path, name }] if *account == id && path == "C:/out/Archive.pst" && name == "Archive 2024")
+    );
+    s.apply(Event::Exported { account: id.clone(), messages: 100, skipped: 0, done: false, error: None });
+    assert!(s.notices.last().is_some_and(|n| n.text.contains("100 messages exported so far")));
+    s.apply(Event::Exported { account: id.clone(), messages: 120, skipped: 3, done: true, error: None });
+    assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("120 messages exported (3 not on this computer")));
+    s.apply(Event::Exported { account: id.clone(), messages: 0, skipped: 0, done: true, error: Some("disk full".into()) });
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("disk full")));
     done(s);
 }
 

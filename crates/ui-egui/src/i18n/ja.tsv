@@ -557,3 +557,7 @@ month	May	5月
 	The message is kept in Drafts if you save it.	保存すると、メッセージは下書きに残ります。
 	Yes	はい
 	No	いいえ
+	Exporting to {file}…	{file} にエクスポートしています…
+	Export	エクスポート
+	Export to Outlook data file	Outlook データ ファイルにエクスポート
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	アカウントのメールをフォルダーごと、Outlook や他のメール アプリで開ける Outlook データ ファイル (.pst) に書き出します。ダウンロードされていないメールは含まれません。

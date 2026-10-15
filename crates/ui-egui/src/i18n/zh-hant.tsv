@@ -554,6 +554,10 @@
 	The message is kept in Drafts if you save it.	如果儲存，郵件會留在草稿中。
 	Yes	是
 	No	否
+	Exporting to {file}…	正在匯出到 {file}…
+	Export	匯出
+	Export to Outlook data file	匯出到 Outlook 資料檔
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	將帳戶的郵件連同資料夾寫入 Outlook 和其他郵件應用程式可以開啟的 Outlook 資料檔 (.pst)。從未下載的郵件不包含在內。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存
