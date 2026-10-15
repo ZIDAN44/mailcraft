@@ -15,7 +15,7 @@ _Status: v0.1, 2026-10-15._
 | 2 | **On-premises Exchange** | Exchange Online works through Microsoft Graph, mail, calendars and contacts. On-premises Exchange without IMAP needs EWS (SOAP); ActiveSync is licensed and out of scope. |
 | 3 | **Outlook data files: tasks, and files inside attached messages** | `.pst` files open with their mail, contacts and calendar, and accounts export to `.pst` (mail). Tasks and notes are skipped; an attached message comes in without its own attachments (the reader doesn't expose them); export writes mail only (the writer has no contact or appointment items) and leaves out flags. |
 | 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts would need a relay server, which MailCraft doesn't have. |
-| 5 | **Right-to-left languages** | Eleven interface languages; Arabic, Hebrew and Persian need egui to lay out bidirectional text. |
+| 5 | **Right-to-left: the window itself** | Arabic and Hebrew interfaces, and right-to-left mail, read right to left; but the window isn't mirrored (the folder pane stays on the left), the message editor shows right-to-left lines as egui lays them out, and right-to-left mail bodies can't be selected. egui has no bidirectional layout of its own (MailCraft orders each line itself). |
 | 6 | **Drag attachments out on Linux** | Works on Windows and macOS; Linux would need GTK's drag source. |
 
 ## Done
@@ -46,9 +46,12 @@ _Status: v0.1, 2026-10-15._
   Shell, Quick Look, or a Linux video thumbnailer), Open in the Craft app for the file, Save all,
   dragging out to other apps.
 - **Print and export:** print through a PDF, Save as PDF, Save as `.eml`.
-- **Languages:** ten besides English (Spanish, French, German, Brazilian Portuguese, Italian,
-  Russian, Japanese, Korean, Simplified and Traditional Chinese), following the system or chosen
-  in Options.
+- **Languages:** twelve besides English (Spanish, French, German, Brazilian Portuguese, Italian,
+  Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew), following the
+  system or chosen in Options.
+- **Right-to-left text:** Arabic, Hebrew and Persian in mail and in the interface are put in
+  reading order line by line (the Unicode Bidirectional Algorithm), joined, and set against the
+  right edge; a font with those scripts is found when the main one lacks them.
 - **JMAP:** a second transport (RFC 8620/8621) behind the same jobs and events, with push over
   the session's event stream; shared with the browser in `mailcraft-jmap`.
 - **Messages in windows:** double-click (or *Open in new window*) opens a message in a window of

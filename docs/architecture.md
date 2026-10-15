@@ -78,6 +78,15 @@ Interface text is English in the code and looked up in a catalog per language
 untranslated shows in English. Commands, the CLI and mail stay English. The language follows the
 system unless one is chosen in Settings; Chinese and Japanese load an installed CJK font.
 
+egui shapes each run of text in its script's direction but lays runs out left to right, with no
+bidirectional algorithm. `ui-egui/src/bidi.rs` orders right-to-left text itself: each line goes
+through the Unicode Bidirectional Algorithm (`unicode-bidi`), is cut where egui will cut it into
+runs (the main font's coverage, read with `skrifa`), and runs egui will turn around are handed
+over turned around; Arabic that egui won't shape gets its joined forms. Wrapped text (mail bodies,
+subjects) is broken into lines by MailCraft first (`bidi::job`). Translations of Arabic and
+Hebrew go through it in `tl!`/`tf!`; text for the system (window titles, notifications) is taken
+as written (`i18n::as_written`).
+
 ## Search
 
 `model::search` parses the query language into clauses. The session builds an inverted index

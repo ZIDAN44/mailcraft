@@ -162,6 +162,23 @@ impl Services for Desktop {
         }
         candidates.iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, *i)))
     }
+    fn rtl_font(&mut self) -> Option<Vec<u8>> {
+        // Fonts with both Arabic and Hebrew first.
+        let candidates: &[&str] = if cfg!(target_os = "windows") {
+            &["C:\\Windows\\Fonts\\tahoma.ttf", "C:\\Windows\\Fonts\\arial.ttf"]
+        } else if cfg!(target_os = "macos") {
+            &["/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf", "/System/Library/Fonts/Supplemental/Tahoma.ttf"]
+        } else {
+            &[
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/TTF/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+                "/usr/share/fonts/noto/NotoSansArabic-Regular.ttf",
+            ]
+        };
+        candidates.iter().find_map(|p| std::fs::read(p).ok())
+    }
     fn can_drag_out(&self) -> bool {
         cfg!(any(target_os = "windows", target_os = "macos"))
     }

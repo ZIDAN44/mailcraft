@@ -138,7 +138,7 @@ fn delete_archive_move_and_permanent_delete() {
     s.run("mail.move", &json!({"folder": "Projects/Short film"})).unwrap();
     assert!(s.run("mail.move", &json!({"folder": "Nowhere"})).is_err());
     s.run("folder.open", &json!({"account": "sample", "folder": "Projects/Short film"})).unwrap();
-    assert_eq!(s.list.len(), 2);
+    assert_eq!(s.list.len(), 3);
     done(s);
 }
 

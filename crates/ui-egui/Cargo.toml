@@ -15,6 +15,10 @@ serde_json = { workspace = true }
 log = { workspace = true }
 # Attachment thumbnails (pictures arrive in mail, decoded with size limits).
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+# Right-to-left text: the Unicode Bidirectional Algorithm, and fonts' character maps (the
+# version egui's text layout uses).
+unicode-bidi = "0.3"
+skrifa = "0.44"
 # The system's interface language.
 sys-locale = "0.3"
 # PDF attachment thumbnails: a pure-Rust rasterizer (no unsafe code).

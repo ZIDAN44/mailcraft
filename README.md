@@ -69,7 +69,7 @@
 | **Calendar and people** | Day, week and month views; events with recurrences and time zones; meeting invitations by mail (accept, tentative, decline, inviting guests); an address book; synced with CalDAV / CardDAV |
 | **Mailbox** | The File page: account settings, automatic replies (Sieve, JMAP or Exchange), the space used, emptying Deleted Items and Junk Email, rules, Options |
 | **Search** | Offline, all folders or this folder; bare words match word prefixes; `"phrases"`, `from:`, `to:`, `subject:`, `body:`, `has:attachment`, `is:unread`, `is:flagged`, `-negation` |
-| **Languages** | English, Español, Français, Deutsch, Português (Brasil), Italiano, Русский, 日本語, 한국어, 简体中文, 繁體中文: following the system or chosen in Options |
+| **Languages** | English, Español, Français, Deutsch, Português (Brasil), Italiano, Русский, 日本語, 한국어, 简体中文, 繁體中文, العربية, עברית: following the system or chosen in Options; right-to-left mail reads right to left |
 | **Platforms** | Windows, macOS, Linux (egui on the GPU), and the browser (WebAssembly; JMAP accounts) |
 
 The full list of what's missing, ranked, is in [docs/gaps.md](docs/gaps.md).

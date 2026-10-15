@@ -17,11 +17,12 @@ macro_rules! tl {
 /// A translated template with `{name}` values filled in: `tf!("Saved {path}", path = p.display())`.
 macro_rules! tf {
     ($s:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::i18n::fmt($crate::i18n::t($s), &[$((stringify!($k), &$v.to_string())),*])
+        $crate::i18n::tfmt($s, &[$((stringify!($k), &$v.to_string())),*])
     };
 }
 
 pub mod backstage;
+pub mod bidi;
 mod calendar;
 mod dialogs;
 pub mod i18n;
@@ -99,6 +100,10 @@ pub trait Services {
     /// An installed font for a Chinese, Japanese or Korean interface language (`ja`, `ko`,
     /// `zh-hans`, `zh-hant`): its bytes and the index in a collection.
     fn cjk_font(&mut self, _lang: &str) -> Option<(Vec<u8>, u32)> {
+        None
+    }
+    /// An installed font with Arabic and Hebrew, for when the main font hasn't them.
+    fn rtl_font(&mut self) -> Option<Vec<u8>> {
         None
     }
     /// A picture on the clipboard, as PNG bytes (`None` when there is none).
@@ -248,6 +253,8 @@ pub struct UiState {
     pub language: String,
     /// The fonts installed, kept to add a CJK fallback later (and for PDF thumbnails).
     pub(crate) fonts: (Option<Vec<u8>>, Option<Vec<u8>>),
+    /// A fallback font for Arabic and Hebrew (when the main font hasn't them).
+    rtl_font: Option<Vec<u8>>,
     /// The language whose CJK font is loaded.
     cjk_loaded: Option<&'static str>,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
@@ -317,6 +324,7 @@ impl MailApp {
                 craft_apps: Vec::new(),
                 language: i18n::AUTO.into(),
                 fonts: (None, None),
+                rtl_font: None,
                 cjk_loaded: None,
                 title_base: "MailCraft".into(),
                 title_shown: String::new(),
@@ -347,7 +355,11 @@ impl MailApp {
     /// Register the UI fonts, preferring an installed system font (call before the first frame).
     pub fn install_fonts(&mut self, ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
         self.ui.fonts = (regular.clone(), bold.clone());
-        theme::install_fonts(ctx, regular, bold);
+        bidi::set_coverage(regular.as_deref());
+        if !bidi::covers_rtl() {
+            self.ui.rtl_font = self.services.rtl_font();
+        }
+        theme::install_fonts_with(ctx, regular, bold, None, self.ui.rtl_font.clone());
         self.ui.fonts_ready = true;
     }
 
@@ -360,7 +372,7 @@ impl MailApp {
             match self.services.cjk_font(lang.code()) {
                 Some(cjk) => {
                     let (r, b) = self.ui.fonts.clone();
-                    theme::install_fonts_with(ctx, r, b, Some(cjk));
+                    theme::install_fonts_with(ctx, r, b, Some(cjk), self.ui.rtl_font.clone());
                     ctx.request_repaint();
                 }
                 None => log::warn!("no Chinese/Japanese font found: those characters can't be drawn"),
@@ -566,7 +578,7 @@ impl MailApp {
         let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
         let id = egui::ViewportId::from_hash_of(("compose-window", c.id));
         let builder = egui::ViewportBuilder::default()
-            .with_title(tf!("{subject} – Message", subject = subject))
+            .with_title(i18n::as_written(|| tf!("{subject} – Message", subject = subject)))
             .with_inner_size([900.0, 720.0])
             .with_min_inner_size([520.0, 420.0]);
         let (session, st) = (&mut self.session, &mut self.ui);
@@ -610,7 +622,7 @@ impl MailApp {
                 w.parsed.as_ref().map(|p| p.subject.clone()).filter(|s| !s.trim().is_empty()).unwrap_or_else(|| tl!("(no subject)").to_string());
             let id = egui::ViewportId::from_hash_of(("message-window", key.to_id()));
             let builder = egui::ViewportBuilder::default()
-                .with_title(tf!("{subject} – Message", subject = subject))
+                .with_title(i18n::as_written(|| tf!("{subject} – Message", subject = subject)))
                 .with_inner_size([940.0, 740.0])
                 .with_min_inner_size([480.0, 360.0]);
             let (session, st) = (&mut self.session, &mut self.ui);
@@ -638,7 +650,8 @@ impl MailApp {
     fn announce(&mut self, ctx: &egui::Context) {
         let news = self.session.take_new_mail();
         if !news.is_empty() {
-            let (title, body) = match news.as_slice() {
+            // A system notification: text as written.
+            let (title, body) = i18n::as_written(|| match news.as_slice() {
                 [m] => (m.from.display().to_string(), if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() }),
                 many => {
                     let mut who: Vec<&str> = Vec::new();
@@ -656,19 +669,22 @@ impl MailApp {
                     };
                     (tf!("{n} new messages", n = many.len()), tf!("From {names}", names = names))
                 }
-            };
+            });
             self.services.notify(&title, &body);
             if !ctx.input(|i| i.focused) {
                 ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
             }
         }
         let unread = self.session.inbox_unread();
-        let view = match self.session.module {
-            Module::Mail => view_title(&self.session),
-            Module::Calendar => tl!("Calendar").to_string(),
-            Module::People => tl!("People").to_string(),
-        };
-        let base = tl!(&self.ui.title_base);
+        // The system lays out the title (right-to-left text too): as written.
+        let (view, base) = i18n::as_written(|| {
+            let view = match self.session.module {
+                Module::Mail => view_title(&self.session),
+                Module::Calendar => tl!("Calendar").to_string(),
+                Module::People => tl!("People").to_string(),
+            };
+            (view, tl!(&self.ui.title_base).to_string())
+        });
         let title = if self.session.view == mailcraft_engine::View::Empty {
             base.to_string()
         } else if unread > 0 {

@@ -239,13 +239,23 @@ pub fn mail_colors(fg: Option<[u8; 3]>, bg: Option<[u8; 3]>, t: &Tokens, default
 }
 
 pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
-    install_fonts_with(ctx, regular, bold, None);
+    install_fonts_with(ctx, regular, bold, None, None);
 }
 
-/// [`install_fonts`] with a fallback for Chinese and Japanese (a font file and its index in a
-/// collection), used after the others.
-pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Option<(Vec<u8>, u32)>) {
+/// [`install_fonts`] with fallbacks, used after the others: for Chinese and Japanese (a font
+/// file and its index in a collection), and for Arabic and Hebrew when the main font hasn't
+/// them.
+pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Option<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
+    crate::bidi::set_coverage(regular.as_deref());
     let mut fonts = FontDefinitions::default();
+    if let Some(bytes) = rtl {
+        fonts.font_data.insert("rtl".into(), Arc::new(FontData::from_owned(bytes)));
+        for family in [FontFamily::Proportional, FontFamily::Monospace] {
+            if let Some(f) = fonts.families.get_mut(&family) {
+                f.push("rtl".into());
+            }
+        }
+    }
     if let Some((bytes, index)) = cjk {
         let mut data = FontData::from_owned(bytes);
         data.index = index;

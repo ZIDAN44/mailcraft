@@ -71,7 +71,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             // Subject.
             ui.horizontal_wrapped(|ui| {
                 let subject = if p.subject.is_empty() { tl!("(no subject)") } else { p.subject.as_str() };
-                ui.label(RichText::new(subject).font(theme::bold(21.0)).color(t.text));
+                crate::bidi::label(ui, subject, theme::bold(21.0), t.text);
                 if summary.as_ref().is_some_and(|m| m.flags.flagged) {
                     let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
@@ -108,7 +108,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 ui.add_space(4.0);
                 ui.vertical(|ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(p.from.display()).font(theme::bold(15.0)).color(t.text));
+                        ui.label(RichText::new(crate::bidi::shown(p.from.display()).0).font(theme::bold(15.0)).color(t.text));
                         if !p.from.name.is_empty() {
                             ui.label(RichText::new(format!("<{}>", p.from.email)).color(t.dim));
                         }
@@ -237,6 +237,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             ui.add_space(12.0);
             if s.prefs.show_html && !p.rich.is_empty() {
                 rich_body(s, st, ui, &r.key, p, acts);
+            } else if crate::bidi::has_rtl(&p.text) {
+                // Right-to-left text, laid out line by line (not selectable: the lines are in the
+                // order they're seen, not as written).
+                crate::bidi::label(ui, &p.text, theme::regular(14.5), t.text);
             } else {
                 let mut text = p.text.as_str();
                 ui.add(
@@ -581,6 +585,41 @@ fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &m
     for line in &p.rich {
         if line.is_empty() {
             ui.add_space(9.0);
+            continue;
+        }
+        // A line with right-to-left text is laid out whole, in order (its links show, but as text).
+        if line.iter().any(|sp| crate::bidi::has_rtl(&sp.text)) && line.iter().all(|sp| sp.image.is_none()) {
+            let mut job = egui::text::LayoutJob::default();
+            for sp in line {
+                let (fg, bg) = theme::mail_colors(sp.color, sp.background, &t, if sp.link.is_some() { t.accent } else { t.text });
+                let font = if sp.heading > 0 {
+                    theme::bold(match sp.heading {
+                        1 => 22.0,
+                        2 => 19.0,
+                        3 => 17.0,
+                        _ => 15.5,
+                    })
+                } else if sp.code {
+                    egui::FontId::monospace(13.5)
+                } else if sp.bold {
+                    theme::bold(14.5)
+                } else {
+                    theme::regular(14.5)
+                };
+                let format = egui::TextFormat {
+                    font_id: font,
+                    color: fg,
+                    background: bg.unwrap_or(Color32::TRANSPARENT),
+                    italics: sp.italic,
+                    strikethrough: if sp.strike { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
+                    underline: if sp.link.is_some() { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
+                    ..Default::default()
+                };
+                job.append(&sp.text, 0.0, format);
+            }
+            job.wrap.max_width = width;
+            let job = ui.fonts_mut(|f| crate::bidi::job(f, job));
+            ui.add(egui::Label::new(job).selectable(false));
             continue;
         }
         ui.horizontal_wrapped(|ui| {

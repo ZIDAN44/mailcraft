@@ -304,6 +304,21 @@ fn mails() -> Vec<Mail> {
             reply_to_index: None,
             html: None,
         },
+        // Right-to-left mail: Arabic, a line of Hebrew, names and numbers inside.
+        Mail {
+            folder: "Projects/Short film",
+            from: ("ليلى حداد", "layla@subtitles.example"),
+            to: &[ME],
+            cc: &[],
+            subject: "الترجمة العربية جاهزة – Short film",
+            body: "مرحبًا Riley،\n\nأرفقنا الترجمة العربية للفيلم القصير (النسخة 2). راجعنا التوقيت مع ملف shot_list_v2 وعدد الأسطر 128.\n\nשלום! גם הכתוביות בעברית מוכנות.\n\nمع التحية،\nليلى حداد",
+            ago: 60 * 24 * 12,
+            seen: true,
+            flagged: false,
+            attachments: &[],
+            reply_to_index: None,
+            html: None,
+        },
         Mail {
             folder: "Junk",
             from: ("Prize Desk", "win@prizes.example"),

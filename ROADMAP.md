@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 107 (`mailcraft-cli commands`) |
 | Tests | 189 (unit, in-memory IMAP, JMAP, Graph, CalDAV/CardDAV and ManageSieve servers, SMTP and HTTP stubs, data files, TCP end-to-end, headless UI) |
-| Languages | 11 (English, Spanish, French, German, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese) |
+| Languages | 13 (English, Spanish, French, German, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
 ## Milestones

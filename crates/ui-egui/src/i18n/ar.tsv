@@ -1,0 +1,562 @@
+# MailCraft interface strings: Arabic (العربية).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  جارٍ تحميل المجلدات…
+	(Top level)	(المستوى الأعلى)
+	(no subject)	(بلا موضوع)
+	1 attachment	مرفق واحد
+	1. List	1. قائمة
+	</>	</>
+	Accounts	الحسابات
+	Accounts and settings	الحسابات والإعدادات
+	Add a subject	أضف موضوعًا
+	Add account…	إضافة حساب…
+	Add an account	إضافة حساب
+	Add an email account	إضافة حساب بريد إلكتروني
+	Added to new messages, replies and forwards.	تُضاف إلى الرسائل الجديدة والردود وإعادة التوجيه.
+	All	الكل
+	All Inboxes	كل علب الوارد
+	All Sent	كل المُرسل
+	All caught up: nothing in this folder.	لا جديد: هذا المجلد فارغ.
+	All folders	كل المجلدات
+	Always show from {sender}	اعرض دائمًا من {sender}
+	Apr	أبريل
+	Archive	أرشفة
+	Archive (Backspace)	أرشفة (Backspace)
+	Ask before deleting for good	اسأل قبل الحذف نهائيًا
+	At the top of {account}	في أعلى {account}
+	Attach file	إرفاق ملف
+	Audio	صوت
+	Aug	أغسطس
+	B	B
+	Bcc	نسخة مخفية
+	Bold (Ctrl+B)	غامق (Ctrl+B)
+	Bottom	أسفل
+	Bulleted list	قائمة نقطية
+	Cancel	إلغاء
+	Categorize	تصنيف
+	Category	الفئة
+	Cc	نسخة
+	Cc / Bcc	نسخة / نسخة مخفية
+	Cc: {names}	نسخة: {names}
+	Choose…	اختيار…
+	Clear search	مسح البحث
+	Close	إغلاق
+	Code	شيفرة
+	Compact	مضغوط
+	Connect	اتصال
+	Connecting…	جارٍ الاتصال…
+	Conversations	المحادثات
+	Create	إنشاء
+	Create rule…	إنشاء قاعدة…
+	Dark	داكن
+	Date	التاريخ
+	Dec	ديسمبر
+	Delete	حذف
+	Delete (Del)	حذف (Del)
+	Delete folder…	حذف المجلد…
+	Delete permanently?	حذف نهائيًا؟
+	Delete “{folder}”?	حذف «{folder}»؟
+	Deleted Items	العناصر المحذوفة
+	Discard	تجاهل
+	Disconnected: {error}	انقطع الاتصال: {error}
+	Document	مستند
+	Don't run later rules on mail this one matches	لا تشغّل القواعد التالية على البريد الذي تطابقه هذه القاعدة
+	Downloading the message…	جارٍ تنزيل الرسالة…
+	Draft saved	حُفظت المسودة
+	Drafts	المسودات
+	Edit	تحرير
+	Edit rule	تحرير القاعدة
+	Email address	عنوان البريد الإلكتروني
+	Enter the password for {email}.	أدخل كلمة المرور لـ {email}.
+	Favorites	المفضلة
+	Feb	فبراير
+	File	ملف
+	Flag	علامة
+	Flag / Unflag (Insert)	وضع علامة / إزالتها (Insert)
+	Flagged	عليها علامة
+	Focused	المهم
+	Focused Inbox	علبة الوارد المركّزة
+	Focused Inbox: put newsletters and automatic mail in Other	علبة الوارد المركّزة: ضع النشرات والبريد التلقائي في «أخرى»
+	Folder	المجلد
+	Folder name	اسم المجلد
+	Forward	إعادة توجيه
+	Forward (Ctrl+F)	إعادة توجيه (Ctrl+F)
+	Fri	الجمعة
+	Friday	الجمعة
+	From	من
+	From contains	المرسل يحتوي على
+	From {names}	من {names}
+	Group messages by conversation	جمّع الرسائل حسب المحادثة
+	Has attachments	بها مرفقات
+	Has files	بها ملفات
+	Heading	عنوان
+	Hidden from the other recipients	مخفي عن المستلمين الآخرين
+	Home	الرئيسية
+	I	I
+	If it {condition}: {action}	إذا كانت {condition}: {action}
+	Important	مهم
+	Inbox	علبة الوارد
+	Incoming mail (IMAP)	البريد الوارد (IMAP)
+	Insert a picture (or paste one)	إدراج صورة (أو الصق صورة)
+	Inside {folder} ({account})	داخل {folder} ({account})
+	Is a newsletter or list mail	نشرة إخبارية أو بريد قائمة
+	Italic (Ctrl+I)	مائل (Ctrl+I)
+	Items: {n}	العناصر: {n}
+	Jan	يناير
+	Jul	يوليو
+	Jun	يونيو
+	Junk Email	البريد العشوائي
+	Language	اللغة
+	Last month	الشهر الماضي
+	Last week	الأسبوع الماضي
+	Later	لاحقًا
+	Later today	لاحقًا اليوم
+	Light	فاتح
+	Link	رابط
+	Link (Ctrl+K)	رابط (Ctrl+K)
+	Links like {link} aren't opened	لا تُفتح روابط مثل {link}
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	محلي أولًا: يُحفظ البريد على هذا الكمبيوتر لبحث سريع دون اتصال. تبقى كلمات المرور في سلسلة مفاتيح النظام.
+	Looking up the server settings…	جارٍ البحث عن إعدادات الخادم…
+	Mail from {sender}	بريد من {sender}
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · تطبيق من ArtCraft · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	قائمة بريدية: ألغِ الاشتراك عبر {address}
+	Mar	مارس
+	Mark all as read	تعليم الكل كمقروء
+	Mark as read	تعليم كمقروء
+	Mark as unread	تعليم كغير مقروء
+	Mark read	مقروء
+	Mark unread	غير مقروء
+	May	مايو
+	Message preview	معاينة الرسالة
+	Message sent	أُرسلت الرسالة
+	Messages waiting to be sent	رسائل تنتظر الإرسال
+	Messages without a subject are easy to overlook.	الرسائل بلا موضوع يسهل تجاهلها.
+	Mon	الاثنين
+	Monday	الاثنين
+	Move	نقل
+	Move 1 message	نقل رسالة واحدة
+	Move folder…	نقل المجلد…
+	Move to	نقل إلى
+	Move to a folder (Ctrl+Shift+V)	نقل إلى مجلد (Ctrl+Shift+V)
+	Move to folder	نقل إلى مجلد
+	Move to…	نقل إلى…
+	Move {n} messages	نقل {n} رسائل
+	Move “{folder}” to	نقل «{folder}» إلى
+	Name	الاسم
+	Names <addresses>, separated by ; or ,	أسماء <عناوين>، مفصولة بـ ; أو ,
+	New category	فئة جديدة
+	New category…	فئة جديدة…
+	New folder	مجلد جديد
+	New folder…	مجلد جديد…
+	New mail	بريد جديد
+	New mail (Ctrl+N)	بريد جديد (Ctrl+N)
+	New rule	قاعدة جديدة
+	New rule…	قاعدة جديدة…
+	Next week	الأسبوع القادم
+	No published settings: the usual server names are filled in. Check them under Server settings.	لا إعدادات منشورة: مُلئت أسماء الخوادم المعتادة. تحقق منها في إعدادات الخادم.
+	No results. Try fewer words, or search all folders.	لا نتائج. جرّب كلمات أقل، أو ابحث في كل المجلدات.
+	No rules yet.	لا قواعد بعد.
+	None (unsafe)	بلا تشفير (غير آمن)
+	Not an email address: {address}	ليس عنوان بريد إلكتروني: {address}
+	Not junk	ليس عشوائيًا
+	Not sent: {error}	لم تُرسل: {error}
+	Nothing matches this filter.	لا شيء يطابق هذا الفلتر.
+	Nov	نوفمبر
+	Numbered list	قائمة مرقّمة
+	Oct	أكتوبر
+	Off	إيقاف
+	Offline	غير متصل
+	Older	أقدم
+	On / off	تشغيل / إيقاف
+	Open	فتح
+	Open as a PDF to print	فتح كملف PDF للطباعة
+	Open in {app}	فتح في {app}
+	Open it in the Craft app for this kind of file	افتحه في تطبيق Craft لهذا النوع من الملفات
+	Open with the system's app	فتح بتطبيق النظام
+	Opened as a PDF: print it from the viewer	فُتح كملف PDF: اطبعه من العارض
+	Options	خيارات
+	Other	أخرى
+	Outbox	علبة الصادر
+	Outbox: {n}	علبة الصادر: {n}
+	Outgoing mail (SMTP)	البريد الصادر (SMTP)
+	Password	كلمة المرور
+	Password needed	كلمة المرور مطلوبة
+	Password…	كلمة المرور…
+	Personal	شخصي
+	Pick messages from one account to move them to a folder.	اختر رسائل من حساب واحد لنقلها إلى مجلد.
+	Picture	صورة
+	Pictures from the web are hidden to protect your privacy.	الصور من الويب مخفية لحماية خصوصيتك.
+	Picture…	صورة…
+	Pin	تثبيت
+	Plain text	نص عادي
+	Preview	معاينة
+	Print	طباعة
+	Put newsletters and automatic mail in Other	ضع النشرات والبريد التلقائي في «أخرى»
+	Quote	اقتباس
+	Reading pane	جزء القراءة
+	Remove	إزالة
+	Remove account?	إزالة الحساب؟
+	Remove account…	إزالة الحساب…
+	Remove from Favorites	إزالة من المفضلة
+	Remove…	إزالة…
+	Rename	إعادة تسمية
+	Rename folder	إعادة تسمية المجلد
+	Rename folder…	إعادة تسمية المجلد…
+	Reply	رد
+	Reply (Ctrl+R)	رد (Ctrl+R)
+	Reply all	رد على الكل
+	Reply all (Ctrl+Shift+R)	رد على الكل (Ctrl+Shift+R)
+	Report junk	الإبلاغ كبريد عشوائي
+	Results for “{query}”	نتائج «{query}»
+	Right	يمين
+	Rules	القواعد
+	Rules run on new mail as it arrives in an Inbox, in this order.	تُطبّق القواعد على البريد الجديد فور وصوله إلى علبة الوارد، بهذا الترتيب.
+	Rules…	القواعد…
+	Run now	تشغيل الآن
+	Run on the folder on screen	تشغيل على المجلد المعروض
+	S	S
+	Same as the system	مثل النظام
+	Sample mailbox (offline)	صندوق بريد تجريبي (غير متصل)
+	Sample mailbox, kept on this computer only	صندوق بريد تجريبي، محفوظ على هذا الكمبيوتر فقط
+	Sat	السبت
+	Saturday	السبت
+	Save	حفظ
+	Save all…	حفظ الكل…
+	Save as PDF…	حفظ كملف PDF…
+	Save as email (.eml)…	حفظ كرسالة (.eml)…
+	Save as…	حفظ باسم…
+	Save draft	حفظ المسودة
+	Save draft (Ctrl+S)	حفظ المسودة (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	حُفظت في علبة الصادر: ستُرسل عند عودتك للاتصال
+	Saved {n} attachments in {folder}	حُفظت {n} مرفقات في {folder}
+	Saved {path}	حُفظ {path}
+	Search folders	البحث في المجلدات
+	Search mail (from:, subject:, has:attachment…)	البحث في البريد (from:، subject:، has:attachment…)
+	Select a message first.	اختر رسالة أولًا.
+	Send	إرسال
+	Send (Ctrl+Enter)	إرسال (Ctrl+Enter)
+	Send / Receive	إرسال / استلام
+	Send / Receive all folders (F9)	إرسال / استلام كل المجلدات (F9)
+	Send anyway	إرسال على أي حال
+	Send now	إرسال الآن
+	Send without a subject?	إرسال بلا موضوع؟
+	Send without formatting	إرسال بلا تنسيق
+	Sender, recipients or subject contain	المرسل أو المستلمون أو الموضوع يحتوي على
+	Sending…	جارٍ الإرسال…
+	Sent Items	العناصر المرسلة
+	Sep	سبتمبر
+	Server settings	إعدادات الخادم
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	الخوادم: {imap} (IMAP {imap_port})، {smtp} (SMTP {smtp_port})
+	Settings found: {source}	عُثر على الإعدادات: {source}
+	Show a desktop notification when new mail arrives	اعرض إشعارًا على سطح المكتب عند وصول بريد جديد
+	Show as plain text	عرض كنص عادي
+	Show formatted	عرض منسّق
+	Show in Favorites	عرض في المفضلة
+	Show pictures	عرض الصور
+	Shown as text.	معروضة كنص.
+	Shown on mail you send	يظهر على البريد الذي ترسله
+	Sign in	تسجيل الدخول
+	Sign in again	سجّل الدخول مجددًا
+	Sign in again…	سجّل الدخول مجددًا…
+	Sign in with {provider}	تسجيل الدخول باستخدام {provider}
+	Signature	التوقيع
+	Signature…	التوقيع…
+	Snooze	تأجيل
+	Stop showing pictures from this sender	توقف عن عرض الصور من هذا المرسل
+	Strikethrough	يتوسطه خط
+	Subject	الموضوع
+	Subject contains	الموضوع يحتوي على
+	Sun	الأحد
+	Sunday	الأحد
+	Switch to dark mode	التبديل إلى الوضع الداكن
+	Switch to light mode	التبديل إلى الوضع الفاتح
+	System	النظام
+	Text	نص
+	Text or address	نص أو عنوان
+	The PDF couldn't be opened: {error}	تعذّر فتح ملف PDF: {error}
+	The folder and everything in it will be moved to Deleted Items.	سيُنقل المجلد وكل ما فيه إلى العناصر المحذوفة.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	سيُحذف المجلد ومجلداته الفرعية وكل البريد فيها نهائيًا. لا يمكن التراجع عن ذلك.
+	The link couldn't be opened: {error}	تعذّر فتح الرابط: {error}
+	The sign-in page couldn't be opened: {error}	تعذّر فتح صفحة تسجيل الدخول: {error}
+	Theme	السمة
+	Then	ثم
+	These {n} messages will be deleted for good. This can't be undone.	ستُحذف هذه الرسائل ({n}) نهائيًا. لا يمكن التراجع عن ذلك.
+	This folder	هذا المجلد
+	This message couldn't be downloaded: {error}	تعذّر تنزيل هذه الرسالة: {error}
+	This message will be deleted for good. This can't be undone.	ستُحذف هذه الرسالة نهائيًا. لا يمكن التراجع عن ذلك.
+	This weekend	عطلة نهاية هذا الأسبوع
+	Three weeks ago	قبل ثلاثة أسابيع
+	Thu	الخميس
+	Thursday	الخميس
+	To	إلى
+	To do	للإنجاز
+	To or Cc contains	إلى أو نسخة يحتوي على
+	To: {names}	إلى: {names}
+	Today	اليوم
+	Tomorrow	غدًا
+	Try again	حاول مجددًا
+	Tue	الثلاثاء
+	Tuesday	الثلاثاء
+	Two weeks ago	قبل أسبوعين
+	Unflag	إزالة العلامة
+	Unpin	إلغاء التثبيت
+	Unread	غير مقروء
+	Unread: {n}	غير المقروء: {n}
+	Upcoming	القادم
+	Update folder	تحديث المجلد
+	Updated {time}	حُدّث {time}
+	Updating {folder}…	جارٍ تحديث {folder}…
+	User name	اسم المستخدم
+	Usually the email address	عادةً عنوان البريد الإلكتروني
+	Video	فيديو
+	View	عرض
+	Waiting in the Outbox. Last try: {error}	ينتظر في علبة الصادر. آخر محاولة: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	ينتظر في علبة الصادر: سيُرسل عند عودتك للاتصال.
+	Wed	الأربعاء
+	Wednesday	الأربعاء
+	Welcome to MailCraft	مرحبًا بك في MailCraft
+	When mail	عندما يكون البريد
+	Without encryption your password travels in the clear. Use only for local test servers.	بلا تشفير تنتقل كلمة المرور مكشوفة. استخدمه فقط مع خوادم الاختبار المحلية.
+	Work	العمل
+	Works with any provider that offers IMAP and SMTP. Your password is kept in this computer's keychain and only ever sent to your mail server.	يعمل مع أي مزوّد يوفر IMAP وSMTP. تُحفظ كلمة المرور في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى خادم بريدك.
+	Write your message…	اكتب رسالتك…
+	Yesterday	أمس
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	بريدك على جهازك. أضف أي حساب IMAP: تُحفظ الرسائل على هذا الجهاز فيسهل البحث فيها وقراءتها دون اتصال. تبقى كلمة المرور في سلسلة مفاتيح النظام.
+	Your name	اسمك
+	categorize {category}	صنّفه {category}
+	folder	مجلد
+	from “{text}”	من «{text}»
+	in your browser: no password stored	في متصفحك: لا تُحفظ كلمة المرور
+	mentions “{text}”	يذكر «{text}»
+	move to {folder}	انقله إلى {folder}
+	subject has “{text}”	الموضوع فيه «{text}»
+	you@example.com	you@example.com
+	{app} couldn't open it: {error}	تعذّر على {app} فتحه: {error}
+	{a} and {b}	{a} و{b}
+	{a}, {b} and others	{a} و{b} وآخرون
+	{email} (sample)	{email} (تجريبي)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	سيُزال {email} وبريده المُنزّل من هذا الكمبيوتر. لا يُحذف شيء من الخادم.
+	{name} could not be opened: {error}	تعذّر فتح {name}: {error}
+	{n} attachments	{n} مرفقات
+	{n} messages in this conversation	{n} رسائل في هذه المحادثة
+	{n} new messages	{n} رسائل جديدة
+	• List	• قائمة
+	Select a message to read it	اختر رسالة لقراءتها
+	MailCraft – Sample mailbox	MailCraft – صندوق بريد تجريبي
+	Mail server	خادم البريد
+	IMAP and SMTP	IMAP وSMTP
+	JMAP	JMAP
+	JMAP session address	عنوان جلسة JMAP
+	Server: {url} (JMAP)	الخادم: {url} (JMAP)
+	Open in new window	فتح في نافذة جديدة
+	{subject} – Message	{subject} – رسالة
+	About	حول
+	About MailCraft	حول MailCraft
+	Account information	معلومات الحساب
+	Account settings	إعدادات الحساب
+	An ArtCraft app · MIT OR Apache-2.0	تطبيق من ArtCraft · MIT OR Apache-2.0
+	Automatic replies	الردود التلقائية
+	Back	رجوع
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	بُني علنًا من معايير البريد الإلكتروني: لا شيفرة ولا أيقونات ولا موارد من تطبيقات بريد أخرى.
+	Change this account's name, servers and sign-in, or its signature.	غيّر اسم هذا الحساب وخوادمه وتسجيل دخوله، أو توقيعه.
+	Checking with the server…	جارٍ التحقق مع الخادم…
+	Compact list	قائمة مضغوطة
+	Don't send automatic replies	لا ترسل ردودًا تلقائية
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	يتلقى كل مرسل ردًا واحدًا يوميًا أثناء تشغيلها. تُحفظ على خادم بريدك، فتعمل حتى عندما يكون هذا الكمبيوتر مطفأ.
+	Empty	إفراغ
+	Empty Deleted Items…	إفراغ العناصر المحذوفة…
+	Empty Junk Email…	إفراغ البريد العشوائي…
+	Empty “{folder}”?	إفراغ «{folder}»؟
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	سيُحذف كل ما فيه نهائيًا، بما في ذلك البريد غير المُنزّل على هذا الكمبيوتر. لا يمكن التراجع عن ذلك.
+	General	عام
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	أنا غائب حتى…
+	Inbox and notifications	علبة الوارد والإشعارات
+	Info	معلومات
+	Kept on this computer: {size}	محفوظ على هذا الكمبيوتر: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	لا يتصل MailCraft إلا بخوادم بريدك، عبر اتصالات مشفّرة. لا تُحمّل الصور من الويب إلا عندما تطلب.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	صندوق البريد
+	Mailbox settings	إعدادات صندوق البريد
+	Manage rules	إدارة القواعد
+	Mark messages as read when opened	تعليم الرسائل كمقروءة عند فتحها
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	لا مرسلين بعد.
+	Not available: the sample mailbox has no server.	غير متاح: صندوق البريد التجريبي بلا خادم.
+	Not available: {error}	غير متاح: {error}
+	On	تشغيل
+	On from {from}	تعمل من {from}
+	On from {from} until {until}	تعمل من {from} حتى {until}
+	On until {until}	تعمل حتى {until}
+	Only between these days	فقط بين هذين اليومين
+	Pictures from the web load only when you ask. These senders' pictures always load:	لا تُحمّل الصور من الويب إلا عندما تطلب. صور هؤلاء المرسلين تُحمّل دائمًا:
+	Privacy	الخصوصية
+	Reading	القراءة
+	Rules: {n}	القواعد: {n}
+	Sample mailbox	صندوق بريد تجريبي
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	اعرف المساحة التي يشغلها بريدك، وأفرغ العناصر المحذوفة والبريد العشوائي.
+	Send automatic replies	إرسال ردود تلقائية
+	Server settings…	إعدادات الخادم…
+	Show HTML mail formatted (otherwise as plain text)	اعرض بريد HTML منسّقًا (وإلا فكنص عادي)
+	Show a line of each message in the list	اعرض سطرًا من كل رسالة في القائمة
+	Sort new mail as it arrives: move it, flag it, categorize it.	رتّب البريد الجديد فور وصوله: انقله، ضع عليه علامة، صنّفه.
+	Source code and issues	الشيفرة المصدرية والمشكلات
+	Subject (optional)	الموضوع (اختياري)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	أخبر الناس أنك غائب: يتلقى كل مرسل ردًا واحدًا أثناء تشغيلها، حتى عندما يكون هذا الكمبيوتر مطفأ.
+	The server doesn't say how much space is used.	لا يذكر الخادم المساحة المستخدمة.
+	Until	حتى
+	{free} free of {total}	{free} متاحة من {total}
+	{used} used on the server	{used} مستخدمة على الخادم
+	this server doesn't offer automatic replies	هذا الخادم لا يوفر ردودًا تلقائية
+	this server doesn't offer automatic replies (no ManageSieve)	هذا الخادم لا يوفر ردودًا تلقائية (لا ManageSieve)
+	the account is offline	الحساب غير متصل
+	Drag it to a folder or another app to copy it	اسحبه إلى مجلد أو تطبيق آخر لنسخه
+	Accept	قبول
+	Accepted	مقبول
+	Add a title	أضف عنوانًا
+	All day	طوال اليوم
+	April	أبريل
+	Attendees: {names}	الحضور: {names}
+	August	أغسطس
+	Calendar	التقويم
+	Calendars	التقاويم
+	Changes apply to every occurrence.	تنطبق التغييرات على كل التكرارات.
+	Company	الشركة
+	Custom	مخصص
+	Day	يوم
+	December	ديسمبر
+	Decline	رفض
+	Declined	مرفوض
+	Delete the series	حذف السلسلة
+	Delete this occurrence	حذف هذا التكرار
+	Edit contact	تحرير جهة الاتصال
+	Email	البريد الإلكتروني
+	Ends	ينتهي
+	Event	حدث
+	Every day	كل يوم
+	Every month	كل شهر
+	Every week	كل أسبوع
+	Every year	كل سنة
+	February	فبراير
+	In the address book of {account}	في دفتر عناوين {account}
+	January	يناير
+	Job title	المسمى الوظيفي
+	July	يوليو
+	June	يونيو
+	Location	الموقع
+	Mail	البريد
+	March	مارس
+	Month	شهر
+	Never	أبدًا
+	New contact	جهة اتصال جديدة
+	New event	حدث جديد
+	Next	التالي
+	Next month	الشهر القادم
+	No answer yet	لا رد بعد
+	No contacts yet.	لا جهات اتصال بعد.
+	No one matches.	لا أحد يطابق.
+	Notes	ملاحظات
+	November	نوفمبر
+	October	أكتوبر
+	One address per line	عنوان واحد في كل سطر
+	Organizer: {name}	المنظّم: {name}
+	People	الأشخاص
+	Phone	الهاتف
+	Pick someone to see their details	اختر شخصًا لعرض تفاصيله
+	Previous	السابق
+	Previous month	الشهر السابق
+	Repeat	تكرار
+	Search people	البحث عن أشخاص
+	September	سبتمبر
+	Starts	يبدأ
+	Tentative	مبدئي
+	Week	أسبوع
+	Your answer:	ردك:
+	{from} {month_from} – {to} {month} {year}	{from} {month_from} – {to} {month} {year}
+	{from} – {to} {month} {year}	{from} – {to} {month} {year}
+	{month} {year}	{month} {year}
+	{n} more	{n} أخرى
+	{weekday}, {day} {month} {year}	{weekday}، {day} {month} {year}
+	Add to contacts	إضافة إلى جهات الاتصال
+	Invite	دعوة
+	Record the answer	سجّل الرد
+	Remove from calendar	إزالة من التقويم
+	Show in calendar	عرض في التقويم
+	This event was cancelled.	أُلغي هذا الحدث.
+	{name} accepted.	قبِل {name}.
+	{name} answered.	ردّ {name}.
+	{name} declined.	رفض {name}.
+	{name} said maybe.	قال {name} ربما.
+	You accepted.	لقد قبلت.
+	You said maybe.	لقد قلت ربما.
+	You declined.	لقد رفضت.
+	Open & Export	فتح وتصدير
+	Open data file	فتح ملف بيانات
+	Open Outlook data file	فتح ملف بيانات Outlook
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	أحضر بريد ملف بيانات Outlook (.pst). يُفتح كصندوق بريد مستقل، بمجلداته، محفوظًا على هذا الكمبيوتر.
+	Open now: {files}	مفتوح الآن: {files}
+	Outlook data file	ملف بيانات Outlook
+	Opened from an Outlook data file, kept on this computer only	فُتح من ملف بيانات Outlook، محفوظ على هذا الكمبيوتر فقط
+	Not available: a data file has no server.	غير متاح: ملف البيانات بلا خادم.
+	Opening {file}…	جارٍ فتح {file}…
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	الخادم: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	تسجيل الدخول بحساب Microsoft غير مُعدّ في هذه النسخة من MailCraft.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	يُزامن عبر Microsoft Graph، لحسابات العمل والدراسة التي أُوقف فيها IMAP. تسجّل الدخول بحساب Microsoft في المتصفح: لا تُحفظ كلمة مرور.
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	في المتصفح، يعمل MailCraft مع مزوّدي JMAP. تبقى كلمة المرور في هذا التبويب فقط ولا تُرسل إلا إلى خادم بريدك.
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	بريدك في المتصفح. أضف حساب JMAP (مثل Fastmail): يتصل MailCraft بخادم بريدك مباشرة، وتبقى كلمة المرور في هذا التبويب فقط.
+	Pop out	فتح في نافذة
+	Pop in	إعادة إلى الجزء
+	Back to the reading pane	العودة إلى جزء القراءة
+	Write it in a window of its own	اكتبها في نافذة مستقلة
+	Hide Bcc	إخفاء النسخة المخفية
+	From ▾	من ▾
+	Untitled	بلا عنوان
+	Write new messages in a window of their own	اكتب الرسائل الجديدة في نافذة مستقلة
+	Saved in Drafts	حُفظت في المسودات
+	Underline (Ctrl+U)	تسطير (Ctrl+U)
+	Text highlight color	لون تمييز النص
+	Font color	لون الخط
+	No color	بلا لون
+	Automatic	تلقائي
+	Bullets (Ctrl+Shift+L)	تعداد نقطي (Ctrl+Shift+L)
+	Numbering	ترقيم
+	Decrease indent (Ctrl+Shift+T)	إنقاص المسافة البادئة (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	زيادة المسافة البادئة (Ctrl+T)
+	Align left (Ctrl+L)	محاذاة لليسار (Ctrl+L)
+	Center (Ctrl+E)	توسيط (Ctrl+E)
+	Align right (Ctrl+R)	محاذاة لليمين (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	مسح كل التنسيق (Ctrl+Space)
+	Address Book	دفتر العناوين
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	إرفاق ملف
+	Ctrl+K	Ctrl+K
+	Pictures	صور
+	Address	العنوان
+	Insert	إدراج
+	Remove link	إزالة الرابط
+	Select Names	تحديد الأسماء
+	Search	بحث
+	Name or address	الاسم أو العنوان
+	All addresses	كل العناوين
+	Contacts	جهات الاتصال
+	Email Address	عنوان البريد الإلكتروني
+	No one found.	لم يُعثر على أحد.
+	To ->	إلى ->
+	Cc ->	نسخة ->
+	Bcc ->	نسخة مخفية ->
+	OK	موافق
+	Want to save your changes?	هل تريد حفظ التغييرات؟
+	The message is kept in Drafts if you save it.	تبقى الرسالة في المسودات إذا حفظتها.
+	Yes	نعم
+	No	لا
+	Exporting to {file}…	جارٍ التصدير إلى {file}…
+	Export	تصدير
+	Export to Outlook data file	تصدير إلى ملف بيانات Outlook
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	اكتب بريد حساب، بمجلداته، في ملف بيانات Outlook (.pst) يمكن لـ Outlook وتطبيقات البريد الأخرى فتحه. يُستبعد البريد الذي لم يُنزّل قط.
+folder	Archive	أرشيف
+month	May	مايو

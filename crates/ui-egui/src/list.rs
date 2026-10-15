@@ -206,8 +206,11 @@ fn message_row(
     p.galley(egui::pos2(right - tw, line1 + 1.0), time_g, t.dim);
     let who = if sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
     let who = if count > 1 { format!("{who}  ({count})") } else { who };
-    let who_g = p.layout(who, if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.text, (right - tw - 10.0 - x).max(20.0));
-    p.with_clip_rect(Rect::from_x_y_ranges(x..=right - tw - 8.0, r.y_range())).galley(egui::pos2(x, line1), who_g, t.text);
+    let (who, who_rtl) = crate::bidi::shown(&who);
+    let who_g = p.layout_no_wrap(who.into_owned(), if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.text);
+    // Right-to-left text starts at the right, so that's where it goes when it doesn't fit.
+    let who_x = if who_rtl { (right - tw - 10.0 - who_g.size().x).max(x) } else { x };
+    p.with_clip_rect(Rect::from_x_y_ranges(x..=right - tw - 8.0, r.y_range())).galley(egui::pos2(who_x, line1), who_g, t.text);
 
     // Subject with markers.
     let line2 = line1 + 19.0;
@@ -242,12 +245,16 @@ fn message_row(
     }
     let subject = if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() };
     let subj_color = if unread { t.accent } else { t.text };
-    let subj_g = p.layout_no_wrap(subject, if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color);
+    let (subject, subj_rtl) = crate::bidi::shown(&subject);
+    let subj_g = p.layout_no_wrap(subject.into_owned(), if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color);
     let subj_right = right - icons_w.max(if hovered { 70.0 } else { 0.0 }) - 4.0;
-    p.with_clip_rect(Rect::from_x_y_ranges(x..=subj_right, r.y_range())).galley(egui::pos2(x, line2), subj_g, subj_color);
+    let subj_x = if subj_rtl { (subj_right - subj_g.size().x).max(x) } else { x };
+    p.with_clip_rect(Rect::from_x_y_ranges(x..=subj_right, r.y_range())).galley(egui::pos2(subj_x, line2), subj_g, subj_color);
     if s.prefs.show_preview && !compact && !m.preview.is_empty() {
-        let pv = p.layout_no_wrap(m.preview.clone(), theme::regular(12.5), t.dim);
-        p.with_clip_rect(Rect::from_x_y_ranges(x..=right, r.y_range())).galley(egui::pos2(x, line2 + 19.0), pv, t.dim);
+        let (preview, pv_rtl) = crate::bidi::shown(&m.preview);
+        let pv = p.layout_no_wrap(preview.into_owned(), theme::regular(12.5), t.dim);
+        let pv_x = if pv_rtl { (right - pv.size().x).max(x) } else { x };
+        p.with_clip_rect(Rect::from_x_y_ranges(x..=right, r.y_range())).galley(egui::pos2(pv_x, line2 + 19.0), pv, t.dim);
     }
 
     // Hover actions.
