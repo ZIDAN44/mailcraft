@@ -321,7 +321,7 @@ impl Session {
     }
 
     /// Run the rules on messages: their actions become ordinary changes. Returns the keys the
-    /// rules moved away or marked read (no need to announce those).
+    /// rules marked read or sent to Deleted Items or Junk (no need to announce those).
     pub(super) fn run_rules(&mut self, msgs: &[Summary]) -> Vec<MessageKey> {
         let mut quiet = Vec::new();
         if self.rules.is_empty() {
@@ -354,10 +354,15 @@ impl Session {
                     RuleAction::Delete => dest = self.account(&a).and_then(|x| x.folder(FolderRole::Trash)).map(|f| f.path.clone()).or(dest),
                 }
             }
-            // Moves last, so flags and categories are set on the message before it leaves.
+            // Moves last, so flags and categories are set on the message before it leaves. Mail
+            // filed in a folder is still new mail (announced, as Outlook does); mail a rule sends
+            // to Deleted Items or Junk isn't.
             if let Some(to) = dest.filter(|to| *to != m.key.folder) {
+                let role = self.folder(&a, &to).map(|f| f.role);
+                if matches!(role, Some(FolderRole::Trash | FolderRole::Junk)) {
+                    quiet.push(m.key.clone());
+                }
                 self.apply_op(&a, Op::Move { keys, to });
-                quiet.push(m.key.clone());
             }
         }
         quiet

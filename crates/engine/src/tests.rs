@@ -748,7 +748,8 @@ fn rules_file_new_mail_as_it_arrives() {
     store.save_folder("sample", "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     assert!(!s.list.iter().any(|m| m.subject == "Fresh from Zoe"), "filed away by the rule");
-    assert!(s.take_new_mail().is_empty(), "filed mail isn't announced");
+    // Filed in a folder, it's still new mail: announced, as Outlook does.
+    assert!(s.take_new_mail().iter().any(|m| m.subject == "Fresh from Zoe"), "filed mail is announced");
     s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
     let filed = s.list.iter().find(|m| m.subject == "Fresh from Zoe").unwrap();
     assert!(filed.flags.has("$label2"));
@@ -1545,4 +1546,24 @@ fn a_rule_runs_now_on_the_inbox() {
     assert!(s.notices.last().is_some_and(|n| n.text.contains("1 message matched")));
     assert!(!s.folder_state("sample", "INBOX").messages.iter().any(|m| m.from.email == "zoe@studio.example"), "moved out of the Inbox");
     assert!(s.list.iter().any(|m| m.from.email == "zoe@studio.example"), "and into Archive, on screen");
+}
+
+/// Mail a rule deletes isn't announced (mail it files in a folder is).
+#[test]
+fn mail_a_rule_deletes_is_not_announced() {
+    let mut s = sample_session("rule-quiet");
+    s.run("rules.add", &json!({"rule": {"name": "Zoe away", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "delete"}]}}))
+        .unwrap();
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder("sample", "INBOX").unwrap();
+    let mut m = st.messages[0].clone();
+    m.key.uid = 700;
+    m.subject = "Deleted on arrival".into();
+    m.from = mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example");
+    m.flags.seen = false;
+    m.date = NOW;
+    st.messages.insert(0, m);
+    store.save_folder("sample", "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    assert!(!s.take_new_mail().iter().any(|m| m.subject == "Deleted on arrival"));
 }
