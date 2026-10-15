@@ -510,6 +510,15 @@
 	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Synchronise via Microsoft Graph, pour les comptes professionnels ou scolaires où IMAP est désactivé. Vous vous connectez avec Microsoft dans le navigateur : aucun mot de passe n’est conservé.
 	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	Dans le navigateur, MailCraft fonctionne avec les fournisseurs JMAP. Votre mot de passe reste uniquement dans cet onglet et n’est envoyé qu’à votre serveur de messagerie.
 	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	Votre courrier dans le navigateur. Ajoutez un compte JMAP (comme Fastmail) : MailCraft parle directement à votre serveur de messagerie, et votre mot de passe reste uniquement dans cet onglet.
+	Pop out	Ouvrir dans une fenêtre
+	Pop in	Revenir au volet
+	Back to the reading pane	Revenir au volet de lecture
+	Write it in a window of its own	L’écrire dans une fenêtre à part
+	Hide Bcc	Masquer Cci
+	From ▾	De ▾
+	Untitled	Sans titre
+	Write new messages in a window of their own	Écrire les nouveaux messages dans une fenêtre à part
+	Saved in Drafts	Enregistré dans Brouillons
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

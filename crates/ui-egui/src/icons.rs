@@ -52,6 +52,9 @@ pub enum Icon {
     People,
     Phone,
     Location,
+    /// A window with an arrow leaving it (pop out), and the reverse (pop in).
+    PopOut,
+    PopIn,
 }
 
 struct Pen<'a> {
@@ -255,6 +258,16 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Clock => {
             pen.circle(8.0, 8.5, 6.0);
             pen.line(&[(8.0, 5.0), (8.0, 8.5), (10.5, 10.0)]);
+        }
+        Icon::PopOut => {
+            pen.line(&[(7.0, 2.5), (2.5, 2.5), (2.5, 13.5), (13.5, 13.5), (13.5, 9.0)]);
+            pen.line(&[(7.5, 8.5), (13.5, 2.5)]);
+            pen.line(&[(9.5, 2.5), (13.5, 2.5), (13.5, 6.5)]);
+        }
+        Icon::PopIn => {
+            pen.line(&[(7.0, 2.5), (2.5, 2.5), (2.5, 13.5), (13.5, 13.5), (13.5, 9.0)]);
+            pen.line(&[(7.5, 8.5), (13.5, 2.5)]);
+            pen.line(&[(7.5, 4.5), (7.5, 8.5), (11.5, 8.5)]);
         }
         Icon::Back => {
             pen.circle(8.0, 8.0, 6.8);

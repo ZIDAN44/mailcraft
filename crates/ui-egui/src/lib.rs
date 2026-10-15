@@ -511,6 +511,7 @@ impl MailApp {
         }
 
         self.message_windows(&ctx, &mut acts);
+        self.compose_window(&ctx, &mut acts);
 
         if let Some(mut d) = self.ui.dialog.take() {
             let keep = dialogs::show(&ctx, &mut d, &self.session, &t, &mut acts);
@@ -533,6 +534,32 @@ impl MailApp {
         }
         let busy = self.session.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting | SyncStatus::Syncing { .. }));
         ctx.request_repaint_after(std::time::Duration::from_secs(if busy || self.ui.toast.is_some() { 1 } else { 20 }));
+    }
+
+    /// The message being written, when it's in a window of its own (new mail, or popped out).
+    /// Closing the window keeps it in Drafts.
+    fn compose_window(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
+        let Some(c) = self.session.compose.as_ref().filter(|c| c.window) else { return };
+        let t = self.ui.tokens;
+        let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
+        let id = egui::ViewportId::from_hash_of(("compose-window", c.id));
+        let builder = egui::ViewportBuilder::default()
+            .with_title(tf!("{subject} – Message", subject = subject))
+            .with_inner_size([900.0, 720.0])
+            .with_min_inner_size([520.0, 420.0]);
+        let (session, st) = (&mut self.session, &mut self.ui);
+        let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+            let mut mine: Vec<Action> = Vec::new();
+            let closing = ui.input(|i| i.viewport().close_requested());
+            egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                reading::compose_window(session, st, ui, &mut mine);
+            });
+            acts.extend(mine);
+            closing
+        });
+        if close {
+            acts.push(Action::Run("compose.close", json!({})));
+        }
     }
 
     /// Messages opened in windows of their own (double-click), each a native window with the

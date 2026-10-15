@@ -684,3 +684,34 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     assert_eq!(asked.borrow().as_slice(), ["attach"]);
     assert!(a.session.compose.as_ref().is_some_and(|c| c.attachments.iter().any(|x| x.name == "notes.txt")));
 }
+
+#[test]
+fn new_mail_writes_in_its_own_window_and_replies_pop_out() {
+    let (mut a, dir) = app("compose-window");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.compose.as_ref().is_some_and(|c| c.window));
+    a.run("compose.update", json!({"to": "zoe@studio.example", "subject": "Poster sizes"}));
+    frame(&ctx, &mut a, vec![]);
+    // Back into the reading pane, out again, then the window closes into Drafts.
+    a.act(crate::Action::Run("compose.popIn", json!({})));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Run("compose.popOut", json!({})));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Run("compose.close", json!({})));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.compose.is_none());
+    a.run("folder.open", json!({"account": "sample", "folder": "Drafts"}));
+    assert!(a.session.list.iter().any(|m| m.subject == "Poster sizes"));
+    // A reply starts inline, with the original under a rule.
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    let k = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.run("mail.reply", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.as_ref().unwrap();
+    assert!(!c.window && c.body.contains("\nSent: "));
+    let _ = std::fs::remove_dir_all(dir);
+}

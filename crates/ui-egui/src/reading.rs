@@ -14,8 +14,8 @@ use crate::theme::{self, Tokens};
 use crate::{Action, UiState, widgets};
 
 pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
-    if s.compose.is_some() {
-        compose(s, st, ui, acts);
+    if s.compose.as_ref().is_some_and(|c| !c.window) {
+        compose(s, st, ui, acts, false);
         return;
     }
     let t = st.tokens;
@@ -778,10 +778,45 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
     }
 }
 
+/// Width of the labels and label buttons left of the message's fields.
+const LABEL_W: f32 = 76.0;
+const ROW_H: f32 = 30.0;
+
+/// A field box drawn the way Outlook's are: no frame, a line under it (the accent while typing).
+fn underlined(ui: &mut Ui, t: &Tokens, edit: egui::TextEdit<'_>) -> egui::Response {
+    let r = ui.add_sized(vec2(ui.available_width(), ROW_H - 4.0), edit.frame(egui::Frame::NONE).vertical_align(egui::Align::Center));
+    let y = r.rect.bottom();
+    let color = if r.has_focus() { t.accent } else { t.border };
+    ui.painter().line_segment([egui::pos2(r.rect.left(), y), egui::pos2(r.rect.right(), y)], egui::Stroke::new(1.0, color));
+    r
+}
+
+/// A small framed button naming a field (To, Cc…), as in Outlook's message window.
+fn label_button(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(LABEL_W - 8.0, ROW_H - 4.0), if enabled { Sense::click() } else { Sense::hover() });
+    let fill = if resp.hovered() && enabled { t.hover } else { t.surface };
+    ui.painter().rect(rect, 3.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, tl!(label), theme::regular(13.0), if enabled { t.text } else { t.dim });
+    ui.add_space(8.0);
+    resp
+}
+
+/// Outlook's tall Send button beside the address rows.
+fn send_button(ui: &mut Ui, t: &Tokens, height: f32, sending: bool) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(66.0, height), if sending { Sense::hover() } else { Sense::click() });
+    let fill = if resp.hovered() && !sending { t.hover } else { t.surface };
+    ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    let icon = egui::Rect::from_center_size(rect.center() - vec2(0.0, 10.0), vec2(24.0, 24.0));
+    icons::paint(ui.painter(), icon, Icon::Send, if sending { t.dim } else { t.accent });
+    let label = if sending { tl!("Sending…") } else { tl!("Send") };
+    ui.painter().text(rect.center() + vec2(0.0, 16.0), egui::Align2::CENTER_CENTER, label, theme::regular(12.5), t.text);
+    resp.on_hover_text(tl!("Send (Ctrl+Enter)"))
+}
+
 fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, check_addresses: bool, focus: bool) {
     ui.horizontal(|ui| {
-        ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(tl!(label)).color(t.dim)));
-        let r = ui.add(egui::TextEdit::singleline(value).hint_text(tl!(hint)).desired_width(f32::INFINITY));
+        ui.add_sized(vec2(LABEL_W, ROW_H), egui::Label::new(RichText::new(tl!(label)).color(t.dim)));
+        let r = underlined(ui, t, egui::TextEdit::singleline(value).hint_text(tl!(hint)));
         if focus {
             r.request_focus();
         }
@@ -823,13 +858,14 @@ fn recipient_field(
             }
         });
     }
-    let r = ui
+    let (pressed, r) = ui
         .horizontal(|ui| {
-            ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(tl!(label)).color(t.dim)));
-            ui.add(egui::TextEdit::singleline(value).hint_text(tl!(hint)).desired_width(f32::INFINITY))
+            // The field's button: a click puts the cursor in its box.
+            let b = label_button(ui, &t, label, true);
+            (b.clicked(), underlined(ui, &t, egui::TextEdit::singleline(value).hint_text(tl!(hint))))
         })
         .inner;
-    if focus {
+    if focus || pressed {
         r.request_focus();
     }
     if r.changed() {
@@ -881,13 +917,18 @@ fn address_check(ui: &mut Ui, t: &Tokens, value: &str, check_addresses: bool) {
         && let Err(bad) = addr::parse_list(value)
     {
         ui.horizontal(|ui| {
-            ui.add_space(64.0);
+            ui.add_space(LABEL_W);
             ui.label(RichText::new(tf!("Not an email address: {address}", address = bad)).color(t.danger).small());
         });
     }
 }
 
-fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+/// The message being written, in a window of its own.
+pub fn compose_window(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+    compose(s, st, ui, acts, true);
+}
+
+fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, in_window: bool) {
     let t = st.tokens;
     let accounts: Vec<(String, String)> =
         s.accounts.iter().map(|a| (a.config.id.clone(), EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string())).collect();
@@ -915,24 +956,45 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     st.compose_shown = Some(c.id);
     let focus_to = fresh && c.to.trim().is_empty();
     let focus_body = fresh && !focus_to;
-    egui::Frame::new().inner_margin(Margin { left: 20, right: 20, top: 14, bottom: 14 }).show(ui, |ui| {
+    let send = |c: &mailcraft_engine::Compose, acts: &mut Vec<Action>| {
+        if c.subject.trim().is_empty() {
+            acts.push(Action::Dialog(crate::Dialog::EmptySubject));
+        } else {
+            acts.push(Action::Run("compose.send", json!({})));
+        }
+    };
+    // In a window of its own the main window's shortcuts don't reach it: the message's own.
+    if in_window && !c.sending {
+        let (send_key, save_key) =
+            ui.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter), i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)));
+        if send_key {
+            send(c, acts);
+        }
+        if save_key {
+            acts.push(Action::Run("compose.saveDraft", json!({})));
+        }
+    }
+    egui::Frame::new().inner_margin(Margin { left: 20, right: 20, top: 10, bottom: 14 }).show(ui, |ui| {
+        // The message's commands; Discard and Pop out (or in) at the right, as in Outlook.
         ui.horizontal(|ui| {
-            let label = if c.sending { "Sending…" } else { "Send" };
-            if widgets::accent_button(ui, Icon::Send, label, &t, !c.sending).on_hover_text("Send (Ctrl+Enter)").clicked() {
-                if c.subject.trim().is_empty() {
-                    acts.push(Action::Dialog(crate::Dialog::EmptySubject));
-                } else {
-                    acts.push(Action::Run("compose.send", json!({})));
-                }
-            }
-            ui.add_space(6.0);
             if widgets::tool_button(ui, Icon::Attach, "Attach file", &t, !c.sending).clicked() {
                 acts.push(Action::AttachFiles);
             }
             if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
                 acts.push(Action::Run("compose.saveDraft", json!({})));
             }
+            if widgets::tool_button(ui, Icon::Person, if c.show_cc { "Hide Bcc" } else { "Bcc" }, &t, !c.sending).clicked() {
+                c.show_cc = !c.show_cc;
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let (icon, label, id) =
+                    if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
+                if widgets::tool_button(ui, icon, label, &t, true)
+                    .on_hover_text(tl!(if in_window { "Back to the reading pane" } else { "Write it in a window of its own" }))
+                    .clicked()
+                {
+                    acts.push(Action::Run(id, json!({})));
+                }
                 if widgets::tool_button(ui, Icon::Delete, "Discard", &t, true).clicked() {
                     acts.push(Action::Run("compose.discard", json!({})));
                 }
@@ -944,35 +1006,47 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 ui.label(RichText::new(tf!("Not sent: {error}", error = e)).color(t.danger));
             });
         }
-        ui.add_space(8.0);
+        ui.add_space(10.0);
         ui.add_enabled_ui(!c.sending, |ui| {
-            if accounts.len() > 1 {
-                ui.horizontal(|ui| {
-                    ui.add_sized(vec2(56.0, 26.0), egui::Label::new(RichText::new(tl!("From")).color(t.dim)));
-                    let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("from").selected_text(current).width(ui.available_width() - 8.0).show_ui(ui, |ui| {
-                        for (id, label) in &accounts {
-                            ui.selectable_value(&mut c.account, id.clone(), label);
+            ui.spacing_mut().item_spacing.y = 6.0;
+            // Send beside the address rows (From, To, Cc and Bcc when shown).
+            let rows = if c.show_cc { 4.0 } else { 3.0 };
+            let height = rows * ROW_H + (rows - 1.0) * 6.0;
+            ui.horizontal_top(|ui| {
+                if send_button(ui, &t, height, c.sending).clicked() {
+                    send(c, acts);
+                }
+                ui.add_space(10.0);
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
+                        let many = accounts.len() > 1;
+                        let b = label_button(ui, &t, if many { "From ▾" } else { "From" }, many);
+                        if many {
+                            egui::Popup::menu(&b).show(|ui| {
+                                for (id, label) in &accounts {
+                                    ui.selectable_value(&mut c.account, id.clone(), label);
+                                }
+                            });
                         }
+                        ui.allocate_ui_with_layout(vec2(ui.available_width(), ROW_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.add(egui::Label::new(RichText::new(current).color(t.dim)).truncate());
+                        });
                     });
-                });
-            }
-            recipient_field(ui, st, "to", "To", &mut c.to, "Names <addresses>, separated by ; or ,", focus_to, &suggestions);
-            if c.show_cc {
-                recipient_field(ui, st, "cc", "Cc", &mut c.cc, "", false, &suggestions);
-                recipient_field(ui, st, "bcc", "Bcc", &mut c.bcc, "Hidden from the other recipients", false, &suggestions);
-            } else {
-                ui.horizontal(|ui| {
-                    ui.add_space(62.0);
-                    if ui.link(RichText::new(tl!("Cc / Bcc")).small()).clicked() {
-                        c.show_cc = true;
+                    recipient_field(ui, st, "to", "To", &mut c.to, "Names <addresses>, separated by ; or ,", focus_to, &suggestions);
+                    recipient_field(ui, st, "cc", "Cc", &mut c.cc, "", false, &suggestions);
+                    if c.show_cc {
+                        recipient_field(ui, st, "bcc", "Bcc", &mut c.bcc, "Hidden from the other recipients", false, &suggestions);
                     }
                 });
-            }
-            field(ui, &t, "Subject", &mut c.subject, "Add a subject", false, false);
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(76.0);
+                ui.vertical(|ui| field(ui, &t, "Subject", &mut c.subject, "Add a subject", false, false));
+            });
             if !c.attachments.is_empty() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.add_space(62.0);
+                    ui.add_space(76.0 + LABEL_W);
                     let mut remove = None;
                     for (i, a) in c.attachments.iter().enumerate() {
                         egui::Frame::new()

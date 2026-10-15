@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Color32, FontId, Stroke};
-use mailcraft_engine::mime::markup::{Block, Inline, block, inlines};
+use mailcraft_engine::mime::markup::{Block, Inline, block, header_label, header_lines, inlines};
 
 use crate::theme::{self, Tokens};
 
@@ -182,6 +182,8 @@ pub fn layout(text: &str, t: &Tokens, wrap: f32) -> LayoutJob {
             Style::Quote => TextFormat { color: t.dim, ..base },
         }
     };
+    // The original's header under a reply's rule: labels in bold.
+    let header = header_lines(text);
     for (n, line) in text.split('\n').enumerate() {
         if n > 0 {
             job.append("\n", 0.0, fmt(Style::Normal));
@@ -226,6 +228,16 @@ pub fn layout(text: &str, t: &Tokens, wrap: f32) -> LayoutJob {
                 && let Some(s) = styles.get_mut(i)
             {
                 *s = Style::Mark;
+            }
+        }
+        if kind == Block::Rule {
+            styles.fill(Style::Mark);
+        }
+        if header.get(n).copied().unwrap_or(false)
+            && let Some(l) = header_label(line)
+        {
+            for st in styles.iter_mut().take(l) {
+                *st = Style::Bold;
             }
         }
         // Emit runs of one style (on character boundaries).

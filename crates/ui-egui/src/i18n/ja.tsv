@@ -512,3 +512,12 @@ month	May	5月
 	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	IMAP が無効になっている職場や学校のアカウント向けに、Microsoft Graph で同期します。ブラウザーで Microsoft にサインインするため、パスワードは保存されません。
 	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	ブラウザーでは、MailCraft は JMAP プロバイダーで動作します。パスワードはこのタブの中だけに保持され、メール サーバーにのみ送信されます。
 	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	ブラウザーでメールを。JMAP アカウント (Fastmail など) を追加してください。MailCraft はメール サーバーと直接通信し、パスワードはこのタブの中だけに保持されます。
+	Pop out	ポップアウト
+	Pop in	閲覧ウィンドウに戻す
+	Back to the reading pane	閲覧ウィンドウに戻します
+	Write it in a window of its own	別のウィンドウで書きます
+	Hide Bcc	BCC を隠す
+	From ▾	差出人 ▾
+	Untitled	無題
+	Write new messages in a window of their own	新しいメッセージを別のウィンドウで書く
+	Saved in Drafts	下書きに保存しました

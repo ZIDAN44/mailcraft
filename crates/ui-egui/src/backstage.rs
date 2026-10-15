@@ -394,6 +394,7 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         check(ui, s.prefs.show_preview, "Show a line of each message in the list", "view.preview", acts);
         check(ui, s.prefs.compact, "Compact list", "view.compact", acts);
         check(ui, s.prefs.mark_read_on_open, "Mark messages as read when opened", "view.markReadOnOpen", acts);
+        check(ui, s.prefs.new_mail_window, "Write new messages in a window of their own", "view.newMailWindow", acts);
         check(ui, s.prefs.show_html, "Show HTML mail formatted (otherwise as plain text)", "view.html", acts);
     });
     group(ui, "Inbox and notifications", &mut |ui| {

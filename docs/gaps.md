@@ -49,7 +49,10 @@ _Status: v0.1, 2026-10-15._
 - **JMAP:** a second transport (RFC 8620/8621) behind the same jobs and events, with push over
   the session's event stream; shared with the browser in `mailcraft-jmap`.
 - **Messages in windows:** double-click (or *Open in new window*) opens a message in a window of
-  its own, as in Outlook.
+  its own, as in Outlook; new mail is written in a window of its own (an option), replies start
+  in the reading pane and pop out; closing a message window keeps it in Drafts.
+- **Writing like Outlook:** the tall Send button beside From, To and Cc, underlined fields, and
+  the original under a rule with its From / Sent / To / Subject (sent as `<hr>` and bold labels).
 - **The File page:** account information, server settings, automatic replies (Sieve vacation over
   ManageSieve, JMAP's VacationResponse or Graph's mailbox settings), the space used (IMAP QUOTA,
   JMAP Quota), emptying Deleted Items and Junk, rules, Options and About.
