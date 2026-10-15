@@ -6,7 +6,8 @@
 
 <p align="center">
   The mail workflow you already know (folders, a message list grouped by date, a reading pane,
-  Reply / Reply all / Forward, flags, Archive, Delete, Send / Receive) over IMAP and SMTP, or JMAP.
+  Reply / Reply all / Forward, flags, Archive, Delete, Send / Receive) over IMAP and SMTP, JMAP or
+  Exchange Online, with a calendar and people beside it.
   Mail is cached on your computer, so it opens instantly, searches fast and stays readable offline.
   Your password stays in the system keychain and only ever goes to your own mail server.<br>
   <i>By the ArtCraft team. Tracked in <a href="https://github.com/storytold/artcraft/issues/2177">storytold/artcraft#2177</a>.</i>
@@ -60,14 +61,16 @@
 
 | Area | Highlights |
 |---|---|
-| **Accounts** | Any IMAP + SMTP provider, or JMAP (RFC 8620/8621); several accounts with an *All Inboxes* favorite; server settings found from the address (the domain's autoconfig, the Mozilla ISPDB, MX and SRV records); Gmail and Microsoft 365 sign-in through the browser (OAuth 2.0); SSL/TLS or STARTTLS; passwords in the system keychain |
+| **Accounts** | Any IMAP + SMTP provider, JMAP (RFC 8620/8621), or Exchange Online through Microsoft Graph; several accounts with an *All Inboxes* favorite; server settings found from the address (the domain's autoconfig, the Mozilla ISPDB, MX and SRV records); Gmail and Microsoft 365 sign-in through the browser (OAuth 2.0); SSL/TLS or STARTTLS; passwords in the system keychain; Outlook data files (`.pst`) open as mailboxes of their own |
 | **Sync** | Folder list with special-use roles (RFC 6154); per-folder incremental sync (new mail, flag changes via CONDSTORE, deletions via QRESYNC); UIDVALIDITY resets; IDLE on the Inbox for instant new mail; newest messages prefetched for offline reading; changes made offline replayed; back-off reconnects; desktop notifications for new mail |
-| **Reading** | Date-grouped list (Today, Yesterday, weekdays, Last week…), unread bars and bold, flags, attachment and replied markers, previews; reading pane right, bottom or off; conversations (JWZ threading); HTML shown formatted (headings, lists, links, quotes) with web pictures on request, remembered per sender; inline picture previews; Print, Save as PDF, Save as `.eml` |
+| **Reading** | Date-grouped list (Today, Yesterday, weekdays, Last week…), unread bars and bold, flags, attachment and replied markers, previews; reading pane right, bottom or off; double-click opens a message in its own window; conversations (JWZ threading); HTML shown formatted (headings, lists, links, quotes, colours, tables) with web pictures on request, remembered per sender; picture, PDF and video thumbnails; attachments dragged out to other apps; Print, Save as PDF, Save as `.eml` |
 | **Organising** | Delete (to Deleted Items; permanent there, with confirmation), Archive, Report junk / Not junk, Move to (dialog or drag), Read / Unread, Flag, Pin, Snooze, colour categories, Mark all as read; Focused / Other; inbox rules; filters: Unread, Flagged, Has files; multi-select with Ctrl and Shift; folders created, renamed, moved and deleted; favourites |
 | **Writing** | New, Reply, Reply all, Forward (with attachments); formatting (bold, italic, lists, headings, quotes, links) sent with a plain-text alternative; pictures inserted or pasted inline; To / Cc / Bcc suggested from mail you've seen; attachments up to 25 MB; signatures; drafts saved to the server; an Outbox for mail written offline |
+| **Calendar and people** | Day, week and month views; events with recurrences and time zones; meeting invitations by mail (accept, tentative, decline, inviting guests); an address book; synced with CalDAV / CardDAV |
+| **Mailbox** | The File page: account settings, automatic replies (Sieve, JMAP or Exchange), the space used, emptying Deleted Items and Junk Email, rules, Options |
 | **Search** | Offline, all folders or this folder; bare words match word prefixes; `"phrases"`, `from:`, `to:`, `subject:`, `body:`, `has:attachment`, `is:unread`, `is:flagged`, `-negation` |
-| **Languages** | English, Español, Français, Deutsch, Português (Brasil), 日本語, 简体中文: following the system or chosen in Settings |
-| **Platforms** | Windows, macOS, Linux (egui on the GPU); the engine and UI crates also build for WebAssembly |
+| **Languages** | English, Español, Français, Deutsch, Português (Brasil), Italiano, Русский, 日本語, 한국어, 简体中文, 繁體中文: following the system or chosen in Options |
+| **Platforms** | Windows, macOS, Linux (egui on the GPU), and the browser (WebAssembly; JMAP accounts) |
 
 The full list of what's missing, ranked, is in [docs/gaps.md](docs/gaps.md).
 
@@ -99,6 +102,14 @@ cargo run -p mailcraft-cli -- send --to friend@example.com --subject "Hello" --b
 cargo run -p mailcraft-cli -- commands
 ```
 
+The browser version (JMAP accounts; see [packaging/web/README.md](packaging/web/README.md)):
+
+```bash
+cd apps/mailcraft-web && trunk serve
+```
+
+Then open http://127.0.0.1:8774/?sample for the sample mailbox.
+
 The desktop app and the CLI share the cache (`%APPDATA%\MailCraft`, `~/Library/Application Support/MailCraft`
 or `~/.local/share/mailcraft`; override with `--data DIR` or `MAILCRAFT_DATA`).
 
@@ -110,14 +121,15 @@ or `~/.local/share/mailcraft`; override with `--data DIR` or `MAILCRAFT_DATA`).
 | L1 | `mime` | parse messages for the list and reading pane, HTML → text, attachments, build outgoing mail, reply / forward drafts |
 | L1 | `store` | the local-first cache: folder state, message sources, pending offline changes, the Outbox; atomic writes |
 | L1 | `print` | messages as PDF pages, with the interface font embedded |
-| L3 | `net` | native only: IMAP client on `imap-proto`, the sync algorithm, SMTP via `lettre`, JMAP, HTTP, DNS, autoconfig, OAuth, per-account worker threads |
+| L2 | `jmap` | the JMAP transport, async over any HTTP client: the desktop's and the browser's `fetch` |
+| L3 | `net` | native only: IMAP client on `imap-proto`, the sync algorithm, SMTP via `lettre`, JMAP push, Microsoft Graph, CalDAV/CardDAV, ManageSieve, HTTP, DNS, autoconfig, OAuth, Outlook data files, per-account worker threads |
 | L4 | `engine` | the sans-I/O session: views, selection, compose, search, the command registry; queues jobs, applies events |
 | L6 | `ui-egui` | the egui front end (thin: reads the session, runs commands) |
-| apps | `mailcraft`, `mailcraft-cli` | the desktop app and the command line |
+| apps | `mailcraft`, `mailcraft-cli`, `mailcraft-web` | the desktop app, the command line and the browser version |
 
 The engine never touches the network: it emits `Job`s and applies `Event`s, which the app connects
 to the `net` worker pool. Tests drive it with scripted events, and in-memory IMAP and JMAP servers
-test the real clients and sync code. Details in [docs/architecture.md](docs/architecture.md).
+(and Graph, CalDAV/CardDAV and ManageSieve) servers test the real clients and sync code. Details in [docs/architecture.md](docs/architecture.md).
 
 Quality gate before every commit: `cargo xtask ci` (fmt, clippy `-D warnings`, tests, layering,
 assets, wasm).
@@ -146,6 +158,8 @@ MIT OR Apache-2.0. Built on [`mail-parser`](https://github.com/stalwartlabs/mail
 [`mail-builder`](https://github.com/stalwartlabs/mail-builder) (Stalwart Labs, Apache-2.0 / MIT),
 [`imap-proto`](https://github.com/djc/tokio-imap) (MIT / Apache-2.0), [`lettre`](https://github.com/lettre/lettre) (MIT),
 [`rustls`](https://github.com/rustls/rustls) and [`ring`](https://github.com/briansmith/ring), [`html2text`](https://github.com/jugglerchris/rust-html2text) (MIT),
-[`ttf-parser`](https://github.com/harfbuzz/ttf-parser) and [`miniz_oxide`](https://github.com/Frommi/miniz_oxide) (MIT / Apache-2.0) and
+[`ttf-parser`](https://github.com/harfbuzz/ttf-parser) and [`miniz_oxide`](https://github.com/Frommi/miniz_oxide) (MIT / Apache-2.0),
+[`quick-xml`](https://github.com/tafia/quick-xml) (MIT), [`hayro`](https://github.com/LaurenzV/hayro) (MIT / Apache-2.0),
+[`outlook-pst`](https://github.com/microsoft/outlook-pst-rs) (Microsoft, MIT), [`drag`](https://github.com/crabnebula-dev/drag-rs) (MIT / Apache-2.0) and
 [`egui`](https://github.com/emilk/egui). Microsoft Outlook is a trademark of Microsoft; MailCraft is
 not affiliated with it and uses none of its code, icons or assets.

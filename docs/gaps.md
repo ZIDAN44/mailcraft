@@ -1,8 +1,9 @@
 # Gaps
 
 What MailCraft lacks compared with the everyday Outlook mail workflow, ranked by how often people
-hit it. v1 scope follows [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177):
-calendar, contacts, Exchange (EWS / Graph / ActiveSync) and PST import are deliberately later.
+hit it. v1 scope follows [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177);
+the items it deferred (calendar, contacts, Exchange, PST import, a web build) are now in, with the
+limits below.
 
 _Status: v0.1, 2026-10-15._
 
@@ -10,13 +11,13 @@ _Status: v0.1, 2026-10-15._
 
 | # | Gap | Notes |
 |---|---|---|
-| 1 | **Calendar and contacts** | Deferred per #2177. CalDAV / CardDAV first (meeting invites in mail, an address book beyond the recipients seen in mail). |
-| 2 | **Exchange, PST** | Deferred per #2177: EWS / Graph / ActiveSync accounts, and importing `.pst` archives. Microsoft 365 works today over IMAP with OAuth. |
-| 3 | **JMAP push** | JMAP accounts poll the Inbox every two minutes; the session's EventSource (RFC 8620 §7.3) would make new mail instant, as IDLE does for IMAP. |
-| 4 | **Faithful HTML** | HTML mail is shown as formatted text (headings, lists, links, quotes, pictures on request). Layout-heavy newsletters lose their columns and colours; a sanitised HTML renderer would keep them. |
-| 5 | **Drag attachments out** | Attachments open in their app or Craft app and save anywhere, but can't yet be dragged onto the desktop or a `.craft` project (egui has no outgoing OS drag). |
-| 6 | **Video and PDF thumbnails** | Pictures preview inline and text-like files in a preview; PDFs and videos open in PdfCraft / FilmCraft or the system app without a thumbnail. |
-| 8 | **Web build** | The engine and UI crates build for wasm32, but the network layer is native; a browser build needs a JMAP-over-`fetch` transport. |
+| 1 | **HTML layout** | HTML mail shows formatted, with its colours, highlights and tables, and hidden parts stay hidden; but it's laid out as one column of text. Newsletters built from nested layout tables lose their columns. A sanitised HTML/CSS layout engine would keep them. |
+| 2 | **Exchange calendars and on-premises Exchange** | Exchange Online mail works through Microsoft Graph; its calendars and contacts don't sync yet (Graph's `/events` and `/contacts` would). On-premises Exchange without IMAP needs EWS (SOAP); ActiveSync is licensed and out of scope. |
+| 3 | **Outlook data files: export, and more than mail** | `.pst` files open (import) with their mail folders; calendar, contact and task items in them are skipped, and attachments of embedded messages are left out. Writing `.pst` (export) isn't there. |
+| 4 | **Browser version: more than JMAP** | The web build syncs JMAP accounts over `fetch` and needs the server to allow the page (CORS). A browser can't open IMAP or SMTP connections, so other accounts need a relay; push needs EventSource with credentials (polling instead); the mail cache is in memory (IndexedDB would keep it between visits). |
+| 5 | **Right-to-left languages** | Eleven interface languages; Arabic, Hebrew and Persian need egui to lay out bidirectional text. |
+| 6 | **Drag attachments out on Linux** | Works on Windows and macOS; Linux would need GTK's drag source. |
+| 7 | **Video thumbnails without ffmpeg** | Video attachments get a frame when `ffmpeg` is installed; otherwise they show a plain tile. |
 
 ## Done
 
@@ -32,13 +33,33 @@ _Status: v0.1, 2026-10-15._
 - **Contacts autocomplete:** recipients suggested from mail already seen.
 - **Notifications:** desktop notifications for new mail, unread count in the window title.
 - **Organising:** colour categories (IMAP keywords), pinning, snooze, inbox rules, Focused/Other.
-- **HTML mail:** shown formatted; pictures from the web only on request, remembered per sender.
+- **HTML mail:** shown formatted with its colours, highlights and tables (adjusted for contrast);
+  pictures from the web only on request, remembered per sender.
 - **Rich-text compose:** bold, italic, strikethrough, headings, lists, quotes, links and code with a
   `text/html` alternative; pictures inserted or pasted inline.
 - **Autoconfig:** the domain's autoconfig, the Mozilla ISPDB, MX and SRV records (RFC 6186).
 - **OAuth 2.0:** Gmail and Microsoft 365 through the browser (RFC 8252 + PKCE), XOAUTH2 for IMAP
   and SMTP.
-- **Attachments:** text-like previews, attached emails, Open in the Craft app for the file, Save all.
+- **Attachments:** text-like previews, attached emails, PDF thumbnails (first page) and video
+  frames, Open in the Craft app for the file, Save all, dragging out to other apps.
 - **Print and export:** print through a PDF, Save as PDF, Save as `.eml`.
-- **Localisation:** six languages besides English, following the system or chosen in Settings.
-- **JMAP:** a second transport (RFC 8620/8621) behind the same jobs and events.
+- **Languages:** ten besides English (Spanish, French, German, Brazilian Portuguese, Italian,
+  Russian, Japanese, Korean, Simplified and Traditional Chinese), following the system or chosen
+  in Options.
+- **JMAP:** a second transport (RFC 8620/8621) behind the same jobs and events, with push over
+  the session's event stream; shared with the browser in `mailcraft-jmap`.
+- **Messages in windows:** double-click (or *Open in new window*) opens a message in a window of
+  its own, as in Outlook.
+- **The File page:** account information, server settings, automatic replies (Sieve vacation over
+  ManageSieve, JMAP's VacationResponse or Graph's mailbox settings), the space used (IMAP QUOTA,
+  JMAP Quota), emptying Deleted Items and Junk, rules, Options and About.
+- **Calendar and contacts:** day, week and month views, events with recurrences and time zones
+  (iCalendar), people (vCard), kept per account and synced with CalDAV / CardDAV (found through
+  RFC 6764); meeting invitations by mail (iTIP/iMIP): accept, tentative, decline, and inviting
+  guests.
+- **Outlook data files:** File › Open & Export opens a `.pst` as a mailbox on this computer, with
+  its folders, messages, attachments and flags.
+- **Exchange Online:** Microsoft Graph as a third transport, for organisations that switch IMAP
+  off: folders, sync, changes, drafts, sending and automatic replies.
+- **Web build:** `apps/mailcraft-web`, the same window in the browser over JMAP and `fetch`, with
+  downloads, the browser's file picker and a `?sample` mailbox.

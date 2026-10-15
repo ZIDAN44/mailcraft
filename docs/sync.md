@@ -90,7 +90,7 @@ after every full sync and on *Send now*, oldest first, stopping at the first fai
 clear up. A permanent refusal (5xx) keeps the message in the Outbox with the error until the user
 edits or deletes it.
 
-## JMAP accounts (`crates/net/src/jmap.rs`)
+## JMAP accounts (`crates/jmap`)
 
 An account with a JMAP session address (`AccountConfig::jmap`, RFC 8620/8621) syncs over HTTPS
 instead of IMAP and SMTP, behind the same jobs and events. Each request is one POST of a batch of
@@ -115,3 +115,68 @@ method calls, signed in with Basic authentication or an OAuth bearer token.
   `text/event-stream`), reading it in half-second slices so jobs never wait, the way IMAP holds
   IDLE; a `state` event syncs the Inbox. Servers without an event stream are polled every two
   minutes.
+
+The transport is written once (`mailcraft-jmap`, async over an `Http` trait) and shared: the
+desktop worker runs it over its own HTTP client, the browser app over `fetch`.
+
+## Exchange Online through Microsoft Graph (`crates/net/src/graph.rs`)
+
+An account with a Graph address (`AccountConfig::graph`) syncs with Exchange Online through the
+Microsoft Graph REST API, signed in with an OAuth token that asks for Graph's mail permissions
+(`Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`). It works where an organisation has
+switched IMAP off.
+
+- **Ids** are asked for in their immutable form (`Prefer: IdType="ImmutableId"`), so a message
+  keeps its id when it moves; they are numbered like JMAP's, with the same folder paths.
+- **Folders** come from `/me/mailFolders` and each one's `childFolders`, following
+  `@odata.nextLink` pages on the same server only. The well-known folders (`inbox`, `sentitems`,
+  `deleteditems`…) are looked up in one JSON batch for their roles; the Outbox and Exchange's own
+  bookkeeping folders are left out.
+- **A folder sync** lists the newest messages' ids with `isRead`, `flag` and `isDraft`, then the
+  details of those not cached yet (their internet headers when Exchange has them) in batches of
+  20. Sources come from `/messages/{id}/$value`; mail with attachments downloads when opened.
+- **Changes** are `PATCH`es (`isRead`, `flag`), `move`, `DELETE` and folder calls, batched.
+- **Sending** posts the MIME source to `sendMail`, which files the copy in Sent Items; recipients
+  only on the envelope go in a `Bcc:` header, which Exchange strips. Drafts are made from MIME and
+  moved where they belong.
+- **Automatic replies** are the mailbox settings' `automaticRepliesSetting` (scheduled when the
+  dates are set). Graph doesn't tell a mailbox's size to its owner, so there is no quota.
+
+## Calendars and address books (`crates/net/src/dav.rs`)
+
+Password accounts sync calendars over CalDAV (RFC 4791) and address books over CardDAV
+(RFC 6352). The homes are found as RFC 6764 describes: an SRV record, then the `/.well-known/`
+addresses on the mail domain, its `caldav.`/`carddav.` hosts and the IMAP host, through the
+user's principal; a server with none is asked again a day later. A sync first sends what changed
+here (deletions with `If-Match`, edits guarded by the item's etag so a newer copy on the server is
+never overwritten, new items with `If-None-Match: *`), then reads each collection whose `getctag`
+moved: the etags by `PROPFIND`, and the new or changed items by `calendar-multiget` /
+`addressbook-multiget`. The engine merges the result: what changed here meanwhile stays to be sent.
+
+**Invitations** travel by mail (iTIP over iMIP, RFC 5546/6047): a `text/calendar` part with
+`METHOD:REQUEST` shows as an invitation card (Accept, Tentative, Decline), which updates the
+calendar and mails a `REPLY` to the organizer; replies and `CANCEL`s update the event; events with
+guests send them requests when saved and cancellations when deleted.
+
+## Automatic replies on IMAP servers (`crates/net/src/sieve.rs`)
+
+On IMAP hosts, automatic replies are a Sieve script (RFC 5228) with a `vacation` action
+(RFC 5230), limited to dates with `currentdate` (RFC 5260), kept over ManageSieve (RFC 5804). A
+script the user already runs stays in charge of their other rules: ours `include`s it (RFC 6609).
+
+## Outlook data files (`crates/net/src/pst.rs`)
+
+*Open Outlook data file* creates an account with no server named after the file and reads the
+`.pst` (MS-PST, Unicode or ANSI, with Microsoft's `outlook-pst` crate) on a thread of its own:
+the mail folders under the top of the mailbox become folders, and each mail item is written
+again as a standard message from its properties (addresses, dates, text and HTML bodies,
+attachments, pictures shown by `cid:`, embedded messages, read and follow-up flags), keeping its
+original internet headers when it came in by mail. The file is hostile input: the reader runs
+behind `catch_unwind`, unreadable items are skipped and counted, and sizes are capped.
+
+## In the browser (`apps/mailcraft-web`)
+
+The web build keeps the cache in memory and runs each account's jobs in order over JMAP and
+`fetch`. The Inbox is polled every two minutes and everything every eight checks (a browser's
+EventSource can't send the credentials JMAP push needs). Passwords stay in the tab; after a
+reload the account asks for its password again.
