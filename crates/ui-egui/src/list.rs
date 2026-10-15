@@ -269,6 +269,12 @@ fn message_row(
         if m.has_attachments {
             marker(Icon::Attach, t.dim, &mut icons_w);
         }
+        // Importance the sender set: a red ! for high, a ↓ for low.
+        if m.importance != 0 {
+            icons_w += 12.0;
+            let (mark, color) = if m.importance > 0 { ("!", t.danger) } else { ("↓", t.accent) };
+            p.text(egui::pos2(right - icons_w + 6.0, line2 + 8.0), egui::Align2::CENTER_CENTER, mark, theme::bold(13.0), color);
+        }
         if m.flags.answered {
             marker(Icon::Reply, t.faint, &mut icons_w);
         } else if m.flags.forwarded {

@@ -630,3 +630,7 @@ month	May	5月
 	Save As	另存为
 	Save Attachments	保存附件
 	Exit	退出
+	High importance	重要性 - 高
+	Low importance	重要性 - 低
+	Read receipt	已读回执
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	请收件人确认已读（对方的邮件应用可能不发送，或会询问对方）

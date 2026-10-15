@@ -630,3 +630,7 @@ month	May	5月
 	Save As	名前を付けて保存
 	Save Attachments	添付ファイルの保存
 	Exit	終了
+	High importance	重要度 - 高
+	Low importance	重要度 - 低
+	Read receipt	開封確認
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	受信者に開封の確認を求めます (受信者のメール アプリが応答しない場合や、確認を求める場合があります)

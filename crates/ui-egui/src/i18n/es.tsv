@@ -628,6 +628,10 @@
 	Save As	Guardar como
 	Save Attachments	Guardar datos adjuntos
 	Exit	Salir
+	High importance	Importancia alta
+	Low importance	Importancia baja
+	Read receipt	Confirmación de lectura
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Pedir a los destinatarios que confirmen que lo han leído (puede que su aplicación de correo no lo haga, o que les pregunte)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

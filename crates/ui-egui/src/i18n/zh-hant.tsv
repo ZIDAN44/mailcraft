@@ -627,6 +627,10 @@
 	Save As	另存新檔
 	Save Attachments	儲存附件
 	Exit	結束
+	High importance	重要性 - 高
+	Low importance	重要性 - 低
+	Read receipt	讀取回條
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	請收件者確認已讀（對方的郵件應用程式可能不傳送，或會詢問對方）
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

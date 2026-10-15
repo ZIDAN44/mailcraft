@@ -627,6 +627,10 @@
 	Save As	다른 이름으로 저장
 	Save Attachments	첨부 파일 저장
 	Exit	끝내기
+	High importance	높은 중요도
+	Low importance	낮은 중요도
+	Read receipt	읽음 확인
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	받는 사람에게 읽었는지 확인을 요청합니다(메일 앱이 보내지 않거나 받는 사람에게 물을 수 있음)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

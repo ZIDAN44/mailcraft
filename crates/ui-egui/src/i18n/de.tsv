@@ -628,6 +628,10 @@
 	Save As	Speichern unter
 	Save Attachments	Anlagen speichern
 	Exit	Beenden
+	High importance	Wichtigkeit: hoch
+	Low importance	Wichtigkeit: niedrig
+	Read receipt	Lesebestätigung
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Die Empfänger bitten, das Lesen zu bestätigen (ihr Mailprogramm tut es vielleicht nicht oder fragt sie)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

@@ -628,6 +628,10 @@
 	Save As	Enregistrer sous
 	Save Attachments	Enregistrer les pièces jointes
 	Exit	Quitter
+	High importance	Importance haute
+	Low importance	Importance faible
+	Read receipt	Accusé de lecture
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Demander aux destinataires de confirmer la lecture (leur messagerie peut ne pas le faire, ou leur demander)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

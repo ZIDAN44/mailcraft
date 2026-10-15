@@ -627,6 +627,10 @@
 	Save As	Сохранить как
 	Save Attachments	Сохранить вложения
 	Exit	Выход
+	High importance	Высокая важность
+	Low importance	Низкая важность
+	Read receipt	Уведомление о прочтении
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Попросить получателей подтвердить прочтение (их почтовая программа может этого не сделать или спросить их)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

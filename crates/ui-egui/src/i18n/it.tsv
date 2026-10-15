@@ -627,6 +627,10 @@
 	Save As	Salva con nome
 	Save Attachments	Salva allegati
 	Exit	Esci
+	High importance	Priorità alta
+	Low importance	Priorità bassa
+	Read receipt	Conferma di lettura
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Chiedi ai destinatari di confermare la lettura (il loro programma potrebbe non farlo, o chiederglielo)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

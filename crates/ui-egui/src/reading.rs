@@ -1207,6 +1207,22 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
                 c.plain = plain;
             }
+            // Importance and a read receipt, as Outlook's Tags and Options.
+            ui.add_space(6.0);
+            if ui.selectable_label(c.importance > 0, RichText::new("!").strong().color(t.danger)).on_hover_text(tl!("High importance")).clicked() {
+                c.importance = if c.importance > 0 { 0 } else { 1 };
+            }
+            if ui.selectable_label(c.importance < 0, RichText::new("↓").strong().color(t.accent)).on_hover_text(tl!("Low importance")).clicked() {
+                c.importance = if c.importance < 0 { 0 } else { -1 };
+            }
+            let mut receipt = c.read_receipt;
+            if ui
+                .checkbox(&mut receipt, RichText::new(tl!("Read receipt")).small())
+                .on_hover_text(tl!("Ask the recipients to confirm they've read it (their mail app may not, or may ask them)"))
+                .changed()
+            {
+                c.read_receipt = receipt;
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let (icon, label, id) =
                     if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
