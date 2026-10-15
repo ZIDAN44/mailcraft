@@ -380,6 +380,8 @@ struct Worker {
     sieve_port: u16,
     /// The JMAP server can't push: poll instead.
     no_push: bool,
+    /// The last push wait ended in an Inbox sync (so the next one needn't check first).
+    pushed: bool,
     /// The current OAuth access token.
     access: Option<crate::oauth::Tokens>,
 }
@@ -409,6 +411,7 @@ impl Worker {
             access: None,
             sieve_port: crate::sieve::PORT,
             no_push: false,
+            pushed: false,
         }
     }
 
@@ -575,6 +578,13 @@ impl Worker {
                 return false;
             }
         };
+        // Mail that came between the last sync and this stream opening sends no event (unless
+        // the server replays it, RFC 8620 §7.3): check once now that nothing will be missed.
+        if !std::mem::take(&mut self.pushed)
+            && let Some(f) = self.inbox()
+        {
+            self.sync_one(&f);
+        }
         let end = Instant::now() + IDLE_FOR;
         let mut changed = false;
         while Instant::now() < end && !changed {
@@ -594,6 +604,7 @@ impl Worker {
         }
         if changed && let Some(f) = self.inbox() {
             self.sync_one(&f);
+            self.pushed = true;
         }
         true
     }

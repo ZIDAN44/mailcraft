@@ -86,7 +86,7 @@ pub fn serve() -> Server {
                 if let Some(v) = lower.strip_prefix("content-length:") {
                     len = v.trim().parse().unwrap_or(0);
                 }
-                if line.trim_end() == format!("Authorization: {auth}") {
+                if line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == auth) {
                     authorized = true;
                 }
                 if let Some(v) = line.strip_prefix("If-Match:") {

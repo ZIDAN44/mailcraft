@@ -1,6 +1,8 @@
 //! An in-memory JMAP server (RFC 8620/8621, the parts MailCraft uses) on localhost, for tests:
 //! the session, `Mailbox/get|set`, `Email/query|get|set|import`, `Identity/get`,
-//! `EmailSubmission/set`, back-references, blob download and upload, Basic authentication.
+//! `EmailSubmission/set`, back-references, blob download and upload, Basic authentication, and
+//! CORS for web pages (so the browser app can be tried against it: see
+//! `serve_for_the_browser`).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -278,14 +280,21 @@ pub struct Server {
 }
 
 fn respond(s: &mut impl Write, status: u16, body: &[u8], kind: &str) {
-    let head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+    let head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n{CORS}Connection: close\r\n\r\n", body.len());
     let _ = s.write_all(head.as_bytes());
     let _ = s.write_all(body);
 }
 
+/// Any web page may call (a test server on this computer).
+const CORS: &str = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Accept\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
+
 /// Start the server; it runs until the test process ends.
 pub fn serve(data: Data) -> Server {
-    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    serve_at(data, 0)
+}
+
+pub fn serve_at(data: Data, port: u16) -> Server {
+    let l = TcpListener::bind(("127.0.0.1", port)).unwrap();
     let base = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
     let data = Arc::new(Mutex::new(data));
     let shared = data.clone();
@@ -319,12 +328,17 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
                 if let Some(v) = lower.strip_prefix("content-length:") {
                     len = v.trim().parse().unwrap_or(0);
                 }
-                if line.trim_end() == format!("Authorization: {auth}") {
+                if line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == auth) {
                     authorized = true;
                 }
             }
             let mut body = vec![0u8; len];
             let _ = reader.read_exact(&mut body);
+            // A browser's CORS preflight carries no credentials.
+            if first.starts_with("OPTIONS ") {
+                respond(&mut s, 204, b"", "text/plain");
+                return;
+            }
             if !authorized {
                 respond(&mut s, 401, b"{}", "application/json");
                 return;
@@ -336,7 +350,8 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
                 let (tx, rx) = std::sync::mpsc::channel::<String>();
                 d.listeners.push(tx);
                 drop(d);
-                let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n");
+                let _ =
+                    s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n{CORS}Transfer-Encoding: chunked\r\n\r\n").as_bytes());
                 loop {
                     let msg = match rx.recv_timeout(std::time::Duration::from_secs(1)) {
                         Ok(m) => format!("event: state\r\ndata: {m}\r\n\r\n"),
@@ -590,6 +605,27 @@ mod tests {
         assert_eq!(numbers, Some(key.uid));
         assert!(data.lock().unwrap().calls.iter().any(|c| c == "EmailSubmission/set"));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// For trying the browser app by hand: a sample JMAP server at http://127.0.0.1:8775 (or
+    /// `MAILCRAFT_FAKE_JMAP_PORT`) for ten minutes, signing in as `me@studio.example` / `pw`.
+    /// `cargo test -p mailcraft-net serve_for_the_browser -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn serve_for_the_browser() {
+        let mut d = Data::default();
+        let inbox = d.mailbox("Inbox", None, Some("inbox"));
+        d.mailbox("Drafts", None, Some("drafts"));
+        d.mailbox("Sent", None, Some("sent"));
+        d.mailbox("Trash", None, Some("trash"));
+        let projects = d.mailbox("Projects", None, None);
+        d.deliver(&inbox, &mail("Storyboard", "m1"), &["$seen"], "2026-10-14T09:00:00Z");
+        d.deliver(&inbox, &mail("Sound mix", "m2"), &[], "2026-10-15T06:00:00Z");
+        d.deliver(&projects, &mail("Plan", "m3"), &["$seen"], "2026-10-01T10:00:00Z");
+        let port = std::env::var("MAILCRAFT_FAKE_JMAP_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8775);
+        let server = serve_at(d, port);
+        println!("JMAP at {}/.well-known/jmap ({USER} / {PASSWORD})", server.base);
+        std::thread::sleep(Duration::from_secs(600));
     }
 
     fn jmap_number(store: &Store, id: &str) -> Option<u32> {

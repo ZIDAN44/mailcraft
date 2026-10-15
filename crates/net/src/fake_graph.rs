@@ -318,7 +318,8 @@ pub fn serve(data: Data) -> Server {
                 if let Some(v) = lower.strip_prefix("content-length:") {
                     len = v.trim().parse().unwrap_or(0);
                 }
-                authorized |= line.trim_end() == format!("Authorization: Bearer {TOKEN}");
+                authorized |=
+                    line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == format!("Bearer {TOKEN}"));
                 immutable |= line.trim_end() == "Prefer: IdType=\"ImmutableId\"";
             }
             let mut body = vec![0u8; len];
