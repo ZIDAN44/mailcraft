@@ -15,6 +15,7 @@
 pub mod markup;
 
 use mail_builder::MessageBuilder;
+use mail_builder::headers::content_type::ContentType;
 use mail_builder::mime::MimePart;
 use mail_parser::{Address, HeaderValue, Message, MessageParser, MimeHeaders};
 use mailcraft_model::dates::{Clock, full_time};
@@ -731,43 +732,43 @@ pub fn build(d: &Draft, from: &EmailAddress, date: i64, message_id: &str) -> Res
         b = b.references(d.references.clone());
     }
     b = b.header("X-Mailer", mail_builder::headers::raw::Raw::new(format!("MailCraft {}", env!("CARGO_PKG_VERSION"))));
-    let attachments = || {
-        d.attachments.iter().map(|a| {
+    // Boundaries come from the message itself: unique per message and part, the same every time
+    // (mail-builder would read the clock, which the browser doesn't have).
+    let seed = format!("{:016x}", fnv(&format!("{message_id}\u{0}{date}")));
+    let multipart = |kind: &str, n: u32, parts: Vec<MimePart<'static>>| {
+        MimePart::new(ContentType::new(kind.to_string()).attribute("boundary", format!("=_mc{seed}_{n}")), parts)
+    };
+    let files: Vec<MimePart<'static>> = d
+        .attachments
+        .iter()
+        .map(|a| {
             let mime = if a.mime.is_empty() { mime_from_name(&a.name).to_string() } else { a.mime.clone() };
             MimePart::new(mime, a.data.clone()).attachment(sanitize_filename(&a.name))
         })
-    };
-    match &d.html {
-        None => {
-            b = b.text_body(d.body.replace("\r\n", "\n"));
-            for a in &d.attachments {
-                let mime = if a.mime.is_empty() { mime_from_name(&a.name).to_string() } else { a.mime.clone() };
-                b = b.attachment(mime, sanitize_filename(&a.name), a.data.clone());
-            }
-        }
+        .collect();
+    let text = MimePart::new("text/plain", d.body.replace("\r\n", "\n"));
+    let root = match &d.html {
+        None if files.is_empty() => text,
+        None => multipart("multipart/mixed", 1, std::iter::once(text).chain(files).collect()),
         Some(html) => {
             // mixed( related( alternative(text, html), pictures… ), attachments… ): the pictures
             // belong with the HTML that shows them (RFC 2387), the files with the message.
-            let alt = MimePart::new(
-                "multipart/alternative",
-                vec![MimePart::new("text/plain", d.body.replace("\r\n", "\n")), MimePart::new("text/html", html.clone())],
-            );
+            let alt = multipart("multipart/alternative", 3, vec![text, MimePart::new("text/html", html.clone())]);
             let mut related = vec![alt];
             for p in &d.inline {
                 let mime = if p.mime.is_empty() { mime_from_name(&p.name).to_string() } else { p.mime.clone() };
                 related.push(MimePart::new(mime, p.data.clone()).inline().cid(p.cid.clone()));
             }
-            let mut root = if related.len() == 1 { related.remove(0) } else { MimePart::new("multipart/related", related) };
-            let files: Vec<MimePart<'_>> = attachments().collect();
-            if !files.is_empty() {
-                let mut parts = vec![root];
-                parts.extend(files);
-                root = MimePart::new("multipart/mixed", parts);
-            }
-            b = b.body(root);
+            let root = if related.len() == 1 { related.remove(0) } else { multipart("multipart/related", 2, related) };
+            if files.is_empty() { root } else { multipart("multipart/mixed", 1, std::iter::once(root).chain(files).collect()) }
         }
-    }
-    b.write_to_vec().map_err(|e| e.to_string())
+    };
+    b.body(root).write_to_vec().map_err(|e| e.to_string())
+}
+
+/// FNV-1a, for boundaries.
+fn fnv(s: &str) -> u64 {
+    s.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -997,6 +998,29 @@ iVBORw0KGgo=\r\n\
         assert_eq!(s.references, d.references);
         assert_eq!(s.in_reply_to, "m1@studio.example");
         assert_eq!(d.recipients(), vec!["ann@studio.example", "kim@studio.example", "secret@studio.example"]);
+        // The same message builds the same bytes: nothing comes from the clock (which a browser
+        // doesn't have), and each message's boundaries are its own.
+        assert_eq!(build(&d, &EmailAddress::new("Zoe Park", "zoe@studio.example"), 1_791_963_000, "x1@studio.example").unwrap(), raw);
+        let other = build(&d, &EmailAddress::new("Zoe Park", "zoe@studio.example"), 1_791_963_000, "x2@studio.example").unwrap();
+        assert_ne!(other, raw);
+        let rich = Draft {
+            html: Some("<p>Hi <b>Ann</b><img src=\"cid:pic@x\"></p>".into()),
+            inline: vec![InlinePicture { cid: "pic@x".into(), name: "pic.png".into(), mime: "image/png".into(), data: vec![9, 9] }],
+            ..d.clone()
+        };
+        let raw = build(&rich, &EmailAddress::new("", "zoe@studio.example"), 5, "x3@studio.example").unwrap();
+        let text = String::from_utf8_lossy(&raw);
+        for kind in ["multipart/mixed", "multipart/related", "multipart/alternative"] {
+            assert!(text.contains(kind), "{kind}");
+        }
+        assert_eq!(text.matches("boundary=").count(), 3);
+        let p = parse(&raw).unwrap();
+        assert!(p.had_html && p.text.contains("Ann"));
+        assert_eq!(p.attachments.iter().filter(|a| !a.inline).map(|a| a.name.as_str()).collect::<Vec<_>>(), ["board.png"]);
+        // Plain text alone is a single part.
+        let plain = Draft { attachments: Vec::new(), ..d };
+        let raw = build(&plain, &EmailAddress::new("", "zoe@studio.example"), 5, "x4@studio.example").unwrap();
+        assert!(!String::from_utf8_lossy(&raw).contains("multipart"));
     }
 
     #[test]
