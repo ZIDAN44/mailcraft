@@ -92,10 +92,18 @@ pub enum ListFilter {
     Unread,
     Flagged,
     Attachments,
+    /// Carrying a category.
+    Categorized,
+    /// Sent to the account's address, or copied to it.
+    ToMe,
 }
 
 impl ListFilter {
+    /// The filters shown as tabs above the list.
     pub const ALL: [ListFilter; 4] = [ListFilter::All, ListFilter::Unread, ListFilter::Flagged, ListFilter::Attachments];
+    /// Every filter (the Home tab's Filter menu).
+    pub const EVERY: [ListFilter; 6] =
+        [ListFilter::All, ListFilter::Unread, ListFilter::Flagged, ListFilter::Attachments, ListFilter::Categorized, ListFilter::ToMe];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -103,6 +111,8 @@ impl ListFilter {
             ListFilter::Unread => "Unread",
             ListFilter::Flagged => "Flagged",
             ListFilter::Attachments => "Has files",
+            ListFilter::Categorized => "Categorized",
+            ListFilter::ToMe => "To or Cc me",
         }
     }
 
@@ -112,15 +122,8 @@ impl ListFilter {
             ListFilter::Unread => "unread",
             ListFilter::Flagged => "flagged",
             ListFilter::Attachments => "attachments",
-        }
-    }
-
-    fn keeps(self, m: &Summary) -> bool {
-        match self {
-            ListFilter::All => true,
-            ListFilter::Unread => !m.flags.seen,
-            ListFilter::Flagged => m.flags.flagged,
-            ListFilter::Attachments => m.has_attachments,
+            ListFilter::Categorized => "categorized",
+            ListFilter::ToMe => "toMe",
         }
     }
 }
@@ -180,6 +183,9 @@ pub struct Prefs {
     pub reverse_sort: bool,
     /// Work offline (Send / Receive › Work Offline): no account connects; kept across starts.
     pub work_offline: bool,
+    /// Ignored conversations (Delete › Ignore): their messages' Message-IDs; replies to any of
+    /// them go to Deleted Items as they arrive.
+    pub ignored: BTreeSet<String>,
 }
 
 /// What the message list is sorted and grouped by.
@@ -330,6 +336,7 @@ impl Default for Prefs {
             arrange: Arrange::Date,
             reverse_sort: false,
             work_offline: false,
+            ignored: BTreeSet::new(),
         }
     }
 }
@@ -759,8 +766,11 @@ impl Session {
             None => Vec::new(),
         };
         self.seen_uid.insert(k, max);
-        // Rules first; what they file away or mark read isn't announced.
-        let quiet = self.run_rules(&arrived);
+        // Replies in ignored conversations go to Deleted Items, then rules; what they file away
+        // or mark read isn't announced.
+        let mut quiet = self.ignore_arrived(&arrived);
+        let rest: Vec<Summary> = arrived.iter().filter(|m| !quiet.contains(&m.key)).cloned().collect();
+        quiet.extend(self.run_rules(&rest));
         // Mail older than a day (a resync after a long time away) isn't "new" any more.
         let cutoff = self.clock.now - 86_400;
         let fresh: Vec<Summary> = arrived.into_iter().filter(|m| !m.flags.seen && m.date >= cutoff && !quiet.contains(&m.key)).collect();
@@ -867,7 +877,7 @@ impl Session {
             v
         };
         let filter = self.filter;
-        list.retain(|m| filter.keeps(m));
+        list.retain(|m| self.filter_keeps(filter, m));
         if self.focus_split() {
             self.ensure_contacts();
             let other = self.focus_other;
@@ -888,6 +898,21 @@ impl Session {
         }
         self.list = list;
         self.revision = self.revision.wrapping_add(1);
+    }
+
+    /// Whether a message passes a filter.
+    fn filter_keeps(&self, filter: ListFilter, m: &Summary) -> bool {
+        match filter {
+            ListFilter::All => true,
+            ListFilter::Unread => !m.flags.seen,
+            ListFilter::Flagged => m.flags.flagged,
+            ListFilter::Attachments => m.has_attachments,
+            ListFilter::Categorized => self.prefs.categories.iter().any(|c| m.flags.has(&c.keyword)),
+            ListFilter::ToMe => self.account(&m.key.account).is_some_and(|a| {
+                let me = a.config.email.trim();
+                !me.is_empty() && m.to.iter().chain(&m.cc).any(|r| r.email.trim().eq_ignore_ascii_case(me))
+            }),
+        }
     }
 
     /// The list as rows with date headings (and conversations, when on).

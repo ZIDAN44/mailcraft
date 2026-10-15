@@ -45,6 +45,7 @@ pub fn registry() -> Registry {
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
             .key("Backspace")
             .when(has_selection),
+        CommandSpec::new("mail.ignore", "Ignore conversation", "Home › Delete", |s, _| s.ignore_selection()).when(has_selection),
         CommandSpec::new("mail.junk", "Report junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Junk))).when(has_selection),
         CommandSpec::new("mail.notJunk", "Not junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Inbox))).when(has_selection),
         // Home › Respond
@@ -172,7 +173,7 @@ pub fn registry() -> Registry {
         CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).key("Mod+A"),
         CommandSpec::new("list.next", "Next message", "Message list", |s, _| step(s, 1)).key("Down / J"),
         CommandSpec::new("list.prev", "Previous message", "Message list", |s, _| step(s, -1)).key("Up / K"),
-        CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"}"#),
+        CommandSpec::new("list.filter", "Filter", "Message list", filter).params(r#"{"value": "all"|"unread"|"flagged"|"attachments"|"categorized"|"toMe"}"#),
         CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
         CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
         CommandSpec::new("message.popOut", "Open in new window", "Message list › Open", |s, v| {
@@ -731,7 +732,7 @@ fn step(s: &mut Session, dir: i64) -> CmdResult {
 
 fn filter(s: &mut Session, v: &Value) -> CmdResult {
     let value = p::req_str(v, "value")?;
-    s.filter = ListFilter::ALL
+    s.filter = ListFilter::EVERY
         .into_iter()
         .find(|f| f.code().eq_ignore_ascii_case(value))
         .ok_or_else(|| CmdError::Params(format!("unknown filter `{value}`")))?;

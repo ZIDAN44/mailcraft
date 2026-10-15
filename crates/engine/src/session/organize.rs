@@ -235,6 +235,91 @@ impl Session {
         Ok(serde_json::json!({ "rules": self.rules.len() }))
     }
 
+    // ----- ignoring conversations -----
+
+    /// The Message-IDs a message names: its own, and those it replies to.
+    fn conversation_ids(m: &Summary) -> Vec<String> {
+        std::iter::once(&m.message_id)
+            .chain(std::iter::once(&m.in_reply_to))
+            .chain(&m.references)
+            .map(|id| mailcraft_model::thread::norm_id(id).to_ascii_lowercase())
+            .filter(|id| !id.is_empty())
+            .collect()
+    }
+
+    /// Whether a message belongs to a conversation being ignored.
+    pub fn is_ignored(&self, m: &Summary) -> bool {
+        Self::conversation_ids(m).iter().any(|id| self.prefs.ignored.contains(id))
+    }
+
+    /// Ignore the selected conversations, as Outlook's Delete › Ignore: every message of them
+    /// goes to Deleted Items, and so does whatever arrives in them later. On conversations already
+    /// ignored, stop ignoring them.
+    pub fn ignore_selection(&mut self) -> CmdResult {
+        let sel = self.selected();
+        if sel.is_empty() {
+            return Err(CmdError::Disabled("no message selected".into()));
+        }
+        if sel.iter().all(|m| self.is_ignored(m)) {
+            for m in &sel {
+                for id in Self::conversation_ids(m) {
+                    self.prefs.ignored.remove(&id);
+                }
+            }
+            return Ok(serde_json::json!({ "ignoring": false }));
+        }
+        // The conversations' messages, in the folders the selection is in.
+        let mut members: Vec<Summary> = Vec::new();
+        for m in &sel {
+            let folder = self.folder_state(&m.key.account, &m.key.folder).messages.clone();
+            for t in mailcraft_model::thread::threads(&folder) {
+                let msgs: Vec<&Summary> = t.messages.iter().filter_map(|&i| folder.get(i)).collect();
+                if msgs.iter().any(|x| x.key == m.key) {
+                    members.extend(msgs.into_iter().cloned());
+                }
+            }
+            if !members.iter().any(|x| x.key == m.key) {
+                members.push(m.clone());
+            }
+        }
+        for m in &members {
+            self.prefs.ignored.extend(Self::conversation_ids(m));
+        }
+        // Kept bounded: the oldest ids go first (a BTreeSet has no age; dropping any is safe).
+        while self.prefs.ignored.len() > 5_000 {
+            let Some(first) = self.prefs.ignored.iter().next().cloned() else { break };
+            self.prefs.ignored.remove(&first);
+        }
+        let keys: BTreeSet<MessageKey> = members.iter().map(|m| m.key.clone()).collect();
+        self.selection = keys.into_iter().collect();
+        let n = self.selection.len();
+        self.move_selection(MoveTarget::Role(FolderRole::Trash))?;
+        Ok(serde_json::json!({ "ignoring": true, "moved": n }))
+    }
+
+    /// New mail in an ignored conversation goes to Deleted Items (and its own id joins the
+    /// conversation's). Returns the keys moved away.
+    pub(super) fn ignore_arrived(&mut self, msgs: &[Summary]) -> Vec<MessageKey> {
+        if self.prefs.ignored.is_empty() {
+            return Vec::new();
+        }
+        let mut gone = Vec::new();
+        for m in msgs {
+            if !self.is_ignored(m) {
+                continue;
+            }
+            self.prefs.ignored.extend(Self::conversation_ids(m));
+            let a = m.key.account.clone();
+            if let Some(trash) = self.account(&a).and_then(|x| x.folder(FolderRole::Trash)).map(|f| f.path.clone())
+                && trash != m.key.folder
+            {
+                self.apply_op(&a, Op::Move { keys: vec![m.key.clone()], to: trash });
+                gone.push(m.key.clone());
+            }
+        }
+        gone
+    }
+
     /// Run the rules on messages: their actions become ordinary changes. Returns the keys the
     /// rules moved away or marked read (no need to announce those).
     pub(super) fn run_rules(&mut self, msgs: &[Summary]) -> Vec<MessageKey> {

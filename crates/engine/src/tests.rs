@@ -1463,3 +1463,60 @@ fn undo_puts_back_moves_flags_and_categories() {
     assert!(!s.folder_state("sample", &trash).messages.iter().any(|m| m.subject == "Storyboard review on Thursday"));
     assert!(s.undo.is_empty());
 }
+
+/// Filter Email, as Outlook's: categorized mail, and mail sent or copied to the account.
+#[test]
+fn filters_for_categorized_mail_and_mail_to_me() {
+    let mut s = sample_session("filters");
+    let all = s.list.len();
+    s.run("list.filter", &json!({"value": "categorized"})).unwrap();
+    let before = s.list.len();
+    s.run("list.filter", &json!({"value": "all"})).unwrap();
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    let cat = s.prefs.categories[0].name.clone();
+    s.run("mail.categorize", &json!({"category": cat})).unwrap();
+    s.run("list.filter", &json!({"value": "categorized"})).unwrap();
+    assert_eq!(s.list.len(), before + 1);
+    assert!(s.list.iter().any(|m| m.subject == "Character turnarounds"));
+    s.run("list.filter", &json!({"value": "toMe"})).unwrap();
+    assert!(!s.list.is_empty() && s.list.len() <= all);
+    assert!(s.list.iter().all(|m| m.to.iter().chain(&m.cc).any(|r| r.email.eq_ignore_ascii_case("riley@studio.example"))));
+    assert!(s.run("list.filter", &json!({"value": "nonsense"})).is_err());
+}
+
+/// Delete › Ignore, as Outlook's: the conversation goes to Deleted Items, and so do replies to it
+/// that arrive later; ignoring it again stops that.
+#[test]
+fn ignored_conversations_stay_in_deleted_items() {
+    let mut s = sample_session("ignore");
+    let trash = s.account("sample").and_then(|a| a.folder(FolderRole::Trash)).map(|f| f.path.clone()).unwrap();
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.select", &k).unwrap();
+    assert_eq!(s.run("mail.ignore", &json!({})).unwrap()["moved"], 2, "Zoe's message and Sam's reply");
+    assert!(!s.list.iter().any(|m| m.subject.contains("Storyboard review")));
+    // A reply in it arrives.
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder("sample", "INBOX").unwrap();
+    let mut m = st.messages[0].clone();
+    let sam = s.folder_state("sample", &trash).messages.iter().find(|m| m.subject.starts_with("Re:")).cloned().unwrap();
+    m.key.uid = 600;
+    m.subject = "Re: Storyboard review on Thursday".into();
+    m.message_id = "late-reply@studio.example".into();
+    m.in_reply_to = sam.message_id.clone();
+    m.references = vec![sam.message_id.clone()];
+    m.flags.seen = false;
+    m.date = NOW;
+    st.messages.insert(0, m);
+    store.save_folder("sample", "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    assert!(!s.list.iter().any(|m| m.subject.contains("Storyboard review")), "went to Deleted Items");
+    assert!(s.take_new_mail().is_empty(), "not announced");
+    assert!(s.folder_state("sample", &trash).messages.iter().any(|m| m.message_id == "late-reply@studio.example"));
+    // Stop ignoring (from Deleted Items).
+    s.run("folder.open", &json!({"account": "sample", "folder": trash})).unwrap();
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.select", &k).unwrap();
+    assert_eq!(s.run("mail.ignore", &json!({})).unwrap()["ignoring"], false);
+    assert!(!s.selected().iter().any(|m| s.is_ignored(m)), "no longer ignored");
+}
