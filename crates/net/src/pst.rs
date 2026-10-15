@@ -120,7 +120,7 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
         let class = sub.properties().get(0x3613).and_then(text_of).unwrap_or_default();
         let mail = class.is_empty() || class.starts_with("IPF.Note") || class.starts_with("IPF.Imap");
         if !mail {
-            if class.starts_with("IPF.Contact") || class.starts_with("IPF.Appointment") {
+            if class.starts_with("IPF.Contact") || class.starts_with("IPF.Appointment") || class.starts_with("IPF.Task") {
                 read_items(store, &*sub, read, out);
                 visit(store, &*sub, parent, depth + 1, read, out);
             }
@@ -191,7 +191,7 @@ fn item(m: &dyn Message, files: Vec<File>, named: &crate::pst_pim::Named) -> Ite
     let s = |id: u16| p(id).and_then(text_of).unwrap_or_default();
     let mut it = Item { class: s(0x001A), files, ..Default::default() };
     let class = it.class.to_ascii_lowercase();
-    if class.starts_with("ipm.contact") || class.starts_with("ipm.appointment") {
+    if class.starts_with("ipm.contact") || class.starts_with("ipm.appointment") || class.starts_with("ipm.task") {
         it.extra = Some(crate::pst_pim::extract(&p, named));
     }
     // A subject may start with a prefix marker (0x01, length).
@@ -461,7 +461,18 @@ impl Out<'_> {
         let Some(x) = &it.extra else { return };
         let n = self.pim.events.len() + self.pim.cards.len();
         let uid = format!("pst-{}-{n}@mailcraft.invalid", self.account);
-        if it.class.to_ascii_lowercase().starts_with("ipm.contact") {
+        if it.class.to_ascii_lowercase().starts_with("ipm.task") {
+            // MailCraft has no task list: a task with a due date shows in the calendar that day.
+            let Some(due) = x.due else {
+                self.skipped += 1;
+                return;
+            };
+            let day = crate::pst_pim::Extra { start: Some(due), end: Some(due), all_day: true, ..Default::default() };
+            let summary = if x.done { format!("✓ {}", it.subject) } else { it.subject.clone() };
+            if let Some(event) = crate::pst_pim::event_of(&day, &summary, &it.body, &EmailAddress::default(), &[], uid) {
+                self.pim.events.push(StoredEvent { calendar: LOCAL.into(), event, ..Default::default() });
+            }
+        } else if it.class.to_ascii_lowercase().starts_with("ipm.contact") {
             let card = crate::pst_pim::card_of(x, &it.body, uid);
             self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
         } else {

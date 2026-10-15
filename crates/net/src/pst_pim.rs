@@ -19,6 +19,7 @@ type GuidKey = (u32, u16, u16, [u8; 8]);
 const OLE: [u8; 8] = [0xC0, 0, 0, 0, 0, 0, 0, 0x46];
 const PSETID_ADDRESS: GuidKey = (0x0006_2004, 0, 0, OLE);
 const PSETID_APPOINTMENT: GuidKey = (0x0006_2002, 0, 0, OLE);
+const PSETID_TASK: GuidKey = (0x0006_2003, 0, 0, OLE);
 const PSETID_MEETING: GuidKey = (0x6ED8_DA90, 0x450B, 0x101B, [0x98, 0xDA, 0x00, 0xAA, 0x00, 0x3F, 0x13, 0x05]);
 /// Name-to-id entries read at most.
 const MAX_NAMES: usize = 200_000;
@@ -73,6 +74,9 @@ pub(crate) struct Extra {
     pub emails: Vec<String>,
     pub phones: Vec<(String, &'static str)>,
     pub start: Option<i64>,
+    /// A task's due date, and whether it's done.
+    pub due: Option<i64>,
+    pub done: bool,
     pub end: Option<i64>,
     pub location: String,
     pub all_day: bool,
@@ -103,6 +107,8 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<&'a PropertyValue>, named: &
     x.start = time(PSETID_APPOINTMENT, 0x820D, 0x0060);
     x.end = time(PSETID_APPOINTMENT, 0x820E, 0x0061);
     x.location = ns(PSETID_APPOINTMENT, 0x8208);
+    x.due = n(PSETID_TASK, 0x8105).and_then(crate::pst::time_of);
+    x.done = matches!(n(PSETID_TASK, 0x811C), Some(PropertyValue::Boolean(true)));
     x.all_day = matches!(n(PSETID_APPOINTMENT, 0x8215), Some(PropertyValue::Boolean(true)));
     if let Some(PropertyValue::Binary(b)) = n(PSETID_APPOINTMENT, 0x8216) {
         x.recurrence = b.buffer().to_vec();
