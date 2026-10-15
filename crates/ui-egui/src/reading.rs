@@ -218,9 +218,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                         acts.push(Action::SaveAll);
                     }
                 });
-                ui.horizontal_wrapped(|ui| {
-                    for a in &files {
-                        attachment_card(s, st, ui, &r.key, a, acts);
+                // Wrapped into rows, scrolling past three, as Outlook's are.
+                widgets::chip_grid(ui, egui::Id::new(("attachments", r.key.to_id())), files.len(), 240.0, 400.0, CHIP_H, 3, |ui, i, w| {
+                    if let Some(a) = files.get(i) {
+                        attachment_card(s, st, ui, &r.key, a, w, acts);
                     }
                 });
                 ui.add_space(10.0);
@@ -911,7 +912,7 @@ fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mim
 /// name and size, and a ▾ menu. Double-click opens it; right-click gives the menu too; dragging it
 /// out (once the pointer moves) copies the file to another app. The chip senses the pointer under
 /// its button, so a press on ▾ or the chip never starts a drag by itself.
-fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, acts: &mut Vec<Action>) {
+fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, w: f32, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let kind = a.kind();
     let thumb = match kind {
@@ -952,52 +953,74 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
             ui.close();
         }
     };
-    let id = ui.id().with(("attachment", key.to_id(), a.index));
-    let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
-    let chip = ui.scope_builder(egui::UiBuilder::new().id_salt(id).sense(Sense::click_and_drag()), |ui| {
-        egui::Frame::new()
-            .fill(if hovered { t.hover } else { t.surface })
-            .stroke(egui::Stroke::new(1.0, if hovered { t.accent } else { t.border }))
-            .corner_radius(6)
-            .inner_margin(Margin::symmetric(6, 5))
-            .show(ui, |ui| {
-                ui.set_width(236.0);
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
-                    match &thumb {
-                        Some(tex) => {
-                            let sz = tex.size_vec2();
-                            let scale = (34.0 / sz.x).min(34.0 / sz.y);
-                            ui.painter().rect_filled(r, 3.0, t.chrome);
-                            let img = Rect::from_center_size(r.center(), sz * scale);
-                            ui.painter().image(tex.id(), img, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-                        }
-                        None => {
-                            ui.painter().rect_filled(r, 5.0, t.accent_soft);
-                            icons::paint(ui.painter(), icons::centered(r, 18.0), kind_icon(kind), t.accent);
-                        }
-                    }
-                    ui.vertical(|ui| {
-                        ui.set_width(156.0);
-                        ui.label(RichText::new(widgets::shorten(&a.name, 24)).color(t.text).small());
-                        ui.label(RichText::new(widgets::human_size(a.size)).color(t.faint).small());
-                    });
-                    let more = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More options", &t);
-                    egui::Popup::menu(&more).show(|ui| menu(ui, acts));
-                });
-            });
-    });
-    let resp = chip.response;
-    if resp.double_clicked() {
+    // The chip: the body (double-click opens, drag copies out) and the ▾ at its right, each lit
+    // when the pointer is over it, as Outlook's are. A click selects the chip.
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, CHIP_H), Sense::click_and_drag());
+    let more_rect = Rect::from_min_max(egui::pos2(rect.right() - 30.0, rect.top()), rect.max).shrink(2.0);
+    let more = ui.interact(more_rect, resp.id.with("more"), Sense::click()).on_hover_text(tl!("More options"));
+    // egui counts the chip as hovered under the ▾ too (it senses drags); the ▾ wins there.
+    let on_more = more.contains_pointer();
+    let body_hovered = resp.hovered() && !on_more;
+    let sel_id = egui::Id::new(("attachment-selected", key.to_id()));
+    if resp.clicked() || resp.secondary_clicked() || more.clicked() {
+        ui.ctx().data_mut(|d| d.insert_temp(sel_id, a.index));
+    }
+    let selected = ui.ctx().data(|d| d.get_temp::<usize>(sel_id)) == Some(a.index);
+    if ui.is_rect_visible(rect) {
+        let p = ui.painter();
+        p.rect(
+            rect,
+            4.0,
+            t.surface,
+            egui::Stroke::new(1.0, if selected { t.accent } else { t.faint.gamma_multiply(0.55) }),
+            egui::StrokeKind::Inside,
+        );
+        let body = Rect::from_min_max(rect.min, egui::pos2(more_rect.left() - 2.0, rect.bottom())).shrink(2.0);
+        if selected || body_hovered {
+            p.rect_filled(body, 3.0, t.accent_soft);
+        }
+        let menu_open = egui::Popup::is_id_open(ui.ctx(), more.id.with("menu"));
+        if on_more || menu_open {
+            p.rect_filled(more_rect, 3.0, t.accent_soft);
+        }
+        icons::paint(p, icons::centered(more_rect, 13.0), Icon::ChevronDown, if on_more { t.text } else { t.dim });
+        let r = Rect::from_min_size(egui::pos2(rect.left() + 6.0, rect.center().y - 15.0), vec2(30.0, 30.0));
+        match &thumb {
+            Some(tex) => {
+                let sz = tex.size_vec2();
+                let scale = (30.0 / sz.x).min(30.0 / sz.y);
+                p.rect_filled(r, 3.0, t.chrome);
+                let img = Rect::from_center_size(r.center(), sz * scale);
+                p.image(tex.id(), img, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+            }
+            None => {
+                p.rect_filled(r, 4.0, t.accent_soft);
+                icons::paint(p, icons::centered(r, 17.0), kind_icon(kind), t.accent);
+            }
+        }
+        let text_x = r.right() + 8.0;
+        let text_w = more_rect.left() - 4.0 - text_x;
+        let name = widgets::one_line(ui, &a.name, theme::regular(12.5), t.text, text_w);
+        let size = widgets::one_line(ui, &widgets::human_size(a.size), theme::regular(11.5), t.dim, text_w);
+        p.galley(egui::pos2(text_x, rect.center().y - name.size().y - 1.0), name, t.text);
+        p.galley(egui::pos2(text_x, rect.center().y + 1.0), size, t.dim);
+    }
+    egui::Popup::menu(&more).id(more.id.with("menu")).show(|ui| menu(ui, acts));
+    if resp.double_clicked() && !on_more {
         acts.push(Action::OpenAttachment(a.index));
     }
     resp.context_menu(|ui| menu(ui, acts));
     // Drag it onto the desktop or another app to copy the file there.
-    if st.can_drag_out && resp.drag_started() {
+    if st.can_drag_out && resp.drag_started() && !on_more {
         acts.push(Action::DragOut(a.index));
     }
-    resp.on_hover_text(tf!("{name} · {kind}. Double-click to open it.", name = a.name, kind = tl!(kind_label(kind))));
+    if !on_more {
+        resp.on_hover_text(tf!("{name} · {kind}. Double-click to open it.", name = a.name, kind = tl!(kind_label(kind))));
+    }
 }
+
+/// Height of an attachment chip.
+const CHIP_H: f32 = 42.0;
 
 /// Width of the labels and label buttons left of the message's fields.
 const LABEL_W: f32 = 76.0;
@@ -1315,28 +1338,40 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 ui.vertical(|ui| field(ui, &t, "Subject", &mut c.subject, "Add a subject", false, false));
             });
             if !c.attachments.is_empty() {
-                ui.horizontal_wrapped(|ui| {
+                ui.horizontal(|ui| {
                     ui.add_space(76.0 + LABEL_W);
                     let mut remove = None;
-                    for (i, a) in c.attachments.iter().enumerate() {
-                        egui::Frame::new()
-                            .fill(t.chrome)
-                            .stroke(egui::Stroke::new(1.0, t.border))
-                            .corner_radius(14)
-                            .inner_margin(Margin::symmetric(10, 3))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
-                                    icons::paint(ui.painter(), ir, Icon::Attach, t.dim);
-                                    ui.label(
-                                        RichText::new(format!("{} ({})", widgets::shorten(&a.name, 30), widgets::human_size(a.data.len()))).small(),
-                                    );
-                                    if widgets::tiny_icon_button(ui, Icon::Close, "Remove", &t).clicked() {
-                                        remove = Some(i);
-                                    }
-                                });
-                            });
-                    }
+                    ui.vertical(|ui| {
+                        // Wrapped into rows, scrolling past two, as Outlook's are.
+                        let n = c.attachments.len();
+                        widgets::chip_grid(ui, egui::Id::new(("compose-attachments", c.id)), n, 220.0, 320.0, 28.0, 2, |ui, i, w| {
+                            let Some(a) = c.attachments.get(i) else { return };
+                            let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::hover());
+                            let x_rect = Rect::from_center_size(egui::pos2(rect.right() - 15.0, rect.center().y), vec2(22.0, 22.0));
+                            let x = ui.interact(x_rect, resp.id.with("remove"), Sense::click()).on_hover_text(tl!("Remove"));
+                            let p = ui.painter();
+                            p.rect(
+                                rect,
+                                4.0,
+                                if resp.hovered() { t.accent_soft } else { t.surface },
+                                egui::Stroke::new(1.0, t.faint.gamma_multiply(0.55)),
+                                egui::StrokeKind::Inside,
+                            );
+                            if x.hovered() {
+                                p.rect_filled(x_rect, 3.0, t.hover);
+                            }
+                            icons::paint(p, icons::centered(x_rect, 11.0), Icon::Close, if x.hovered() { t.text } else { t.dim });
+                            let ir = Rect::from_center_size(egui::pos2(rect.left() + 15.0, rect.center().y), vec2(14.0, 14.0));
+                            icons::paint(p, ir, Icon::Attach, t.dim);
+                            let text = format!("{} ({})", a.name, widgets::human_size(a.data.len()));
+                            let g = widgets::one_line(ui, &text, theme::regular(12.0), t.text, x_rect.left() - 4.0 - (ir.right() + 6.0));
+                            p.galley(egui::pos2(ir.right() + 6.0, rect.center().y - g.size().y / 2.0), g, t.text);
+                            resp.on_hover_text(a.name.clone());
+                            if x.clicked() {
+                                remove = Some(i);
+                            }
+                        });
+                    });
                     if let Some(i) = remove {
                         acts.push(Action::Run("compose.removeAttachment", json!({"index": i})));
                     }

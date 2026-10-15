@@ -146,6 +146,9 @@ mailbox; packaging for every desktop.
 - **Attachments open, as Outlook's:** small chips with a thumbnail, name and size; double-click
   opens one, ▾ (or right-click) gives Preview, Open, Save As and Save All Attachments. Open never
   worked: a press on it started a drag-out, and on Windows the file was handed over in a way
-  apps such as Acrobat ignored. A message window's attachments act on its own message.
+  apps such as Acrobat ignored. A message window's attachments act on its own message. Chips
+  share the width in columns and wrap onto more rows (in the reading pane and in compose), with
+  a scroll bar past three rows (two in compose); the body and the ▾ each light up under the
+  pointer, which stays an arrow, and a click selects a chip.
 - **New mail filed by rules is announced**, as Outlook does (not what a rule deletes or marks
   read).

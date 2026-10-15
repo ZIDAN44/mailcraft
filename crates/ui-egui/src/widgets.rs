@@ -64,6 +64,52 @@ pub fn tiny_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Respo
     resp.on_hover_text(tl!(tip))
 }
 
+/// Same-height chips in columns that share the width and wrap onto more rows, as Outlook lays out
+/// attachments; past `max_rows` rows they scroll. `chip(ui, i, width)` draws chip `i`.
+pub fn chip_grid(ui: &mut Ui, id: egui::Id, n: usize, min_w: f32, max_w: f32, h: f32, max_rows: usize, mut chip: impl FnMut(&mut Ui, usize, f32)) {
+    if n == 0 {
+        return;
+    }
+    let gap = 6.0;
+    let fits = |avail: f32| {
+        let mut cols = 1usize;
+        while (cols + 1) as f32 * min_w + cols as f32 * gap <= avail {
+            cols += 1;
+        }
+        cols
+    };
+    let mut avail = ui.available_width().max(min_w);
+    let max_rows = max_rows.max(1);
+    // Leave room for the scroll bar when the chips will scroll.
+    if n.div_ceil(fits(avail)) > max_rows {
+        avail = (avail - egui::style::ScrollStyle::solid().bar_width - 6.0).max(min_w);
+    }
+    let cols = fits(avail);
+    let w = ((avail - (cols - 1) as f32 * gap) / cols as f32).clamp(min_w.min(avail), max_w);
+    let rows = n.div_ceil(cols);
+    ui.scope(|ui| {
+        // A solid scroll bar, always shown, so it's plain that there are more.
+        ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+        egui::ScrollArea::vertical().id_salt(id).max_height(max_rows as f32 * (h + gap) - gap).auto_shrink([false, true]).show(ui, |ui| {
+            ui.spacing_mut().item_spacing = vec2(gap, gap);
+            for r in 0..rows {
+                ui.horizontal(|ui| {
+                    for i in r * cols..((r + 1) * cols).min(n) {
+                        chip(ui, i, w);
+                    }
+                });
+            }
+        });
+    });
+}
+
+/// Text cut to one line of `width`, ending in "…" when it doesn't fit.
+pub fn one_line(ui: &Ui, text: &str, font: egui::FontId, color: Color32, width: f32) -> std::sync::Arc<egui::Galley> {
+    let mut job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font, color);
+    job.wrap = egui::text::TextWrapping { max_width: width.max(1.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    ui.painter().layout_job(job)
+}
+
 /// A labelled icon button for the reading pane's action row.
 pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response {
     let label = tl!(label);
