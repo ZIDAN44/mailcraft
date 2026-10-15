@@ -1176,7 +1176,8 @@ impl MailApp {
                 }
                 continue;
             }
-            if typing && combo == "Mod+A" {
+            // In a text box these edit the text (select all, undo, redo).
+            if typing && matches!(combo.as_str(), "Mod+A" | "Mod+Z" | "Mod+Y" | "Mod+Shift+Z") {
                 continue;
             }
             if let Some(spec) = reg.by_shortcut(&combo) {
@@ -1222,7 +1223,12 @@ impl MailApp {
             ui.painter().rect_filled(r, 5.0, Color32::WHITE);
             icons::paint(ui.painter(), icons::centered(r, 15.0), Icon::Unread, t.accent);
             ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(Color32::WHITE));
-            ui.add_space(16.0);
+            ui.add_space(6.0);
+            // Undo the last move, delete, flag or category (Ctrl+Z), as Outlook's quick access.
+            if !self.session.undo.is_empty() && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)")).clicked() {
+                acts.push(Action::Run("edit.undo", json!({})));
+            }
+            ui.add_space(10.0);
             let avail = ui.available_width();
             let search_w = (avail * 0.45).clamp(220.0, 620.0);
             ui.add_space(((avail - search_w) / 2.0 - 160.0).max(0.0));

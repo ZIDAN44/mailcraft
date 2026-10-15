@@ -611,6 +611,7 @@
 	Work offline	Travailler hors connexion
 	Working offline	Travail hors connexion
 	Close every connection: changes, mail you send and drafts wait on this computer	Fermer toutes les connexions : les modifications, le courrier envoyé et les brouillons attendent sur cet ordinateur
+	Undo (Ctrl+Z)	Annuler (Ctrl+Z)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

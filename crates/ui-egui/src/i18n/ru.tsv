@@ -610,6 +610,7 @@
 	Work offline	Автономная работа
 	Working offline	Автономный режим
 	Close every connection: changes, mail you send and drafts wait on this computer	Закрыть все подключения: изменения, отправленная почта и черновики ждут на этом компьютере
+	Undo (Ctrl+Z)	Отменить (Ctrl+Z)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

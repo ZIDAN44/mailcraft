@@ -610,6 +610,7 @@
 	Work offline	오프라인 작업
 	Working offline	오프라인 작업 중
 	Close every connection: changes, mail you send and drafts wait on this computer	모든 연결 닫기: 변경 사항, 보내는 메일, 임시 보관 메일은 이 컴퓨터에서 대기합니다
+	Undo (Ctrl+Z)	실행 취소(Ctrl+Z)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

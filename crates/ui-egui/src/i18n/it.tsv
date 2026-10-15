@@ -610,6 +610,7 @@
 	Work offline	Lavora offline
 	Working offline	Lavoro offline
 	Close every connection: changes, mail you send and drafts wait on this computer	Chiudi tutte le connessioni: modifiche, posta inviata e bozze attendono su questo computer
+	Undo (Ctrl+Z)	Annulla (Ctrl+Z)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

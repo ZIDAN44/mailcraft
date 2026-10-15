@@ -611,6 +611,7 @@
 	Work offline	Offline arbeiten
 	Working offline	Offline
 	Close every connection: changes, mail you send and drafts wait on this computer	Alle Verbindungen schließen: Änderungen, gesendete E-Mails und Entwürfe warten auf diesem Computer
+	Undo (Ctrl+Z)	Rückgängig (Strg+Z)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
