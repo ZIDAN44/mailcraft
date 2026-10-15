@@ -19,6 +19,12 @@
 //! outlast the page.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod location;
+#[cfg(not(target_arch = "wasm32"))]
+mod packed;
+#[cfg(not(target_arch = "wasm32"))]
+pub use packed::EXTENSION as DATA_FILE_EXTENSION;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
@@ -102,7 +108,7 @@ pub fn fnv64(s: &str) -> u64 {
 }
 
 /// Keep only characters that are safe in a path segment.
-fn safe_segment(s: &str) -> String {
+pub(crate) fn safe_segment(s: &str) -> String {
     let v: String = s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(64).collect();
     if v.is_empty() { format!("x{:x}", fnv64(s)) } else { v }
 }
@@ -118,6 +124,9 @@ fn safe_doc(name: &str) -> String {
 #[derive(Clone, Debug)]
 enum Files {
     Disk,
+    /// Each account in one data file (`packed.rs`), the rest on disk.
+    #[cfg(not(target_arch = "wasm32"))]
+    Packed(Arc<packed::Packs>),
     /// The files, and the paths changed since they were last taken (when that's tracked).
     Memory(Arc<Mutex<BTreeMap<PathBuf, Vec<u8>>>>, Arc<Mutex<Option<std::collections::BTreeSet<PathBuf>>>>),
 }
@@ -145,6 +154,8 @@ impl Files {
     fn read(&self, p: &Path) -> io::Result<Vec<u8>> {
         match self {
             Files::Disk => fs::read(p),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.read(p),
             Files::Memory(m, _) => Files::with(m, |m| m.get(p).cloned().ok_or_else(not_found)),
         }
     }
@@ -152,6 +163,8 @@ impl Files {
     fn write(&self, p: &Path, bytes: &[u8]) -> Result<()> {
         match self {
             Files::Disk => write_atomic(p, bytes),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.write(p, bytes),
             Files::Memory(m, _) => {
                 Files::with(m, |m| m.insert(p.to_path_buf(), bytes.to_vec()));
                 self.mark([p]);
@@ -163,6 +176,8 @@ impl Files {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         match self {
             Files::Disk => fs::rename(from, to),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.rename(from, to),
             Files::Memory(m, _) => {
                 let moved = Files::with(m, |m| {
                     let moving: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(from)).cloned().collect();
@@ -188,6 +203,8 @@ impl Files {
     fn remove_file(&self, p: &Path) -> io::Result<()> {
         match self {
             Files::Disk => fs::remove_file(p),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.remove_file(p),
             Files::Memory(m, _) => {
                 Files::with(m, |m| m.remove(p).map(|_| ()).ok_or_else(not_found))?;
                 self.mark([p]);
@@ -199,6 +216,8 @@ impl Files {
     fn remove_dir_all(&self, p: &Path) -> io::Result<()> {
         match self {
             Files::Disk => fs::remove_dir_all(p),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.remove_dir_all(p),
             Files::Memory(m, _) => {
                 let gone: Vec<PathBuf> = Files::with(m, |m| {
                     let gone: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(p)).cloned().collect();
@@ -219,6 +238,8 @@ impl Files {
     fn is_file(&self, p: &Path) -> bool {
         match self {
             Files::Disk => p.is_file(),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.is_file(p),
             Files::Memory(m, _) => Files::with(m, |m| m.contains_key(p)),
         }
     }
@@ -226,6 +247,8 @@ impl Files {
     fn exists(&self, p: &Path) -> bool {
         match self {
             Files::Disk => p.exists(),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.exists(p),
             Files::Memory(m, _) => Files::with(m, |m| m.keys().any(|k| k.starts_with(p))),
         }
     }
@@ -233,6 +256,8 @@ impl Files {
     /// The files directly in a folder, by name.
     fn list(&self, dir: &Path) -> Vec<(String, PathBuf)> {
         match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.list(dir),
             Files::Disk => {
                 let Ok(rd) = fs::read_dir(dir) else { return Vec::new() };
                 rd.filter_map(|e| e.ok())
@@ -260,6 +285,8 @@ impl Files {
         }
         match self {
             Files::Disk => walk(dir, 0),
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.size(dir).unwrap_or_else(|| walk(dir, 0)),
             Files::Memory(m, _) => {
                 Files::with(m, |m| m.iter().filter(|(k, _)| k.starts_with(dir)).map(|(_, v)| v.len() as u64).fold(0u64, u64::saturating_add))
             }
@@ -279,6 +306,37 @@ impl Store {
         let root = root.into();
         fs::create_dir_all(&root).map_err(io_err(&root))?;
         Ok(Store { root, files: Files::Disk })
+    }
+
+    /// A cache whose accounts are each one data file in `files` (as Outlook keeps a `.pst` per
+    /// account), with the account list and the app's own files in `root`. Account folders a
+    /// cache at `root` had from before are brought into data files.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn open_packed(root: impl Into<PathBuf>, files: impl AsRef<Path>) -> Result<Store> {
+        let root = root.into();
+        fs::create_dir_all(&root).map_err(io_err(&root))?;
+        let packs = packed::Packs::open(&root, files.as_ref())?;
+        Ok(Store { root, files: Files::Packed(Arc::new(packs)) })
+    }
+
+    /// The data file an account is kept in, when the cache keeps them so.
+    pub fn data_file(&self, account: &str) -> Option<PathBuf> {
+        #[cfg(target_arch = "wasm32")]
+        let _ = account;
+        match &self.files {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.file(&safe_segment(account)),
+            _ => None,
+        }
+    }
+
+    /// The folder the data files are in, when the cache keeps them so.
+    pub fn data_files_dir(&self) -> Option<PathBuf> {
+        match &self.files {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => Some(x.dir().to_path_buf()),
+            _ => None,
+        }
     }
 
     /// A cache kept in memory only (clones share it).
@@ -354,6 +412,11 @@ impl Store {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Where an account's mail is kept (to show the user): its data file, or its folder.
+    pub fn account_path(&self, account: &str) -> PathBuf {
+        self.data_file(account).unwrap_or_else(|| self.account_dir(account))
     }
 
     fn account_dir(&self, account: &str) -> PathBuf {
@@ -657,24 +720,14 @@ impl Store {
     }
 }
 
-/// The per-user data folder: `%APPDATA%\MailCraft` on Windows, `~/Library/Application
-/// Support/MailCraft` on macOS, `$XDG_DATA_HOME/mailcraft` (or `~/.local/share/mailcraft`)
-/// elsewhere. `MAILCRAFT_DATA` overrides it.
+/// The app folder (the account list, the app's state): the per-user one
+/// ([`location::base_root`]); `MAILCRAFT_DATA` overrides it. The accounts' data files are in
+/// [`location::files_dir`].
 pub fn default_root() -> Option<PathBuf> {
     if let Some(d) = std::env::var_os("MAILCRAFT_DATA").filter(|d| !d.is_empty()) {
         return Some(PathBuf::from(d));
     }
-    if cfg!(target_os = "windows") {
-        return std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("MailCraft"));
-    }
-    let home = std::env::var_os("HOME").map(PathBuf::from)?;
-    if cfg!(target_os = "macos") {
-        return Some(home.join("Library").join("Application Support").join("MailCraft"));
-    }
-    match std::env::var_os("XDG_DATA_HOME").filter(|d| !d.is_empty()) {
-        Some(x) => Some(PathBuf::from(x).join("mailcraft")),
-        None => Some(home.join(".local").join("share").join("mailcraft")),
-    }
+    location::base_root()
 }
 
 /// Write `bytes` to `path` via a temporary file and a rename.

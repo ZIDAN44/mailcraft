@@ -14,3 +14,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+
+# Native only (the browser keeps its cache in memory).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Each account's mail in one data file (`packed.rs`): a crash-safe, pure-Rust embedded database.
+redb = "=4.3.0"
+# The Documents folder (where "MailCraft Files" goes), wherever the system has put it.
+dirs = "6"
