@@ -202,8 +202,19 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
     let resp = ui.interact(rect, ui.id().with(("chip", &item.uid, item.start)), Sense::click());
     let c = color(item.color, t);
     let tentative = item.needs_reply || item.status == "TENTATIVE";
-    let fill = if tentative { t.surface } else { c.gamma_multiply(if t.dark { 0.35 } else { 0.18 }) };
-    ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(if tentative { 1.0 } else { 0.0 }, c), egui::StrokeKind::Inside);
+    // Stronger under the pointer, with its colour round it.
+    let hovered = resp.hovered();
+    let fill = match (tentative, hovered) {
+        (true, false) => t.surface,
+        (true, true) => t.hover,
+        (false, h) => c.gamma_multiply(match (t.dark, h) {
+            (true, false) => 0.35,
+            (true, true) => 0.5,
+            (false, false) => 0.18,
+            (false, true) => 0.3,
+        }),
+    };
+    ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(if tentative || hovered { 1.0 } else { 0.0 }, c), egui::StrokeKind::Inside);
     ui.painter().rect_filled(Rect::from_min_size(rect.min, vec2(3.0, rect.height())), 2.0, c);
     let galley = ui.painter().layout(text.to_string(), theme::regular(12.0), t.text, (rect.width() - 8.0).max(4.0));
     ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0, 2.0), galley, t.text);
@@ -224,6 +235,9 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
         for i in 0..7 {
             let d = d0 + w * 7 + i;
             let r = Rect::from_min_size(pos2(area.min.x + cw * i as f32, area.min.y + head + rh * w as f32), vec2(cw, rh));
+            if ui.rect_contains_pointer(r) {
+                ui.painter().rect_filled(r, 0.0, t.hover_row);
+            }
             ui.painter().rect_stroke(r, 0.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
             let (_, m, dd) = civil_from_days(d);
             let num_pos = r.min + vec2(14.0, 12.0);
@@ -360,6 +374,12 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
         for i in 0..n {
             let col = Rect::from_min_size(pos2(grid.min.x + gutter + cw * i as f32, grid.min.y), vec2(cw, grid.height()));
             let r = ui.interact(col, ui.id().with(("hours", d0 + i)), Sense::click());
+            // The half hour under the pointer lights up: a click adds an event there.
+            if let Some(p) = r.hover_pos() {
+                let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0);
+                let slot = Rect::from_min_size(pos2(col.min.x, grid.min.y + half * HOUR / 2.0), vec2(cw, HOUR / 2.0)).shrink(1.0);
+                ui.painter().rect_filled(slot, 2.0, t.hover_row);
+            }
             if r.clicked()
                 && let Some(p) = r.interact_pointer_pos()
             {

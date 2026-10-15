@@ -51,7 +51,7 @@ fn row(
     } else if selected {
         t.accent_soft
     } else if resp.hovered() {
-        t.hover
+        t.hover_row
     } else {
         Color32::TRANSPARENT
     };
@@ -114,7 +114,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let open = state.is_open();
             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
             if resp.hovered() {
-                ui.painter().rect_filled(rect, 6.0, t.hover);
+                ui.painter().rect_filled(rect, 6.0, t.hover_row);
             }
             let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);

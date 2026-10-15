@@ -621,7 +621,9 @@ fn color_button(
             ui.set_max_width(6.0 * 26.0);
             for c in swatches {
                 let (r, s) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
-                ui.painter().rect(r, 3.0, Color32::from_rgb(c[0], c[1], c[2]), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                // A stronger edge under the pointer.
+                let edge = if s.hovered() { Stroke::new(2.0, t.text) } else { Stroke::new(1.0, t.border) };
+                ui.painter().rect(r, 3.0, Color32::from_rgb(c[0], c[1], c[2]), edge, egui::StrokeKind::Inside);
                 if s.clicked() {
                     picked = Some(Some(*c));
                 }

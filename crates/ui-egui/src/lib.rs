@@ -1417,7 +1417,7 @@ impl MailApp {
         let t = self.ui.tokens;
         let s = &self.session;
         ui.horizontal(|ui| {
-            if ui.add(egui::Button::new(RichText::new(tl!("File")).color(t.dim).font(theme::regular(13.5))).frame(false)).clicked() {
+            if ui.add(egui::Button::new(RichText::new(tl!("File")).color(t.dim).font(theme::regular(13.5))).frame_when_inactive(false)).clicked() {
                 acts.push(Action::Backstage(backstage::Page::Info));
             }
             for (tab, label) in [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View")] {
@@ -1428,7 +1428,7 @@ impl MailApp {
                     } else {
                         theme::regular(13.5)
                     }))
-                    .frame(false),
+                    .frame_when_inactive(false),
                 );
                 if on {
                     let rect = r.rect;
@@ -1710,11 +1710,14 @@ impl MailApp {
                         SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),
                         SyncStatus::Error { error } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
                     };
-                    let r = ui.label(RichText::new(text).color(t.dim).small());
                     let label = a.config.email.clone();
-                    let r = r.on_hover_text(label);
-                    if matches!(a.status, SyncStatus::NeedsPassword { .. }) && r.interact(Sense::click()).clicked() {
-                        again = Some(a.config.id.clone());
+                    // "Password needed" is a link: click it to enter the password again.
+                    if matches!(a.status, SyncStatus::NeedsPassword { .. }) {
+                        if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(label).clicked() {
+                            again = Some(a.config.id.clone());
+                        }
+                    } else {
+                        ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(label);
                     }
                     let (dot, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                     ui.painter().circle_filled(dot.center(), 4.0, color);

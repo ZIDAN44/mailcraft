@@ -373,7 +373,7 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
                 let current = k == open;
                 let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
                 if current || resp.hovered() {
-                    ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover });
+                    ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover_row });
                 }
                 let font = if !m.flags.seen { theme::bold(13.0) } else { theme::regular(13.0) };
                 let p = ui.painter_at(rect);
@@ -960,11 +960,11 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
         );
         let body = Rect::from_min_max(rect.min, egui::pos2(more_rect.left() - 2.0, rect.bottom())).shrink(2.0);
         if selected || body_hovered {
-            p.rect_filled(body, 3.0, t.accent_soft);
+            p.rect_filled(body, 3.0, if selected { t.accent_soft } else { t.hover_row });
         }
         let menu_open = egui::Popup::is_id_open(ui.ctx(), more.id.with("menu"));
         if on_more || menu_open {
-            p.rect_filled(more_rect, 3.0, t.accent_soft);
+            p.rect_filled(more_rect, 3.0, t.hover_row);
         }
         icons::paint(p, icons::centered(more_rect, 13.0), Icon::ChevronDown, if on_more { t.text } else { t.dim });
         let r = Rect::from_min_size(egui::pos2(rect.left() + 6.0, rect.center().y - 15.0), vec2(30.0, 30.0));
@@ -1336,7 +1336,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                             p.rect(
                                 rect,
                                 4.0,
-                                if resp.hovered() { t.accent_soft } else { t.surface },
+                                if resp.hovered() { t.hover_row } else { t.surface },
                                 egui::Stroke::new(1.0, t.faint.gamma_multiply(0.55)),
                                 egui::StrokeKind::Inside,
                             );

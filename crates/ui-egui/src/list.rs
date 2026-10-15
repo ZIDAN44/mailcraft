@@ -41,7 +41,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     } else {
                         theme::regular(14.0)
                     });
-                    let r = ui.add(egui::Button::new(text).frame(false));
+                    let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
                     if on {
                         ui.painter().line_segment(
                             [pos2(r.rect.left() + 2.0, r.rect.bottom() + 1.0), pos2(r.rect.right() - 2.0, r.rect.bottom() + 1.0)],
@@ -65,7 +65,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 } else {
                     theme::regular(12.5)
                 });
-                let r = ui.add(egui::Button::new(text).frame(false));
+                let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
                 if on {
                     ui.painter().line_segment(
                         [pos2(r.rect.left() + 4.0, r.rect.bottom()), pos2(r.rect.right() - 4.0, r.rect.bottom())],
@@ -81,14 +81,15 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let rev = s.prefs.reverse_sort;
                     if ui
-                        .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame(false))
+                        .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame_when_inactive(false))
                         .on_hover_text(tl!("Reverse sort"))
                         .clicked()
                     {
                         acts.push(Action::Run("view.reverseSort", json!({})));
                     }
                     let r = ui.add(
-                        egui::Button::new(RichText::new(tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()))).color(t.dim).small()).frame(false),
+                        egui::Button::new(RichText::new(tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()))).color(t.dim).small())
+                            .frame_when_inactive(false),
                     );
                     egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
                 });
@@ -218,7 +219,7 @@ fn message_row(
     let fill = if selected {
         t.accent_soft
     } else if hovered {
-        t.hover
+        t.hover_row
     } else {
         Color32::TRANSPARENT
     };

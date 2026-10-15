@@ -34,7 +34,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
             let selected = st.person.as_deref() == Some(p.card.uid.as_str());
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
             if selected || resp.hovered() {
-                ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover });
+                ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
             }
             let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
             widgets::avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark));

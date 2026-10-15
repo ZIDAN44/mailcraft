@@ -25,7 +25,11 @@ pub struct Tokens {
     pub on_accent: Color32,
     /// Selection background.
     pub accent_soft: Color32,
+    /// Buttons under the pointer.
     pub hover: Color32,
+    /// Rows under the pointer (folders, messages, people, attachment chips): a tint of the app
+    /// colour, lighter than the selection.
+    pub hover_row: Color32,
     pub danger: Color32,
     pub flag: Color32,
     pub ok: Color32,
@@ -45,8 +49,9 @@ impl Tokens {
             faint: Color32::from_rgb(0x8C, 0x93, 0x9D),
             accent: APP_COLOR,
             on_accent: Color32::WHITE,
-            accent_soft: Color32::from_rgb(0xDC, 0xF0, 0xF2),
-            hover: Color32::from_rgb(0xEE, 0xF1, 0xF4),
+            accent_soft: Color32::from_rgb(0xD2, 0xEB, 0xEE),
+            hover: Color32::from_rgb(0xE8, 0xEB, 0xEE),
+            hover_row: Color32::from_rgb(0xE8, 0xF5, 0xF6),
             danger: Color32::from_rgb(0xC4, 0x2B, 0x1C),
             flag: Color32::from_rgb(0xC5, 0x3B, 0x2F),
             ok: Color32::from_rgb(0x1E, 0x8E, 0x3E),
@@ -67,7 +72,8 @@ impl Tokens {
             accent: Color32::from_rgb(0x3F, 0xB8, 0xC4),
             on_accent: Color32::from_rgb(0x0B, 0x1E, 0x21),
             accent_soft: Color32::from_rgb(0x1D, 0x3B, 0x40),
-            hover: Color32::from_rgb(0x2B, 0x2E, 0x33),
+            hover: Color32::from_rgb(0x31, 0x35, 0x3B),
+            hover_row: Color32::from_rgb(0x27, 0x33, 0x36),
             danger: Color32::from_rgb(0xF0, 0x6A, 0x5C),
             flag: Color32::from_rgb(0xF0, 0x6A, 0x5C),
             ok: Color32::from_rgb(0x5C, 0xC9, 0x7B),

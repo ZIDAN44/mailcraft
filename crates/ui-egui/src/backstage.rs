@@ -128,7 +128,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
 fn rail_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, on: bool) -> egui::Response {
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
     if on || resp.hovered() {
-        ui.painter().rect_filled(r, 0.0, if on { t.accent_soft } else { t.hover });
+        ui.painter().rect_filled(r, 0.0, if on { t.accent_soft } else { t.hover_row });
     }
     if on {
         ui.painter().rect_filled(egui::Rect::from_min_size(r.min, vec2(3.0, r.height())), 0.0, t.accent);

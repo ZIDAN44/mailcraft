@@ -913,7 +913,7 @@ fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Actio
                     let name = if a.name.is_empty() { a.email.clone() } else { a.name.clone() };
                     let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), egui::Sense::click());
                     if on || r.hovered() {
-                        ui.painter().rect_filled(rect, 3.0, if on { t.accent_soft } else { t.hover });
+                        ui.painter().rect_filled(rect, 3.0, if on { t.accent_soft } else { t.hover_row });
                     }
                     let left = rect.left_center();
                     ui.painter().text(left + vec2(6.0, 0.0), egui::Align2::LEFT_CENTER, name, theme::regular(13.5), t.text);
@@ -1556,6 +1556,9 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             ui.horizontal(|ui| {
                 for c in 0..8u8 {
                     let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::click());
+                    if resp.hovered() {
+                        ui.painter().circle_filled(rect.center(), 11.0, t.hover);
+                    }
                     ui.painter().circle_filled(rect.center(), 8.0, theme::category_color(c, t.dark));
                     if *color == c {
                         ui.painter().circle_stroke(rect.center(), 10.0, egui::Stroke::new(2.0, t.text));
