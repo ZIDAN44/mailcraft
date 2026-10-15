@@ -849,6 +849,62 @@ x"
         let _ = std::fs::remove_dir_all(store.root());
     }
 
+    /// Send / Receive › Work Offline: connections close; changes, sent mail and drafts wait on
+    /// this computer; turned off, the account connects and the draft reaches the server.
+    #[test]
+    fn working_offline_keeps_drafts_and_mail_until_back() {
+        let st = State::new();
+        let imap_port = serve_tcp(&st);
+        let store = store("offline");
+        let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig {
+            id: "a1".into(),
+            email: "me@studio.example".into(),
+            username: "me@studio.example".into(),
+            imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
+            smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+            ..Default::default()
+        };
+        // Working offline before it starts: it never connects.
+        pool.submit(Job::WorkOffline { on: true });
+        pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+        until(&pool, "offline", |e| matches!(e, Event::Status { status: SyncStatus::Offline, .. }));
+        let draft = b"From: me@studio.example
+Subject: Kept
+
+written offline
+"
+        .to_vec();
+        pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "INBOX".into(), replaces: None });
+        until(&pool, "draft kept", |e| matches!(e, Event::Notice { message, .. } if message.contains("kept on this computer")));
+        pool.submit(Job::Send {
+            account: "a1".into(),
+            id: 7,
+            raw: b"Subject: x
+
+y"
+            .to_vec(),
+            from: "me@studio.example".into(),
+            recipients: vec!["a@b.example".into()],
+            sent_folder: None,
+        });
+        until(&pool, "queued", |e| matches!(e, Event::Queued { id: 7, .. }));
+        pool.submit(Job::SyncAll { account: "a1".into() });
+        assert!(st.lock().unwrap().mailbox("INBOX").unwrap().msgs.is_empty(), "nothing reached the server");
+        // Back online: the kept draft goes up first.
+        pool.submit(Job::WorkOffline { on: false });
+        let end = Instant::now() + Duration::from_secs(20);
+        while st.lock().unwrap().mailbox("INBOX").unwrap().msgs.is_empty() {
+            assert!(Instant::now() < end, "the draft never reached the server");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let saved = st.lock().unwrap().mailbox("INBOX").unwrap().msgs[0].raw.clone();
+        assert!(String::from_utf8_lossy(&saved).contains("written offline"));
+        assert!(store.outbox("a1").iter().any(|i| i.id == 7), "sent mail waits in the Outbox");
+        pool.submit(Job::Remove { account: "a1".into() });
+        let _ = std::fs::remove_dir_all(store.root());
+    }
+
     #[test]
     fn outbox_holds_mail_until_smtp_is_back() {
         let st = State::new();

@@ -84,6 +84,31 @@ pub struct Pool {
     pub sieve_port: u16,
     /// Picture downloads, on their own thread so they never wait behind a sync.
     fetcher: Option<Sender<String>>,
+    /// Working offline: no account connects until it's turned off.
+    offline: bool,
+}
+
+/// Drafts that couldn't be saved to the server (offline, or it failed), kept with the account
+/// until it connects again.
+const PENDING_DRAFTS: &str = "drafts-pending.json";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PendingDraft {
+    folder: String,
+    #[serde(default)]
+    replaces: Option<mailcraft_model::MessageKey>,
+    raw: Vec<u8>,
+}
+
+/// Keep a draft on this computer for the next connection.
+fn keep_draft(store: &Store, account: &str, folder: &str, replaces: Option<mailcraft_model::MessageKey>, raw: Vec<u8>) -> Result<()> {
+    let mut list: Vec<PendingDraft> = store.load_account_doc(account, PENDING_DRAFTS).unwrap_or_default();
+    // A newer version of the same draft replaces the one kept.
+    if let Some(r) = &replaces {
+        list.retain(|d| d.replaces.as_ref() != Some(r));
+    }
+    list.push(PendingDraft { folder: folder.to_string(), replaces, raw });
+    store.save_account_doc(account, PENDING_DRAFTS, &list).map_err(NetError::from)
 }
 
 fn now() -> i64 {
@@ -103,6 +128,7 @@ impl Pool {
             opts: SyncOptions::default(),
             sieve_port: crate::sieve::PORT,
             fetcher: None,
+            offline: false,
         }
     }
 
@@ -234,6 +260,34 @@ impl Pool {
             }
             Job::ImportPst { account, path } => self.import_pst(account, path),
             Job::ExportPst { account, path, name } => self.export_pst(account, path, name),
+            Job::WorkOffline { on } => {
+                self.offline = on;
+                if on {
+                    let ids: Vec<String> = self.workers.keys().cloned().collect();
+                    for id in ids {
+                        self.stop(&id);
+                        self.sink.emit(Event::Status { account: id, status: SyncStatus::Offline });
+                    }
+                } else {
+                    let configs: Vec<AccountConfig> = self.configs.values().cloned().collect();
+                    for c in configs {
+                        self.start(c, None);
+                    }
+                }
+            }
+            Job::Start { account, password } if self.offline => {
+                // Working offline: remembered (and its password kept) for when that's turned off.
+                if let Some(p) = &password
+                    && let Err(e) = self.creds.set(&account, &p.0)
+                {
+                    self.sink.emit(Event::Notice {
+                        account: account.id.clone(),
+                        message: format!("the password could not be saved in the keychain: {e}"),
+                    });
+                }
+                self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Offline });
+                self.configs.insert(account.id.clone(), account);
+            }
             Job::Start { account, password } => self.start(account, password),
             Job::Remove { account } => {
                 self.stop(&account);
@@ -258,6 +312,18 @@ impl Pool {
             }
             // Offline: changes wait in the cache for the next sync.
             Job::SyncDav { account } if !self.workers.contains_key(&account) => {}
+            // Working offline: nothing connects, by choice.
+            Job::SyncAll { account } | Job::SyncFolder { account, .. } | Job::FlushOutbox { account }
+                if self.offline && !self.workers.contains_key(&account) => {}
+            Job::SaveDraft { account, raw, folder, replaces } if !self.workers.contains_key(&account) => {
+                match keep_draft(&self.store, &account, &folder, replaces, raw) {
+                    Ok(()) => self.sink.emit(Event::Notice {
+                        account,
+                        message: "the draft is kept on this computer; it goes to Drafts when you're back online".into(),
+                    }),
+                    Err(e) => self.sink.emit(Event::Notice { account, message: format!("the draft couldn't be kept: {e}") }),
+                }
+            }
             Job::GetVacation { account } | Job::SetVacation { account, .. } if !self.workers.contains_key(&account) => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
             }
@@ -712,6 +778,14 @@ impl Worker {
         }
         self.replay();
         self.flush_outbox();
+        // Drafts kept while offline go to the server first.
+        let kept: Vec<PendingDraft> = self.store.load_account_doc(&self.acc.id, PENDING_DRAFTS).unwrap_or_default();
+        if !kept.is_empty() {
+            let _ = self.store.save_account_doc(&self.acc.id, PENDING_DRAFTS, &Vec::<PendingDraft>::new());
+            for d in kept.into_iter().rev() {
+                self.queue.push_front(Job::SaveDraft { account: self.acc.id.clone(), raw: d.raw, folder: d.folder, replaces: d.replaces });
+            }
+        }
         self.last_full = None;
     }
 
@@ -939,6 +1013,7 @@ impl Worker {
             }
             Job::Send { id, raw, from, recipients, sent_folder, .. } => self.send(id, &raw, &from, &recipients, sent_folder),
             Job::SaveDraft { raw, folder, replaces, .. } => {
+                let (raw_kept, replaces_kept) = (raw.clone(), replaces.clone());
                 let r = (|| -> Result<()> {
                     if self.conn.is_none() {
                         self.connect()?;
@@ -981,7 +1056,16 @@ impl Worker {
                 })();
                 match r {
                     Ok(()) => self.sync_one(&folder),
-                    Err(e) => self.failed(e),
+                    Err(e) => {
+                        // Not lost: kept on this computer and saved when the account connects.
+                        match keep_draft(&self.store, &self.acc.id, &folder, replaces_kept, raw_kept) {
+                            Ok(()) => self.notice(
+                                "the draft couldn't be saved to the server; it's kept on this computer and saved there when the account connects",
+                            ),
+                            Err(k) => self.notice(format!("the draft couldn't be saved: {k}")),
+                        }
+                        self.failed(e);
+                    }
                 }
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
@@ -1002,7 +1086,7 @@ impl Worker {
                 }
             }
             Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } | Job::ExportPst { .. } => {}
-            Job::Start { .. } | Job::Remove { .. } => {}
+            Job::Start { .. } | Job::Remove { .. } | Job::WorkOffline { .. } => {}
         }
     }
 

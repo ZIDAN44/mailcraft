@@ -147,6 +147,9 @@ pub enum Job {
     Discover { email: String },
     /// Sign an OAuth account in through the browser; it starts once signed in.
     SignIn { account: AccountConfig },
+    /// Work offline (every account's connection closed, changes and mail kept to send later), or
+    /// connect again.
+    WorkOffline { on: bool },
     /// Read the account's automatic replies from the server.
     GetVacation { account: String },
     /// Change them.
@@ -177,7 +180,7 @@ impl Job {
             | Job::SyncDav { account }
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
-            Job::FetchUrl { .. } | Job::Discover { .. } => "",
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } => "",
             Job::SignIn { account } => &account.id,
         }
     }
