@@ -51,9 +51,6 @@
   <requires>
     <display_length compare="ge">760</display_length>
   </requires>
-  <recommends>
-    <internet>always</internet>
-  </recommends>
   <supports>
     <control>keyboard</control>
     <control>pointing</control>
