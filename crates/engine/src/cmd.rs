@@ -467,7 +467,7 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account"?: string, "folder"?: string, "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "ews"?: string (on-premises Exchange: its EWS address or server name; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
@@ -1070,7 +1070,12 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     };
     // `ews`: on-premises Exchange through Exchange Web Services, at this address (a server name
     // alone means its usual `/EWS/Exchange.asmx`).
-    let ews = p::str(v, "ews").map(str::trim).filter(|u| !u.is_empty()).map(ews_url);
+    // `true`: found with Autodiscover when the account connects.
+    let ews = match v.get("ews") {
+        Some(Value::Bool(true)) => Some(mailcraft_model::EWS_AUTODISCOVER.to_string()),
+        Some(Value::String(u)) if !u.trim().is_empty() => Some(ews_url(u)),
+        _ => None,
+    };
     if s.jmap_only && jmap.is_none() {
         return Err(CmdError::Params("in the browser, MailCraft works with JMAP accounts only".into()));
     }

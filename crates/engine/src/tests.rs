@@ -1300,6 +1300,14 @@ fn on_premises_exchange_accounts_go_through_ews() {
     assert_eq!(a.config.ews.as_deref(), Some("https://mail.contoso.example/EWS/Exchange.asmx"));
     assert!(a.config.is_api() && !a.is_local() && a.config.imap.host.is_empty() && a.config.oauth.is_none());
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, password: Some(_) }] if account.ews.is_some()));
+    // Or found with Autodiscover when it connects.
+    let auto =
+        s.run("account.add", &json!({"email": "ana@contoso.example", "ews": true, "username": "CONTOSO\\ana", "password": "pw"})).unwrap()["account"]
+            .as_str()
+            .unwrap()
+            .to_string();
+    assert_eq!(s.account(&auto).unwrap().config.ews.as_deref(), Some(mailcraft_model::EWS_AUTODISCOVER));
+    s.take_jobs();
     // A full address is kept as it is, and can be changed.
     s.run("account.update", &json!({"account": id, "ews": "https://owa.contoso.example/ews/exchange.asmx"})).unwrap();
     assert_eq!(s.account(&id).unwrap().config.ews.as_deref(), Some("https://owa.contoso.example/ews/exchange.asmx"));

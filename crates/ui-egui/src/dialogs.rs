@@ -60,7 +60,8 @@ impl AccountForm {
                 "name": self.name.trim(),
                 "password": self.password,
                 "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
-                "ews": self.ews_url.trim(),
+                // No server named: Autodiscover finds it.
+                "ews": if self.ews_url.trim().is_empty() { json!(true) } else { json!(self.ews_url.trim()) },
             });
         }
         if self.jmap {
@@ -932,7 +933,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                             .small(),
                         );
                         label(ui, "Exchange server");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.ews_url).hint_text("mail.example.com"));
+                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")));
                         ui.add_space(4.0);
                         label(ui, "User name");
                         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
@@ -1056,11 +1057,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
-            let ready = !f.graph
-                && !f.email.trim().is_empty()
-                && !f.password.is_empty()
-                && (!f.jmap || !f.jmap_url.trim().is_empty())
-                && (!f.ews || !f.ews_url.trim().is_empty());
+            let ready = !f.graph && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
                 if !f.jmap && !f.ews && f.imap_host.is_empty() {

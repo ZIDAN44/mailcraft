@@ -564,6 +564,7 @@
 	Server: {url} (EWS)	Servidor: {url} (EWS)
 	DOMAIN\\user, or the email address	DOMÍNIO\\usuário, ou o endereço de email
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Para servidores Exchange da sua organização, pelo Exchange Web Services. Entra com seu nome de usuário e senha de rede.
+	Found automatically when left empty	Encontrado automaticamente se ficar vazio
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

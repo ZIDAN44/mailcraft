@@ -565,3 +565,4 @@ month	May	مايو
 	Server: {url} (EWS)	الخادم: {url} (EWS)
 	DOMAIN\\user, or the email address	DOMAIN\\user، أو عنوان البريد الإلكتروني
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	لخوادم Exchange التي تديرها مؤسستك، عبر Exchange Web Services. يسجّل الدخول باسم مستخدم الشبكة وكلمة المرور.
+	Found automatically when left empty	يُعثر عليه تلقائيًا إذا تُرك فارغًا
