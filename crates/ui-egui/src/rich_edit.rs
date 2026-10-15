@@ -68,6 +68,8 @@ pub(crate) struct Editor {
     link: Option<LinkForm>,
     /// Paste once the text has the keyboard back (asked from the right-click menu).
     paste: bool,
+    /// The right-click menu was open last frame (closing it gives the text the keyboard back).
+    menu_open: bool,
     pictures: HashMap<String, Option<egui::TextureHandle>>,
     /// Give the keyboard back to the text (after a ribbon button took the click), with this
     /// selection.
@@ -193,6 +195,7 @@ impl Editor {
             last_change: 0.0,
             link: None,
             paste: false,
+            menu_open: false,
             pictures: HashMap::new(),
             refocus: None,
         }
@@ -606,6 +609,13 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let tokens = *t;
     let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap);
     let height = ui.available_height().max(220.0);
+    // A right-click inside the selection keeps it (egui's text box moves the cursor on any
+    // press); one outside it moves the cursor there, as Outlook does.
+    let kept = ed.sel.clone();
+    let right_press = ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary));
+    // The selection is drawn behind the text while the text box doesn't have the keyboard
+    // (a menu, a dialog or the ribbon has it), so what's selected stays plain to see.
+    let behind = ui.painter().add(egui::Shape::Noop);
     // No hint over a first line that's a list item or indented (its bullet is drawn there).
     let p0 = c.styles.para(0);
     let hint = if p0.list == List::None && p0.indent == 0 { tl!("Write your message…") } else { "" };
@@ -618,10 +628,20 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         .min_size(vec2(ui.available_width(), height))
         .layouter(&mut layouter)
         .show(ui);
-    let cursor = out.cursor_range.map(|r| {
+    let mut cursor = out.cursor_range.map(|r| {
         let r = r.as_sorted_char_range();
         r.start.0..r.end.0
     });
+    if right_press
+        && !kept.is_empty()
+        && let Some(p) = out.response.interact_pointer_pos().or_else(|| out.response.hover_pos())
+    {
+        let at = out.galley.cursor_from_pos(p - out.galley_pos).index.0;
+        if (kept.start..=kept.end).contains(&at) {
+            set_selection(ui.ctx(), id, kept.clone());
+            cursor = Some(kept.clone());
+        }
+    }
     if c.body != before {
         // The look of what was typed: the ribbon's choice, else the text's at the cursor.
         let typing = ed.typing.take().unwrap_or_else(|| typing_style(&before, &styles, ed.sel.start));
@@ -652,7 +672,33 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     if !c.plain {
         decorate(ui, t, ed, c, &out.galley, out.galley_pos);
     }
+    if !out.response.has_focus() && !ed.sel.is_empty() {
+        let color = ui.visuals().selection.bg_fill.gamma_multiply(0.45);
+        let shapes: Vec<egui::Shape> = selection_rects(&out.galley, ed.sel.clone())
+            .into_iter()
+            .map(|r| egui::Shape::rect_filled(r.translate(out.galley_pos.to_vec2()), 0.0, color))
+            .collect();
+        ui.painter().set(behind, egui::Shape::Vec(shapes));
+    }
     text_menu(&out.response, ed, c, acts);
+}
+
+/// The rectangles a selection covers, one per row (galley coordinates).
+fn selection_rects(g: &Galley, sel: Range<usize>) -> Vec<Rect> {
+    let mut out: Vec<Rect> = Vec::new();
+    // Long selections are drawn in full; past this many characters only their start is.
+    for i in sel.start..sel.end.min(sel.start + 20_000) {
+        let a = g.pos_from_cursor(CCursor::new(i));
+        let b = g.pos_from_cursor(CCursor::new(i + 1));
+        // A line's end: the selection runs a little past the text, as text boxes show it.
+        let right = if (b.min.y - a.min.y).abs() < 0.5 { b.min.x } else { a.min.x + 5.0 };
+        let r = Rect::from_min_max(egui::pos2(a.min.x, a.min.y), egui::pos2(right.max(a.min.x), a.max.y));
+        match out.last_mut() {
+            Some(last) if (last.min.y - r.min.y).abs() < 0.5 => *last = last.union(r),
+            _ => out.push(r),
+        }
+    }
+    out
 }
 
 /// The right-click menu on the text, as Outlook's: Cut, Copy, Paste and Select all; the link
@@ -662,7 +708,7 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
     let chosen: String = c.body.chars().skip(sel.start).take(sel.end - sel.start).collect();
     let link = c.styles.style(sel.start).link.filter(|_| n > 0);
-    resp.context_menu(|ui| {
+    let shown = resp.context_menu(|ui| {
         ui.set_min_width(190.0);
         let item = |ui: &mut Ui, label: &str, keys: &str, enabled: bool| -> bool {
             let b = egui::Button::new(tl!(label)).shortcut_text(keys);
@@ -712,6 +758,13 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
             }
         }
     });
+    // Closed without a choice (Escape, a click elsewhere in the window): the text gets the
+    // keyboard back, with what was selected.
+    let open = shown.is_some();
+    if ed.menu_open && !open && ed.refocus.is_none() && ed.link.is_none() && !resp.ctx.input(|i| i.pointer.any_pressed() && !resp.hovered()) {
+        ed.refocus = Some(sel.clone());
+    }
+    ed.menu_open = open;
 }
 
 /// Bullets and numbers, rules and pictures.
