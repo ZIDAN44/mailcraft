@@ -19,6 +19,7 @@ pub mod autoconfig;
 pub mod dav;
 pub mod dns;
 pub mod ews;
+mod ews_pim;
 pub mod graph;
 pub mod graph_pim;
 pub mod http;

@@ -37,6 +37,8 @@ pub struct It {
 pub struct Data {
     pub folders: Vec<Fo>,
     pub items: Vec<It>,
+    /// Appointments and contacts: (id, folder, the element as created).
+    pub pim: Vec<(String, String, El)>,
     /// MIME sources sent.
     pub sent: Vec<Vec<u8>>,
     /// (state, start, end, message)
@@ -47,6 +49,8 @@ pub struct Data {
     pub calls: Vec<String>,
     /// NTLM handshakes done (one per connection).
     pub handshakes: usize,
+    /// The EWS address, for Autodiscover's answer.
+    pub url: String,
     next: u32,
 }
 
@@ -55,11 +59,13 @@ impl Default for Data {
         let mut d = Data {
             folders: Vec::new(),
             items: Vec::new(),
+            pim: Vec::new(),
             sent: Vec::new(),
             oof: ("Disabled".into(), String::new(), String::new(), String::new()),
             basic: false,
             calls: Vec::new(),
             handshakes: 0,
+            url: String::new(),
             next: 0,
         };
         d.folders.push(Fo {
@@ -169,6 +175,11 @@ impl Data {
         x
     }
 
+    fn pim_folder(&self, f: Option<&El>) -> bool {
+        let Some(id) = f.and_then(|f| self.folder_id(f)) else { return false };
+        self.folders.iter().any(|x| x.id == id && x.class != "IPF.Note")
+    }
+
     /// Answer one operation: (response element name, response messages).
     fn route(&mut self, op: &El) -> (String, Vec<String>) {
         let ok = |inner: String| format!("<m:R ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>{inner}</m:R>");
@@ -201,6 +212,12 @@ impl Data {
                     page.concat()
                 )));
             }
+            "FindItem" if self.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())) => {
+                let folder = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
+                let items: String =
+                    self.pim.iter().filter(|(_, f, _)| *f == folder).map(|(id, _, _)| format!("<t:Item><t:ItemId Id=\"{id}\"/></t:Item>")).collect();
+                out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>")));
+            }
             "FindItem" => {
                 let folder = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
                 let max: usize =
@@ -231,6 +248,19 @@ impl Data {
             "GetItem" => {
                 let mime = op.find("IncludeMimeContent").is_some_and(|m| m.text == "true");
                 for id in ids(op.child("ItemIds")) {
+                    if let Some((_, _, el)) = self.pim.iter().find(|(i, _, _)| *i == id) {
+                        let mut el = el.clone();
+                        el.kids.insert(
+                            0,
+                            El {
+                                name: "ItemId".into(),
+                                attrs: vec![("Id".into(), id.clone()), ("ChangeKey".into(), "ck".into())],
+                                ..Default::default()
+                            },
+                        );
+                        out.push(ok(format!("<m:Items>{}</m:Items>", xml(&el))));
+                        continue;
+                    }
                     match self.items.iter().find(|i| i.id == id) {
                         Some(i) => out.push(ok(format!("<m:Items>{}</m:Items>", self.item_xml(i, mime)))),
                         None => out.push(err("ErrorItemNotFound")),
@@ -241,6 +271,12 @@ impl Data {
                 let send = op.attr("MessageDisposition") == Some("SendAndSaveCopy");
                 let folder = op.child("SavedItemFolderId").and_then(|s| s.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
                 for m in op.child("Items").map(|i| i.kids.clone()).unwrap_or_default() {
+                    if m.name == "CalendarItem" || m.name == "Contact" {
+                        let id = self.id("P");
+                        out.push(ok(format!("<m:Items><t:{0}><t:ItemId Id=\"{id}\" ChangeKey=\"ck\"/></t:{0}></m:Items>", m.name)));
+                        self.pim.push((id, folder.clone(), m));
+                        continue;
+                    }
                     let raw = m.child("MimeContent").and_then(|c| unb64(&c.text)).unwrap_or_default();
                     if send && String::from_utf8_lossy(&raw).contains("nobody@") {
                         out.push(err("ErrorInvalidRecipients"));
@@ -266,6 +302,20 @@ impl Data {
             "UpdateItem" => {
                 for ch in op.child("ItemChanges").map(|c| c.kids.clone()).unwrap_or_default() {
                     let id = ch.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string();
+                    if let Some((_, _, el)) = self.pim.iter_mut().find(|(i, _, _)| *i == id) {
+                        for u in ch.child("Updates").map(|u| u.kids.clone()).unwrap_or_default() {
+                            let field =
+                                u.find("FieldURI").and_then(|f| f.attr("FieldURI")).and_then(|f| f.split(':').nth(1)).unwrap_or("").to_string();
+                            el.kids.retain(|k| k.name != field);
+                            if u.name == "SetItemField"
+                                && let Some(new) = u.kids.iter().find(|k| k.name != "FieldURI").and_then(|w| w.kids.first())
+                            {
+                                el.kids.push(new.clone());
+                            }
+                        }
+                        out.push(ok(format!("<m:Items><t:CalendarItem><t:ItemId Id=\"{id}\" ChangeKey=\"ck2\"/></t:CalendarItem></m:Items>")));
+                        continue;
+                    }
                     let Some(it) = self.items.iter_mut().find(|i| i.id == id) else {
                         out.push(err("ErrorItemNotFound"));
                         continue;
@@ -299,6 +349,7 @@ impl Data {
             "DeleteItem" => {
                 for id in ids(op.child("ItemIds")) {
                     self.items.retain(|i| i.id != id);
+                    self.pim.retain(|(i, _, _)| *i != id);
                     out.push(ok(String::new()));
                 }
             }
@@ -393,6 +444,8 @@ fn respond(s: &mut impl Write, status: u16, headers: &[(&str, String)], body: &[
 pub fn serve(data: Data) -> Server {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://127.0.0.1:{}/EWS/Exchange.asmx", l.local_addr().unwrap().port());
+    let mut data = data;
+    data.url = url.clone();
     let data = Arc::new(Mutex::new(data));
     let shared = data.clone();
     std::thread::spawn(move || {
@@ -463,6 +516,16 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
             }
         }
         let doc = parse(&String::from_utf8_lossy(&body));
+        // Autodiscover: this server's own address.
+        if doc.find("Autodiscover").is_some_and(|a| a.find("EMailAddress").is_some()) {
+            let url = shared.lock().unwrap().url.clone();
+            let answer = format!(
+                "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Riley</DisplayName></User><Account><AccountType>email</AccountType><Action>settings</Action>\
+                 <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol></Account></Response></Autodiscover>"
+            );
+            respond(&mut s, 200, &[], answer.as_bytes());
+            continue;
+        }
         let Some(op) = doc.find("Body").and_then(|b| b.kids.first()).cloned() else {
             respond(
                 &mut s,
@@ -490,6 +553,13 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
         );
         respond(&mut s, 200, &[], xml.as_bytes());
     }
+}
+
+/// An element as XML again (for items kept as they were created).
+fn xml(e: &El) -> String {
+    let attrs: String = e.attrs.iter().map(|(k, v)| format!(" {k}=\"{}\"", esc(v))).collect();
+    let inner: String = e.kids.iter().map(xml).collect();
+    format!("<t:{0}{attrs}>{1}{inner}</t:{0}>", e.name, esc(&e.text))
 }
 
 #[cfg(test)]
@@ -674,6 +744,85 @@ mod tests {
         eventually("one draft left", || data.lock().unwrap().items.iter().filter(|i| i.draft).count() == 1);
         pool.submit(Job::Remove { account: "a1".into() });
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn calendars_and_contacts_sync_and_autodiscover_finds_the_server() {
+        use mailcraft_model::ical::CalEvent;
+        use mailcraft_model::pim::{LOCAL, Pim, StoredCard, StoredEvent, Tombstone};
+        use mailcraft_model::vcard::{Card, Typed};
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        let cal = d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+        let standup = parse(
+            "<t:CalendarItem><t:Subject>Stand-up</t:Subject><t:Body BodyType=\"Text\">Daily</t:Body><t:Start>2026-10-05T09:00:00Z</t:Start>\
+             <t:End>2026-10-05T09:15:00Z</t:End><t:IsAllDayEvent>false</t:IsAllDayEvent><t:Location>Room 2</t:Location><t:UID>standup-1</t:UID>\
+             <t:Recurrence><t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday Wednesday Friday</t:DaysOfWeek></t:WeeklyRecurrence>\
+             <t:NoEndRecurrence><t:StartDate>2026-10-05Z</t:StartDate></t:NoEndRecurrence></t:Recurrence></t:CalendarItem>",
+        );
+        d.pim.push((
+            "OLD".into(),
+            cal.clone(),
+            parse("<t:CalendarItem><t:Subject>Gone</t:Subject><t:Start>2026-10-01T09:00:00Z</t:Start></t:CalendarItem>").kids[0].clone(),
+        ));
+        d.pim.push(("E1".into(), cal.clone(), standup.kids[0].clone()));
+        let server = serve(d);
+        let user = format!("{DOMAIN}\\{USER}");
+        assert_eq!(crate::ews::autodiscover("riley@contoso.example", &user, PASSWORD, Some(&server.url)).unwrap(), server.url);
+        let c = crate::ews::Client::connect(&server.url, &user, PASSWORD, "riley@contoso.example").unwrap();
+        let mut pim = Pim::default();
+        pim.events.push(StoredEvent {
+            calendar: LOCAL.into(),
+            event: CalEvent {
+                uid: "local-1".into(),
+                summary: "Poster review".into(),
+                start: 1_792_000_000,
+                end: 1_792_003_600,
+                rrule: Some("FREQ=DAILY;COUNT=3".into()),
+                ..Default::default()
+            },
+            dirty: true,
+            ..Default::default()
+        });
+        pim.cards.push(StoredCard {
+            book: LOCAL.into(),
+            card: Card {
+                uid: "p1".into(),
+                name: "Ben Ito".into(),
+                emails: vec![Typed { value: "ben@contoso.example".into(), kind: String::new() }],
+                ..Default::default()
+            },
+            dirty: true,
+            ..Default::default()
+        });
+        pim.deleted.push(Tombstone { href: "OLD".into(), etag: String::new() });
+        let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+        assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+        assert_eq!(sync.deleted, ["OLD"]);
+        let standup = sync.events.iter().find(|e| e.event.summary == "Stand-up").unwrap();
+        assert_eq!(standup.event.rrule.as_deref(), Some("FREQ=WEEKLY;BYDAY=MO,WE,FR"));
+        assert_eq!(
+            (standup.event.uid.as_str(), standup.event.location.as_str(), standup.event.end - standup.event.start),
+            ("standup-1", "Room 2", 900)
+        );
+        let poster = sync.events.iter().find(|e| e.event.summary == "Poster review").unwrap();
+        assert_eq!(poster.event.rrule.as_deref(), Some("FREQ=DAILY;COUNT=3"), "made on the server with its recurrence");
+        assert!(sync.cards.iter().any(|k| k.card.name == "Ben Ito" && k.card.emails[0].value == "ben@contoso.example"));
+        assert_eq!(sync.pushed_events.len(), 1);
+        // A change goes field by field; the series keeps its id.
+        let mut changed = pim.clone();
+        changed.deleted.clear();
+        changed.cards.clear();
+        changed.events = vec![StoredEvent {
+            href: standup.href.clone(),
+            event: CalEvent { summary: "Stand-up (moved)".into(), rrule: None, ..standup.event.clone() },
+            dirty: true,
+            ..standup.clone()
+        }];
+        let sync = crate::ews_pim::sync(&c, &changed, 1_792_000_000).unwrap();
+        let moved = sync.events.iter().find(|e| e.href == standup.href).unwrap();
+        assert_eq!((moved.event.summary.as_str(), moved.event.rrule.as_deref()), ("Stand-up (moved)", None));
     }
 
     #[test]

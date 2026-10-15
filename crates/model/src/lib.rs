@@ -100,6 +100,9 @@ pub struct AccountConfig {
     pub ews: Option<String>,
 }
 
+/// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
+pub const EWS_AUTODISCOVER: &str = "autodiscover";
+
 /// Microsoft Graph's address, for Exchange Online accounts.
 pub const GRAPH_URL: &str = "https://graph.microsoft.com/v1.0";
 

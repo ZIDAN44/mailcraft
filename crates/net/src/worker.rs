@@ -664,7 +664,20 @@ impl Worker {
             return Ok(());
         }
         if let Some(url) = &self.acc.ews {
-            self.conn = Some(Conn::Ews(crate::ews::Client::connect(url, &user, &secret, &self.acc.email)?));
+            // `autodiscover`: found the first time, then kept.
+            let url = if url == crate::ews::AUTODISCOVER {
+                let kept: String = self.store.load_account_doc(&self.acc.id, "ews.json").unwrap_or_default();
+                if kept.is_empty() {
+                    let found = crate::ews::autodiscover(&self.acc.email, &user, &secret, None)?;
+                    let _ = self.store.save_account_doc(&self.acc.id, "ews.json", &found);
+                    found
+                } else {
+                    kept
+                }
+            } else {
+                url.clone()
+            };
+            self.conn = Some(Conn::Ews(crate::ews::Client::connect(&url, &user, &secret, &self.acc.email)?));
             self.backoff = Duration::from_secs(5);
             return Ok(());
         }
@@ -1010,7 +1023,16 @@ impl Worker {
             }
             return;
         }
-        // OAuth tokens are for mail only; on-premises Exchange's calendars aren't synced.
+        // On-premises Exchange: its calendar and contacts through EWS.
+        if let Some(Conn::Ews(c)) = &self.conn {
+            let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+            match crate::ews_pim::sync(c, &pim, now()) {
+                Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
+                Err(e) => log::info!("{}: calendars and contacts: {e}", self.acc.id),
+            }
+            return;
+        }
+        // OAuth tokens are for mail only.
         if self.acc.oauth.is_some() || self.acc.ews.is_some() {
             return;
         }

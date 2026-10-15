@@ -27,6 +27,8 @@ use crate::jmap::{self, Mailbox, State, VALIDITY};
 use crate::sync::{SyncOptions, SyncReport, fill_from_source};
 use crate::{NetError, Result};
 
+/// The EWS address of an account whose server Autodiscover finds.
+pub const AUTODISCOVER: &str = mailcraft_model::EWS_AUTODISCOVER;
 /// Largest answer accepted (message sources come base64-encoded inside).
 const MAX_ANSWER: usize = 96 << 20;
 /// Items asked about in one request.
@@ -291,7 +293,7 @@ fn check_message(m: &El) -> Result<()> {
 }
 
 /// The `…ResponseMessage` elements of an answer.
-fn messages(doc: &El) -> Vec<&El> {
+pub(crate) fn messages(doc: &El) -> Vec<&El> {
     let mut out = Vec::new();
     if let Some(body) = doc.find("Body") {
         let mut all = Vec::new();
@@ -349,7 +351,7 @@ impl Client {
     }
 
     /// Send a request signed in the way the server wants.
-    fn post(&self, body: Vec<u8>) -> Result<Response> {
+    pub(crate) fn post(&self, body: Vec<u8>) -> Result<Response> {
         let base = Request::post(&self.url, "text/xml; charset=utf-8", body, MAX_ANSWER).header("Accept", "text/xml");
         for attempt in 0..3 {
             let scheme = *self.scheme.borrow();
@@ -424,7 +426,7 @@ impl Client {
     }
 
     /// Run an operation on one thing: its single response message, checked.
-    fn call_one(&self, body: &str) -> Result<El> {
+    pub(crate) fn call_one(&self, body: &str) -> Result<El> {
         let doc = self.call(body)?;
         let m = messages(&doc).first().map(|m| (*m).clone()).ok_or_else(|| NetError::Protocol("an empty answer".into()))?;
         check_message(&m)?;
@@ -432,7 +434,7 @@ impl Client {
     }
 
     /// Run an operation on many things: every response message checked.
-    fn call_all(&self, body: &str) -> Result<()> {
+    pub(crate) fn call_all(&self, body: &str) -> Result<()> {
         let doc = self.call(body)?;
         for m in messages(&doc) {
             check_message(m)?;
@@ -655,6 +657,76 @@ impl Client {
             None => Ok(()),
         }
     }
+}
+
+/// Where Autodiscover is asked (POX, MS-OXDSCLI): the domain's `autodiscover.` host, then the
+/// domain itself.
+fn autodiscover_urls(email: &str) -> Vec<String> {
+    let domain = email.rsplit_once('@').map(|(_, d)| d.trim().to_ascii_lowercase()).unwrap_or_default();
+    if domain.is_empty() || !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-') {
+        return Vec::new();
+    }
+    vec![format!("https://autodiscover.{domain}/autodiscover/autodiscover.xml"), format!("https://{domain}/autodiscover/autodiscover.xml")]
+}
+
+/// The EWS address in an Autodiscover answer (the outside one first), or the address to ask
+/// about instead (a redirect).
+fn autodiscover_answer(xml: &str) -> (Option<String>, Option<String>) {
+    let doc = parse(xml);
+    let Some(account) = doc.find("Account") else { return (None, None) };
+    if account.text_of("Action") == Some("redirectAddr") {
+        return (None, account.text_of("RedirectAddr").map(|r| r.trim().to_string()));
+    }
+    let protocols: Vec<&El> = account.children("Protocol").collect();
+    let url = ["EXPR", "EXCH", "WEB"]
+        .iter()
+        .find_map(|kind| protocols.iter().find(|p| p.text_of("Type") == Some(kind)).and_then(|p| p.text_of("EwsUrl")))
+        .map(|u| u.trim().to_string())
+        .filter(|u| u.starts_with("https://") || (cfg!(test) && u.starts_with("http://127.0.0.1")));
+    (url, None)
+}
+
+/// Find a mailbox's EWS address with Autodiscover, signed in as the account. `base`: where to
+/// ask instead of the usual addresses (tests).
+pub fn autodiscover(email: &str, user: &str, password: &str, base: Option<&str>) -> Result<String> {
+    let mut address = email.to_string();
+    for _ in 0..3 {
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\">\
+             <Request><EMailAddress>{}</EMailAddress><AcceptableResponseSchema>http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a</AcceptableResponseSchema></Request></Autodiscover>",
+            esc(&address)
+        );
+        let urls = base.map_or_else(|| autodiscover_urls(&address), |b| vec![b.to_string()]);
+        let mut redirect = None;
+        let mut last = NetError::No("Autodiscover found no Exchange server for this address".into());
+        for url in urls {
+            let c = match Client::new(&url, user, password, email) {
+                Ok(c) => c,
+                Err(e) => {
+                    last = e;
+                    continue;
+                }
+            };
+            match c.post(body.clone().into_bytes()) {
+                Ok(resp) if resp.ok() => match autodiscover_answer(&String::from_utf8_lossy(&resp.body)) {
+                    (Some(url), _) => return Ok(url),
+                    (None, Some(r)) => {
+                        redirect = Some(r);
+                        break;
+                    }
+                    _ => {}
+                },
+                Ok(resp) => last = NetError::Protocol(format!("Autodiscover answered HTTP {}", resp.status)),
+                Err(NetError::Auth(m)) => return Err(NetError::Auth(m)),
+                Err(e) => last = e,
+            }
+        }
+        match redirect {
+            Some(r) if r != address && r.contains('@') => address = r,
+            _ => return Err(last),
+        }
+    }
+    Err(NetError::No("Autodiscover sent MailCraft round in circles".into()))
 }
 
 /// The read, flag and draft state, asked for with every item.
@@ -1005,6 +1077,21 @@ mod tests {
         assert_eq!(unb64("aGk=\r\n"), Some(b"hi".to_vec()));
         assert_eq!(unb64("**"), None);
         assert_eq!(esc("a<b&\"c\u{1}"), "a&lt;b&amp;&quot;c");
+    }
+
+    #[test]
+    fn autodiscover_answers() {
+        let ok = "<Autodiscover><Response><Account><AccountType>email</AccountType><Action>settings</Action>\
+                  <Protocol><Type>EXCH</Type><EwsUrl>https://mail.corp.local/EWS/Exchange.asmx</EwsUrl></Protocol>\
+                  <Protocol><Type>EXPR</Type><EwsUrl>https://mail.contoso.example/EWS/Exchange.asmx</EwsUrl></Protocol></Account></Response></Autodiscover>";
+        assert_eq!(autodiscover_answer(ok).0.as_deref(), Some("https://mail.contoso.example/EWS/Exchange.asmx"), "the outside address first");
+        let redirect = "<Autodiscover><Response><Account><Action>redirectAddr</Action><RedirectAddr>riley@corp.example</RedirectAddr></Account></Response></Autodiscover>";
+        assert_eq!(autodiscover_answer(redirect).1.as_deref(), Some("riley@corp.example"));
+        assert_eq!(autodiscover_answer("<x/>"), (None, None));
+        let plain = "<Autodiscover><Response><Account><Protocol><Type>EXPR</Type><EwsUrl>http://mail.contoso.example/EWS</EwsUrl></Protocol></Account></Response></Autodiscover>";
+        assert_eq!(autodiscover_answer(plain).0, None, "never plain http");
+        assert_eq!(autodiscover_urls("riley@Contoso.example")[0], "https://autodiscover.contoso.example/autodiscover/autodiscover.xml");
+        assert!(autodiscover_urls("riley@bad/host").is_empty());
     }
 
     #[test]

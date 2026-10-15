@@ -1,0 +1,467 @@
+//! On-premises Exchange calendars and contacts through Exchange Web Services, synced into the
+//! same calendars and address books as CalDAV and CardDAV ([`DavSync`], which the engine merges).
+//!
+//! The mailbox's Calendar and Contacts folders: appointments (with their recurrence, read as the
+//! pattern and range Graph also uses, so [`crate::graph_pim::rrule_of`] makes the RRULE) and
+//! contacts. What changed here goes first: new appointments and contacts are created, changed
+//! appointments updated field by field, changed contacts made again, deletions done (no meeting
+//! mail is ever sent); then both folders are read again.
+
+use mailcraft_model::ical::{Attendee, CalEvent};
+use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, Pim, StoredCard, StoredEvent};
+use mailcraft_model::vcard::{Card, Typed};
+use serde_json::{Value, json};
+
+use crate::ews::{Client, El, esc};
+use crate::graph_pim::{recurrence_of, rrule_of};
+use crate::{NetError, Result};
+
+/// The calendar and address book Exchange's folders go into.
+pub const CALENDAR: &str = "ews:calendar";
+pub const CONTACTS: &str = "ews:contacts";
+/// Items read from a folder at most, and per `GetItem`.
+const MAX_ITEMS: usize = 5000;
+const BATCH: usize = 50;
+const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+fn utc(t: i64) -> String {
+    let (y, m, d) = mailcraft_model::dates::civil_from_days(t.div_euclid(86_400));
+    let s = t.rem_euclid(86_400);
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", s / 3600, s / 60 % 60, s % 60)
+}
+
+fn text(e: &El, name: &str) -> String {
+    e.text_of(name).unwrap_or_default().trim().to_string()
+}
+
+/// An EWS `Recurrence` element as Graph's pattern and range.
+pub fn recurrence_json(r: &El) -> Option<Value> {
+    let p = r.kids.iter().find(|k| k.name.ends_with("Recurrence") && !k.name.contains("End") && !k.name.contains("Numbered"))?;
+    let kind = match p.name.as_str() {
+        "DailyRecurrence" => "daily",
+        "WeeklyRecurrence" => "weekly",
+        "AbsoluteMonthlyRecurrence" => "absoluteMonthly",
+        "RelativeMonthlyRecurrence" => "relativeMonthly",
+        "AbsoluteYearlyRecurrence" => "absoluteYearly",
+        "RelativeYearlyRecurrence" => "relativeYearly",
+        _ => return None,
+    };
+    let num = |n: &str| p.text_of(n).and_then(|v| v.trim().parse::<u64>().ok());
+    let days: Vec<String> = p.text_of("DaysOfWeek").unwrap_or("").split_whitespace().map(str::to_ascii_lowercase).collect();
+    let month = p.text_of("Month").and_then(|m| MONTHS.iter().position(|x| x.eq_ignore_ascii_case(m.trim()))).map(|i| i + 1);
+    let pattern = json!({
+        "type": kind,
+        "interval": num("Interval").unwrap_or(1),
+        "daysOfWeek": days,
+        "index": p.text_of("DayOfWeekIndex").unwrap_or("first").trim().to_ascii_lowercase(),
+        "month": month.unwrap_or(0),
+        "dayOfMonth": num("DayOfMonth").unwrap_or(0),
+    });
+    let date = |e: &El, n: &str| e.text_of(n).map(|d| d.trim().get(..10).unwrap_or("").to_string());
+    let range = if let Some(e) = r.child("EndDateRecurrence") {
+        json!({"type": "endDate", "startDate": date(e, "StartDate"), "endDate": date(e, "EndDate")})
+    } else if let Some(e) = r.child("NumberedRecurrence") {
+        json!({"type": "numbered", "startDate": date(e, "StartDate"), "numberOfOccurrences": e.text_of("NumberOfOccurrences").and_then(|n| n.trim().parse::<u64>().ok()).unwrap_or(1)})
+    } else {
+        json!({"type": "noEnd"})
+    };
+    Some(json!({"pattern": pattern, "range": range}))
+}
+
+/// An RRULE as an EWS `Recurrence` element (starting on the event's day).
+pub fn recurrence_xml(rule: &str, start: i64) -> Option<String> {
+    let r = recurrence_of(rule, start)?;
+    let p = &r["pattern"];
+    let interval = p["interval"].as_u64().unwrap_or(1).max(1);
+    let day = |d: &Value| d.as_str().and_then(|n| DAYS.iter().find(|x| x.eq_ignore_ascii_case(n))).copied();
+    let days = p["daysOfWeek"].as_array().map(|a| a.iter().filter_map(day).collect::<Vec<_>>().join(" ")).unwrap_or_default();
+    let index = p["index"].as_str().map(|i| {
+        let mut c = i.chars();
+        c.next().map(|f| f.to_ascii_uppercase().to_string() + c.as_str()).unwrap_or_default()
+    });
+    let month = p["month"].as_u64().and_then(|m| MONTHS.get(usize::try_from(m).ok()?.checked_sub(1)?)).copied().unwrap_or("January");
+    let mday = p["dayOfMonth"].as_u64().unwrap_or(1);
+    let pattern = match p["type"].as_str()? {
+        "daily" => format!("<t:DailyRecurrence><t:Interval>{interval}</t:Interval></t:DailyRecurrence>"),
+        "weekly" => format!("<t:WeeklyRecurrence><t:Interval>{interval}</t:Interval><t:DaysOfWeek>{days}</t:DaysOfWeek></t:WeeklyRecurrence>"),
+        "absoluteMonthly" => format!(
+            "<t:AbsoluteMonthlyRecurrence><t:Interval>{interval}</t:Interval><t:DayOfMonth>{mday}</t:DayOfMonth></t:AbsoluteMonthlyRecurrence>"
+        ),
+        "relativeMonthly" => format!(
+            "<t:RelativeMonthlyRecurrence><t:Interval>{interval}</t:Interval><t:DaysOfWeek>{days}</t:DaysOfWeek><t:DayOfWeekIndex>{}</t:DayOfWeekIndex></t:RelativeMonthlyRecurrence>",
+            index.unwrap_or_else(|| "First".into())
+        ),
+        "absoluteYearly" => {
+            format!("<t:AbsoluteYearlyRecurrence><t:DayOfMonth>{mday}</t:DayOfMonth><t:Month>{month}</t:Month></t:AbsoluteYearlyRecurrence>")
+        }
+        "relativeYearly" => format!(
+            "<t:RelativeYearlyRecurrence><t:DaysOfWeek>{days}</t:DaysOfWeek><t:DayOfWeekIndex>{}</t:DayOfWeekIndex><t:Month>{month}</t:Month></t:RelativeYearlyRecurrence>",
+            index.unwrap_or_else(|| "First".into())
+        ),
+        _ => return None,
+    };
+    let rg = &r["range"];
+    let first = rg["startDate"].as_str().unwrap_or("");
+    let range = match rg["type"].as_str() {
+        Some("endDate") => format!(
+            "<t:EndDateRecurrence><t:StartDate>{first}</t:StartDate><t:EndDate>{}</t:EndDate></t:EndDateRecurrence>",
+            rg["endDate"].as_str().unwrap_or(first)
+        ),
+        Some("numbered") => format!(
+            "<t:NumberedRecurrence><t:StartDate>{first}</t:StartDate><t:NumberOfOccurrences>{}</t:NumberOfOccurrences></t:NumberedRecurrence>",
+            rg["numberOfOccurrences"].as_u64().unwrap_or(1)
+        ),
+        _ => format!("<t:NoEndRecurrence><t:StartDate>{first}</t:StartDate></t:NoEndRecurrence>"),
+    };
+    Some(format!("<t:Recurrence>{pattern}{range}</t:Recurrence>"))
+}
+
+fn person(m: &El) -> Option<Attendee> {
+    let mb = if m.name == "Mailbox" { m } else { m.find("Mailbox")? };
+    let email = text(mb, "EmailAddress");
+    email.contains('@').then(|| Attendee { email, name: text(mb, "Name"), partstat: String::new(), rsvp: false })
+}
+
+/// An appointment as an event (occurrences and changed instances are left to their series).
+pub fn event_of(it: &El) -> Option<CalEvent> {
+    if matches!(it.text_of("CalendarItemType"), Some("Occurrence" | "Exception")) {
+        return None;
+    }
+    let all_day = it.text_of("IsAllDayEvent").is_some_and(|v| v == "true");
+    let start = mailcraft_jmap::utc_date(&text(it, "Start"))?;
+    let end = mailcraft_jmap::utc_date(&text(it, "End")).unwrap_or(start + 3600).max(start);
+    // All-day times are local midnights: the nearest UTC midnight is the day.
+    let day = |t: i64| (t + 43_200).div_euclid(86_400) * 86_400;
+    let (start, end) = if all_day { (day(start), day(end).max(day(start) + 86_400)) } else { (start, end) };
+    let body = it.child("Body");
+    let content = body.map(|b| b.text.clone()).unwrap_or_default();
+    let html = body.and_then(|b| b.attr("BodyType")).is_some_and(|t| t.eq_ignore_ascii_case("HTML"));
+    let description = if html { mailcraft_mime::html_to_text(&content) } else { content };
+    let mut attendees = Vec::new();
+    for list in ["RequiredAttendees", "OptionalAttendees"] {
+        if let Some(l) = it.child(list) {
+            for a in l.children("Attendee").take(500) {
+                if let Some(mut p) = person(a) {
+                    p.partstat = match a.text_of("ResponseType").unwrap_or("") {
+                        "Accept" | "Organizer" => "ACCEPTED",
+                        "Decline" => "DECLINED",
+                        "Tentative" => "TENTATIVE",
+                        _ => "NEEDS-ACTION",
+                    }
+                    .to_string();
+                    p.rsvp = true;
+                    attendees.push(p);
+                }
+            }
+        }
+    }
+    let id = it.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or("").to_string();
+    let uid = [text(it, "UID"), id].into_iter().find(|u| !u.is_empty())?;
+    Some(CalEvent {
+        uid,
+        summary: text(it, "Subject"),
+        description: description.trim().to_string(),
+        location: text(it, "Location"),
+        start,
+        end,
+        all_day,
+        rrule: it.child("Recurrence").and_then(recurrence_json).as_ref().and_then(rrule_of),
+        organizer: it.child("Organizer").and_then(person),
+        attendees,
+        status: if it.text_of("IsCancelled") == Some("true") { "CANCELLED".into() } else { String::new() },
+        ..Default::default()
+    })
+}
+
+/// The fields of an appointment, in the order EWS wants them.
+fn event_fields(e: &CalEvent) -> Vec<(&'static str, String)> {
+    let (start, end) = if e.all_day { (e.start, e.end.max(e.start + 86_400)) } else { (e.start, e.end.max(e.start)) };
+    let mut f = vec![
+        ("Subject", format!("<t:Subject>{}</t:Subject>", esc(&e.summary))),
+        ("Body", format!("<t:Body BodyType=\"Text\">{}</t:Body>", esc(&e.description))),
+        ("Start", format!("<t:Start>{}</t:Start>", utc(start))),
+        ("End", format!("<t:End>{}</t:End>", utc(end))),
+        ("IsAllDayEvent", format!("<t:IsAllDayEvent>{}</t:IsAllDayEvent>", e.all_day)),
+        ("Location", format!("<t:Location>{}</t:Location>", esc(&e.location))),
+    ];
+    if let Some(r) = e.rrule.as_deref().and_then(|r| recurrence_xml(r, e.start)) {
+        f.push(("Recurrence", r));
+    }
+    f
+}
+
+/// A person, in the order EWS wants a contact's fields.
+fn contact_xml(c: &Card) -> String {
+    let mut x = format!("<t:Contact><t:Body BodyType=\"Text\">{}</t:Body>", esc(&c.note));
+    x.push_str(&format!("<t:DisplayName>{}</t:DisplayName>", esc(&c.display())));
+    if !c.given.is_empty() {
+        x.push_str(&format!("<t:GivenName>{}</t:GivenName>", esc(&c.given)));
+    }
+    if !c.org.is_empty() {
+        x.push_str(&format!("<t:CompanyName>{}</t:CompanyName>", esc(&c.org)));
+    }
+    if !c.emails.is_empty() {
+        x.push_str("<t:EmailAddresses>");
+        for (i, e) in c.emails.iter().take(3).enumerate() {
+            x.push_str(&format!("<t:Entry Key=\"EmailAddress{}\">{}</t:Entry>", i + 1, esc(&e.value)));
+        }
+        x.push_str("</t:EmailAddresses>");
+    }
+    if !c.phones.is_empty() {
+        x.push_str("<t:PhoneNumbers>");
+        let mut used: Vec<&str> = Vec::new();
+        for p in &c.phones {
+            let key = match p.kind.as_str() {
+                "cell" => "MobilePhone",
+                "home" => "HomePhone",
+                "fax" => "BusinessFax",
+                _ => "BusinessPhone",
+            };
+            if !used.contains(&key) {
+                used.push(key);
+                x.push_str(&format!("<t:Entry Key=\"{key}\">{}</t:Entry>", esc(&p.value)));
+            }
+        }
+        x.push_str("</t:PhoneNumbers>");
+    }
+    if !c.title.is_empty() {
+        x.push_str(&format!("<t:JobTitle>{}</t:JobTitle>", esc(&c.title)));
+    }
+    if !c.family.is_empty() {
+        x.push_str(&format!("<t:Surname>{}</t:Surname>", esc(&c.family)));
+    }
+    x.push_str("</t:Contact>");
+    x
+}
+
+/// A contact as a card.
+pub fn card_of(it: &El) -> Option<Card> {
+    let id = it.child("ItemId").and_then(|i| i.attr("Id"))?.to_string();
+    let entries = |list: &str| -> Vec<(String, String)> {
+        it.child(list)
+            .map(|l| l.children("Entry").map(|e| (e.attr("Key").unwrap_or("").to_string(), e.text.trim().to_string())).collect())
+            .unwrap_or_default()
+    };
+    let emails = entries("EmailAddresses")
+        .into_iter()
+        .filter(|(_, v)| v.contains('@'))
+        .map(|(_, v)| Typed { value: v.trim_start_matches("SMTP:").to_string(), kind: String::new() })
+        .collect();
+    let phones = entries("PhoneNumbers")
+        .into_iter()
+        .filter(|(_, v)| !v.is_empty())
+        .map(|(k, v)| {
+            let kind = match k.as_str() {
+                "MobilePhone" => "cell",
+                "HomePhone" | "HomePhone2" => "home",
+                "BusinessFax" | "HomeFax" => "fax",
+                _ => "work",
+            };
+            Typed { value: v, kind: kind.into() }
+        })
+        .collect();
+    let body = it.child("Body").map(|b| b.text.trim().to_string()).unwrap_or_default();
+    Some(Card {
+        uid: id,
+        name: text(it, "DisplayName"),
+        given: text(it, "GivenName"),
+        family: text(it, "Surname"),
+        emails,
+        phones,
+        org: text(it, "CompanyName"),
+        title: text(it, "JobTitle"),
+        note: body,
+        extra: Vec::new(),
+    })
+}
+
+/// Every item of a distinguished folder, with all its properties (bodies as text).
+fn items(c: &Client, folder: &str) -> Result<Vec<El>> {
+    let mut ids: Vec<String> = Vec::new();
+    let mut offset = 0;
+    loop {
+        let m = c.call_one(&format!(
+            "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape></m:ItemShape>\
+             <m:IndexedPageItemView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
+             <m:ParentFolderIds><t:DistinguishedFolderId Id=\"{folder}\"/></m:ParentFolderIds></m:FindItem>"
+        ))?;
+        let Some(rf) = m.child("RootFolder") else { break };
+        let page: Vec<String> =
+            rf.child("Items").map(|i| i.kids.iter().filter_map(|k| k.child("ItemId")?.attr("Id").map(str::to_string)).collect()).unwrap_or_default();
+        let n = page.len();
+        ids.extend(page);
+        offset += n;
+        if n == 0 || rf.attr("IncludesLastItemInRange").is_none_or(|v| v == "true") || ids.len() >= MAX_ITEMS {
+            break;
+        }
+    }
+    let mut out = Vec::new();
+    for chunk in ids.chunks(BATCH) {
+        let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
+        let doc = c.call(&format!(
+            "<m:GetItem><m:ItemShape><t:BaseShape>AllProperties</t:BaseShape><t:BodyType>Text</t:BodyType>\
+             <t:AdditionalProperties><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:AdditionalProperties></m:ItemShape>\
+             <m:ItemIds>{list}</m:ItemIds></m:GetItem>"
+        ))?;
+        for m in crate::ews::messages(&doc) {
+            if m.attr("ResponseClass") == Some("Error") {
+                continue;
+            }
+            if let Some(items) = m.child("Items") {
+                out.extend(items.kids.iter().cloned());
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn new_id(m: &El) -> (String, String) {
+    let id = m.find("ItemId");
+    (id.and_then(|i| i.attr("Id")).unwrap_or("").to_string(), id.and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string())
+}
+
+fn delete(c: &Client, id: &str) -> Result<()> {
+    c.call_one(&format!(
+        "<m:DeleteItem DeleteType=\"MoveToDeletedItems\" SendMeetingCancellations=\"SendToNone\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
+        esc(id)
+    ))
+    .map(drop)
+}
+
+/// Send what changed here, then read the calendar and contacts again.
+pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
+    let mut out = DavSync { caldav_home: Some("ews".into()), carddav_home: Some("ews".into()), checked: now, ..Default::default() };
+    for t in &pim.deleted {
+        match delete(c, t.href.trim_start_matches("contact:")) {
+            Ok(()) | Err(NetError::No(_)) => out.deleted.push(t.href.clone()),
+            Err(e) => out.errors.push(e.to_string()),
+        }
+    }
+    for e in pim.events.iter().filter(|e| e.dirty) {
+        let fields = event_fields(&e.event);
+        let r = if e.href.is_empty() {
+            let body: String = fields.iter().map(|(_, x)| x.as_str()).collect();
+            c.call_one(&format!(
+                "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"calendar\"/></m:SavedItemFolderId>\
+                 <m:Items><t:CalendarItem>{body}</t:CalendarItem></m:Items></m:CreateItem>"
+            ))
+            .map(|m| new_id(&m))
+        } else {
+            let mut updates: String = fields
+                .iter()
+                .map(|(name, x)| {
+                    let uri = if *name == "Subject" || *name == "Body" { format!("item:{name}") } else { format!("calendar:{name}") };
+                    format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
+                })
+                .collect();
+            if e.event.rrule.is_none() {
+                updates.push_str("<t:DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:DeleteItemField>");
+            }
+            c.call_one(&format!(
+                "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
+                 <t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{updates}</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>",
+                esc(&e.href)
+            ))
+            .map(|m| {
+                let (id, key) = new_id(&m);
+                (if id.is_empty() { e.href.clone() } else { id }, key)
+            })
+        };
+        match r {
+            Ok((href, etag)) => out.pushed_events.push(StoredEvent { calendar: CALENDAR.into(), href, etag, event: e.event.clone(), dirty: false }),
+            Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
+        }
+    }
+    for k in pim.cards.iter().filter(|k| k.dirty) {
+        // Made again: a contact's addresses and numbers are simplest replaced whole.
+        if let Some(old) = k.href.strip_prefix("contact:")
+            && let Err(e) = delete(c, old)
+            && !matches!(e, NetError::No(_))
+        {
+            out.errors.push(format!("{}: {e}", k.card.display()));
+            continue;
+        }
+        let r = c.call_one(&format!(
+            "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"contacts\"/></m:SavedItemFolderId><m:Items>{}</m:Items></m:CreateItem>",
+            contact_xml(&k.card)
+        ));
+        match r {
+            Ok(m) => {
+                let (id, etag) = new_id(&m);
+                out.pushed_cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{id}"), etag, card: k.card.clone(), dirty: false });
+            }
+            Err(x) => out.errors.push(format!("{}: {x}", k.card.display())),
+        }
+    }
+    // Then both folders, read again.
+    for it in items(c, "calendar")? {
+        if let Some(event) = event_of(&it) {
+            let (href, etag) = it
+                .child("ItemId")
+                .map(|i| (i.attr("Id").unwrap_or("").to_string(), i.attr("ChangeKey").unwrap_or("").to_string()))
+                .unwrap_or_default();
+            out.events.push(StoredEvent { calendar: CALENDAR.into(), href, etag, event, dirty: false });
+        }
+    }
+    out.calendars = Some(vec![CalendarInfo { id: CALENDAR.into(), name: "Calendar".into(), color: 0, read_only: false, ctag: String::new() }]);
+    out.synced_calendars.push(CALENDAR.into());
+    for it in items(c, "contacts")? {
+        if let Some(card) = card_of(&it) {
+            let etag = it.child("ItemId").and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string();
+            out.cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{}", card.uid), etag, card, dirty: false });
+        }
+    }
+    out.books = Some(vec![BookInfo { id: CONTACTS.into(), name: "Contacts".into(), read_only: false, ctag: String::new() }]);
+    out.synced_books.push(CONTACTS.into());
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ews::parse;
+
+    #[test]
+    fn recurrences_both_ways() {
+        let start = mailcraft_jmap::utc_date("2026-10-05T09:00:00Z").unwrap_or(0);
+        for rule in [
+            "FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=2;UNTIL=20261231T235959Z",
+            "FREQ=MONTHLY;BYDAY=-1FR;COUNT=6",
+            "FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=14",
+            "FREQ=DAILY",
+        ] {
+            let xml = recurrence_xml(rule, start).unwrap();
+            let el = parse(&xml);
+            let back = el.find("Recurrence").and_then(recurrence_json).as_ref().and_then(rrule_of).unwrap();
+            assert_eq!(back, rule, "{xml}");
+        }
+        assert!(recurrence_xml("FREQ=HOURLY", start).is_none());
+        let junk = parse("<t:Recurrence><t:WeeklyRecurrence><t:Interval>x</t:Interval></t:WeeklyRecurrence></t:Recurrence>");
+        assert!(junk.find("Recurrence").and_then(recurrence_json).is_some(), "a bad number falls back");
+    }
+
+    #[test]
+    fn contacts_both_ways() {
+        let card = Card {
+            uid: "x".into(),
+            name: "Ana Lima".into(),
+            given: "Ana".into(),
+            family: "Lima".into(),
+            emails: vec![Typed { value: "ana@contoso.example".into(), kind: String::new() }],
+            phones: vec![Typed { value: "+1 555 0100".into(), kind: "cell".into() }],
+            org: "Contoso & Co".into(),
+            title: "Producer".into(),
+            note: "Met at the fair".into(),
+            extra: Vec::new(),
+        };
+        let xml = contact_xml(&card).replace("<t:Contact>", "<t:Contact><t:ItemId Id=\"C1\" ChangeKey=\"k\"/>");
+        let back = card_of(parse(&xml).find("Contact").unwrap()).unwrap();
+        assert_eq!(
+            (back.name.as_str(), back.org.as_str(), back.note.as_str(), back.uid.as_str()),
+            ("Ana Lima", "Contoso & Co", "Met at the fair", "C1")
+        );
+        assert_eq!(back.phones, card.phones);
+        assert_eq!(back.emails, card.emails);
+    }
+}
