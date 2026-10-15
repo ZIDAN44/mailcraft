@@ -11,7 +11,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 107 (`mailcraft-cli commands`) |
-| Tests | 189 (unit, in-memory IMAP, JMAP, Graph, CalDAV/CardDAV and ManageSieve servers, SMTP and HTTP stubs, data files, TCP end-to-end, headless UI) |
+| Tests | 213 (unit, in-memory IMAP, JMAP, Graph, EWS, CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 13 (English, Spanish, French, German, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -27,8 +27,11 @@ local-first, media-aware v1); the fuller request is
 5. **v0.5 — Beyond mail (deferred by #2177)** ✅ calendar and contacts (CalDAV/CardDAV, meeting
    invitations), the File page (automatic replies, mailbox size), messages in their own windows,
    Exchange Online through Microsoft Graph, Outlook data files, the browser version.
-6. **Next:** HTML layout, Exchange calendars, `.pst` export, a persistent browser cache
-   ([docs/gaps.md](docs/gaps.md)).
+6. **v0.6 — The rest of Outlook's reach** ✅ Exchange calendars and contacts (Graph), on-premises
+   Exchange (EWS, NTLM), `.pst` contacts, calendar and export, newsletter layouts, Arabic and
+   Hebrew, browser push and a kept cache, video frames and drag-out everywhere.
+7. **Next:** CSS-only layouts, EWS calendars and Autodiscover, Wayland drag-out, mirroring the
+   window for right-to-left languages ([docs/gaps.md](docs/gaps.md)).
 
 ## Progress log
 
@@ -49,3 +52,7 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-15** — Outlook data files (`.pst`) open as mailboxes; Exchange Online through
   Microsoft Graph; the store in memory, JMAP as a portable crate, and the browser version
   (`apps/mailcraft-web`).
+- **2026-10-15** — Outlook's message editor and windows; Exchange calendars and contacts; `.pst`
+  contacts, calendar and export; video frames from the system; browser push and IndexedDB;
+  Arabic and Hebrew with right-to-left text; newsletter layouts; on-premises Exchange through
+  EWS with NTLM; drag-out under X11.
