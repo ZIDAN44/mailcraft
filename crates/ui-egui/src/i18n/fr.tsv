@@ -694,6 +694,25 @@
 	mark read	marquer comme lu
 	pin	épingler
 	to “{text}”	à « {text} »
+	Add a place	Ajouter un lieu
+	Add at least one name in To, Cc or Bcc before sending.	Ajoutez au moins un nom dans À, Cc ou Cci avant d'envoyer.
+	Edit link	Modifier le lien
+	Edit link…	Modifier le lien…
+	First and last name	Prénom et nom
+	Link to	Lier à
+	One number per line	Un numéro par ligne
+	Text to display	Texte à afficher
+	The address itself	L'adresse elle-même
+	Web page or file	Page web ou fichier
+	Cut	Couper
+	Copy	Copier
+	Paste	Coller
+	Select all	Tout sélectionner
+	Link…	Lien…
+	Open link	Ouvrir le lien
+	Clear formatting	Effacer la mise en forme
+	Insert link	Insérer un lien
+	The selected text	Le texte sélectionné
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

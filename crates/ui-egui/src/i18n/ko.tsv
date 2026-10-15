@@ -693,6 +693,25 @@
 	mark read	읽음으로 표시
 	pin	고정
 	to “{text}”	받는 사람 “{text}”
+	Add a place	장소 추가
+	Add at least one name in To, Cc or Bcc before sending.	보내기 전에 받는 사람, 참조 또는 숨은 참조에 이름을 하나 이상 추가하세요.
+	Edit link	링크 편집
+	Edit link…	링크 편집…
+	First and last name	이름과 성
+	Link to	연결 대상
+	One number per line	한 줄에 번호 하나
+	Text to display	표시할 텍스트
+	The address itself	주소 그대로
+	Web page or file	웹 페이지 또는 파일
+	Cut	잘라내기
+	Copy	복사
+	Paste	붙여넣기
+	Select all	모두 선택
+	Link…	링크…
+	Open link	링크 열기
+	Clear formatting	서식 지우기
+	Insert link	링크 삽입
+	The selected text	선택한 텍스트
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

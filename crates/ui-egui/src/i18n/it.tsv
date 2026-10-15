@@ -693,6 +693,25 @@
 	mark read	segna come letto
 	pin	aggiungi
 	to “{text}”	a “{text}”
+	Add a place	Aggiungi un luogo
+	Add at least one name in To, Cc or Bcc before sending.	Aggiungi almeno un nome in A, Cc o Ccn prima di inviare.
+	Edit link	Modifica collegamento
+	Edit link…	Modifica collegamento…
+	First and last name	Nome e cognome
+	Link to	Collega a
+	One number per line	Un numero per riga
+	Text to display	Testo da visualizzare
+	The address itself	L'indirizzo stesso
+	Web page or file	Pagina web o file
+	Cut	Taglia
+	Copy	Copia
+	Paste	Incolla
+	Select all	Seleziona tutto
+	Link…	Collegamento…
+	Open link	Apri collegamento
+	Clear formatting	Cancella formattazione
+	Insert link	Inserisci collegamento
+	The selected text	Il testo selezionato
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

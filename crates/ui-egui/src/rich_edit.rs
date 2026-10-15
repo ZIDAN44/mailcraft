@@ -64,12 +64,115 @@ pub(crate) struct Editor {
     undo: Vec<Snap>,
     redo: Vec<Snap>,
     last_change: f64,
-    /// The link box, while open: the address being typed.
-    link: Option<String>,
+    /// The Insert link dialog, while open.
+    link: Option<LinkForm>,
+    /// Paste once the text has the keyboard back (asked from the right-click menu).
+    paste: bool,
     pictures: HashMap<String, Option<egui::TextureHandle>>,
     /// Give the keyboard back to the text (after a ribbon button took the click), with this
     /// selection.
     refocus: Option<Range<usize>>,
+}
+
+/// Outlook's Insert Hyperlink, with what mail needs: a web page or file, or an email address.
+#[derive(Clone, Debug, Default)]
+struct LinkForm {
+    email: bool,
+    text: String,
+    address: String,
+    to: String,
+    subject: String,
+    /// The text the link goes on (the selection when the dialog opened).
+    sel: Range<usize>,
+    /// A link was there already (Remove link is offered).
+    editing: bool,
+    /// The selection spans lines: the link goes on it as it is (the text can't be retyped).
+    multi: bool,
+}
+
+impl LinkForm {
+    /// The dialog for the selection: its text, and the link already on it.
+    fn open(c: &Compose, sel: Range<usize>) -> LinkForm {
+        let chosen: String = c.body.chars().skip(sel.start).take(sel.end.saturating_sub(sel.start)).collect();
+        let existing = c.styles.style(sel.start).link.filter(|_| !c.body.is_empty());
+        let multi = chosen.contains('\n');
+        let mut f = LinkForm { text: if multi { String::new() } else { chosen }, sel, editing: existing.is_some(), multi, ..Default::default() };
+        match existing {
+            Some(url) if url.to_ascii_lowercase().starts_with("mailto:") => {
+                f.email = true;
+                let rest = url.get(7..).unwrap_or_default();
+                let (to, query) = rest.split_once('?').unwrap_or((rest, ""));
+                f.to = percent_decode(to);
+                f.subject = query.split('&').find_map(|kv| kv.strip_prefix("subject=")).map(percent_decode).unwrap_or_default();
+            }
+            Some(url) => f.address = url,
+            None => {}
+        }
+        f
+    }
+
+    /// The link's address: `https://` added to a bare web address, `file:///` to a path, and
+    /// a `mailto:` with its subject.
+    fn url(&self) -> Option<String> {
+        if self.email {
+            let to = self.to.trim();
+            if to.is_empty() {
+                return None;
+            }
+            let to = to.strip_prefix("mailto:").unwrap_or(to);
+            let subject = self.subject.trim();
+            return Some(if subject.is_empty() { format!("mailto:{to}") } else { format!("mailto:{to}?subject={}", percent_encode(subject)) });
+        }
+        let a = self.address.trim();
+        if a.is_empty() || a == "https://" || a == "http://" {
+            return None;
+        }
+        let lower = a.to_ascii_lowercase();
+        let has_scheme = ["http://", "https://", "mailto:", "file:", "ftp://", "tel:"].iter().any(|p| lower.starts_with(p));
+        let path = a.len() > 2 && a.as_bytes().get(1) == Some(&b':') && matches!(a.as_bytes().get(2), Some(b'\\' | b'/'));
+        Some(if has_scheme {
+            a.to_string()
+        } else if path || a.starts_with("\\\\") {
+            format!("file:///{}", a.replace('\\', "/").trim_start_matches('/'))
+        } else {
+            format!("https://{a}")
+        })
+    }
+}
+
+/// `%XX` escapes in a mailto address or subject, as text.
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while let Some(&c) = b.get(i) {
+        let hex = |k: usize| b.get(k).and_then(|h| (*h as char).to_digit(16));
+        match (c, hex(i + 1), hex(i + 2)) {
+            (b'%', Some(h), Some(l)) => {
+                out.push(u8::try_from(h * 16 + l).unwrap_or(b'?'));
+                i += 3;
+            }
+            _ => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// A subject as a mailto may carry it (RFC 6068): everything but letters, digits and `-._~`
+/// escaped.
+fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
 #[derive(Clone)]
@@ -89,6 +192,7 @@ impl Editor {
             redo: Vec::new(),
             last_change: 0.0,
             link: None,
+            paste: false,
             pictures: HashMap::new(),
             refocus: None,
         }
@@ -225,16 +329,16 @@ pub(crate) fn apply(ed: &mut Editor, c: &mut Compose, op: Op) {
     c.plain = false;
 }
 
-/// Put `text` at the cursor with style `style` (a link typed into the link box with nothing
-/// selected).
-fn insert(ed: &mut Editor, c: &mut Compose, at: usize, text: &str, style: Style) {
-    ed.remember(c, at);
+/// Put `text` in place of the characters in `range`, with style `style`.
+fn replace(ed: &mut Editor, c: &mut Compose, range: Range<usize>, text: &str, style: Style) {
+    ed.remember(c, range.end);
     let old = c.body.clone();
-    let byte = old.char_indices().nth(at).map_or(old.len(), |(b, _)| b);
-    c.body.insert_str(byte, text);
+    let byte = |at: usize| old.char_indices().nth(at).map_or(old.len(), |(b, _)| b);
+    let (a, b) = (byte(range.start), byte(range.end.max(range.start)));
+    c.body.replace_range(a..b, text);
     let n = text.chars().count();
-    c.styles.edit_at(&old, &c.body, &style, Some(at + n));
-    ed.sel = at + n..at + n;
+    c.styles.edit_at(&old, &c.body, &style, Some(range.start + n));
+    ed.sel = range.start + n..range.start + n;
 }
 
 fn undo(ed: &mut Editor, c: &mut Compose, ctx: &egui::Context, redo: bool) {
@@ -316,7 +420,7 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
         undo(ed, c, &ctx, redo_k);
     }
     if link_k {
-        ed.link = Some(c.styles.style(ed.sel.start).link.unwrap_or_else(|| "https://".into()));
+        ed.link = Some(LinkForm::open(c, ed.sel.clone()));
     }
     if book_k {
         acts.push(Action::Dialog(Dialog::select_names(c, "to")));
@@ -400,8 +504,44 @@ fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, shift: &[f32
     job
 }
 
+/// egui puts an empty line at the left edge whatever its indent, so the caret on an empty
+/// bulleted or indented line sat before its bullet: such rows are moved to their indent.
+fn indent_empty_rows(g: Arc<Galley>, st: &Styles, plain: bool) -> Arc<Galley> {
+    if plain {
+        return g;
+    }
+    let lead = |n: usize| {
+        let p = st.para(n);
+        f32::from(p.indent) * INDENT + if p.list == List::None { 0.0 } else { INDENT }
+    };
+    let mut para = 0usize;
+    let mut moves = Vec::new();
+    for (i, r) in g.rows.iter().enumerate() {
+        if r.row.glyphs.is_empty() && lead(para) > 0.0 {
+            moves.push((i, lead(para)));
+        }
+        if r.ends_with_newline {
+            para += 1;
+        }
+    }
+    if moves.is_empty() {
+        return g;
+    }
+    let mut out = (*g).clone();
+    for (i, x) in moves {
+        if let Some(r) = out.rows.get_mut(i) {
+            r.pos.x = x;
+        }
+    }
+    Arc::new(out)
+}
+
 /// Lay the text out; centred and right-aligned paragraphs that fit on one line are moved over.
 fn layout(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32) -> Arc<Galley> {
+    indent_empty_rows(layout_aligned(ui, text, st, plain, t, wrap), st, plain)
+}
+
+fn layout_aligned(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32) -> Arc<Galley> {
     let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[]));
     // A right-to-left paragraph left as it was sits against the right edge.
     let lines: Vec<&str> = text.split('\n').collect();
@@ -450,6 +590,11 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
             ui.memory_mut(|m| m.request_focus(id));
             set_selection(ui.ctx(), id, sel.clone());
             ed.sel = sel;
+            // Paste from the right-click menu: the system sends the text to the text box now
+            // that it has the keyboard.
+            if std::mem::take(&mut ed.paste) {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+            }
         }
     }
     if ui.memory(|m| m.has_focus(id)) {
@@ -461,10 +606,13 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let tokens = *t;
     let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap);
     let height = ui.available_height().max(220.0);
+    // No hint over a first line that's a list item or indented (its bullet is drawn there).
+    let p0 = c.styles.para(0);
+    let hint = if p0.list == List::None && p0.indent == 0 { tl!("Write your message…") } else { "" };
     let out = egui::TextEdit::multiline(&mut c.body)
         .id(id)
         .frame(egui::Frame::NONE)
-        .hint_text(tl!("Write your message…"))
+        .hint_text(hint)
         .lock_focus(true)
         .desired_width(f32::INFINITY)
         .min_size(vec2(ui.available_width(), height))
@@ -504,6 +652,66 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     if !c.plain {
         decorate(ui, t, ed, c, &out.galley, out.galley_pos);
     }
+    text_menu(&out.response, ed, c, acts);
+}
+
+/// The right-click menu on the text, as Outlook's: Cut, Copy, Paste and Select all; the link
+/// (insert, edit, open, remove); and clearing the formatting.
+fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
+    let n = c.body.chars().count();
+    let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
+    let chosen: String = c.body.chars().skip(sel.start).take(sel.end - sel.start).collect();
+    let link = c.styles.style(sel.start).link.filter(|_| n > 0);
+    resp.context_menu(|ui| {
+        ui.set_min_width(190.0);
+        let item = |ui: &mut Ui, label: &str, keys: &str, enabled: bool| -> bool {
+            let b = egui::Button::new(tl!(label)).shortcut_text(keys);
+            let clicked = ui.add_enabled(enabled, b).clicked();
+            if clicked {
+                ui.close();
+            }
+            clicked
+        };
+        let some = !sel.is_empty();
+        if item(ui, "Cut", "Ctrl+X", some && !c.sending) {
+            ui.ctx().copy_text(chosen.clone());
+            let style = typing_style(&c.body, &c.styles, sel.start);
+            replace(ed, c, sel.clone(), "", style);
+            ed.refocus = Some(ed.sel.clone());
+        }
+        if item(ui, "Copy", "Ctrl+C", some) {
+            ui.ctx().copy_text(chosen.clone());
+            ed.refocus = Some(sel.clone());
+        }
+        if item(ui, "Paste", "Ctrl+V", !c.sending) {
+            ed.paste = true;
+            ed.refocus = Some(sel.clone());
+        }
+        ui.separator();
+        if item(ui, "Select all", "Ctrl+A", n > 0) {
+            ed.refocus = Some(0..n);
+        }
+        if !c.plain {
+            ui.separator();
+            if item(ui, if link.is_some() { "Edit link…" } else { "Link…" }, "Ctrl+K", !c.sending) {
+                ed.link = Some(LinkForm::open(c, sel.clone()));
+            }
+            if let Some(url) = &link {
+                if item(ui, "Open link", "", true) {
+                    acts.push(Action::OpenUrl(url.clone()));
+                }
+                if item(ui, "Remove link", "", !c.sending) {
+                    apply(ed, c, Op::Unlink);
+                    ed.refocus = Some(sel.clone());
+                }
+            }
+            ui.separator();
+            if item(ui, "Clear formatting", "Ctrl+Space", some && !c.sending) {
+                apply(ed, c, Op::Clear);
+                ed.refocus = Some(sel.clone());
+            }
+        }
+    });
 }
 
 /// Bullets and numbers, rules and pictures.
@@ -708,53 +916,138 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
             acts.push(Action::AttachFiles);
         }
         if crate::widgets::tool_button(ui, Icon::Link, "Link", t, !c.sending && !c.plain).on_hover_text(tl!("Ctrl+K")).clicked() {
-            ed.link = Some(cur.link.clone().unwrap_or_else(|| "https://".into()));
+            ed.link = Some(LinkForm::open(c, sel.clone()));
         }
         if crate::widgets::tool_button(ui, Icon::Image, "Pictures", t, !c.sending && !c.plain).clicked() {
             acts.push(Action::InsertPicture);
         }
     });
-    // The link box.
-    if let Some(mut url) = ed.link.take() {
-        let mut keep = true;
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(tl!("Address")).color(t.dim));
-            let r = ui.add(egui::TextEdit::singleline(&mut url).desired_width(320.0));
-            if !r.has_focus() && ui.memory(|m| m.focused().is_none()) {
-                r.request_focus();
-            }
-            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-            if ui.button(tl!("Insert")).clicked() || enter {
-                let u = url.trim().to_string();
-                if u.len() > "https://".len() || u.starts_with("mailto:") {
-                    if sel.is_empty() {
-                        let style = Style { link: Some(u.clone()), ..typing_style(&c.body, &c.styles, sel.start) };
-                        insert(ed, c, sel.start, &u, style);
-                    } else {
-                        ops.push(Op::Link(u));
-                    }
-                }
-                keep = false;
-            }
-            if cur.link.is_some() && ui.button(tl!("Remove link")).clicked() {
-                ops.push(Op::Unlink);
-                keep = false;
-            }
-            if ui.button(tl!("Cancel")).clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
-                keep = false;
-            }
-        });
-        if keep {
-            ed.link = Some(url);
-        } else {
-            ed.refocus = Some(ed.sel.clone());
-        }
-    }
+    link_dialog(ui, t, ed, c);
     let changed = !ops.is_empty();
     for op in ops {
         apply(ed, c, op);
     }
     if changed {
         ed.refocus = Some(ed.sel.clone());
+    }
+}
+
+/// Insert link, as Outlook's Insert Hyperlink keeps what mail needs: what the text says, and a
+/// web page (or file) or an email address with a subject. Shown over the message's own window.
+fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose) {
+    let Some(mut f) = ed.link.take() else { return };
+    let mut close = false;
+    let mut done: Option<Option<String>> = None;
+    let modal = egui::Modal::new(egui::Id::new(("link-dialog", c.id))).frame(crate::dialogs::dialog_frame(t)).show(ui.ctx(), |ui| {
+        ui.set_width(440.0);
+        ui.label(RichText::new(tl!(if f.editing { "Edit link" } else { "Insert link" })).font(theme::bold(18.0)).color(t.text));
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tl!("Link to")).color(t.dim));
+            ui.selectable_value(&mut f.email, false, tl!("Web page or file"));
+            ui.selectable_value(&mut f.email, true, tl!("Email address"));
+        });
+        ui.add_space(8.0);
+        let first = egui::Grid::new(("link-grid", c.id)).num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
+            let w = 300.0;
+            ui.label(RichText::new(tl!("Text to display")).color(t.dim));
+            if f.multi {
+                ui.label(RichText::new(tl!("The selected text")).color(t.faint).italics());
+            } else {
+                ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("The address itself")).desired_width(w));
+            }
+            ui.end_row();
+            if f.email {
+                ui.label(RichText::new(tl!("Email address")).color(t.dim));
+                let r = ui.add(egui::TextEdit::singleline(&mut f.to).hint_text("name@example.com").desired_width(w));
+                ui.end_row();
+                ui.label(RichText::new(tl!("Subject")).color(t.dim));
+                ui.add(egui::TextEdit::singleline(&mut f.subject).desired_width(w));
+                ui.end_row();
+                r
+            } else {
+                ui.label(RichText::new(tl!("Address")).color(t.dim));
+                let r = ui.add(egui::TextEdit::singleline(&mut f.address).hint_text("https://").desired_width(w));
+                ui.end_row();
+                r
+            }
+        });
+        if ui.memory(|m| m.focused().is_none()) {
+            first.inner.request_focus();
+        }
+        ui.add_space(12.0);
+        let url = f.url();
+        let enter = ui.input(|i| i.key_pressed(Key::Enter));
+        ui.horizontal(|ui| {
+            if f.editing && ui.button(tl!("Remove link")).clicked() {
+                done = Some(None);
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.add_enabled(url.is_some(), egui::Button::new(tl!("OK"))).clicked() || (enter && url.is_some()) {
+                    done = Some(url.clone());
+                }
+                if ui.button(tl!("Cancel")).clicked() {
+                    close = true;
+                }
+            });
+        });
+    });
+    if modal.should_close() {
+        close = true;
+    }
+    match done {
+        Some(Some(url)) => {
+            let sel = f.sel.clone();
+            let n = c.body.chars().count();
+            let sel = sel.start.min(n)..sel.end.min(n);
+            let current: String = c.body.chars().skip(sel.start).take(sel.end - sel.start).collect();
+            let shown = if f.text.trim().is_empty() {
+                url.strip_prefix("mailto:").map_or(url.as_str(), |a| a.split('?').next().unwrap_or(a)).to_string()
+            } else {
+                f.text.clone()
+            };
+            if !sel.is_empty() && (shown == current || f.multi) {
+                ed.sel = sel;
+                apply(ed, c, Op::Link(url));
+            } else {
+                // New text (or the text changed): typed in place of the selection, as a link.
+                let style = Style { link: Some(url), ..typing_style(&c.body, &c.styles, sel.start) };
+                replace(ed, c, sel, &shown, style);
+                c.plain = false;
+            }
+            ed.refocus = Some(ed.sel.clone());
+        }
+        Some(None) => {
+            ed.sel = f.sel.clone();
+            apply(ed, c, Op::Unlink);
+            ed.refocus = Some(ed.sel.clone());
+        }
+        None if close => ed.refocus = Some(f.sel.clone()),
+        None => ed.link = Some(f),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn link_addresses() {
+        let web = |a: &str| LinkForm { address: a.into(), ..Default::default() }.url();
+        assert_eq!(web("example.com").as_deref(), Some("https://example.com"));
+        assert_eq!(web("http://x.example/a").as_deref(), Some("http://x.example/a"));
+        assert_eq!(web("C:/Users/me/plan.docx").as_deref(), Some("file:///C:/Users/me/plan.docx"));
+        assert_eq!(web("https://"), None);
+        assert_eq!(web("  "), None);
+        let mail = LinkForm { email: true, to: "zoe@studio.example".into(), subject: "Poster & sizes".into(), ..Default::default() };
+        assert_eq!(mail.url().as_deref(), Some("mailto:zoe@studio.example?subject=Poster%20%26%20sizes"));
+        assert_eq!(LinkForm { email: true, ..Default::default() }.url(), None);
+        // An existing mailto link opens as an email address with its subject.
+        let mut c = Compose { body: "write".into(), ..Default::default() };
+        c.styles = Styles::plain(&c.body);
+        c.styles.restyle(&c.body, 0..5, |s| Style { link: Some("mailto:ann@x.example?subject=Hi%20there".into()), ..s.clone() });
+        let f = LinkForm::open(&c, 0..5);
+        assert!(f.email && f.editing && !f.multi);
+        assert_eq!((f.to.as_str(), f.subject.as_str(), f.text.as_str()), ("ann@x.example", "Hi there", "write"));
     }
 }

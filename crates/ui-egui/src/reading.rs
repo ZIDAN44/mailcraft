@@ -1299,6 +1299,40 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         st.editor = Some(rich_edit::Editor::new(c.id));
     }
     let Some(mut ed) = st.editor.take() else { return };
+    // Why it couldn't go: over the message, in its own window when it has one.
+    if let Some(msg) = st.compose_alert.clone() {
+        let modal = egui::Modal::new(egui::Id::new(("compose-alert", c.id))).frame(crate::dialogs::dialog_frame(&t)).show(ui.ctx(), |ui| {
+            ui.set_width(380.0);
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::hover());
+                icons::paint(ui.painter(), r, Icon::Warning, t.warn);
+                ui.add_space(6.0);
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(t.text));
+                    let mut text = if msg == "add at least one recipient" {
+                        tl!("Add at least one name in To, Cc or Bcc before sending.").to_string()
+                    } else {
+                        msg.clone()
+                    };
+                    if let Some(first) = text.get(..1) {
+                        text = first.to_uppercase() + text.get(1..).unwrap_or_default();
+                    }
+                    if !text.ends_with('.') {
+                        text.push('.');
+                    }
+                    ui.add(egui::Label::new(RichText::new(text).color(t.text)).wrap());
+                });
+            });
+            ui.add_space(10.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.button(tl!("OK")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter))
+            })
+            .inner
+        });
+        if modal.inner || modal.should_close() {
+            st.compose_alert = None;
+        }
+    }
     // A newly opened message: start in To (new mail) or the body (replies).
     let fresh = st.compose_shown != Some(c.id);
     st.compose_shown = Some(c.id);
@@ -1335,55 +1369,64 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             rich_edit::ribbon(ui, &t, &mut ed, c, acts);
         });
         ui.add_space(4.0);
-        // Drafts, Bcc and the format; Discard and Pop out (or in) at the right, as in Outlook.
+        // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);
+        // Discard and Pop out (or in) kept at the right, as in Outlook.
         ui.horizontal(|ui| {
-            if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
-                acts.push(Action::Run("compose.saveDraft", json!({})));
-            }
-            if widgets::tool_button(ui, Icon::Person, if c.show_cc { "Hide Bcc" } else { "Bcc" }, &t, !c.sending).clicked() {
-                c.show_cc = !c.show_cc;
-            }
-            let mut plain = c.plain;
-            if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
-                c.plain = plain;
-            }
-            // Importance and a read receipt, as Outlook's Tags and Options.
-            ui.add_space(6.0);
-            if ui.selectable_label(c.importance > 0, RichText::new("!").strong().color(t.danger)).on_hover_text(tl!("High importance")).clicked() {
-                c.importance = if c.importance > 0 { 0 } else { 1 };
-            }
-            if ui.selectable_label(c.importance < 0, RichText::new("↓").strong().color(t.accent)).on_hover_text(tl!("Low importance")).clicked() {
-                c.importance = if c.importance < 0 { 0 } else { -1 };
-            }
-            let mut receipt = c.read_receipt;
-            if ui
-                .checkbox(&mut receipt, RichText::new(tl!("Read receipt")).small())
-                .on_hover_text(tl!("Ask the recipients to confirm they've read it (their mail app may not, or may ask them)"))
-                .changed()
-            {
-                c.read_receipt = receipt;
-            }
-            // Outlook's Delay Delivery and Direct Replies To.
-            if can_delay {
-                let label = match c.send_after {
-                    Some(at) => tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &clock))),
-                    None => tl!("Delay delivery").to_string(),
-                };
-                let r = widgets::tool_toggle(ui, Icon::Clock, &label, &t, c.send_after.is_some())
-                    .on_hover_text(tl!("Keep it in the Outbox and send it later (MailCraft has to be running then)"));
-                egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| delay_menu(ui, &t, c, &clock));
-            }
-            if widgets::tool_toggle(ui, Icon::Reply, "Replies to", &t, c.show_reply_to || !c.reply_to.is_empty())
-                .on_hover_text(tl!("Have replies sent to another address"))
-                .clicked()
-            {
-                c.show_reply_to = !c.show_reply_to;
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let (icon, label, id) =
-                    if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
-                // Where windows can't open (the browser), messages stay in the reading pane.
-                if !ui.ctx().embed_viewports()
+            let (icon, label, id) = if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
+            // Where windows can't open (the browser), messages stay in the reading pane.
+            let can_pop = !ui.ctx().embed_viewports();
+            let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
+            let gap = ui.spacing().item_spacing.x;
+            let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
+            let left_w = (ui.available_width() - right).max(120.0);
+            ui.allocate_ui_with_layout(vec2(left_w, 30.0), egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true), |ui| {
+                if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
+                    acts.push(Action::Run("compose.saveDraft", json!({})));
+                }
+                if widgets::tool_button(ui, Icon::Person, if c.show_cc { "Hide Bcc" } else { "Bcc" }, &t, !c.sending).clicked() {
+                    c.show_cc = !c.show_cc;
+                }
+                let mut plain = c.plain;
+                if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
+                    c.plain = plain;
+                }
+                // Importance and a read receipt, as Outlook's Tags and Options.
+                ui.add_space(6.0);
+                if ui.selectable_label(c.importance > 0, RichText::new("!").strong().color(t.danger)).on_hover_text(tl!("High importance")).clicked()
+                {
+                    c.importance = if c.importance > 0 { 0 } else { 1 };
+                }
+                if ui.selectable_label(c.importance < 0, RichText::new("↓").strong().color(t.accent)).on_hover_text(tl!("Low importance")).clicked()
+                {
+                    c.importance = if c.importance < 0 { 0 } else { -1 };
+                }
+                let mut receipt = c.read_receipt;
+                if ui
+                    .checkbox(&mut receipt, RichText::new(tl!("Read receipt")).small())
+                    .on_hover_text(tl!("Ask the recipients to confirm they've read it (their mail app may not, or may ask them)"))
+                    .changed()
+                {
+                    c.read_receipt = receipt;
+                }
+                // Outlook's Delay Delivery and Direct Replies To.
+                if can_delay {
+                    let label = match c.send_after {
+                        Some(at) => tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &clock))),
+                        None => tl!("Delay delivery").to_string(),
+                    };
+                    let r = widgets::tool_toggle(ui, Icon::Clock, &label, &t, c.send_after.is_some())
+                        .on_hover_text(tl!("Keep it in the Outbox and send it later (MailCraft has to be running then)"));
+                    egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| delay_menu(ui, &t, c, &clock));
+                }
+                if widgets::tool_toggle(ui, Icon::Reply, "Replies to", &t, c.show_reply_to || !c.reply_to.is_empty())
+                    .on_hover_text(tl!("Have replies sent to another address"))
+                    .clicked()
+                {
+                    c.show_reply_to = !c.show_reply_to;
+                }
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                if can_pop
                     && widgets::tool_button(ui, icon, label, &t, true)
                         .on_hover_text(tl!(if in_window { "Back to the reading pane" } else { "Write it in a window of its own" }))
                         .clicked()

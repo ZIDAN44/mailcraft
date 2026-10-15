@@ -1030,7 +1030,7 @@ fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Actio
 
 /// Show the dialog; returns whether it stays open.
 pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    let frame = egui::Frame::new().fill(t.surface).corner_radius(12).inner_margin(Margin::same(22)).stroke(egui::Stroke::new(1.0, t.border));
+    let frame = dialog_frame(t);
     let modal = egui::Modal::new(egui::Id::new("dialog")).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
     let keep = modal.inner;
     keep && !modal.should_close()
@@ -1849,4 +1849,9 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             !cancel
         }
     }
+}
+
+/// How every dialog looks (the main window's, and those over a message's own window).
+pub(crate) fn dialog_frame(t: &Tokens) -> egui::Frame {
+    egui::Frame::new().fill(t.surface).corner_radius(12).inner_margin(Margin::same(22)).stroke(egui::Stroke::new(1.0, t.border))
 }

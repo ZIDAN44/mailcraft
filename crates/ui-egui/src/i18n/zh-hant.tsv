@@ -693,6 +693,25 @@
 	mark read	標示為已讀
 	pin	釘選
 	to “{text}”	寄給「{text}」
+	Add a place	新增地點
+	Add at least one name in To, Cc or Bcc before sending.	傳送前,請在「收件者」、「副本」或「密件副本」中至少新增一個名稱。
+	Edit link	編輯連結
+	Edit link…	編輯連結…
+	First and last name	姓名
+	Link to	連結至
+	One number per line	每行一個號碼
+	Text to display	要顯示的文字
+	The address itself	地址本身
+	Web page or file	網頁或檔案
+	Cut	剪下
+	Copy	複製
+	Paste	貼上
+	Select all	全選
+	Link…	連結…
+	Open link	開啟連結
+	Clear formatting	清除格式設定
+	Insert link	插入連結
+	The selected text	選取的文字
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

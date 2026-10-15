@@ -696,3 +696,22 @@ month	May	5月
 	mark read	開封済みにする
 	pin	ピン留め
 	to “{text}”	宛先「{text}」
+	Add a place	場所を追加
+	Add at least one name in To, Cc or Bcc before sending.	送信する前に、宛先、CC、BCC のいずれかに名前を 1 つ以上追加してください。
+	Edit link	リンクの編集
+	Edit link…	リンクの編集…
+	First and last name	姓名
+	Link to	リンク先
+	One number per line	1 行に 1 つの番号
+	Text to display	表示文字列
+	The address itself	アドレスそのもの
+	Web page or file	Web ページまたはファイル
+	Cut	切り取り
+	Copy	コピー
+	Paste	貼り付け
+	Select all	すべて選択
+	Link…	リンク…
+	Open link	リンクを開く
+	Clear formatting	書式のクリア
+	Insert link	リンクの挿入
+	The selected text	選択した文字列

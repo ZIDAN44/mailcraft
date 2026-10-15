@@ -326,6 +326,8 @@ pub struct UiState {
     search_focused: bool,
     /// Put the search box's cursor at the end when it next takes the focus.
     search_cursor_end: bool,
+    /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
+    pub compose_alert: Option<String>,
     /// Where the ribbon was last drawn (a click on the Search tab's buttons takes the focus
     /// from the box, and mustn't close the tab).
     ribbon_rect: Option<egui::Rect>,
@@ -423,6 +425,7 @@ impl MailApp {
                 focus_search: false,
                 search_focused: false,
                 search_cursor_end: false,
+                compose_alert: None,
                 ribbon_rect: None,
                 dialog: None,
                 previews: HashMap::new(),
@@ -512,9 +515,16 @@ impl MailApp {
 
     /// Run a command, reporting failures in a toast.
     pub fn run(&mut self, id: &str, params: Value) {
+        use mailcraft_engine::CmdError;
         match self.session.run(id, &params) {
             Ok(_) => {}
-            Err(mailcraft_engine::CmdError::Disabled(_)) => {}
+            Err(CmdError::Disabled(_)) => {}
+            // What went wrong with the message being written is said over it, in its own
+            // window if it has one, as Outlook does (not in the main window's corner).
+            Err(CmdError::Params(m) | CmdError::Failed(m)) if id.starts_with("compose.") && self.session.compose.is_some() => {
+                self.ui.compose_alert = Some(m);
+            }
+            Err(CmdError::Params(m) | CmdError::Failed(m)) => self.session.notice(m, true),
             Err(e) => self.session.notice(e.to_string(), true),
         }
     }

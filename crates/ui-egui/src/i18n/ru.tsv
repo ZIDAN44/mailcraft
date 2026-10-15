@@ -693,6 +693,25 @@
 	mark read	отметить как прочитанное
 	pin	закрепить
 	to “{text}”	кому «{text}»
+	Add a place	Добавить место
+	Add at least one name in To, Cc or Bcc before sending.	Перед отправкой добавьте хотя бы одно имя в поле «Кому», «Копия» или «СК».
+	Edit link	Изменить ссылку
+	Edit link…	Изменить ссылку…
+	First and last name	Имя и фамилия
+	Link to	Связать с
+	One number per line	По одному номеру в строке
+	Text to display	Текст
+	The address itself	Сам адрес
+	Web page or file	Веб-страница или файл
+	Cut	Вырезать
+	Copy	Копировать
+	Paste	Вставить
+	Select all	Выделить все
+	Link…	Ссылка…
+	Open link	Открыть ссылку
+	Clear formatting	Очистить формат
+	Insert link	Вставить ссылку
+	The selected text	Выделенный текст
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

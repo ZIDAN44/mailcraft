@@ -694,6 +694,25 @@
 	mark read	marcar como lida
 	pin	fixar
 	to “{text}”	para “{text}”
+	Add a place	Adicionar um local
+	Add at least one name in To, Cc or Bcc before sending.	Adicione pelo menos um nome em Para, Cc ou Cco antes de enviar.
+	Edit link	Editar link
+	Edit link…	Editar link…
+	First and last name	Nome e sobrenome
+	Link to	Vincular a
+	One number per line	Um número por linha
+	Text to display	Texto para exibição
+	The address itself	O próprio endereço
+	Web page or file	Página da web ou arquivo
+	Cut	Recortar
+	Copy	Copiar
+	Paste	Colar
+	Select all	Selecionar tudo
+	Link…	Link…
+	Open link	Abrir link
+	Clear formatting	Limpar formatação
+	Insert link	Inserir link
+	The selected text	O texto selecionado
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

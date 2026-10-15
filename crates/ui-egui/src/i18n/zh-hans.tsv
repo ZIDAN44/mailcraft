@@ -696,3 +696,22 @@ month	May	5月
 	mark read	标记为已读
 	pin	固定
 	to “{text}”	发往“{text}”
+	Add a place	添加地点
+	Add at least one name in To, Cc or Bcc before sending.	发送前,请在“收件人”、“抄送”或“密件抄送”中至少添加一个名字。
+	Edit link	编辑链接
+	Edit link…	编辑链接…
+	First and last name	姓名
+	Link to	链接到
+	One number per line	每行一个号码
+	Text to display	要显示的文字
+	The address itself	地址本身
+	Web page or file	网页或文件
+	Cut	剪切
+	Copy	复制
+	Paste	粘贴
+	Select all	全选
+	Link…	链接…
+	Open link	打开链接
+	Clear formatting	清除格式
+	Insert link	插入链接
+	The selected text	所选文字

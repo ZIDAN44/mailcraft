@@ -694,6 +694,25 @@
 	mark read	marcar como leído
 	pin	anclar
 	to “{text}”	a «{text}»
+	Add a place	Agregar un lugar
+	Add at least one name in To, Cc or Bcc before sending.	Agregue al menos un nombre en Para, CC o CCO antes de enviar.
+	Edit link	Editar vínculo
+	Edit link…	Editar vínculo…
+	First and last name	Nombre y apellidos
+	Link to	Vincular a
+	One number per line	Un número por línea
+	Text to display	Texto que se mostrará
+	The address itself	La propia dirección
+	Web page or file	Página web o archivo
+	Cut	Cortar
+	Copy	Copiar
+	Paste	Pegar
+	Select all	Seleccionar todo
+	Link…	Vínculo…
+	Open link	Abrir vínculo
+	Clear formatting	Borrar formato
+	Insert link	Insertar vínculo
+	The selected text	El texto seleccionado
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

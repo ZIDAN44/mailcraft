@@ -694,6 +694,25 @@
 	mark read	als gelesen markieren
 	pin	anheften
 	to “{text}”	an „{text}“
+	Add a place	Ort hinzufügen
+	Add at least one name in To, Cc or Bcc before sending.	Fügen Sie vor dem Senden mindestens einen Namen in „An“, „Cc“ oder „Bcc“ hinzu.
+	Edit link	Link bearbeiten
+	Edit link…	Link bearbeiten…
+	First and last name	Vor- und Nachname
+	Link to	Link zu
+	One number per line	Eine Nummer pro Zeile
+	Text to display	Anzuzeigender Text
+	The address itself	Die Adresse selbst
+	Web page or file	Webseite oder Datei
+	Cut	Ausschneiden
+	Copy	Kopieren
+	Paste	Einfügen
+	Select all	Alles auswählen
+	Link…	Link…
+	Open link	Link öffnen
+	Clear formatting	Formatierung löschen
+	Insert link	Link einfügen
+	The selected text	Der markierte Text
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
