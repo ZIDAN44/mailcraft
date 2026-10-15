@@ -113,7 +113,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     for r in [FolderRole::Inbox, FolderRole::Drafts, FolderRole::Sent, FolderRole::Archive, FolderRole::Junk, FolderRole::Trash] {
         out.extend(r.label().map(str::to_string));
     }
-    for f in mailcraft_engine::ListFilter::ALL {
+    for f in mailcraft_engine::ListFilter::EVERY {
         out.insert(f.label().to_string());
     }
     for p in SnoozeUntil::ALL {
@@ -123,8 +123,10 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         out.insert(a.label().to_string());
     }
     out.extend(mailcraft_engine::ARRANGE_HEADINGS.map(str::to_string));
-    // The message editor's ribbon and dialogs.
+    // The message editor's ribbon and dialogs; labels chosen at run time.
     for s in [
+        "Ignore the conversation",
+        "Stop ignoring the conversation",
         "Bold (Ctrl+B)",
         "Italic (Ctrl+I)",
         "Underline (Ctrl+U)",

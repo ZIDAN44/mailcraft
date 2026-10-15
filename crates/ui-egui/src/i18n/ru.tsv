@@ -611,6 +611,16 @@
 	Working offline	Автономный режим
 	Close every connection: changes, mail you send and drafts wait on this computer	Закрыть все подключения: изменения, отправленная почта и черновики ждут на этом компьютере
 	Undo (Ctrl+Z)	Отменить (Ctrl+Z)
+	Filter	Фильтр
+	Categorized	С категорией
+	To or Cc me	Мне или копия мне
+	New items	Создать элемент
+	Email message	Сообщение
+	Contact	Контакт
+	More delete options	Другие варианты удаления
+	Ignore the conversation	Пропускать беседу
+	Stop ignoring the conversation	Больше не пропускать беседу
+	Its messages, and replies that arrive later, go to Deleted Items	Её сообщения и ответы, которые придут позже, попадают в «Удаленные»
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

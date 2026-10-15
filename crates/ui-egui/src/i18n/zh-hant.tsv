@@ -611,6 +611,16 @@
 	Working offline	正在離線工作
 	Close every connection: changes, mail you send and drafts wait on this computer	關閉所有連線：變更、要傳送的郵件和草稿都在這台電腦上等待
 	Undo (Ctrl+Z)	復原 (Ctrl+Z)
+	Filter	篩選
+	Categorized	已分類
+	To or Cc me	收件者或副本是我
+	New items	新增項目
+	Email message	電子郵件
+	Contact	連絡人
+	More delete options	更多刪除選項
+	Ignore the conversation	忽略此交談
+	Stop ignoring the conversation	停止忽略此交談
+	Its messages, and replies that arrive later, go to Deleted Items	其中的郵件以及之後收到的回覆都會移到「刪除的郵件」
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

@@ -56,7 +56,9 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             ui.add_space(2.0);
         }
         ui.horizontal(|ui| {
-            for f in ListFilter::ALL {
+            // The tabs, and a filter chosen from the Home tab's Filter menu when it's another.
+            let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
+            for f in shown {
                 let on = s.filter == f;
                 let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(if on {
                     theme::bold(12.5)

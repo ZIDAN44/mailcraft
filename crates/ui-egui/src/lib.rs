@@ -1349,6 +1349,22 @@ impl MailApp {
                     {
                         acts.push(Action::Run("mail.new", json!({})));
                     }
+                    // New items of other kinds, as Outlook's New Email drop-down.
+                    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "New items", &t);
+                    egui::Popup::menu(&r).show(|ui| {
+                        if ui.button(tl!("Email message")).clicked() {
+                            acts.push(Action::Run("mail.new", json!({})));
+                            ui.close();
+                        }
+                        if ui.button(tl!("Event")).clicked() {
+                            acts.push(Action::Dialog(Dialog::new_event(s, None)));
+                            ui.close();
+                        }
+                        if ui.button(tl!("Contact")).clicked() {
+                            acts.push(Action::Dialog(Dialog::new_contact()));
+                            ui.close();
+                        }
+                    });
                     widgets::group_sep(ui, &t);
                     if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
                         if self.needs_delete_confirm() {
@@ -1357,6 +1373,20 @@ impl MailApp {
                             acts.push(Action::Run("mail.delete", json!({})));
                         }
                     }
+                    // Ignore the conversation, as Outlook's Delete drop-down.
+                    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More delete options", &t);
+                    egui::Popup::menu(&r).show(|ui| {
+                        let ignoring = !s.selection.is_empty() && s.selected().iter().all(|m| s.is_ignored(m));
+                        let label = if ignoring { "Stop ignoring the conversation" } else { "Ignore the conversation" };
+                        if ui
+                            .add_enabled(enabled("mail.ignore"), egui::Button::new(tl!(label)))
+                            .on_hover_text(tl!("Its messages, and replies that arrive later, go to Deleted Items"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("mail.ignore", json!({})));
+                            ui.close();
+                        }
+                    });
                     if widgets::tool_button(ui, Icon::Archive, "Archive", &t, enabled("mail.archive"))
                         .on_hover_text(tl!("Archive (Backspace)"))
                         .clicked()
@@ -1406,6 +1436,16 @@ impl MailApp {
                     }
                     let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
                     egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
+                    // Show only some mail, as Outlook's Filter Email.
+                    let r = widgets::tool_button(ui, Icon::Funnel, "Filter", &t, true);
+                    egui::Popup::menu(&r).show(|ui| {
+                        for f in mailcraft_engine::ListFilter::EVERY {
+                            if ui.selectable_label(s.filter == f, tl!(f.label())).clicked() {
+                                acts.push(Action::Run("list.filter", json!({"value": f.code()})));
+                                ui.close();
+                            }
+                        }
+                    });
                     widgets::group_sep(ui, &t);
                     if widgets::tool_button(ui, Icon::Sync, "Send / Receive", &t, enabled("mail.sync"))
                         .on_hover_text(tl!("Send / Receive all folders (F9)"))

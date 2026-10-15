@@ -612,6 +612,16 @@
 	Working offline	Trabajando sin conexión
 	Close every connection: changes, mail you send and drafts wait on this computer	Cerrar todas las conexiones: los cambios, el correo que envíes y los borradores esperan en este equipo
 	Undo (Ctrl+Z)	Deshacer (Ctrl+Z)
+	Filter	Filtrar
+	Categorized	Con categoría
+	To or Cc me	Para mí o CC a mí
+	New items	Nuevos elementos
+	Email message	Mensaje de correo
+	Contact	Contacto
+	More delete options	Más opciones de eliminación
+	Ignore the conversation	Ignorar la conversación
+	Stop ignoring the conversation	Dejar de ignorar la conversación
+	Its messages, and replies that arrive later, go to Deleted Items	Sus mensajes, y las respuestas que lleguen después, van a Elementos eliminados
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

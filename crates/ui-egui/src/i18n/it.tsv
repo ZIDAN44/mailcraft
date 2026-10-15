@@ -611,6 +611,16 @@
 	Working offline	Lavoro offline
 	Close every connection: changes, mail you send and drafts wait on this computer	Chiudi tutte le connessioni: modifiche, posta inviata e bozze attendono su questo computer
 	Undo (Ctrl+Z)	Annulla (Ctrl+Z)
+	Filter	Filtra
+	Categorized	Con categoria
+	To or Cc me	A me o Cc a me
+	New items	Nuovi elementi
+	Email message	Messaggio di posta
+	Contact	Contatto
+	More delete options	Altre opzioni di eliminazione
+	Ignore the conversation	Ignora la conversazione
+	Stop ignoring the conversation	Non ignorare più la conversazione
+	Its messages, and replies that arrive later, go to Deleted Items	I suoi messaggi, e le risposte che arrivano dopo, vanno in Posta eliminata
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

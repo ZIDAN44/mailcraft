@@ -612,6 +612,16 @@
 	Working offline	Offline
 	Close every connection: changes, mail you send and drafts wait on this computer	Alle Verbindungen schließen: Änderungen, gesendete E-Mails und Entwürfe warten auf diesem Computer
 	Undo (Ctrl+Z)	Rückgängig (Strg+Z)
+	Filter	Filtern
+	Categorized	Kategorisiert
+	To or Cc me	An mich oder Cc an mich
+	New items	Neue Elemente
+	Email message	E-Mail-Nachricht
+	Contact	Kontakt
+	More delete options	Weitere Löschoptionen
+	Ignore the conversation	Unterhaltung ignorieren
+	Stop ignoring the conversation	Unterhaltung nicht mehr ignorieren
+	Its messages, and replies that arrive later, go to Deleted Items	Ihre Nachrichten und spätere Antworten kommen in „Gelöschte Elemente“
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
