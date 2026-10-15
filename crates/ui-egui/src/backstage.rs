@@ -347,6 +347,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         "Export to Outlook data file",
         "Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.",
         |ui| {
+            ui.label(RichText::new(tl!("Its calendar and contacts go beside it, as .ics and .vcf files.")).color(t.faint).small());
             ui.horizontal_wrapped(|ui| {
                 for a in &s.accounts {
                     if ui.button(RichText::new(&a.config.email).small()).clicked() {

@@ -4,7 +4,9 @@
 //! each folder kept on this computer becomes a folder of the same name, and each message whose
 //! body is here goes in with its addresses, text and HTML bodies and attachments. Messages only
 //! known by their headers (never opened, on an account that keeps headers only) are counted as
-//! skipped.
+//! skipped. The writer makes mail items only, so the account's calendar and contacts go beside
+//! the file in the standard formats every calendar and address book reads (`… Calendar.ics`,
+//! `… Contacts.vcf`).
 
 use std::path::Path;
 
@@ -24,6 +26,9 @@ pub struct Exported {
     pub messages: usize,
     /// Messages whose body isn't on this computer, or that couldn't be read.
     pub skipped: usize,
+    /// Events and people written beside the data file.
+    pub events: usize,
+    pub contacts: usize,
 }
 
 /// A message, ready to write.
@@ -127,13 +132,31 @@ pub fn export(store: &Store, account: &str, name: &str, path: &Path, progress: &
         Ok(()) => {
             let _ = std::fs::remove_file(path);
             std::fs::rename(&temp, path).map_err(|e| e.to_string())?;
-            Ok(done)
+            let (events, contacts) = pim_beside(store, account, path).map_err(|e| e.to_string())?;
+            Ok(Exported { events, contacts, ..done })
         }
         Err(e) => {
             let _ = std::fs::remove_file(&temp);
             Err(e)
         }
     }
+}
+
+/// The account's calendar and contacts beside the data file: (events, people) written.
+fn pim_beside(store: &Store, account: &str, path: &Path) -> mailcraft_store::Result<(usize, usize)> {
+    let pim: mailcraft_model::pim::Pim = store.load_account_doc(account, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+    let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Mail".into());
+    let dir = path.parent().unwrap_or(Path::new("."));
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0);
+    let events: Vec<mailcraft_model::ical::CalEvent> = pim.events.iter().map(|e| e.event.clone()).collect();
+    if !events.is_empty() {
+        mailcraft_store::write_atomic(&dir.join(format!("{stem} Calendar.ics")), mailcraft_model::ical::write(&events, None, now).as_bytes())?;
+    }
+    if !pim.cards.is_empty() {
+        let cards: String = pim.cards.iter().map(|c| mailcraft_model::vcard::write(&c.card)).collect();
+        mailcraft_store::write_atomic(&dir.join(format!("{stem} Contacts.vcf")), cards.as_bytes())?;
+    }
+    Ok((events.len(), pim.cards.len()))
 }
 
 fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> Result<(), String> {
@@ -245,11 +268,31 @@ mod tests {
         store.save_folder("a1", "INBOX/Projects", &projects).unwrap();
         store.save_folders("a1", &[folder("INBOX", FolderRole::Inbox), folder("INBOX/Projects", FolderRole::Other)]).unwrap();
 
+        let mut pim = mailcraft_model::pim::Pim::default();
+        pim.events.push(mailcraft_model::pim::StoredEvent {
+            event: mailcraft_model::ical::CalEvent {
+                uid: "e1".into(),
+                summary: "Screening".into(),
+                start: 1_792_000_000,
+                end: 1_792_003_600,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        pim.cards.push(mailcraft_model::pim::StoredCard {
+            card: mailcraft_model::vcard::Card { uid: "c1".into(), name: "Ana Lima".into(), ..Default::default() },
+            ..Default::default()
+        });
+        store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
         let file = dir.join("Out.pst");
         std::fs::write(&file, b"an older file").unwrap();
         let mut ticks = 0;
         let done = export(&store, "a1", "Riley's mail", &file, &mut |_| ticks += 1).unwrap();
-        assert_eq!(done, Exported { messages: 3, skipped: 1 });
+        assert_eq!(done, Exported { messages: 3, skipped: 1, events: 1, contacts: 1 });
+        let ics = std::fs::read_to_string(dir.join("Out Calendar.ics")).unwrap();
+        assert!(ics.contains("SUMMARY:Screening") && ics.contains("BEGIN:VCALENDAR"), "{ics}");
+        let vcf = std::fs::read_to_string(dir.join("Out Contacts.vcf")).unwrap();
+        assert!(vcf.contains("FN:Ana Lima"), "{vcf}");
         assert!(ticks > 0);
 
         // Read back with the importer.

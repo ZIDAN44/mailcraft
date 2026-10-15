@@ -565,6 +565,7 @@
 	DOMAIN\\user, or the email address	DOMAINE\\utilisateur, ou l'adresse e-mail
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Pour les serveurs Exchange gérés par votre organisation, via Exchange Web Services. La connexion se fait avec votre nom d'utilisateur et votre mot de passe réseau.
 	Found automatically when left empty	Trouvé automatiquement si laissé vide
+	Its calendar and contacts go beside it, as .ics and .vcf files.	Son calendrier et ses contacts sont enregistrés à côté, en fichiers .ics et .vcf.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

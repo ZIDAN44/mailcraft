@@ -566,3 +566,4 @@ month	May	מאי
 	DOMAIN\\user, or the email address	DOMAIN\\user, או כתובת הדואר האלקטרוני
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	לשרתי Exchange שהארגון שלך מפעיל, דרך Exchange Web Services. נכנסים עם שם המשתמש והסיסמה ברשת.
 	Found automatically when left empty	יימצא אוטומטית אם יישאר ריק
+	Its calendar and contacts go beside it, as .ics and .vcf files.	לוח השנה ואנשי הקשר נשמרים לידו, כקובצי ‎.ics ו-‎.vcf.
