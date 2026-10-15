@@ -93,6 +93,11 @@ pub struct AccountConfig {
     /// IMAP and SMTP; signs in with the account's OAuth token.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graph: Option<String>,
+    /// Syncs and sends through Exchange Web Services at this address
+    /// (`https://mail.example.com/EWS/Exchange.asmx`, on-premises Exchange) instead of IMAP and
+    /// SMTP; signs in with the user name (`DOMAIN\user` or an address) and password.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ews: Option<String>,
 }
 
 /// Microsoft Graph's address, for Exchange Online accounts.
@@ -142,17 +147,19 @@ impl AccountConfig {
             oauth: None,
             jmap: None,
             graph: None,
+            ews: None,
         }
     }
 
     /// Kept on this computer only, with no server (the sample mailbox).
     pub fn is_local(&self) -> bool {
-        self.imap.host.trim().is_empty() && self.jmap.is_none() && self.graph.is_none()
+        self.imap.host.trim().is_empty() && self.jmap.is_none() && self.graph.is_none() && self.ews.is_none()
     }
 
-    /// Whether the account works through a web API (JMAP or Graph) rather than IMAP and SMTP.
+    /// Whether the account works through a web API (JMAP, Graph or EWS) rather than IMAP and
+    /// SMTP.
     pub fn is_api(&self) -> bool {
-        self.jmap.is_some() || self.graph.is_some()
+        self.jmap.is_some() || self.graph.is_some() || self.ews.is_some()
     }
 }
 

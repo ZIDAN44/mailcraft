@@ -142,6 +142,31 @@ switched IMAP off.
 - **Automatic replies** are the mailbox settings' `automaticRepliesSetting` (scheduled when the
   dates are set). Graph doesn't tell a mailbox's size to its owner, so there is no quota.
 
+## On-premises Exchange through EWS (`crates/net/src/ews.rs`)
+
+An account with an EWS address (`AccountConfig::ews`, `https://<server>/EWS/Exchange.asmx`) syncs
+with an organisation's own Exchange server (2010 SP2 and later) through Exchange Web Services, for
+servers that don't offer IMAP. Every call is SOAP over HTTPS.
+
+- **Signing in** follows what the server's first `401` offers: NTLMv2 (`crates/net/src/ntlm.rs`,
+  as `NTLM` or `Negotiate`) on a connection kept open, since NTLM signs in the connection rather
+  than each request; or Basic. The user name is `DOMAIN\user` or an address; the password stays
+  in the keychain. Plain `http://` is refused except for local test servers.
+- **Folders** come from one deep `FindFolder` under the message folder root, in pages; the
+  distinguished folders (`inbox`, `sentitems`, `deleteditems`…) are looked up in one `GetFolder`
+  for their roles, and the Outbox, Exchange's bookkeeping folders and calendar, contact and task
+  folders are left out.
+- **A folder sync** finds the newest items with their read, flag (`PidTagFlagStatus`) and draft
+  (`PidTagMessageFlags`) state, then the details of those not cached yet with `GetItem`, fifty at a
+  time; sources are `GetItem` with the MIME content. Item ids are numbered like JMAP's; Exchange
+  gives a moved item a new id, so it shows up as a new message in its new folder.
+- **Changes** are `UpdateItem`, `MoveItem`, `DeleteItem` and the folder calls, fifty items a call.
+- **Sending** is `CreateItem` with the MIME source and `SendAndSaveCopy` (the copy goes to Sent
+  Items); envelope-only recipients go in a `Bcc:` header. Drafts are `CreateItem` with `SaveOnly`,
+  marked unsent.
+- **Automatic replies** are `Get`/`SetUserOofSettings`. Calendars, contacts and the quota aren't
+  synced over EWS yet.
+
 ## Calendars and address books (`crates/net/src/dav.rs`)
 
 Password accounts sync calendars over CalDAV (RFC 4791) and address books over CardDAV

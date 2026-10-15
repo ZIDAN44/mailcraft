@@ -467,7 +467,7 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account"?: string, "folder"?: string, "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "ews"?: string (on-premises Exchange: its EWS address or server name; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
@@ -1068,10 +1068,13 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(u)) if !u.trim().is_empty() => Some(u.trim().to_string()),
         _ => None,
     };
+    // `ews`: on-premises Exchange through Exchange Web Services, at this address (a server name
+    // alone means its usual `/EWS/Exchange.asmx`).
+    let ews = p::str(v, "ews").map(str::trim).filter(|u| !u.is_empty()).map(ews_url);
     if s.jmap_only && jmap.is_none() {
         return Err(CmdError::Params("in the browser, MailCraft works with JMAP accounts only".into()));
     }
-    let plain = local || jmap.is_some() || graph.is_some();
+    let plain = local || jmap.is_some() || graph.is_some() || ews.is_some();
     let password = p::str(v, "password").map(str::to_string);
     // Graph signs in with Microsoft, unless given a token to use as it is.
     let oauth = p::str(v, "oauth")
@@ -1089,6 +1092,7 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         oauth,
         jmap,
         graph,
+        ews,
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)
@@ -1102,6 +1106,15 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     }
     let id = s.add_account(config, password)?;
     Ok(json!({"account": id}))
+}
+
+/// An Exchange Web Services address from what the user typed: a server name gets `https://` and
+/// `/EWS/Exchange.asmx`.
+fn ews_url(typed: &str) -> String {
+    let t = typed.trim().trim_end_matches('/');
+    let with_scheme = if t.contains("://") { t.to_string() } else { format!("https://{t}") };
+    let after_host = with_scheme.split_once("://").map_or("", |(_, rest)| rest);
+    if after_host.contains('/') { with_scheme } else { format!("{with_scheme}/EWS/Exchange.asmx") }
 }
 
 fn set_password(s: &mut Session, v: &Value) -> CmdResult {
@@ -1131,6 +1144,11 @@ fn update_account(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(_) | Value::Null) => c.jmap = None,
         _ => {}
     }
+    if let Some(u) = p::str(v, "ews").map(str::trim).filter(|u| !u.is_empty())
+        && c.ews.is_some()
+    {
+        c.ews = Some(ews_url(u));
+    }
     if !c.is_api() {
         c.imap = server(v, "imap", &c.imap)?;
         c.smtp = server(v, "smtp", &c.smtp)?;
@@ -1157,6 +1175,7 @@ fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "email": a.config.email,
             "name": a.config.name,
             "graph": a.config.graph,
+            "ews": a.config.ews,
             "imap": format!("{}:{} ({})", a.config.imap.host, a.config.imap.port, a.config.imap.security.code()),
             "smtp": format!("{}:{} ({})", a.config.smtp.host, a.config.smtp.port, a.config.smtp.security.code()),
             "status": a.status,

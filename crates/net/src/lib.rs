@@ -18,6 +18,7 @@
 pub mod autoconfig;
 pub mod dav;
 pub mod dns;
+pub mod ews;
 pub mod graph;
 pub mod graph_pim;
 pub mod http;
@@ -38,6 +39,8 @@ pub mod worker;
 mod fake;
 #[cfg(test)]
 mod fake_dav;
+#[cfg(test)]
+mod fake_ews;
 #[cfg(test)]
 mod fake_graph;
 #[cfg(test)]

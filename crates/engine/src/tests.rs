@@ -1285,6 +1285,33 @@ fn exchange_accounts_go_through_microsoft_graph() {
 }
 
 #[test]
+fn on_premises_exchange_accounts_go_through_ews() {
+    let store = temp("ews-account");
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert!(s.run("account.add", &json!({"email": "riley@contoso.example", "ews": "mail.contoso.example"})).is_err(), "a password is needed");
+    let id = s
+        .run("account.add", &json!({"email": "riley@contoso.example", "ews": "mail.contoso.example", "username": "CONTOSO\\riley", "password": "pw"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let a = s.account(&id).unwrap();
+    // A server name becomes the usual address.
+    assert_eq!(a.config.ews.as_deref(), Some("https://mail.contoso.example/EWS/Exchange.asmx"));
+    assert!(a.config.is_api() && !a.is_local() && a.config.imap.host.is_empty() && a.config.oauth.is_none());
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, password: Some(_) }] if account.ews.is_some()));
+    // A full address is kept as it is, and can be changed.
+    s.run("account.update", &json!({"account": id, "ews": "https://owa.contoso.example/ews/exchange.asmx"})).unwrap();
+    assert_eq!(s.account(&id).unwrap().config.ews.as_deref(), Some("https://owa.contoso.example/ews/exchange.asmx"));
+    assert_eq!(
+        s.run("account.list", &json!({})).map(|v| v[0]["ews"].clone()).unwrap_or_default(),
+        json!("https://owa.contoso.example/ews/exchange.asmx")
+    );
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn new_mail_opens_in_a_window_and_closing_keeps_a_draft() {
     let mut s = sample_session("compose-window");
     s.run("mail.new", &json!({})).unwrap();

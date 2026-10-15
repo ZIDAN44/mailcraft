@@ -2074,6 +2074,7 @@ impl Session {
             || a.config.smtp != config.smtp
             || a.config.jmap != config.jmap
             || a.config.graph != config.graph
+            || a.config.ews != config.ews
             || a.config.username != config.username
             || password.is_some();
         a.config = config.clone();

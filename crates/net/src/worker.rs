@@ -373,6 +373,7 @@ enum Conn {
     Imap(Client<Stream>),
     Jmap(jmap::Client),
     Graph(crate::graph::Client),
+    Ews(crate::ews::Client),
 }
 
 struct Worker {
@@ -662,6 +663,11 @@ impl Worker {
             self.backoff = Duration::from_secs(5);
             return Ok(());
         }
+        if let Some(url) = &self.acc.ews {
+            self.conn = Some(Conn::Ews(crate::ews::Client::connect(url, &user, &secret, &self.acc.email)?));
+            self.backoff = Duration::from_secs(5);
+            return Ok(());
+        }
         if let Some(url) = &self.acc.jmap {
             self.conn = Some(Conn::Jmap(jmap::Client::connect(url, &user, &secret, self.acc.oauth.is_some())?));
             self.backoff = Duration::from_secs(5);
@@ -712,9 +718,10 @@ impl Worker {
             Some(Conn::Imap(c)) => c.list(&id),
             Some(Conn::Jmap(c)) => jmap::list_folders(c, &mut self.jstate, &id),
             Some(Conn::Graph(c)) => crate::graph::list_folders(c, &mut self.jstate, &id),
+            Some(Conn::Ews(c)) => crate::ews::list_folders(c, &mut self.jstate, &id),
             None => Err(NetError::Closed("not connected".into())),
         };
-        let jmap = matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_)));
+        let jmap = matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_)));
         if jmap {
             self.save_jstate();
         }
@@ -778,7 +785,7 @@ impl Worker {
 
     /// Forget the numbers of JMAP messages no longer cached (nor waiting in a change).
     fn prune_jmap_numbers(&mut self) {
-        if !matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_))) {
+        if !matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_))) {
             return;
         }
         let mut keep: std::collections::HashSet<u32> = self.ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
@@ -808,6 +815,11 @@ impl Worker {
             }
             Some(Conn::Graph(c)) => {
                 let r = crate::graph::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
+                self.save_jstate();
+                r
+            }
+            Some(Conn::Ews(c)) => {
+                let r = crate::ews::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
                 self.save_jstate();
                 r
             }
@@ -894,6 +906,13 @@ impl Worker {
                         }
                         return Ok(());
                     }
+                    if let Some(Conn::Ews(c)) = self.conn.as_mut() {
+                        crate::ews::append(c, &self.jstate, &folder, &raw)?;
+                        if let Some(old) = replaces {
+                            crate::ews::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
+                        }
+                        return Ok(());
+                    }
                     let c = self.client()?;
                     c.append(&folder, "\\Draft \\Seen", &raw)?;
                     if let Some(old) = replaces {
@@ -946,6 +965,12 @@ impl Worker {
             }
             return c.vacation();
         }
+        if let Some(Conn::Ews(c)) = &self.conn {
+            if let Some(v) = set {
+                c.set_vacation(v)?;
+            }
+            return c.vacation();
+        }
         let secret = self.secret()?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         let mut s = crate::sieve::Client::connect(&self.acc.imap, self.sieve_port).map_err(|e| match e {
@@ -985,7 +1010,8 @@ impl Worker {
             }
             return;
         }
-        if self.acc.oauth.is_some() {
+        // OAuth tokens are for mail only; on-premises Exchange's calendars aren't synced.
+        if self.acc.oauth.is_some() || self.acc.ews.is_some() {
             return;
         }
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
@@ -1008,7 +1034,7 @@ impl Worker {
             Some(Conn::Imap(c)) => c.quota(),
             Some(Conn::Jmap(c)) => c.quota(),
             // Graph doesn't tell a mailbox's size to the mailbox's owner.
-            Some(Conn::Graph(_)) | None => return,
+            Some(Conn::Graph(_) | Conn::Ews(_)) | None => return,
         };
         match q {
             Ok(Some((used, limit))) => self.sink.emit(Event::Quota { account: self.id(), used, limit }),
@@ -1031,6 +1057,7 @@ impl Worker {
             match self.conn.as_mut() {
                 Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key),
                 Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
+                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key),
                 _ => fetch_body(self.client()?, &store, &key),
             }
         })();
@@ -1057,6 +1084,13 @@ impl Worker {
             }
             let Some(Conn::Graph(c)) = &self.conn else { return Err(NetError::Closed("not connected".into())) };
             return crate::graph::send(c, raw, recipients);
+        }
+        if self.acc.ews.is_some() {
+            if self.conn.is_none() {
+                self.connect()?;
+            }
+            let Some(Conn::Ews(c)) = &self.conn else { return Err(NetError::Closed("not connected".into())) };
+            return crate::ews::send(c, raw, recipients);
         }
         if self.acc.jmap.is_some() {
             if self.conn.is_none() {
@@ -1166,6 +1200,7 @@ impl Worker {
                 Some(Conn::Imap(c)) => apply_remote(c, &op),
                 Some(Conn::Jmap(c)) => jmap::apply_remote(c, &self.jstate, &op),
                 Some(Conn::Graph(c)) => crate::graph::apply_remote(c, &self.jstate, &op),
+                Some(Conn::Ews(c)) => crate::ews::apply_remote(c, &self.jstate, &op),
                 None => Err(NetError::Closed("not connected".into())),
             };
             match r {
