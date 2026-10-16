@@ -45,6 +45,9 @@ fn initials(name: &str) -> String {
     name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase()
 }
 
+/// The A–Z index's width.
+const INDEX_W: f32 = 18.0;
+
 /// A name's index letter: its first letter, or `#` for one that isn't a letter.
 fn index_letter(name: &str) -> char {
     match name.chars().next() {
@@ -79,7 +82,9 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let jump_id = egui::Id::new("people-jump");
     let jump: Option<char> = ui.ctx().data_mut(|d| d.remove_temp(jump_id));
     ui.horizontal_top(|ui| {
-        let list_w = (ui.available_width() - 22.0).max(80.0);
+        // The list leaves room for the index and the gap before it exactly: a few pixels more and
+        // the pane (shared by every module) grew a little each frame, up to its widest.
+        let list_w = (ui.available_width() - INDEX_W - ui.spacing().item_spacing.x).max(80.0);
         ui.allocate_ui_with_layout(vec2(list_w, ui.available_height()), egui::Layout::top_down(egui::Align::Min), |ui| {
             egui::ScrollArea::vertical().auto_shrink(false).id_salt("people").show(ui, |ui| {
                 let mut letter: Option<char> = None;
@@ -117,7 +122,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
             ui.spacing_mut().item_spacing.y = 0.0;
             for c in 'A'..='Z' {
                 let has = letters.contains(&c);
-                let (r, resp) = ui.allocate_exact_size(vec2(18.0, 16.0), if has { Sense::click() } else { Sense::hover() });
+                let (r, resp) = ui.allocate_exact_size(vec2(INDEX_W, 16.0), if has { Sense::click() } else { Sense::hover() });
                 if resp.hovered() && has {
                     ui.painter().rect_filled(r, 3.0, t.hover_row);
                 }

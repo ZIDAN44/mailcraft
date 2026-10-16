@@ -37,6 +37,28 @@ fn renders_every_state_without_panicking() {
     tour();
 }
 
+/// People's list and A–Z index were a few pixels wider than the pane, so the pane (shared by
+/// every module) grew each frame to its widest and Mail, Calendar and Notes stayed that wide.
+#[test]
+fn people_keep_the_pane_its_width() {
+    let (mut a, dir) = app("pane-width");
+    let ctx = egui::Context::default();
+    let width = |ctx: &egui::Context| egui::containers::panel::PanelState::load(ctx, egui::Id::new("nav")).map_or(0.0, |p| p.size().x);
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let before = width(&ctx);
+    a.run("view.people", json!({}));
+    for _ in 0..60 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    a.run("view.mail", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let after = width(&ctx);
+    assert!(before > 0.0 && after <= before + 1.0, "the pane went from {before} to {after}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Dialogs kept the size of the last big one (their buttons' row took all the room left): Add
 /// account stayed tall after Server settings closed, Remove account opened as tall as Options.
 #[test]
