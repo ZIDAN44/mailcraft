@@ -16,3 +16,5 @@ html2text = { workspace = true }
 # HTML layout (tables and columns): its tokenizer (html2text uses the same version).
 html5ever = "0.40"
 serde = { workspace = true }
+# Office attachments (zip archives) for the reading pane's preview: pure Rust, wasm too.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

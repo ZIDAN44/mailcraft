@@ -1648,3 +1648,14 @@ fn delay_delivery_holds_mail_in_the_outbox_until_its_time() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FlushOutbox { .. })));
     done(s);
 }
+
+#[test]
+fn the_samples_office_files_read_as_documents() {
+    use mailcraft_mime::office::{Block, Preview, preview};
+    let Some(Preview::Document(b)) = preview("order-4471.docx", "", &sample::sample_docx()) else { panic!("not a document") };
+    assert!(matches!(&b[0], Block::Paragraph { heading: true, .. }));
+    assert!(b.iter().any(|x| matches!(x, Block::Table(rows) if rows.len() == 3 && rows[1][1] == "A2")));
+    let Some(Preview::Workbook(sheets)) = preview("order-4471.xlsx", "", &sample::sample_xlsx()) else { panic!("not a workbook") };
+    assert_eq!(sheets[0].0, "Order 4471");
+    assert_eq!(sheets[0].1[3], vec!["Total".to_string(), String::new(), String::new(), "802.5".into()]);
+}

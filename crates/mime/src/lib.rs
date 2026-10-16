@@ -14,6 +14,7 @@
 
 pub mod layout;
 pub mod markup;
+pub mod office;
 pub mod rich;
 
 use mail_builder::MessageBuilder;

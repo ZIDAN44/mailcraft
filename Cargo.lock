@@ -2726,6 +2726,7 @@ dependencies = [
 name = "mailcraft-mime"
 version = "0.10.0"
 dependencies = [
+ "flate2",
  "html2text",
  "html5ever",
  "mail-builder",
