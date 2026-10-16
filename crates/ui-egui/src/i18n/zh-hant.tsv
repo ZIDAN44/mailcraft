@@ -726,6 +726,18 @@
 	Cards	名片
 	Phone list	電話清單
 	Full name	全名
+	Search notes	搜尋便箋
+	{n} notes	{n} 則便箋
+	No notes yet: New note starts one.	尚無便箋:按「新增便箋」開始一則。
+	No note matches.	沒有符合的便箋。
+	Write your note…	寫下便箋…
+	Blue	藍色
+	Green	綠色
+	Pink	粉紅色
+	Yellow	黃色
+	White	白色
+	Color	色彩
+	New note	新增便箋
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

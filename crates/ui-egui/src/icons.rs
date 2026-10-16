@@ -66,6 +66,8 @@ pub enum Icon {
     Link,
     ClearFormat,
     AddressBook,
+    /// A sticky note (Notes).
+    Note,
 }
 
 struct Pen<'a> {
@@ -321,6 +323,12 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(7.2, 3.0), (5.0, 13.0)]);
             pen.line(&[(9.5, 9.0), (14.0, 13.5)]);
             pen.line(&[(14.0, 9.0), (9.5, 13.5)]);
+        }
+        Icon::Note => {
+            pen.closed(&[(2.5, 2.5), (13.5, 2.5), (13.5, 10.0), (10.0, 13.5), (2.5, 13.5)]);
+            pen.line(&[(13.5, 10.0), (10.0, 10.0), (10.0, 13.5)]);
+            pen.line(&[(5.0, 6.0), (11.0, 6.0)]);
+            pen.line(&[(5.0, 9.0), (8.5, 9.0)]);
         }
         Icon::AddressBook => {
             pen.rect(3.0, 1.5, 13.5, 14.5);

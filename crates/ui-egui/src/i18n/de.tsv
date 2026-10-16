@@ -727,6 +727,18 @@
 	Cards	Karten
 	Phone list	Telefonliste
 	Full name	Vollständiger Name
+	Search notes	Notizen durchsuchen
+	{n} notes	{n} Notizen
+	No notes yet: New note starts one.	Noch keine Notizen: „Neue Notiz“ beginnt eine.
+	No note matches.	Keine Notiz passt.
+	Write your note…	Notiz schreiben…
+	Blue	Blau
+	Green	Grün
+	Pink	Rosa
+	Yellow	Gelb
+	White	Weiß
+	Color	Farbe
+	New note	Neue Notiz
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

@@ -18,6 +18,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         include_str!("../calendar.rs"),
         include_str!("../people.rs"),
         include_str!("../pim_dialogs.rs"),
+        include_str!("../notes.rs"),
     ];
     // (prefix, which string literals after it are interface text)
     let prefixes: [(&str, &[usize]); 20] = [
@@ -220,6 +221,11 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         "Report junk",
         "Unpin",
         "Pin",
+        "Blue",
+        "Green",
+        "Pink",
+        "Yellow",
+        "White",
         "Cards",
         "Phone list",
         "Full name",

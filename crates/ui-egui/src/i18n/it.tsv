@@ -726,6 +726,18 @@
 	Cards	Biglietti
 	Phone list	Elenco telefonico
 	Full name	Nome completo
+	Search notes	Cerca nelle note
+	{n} notes	{n} note
+	No notes yet: New note starts one.	Ancora nessuna nota: Nuova nota ne inizia una.
+	No note matches.	Nessuna nota corrisponde.
+	Write your note…	Scrivi la tua nota…
+	Blue	Blu
+	Green	Verde
+	Pink	Rosa
+	Yellow	Giallo
+	White	Bianco
+	Color	Colore
+	New note	Nuova nota
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

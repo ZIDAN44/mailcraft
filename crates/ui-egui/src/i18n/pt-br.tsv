@@ -727,6 +727,18 @@
 	Cards	Cartões
 	Phone list	Lista de telefones
 	Full name	Nome completo
+	Search notes	Pesquisar anotações
+	{n} notes	{n} anotações
+	No notes yet: New note starts one.	Nenhuma anotação ainda: Nova anotação começa uma.
+	No note matches.	Nenhuma anotação corresponde.
+	Write your note…	Escreva sua anotação…
+	Blue	Azul
+	Green	Verde
+	Pink	Rosa
+	Yellow	Amarelo
+	White	Branco
+	Color	Cor
+	New note	Nova anotação
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

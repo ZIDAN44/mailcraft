@@ -30,6 +30,7 @@ pub mod i18n;
 pub mod icons;
 mod list;
 mod nav;
+mod notes;
 mod organize;
 mod people;
 mod pim_dialogs;
@@ -213,6 +214,8 @@ pub enum Action {
     SaveAttachment(usize),
     AttachFiles,
     FocusSearch,
+    /// Make a note and write on it.
+    NewNote,
     /// Search every folder for this (shown in the box, with the Search tab).
     Search(String),
     SetDark(Option<bool>),
@@ -383,6 +386,11 @@ pub struct UiState {
     pub(crate) people_query: String,
     /// How People lays contacts out (Outlook's Change View).
     pub people_view: people::PeopleView,
+    /// Notes: the search, the note being written on (and its text), a new note to write on,
+    /// and the keyboard to give its text box.
+    pub(crate) notes_query: String,
+    pub(crate) note_edit: Option<(String, String)>,
+    pub(crate) note_focus: bool,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
     /// The invitation in the open message, worked out once per message and calendar change.
@@ -462,6 +470,9 @@ impl MailApp {
                 cal_scrolled: false,
                 people_query: String::new(),
                 people_view: people::PeopleView::default(),
+                notes_query: String::new(),
+                note_edit: None,
+                note_focus: false,
                 person: None,
                 invite: None,
                 drag_out: None,
@@ -684,6 +695,7 @@ impl MailApp {
                             Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
                             Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
                             Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
+                            Module::Notes => notes::nav(&self.session, &mut self.ui, ui, &mut acts),
                         }
                     });
             }
@@ -698,6 +710,11 @@ impl MailApp {
                 (Module::People, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                         people::show(&self.session, &mut self.ui, ui, &mut acts);
+                    });
+                }
+                (Module::Notes, _) => {
+                    egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                        notes::show(&self.session, &mut self.ui, ui, &mut acts);
                     });
                 }
                 (Module::Mail, pane) => match pane {
@@ -960,6 +977,7 @@ impl MailApp {
                 Module::Mail => view_title(&self.session),
                 Module::Calendar => tl!("Calendar").to_string(),
                 Module::People => tl!("People").to_string(),
+                Module::Notes => tl!("Notes").to_string(),
             };
             (view, tl!(&self.ui.title_base).to_string())
         });
@@ -996,6 +1014,16 @@ impl MailApp {
             }
             Action::Dialog(d) => self.ui.dialog = Some(d),
             Action::FocusSearch => self.ui.focus_search = true,
+            Action::NewNote => match self.session.run("note.create", &json!({})) {
+                Ok(v) => {
+                    if let Some(uid) = v.get("uid").and_then(Value::as_str) {
+                        self.ui.notes_query.clear();
+                        self.ui.note_edit = Some((uid.to_string(), String::new()));
+                        self.ui.note_focus = true;
+                    }
+                }
+                Err(e) => self.session.notice(e.to_string(), true),
+            },
             Action::Search(q) => {
                 self.ui.search_text = q.clone();
                 self.ui.tab = RibbonTab::Search;
@@ -1520,6 +1548,30 @@ impl MailApp {
                             acts.push(Action::Run("calendar.view", json!({"mode": code})));
                         }
                     }
+                } else if s.module == Module::Notes {
+                    if widgets::accent_button(ui, Icon::Note, "New note", &t, !s.accounts.is_empty()).clicked() {
+                        notes::new_note(&mut self.ui, acts);
+                    }
+                    widgets::group_sep(ui, &t);
+                    let editing = self.ui.note_edit.as_ref().map(|(u, _)| u.clone());
+                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, editing.is_some()).clicked()
+                        && let Some(uid) = editing.clone()
+                    {
+                        self.ui.note_edit = None;
+                        acts.push(Action::Run("note.delete", json!({"uid": uid})));
+                    }
+                    // The note's colour, as Outlook's Categorize on a note.
+                    let r = widgets::tool_button(ui, Icon::Tag, "Color", &t, editing.is_some());
+                    egui::Popup::menu(&r).show(|ui| {
+                        for (i, name) in notes::NAMES.iter().enumerate() {
+                            if ui.button(tl!(name)).clicked()
+                                && let Some(uid) = &editing
+                            {
+                                acts.push(Action::Run("note.update", json!({"uid": uid, "color": i})));
+                                ui.close();
+                            }
+                        }
+                    });
                 } else {
                     if widgets::accent_button(ui, Icon::Person, "New contact", &t, !s.accounts.is_empty()).clicked() {
                         acts.push(Action::Dialog(Dialog::new_contact()));
@@ -1989,6 +2041,7 @@ fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>
             (Module::Mail, Icon::Unread, "Mail", "mail"),
             (Module::Calendar, Icon::Calendar, "Calendar", "calendar"),
             (Module::People, Icon::People, "People", "people"),
+            (Module::Notes, Icon::Note, "Notes", "notes"),
         ] {
             let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
             let on = m == module;
@@ -2009,6 +2062,7 @@ fn module_switch_vertical(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Ve
         (Module::Mail, Icon::Unread, "Mail", "mail"),
         (Module::Calendar, Icon::Calendar, "Calendar", "calendar"),
         (Module::People, Icon::People, "People", "people"),
+        (Module::Notes, Icon::Note, "Notes", "notes"),
     ] {
         let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
         let on = m == module;

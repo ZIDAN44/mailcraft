@@ -1015,3 +1015,27 @@ fn people_lay_out_as_a_list_cards_or_a_phone_list() {
     assert_eq!(a.ui.people_view, crate::people::PeopleView::Phone);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn notes_are_written_on_and_kept() {
+    let (mut a, dir) = app("notes-ui");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "notes"}));
+    frame(&ctx, &mut a, vec![]);
+    // New note: made, and written on at once.
+    a.act(crate::Action::NewNote);
+    let uid = a.ui.note_edit.as_ref().map(|(u, _)| u.clone()).unwrap();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Text("Water the plants".into())]);
+    assert_eq!(a.ui.note_edit.as_ref().map(|(_, t)| t.as_str()), Some("Water the plants"));
+    // Escape leaves it: the text is kept.
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.note_edit.is_none());
+    assert!(a.session.notes("").iter().any(|n| n.note.uid == uid && n.note.text == "Water the plants"));
+    // Ctrl+1 goes back to Mail.
+    frame(&ctx, &mut a, vec![key(Key::Num1, Modifiers::COMMAND)]);
+    assert_eq!(a.session.module, mailcraft_engine::Module::Mail);
+    let _ = std::fs::remove_dir_all(dir);
+}

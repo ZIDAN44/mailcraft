@@ -726,6 +726,18 @@
 	Cards	카드
 	Phone list	전화 목록
 	Full name	전체 이름
+	Search notes	메모 검색
+	{n} notes	메모 {n}개
+	No notes yet: New note starts one.	아직 메모가 없습니다. 새 메모로 시작하세요.
+	No note matches.	일치하는 메모가 없습니다.
+	Write your note…	메모를 작성하세요…
+	Blue	파랑
+	Green	초록
+	Pink	분홍
+	Yellow	노랑
+	White	흰색
+	Color	색
+	New note	새 메모
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

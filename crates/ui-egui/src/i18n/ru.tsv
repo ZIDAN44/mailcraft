@@ -726,6 +726,18 @@
 	Cards	Карточки
 	Phone list	Список телефонов
 	Full name	Полное имя
+	Search notes	Поиск заметок
+	{n} notes	Заметок: {n}
+	No notes yet: New note starts one.	Заметок пока нет: «Новая заметка» создаст первую.
+	No note matches.	Нет подходящих заметок.
+	Write your note…	Напишите заметку…
+	Blue	Синий
+	Green	Зеленый
+	Pink	Розовый
+	Yellow	Желтый
+	White	Белый
+	Color	Цвет
+	New note	Новая заметка
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив
