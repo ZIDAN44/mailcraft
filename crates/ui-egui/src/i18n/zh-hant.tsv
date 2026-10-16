@@ -722,6 +722,10 @@
 	The first {shown} of {total} pages: open it to read the rest.	共 {total} 頁中的前 {shown} 頁:開啟它以閱讀其餘部分。
 	The sheet is empty.	工作表是空的。
 	There's no preview for this file.	此檔案沒有預覽。
+	{n} people	{n} 人
+	Cards	名片
+	Phone list	電話清單
+	Full name	全名
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

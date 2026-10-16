@@ -722,6 +722,10 @@
 	The first {shown} of {total} pages: open it to read the rest.	Le prime {shown} di {total} pagine: aprilo per leggere il resto.
 	The sheet is empty.	Il foglio è vuoto.
 	There's no preview for this file.	Nessuna anteprima per questo file.
+	{n} people	{n} persone
+	Cards	Biglietti
+	Phone list	Elenco telefonico
+	Full name	Nome completo
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

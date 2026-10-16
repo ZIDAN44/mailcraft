@@ -381,6 +381,8 @@ pub struct UiState {
     /// The hours were scrolled to the working day once.
     pub(crate) cal_scrolled: bool,
     pub(crate) people_query: String,
+    /// How People lays contacts out (Outlook's Change View).
+    pub people_view: people::PeopleView,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
     /// The invitation in the open message, worked out once per message and calendar change.
@@ -459,6 +461,7 @@ impl MailApp {
                 mini_month: None,
                 cal_scrolled: false,
                 people_query: String::new(),
+                people_view: people::PeopleView::default(),
                 person: None,
                 invite: None,
                 drag_out: None,
@@ -1533,6 +1536,13 @@ impl MailApp {
                     {
                         acts.push(Action::Run("contact.delete", json!({"uid": p.card.uid})));
                     }
+                    // Outlook's Change View: the list with a card, business cards, a phone list.
+                    widgets::group_sep(ui, &t);
+                    for v in people::PeopleView::ALL {
+                        if widgets::tool_toggle(ui, v.icon(), v.label(), &t, self.ui.people_view == v).clicked() {
+                            self.ui.people_view = v;
+                        }
+                    }
                 }
             });
             return;
@@ -1794,10 +1804,15 @@ impl MailApp {
         let s = &self.session;
         let mut again: Option<String> = None;
         ui.horizontal_centered(|ui| {
-            let unread = s.list.iter().filter(|m| !m.flags.seen).count();
-            ui.label(RichText::new(tf!("Items: {n}", n = s.list.len())).color(t.dim).small());
-            if unread > 0 {
-                ui.label(RichText::new(tf!("Unread: {n}", n = unread)).color(t.dim).small());
+            // The items of what's shown: the list's mail, or (in People) the contacts.
+            if s.module == Module::People {
+                ui.label(RichText::new(tf!("Items: {n}", n = s.people(&self.ui.people_query).len())).color(t.dim).small());
+            } else if s.module == Module::Mail {
+                let unread = s.list.iter().filter(|m| !m.flags.seen).count();
+                ui.label(RichText::new(tf!("Items: {n}", n = s.list.len())).color(t.dim).small());
+                if unread > 0 {
+                    ui.label(RichText::new(tf!("Unread: {n}", n = unread)).color(t.dim).small());
+                }
             }
             if !s.outbox.is_empty() {
                 ui.label(RichText::new(tf!("Outbox: {n}", n = s.outbox.len())).color(t.warn).small());
@@ -1882,7 +1897,7 @@ impl MailApp {
 
     /// Preferences and theme for the app to save.
     pub fn saved_state(&self) -> Value {
-        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language, "windows": self.ui.places })
+        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language, "windows": self.ui.places, "peopleView": self.ui.people_view })
     }
 
     pub fn restore_state(&mut self, v: &Value) {
@@ -1896,6 +1911,9 @@ impl MailApp {
             }
         }
         self.ui.dark = v.get("dark").and_then(Value::as_bool);
+        if let Some(pv) = v.get("peopleView").and_then(|w| serde_json::from_value(w.clone()).ok()) {
+            self.ui.people_view = pv;
+        }
         if let Some(w) = v.get("windows").and_then(|w| serde_json::from_value(w.clone()).ok()) {
             self.ui.places = w;
         }

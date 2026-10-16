@@ -723,6 +723,10 @@
 	The first {shown} of {total} pages: open it to read the rest.	Las primeras {shown} de {total} páginas: ábralo para leer el resto.
 	The sheet is empty.	La hoja está vacía.
 	There's no preview for this file.	No hay vista previa para este archivo.
+	{n} people	{n} personas
+	Cards	Tarjetas
+	Phone list	Lista de teléfonos
+	Full name	Nombre completo
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

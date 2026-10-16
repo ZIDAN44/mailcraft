@@ -722,6 +722,10 @@
 	The first {shown} of {total} pages: open it to read the rest.	Первые {shown} из {total} страниц: откройте файл, чтобы прочитать остальное.
 	The sheet is empty.	Лист пуст.
 	There's no preview for this file.	Для этого файла нет предварительного просмотра.
+	{n} people	Людей: {n}
+	Cards	Карточки
+	Phone list	Список телефонов
+	Full name	Полное имя
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

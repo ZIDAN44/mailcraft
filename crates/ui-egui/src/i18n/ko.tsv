@@ -722,6 +722,10 @@
 	The first {shown} of {total} pages: open it to read the rest.	{total}페이지 중 처음 {shown}페이지: 나머지는 열어서 읽으세요.
 	The sheet is empty.	시트가 비어 있습니다.
 	There's no preview for this file.	이 파일에 대한 미리 보기가 없습니다.
+	{n} people	{n}명
+	Cards	카드
+	Phone list	전화 목록
+	Full name	전체 이름
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

@@ -995,3 +995,23 @@ fn every_kind_of_attachment_previews_in_the_reading_pane() {
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn people_lay_out_as_a_list_cards_or_a_phone_list() {
+    let (mut a, dir) = app("people-views");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "people"}));
+    for v in crate::people::PeopleView::ALL {
+        a.ui.people_view = v;
+        frame(&ctx, &mut a, vec![]);
+        frame(&ctx, &mut a, vec![]);
+    }
+    // The layout is remembered with the window's other settings.
+    let saved = a.saved_state();
+    assert_eq!(saved["peopleView"], "phone");
+    a.ui.people_view = crate::people::PeopleView::People;
+    a.restore_state(&saved);
+    assert_eq!(a.ui.people_view, crate::people::PeopleView::Phone);
+    let _ = std::fs::remove_dir_all(dir);
+}
