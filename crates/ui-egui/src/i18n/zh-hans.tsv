@@ -716,3 +716,12 @@ month	May	5月
 	Insert link	插入链接
 	The selected text	所选文字
 	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Outlook.com、Hotmail 和 Live 地址只能通过“使用 Microsoft 登录”连接:Microsoft 不再接受邮件应用的密码。此 MailCraft 副本构建时未包含 Microsoft 登录,因此无法添加此帐户。
+	Back to message	返回邮件
+	Esc	Esc
+	Open it in its app, or save it.	在其应用中打开,或保存它。
+	Page {n}	第 {n} 页
+	Slide {n}	幻灯片 {n}
+	The document is empty.	文档为空。
+	The first {shown} of {total} pages: open it to read the rest.	共 {total} 页中的前 {shown} 页:打开它以阅读其余部分。
+	The sheet is empty.	工作表为空。
+	There's no preview for this file.	此文件没有预览。

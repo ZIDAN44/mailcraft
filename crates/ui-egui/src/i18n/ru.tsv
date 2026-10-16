@@ -713,6 +713,15 @@
 	Insert link	Вставить ссылку
 	The selected text	Выделенный текст
 	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Адреса Outlook.com, Hotmail и Live подключаются только через «Войти с Microsoft»: Microsoft больше не принимает пароли от почтовых приложений. Эта копия MailCraft собрана без входа Microsoft, поэтому не может добавить эту учетную запись.
+	Back to message	Назад к сообщению
+	Esc	Esc
+	Open it in its app, or save it.	Откройте его в программе или сохраните.
+	Page {n}	Страница {n}
+	Slide {n}	Слайд {n}
+	The document is empty.	Документ пуст.
+	The first {shown} of {total} pages: open it to read the rest.	Первые {shown} из {total} страниц: откройте файл, чтобы прочитать остальное.
+	The sheet is empty.	Лист пуст.
+	There's no preview for this file.	Для этого файла нет предварительного просмотра.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

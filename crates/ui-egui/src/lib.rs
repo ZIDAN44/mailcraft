@@ -328,6 +328,9 @@ pub struct UiState {
     search_cursor_end: bool,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
     pub compose_alert: Option<String>,
+    /// The attachment shown in place of its message's text (a click on its chip), as Outlook
+    /// previews attachments in the reading pane.
+    pub attachment_view: Option<(MessageKey, usize)>,
     /// Where the ribbon was last drawn (a click on the Search tab's buttons takes the focus
     /// from the box, and mustn't close the tab).
     ribbon_rect: Option<egui::Rect>,
@@ -426,6 +429,7 @@ impl MailApp {
                 search_focused: false,
                 search_cursor_end: false,
                 compose_alert: None,
+                attachment_view: None,
                 ribbon_rect: None,
                 dialog: None,
                 previews: HashMap::new(),

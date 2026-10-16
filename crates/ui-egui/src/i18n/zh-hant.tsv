@@ -713,6 +713,15 @@
 	Insert link	插入連結
 	The selected text	選取的文字
 	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Outlook.com、Hotmail 和 Live 地址只能透過「使用 Microsoft 登入」連線:Microsoft 不再接受郵件應用程式的密碼。此 MailCraft 副本建置時未包含 Microsoft 登入,因此無法新增此帳戶。
+	Back to message	返回郵件
+	Esc	Esc
+	Open it in its app, or save it.	在其應用程式中開啟,或儲存它。
+	Page {n}	第 {n} 頁
+	Slide {n}	投影片 {n}
+	The document is empty.	文件是空的。
+	The first {shown} of {total} pages: open it to read the rest.	共 {total} 頁中的前 {shown} 頁:開啟它以閱讀其餘部分。
+	The sheet is empty.	工作表是空的。
+	There's no preview for this file.	此檔案沒有預覽。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

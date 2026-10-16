@@ -968,3 +968,30 @@ fn delay_delivery_and_replies_to_draw_while_writing() {
     assert_eq!(super::reading::parse_local("2026-10-16", "24:00"), None);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn every_kind_of_attachment_previews_in_the_reading_pane() {
+    let (mut a, dir) = app("attachment-preview");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.iter().find(|m| m.subject.starts_with("Your proof")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    let n = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map_or(0, |p| p.attachments.len());
+    assert_eq!(n, 4, "notes, a PDF, a document and a workbook");
+    for i in 0..n {
+        a.ui.attachment_view = Some((k.clone(), i));
+        // A PDF draws a page a frame.
+        for _ in 0..3 {
+            frame(&ctx, &mut a, vec![]);
+        }
+        assert_eq!(a.ui.attachment_view, Some((k.clone(), i)));
+    }
+    // Escape: back to the message.
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(a.ui.attachment_view.is_none());
+    // One that isn't there any more (another message's index) is just the message.
+    a.ui.attachment_view = Some((k.clone(), 99));
+    frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}

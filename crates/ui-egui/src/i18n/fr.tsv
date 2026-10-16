@@ -714,6 +714,15 @@
 	Insert link	Insérer un lien
 	The selected text	Le texte sélectionné
 	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Les adresses Outlook.com, Hotmail et Live ne se connectent qu'avec Se connecter avec Microsoft : Microsoft n'accepte plus les mots de passe des applications de messagerie. Cette copie de MailCraft n'a pas été compilée avec la connexion Microsoft, elle ne peut donc pas ajouter ce compte.
+	Back to message	Retour au message
+	Esc	Échap
+	Open it in its app, or save it.	Ouvrez-le dans son application ou enregistrez-le.
+	Page {n}	Page {n}
+	Slide {n}	Diapositive {n}
+	The document is empty.	Le document est vide.
+	The first {shown} of {total} pages: open it to read the rest.	Les {shown} premières pages sur {total} : ouvrez-le pour lire la suite.
+	The sheet is empty.	La feuille est vide.
+	There's no preview for this file.	Aucun aperçu pour ce fichier.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

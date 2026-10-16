@@ -713,6 +713,15 @@
 	Insert link	링크 삽입
 	The selected text	선택한 텍스트
 	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Outlook.com, Hotmail, Live 주소는 'Microsoft로 로그인'으로만 연결됩니다. Microsoft는 더 이상 메일 앱의 암호를 받지 않습니다. 이 MailCraft는 Microsoft 로그인 없이 빌드되어 이 계정을 추가할 수 없습니다.
+	Back to message	메시지로 돌아가기
+	Esc	Esc
+	Open it in its app, or save it.	해당 앱에서 열거나 저장하세요.
+	Page {n}	{n}페이지
+	Slide {n}	슬라이드 {n}
+	The document is empty.	문서가 비어 있습니다.
+	The first {shown} of {total} pages: open it to read the rest.	{total}페이지 중 처음 {shown}페이지: 나머지는 열어서 읽으세요.
+	The sheet is empty.	시트가 비어 있습니다.
+	There's no preview for this file.	이 파일에 대한 미리 보기가 없습니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

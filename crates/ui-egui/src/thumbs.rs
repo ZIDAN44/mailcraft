@@ -30,6 +30,18 @@ pub enum VideoFrame {
 /// doesn't carry (its "standard" fonts) is drawn with `fonts` (regular, bold), the interface's
 /// system fonts, when given.
 pub fn pdf_first_page(data: &[u8], max: u32, fonts: (Option<Vec<u8>>, Option<Vec<u8>>)) -> Option<egui::ColorImage> {
+    pdf_page(data, 0, Fit::Longer(max), fonts).map(|(img, _)| img)
+}
+
+/// How big a page is drawn: its longer side at most this many pixels, or this wide.
+#[derive(Clone, Copy, Debug)]
+pub enum Fit {
+    Longer(u32),
+    Width(u32),
+}
+
+/// Page `n` (from 0) of a PDF, and how many pages it has, for the reading pane's preview.
+pub fn pdf_page(data: &[u8], n: usize, fit: Fit, fonts: (Option<Vec<u8>>, Option<Vec<u8>>)) -> Option<(egui::ColorImage, usize)> {
     if data.len() > MAX_PDF || !data.windows(5).take(1024).any(|w| w == b"%PDF-") {
         return None;
     }
@@ -46,12 +58,20 @@ pub fn pdf_first_page(data: &[u8], max: u32, fonts: (Option<Vec<u8>>, Option<Vec
     };
     let rendered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
         let pdf = Pdf::new(data).ok()?;
-        let page = pdf.pages().first()?;
+        let pages = pdf.pages();
+        let count = pages.len();
+        let page = pages.get(n)?;
         let (w, h) = page.render_dimensions();
         if !(w.is_finite() && h.is_finite()) || w < 1.0 || h < 1.0 {
             return None;
         }
-        let scale = (max as f32 / w.max(h)).min(4.0);
+        let scale = match fit {
+            Fit::Longer(max) => max as f32 / w.max(h),
+            Fit::Width(px) => px as f32 / w,
+        }
+        // At most 4x, and no page more than about 16 megapixels.
+        .min(4.0)
+        .min((16_000_000.0 / (w * h)).sqrt());
         let settings = PixmapSettings { x_scale: scale, y_scale: scale, bg_color: WHITE };
         let pixmap = hayro::render(page, &RenderCache::new(), &interpreter, &RenderSettings::default(), &settings);
         let size = [usize::from(pixmap.width()), usize::from(pixmap.height())];
@@ -59,7 +79,7 @@ pub fn pdf_first_page(data: &[u8], max: u32, fonts: (Option<Vec<u8>>, Option<Vec
             return None;
         }
         let bytes = pixmap.data_as_u8_slice();
-        (bytes.len() == size[0] * size[1] * 4).then(|| egui::ColorImage::from_rgba_premultiplied(size, bytes))
+        (bytes.len() == size[0] * size[1] * 4).then(|| (egui::ColorImage::from_rgba_premultiplied(size, bytes), count))
     }));
     rendered.ok().flatten()
 }
