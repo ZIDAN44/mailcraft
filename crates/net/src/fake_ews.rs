@@ -181,6 +181,17 @@ impl Data {
         x
     }
 
+    /// The public folders root and everything under it.
+    fn public_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.folders.iter().filter(|f| f.known.as_deref() == Some("publicfoldersroot")).map(|f| f.id.clone()).collect();
+        let mut i = 0;
+        while let Some(id) = ids.get(i).cloned() {
+            ids.extend(self.folders.iter().filter(|f| f.parent == id).map(|f| f.id.clone()));
+            i += 1;
+        }
+        ids
+    }
+
     fn pim_folder(&self, f: Option<&El>) -> bool {
         let Some(id) = f.and_then(|f| self.folder_id(f)) else { return false };
         id.starts_with("mailbox:") || self.folders.iter().any(|x| x.id == id && x.class != "IPF.Note")
@@ -204,12 +215,28 @@ impl Data {
                     }
                 }
             }
+            // Shallow (public folders): the folders right under the one asked for.
+            "FindFolder" if op.attr("Traversal") == Some("Shallow") => {
+                let parent = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
+                let kids: Vec<String> = self
+                    .folders
+                    .iter()
+                    .filter(|f| f.parent == parent)
+                    .map(|f| {
+                        let n = self.folders.iter().filter(|x| x.parent == f.id).count();
+                        self.folder_xml(f)
+                            .replace("<t:ChildFolderCount>0</t:ChildFolderCount>", &format!("<t:ChildFolderCount>{n}</t:ChildFolderCount>"))
+                    })
+                    .collect();
+                out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Folders>{}</t:Folders></m:RootFolder>", kids.concat())));
+            }
             "FindFolder" => {
-                // Deep: everything under the root, in pages.
+                // Deep: everything under the root (the mailbox's, not the public folders), in pages.
                 let view = op.child("IndexedPageFolderView");
                 let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
                 let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000).min(3);
-                let all: Vec<Fo> = self.folders.iter().filter(|f| f.id != "ROOT").cloned().collect();
+                let public = self.public_ids();
+                let all: Vec<Fo> = self.folders.iter().filter(|f| f.id != "ROOT" && !public.contains(&f.id)).cloned().collect();
                 let page: Vec<String> = all.iter().skip(offset).take(max).map(|f| self.folder_xml(f)).collect();
                 let last = offset + max >= all.len();
                 out.push(ok(format!(
@@ -893,6 +920,47 @@ mod tests {
         // One that can't be read says so, and the rest still syncs.
         assert!(sync.errors.iter().any(|e| e.starts_with("nobody@contoso.example's calendar")), "{:?}", sync.errors);
         assert!(!sync.synced_calendars.contains(&shared_calendar_id("nobody@contoso.example")));
+    }
+
+    #[test]
+    fn public_folders_list_under_their_own_folder_and_sync() {
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        let root = d.folder("IPM_SUBTREE", None, Some("publicfoldersroot"), "IPF.Note");
+        let team = d.folder("Team", Some(&root), None, "IPF.Note");
+        let news = d.folder("Announcements", Some(&team), None, "IPF.Note");
+        d.folder("Rooms", Some(&root), None, "IPF.Appointment");
+        d.deliver(
+            &news,
+            b"From: hr@contoso.example\r\nSubject: Holiday hours\r\nMessage-ID: <h@x>\r\n\r\nClosed Friday.\r\n",
+            false,
+            "2026-10-14T09:00:00Z",
+        );
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let boxes = c.mailboxes().unwrap();
+        let names: Vec<&str> = boxes.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["Inbox", "Public Folders", "Team", "Announcements"], "the room calendar isn't mail");
+        let pf = boxes.iter().find(|m| m.name == "Public Folders").unwrap();
+        let team_box = boxes.iter().find(|m| m.name == "Team").unwrap();
+        assert_eq!((pf.parent.as_deref(), team_box.parent.as_deref()), (None, Some(pf.id.as_str())));
+        assert_eq!(boxes.iter().find(|m| m.name == "Announcements").unwrap().parent.as_deref(), Some(team_box.id.as_str()));
+        // Their mail syncs as any folder's.
+        let store = crate::fake::tests_store("public-folders");
+        let mut st = crate::jmap::State::default();
+        let folders = crate::ews::list_folders(&c, &mut st, "a1").unwrap();
+        let news_path = folders.iter().find(|f| f.path.ends_with("Announcements")).map(|f| f.path.clone()).unwrap();
+        crate::ews::sync_folder(&c, &mut st, &store, "a1", &news_path, &crate::sync::SyncOptions::default()).unwrap();
+        let fs = store.load_folder("a1", &news_path).unwrap();
+        assert_eq!(fs.messages.len(), 1);
+        assert_eq!(fs.messages[0].subject, "Holiday hours");
+        let _ = std::fs::remove_dir_all(store.root());
+        // A server without public folders lists the mailbox's alone.
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        assert_eq!(c.mailboxes().unwrap().len(), 1);
     }
 
     #[test]

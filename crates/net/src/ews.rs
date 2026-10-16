@@ -34,6 +34,11 @@ const MAX_ANSWER: usize = 96 << 20;
 /// Items asked about in one request.
 const BATCH: usize = 50;
 const MAX_FOLDERS: usize = 5000;
+/// Public folders: how deep the tree is walked, and how many are listed.
+const PUBLIC_DEPTH: usize = 6;
+const MAX_PUBLIC: usize = 500;
+/// The folder Exchange's public folders are listed under.
+pub const PUBLIC_FOLDERS: &str = "Public Folders";
 /// Elements read from one answer at most, and how deep.
 const MAX_ELEMENTS: usize = 500_000;
 const MAX_DEPTH: usize = 64;
@@ -509,6 +514,73 @@ impl Client {
         // Folders under a hidden one go too.
         let ids: Vec<String> = out.iter().map(|m| m.id.clone()).collect();
         out.retain(|m| m.parent.as_ref().is_none_or(|p| ids.contains(p)));
+        // Exchange's public folders, under a folder of their own (a server without them, or
+        // one that won't show them, just has none).
+        match self.public_folders() {
+            Ok(pf) => out.extend(pf),
+            Err(e) => log::info!("no public folders: {e}"),
+        }
+        Ok(out)
+    }
+
+    /// Exchange's public folders (the organization's shared folders): their mail folders, under
+    /// a "Public Folders" folder. Public folders only list one level at a time, so the tree is
+    /// walked, a few levels deep and up to a few hundred folders.
+    fn public_folders(&self) -> Result<Vec<Mailbox>> {
+        let root = self.call_one(
+            "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape>\
+             <m:FolderIds><t:DistinguishedFolderId Id=\"publicfoldersroot\"/></m:FolderIds></m:GetFolder>",
+        )?;
+        let Some(root_id) = root.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) else { return Ok(Vec::new()) };
+        let mut out = Vec::new();
+        let mut queue: std::collections::VecDeque<(String, usize)> = std::collections::VecDeque::from([(root_id.clone(), 0)]);
+        while let Some((parent, depth)) = queue.pop_front() {
+            if depth >= PUBLIC_DEPTH || out.len() >= MAX_PUBLIC {
+                break;
+            }
+            let m = self.call_one(&format!(
+                "<m:FindFolder Traversal=\"Shallow\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
+                 <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:TotalCount\"/>\
+                 <t:FieldURI FieldURI=\"folder:UnreadCount\"/><t:FieldURI FieldURI=\"folder:FolderClass\"/>\
+                 <t:FieldURI FieldURI=\"folder:ChildFolderCount\"/></t:AdditionalProperties></m:FolderShape>\
+                 <m:IndexedPageFolderView MaxEntriesReturned=\"200\" Offset=\"0\" BasePoint=\"Beginning\"/>\
+                 <m:ParentFolderIds><t:FolderId Id=\"{}\"/></m:ParentFolderIds></m:FindFolder>",
+                esc(&parent)
+            ))?;
+            let mut folders = Vec::new();
+            if let Some(rf) = m.child("RootFolder") {
+                rf.all("Folder", &mut folders);
+            }
+            for f in folders {
+                let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
+                let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
+                let class = f.text_of("FolderClass").unwrap_or("");
+                let mail = class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.");
+                // Calendars and contacts kept as public folders aren't mail; a folder holding
+                // others is kept for them.
+                if !mail && count("ChildFolderCount") == 0 {
+                    continue;
+                }
+                out.push(Mailbox {
+                    name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
+                    parent: Some(parent.clone()),
+                    role: FolderRole::Other,
+                    total: count("TotalCount"),
+                    unread: count("UnreadCount"),
+                    id: id.clone(),
+                });
+                if count("ChildFolderCount") > 0 {
+                    queue.push_back((id, depth + 1));
+                }
+                if out.len() >= MAX_PUBLIC {
+                    break;
+                }
+            }
+        }
+        if out.is_empty() {
+            return Ok(out);
+        }
+        out.insert(0, Mailbox { id: root_id, name: PUBLIC_FOLDERS.into(), parent: None, role: FolderRole::Other, total: 0, unread: 0 });
         Ok(out)
     }
 

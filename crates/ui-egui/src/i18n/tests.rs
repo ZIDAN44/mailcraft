@@ -221,6 +221,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         "Report junk",
         "Unpin",
         "Pin",
+        "Public Folders",
         "Blue",
         "Green",
         "Pink",

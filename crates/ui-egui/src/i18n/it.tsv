@@ -744,6 +744,7 @@
 	Shared with you, opened from {account}	Condiviso con te, aperto da {account}
 	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Di chi è il calendario? Si apre in sola lettura accanto al tuo, se è stato condiviso con te in Exchange.
 	read-only	sola lettura
+	Public Folders	Cartelle pubbliche
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio
