@@ -18,6 +18,8 @@ _Status: v0.10, 2026-10-15._
 | 4 | **Drag attachments out under Wayland** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND). A native Wayland window would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **HTML layout: positioning and background pictures** | Tables, flexbox rows, grids, inline-block and floated boxes keep their columns; absolutely positioned boxes and background pictures still flow as text. |
+| 7 | **Microsoft sign-in needs an app registration** | Outlook.com, Hotmail and Live (and many Microsoft 365 tenants) take no passwords from mail apps: only Microsoft's sign-in, which a build offers when it carries a Microsoft Entra app registration's client id ([docs/oauth.md](oauth.md)). The release workflow passes the repository secret `MAILCRAFT_MICROSOFT_CLIENT_ID`; until it's set, such accounts can't be added (the dialog says why). |
+| 8 | **Public folders on Exchange Online; writing to shared calendars** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online routes public-folder requests to a mailbox found through Autodiscover's user settings (`X-AnchorMailbox`), not done yet, and Graph has no public folders. Other people's calendars open read-only, even where their owner allowed editing. |
 
 ## Done
 
@@ -171,3 +173,19 @@ mailbox; packaging for every desktop.
   - **Fixed:** the language menu drew Japanese, Korean and Chinese as boxes unless the interface
     was in one of them (and so did mail in them); a chip's tooltip said "Double-click to open
     it"; "Pin", "Unpin" and "Always move to Focused/Other" weren't translated.
+- **From issue #1 (an Exchange user's list):**
+  - **Attachment previews in the reading pane:** a click on an attachment shows it in place of
+    the message (Back to message, Open, Save As): pictures, a PDF's pages, text, attached mail,
+    and Word documents, Excel workbooks and PowerPoint slides read by MailCraft itself.
+  - **Notes**, as Outlook's: coloured sticky notes (Ctrl+5), kept in an Exchange mailbox's
+    Notes folder (EWS) or on this computer.
+  - **People in three layouts** (Outlook's Change View): the list with an a–z index, business
+    cards, and a phone list.
+  - **Other people's Exchange calendars**, opened by their address (read-only), through Graph or
+    EWS; and **public folders** on on-premises Exchange, under a folder of their own.
+  - **Dutch** interface.
+  - **Outlook.com and Hotmail:** the Add account dialog and the account's status say they need
+    Microsoft sign-in rather than asking for a password again and again; release builds carry
+    the sign-in once the repository has its secret.
+  - **Fixed:** the list's filter tabs ran into "By Date" in long-worded languages; the status
+    bar counted mail in People and Calendar.

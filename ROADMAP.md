@@ -11,9 +11,9 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 113 (`mailcraft-cli commands`) |
+| Commands | 130 (`mailcraft-cli commands`) |
 | Tests | 218 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
-| Languages | 13 (English, Spanish, French, German, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
+| Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
 ## Milestones
@@ -88,3 +88,6 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-16** — **v0.10**: a second audit against Outlook: a Search tab, Follow Up with dates,
   Delay delivery and Replies to, Forward as attachment, Reply with meeting, Find related, Delete
   all and folder Properties, hover on every control; CJK names drawn in any interface language.
+- **2026-10-17** — **v0.10**: issue #1: attachments preview in the reading pane (pictures, PDF
+  pages, text, Word, Excel, PowerPoint), Notes, three People layouts, other people's Exchange
+  calendars, public folders, Dutch; Outlook.com and Hotmail say why they need Microsoft sign-in.
