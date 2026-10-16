@@ -42,5 +42,11 @@ Personal accounts (Outlook.com, Hotmail, Live) can approve an unverified app; wo
 accounts often can't until the publisher is verified (a Microsoft AI Cloud Partner Program ID
 under **Branding & properties**), or their administrator approves MailCraft for the organisation.
 
+A personal Microsoft account made with another provider's address (a Gmail address, say) has a
+hidden mailbox address (`outlook_…@outlook.com`): mail sent through Graph goes out from it, and
+SMTP refuses the sign-in (535 5.7.3) even though it covers sending. An Outlook.com address added
+to the account and made its **primary alias** (account.live.com › Manage how you sign in) fixes
+both; then the account is added once, with that address.
+
 Sign in once with a test account: if Microsoft says the redirect URI doesn't match
 (`AADSTS50011`), check the two loopback addresses in step 2.

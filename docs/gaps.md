@@ -204,6 +204,10 @@ Microsoft sign-in, tried end to end once the release builds carried a registrati
   until Send / Receive.
 - **Sent Items catches up:** Graph and Exchange file the copy a moment after sending; it showed
   only at the next poll. Sent Items is read again a few seconds later.
+- **Tokens name their permissions:** each token request says what it's for (a personal
+  account's token could otherwise cover reading but not sending), and an SMTP refusal says
+  whether the sign-in covered sending. A Microsoft account made with a Gmail address sends
+  only once an Outlook.com address is its primary alias ([docs/oauth.md](oauth.md)).
 - **Fixed:** small dialogs opened as tall as the last big one, their buttons halfway down (and
   OK, Connect and Remove wore the send icon); opening People widened the folder pane for every
   module.
