@@ -8,7 +8,7 @@
 //! mail is ever sent); then both folders are read again.
 
 use mailcraft_model::ical::{Attendee, CalEvent};
-use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, Pim, StoredCard, StoredEvent};
+use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, Note, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::vcard::{Card, Typed};
 use serde_json::{Value, json};
 
@@ -276,6 +276,45 @@ pub fn card_of(it: &El) -> Option<Card> {
     })
 }
 
+/// A sticky note's colour (MS-OXONOTE PidLidNoteColor), as EWS asks for it.
+const NOTE_COLOR: &str = r#"<t:ExtendedFieldURI PropertySetId="0006200E-0000-0000-C000-000000000046" PropertyId="35584" PropertyType="Integer"/>"#;
+
+/// A note in Exchange's Notes folder (`IPM.StickyNote`).
+pub fn note_of(it: &El) -> Option<StoredNote> {
+    if !it.text_of("ItemClass").is_some_and(|c| c.starts_with("IPM.StickyNote")) {
+        return None;
+    }
+    let id = it.child("ItemId")?;
+    let href = format!("note:{}", id.attr("Id")?);
+    let text = it.text_of("Body").map(str::to_string).filter(|b| !b.trim().is_empty()).unwrap_or_else(|| text(it, "Subject"));
+    let color = it
+        .children("ExtendedProperty")
+        .find(|p| p.find("ExtendedFieldURI").and_then(|f| f.attr("PropertyId")) == Some("35584"))
+        .and_then(|p| p.text_of("Value"))
+        .and_then(|v| v.trim().parse::<u8>().ok())
+        .filter(|c| *c < mailcraft_model::pim::NOTE_COLORS)
+        .unwrap_or(mailcraft_model::pim::NOTE_YELLOW);
+    let modified = it.text_of("LastModifiedTime").and_then(mailcraft_jmap::utc_date).unwrap_or(0);
+    Some(StoredNote {
+        href: href.clone(),
+        etag: id.attr("ChangeKey").unwrap_or("").to_string(),
+        note: Note { uid: href, text: text.replace("\r\n", "\n"), color, modified },
+        dirty: false,
+    })
+}
+
+/// A note as EWS creates it: a message of class `IPM.StickyNote`, its first line the subject.
+fn note_xml(n: &Note) -> String {
+    let subject: String = n.title().chars().take(255).collect();
+    format!(
+        "<t:Message><t:ItemClass>IPM.StickyNote</t:ItemClass><t:Subject>{}</t:Subject><t:Body BodyType=\"Text\">{}</t:Body>\
+         <t:ExtendedProperty>{NOTE_COLOR}<t:Value>{}</t:Value></t:ExtendedProperty></t:Message>",
+        esc(&subject),
+        esc(&n.text),
+        n.color
+    )
+}
+
 /// Every item of a distinguished folder, with all its properties (bodies as text).
 fn items(c: &Client, folder: &str) -> Result<Vec<El>> {
     let mut ids: Vec<String> = Vec::new();
@@ -301,8 +340,9 @@ fn items(c: &Client, folder: &str) -> Result<Vec<El>> {
         let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
         let doc = c.call(&format!(
             "<m:GetItem><m:ItemShape><t:BaseShape>AllProperties</t:BaseShape><t:BodyType>Text</t:BodyType>\
-             <t:AdditionalProperties><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:AdditionalProperties></m:ItemShape>\
-             <m:ItemIds>{list}</m:ItemIds></m:GetItem>"
+             <t:AdditionalProperties><t:FieldURI FieldURI=\"calendar:Recurrence\"/>{}</t:AdditionalProperties></m:ItemShape>\
+             <m:ItemIds>{list}</m:ItemIds></m:GetItem>",
+            if folder == "notes" { NOTE_COLOR } else { "" }
         ))?;
         for m in crate::ews::messages(&doc) {
             if m.attr("ResponseClass") == Some("Error") {
@@ -333,7 +373,7 @@ fn delete(c: &Client, id: &str) -> Result<()> {
 pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut out = DavSync { caldav_home: Some("ews".into()), carddav_home: Some("ews".into()), checked: now, ..Default::default() };
     for t in &pim.deleted {
-        match delete(c, t.href.trim_start_matches("contact:")) {
+        match delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:")) {
             Ok(()) | Err(NetError::No(_)) => out.deleted.push(t.href.clone()),
             Err(e) => out.errors.push(e.to_string()),
         }
@@ -414,6 +454,32 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     }
     out.books = Some(vec![BookInfo { id: CONTACTS.into(), name: "Contacts".into(), read_only: false, ctag: String::new() }]);
     out.synced_books.push(CONTACTS.into());
+    // Notes (Outlook's sticky notes): what changed here goes up (made again, as contacts are),
+    // then the folder is read again. A mailbox without one keeps notes on this computer.
+    for n in pim.notes.iter().filter(|n| n.dirty) {
+        if let Some(old) = n.href.strip_prefix("note:")
+            && let Err(e) = delete(c, old)
+            && !matches!(e, NetError::No(_))
+        {
+            out.errors.push(format!("{}: {e}", n.note.title()));
+            continue;
+        }
+        let r = c.call_one(&format!(
+            "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"notes\"/></m:SavedItemFolderId><m:Items>{}</m:Items></m:CreateItem>",
+            note_xml(&n.note)
+        ));
+        match r {
+            Ok(m) => {
+                let (id, etag) = new_id(&m);
+                out.pushed_notes.push(StoredNote { href: format!("note:{id}"), etag, note: n.note.clone(), dirty: false });
+            }
+            Err(x) => out.errors.push(format!("{}: {x}", n.note.title())),
+        }
+    }
+    match items(c, "notes") {
+        Ok(list) => out.notes = Some(list.iter().filter_map(note_of).collect()),
+        Err(e) => log::info!("no Notes folder: {e}"),
+    }
     Ok(out)
 }
 

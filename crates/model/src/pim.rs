@@ -68,6 +68,48 @@ pub struct StoredCard {
     pub dirty: bool,
 }
 
+/// A note, as Outlook's Notes keeps them: text, and a colour.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Note {
+    pub uid: String,
+    pub text: String,
+    /// Outlook's note colours: 0 blue, 1 green, 2 pink, 3 yellow (the usual), 4 white.
+    #[serde(default = "yellow")]
+    pub color: u8,
+    /// When it was last changed (Unix seconds).
+    #[serde(default)]
+    pub modified: i64,
+}
+
+fn yellow() -> u8 {
+    NOTE_YELLOW
+}
+
+/// The colour a new note takes, as in Outlook.
+pub const NOTE_YELLOW: u8 = 3;
+/// How many note colours there are.
+pub const NOTE_COLORS: u8 = 5;
+
+impl Note {
+    /// Its first line: what a list of notes shows as its title.
+    pub fn title(&self) -> &str {
+        self.text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("")
+    }
+}
+
+/// A note with where it lives: `href` is its item on the server (Exchange's Notes folder),
+/// empty for a note kept on this computer only.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoredNote {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub href: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub etag: String,
+    pub note: Note,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub dirty: bool,
+}
+
 /// Something deleted here that is still to be deleted on the server.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Tombstone {
@@ -89,6 +131,9 @@ pub struct Pim {
     pub cards: Vec<StoredCard>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub deleted: Vec<Tombstone>,
+    /// Notes (Outlook's Notes): the server's (Exchange) and those kept here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<StoredNote>,
     /// Where the server keeps the user's calendars and address books (found once); empty when
     /// it has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -124,6 +169,12 @@ pub struct DavSync {
     /// Changes stored on the server, with their new addresses and etags.
     pub pushed_events: Vec<StoredEvent>,
     pub pushed_cards: Vec<StoredCard>,
+    /// The server's notes, read in full (`None`: it keeps none, so notes stay on this
+    /// computer), and the notes stored there this time.
+    #[serde(default)]
+    pub notes: Option<Vec<StoredNote>>,
+    #[serde(default)]
+    pub pushed_notes: Vec<StoredNote>,
     /// Deletions done (by href).
     pub deleted: Vec<String>,
     /// What couldn't be stored or deleted (tried again next time).

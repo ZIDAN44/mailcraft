@@ -656,6 +656,16 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
     p.ensure_defaults();
     p.events = events.into_iter().map(|event| StoredEvent { calendar: LOCAL.into(), event, ..Default::default() }).collect();
     p.cards = cards.into_iter().map(|card| StoredCard { book: LOCAL.into(), card, ..Default::default() }).collect();
+    // Notes (Outlook's Notes), kept on this computer.
+    let note = |uid: &str, text: &str, color: u8, ago: i64| mailcraft_model::pim::StoredNote {
+        note: mailcraft_model::pim::Note { uid: format!("{uid}@sample.mailcraft"), text: text.into(), color, modified: now - ago },
+        ..Default::default()
+    };
+    p.notes = vec![
+        note("note-poster", "Festival poster\nApprove the proof by Thursday; ask about 170 gsm paper.", 3, 3600),
+        note("note-mix", "Sound mix v3\nRain under the café scene: a little quieter.", 0, 86_400),
+        note("note-fox", "Fox turnarounds\nSide view: longer tail.", 1, 3 * 86_400),
+    ];
     p
 }
 

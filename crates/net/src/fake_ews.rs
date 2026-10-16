@@ -219,7 +219,11 @@ impl Data {
                 out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>")));
             }
             "FindItem" => {
-                let folder = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
+                // A folder the mailbox hasn't (a Notes folder, say): as Exchange answers.
+                let Some(folder) = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)) else {
+                    out.push(err("ErrorFolderNotFound"));
+                    return ("FindItemResponse".into(), out);
+                };
                 let max: usize =
                     op.child("IndexedPageItemView").and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000);
                 let mut list: Vec<&It> = self.items.iter().filter(|i| i.folder == folder).collect();
@@ -271,7 +275,8 @@ impl Data {
                 let send = op.attr("MessageDisposition") == Some("SendAndSaveCopy");
                 let folder = op.child("SavedItemFolderId").and_then(|s| s.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
                 for m in op.child("Items").map(|i| i.kids.clone()).unwrap_or_default() {
-                    if m.name == "CalendarItem" || m.name == "Contact" {
+                    let sticky = m.text_of("ItemClass").is_some_and(|c| c.starts_with("IPM.StickyNote"));
+                    if m.name == "CalendarItem" || m.name == "Contact" || sticky {
                         let id = self.id("P");
                         out.push(ok(format!("<m:Items><t:{0}><t:ItemId Id=\"{id}\" ChangeKey=\"ck\"/></t:{0}></m:Items>", m.name)));
                         self.pim.push((id, folder.clone(), m));
@@ -823,6 +828,39 @@ mod tests {
         let sync = crate::ews_pim::sync(&c, &changed, 1_792_000_000).unwrap();
         let moved = sync.events.iter().find(|e| e.href == standup.href).unwrap();
         assert_eq!((moved.event.summary.as_str(), moved.event.rrule.as_deref()), ("Stand-up (moved)", None));
+        // No Notes folder on this server: notes stay on this computer.
+        assert!(sync.notes.is_none());
+    }
+
+    #[test]
+    fn sticky_notes_sync_with_the_notes_folder() {
+        use mailcraft_model::pim::{Note, Pim, StoredNote};
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+        let notes = d.folder("Notes", None, Some("notes"), "IPF.StickyNote");
+        let old = parse(
+            "<t:Message><t:ItemClass>IPM.StickyNote</t:ItemClass><t:Subject>Call Ana</t:Subject><t:Body BodyType=\"Text\">Call Ana\r\nabout the mix</t:Body>\
+             <t:ExtendedProperty><t:ExtendedFieldURI PropertySetId=\"0006200E-0000-0000-C000-000000000046\" PropertyId=\"35584\" PropertyType=\"Integer\"/><t:Value>2</t:Value></t:ExtendedProperty></t:Message>",
+        );
+        d.pim.push(("N1".into(), notes, old.kids[0].clone()));
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let mut pim = Pim::default();
+        pim.notes.push(StoredNote {
+            note: Note { uid: "n-local".into(), text: "Buy paper\n170 gsm".into(), color: 1, modified: 5 },
+            dirty: true,
+            ..Default::default()
+        });
+        let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+        assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+        let list = sync.notes.unwrap();
+        let ana = list.iter().find(|n| n.href == "note:N1").unwrap();
+        assert_eq!((ana.note.text.as_str(), ana.note.color), ("Call Ana\nabout the mix", 2));
+        assert!(list.iter().any(|n| n.note.text == "Buy paper\n170 gsm" && n.note.color == 1), "made in the Notes folder, its colour kept");
+        assert_eq!(sync.pushed_notes.len(), 1);
+        assert!(sync.pushed_notes[0].href.starts_with("note:"));
     }
 
     #[test]

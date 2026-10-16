@@ -1659,3 +1659,58 @@ fn the_samples_office_files_read_as_documents() {
     assert_eq!(sheets[0].0, "Order 4471");
     assert_eq!(sheets[0].1[3], vec!["Total".to_string(), String::new(), String::new(), "802.5".into()]);
 }
+
+#[test]
+fn notes_are_written_coloured_and_deleted() {
+    let mut s = sample_session("notes");
+    assert_eq!(s.notes("").len(), 3, "the sample's notes");
+    let uid = s.run("note.create", &json!({"text": "Call the print shop", "color": 9})).unwrap()["uid"].as_str().unwrap().to_string();
+    let n = s.notes("").into_iter().find(|n| n.note.uid == uid).unwrap();
+    assert_eq!((n.note.color, n.note.text.as_str()), (4, "Call the print shop"), "a colour past the last is the last");
+    s.set_clock(NOW + 60, 0);
+    s.run("note.update", &json!({"uid": uid, "text": "Call the print shop\nabout paper", "color": 0})).unwrap();
+    let first = &s.notes("")[0];
+    assert_eq!((first.note.uid.as_str(), first.note.title(), first.note.color), (uid.as_str(), "Call the print shop", 0), "the latest first");
+    assert_eq!(s.notes("paper").len(), 2);
+    assert!(s.run("note.update", &json!({"uid": "nope", "text": "x"})).is_err());
+    s.run("note.delete", &json!({"uid": uid})).unwrap();
+    assert!(s.notes("").iter().all(|n| n.note.uid != uid));
+    // Kept with the account's calendar and contacts, across starts.
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    drop(s);
+    let s = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert_eq!(s.notes("").len(), 3);
+    done(s);
+
+    // An Exchange account: notes go to its Notes folder, and what the server says follows.
+    let mut s = Session::open(Some(temp("notes-ews")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s
+        .run("account.add", &json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.take_jobs();
+    let uid = s.run("note.create", &json!({"text": "Sync me"})).unwrap()["uid"].as_str().unwrap().to_string();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })), "asks for a sync");
+    assert!(s.pim[&id].notes[0].dirty);
+    let mut sync = mailcraft_model::pim::DavSync::default();
+    let stored = mailcraft_model::pim::StoredNote { href: "note:X1".into(), note: s.pim[&id].notes[0].note.clone(), ..Default::default() };
+    sync.pushed_notes.push(stored.clone());
+    let server_copy =
+        mailcraft_model::pim::StoredNote { note: mailcraft_model::pim::Note { uid: "note:X1".into(), ..stored.note.clone() }, ..stored };
+    let other = mailcraft_model::pim::StoredNote {
+        href: "note:X2".into(),
+        note: mailcraft_model::pim::Note { uid: "note:X2".into(), text: "From Outlook".into(), color: 2, modified: 1 },
+        ..Default::default()
+    };
+    sync.notes = Some(vec![server_copy, other]);
+    s.apply_dav(&id, &sync);
+    let texts: Vec<String> = s.notes("").into_iter().map(|n| n.note.text).collect();
+    assert_eq!(texts.len(), 2, "{texts:?}: the note sent isn't doubled");
+    assert!(texts.contains(&"From Outlook".to_string()) && texts.contains(&"Sync me".to_string()));
+    let _ = uid;
+    s.run("note.delete", &json!({"uid": "note:X2"})).unwrap();
+    assert!(s.pim[&id].deleted.iter().any(|t| t.href == "note:X2"), "deleted on the server next time");
+    done(s);
+}
