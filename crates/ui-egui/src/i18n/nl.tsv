@@ -1,0 +1,749 @@
+# MailCraft interface strings: Dutch (Nederlands).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  Mappen laden…
+	(Top level)	(Hoogste niveau)
+	(no subject)	(geen onderwerp)
+	1 attachment	1 bijlage
+	1. List	1. Lijst
+	</>	</>
+	Accounts	Accounts
+	Accounts and settings	Accounts en instellingen
+	Add a subject	Voeg een onderwerp toe
+	Add account…	Account toevoegen…
+	Add an account	Een account toevoegen
+	Add an email account	Een e-mailaccount toevoegen
+	Added to new messages, replies and forwards.	Wordt toegevoegd aan nieuwe berichten, antwoorden en doorgestuurde berichten.
+	All	Alle
+	All Inboxes	Alle Postvakken IN
+	All Sent	Alle verzonden
+	All caught up: nothing in this folder.	Alles bijgewerkt: niets in deze map.
+	All folders	Alle mappen
+	Always show from {sender}	Altijd weergeven van {sender}
+	Apr	apr
+	Archive	Archiveren
+	Archive (Backspace)	Archiveren (Backspace)
+	Ask before deleting for good	Vragen voordat iets definitief wordt verwijderd
+	At the top of {account}	Bovenaan in {account}
+	Attach file	Bestand bijvoegen
+	Audio	Audio
+	Aug	aug
+	B	B
+	Bcc	Bcc
+	Bold (Ctrl+B)	Vet (Ctrl+B)
+	Bottom	Onder
+	Bulleted list	Lijst met opsommingstekens
+	Cancel	Annuleren
+	Categorize	Categoriseren
+	Category	Categorie
+	Cc	CC
+	Cc / Bcc	CC / BCC
+	Cc: {names}	CC: {names}
+	Choose…	Kiezen…
+	Clear search	Zoekopdracht wissen
+	Close	Sluiten
+	Code	Code
+	Compact	Compact
+	Connect	Verbinden
+	Connecting…	Verbinden…
+	Conversations	Gesprekken
+	Create	Maken
+	Create rule…	Regel maken…
+	Dark	Donker
+	Date	Datum
+	Dec	dec
+	Delete	Verwijderen
+	Delete (Del)	Verwijderen (Del)
+	Delete folder…	Map verwijderen…
+	Delete permanently?	Definitief verwijderen?
+	Delete “{folder}”?	“{folder}” verwijderen?
+	Deleted Items	Verwijderde items
+	Discard	Verwerpen
+	Disconnected: {error}	Verbinding verbroken: {error}
+	Document	Document
+	Don't run later rules on mail this one matches	Geen latere regels uitvoeren op mail waarop deze van toepassing is
+	Downloading the message…	Het bericht wordt gedownload…
+	Draft saved	Concept opgeslagen
+	Drafts	Concepten
+	Edit	Bewerken
+	Edit rule	Regel bewerken
+	Email address	E-mailadres
+	Enter the password for {email}.	Voer het wachtwoord voor {email} in.
+	Favorites	Favorieten
+	Feb	feb
+	File	Bestand
+	Flag	Markeren
+	Flag / Unflag (Insert)	Markeren / Markering wissen (Insert)
+	Flagged	Gemarkeerd
+	Focused	Prioriteit
+	Focused Inbox	Postvak IN met prioriteit
+	Focused Inbox: put newsletters and automatic mail in Other	Postvak IN met prioriteit: nieuwsbrieven en automatische mail in Overige zetten
+	Folder	Map
+	Folder name	Mapnaam
+	Forward	Doorsturen
+	Forward (Ctrl+F)	Doorsturen (Ctrl+F)
+	Fri	vr
+	Friday	vrijdag
+	From	Van
+	From contains	Van bevat
+	From {names}	Van {names}
+	Group messages by conversation	Berichten groeperen per gesprek
+	Has attachments	Heeft bijlagen
+	Has files	Met bestanden
+	Heading	Kop
+	Hidden from the other recipients	Verborgen voor de andere ontvangers
+	Home	Start
+	I	I
+	If it {condition}: {action}	Als het bericht {condition}: {action}
+	Important	Belangrijk
+	Inbox	Postvak IN
+	Incoming mail (IMAP)	Inkomende mail (IMAP)
+	Insert a picture (or paste one)	Een afbeelding invoegen (of plakken)
+	Inside {folder} ({account})	In {folder} ({account})
+	Is a newsletter or list mail	Is een nieuwsbrief of lijstmail
+	Italic (Ctrl+I)	Cursief (Ctrl+I)
+	Items: {n}	Items: {n}
+	Jan	jan
+	Jul	jul
+	Jun	jun
+	Junk Email	Ongewenste e-mail
+	Language	Taal
+	Last month	Vorige maand
+	Last week	Vorige week
+	Later	Later
+	Later today	Later vandaag
+	Light	Licht
+	Link	Koppeling
+	Link (Ctrl+K)	Koppeling (Ctrl+K)
+	Links like {link} aren't opened	Koppelingen zoals {link} worden niet geopend
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Lokaal eerst: mail wordt op deze computer bewaard om snel offline te zoeken. Wachtwoorden blijven in de sleutelhanger van het systeem.
+	Looking up the server settings…	De serverinstellingen worden opgezocht…
+	Mail from {sender}	Mail van {sender}
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · een ArtCraft-app · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	Mailinglijst: afmelden via {address}
+	Mar	mrt
+	Mark all as read	Alles als gelezen markeren
+	Mark as read	Als gelezen markeren
+	Mark as unread	Als ongelezen markeren
+	Mark read	Gelezen
+	Mark unread	Ongelezen
+	May	mei
+	Message preview	Berichtvoorbeeld
+	Message sent	Bericht verzonden
+	Messages waiting to be sent	Berichten die op verzending wachten
+	Messages without a subject are easy to overlook.	Berichten zonder onderwerp worden makkelijk over het hoofd gezien.
+	Mon	ma
+	Monday	maandag
+	Move	Verplaatsen
+	Move 1 message	1 bericht verplaatsen
+	Move folder…	Map verplaatsen…
+	Move to	Verplaatsen naar
+	Move to a folder (Ctrl+Shift+V)	Naar een map verplaatsen (Ctrl+Shift+V)
+	Move to folder	Naar map verplaatsen
+	Move to…	Verplaatsen naar…
+	Move {n} messages	{n} berichten verplaatsen
+	Move “{folder}” to	“{folder}” verplaatsen naar
+	Name	Naam
+	Names <addresses>, separated by ; or ,	Namen <adressen>, gescheiden door ; of ,
+	New category	Nieuwe categorie
+	New category…	Nieuwe categorie…
+	New folder	Nieuwe map
+	New folder…	Nieuwe map…
+	New mail	Nieuwe mail
+	New mail (Ctrl+N)	Nieuwe mail (Ctrl+N)
+	New rule	Nieuwe regel
+	New rule…	Nieuwe regel…
+	Next week	Volgende week
+	No published settings: the usual server names are filled in. Check them under Server settings.	Geen gepubliceerde instellingen: de gebruikelijke servernamen zijn ingevuld. Controleer ze onder Serverinstellingen.
+	No results. Try fewer words, or search all folders.	Geen resultaten. Probeer minder woorden, of zoek in alle mappen.
+	No rules yet.	Nog geen regels.
+	None (unsafe)	Geen (onveilig)
+	Not an email address: {address}	Geen e-mailadres: {address}
+	Not junk	Geen ongewenste e-mail
+	Not sent: {error}	Niet verzonden: {error}
+	Nothing matches this filter.	Niets voldoet aan dit filter.
+	Nov	nov
+	Numbered list	Genummerde lijst
+	Oct	okt
+	Off	Uit
+	Offline	Offline
+	Older	Ouder
+	On / off	Aan / uit
+	Open	Openen
+	Open as a PDF to print	Als pdf openen om af te drukken
+	Open in {app}	Openen in {app}
+	Open it in the Craft app for this kind of file	Openen in de Craft-app voor dit soort bestanden
+	Open with the system's app	Openen met de app van het systeem
+	Opened as a PDF: print it from the viewer	Als pdf geopend: druk het af vanuit de viewer
+	Options	Opties
+	Other	Overige
+	Outbox	Postvak UIT
+	Outbox: {n}	Postvak UIT: {n}
+	Outgoing mail (SMTP)	Uitgaande mail (SMTP)
+	Password	Wachtwoord
+	Password needed	Wachtwoord nodig
+	Password…	Wachtwoord…
+	Personal	Persoonlijk
+	Pick messages from one account to move them to a folder.	Kies berichten uit één account om ze naar een map te verplaatsen.
+	Picture	Afbeelding
+	Pictures from the web are hidden to protect your privacy.	Afbeeldingen van het web zijn verborgen om je privacy te beschermen.
+	Picture…	Afbeelding…
+	Pin	Vastmaken
+	Plain text	Platte tekst
+	Preview	Voorbeeld
+	Print	Afdrukken
+	Put newsletters and automatic mail in Other	Nieuwsbrieven en automatische mail in Overige zetten
+	Quote	Citaat
+	Reading pane	Leesvenster
+	Remove	Verwijderen
+	Remove account?	Account verwijderen?
+	Remove account…	Account verwijderen…
+	Remove from Favorites	Uit Favorieten verwijderen
+	Remove…	Verwijderen…
+	Rename	Naam wijzigen
+	Rename folder	Map hernoemen
+	Rename folder…	Map hernoemen…
+	Reply	Beantwoorden
+	Reply (Ctrl+R)	Beantwoorden (Ctrl+R)
+	Reply all	Allen beantwoorden
+	Reply all (Ctrl+Shift+R)	Allen beantwoorden (Ctrl+Shift+R)
+	Report junk	Ongewenst melden
+	Results for “{query}”	Resultaten voor “{query}”
+	Right	Rechts
+	Rules	Regels
+	Rules run on new mail as it arrives in an Inbox, in this order.	Regels worden in deze volgorde uitgevoerd op nieuwe mail die in een Postvak IN binnenkomt.
+	Rules…	Regels…
+	Run now	Nu uitvoeren
+	Run on the folder on screen	Uitvoeren op de map op het scherm
+	S	S
+	Same as the system	Hetzelfde als het systeem
+	Sample mailbox (offline)	Voorbeeldpostvak (offline)
+	Sample mailbox, kept on this computer only	Voorbeeldpostvak, alleen op deze computer bewaard
+	Sat	za
+	Saturday	zaterdag
+	Save	Opslaan
+	Save all…	Alles opslaan…
+	Save as PDF…	Opslaan als pdf…
+	Save as email (.eml)…	Opslaan als e-mail (.eml)…
+	Save as…	Opslaan als…
+	Save draft	Concept opslaan
+	Save draft (Ctrl+S)	Concept opslaan (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	Opgeslagen in Postvak UIT: het wordt verzonden zodra je weer online bent
+	Saved {n} attachments in {folder}	{n} bijlagen opgeslagen in {folder}
+	Saved {path}	{path} opgeslagen
+	Search folders	Mappen zoeken
+	Search mail (from:, subject:, has:attachment…)	Mail zoeken (from:, subject:, has:attachment…)
+	Select a message first.	Selecteer eerst een bericht.
+	Send	Verzenden
+	Send (Ctrl+Enter)	Verzenden (Ctrl+Enter)
+	Send / Receive	Verzenden/ontvangen
+	Send / Receive all folders (F9)	Alle mappen verzenden/ontvangen (F9)
+	Send anyway	Toch verzenden
+	Send now	Nu verzenden
+	Send without a subject?	Verzenden zonder onderwerp?
+	Send without formatting	Verzenden zonder opmaak
+	Sender, recipients or subject contain	Afzender, ontvangers of onderwerp bevatten
+	Sending…	Verzenden…
+	Sent Items	Verzonden items
+	Sep	sep
+	Server settings	Serverinstellingen
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	Instellingen gevonden: {source}
+	Show a desktop notification when new mail arrives	Een bureaubladmelding tonen wanneer er nieuwe mail binnenkomt
+	Show as plain text	Als platte tekst weergeven
+	Show formatted	Met opmaak weergeven
+	Show in Favorites	In Favorieten weergeven
+	Show pictures	Afbeeldingen weergeven
+	Shown as text.	Als tekst weergegeven.
+	Shown on mail you send	Zichtbaar op mail die je verzendt
+	Sign in	Aanmelden
+	Sign in again	Opnieuw aanmelden
+	Sign in again…	Opnieuw aanmelden…
+	Sign in with {provider}	Aanmelden met {provider}
+	Signature	Handtekening
+	Signature…	Handtekening…
+	Snooze	Uitstellen
+	Stop showing pictures from this sender	Geen afbeeldingen meer weergeven van deze afzender
+	Strikethrough	Doorhalen
+	Subject	Onderwerp
+	Subject contains	Onderwerp bevat
+	Sun	zo
+	Sunday	zondag
+	Switch to dark mode	Overschakelen naar donkere modus
+	Switch to light mode	Overschakelen naar lichte modus
+	System	Systeem
+	Text	Tekst
+	Text or address	Tekst of adres
+	The PDF couldn't be opened: {error}	De pdf kon niet worden geopend: {error}
+	The folder and everything in it will be moved to Deleted Items.	De map en alles erin worden naar Verwijderde items verplaatst.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	De map, de submappen en alle mail erin worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt.
+	The link couldn't be opened: {error}	De koppeling kon niet worden geopend: {error}
+	The sign-in page couldn't be opened: {error}	De aanmeldpagina kon niet worden geopend: {error}
+	Theme	Thema
+	Then	Dan
+	These {n} messages will be deleted for good. This can't be undone.	Deze {n} berichten worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt.
+	This folder	Deze map
+	This message couldn't be downloaded: {error}	Dit bericht kon niet worden gedownload: {error}
+	This message will be deleted for good. This can't be undone.	Dit bericht wordt definitief verwijderd. Dit kan niet ongedaan worden gemaakt.
+	This weekend	Dit weekend
+	Three weeks ago	Drie weken geleden
+	Thu	do
+	Thursday	donderdag
+	To	Aan
+	To do	Te doen
+	To or Cc contains	Aan of CC bevat
+	To: {names}	Aan: {names}
+	Today	Vandaag
+	Tomorrow	Morgen
+	Try again	Opnieuw proberen
+	Tue	di
+	Tuesday	dinsdag
+	Two weeks ago	Twee weken geleden
+	Unflag	Markering wissen
+	Unpin	Losmaken
+	Unread	Ongelezen
+	Unread: {n}	Ongelezen: {n}
+	Upcoming	Binnenkort
+	Update folder	Map bijwerken
+	Updated {time}	Bijgewerkt om {time}
+	Updating {folder}…	{folder} bijwerken…
+	User name	Gebruikersnaam
+	Usually the email address	Meestal het e-mailadres
+	Video	Video
+	View	Beeld
+	Waiting in the Outbox. Last try: {error}	Wacht in Postvak UIT. Laatste poging: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	Wacht in Postvak UIT: het wordt verzonden zodra je weer online bent.
+	Wed	wo
+	Wednesday	woensdag
+	Welcome to MailCraft	Welkom bij MailCraft
+	When mail	Wanneer mail
+	Without encryption your password travels in the clear. Use only for local test servers.	Zonder versleuteling gaat je wachtwoord onversleuteld over het netwerk. Gebruik dit alleen voor lokale testservers.
+	Work	Werk
+	Write your message…	Schrijf je bericht…
+	Yesterday	Gisteren
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Je mail, op je eigen computer. Voeg een IMAP-account toe: berichten worden op dit apparaat bewaard, zodat ze snel doorzoekbaar en offline leesbaar zijn. Je wachtwoord blijft in de sleutelhanger van het systeem.
+	Your name	Je naam
+	categorize {category}	categoriseren als {category}
+	folder	map
+	from “{text}”	van “{text}” is
+	in your browser: no password stored	in je browser: er wordt geen wachtwoord opgeslagen
+	mentions “{text}”	“{text}” vermeldt
+	move to {folder}	verplaatsen naar {folder}
+	subject has “{text}”	“{text}” in het onderwerp heeft
+	you@example.com	jij@example.com
+	{app} couldn't open it: {error}	{app} kon het niet openen: {error}
+	{a} and {b}	{a} en {b}
+	{a}, {b} and others	{a}, {b} en anderen
+	{email} (sample)	{email} (voorbeeld)
+	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} en de gedownloade mail worden van deze computer verwijderd. Op de server wordt niets verwijderd.
+	{name} could not be opened: {error}	{name} kon niet worden geopend: {error}
+	{n} attachments	{n} bijlagen
+	{n} messages in this conversation	{n} berichten in dit gesprek
+	{n} new messages	{n} nieuwe berichten
+	• List	• Lijst
+	Select a message to read it	Selecteer een bericht om het te lezen
+	MailCraft – Sample mailbox	MailCraft – Voorbeeldpostvak
+	Mail server	Mailserver
+	IMAP and SMTP	IMAP en SMTP
+	JMAP	JMAP
+	JMAP session address	JMAP-sessieadres
+	Server: {url} (JMAP)	Server: {url} (JMAP)
+	Open in new window	Openen in nieuw venster
+	{subject} – Message	{subject} – Bericht
+	About	Info
+	About MailCraft	Over MailCraft
+	Account information	Accountgegevens
+	Account settings	Accountinstellingen
+	An ArtCraft app · MIT OR Apache-2.0	Een ArtCraft-app · MIT OR Apache-2.0
+	Automatic replies	Automatische antwoorden
+	Back	Terug
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Openlijk gebouwd op basis van de e-mailstandaarden: geen code, pictogrammen of materiaal van andere mail-apps.
+	Change this account's name, servers and sign-in, or its signature.	Wijzig de naam, servers en aanmelding van dit account, of de handtekening.
+	Checking with the server…	Navragen bij de server…
+	Compact list	Compacte lijst
+	Don't send automatic replies	Geen automatische antwoorden verzenden
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Elke afzender krijgt één antwoord per dag zolang ze aanstaan. Ze staan op je mailserver, dus ze werken ook als deze computer uit staat.
+	Empty	Leegmaken
+	Empty Deleted Items…	Verwijderde items leegmaken…
+	Empty Junk Email…	Ongewenste e-mail leegmaken…
+	Empty “{folder}”?	“{folder}” leegmaken?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	Alles erin wordt definitief verwijderd, ook mail die niet naar deze computer is gedownload. Dit kan niet ongedaan worden gemaakt.
+	General	Algemeen
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	Ik ben weg tot…
+	Inbox and notifications	Postvak IN en meldingen
+	Info	Info
+	Kept on this computer: {size}	Op deze computer bewaard: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft praat alleen met je eigen mailservers, via versleutelde verbindingen. Afbeeldingen van het web worden alleen geladen als je erom vraagt.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	Postvak
+	Mailbox settings	Postvakinstellingen
+	Manage rules	Regels beheren
+	Mark messages as read when opened	Berichten als gelezen markeren bij openen
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	Nog geen afzenders.
+	Not available: the sample mailbox has no server.	Niet beschikbaar: het voorbeeldpostvak heeft geen server.
+	Not available: {error}	Niet beschikbaar: {error}
+	On	Aan
+	On from {from}	Aan vanaf {from}
+	On from {from} until {until}	Aan van {from} tot {until}
+	On until {until}	Aan tot {until}
+	Only between these days	Alleen tussen deze dagen
+	Pictures from the web load only when you ask. These senders' pictures always load:	Afbeeldingen van het web worden alleen geladen als je erom vraagt. Afbeeldingen van deze afzenders worden altijd geladen:
+	Privacy	Privacy
+	Reading	Lezen
+	Rules: {n}	Regels: {n}
+	Sample mailbox	Voorbeeldpostvak
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	Bekijk hoeveel ruimte je mail inneemt, en maak Verwijderde items en Ongewenste e-mail leeg.
+	Send automatic replies	Automatische antwoorden verzenden
+	Server settings…	Serverinstellingen…
+	Show HTML mail formatted (otherwise as plain text)	HTML-mail met opmaak weergeven (anders als platte tekst)
+	Show a line of each message in the list	Een regel van elk bericht in de lijst weergeven
+	Sort new mail as it arrives: move it, flag it, categorize it.	Sorteer nieuwe mail bij binnenkomst: verplaatsen, markeren, categoriseren.
+	Source code and issues	Broncode en issues
+	Subject (optional)	Onderwerp (optioneel)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Laat mensen weten dat je weg bent: elke afzender krijgt één antwoord zolang ze aanstaan, ook als deze computer uit staat.
+	The server doesn't say how much space is used.	De server meldt niet hoeveel ruimte er wordt gebruikt.
+	Until	Tot
+	{free} free of {total}	{free} vrij van {total}
+	{used} used on the server	{used} gebruikt op de server
+	this server doesn't offer automatic replies	deze server biedt geen automatische antwoorden
+	this server doesn't offer automatic replies (no ManageSieve)	deze server biedt geen automatische antwoorden (geen ManageSieve)
+	the account is offline	het account is offline
+	Drag it to a folder or another app to copy it	Sleep het naar een map of een andere app om het te kopiëren
+	Accept	Accepteren
+	Accepted	Geaccepteerd
+	Add a title	Voeg een titel toe
+	All day	Hele dag
+	April	april
+	Attendees: {names}	Deelnemers: {names}
+	August	augustus
+	Calendar	Agenda
+	Calendars	Agenda's
+	Changes apply to every occurrence.	Wijzigingen gelden voor elke keer.
+	Company	Bedrijf
+	Custom	Aangepast
+	Day	Dag
+	December	december
+	Decline	Weigeren
+	Declined	Geweigerd
+	Delete the series	De reeks verwijderen
+	Delete this occurrence	Deze keer verwijderen
+	Edit contact	Contactpersoon bewerken
+	Email	E-mail
+	Ends	Eindigt
+	Event	Afspraak
+	Every day	Elke dag
+	Every month	Elke maand
+	Every week	Elke week
+	Every year	Elk jaar
+	February	februari
+	In the address book of {account}	In het adresboek van {account}
+	January	januari
+	Job title	Functie
+	July	juli
+	June	juni
+	Location	Locatie
+	Mail	Mail
+	March	maart
+	Month	Maand
+	Never	Nooit
+	New contact	Nieuwe contactpersoon
+	New event	Nieuwe afspraak
+	Next	Volgende
+	Next month	Volgende maand
+	No answer yet	Nog geen antwoord
+	No contacts yet.	Nog geen contactpersonen.
+	No one matches.	Niemand komt overeen.
+	Notes	Notities
+	November	november
+	October	oktober
+	One address per line	Eén adres per regel
+	Organizer: {name}	Organisator: {name}
+	People	Personen
+	Phone	Telefoon
+	Pick someone to see their details	Kies iemand om de gegevens te zien
+	Previous	Vorige
+	Previous month	Vorige maand
+	Repeat	Herhalen
+	Search people	Personen zoeken
+	September	september
+	Starts	Begint
+	Tentative	Voorlopig
+	Week	Week
+	Your answer:	Je antwoord:
+	{from} {month_from} – {to} {month} {year}	{from} {month_from} – {to} {month} {year}
+	{from} – {to} {month} {year}	{from} – {to} {month} {year}
+	{month} {year}	{month} {year}
+	{n} more	nog {n}
+	{weekday}, {day} {month} {year}	{weekday} {day} {month} {year}
+	Add to contacts	Aan contactpersonen toevoegen
+	Invite	Uitnodigen
+	Record the answer	Het antwoord vastleggen
+	Remove from calendar	Uit agenda verwijderen
+	Show in calendar	In agenda weergeven
+	This event was cancelled.	Deze afspraak is geannuleerd.
+	{name} accepted.	{name} heeft geaccepteerd.
+	{name} answered.	{name} heeft geantwoord.
+	{name} declined.	{name} heeft geweigerd.
+	{name} said maybe.	{name} heeft misschien gezegd.
+	You accepted.	Je hebt geaccepteerd.
+	You said maybe.	Je hebt misschien gezegd.
+	You declined.	Je hebt geweigerd.
+	Open & Export	Openen en exporteren
+	Open data file	Gegevensbestand openen
+	Open Outlook data file	Outlook-gegevensbestand openen
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Haal de mail uit een Outlook-gegevensbestand (.pst) binnen. Het wordt geopend als een eigen postvak, met de mappen, bewaard op deze computer.
+	Open now: {files}	Nu open: {files}
+	Outlook data file	Outlook-gegevensbestand
+	Opened from an Outlook data file, kept on this computer only	Geopend vanuit een Outlook-gegevensbestand, alleen op deze computer bewaard
+	Not available: a data file has no server.	Niet beschikbaar: een gegevensbestand heeft geen server.
+	Opening {file}…	{file} openen…
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	Server: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	Aanmelden met Microsoft is niet ingesteld in deze versie van MailCraft.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Synchroniseert via Microsoft Graph, voor werk- en schoolaccounts waarbij IMAP is uitgeschakeld. Je meldt je aan bij Microsoft in de browser: er wordt geen wachtwoord opgeslagen.
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	In de browser werkt MailCraft met JMAP-providers. Je wachtwoord blijft alleen in dit tabblad en wordt alleen naar je mailserver verzonden.
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	Je mail in de browser. Voeg een JMAP-account toe (zoals Fastmail): MailCraft praat rechtstreeks met je mailserver, en je wachtwoord blijft alleen in dit tabblad.
+	Pop out	Loskoppelen
+	Pop in	Terugzetten
+	Back to the reading pane	Terug naar het leesvenster
+	Write it in a window of its own	Schrijf het in een eigen venster
+	Hide Bcc	BCC verbergen
+	From ▾	Van ▾
+	Untitled	Naamloos
+	Write new messages in a window of their own	Nieuwe berichten in een eigen venster schrijven
+	Saved in Drafts	Opgeslagen in Concepten
+	Underline (Ctrl+U)	Onderstrepen (Ctrl+U)
+	Text highlight color	Markeerkleur voor tekst
+	Font color	Tekstkleur
+	No color	Geen kleur
+	Automatic	Automatisch
+	Bullets (Ctrl+Shift+L)	Opsommingstekens (Ctrl+Shift+L)
+	Numbering	Nummering
+	Decrease indent (Ctrl+Shift+T)	Inspringing verkleinen (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	Inspringing vergroten (Ctrl+T)
+	Align left (Ctrl+L)	Links uitlijnen (Ctrl+L)
+	Center (Ctrl+E)	Centreren (Ctrl+E)
+	Align right (Ctrl+R)	Rechts uitlijnen (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	Alle opmaak wissen (Ctrl+spatie)
+	Address Book	Adresboek
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	Bestand bijvoegen
+	Ctrl+K	Ctrl+K
+	Pictures	Afbeeldingen
+	Address	Adres
+	Insert	Invoegen
+	Remove link	Koppeling verwijderen
+	Select Names	Namen selecteren
+	Search	Zoeken
+	Name or address	Naam of adres
+	All addresses	Alle adressen
+	Contacts	Contactpersonen
+	Email Address	E-mailadres
+	No one found.	Niemand gevonden.
+	To ->	Aan ->
+	Cc ->	CC ->
+	Bcc ->	BCC ->
+	OK	OK
+	Want to save your changes?	Wil je de wijzigingen opslaan?
+	The message is kept in Drafts if you save it.	Het bericht blijft in Concepten als je het opslaat.
+	Yes	Ja
+	No	Nee
+	Exporting to {file}…	Exporteren naar {file}…
+	Export	Exporteren
+	Export to Outlook data file	Exporteren naar Outlook-gegevensbestand
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	Schrijf de mail van een account, met de mappen, naar een Outlook-gegevensbestand (.pst) dat Outlook en andere mail-apps kunnen openen. Mail die nooit is gedownload, blijft buiten beschouwing.
+	Exchange server (EWS)	Exchange-server (EWS)
+	Exchange server	Exchange-server
+	Server: {url} (EWS)	Server: {url} (EWS)
+	DOMAIN\\user, or the email address	DOMEIN\\gebruiker, of het e-mailadres
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Voor Exchange-servers van je organisatie, via Exchange Web Services. Meldt zich aan met je netwerkgebruikersnaam en -wachtwoord.
+	Found automatically when left empty	Wordt automatisch gevonden als je dit leeg laat
+	Its calendar and contacts go beside it, as .ics and .vcf files.	De agenda en contactpersonen komen ernaast, als .ics- en .vcf-bestanden.
+	You can close this window.	Je kunt dit venster sluiten.
+	Browse…	Bladeren…
+	Existing Outlook data file (optional)	Bestaand Outlook-gegevensbestand (optioneel)
+	Incoming mail (POP)	Inkomende mail (POP)
+	Mail from an old .pst comes in first	Mail uit een oud .pst-bestand komt eerst binnen
+	POP and SMTP	POP en SMTP
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	Lettertypen
+	Data files	Gegevensbestanden
+	Open folder	Map openen
+	Move…	Verplaatsen…
+	Save as an Outlook data file…	Opslaan als Outlook-gegevensbestand…
+	Moves to {folder} the next time MailCraft starts.	Wordt naar {folder} verplaatst wanneer MailCraft de volgende keer start.
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	Gekozen bij het starten van MailCraft (--data of MAILCRAFT_DATA), dus het kan hier niet worden verplaatst.
+	Your mail couldn't be moved, so it stays where it was: {error}	Je mail kon niet worden verplaatst en blijft waar hij was: {error}
+	Your mail is now kept in {folder}	Je mail wordt nu bewaard in {folder}
+	Your mail moves there the next time MailCraft starts.	Je mail wordt daarheen verplaatst wanneer MailCraft de volgende keer start.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	De mail, contactpersonen en agenda van elk account worden bewaard in een MailCraft-gegevensbestand (.mailcraft) in deze map, zoals Outlook elk account in een .pst in Outlook-bestanden bewaart. Een Outlook-gegevensbestand dat je opent, krijgt hier een eigen .mailcraft-bestand; het bestand van Outlook blijft zoals het was. Wil je een kopie als .pst, gebruik dan Opslaan als Outlook-gegevensbestand onder Info.
+	Keep a copy of downloaded mail on the server	Een kopie van gedownloade mail op de server bewaren
+	Remove it from the server after	Van de server verwijderen na
+	days	dagen
+	Remove it from the server once it's deleted from Deleted Items	Van de server verwijderen zodra het uit Verwijderde items is verwijderd
+	Arrange by: {field}	Rangschikken op: {field}
+	By {field} ⏷	Op {field} ⏷
+	Reverse sort	Omgekeerd sorteren
+	Size	Grootte
+	Flag status	Markeringsstatus
+	Attachments	Bijlagen
+	Under 10 KB	Kleiner dan 10 kB
+	10 to 25 KB	10 tot 25 kB
+	25 to 100 KB	25 tot 100 kB
+	100 to 500 KB	100 tot 500 kB
+	500 KB to 1 MB	500 kB tot 1 MB
+	1 to 5 MB	1 tot 5 MB
+	Over 5 MB	Groter dan 5 MB
+	Not flagged	Niet gemarkeerd
+	With attachments	Met bijlagen
+	Without attachments	Zonder bijlagen
+	(nobody)	(niemand)
+	Send / Receive all folders	Alle mappen verzenden/ontvangen
+	Send all	Alles verzenden
+	Send what's waiting in the Outbox	Verzenden wat in Postvak UIT wacht
+	Work offline	Offline werken
+	Working offline	Offline aan het werk
+	Close every connection: changes, mail you send and drafts wait on this computer	Alle verbindingen sluiten: wijzigingen, mail die je verzendt en concepten wachten op deze computer
+	Undo (Ctrl+Z)	Ongedaan maken (Ctrl+Z)
+	Filter	Filteren
+	Categorized	Gecategoriseerd
+	To or Cc me	Aan of CC mij
+	New items	Nieuwe items
+	Email message	E-mailbericht
+	Contact	Contactpersoon
+	More delete options	Meer verwijderopties
+	Ignore the conversation	Het gesprek negeren
+	Stop ignoring the conversation	Het gesprek niet meer negeren
+	Its messages, and replies that arrive later, go to Deleted Items	De berichten, en antwoorden die later binnenkomen, gaan naar Verwijderde items
+	Folder pane	Mappenvenster
+	Minimize the folder pane	Het mappenvenster minimaliseren
+	Show the folder pane	Het mappenvenster weergeven
+	Save As	Opslaan als
+	Save Attachments	Bijlagen opslaan
+	Exit	Afsluiten
+	High importance	Hoge urgentie
+	Low importance	Lage urgentie
+	Read receipt	Leesbevestiging
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	De ontvangers vragen te bevestigen dat ze het hebben gelezen (hun mail-app doet dat misschien niet, of vraagt het hun)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Werkt met elke provider: IMAP of POP met SMTP, JMAP of Exchange. Je wachtwoord wordt in de sleutelhanger van deze computer bewaard en alleen naar je mailserver verzonden.
+	Run it now on the mail already in the Inbox	Nu uitvoeren op de mail die al in Postvak IN staat
+	Run on the mail already in the Inbox	Uitvoeren op de mail die al in Postvak IN staat
+	More options	Meer opties
+	Save As…	Opslaan als…
+	Save All Attachments…	Alle bijlagen opslaan…
+	This picture can't be shown.	Deze afbeelding kan niet worden weergegeven.
+	Close Search	Zoeken sluiten
+	Look in	Zoeken in
+	Account	Account
+	Account settings…	Accountinstellingen…
+	Delete all…	Alles verwijderen…
+	Delete all	Alles verwijderen
+	Delete everything in “{folder}”?	Alles in “{folder}” verwijderen?
+	Every message in it will be moved to Deleted Items.	Elk bericht erin wordt naar Verwijderde items verplaatst.
+	Find related	Verwante zoeken
+	Messages in this conversation	Berichten in dit gesprek
+	Messages from sender	Berichten van afzender
+	Forward as attachment	Doorsturen als bijlage
+	Reply with meeting	Beantwoorden met vergadering
+	More actions	Meer acties
+	Ignore	Negeren
+	Messages	Berichten
+	Open file location	Bestandslocatie openen
+	Properties…	Eigenschappen…
+	{folder} Properties	Eigenschappen van {folder}
+	Size on this computer	Grootte op deze computer
+	Quick print	Snel afdrukken
+	Always move to Focused	Altijd naar Prioriteit verplaatsen
+	Always move to Other	Altijd naar Overige verplaatsen
+	Follow up	Opvolgen
+	No date	Geen datum
+	Mark complete	Als voltooid markeren
+	Clear flag	Markering wissen
+	This week	Deze week
+	Follow up.	Opvolgen.
+	Follow up. Due today.	Opvolgen. Vervalt vandaag.
+	Follow up. Due {date}.	Opvolgen. Vervalt {date}.
+	Follow up. Overdue: it was due {date}.	Opvolgen. Te laat: het verviel {date}.
+	This message was sent with high importance.	Dit bericht is verzonden met hoge urgentie.
+	This message was sent with low importance.	Dit bericht is verzonden met lage urgentie.
+	Delay delivery	Bezorging uitstellen
+	Don't send before	Niet verzenden vóór
+	Have replies sent to another address	Antwoorden naar een ander adres laten sturen
+	Held in the Outbox: it will be sent {when}.	Vastgehouden in Postvak UIT: het wordt verzonden op {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	In Postvak UIT houden en later verzenden (MailCraft moet dan actief zijn)
+	Replies to	Antwoorden naar
+	Send right away	Meteen verzenden
+	Sends {when}	Wordt verzonden op {when}
+	Set	Instellen
+	Where replies go instead of to you	Waar antwoorden heen gaan in plaats van naar jou
+	In 1 hour	Over 1 uur
+	Tomorrow morning	Morgenochtend
+	Monday morning	Maandagochtend
+	and	en
+	or	of
+	delete	verwijderen
+	flag	markeren
+	has attachments	bijlagen heeft
+	is list mail	lijstmail is
+	mark read	als gelezen markeren
+	pin	vastmaken
+	to “{text}”	aan “{text}” gericht is
+	Add a place	Voeg een plaats toe
+	Add at least one name in To, Cc or Bcc before sending.	Voeg minstens één naam toe in Aan, CC of BCC voordat je verzendt.
+	Edit link	Koppeling bewerken
+	Edit link…	Koppeling bewerken…
+	First and last name	Voor- en achternaam
+	Link to	Koppelen aan
+	One number per line	Eén nummer per regel
+	Text to display	Weer te geven tekst
+	The address itself	Het adres zelf
+	Web page or file	Webpagina of bestand
+	Cut	Knippen
+	Copy	Kopiëren
+	Paste	Plakken
+	Select all	Alles selecteren
+	Link…	Koppeling…
+	Open link	Koppeling openen
+	Clear formatting	Opmaak wissen
+	Insert link	Koppeling invoegen
+	The selected text	De geselecteerde tekst
+	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Outlook.com-, Hotmail- en Live-adressen maken alleen verbinding met Aanmelden met Microsoft: Microsoft accepteert geen wachtwoorden van mail-apps meer. Deze versie van MailCraft is gebouwd zonder aanmelding bij Microsoft, dus dit account kan niet worden toegevoegd.
+	Back to message	Terug naar bericht
+	Esc	Esc
+	Open it in its app, or save it.	Open het in de bijbehorende app, of sla het op.
+	Page {n}	Pagina {n}
+	Slide {n}	Dia {n}
+	The document is empty.	Het document is leeg.
+	The first {shown} of {total} pages: open it to read the rest.	De eerste {shown} van {total} pagina's: open het om de rest te lezen.
+	The sheet is empty.	Het werkblad is leeg.
+	There's no preview for this file.	Er is geen voorbeeld voor dit bestand.
+	{n} people	{n} personen
+	Cards	Kaarten
+	Phone list	Telefoonlijst
+	Full name	Volledige naam
+	Search notes	Notities zoeken
+	{n} notes	{n} notities
+	No notes yet: New note starts one.	Nog geen notities: Nieuwe notitie begint er een.
+	No note matches.	Geen notitie komt overeen.
+	Write your note…	Schrijf je notitie…
+	Blue	Blauw
+	Green	Groen
+	Pink	Roze
+	Yellow	Geel
+	White	Wit
+	Color	Kleur
+	New note	Nieuwe notitie
+	Open a shared calendar	Een gedeelde agenda openen
+	Open shared calendar…	Gedeelde agenda openen…
+	Remove this calendar	Deze agenda verwijderen
+	Shared with you, opened from {account}	Met je gedeeld, geopend vanuit {account}
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Van wie is de agenda? Hij wordt alleen-lezen naast de jouwe geopend, als die persoon hem in Exchange met je heeft gedeeld.
+	read-only	alleen-lezen
+	Public Folders	Openbare mappen
+folder	Archive	Archief
+month	May	mei

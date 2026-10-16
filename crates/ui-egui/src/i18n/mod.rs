@@ -35,11 +35,12 @@ pub struct LangInfo {
     catalog: OnceLock<HashMap<String, String>>,
 }
 
-pub static LANGUAGES: [LangInfo; 13] = [
+pub static LANGUAGES: [LangInfo; 14] = [
     LangInfo { code: "en", name: "English", source: "", cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "es", name: "Español", source: include_str!("es.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "fr", name: "Français", source: include_str!("fr.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "de", name: "Deutsch", source: include_str!("de.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "nl", name: "Nederlands", source: include_str!("nl.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "pt-br", name: "Português (Brasil)", source: include_str!("pt-br.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "it", name: "Italiano", source: include_str!("it.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "ru", name: "Русский", source: include_str!("ru.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },

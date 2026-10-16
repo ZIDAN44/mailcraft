@@ -56,27 +56,47 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             ui.add_space(2.0);
         }
         ui.horizontal(|ui| {
-            // The tabs, and a filter chosen from the Home tab's Filter menu when it's another.
-            let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
-            for f in shown {
-                let on = s.filter == f;
-                let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(if on {
-                    theme::bold(12.5)
-                } else {
-                    theme::regular(12.5)
-                });
-                let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
-                if on {
-                    ui.painter().line_segment(
-                        [pos2(r.rect.left() + 4.0, r.rect.bottom()), pos2(r.rect.right() - 4.0, r.rect.bottom())],
-                        egui::Stroke::new(2.0, t.accent),
-                    );
+            // How the list is arranged, kept at the right (as Outlook's "By Date" above its list):
+            // the tabs wrap in what's left, so long words (Dutch, German…) never run into it.
+            let arrange = tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()));
+            let right = if s.search.is_none() {
+                ui.painter().layout_no_wrap(arrange.clone(), egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + 54.0
+            } else {
+                0.0
+            };
+            let left_w = (ui.available_width() - right).max(120.0);
+            ui.allocate_ui_with_layout(vec2(left_w, 22.0), egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true), |ui| {
+                // The tabs, and a filter chosen from the Home tab's Filter menu when it's another.
+                let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
+                for f in shown {
+                    let on = s.filter == f;
+                    let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(if on {
+                        theme::bold(12.5)
+                    } else {
+                        theme::regular(12.5)
+                    });
+                    let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
+                    if on {
+                        ui.painter().line_segment(
+                            [pos2(r.rect.left() + 4.0, r.rect.bottom()), pos2(r.rect.right() - 4.0, r.rect.bottom())],
+                            egui::Stroke::new(2.0, t.accent),
+                        );
+                    }
+                    if r.clicked() {
+                        acts.push(Action::Run("list.filter", json!({"value": f.code()})));
+                    }
                 }
-                if r.clicked() {
-                    acts.push(Action::Run("list.filter", json!({"value": f.code()})));
+                if let Some((q, scope)) = &s.search {
+                    ui.add_space(8.0);
+                    let all = *scope == SearchScope::All;
+                    if ui.selectable_label(all, RichText::new(tl!("All folders")).small()).clicked() && !all {
+                        acts.push(Action::Run("search.run", json!({"query": q, "scope": "all"})));
+                    }
+                    if ui.selectable_label(!all, RichText::new(tl!("This folder")).small()).clicked() && all {
+                        acts.push(Action::Run("search.run", json!({"query": q, "scope": "current"})));
+                    }
                 }
-            }
-            // How the list is arranged, and which way round (as Outlook's "By Date" above its list).
+            });
             if s.search.is_none() {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let rev = s.prefs.reverse_sort;
@@ -87,22 +107,9 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     {
                         acts.push(Action::Run("view.reverseSort", json!({})));
                     }
-                    let r = ui.add(
-                        egui::Button::new(RichText::new(tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()))).color(t.dim).small())
-                            .frame_when_inactive(false),
-                    );
+                    let r = ui.add(egui::Button::new(RichText::new(arrange).color(t.dim).small()).frame_when_inactive(false));
                     egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
                 });
-            }
-            if let Some((q, scope)) = &s.search {
-                ui.add_space(8.0);
-                let all = *scope == SearchScope::All;
-                if ui.selectable_label(all, RichText::new(tl!("All folders")).small()).clicked() && !all {
-                    acts.push(Action::Run("search.run", json!({"query": q, "scope": "all"})));
-                }
-                if ui.selectable_label(!all, RichText::new(tl!("This folder")).small()).clicked() && all {
-                    acts.push(Action::Run("search.run", json!({"query": q, "scope": "current"})));
-                }
             }
         });
     });
