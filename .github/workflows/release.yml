@@ -3,6 +3,10 @@
 # x86_64/aarch64 (AppImage, deb, rpm, tar.gz, Flatpak), Linux riscv64, FreeBSD and the web. Runs on a
 # push to the `release` branch, or by hand with an optional version override for a test run.
 # The scripts it calls live in packaging/; the version comes from Cargo.toml.
+# Browser sign-in (MAILCRAFT_MICROSOFT_CLIENT_ID, MAILCRAFT_GOOGLE_CLIENT_ID/_SECRET) isn't passed
+# here: the shared workflow takes only the secrets it declares, and passing others fails the run.
+# Whoever ships this build registers their own app and adds a pass-through there (docs/oauth.md);
+# release-wip.yml, which builds in this repository, passes them already.
 name: Release
 
 on:

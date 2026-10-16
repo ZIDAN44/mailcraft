@@ -11,10 +11,13 @@ only when it was given a registration:
 | `MAILCRAFT_MICROSOFT_CLIENT_ID` | the Application (client) ID of a Microsoft Entra app registration |
 | `MAILCRAFT_GOOGLE_CLIENT_ID`, `MAILCRAFT_GOOGLE_CLIENT_SECRET` | a Google "Desktop app" OAuth client (its secret isn't secret for installed apps) |
 
-They're read when MailCraft runs, or built in when they're set while building. The release
+They're read when MailCraft runs, or built in when they're set while building. The test release
 workflow (`release-wip.yml`) passes the repository secrets of those names to the build; without
 them the build offers passwords only, and an Outlook.com address can't be added (the Add account
-dialog says why).
+dialog says why). The signed release (`release.yml`) runs the shared
+`storytold/craft-common-actions` workflow, which accepts only the secrets it declares: to give it
+sign-in, that workflow needs a pass-through for these settings, added by whoever ships it with
+their own registration.
 
 ## Registering MailCraft with Microsoft
 
