@@ -738,6 +738,12 @@
 	White	白色
 	Color	色彩
 	New note	新增便箋
+	Open a shared calendar	開啟共用行事曆
+	Open shared calendar…	開啟共用行事曆…
+	Remove this calendar	移除此行事曆
+	Shared with you, opened from {account}	已與您共用,從 {account} 開啟
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	誰的行事曆?如果對方已在 Exchange 中與您共用,它會以唯讀方式在您的行事曆旁開啟。
+	read-only	唯讀
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

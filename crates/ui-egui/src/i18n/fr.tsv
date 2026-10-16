@@ -739,6 +739,12 @@
 	White	Blanc
 	Color	Couleur
 	New note	Nouvelle note
+	Open a shared calendar	Ouvrir un calendrier partagé
+	Open shared calendar…	Ouvrir un calendrier partagé…
+	Remove this calendar	Supprimer ce calendrier
+	Shared with you, opened from {account}	Partagé avec vous, ouvert depuis {account}
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Le calendrier de qui ? Il s'ouvre en lecture seule à côté du vôtre, s'il a été partagé avec vous dans Exchange.
+	read-only	lecture seule
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

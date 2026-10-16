@@ -738,6 +738,12 @@
 	White	흰색
 	Color	색
 	New note	새 메모
+	Open a shared calendar	공유 일정 열기
+	Open shared calendar…	공유 일정 열기…
+	Remove this calendar	이 일정 제거
+	Shared with you, opened from {account}	공유됨, {account}에서 열림
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	누구의 일정인가요? Exchange에서 공유된 경우 내 일정 옆에 읽기 전용으로 열립니다.
+	read-only	읽기 전용
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

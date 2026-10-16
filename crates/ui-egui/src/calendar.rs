@@ -75,12 +75,37 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         for a in &s.accounts {
             let Some(p) = s.pim.get(&a.config.id) else { continue };
             for c in &p.calendars {
-                ui.horizontal(|ui| {
+                let shared = c.id.strip_prefix("shared:").map(str::to_string);
+                let row = ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(12.0, 12.0), Sense::hover());
                     ui.painter().rect_filled(r, 3.0, color(c.color, &t));
                     let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
-                    ui.label(RichText::new(name).color(t.text)).on_hover_text(&a.config.email);
+                    let tip = if shared.is_some() {
+                        tf!("Shared with you, opened from {account}", account = a.config.email)
+                    } else {
+                        a.config.email.clone()
+                    };
+                    ui.label(RichText::new(name).color(t.text)).on_hover_text(tip);
+                    if shared.is_some() {
+                        ui.label(RichText::new(tl!("read-only")).color(t.faint).small());
+                    }
                 });
+                // Someone else's calendar: right-click closes it.
+                if let Some(email) = shared {
+                    row.response.interact(Sense::click()).context_menu(|ui| {
+                        if ui.button(tl!("Remove this calendar")).clicked() {
+                            acts.push(Action::Run("calendar.closeShared", json!({"email": email})));
+                            ui.close();
+                        }
+                    });
+                }
+            }
+        }
+        // Outlook's Open Calendar: someone's calendar shared with an Exchange account.
+        if s.accounts.iter().any(|a| a.config.graph.is_some() || a.config.ews.is_some()) {
+            ui.add_space(6.0);
+            if ui.link(RichText::new(tl!("Open shared calendar…")).small()).clicked() {
+                acts.push(Action::Dialog(Dialog::OpenSharedCalendar { email: String::new(), error: None }));
             }
         }
     });

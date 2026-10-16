@@ -738,6 +738,12 @@
 	White	Белый
 	Color	Цвет
 	New note	Новая заметка
+	Open a shared calendar	Открыть общий календарь
+	Open shared calendar…	Открыть общий календарь…
+	Remove this calendar	Убрать этот календарь
+	Shared with you, opened from {account}	Открыт вам, через {account}
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Чей календарь? Он откроется только для чтения рядом с вашим, если им поделились с вами в Exchange.
+	read-only	только чтение
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -98,6 +98,7 @@ pub(crate) fn tour() {
                 unread: 3,
                 size: 20_480,
             },
+            Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) },
             Dialog::RemoveAccount { account: "sample".into(), email: "x".into() },
             Dialog::Signature { account: "sample".into(), text: "sig".into() },
             Dialog::Password { account: "sample".into(), email: "x".into(), password: String::new() },

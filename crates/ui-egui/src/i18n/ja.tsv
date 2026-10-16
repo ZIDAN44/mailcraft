@@ -741,3 +741,9 @@ month	May	5月
 	White	白
 	Color	色
 	New note	新しいメモ
+	Open a shared calendar	共有の予定表を開く
+	Open shared calendar…	共有の予定表を開く…
+	Remove this calendar	この予定表を削除
+	Shared with you, opened from {account}	共有されています ({account} から開きました)
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	どなたの予定表ですか? Exchange で共有されていれば、自分の予定表の隣に読み取り専用で開きます。
+	read-only	読み取り専用

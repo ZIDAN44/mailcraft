@@ -739,6 +739,12 @@
 	White	Weiß
 	Color	Farbe
 	New note	Neue Notiz
+	Open a shared calendar	Freigegebenen Kalender öffnen
+	Open shared calendar…	Freigegebenen Kalender öffnen…
+	Remove this calendar	Diesen Kalender entfernen
+	Shared with you, opened from {account}	Für Sie freigegeben, geöffnet über {account}
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Wessen Kalender? Er öffnet sich schreibgeschützt neben Ihrem, wenn er in Exchange für Sie freigegeben wurde.
+	read-only	schreibgeschützt
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

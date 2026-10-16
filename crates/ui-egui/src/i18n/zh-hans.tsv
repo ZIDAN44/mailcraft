@@ -741,3 +741,9 @@ month	May	5月
 	White	白色
 	Color	颜色
 	New note	新建便笺
+	Open a shared calendar	打开共享日历
+	Open shared calendar…	打开共享日历…
+	Remove this calendar	移除此日历
+	Shared with you, opened from {account}	已与你共享,从 {account} 打开
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	谁的日历?如果对方已在 Exchange 中与你共享,它会以只读方式在你的日历旁打开。
+	read-only	只读
