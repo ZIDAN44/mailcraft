@@ -108,6 +108,8 @@ pub struct Tokens {
     pub access: String,
     pub refresh: Option<String>,
     pub expires_at: Instant,
+    /// The permissions the provider says it granted (Microsoft lists them; empty when not said).
+    pub granted: String,
 }
 
 impl std::fmt::Debug for Tokens {
@@ -118,6 +120,11 @@ impl std::fmt::Debug for Tokens {
 
 fn token_request(p: &Provider, mut fields: Vec<(&str, String)>) -> Result<Tokens> {
     fields.push(("client_id", p.client_id.clone()));
+    // The permissions wanted, each time: without them a personal Microsoft account's token
+    // covered reading (IMAP) but not sending (SMTP refused it, 535 5.7.3). Google takes none here.
+    if p.id != "google" {
+        fields.push(("scope", p.scope.clone()));
+    }
     if let Some(s) = &p.client_secret {
         fields.push(("client_secret", s.clone()));
     }
@@ -141,6 +148,7 @@ fn token_request(p: &Provider, mut fields: Vec<(&str, String)>) -> Result<Tokens
     Ok(Tokens {
         access: access.to_string(),
         refresh: v.get("refresh_token").and_then(Value::as_str).map(str::to_string),
+        granted: v.get("scope").and_then(Value::as_str).unwrap_or_default().to_string(),
         // A minute early, so a token never runs out mid-command.
         expires_at: Instant::now() + Duration::from_secs(expires - 60),
     })
@@ -325,6 +333,8 @@ pub(crate) mod tests {
             seen[0]
         );
         assert!(seen[1].contains("grant_type=refresh_token&refresh_token=r1"));
+        // Both ask for the permissions again (a Microsoft token for IMAP alone can't send).
+        assert!(seen[0].contains("scope=mail") && seen[1].contains("scope=mail"), "{}", seen[1]);
         // A denied sign-in is an error, not a hang.
         let mut deny = |url: &str| -> std::result::Result<(), String> {
             let params = query_params(url);

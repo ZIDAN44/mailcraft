@@ -1307,7 +1307,21 @@ impl Worker {
         }
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         let secret = self.secret()?;
-        smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw)
+        smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw).map_err(|e| match e {
+            // Say whether the sign-in covered sending: Microsoft lists what it granted.
+            NetError::Auth(m) if self.acc.oauth.as_deref() == Some("microsoft") => {
+                let granted = self.access.as_ref().map(|t| t.granted.clone()).unwrap_or_default();
+                let why = if granted.is_empty() {
+                    String::new()
+                } else if granted.to_ascii_lowercase().contains("smtp.send") {
+                    " (the sign-in includes sending: Microsoft's server refused it)".to_string()
+                } else {
+                    format!(" (Microsoft's sign-in didn't include sending; it granted: {granted})")
+                };
+                NetError::Auth(format!("{m}{why}"))
+            }
+            e => e,
+        })
     }
 
     fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
