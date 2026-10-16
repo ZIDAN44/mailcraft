@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.11 — Notes, previews and Exchange beyond the mailbox (2026-10-17). Each milestone below is a version: v0.1 was
+**Stage:** v0.12 — Microsoft sign-in that works (2026-10-17). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -48,7 +48,11 @@ local-first, media-aware v1); the fuller request is
    previewed in the reading pane (Word, Excel and PowerPoint too), Notes, three People layouts,
    other people's Exchange calendars, public folders, Dutch; Outlook.com and Hotmail say why
    they need Microsoft sign-in.
-12. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+12. **v0.12 — Microsoft sign-in that works** ✅ Microsoft sign-in tried end to end: the sign-in page
+   opens in the browser on Windows, accounts that sign in that way ask to sign in again rather
+   than for a password, an account Microsoft refuses says why, sent mail shows in Sent Items at
+   once; dialogs and the folder pane keep their sizes.
+13. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
 
 ## Progress log
@@ -95,3 +99,6 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-17** — **v0.11**: issue #1: attachments preview in the reading pane (pictures, PDF
   pages, text, Word, Excel, PowerPoint), Notes, three People layouts, other people's Exchange
   calendars, public folders, Dutch; Outlook.com and Hotmail say why they need Microsoft sign-in.
+- **2026-10-17** — **v0.12**: Microsoft sign-in tried end to end (Outlook.com over IMAP, a
+  personal Microsoft account through Graph): the sign-in page opens on Windows, "Sign in again"
+  instead of a password, refusals say why, Sent Items catches up at once; dialog and pane sizes.

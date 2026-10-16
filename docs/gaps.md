@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.11, 2026-10-17._
+_Status: v0.12, 2026-10-17._
 
 ## Open
 
@@ -191,3 +191,19 @@ From [issue #1](https://github.com/ZIDAN44/mailcraft/issues/1), an Exchange user
   the sign-in once the repository has its secret.
 - **Fixed:** the list's filter tabs ran into "By Date" in long-worded languages; the status
   bar counted mail in People and Calendar.
+
+### v0.12 — Microsoft sign-in that works
+Microsoft sign-in, tried end to end once the release builds carried a registration:
+- **The sign-in page opens:** on Windows, web addresses went through the way files are opened
+  and nothing appeared, so Sign in with Microsoft waited on a page that never opened (and links
+  from mail went nowhere). They go to Windows' URL handler.
+- **"Sign in again", not "Password needed",** for accounts that sign in in the browser; the link
+  opens the sign-in.
+- **A refusal says why:** an account the server turns down (a Microsoft account with no mailbox
+  Graph can reach) was asked again and again and sat at "Connecting…"; it stops with the reason
+  until Send / Receive.
+- **Sent Items catches up:** Graph and Exchange file the copy a moment after sending; it showed
+  only at the next poll. Sent Items is read again a few seconds later.
+- **Fixed:** small dialogs opened as tall as the last big one, their buttons halfway down (and
+  OK, Connect and Remove wore the send icon); opening People widened the folder pane for every
+  module.
