@@ -901,11 +901,22 @@ fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
         });
 }
 
+/// A dialog's bottom row, right-aligned and one row tall: a layout given all the room left made
+/// every dialog as tall as the last one shown, with its buttons floating halfway down.
+fn button_row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 30.0), egui::Layout::right_to_left(egui::Align::Center), add).inner
+}
+
+/// A Close button on its own row; whether the dialog stays open.
+fn close_row(ui: &mut Ui) -> bool {
+    button_row(ui, |ui| !ui.button(tl!("Close")).clicked())
+}
+
 fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) {
     let mut res = (false, false);
     ui.add_space(10.0);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if widgets::accent_button(ui, crate::icons::Icon::Send, ok, t, ok_enabled).clicked() {
+    button_row(ui, |ui| {
+        if widgets::primary_button(ui, ok, t, ok_enabled).clicked() {
             res.0 = true;
         }
         if ui.button(tl!("Cancel")).clicked() {
@@ -1037,7 +1048,9 @@ fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Actio
 /// Show the dialog; returns whether it stays open.
 pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let frame = dialog_frame(t);
-    let modal = egui::Modal::new(egui::Id::new("dialog")).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
+    // Each kind of dialog keeps its own size: one id for all let a small one open at the size
+    // of the last big one.
+    let modal = egui::Modal::new(egui::Id::new(("dialog", std::mem::discriminant(d)))).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
     let keep = modal.inner;
     keep && !modal.should_close()
 }
@@ -1409,7 +1422,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             ui.label(RichText::new(tl!("The message is kept in Drafts if you save it.")).color(t.dim));
             ui.add_space(10.0);
             let mut keep = true;
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            button_row(ui, |ui| {
                 if ui.button(tl!("Cancel")).clicked() {
                     keep = false;
                 }
@@ -1611,7 +1624,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 if ui.button(tl!("Open")).clicked() {
                     acts.push(Action::InWindow(key.clone(), Box::new(Action::OpenAttachment(*index))));
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
+                close_row(ui)
             })
             .inner
         }
@@ -1634,7 +1647,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 );
             });
             ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
+            close_row(ui)
         }
         Dialog::NewCategory { name, color, error } => {
             ui.set_width(340.0);
@@ -1725,7 +1738,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 acts.push(Action::Dialog(Dialog::rule_from("", "")));
             }
             ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
+            close_row(ui)
         }
         Dialog::EditRule(f) => {
             ui.set_width(440.0);
@@ -1870,7 +1883,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 }
             });
             ui.add_space(8.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| !ui.button(tl!("Close")).clicked()).inner
+            close_row(ui)
         }
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
         Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),

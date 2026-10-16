@@ -70,6 +70,24 @@ pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: 
     resp
 }
 
+/// A dialog's main button (OK, Connect, Remove…): filled in the app colour, words only.
+pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
+    let label = tl!(label);
+    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::bold(13.0), t.on_accent);
+    let size = vec2((galley.size().x + 28.0).max(76.0), 30.0);
+    let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    let fill = if !enabled {
+        t.faint
+    } else if resp.hovered() {
+        t.accent.gamma_multiply(0.88)
+    } else {
+        t.accent
+    };
+    ui.painter().rect_filled(rect, 6.0, fill);
+    ui.painter().galley_with_override_text_color(rect.center() - galley.size() / 2.0, galley, t.on_accent);
+    resp
+}
+
 /// An icon button on the coloured title bar.
 pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());

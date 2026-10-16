@@ -37,6 +37,39 @@ fn renders_every_state_without_panicking() {
     tour();
 }
 
+/// Dialogs kept the size of the last big one (their buttons' row took all the room left): Add
+/// account stayed tall after Server settings closed, Remove account opened as tall as Options.
+#[test]
+fn dialogs_fit_what_they_show() {
+    let (mut a, dir) = app("dialog-size");
+    let ctx = egui::Context::default();
+    let height = |ctx: &egui::Context, d: &Dialog| {
+        // Its own window (or, before, the one all dialogs shared).
+        let ids = [egui::Id::new(("dialog", std::mem::discriminant(d))), egui::Id::new("dialog")];
+        ids.iter().find_map(|id| ctx.memory(|m| m.area_rect(*id))).map_or(0.0, |r| r.height())
+    };
+    let shown = |a: &mut MailApp, d: Dialog| {
+        a.ui.dialog = Some(d);
+        for _ in 0..4 {
+            frame(&ctx, a, vec![]);
+        }
+        a.ui.dialog.clone().unwrap()
+    };
+    let mut d = Dialog::add_account_with("zoe@gmail.com", true);
+    let open = height(&ctx, &shown(&mut a, d.clone()));
+    if let Dialog::AddAccount(f) = &mut d {
+        f.advanced = false;
+    }
+    let closed = height(&ctx, &shown(&mut a, d));
+    assert!(open > 0.0 && closed < open - 60.0, "Server settings closed: {closed} (open: {open})");
+    let edit = Dialog::edit_account(&a.session.accounts[0].config);
+    shown(&mut a, edit);
+    let remove = Dialog::RemoveAccount { account: "sample".into(), email: "x".into() };
+    let small = height(&ctx, &shown(&mut a, remove));
+    assert!(small > 0.0 && small < 220.0, "Remove account: {small}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Every pane layout, state and dialog, in light and dark (also run in the pseudo-language by
 /// the translation tests).
 pub(crate) fn tour() {
