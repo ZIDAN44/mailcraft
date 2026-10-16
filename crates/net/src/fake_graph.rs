@@ -46,6 +46,9 @@ pub struct Data {
     pub calls: Vec<String>,
     /// The signed-in Microsoft account has no mailbox.
     pub no_mailbox: bool,
+    /// File a sent message's copy in Sent Items a moment after `sendMail`, as Graph does.
+    pub file_late: bool,
+    late: Vec<(std::time::Instant, Vec<u8>)>,
     next: u32,
 }
 
@@ -116,6 +119,11 @@ impl Data {
     /// One request: (status, body, content type).
     fn route(&mut self, method: &str, target: &str, body: &[u8], base: &str) -> (u16, Vec<u8>, &'static str) {
         self.calls.push(format!("{method} {target}"));
+        let now = std::time::Instant::now();
+        for (_, raw) in self.late.extract_if(.., |(at, _)| *at <= now).collect::<Vec<_>>() {
+            let sent = self.resolve("sentitems").unwrap_or_default();
+            self.deliver(&sent, &raw, true, "2030-01-01T00:00:00Z");
+        }
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         let q = |k: &str| query.split('&').find_map(|kv| kv.strip_prefix(&format!("{k}=")).map(str::to_string));
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
@@ -246,8 +254,12 @@ impl Data {
                         "application/json",
                     );
                 }
-                let sent = self.resolve("sentitems").unwrap_or_default();
-                self.deliver(&sent, &raw, true, "2030-01-01T00:00:00Z");
+                if self.file_late {
+                    self.late.push((std::time::Instant::now() + std::time::Duration::from_secs(1), raw.clone()));
+                } else {
+                    let sent = self.resolve("sentitems").unwrap_or_default();
+                    self.deliver(&sent, &raw, true, "2030-01-01T00:00:00Z");
+                }
                 self.sent.push(raw);
                 (202, Vec::new(), "text/plain")
             }
@@ -514,6 +526,36 @@ mod tests {
         std::thread::sleep(Duration::from_millis(1500));
         let tries = server.data.lock().unwrap().calls.len();
         assert!(tries <= 2, "asked once, not over and over: {tries} requests");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Graph files a sent message's copy a moment after taking it: Sent Items showed it only at the
+    /// next poll (minutes) or Send / Receive. It's read again soon after.
+    #[test]
+    fn a_sent_message_shows_in_sent_items_soon_after() {
+        let mut d = Data { file_late: true, ..Default::default() };
+        d.folder("Inbox", None, Some("inbox"));
+        d.folder("Sent Items", None, Some("sentitems"));
+        let server = serve(d);
+        let dir = std::env::temp_dir().join(format!("mailcraft-graph-sentsoon-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+        pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        pool.submit(Job::Send {
+            account: "a1".into(),
+            id: 1,
+            raw: mail("Poster", "s1"),
+            from: "me@contoso.example".into(),
+            recipients: vec!["zoe@contoso.example".into()],
+            sent_folder: Some("Sent Items".into()),
+        });
+        until(&pool, "sent", |e| matches!(e, Event::Sent { .. }));
+        eventually("the copy in Sent Items", || {
+            store.load_folder("a1", "Sent Items").is_ok_and(|f| f.messages.iter().any(|m| m.subject == "Poster"))
+        });
         let _ = std::fs::remove_dir_all(&dir);
     }
 

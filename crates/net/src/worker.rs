@@ -436,6 +436,10 @@ const MAX_PICTURE: usize = 8 << 20;
 const FULL_SYNC_EVERY: Duration = Duration::from_secs(15 * 60);
 const IDLE_FOR: Duration = Duration::from_secs(10 * 60);
 const POLL_EVERY: Duration = Duration::from_secs(120);
+/// When Sent Items is read again after Graph or Exchange took a message (its copy is filed a
+/// moment later), and once more in case that was too soon.
+const SENT_SOON: Duration = Duration::from_secs(3);
+const SENT_LATER: Duration = Duration::from_secs(15);
 
 /// The connection to an account's server.
 enum Conn {
@@ -474,6 +478,9 @@ struct Worker {
     no_push: bool,
     /// The last push wait ended in an Inbox sync (so the next one needn't check first).
     pushed: bool,
+    /// Folders to look at again soon: Graph and Exchange file a sent message's copy a moment
+    /// after taking it, so Sent Items is read again then rather than at the next poll.
+    soon: Vec<(Instant, String)>,
     /// The current OAuth access token.
     access: Option<crate::oauth::Tokens>,
 }
@@ -504,6 +511,7 @@ impl Worker {
             sieve_port: crate::sieve::PORT,
             no_push: false,
             pushed: false,
+            soon: Vec::new(),
         }
     }
 
@@ -608,9 +616,21 @@ impl Worker {
         }
         let idle = matches!(&self.conn, Some(Conn::Imap(c)) if c.has("IDLE"));
         if !idle || inbox.is_none() {
-            match rx.recv_timeout(POLL_EVERY) {
+            let next_soon = self.soon.iter().map(|(at, _)| *at).min();
+            let wait = next_soon.map_or(POLL_EVERY, |at| at.saturating_duration_since(Instant::now()).min(POLL_EVERY));
+            match rx.recv_timeout(wait) {
                 Ok(j) => self.queue.push_back(j),
                 Err(RecvTimeoutError::Disconnected) => self.closed = true,
+                Err(RecvTimeoutError::Timeout) if next_soon.is_some_and(|at| at <= Instant::now()) => {
+                    let now = Instant::now();
+                    let (due, later): (Vec<_>, Vec<_>) = std::mem::take(&mut self.soon).into_iter().partition(|(at, _)| *at <= now);
+                    self.soon = later;
+                    let mut folders: Vec<String> = due.into_iter().map(|(_, f)| f).collect();
+                    folders.dedup();
+                    for f in folders {
+                        self.sync_one(&f);
+                    }
+                }
                 Err(RecvTimeoutError::Timeout) => {
                     if let Some(f) = inbox {
                         self.sync_one(&f);
@@ -1363,6 +1383,13 @@ impl Worker {
             let sent = sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()));
             if let Some(f) = sent.filter(|_| self.conn.is_some()) {
                 self.sync_one(&f);
+                // Graph and Exchange file the copy a moment later: look again then.
+                if matches!(self.conn, Some(Conn::Graph(_) | Conn::Ews(_))) {
+                    let now = Instant::now();
+                    self.soon.retain(|(_, g)| *g != f);
+                    self.soon.push((now + SENT_SOON, f.clone()));
+                    self.soon.push((now + SENT_LATER, f));
+                }
             }
             return;
         }
