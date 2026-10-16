@@ -22,8 +22,9 @@ dialog says why).
    New registration**: a name, and *Accounts in any organizational directory and personal
    Microsoft accounts*.
 2. **Authentication › Add a platform › Mobile and desktop applications**, redirect URI
-   `http://localhost`; also add `http://127.0.0.1` (the address MailCraft listens on: Microsoft
-   lets loopback redirects use any port). Turn on **Allow public client flows**. No client secret.
+   `http://localhost`; also add `http://127.0.0.1` and `http://127.0.0.1/` (MailCraft listens
+   on `http://127.0.0.1:<port>/`: Microsoft lets loopback redirects use any port, but the path
+   has to match). Turn on **Allow public client flows**. No client secret.
 3. **API permissions:** nothing has to be added. MailCraft asks for what it needs when someone
    signs in (IMAP and SMTP access at `outlook.office.com` with `offline_access` for an IMAP
    account; Graph's `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`,
@@ -33,6 +34,10 @@ dialog says why).
 4. Copy the **Application (client) ID** into the repository secret
    `MAILCRAFT_MICROSOFT_CLIENT_ID` (Settings › Secrets and variables › Actions), or set it in
    the environment before starting MailCraft to try it.
+
+Personal accounts (Outlook.com, Hotmail, Live) can approve an unverified app; work and school
+accounts often can't until the publisher is verified (a Microsoft AI Cloud Partner Program ID
+under **Branding & properties**), or their administrator approves MailCraft for the organisation.
 
 Sign in once with a test account: if Microsoft says the redirect URI doesn't match
 (`AADSTS50011`), check the two loopback addresses in step 2.
