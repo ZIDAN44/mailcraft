@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.12, 2026-10-17._
+_Status: v0.13, 2026-10-17._
 
 ## Open
 
@@ -18,8 +18,7 @@ _Status: v0.12, 2026-10-17._
 | 4 | **Drag attachments out under Wayland** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND). A native Wayland window would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **HTML layout: positioning and background pictures** | Tables, flexbox rows, grids, inline-block and floated boxes keep their columns; absolutely positioned boxes and background pictures still flow as text. |
-| 7 | **Microsoft sign-in needs an app registration** | Outlook.com, Hotmail and Live (and many Microsoft 365 tenants) take no passwords from mail apps: only Microsoft's sign-in, which a build offers when it carries a Microsoft Entra app registration's client id ([docs/oauth.md](oauth.md)). The release workflow passes the repository secret `MAILCRAFT_MICROSOFT_CLIENT_ID`; until it's set, such accounts can't be added (the dialog says why). |
-| 8 | **Public folders on Exchange Online; writing to shared calendars** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online routes public-folder requests to a mailbox found through Autodiscover's user settings (`X-AnchorMailbox`), not done yet, and Graph has no public folders. Other people's calendars open read-only, even where their owner allowed editing. |
+| 7 | **Public folders on Exchange Online; writing to shared calendars** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online routes public-folder requests to a mailbox found through Autodiscover's user settings (`X-AnchorMailbox`), not done yet, and Graph has no public folders. Other people's calendars open read-only, even where their owner allowed editing. |
 
 ## Done
 
@@ -211,3 +210,8 @@ Microsoft sign-in, tried end to end once the release builds carried a registrati
 - **Fixed:** small dialogs opened as tall as the last big one, their buttons halfway down (and
   OK, Connect and Remove wore the send icon); opening People widened the folder pane for every
   module.
+
+### v0.13 — The open gaps, again
+- **Microsoft sign-in in release builds:** the test builds carry MailCraft's Microsoft Entra
+  registration (the repository secret), so Outlook.com, Hotmail and Live accounts sign in
+  ([docs/oauth.md](oauth.md)); the gap is closed.

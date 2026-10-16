@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.12 — Microsoft sign-in that works (2026-10-17). Each milestone below is a version: v0.1 was
+**Stage:** v0.13 — The open gaps, again (2026-10-17). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -52,7 +52,8 @@ local-first, media-aware v1); the fuller request is
    opens in the browser on Windows, accounts that sign in that way ask to sign in again rather
    than for a password, an account Microsoft refuses says why, sent mail shows in Sent Items at
    once; dialogs and the folder pane keep their sizes.
-13. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+13. **v0.13 — The open gaps, again** (in progress) From an audit of [docs/gaps.md](docs/gaps.md).
+14. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
 
 ## Progress log
