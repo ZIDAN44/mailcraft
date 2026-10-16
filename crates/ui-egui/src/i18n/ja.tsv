@@ -715,3 +715,4 @@ month	May	5月
 	Clear formatting	書式のクリア
 	Insert link	リンクの挿入
 	The selected text	選択した文字列
+	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Outlook.com、Hotmail、Live のアドレスは「Microsoft でサインイン」でのみ接続できます。Microsoft はメール アプリからのパスワードを受け付けなくなりました。この MailCraft は Microsoft サインインなしでビルドされているため、このアカウントは追加できません。

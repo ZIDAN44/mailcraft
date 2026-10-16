@@ -35,6 +35,12 @@ env:
   CRAFT_FONTS_REF: 3d9ab3a132ed0eff457e424226a435a901da30d3
   # Unsigned on purpose: the packaging scripts note it rather than warn.
   UNSIGNED_BUILD: "1"
+  # Browser sign-in (OAuth) for Microsoft (Outlook.com, Hotmail, Microsoft 365) and Google is
+  # built in when the repository has these secrets (an app registration's client id; empty
+  # otherwise, and the build offers passwords only). See docs/oauth.md.
+  MAILCRAFT_MICROSOFT_CLIENT_ID: ${{ secrets.MAILCRAFT_MICROSOFT_CLIENT_ID }}
+  MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+  MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
 
 jobs:
   version:
@@ -69,7 +75,7 @@ jobs:
       - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ env.CRAFT_FONTS_REF }}
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
           targets: aarch64-apple-darwin, x86_64-apple-darwin
@@ -110,7 +116,7 @@ jobs:
       - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ env.CRAFT_FONTS_REF }}
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -160,7 +166,7 @@ jobs:
         with:
           deb-arch: ${{ matrix.deb }}
           nfpm-version: "2.47.0"
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -233,7 +239,7 @@ jobs:
       - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
         with:
           ref: ${{ env.CRAFT_FONTS_REF }}
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
           targets: riscv64gc-unknown-linux-gnu
@@ -319,7 +325,7 @@ jobs:
       BUILD_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown

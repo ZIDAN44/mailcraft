@@ -132,6 +132,23 @@ pub fn oauth_provider_for(imap_host: &str) -> Option<&'static str> {
     }
 }
 
+/// Microsoft's own addresses (Outlook.com, Hotmail, Live, MSN). Since September 2024 they
+/// take no passwords from other mail apps over IMAP, POP or SMTP: only Microsoft sign-in.
+pub fn microsoft_consumer(email: &str) -> bool {
+    let domain = email.trim().rsplit_once('@').map(|(_, d)| d.to_ascii_lowercase()).unwrap_or_default();
+    let name = domain.split('.').next().unwrap_or_default();
+    matches!(name, "outlook" | "hotmail" | "live" | "msn" | "windowslive" | "passport") && domain.contains('.')
+}
+
+/// An account that signs in to Microsoft's servers with a password rather than Microsoft
+/// sign-in, which those servers refuse.
+pub fn microsoft_password_account(a: &AccountConfig) -> bool {
+    a.oauth.is_none()
+        && a.graph.is_none()
+        && a.ews.is_none()
+        && (oauth_provider_for(&a.imap.host) == Some("microsoft") || microsoft_consumer(&a.email))
+}
+
 impl AccountConfig {
     /// Server settings guessed from an address, the way most hosts are laid out (`mail.<domain>`,
     /// IMAPS 993, SMTPS 465). The account dialog shows them for the user to correct.
@@ -140,7 +157,7 @@ impl AccountConfig {
         let domain = email.rsplit_once('@').map(|(_, d)| d.to_ascii_lowercase()).unwrap_or_default();
         let (imap_host, smtp_host) = match domain.as_str() {
             "gmail.com" | "googlemail.com" => ("imap.gmail.com".to_string(), "smtp.gmail.com".to_string()),
-            "outlook.com" | "hotmail.com" | "live.com" => ("outlook.office365.com".to_string(), "smtp.office365.com".to_string()),
+            _ if microsoft_consumer(email) => ("outlook.office365.com".to_string(), "smtp.office365.com".to_string()),
             "yahoo.com" => ("imap.mail.yahoo.com".to_string(), "smtp.mail.yahoo.com".to_string()),
             "icloud.com" | "me.com" => ("imap.mail.me.com".to_string(), "smtp.mail.me.com".to_string()),
             "fastmail.com" => ("imap.fastmail.com".to_string(), "smtp.fastmail.com".to_string()),
@@ -627,6 +644,26 @@ pub fn sort_newest_first(list: &mut [Summary]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn microsofts_own_addresses_need_its_sign_in() {
+        for e in ["a@outlook.com", "a@hotmail.com", "a@hotmail.co.uk", "a@live.nl", "a@msn.com", "A@Outlook.FR"] {
+            assert!(microsoft_consumer(e), "{e}");
+        }
+        for e in ["a@outlook-studio.example", "a@studio.example", "a@hotmail", "hotmail.com", ""] {
+            assert!(!microsoft_consumer(e), "{e}");
+        }
+        let mut a = AccountConfig::guess("someone@hotmail.com");
+        assert!(microsoft_password_account(&a));
+        assert_eq!(AccountConfig::guess("a@live.nl").imap.host, "outlook.office365.com");
+        a.oauth = Some("microsoft".into());
+        assert!(!microsoft_password_account(&a));
+        assert!(!microsoft_password_account(&AccountConfig::guess("zoe@studio.example")));
+        // A work address on Microsoft 365's servers, signing in with a password.
+        let mut work = AccountConfig::guess("zoe@contoso.example");
+        work.imap.host = "outlook.office365.com".into();
+        assert!(microsoft_password_account(&work));
+    }
 
     #[test]
     fn a_folder_made_in_another_follows_it() {

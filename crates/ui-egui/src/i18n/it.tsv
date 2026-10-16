@@ -712,6 +712,7 @@
 	Clear formatting	Cancella formattazione
 	Insert link	Inserisci collegamento
 	The selected text	Il testo selezionato
+	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Gli indirizzi Outlook.com, Hotmail e Live si collegano solo con Accedi con Microsoft: Microsoft non accetta più password dalle app di posta. Questa copia di MailCraft non è stata compilata con l'accesso Microsoft, quindi non può aggiungere questo account.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

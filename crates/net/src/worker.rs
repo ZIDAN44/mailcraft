@@ -111,6 +111,9 @@ fn keep_draft(store: &Store, account: &str, folder: &str, replaces: Option<mailc
     store.save_account_doc(account, PENDING_DRAFTS, &list).map_err(NetError::from)
 }
 
+/// Why a Microsoft account signing in with a password can't connect.
+pub const MICROSOFT_NO_PASSWORDS: &str = "Microsoft doesn't accept passwords from mail apps for this account: it needs Sign in with Microsoft";
+
 pub(crate) fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX)).unwrap_or(0)
 }
@@ -704,6 +707,12 @@ impl Worker {
     fn failed(&mut self, e: NetError) {
         log::warn!("{}: {e}", self.acc.id);
         match e {
+            // Microsoft's servers refuse passwords from mail apps: asking for it again only loops.
+            NetError::Auth(m) if mailcraft_model::microsoft_password_account(&self.acc) => {
+                self.conn = None;
+                self.auth_failed = true;
+                self.status(SyncStatus::Error { error: format!("{MICROSOFT_NO_PASSWORDS} ({m})") });
+            }
             NetError::Auth(m) => {
                 self.conn = None;
                 self.auth_failed = true;

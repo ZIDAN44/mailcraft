@@ -1304,7 +1304,23 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             // Providers that sign in through the browser (OAuth), when this copy can.
             let provider = if f.graph { Some("microsoft") } else { mailcraft_engine::model::oauth_provider_for(&f.imap_host) }
                 .filter(|p| s.oauth_available.iter().any(|a| a == p));
-            if f.graph && provider.is_none() {
+            // Outlook.com, Hotmail and Live take no passwords from mail apps any more: without
+            // Microsoft sign-in in this copy, say so rather than take a password that can't work.
+            let consumer = !f.jmap && !f.ews && mailcraft_engine::model::microsoft_consumer(&f.email);
+            let blocked = consumer && provider.is_none();
+            if blocked {
+                ui.add_space(6.0);
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(tl!(
+                            "Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account."
+                        ))
+                        .color(t.warn)
+                        .small(),
+                    )
+                    .wrap(),
+                );
+            } else if f.graph && provider.is_none() {
                 ui.add_space(6.0);
                 ui.label(RichText::new(tl!("Signing in with Microsoft isn't set up in this copy of MailCraft.")).color(t.warn).small());
             }
@@ -1332,7 +1348,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
-            let ready = !f.graph && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
+            let ready = !f.graph && !blocked && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
                 if !f.jmap && !f.ews && f.imap_host.is_empty() {
