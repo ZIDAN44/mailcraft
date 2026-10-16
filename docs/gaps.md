@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.10, 2026-10-15._
+_Status: v0.11, 2026-10-17._
 
 ## Open
 
@@ -173,19 +173,21 @@ mailbox; packaging for every desktop.
   - **Fixed:** the language menu drew Japanese, Korean and Chinese as boxes unless the interface
     was in one of them (and so did mail in them); a chip's tooltip said "Double-click to open
     it"; "Pin", "Unpin" and "Always move to Focused/Other" weren't translated.
-- **From issue #1 (an Exchange user's list):**
-  - **Attachment previews in the reading pane:** a click on an attachment shows it in place of
-    the message (Back to message, Open, Save As): pictures, a PDF's pages, text, attached mail,
-    and Word documents, Excel workbooks and PowerPoint slides read by MailCraft itself.
-  - **Notes**, as Outlook's: coloured sticky notes (Ctrl+5), kept in an Exchange mailbox's
-    Notes folder (EWS) or on this computer.
-  - **People in three layouts** (Outlook's Change View): the list with an a–z index, business
-    cards, and a phone list.
-  - **Other people's Exchange calendars**, opened by their address (read-only), through Graph or
-    EWS; and **public folders** on on-premises Exchange, under a folder of their own.
-  - **Dutch** interface.
-  - **Outlook.com and Hotmail:** the Add account dialog and the account's status say they need
-    Microsoft sign-in rather than asking for a password again and again; release builds carry
-    the sign-in once the repository has its secret.
-  - **Fixed:** the list's filter tabs ran into "By Date" in long-worded languages; the status
-    bar counted mail in People and Calendar.
+
+### v0.11 — Notes, previews and Exchange beyond the mailbox
+From [issue #1](https://github.com/ZIDAN44/mailcraft/issues/1), an Exchange user's list:
+- **Attachment previews in the reading pane:** a click on an attachment shows it in place of
+  the message (Back to message, Open, Save As): pictures, a PDF's pages, text, attached mail,
+  and Word documents, Excel workbooks and PowerPoint slides read by MailCraft itself.
+- **Notes**, as Outlook's: coloured sticky notes (Ctrl+5), kept in an Exchange mailbox's
+  Notes folder (EWS) or on this computer.
+- **People in three layouts** (Outlook's Change View): the list with an a–z index, business
+  cards, and a phone list.
+- **Other people's Exchange calendars**, opened by their address (read-only), through Graph or
+  EWS; and **public folders** on on-premises Exchange, under a folder of their own.
+- **Dutch** interface.
+- **Outlook.com and Hotmail:** the Add account dialog and the account's status say they need
+  Microsoft sign-in rather than asking for a password again and again; release builds carry
+  the sign-in once the repository has its secret.
+- **Fixed:** the list's filter tabs ran into "By Date" in long-worded languages; the status
+  bar counted mail in People and Calendar.

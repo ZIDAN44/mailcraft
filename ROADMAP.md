@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.10 — Windows, folders and rules as Outlook keeps them (2026-10-15). Each milestone below is a version: v0.1 was
+**Stage:** v0.11 — Notes, previews and Exchange beyond the mailbox (2026-10-17). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -44,7 +44,11 @@ local-first, media-aware v1); the fuller request is
    sizes, subfolders under their parents, rules run at once, attachments in message windows; from
    a second audit: the Search tab, Follow Up dates, Delay delivery and Replies to, Outlook's menu
    items, hover everywhere.
-11. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+11. **v0.11 — Notes, previews and Exchange beyond the mailbox** ✅ From issue #1: attachments
+   previewed in the reading pane (Word, Excel and PowerPoint too), Notes, three People layouts,
+   other people's Exchange calendars, public folders, Dutch; Outlook.com and Hotmail say why
+   they need Microsoft sign-in.
+12. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
 
 ## Progress log
@@ -88,6 +92,6 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-16** — **v0.10**: a second audit against Outlook: a Search tab, Follow Up with dates,
   Delay delivery and Replies to, Forward as attachment, Reply with meeting, Find related, Delete
   all and folder Properties, hover on every control; CJK names drawn in any interface language.
-- **2026-10-17** — **v0.10**: issue #1: attachments preview in the reading pane (pictures, PDF
+- **2026-10-17** — **v0.11**: issue #1: attachments preview in the reading pane (pictures, PDF
   pages, text, Word, Excel, PowerPoint), Notes, three People layouts, other people's Exchange
   calendars, public folders, Dutch; Outlook.com and Hotmail say why they need Microsoft sign-in.
