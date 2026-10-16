@@ -590,6 +590,10 @@ fn oauth_accounts_sign_in_through_the_browser() {
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { password: None, .. }]));
     s.run("account.signIn", &json!({"account": id})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { .. }]));
+    // It has no password: it asks to sign in again.
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
+    let said = &s.notices.last().unwrap().text;
+    assert!(said.contains("sign in again") && !said.contains("password"), "{said}");
     // Saved with the account (no secret in it).
     let saved = std::fs::read_to_string(store.root().join("accounts.json")).unwrap();
     assert!(saved.contains("\"oauth\":\"google\""));

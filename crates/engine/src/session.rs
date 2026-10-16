@@ -2561,9 +2561,11 @@ impl Session {
         match e {
             Event::Status { account, status } => {
                 if let SyncStatus::NeedsPassword { error } = &status {
-                    let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
+                    let (who, browser) = self.account(&account).map(|a| (a.config.email.clone(), a.config.oauth.is_some())).unwrap_or_default();
                     let why = if error.is_empty() { String::new() } else { format!(": {error}") };
-                    self.notice(format!("{who} needs its password{why}"), true);
+                    // An account that signs in in the browser has no password to ask for.
+                    let what = if browser { "needs you to sign in again" } else { "needs its password" };
+                    self.notice(format!("{who} {what}{why}"), true);
                 }
                 if let Some(a) = self.account_mut(&account) {
                     a.status = status;

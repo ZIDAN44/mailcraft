@@ -1891,6 +1891,8 @@ impl MailApp {
                         SyncStatus::Offline if a.is_data_file() => (t.faint, tl!("Outlook data file").to_string()),
                         SyncStatus::Offline if a.is_local() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
                         SyncStatus::Offline => (t.faint, tl!("Offline").to_string()),
+                        // An account that signs in in the browser has no password to ask for.
+                        SyncStatus::NeedsPassword { .. } if a.config.oauth.is_some() => (t.danger, tl!("Sign in again").to_string()),
                         SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),
                         SyncStatus::Error { error } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
                     };
