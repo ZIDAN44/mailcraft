@@ -317,13 +317,19 @@ fn note_xml(n: &Note) -> String {
 
 /// Every item of a distinguished folder, with all its properties (bodies as text).
 fn items(c: &Client, folder: &str) -> Result<Vec<El>> {
+    items_in(c, &format!("<t:DistinguishedFolderId Id=\"{folder}\"/>"), if folder == "notes" { NOTE_COLOR } else { "" })
+}
+
+/// Every item of a folder (given as its EWS folder id element), with all its properties.
+fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Vec<El>> {
+    let folder = parent;
     let mut ids: Vec<String> = Vec::new();
     let mut offset = 0;
     loop {
         let m = c.call_one(&format!(
             "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape></m:ItemShape>\
              <m:IndexedPageItemView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
-             <m:ParentFolderIds><t:DistinguishedFolderId Id=\"{folder}\"/></m:ParentFolderIds></m:FindItem>"
+             <m:ParentFolderIds>{folder}</m:ParentFolderIds></m:FindItem>"
         ))?;
         let Some(rf) = m.child("RootFolder") else { break };
         let page: Vec<String> =
@@ -342,7 +348,7 @@ fn items(c: &Client, folder: &str) -> Result<Vec<El>> {
             "<m:GetItem><m:ItemShape><t:BaseShape>AllProperties</t:BaseShape><t:BodyType>Text</t:BodyType>\
              <t:AdditionalProperties><t:FieldURI FieldURI=\"calendar:Recurrence\"/>{}</t:AdditionalProperties></m:ItemShape>\
              <m:ItemIds>{list}</m:ItemIds></m:GetItem>",
-            if folder == "notes" { NOTE_COLOR } else { "" }
+            extra
         ))?;
         for m in crate::ews::messages(&doc) {
             if m.attr("ResponseClass") == Some("Error") {
@@ -444,8 +450,34 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             out.events.push(StoredEvent { calendar: CALENDAR.into(), href, etag, event, dirty: false });
         }
     }
-    out.calendars = Some(vec![CalendarInfo { id: CALENDAR.into(), name: "Calendar".into(), color: 0, read_only: false, ctag: String::new() }]);
+    let mut calendars = vec![CalendarInfo { id: CALENDAR.into(), name: "Calendar".into(), color: 0, read_only: false, ctag: String::new() }];
     out.synced_calendars.push(CALENDAR.into());
+    // Other people's calendars opened here: their mailbox's calendar folder, read-only (the
+    // delegate permissions they gave decide whether it can be read).
+    for (n, email) in pim.shared.iter().enumerate() {
+        let id = mailcraft_model::pim::shared_calendar_id(email);
+        let parent = format!(
+            "<t:DistinguishedFolderId Id=\"calendar\"><t:Mailbox><t:EmailAddress>{}</t:EmailAddress></t:Mailbox></t:DistinguishedFolderId>",
+            esc(email)
+        );
+        match items_in(c, &parent, "") {
+            Ok(list) => {
+                for it in list {
+                    if let Some(event) = event_of(&it) {
+                        let (href, etag) = it
+                            .child("ItemId")
+                            .map(|i| (i.attr("Id").unwrap_or("").to_string(), i.attr("ChangeKey").unwrap_or("").to_string()))
+                            .unwrap_or_default();
+                        out.events.push(StoredEvent { calendar: id.clone(), href, etag, event, dirty: false });
+                    }
+                }
+                out.synced_calendars.push(id.clone());
+            }
+            Err(e) => out.errors.push(format!("{email}'s calendar: {e}")),
+        }
+        calendars.push(CalendarInfo { id, name: email.clone(), color: u8::try_from((n + 1) % 8).unwrap_or(0), read_only: true, ctag: String::new() });
+    }
+    out.calendars = Some(calendars);
     for it in items(c, "contacts")? {
         if let Some(card) = card_of(&it) {
             let etag = it.child("ItemId").and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string();

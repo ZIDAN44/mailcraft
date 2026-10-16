@@ -364,6 +364,24 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         }
         out.synced_calendars.push(cal.id.clone());
     }
+    // Other people's calendars opened here: read-only, by their address (Calendars.Read.Shared).
+    let mut calendars = calendars;
+    for email in &pim.shared {
+        let id = mailcraft_model::pim::shared_calendar_id(email);
+        let n = calendars.len();
+        match c.all(&format!("/users/{}/calendar/events?$top=100&$select={EVENT_FIELDS}", seg(email)), MAX_ITEMS) {
+            Ok(list) => {
+                for v in &list {
+                    if let Some(event) = event_of(v) {
+                        out.events.push(StoredEvent { calendar: id.clone(), href: s(v, "id"), etag: s(v, "changeKey"), event, dirty: false });
+                    }
+                }
+                out.synced_calendars.push(id.clone());
+            }
+            Err(e) => out.errors.push(format!("{email}'s calendar: {e}")),
+        }
+        calendars.push(CalendarInfo { id, name: email.clone(), color: u8::try_from(n % 8).unwrap_or(0), read_only: true, ctag: String::new() });
+    }
     out.calendars = Some(calendars);
     let contacts = c.all(&format!("/me/contacts?$top=100&$select={CONTACT_FIELDS}"), MAX_ITEMS)?;
     for v in &contacts {

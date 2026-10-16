@@ -522,6 +522,10 @@ pub fn registry() -> Registry {
             s.create_card(account.as_deref(), card)
         })
         .when(has_reading),
+        CommandSpec::new("calendar.openShared", "Open shared calendar", "Calendar", |s, v| s.open_shared_calendar(p::str(v, "account"), p::req_str(v, "email")?))
+            .params(r#"{"email": string (whose calendar), "account"?: string (an Exchange account; else the first)}"#),
+        CommandSpec::new("calendar.closeShared", "Close shared calendar", "Calendar", |s, v| s.close_shared_calendar(p::req_str(v, "email")?))
+            .params(r#"{"email": string}"#),
         CommandSpec::new("note.list", "Notes", "Notes", |s, v| {
             let list: Vec<Value> = s
                 .notes(p::str(v, "query").unwrap_or(""))

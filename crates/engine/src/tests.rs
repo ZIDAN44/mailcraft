@@ -1694,17 +1694,15 @@ fn notes_are_written_coloured_and_deleted() {
     let uid = s.run("note.create", &json!({"text": "Sync me"})).unwrap()["uid"].as_str().unwrap().to_string();
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })), "asks for a sync");
     assert!(s.pim[&id].notes[0].dirty);
-    let mut sync = mailcraft_model::pim::DavSync::default();
     let stored = mailcraft_model::pim::StoredNote { href: "note:X1".into(), note: s.pim[&id].notes[0].note.clone(), ..Default::default() };
-    sync.pushed_notes.push(stored.clone());
     let server_copy =
-        mailcraft_model::pim::StoredNote { note: mailcraft_model::pim::Note { uid: "note:X1".into(), ..stored.note.clone() }, ..stored };
+        mailcraft_model::pim::StoredNote { note: mailcraft_model::pim::Note { uid: "note:X1".into(), ..stored.note.clone() }, ..stored.clone() };
     let other = mailcraft_model::pim::StoredNote {
         href: "note:X2".into(),
         note: mailcraft_model::pim::Note { uid: "note:X2".into(), text: "From Outlook".into(), color: 2, modified: 1 },
         ..Default::default()
     };
-    sync.notes = Some(vec![server_copy, other]);
+    let sync = mailcraft_model::pim::DavSync { pushed_notes: vec![stored], notes: Some(vec![server_copy, other]), ..Default::default() };
     s.apply_dav(&id, &sync);
     let texts: Vec<String> = s.notes("").into_iter().map(|n| n.note.text).collect();
     assert_eq!(texts.len(), 2, "{texts:?}: the note sent isn't doubled");
@@ -1712,5 +1710,55 @@ fn notes_are_written_coloured_and_deleted() {
     let _ = uid;
     s.run("note.delete", &json!({"uid": "note:X2"})).unwrap();
     assert!(s.pim[&id].deleted.iter().any(|t| t.href == "note:X2"), "deleted on the server next time");
+    done(s);
+}
+
+#[test]
+fn shared_calendars_open_from_exchange_accounts_and_close() {
+    let mut s = sample_session("shared-cal");
+    assert!(s.run("calendar.openShared", &json!({"email": "ana@soundlab.example"})).is_err(), "the sample isn't an Exchange account");
+    done(s);
+    let mut s = Session::open(Some(temp("shared-cal-ews")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s
+        .run("account.add", &json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.take_jobs();
+    assert!(s.run("calendar.openShared", &json!({"email": "not an address"})).is_err());
+    assert!(s.run("calendar.openShared", &json!({"email": "zoe@contoso.example"})).is_err(), "not one's own");
+    s.run("calendar.openShared", &json!({"email": "Ana@Contoso.example"})).unwrap();
+    s.run("calendar.openShared", &json!({"email": "ana@contoso.example"})).unwrap();
+    assert_eq!(s.pim[&id].shared, vec!["ana@contoso.example".to_string()], "once, lower-case");
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })));
+    // The server shows it: read-only, with its events; closing takes it and them away.
+    let cal = mailcraft_model::pim::shared_calendar_id("ana@contoso.example");
+    let sync = mailcraft_model::pim::DavSync {
+        calendars: Some(vec![
+            mailcraft_model::pim::CalendarInfo { id: "ews:calendar".into(), name: "Calendar".into(), ..Default::default() },
+            mailcraft_model::pim::CalendarInfo { id: cal.clone(), name: "ana@contoso.example".into(), read_only: true, ..Default::default() },
+        ]),
+        synced_calendars: vec![cal.clone()],
+        events: vec![mailcraft_model::pim::StoredEvent {
+            calendar: cal.clone(),
+            href: "S1".into(),
+            event: mailcraft_model::ical::CalEvent {
+                uid: "b1".into(),
+                summary: "Budget review".into(),
+                start: NOW,
+                end: NOW + 3600,
+                ..Default::default()
+            },
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    s.apply_dav(&id, &sync);
+    assert!(s.agenda(NOW - 10, NOW + 10).iter().any(|a| a.calendar == cal && a.summary == "Budget review"));
+    s.run("calendar.closeShared", &json!({"email": "ana@contoso.example"})).unwrap();
+    assert!(s.pim[&id].shared.is_empty() && s.pim[&id].calendars.iter().all(|c| c.id != cal));
+    assert!(s.agenda(NOW - 10, NOW + 10).is_empty());
+    assert!(s.run("calendar.closeShared", &json!({"email": "ana@contoso.example"})).is_err());
     done(s);
 }

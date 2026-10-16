@@ -118,6 +118,12 @@ impl Data {
     fn folder_id(&self, el: &El) -> Option<String> {
         match el.name.as_str() {
             "FolderId" => el.attr("Id").map(str::to_string),
+            // Another mailbox's folder: its items are kept as `mailbox:<address>`.
+            "DistinguishedFolderId" if el.child("Mailbox").is_some() => {
+                let who = el.find("EmailAddress").map(|e| e.text.to_ascii_lowercase())?;
+                let id = format!("mailbox:{who}");
+                self.pim.iter().any(|(_, f, _)| *f == id).then_some(id)
+            }
             "DistinguishedFolderId" => {
                 let known = el.attr("Id")?;
                 self.folders.iter().find(|f| f.known.as_deref() == Some(known)).map(|f| f.id.clone())
@@ -177,7 +183,7 @@ impl Data {
 
     fn pim_folder(&self, f: Option<&El>) -> bool {
         let Some(id) = f.and_then(|f| self.folder_id(f)) else { return false };
-        self.folders.iter().any(|x| x.id == id && x.class != "IPF.Note")
+        id.starts_with("mailbox:") || self.folders.iter().any(|x| x.id == id && x.class != "IPF.Note")
     }
 
     /// Answer one operation: (response element name, response messages).
@@ -861,6 +867,32 @@ mod tests {
         assert!(list.iter().any(|n| n.note.text == "Buy paper\n170 gsm" && n.note.color == 1), "made in the Notes folder, its colour kept");
         assert_eq!(sync.pushed_notes.len(), 1);
         assert!(sync.pushed_notes[0].href.starts_with("note:"));
+    }
+
+    #[test]
+    fn someone_elses_calendar_opens_read_only() {
+        use mailcraft_model::pim::{Pim, shared_calendar_id};
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+        let review = parse(
+            "<t:CalendarItem><t:Subject>Budget review</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
+             <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>budget-1</t:UID></t:CalendarItem>",
+        );
+        d.pim.push(("S1".into(), "mailbox:ana@contoso.example".into(), review.kids[0].clone()));
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let pim = Pim { shared: vec!["ana@contoso.example".into(), "nobody@contoso.example".into()], ..Default::default() };
+        let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+        let id = shared_calendar_id("ana@contoso.example");
+        let cals = sync.calendars.clone().unwrap();
+        assert!(cals.iter().any(|x| x.id == id && x.read_only && x.name == "ana@contoso.example"));
+        assert!(sync.events.iter().any(|e| e.calendar == id && e.event.summary == "Budget review"));
+        assert!(sync.synced_calendars.contains(&id));
+        // One that can't be read says so, and the rest still syncs.
+        assert!(sync.errors.iter().any(|e| e.starts_with("nobody@contoso.example's calendar")), "{:?}", sync.errors);
+        assert!(!sync.synced_calendars.contains(&shared_calendar_id("nobody@contoso.example")));
     }
 
     #[test]

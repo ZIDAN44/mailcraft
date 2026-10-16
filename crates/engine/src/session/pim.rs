@@ -458,6 +458,58 @@ pub struct NoteRef {
 }
 
 impl Session {
+    // ----- other people's calendars -----
+
+    /// Open someone else's calendar from an Exchange account (Outlook's Open Calendar › From
+    /// Address Book): read with the account's own, read-only, once the server shows it.
+    pub fn open_shared_calendar(&mut self, account: Option<&str>, email: &str) -> CmdResult {
+        let account = match account {
+            Some(a) => self.pim_account(Some(a))?,
+            None => self
+                .accounts
+                .iter()
+                .find(|a| a.config.graph.is_some() || a.config.ews.is_some())
+                .map(|a| a.config.id.clone())
+                .ok_or_else(|| CmdError::Disabled("other people's calendars open from an Exchange account".into()))?,
+        };
+        if !self.account(&account).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some()) {
+            return Err(CmdError::Params("other people's calendars open from an Exchange account".into()));
+        }
+        let email = email.trim().to_ascii_lowercase();
+        let ok =
+            mailcraft_model::addr::parse_list(&email).is_ok_and(|l| l.len() == 1 && l.first().is_some_and(|a| a.email.eq_ignore_ascii_case(&email)));
+        if !ok {
+            return Err(CmdError::Params(format!("not an email address: {email}")));
+        }
+        let mine = self.account(&account).is_some_and(|a| a.config.email.eq_ignore_ascii_case(&email));
+        if mine {
+            return Err(CmdError::Params("that's this account's own calendar".into()));
+        }
+        let p = self.pim_mut(&account);
+        if !p.shared.contains(&email) {
+            if p.shared.len() >= 50 {
+                return Err(CmdError::Params("at most 50 other calendars can be open".into()));
+            }
+            p.shared.push(email.clone());
+        }
+        self.after_pim_change(&account, true);
+        Ok(serde_json::json!({"account": account, "calendar": mailcraft_model::pim::shared_calendar_id(&email)}))
+    }
+
+    /// Close someone else's calendar: it and its events go from this computer.
+    pub fn close_shared_calendar(&mut self, email: &str) -> CmdResult {
+        let email = email.trim().to_ascii_lowercase();
+        let id = mailcraft_model::pim::shared_calendar_id(&email);
+        let account = self.pim.iter().find(|(_, p)| p.shared.contains(&email) || p.calendars.iter().any(|c| c.id == id)).map(|(a, _)| a.clone());
+        let Some(account) = account else { return Err(CmdError::Params(format!("no calendar of {email} is open"))) };
+        let p = self.pim_mut(&account);
+        p.shared.retain(|e| *e != email);
+        p.calendars.retain(|c| c.id != id);
+        p.events.retain(|e| e.calendar != id);
+        self.after_pim_change(&account, false);
+        Ok(serde_json::json!({"closed": email}))
+    }
+
     // ----- notes -----
 
     /// Every note matching a search (in its text), the most recently changed first.

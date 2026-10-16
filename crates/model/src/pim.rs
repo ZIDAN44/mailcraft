@@ -68,6 +68,11 @@ pub struct StoredCard {
     pub dirty: bool,
 }
 
+/// The id of someone else's calendar opened by their address.
+pub fn shared_calendar_id(email: &str) -> String {
+    format!("shared:{}", email.trim().to_ascii_lowercase())
+}
+
 /// A note, as Outlook's Notes keeps them: text, and a colour.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Note {
@@ -131,6 +136,10 @@ pub struct Pim {
     pub cards: Vec<StoredCard>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub deleted: Vec<Tombstone>,
+    /// Other people's calendars opened from this account (their addresses, lower-case), as
+    /// Outlook's Open Calendar › From Address Book: read from Exchange with the rest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shared: Vec<String>,
     /// Notes (Outlook's Notes): the server's (Exchange) and those kept here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<StoredNote>,
