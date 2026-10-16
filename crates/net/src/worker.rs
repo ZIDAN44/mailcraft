@@ -462,6 +462,8 @@ struct Worker {
     backoff: Duration,
     next_attempt: Instant,
     last_full: Option<Instant>,
+    /// Not connecting again until asked (Send / Receive, a new start): the sign-in was refused,
+    /// or the server said no to the account itself.
     auth_failed: bool,
     closed: bool,
     /// Where a rotated OAuth refresh token is saved.
@@ -780,9 +782,25 @@ impl Worker {
         Ok(())
     }
 
+    /// A connection that couldn't be made is never tried again at once (that looped, showing
+    /// "Connecting…" for good): a refusal (Graph's "no mailbox", a setting the server won't take)
+    /// waits until asked, anything else for the backoff.
+    fn connect_failed(&mut self, e: NetError) {
+        match e {
+            e @ NetError::Auth(_) => self.failed(e),
+            e if e.is_fatal() => self.failed(e),
+            e => {
+                log::warn!("{}: {e}", self.acc.id);
+                self.conn = None;
+                self.auth_failed = true;
+                self.status(SyncStatus::Error { error: e.to_string() });
+            }
+        }
+    }
+
     fn connect_and_sync(&mut self) {
         if let Err(e) = self.connect() {
-            self.failed(e);
+            self.connect_failed(e);
             return;
         }
         self.replay();

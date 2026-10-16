@@ -48,13 +48,21 @@ fn check(resp: &Response) -> Result<()> {
     status_error(resp.status, &resp.body)
 }
 
+/// What a Microsoft account without a mailbox Graph can reach gets (a personal account made
+/// with a Gmail or other address, a mailbox on premises).
+pub(crate) const NO_MAILBOX: &str = "this Microsoft account has no Outlook.com or Microsoft 365 mailbox that MailCraft can reach. \
+If its mail is with another provider (such as Gmail), add it with that provider's settings instead";
+
 fn status_error(status: u16, body: &[u8]) -> Result<()> {
+    let error = serde_json::from_slice::<Value>(body).ok().and_then(|v| v.get("error").cloned());
+    let field = |k: &str| error.as_ref().and_then(|e| e.get(k)).and_then(Value::as_str).unwrap_or_default().to_string();
     let detail = || {
-        serde_json::from_slice::<Value>(body)
-            .ok()
-            .and_then(|v| v.get("error").and_then(|e| e.get("message").or_else(|| e.get("code"))).and_then(Value::as_str).map(str::to_string))
-            .unwrap_or_default()
+        let message = field("message");
+        if message.is_empty() { field("code") } else { message }
     };
+    if matches!(field("code").as_str(), "MailboxNotEnabledForRESTAPI" | "MailboxNotSupportedForRESTAPI") {
+        return Err(NetError::No(NO_MAILBOX.into()));
+    }
     match status {
         200..=299 => Ok(()),
         401 => Err(NetError::Auth("Microsoft refused the sign-in; sign in again".into())),

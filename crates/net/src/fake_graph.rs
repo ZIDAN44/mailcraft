@@ -44,6 +44,8 @@ pub struct Data {
     pub contacts: Vec<Value>,
     /// Every request, as `METHOD path`.
     pub calls: Vec<String>,
+    /// The signed-in Microsoft account has no mailbox.
+    pub no_mailbox: bool,
     next: u32,
 }
 
@@ -121,6 +123,11 @@ impl Data {
         let not_found =
             || (404, json!({"error": {"code": "ErrorItemNotFound", "message": "Not found."}}).to_string().into_bytes(), "application/json");
         let input: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+        // As Graph answers a Microsoft account with no mailbox (one made with a Gmail address).
+        if self.no_mailbox && matches!(parts.as_slice(), ["me", "mailFolders" | "messages" | "sendMail" | "mailboxSettings", ..]) {
+            let e = json!({"error": {"code": "MailboxNotEnabledForRESTAPI", "message": "The mailbox is either inactive, soft-deleted, or is hosted on-premise."}});
+            return (404, e.to_string().into_bytes(), "application/json");
+        }
         match (method, parts.as_slice()) {
             ("POST", ["$batch"]) => {
                 let mut out = Vec::new();
@@ -486,6 +493,28 @@ mod tests {
         assert_eq!(sync.cards.len(), 2);
         assert_eq!(sync.calendars.as_ref().map(Vec::len), Some(1));
         assert!(server.data.lock().unwrap().calls.iter().all(|c| !c.contains("contacts/p1")), "a local uid is never sent as an id");
+    }
+
+    /// A Microsoft account with no mailbox (signed in with a Gmail address) said "Connecting…" for
+    /// good: each refusal was retried at once. It says why and waits until asked.
+    #[test]
+    fn a_microsoft_account_without_a_mailbox_says_so_and_stops() {
+        let server = serve(Data { no_mailbox: true, ..Default::default() });
+        let dir = std::env::temp_dir().join(format!("mailcraft-graph-nomailbox-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut pool = crate::worker::Pool::new(Store::open(&dir).unwrap(), Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig { id: "a1".into(), email: "me@gmail.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+        pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
+        let seen = until(&pool, "the error", |e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. }));
+        let error = seen.iter().find_map(|e| match e {
+            Event::Status { status: SyncStatus::Error { error }, .. } => Some(error.clone()),
+            _ => None,
+        });
+        assert!(error.as_deref().is_some_and(|e| e.contains("no Outlook.com or Microsoft 365 mailbox")), "{error:?}");
+        std::thread::sleep(Duration::from_millis(1500));
+        let tries = server.data.lock().unwrap().calls.len();
+        assert!(tries <= 2, "asked once, not over and over: {tries} requests");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
