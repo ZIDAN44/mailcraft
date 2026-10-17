@@ -20,6 +20,7 @@ const OLE: [u8; 8] = [0xC0, 0, 0, 0, 0, 0, 0, 0x46];
 const PSETID_ADDRESS: GuidKey = (0x0006_2004, 0, 0, OLE);
 const PSETID_APPOINTMENT: GuidKey = (0x0006_2002, 0, 0, OLE);
 const PSETID_TASK: GuidKey = (0x0006_2003, 0, 0, OLE);
+const PSETID_NOTE: GuidKey = (0x0006_200E, 0, 0, OLE);
 const PSETID_MEETING: GuidKey = (0x6ED8_DA90, 0x450B, 0x101B, [0x98, 0xDA, 0x00, 0xAA, 0x00, 0x3F, 0x13, 0x05]);
 /// Name-to-id entries read at most.
 const MAX_NAMES: usize = 200_000;
@@ -82,6 +83,10 @@ pub(crate) struct Extra {
     pub all_day: bool,
     pub recurrence: Vec<u8>,
     pub uid: String,
+    /// A note's colour (PidLidNoteColor: blue, green, pink, yellow, white).
+    pub note_color: Option<u8>,
+    /// When it last changed.
+    pub modified: Option<i64>,
 }
 
 /// Read the contact and appointment properties of an item.
@@ -116,6 +121,10 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<&'a PropertyValue>, named: &
     if let Some(PropertyValue::Binary(b)) = n(PSETID_MEETING, 0x0003) {
         x.uid = b.buffer().iter().map(|b| format!("{b:02X}")).collect();
     }
+    if let Some(PropertyValue::Integer32(c)) = n(PSETID_NOTE, 0x8B00) {
+        x.note_color = u8::try_from(*c).ok().filter(|c| *c < mailcraft_model::pim::NOTE_COLORS);
+    }
+    x.modified = p(0x3008).and_then(crate::pst::time_of);
     x
 }
 

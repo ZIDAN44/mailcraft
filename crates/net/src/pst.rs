@@ -4,7 +4,8 @@
 //! under the top of the mailbox becomes folders, and each mail item is written out again as a
 //! standard message (RFC 5322 / MIME) from its properties (MS-OXCMSG / MS-OXPROPS), keeping the
 //! original headers when the item has them. Contacts and calendar items go to the account's address
-//! book and calendar (see `pst_pim`); tasks and notes are left out.
+//! book and calendar (see `pst_pim`), notes to its notes; tasks show in the calendar on their due
+//! day (MailCraft has no task list), and those without one are left out.
 //!
 //! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
 //! can't be read are skipped and counted, and sizes are capped.
@@ -15,7 +16,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
-use mailcraft_model::pim::{LOCAL, PIM_DOC, Pim, StoredCard, StoredEvent};
+use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, sort_newest_first, utf7};
 use mailcraft_store::{FolderState, Store};
 use outlook_pst::ltp::prop_context::PropertyValue;
@@ -41,9 +42,10 @@ const MAX_NESTING: usize = 3;
 pub struct Imported {
     pub folders: Vec<Folder>,
     pub messages: usize,
-    /// Contacts and calendar items.
+    /// Contacts, calendar items and notes.
     pub contacts: usize,
     pub events: usize,
+    pub notes: usize,
     /// Items that couldn't be read or written.
     pub skipped: usize,
 }
@@ -147,7 +149,11 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
             continue;
         }
         if !mail {
-            if class.starts_with("IPF.Contact") || class.starts_with("IPF.Appointment") || class.starts_with("IPF.Task") {
+            if class.starts_with("IPF.Contact")
+                || class.starts_with("IPF.Appointment")
+                || class.starts_with("IPF.Task")
+                || class.starts_with("IPF.StickyNote")
+            {
                 read_items(store, &*sub, read, out);
                 visit(store, &*sub, parent, depth + 1, read, out);
             }
@@ -227,7 +233,11 @@ fn item(m: &dyn Message, files: Vec<File>, named: &crate::pst_pim::Named) -> Ite
     let s = |id: u16| p(id).and_then(text_of).unwrap_or_default();
     let mut it = Item { class: s(0x001A), files, ..Default::default() };
     let class = it.class.to_ascii_lowercase();
-    if class.starts_with("ipm.contact") || class.starts_with("ipm.appointment") || class.starts_with("ipm.task") {
+    if class.starts_with("ipm.contact")
+        || class.starts_with("ipm.appointment")
+        || class.starts_with("ipm.task")
+        || class.starts_with("ipm.stickynote")
+    {
         it.extra = Some(crate::pst_pim::extract(&p, named));
     }
     // A subject may start with a prefix marker (0x01, length).
@@ -492,12 +502,22 @@ impl Out<'_> {
         path
     }
 
-    /// A contact or calendar item (anything else in their folders is left out).
+    /// A contact, calendar item or note (anything else in their folders is left out).
     fn add_pim(&mut self, it: Item) {
         let Some(x) = &it.extra else { return };
-        let n = self.pim.events.len() + self.pim.cards.len();
+        let n = self.pim.events.len() + self.pim.cards.len() + self.pim.notes.len();
         let uid = format!("pst-{}-{n}@mailcraft.invalid", self.account);
-        if it.class.to_ascii_lowercase().starts_with("ipm.task") {
+        if it.class.to_ascii_lowercase().starts_with("ipm.stickynote") {
+            // A note's text is its body (its subject is the first line of it).
+            let text = if it.body.trim().is_empty() { it.subject.clone() } else { it.body.replace("\r\n", "\n") };
+            if text.trim().is_empty() {
+                self.skipped += 1;
+                return;
+            }
+            let note =
+                Note { uid, text: text.trim_end().to_string(), color: x.note_color.unwrap_or(NOTE_YELLOW), modified: x.modified.unwrap_or(it.date) };
+            self.pim.notes.push(StoredNote { note, ..Default::default() });
+        } else if it.class.to_ascii_lowercase().starts_with("ipm.task") {
             // MailCraft has no task list: a task with a due date shows in the calendar that day.
             let Some(due) = x.due else {
                 self.skipped += 1;
@@ -580,18 +600,56 @@ impl Out<'_> {
             self.save_folder(&p);
         }
         self.store.save_folders(self.account, &self.folders).map_err(|e| e.to_string())?;
-        let (contacts, events) = (self.pim.cards.len(), self.pim.events.len());
-        if contacts + events > 0 {
+        let (contacts, events, notes) = (self.pim.cards.len(), self.pim.events.len(), self.pim.notes.len());
+        if contacts + events + notes > 0 {
             self.pim.ensure_defaults();
             self.store.save_account_doc(self.account, PIM_DOC, &self.pim).map_err(|e| e.to_string())?;
         }
-        Ok(Imported { folders: self.folders, messages: self.imported, contacts, events, skipped: self.skipped })
+        Ok(Imported { folders: self.folders, messages: self.imported, contacts, events, notes, skipped: self.skipped })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Outlook's notes come in as notes: their text, colour and time; an empty one doesn't.
+    #[test]
+    fn notes_come_in_as_notes() {
+        let dir = std::env::temp_dir().join(format!("mailcraft-pst-notes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let mut progress = |_| {};
+        let mut out = Out {
+            store: &store,
+            account: "d1",
+            folders: Vec::new(),
+            states: HashMap::new(),
+            imported: 0,
+            skipped: 0,
+            progress: &mut progress,
+            pim: Pim::default(),
+        };
+        let note = |body: &str, color: Option<u8>| Item {
+            class: "IPM.StickyNote".into(),
+            subject: body.lines().next().unwrap_or_default().into(),
+            body: body.into(),
+            date: 1_700_000_000,
+            extra: Some(crate::pst_pim::Extra { note_color: color, modified: Some(1_700_000_500), ..Default::default() }),
+            ..Default::default()
+        };
+        out.add_pim(note("Poster\r\nAsk about 170 gsm", Some(1)));
+        out.add_pim(note("Plain", None));
+        out.add_pim(note("  ", Some(2)));
+        let done = out.finish().unwrap();
+        assert_eq!((done.notes, done.skipped), (2, 1));
+        let pim: Pim = store.load_account_doc("d1", PIM_DOC).unwrap();
+        let n = &pim.notes[0].note;
+        assert_eq!((n.text.as_str(), n.color, n.modified), ("Poster\nAsk about 170 gsm", 1, 1_700_000_500));
+        assert_eq!(pim.notes[1].note.color, NOTE_YELLOW, "no colour: Outlook's yellow");
+        assert!(pim.notes.iter().all(|s| !s.dirty && s.href.is_empty()), "kept on this computer");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn windows_1252_and_utf8() {
