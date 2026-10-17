@@ -382,7 +382,8 @@ pub struct UiState {
     /// screen's).
     pub(crate) mini_month: Option<i64>,
     /// The hours were scrolled to the working day once.
-    pub(crate) cal_scrolled: bool,
+    /// The day and week views have been scrolled to the working day once (each has its own scroll).
+    pub(crate) cal_scrolled: [bool; 2],
     pub(crate) people_query: String,
     /// How People lays contacts out (Outlook's Change View).
     pub people_view: people::PeopleView,
@@ -467,7 +468,7 @@ impl MailApp {
                 video_frames: HashMap::new(),
                 backstage: None,
                 mini_month: None,
-                cal_scrolled: false,
+                cal_scrolled: [false; 2],
                 people_query: String::new(),
                 people_view: people::PeopleView::default(),
                 notes_query: String::new(),

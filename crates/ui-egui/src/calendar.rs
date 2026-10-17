@@ -241,7 +241,14 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
     };
     ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(if tentative || hovered { 1.0 } else { 0.0 }, c), egui::StrokeKind::Inside);
     ui.painter().rect_filled(Rect::from_min_size(rect.min, vec2(3.0, rect.height())), 2.0, c);
-    let galley = ui.painter().layout(text.to_string(), theme::regular(12.0), t.text, (rect.width() - 8.0).max(4.0));
+    // As many whole lines as the box holds, the last one ending in "…" when more is left (a line
+    // cut in half by the box's edge read badly).
+    let font = theme::regular(12.0);
+    let row = ui.fonts_mut(|f| f.row_height(&font)).max(1.0);
+    let mut job = egui::text::LayoutJob::simple(text.to_string(), font, t.text, (rect.width() - 8.0).max(4.0));
+    job.wrap.max_rows = ((rect.height() - 4.0) / row).floor().max(1.0) as usize;
+    job.wrap.overflow_character = Some('…');
+    let galley = ui.fonts_mut(|f| f.layout_job(job));
     ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0, 2.0), galley, t.text);
     resp
 }
@@ -378,9 +385,11 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
     ui.painter().line_segment([line.left_top(), line.right_top()], egui::Stroke::new(1.0, t.border));
     // The hours.
     let mut scroll = egui::ScrollArea::vertical().auto_shrink(false).id_salt(("calendar-hours", s.cal_mode == CalMode::Day));
-    if !st.cal_scrolled {
+    // Each view (day, week) opens on the working day the first time it's shown.
+    let view = usize::from(s.cal_mode == CalMode::Day);
+    if !st.cal_scrolled[view] {
         scroll = scroll.vertical_scroll_offset(HOUR * 7.5);
-        st.cal_scrolled = true;
+        st.cal_scrolled[view] = true;
     }
     scroll.show(ui, |ui| {
         let (grid, _) = ui.allocate_exact_size(vec2(ui.available_width(), HOUR * 24.0), Sense::hover());
@@ -438,9 +447,13 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
                     pos2(grid.min.x + gutter + cw * i as f32 + 3.0 + width * lane as f32, grid.min.y + top + 1.0),
                     vec2(width - 2.0, (bottom - top - 2.0).max(18.0)),
                 );
+                // The place beside the time when both fit on one line (a short event still shows it),
+                // else on a line of its own.
                 let mut text = format!("{}\n{} – {}", it.summary, hm(it.start, s), hm(it.end, s));
                 if !it.location.is_empty() {
-                    text.push('\n');
+                    let both = format!("{} – {} · {}", hm(it.start, s), hm(it.end, s), it.location);
+                    let w = ui.fonts_mut(|f| f.layout_no_wrap(both, theme::regular(12.0), t.text).size().x);
+                    text.push_str(if w <= r.width() - 8.0 { " · " } else { "\n" });
                     text.push_str(&it.location);
                 }
                 if chip(ui, &t, r, it, &text).clicked()
