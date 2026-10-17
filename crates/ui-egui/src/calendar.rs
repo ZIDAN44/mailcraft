@@ -86,7 +86,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         a.config.email.clone()
                     };
                     ui.label(RichText::new(name).color(t.text)).on_hover_text(tip);
-                    if shared.is_some() {
+                    if c.read_only {
                         ui.label(RichText::new(tl!("read-only")).color(t.faint).small());
                     }
                 });

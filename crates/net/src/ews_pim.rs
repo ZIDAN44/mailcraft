@@ -375,6 +375,29 @@ fn delete(c: &Client, id: &str) -> Result<()> {
     .map(drop)
 }
 
+/// The calendar folder: this mailbox's, or someone else's by their address.
+fn calendar_folder(owner: Option<&str>) -> String {
+    match owner {
+        Some(email) => format!(
+            "<t:DistinguishedFolderId Id=\"calendar\"><t:Mailbox><t:EmailAddress>{}</t:EmailAddress></t:Mailbox></t:DistinguishedFolderId>",
+            esc(email)
+        ),
+        None => "<t:DistinguishedFolderId Id=\"calendar\"/>".into(),
+    }
+}
+
+/// Whether this account may add and change items in a folder (its EffectiveRights).
+fn may_edit(c: &Client, folder: &str) -> bool {
+    let doc = c.call(&format!(
+        "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
+         <t:FieldURI FieldURI=\"folder:EffectiveRights\"/></t:AdditionalProperties></m:FolderShape>\
+         <m:FolderIds>{folder}</m:FolderIds></m:GetFolder>"
+    ));
+    let Ok(doc) = doc else { return false };
+    let right = |name: &str| doc.find(name).is_some_and(|e| e.text.trim() == "true");
+    right("CreateContents") && right("Modify")
+}
+
 /// Send what changed here, then read the calendar and contacts again.
 pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut out = DavSync { caldav_home: Some("ews".into()), carddav_home: Some("ews".into()), checked: now, ..Default::default() };
@@ -386,11 +409,13 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     }
     for e in pim.events.iter().filter(|e| e.dirty) {
         let fields = event_fields(&e.event);
+        let owner = mailcraft_model::pim::shared_calendar_owner(&e.calendar);
         let r = if e.href.is_empty() {
             let body: String = fields.iter().map(|(_, x)| x.as_str()).collect();
             c.call_one(&format!(
-                "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"calendar\"/></m:SavedItemFolderId>\
-                 <m:Items><t:CalendarItem>{body}</t:CalendarItem></m:Items></m:CreateItem>"
+                "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId>{}</m:SavedItemFolderId>\
+                 <m:Items><t:CalendarItem>{body}</t:CalendarItem></m:Items></m:CreateItem>",
+                calendar_folder(owner)
             ))
             .map(|m| new_id(&m))
         } else {
@@ -415,7 +440,14 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             })
         };
         match r {
-            Ok((href, etag)) => out.pushed_events.push(StoredEvent { calendar: CALENDAR.into(), href, etag, event: e.event.clone(), dirty: false }),
+            // Someone else's event stays in their calendar.
+            Ok((href, etag)) => out.pushed_events.push(StoredEvent {
+                calendar: if owner.is_some() { e.calendar.clone() } else { CALENDAR.into() },
+                href,
+                etag,
+                event: e.event.clone(),
+                dirty: false,
+            }),
             Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
         }
     }
@@ -452,14 +484,12 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     }
     let mut calendars = vec![CalendarInfo { id: CALENDAR.into(), name: "Calendar".into(), color: 0, read_only: false, ctag: String::new() }];
     out.synced_calendars.push(CALENDAR.into());
-    // Other people's calendars opened here: their mailbox's calendar folder, read-only (the
-    // delegate permissions they gave decide whether it can be read).
+    // Other people's calendars opened here: their mailbox's calendar folder (the delegate
+    // permissions they gave decide whether it can be read, and whether changed).
     for (n, email) in pim.shared.iter().enumerate() {
         let id = mailcraft_model::pim::shared_calendar_id(email);
-        let parent = format!(
-            "<t:DistinguishedFolderId Id=\"calendar\"><t:Mailbox><t:EmailAddress>{}</t:EmailAddress></t:Mailbox></t:DistinguishedFolderId>",
-            esc(email)
-        );
+        let parent = calendar_folder(Some(email));
+        let can_edit = may_edit(c, &parent);
         match items_in(c, &parent, "") {
             Ok(list) => {
                 for it in list {
@@ -475,7 +505,13 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             }
             Err(e) => out.errors.push(format!("{email}'s calendar: {e}")),
         }
-        calendars.push(CalendarInfo { id, name: email.clone(), color: u8::try_from((n + 1) % 8).unwrap_or(0), read_only: true, ctag: String::new() });
+        calendars.push(CalendarInfo {
+            id,
+            name: email.clone(),
+            color: u8::try_from((n + 1) % 8).unwrap_or(0),
+            read_only: !can_edit,
+            ctag: String::new(),
+        });
     }
     out.calendars = Some(calendars);
     for it in items(c, "contacts")? {

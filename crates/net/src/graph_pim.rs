@@ -280,6 +280,14 @@ pub fn card_json(c: &Card) -> Value {
     })
 }
 
+/// Where a calendar's events live: `/me`, or `/users/<address>` for someone else's.
+fn owner_path(calendar: &str) -> String {
+    match mailcraft_model::pim::shared_calendar_owner(calendar) {
+        Some(email) => format!("/users/{}", seg(email)),
+        None => "/me".into(),
+    }
+}
+
 /// Sync an account's calendars and contacts with Exchange Online.
 pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut out = DavSync { caldav_home: Some("graph".into()), carddav_home: Some("graph".into()), checked: now, ..Default::default() };
@@ -305,7 +313,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         let path = if t.href.starts_with("contact:") {
             format!("/me/contacts/{}", seg(t.href.trim_start_matches("contact:")))
         } else {
-            format!("/me/events/{}", seg(&t.href))
+            format!("{}/events/{}", owner_path(&t.calendar), seg(&t.href))
         };
         match c.send_raw("DELETE", &path, "application/json", Vec::new()) {
             Ok(_) | Err(NetError::No(_)) => out.deleted.push(t.href.clone()),
@@ -314,14 +322,19 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     }
     for e in pim.events.iter().filter(|e| e.dirty) {
         let body = event_json(&e.event);
-        let r = if e.href.is_empty() {
+        let shared = mailcraft_model::pim::shared_calendar_owner(&e.calendar).is_some();
+        let r = if e.href.is_empty() && shared {
+            // Into someone else's calendar (they let this account edit it).
+            c.post(&format!("{}/calendar/events", owner_path(&e.calendar)), &body).map(|v| (v, e.calendar.clone()))
+        } else if e.href.is_empty() {
             let cal =
                 if e.calendar == LOCAL || !calendars.iter().any(|x| x.id == e.calendar) { default_cal.clone() } else { Some(e.calendar.clone()) };
             let Some(cal) = cal else { continue };
             c.post(&format!("/me/calendars/{}/events", seg(&cal)), &body).map(|v| (v, cal))
         } else {
             let b = serde_json::to_vec(&body).map_err(|x| NetError::Protocol(x.to_string()))?;
-            c.send_raw("PATCH", &format!("/me/events/{}", seg(&e.href)), "application/json", b).map(|v| (v, e.calendar.clone()))
+            c.send_raw("PATCH", &format!("{}/events/{}", owner_path(&e.calendar), seg(&e.href)), "application/json", b)
+                .map(|v| (v, e.calendar.clone()))
         };
         match r {
             Ok((v, cal)) => out.pushed_events.push(StoredEvent {
@@ -364,11 +377,13 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         }
         out.synced_calendars.push(cal.id.clone());
     }
-    // Other people's calendars opened here: read-only, by their address (Calendars.Read.Shared).
+    // Other people's calendars opened here, by their address: editable where their owner let this
+    // account edit them (Calendars.ReadWrite.Shared), read-only otherwise.
     let mut calendars = calendars;
     for email in &pim.shared {
         let id = mailcraft_model::pim::shared_calendar_id(email);
         let n = calendars.len();
+        let can_edit = c.get(&format!("/users/{}/calendar?$select=canEdit", seg(email))).ok().and_then(|v| v.get("canEdit").and_then(Value::as_bool));
         match c.all(&format!("/users/{}/calendar/events?$top=100&$select={EVENT_FIELDS}", seg(email)), MAX_ITEMS) {
             Ok(list) => {
                 for v in &list {
@@ -380,7 +395,13 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             }
             Err(e) => out.errors.push(format!("{email}'s calendar: {e}")),
         }
-        calendars.push(CalendarInfo { id, name: email.clone(), color: u8::try_from(n % 8).unwrap_or(0), read_only: true, ctag: String::new() });
+        calendars.push(CalendarInfo {
+            id,
+            name: email.clone(),
+            color: u8::try_from(n % 8).unwrap_or(0),
+            read_only: can_edit != Some(true),
+            ctag: String::new(),
+        });
     }
     out.calendars = Some(calendars);
     let contacts = c.all(&format!("/me/contacts?$top=100&$select={CONTACT_FIELDS}"), MAX_ITEMS)?;

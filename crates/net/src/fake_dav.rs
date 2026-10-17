@@ -239,7 +239,7 @@ mod tests {
         pim.events[0].dirty = true;
         pim.events.push(StoredEvent { calendar: cal_id.clone(), event: event("b@x", "New / one", 1_800_100_000), dirty: true, ..Default::default() });
         pim.events.push(StoredEvent { calendar: LOCAL.into(), event: event("l", "Only here", 1_800_000_000), dirty: false, ..Default::default() });
-        pim.deleted.push(mailcraft_model::pim::Tombstone { href: pim.cards[0].href.clone(), etag: pim.cards[0].etag.clone() });
+        pim.deleted.push(mailcraft_model::pim::Tombstone { href: pim.cards[0].href.clone(), etag: pim.cards[0].etag.clone(), ..Default::default() });
         let second = sync(&dav, USER, "imap.example", &pim, 200).unwrap();
         assert!(second.errors.is_empty(), "{:?}", second.errors);
         assert_eq!(second.deleted.len(), 1);

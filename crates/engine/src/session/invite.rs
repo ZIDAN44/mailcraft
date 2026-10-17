@@ -102,7 +102,7 @@ impl Session {
         let mut remote = false;
         if stat == "DECLINED" {
             for g in existing.iter().filter(|g| !g.href.is_empty()) {
-                p.deleted.push(Tombstone { href: g.href.clone(), etag: g.etag.clone() });
+                p.deleted.push(Tombstone { href: g.href.clone(), etag: g.etag.clone(), calendar: g.calendar.clone() });
                 remote = true;
             }
         } else {
@@ -173,7 +173,7 @@ impl Session {
                     }
                     None => {
                         for g in p.events.iter().filter(|e| e.event.uid == uid && !e.href.is_empty()) {
-                            p.deleted.push(Tombstone { href: g.href.clone(), etag: g.etag.clone() });
+                            p.deleted.push(Tombstone { href: g.href.clone(), etag: g.etag.clone(), calendar: g.calendar.clone() });
                             remote = true;
                         }
                         p.events.retain(|e| e.event.uid != uid);

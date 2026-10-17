@@ -73,6 +73,11 @@ pub fn shared_calendar_id(email: &str) -> String {
     format!("shared:{}", email.trim().to_ascii_lowercase())
 }
 
+/// Whose calendar a shared calendar's id is (`shared:<address>`).
+pub fn shared_calendar_owner(id: &str) -> Option<&str> {
+    id.strip_prefix("shared:").filter(|e| !e.is_empty())
+}
+
 /// A note, as Outlook's Notes keeps them: text, and a colour.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Note {
@@ -121,6 +126,9 @@ pub struct Tombstone {
     pub href: String,
     #[serde(default)]
     pub etag: String,
+    /// The calendar it was in, when that decides where it's deleted (someone else's calendar).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub calendar: String,
 }
 
 /// An account's calendars and address books.

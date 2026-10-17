@@ -276,7 +276,7 @@ impl Session {
                 let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).cloned().collect();
                 for g in gone.iter().filter(|g| !g.href.is_empty()) {
                     remote = true;
-                    p.deleted.push(Tombstone { href: g.href.clone(), etag: g.etag.clone() });
+                    p.deleted.push(Tombstone { href: g.href.clone(), etag: g.etag.clone(), calendar: g.calendar.clone() });
                 }
                 p.events.retain(|e| e.event.uid != uid);
             }
@@ -442,7 +442,7 @@ impl Session {
         let mut remote = false;
         for c in p.cards.iter().filter(|c| c.card.uid == uid && !c.href.is_empty()) {
             remote = true;
-            p.deleted.push(Tombstone { href: c.href.clone(), etag: c.etag.clone() });
+            p.deleted.push(Tombstone { href: c.href.clone(), etag: c.etag.clone(), ..Default::default() });
         }
         p.cards.retain(|c| c.card.uid != uid);
         self.after_pim_change(&account, remote);
@@ -591,7 +591,7 @@ impl Session {
         let mut remote = false;
         for n in p.notes.iter().filter(|n| n.note.uid == uid && !n.href.is_empty()) {
             remote = true;
-            p.deleted.push(Tombstone { href: n.href.clone(), etag: n.etag.clone() });
+            p.deleted.push(Tombstone { href: n.href.clone(), etag: n.etag.clone(), ..Default::default() });
         }
         p.notes.retain(|n| n.note.uid != uid);
         self.after_pim_change(&account, remote);

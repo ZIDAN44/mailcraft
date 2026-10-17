@@ -51,6 +51,8 @@ pub struct Data {
     pub handshakes: usize,
     /// The EWS address, for Autodiscover's answer.
     pub url: String,
+    /// People whose calendars this account may change (delegates with editor rights).
+    pub editors: Vec<String>,
     next: u32,
 }
 
@@ -66,6 +68,7 @@ impl Default for Data {
             calls: Vec::new(),
             handshakes: 0,
             url: String::new(),
+            editors: Vec::new(),
             next: 0,
         };
         d.folders.push(Fo {
@@ -192,6 +195,15 @@ impl Data {
         ids
     }
 
+    /// Whether this account may change an item: anything of its own, and someone else's only where
+    /// they made it an editor.
+    fn may_change(&self, id: &str) -> bool {
+        match self.pim.iter().find(|(i, _, _)| i == id).and_then(|(_, f, _)| f.strip_prefix("mailbox:")) {
+            Some(who) => self.editors.iter().any(|e| e == who),
+            None => true,
+        }
+    }
+
     fn pim_folder(&self, f: Option<&El>) -> bool {
         let Some(id) = f.and_then(|f| self.folder_id(f)) else { return false };
         id.starts_with("mailbox:") || self.folders.iter().any(|x| x.id == id && x.class != "IPF.Note")
@@ -209,6 +221,16 @@ impl Data {
         match op.name.as_str() {
             "GetFolder" => {
                 for f in op.child("FolderIds").map(|f| f.kids.clone()).unwrap_or_default() {
+                    // Someone else's calendar: what this account may do there.
+                    if let Some(who) = self.folder_id(&f).and_then(|id| id.strip_prefix("mailbox:").map(str::to_string)) {
+                        let edit = self.editors.contains(&who);
+                        out.push(ok(format!(
+                            "<m:Folders><t:CalendarFolder><t:FolderId Id=\"mailbox:{who}\"/><t:EffectiveRights><t:CreateAssociated>false</t:CreateAssociated>\
+                             <t:CreateContents>{edit}</t:CreateContents><t:CreateHierarchy>false</t:CreateHierarchy><t:Delete>{edit}</t:Delete>\
+                             <t:Modify>{edit}</t:Modify><t:Read>true</t:Read></t:EffectiveRights></t:CalendarFolder></m:Folders>"
+                        )));
+                        continue;
+                    }
                     match self.folder_id(&f).and_then(|id| self.folders.iter().find(|x| x.id == id).cloned()) {
                         Some(fo) => out.push(ok(format!("<m:Folders>{}</m:Folders>", self.folder_xml(&fo)))),
                         None => out.push(err("ErrorFolderNotFound")),
@@ -309,6 +331,10 @@ impl Data {
                 let folder = op.child("SavedItemFolderId").and_then(|s| s.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
                 for m in op.child("Items").map(|i| i.kids.clone()).unwrap_or_default() {
                     let sticky = m.text_of("ItemClass").is_some_and(|c| c.starts_with("IPM.StickyNote"));
+                    if folder.strip_prefix("mailbox:").is_some_and(|who| !self.editors.iter().any(|e| e == who)) {
+                        out.push(err("ErrorAccessDenied"));
+                        continue;
+                    }
                     if m.name == "CalendarItem" || m.name == "Contact" || sticky {
                         let id = self.id("P");
                         out.push(ok(format!("<m:Items><t:{0}><t:ItemId Id=\"{id}\" ChangeKey=\"ck\"/></t:{0}></m:Items>", m.name)));
@@ -340,6 +366,10 @@ impl Data {
             "UpdateItem" => {
                 for ch in op.child("ItemChanges").map(|c| c.kids.clone()).unwrap_or_default() {
                     let id = ch.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string();
+                    if !self.may_change(&id) {
+                        out.push(err("ErrorAccessDenied"));
+                        continue;
+                    }
                     if let Some((_, _, el)) = self.pim.iter_mut().find(|(i, _, _)| *i == id) {
                         for u in ch.child("Updates").map(|u| u.kids.clone()).unwrap_or_default() {
                             let field =
@@ -386,6 +416,10 @@ impl Data {
             }
             "DeleteItem" => {
                 for id in ids(op.child("ItemIds")) {
+                    if !self.may_change(&id) {
+                        out.push(err("ErrorAccessDenied"));
+                        continue;
+                    }
                     self.items.retain(|i| i.id != id);
                     self.pim.retain(|(i, _, _)| *i != id);
                     out.push(ok(String::new()));
@@ -834,7 +868,7 @@ mod tests {
             dirty: true,
             ..Default::default()
         });
-        pim.deleted.push(Tombstone { href: "OLD".into(), etag: String::new() });
+        pim.deleted.push(Tombstone { href: "OLD".into(), etag: String::new(), ..Default::default() });
         let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
         assert!(sync.errors.is_empty(), "{:?}", sync.errors);
         assert_eq!(sync.deleted, ["OLD"]);
@@ -920,6 +954,70 @@ mod tests {
         // One that can't be read says so, and the rest still syncs.
         assert!(sync.errors.iter().any(|e| e.starts_with("nobody@contoso.example's calendar")), "{:?}", sync.errors);
         assert!(!sync.synced_calendars.contains(&shared_calendar_id("nobody@contoso.example")));
+    }
+
+    /// Someone who made this account an editor of their calendar: events go in, change and go
+    /// there; someone who didn't keeps theirs read-only.
+    #[test]
+    fn someone_elses_calendar_can_be_changed_by_an_editor() {
+        use mailcraft_model::ical::CalEvent;
+        use mailcraft_model::pim::{Pim, StoredEvent, Tombstone, shared_calendar_id};
+        let mut d = Data { editors: vec!["ana@contoso.example".into()], ..Default::default() };
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+        let item = |subject: &str, uid: &str| {
+            parse(&format!(
+                "<t:CalendarItem><t:Subject>{subject}</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
+                 <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>{uid}</t:UID></t:CalendarItem>"
+            ))
+            .kids[0]
+                .clone()
+        };
+        d.pim.push(("S1".into(), "mailbox:ana@contoso.example".into(), item("Budget review", "budget-1")));
+        d.pim.push(("S2".into(), "mailbox:ana@contoso.example".into(), item("Team lunch", "lunch-1")));
+        d.pim.push(("B1".into(), "mailbox:ben@contoso.example".into(), item("Ben's call", "call-1")));
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let (ana, ben) = (shared_calendar_id("ana@contoso.example"), shared_calendar_id("ben@contoso.example"));
+        let mut pim = Pim { shared: vec!["ana@contoso.example".into(), "ben@contoso.example".into()], ..Default::default() };
+        let first = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+        let cals = first.calendars.clone().unwrap();
+        let ro = |id: &str| cals.iter().find(|x| x.id == id).map(|x| x.read_only);
+        assert_eq!((ro(&ana), ro(&ben)), (Some(false), Some(true)));
+        let mut review = first.events.iter().find(|e| e.event.summary == "Budget review").cloned().unwrap();
+        let lunch = first.events.iter().find(|e| e.event.summary == "Team lunch").cloned().unwrap();
+        review.event.summary = "Budget review (moved)".into();
+        review.dirty = true;
+        pim.events = vec![
+            review,
+            StoredEvent {
+                calendar: ana.clone(),
+                event: CalEvent {
+                    uid: "new-1".into(),
+                    summary: "Poster check".into(),
+                    start: 1_792_000_000,
+                    end: 1_792_003_600,
+                    ..Default::default()
+                },
+                dirty: true,
+                ..Default::default()
+            },
+        ];
+        pim.deleted = vec![Tombstone { href: lunch.href.clone(), etag: String::new(), calendar: ana.clone() }];
+        let second = crate::ews_pim::sync(&c, &pim, 1_792_000_100).unwrap();
+        assert!(second.errors.is_empty(), "{:?}", second.errors);
+        assert!(second.pushed_events.iter().all(|e| e.calendar == ana), "they stay in Ana's calendar");
+        let d = server.data.lock().unwrap();
+        let in_ana: Vec<String> = d
+            .pim
+            .iter()
+            .filter(|(_, f, _)| f == "mailbox:ana@contoso.example")
+            .filter_map(|(_, _, el)| el.text_of("Subject").map(str::to_string))
+            .collect();
+        assert!(in_ana.contains(&"Budget review (moved)".to_string()) && in_ana.contains(&"Poster check".to_string()), "{in_ana:?}");
+        assert!(!in_ana.contains(&"Team lunch".to_string()), "deleted");
+        assert!(!d.pim.iter().any(|(_, f, el)| !f.starts_with("mailbox:") && el.text_of("Subject") == Some("Poster check")), "not in this mailbox");
     }
 
     #[test]

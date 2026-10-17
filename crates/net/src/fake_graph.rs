@@ -48,6 +48,9 @@ pub struct Data {
     pub no_mailbox: bool,
     /// File a sent message's copy in Sent Items a moment after `sendMail`, as Graph does.
     pub file_late: bool,
+    /// Other people whose calendars are shared with this account: (address, may edit). Their
+    /// events have `calendar` = `user:<address>`.
+    pub others: Vec<(String, bool)>,
     late: Vec<(std::time::Instant, Vec<u8>)>,
     next: u32,
 }
@@ -290,18 +293,67 @@ impl Data {
                 self.events.push(e.clone());
                 (201, e.to_string().into_bytes(), "application/json")
             }
-            ("PATCH", ["me", "events", id]) => match self.events.iter_mut().find(|e| e["id"] == *id) {
-                Some(e) => {
-                    for (k, v) in input.as_object().cloned().unwrap_or_default() {
-                        e[k.as_str()] = v;
+            // Someone else's calendar, by their address: read when shared, changed when they allow it.
+            ("GET" | "POST" | "PATCH" | "DELETE", ["users", who, ..]) => {
+                let who = who.replace("%40", "@").to_ascii_lowercase();
+                let Some(edit) = self.others.iter().find(|(e, _)| *e == who).map(|(_, e)| *e) else {
+                    return (404, json!({"error": {"code": "ErrorItemNotFound"}}).to_string().into_bytes(), "application/json");
+                };
+                let denied = || {
+                    (
+                        403,
+                        json!({"error": {"code": "ErrorAccessDenied", "message": "Access is denied."}}).to_string().into_bytes(),
+                        "application/json",
+                    )
+                };
+                let cal = format!("user:{who}");
+                match (method, parts.get(2..).unwrap_or_default()) {
+                    ("GET", ["calendar"]) => ok(json!({"id": cal, "canEdit": edit})),
+                    ("GET", ["calendar", "events"]) => {
+                        ok(json!({"value": self.events.iter().filter(|e| e["calendar"] == cal.as_str()).cloned().collect::<Vec<_>>()}))
                     }
-                    e["changeKey"] = json!("ck2");
-                    ok(e.clone())
+                    (_, _) if !edit => denied(),
+                    ("POST", ["calendar", "events"]) => {
+                        let id = self.id("EV");
+                        let mut e = input.clone();
+                        e["id"] = json!(id);
+                        e["iCalUId"] = json!(format!("ical-{id}"));
+                        e["changeKey"] = json!("ck1");
+                        e["calendar"] = json!(cal);
+                        self.events.push(e.clone());
+                        (201, e.to_string().into_bytes(), "application/json")
+                    }
+                    ("PATCH", ["events", id]) => match self.events.iter_mut().find(|e| e["id"] == *id && e["calendar"] == cal.as_str()) {
+                        Some(e) => {
+                            for (k, v) in input.as_object().cloned().unwrap_or_default() {
+                                e[k.as_str()] = v;
+                            }
+                            ok(e.clone())
+                        }
+                        None => not_found(),
+                    },
+                    ("DELETE", ["events", id]) => {
+                        self.events.retain(|e| !(e["id"] == *id && e["calendar"] == cal.as_str()));
+                        (204, Vec::new(), "text/plain")
+                    }
+                    _ => not_found(),
                 }
-                None => not_found(),
-            },
+            }
+            // `/me/events` reaches only this mailbox's own events, as Graph's does.
+            ("PATCH", ["me", "events", id]) => {
+                match self.events.iter_mut().find(|e| e["id"] == *id && !e["calendar"].as_str().unwrap_or("").starts_with("user:")) {
+                    Some(e) => {
+                        for (k, v) in input.as_object().cloned().unwrap_or_default() {
+                            e[k.as_str()] = v;
+                        }
+                        e["changeKey"] = json!("ck2");
+                        ok(e.clone())
+                    }
+                    None => not_found(),
+                }
+            }
             ("DELETE", ["me", "events", id]) => {
-                self.events.retain(|e| e["id"] != *id);
+                self.events.retain(|e| e["id"] != *id || e["calendar"].as_str().unwrap_or("").starts_with("user:"));
                 (204, Vec::new(), "text/plain")
             }
             ("GET", ["me", "contacts"]) => ok(json!({ "value": self.contacts })),
@@ -445,6 +497,65 @@ mod tests {
             .into_bytes()
     }
 
+    /// Someone else's calendar: editable when they let this account edit it (events added, changed
+    /// and deleted there, not in this mailbox), read-only when they don't.
+    #[test]
+    fn other_peoples_calendars_are_written_where_allowed() {
+        use mailcraft_model::ical::CalEvent;
+        use mailcraft_model::pim::{Pim, StoredEvent, Tombstone, shared_calendar_id};
+        let mut d = Data { others: vec![("ana@contoso.example".into(), true), ("ben@contoso.example".into(), false)], ..Default::default() };
+        d.folder("Inbox", None, Some("inbox"));
+        d.calendars.push(("CAL1".into(), "Calendar".into()));
+        let at = |h: u32| json!({"dateTime": format!("2026-10-20T{h:02}:00:00.0000000")});
+        for (id, cal, subject) in [
+            ("A1", "user:ana@contoso.example", "Ana's review"),
+            ("A2", "user:ana@contoso.example", "Ana's lunch"),
+            ("B1", "user:ben@contoso.example", "Ben's call"),
+        ] {
+            d.events.push(json!({"id": id, "calendar": cal, "iCalUId": id.to_lowercase(), "subject": subject, "start": at(9), "end": at(10)}));
+        }
+        let server = serve(d);
+        let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+        let (ana, ben) = (shared_calendar_id("ana@contoso.example"), shared_calendar_id("ben@contoso.example"));
+        let mut pim = Pim { shared: vec!["ana@contoso.example".into(), "ben@contoso.example".into()], ..Default::default() };
+        let first = crate::graph_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+        let cals = first.calendars.clone().unwrap();
+        let ro = |id: &str| cals.iter().find(|x| x.id == id).map(|x| x.read_only);
+        assert_eq!((ro(&ana), ro(&ben)), (Some(false), Some(true)), "Ana lets this account edit, Ben doesn't");
+        assert_eq!(first.events.iter().filter(|e| e.calendar == ana).count(), 2);
+        // Here: a new event in Ana's calendar, one of hers changed, the other deleted.
+        let review = first.events.iter().find(|e| e.event.summary == "Ana's review").cloned().unwrap();
+        let lunch = first.events.iter().find(|e| e.event.summary == "Ana's lunch").cloned().unwrap();
+        let mut changed = review.clone();
+        changed.event.summary = "Ana's review (moved)".into();
+        changed.dirty = true;
+        pim.events = vec![
+            changed,
+            StoredEvent {
+                calendar: ana.clone(),
+                event: CalEvent {
+                    uid: "new-1".into(),
+                    summary: "Poster check".into(),
+                    start: 1_792_000_000,
+                    end: 1_792_003_600,
+                    ..Default::default()
+                },
+                dirty: true,
+                ..Default::default()
+            },
+        ];
+        pim.deleted = vec![Tombstone { href: lunch.href.clone(), etag: String::new(), calendar: ana.clone() }];
+        let second = crate::graph_pim::sync(&c, &pim, 1_792_000_100).unwrap();
+        assert!(second.errors.is_empty(), "{:?}", second.errors);
+        let d = server.data.lock().unwrap();
+        let in_ana = |subject: &str| d.events.iter().any(|e| e["subject"] == subject && e["calendar"] == "user:ana@contoso.example");
+        assert!(in_ana("Ana's review (moved)") && in_ana("Poster check"), "changed and added in Ana's calendar");
+        assert!(!d.events.iter().any(|e| e["id"] == "A2"), "deleted from Ana's calendar");
+        assert!(d.events.iter().all(|e| e["calendar"] != "CAL1"), "nothing landed in this mailbox's own calendar");
+        assert!(second.pushed_events.iter().all(|e| e.calendar == ana), "they stay in Ana's calendar here");
+        assert_eq!(second.deleted, [lunch.href]);
+    }
+
     #[test]
     fn exchange_calendars_and_contacts_sync_both_ways() {
         use mailcraft_model::ical::CalEvent;
@@ -485,7 +596,7 @@ mod tests {
             dirty: true,
             ..Default::default()
         });
-        pim.deleted.push(Tombstone { href: "OLD".into(), etag: String::new() });
+        pim.deleted.push(Tombstone { href: "OLD".into(), etag: String::new(), ..Default::default() });
         let sync = crate::graph_pim::sync(&c, &pim, 1_792_000_000).unwrap();
         assert!(sync.errors.is_empty(), "{:?}", sync.errors);
         {
