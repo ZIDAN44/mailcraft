@@ -766,7 +766,14 @@ impl MailApp {
         if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
             && f.stale
         {
-            f.list = self.session.address_book(if f.people_only { "people" } else { "all" }, &f.query);
+            // Opened: with the address book chosen to open with (one gone is everyone).
+            if f.source.is_empty() {
+                f.books = self.session.address_books();
+                f.default_source = self.session.prefs.address_book.clone();
+                let known = f.default_source == "people" || f.books.iter().any(|(b, _, _)| *b == f.default_source);
+                f.source = if known { f.default_source.clone() } else { "all".into() };
+            }
+            f.list = self.session.address_book(&f.source, &f.query);
             f.stale = false;
         }
         // A message window's own dialogs show in that window.

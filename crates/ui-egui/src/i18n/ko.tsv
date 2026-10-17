@@ -803,7 +803,11 @@
 	Mobile phone	휴대폰
 	Home phone	집 전화
 	Address book	주소록
+	All contacts	모든 연락처
+	Always open with this address book	항상 이 주소록으로 열기
 	Day and week show each calendar in a pane of its own	일 및 주 보기에서 각 일정을 별도 창에 표시합니다
+	Every contact, in every address book	모든 주소록의 모든 연락처
+	Everyone you've written to or heard from, and your contacts	메일을 주고받은 모든 사람과 연락처
 	Hide {calendar}	{calendar} 숨기기
 
 # The Archive folder, where the plain entry is the command.

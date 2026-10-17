@@ -576,11 +576,21 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"query"?: string}"#),
         CommandSpec::new("contact.addressBook", "Address book", "Message › Names", |s, v| {
-            let list = s.address_book(p::str(v, "source").unwrap_or("all"), p::str(v, "query").unwrap_or_default());
+            let source = p::str(v, "source").map_or_else(|| s.prefs.address_book.clone(), str::to_string);
+            let list = s.address_book(&source, p::str(v, "query").unwrap_or_default());
             Ok(json!(list.iter().map(|a| json!({"name": a.name, "email": a.email})).collect::<Vec<_>>()))
         })
         .key("Mod+Shift+B")
-        .params(r#"{"query"?: string, "source"?: "all" | "people"}"#),
+        .params(r#"{"query"?: string, "source"?: "all" | "people" | "book:<account>:<book id>" (default: the one it opens with)}"#),
+        CommandSpec::new("contact.defaultBook", "Address book to open with", "Message › Names › Address Book", |s, v| {
+            let source = p::req_str(v, "source")?.trim().to_string();
+            if source != "all" && source != "people" && !s.address_books().iter().any(|(b, _, _)| *b == source) {
+                return Err(CmdError::Params(format!("no address book `{source}`")));
+            }
+            s.prefs.address_book = source;
+            Ok(json!({"source": s.prefs.address_book}))
+        })
+        .params(r#"{"source": "all" | "people" | "book:<account>:<book id>"}"#),
         CommandSpec::new("contact.create", "New contact", "People › New contact", |s, v| {
             let c = card_from(v, mailcraft_model::vcard::Card::default())?;
             s.create_card(p::str(v, "account"), c)

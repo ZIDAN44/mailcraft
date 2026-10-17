@@ -2045,6 +2045,29 @@ fn a_signature_goes_in_from_the_message() {
     assert_eq!(s.compose.as_ref().unwrap().body, "Hi\n\n-- \nR.\n\n> quoted");
 }
 
+/// Issue #1: Select Names opens with the address book chosen (Outlook's "Show this address list
+/// first"), and one address book can be shown alone.
+#[test]
+fn the_address_book_opens_with_the_one_chosen() {
+    let mut s = sample_session("default-book");
+    let all = s.run("contact.addressBook", &json!({})).unwrap();
+    let people = s.run("contact.addressBook", &json!({"source": "people"})).unwrap();
+    assert!(all.as_array().unwrap().len() >= people.as_array().unwrap().len());
+    let books = s.address_books();
+    let (book, _, _) = books.first().cloned().expect("the sample has an address book");
+    assert!(s.run("contact.defaultBook", &json!({"source": "book:nobody:x"})).is_err());
+    s.run("contact.defaultBook", &json!({"source": book})).unwrap();
+    assert_eq!(s.prefs.address_book, book);
+    let mine = s.run("contact.addressBook", &json!({})).unwrap();
+    assert_eq!(mine, s.run("contact.addressBook", &json!({"source": book})).unwrap(), "it opens with the one chosen");
+    assert!(!mine.as_array().unwrap().is_empty());
+    let (account, id) = book.strip_prefix("book:").and_then(|b| b.split_once(':')).unwrap();
+    let in_book = s.people("").into_iter().filter(|p| p.account == account && p.book == id).flat_map(|p| p.card.emails).count();
+    assert_eq!(mine.as_array().unwrap().len(), in_book);
+    let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!(back.address_book, book, "kept with the settings");
+}
+
 /// Issue #1: events are drawn in their category's colour (shared with mail's categories), so a
 /// calendar isn't all one colour.
 #[test]

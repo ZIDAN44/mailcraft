@@ -1,6 +1,7 @@
 //! Modal dialogs: add an account, sign in again, move to a folder, confirmations, settings.
 
-use egui::{Margin, RichText, Ui, vec2};
+use egui::{Margin, Rect, RichText, Ui, vec2};
+use mailcraft_engine::Compose;
 use mailcraft_engine::Session;
 use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
 use mailcraft_engine::model::{AccountConfig, Folder, FolderRole, Security};
@@ -979,8 +980,13 @@ fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) 
 #[derive(Clone, Debug, Default)]
 pub struct NamesForm {
     pub query: String,
-    /// `all` (everyone known) or `people` (Contacts).
-    pub people_only: bool,
+    /// The address book shown: `all` (everyone known), `people` (every contact) or one book
+    /// (`book:<account>:<id>`); empty until the one it opens with is known.
+    pub source: String,
+    /// The one it opens with.
+    pub default_source: String,
+    /// Each account's address books: (source, name, the account's address).
+    pub books: Vec<(String, String, String)>,
     pub list: Vec<mailcraft_engine::model::EmailAddress>,
     /// The list must be read again (the search or the book changed).
     pub stale: bool,
@@ -1016,17 +1022,44 @@ fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Actio
         }
         ui.add_space(12.0);
         ui.label(RichText::new(tl!("Address Book")).strong());
-        let shown = if f.people_only { tl!("Contacts") } else { tl!("All addresses") };
-        egui::ComboBox::from_id_salt("address-book").selected_text(shown).show_ui(ui, |ui| {
-            for (people, label) in [(false, "All addresses"), (true, "Contacts")] {
-                if ui.selectable_label(f.people_only == people, tl!(label)).clicked() && f.people_only != people {
-                    f.people_only = people;
+        // Everyone (the people written to or heard from, and contacts), every contact, or one
+        // address book (each account's Contacts, an organisation's shared ones).
+        let accounts = f.books.iter().map(|(_, _, a)| a).collect::<std::collections::BTreeSet<_>>().len();
+        let mut choices: Vec<(String, String, &'static str)> = vec![
+            ("all".into(), tl!("All addresses").to_string(), tl!("Everyone you've written to or heard from, and your contacts")),
+            ("people".into(), tl!("All contacts").to_string(), tl!("Every contact, in every address book")),
+        ];
+        if f.books.len() > 1 {
+            for (source, name, account) in &f.books {
+                let name = if name.is_empty() || name == "Contacts" { tl!("Contacts").to_string() } else { name.clone() };
+                choices.push((source.clone(), if accounts > 1 { format!("{name} ({account})") } else { name }, ""));
+            }
+        }
+        let shown = choices.iter().find(|(s, _, _)| *s == f.source).map_or_else(|| tl!("All addresses").to_string(), |(_, l, _)| l.clone());
+        egui::ComboBox::from_id_salt("address-book").width(220.0).selected_text(shown).show_ui(ui, |ui| {
+            for (source, label, tip) in &choices {
+                let mut r = ui.selectable_label(f.source == *source, label);
+                if !tip.is_empty() {
+                    r = r.on_hover_text(*tip);
+                }
+                if r.clicked() && f.source != *source {
+                    f.source = source.clone();
                     f.stale = true;
                     f.selected = None;
                 }
             }
         });
     });
+    // Outlook's "Show this address list first".
+    if !f.source.is_empty() && f.source != f.default_source {
+        ui.horizontal(|ui| {
+            ui.add_space(ui.available_width() - 260.0);
+            if ui.link(RichText::new(tl!("Always open with this address book")).small()).clicked() {
+                acts.push(Action::Run("contact.defaultBook", json!({"source": f.source})));
+                f.default_source = f.source.clone();
+            }
+        });
+    }
     ui.add_space(6.0);
     let mut add: Option<&'static str> = None;
     egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4).show(ui, |ui| {
@@ -1049,10 +1082,25 @@ fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Actio
                     if on || r.hovered() {
                         ui.painter().rect_filled(rect, 3.0, if on { t.accent_soft } else { t.hover_row });
                     }
-                    let left = rect.left_center();
-                    ui.painter().text(left + vec2(6.0, 0.0), egui::Align2::LEFT_CENTER, name, theme::regular(13.5), t.text);
-                    ui.painter().text(left + vec2(256.0, 0.0), egui::Align2::LEFT_CENTER, &a.email, theme::regular(13.5), t.dim);
-                    r
+                    // Each in its column, a long one cut short with "…" (the whole of it on hover).
+                    let cell = |ui: &Ui, text: &str, x: f32, w: f32, c: egui::Color32| {
+                        let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), theme::regular(13.5), c);
+                        job.wrap.max_width = w;
+                        job.wrap.max_rows = 1;
+                        job.wrap.break_anywhere = true;
+                        job.wrap.overflow_character = Some('…');
+                        let g = ui.fonts_mut(|f| f.layout_job(job));
+                        let cut = g.rows.first().is_some_and(|row| row.glyphs.len() < text.chars().count());
+                        let pos = egui::pos2(rect.min.x + x, rect.center().y - g.size().y / 2.0);
+                        ui.painter()
+                            .with_clip_rect(Rect::from_min_size(egui::pos2(rect.min.x + x, rect.min.y), vec2(w + 2.0, rect.height())))
+                            .galley(pos, g, c);
+                        cut
+                    };
+                    let name_w = 244.0;
+                    let cut_name = cell(ui, &name, 6.0, name_w, t.text);
+                    let cut_email = cell(ui, &a.email, 256.0, (rect.width() - 262.0).max(40.0), t.dim);
+                    if cut_name || cut_email { r.on_hover_text(format!("{name} <{}>", a.email)) } else { r }
                 });
                 if r.inner.clicked() {
                     f.selected = Some(i);

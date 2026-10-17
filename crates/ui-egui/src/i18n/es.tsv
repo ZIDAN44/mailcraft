@@ -804,7 +804,11 @@
 	Mobile phone	Teléfono móvil
 	Home phone	Teléfono particular
 	Address book	Libreta de direcciones
+	All contacts	Todos los contactos
+	Always open with this address book	Abrir siempre con esta libreta de direcciones
 	Day and week show each calendar in a pane of its own	Día y semana muestran cada calendario en su propio panel
+	Every contact, in every address book	Cada contacto, en todas las libretas de direcciones
+	Everyone you've written to or heard from, and your contacts	Todas las personas a las que has escrito o que te han escrito, y tus contactos
 	Hide {calendar}	Ocultar {calendar}
 
 # The Archive folder, where the plain entry is the command.

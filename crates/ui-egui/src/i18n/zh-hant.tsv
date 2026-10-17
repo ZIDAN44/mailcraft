@@ -803,7 +803,11 @@
 	Mobile phone	行動電話
 	Home phone	住家電話
 	Address book	通訊錄
+	All contacts	所有連絡人
+	Always open with this address book	一律以此通訊錄開啟
 	Day and week show each calendar in a pane of its own	日檢視和週檢視中，每個行事曆顯示在各自的窗格中
+	Every contact, in every address book	所有通訊錄中的每個連絡人
+	Everyone you've written to or heard from, and your contacts	與你通過郵件的所有人，以及你的連絡人
 	Hide {calendar}	隱藏 {calendar}
 
 # The Archive folder, where the plain entry is the command.

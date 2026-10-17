@@ -803,7 +803,11 @@
 	Mobile phone	Cellulare
 	Home phone	Telefono casa
 	Address book	Rubrica
+	All contacts	Tutti i contatti
+	Always open with this address book	Apri sempre con questa rubrica
 	Day and week show each calendar in a pane of its own	Giorno e settimana mostrano ogni calendario in un riquadro proprio
+	Every contact, in every address book	Ogni contatto, in ogni rubrica
+	Everyone you've written to or heard from, and your contacts	Tutte le persone a cui hai scritto o da cui hai ricevuto messaggi, e i tuoi contatti
 	Hide {calendar}	Nascondi {calendar}
 
 # The Archive folder, where the plain entry is the command.

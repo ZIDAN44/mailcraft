@@ -202,6 +202,10 @@ pub struct Prefs {
     pub calendars_side_by_side: bool,
     /// Months shown one under another in the calendar's side pane (1 to 6).
     pub calendar_months: u8,
+    /// The address book Select Names opens with (Outlook's "Show this address list first"):
+    /// `all` (everyone written to or heard from, and contacts), `people` (every contact), or
+    /// one address book (`book:<account>:<book id>`).
+    pub address_book: String,
     /// The newest messages of each folder kept on this computer (0: all of them), as Outlook's
     /// "Mail to keep offline".
     pub keep_messages: u32,
@@ -391,6 +395,7 @@ impl Default for Prefs {
             hidden_calendars: BTreeSet::new(),
             calendars_side_by_side: false,
             calendar_months: 1,
+            address_book: "all".into(),
             keep_messages: 1000,
             keep_offline: 40,
             read_after_secs: 0,
@@ -942,6 +947,14 @@ impl Session {
         }
         self.ensure_contacts();
         self.contacts.as_ref().map(|b| b.list(query, MAX).into_iter().map(|c| c.address).collect()).unwrap_or_default()
+    /// The address books Select Names can show besides everyone (`all`) and every contact
+    /// (`people`): each account's, as (source, name, the account's address).
+    pub fn address_books(&self) -> Vec<(String, String, String)> {
+        self.accounts
+            .iter()
+            .filter_map(|a| self.pim.get(&a.config.id).map(|p| (a, p)))
+            .flat_map(|(a, p)| p.books.iter().map(move |b| (format!("book:{}:{}", a.config.id, b.id), b.name.clone(), a.config.email.clone())))
+            .collect()
     }
 
     /// Build the address book from the cache if it isn't built.
