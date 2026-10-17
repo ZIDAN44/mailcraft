@@ -803,6 +803,8 @@
 	Mobile phone	휴대폰
 	Home phone	집 전화
 	Address book	주소록
+	Day and week show each calendar in a pane of its own	일 및 주 보기에서 각 일정을 별도 창에 표시합니다
+	Hide {calendar}	{calendar} 숨기기
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

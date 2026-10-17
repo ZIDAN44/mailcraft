@@ -6,7 +6,7 @@ use mailcraft_engine::model::dates::{self, civil_from_days, days_from_civil};
 use mailcraft_engine::{AgendaItem, CalMode, Session};
 use serde_json::json;
 
-use crate::icons::Icon;
+use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, widgets};
 
@@ -120,7 +120,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         if several {
             ui.add_space(4.0);
             let mut on = s.prefs.calendars_side_by_side;
-            if ui.checkbox(&mut on, tl!("Side by side")).on_hover_text(tl!("Day and week show each calendar in a column of its own")).changed() {
+            if ui.checkbox(&mut on, tl!("Side by side")).on_hover_text(tl!("Day and week show each calendar in a pane of its own")).changed() {
                 acts.push(Action::Run("calendar.sideBySide", json!({"on": on})));
             }
         }
@@ -391,6 +391,20 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
     ui.allocate_rect(area, Sense::hover());
 }
 
+/// A new event at `at`, in calendar `cal` (account, calendar id) when it can take one.
+fn new_event_in(s: &Session, at: i64, cal: Option<&(String, String, String, u8)>) -> Action {
+    let mut d = Dialog::new_event(s, Some(at));
+    if let (Dialog::Event(f), Some((account, id, _, _))) = (&mut d, cal)
+        && let Some(i) = f.calendars.iter().position(|(a, c, _)| a == account && c == id)
+    {
+        f.calendar = i;
+    }
+    Action::Dialog(d)
+}
+
+/// The space between calendars shown side by side.
+const PANE_GAP: f32 = 10.0;
+
 #[allow(clippy::too_many_arguments)]
 fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i64, d1: i64, acts: &mut Vec<Action>) {
     let t = st.tokens;
@@ -398,64 +412,79 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
     let gutter = 52.0;
     let now = today(s);
     let full = ui.available_rect_before_wrap();
-    let cw = ((full.width() - gutter - 16.0) / n as f32).max(40.0);
-    // Side by side: each day split into a column per calendar shown.
+    // Side by side (Outlook's): each calendar shown a pane of its own, its days in it, under a
+    // heading in its colour.
     let cals: Vec<(String, String, String, u8)> = if s.prefs.calendars_side_by_side { s.shown_calendars() } else { Vec::new() };
-    let k = cals.len().max(1);
-    let sub = cw / k as f32;
+    let k = if cals.len() > 1 { cals.len() } else { 1 };
+    let gaps = PANE_GAP * (k - 1) as f32;
+    let pane = ((full.width() - gutter - 16.0 - gaps) / k as f32).max(40.0 * n as f32);
+    let cw = pane / n as f32;
     let col_of = |it: &AgendaItem| if k > 1 { cals.iter().position(|(a, c, _, _)| *a == it.account && *c == it.calendar).unwrap_or(0) } else { 0 };
-    // Day headings.
-    let (head, _) = ui.allocate_exact_size(vec2(full.width(), 40.0), Sense::hover());
-    for i in 0..n {
-        let d = d0 + i;
-        let x = head.min.x + gutter + cw * i as f32;
-        let (_, _, dd) = civil_from_days(d);
-        let wd = DAYS.get(((d + 3).rem_euclid(7)) as usize).copied().unwrap_or("");
-        ui.painter().text(
-            pos2(x + cw / 2.0, head.min.y + 10.0),
-            Align2::CENTER_CENTER,
-            tl!(wd),
-            theme::regular(12.0),
-            if d == now { t.accent } else { t.dim },
-        );
-        let c = pos2(x + cw / 2.0, head.min.y + 28.0);
-        if d == now {
-            ui.painter().circle_filled(c, 12.0, t.accent);
-        }
-        ui.painter().text(c, Align2::CENTER_CENTER, dd.to_string(), theme::bold(15.0), if d == now { t.on_accent } else { t.text });
-    }
-    // Side by side: each column's calendar under its day.
+    // Where calendar `j`'s pane starts, and day `i`'s column in it (from the left edge).
+    let pane_x = |j: usize| gutter + (pane + PANE_GAP) * j as f32;
+    let day_x = |i: i64, j: usize| pane_x(j) + cw * i as f32;
+    let tint = |j: usize| cals.get(j).map(|(_, _, _, c)| color(*c, &t));
+    // The calendars' headings: the name on its colour, × to hide it.
     if k > 1 {
-        let (names, _) = ui.allocate_exact_size(vec2(full.width(), 20.0), Sense::hover());
-        for i in 0..n {
-            for (j, (_, id, name, c)) in cals.iter().enumerate() {
-                let r = Rect::from_min_size(pos2(names.min.x + gutter + cw * i as f32 + sub * j as f32, names.min.y), vec2(sub, 20.0))
-                    .shrink2(vec2(1.0, 2.0));
-                ui.painter().rect_filled(r, 3.0, color(*c, &t).gamma_multiply(0.22));
-                let label = if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.clone() };
-                ui.painter().with_clip_rect(r.shrink2(vec2(3.0, 0.0))).text(
-                    pos2(r.min.x + 4.0, r.center().y),
-                    Align2::LEFT_CENTER,
-                    label,
-                    theme::regular(11.0),
-                    t.text,
-                );
+        let (names, _) = ui.allocate_exact_size(vec2(full.width(), 24.0), Sense::hover());
+        for (j, (account, id, name, c)) in cals.iter().enumerate() {
+            let r = Rect::from_min_size(pos2(names.min.x + pane_x(j), names.min.y), vec2(pane, 24.0)).shrink2(vec2(0.0, 1.0));
+            ui.painter().rect_filled(r, 3.0, color(*c, &t).gamma_multiply(if t.dark { 0.45 } else { 0.3 }));
+            let label = if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.clone() };
+            ui.painter().with_clip_rect(r.shrink2(vec2(6.0, 0.0)).with_max_x(r.max.x - 24.0)).text(
+                pos2(r.min.x + 8.0, r.center().y),
+                Align2::LEFT_CENTER,
+                label.clone(),
+                theme::bold(12.0),
+                t.text,
+            );
+            let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
+            let resp = ui.interact(x, ui.id().with(("hide-calendar", account, id)), Sense::click());
+            if resp.hovered() {
+                ui.painter().rect_filled(x, 3.0, t.hover);
+            }
+            icons::paint(ui.painter(), x.shrink(4.0), Icon::Close, if resp.hovered() { t.text } else { t.dim });
+            if resp.on_hover_text(tf!("Hide {calendar}", calendar = label)).clicked() {
+                acts.push(Action::Run("calendar.show", json!({"account": account, "calendar": id, "shown": false})));
             }
         }
     }
-    // All-day events.
+    // Day headings, in every pane.
+    let (head, _) = ui.allocate_exact_size(vec2(full.width(), 40.0), Sense::hover());
+    for j in 0..k {
+        for i in 0..n {
+            let d = d0 + i;
+            let x = head.min.x + day_x(i, j);
+            let (_, _, dd) = civil_from_days(d);
+            let wd = DAYS.get(((d + 3).rem_euclid(7)) as usize).copied().unwrap_or("");
+            ui.painter().text(
+                pos2(x + cw / 2.0, head.min.y + 10.0),
+                Align2::CENTER_CENTER,
+                tl!(wd),
+                theme::regular(12.0),
+                if d == now { t.accent } else { t.dim },
+            );
+            let c = pos2(x + cw / 2.0, head.min.y + 28.0);
+            if d == now {
+                ui.painter().circle_filled(c, 12.0, t.accent);
+            }
+            ui.painter().text(c, Align2::CENTER_CENTER, dd.to_string(), theme::bold(15.0), if d == now { t.on_accent } else { t.text });
+        }
+    }
+    // All-day events, across their days (in their calendar's pane).
     let all_day: Vec<&AgendaItem> = items.iter().filter(|i| i.all_day || i.end - i.start >= 86_400).collect();
     if !all_day.is_empty() {
-        let mut lanes: Vec<Vec<(i64, i64)>> = Vec::new();
+        let mut lanes: Vec<Vec<(usize, i64, i64)>> = Vec::new();
         let mut placed: Vec<(usize, &AgendaItem)> = Vec::new();
         for it in &all_day {
             let (a, b) = (day_of(it.start, s).max(d0), day_of(it.end.max(it.start + 1) - 1, s).min(d1 - 1));
-            let lane = lanes.iter().position(|l| l.iter().all(|(x, y)| b < *x || a > *y)).unwrap_or(lanes.len());
+            let j = col_of(it);
+            let lane = lanes.iter().position(|l| l.iter().all(|(pj, x, y)| *pj != j || b < *x || a > *y)).unwrap_or(lanes.len());
             if lane == lanes.len() {
                 lanes.push(Vec::new());
             }
             if let Some(l) = lanes.get_mut(lane) {
-                l.push((a, b));
+                l.push((j, a, b));
             }
             placed.push((lane, it));
         }
@@ -463,25 +492,14 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
         ui.painter().text(pos2(strip.min.x + gutter - 6.0, strip.min.y + 10.0), Align2::RIGHT_CENTER, tl!("All day"), theme::regular(11.0), t.faint);
         for (lane, it) in placed.into_iter().filter(|(l, _)| *l < 4) {
             let (a, b) = (day_of(it.start, s).max(d0), day_of(it.end.max(it.start + 1) - 1, s).min(d1 - 1));
-            // Side by side, a day at a time in its calendar's column; else across its days.
-            let spans: Vec<(i64, i64)> = if k > 1 { (a..=b).map(|d| (d, d)).collect() } else { vec![(a, b)] };
-            for (a, b) in spans {
-                let r = if k > 1 {
-                    Rect::from_min_size(
-                        pos2(strip.min.x + gutter + cw * (a - d0) as f32 + sub * col_of(it) as f32 + 1.0, strip.min.y + 3.0 + 20.0 * lane as f32),
-                        vec2(sub - 2.0, 18.0),
-                    )
-                } else {
-                    Rect::from_min_size(
-                        pos2(strip.min.x + gutter + cw * (a - d0) as f32 + 2.0, strip.min.y + 3.0 + 20.0 * lane as f32),
-                        vec2(cw * (b - a + 1) as f32 - 4.0, 18.0),
-                    )
-                };
-                if chip(ui, &t, r, it, &it.summary).clicked()
-                    && let Some(act) = open(s, it)
-                {
-                    acts.push(act);
-                }
+            let r = Rect::from_min_size(
+                pos2(strip.min.x + day_x(a - d0, col_of(it)) + 2.0, strip.min.y + 3.0 + 20.0 * lane as f32),
+                vec2(cw * (b - a + 1) as f32 - 4.0, 18.0),
+            );
+            if chip(ui, &t, r, it, &it.summary).clicked()
+                && let Some(act) = open(s, it)
+            {
+                acts.push(act);
             }
         }
     }
@@ -497,42 +515,49 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
     }
     scroll.show(ui, |ui| {
         let (grid, _) = ui.allocate_exact_size(vec2(ui.available_width(), HOUR * 24.0), Sense::hover());
+        // Each calendar's pane faintly in its colour.
+        for j in 0..k {
+            if let Some(c) = tint(j).filter(|_| k > 1) {
+                let r = Rect::from_min_size(pos2(grid.min.x + pane_x(j), grid.min.y), vec2(pane, grid.height()));
+                ui.painter().rect_filled(r, 0.0, c.gamma_multiply(if t.dark { 0.1 } else { 0.07 }));
+            }
+        }
         for h in 0..24 {
             let y = grid.min.y + HOUR * h as f32;
-            ui.painter().line_segment([pos2(grid.min.x + gutter, y), pos2(grid.max.x, y)], egui::Stroke::new(1.0, t.border));
+            for j in 0..k {
+                let x0 = grid.min.x + pane_x(j);
+                ui.painter().line_segment([pos2(x0, y), pos2(x0 + pane, y)], egui::Stroke::new(1.0, t.border));
+            }
             if h > 0 {
                 ui.painter().text(pos2(grid.min.x + gutter - 6.0, y), Align2::RIGHT_CENTER, format!("{h:02}:00"), theme::regular(11.0), t.faint);
             }
         }
-        for i in 0..=n {
-            let x = grid.min.x + gutter + cw * i as f32;
-            ui.painter().line_segment([pos2(x, grid.min.y), pos2(x, grid.max.y)], egui::Stroke::new(1.0, t.border));
-            // Side by side: fainter lines between a day's calendars.
-            for j in 1..k {
-                if i < n {
-                    let x = x + sub * j as f32;
-                    ui.painter().line_segment([pos2(x, grid.min.y), pos2(x, grid.max.y)], egui::Stroke::new(1.0, t.border.gamma_multiply(0.5)));
+        for j in 0..k {
+            for i in 0..=n {
+                let x = grid.min.x + day_x(i, j);
+                ui.painter().line_segment([pos2(x, grid.min.y), pos2(x, grid.max.y)], egui::Stroke::new(1.0, t.border));
+            }
+        }
+        // Click an empty half hour to add an event there (in that pane's calendar).
+        for j in 0..k {
+            for i in 0..n {
+                let col = Rect::from_min_size(pos2(grid.min.x + day_x(i, j), grid.min.y), vec2(cw, grid.height()));
+                let r = ui.interact(col, ui.id().with(("hours", d0 + i, j)), Sense::click());
+                // The half hour under the pointer lights up: a click adds an event there.
+                if let Some(p) = r.hover_pos() {
+                    let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0);
+                    let slot = Rect::from_min_size(pos2(col.min.x, grid.min.y + half * HOUR / 2.0), vec2(cw, HOUR / 2.0)).shrink(1.0);
+                    ui.painter().rect_filled(slot, 2.0, t.hover_row);
+                }
+                if r.clicked()
+                    && let Some(p) = r.interact_pointer_pos()
+                {
+                    let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0) as i64;
+                    acts.push(new_event_in(s, s.local_midnight(d0 + i) + half * 1800, cals.get(j).filter(|_| k > 1)));
                 }
             }
         }
-        // Click an empty half hour to add an event there.
-        for i in 0..n {
-            let col = Rect::from_min_size(pos2(grid.min.x + gutter + cw * i as f32, grid.min.y), vec2(cw, grid.height()));
-            let r = ui.interact(col, ui.id().with(("hours", d0 + i)), Sense::click());
-            // The half hour under the pointer lights up: a click adds an event there.
-            if let Some(p) = r.hover_pos() {
-                let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0);
-                let slot = Rect::from_min_size(pos2(col.min.x, grid.min.y + half * HOUR / 2.0), vec2(cw, HOUR / 2.0)).shrink(1.0);
-                ui.painter().rect_filled(slot, 2.0, t.hover_row);
-            }
-            if r.clicked()
-                && let Some(p) = r.interact_pointer_pos()
-            {
-                let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0) as i64;
-                acts.push(Action::Dialog(Dialog::new_event(s, Some(s.local_midnight(d0 + i) + half * 1800))));
-            }
-        }
-        // Events, side by side when they overlap (each calendar in its own column, side by side).
+        // Events, side by side when they overlap (each calendar in its own pane, side by side).
         for (i, j) in (0..n).flat_map(|i| (0..k).map(move |j| (i, j))) {
             let d = d0 + i;
             let (day0, day1) = (s.local_midnight(d), s.local_midnight(d + 1));
@@ -552,12 +577,12 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
                 }
                 lanes.push(lane);
             }
-            let width = (sub - 6.0) / lane_end.len().max(1) as f32;
+            let width = (cw - 6.0) / lane_end.len().max(1) as f32;
             for (it, lane) in todays.iter().zip(lanes) {
                 let top = ((it.start.max(day0) - day0) as f32 / 3600.0) * HOUR;
                 let bottom = ((it.end.min(day1) - day0) as f32 / 3600.0) * HOUR;
                 let r = Rect::from_min_size(
-                    pos2(grid.min.x + gutter + cw * i as f32 + sub * j as f32 + 3.0 + width * lane as f32, grid.min.y + top + 1.0),
+                    pos2(grid.min.x + day_x(i, j) + 3.0 + width * lane as f32, grid.min.y + top + 1.0),
                     vec2(width - 2.0, (bottom - top - 2.0).max(18.0)),
                 );
                 // The place beside the time when both fit on one line (a short event still shows it),
@@ -576,13 +601,15 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
                 }
             }
         }
-        // Now.
+        // Now, in every pane.
         let n_day = today(s);
         if n_day >= d0 && n_day < d1 {
             let y = grid.min.y + ((s.clock.now - s.local_midnight(n_day)) as f32 / 3600.0) * HOUR;
-            let x0 = grid.min.x + gutter + cw * (n_day - d0) as f32;
-            ui.painter().line_segment([pos2(x0, y), pos2(x0 + cw, y)], egui::Stroke::new(2.0, t.danger));
-            ui.painter().circle_filled(pos2(x0, y), 4.0, t.danger);
+            for j in 0..k {
+                let x0 = grid.min.x + day_x(n_day - d0, j);
+                ui.painter().line_segment([pos2(x0, y), pos2(x0 + cw, y)], egui::Stroke::new(2.0, t.danger));
+                ui.painter().circle_filled(pos2(x0, y), 4.0, t.danger);
+            }
         }
     });
 }

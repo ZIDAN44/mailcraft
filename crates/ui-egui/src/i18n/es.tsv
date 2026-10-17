@@ -804,6 +804,8 @@
 	Mobile phone	Teléfono móvil
 	Home phone	Teléfono particular
 	Address book	Libreta de direcciones
+	Day and week show each calendar in a pane of its own	Día y semana muestran cada calendario en su propio panel
+	Hide {calendar}	Ocultar {calendar}
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

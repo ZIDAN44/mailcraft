@@ -804,6 +804,8 @@
 	Mobile phone	Mobiltelefon
 	Home phone	Telefon privat
 	Address book	Adressbuch
+	Day and week show each calendar in a pane of its own	Tag und Woche zeigen jeden Kalender in einem eigenen Bereich
+	Hide {calendar}	{calendar} ausblenden
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

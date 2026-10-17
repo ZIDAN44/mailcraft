@@ -803,6 +803,8 @@
 	Mobile phone	Мобильный телефон
 	Home phone	Домашний телефон
 	Address book	Адресная книга
+	Day and week show each calendar in a pane of its own	День и неделя показывают каждый календарь в отдельной панели
+	Hide {calendar}	Скрыть {calendar}
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив
