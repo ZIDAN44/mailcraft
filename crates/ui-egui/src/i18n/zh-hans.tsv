@@ -759,3 +759,10 @@ month	May	5月
 	All folders are up to date	所有文件夹都是最新的
 	{n} accounts disconnected	{n} 个帐户已断开连接
 	{account}: {status}	{account}:{status}
+	Sign in with Microsoft	使用 Microsoft 登录
+	Sign in with Microsoft…	使用 Microsoft 登录…
+	Mailbox won't open	邮箱无法打开
+	The mailbox won't open	邮箱无法打开
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph 不经 IMAP 即可访问邮箱，还会同步日历和联系人。账户将通过它重新开始：邮件会从服务器下载。
+	Turned IMAP on, or picked another account in the browser? Sign in again	已开启 IMAP，或在浏览器中选了别的账户？重新登录
+	Use Microsoft Graph	使用 Microsoft Graph

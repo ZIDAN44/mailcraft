@@ -758,3 +758,10 @@ month	May	مايو
 	All folders are up to date	كل المجلدات محدّثة
 	{n} accounts disconnected	{n} حسابات غير متصلة
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	تسجيل الدخول باستخدام Microsoft
+	Sign in with Microsoft…	تسجيل الدخول باستخدام Microsoft…
+	Mailbox won't open	تعذّر فتح صندوق البريد
+	The mailbox won't open	تعذّر فتح صندوق البريد
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	يصل Microsoft Graph إلى صندوق البريد دون IMAP، ويجلب التقويم وجهات الاتصال أيضًا. يبدأ الحساب من جديد عبره: يُنزَّل بريده من الخادم.
+	Turned IMAP on, or picked another account in the browser? Sign in again	هل شغّلت IMAP أو اخترت حسابًا آخر في المتصفح؟ سجّل الدخول مجددًا
+	Use Microsoft Graph	استخدام Microsoft Graph

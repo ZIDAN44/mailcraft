@@ -2525,6 +2525,64 @@ impl Session {
         Ok(serde_json::json!({ "removed": id }))
     }
 
+    /// An account that signs in to Microsoft with a password (which Microsoft refuses) switched to
+    /// Sign in with Microsoft, keeping its mail: the browser opens, and the token replaces the
+    /// password in the keychain.
+    pub fn use_microsoft_sign_in(&mut self, id: &str) -> CmdResult {
+        let a = self.account_mut(id).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+        if !mailcraft_model::microsoft_password_account(&a.config) {
+            return Err(CmdError::Params("this account doesn't sign in to Microsoft with a password".into()));
+        }
+        a.config.oauth = Some("microsoft".into());
+        // Outlook.com's own servers, where the address is one of Microsoft's.
+        if a.config.imap.host.trim().is_empty() || mailcraft_model::microsoft_consumer(&a.config.email) && a.config.pop.is_none() {
+            let guess = AccountConfig::guess(&a.config.email);
+            a.config.imap = guess.imap;
+            a.config.smtp = guess.smtp;
+        }
+        a.status = SyncStatus::Connecting;
+        let config = a.config.clone();
+        self.save_accounts();
+        self.jobs.push(Job::SignIn { account: config });
+        Ok(serde_json::json!({ "account": id, "signingIn": true }))
+    }
+
+    /// A Microsoft account that signs in with Microsoft moved from IMAP and SMTP to Microsoft
+    /// Graph (for a mailbox Microsoft won't open over IMAP). Graph names folders its own way, so
+    /// it starts again as a new account in the same place: its mail comes down from the server,
+    /// and what was only on this computer for it (unsent mail in the Outbox) goes.
+    pub fn use_graph(&mut self, id: &str) -> CmdResult {
+        let a = self.account(id).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+        let c = a.config.clone();
+        let microsoft = c.oauth.as_deref() == Some("microsoft") || mailcraft_model::microsoft_password_account(&c);
+        if c.graph.is_some() || c.jmap.is_some() || c.ews.is_some() || c.pop.is_some() || !microsoft {
+            return Err(CmdError::Params("only a Microsoft account connected over IMAP can move to Microsoft Graph".into()));
+        }
+        if !self.oauth_available.iter().any(|p| p == "microsoft") {
+            return Err(CmdError::Params("signing in with Microsoft isn't set up in this copy of MailCraft".into()));
+        }
+        let at = self.accounts.iter().position(|x| x.config.id == id).unwrap_or(0);
+        self.remove_account(id)?;
+        let config = AccountConfig {
+            name: c.name,
+            email: c.email,
+            username: String::new(),
+            signature: c.signature,
+            oauth: Some("microsoft".into()),
+            graph: Some(mailcraft_model::GRAPH_URL.to_string()),
+            ..Default::default()
+        };
+        let new = self.add_account(config, None)?;
+        if let Some(from) = self.accounts.iter().position(|x| x.config.id == new) {
+            let mut moved = self.accounts.remove(from);
+            moved.config.color = c.color;
+            self.accounts.insert(at.min(self.accounts.len()), moved);
+            self.save_accounts();
+        }
+        self.open_view(View::Folder { account: new.clone(), folder: "INBOX".into() });
+        Ok(serde_json::json!({ "account": new, "graph": true }))
+    }
+
     pub fn update_account(&mut self, config: AccountConfig, password: Option<String>) -> CmdResult {
         let id = config.id.clone();
         let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
@@ -2585,6 +2643,14 @@ impl Session {
     pub fn apply(&mut self, e: Event) {
         match e {
             Event::Status { account, status } => {
+                // Refusals that need something done say so once, as they come.
+                if let SyncStatus::Error { error } = &status
+                    && (error.starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_model::MICROSOFT_NO_PASSWORDS))
+                    && self.account(&account).is_some_and(|a| a.status != status)
+                {
+                    let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
+                    self.notice(format!("{who}: {error}"), true);
+                }
                 if let SyncStatus::NeedsPassword { error } = &status {
                     let (who, browser) = self.account(&account).map(|a| (a.config.email.clone(), a.config.oauth.is_some())).unwrap_or_default();
                     let why = if error.is_empty() { String::new() } else { format!(": {error}") };
@@ -2709,12 +2775,24 @@ impl Session {
                     self.open_urls.push(url);
                 }
             }
-            Event::SignedIn { account } => {
-                if let Some(a) = self.account(&account) {
+            Event::SignedIn { account, user } => {
+                // Who the browser signed in as, kept when it isn't the account's address: tried
+                // when the mailbox won't open under that, and named when it still won't.
+                let user = user.map(|u| u.trim().to_string()).filter(|u| !u.is_empty() && u.len() < 320);
+                if let Some(a) = self.account_mut(&account) {
+                    let other = user.filter(|u| !u.eq_ignore_ascii_case(&a.config.email));
+                    let changed = a.config.oauth_user != other;
+                    a.config.oauth_user = other.clone();
                     let config = a.config.clone();
                     let who = config.email.clone();
+                    if changed {
+                        self.save_accounts();
+                    }
                     self.jobs.push(Job::Start { account: config, password: None });
-                    self.notice(format!("{who} is signed in"), false);
+                    match other {
+                        Some(o) => self.notice(format!("{who} is signed in (as {o})"), false),
+                        None => self.notice(format!("{who} is signed in"), false),
+                    }
                 }
             }
             Event::Discovered { email, config, source } => {

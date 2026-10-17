@@ -187,7 +187,9 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Run("mail.sync", json!({})));
                     ui.close();
                 }
-                if !a.is_local() && ui.button(tl!("Sign in again…")).clicked() {
+                // A Microsoft account with a password (refused there) switches to Microsoft sign-in.
+                let switch = mailcraft_engine::model::microsoft_password_account(&config) && s.oauth_available.iter().any(|p| p == "microsoft");
+                if !a.is_local() && ui.button(if switch { tl!("Sign in with Microsoft…") } else { tl!("Sign in again…") }).clicked() {
                     acts.push(Action::SignInAgain(config.id.clone()));
                     ui.close();
                 }

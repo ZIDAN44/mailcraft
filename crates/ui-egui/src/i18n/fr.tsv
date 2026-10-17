@@ -757,6 +757,13 @@
 	All folders are up to date	Tous les dossiers sont à jour
 	{n} accounts disconnected	{n} comptes déconnectés
 	{account}: {status}	{account} : {status}
+	Sign in with Microsoft	Se connecter avec Microsoft
+	Sign in with Microsoft…	Se connecter avec Microsoft…
+	Mailbox won't open	La boîte aux lettres ne s'ouvre pas
+	The mailbox won't open	La boîte aux lettres ne s'ouvre pas
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph accède à la boîte aux lettres sans IMAP et apporte aussi son calendrier et ses contacts. Le compte repart par ce biais : son courrier est téléchargé depuis le serveur.
+	Turned IMAP on, or picked another account in the browser? Sign in again	Vous avez activé IMAP ou choisi un autre compte dans le navigateur ? Reconnectez-vous
+	Use Microsoft Graph	Utiliser Microsoft Graph
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

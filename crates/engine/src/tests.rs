@@ -586,7 +586,7 @@ fn oauth_accounts_sign_in_through_the_browser() {
     }
     s.apply(Event::OpenUrl { url: "https://accounts.google.com/o/oauth2/v2/auth?x".into() });
     assert_eq!(s.open_urls.len(), 1);
-    s.apply(Event::SignedIn { account: id.clone() });
+    s.apply(Event::SignedIn { account: id.clone(), user: None });
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { password: None, .. }]));
     s.run("account.signIn", &json!({"account": id})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { .. }]));
@@ -1830,4 +1830,80 @@ fn collapsing_in_the_folder_pane_is_kept() {
     let back: crate::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!(back.collapsed, s.prefs.collapsed);
     assert!(s.run("view.collapse", &json!({"key": ""})).is_err());
+}
+
+/// Issue #2: a Hotmail account added with a password (which Microsoft refuses) switches to Sign
+/// in with Microsoft in place, and keeps its mail.
+#[test]
+fn a_microsoft_account_with_a_password_switches_to_microsoft_sign_in() {
+    let store = temp("ms-switch");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.oauth_available = vec!["microsoft".into()];
+    let id = s.run("account.add", &json!({"email": "zoe@hotmail.com", "password": "old"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    s.apply(Event::Status {
+        account: id.clone(),
+        status: SyncStatus::Error { error: format!("{} (Basic authentication is disabled)", mailcraft_model::MICROSOFT_NO_PASSWORDS) },
+    });
+    assert!(s.notices.last().unwrap().text.contains("Sign in with Microsoft"), "said once, as it comes");
+    let n = s.notices.len();
+    s.apply(Event::Status {
+        account: id.clone(),
+        status: SyncStatus::Error { error: format!("{} (Basic authentication is disabled)", mailcraft_model::MICROSOFT_NO_PASSWORDS) },
+    });
+    assert_eq!(s.notices.len(), n, "not again while it stays so");
+    s.run("account.signIn", &json!({"account": id})).unwrap();
+    match s.take_jobs().as_slice() {
+        [Job::SignIn { account }] => assert_eq!(
+            (account.id.as_str(), account.oauth.as_deref(), account.imap.host.as_str()),
+            (id.as_str(), Some("microsoft"), "outlook.office365.com")
+        ),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(s.account(&id).unwrap().config.oauth.as_deref(), Some("microsoft"));
+    // Who the browser signed in as is kept when it isn't the account's address.
+    s.apply(Event::SignedIn { account: id.clone(), user: Some("Zoe@Outlook.com".into()) });
+    assert_eq!(s.account(&id).unwrap().config.oauth_user.as_deref(), Some("Zoe@Outlook.com"));
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, password: None }] if account.oauth_user.is_some()));
+    s.apply(Event::SignedIn { account: id.clone(), user: Some("ZOE@hotmail.com".into()) });
+    assert_eq!(s.account(&id).unwrap().config.oauth_user, None, "the same address isn't kept");
+    // Other accounts don't switch; nor does a copy without Microsoft sign-in.
+    let other = s.run("account.add", &json!({"email": "ann@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert!(s.run("account.signIn", &json!({"account": other})).is_err());
+    let live = s.run("account.add", &json!({"email": "bo@live.com", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.oauth_available.clear();
+    assert!(s.run("account.signIn", &json!({"account": live})).is_err());
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
+/// A mailbox Microsoft won't open over IMAP can start again through Microsoft Graph, in the
+/// same place among the accounts.
+#[test]
+fn a_microsoft_account_moves_to_graph() {
+    let store = temp("ms-graph");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.oauth_available = vec!["microsoft".into()];
+    let first = s.run("account.add", &json!({"email": "ann@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let id = s.run("account.add", &json!({"email": "zoe@hotmail.com", "oauth": "microsoft", "name": "Zoe"})).unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let last = s.run("account.add", &json!({"email": "bo@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.run("account.setSignature", &json!({"account": id, "signature": "Zoe x"})).unwrap();
+    s.take_jobs();
+    let closed = format!("{}. Turn on IMAP", mailcraft_model::MICROSOFT_IMAP_CLOSED);
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::Error { error: closed } });
+    assert!(s.notices.last().unwrap().text.contains("IMAP"));
+    assert!(s.run("account.useGraph", &json!({"account": first})).is_err(), "not a Microsoft account");
+    let new = s.run("account.useGraph", &json!({"account": id})).unwrap()["account"].as_str().unwrap().to_string();
+    let order: Vec<&str> = s.accounts.iter().map(|a| a.config.id.as_str()).collect();
+    assert_eq!(order, [first.as_str(), new.as_str(), last.as_str()]);
+    let c = &s.account(&new).unwrap().config;
+    assert_eq!((c.email.as_str(), c.name.as_str(), c.signature.as_str()), ("zoe@hotmail.com", "Zoe", "Zoe x"));
+    assert_eq!((c.graph.as_deref(), c.oauth.as_deref()), (Some(mailcraft_model::GRAPH_URL), Some("microsoft")));
+    let jobs = s.take_jobs();
+    assert!(jobs.iter().any(|j| matches!(j, Job::Remove { account } if *account == id)));
+    assert!(jobs.iter().any(|j| matches!(j, Job::SignIn { account } if account.id == new && account.graph.is_some())));
+    assert!(s.run("account.useGraph", &json!({"account": new})).is_err(), "already on Graph");
+    let _ = std::fs::remove_dir_all(store.root());
 }

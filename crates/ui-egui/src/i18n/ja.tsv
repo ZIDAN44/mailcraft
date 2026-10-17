@@ -759,3 +759,10 @@ month	May	5月
 	All folders are up to date	すべてのフォルダーが最新です
 	{n} accounts disconnected	{n} 個のアカウントが切断されています
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Microsoft でサインイン
+	Sign in with Microsoft…	Microsoft でサインイン…
+	Mailbox won't open	メールボックスを開けません
+	The mailbox won't open	メールボックスを開けません
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph は IMAP を使わずにメールボックスにアクセスし、予定表と連絡先も取り込みます。アカウントは Graph 経由で最初から始まり、メールはサーバーからダウンロードされます。
+	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP をオンにした、またはブラウザーで別のアカウントを選んだ場合は、もう一度サインイン
+	Use Microsoft Graph	Microsoft Graph を使う

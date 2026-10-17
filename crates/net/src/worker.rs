@@ -111,8 +111,20 @@ fn keep_draft(store: &Store, account: &str, folder: &str, replaces: Option<mailc
     store.save_account_doc(account, PENDING_DRAFTS, &list).map_err(NetError::from)
 }
 
-/// Why a Microsoft account signing in with a password can't connect.
-pub const MICROSOFT_NO_PASSWORDS: &str = "Microsoft doesn't accept passwords from mail apps for this account: it needs Sign in with Microsoft";
+pub use mailcraft_model::MICROSOFT_NO_PASSWORDS;
+
+/// What a mailbox Microsoft won't open over IMAP needs: IMAP switched on (Outlook.com's own
+/// setting; an organisation's administrator for work accounts), the right account picked in the
+/// browser, or Microsoft Graph, which doesn't use IMAP.
+fn microsoft_imap_closed(email: &str, signed_in_as: Option<&str>) -> String {
+    let who = signed_in_as.map(|o| format!(" (the browser signed in as {o})")).unwrap_or_default();
+    let fix = if mailcraft_model::microsoft_consumer(email) {
+        "Turn on IMAP on Outlook.com (Settings › Mail › Forwarding and IMAP), or connect the account through Microsoft Graph instead"
+    } else {
+        "Your organisation may have turned IMAP off: connect the account through Microsoft Graph instead, or ask its administrator"
+    };
+    format!("{}{who}. {fix}.", mailcraft_model::MICROSOFT_IMAP_CLOSED)
+}
 
 pub(crate) fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX)).unwrap_or(0)
@@ -151,7 +163,7 @@ impl Pool {
             match crate::oauth::authorize(&p, &account.email, &mut open, Duration::from_secs(5 * 60)) {
                 Ok(t) => match t.refresh {
                     Some(r) => match creds.set(&account, &r) {
-                        Ok(()) => sink.emit(Event::SignedIn { account: account.id }),
+                        Ok(()) => sink.emit(Event::SignedIn { account: account.id, user: t.user }),
                         Err(e) => sink.emit(Event::Status {
                             account: account.id,
                             status: SyncStatus::NeedsPassword { error: format!("the sign-in couldn't be kept in the keychain: {e}") },
@@ -745,6 +757,14 @@ impl Worker {
     fn failed(&mut self, e: NetError) {
         log::warn!("{}: {e}", self.acc.id);
         match e {
+            // Microsoft took the token but won't open the mailbox: nothing to retry until changed.
+            NetError::Auth(m) | NetError::Bad(m) | NetError::No(m)
+                if self.acc.oauth.as_deref() == Some("microsoft") && m.to_ascii_lowercase().contains("authenticated but not connected") =>
+            {
+                self.conn = None;
+                self.auth_failed = true;
+                self.status(SyncStatus::Error { error: microsoft_imap_closed(&self.acc.email, self.acc.oauth_user.as_deref()) });
+            }
             // Microsoft's servers refuse passwords from mail apps: asking for it again only loops.
             NetError::Auth(m) if mailcraft_model::microsoft_password_account(&self.acc) => {
                 self.conn = None;
@@ -807,15 +827,43 @@ impl Worker {
             self.backoff = Duration::from_secs(5);
             return Ok(());
         }
-        let mut c = Client::connect(&self.acc.imap)?;
-        if self.acc.oauth.is_some() {
-            c.login_xoauth2(&user, &secret)?;
+        let c = if self.acc.oauth.is_some() {
+            self.imap_with_token(&user, &secret)?
         } else {
+            let mut c = Client::connect(&self.acc.imap)?;
             c.login(&user, &secret)?;
-        }
+            c
+        };
         self.conn = Some(Conn::Imap(c));
         self.backoff = Duration::from_secs(5);
         Ok(())
+    }
+
+    /// An IMAP connection signed in with an OAuth token. Microsoft can take the token and then
+    /// refuse the mailbox ("User is authenticated but not connected"): IMAP is switched off for
+    /// it (Outlook.com's own setting, or an organisation's), or the browser signed in as another
+    /// address. The address it signed in as is tried once; otherwise it's a refusal that says
+    /// what to do, not a sign-in to ask for again (that only loops).
+    fn imap_with_token(&self, user: &str, token: &str) -> Result<Client<Stream>> {
+        let mut c = Client::connect(&self.acc.imap)?;
+        let m = match c.login_xoauth2(user, token) {
+            Ok(()) => return Ok(c),
+            Err(NetError::Auth(m) | NetError::Bad(m) | NetError::No(m))
+                if self.acc.oauth.as_deref() == Some("microsoft") && m.to_ascii_lowercase().contains("not connected") =>
+            {
+                m
+            }
+            Err(e) => return Err(e),
+        };
+        log::warn!("{}: {m}", self.acc.id);
+        let other = self.acc.oauth_user.as_deref().filter(|o| !o.eq_ignore_ascii_case(user));
+        if let Some(other) = other {
+            let mut c = Client::connect(&self.acc.imap)?;
+            if c.login_xoauth2(other, token).is_ok() {
+                return Ok(c);
+            }
+        }
+        Err(NetError::Refused(microsoft_imap_closed(&self.acc.email, other)))
     }
 
     /// A connection that couldn't be made is never tried again at once (that looped, showing
@@ -1156,8 +1204,16 @@ impl Worker {
     /// Read (and first change, when `set`) the automatic replies: JMAP's own, or a Sieve script
     /// through ManageSieve on the IMAP host.
     fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
+        // Not connected: one try, and a failure shows as the account's status (it said
+        // "Connecting…" for good when the vacation page was opened on an account that can't).
         if self.conn.is_none() {
-            self.connect()?;
+            if self.auth_failed {
+                return Err(NetError::Refused("it shows once the account is connected".into()));
+            }
+            if let Err(e) = self.connect() {
+                self.connect_failed(e);
+                return Err(NetError::Refused("it shows once the account is connected".into()));
+            }
         }
         if let Some(Conn::Pop) = &self.conn {
             return Err(NetError::No("POP accounts have no automatic replies on the server".into()));
@@ -1569,6 +1625,46 @@ mod tests {
         assert_eq!(m.get(&a).as_deref(), Some("pw"));
         m.delete(&a);
         assert_eq!(m.get(&a), None);
+    }
+
+    /// Microsoft can take a token and then refuse the mailbox ("User is authenticated but not
+    /// connected"). The address the browser signed in as is tried; otherwise it's a refusal that
+    /// says what to do, not a sign-in to ask for again.
+    #[test]
+    fn a_mailbox_microsoft_wont_open_says_why() {
+        let st = crate::fake::State::new();
+        st.lock().unwrap().not_connected.push("zoe@hotmail.example".into());
+        let port = crate::fake::serve_tcp(&st);
+        let store = crate::fake::tests_store("closed-mailbox");
+        let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+        let mut acc = AccountConfig {
+            id: "a1".into(),
+            email: "zoe@hotmail.example".into(),
+            imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
+            oauth: Some("microsoft".into()),
+            ..Default::default()
+        };
+        let w = Worker::new(acc.clone(), "refresh".into(), store.clone(), pool.sink.clone(), SyncOptions::default());
+        let e = w.imap_with_token("zoe@hotmail.example", crate::fake::GOOD_TOKEN).err().unwrap();
+        assert!(e.to_string().starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) && e.to_string().contains("IMAP"), "{e:?}");
+        // The browser signed in as the mailbox's own address: that one opens it.
+        acc.oauth_user = Some("me@studio.example".into());
+        let w = Worker::new(acc.clone(), "refresh".into(), store.clone(), pool.sink.clone(), SyncOptions::default());
+        assert!(w.imap_with_token("zoe@hotmail.example", crate::fake::GOOD_TOKEN).is_ok());
+        // Signed in as another account that can't open it either: named in the refusal.
+        acc.oauth_user = Some("someone@else.example".into());
+        let w = Worker::new(acc, "refresh".into(), store, pool.sink.clone(), SyncOptions::default());
+        let e = w.imap_with_token("zoe@hotmail.example", crate::fake::GOOD_TOKEN).err().unwrap();
+        assert!(matches!(&e, NetError::Refused(m) if m.contains("signed in as someone@else.example")), "{e:?}");
+        // A token that's simply refused is still a sign-in to ask for again.
+        let w = Worker::new(
+            AccountConfig { oauth_user: None, ..w.acc.clone() },
+            "refresh".into(),
+            crate::fake::tests_store("closed-mailbox-2"),
+            pool.sink.clone(),
+            SyncOptions::default(),
+        );
+        assert!(matches!(w.imap_with_token("zoe@hotmail.example", "expired"), Err(NetError::Auth(_))));
     }
 
     /// A MailCraft data file (`.mailcraft`) comes in through the same job as a `.pst`.

@@ -412,6 +412,12 @@ pub enum Dialog {
         account: String,
         email: String,
     },
+    /// Microsoft signed the account in but won't open its mailbox over IMAP: why, and the way out.
+    MailboxClosed {
+        account: String,
+        email: String,
+        error: String,
+    },
     Signature {
         account: String,
         text: String,
@@ -1121,8 +1127,14 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(vec2(300.0, 26.0)).desired_width(300.0),
                 );
                 ui.end_row();
-                // Exchange signs in with Microsoft in the browser.
-                if !f.graph {
+                // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and
+                // Live, which take no passwords from mail apps (when this copy can sign in there).
+                let browser_only = f.graph
+                    || (!f.jmap
+                        && !f.ews
+                        && mailcraft_engine::model::microsoft_consumer(&f.email)
+                        && s.oauth_available.iter().any(|p| p == "microsoft"));
+                if !browser_only {
                     ui.label(tl!("Password"));
                     ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
                     ui.end_row();
@@ -1367,7 +1379,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
-            let ready = !f.graph && !blocked && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
+            let ready = !f.graph && !consumer && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
                 if !f.jmap && !f.ews && f.imap_host.is_empty() {
@@ -1461,6 +1473,35 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             let (ok, cancel) = buttons(ui, t, "Remove", true);
             if ok {
                 acts.push(Action::Run("account.remove", json!({"account": account})));
+                return false;
+            }
+            !cancel
+        }
+        Dialog::MailboxClosed { account, email, error } => {
+            ui.set_width(440.0);
+            title(ui, t, "The mailbox won't open");
+            ui.label(RichText::new(email.as_str()).strong());
+            ui.add_space(4.0);
+            ui.add(egui::Label::new(RichText::new(tl!(error.as_str())).color(t.dim)).wrap());
+            ui.add_space(8.0);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tl!(
+                        "Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server."
+                    ))
+                    .color(t.faint)
+                    .small(),
+                )
+                .wrap(),
+            );
+            ui.add_space(4.0);
+            if ui.link(RichText::new(tl!("Turned IMAP on, or picked another account in the browser? Sign in again")).small()).clicked() {
+                acts.push(Action::Run("account.signIn", json!({"account": account})));
+                return false;
+            }
+            let (ok, cancel) = buttons(ui, t, "Use Microsoft Graph", true);
+            if ok {
+                acts.push(Action::Run("account.useGraph", json!({"account": account})));
                 return false;
             }
             !cancel

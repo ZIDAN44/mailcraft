@@ -34,7 +34,7 @@ impl From<NetError> for mailcraft_jmap::Error {
             NetError::Io(e) => E::Io(e.to_string()),
             NetError::Tls(m) => E::Tls(m),
             NetError::Protocol(m) => E::Protocol(m),
-            NetError::No(m) => E::No(m),
+            NetError::No(m) | NetError::Refused(m) => E::No(m),
             NetError::Bad(m) => E::Bad(m),
             NetError::Auth(m) => E::Auth(m),
             NetError::Closed(m) => E::Closed(m),

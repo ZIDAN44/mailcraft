@@ -628,12 +628,24 @@ pub fn registry() -> Registry {
             let id = p::req_str(v, "account")?;
             let config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
             if config.oauth.is_none() {
+                // A Microsoft account signing in with a password (refused there) switches over.
+                if mailcraft_model::microsoft_password_account(&config) {
+                    if !s.oauth_available.iter().any(|p| p == "microsoft") {
+                        return Err(CmdError::Params("signing in with Microsoft isn't set up in this copy of MailCraft".into()));
+                    }
+                    return s.use_microsoft_sign_in(id);
+                }
                 return Err(CmdError::Params("this account signs in with a password".into()));
             }
             s.push_job(mailcraft_model::Job::SignIn { account: config });
             Ok(json!({"signingIn": id}))
         })
-        .params(r#"{"account": string}"#),
+        .params(r#"{"account": string} (a Microsoft account that signs in with a password switches to Sign in with Microsoft, keeping its mail)"#),
+        CommandSpec::new("account.useGraph", "Connect through Microsoft Graph", "File › Accounts", |s, v| {
+            let id = p::req_str(v, "account")?.to_string();
+            s.use_graph(&id)
+        })
+        .params(r#"{"account": string} (a Microsoft account over IMAP starts again through Microsoft Graph, for a mailbox Microsoft won't open over IMAP)"#),
         CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature).params(r#"{"account": string, "signature": string}"#),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
@@ -1276,6 +1288,7 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
             Some(n) => Some(u32::try_from(n).unwrap_or(u32::MAX)),
         },
         pop_delete_with_trash: p::bool(v, "popDeleteWithTrash").unwrap_or(false),
+        oauth_user: None,
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)

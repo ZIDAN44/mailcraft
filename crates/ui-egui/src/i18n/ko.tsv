@@ -756,6 +756,13 @@
 	All folders are up to date	모든 폴더가 최신 상태입니다
 	{n} accounts disconnected	{n}개 계정의 연결이 끊김
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Microsoft로 로그인
+	Sign in with Microsoft…	Microsoft로 로그인…
+	Mailbox won't open	사서함을 열 수 없음
+	The mailbox won't open	사서함을 열 수 없습니다
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph는 IMAP 없이 사서함에 접근하며 일정과 연락처도 가져옵니다. 계정이 Graph를 통해 다시 시작되며 메일은 서버에서 내려받습니다.
+	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP을 켰거나 브라우저에서 다른 계정을 골랐나요? 다시 로그인
+	Use Microsoft Graph	Microsoft Graph 사용
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

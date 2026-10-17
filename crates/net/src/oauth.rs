@@ -110,6 +110,30 @@ pub struct Tokens {
     pub expires_at: Instant,
     /// The permissions the provider says it granted (Microsoft lists them; empty when not said).
     pub granted: String,
+    /// Who signed in, from the ID token (its `email`, else `preferred_username`): only after a
+    /// browser sign-in that asked for it.
+    pub user: Option<String>,
+}
+
+/// What the browser sign-in asks for besides the mail permissions: who signed in (an ID token),
+/// so a mailbox that won't open can be told apart from another account picked on the page.
+/// Microsoft only: refreshing asks for the mail permissions alone, as tokens granted before
+/// this was asked for still have them.
+fn identity_scope(p: &Provider) -> &'static str {
+    if p.id == "microsoft" { " openid email" } else { "" }
+}
+
+/// The address in an ID token (a JWT: its middle part is base64url JSON). It came straight from
+/// the provider over TLS, so it isn't checked further; it's only ever compared with the account.
+pub fn id_token_user(id_token: &str) -> Option<String> {
+    let claims = crate::ews::unb64(id_token.split('.').nth(1)?)?;
+    let v: Value = serde_json::from_slice(&claims).ok()?;
+    ["email", "preferred_username"]
+        .iter()
+        .filter_map(|k| v.get(*k).and_then(Value::as_str))
+        .map(str::trim)
+        .find(|a| a.contains('@') && a.len() < 320)
+        .map(str::to_string)
 }
 
 impl std::fmt::Debug for Tokens {
@@ -118,12 +142,12 @@ impl std::fmt::Debug for Tokens {
     }
 }
 
-fn token_request(p: &Provider, mut fields: Vec<(&str, String)>) -> Result<Tokens> {
+fn token_request(p: &Provider, mut fields: Vec<(&str, String)>, extra_scope: &str) -> Result<Tokens> {
     fields.push(("client_id", p.client_id.clone()));
     // The permissions wanted, each time: without them a personal Microsoft account's token
     // covered reading (IMAP) but not sending (SMTP refused it, 535 5.7.3). Google takes none here.
     if p.id != "google" {
-        fields.push(("scope", p.scope.clone()));
+        fields.push(("scope", format!("{}{extra_scope}", p.scope)));
     }
     if let Some(s) = &p.client_secret {
         fields.push(("client_secret", s.clone()));
@@ -149,6 +173,7 @@ fn token_request(p: &Provider, mut fields: Vec<(&str, String)>) -> Result<Tokens
         access: access.to_string(),
         refresh: v.get("refresh_token").and_then(Value::as_str).map(str::to_string),
         granted: v.get("scope").and_then(Value::as_str).unwrap_or_default().to_string(),
+        user: v.get("id_token").and_then(Value::as_str).and_then(id_token_user),
         // A minute early, so a token never runs out mid-command.
         expires_at: Instant::now() + Duration::from_secs(expires - 60),
     })
@@ -156,7 +181,7 @@ fn token_request(p: &Provider, mut fields: Vec<(&str, String)>) -> Result<Tokens
 
 /// A fresh access token from a refresh token.
 pub fn refresh(p: &Provider, refresh_token: &str) -> Result<Tokens> {
-    token_request(p, vec![("grant_type", "refresh_token".into()), ("refresh_token", refresh_token.into())])
+    token_request(p, vec![("grant_type", "refresh_token".into()), ("refresh_token", refresh_token.into())], "")
 }
 
 /// The query parameters of a request target (`/?code=…&state=…`).
@@ -197,7 +222,7 @@ pub fn authorize(p: &Provider, login_hint: &str, open: &mut dyn FnMut(&str) -> s
         p.auth_url,
         pct(&p.client_id),
         pct(&redirect),
-        pct(&p.scope)
+        pct(&format!("{}{}", p.scope, identity_scope(p)))
     );
     if !login_hint.is_empty() {
         url.push_str(&format!("&login_hint={}", pct(login_hint)));
@@ -250,7 +275,11 @@ pub fn authorize(p: &Provider, login_hint: &str, open: &mut dyn FnMut(&str) -> s
             (None, e) => return Err(NetError::Auth(format!("{} sign-in was cancelled ({})", p.name, e.unwrap_or_default()))),
         }
     };
-    token_request(p, vec![("grant_type", "authorization_code".into()), ("code", code), ("redirect_uri", redirect), ("code_verifier", verifier)])
+    token_request(
+        p,
+        vec![("grant_type", "authorization_code".into()), ("code", code), ("redirect_uri", redirect), ("code_verifier", verifier)],
+        identity_scope(p),
+    )
 }
 
 /// The SASL XOAUTH2 initial response (base64 of `user=…^Aauth=Bearer …^A^A`).
@@ -293,6 +322,17 @@ pub(crate) mod tests {
         assert_eq!(provider_for_host("outlook.office365.com"), Some("microsoft"));
         assert_eq!(provider_for_host("mail.example.org"), None);
         assert!(provider("nope").is_none());
+        // Who signed in, from an ID token's claims.
+        let token = |claims: &str| format!("e30.{}.sig", b64url(claims.as_bytes()));
+        assert_eq!(
+            id_token_user(&token(r#"{"preferred_username":"Zoe@Live.example","email":"zoe@outlook.example"}"#)).as_deref(),
+            Some("zoe@outlook.example")
+        );
+        assert_eq!(id_token_user(&token(r#"{"preferred_username":"zoe@live.example"}"#)).as_deref(), Some("zoe@live.example"));
+        assert_eq!(id_token_user(&token(r#"{"name":"Zoe"}"#)), None);
+        for junk in ["", "a", "a.b.c", "a.!!!.c", "a.e30"] {
+            assert_eq!(id_token_user(junk), None, "{junk}");
+        }
     }
 
     #[test]

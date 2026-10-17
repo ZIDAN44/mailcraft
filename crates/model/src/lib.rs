@@ -112,6 +112,10 @@ pub struct AccountConfig {
     /// Deleted Items).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pop_delete_with_trash: bool,
+    /// The address the OAuth provider says the browser signed in as (from its ID token), when it
+    /// differs from `email`: an alias, or another account picked on the sign-in page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_user: Option<String>,
 }
 
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
@@ -139,6 +143,14 @@ pub fn microsoft_consumer(email: &str) -> bool {
     let name = domain.split('.').next().unwrap_or_default();
     matches!(name, "outlook" | "hotmail" | "live" | "msn" | "windowslive" | "passport") && domain.contains('.')
 }
+
+/// Why a Microsoft account signing in with a password can't connect (its status starts with this).
+pub const MICROSOFT_NO_PASSWORDS: &str = "Microsoft doesn't accept passwords from mail apps for this account: it needs Sign in with Microsoft";
+
+/// Why an account signed in with Microsoft can't open its mailbox over IMAP: Microsoft took the
+/// sign-in, then its server said "User is authenticated but not connected". The status starts
+/// with this, so the UI can offer what helps (signing in again, or Microsoft Graph).
+pub const MICROSOFT_IMAP_CLOSED: &str = "Microsoft signed you in, but its mail server won't open this mailbox over IMAP";
 
 /// An account that signs in to Microsoft's servers with a password rather than Microsoft
 /// sign-in, which those servers refuse.
@@ -186,6 +198,7 @@ impl AccountConfig {
             pop_delete: false,
             pop_keep_days: None,
             pop_delete_with_trash: false,
+            oauth_user: None,
         }
     }
 

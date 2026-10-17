@@ -281,9 +281,12 @@ pub enum Event {
     OpenUrl {
         url: String,
     },
-    /// An OAuth account is signed in (its token is in the keychain): start it.
+    /// An OAuth account is signed in (its token is in the keychain): start it. `user` is who
+    /// the provider says signed in, when it said.
     SignedIn {
         account: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        user: Option<String>,
     },
     /// How much of the account's space on the server is used and its limit, in bytes (`limit`
     /// 0: no limit published).

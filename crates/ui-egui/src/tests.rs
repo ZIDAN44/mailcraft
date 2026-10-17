@@ -177,6 +177,12 @@ pub(crate) fn tour() {
             },
             Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) },
             Dialog::RemoveAccount { account: "sample".into(), email: "x".into() },
+            Dialog::MailboxClosed {
+                account: "sample".into(),
+                email: "zoe@hotmail.com".into(),
+                error: format!("{}. Turn on IMAP on Outlook.com.", mailcraft_engine::model::MICROSOFT_IMAP_CLOSED),
+            },
+            Dialog::add_account_with("zoe@hotmail.com", true),
             Dialog::Signature { account: "sample".into(), text: "sig".into() },
             Dialog::Password { account: "sample".into(), email: "x".into(), password: String::new() },
             Dialog::new_folder("sample", Some("Projects")),

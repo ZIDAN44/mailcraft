@@ -33,6 +33,12 @@ pub struct State {
     pub caps: &'static str,
     /// Every command received (tags stripped).
     pub log: Vec<String>,
+    /// Addresses whose good token is taken but whose mailbox then won't open, as Microsoft
+    /// answers when IMAP is off or the token is another account's.
+    pub not_connected: Vec<String>,
+    /// What every password sign-in is refused with, when set (Outlook.com: "Basic authentication
+    /// is disabled").
+    pub refuse_passwords: Option<String>,
 }
 
 impl State {
@@ -47,6 +53,8 @@ impl State {
             modseq: 10,
             caps: "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA",
             log: Vec::new(),
+            not_connected: Vec::new(),
+            refuse_passwords: None,
         }))
     }
 
@@ -74,6 +82,17 @@ impl State {
         }
     }
 
+    /// Put a whole message (as sent) in a mailbox.
+    pub fn add_raw(&mut self, mailbox: &str, raw: Vec<u8>) -> u32 {
+        self.modseq += 1;
+        let modseq = self.modseq;
+        let Some(b) = self.mailbox(mailbox) else { return 0 };
+        let uid = b.uid_next;
+        b.uid_next += 1;
+        b.msgs.push(Msg { uid, flags: Vec::new(), raw, modseq });
+        uid
+    }
+
     pub fn add(&mut self, mailbox: &str, subject: &str, flags: &[&str]) -> u32 {
         self.modseq += 1;
         let modseq = self.modseq;
@@ -98,6 +117,8 @@ pub struct Fake {
     /// SASL in progress: the tag, and whether the next line is the token (`true`) or the empty
     /// answer to an error challenge (`false`).
     sasl: Option<(String, bool)>,
+    /// Signed in, but every command is refused (see `State::not_connected`).
+    refused: bool,
 }
 
 /// The only access token the fake accepts.
@@ -105,7 +126,7 @@ pub const GOOD_TOKEN: &str = "good-token";
 
 impl Fake {
     pub fn connect(st: &Arc<Mutex<State>>) -> Fake {
-        let mut f = Fake { st: st.clone(), selected: None, inbuf: Vec::new(), out: VecDeque::new(), literal: None, sasl: None };
+        let mut f = Fake { st: st.clone(), selected: None, inbuf: Vec::new(), out: VecDeque::new(), literal: None, sasl: None, refused: false };
         f.say("* OK fake ready");
         f
     }
@@ -156,6 +177,10 @@ impl Fake {
                 let caps = self.st.lock().map(|s| s.caps).unwrap_or("");
                 self.say(&format!("{tag} OK [CAPABILITY {caps}] signed in"));
             }
+            Some(t) if self.st.lock().map(|s| s.not_connected.iter().any(|u| t.trim() == crate::oauth::xoauth2(u, GOOD_TOKEN))).unwrap_or(false) => {
+                self.refused = true;
+                self.say(&format!("{tag} OK AUTHENTICATE completed."));
+            }
             Some(_) => {
                 self.say("+ eyJzdGF0dXMiOiI0MDEiLCJzY2hlbWVzIjoiYmVhcmVyIn0=");
                 self.sasl = Some((tag.to_string(), false));
@@ -178,6 +203,10 @@ impl Fake {
             return;
         }
         let (tag, rest) = line.split_once(' ').unwrap_or((line, ""));
+        if self.refused {
+            self.say(&format!("{tag} BAD User is authenticated but not connected."));
+            return;
+        }
         let st = self.st.clone();
         let mut st = st.lock().unwrap();
         st.log.push(rest.to_string());
@@ -187,7 +216,10 @@ impl Fake {
             self.say(&format!("* CAPABILITY {}", st.caps));
             ok(self, "");
         } else if upper.starts_with("LOGIN ") {
-            if rest.ends_with("\"pw\"") {
+            if let Some(why) = &st.refuse_passwords {
+                let why = why.clone();
+                self.say(&format!("{tag} NO {why}"));
+            } else if rest.ends_with("\"pw\"") {
                 ok(self, &format!("[CAPABILITY {}] ", st.caps));
             } else {
                 self.say(&format!("{tag} NO [AUTHENTICATIONFAILED] wrong password"));
@@ -726,6 +758,50 @@ mod tests {
         assert_eq!(arch.msgs.len(), 1);
         assert!(arch.msgs[0].flags.contains(&"\\Seen".to_string()));
         assert_eq!(s.mailbox("Sent").unwrap().msgs[0].raw, b"Subject: sent\r\n\r\nx\r\n");
+    }
+
+    /// For looking at the app against a mail server that acts as Outlook.com does, on
+    /// 127.0.0.1:1143 without TLS (user name anything, password `pw`, OAuth token `good-token`):
+    /// `MAILCRAFT_FAKE_REFUSE` refuses every password with its text ("Basic authentication is
+    /// disabled"); `MAILCRAFT_FAKE_CLOSED` (an address) takes that address's token but won't
+    /// open its mailbox. Run: `cargo test -p mailcraft-net serve_imap_for_the_app -- --ignored`.
+    #[test]
+    #[ignore]
+    fn serve_imap_for_the_app() {
+        let st = State::new();
+        {
+            let mut s = st.lock().unwrap();
+            s.refuse_passwords = std::env::var("MAILCRAFT_FAKE_REFUSE").ok().filter(|v| !v.is_empty());
+            s.not_connected.extend(std::env::var("MAILCRAFT_FAKE_CLOSED").ok().filter(|v| !v.is_empty()));
+            s.add("INBOX", "Welcome", &[]);
+            // `MAILCRAFT_FAKE_EML`: messages to put in the Inbox (paths, separated by `;`).
+            for path in std::env::var("MAILCRAFT_FAKE_EML").unwrap_or_default().split(';').filter(|p| !p.is_empty()) {
+                if let Ok(raw) = std::fs::read(path) {
+                    s.add_raw("INBOX", raw);
+                }
+            }
+        }
+        let listener = std::net::TcpListener::bind("127.0.0.1:1143").unwrap();
+        for sock in listener.incoming().flatten() {
+            let st = st.clone();
+            std::thread::spawn(move || {
+                let mut fake = Fake::connect(&st);
+                let mut sock = sock;
+                let mut buf = [0u8; 8192];
+                loop {
+                    let out: Vec<u8> = fake.out.drain(..).collect();
+                    if !out.is_empty() && sock.write_all(&out).is_err() {
+                        return;
+                    }
+                    match sock.read(&mut buf) {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => {
+                            let _ = fake.write(&buf[..n]);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     #[test]

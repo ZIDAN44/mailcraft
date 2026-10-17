@@ -757,6 +757,13 @@
 	All folders are up to date	Todas as pastas estão atualizadas
 	{n} accounts disconnected	{n} contas desconectadas
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Entrar com a Microsoft
+	Sign in with Microsoft…	Entrar com a Microsoft…
+	Mailbox won't open	A caixa de correio não abre
+	The mailbox won't open	A caixa de correio não abre
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	O Microsoft Graph acessa a caixa de correio sem IMAP e traz também o calendário e os contatos. A conta recomeça por ele: os e-mails são baixados do servidor.
+	Turned IMAP on, or picked another account in the browser? Sign in again	Ativou o IMAP ou escolheu outra conta no navegador? Entre novamente
+	Use Microsoft Graph	Usar o Microsoft Graph
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

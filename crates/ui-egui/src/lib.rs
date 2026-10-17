@@ -1232,8 +1232,18 @@ impl MailApp {
     }
 
     fn sign_in_again(&mut self, id: &str) {
-        let Some(config) = self.session.account(id).map(|a| a.config.clone()) else { return };
-        if config.oauth.is_some() {
+        let Some((config, status)) = self.session.account(id).map(|a| (a.config.clone(), a.status.clone())) else { return };
+        // Microsoft took the sign-in but won't open the mailbox: say why, and what helps.
+        if let SyncStatus::Error { error } = &status
+            && error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)
+        {
+            self.ui.dialog = Some(Dialog::MailboxClosed { account: id.to_string(), email: config.email.clone(), error: error.clone() });
+            return;
+        }
+        // A Microsoft account with a password, which Microsoft refuses: Sign in with Microsoft.
+        if config.oauth.is_some()
+            || mailcraft_engine::model::microsoft_password_account(&config) && self.session.oauth_available.iter().any(|p| p == "microsoft")
+        {
             self.run("account.signIn", json!({"account": id}));
         } else {
             self.ui.dialog = Some(Dialog::password(&config));
@@ -1884,8 +1894,8 @@ impl MailApp {
                     for a in &s.accounts {
                         let (color, text) = account_status(s, &t, a);
                         // "Password needed" is a link: click it to enter the password again.
-                        if matches!(a.status, SyncStatus::NeedsPassword { .. }) {
-                            if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(&a.config.email).clicked() {
+                        if needs_you(a) {
+                            if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(why(a)).clicked() {
                                 again = Some(a.config.id.clone());
                             }
                         } else {
@@ -1900,7 +1910,7 @@ impl MailApp {
                 let each = each.join("\n");
                 let busy = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Syncing { .. }));
                 let connecting = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting));
-                let failed = s.accounts.iter().filter(|a| matches!(a.status, SyncStatus::Error { .. })).count();
+                let failed = s.accounts.iter().filter(|a| matches!(a.status, SyncStatus::Error { .. }) && !needs_you(a)).count();
                 let online = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Online { .. }));
                 let (color, text) = if busy {
                     (t.accent, tl!("Updating…").to_string())
@@ -1916,10 +1926,10 @@ impl MailApp {
                 ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(&each);
                 dot(ui, color);
                 // Accounts waiting for you: a link each (it signs in again).
-                for a in s.accounts.iter().rev().filter(|a| matches!(a.status, SyncStatus::NeedsPassword { .. })) {
+                for a in s.accounts.iter().rev().filter(|a| needs_you(a)) {
                     ui.add_space(10.0);
                     let text = tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1);
-                    if ui.link(RichText::new(text).color(t.danger).small()).clicked() {
+                    if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(why(a)).clicked() {
                         again = Some(a.config.id.clone());
                     }
                     dot(ui, t.danger);
@@ -1994,9 +2004,37 @@ impl MailApp {
 
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so
 /// they close this one; so do Delete and Archive.
+/// An account that waits for you to do something: sign in (again, or with Microsoft rather than
+/// a password), or choose what to do about a mailbox Microsoft won't open over IMAP.
+fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
+    match &a.status {
+        SyncStatus::NeedsPassword { .. } => true,
+        SyncStatus::Error { error } => {
+            error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS)
+        }
+        _ => false,
+    }
+}
+
+/// An account's address, and what's wrong with it when something is (for hovering its status).
+fn why(a: &mailcraft_engine::AccountState) -> String {
+    match &a.status {
+        SyncStatus::Error { error } | SyncStatus::NeedsPassword { error } if !error.is_empty() => {
+            format!("{}\n{}", a.config.email, tl!(error))
+        }
+        _ => a.config.email.clone(),
+    }
+}
+
 /// An account's status for the status bar: its colour and words.
 fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::AccountState) -> (egui::Color32, String) {
     match &a.status {
+        SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS) => {
+            (t.danger, tl!("Sign in with Microsoft").to_string())
+        }
+        SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED) => {
+            (t.danger, tl!("Mailbox won't open").to_string())
+        }
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
         SyncStatus::Syncing { .. } if a.is_data_file() => (t.accent, tf!("Opening {file}…", file = a.config.email)),
         SyncStatus::Syncing { folder } => (

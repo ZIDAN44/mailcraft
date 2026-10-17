@@ -78,6 +78,9 @@ pub enum NetError {
     Later(String),
     #[error("{0}")]
     Store(#[from] mailcraft_store::StoreError),
+    /// Can't go on, for a reason said in full (what to do included): not a server's words.
+    #[error("{0}")]
+    Refused(String),
 }
 
 impl NetError {

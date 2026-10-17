@@ -758,3 +758,10 @@ month	May	מאי
 	All folders are up to date	כל התיקיות מעודכנות
 	{n} accounts disconnected	{n} חשבונות מנותקים
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	כניסה עם Microsoft
+	Sign in with Microsoft…	כניסה עם Microsoft…
+	Mailbox won't open	תיבת הדואר לא נפתחת
+	The mailbox won't open	תיבת הדואר לא נפתחת
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph מגיע לתיבת הדואר בלי IMAP, ומביא גם את לוח השנה ואנשי הקשר. החשבון מתחיל מחדש דרכו: הדואר שלו יורד מהשרת.
+	Turned IMAP on, or picked another account in the browser? Sign in again	הפעלת IMAP, או בחרת חשבון אחר בדפדפן? היכנס שוב
+	Use Microsoft Graph	שימוש ב-Microsoft Graph

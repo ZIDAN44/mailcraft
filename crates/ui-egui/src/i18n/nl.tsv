@@ -758,3 +758,10 @@ month	May	mei
 	All folders are up to date	Alle mappen zijn bijgewerkt
 	{n} accounts disconnected	{n} accounts niet verbonden
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Aanmelden met Microsoft
+	Sign in with Microsoft…	Aanmelden met Microsoft…
+	Mailbox won't open	Postvak gaat niet open
+	The mailbox won't open	Het postvak gaat niet open
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph bereikt het postvak zonder IMAP en brengt ook de agenda en contactpersonen mee. Het account begint daarmee opnieuw: de e-mail wordt van de server opgehaald.
+	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP aangezet, of in de browser een ander account gekozen? Opnieuw aanmelden
+	Use Microsoft Graph	Microsoft Graph gebruiken

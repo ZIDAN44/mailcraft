@@ -757,6 +757,13 @@
 	All folders are up to date	Alle Ordner sind auf dem neuesten Stand
 	{n} accounts disconnected	{n} Konten getrennt
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Mit Microsoft anmelden
+	Sign in with Microsoft…	Mit Microsoft anmelden…
+	Mailbox won't open	Postfach öffnet sich nicht
+	The mailbox won't open	Das Postfach öffnet sich nicht
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph erreicht das Postfach ohne IMAP und bringt auch Kalender und Kontakte mit. Das Konto beginnt darüber neu: Die E-Mails werden vom Server geladen.
+	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP eingeschaltet oder im Browser ein anderes Konto gewählt? Erneut anmelden
+	Use Microsoft Graph	Microsoft Graph verwenden
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

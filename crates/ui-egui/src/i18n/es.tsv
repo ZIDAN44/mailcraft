@@ -757,6 +757,13 @@
 	All folders are up to date	Todas las carpetas están actualizadas
 	{n} accounts disconnected	{n} cuentas desconectadas
 	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Iniciar sesión con Microsoft
+	Sign in with Microsoft…	Iniciar sesión con Microsoft…
+	Mailbox won't open	El buzón no se abre
+	The mailbox won't open	El buzón no se abre
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph llega al buzón sin IMAP y trae también su calendario y sus contactos. La cuenta empieza de nuevo a través de él: el correo se descarga del servidor.
+	Turned IMAP on, or picked another account in the browser? Sign in again	¿Activaste IMAP o elegiste otra cuenta en el navegador? Vuelve a iniciar sesión
+	Use Microsoft Graph	Usar Microsoft Graph
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo
