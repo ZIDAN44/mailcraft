@@ -364,6 +364,7 @@ pub(crate) mod tests {
             text: "Back on Monday.\nZoe".into(),
             from: Some("2026-10-15".into()),
             until: None,
+            ..Default::default()
         };
         let s = script(&v, Some("filters"));
         assert!(s.starts_with(MARK));
@@ -485,7 +486,7 @@ Zoe";"#
         bad.logout();
         let mut c = connect(port);
         assert_eq!(c.vacation().unwrap(), Vacation::default(), "never set up");
-        let v = Vacation { enabled: true, subject: "Away".into(), text: "Back soon".into(), from: None, until: Some("2026-10-20".into()) };
+        let v = Vacation { enabled: true, subject: "Away".into(), text: "Back soon".into(), until: Some("2026-10-20".into()), ..Default::default() };
         c.set_vacation(&v).unwrap();
         assert_eq!(c.vacation().unwrap(), v);
         {

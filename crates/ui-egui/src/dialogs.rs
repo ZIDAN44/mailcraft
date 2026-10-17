@@ -254,20 +254,34 @@ pub struct VacationForm {
     pub dated: bool,
     pub from: String,
     pub until: String,
+    /// Exchange keeps a reply for people inside the organisation and one for those outside.
+    pub exchange: bool,
+    /// Outside gets a reply of its own.
+    pub split: bool,
+    pub external: String,
+    /// Who outside gets one: `all`, `known` or `none`.
+    pub outside: String,
     pub error: Option<String>,
 }
 
 impl VacationForm {
     pub(crate) fn params(&self) -> serde_json::Value {
         let day = |d: &str| if self.dated && !d.trim().is_empty() { json!(d.trim()) } else { serde_json::Value::Null };
-        json!({
+        let mut p = json!({
             "account": self.account,
             "enabled": self.enabled,
             "subject": self.subject.trim(),
             "text": self.text,
             "from": day(&self.from),
             "until": day(&self.until),
-        })
+        });
+        if self.exchange {
+            p["outside"] = json!(self.outside);
+            if self.split && self.outside != "none" {
+                p["external"] = json!(self.external);
+            }
+        }
+        p
     }
 }
 
@@ -375,7 +389,29 @@ fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action
         ui.add_space(4.0);
         ui.add_sized([ui.available_width(), 26.0], egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")));
         ui.add_space(4.0);
-        ui.add(egui::TextEdit::multiline(&mut f.text).hint_text(tl!("I'm away until…")).desired_rows(6).desired_width(f32::INFINITY));
+        let rows = if f.exchange { 4 } else { 6 };
+        if f.exchange {
+            ui.label(RichText::new(tl!("Inside my organization")).strong().small());
+        }
+        ui.add(egui::TextEdit::multiline(&mut f.text).hint_text(tl!("I'm away until…")).desired_rows(rows).desired_width(f32::INFINITY));
+        // Exchange: who outside the organisation gets a reply, and which (Outlook's two tabs).
+        if f.exchange {
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(tl!("Outside my organization")).strong().small());
+                for (code, label) in [("all", "Anyone"), ("known", "My contacts only"), ("none", "No one")] {
+                    ui.radio_value(&mut f.outside, code.to_string(), tl!(label));
+                }
+            });
+            if f.outside != "none" {
+                ui.checkbox(&mut f.split, tl!("A different reply for them"));
+                if f.split {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut f.external).hint_text(tl!("I'm away until…")).desired_rows(rows).desired_width(f32::INFINITY),
+                    );
+                }
+            }
+        }
     });
     if let Some(e) = &f.error {
         ui.add_space(6.0);
@@ -800,7 +836,8 @@ impl Dialog {
         }))
     }
 
-    pub fn vacation(account: &str, v: &mailcraft_engine::model::job::Vacation) -> Dialog {
+    /// Automatic replies; `exchange`: the server keeps a reply for outside the organisation too.
+    pub fn vacation(account: &str, v: &mailcraft_engine::model::job::Vacation, exchange: bool) -> Dialog {
         Dialog::Vacation(Box::new(VacationForm {
             account: account.to_string(),
             enabled: v.enabled,
@@ -809,6 +846,10 @@ impl Dialog {
             dated: v.from.is_some() || v.until.is_some(),
             from: v.from.clone().unwrap_or_default(),
             until: v.until.clone().unwrap_or_default(),
+            exchange,
+            split: v.external.is_some(),
+            external: v.external.clone().unwrap_or_default(),
+            outside: if v.outside.is_empty() { "all".into() } else { v.outside.clone() },
             error: None,
         }))
     }

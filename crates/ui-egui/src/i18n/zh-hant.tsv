@@ -789,6 +789,12 @@
 	the newest 1,000	最新 1,000 封
 	the newest 40	最新 40 封
 	all	全部
+	A different reply for them	為他們使用另一則回覆
+	Inside my organization	組織內部
+	Outside my organization	組織外部
+	Anyone	任何人
+	My contacts only	僅我的連絡人
+	No one	不回覆任何人
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

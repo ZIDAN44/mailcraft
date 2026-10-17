@@ -770,6 +770,8 @@ mod tests {
             text: "Back on Monday".into(),
             from: Some("2026-10-15".into()),
             until: Some("2026-10-20".into()),
+            external: Some("Out of office".into()),
+            outside: "none".into(),
         };
         pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
         until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));

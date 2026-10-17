@@ -748,10 +748,16 @@ pub fn registry() -> Registry {
                 text: p::str(v, "text").unwrap_or_default().chars().take(20_000).collect(),
                 from: day("from"),
                 until: day("until"),
+                external: p::str(v, "external").map(|t| t.chars().take(20_000).collect::<String>()).filter(|t| !t.trim().is_empty()),
+                outside: match p::str(v, "outside").map(str::trim) {
+                    None | Some("" | "all") => String::new(),
+                    Some(o @ ("known" | "none")) => o.to_string(),
+                    Some(other) => return Err(CmdError::Params(format!("`outside` is all, known or none, not `{other}`"))),
+                },
             };
             s.set_vacation(&id, vacation)
         })
-        .params(r#"{"account"?: string, "enabled": bool, "subject"?: string, "text": string, "from"?: "YYYY-MM-DD", "until"?: "YYYY-MM-DD"}"#),
+        .params(r#"{"account"?: string, "enabled": bool, "subject"?: string, "text": string, "from"?: "YYYY-MM-DD", "until"?: "YYYY-MM-DD", "external"?: string (Exchange: another reply for people outside the organisation), "outside"?: "all"|"known"|"none" (Exchange: who outside gets one)}"#),
     ])
 }
 

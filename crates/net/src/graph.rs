@@ -294,24 +294,40 @@ impl Client {
             v.get(k).and_then(|d| d.get("dateTime")).and_then(Value::as_str).and_then(|d| d.get(..10)).filter(|d| mailcraft_model::job::is_day(d))
         };
         let scheduled = status == "scheduled";
-        let html = v.get("internalReplyMessage").and_then(Value::as_str).unwrap_or_default();
+        let reply = |k: &str| {
+            let html = v.get(k).and_then(Value::as_str).unwrap_or_default();
+            if html.contains('<') { mime::html_to_text(html).trim().to_string() } else { html.trim().to_string() }
+        };
+        let (text, external) = (reply("internalReplyMessage"), reply("externalReplyMessage"));
+        let outside = match v.get("externalAudience").and_then(Value::as_str).unwrap_or("all").to_ascii_lowercase().as_str() {
+            "none" => "none",
+            "contactsonly" => "known",
+            _ => "",
+        };
         Ok(mailcraft_model::job::Vacation {
             enabled: status != "disabled",
             subject: String::new(),
-            text: if html.contains('<') { mime::html_to_text(html).trim().to_string() } else { html.to_string() },
+            external: (!external.is_empty() && external != text).then_some(external),
+            outside: outside.to_string(),
+            text,
             from: day("scheduledStartDateTime").filter(|_| scheduled).map(str::to_string),
             until: day("scheduledEndDateTime").filter(|_| scheduled).map(str::to_string),
         })
     }
 
     pub fn set_vacation(&self, v: &mailcraft_model::job::Vacation) -> Result<()> {
-        let message = v.text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('\n', "<br>");
+        let html = |t: &str| t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('\n', "<br>");
         let dated = v.from.is_some() || v.until.is_some();
+        let audience = match v.outside.as_str() {
+            "none" => "none",
+            "known" => "contactsOnly",
+            _ => "all",
+        };
         let mut s = json!({
             "status": if !v.enabled { "disabled" } else if dated { "scheduled" } else { "alwaysEnabled" },
-            "externalAudience": "all",
-            "internalReplyMessage": message,
-            "externalReplyMessage": message,
+            "externalAudience": audience,
+            "internalReplyMessage": html(&v.text),
+            "externalReplyMessage": html(v.external_text()),
         });
         if v.enabled && dated {
             // Whole days: from the start of the first to the end of the last (open ends far off).

@@ -708,12 +708,23 @@ impl Client {
             Some(format!("{y:04}-{m:02}-{d:02}"))
         };
         let scheduled = state == "Scheduled";
-        let message = s.find("InternalReply").and_then(|r| r.child("Message")).map(|m| m.text.clone()).unwrap_or_default();
-        let text = if message.contains('<') { mime::html_to_text(&message) } else { message };
+        let reply = |which: &str| {
+            let m = s.find(which).and_then(|r| r.child("Message")).map(|m| m.text.clone()).unwrap_or_default();
+            if m.contains('<') { mime::html_to_text(&m).trim().to_string() } else { m.trim().to_string() }
+        };
+        let (text, external) = (reply("InternalReply"), reply("ExternalReply"));
+        let outside = match s.text_of("ExternalAudience").unwrap_or("All") {
+            "None" => "none",
+            "Known" => "known",
+            _ => "",
+        };
         Ok(mailcraft_model::job::Vacation {
             enabled: state != "Disabled",
             subject: String::new(),
-            text: text.trim().to_string(),
+            // Outside, the same unless it says something else (an empty one is the same).
+            external: (!external.is_empty() && external != text).then_some(external),
+            outside: outside.to_string(),
+            text,
             from: if scheduled { day("StartTime", false) } else { None },
             until: if scheduled { day("EndTime", true) } else { None },
         })
@@ -736,10 +747,16 @@ impl Client {
             end.unwrap_or_else(|| "2100-01-01T00:00:00Z".into())
         );
         let text = esc(&v.text).replace('\n', "&lt;br&gt;");
+        let external = esc(v.external_text()).replace('\n', "&lt;br&gt;");
+        let audience = match v.outside.as_str() {
+            "none" => "None",
+            "known" => "Known",
+            _ => "All",
+        };
         let doc = self.call(&format!(
             "<m:SetUserOofSettingsRequest><t:Mailbox><t:Address>{}</t:Address></t:Mailbox><t:UserOofSettings>\
-             <t:OofState>{state}</t:OofState><t:ExternalAudience>All</t:ExternalAudience>{duration}\
-             <t:InternalReply><t:Message>{text}</t:Message></t:InternalReply><t:ExternalReply><t:Message>{text}</t:Message></t:ExternalReply>\
+             <t:OofState>{state}</t:OofState><t:ExternalAudience>{audience}</t:ExternalAudience>{duration}\
+             <t:InternalReply><t:Message>{text}</t:Message></t:InternalReply><t:ExternalReply><t:Message>{external}</t:Message></t:ExternalReply>\
              </t:UserOofSettings></m:SetUserOofSettingsRequest>",
             esc(&self.email)
         ))?;

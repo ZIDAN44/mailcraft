@@ -431,6 +431,7 @@ impl<H: Http> Client<H> {
             text: v.get("textBody").and_then(Value::as_str).unwrap_or_default().to_string(),
             from: day("fromDate"),
             until: day("toDate"),
+            ..Default::default()
         })
     }
 

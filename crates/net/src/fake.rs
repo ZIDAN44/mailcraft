@@ -919,7 +919,7 @@ x"
 
         pool.submit(Job::GetVacation { account: "a1".into() });
         until(&pool, "replies read", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if !v.enabled));
-        let away = mailcraft_model::job::Vacation { enabled: true, subject: "Away".into(), text: "Back soon".into(), from: None, until: None };
+        let away = mailcraft_model::job::Vacation { enabled: true, subject: "Away".into(), text: "Back soon".into(), ..Default::default() };
         pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
         until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
         assert_eq!(sieve.lock().unwrap().active.as_deref(), Some(crate::sieve::SCRIPT));

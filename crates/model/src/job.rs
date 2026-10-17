@@ -78,6 +78,20 @@ pub struct Vacation {
     pub from: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub until: Option<String>,
+    /// Exchange: the reply to people outside the organisation, when it isn't the same as `text`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external: Option<String>,
+    /// Exchange: who outside the organisation gets a reply: `all` (the default, empty), `known`
+    /// (the user's contacts only) or `none`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub outside: String,
+}
+
+impl Vacation {
+    /// The reply to people outside the organisation.
+    pub fn external_text(&self) -> &str {
+        self.external.as_deref().unwrap_or(&self.text)
+    }
 }
 
 /// A `YYYY-MM-DD` date that is a real day.

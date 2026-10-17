@@ -42,7 +42,8 @@ pub struct Data {
     /// MIME sources sent.
     pub sent: Vec<Vec<u8>>,
     /// (state, start, end, message)
-    pub oof: (String, String, String, String),
+    /// State, start, end, inside reply, outside reply, outside audience.
+    pub oof: (String, String, String, String, String, String),
     /// Sign in with Basic instead of NTLM.
     pub basic: bool,
     /// Operations asked for, in order.
@@ -63,7 +64,7 @@ impl Default for Data {
             items: Vec::new(),
             pim: Vec::new(),
             sent: Vec::new(),
-            oof: ("Disabled".into(), String::new(), String::new(), String::new()),
+            oof: ("Disabled".into(), String::new(), String::new(), String::new(), String::new(), "All".into()),
             basic: false,
             calls: Vec::new(),
             handshakes: 0,
@@ -463,15 +464,16 @@ impl Data {
                 }
             }
             "GetUserOofSettingsRequest" => {
-                let (state, start, end, msg) = self.oof.clone();
+                let (state, start, end, msg, outside, audience) = self.oof.clone();
                 return (
                     "GetUserOofSettingsResponse".into(),
                     vec![format!(
                         "<ResponseMessage ResponseClass=\"Success\"><ResponseCode>NoError</ResponseCode></ResponseMessage>\
-                         <OofSettings><OofState>{state}</OofState><ExternalAudience>All</ExternalAudience>\
+                         <OofSettings><OofState>{state}</OofState><ExternalAudience>{audience}</ExternalAudience>\
                          <Duration><StartTime>{start}</StartTime><EndTime>{end}</EndTime></Duration>\
-                         <InternalReply><Message>{}</Message></InternalReply><ExternalReply><Message/></ExternalReply></OofSettings>",
-                        esc(&msg)
+                         <InternalReply><Message>{}</Message></InternalReply><ExternalReply><Message>{}</Message></ExternalReply></OofSettings>",
+                        esc(&msg),
+                        esc(&outside)
                     )],
                 );
             }
@@ -483,7 +485,8 @@ impl Data {
                     let refused = "<ResponseMessage ResponseClass=\"Error\"><MessageText>refused</MessageText><ResponseCode>ErrorInvalidParameter</ResponseCode></ResponseMessage>";
                     return ("SetUserOofSettingsResponse".into(), vec![refused.into()]);
                 }
-                self.oof = (get("OofState"), get("StartTime"), get("EndTime"), msg);
+                let outside = s.and_then(|s| s.find("ExternalReply")).and_then(|r| r.child("Message")).map(|m| m.text.clone()).unwrap_or_default();
+                self.oof = (get("OofState"), get("StartTime"), get("EndTime"), msg, outside, get("ExternalAudience"));
                 return (
                     "SetUserOofSettingsResponse".into(),
                     vec!["<ResponseMessage ResponseClass=\"Success\"><ResponseCode>NoError</ResponseCode></ResponseMessage>".into()],
@@ -772,10 +775,19 @@ mod tests {
             text: "Back on Monday".into(),
             from: Some("2026-10-15".into()),
             until: Some("2026-10-20".into()),
+            ..Default::default()
         };
         pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
         until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
         assert_eq!(data.lock().unwrap().oof.0, "Scheduled");
+        // Another reply for people outside the organisation, to the user's contacts only.
+        let split = mailcraft_model::job::Vacation { external: Some("Out of office".into()), outside: "known".into(), ..away.clone() };
+        pool.submit(Job::SetVacation { account: "a1".into(), vacation: split.clone() });
+        until(&pool, "two replies", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == split));
+        let oof = data.lock().unwrap().oof.clone();
+        assert_eq!((oof.4.as_str(), oof.5.as_str()), ("Out of office", "Known"));
+        pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
+        until(&pool, "one reply again", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
         pool.submit(Job::SetVacation { account: "a1".into(), vacation: mailcraft_model::job::Vacation { text: "refuse".into(), ..away.clone() } });
         until(&pool, "a refused change", |e| matches!(e, Event::Vacation { vacation: Some(v), error: Some(_), .. } if *v == away));
 

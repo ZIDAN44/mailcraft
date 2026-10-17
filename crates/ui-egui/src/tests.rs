@@ -163,7 +163,20 @@ pub(crate) fn tour() {
                     text: "Back soon".into(),
                     from: Some("2026-10-15".into()),
                     until: None,
+                    ..Default::default()
                 },
+                false,
+            ),
+            Dialog::vacation(
+                "sample",
+                &mailcraft_engine::model::job::Vacation {
+                    enabled: true,
+                    text: "Back soon".into(),
+                    external: Some("Out of office".into()),
+                    outside: "known".into(),
+                    ..Default::default()
+                },
+                true,
             ),
             Dialog::ConfirmEmpty { account: "sample".into(), folder: "Trash".into(), name: "Deleted Items".into(), for_good: true },
             Dialog::ConfirmEmpty { account: "sample".into(), folder: "INBOX".into(), name: "Inbox".into(), for_good: false },
@@ -525,7 +538,7 @@ fn the_file_page_shows_accounts_replies_space_and_options() {
     a.session.apply(mailcraft_engine::model::Event::Quota { account: id.clone(), used: 3 << 30, limit: 15 << 30 });
     frame(&ctx, &mut a, vec![]);
     // The replies dialog saves through the command; bad dates are reported in it.
-    let mut d = Dialog::vacation(&id, &Default::default());
+    let mut d = Dialog::vacation(&id, &Default::default(), false);
     if let Dialog::Vacation(f) = &mut d {
         f.enabled = true;
         f.text = "Back Monday".into();

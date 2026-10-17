@@ -313,7 +313,9 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             VacationState::Loaded(v) => v.clone(),
             _ => Default::default(),
         };
-        acts.push(Action::Dialog(Dialog::vacation(&id, &current)));
+        // Exchange keeps one reply for inside the organisation and one for outside.
+        let exchange = a.config.ews.is_some() || a.config.graph.is_some();
+        acts.push(Action::Dialog(Dialog::vacation(&id, &current, exchange)));
     }
 
     // Mailbox: space used, what this computer keeps, emptying.
