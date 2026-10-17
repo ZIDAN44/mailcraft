@@ -769,6 +769,9 @@
 	When I choose another message	Wenn ich eine andere Nachricht wähle
 	When it's shown, after	Wenn sie angezeigt wird, nach
 	seconds	Sekunden
+	Arrange by	Anordnen nach
+	Last changed	Zuletzt geändert
+	Title (A to Z)	Titel (A bis Z)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

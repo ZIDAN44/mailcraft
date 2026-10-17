@@ -768,6 +768,9 @@
 	When I choose another message	다른 메시지를 고를 때
 	When it's shown, after	표시된 후
 	seconds	초
+	Arrange by	정렬 기준
+	Last changed	마지막 변경
+	Title (A to Z)	제목(가나다순)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

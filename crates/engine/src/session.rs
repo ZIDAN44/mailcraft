@@ -158,6 +158,19 @@ pub enum ReadingPane {
     Off,
 }
 
+/// How notes are listed (Outlook's Arrange by for notes).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NotesOrder {
+    /// The last changed first.
+    #[default]
+    Modified,
+    /// A to Z by their first line.
+    Title,
+    /// By colour, then A to Z.
+    Color,
+}
+
 /// When a message shown in the reading pane is marked read (with `Prefs::mark_read_on_open`),
 /// as Outlook's Reading Pane options have it. Opened in its own window, it always is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -181,6 +194,7 @@ pub struct Prefs {
     /// window does).
     pub mark_read_on_open: bool,
     pub read_in_pane: ReadInPane,
+    pub notes_order: NotesOrder,
     /// With `ReadInPane::Shown`: after it's been shown this many seconds (0: at once).
     pub read_after_secs: u32,
     /// Show the first line of text under each message.
@@ -361,6 +375,7 @@ impl Default for Prefs {
             conversations: false,
             mark_read_on_open: true,
             read_in_pane: ReadInPane::Shown,
+            notes_order: NotesOrder::Modified,
             read_after_secs: 0,
             show_preview: true,
             compact: false,

@@ -362,6 +362,16 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.mark_read_on_open}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("note.arrange", "Arrange notes", "Notes › Arrange by", |s, v| {
+            s.prefs.notes_order = match p::req_str(v, "by")? {
+                "modified" => crate::session::NotesOrder::Modified,
+                "title" => crate::session::NotesOrder::Title,
+                "color" => crate::session::NotesOrder::Color,
+                other => return Err(CmdError::Params(format!("`by` is modified, title or color, not `{other}`"))),
+            };
+            Ok(json!({"by": p::req_str(v, "by")?}))
+        })
+        .params(r#"{"by": "modified"|"title"|"color"}"#),
         CommandSpec::new("view.readingOptions", "Reading pane options", "File › Options › Mail", |s, v| {
             if let Some(on) = p::bool(v, "markRead") {
                 s.prefs.mark_read_on_open = on;

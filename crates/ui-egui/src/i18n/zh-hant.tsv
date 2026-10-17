@@ -768,6 +768,9 @@
 	When I choose another message	當我選擇其他郵件時
 	When it's shown, after	顯示後，經過
 	seconds	秒
+	Arrange by	排列方式
+	Last changed	最近變更
+	Title (A to Z)	標題（A 到 Z）
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

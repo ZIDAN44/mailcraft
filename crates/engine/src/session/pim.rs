@@ -525,7 +525,13 @@ impl Session {
                     .map(|n| NoteRef { account: a.clone(), note: n.note.clone() })
             })
             .collect();
-        out.sort_by(|a, b| b.note.modified.cmp(&a.note.modified).then_with(|| a.note.uid.cmp(&b.note.uid)));
+        // A note's title is its first line, compared without case.
+        let title = |n: &NoteRef| n.note.text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or_default().to_lowercase();
+        match self.prefs.notes_order {
+            super::NotesOrder::Modified => out.sort_by(|a, b| b.note.modified.cmp(&a.note.modified).then_with(|| a.note.uid.cmp(&b.note.uid))),
+            super::NotesOrder::Title => out.sort_by_cached_key(|n| (title(n), n.note.uid.clone())),
+            super::NotesOrder::Color => out.sort_by_cached_key(|n| (n.note.color, title(n), n.note.uid.clone())),
+        }
         out
     }
 

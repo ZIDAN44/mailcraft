@@ -1621,6 +1621,20 @@ impl MailApp {
                             }
                         }
                     });
+                    // How they're listed: the last changed first, A to Z, or by colour.
+                    widgets::group_sep(ui, &t);
+                    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+                    egui::Popup::menu(&r).show(|ui| {
+                        use mailcraft_engine::NotesOrder as O;
+                        for (order, label, code) in
+                            [(O::Modified, "Last changed", "modified"), (O::Title, "Title (A to Z)", "title"), (O::Color, "Color", "color")]
+                        {
+                            if ui.radio(s.prefs.notes_order == order, tl!(label)).clicked() {
+                                acts.push(Action::Run("note.arrange", json!({"by": code})));
+                                ui.close();
+                            }
+                        }
+                    });
                 } else {
                     if widgets::accent_button(ui, Icon::Person, "New contact", &t, !s.accounts.is_empty()).clicked() {
                         acts.push(Action::Dialog(Dialog::new_contact()));

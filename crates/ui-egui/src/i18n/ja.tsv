@@ -771,3 +771,6 @@ month	May	5月
 	When I choose another message	別のメッセージを選んだとき
 	When it's shown, after	表示されてから
 	seconds	秒後
+	Arrange by	並べ替え
+	Last changed	最終更新
+	Title (A to Z)	タイトル (A→Z)

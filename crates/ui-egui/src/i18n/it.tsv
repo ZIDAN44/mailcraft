@@ -768,6 +768,9 @@
 	When I choose another message	Quando scelgo un altro messaggio
 	When it's shown, after	Quando viene mostrato, dopo
 	seconds	secondi
+	Arrange by	Disponi per
+	Last changed	Ultima modifica
+	Title (A to Z)	Titolo (A-Z)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

@@ -768,6 +768,9 @@
 	When I choose another message	Когда я выбираю другое сообщение
 	When it's shown, after	Когда показано, через
 	seconds	с
+	Arrange by	Упорядочить по
+	Last changed	Последнее изменение
+	Title (A to Z)	Название (А–Я)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

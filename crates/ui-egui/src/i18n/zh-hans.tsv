@@ -771,3 +771,6 @@ month	May	5月
 	When I choose another message	当我选择其他邮件时
 	When it's shown, after	显示后，经过
 	seconds	秒
+	Arrange by	排列方式
+	Last changed	最近更改
+	Title (A to Z)	标题（A 到 Z）

@@ -1994,3 +1994,24 @@ fn the_reading_pane_marks_mail_read_as_chosen() {
         "older settings read as before"
     );
 }
+
+/// Issue #1: notes sort A to Z (by their first line), by colour, or the last changed first.
+#[test]
+fn notes_can_be_arranged() {
+    let mut s = sample_session("notes-order");
+    for (text, color) in [("banana bread", 3), ("Apple pie\nwith cream", 1), ("cherry jam", 1)] {
+        s.run("note.create", &json!({"text": text, "color": color})).unwrap();
+    }
+    let titles = |s: &Session| {
+        s.notes("")
+            .iter()
+            .filter(|n| ["Apple", "banana", "cherry"].iter().any(|w| n.note.text.starts_with(w)))
+            .map(|n| n.note.text.lines().next().unwrap_or("").to_string())
+            .collect::<Vec<_>>()
+    };
+    s.run("note.arrange", &json!({"by": "title"})).unwrap();
+    assert_eq!(titles(&s), ["Apple pie", "banana bread", "cherry jam"]);
+    s.run("note.arrange", &json!({"by": "color"})).unwrap();
+    assert_eq!(titles(&s), ["Apple pie", "cherry jam", "banana bread"]);
+    assert!(s.run("note.arrange", &json!({"by": "size"})).is_err());
+}
