@@ -202,9 +202,10 @@ impl Files {
         }
     }
 
+    /// Many files at once (importing a data file: desktop only).
+    #[cfg(not(target_arch = "wasm32"))]
     fn write_many(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
         match self {
-            #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => x.write_many(items),
             _ => {
                 for (p, bytes) in items {
