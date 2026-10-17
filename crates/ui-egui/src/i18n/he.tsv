@@ -765,3 +765,8 @@ month	May	מאי
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph מגיע לתיבת הדואר בלי IMAP, ומביא גם את לוח השנה ואנשי הקשר. החשבון מתחיל מחדש דרכו: הדואר שלו יורד מהשרת.
 	Turned IMAP on, or picked another account in the browser? Sign in again	הפעלת IMAP, או בחרת חשבון אחר בדפדפן? היכנס שוב
 	Use Microsoft Graph	שימוש ב-Microsoft Graph
+	A message opened in its own window (double-click) is always marked as read.	הודעה שנפתחת בחלון משלה (לחיצה כפולה) תמיד מסומנת כנקראה.
+	Mark messages as read in the reading pane	סימון הודעות כנקראו בחלונית הקריאה
+	When I choose another message	כשאני בוחר הודעה אחרת
+	When it's shown, after	כשהיא מוצגת, אחרי
+	seconds	שניות

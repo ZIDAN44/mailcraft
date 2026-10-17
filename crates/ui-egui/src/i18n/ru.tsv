@@ -763,6 +763,11 @@
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph открывает почтовый ящик без IMAP, а заодно календарь и контакты. Учётная запись начнётся заново через него: почта загрузится с сервера.
 	Turned IMAP on, or picked another account in the browser? Sign in again	Включили IMAP или выбрали в браузере другую учётную запись? Войдите снова
 	Use Microsoft Graph	Использовать Microsoft Graph
+	A message opened in its own window (double-click) is always marked as read.	Сообщение, открытое в отдельном окне (двойной щелчок), всегда помечается как прочитанное.
+	Mark messages as read in the reading pane	Помечать сообщения прочитанными в области чтения
+	When I choose another message	Когда я выбираю другое сообщение
+	When it's shown, after	Когда показано, через
+	seconds	с
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

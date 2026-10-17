@@ -766,3 +766,8 @@ month	May	5月
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph は IMAP を使わずにメールボックスにアクセスし、予定表と連絡先も取り込みます。アカウントは Graph 経由で最初から始まり、メールはサーバーからダウンロードされます。
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP をオンにした、またはブラウザーで別のアカウントを選んだ場合は、もう一度サインイン
 	Use Microsoft Graph	Microsoft Graph を使う
+	A message opened in its own window (double-click) is always marked as read.	別のウィンドウで開いたメッセージ (ダブルクリック) は常に既読になります。
+	Mark messages as read in the reading pane	閲覧ウィンドウでメッセージを既読にする
+	When I choose another message	別のメッセージを選んだとき
+	When it's shown, after	表示されてから
+	seconds	秒後

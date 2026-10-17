@@ -164,6 +164,7 @@ impl Session {
     /// nothing is due.
     pub fn tick(&mut self) {
         self.flush_due_outbox();
+        self.read_when_due();
         let now = self.clock.now;
         if !self.snoozes.iter().any(|s| s.until <= now) {
             return;

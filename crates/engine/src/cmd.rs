@@ -362,6 +362,26 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.mark_read_on_open}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.readingOptions", "Reading pane options", "File › Options › Mail", |s, v| {
+            if let Some(on) = p::bool(v, "markRead") {
+                s.prefs.mark_read_on_open = on;
+            }
+            match p::str(v, "when") {
+                Some("shown") => s.prefs.read_in_pane = crate::session::ReadInPane::Shown,
+                Some("left") => s.prefs.read_in_pane = crate::session::ReadInPane::Left,
+                Some(other) => return Err(CmdError::Params(format!("`when` is shown or left, not `{other}`"))),
+                None => {}
+            }
+            if let Some(secs) = p::u64(v, "after") {
+                s.prefs.read_after_secs = u32::try_from(secs.min(999)).unwrap_or(999);
+            }
+            let when = match s.prefs.read_in_pane {
+                crate::session::ReadInPane::Shown => "shown",
+                crate::session::ReadInPane::Left => "left",
+            };
+            Ok(json!({"markRead": s.prefs.mark_read_on_open, "when": when, "after": s.prefs.read_after_secs}))
+        })
+        .params(r#"{"markRead"?: bool (in the reading pane at all; opening a message in its own window always does), "when"?: "shown"|"left" (when it's shown, or once another is chosen), "after"?: number (seconds shown first, with "shown")}"#),
         CommandSpec::new("view.trustSender", "Show pictures from a sender", "File › Options › Privacy", |s, v| {
             let who = p::req_str(v, "address")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&who) {

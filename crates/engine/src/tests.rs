@@ -1950,3 +1950,47 @@ fn searching_a_big_mailbox_stays_quick() {
     assert!(again < first / 2 || again < std::time::Duration::from_millis(300), "first {first:?}, again {again:?}");
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Issue #1: the reading pane marks mail read as Outlook's Reading Pane options say: when shown
+/// (after a wait), once another message is chosen, or not at all; a message opened in its own
+/// window (a double-click) is always read.
+#[test]
+fn the_reading_pane_marks_mail_read_as_chosen() {
+    let mut s = sample_session("read-options");
+    let unread: Vec<mailcraft_model::MessageKey> = s.list.iter().take(4).map(|m| m.key.clone()).collect();
+    assert_eq!(unread.len(), 4, "the sample has mail");
+    s.selection = unread.clone();
+    s.run("mail.markUnread", &json!({})).unwrap();
+    let seen = |s: &Session, k: &mailcraft_model::MessageKey| s.summary(k).is_some_and(|m| m.flags.seen);
+    // After a wait: not read until its time, and not at all when left before.
+    s.run("view.readingOptions", &json!({"when": "shown", "after": 3})).unwrap();
+    s.open_message(&unread[0]);
+    assert!(!seen(&s, &unread[0]));
+    s.open_message(&unread[1]);
+    s.clock.now += 5;
+    s.tick();
+    assert!(!seen(&s, &unread[0]), "left before its time");
+    s.open_message(&unread[1]);
+    s.clock.now += 3;
+    s.tick();
+    assert!(seen(&s, &unread[1]), "read once shown long enough");
+    // Once another is chosen.
+    s.run("view.readingOptions", &json!({"when": "left"})).unwrap();
+    s.open_message(&unread[2]);
+    assert!(!seen(&s, &unread[2]));
+    s.open_message(&unread[3]);
+    assert!(seen(&s, &unread[2]) && !seen(&s, &unread[3]));
+    // Not in the pane at all: only a double-click (its own window) marks it.
+    s.run("view.readingOptions", &json!({"markRead": false})).unwrap();
+    s.open_message(&unread[0]);
+    assert!(!seen(&s, &unread[0]));
+    s.run("message.popOut", &json!({"key": unread[0].to_id()})).unwrap();
+    assert!(seen(&s, &unread[0]), "opened in its own window");
+    assert!(s.run("view.readingOptions", &json!({"when": "sometime"})).is_err());
+    let back: crate::Prefs = serde_json::from_value(json!({"markReadOnOpen": false})).unwrap();
+    assert_eq!(
+        (back.mark_read_on_open, back.read_in_pane, back.read_after_secs),
+        (false, crate::ReadInPane::Shown, 0),
+        "older settings read as before"
+    );
+}

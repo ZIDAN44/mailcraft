@@ -158,6 +158,18 @@ pub enum ReadingPane {
     Off,
 }
 
+/// When a message shown in the reading pane is marked read (with `Prefs::mark_read_on_open`),
+/// as Outlook's Reading Pane options have it. Opened in its own window, it always is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReadInPane {
+    /// When it's shown (after `Prefs::read_after_secs`).
+    #[default]
+    Shown,
+    /// When another message is chosen (or the folder left).
+    Left,
+}
+
 /// Settings the user changes from the View tab (saved by the app).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -165,7 +177,12 @@ pub struct Prefs {
     pub reading_pane: ReadingPane,
     /// Group the list by conversation.
     pub conversations: bool,
+    /// Mark messages read in the reading pane at all (when off, only opening one in its own
+    /// window does).
     pub mark_read_on_open: bool,
+    pub read_in_pane: ReadInPane,
+    /// With `ReadInPane::Shown`: after it's been shown this many seconds (0: at once).
+    pub read_after_secs: u32,
     /// Show the first line of text under each message.
     pub show_preview: bool,
     /// Tighter rows.
@@ -343,6 +360,8 @@ impl Default for Prefs {
             reading_pane: ReadingPane::Right,
             conversations: false,
             mark_read_on_open: true,
+            read_in_pane: ReadInPane::Shown,
+            read_after_secs: 0,
             show_preview: true,
             compact: false,
             confirm_permanent_delete: true,
@@ -548,6 +567,10 @@ pub struct Session {
     /// The local day the calendar shows (`None`: today).
     pub cal_day: Option<i64>,
     index: Option<SearchIndex>,
+    /// The message in the reading pane to mark read, and when (`ReadInPane::Shown` with a wait).
+    read_due: Option<(MessageKey, i64)>,
+    /// The message to mark read once another is chosen (`ReadInPane::Left`).
+    read_on_leave: Option<MessageKey>,
     /// Each downloaded message's words for search (its text and attachment names), read from
     /// the cache once: the index is rebuilt whenever mail changes, and parsing every message
     /// again each time made typing in the search box hang.
@@ -605,6 +628,8 @@ impl Session {
             cal_mode: pim::CalMode::Week,
             cal_day: None,
             index: None,
+            read_due: None,
+            read_on_leave: None,
             body_words: HashMap::new(),
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
@@ -1062,11 +1087,51 @@ impl Session {
         self.selection.clear();
         self.focus = None;
         self.reading = None;
+        self.leave_reading(None);
         self.refresh_list();
     }
 
-    /// Select one message and show it in the reading pane.
+    /// Mark a message read (when it's there and isn't yet).
+    fn mark_seen(&mut self, key: &MessageKey) {
+        if key.folder != OUTBOX && self.summary(key).is_some_and(|m| !m.flags.seen) {
+            self.apply_op(&key.account.clone(), Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true });
+        }
+    }
+
+    /// The reading pane moves on from what it showed (to `next`, or to nothing): one waiting for
+    /// that is marked read now, and one waiting for its time no longer is.
+    fn leave_reading(&mut self, next: Option<&MessageKey>) {
+        if self.read_due.as_ref().is_some_and(|(k, _)| Some(k) != next) {
+            self.read_due = None;
+        }
+        if let Some(prev) = self.read_on_leave.take() {
+            if Some(&prev) == next {
+                self.read_on_leave = Some(prev);
+            } else {
+                self.mark_seen(&prev);
+            }
+        }
+    }
+
+    /// A message waiting in the reading pane for its time to be marked read, once it's come.
+    pub(crate) fn read_when_due(&mut self) {
+        let Some((key, at)) = self.read_due.clone() else { return };
+        if self.clock.now >= at {
+            self.read_due = None;
+            if self.reading.as_ref().is_some_and(|r| r.key == key) {
+                self.mark_seen(&key);
+            }
+        }
+    }
+
+    /// Select one message and show it in the reading pane (marked read as the options say).
     pub fn open_message(&mut self, key: &MessageKey) {
+        self.show_message(key, true);
+    }
+
+    /// Select one message and show it; `mark`: as the reading options say (else left as it is).
+    fn show_message(&mut self, key: &MessageKey, mark: bool) {
+        self.leave_reading(Some(key));
         self.selection = vec![key.clone()];
         self.focus = Some(key.clone());
         let thread = self.thread_of(key);
@@ -1080,8 +1145,13 @@ impl Session {
             Some(raw) => self.show_body(key, &raw),
             None => self.jobs.push(Job::FetchBody { key: key.clone() }),
         }
-        if self.prefs.mark_read_on_open && key.folder != OUTBOX && self.summary(key).is_some_and(|m| !m.flags.seen) {
-            self.apply_op(&key.account.clone(), Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true });
+        let unread = key.folder != OUTBOX && self.summary(key).is_some_and(|m| !m.flags.seen);
+        if mark && unread && self.prefs.mark_read_on_open {
+            match (self.prefs.read_in_pane, self.prefs.read_after_secs) {
+                (ReadInPane::Shown, 0) => self.mark_seen(key),
+                (ReadInPane::Shown, secs) => self.read_due = Some((key.clone(), self.clock.now.saturating_add(i64::from(secs.min(3600))))),
+                (ReadInPane::Left, _) => self.read_on_leave = Some(key.clone()),
+            }
         }
     }
 
@@ -1106,9 +1176,8 @@ impl Session {
                 None => self.jobs.push(Job::FetchBody { key: key.clone() }),
             }
             self.windows.push(w);
-            if self.prefs.mark_read_on_open && key.folder != OUTBOX && self.summary(key).is_some_and(|m| !m.flags.seen) {
-                self.apply_op(&key.account.clone(), Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true });
-            }
+            // Opened on its own (a double-click): read, whatever the reading pane does.
+            self.mark_seen(key);
         }
         Ok(serde_json::json!({"key": key.to_id(), "windows": self.windows.len()}))
     }
@@ -1765,10 +1834,7 @@ impl Session {
             && self.list.iter().any(|m| m.key == k)
         {
             // Show the next message, but don't mark it read just because something was deleted.
-            let mark = self.prefs.mark_read_on_open;
-            self.prefs.mark_read_on_open = false;
-            self.open_message(&k);
-            self.prefs.mark_read_on_open = mark;
+            self.show_message(&k, false);
         }
     }
 

@@ -764,6 +764,11 @@
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph llega al buzón sin IMAP y trae también su calendario y sus contactos. La cuenta empieza de nuevo a través de él: el correo se descarga del servidor.
 	Turned IMAP on, or picked another account in the browser? Sign in again	¿Activaste IMAP o elegiste otra cuenta en el navegador? Vuelve a iniciar sesión
 	Use Microsoft Graph	Usar Microsoft Graph
+	A message opened in its own window (double-click) is always marked as read.	Un mensaje abierto en su propia ventana (doble clic) siempre se marca como leído.
+	Mark messages as read in the reading pane	Marcar los mensajes como leídos en el panel de lectura
+	When I choose another message	Al elegir otro mensaje
+	When it's shown, after	Al mostrarse, después de
+	seconds	segundos
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

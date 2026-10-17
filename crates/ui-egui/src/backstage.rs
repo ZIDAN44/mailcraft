@@ -523,7 +523,32 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         check(ui, s.prefs.conversations, "Group messages by conversation", "view.conversations", acts);
         check(ui, s.prefs.show_preview, "Show a line of each message in the list", "view.preview", acts);
         check(ui, s.prefs.compact, "Compact list", "view.compact", acts);
-        check(ui, s.prefs.mark_read_on_open, "Mark messages as read when opened", "view.markReadOnOpen", acts);
+        // When the reading pane marks mail read, as Outlook's Reading Pane options: when shown
+        // (after a wait), once another message is chosen, or not at all (only a message opened
+        // in its own window is then).
+        let mut on = s.prefs.mark_read_on_open;
+        if ui.checkbox(&mut on, tl!("Mark messages as read in the reading pane")).changed() {
+            acts.push(Action::Run("view.readingOptions", json!({"markRead": on})));
+        }
+        ui.add_enabled_ui(on, |ui| {
+            ui.indent("read-when", |ui| {
+                let shown = s.prefs.read_in_pane == mailcraft_engine::ReadInPane::Shown;
+                ui.horizontal(|ui| {
+                    if ui.radio(shown, tl!("When it's shown, after")).clicked() {
+                        acts.push(Action::Run("view.readingOptions", json!({"when": "shown"})));
+                    }
+                    let mut secs = s.prefs.read_after_secs;
+                    if ui.add_enabled(shown, egui::DragValue::new(&mut secs).range(0..=999).speed(0.2)).changed() {
+                        acts.push(Action::Run("view.readingOptions", json!({"after": secs})));
+                    }
+                    ui.label(tl!("seconds"));
+                });
+                if ui.radio(!shown, tl!("When I choose another message")).clicked() {
+                    acts.push(Action::Run("view.readingOptions", json!({"when": "left"})));
+                }
+            });
+        });
+        ui.label(RichText::new(tl!("A message opened in its own window (double-click) is always marked as read.")).color(t.faint).small());
         check(ui, s.prefs.new_mail_window, "Write new messages in a window of their own", "view.newMailWindow", acts);
         check(ui, s.prefs.show_html, "Show HTML mail formatted (otherwise as plain text)", "view.html", acts);
     });

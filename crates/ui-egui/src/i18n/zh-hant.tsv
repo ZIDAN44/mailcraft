@@ -763,6 +763,11 @@
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph 不經 IMAP 即可存取信箱，也會同步行事曆和連絡人。帳戶將透過它重新開始：郵件會從伺服器下載。
 	Turned IMAP on, or picked another account in the browser? Sign in again	已開啟 IMAP，或在瀏覽器中選了別的帳戶？重新登入
 	Use Microsoft Graph	使用 Microsoft Graph
+	A message opened in its own window (double-click) is always marked as read.	在獨立視窗中開啟的郵件（按兩下）一律標為已讀。
+	Mark messages as read in the reading pane	在讀取窗格中將郵件標為已讀
+	When I choose another message	當我選擇其他郵件時
+	When it's shown, after	顯示後，經過
+	seconds	秒
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

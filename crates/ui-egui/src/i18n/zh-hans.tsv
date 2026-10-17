@@ -766,3 +766,8 @@ month	May	5月
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph 不经 IMAP 即可访问邮箱，还会同步日历和联系人。账户将通过它重新开始：邮件会从服务器下载。
 	Turned IMAP on, or picked another account in the browser? Sign in again	已开启 IMAP，或在浏览器中选了别的账户？重新登录
 	Use Microsoft Graph	使用 Microsoft Graph
+	A message opened in its own window (double-click) is always marked as read.	在单独窗口中打开的邮件（双击）总是标为已读。
+	Mark messages as read in the reading pane	在阅读窗格中将邮件标为已读
+	When I choose another message	当我选择其他邮件时
+	When it's shown, after	显示后，经过
+	seconds	秒

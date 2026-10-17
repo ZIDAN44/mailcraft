@@ -765,3 +765,8 @@ month	May	mei
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph bereikt het postvak zonder IMAP en brengt ook de agenda en contactpersonen mee. Het account begint daarmee opnieuw: de e-mail wordt van de server opgehaald.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP aangezet, of in de browser een ander account gekozen? Opnieuw aanmelden
 	Use Microsoft Graph	Microsoft Graph gebruiken
+	A message opened in its own window (double-click) is always marked as read.	Een bericht dat in een eigen venster wordt geopend (dubbelklikken) wordt altijd als gelezen gemarkeerd.
+	Mark messages as read in the reading pane	Berichten in het leesvenster als gelezen markeren
+	When I choose another message	Wanneer ik een ander bericht kies
+	When it's shown, after	Wanneer het wordt getoond, na
+	seconds	seconden
