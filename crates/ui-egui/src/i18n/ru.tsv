@@ -795,6 +795,7 @@
 	Anyone	Все
 	My contacts only	Только мои контакты
 	No one	Никто
+	In a shared address book: read-only	В общей адресной книге: только чтение
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

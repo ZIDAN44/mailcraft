@@ -1036,10 +1036,27 @@ mod tests {
     fn public_folders_list_under_their_own_folder_and_sync() {
         let mut d = Data::default();
         d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
         let root = d.folder("IPM_SUBTREE", None, Some("publicfoldersroot"), "IPF.Note");
         let team = d.folder("Team", Some(&root), None, "IPF.Note");
         let news = d.folder("Announcements", Some(&team), None, "IPF.Note");
-        d.folder("Rooms", Some(&root), None, "IPF.Appointment");
+        let rooms = d.folder("Rooms", Some(&root), None, "IPF.Appointment");
+        let shared = d.folder("Company contacts", Some(&team), None, "IPF.Contact");
+        d.pim.push((
+            "PC1".into(),
+            shared,
+            parse("<t:Contact><t:ItemId Id=\"PC1\" ChangeKey=\"k\"/><t:DisplayName>Front desk</t:DisplayName><t:EmailAddresses><t:Entry Key=\"EmailAddress1\">desk@contoso.example</t:Entry></t:EmailAddresses></t:Contact>")
+                .kids[0]
+                .clone(),
+        ));
+        d.pim.push((
+            "PE1".into(),
+            rooms,
+            parse("<t:CalendarItem><t:Subject>Room 2 booked</t:Subject><t:Start>2026-10-16T09:00:00Z</t:Start><t:End>2026-10-16T10:00:00Z</t:End><t:UID>room-1</t:UID></t:CalendarItem>")
+                .kids[0]
+                .clone(),
+        ));
         d.deliver(
             &news,
             b"From: hr@contoso.example\r\nSubject: Holiday hours\r\nMessage-ID: <h@x>\r\n\r\nClosed Friday.\r\n",
@@ -1065,6 +1082,16 @@ mod tests {
         assert_eq!(fs.messages.len(), 1);
         assert_eq!(fs.messages[0].subject, "Holiday hours");
         let _ = std::fs::remove_dir_all(store.root());
+        // Issue #1: the organisation's shared contacts and calendars come in, read-only.
+        let sync = crate::ews_pim::sync(&c, &mailcraft_model::pim::Pim::default(), 0).unwrap();
+        let books = sync.books.clone().unwrap_or_default();
+        let book = books.iter().find(|b| b.id.starts_with("public:")).unwrap();
+        assert_eq!((book.name.as_str(), book.read_only), ("Team › Company contacts", true));
+        assert!(sync.cards.iter().any(|k| k.book == book.id && k.card.display() == "Front desk"));
+        let cals = sync.calendars.clone().unwrap_or_default();
+        let room = cals.iter().find(|c| c.id.starts_with("public:")).unwrap();
+        assert_eq!((room.name.as_str(), room.read_only), ("Rooms", true));
+        assert!(sync.events.iter().any(|e| e.calendar == room.id && e.event.summary == "Room 2 booked"));
         // A server without public folders lists the mailbox's alone.
         let mut d = Data::default();
         d.folder("Inbox", None, Some("inbox"), "IPF.Note");

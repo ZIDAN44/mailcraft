@@ -2119,3 +2119,29 @@ fn how_much_mail_is_kept_is_a_setting() {
     assert_eq!(jobs.iter().filter(|j| matches!(j, Job::SetSync { .. })).count(), 1, "the last one only");
     assert!(matches!(jobs.first(), Some(Job::SetSync { messages: 20000, offline: 200 })));
 }
+
+/// Issue #1: an organisation's shared contacts (Exchange public folders) can be read, not
+/// changed or deleted.
+#[test]
+fn shared_contacts_are_read_only() {
+    use mailcraft_model::pim::{BookInfo, DavSync, StoredCard};
+    let mut s = sample_session("shared-contacts");
+    let card = mailcraft_model::vcard::Card { uid: "desk".into(), name: "Front desk".into(), ..Default::default() };
+    let mut books = s.pim.get("sample").unwrap().books.clone();
+    books.push(BookInfo { id: "public:pc".into(), name: "Company contacts".into(), read_only: true, ctag: String::new() });
+    let sync = DavSync {
+        books: Some(books),
+        cards: vec![StoredCard { book: "public:pc".into(), href: "public:desk".into(), card, ..Default::default() }],
+        synced_books: vec!["public:pc".into()],
+        ..Default::default()
+    };
+    s.apply(Event::DavSynced { account: "sample".into(), sync: Box::new(sync) });
+    assert!(s.find_person("desk").is_some(), "shown with the others");
+    assert!(s.person_read_only("desk"));
+    assert!(s.run("contact.update", &json!({"uid": "desk", "name": "Reception"})).is_err());
+    assert!(s.run("contact.delete", &json!({"uid": "desk"})).is_err());
+    assert!(s.find_person("desk").is_some());
+    // New contacts go to a book that can take them.
+    let made = s.run("contact.create", &json!({"name": "New one"})).unwrap();
+    assert!(!s.person_read_only(made["uid"].as_str().unwrap()));
+}

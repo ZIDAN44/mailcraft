@@ -457,8 +457,17 @@ impl Session {
         Ok(serde_json::json!({"uid": uid, "account": account}))
     }
 
+    /// Whether a person is in an address book that can't be changed here (an organisation's
+    /// shared contacts).
+    pub fn person_read_only(&self, uid: &str) -> bool {
+        self.pim.values().any(|p| p.cards.iter().any(|c| c.card.uid == uid && p.books.iter().any(|b| b.id == c.book && b.read_only)))
+    }
+
     pub fn update_card(&mut self, uid: &str, change: impl FnOnce(&mut Card)) -> CmdResult {
         let account = self.find_person(uid).map(|p| p.account).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
+        if self.person_read_only(uid) {
+            return Err(CmdError::Disabled("this contact is in a shared address book that can't be changed here".into()));
+        }
         let p = self.pim_mut(&account);
         let Some(c) = p.cards.iter_mut().find(|c| c.card.uid == uid) else { return Err(CmdError::Params(format!("no contact `{uid}`"))) };
         let mut card = c.card.clone();
@@ -473,6 +482,9 @@ impl Session {
 
     pub fn delete_card(&mut self, uid: &str) -> CmdResult {
         let account = self.find_person(uid).map(|p| p.account).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
+        if self.person_read_only(uid) {
+            return Err(CmdError::Disabled("this contact is in a shared address book that can't be changed here".into()));
+        }
         let p = self.pim_mut(&account);
         let mut remote = false;
         for c in p.cards.iter().filter(|c| c.card.uid == uid && !c.href.is_empty()) {

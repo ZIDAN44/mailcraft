@@ -327,6 +327,9 @@ fn note_xml(n: &Note) -> String {
     )
 }
 
+/// Public contact folders and calendars read, at most.
+const MAX_PUBLIC_PIM: usize = 20;
+
 /// Every item of a distinguished folder, with all its properties (bodies as text).
 fn items(c: &Client, folder: &str) -> Result<Vec<El>> {
     items_in(c, &format!("<t:DistinguishedFolderId Id=\"{folder}\"/>"), if folder == "notes" { NOTE_COLOR } else { "" })
@@ -532,8 +535,54 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             out.cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{}", card.uid), etag, card, dirty: false });
         }
     }
-    out.books = Some(vec![BookInfo { id: CONTACTS.into(), name: "Contacts".into(), read_only: false, ctag: String::new() }]);
+    let mut books = vec![BookInfo { id: CONTACTS.into(), name: "Contacts".into(), read_only: false, ctag: String::new() }];
     out.synced_books.push(CONTACTS.into());
+    // The organisation's shared contacts and calendars kept as public folders (on-premises
+    // Exchange): read-only, as Outlook shows them under Public Folders. A server without public
+    // folders has none.
+    match c.public_pim_folders() {
+        Ok(list) => {
+            for (n, (id, name, class)) in list.into_iter().take(MAX_PUBLIC_PIM).enumerate() {
+                let key = format!("public:{id}");
+                let folder = format!("<t:FolderId Id=\"{}\"/>", esc(&id));
+                let Ok(found) = items_in(c, &folder, "") else { continue };
+                if class.starts_with("IPF.Contact") {
+                    for it in found {
+                        if let Some(card) = card_of(&it) {
+                            out.cards.push(StoredCard {
+                                book: key.clone(),
+                                href: format!("public:{}", card.uid),
+                                etag: String::new(),
+                                card,
+                                dirty: false,
+                            });
+                        }
+                    }
+                    books.push(BookInfo { id: key.clone(), name, read_only: true, ctag: String::new() });
+                    out.synced_books.push(key);
+                } else {
+                    for it in found {
+                        if let Some(event) = event_of(&it) {
+                            let href = it.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or("").to_string();
+                            out.events.push(StoredEvent { calendar: key.clone(), href, etag: String::new(), event, dirty: false });
+                        }
+                    }
+                    if let Some(cals) = out.calendars.as_mut() {
+                        cals.push(CalendarInfo {
+                            id: key.clone(),
+                            name,
+                            color: u8::try_from((n + 3) % 8).unwrap_or(0),
+                            read_only: true,
+                            ctag: String::new(),
+                        });
+                    }
+                    out.synced_calendars.push(key);
+                }
+            }
+        }
+        Err(e) => log::info!("no public contacts or calendars: {e}"),
+    }
+    out.books = Some(books);
     // Notes (Outlook's sticky notes): what changed here goes up (made again, as contacts are),
     // then the folder is read again. A mailbox without one keeps notes on this computer.
     for n in pim.notes.iter().filter(|n| n.dirty) {

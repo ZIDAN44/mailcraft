@@ -795,6 +795,7 @@
 	Anyone	모든 사람
 	My contacts only	내 연락처만
 	No one	없음
+	In a shared address book: read-only	공유 주소록: 읽기 전용
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

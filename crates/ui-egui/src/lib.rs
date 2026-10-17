@@ -1666,6 +1666,8 @@ impl MailApp {
                     }
                     widgets::group_sep(ui, &t);
                     let picked = self.ui.person.as_deref().and_then(|u| s.find_person(u));
+                    // Someone in a shared (read-only) address book can't be changed here.
+                    let picked = picked.filter(|p| !s.person_read_only(&p.card.uid));
                     if widgets::tool_button(ui, Icon::Drafts, "Edit", &t, picked.is_some()).clicked()
                         && let Some(p) = &picked
                     {

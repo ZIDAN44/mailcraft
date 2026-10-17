@@ -796,6 +796,7 @@
 	Anyone	Tout le monde
 	My contacts only	Mes contacts uniquement
 	No one	Personne
+	In a shared address book: read-only	Dans un carnet d'adresses partagé : lecture seule
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

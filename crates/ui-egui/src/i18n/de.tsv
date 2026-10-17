@@ -796,6 +796,7 @@
 	Anyone	Alle
 	My contacts only	Nur meine Kontakte
 	No one	Niemand
+	In a shared address book: read-only	In einem freigegebenen Adressbuch: schreibgeschützt
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

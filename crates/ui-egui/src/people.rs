@@ -110,7 +110,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     if resp.clicked() {
                         st.person = Some(p.card.uid.clone());
                     }
-                    if resp.double_clicked() {
+                    if resp.double_clicked() && !s.person_read_only(&p.card.uid) {
                         acts.push(Action::Dialog(Dialog::edit_contact(&p.card)));
                     }
                 }
@@ -183,11 +183,16 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                             acts.push(Action::Run("compose.update", json!({"to": format!("{name} <{}>", e.value)})));
                             acts.push(Action::Run("view.module", json!({"name": "mail"})));
                         }
-                        if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
-                            acts.push(Action::Dialog(Dialog::edit_contact(c)));
-                        }
-                        if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
-                            acts.push(Action::Run("contact.delete", json!({"uid": c.uid})));
+                        // Someone in a shared address book (an organisation's) is only read.
+                        if s.person_read_only(&c.uid) {
+                            ui.label(RichText::new(tl!("In a shared address book: read-only")).color(t.faint).small());
+                        } else {
+                            if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
+                                acts.push(Action::Dialog(Dialog::edit_contact(c)));
+                            }
+                            if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
+                                acts.push(Action::Run("contact.delete", json!({"uid": c.uid})));
+                            }
                         }
                     });
                 });
@@ -282,7 +287,7 @@ fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         if resp.clicked() {
                             st.person = Some(c.uid.clone());
                         }
-                        if resp.double_clicked() {
+                        if resp.double_clicked() && !s.person_read_only(&c.uid) {
                             acts.push(Action::Dialog(Dialog::edit_contact(c)));
                         }
                     }
@@ -347,7 +352,7 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 if resp.clicked() {
                     st.person = Some(c.uid.clone());
                 }
-                if resp.double_clicked() {
+                if resp.double_clicked() && !s.person_read_only(&c.uid) {
                     acts.push(Action::Dialog(Dialog::edit_contact(c)));
                 }
             }
