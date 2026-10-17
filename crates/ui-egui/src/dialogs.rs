@@ -421,6 +421,8 @@ pub enum Dialog {
     Signature {
         account: String,
         text: String,
+        /// Opened from a message being written: shown over its window, and put into it.
+        insert: bool,
     },
     /// An account's name, user name and servers.
     EditAccount(Box<EditForm>),
@@ -704,7 +706,7 @@ impl Dialog {
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
     pub fn for_compose(&self) -> bool {
-        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject)
+        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::Signature { insert: true, .. })
     }
 
     /// The add-account dialog with the address filled in (servers guessed from it).
@@ -1506,14 +1508,17 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             }
             !cancel
         }
-        Dialog::Signature { account, text } => {
+        Dialog::Signature { account, text, insert } => {
             ui.set_width(420.0);
             title(ui, t, "Signature");
             ui.label(RichText::new(tl!("Added to new messages, replies and forwards.")).color(t.dim).small());
             ui.add(egui::TextEdit::multiline(text).desired_rows(5).desired_width(f32::INFINITY));
-            let (ok, cancel) = buttons(ui, t, "Save", true);
+            let (ok, cancel) = buttons(ui, t, if *insert { "Save and insert" } else { "Save" }, true);
             if ok {
                 acts.push(Action::Run("account.setSignature", json!({"account": account, "signature": text})));
+                if *insert && !text.trim().is_empty() {
+                    acts.push(Action::InsertSignature);
+                }
                 return false;
             }
             !cancel

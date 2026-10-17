@@ -232,6 +232,8 @@ pub enum Action {
     SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).
     InsertPicture,
+    /// The account's signature at the cursor of the message being written.
+    InsertSignature,
     /// Paste a picture from the clipboard, if there is one.
     PastePicture,
     /// Choose the interface language (`auto` or a code).
@@ -1198,6 +1200,19 @@ impl MailApp {
                         }
                         Err(e) => self.session.notice(e.to_string(), true),
                     }
+                }
+            }
+            Action::InsertSignature => {
+                let r = self.session.run("compose.insertSignature", &json!({"at": self.picture_at()}));
+                match r {
+                    Ok(v) => {
+                        // The cursor after it.
+                        let end = v.get("end").and_then(serde_json::Value::as_u64).and_then(|e| usize::try_from(e).ok()).unwrap_or(0);
+                        if let Some(ed) = self.ui.editor.as_mut() {
+                            ed.refocus = Some(end..end);
+                        }
+                    }
+                    Err(e) => self.session.notice(e.to_string(), true),
                 }
             }
             Action::InsertPicture => {

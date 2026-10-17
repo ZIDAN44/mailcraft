@@ -1839,6 +1839,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     let clock = s.clock;
     // Delay Delivery holds mail in the Outbox, which only a server account's sends from.
     let can_delay = s.compose.as_ref().and_then(|c| s.account(&c.account)).is_some_and(|a| !a.is_local());
+    let signature = s.compose.as_ref().and_then(|c| s.account(&c.account)).map(|a| a.config.signature.clone()).unwrap_or_default();
     let Some(c) = s.compose.as_mut() else { return };
     // The editor's state belongs to one message.
     if st.editor.as_ref().is_none_or(|e| e.id != c.id) {
@@ -1912,7 +1913,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         // The Message ribbon.
         egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
             ui.set_width(ui.available_width());
-            rich_edit::ribbon(ui, &t, &mut ed, c, acts);
+            rich_edit::ribbon(ui, &t, &mut ed, c, &signature, acts);
         });
         ui.add_space(4.0);
         // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);

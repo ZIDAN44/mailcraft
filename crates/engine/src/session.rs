@@ -429,6 +429,10 @@ pub struct Reading {
 pub struct Compose {
     pub id: u64,
     pub account: String,
+    /// The signature in the text as it was put there (`-- ` and the signature): replaced when
+    /// another goes in, while it's still there unchanged.
+    #[serde(default)]
+    pub signature: String,
     pub to: String,
     pub cc: String,
     pub bcc: String,
@@ -2062,9 +2066,10 @@ impl Session {
         .ok_or_else(|| CmdError::Disabled("add an account first".into()))?;
         let sig = self.signature(&account);
         let id = self.fresh_id();
-        let body = if sig.trim().is_empty() { String::new() } else { format!("\n\n-- \n{}", sig.trim_end()) };
+        let body = if sig.trim().is_empty() { String::new() } else { format!("\n\n{}", signature_block(&sig)) };
         let window = self.prefs.new_mail_window;
-        self.compose = Some(Compose { id, account, body, window, ..Default::default() });
+        let signature = if sig.trim().is_empty() { String::new() } else { signature_block(&sig) };
+        self.compose = Some(Compose { id, account, body, window, signature, ..Default::default() });
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
 
@@ -2088,6 +2093,7 @@ impl Session {
         self.compose = Some(Compose {
             id,
             account,
+            signature: if sig.trim().is_empty() { String::new() } else { signature_block(&sig) },
             to: addr::format_list(&d.to),
             cc: addr::format_list(&d.cc),
             subject: d.subject,
@@ -2114,7 +2120,8 @@ impl Session {
         let subject = r.parsed.as_ref().map(|p| p.subject.trim().to_string()).unwrap_or_default();
         let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() });
         if let Some(c) = self.compose.as_mut() {
-            c.set_text(if sig.trim().is_empty() { String::new() } else { format!("\n\n-- \n{}", sig.trim_end()) });
+            c.set_text(if sig.trim().is_empty() { String::new() } else { format!("\n\n{}", signature_block(&sig)) });
+            c.signature = if sig.trim().is_empty() { String::new() } else { signature_block(&sig) };
             c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw }];
         }
         Ok(out)
@@ -2954,4 +2961,9 @@ pub fn parse_key(v: &Value) -> Option<MessageKey> {
 /// What a follow-up date is kept under: the Message-ID, or (without one) the message's place.
 fn follow_up_id(m: &Summary) -> String {
     if m.message_id.trim().is_empty() { m.key.to_id() } else { m.message_id.trim().to_string() }
+}
+
+/// A signature as it goes into a message: after the usual `-- ` line (RFC 3676's delimiter).
+pub fn signature_block(sig: &str) -> String {
+    format!("-- \n{}", sig.trim_end())
 }

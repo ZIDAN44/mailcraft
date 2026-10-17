@@ -206,7 +206,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
                 if ui.button(tl!("Signature…")).clicked() {
-                    acts.push(Action::Dialog(Dialog::Signature { account: config.id.clone(), text: config.signature.clone() }));
+                    acts.push(Action::Dialog(Dialog::Signature { account: config.id.clone(), text: config.signature.clone(), insert: false }));
                     ui.close();
                 }
                 if ui.button(tl!("New folder…")).clicked() {

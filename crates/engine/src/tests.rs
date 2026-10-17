@@ -2015,3 +2015,27 @@ fn notes_can_be_arranged() {
     assert_eq!(titles(&s), ["Apple pie", "cherry jam", "banana bread"]);
     assert!(s.run("note.arrange", &json!({"by": "size"})).is_err());
 }
+
+/// Issue #1: a signature goes into the message being written from the message itself.
+#[test]
+fn a_signature_goes_in_from_the_message() {
+    let mut s = sample_session("insert-signature");
+    s.run("account.setSignature", &json!({"account": "sample", "signature": ""})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.compose.as_mut().unwrap().body = "Hello there".into();
+    assert!(s.run("compose.insertSignature", &json!({})).is_err(), "no signature yet");
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley\nStudio"})).unwrap();
+    let r = s.run("compose.insertSignature", &json!({"at": 5})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().body, "Hello\n-- \nRiley\nStudio\n there");
+    assert_eq!(r["end"], 23);
+    // One already there is replaced, wherever the cursor is.
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "R."})).unwrap();
+    s.run("compose.insertSignature", &json!({"at": 9999})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().body, "Hello\n-- \nR.\n there");
+    // A reply made with the old signature: that one is replaced.
+    let c = s.compose.as_mut().unwrap();
+    c.body = "Hi\n\n-- \nOld\n\n> quoted".into();
+    c.signature = "-- \nOld".into();
+    s.run("compose.insertSignature", &json!({})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().body, "Hi\n\n-- \nR.\n\n> quoted");
+}

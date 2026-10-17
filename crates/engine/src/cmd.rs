@@ -372,6 +372,8 @@ pub fn registry() -> Registry {
             Ok(json!({"by": p::req_str(v, "by")?}))
         })
         .params(r#"{"by": "modified"|"title"|"color"}"#),
+        CommandSpec::new("compose.insertSignature", "Insert signature", "Message › Signature", insert_signature)
+            .params(r#"{"at"?: number (the character it goes at; default the end)}"#),
         CommandSpec::new("view.readingOptions", "Reading pane options", "File › Options › Mail", |s, v| {
             if let Some(on) = p::bool(v, "markRead") {
                 s.prefs.mark_read_on_open = on;
@@ -1069,6 +1071,41 @@ fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
         insert_picture_at(c, at, &cid);
     }
     Ok(json!({"cid": cid}))
+}
+
+/// The account's signature into the message being written, at character `at` (else the end),
+/// on a line of its own after the usual `-- ` line (Outlook's Insert › Signature).
+fn insert_signature(s: &mut Session, v: &Value) -> CmdResult {
+    use mailcraft_mime::rich::Style;
+    let account = s.compose.as_ref().map(|c| c.account.clone()).ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let sig = s.account(&account).map(|a| a.config.signature.trim_end().to_string()).unwrap_or_default();
+    if sig.trim().is_empty() {
+        return Err(CmdError::Params("this account has no signature yet: make one with Signatures…".into()));
+    }
+    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let old = c.body.clone();
+    let block = crate::session::signature_block(&sig);
+    // The signature put in before, still there as it was, is replaced (as choosing a signature
+    // in Outlook replaces the one there); otherwise it goes in at the cursor.
+    let there = if c.signature.is_empty() { None } else { old.rfind(&c.signature).map(|b| (b, b + c.signature.len())) };
+    let (start, stop, text) = match there {
+        Some((b, e)) => (b, e, block.clone()),
+        None => {
+            let n = old.chars().count();
+            let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
+            let b = old.char_indices().nth(at).map_or(old.len(), |(b, _)| b);
+            let before = if at > 0 && old.chars().nth(at - 1) != Some('\n') { "\n" } else { "" };
+            (b, b, format!("{before}{block}\n"))
+        }
+    };
+    c.signature = block;
+    c.body.replace_range(start..stop, &text);
+    let at = old.get(..start).unwrap_or("").chars().count();
+    let end = at + text.chars().count();
+    let mut styles = std::mem::take(&mut c.styles);
+    styles.edit_at(&old, &c.body, &Style::default(), Some(end));
+    c.styles = styles;
+    Ok(json!({"inserted": at, "end": end}))
 }
 
 /// Put picture `cid` into the text at character `at`.

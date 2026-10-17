@@ -73,7 +73,7 @@ pub(crate) struct Editor {
     pictures: HashMap<String, Option<egui::TextureHandle>>,
     /// Give the keyboard back to the text (after a ribbon button took the click), with this
     /// selection.
-    refocus: Option<Range<usize>>,
+    pub(crate) refocus: Option<Range<usize>>,
 }
 
 /// Outlook's Insert Hyperlink, with what mail needs: a web page or file, or an email address.
@@ -899,7 +899,8 @@ fn color_button(
 
 /// The Message ribbon: font size, bold / italic / underline / strikethrough, colours, lists,
 /// alignment, indent, clear formatting; then names, files, links and pictures.
-pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
+/// The Message ribbon; `signature` is the sending account's (for Insert › Signature).
+pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, signature: &str, acts: &mut Vec<Action>) {
     c.styles.fit(&c.body);
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
@@ -974,6 +975,19 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         if crate::widgets::tool_button(ui, Icon::Image, "Pictures", t, !c.sending && !c.plain).clicked() {
             acts.push(Action::InsertPicture);
         }
+        // The account's signature at the cursor, or making and changing it, from the message
+        // (Outlook's Signature menu on the Message ribbon).
+        let r = crate::widgets::tool_button(ui, Icon::Drafts, "Signature", t, !c.sending);
+        egui::Popup::menu(&r).show(|ui| {
+            if ui.add_enabled(!signature.trim().is_empty(), egui::Button::new(tl!("Insert signature"))).clicked() {
+                acts.push(Action::InsertSignature);
+                ui.close();
+            }
+            if ui.button(tl!("Signatures…")).clicked() {
+                acts.push(Action::Dialog(Dialog::Signature { account: c.account.clone(), text: signature.to_string(), insert: true }));
+                ui.close();
+            }
+        });
     });
     link_dialog(ui, t, ed, c);
     let changed = !ops.is_empty();
