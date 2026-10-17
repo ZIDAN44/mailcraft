@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.14 — What testers asked for (2026-10-17). Each milestone below is a version: v0.1 was
+**Stage:** v0.15 — What testers asked for, again (2026-10-18). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 140 (`mailcraft-cli commands`) |
-| Tests | 298 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 141 (`mailcraft-cli commands`) |
+| Tests | 301 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -61,7 +61,11 @@ local-first, media-aware v1); the fuller request is
    Graph), generated HTML reports as Outlook shows them, quick search, reading and signature
    options, calendar colours, ticks, side by side and more months, List columns, public contacts,
    Exchange's outside replies, how much mail is kept.
-15. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+15. **v0.15 — What testers asked for, again** ✅ From issue #1's next round: calendars side by
+   side each in a pane of its own, other people's Exchange calendars editable by their editors,
+   signatures and text pasted from Outlook with their look, public folder contacts on Exchange
+   2013 and later, the address book to open with, and long names in it.
+16. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -121,4 +125,8 @@ local-first, media-aware v1); the fuller request is
   style sheets, columns), search speed and People/Notes search, reading pane and signature
   options, notes order, calendar categories, ticks, side by side and months, List columns,
   public-folder contacts, outside replies on Exchange, mail kept offline, Open folder.
+- **2026-10-18** — **v0.15**: issue #1 again, each reproduced first: side by side as Outlook shows
+  it (a pane per calendar), an editor's rights on someone's Exchange calendar read as Exchange
+  gives them, public folder content routed to the mailbox holding it, HTML on the clipboard pasted
+  with its look and signatures kept formatted, Select Names opening with the address book chosen.
 

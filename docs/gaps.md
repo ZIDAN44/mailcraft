@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.14, 2026-10-17._
+_Status: v0.15, 2026-10-18._
 
 ## Open
 
@@ -271,3 +271,24 @@ an Exchange report as it arrived), then fixed and tried again.
 - **Mail kept on this computer:** the newest 1,000, 5,000, 20,000 or all of each folder, 40 to
   1,000 downloaded ahead (EWS now pages past the first 1,000).
 - **Open folder** opens it (Explorer on Windows).
+
+### v0.15 — What testers asked for, again
+From issue #1's next round, each reproduced first (the Exchange test server answering as
+Exchange 2013 and later do, Outlook's clipboard as it copies a signature), then fixed and tried
+again.
+- **Side by side** is Outlook's: each calendar shown in a pane of its own with its days, under a
+  heading in its colour with × to hide it; a click in a pane adds the event to that calendar.
+- **Someone else's Exchange calendar** opens editable for an editor: a folder's `Modify` right is
+  the owner's alone (it's about the folder), so `CreateContents` says it.
+- **Public folder contacts and calendars on Exchange 2013 and later:** reading inside a public
+  folder is routed to the public folder mailbox holding it (`PR_REPLICA_LIST`, Autodiscover,
+  `X-AnchorMailbox` and `X-PublicFolderMailbox`); one that still can't be read says why.
+- **Pasted from Outlook, Word or a web page:** HTML on the clipboard keeps its bold, italics,
+  colours and links (Word's paragraphs as lines, its pictures left behind); font sizes don't
+  carry over yet.
+- **Signatures keep their look:** the signature editor is a message editor of its own; what's
+  formatted there or pasted is kept as HTML and goes into new messages, replies and Insert
+  signature formatted.
+- **Select Names** opens with the address book chosen ("Always open with this address book"):
+  everyone, every contact, or one account's contacts or shared ones; long names and addresses are
+  cut short with "…".
