@@ -210,14 +210,28 @@ const ME: (&str, &str) = ("Riley Moreno", "riley@studio.example");
 
 /// An 8×8 PNG drawn in code (a small checkerboard), so the sample carries a real image.
 pub fn sample_png() -> Vec<u8> {
+    png_of(8, 8, |x, y| if (x / 2 + y / 2) % 2 == 0 { [0x3B, 0x5B, 0xDB] } else { [0xF2, 0xF4, 0xFA] })
+}
+
+/// A wide banner drawn in code (deep teal into blue, with soft diagonal light), for a
+/// newsletter's heading to sit on.
+pub fn sample_banner_png() -> Vec<u8> {
+    png_of(96, 24, |x, y| {
+        let t = x as f32 / 95.0;
+        let glow = if (x + 2 * y) % 24 < 6 { 14.0 } else { 0.0 };
+        let mix = |a: f32, b: f32| (a + (b - a) * t + glow).clamp(0.0, 255.0) as u8;
+        [mix(31.0, 27.0), mix(110.0, 63.0), mix(94.0, 140.0)]
+    })
+}
+
+/// An RGB PNG of `w`×`h` from a colour per pixel (small: one uncompressed DEFLATE block).
+fn png_of(w: u32, h: u32, pixel: impl Fn(u32, u32) -> [u8; 3]) -> Vec<u8> {
     // Uncompressed DEFLATE (stored blocks) keeps this dependency-free.
-    let (w, h) = (8u32, 8u32);
     let mut raw = Vec::new();
     for y in 0..h {
         raw.push(0u8);
         for x in 0..w {
-            let on = (x / 2 + y / 2) % 2 == 0;
-            raw.extend_from_slice(if on { &[0x3B, 0x5B, 0xDB] } else { &[0xF2, 0xF4, 0xFA] });
+            raw.extend_from_slice(&pixel(x, y));
         }
     }
     let mut z = vec![0x78, 0x01, 0x01];
@@ -340,7 +354,7 @@ fn mails() -> Vec<Mail> {
             html: Some(
                 "<div style=\"display:none\">Submissions close 30 November</div>\
                  <table width=\"600\" align=\"center\" cellpadding=\"0\" cellspacing=\"0\">\
-                 <tr><td align=\"center\" bgcolor=\"#2e7d6b\" style=\"color:#ffffff\">\
+                 <tr><td align=\"center\" bgcolor=\"#2e7d6b\" background=\"cid:banner@gallery.example\" style=\"color:#ffffff\">\
                  <h2>Winter group show: open call</h2></td></tr>\
                  <tr><td><table width=\"100%\"><tr>\
                  <td width=\"60%\" valign=\"top\">\
@@ -350,7 +364,8 @@ fn mails() -> Vec<Mail> {
                  <ul><li>Up to <b>three works</b> per artist</li><li>Opening night: the first Friday of December</li></ul>\
                  </td>\
                  <td width=\"40%\" valign=\"top\" align=\"center\">\
-                 <p><img src=\"cid:poster@gallery.example\" alt=\"Show poster\"></p>\
+                 <div style=\"position:relative;width:180px\"><img src=\"cid:poster@gallery.example\" alt=\"Show poster\">\
+                 <span style=\"position:absolute;top:6px;right:6px;background-color:#c62828;color:#ffffff\"><b>NEW</b></span></div>\
                  <p><span style=\"color:#c62828\">Deadline: 30 November</span> \
                  <span style=\"background-color:#fff176\">(no late entries)</span></p>\
                  </td></tr></table></td></tr>\
@@ -548,12 +563,20 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
             attachments,
             html: m.html.map(str::to_string),
             inline: if m.html.is_some_and(|h| h.contains("cid:poster@gallery.example")) {
-                vec![mime::InlinePicture {
-                    cid: "poster@gallery.example".into(),
-                    name: "poster.png".into(),
-                    mime: "image/png".into(),
-                    data: sample_png(),
-                }]
+                vec![
+                    mime::InlinePicture {
+                        cid: "poster@gallery.example".into(),
+                        name: "poster.png".into(),
+                        mime: "image/png".into(),
+                        data: sample_png(),
+                    },
+                    mime::InlinePicture {
+                        cid: "banner@gallery.example".into(),
+                        name: "banner.png".into(),
+                        mime: "image/png".into(),
+                        data: sample_banner_png(),
+                    },
+                ]
             } else {
                 Vec::new()
             },

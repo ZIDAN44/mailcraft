@@ -2,7 +2,9 @@
 //! columns with layout tables (a centred 600-pixel table, rows of two or three cells, coloured
 //! bands). [`html_layout`] keeps that structure as [`Block`]s: tables with rows and cells (their
 //! widths, colours and alignment) around formatted text, which is [`crate::html_to_rich`]'s.
-//! Mail without tables of more than one column has no layout: it flows as text.
+//! Mail without tables of more than one column has no layout: it flows as text. Background
+//! pictures (a banner behind a heading) and boxes positioned over others (`position: absolute`
+//! inside `position: relative`, a label on a picture) are kept as well.
 //!
 //! The HTML is read with html5ever's tokenizer into a small tree of its own (a layout needs no
 //! more than elements, attributes and text); like everything from mail it is hostile input, so
@@ -25,6 +27,10 @@ const MAX_CELLS: usize = 1_500;
 const MAX_OPEN: usize = 256;
 /// Elements read at most.
 const MAX_NODES: usize = 200_000;
+/// Boxes placed over one container, at most.
+const MAX_OVERLAYS: usize = 16;
+/// How far a placed box may be moved, in pixels.
+const MAX_OFFSET: i32 = 4_000;
 
 /// A part of a laid-out message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +63,9 @@ pub struct Table {
     /// Where the table sits (`align`, or `margin: 0 auto`).
     pub align: Align,
     pub background: Option<[u8; 3]>,
+    /// A picture behind it (`background`, `background-image: url(…)`), covering it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_image: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,6 +77,25 @@ pub struct Cell {
     pub align: Align,
     /// Columns it spans.
     pub span: u16,
+    /// A picture behind its content, covering the cell.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_image: Option<String>,
+    /// Boxes placed over the content (`position: absolute` in a `position: relative` box).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overlays: Vec<Overlay>,
+}
+
+/// A box placed over its container: `x` pixels from its left edge (from the right when
+/// `from_right`), `y` from its top (from the bottom when `from_bottom`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Overlay {
+    pub x: i32,
+    pub y: i32,
+    pub from_right: bool,
+    pub from_bottom: bool,
+    pub width: Option<Width>,
+    pub background: Option<[u8; 3]>,
+    pub blocks: Vec<Block>,
 }
 
 #[derive(Default)]
@@ -203,11 +231,66 @@ impl Node {
 
     /// A property of the inline `style` (lower case, spaces removed from the value's ends).
     fn style(&self, prop: &str) -> Option<String> {
-        let style = self.attr("style")?.to_ascii_lowercase();
+        self.style_as_written(prop).map(|v| v.to_ascii_lowercase())
+    }
+
+    /// A property of the inline `style` as written (addresses keep their case).
+    fn style_as_written(&self, prop: &str) -> Option<String> {
+        let style = self.attr("style")?;
         style.split(';').find_map(|d| {
             let (k, v) = d.split_once(':')?;
-            (k.trim() == prop).then(|| v.trim().trim_end_matches("!important").trim().to_string())
+            k.trim().eq_ignore_ascii_case(prop).then(|| {
+                let v = v.trim();
+                let v = v.get(..v.to_ascii_lowercase().find("!important").unwrap_or(v.len())).unwrap_or(v);
+                v.trim().to_string()
+            })
         })
+    }
+
+    /// The picture behind it: the `background` attribute, or `url(…)` in `background-image` or
+    /// `background`. Web, `cid:` and `data:` addresses only (nothing that runs).
+    fn background_image(&self) -> Option<String> {
+        let from_css = || {
+            let v = self.style_as_written("background-image").or_else(|| self.style_as_written("background"))?;
+            let at = v.to_ascii_lowercase().find("url(")?;
+            let rest = v.get(at + 4..)?;
+            let inner = rest.get(..rest.find(')')?)?.trim().trim_matches(|c| c == '"' || c == '\'').trim();
+            Some(inner.to_string())
+        };
+        let src = self.attr("background").map(|b| b.trim().to_string()).filter(|b| !b.is_empty()).or_else(from_css)?;
+        let lower = src.to_ascii_lowercase();
+        (src.len() < 4096 && (lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("cid:"))).then_some(src)
+    }
+
+    /// `position: absolute` (or `fixed`, which a message can't fix to anything but its box).
+    fn placed(&self) -> bool {
+        self.style("position").is_some_and(|p| p == "absolute" || p == "fixed")
+    }
+
+    /// A length in pixels (`12px`, `12`); `None` for anything else (`auto`, `50%`).
+    fn px(&self, prop: &str) -> Option<i32> {
+        let v = self.style(prop)?;
+        let n = v.trim().trim_end_matches("px").trim().parse::<f32>().ok()?;
+        Some((n as i32).clamp(-MAX_OFFSET, MAX_OFFSET))
+    }
+
+    /// Where a placed box goes over its container.
+    fn overlay_at(&self) -> (i32, i32, bool, bool) {
+        let (left, right, top, bottom) = (self.px("left"), self.px("right"), self.px("top"), self.px("bottom"));
+        let (x, from_right) = match (left, right) {
+            (None, Some(r)) => (r, true),
+            (l, _) => (l.unwrap_or(0), false),
+        };
+        let (y, from_bottom) = match (top, bottom) {
+            (None, Some(b)) => (b, true),
+            (t, _) => (t.unwrap_or(0), false),
+        };
+        (x.max(0), y.max(0), from_right, from_bottom)
+    }
+
+    /// A `position: relative` box with boxes placed over it.
+    fn has_overlays(&self) -> bool {
+        self.style("position").is_some_and(|p| p == "relative") && self.kids.iter().any(|k| matches!(k, Kid::El(n) if n.placed() && !n.hidden()))
     }
 
     fn hidden(&self) -> bool {
@@ -392,6 +475,26 @@ struct Ctx {
     /// The message's `<style>` blocks, given to each piece of text (for colours and hidden parts).
     css: String,
     cells: usize,
+    /// The text colour the boxes around inherit to the text inside (a cell's `color`).
+    color: Option<String>,
+}
+
+/// `f` with the text colour `n` sets, if it sets one, as CSS inherits it.
+fn colored<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R) -> R {
+    // Only what a colour is written with: it goes back into markup.
+    let own = n
+        .style_as_written("color")
+        .or_else(|| (n.tag == "font").then(|| n.attr("color").map(str::to_string)).flatten())
+        .filter(|c| c.len() < 40 && c.chars().all(|ch| ch.is_ascii_alphanumeric() || "#(),. %".contains(ch)));
+    match own {
+        Some(c) => {
+            let saved = ctx.color.replace(c);
+            let r = f(ctx);
+            ctx.color = saved;
+            r
+        }
+        None => f(ctx),
+    }
 }
 
 fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
@@ -399,7 +502,10 @@ fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     let mut pending = String::new();
     let flush = |pending: &mut String, out: &mut Vec<Block>, ctx: &Ctx| {
         if pending.chars().any(|c| !c.is_whitespace()) || pending.contains("<img") {
-            let rich = crate::html_to_rich(&format!("{}{}", ctx.css, pending));
+            let rich = match &ctx.color {
+                Some(c) => crate::html_to_rich(&format!("{}<div style=\"color:{c}\">{}</div>", ctx.css, pending)),
+                None => crate::html_to_rich(&format!("{}{}", ctx.css, pending)),
+            };
             if !rich.is_empty() {
                 out.push(Block::Text(rich));
             }
@@ -411,65 +517,136 @@ fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             Kid::El(n) if n.hidden() => {}
             Kid::El(n) if n.tag == "table" && depth < MAX_DEPTH => {
                 flush(&mut pending, &mut out, ctx);
-                let rows: Vec<Vec<Cell>> = n
-                    .rows()
-                    .into_iter()
-                    .map(|row| {
-                        row.into_iter()
-                            .map(|c| {
-                                ctx.cells += 1;
-                                Cell {
-                                    blocks: if ctx.cells > MAX_CELLS { Vec::new() } else { blocks(&c.kids, ctx, depth + 1) },
-                                    width: c.width(),
-                                    background: c.background(),
-                                    align: c.align(),
-                                    span: c.attr("colspan").and_then(|s| s.trim().parse::<u16>().ok()).unwrap_or(1).clamp(1, 50),
-                                }
-                            })
-                            .filter(|c| !c.blocks.is_empty() || c.background.is_some())
-                            .collect::<Vec<Cell>>()
-                    })
-                    .filter(|r| !r.is_empty())
-                    .collect();
+                let rows: Vec<Vec<Cell>> = colored(ctx, n, |ctx| {
+                    n.rows()
+                        .into_iter()
+                        .map(|row| {
+                            row.into_iter()
+                                .map(|c| {
+                                    ctx.cells += 1;
+                                    Cell {
+                                        blocks: if ctx.cells > MAX_CELLS {
+                                            Vec::new()
+                                        } else {
+                                            colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth + 1))
+                                        },
+                                        width: c.width(),
+                                        background: c.background(),
+                                        align: c.align(),
+                                        span: c.attr("colspan").and_then(|s| s.trim().parse::<u16>().ok()).unwrap_or(1).clamp(1, 50),
+                                        background_image: c.background_image(),
+                                        overlays: Vec::new(),
+                                    }
+                                })
+                                .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
+                                .collect::<Vec<Cell>>()
+                        })
+                        .filter(|r| !r.is_empty())
+                        .collect()
+                });
                 if rows.is_empty() {
                     continue;
                 }
-                out.push(Block::Table(Table { rows, width: n.width(), align: n.table_align(), background: n.background() }));
+                out.push(Block::Table(Table {
+                    rows,
+                    width: n.width(),
+                    align: n.table_align(),
+                    background: n.background(),
+                    background_image: n.background_image(),
+                }));
+            }
+            // A box with others placed over it: its content, and theirs on top.
+            Kid::El(n) if depth < MAX_DEPTH && n.has_overlays() => {
+                flush(&mut pending, &mut out, ctx);
+                let (placed, base): (Vec<&Kid>, Vec<&Kid>) = n.kids.iter().partition(|k| matches!(k, Kid::El(c) if c.placed()));
+                let base: Vec<Kid> = base.into_iter().map(copy).collect();
+                let overlays: Vec<Overlay> = colored(ctx, n, |ctx| {
+                    placed
+                        .into_iter()
+                        .filter_map(|k| if let Kid::El(c) = k { Some(c) } else { None })
+                        .filter(|c| !c.hidden())
+                        .take(MAX_OVERLAYS)
+                        .map(|c| {
+                            let (x, y, from_right, from_bottom) = c.overlay_at();
+                            // Its content: its children, or the element itself (a picture).
+                            let content = colored(ctx, c, |ctx| {
+                                if c.kids.is_empty() { blocks(&[Kid::El(c.unplaced())], ctx, depth + 1) } else { blocks(&c.kids, ctx, depth + 1) }
+                            });
+                            Overlay { x, y, from_right, from_bottom, width: c.width(), background: c.background(), blocks: content }
+                        })
+                        .filter(|o| !o.blocks.is_empty() || o.background.is_some())
+                        .collect()
+                });
+                ctx.cells += 1;
+                let cell = Cell {
+                    blocks: colored(ctx, n, |ctx| blocks(&base, ctx, depth + 1)),
+                    background: n.background(),
+                    background_image: n.background_image(),
+                    align: n.align(),
+                    span: 1,
+                    overlays,
+                    ..Default::default()
+                };
+                out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), ..Default::default() }));
+            }
+            // A box with a picture behind it (a banner): one cell that carries it.
+            Kid::El(n) if depth < MAX_DEPTH && !matches!(n.tag.as_str(), "img" | "td" | "th" | "tr") && n.background_image().is_some() => {
+                flush(&mut pending, &mut out, ctx);
+                ctx.cells += 1;
+                // Its content is the box itself without the picture, so columns in it stay columns.
+                let cell = Cell {
+                    blocks: colored(ctx, n, |ctx| blocks(&[Kid::El(n.without_background())], ctx, depth + 1)),
+                    background: n.background(),
+                    background_image: n.background_image(),
+                    align: n.align(),
+                    span: 1,
+                    ..Default::default()
+                };
+                out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), ..Default::default() }));
             }
             // Boxes side by side with CSS: a table of one row per line of boxes.
             Kid::El(n) if depth < MAX_DEPTH && n.columns().is_some() => {
                 flush(&mut pending, &mut out, ctx);
-                let rows: Vec<Vec<Cell>> = n
-                    .columns()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|row| {
-                        row.into_iter()
-                            .map(|c| {
-                                ctx.cells += 1;
-                                // A box's own content (its children when it has them, else itself).
-                                let content = if c.kids.is_empty() { vec![] } else { blocks(&c.kids, ctx, depth + 1) };
-                                Cell {
-                                    blocks: if ctx.cells > MAX_CELLS { Vec::new() } else { content },
-                                    width: c.width(),
-                                    background: c.background(),
-                                    align: c.align(),
-                                    span: 1,
-                                }
-                            })
-                            .filter(|c| !c.blocks.is_empty() || c.background.is_some())
-                            .collect::<Vec<Cell>>()
-                    })
-                    .filter(|r| !r.is_empty())
-                    .collect();
+                let rows: Vec<Vec<Cell>> = colored(ctx, n, |ctx| {
+                    n.columns()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|row| {
+                            row.into_iter()
+                                .map(|c| {
+                                    ctx.cells += 1;
+                                    // A box's own content (its children when it has them, else itself).
+                                    let content = if c.kids.is_empty() { vec![] } else { colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth + 1)) };
+                                    Cell {
+                                        blocks: if ctx.cells > MAX_CELLS { Vec::new() } else { content },
+                                        width: c.width(),
+                                        background: c.background(),
+                                        align: c.align(),
+                                        span: 1,
+                                        background_image: c.background_image(),
+                                        overlays: Vec::new(),
+                                    }
+                                })
+                                .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
+                                .collect::<Vec<Cell>>()
+                        })
+                        .filter(|r| !r.is_empty())
+                        .collect()
+                });
                 if !rows.is_empty() {
-                    out.push(Block::Table(Table { rows, width: n.width(), align: n.table_align(), background: n.background() }));
+                    out.push(Block::Table(Table {
+                        rows,
+                        width: n.width(),
+                        align: n.table_align(),
+                        background: n.background(),
+                        background_image: n.background_image(),
+                    }));
                 }
             }
             // A wrapper around tables (`<div>`, `<center>`): its parts in turn.
             Kid::El(n) if depth < MAX_DEPTH && n.has_table(0) => {
                 flush(&mut pending, &mut out, ctx);
-                let inner = blocks(&n.kids, ctx, depth);
+                let inner = colored(ctx, n, |ctx| blocks(&n.kids, ctx, depth));
                 if n.tag == "center" || n.align() == Align::Center {
                     // Centred: as a one-cell table that sits in the middle.
                     out.push(Block::Table(Table {
@@ -477,6 +654,7 @@ fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                         width: n.width(),
                         align: Align::Center,
                         background: n.background(),
+                        background_image: None,
                     }));
                 } else {
                     out.extend(inner);
@@ -489,20 +667,98 @@ fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     out
 }
 
-/// Whether any table puts content side by side.
+/// Whether any table puts content side by side, or a picture behind it, or boxes over it: a
+/// layout worth keeping (otherwise the text flows).
 fn has_columns(b: &[Block]) -> bool {
     b.iter().any(|b| match b {
         Block::Text(_) => false,
         Block::Table(t) => {
-            t.rows.iter().any(|r| r.iter().filter(|c| !c.blocks.is_empty()).count() > 1) || t.rows.iter().flatten().any(|c| has_columns(&c.blocks))
+            t.background_image.is_some()
+                || t.rows.iter().any(|r| r.iter().filter(|c| !c.blocks.is_empty()).count() > 1)
+                || t.rows.iter().flatten().any(|c| c.background_image.is_some() || !c.overlays.is_empty() || has_columns(&c.blocks))
         }
     })
+}
+
+/// The pictures behind boxes in a layout (to be shown, or held back, like the message's others).
+pub fn background_pictures(b: &[Block]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut add = |src: &Option<String>, out: &mut Vec<String>| {
+        if let Some(s) = src
+            && !out.contains(s)
+            && out.len() < 200
+        {
+            out.push(s.clone());
+        }
+    };
+    fn walk(b: &[Block], out: &mut Vec<String>, add: &mut dyn FnMut(&Option<String>, &mut Vec<String>), depth: usize) {
+        if depth > MAX_DEPTH * 2 {
+            return;
+        }
+        for x in b {
+            if let Block::Table(t) = x {
+                add(&t.background_image, out);
+                for c in t.rows.iter().flatten() {
+                    add(&c.background_image, out);
+                    walk(&c.blocks, out, add, depth + 1);
+                    for o in &c.overlays {
+                        walk(&o.blocks, out, add, depth + 1);
+                    }
+                }
+            }
+        }
+    }
+    walk(b, &mut out, &mut add, 0);
+    out
+}
+
+/// A shallow copy of a part of the tree (its children too).
+fn copy(k: &Kid) -> Kid {
+    match k {
+        Kid::Text(t) => Kid::Text(t.clone()),
+        Kid::El(n) => Kid::El(Node { tag: n.tag.clone(), attrs: n.attrs.clone(), kids: n.kids.iter().map(copy).collect() }),
+    }
+}
+
+impl Node {
+    /// The element without its background (the cell around it carries that).
+    fn without_background(&self) -> Node {
+        let attrs = self
+            .attrs
+            .iter()
+            .filter(|(k, _)| k != "background" && k != "bgcolor")
+            .map(|(k, v)| {
+                if k != "style" {
+                    return (k.clone(), v.clone());
+                }
+                let kept: Vec<&str> = v
+                    .split(';')
+                    .filter(|d| d.split_once(':').is_none_or(|(p, _)| !p.trim().to_ascii_lowercase().starts_with("background")))
+                    .collect();
+                (k.clone(), kept.join(";"))
+            })
+            .collect();
+        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect() }
+    }
+
+    /// The element without its placement (to draw it inside the box placed over another).
+    fn unplaced(&self) -> Node {
+        let attrs = self.attrs.iter().filter(|(k, _)| k != "style").cloned().collect();
+        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect() }
+    }
 }
 
 /// The layout of an HTML message: empty when it has no columns (the text flows instead).
 pub fn html_layout(html: &str) -> Vec<Block> {
     let lower = html.to_ascii_lowercase();
-    if !(lower.contains("<table") || lower.contains("flex") || lower.contains("grid") || lower.contains("inline-block") || lower.contains("float")) {
+    if !(lower.contains("<table")
+        || lower.contains("flex")
+        || lower.contains("grid")
+        || lower.contains("inline-block")
+        || lower.contains("float")
+        || lower.contains("background")
+        || lower.contains("absolute"))
+    {
         return Vec::new();
     }
     let html = match html.char_indices().nth(crate::HTML_MAX) {
@@ -513,7 +769,7 @@ pub fn html_layout(html: &str) -> Vec<Block> {
         let root = parse(html);
         let mut css = String::new();
         collect_css(&root, &mut css, 0);
-        let mut ctx = Ctx { css, cells: 0 };
+        let mut ctx = Ctx { css, cells: 0, color: None };
         let body = find(&root, "body", 0).unwrap_or(&root);
         let out = blocks(&body.kids, &mut ctx, 0);
         if ctx.cells > MAX_CELLS { Vec::new() } else { out }
@@ -626,6 +882,87 @@ mod tests {
         assert!(
             html_layout(r#"<p>Hello <span style="display:inline-block">a</span> and <span style="display:inline-block">b</span></p>"#).is_empty()
         );
+    }
+
+    #[test]
+    fn pictures_behind_boxes_are_kept() {
+        // A banner: a cell with a picture behind its heading (the address keeps its case).
+        let banner = html_layout(
+            r##"<table width="600"><tr><td bgcolor="#2e7d6b" background="https://img.example/Hero.JPG" style="color:#fff"><h1>Open call</h1></td></tr></table>"##,
+        );
+        let Block::Table(t) = &banner[0] else { panic!("{banner:?}") };
+        assert_eq!(t.rows[0][0].background_image.as_deref(), Some("https://img.example/Hero.JPG"));
+        assert_eq!(t.rows[0][0].background, Some([0x2e, 0x7d, 0x6b]), "the colour stays, for when the picture isn't shown");
+        // CSS forms, on a `<div>`: `background-image` and `background` with `url()`.
+        for css in ["background-image: url('cid:Hero@x')", "background: #000 url(cid:Hero@x) no-repeat center / cover"] {
+            let b = html_layout(&format!(r#"<div style="{css}"><p>Over the picture</p></div>"#));
+            let Block::Table(t) = &b[0] else { panic!("{css}: {b:?}") };
+            assert_eq!(t.rows[0][0].background_image.as_deref(), Some("cid:Hero@x"), "{css}");
+            assert!(text(&t.rows[0][0].blocks[0]).contains("Over the picture"));
+            assert_eq!(background_pictures(&b), ["cid:Hero@x"]);
+        }
+        // Columns inside a box with a picture behind it stay columns.
+        let cols = html_layout(r#"<div style="display:flex;background-image:url(cid:b@x)"><div>One</div><div>Two</div></div>"#);
+        let Block::Table(t) = &cols[0] else { panic!("{cols:?}") };
+        assert!(matches!(&t.rows[0][0].blocks[0], Block::Table(inner) if inner.rows[0].len() == 2), "{cols:?}");
+        // Nothing that runs, and nothing local.
+        for bad in ["javascript:alert(1)", "file:///etc/passwd", "data:text/html,x"] {
+            assert!(html_layout(&format!(r#"<div style="background-image:url({bad})"><p>x</p></div>"#)).is_empty(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn text_takes_its_cells_colour() {
+        // White on a dark band, set on the cell (or the table), as CSS inherits it.
+        let colour_of = |b: &[Block], word: &str| {
+            format!("{b:?}").contains(word).then(|| {
+                fn spans(b: &[Block], out: &mut Vec<(String, Option<[u8; 3]>)>) {
+                    for x in b {
+                        match x {
+                            Block::Text(r) => out.extend(r.iter().flatten().map(|s| (s.text.clone(), s.color))),
+                            Block::Table(t) => t.rows.iter().flatten().for_each(|c| spans(&c.blocks, out)),
+                        }
+                    }
+                }
+                let mut v = Vec::new();
+                spans(b, &mut v);
+                v.into_iter().find(|(t, _)| t.contains(word)).and_then(|(_, c)| c)
+            })
+        };
+        let cell = html_layout(r##"<table><tr><td style="color:#ffffff" bgcolor="#123456">Band</td><td>Other</td></tr></table>"##);
+        assert_eq!(colour_of(&cell, "Band").flatten(), Some([255, 255, 255]), "{cell:?}");
+        assert_eq!(colour_of(&cell, "Other").flatten(), None, "a neighbour keeps its own");
+        let table = html_layout(r##"<table style="color:#00ff00"><tr><td>A</td><td>B</td></tr></table>"##);
+        assert_eq!(colour_of(&table, "A").flatten(), Some([0, 255, 0]));
+        // A colour can't smuggle markup in.
+        let evil = html_layout(r##"<table><tr><td style="color:red&quot;><script>x</script>">A</td><td>B</td></tr></table>"##);
+        assert!(!format!("{evil:?}").contains("script"), "{evil:?}");
+    }
+
+    #[test]
+    fn boxes_placed_over_others_are_kept() {
+        // A label over a picture, and a note in the bottom right corner.
+        let b = html_layout(
+            r##"<div style="position:relative; width:300px"><img src="cid:poster@x" alt="Poster">
+               <span style="position:absolute; top:8px; left:10px; background:#c62828; color:#fff">NEW</span>
+               <div style="position:absolute; right:4px; bottom:6px; width:120px">Ends Friday</div></div>"##,
+        );
+        let Block::Table(t) = &b[0] else { panic!("{b:?}") };
+        assert_eq!(t.width, Some(Width::Px(300)));
+        let cell = &t.rows[0][0];
+        assert!(matches!(&cell.blocks[0], Block::Text(r) if r.iter().flatten().any(|s| s.image.as_deref() == Some("cid:poster@x"))));
+        assert_eq!(cell.overlays.len(), 2);
+        let (new, ends) = (&cell.overlays[0], &cell.overlays[1]);
+        assert_eq!((new.x, new.y, new.from_right, new.from_bottom), (10, 8, false, false));
+        assert_eq!(new.background, Some([0xc6, 0x28, 0x28]));
+        assert!(text(&new.blocks[0]).contains("NEW"));
+        assert_eq!((ends.x, ends.y, ends.from_right, ends.from_bottom), (4, 6, true, true));
+        assert_eq!(ends.width, Some(Width::Px(120)));
+        // Placed with nothing to sit over: it flows; absurd offsets are capped.
+        assert!(html_layout(r#"<p>Hi <span style="position:absolute;top:3px">there</span></p>"#).is_empty());
+        let far = html_layout(r#"<div style="position:relative"><p>a</p><b style="position:absolute;top:99999999px;left:-50px">b</b></div>"#);
+        let Block::Table(t) = &far[0] else { panic!("{far:?}") };
+        assert_eq!((t.rows[0][0].overlays[0].x, t.rows[0][0].overlays[0].y), (0, MAX_OFFSET));
     }
 
     #[test]

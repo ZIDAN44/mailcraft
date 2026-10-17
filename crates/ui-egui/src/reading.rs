@@ -847,23 +847,81 @@ impl Body<'_> {
                     .max(0.0);
                     let tbg = theme::box_color(table.background, page, &st.tokens);
                     let page = tbg.unwrap_or(page);
+                    let behind = table.background_image.as_deref().and_then(|src| self.background(st, ui.ctx(), src));
                     ui.horizontal_top(|ui| {
                         ui.add_space(indent);
                         ui.allocate_ui_with_layout(vec2(tw, 0.0), egui::Layout::top_down(Align::Min), |ui| {
                             ui.set_width(tw);
                             let fill = tbg.map_or(Color32::TRANSPARENT, |c| Color32::from_rgb(c[0], c[1], c[2]));
-                            egui::Frame::new().fill(fill).show(ui, |ui| {
+                            let framed = egui::Frame::new().fill(fill).show(ui, |ui| {
+                                // Its place in the drawing: above the fill, under the content.
+                                let slot = ui.painter().add(egui::Shape::Noop);
                                 ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
                                 for row in &table.rows {
                                     self.row(st, ui, row, tw, page, depth);
                                 }
+                                slot
                             });
+                            if let Some(tex) = &behind {
+                                ui.painter().set(framed.inner, cover(tex, framed.response.rect));
+                            }
                         });
                     });
                 }
                 Block::Table(_) => {}
             }
         }
+    }
+
+    /// A picture to put behind a box, when it can be shown (one inside the message, or one on the
+    /// web once pictures are allowed); counted as shown either way, so it isn't added after the text.
+    fn background(&mut self, st: &mut UiState, ctx: &egui::Context, src: &str) -> Option<egui::TextureHandle> {
+        if !self.shown.iter().any(|x| x == src) {
+            self.shown.push(src.to_string());
+        }
+        match picture_texture(self.s, st, ctx, self.key, self.p, src, self.allowed) {
+            Pic::Ready(tex) => Some(tex),
+            Pic::Loading | Pic::Missing => None,
+        }
+    }
+
+    /// A box placed over `over` (its container's rectangle); where it ends at the bottom.
+    fn overlay(&mut self, st: &mut UiState, ui: &mut Ui, o: &mime::layout::Overlay, over: egui::Rect, page: [u8; 3], depth: usize) -> f32 {
+        use mime::layout::Width;
+        const PAD: f32 = 4.0;
+        let x = o.x as f32;
+        let w = match o.width {
+            Some(Width::Px(px)) => px as f32,
+            Some(Width::Percent(pc)) => over.width() * f32::from(pc) / 100.0,
+            // As wide as its text (CSS's shrink-to-fit), at most what's left of the box.
+            None => natural_width(ui, &o.blocks).map_or(over.width() - x, |n| n + 2.0 * PAD + 1.0).min(over.width() - x).max(24.0),
+        }
+        .clamp(1.0, over.width().max(1.0));
+        let left = if o.from_right { over.right() - x - w } else { over.left() + x }.max(over.left() - w);
+        let bg = theme::box_color(o.background, page, &st.tokens);
+        let fill = bg.map_or(Color32::TRANSPARENT, |b| Color32::from_rgb(b[0], b[1], b[2]));
+        let draw = |this: &mut Self, st: &mut UiState, ui: &mut Ui, top: f32, measure: bool| -> f32 {
+            let mut b = egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(egui::pos2(left, top), vec2(w, f32::INFINITY)));
+            if measure {
+                b = b.sizing_pass().invisible();
+            }
+            let mut child = ui.new_child(b);
+            egui::Frame::new().fill(fill).inner_margin(PAD).show(&mut child, |ui| {
+                let inner = (w - 2.0 * PAD).max(1.0);
+                ui.set_width(inner);
+                this.blocks(st, ui, &o.blocks, inner, bg.unwrap_or(page), mime::layout::Align::Left, depth + 1);
+            });
+            child.min_rect().height()
+        };
+        // From the bottom: its height first, out of sight.
+        let top = if o.from_bottom {
+            let h = draw(self, st, ui, over.top(), true);
+            (over.bottom() - o.y as f32 - h).max(over.top())
+        } else {
+            over.top() + o.y as f32
+        };
+        let h = draw(self, st, ui, top, false);
+        top + h
     }
 
     /// A table row: its cells side by side, or one under the other when there's no room.
@@ -900,13 +958,28 @@ impl Body<'_> {
         let cell = |this: &mut Self, st: &mut UiState, ui: &mut Ui, c: &mime::layout::Cell, w: f32| {
             let bg = theme::box_color(c.background, page, &st.tokens);
             let fill = bg.map_or(Color32::TRANSPARENT, |b| Color32::from_rgb(b[0], b[1], b[2]));
+            let behind = c.background_image.as_deref().and_then(|src| this.background(st, ui.ctx(), src));
             ui.allocate_ui_with_layout(vec2(w, 0.0), egui::Layout::top_down(Align::Min), |ui| {
                 ui.set_width(w);
-                egui::Frame::new().fill(fill).inner_margin(PAD).show(ui, |ui| {
+                let framed = egui::Frame::new().fill(fill).inner_margin(PAD).show(ui, |ui| {
+                    let slot = ui.painter().add(egui::Shape::Noop);
                     let inner = (w - 2.0 * PAD).max(1.0);
                     ui.set_width(inner);
                     this.blocks(st, ui, &c.blocks, inner, bg.unwrap_or(page), c.align, depth + 1);
+                    slot
                 });
+                let rect = framed.response.rect;
+                if let Some(tex) = &behind {
+                    ui.painter().set(framed.inner, cover(tex, rect));
+                }
+                // Boxes placed over it; the cell grows to hold any that reach past its end.
+                let mut bottom = rect.bottom();
+                for o in &c.overlays {
+                    bottom = bottom.max(this.overlay(st, ui, o, rect, bg.unwrap_or(page), depth));
+                }
+                if bottom > rect.bottom() {
+                    ui.add_space(bottom - rect.bottom());
+                }
             });
         };
         if stack {
@@ -927,36 +1000,14 @@ impl Body<'_> {
 /// Draw one picture of an HTML message; `false` when it can't be shown (yet).
 #[allow(clippy::too_many_arguments)]
 fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, src: &str, allowed: bool, width: f32) -> bool {
-    let tex = if let Some(cid) = src.strip_prefix("cid:") {
-        let Some(index) = p.attachments.iter().find(|a| a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(cid))).map(|a| a.index) else {
-            return false;
-        };
-        preview(s, st, ui.ctx(), key, index)
-    } else {
-        if !allowed {
-            return false;
+    let tex = match picture_texture(s, st, ui.ctx(), key, p, src, allowed) {
+        Pic::Ready(tex) => tex,
+        Pic::Loading => {
+            ui.spinner();
+            return true;
         }
-        match s.pictures.get(src) {
-            Some(mailcraft_engine::Picture::Ready(bytes)) => {
-                if let Some(t) = st.web_pictures.get(src) {
-                    t.clone()
-                } else {
-                    if st.web_pictures.len() > 200 {
-                        st.web_pictures.clear();
-                    }
-                    let t = decode(ui.ctx(), &format!("web-{src}"), bytes, 1200);
-                    st.web_pictures.insert(src.to_string(), t.clone());
-                    t
-                }
-            }
-            Some(mailcraft_engine::Picture::Loading) => {
-                ui.spinner();
-                return true;
-            }
-            _ => None,
-        }
+        Pic::Missing => return false,
     };
-    let Some(tex) = tex else { return false };
     let sz = tex.size_vec2();
     // Tracking pixels and spacers: nothing to see.
     if sz.x <= 3.0 && sz.y <= 3.0 {
@@ -965,6 +1016,71 @@ fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mim
     let scale = (width.min(900.0) / sz.x).min(1.0);
     ui.add(egui::Image::new(&tex).fit_to_exact_size(sz * scale));
     true
+}
+
+/// How wide formatted text is unwrapped (its widest line); `None` for anything but text.
+fn natural_width(ui: &Ui, blocks: &[mime::layout::Block]) -> Option<f32> {
+    let mut widest: f32 = 0.0;
+    for b in blocks {
+        let mime::layout::Block::Text(lines) = b else { return None };
+        for line in lines {
+            if line.iter().any(|sp| sp.image.is_some()) {
+                return None;
+            }
+            let w: f32 = line.iter().map(|sp| ui.fonts_mut(|f| f.layout_no_wrap(sp.text.clone(), span_font(sp), Color32::WHITE).size().x)).sum();
+            widest = widest.max(w);
+        }
+    }
+    Some(widest)
+}
+
+/// A message's picture, as far as it can be had now.
+enum Pic {
+    Ready(egui::TextureHandle),
+    /// Being downloaded.
+    Loading,
+    /// Not in the message, not allowed yet, or not a picture.
+    Missing,
+}
+
+/// A picture of an HTML message: one inside it (`cid:`) always, one on the web once allowed.
+fn picture_texture(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey, p: &mime::Parsed, src: &str, allowed: bool) -> Pic {
+    if let Some(cid) = src.strip_prefix("cid:").or_else(|| src.strip_prefix("CID:")) {
+        let Some(index) = p.attachments.iter().find(|a| a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(cid))).map(|a| a.index) else {
+            return Pic::Missing;
+        };
+        return preview(s, st, ctx, key, index).map_or(Pic::Missing, Pic::Ready);
+    }
+    if !allowed {
+        return Pic::Missing;
+    }
+    match s.pictures.get(src) {
+        Some(mailcraft_engine::Picture::Ready(bytes)) => {
+            if let Some(t) = st.web_pictures.get(src) {
+                return t.clone().map_or(Pic::Missing, Pic::Ready);
+            }
+            if st.web_pictures.len() > 200 {
+                st.web_pictures.clear();
+            }
+            let t = decode(ctx, &format!("web-{src}"), bytes, 1200);
+            st.web_pictures.insert(src.to_string(), t.clone());
+            t.map_or(Pic::Missing, Pic::Ready)
+        }
+        Some(mailcraft_engine::Picture::Loading) => Pic::Loading,
+        _ => Pic::Missing,
+    }
+}
+
+/// A picture covering `rect`, cropped to keep its shape (CSS's `background-size: cover`).
+fn cover(tex: &egui::TextureHandle, rect: egui::Rect) -> egui::Shape {
+    let sz = tex.size_vec2();
+    if sz.x < 1.0 || sz.y < 1.0 || rect.width() < 1.0 || rect.height() < 1.0 {
+        return egui::Shape::Noop;
+    }
+    let scale = (rect.width() / sz.x).max(rect.height() / sz.y);
+    let part = vec2((rect.width() / (sz.x * scale)).min(1.0), (rect.height() / (sz.y * scale)).min(1.0));
+    let uv = egui::Rect::from_center_size(egui::pos2(0.5, 0.5), part);
+    egui::Shape::image(tex.id(), rect, uv, Color32::WHITE)
 }
 
 /// An attachment as Outlook shows one: a small chip with a thumbnail (or the kind's icon), the

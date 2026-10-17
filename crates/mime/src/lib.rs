@@ -555,7 +555,17 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     // mail-parser lists text parts among the HTML bodies too (converted); only real HTML counts.
     let real_html = m.html_bodies().any(|p| p.is_text_html());
     let (rich, images, layout) = match m.body_html(0).filter(|_| real_html) {
-        Some(h) => (html_to_rich(&h), html_images(&h), layout::html_layout(&h)),
+        Some(h) => {
+            let layout = layout::html_layout(&h);
+            // Pictures behind boxes are shown, or held back, like the others.
+            let mut images = html_images(&h);
+            for src in layout::background_pictures(&layout) {
+                if !images.contains(&src) && images.len() < 200 {
+                    images.push(src);
+                }
+            }
+            (html_to_rich(&h), images, layout)
+        }
         None => (Vec::new(), Vec::new(), Vec::new()),
     };
     let (text, had_html) = match (m.text_body_count() > 0, m.body_text(0), m.body_html(0)) {

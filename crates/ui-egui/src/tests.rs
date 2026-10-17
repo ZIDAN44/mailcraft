@@ -37,6 +37,28 @@ fn renders_every_state_without_panicking() {
     tour();
 }
 
+/// A newsletter with a picture behind its heading and a label placed over its poster draws in
+/// both themes and in a narrow reading pane (where its columns stack).
+#[test]
+fn a_banner_and_a_placed_label_draw() {
+    let (mut a, dir) = app("banner");
+    let ctx = egui::Context::default();
+    let k = a.session.list.iter().find(|m| m.subject.contains("winter group show")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    let p = a.session.reading.as_ref().and_then(|r| r.parsed.clone()).unwrap();
+    assert!(p.images.iter().any(|i| i == "cid:banner@gallery.example"), "the banner is one of its pictures: {:?}", p.images);
+    for dark in [Some(false), Some(true)] {
+        a.ui.dark = dark;
+        for pane in [ReadingPane::Right, ReadingPane::Bottom] {
+            a.session.prefs.reading_pane = pane;
+            for _ in 0..3 {
+                frame(&ctx, &mut a, vec![]);
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// People's list and A–Z index were a few pixels wider than the pane, so the pane (shared by
 /// every module) grew each frame to its widest and Mail, Calendar and Notes stayed that wide.
 #[test]

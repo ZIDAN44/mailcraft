@@ -17,8 +17,7 @@ _Status: v0.13, 2026-10-17._
 | 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail, contacts, calendar items and tasks with a due date come in; export writes the mail as `.pst` and the calendar and contacts beside it as `.ics` and `.vcf`. The writer (`outlook-pst-rw`) makes mail items only, marked read, so contacts, appointments and flags can't go inside the `.pst`; the reader (`outlook-pst`) doesn't open the attachments of an attached message; notes and tasks without a date are left out. |
 | 4 | **Drag attachments out under Wayland** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND). A native Wayland window would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
-| 6 | **HTML layout: positioning and background pictures** | Tables, flexbox rows, grids, inline-block and floated boxes keep their columns; absolutely positioned boxes and background pictures still flow as text. |
-| 7 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
+| 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
 
 ## Done
 
@@ -219,3 +218,10 @@ Microsoft sign-in, tried end to end once the release builds carried a registrati
   Graph reads the calendar's `canEdit` (with `Calendars.ReadWrite.Shared`), EWS the folder's
   EffectiveRights; new events go into the owner's calendar, and changes and deletions reach it
   too. Those they didn't allow stay read-only, and only those say "read-only".
+- **HTML layout: background pictures and placed boxes:** a picture behind a table, a cell or a
+  box (`background`, `background-image: url(…)`, `background: … url(…)`) is drawn behind its
+  content, cropped to cover it, and held back like the message's other web pictures until
+  they're allowed (its colour shows meanwhile); boxes placed with `position: absolute` in a
+  `position: relative` one (a label on a picture) sit over it at their offsets, as wide as their
+  text unless they say. Text now takes its cell's or table's `color`, so white on a dark band
+  stays white.
