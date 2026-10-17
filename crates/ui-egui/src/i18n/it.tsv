@@ -750,6 +750,12 @@
 	Mail from an old .pst or .mailcraft file comes in first	La posta di un vecchio file .pst o .mailcraft viene importata per prima
 	Open a data file	Apri un file di dati
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Importa un file di dati di Outlook (.pst) o di MailCraft (.mailcraft). Si apre come una cassetta postale a sé, con le sue cartelle, conservata su questo computer.
+	Move up	Sposta su
+	Move down	Sposta giù
+	Updating…	Aggiornamento…
+	All folders are up to date	Tutte le cartelle sono aggiornate
+	{n} accounts disconnected	{n} account disconnessi
+	{account}: {status}	{account}: {status}
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

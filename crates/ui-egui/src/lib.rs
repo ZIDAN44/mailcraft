@@ -1874,41 +1874,55 @@ impl MailApp {
                 ui.label(RichText::new(tl!("Working offline")).color(t.warn).small());
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                for a in s.accounts.iter().rev() {
-                    let (color, text) = match &a.status {
-                        SyncStatus::Online { at } => {
-                            (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock))))
+                let dot = |ui: &mut Ui, color: egui::Color32| {
+                    let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
+                    ui.painter().circle_filled(r.center(), 4.0, color);
+                };
+                // One account: its own status. Several: one status for them all (a line per
+                // account didn't fit), with each on hover; only those that need you stand out.
+                if s.accounts.len() <= 1 {
+                    for a in &s.accounts {
+                        let (color, text) = account_status(s, &t, a);
+                        // "Password needed" is a link: click it to enter the password again.
+                        if matches!(a.status, SyncStatus::NeedsPassword { .. }) {
+                            if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(&a.config.email).clicked() {
+                                again = Some(a.config.id.clone());
+                            }
+                        } else {
+                            ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(&a.config.email);
                         }
-                        SyncStatus::Syncing { .. } if a.is_data_file() => (t.accent, tf!("Opening {file}…", file = a.config.email)),
-                        SyncStatus::Syncing { folder } => (
-                            t.accent,
-                            tf!(
-                                "Updating {folder}…",
-                                folder =
-                                    s.folder(&a.config.id, folder).map(|f| i18n::tc("folder", &f.display_name()).to_string()).unwrap_or_default()
-                            ),
-                        ),
-                        SyncStatus::Connecting => (t.accent, tl!("Connecting…").to_string()),
-                        SyncStatus::Offline if a.is_data_file() => (t.faint, tl!("Outlook data file").to_string()),
-                        SyncStatus::Offline if a.is_local() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
-                        SyncStatus::Offline => (t.faint, tl!("Offline").to_string()),
-                        // An account that signs in in the browser has no password to ask for.
-                        SyncStatus::NeedsPassword { .. } if a.config.oauth.is_some() => (t.danger, tl!("Sign in again").to_string()),
-                        SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),
-                        SyncStatus::Error { error } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
-                    };
-                    let label = a.config.email.clone();
-                    // "Password needed" is a link: click it to enter the password again.
-                    if matches!(a.status, SyncStatus::NeedsPassword { .. }) {
-                        if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(label).clicked() {
-                            again = Some(a.config.id.clone());
-                        }
-                    } else {
-                        ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(label);
+                        dot(ui, color);
                     }
-                    let (dot, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
-                    ui.painter().circle_filled(dot.center(), 4.0, color);
+                    return;
+                }
+                let each: Vec<String> =
+                    s.accounts.iter().map(|a| tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1)).collect();
+                let each = each.join("\n");
+                let busy = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Syncing { .. }));
+                let connecting = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting));
+                let failed = s.accounts.iter().filter(|a| matches!(a.status, SyncStatus::Error { .. })).count();
+                let online = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Online { .. }));
+                let (color, text) = if busy {
+                    (t.accent, tl!("Updating…").to_string())
+                } else if connecting {
+                    (t.accent, tl!("Connecting…").to_string())
+                } else if failed > 0 {
+                    (t.warn, tf!("{n} accounts disconnected", n = failed))
+                } else if online {
+                    (t.ok, tl!("All folders are up to date").to_string())
+                } else {
+                    (t.faint, tl!("Offline").to_string())
+                };
+                ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(&each);
+                dot(ui, color);
+                // Accounts waiting for you: a link each (it signs in again).
+                for a in s.accounts.iter().rev().filter(|a| matches!(a.status, SyncStatus::NeedsPassword { .. })) {
                     ui.add_space(10.0);
+                    let text = tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1);
+                    if ui.link(RichText::new(text).color(t.danger).small()).clicked() {
+                        again = Some(a.config.id.clone());
+                    }
+                    dot(ui, t.danger);
                 }
             });
         });
@@ -1980,6 +1994,29 @@ impl MailApp {
 
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so
 /// they close this one; so do Delete and Archive.
+/// An account's status for the status bar: its colour and words.
+fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::AccountState) -> (egui::Color32, String) {
+    match &a.status {
+        SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
+        SyncStatus::Syncing { .. } if a.is_data_file() => (t.accent, tf!("Opening {file}…", file = a.config.email)),
+        SyncStatus::Syncing { folder } => (
+            t.accent,
+            tf!(
+                "Updating {folder}…",
+                folder = s.folder(&a.config.id, folder).map(|f| i18n::tc("folder", &f.display_name()).to_string()).unwrap_or_default()
+            ),
+        ),
+        SyncStatus::Connecting => (t.accent, tl!("Connecting…").to_string()),
+        SyncStatus::Offline if a.is_data_file() => (t.faint, tl!("Outlook data file").to_string()),
+        SyncStatus::Offline if a.is_local() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
+        SyncStatus::Offline => (t.faint, tl!("Offline").to_string()),
+        // An account that signs in in the browser has no password to ask for.
+        SyncStatus::NeedsPassword { .. } if a.config.oauth.is_some() => (t.danger, tl!("Sign in again").to_string()),
+        SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),
+        SyncStatus::Error { error } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
+    }
+}
+
 fn window_toolbar(ui: &mut Ui, s: &Session, t: &Tokens, key: &MessageKey, acts: &mut Vec<Action>) {
     let close = || Action::Run("message.closeWindow", json!({"key": key.to_id()}));
     let flagged = s.summary(key).is_some_and(|m| m.flags.flagged);

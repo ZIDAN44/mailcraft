@@ -752,3 +752,9 @@ month	May	מאי
 	Mail from an old .pst or .mailcraft file comes in first	הדואר מקובץ ‎.pst או ‎.mailcraft ישן נכנס קודם
 	Open a data file	פתח קובץ נתונים
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	ייבא קובץ נתונים של Outlook ‏(.pst) או של MailCraft ‏(.mailcraft). הוא נפתח כתיבת דואר נפרדת עם התיקיות שלה, ונשמר במחשב זה.
+	Move up	העבר למעלה
+	Move down	העבר למטה
+	Updating…	מעדכן…
+	All folders are up to date	כל התיקיות מעודכנות
+	{n} accounts disconnected	{n} חשבונות מנותקים
+	{account}: {status}	{account}: {status}

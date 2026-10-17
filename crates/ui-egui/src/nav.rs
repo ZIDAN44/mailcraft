@@ -165,6 +165,19 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Dialog(Dialog::new_folder(&config.id, here)));
                     ui.close();
                 }
+                // Its place among the accounts, as Outlook moves a mailbox up or down.
+                if s.accounts.len() > 1 {
+                    let at = s.accounts.iter().position(|x| x.config.id == config.id).unwrap_or(0);
+                    ui.separator();
+                    if ui.add_enabled(at > 0, egui::Button::new(tl!("Move up"))).clicked() {
+                        acts.push(Action::Run("account.move", json!({"account": config.id, "by": -1})));
+                        ui.close();
+                    }
+                    if ui.add_enabled(at + 1 < s.accounts.len(), egui::Button::new(tl!("Move down"))).clicked() {
+                        acts.push(Action::Run("account.move", json!({"account": config.id, "by": 1})));
+                        ui.close();
+                    }
+                }
                 ui.separator();
                 if ui.button(RichText::new(tl!("Remove account…")).color(t.danger)).clicked() {
                     acts.push(Action::Dialog(Dialog::RemoveAccount { account: config.id.clone(), email: config.email.clone() }));

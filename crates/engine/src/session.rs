@@ -721,10 +721,9 @@ impl Session {
         self.account(account).and_then(|a| a.folders.iter().find(|f| f.path == path))
     }
 
+    /// What opens at the start: the first account's Inbox, as Outlook opens on its first mailbox
+    /// (All Inboxes is a click away in Favorites; the accounts can be put in any order).
     fn default_view(&self) -> View {
-        if self.accounts.len() > 1 {
-            return View::Unified { role: FolderRole::Inbox };
-        }
         match self.accounts.first() {
             Some(a) => {
                 let folder = a.folder(FolderRole::Inbox).map(|f| f.path.clone()).unwrap_or_else(|| "INBOX".to_string());
@@ -2476,6 +2475,20 @@ impl Session {
                 }
             }
         }
+    }
+
+    /// Move an account up (`by` < 0) or down the folder pane, as Outlook moves a mailbox.
+    pub fn move_account(&mut self, id: &str, by: i64) -> CmdResult {
+        let from = self.accounts.iter().position(|a| a.config.id == id).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+        let last = self.accounts.len().saturating_sub(1);
+        let to = if by < 0 { from.saturating_sub(by.unsigned_abs() as usize) } else { from.saturating_add(by as usize).min(last) };
+        if to != from {
+            let a = self.accounts.remove(from);
+            self.accounts.insert(to, a);
+            self.save_accounts();
+            self.revision = self.revision.wrapping_add(1);
+        }
+        Ok(serde_json::json!({ "account": id, "position": to }))
     }
 
     pub fn remove_account(&mut self, id: &str) -> CmdResult {

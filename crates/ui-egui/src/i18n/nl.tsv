@@ -752,3 +752,9 @@ month	May	mei
 	Mail from an old .pst or .mailcraft file comes in first	E-mail uit een oud .pst- of .mailcraft-bestand komt eerst binnen
 	Open a data file	Een gegevensbestand openen
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Haal een Outlook-gegevensbestand (.pst) of een MailCraft-bestand (.mailcraft) binnen. Het opent als een eigen postvak, met zijn mappen, bewaard op deze computer.
+	Move up	Omhoog
+	Move down	Omlaag
+	Updating…	Bijwerken…
+	All folders are up to date	Alle mappen zijn bijgewerkt
+	{n} accounts disconnected	{n} accounts niet verbonden
+	{account}: {status}	{account}: {status}

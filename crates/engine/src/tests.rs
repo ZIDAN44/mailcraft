@@ -1766,3 +1766,34 @@ fn shared_calendars_open_from_exchange_accounts_and_close() {
     assert!(s.run("calendar.closeShared", &json!({"email": "ana@contoso.example"})).is_err());
     done(s);
 }
+
+/// With several accounts, the first one's Inbox opens (as Outlook opens on its first mailbox),
+/// and accounts can be put in another order, which is kept.
+#[test]
+fn the_first_account_opens_and_accounts_can_be_reordered() {
+    use mailcraft_model::dates::Clock;
+    use mailcraft_model::{AccountConfig, Folder};
+    let dir = std::env::temp_dir().join(format!("mailcraft-acct-order-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let config = |id: &str, email: &str| AccountConfig { id: id.into(), email: email.into(), ..Default::default() };
+    store.save_accounts(&[config("a1", "zoe@studio.example"), config("a2", "ana@soundlab.example"), config("a3", "sam@studio.example")]).unwrap();
+    for id in ["a1", "a2", "a3"] {
+        store.save_folders(id, &[Folder { path: "INBOX".into(), role: FolderRole::Inbox, ..Default::default() }]).unwrap();
+    }
+    let mut s = Session::open(Some(store.clone()), Clock::new(1_700_000_000, 0));
+    assert_eq!(s.view, View::Folder { account: "a1".into(), folder: "INBOX".into() });
+    s.run("account.move", &json!({"account": "a3", "by": -1})).unwrap();
+    s.run("account.move", &json!({"account": "a3", "by": -1})).unwrap();
+    s.run("account.move", &json!({"account": "a3", "by": -1})).unwrap();
+    let order = |s: &Session| s.accounts.iter().map(|a| a.config.id.clone()).collect::<Vec<_>>();
+    assert_eq!(order(&s), ["a3", "a1", "a2"], "at the top it stays there");
+    s.run("account.move", &json!({"account": "a1", "by": 1})).unwrap();
+    assert_eq!(order(&s), ["a3", "a2", "a1"]);
+    assert!(s.run("account.move", &json!({"account": "nobody", "by": 1})).is_err());
+    // Kept: the next start has the new order and opens its first account.
+    let s = Session::open(Some(store), Clock::new(1_700_000_000, 0));
+    assert_eq!(order(&s), ["a3", "a2", "a1"]);
+    assert_eq!(s.view, View::Folder { account: "a3".into(), folder: "INBOX".into() });
+    let _ = std::fs::remove_dir_all(&dir);
+}

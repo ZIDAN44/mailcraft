@@ -750,6 +750,12 @@
 	Mail from an old .pst or .mailcraft file comes in first	이전 .pst 또는 .mailcraft 파일의 메일을 먼저 가져옵니다
 	Open a data file	데이터 파일 열기
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook 데이터 파일(.pst) 또는 MailCraft 파일(.mailcraft)을 가져옵니다. 폴더와 함께 별도의 사서함으로 열리며 이 컴퓨터에 보관됩니다.
+	Move up	위로 이동
+	Move down	아래로 이동
+	Updating…	업데이트하는 중…
+	All folders are up to date	모든 폴더가 최신 상태입니다
+	{n} accounts disconnected	{n}개 계정의 연결이 끊김
+	{account}: {status}	{account}: {status}
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

@@ -750,6 +750,12 @@
 	Mail from an old .pst or .mailcraft file comes in first	先匯入舊 .pst 或 .mailcraft 檔案中的郵件
 	Open a data file	開啟資料檔
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	匯入 Outlook 資料檔 (.pst) 或 MailCraft 檔案 (.mailcraft)。它會連同資料夾以獨立信箱的形式開啟,儲存在此電腦上。
+	Move up	上移
+	Move down	下移
+	Updating…	正在更新…
+	All folders are up to date	所有資料夾都是最新的
+	{n} accounts disconnected	{n} 個帳戶已中斷連線
+	{account}: {status}	{account}:{status}
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

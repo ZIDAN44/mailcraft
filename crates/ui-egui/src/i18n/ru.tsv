@@ -750,6 +750,12 @@
 	Mail from an old .pst or .mailcraft file comes in first	Сначала загружается почта из старого файла .pst или .mailcraft
 	Open a data file	Открыть файл данных
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Загрузите файл данных Outlook (.pst) или MailCraft (.mailcraft). Он откроется как отдельный почтовый ящик со своими папками и будет храниться на этом компьютере.
+	Move up	Переместить вверх
+	Move down	Переместить вниз
+	Updating…	Обновление…
+	All folders are up to date	Все папки обновлены
+	{n} accounts disconnected	Отключено учётных записей: {n}
+	{account}: {status}	{account}: {status}
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -230,3 +230,12 @@ Microsoft sign-in, tried end to end once the release builds carried a registrati
 - **Right-to-left mail can be copied:** a right-click on Arabic or Hebrew text in the reading
   pane copies the line, or the whole message, as written (selecting it with the pointer isn't
   possible: egui's layout miscounts right-to-left letters).
+- **Several accounts, as Outlook keeps them:** MailCraft opens on the first account's Inbox (All
+  Inboxes stays in Favorites), accounts move up and down from their right-click menu (the order is
+  kept), and the status bar says one thing for all of them ("All folders are up to date",
+  "Updating…", "2 accounts disconnected"), each account's own status on hover, with only those
+  that need a password or a sign-in shown on their own.
+- **MailCraft's own data files:** a POP account can start from a `.mailcraft` file as well as a
+  `.pst`, and File › Open a data file opens one as a mailbox of its own (read from a copy, so
+  the file itself isn't touched).
+
