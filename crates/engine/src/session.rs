@@ -195,6 +195,13 @@ pub struct Prefs {
     pub mark_read_on_open: bool,
     pub read_in_pane: ReadInPane,
     pub notes_order: NotesOrder,
+    /// Calendars left out of the calendar (`account/calendar id`), as Outlook's unticked ones.
+    pub hidden_calendars: BTreeSet<String>,
+    /// Day and week show each calendar in a column of its own (Outlook's side-by-side view)
+    /// rather than all of them together.
+    pub calendars_side_by_side: bool,
+    /// Months shown one under another in the calendar's side pane (1 to 6).
+    pub calendar_months: u8,
     /// With `ReadInPane::Shown`: after it's been shown this many seconds (0: at once).
     pub read_after_secs: u32,
     /// Show the first line of text under each message.
@@ -376,6 +383,9 @@ impl Default for Prefs {
             mark_read_on_open: true,
             read_in_pane: ReadInPane::Shown,
             notes_order: NotesOrder::Modified,
+            hidden_calendars: BTreeSet::new(),
+            calendars_side_by_side: false,
+            calendar_months: 1,
             read_after_secs: 0,
             show_preview: true,
             compact: false,

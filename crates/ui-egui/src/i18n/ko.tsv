@@ -775,6 +775,13 @@
 	Save and insert	저장 후 삽입
 	Signatures…	서명…
 	Categories	범주
+	1 month	1개월
+	{n} months	{n}개월
+	Day and week show each calendar in a column of its own	일 및 주 보기에서 일정마다 별도 열로 표시
+	Drag down to show more months	아래로 끌면 더 많은 달이 표시됩니다
+	Hidden: click to show it	숨김: 클릭하여 표시
+	Shown: click to hide it	표시됨: 클릭하여 숨기기
+	Side by side	나란히 보기
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

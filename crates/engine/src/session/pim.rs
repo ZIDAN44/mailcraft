@@ -158,12 +158,32 @@ impl Session {
         Ok(serde_json::json!({"date": format!("{y:04}-{m:02}-{dd:02}"), "mode": self.cal_mode}))
     }
 
-    /// The occurrences overlapping `[from, to)`, by start, from every calendar.
+    /// The key a calendar is shown or hidden under (`Prefs::hidden_calendars`).
+    pub fn calendar_key(account: &str, calendar: &str) -> String {
+        format!("{account}/{calendar}")
+    }
+
+    /// Whether a calendar is shown (ticked) in the calendar.
+    pub fn calendar_shown(&self, account: &str, calendar: &str) -> bool {
+        !self.prefs.hidden_calendars.contains(&Session::calendar_key(account, calendar))
+    }
+
+    /// The calendars shown, in the order the side pane lists them: (account, id, name, colour).
+    pub fn shown_calendars(&self) -> Vec<(String, String, String, u8)> {
+        self.accounts
+            .iter()
+            .filter_map(|a| self.pim.get(&a.config.id).map(|p| (a, p)))
+            .flat_map(|(a, p)| p.calendars.iter().map(move |c| (a.config.id.clone(), c.id.clone(), c.name.clone(), c.color)))
+            .filter(|(a, c, _, _)| self.calendar_shown(a, c))
+            .collect()
+    }
+
+    /// The occurrences overlapping `[from, to)`, by start, from every calendar that's shown.
     pub fn agenda(&self, from: i64, to: i64) -> Vec<AgendaItem> {
         let off = i64::from(self.clock.offset);
         let mut out = Vec::new();
         for (account, p) in &self.pim {
-            for cal in &p.calendars {
+            for cal in p.calendars.iter().filter(|c| self.calendar_shown(account, &c.id)) {
                 let stored: Vec<&StoredEvent> = p.events.iter().filter(|e| e.calendar == cal.id).collect();
                 let events: Vec<CalEvent> = stored.iter().map(|e| e.event.clone()).collect();
                 // All-day events are dates, not times: widen the window by a day each way.

@@ -362,6 +362,34 @@ pub fn registry() -> Registry {
             Ok(json!({"on": s.prefs.mark_read_on_open}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("calendar.show", "Show or hide a calendar", "Calendar › Calendars", |s, v| {
+            let account = p::req_str(v, "account")?.to_string();
+            let calendar = p::req_str(v, "calendar")?.to_string();
+            if !s.pim.get(&account).is_some_and(|p| p.calendars.iter().any(|c| c.id == calendar)) {
+                return Err(CmdError::Params(format!("no calendar `{calendar}` in `{account}`")));
+            }
+            let key = Session::calendar_key(&account, &calendar);
+            let shown = p::bool(v, "shown").unwrap_or(s.prefs.hidden_calendars.contains(&key));
+            if shown {
+                s.prefs.hidden_calendars.remove(&key);
+            } else {
+                s.prefs.hidden_calendars.insert(key);
+            }
+            s.pim_revision = s.pim_revision.wrapping_add(1);
+            Ok(json!({"account": account, "calendar": calendar, "shown": shown}))
+        })
+        .params(r#"{"account": string, "calendar": string, "shown"?: bool (default: the other way)}"#),
+        CommandSpec::new("calendar.sideBySide", "Side by side", "Calendar › View", |s, v| {
+            s.prefs.calendars_side_by_side = p::bool(v, "on").unwrap_or(!s.prefs.calendars_side_by_side);
+            Ok(json!({"on": s.prefs.calendars_side_by_side}))
+        })
+        .params(r#"{"on"?: bool (each calendar in a column of its own in day and week)}"#),
+        CommandSpec::new("calendar.months", "Months in the side pane", "Calendar › Side pane", |s, v| {
+            let n = p::u64(v, "count").ok_or_else(|| CmdError::Params("`count` is required (1 to 6)".into()))?;
+            s.prefs.calendar_months = u8::try_from(n.clamp(1, 6)).unwrap_or(1);
+            Ok(json!({"count": s.prefs.calendar_months}))
+        })
+        .params(r#"{"count": number (1 to 6)}"#),
         CommandSpec::new("note.arrange", "Arrange notes", "Notes › Arrange by", |s, v| {
             s.prefs.notes_order = match p::req_str(v, "by")? {
                 "modified" => crate::session::NotesOrder::Modified,

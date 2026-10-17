@@ -776,6 +776,13 @@
 	Save and insert	Enregistrer et insérer
 	Signatures…	Signatures…
 	Categories	Catégories
+	1 month	1 mois
+	{n} months	{n} mois
+	Day and week show each calendar in a column of its own	Les vues Jour et Semaine affichent chaque calendrier dans sa propre colonne
+	Drag down to show more months	Faites glisser vers le bas pour afficher plus de mois
+	Hidden: click to show it	Masqué : cliquez pour l'afficher
+	Shown: click to hide it	Affiché : cliquez pour le masquer
+	Side by side	Côte à côte
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

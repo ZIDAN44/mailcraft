@@ -775,6 +775,13 @@
 	Save and insert	Сохранить и вставить
 	Signatures…	Подписи…
 	Categories	Категории
+	1 month	1 месяц
+	{n} months	Месяцев: {n}
+	Day and week show each calendar in a column of its own	В режимах «День» и «Неделя» каждый календарь в своём столбце
+	Drag down to show more months	Потяните вниз, чтобы показать больше месяцев
+	Hidden: click to show it	Скрыт: щёлкните, чтобы показать
+	Shown: click to hide it	Показан: щёлкните, чтобы скрыть
+	Side by side	Рядом
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

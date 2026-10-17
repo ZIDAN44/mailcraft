@@ -778,3 +778,10 @@ month	May	5月
 	Save and insert	保存して挿入
 	Signatures…	署名…
 	Categories	分類
+	1 month	1 か月
+	{n} months	{n} か月
+	Day and week show each calendar in a column of its own	日と週の表示で予定表ごとに列を分けます
+	Drag down to show more months	下にドラッグすると月が増えます
+	Hidden: click to show it	非表示: クリックで表示
+	Shown: click to hide it	表示中: クリックで非表示
+	Side by side	並べて表示

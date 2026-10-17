@@ -2067,3 +2067,33 @@ fn events_take_their_categorys_colour() {
 fn mailcraft_engine_day(s: &Session) -> i64 {
     crate::parse_local("2026-10-16", i64::from(s.clock.offset)).map(|(t, _)| t).unwrap()
 }
+
+/// Issue #1: calendars can be hidden (Outlook's ticks) and shown side by side, and the side
+/// pane can show several months; all kept with the settings.
+#[test]
+fn calendars_can_be_hidden_and_shown_side_by_side() {
+    let mut s = sample_session("calendar-views");
+    let studio = crate::sample::STUDIO_CALENDAR;
+    let names = |s: &Session| s.shown_calendars().into_iter().map(|c| c.1).collect::<Vec<_>>();
+    assert_eq!(names(&s), [mailcraft_model::pim::LOCAL, studio]);
+    let (from, to) = (s.clock.now - 7 * 86_400, s.clock.now + 7 * 86_400);
+    let in_studio = |s: &Session| s.agenda(from, to).iter().filter(|i| i.calendar == studio).count();
+    assert_eq!(in_studio(&s), 2);
+    s.run("calendar.show", &json!({"account": "sample", "calendar": studio})).unwrap();
+    assert_eq!(names(&s), [mailcraft_model::pim::LOCAL]);
+    assert_eq!(in_studio(&s), 0, "a hidden calendar's events aren't shown");
+    assert!(s.agenda(from, to).iter().any(|i| i.summary == "Lunch with Jun"));
+    s.run("calendar.show", &json!({"account": "sample", "calendar": studio, "shown": true})).unwrap();
+    assert_eq!(in_studio(&s), 2);
+    assert!(s.run("calendar.show", &json!({"account": "sample", "calendar": "nope"})).is_err());
+    s.run("calendar.sideBySide", &json!({})).unwrap();
+    assert!(s.prefs.calendars_side_by_side);
+    s.run("calendar.months", &json!({"count": 9})).unwrap();
+    assert_eq!(s.prefs.calendar_months, 6, "at most six");
+    s.run("calendar.show", &json!({"account": "sample", "calendar": studio, "shown": false})).unwrap();
+    let back: crate::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!((back.calendars_side_by_side, back.calendar_months, back.hidden_calendars.len()), (true, 6, 1));
+    // The sample's events in categories take their colours.
+    let edit = s.agenda(from, to).into_iter().find(|i| i.summary == "Lunch with Jun").unwrap();
+    assert_eq!(edit.category, Some(s.category_color_of("Personal")));
+}

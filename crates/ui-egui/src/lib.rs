@@ -394,6 +394,8 @@ pub struct UiState {
     /// Notes: the search, the note being written on (and its text), a new note to write on,
     /// and the keyboard to give its text box.
     pub(crate) notes_query: String,
+    /// How far the calendar's month grip has been dragged since it last added or took a month.
+    pub(crate) months_drag: f32,
     pub(crate) note_edit: Option<(String, String)>,
     pub(crate) note_focus: bool,
     /// The person whose card is shown (uid).
@@ -477,6 +479,7 @@ impl MailApp {
                 people_query: String::new(),
                 people_view: people::PeopleView::default(),
                 notes_query: String::new(),
+                months_drag: 0.0,
                 note_edit: None,
                 note_focus: false,
                 person: None,
@@ -1610,6 +1613,13 @@ impl MailApp {
                         let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
                         if r.clicked() {
                             acts.push(Action::Run("calendar.view", json!({"mode": code})));
+                        }
+                    }
+                    // Each calendar in a column of its own (Outlook's side by side), or together.
+                    if s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1 {
+                        widgets::group_sep(ui, &t);
+                        if widgets::tool_toggle(ui, Icon::Calendar, "Side by side", &t, s.prefs.calendars_side_by_side).clicked() {
+                            acts.push(Action::Run("calendar.sideBySide", json!({})));
                         }
                     }
                 } else if s.module == Module::Notes {

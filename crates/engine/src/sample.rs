@@ -7,6 +7,8 @@ use mailcraft_model::{AccountConfig, EmailAddress, Flags, Folder, FolderRole, Me
 use mailcraft_store::{FolderState, Store, StoreError};
 
 pub const SAMPLE_ACCOUNT: &str = "sample";
+/// The sample's second calendar (the studio's), beside the personal one.
+pub const STUDIO_CALENDAR: &str = "studio";
 
 struct Mail {
     folder: &'static str,
@@ -675,9 +677,27 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
         person("jun", "Jun Watanabe", "jun@studio.example", "Studio Lantern", "Animator", "+1 555 0108"),
         person("print", "Print Shop", "orders@printshop.example", "Print Shop", "", "+1 555 0190"),
     ];
+    // The studio's own calendar beside the personal one (to see side by side, or hide).
+    let studio = vec![
+        CalEvent { location: "Edit suite".into(), ..ev("edit", "Edit session: act two", at(today, 10, 0), at(today, 12, 0)) },
+        CalEvent { location: "Machine room".into(), ..ev("render", "Render farm maintenance", at(today + 1, 9, 0), at(today + 1, 13, 0)) },
+    ];
     let mut p = Pim::default();
     p.ensure_defaults();
-    p.events = events.into_iter().map(|event| StoredEvent { calendar: LOCAL.into(), event, ..Default::default() }).collect();
+    p.calendars.push(mailcraft_model::pim::CalendarInfo { id: STUDIO_CALENDAR.into(), name: "Studio".into(), color: 3, ..Default::default() });
+    p.events = events
+        .into_iter()
+        .map(|event| StoredEvent { calendar: LOCAL.into(), event, ..Default::default() })
+        .chain(studio.into_iter().map(|event| StoredEvent { calendar: STUDIO_CALENDAR.into(), event, ..Default::default() }))
+        .collect();
+    // Categories colour some of them (as in Outlook).
+    for e in &mut p.events {
+        match e.event.uid.split('@').next().unwrap_or("") {
+            "review" | "edit" => e.event.categories = vec!["Work".into()],
+            "lunch" => e.event.categories = vec!["Personal".into()],
+            _ => {}
+        }
+    }
     p.cards = cards.into_iter().map(|card| StoredCard { book: LOCAL.into(), card, ..Default::default() }).collect();
     // Notes (Outlook's Notes), kept on this computer.
     let note = |uid: &str, text: &str, color: u8, ago: i64| mailcraft_model::pim::StoredNote {

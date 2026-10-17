@@ -775,6 +775,13 @@
 	Save and insert	儲存並插入
 	Signatures…	簽名…
 	Categories	類別
+	1 month	1 個月
+	{n} months	{n} 個月
+	Day and week show each calendar in a column of its own	日檢視和週檢視中每個行事曆各佔一欄
+	Drag down to show more months	向下拖曳以顯示更多月份
+	Hidden: click to show it	已隱藏：按一下以顯示
+	Shown: click to hide it	已顯示：按一下以隱藏
+	Side by side	並排
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存
