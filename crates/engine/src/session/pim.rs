@@ -49,6 +49,9 @@ pub struct AgendaItem {
     pub end: i64,
     pub all_day: bool,
     pub color: u8,
+    /// The colour of its first category (an index into the category palette), which Outlook
+    /// draws an appointment in rather than its calendar's.
+    pub category: Option<u8>,
     /// `TENTATIVE`, `CANCELLED`…
     pub status: String,
     /// The user's reply is awaited (`NEEDS-ACTION`).
@@ -185,6 +188,7 @@ impl Session {
                         end,
                         all_day: e.all_day,
                         color: cal.color,
+                        category: e.categories.first().map(|c| self.category_color_of(c)),
                         status: e.status.clone(),
                         needs_reply,
                     });
@@ -193,6 +197,17 @@ impl Session {
         }
         out.sort_by(|a, b| (b.all_day, a.start, &a.summary).cmp(&(a.all_day, b.start, &b.summary)));
         out
+    }
+
+    /// A category's colour by its name: the one made with that name (mail and events share
+    /// them), else one picked from the name (a category from the server MailCraft has no colour
+    /// for still gets the same one every time).
+    pub fn category_color_of(&self, name: &str) -> u8 {
+        if let Some(c) = self.prefs.categories.iter().find(|c| c.name.eq_ignore_ascii_case(name.trim())) {
+            return c.color;
+        }
+        let h = name.trim().to_lowercase().bytes().fold(5381u32, |h, b| h.wrapping_mul(33) ^ u32::from(b));
+        u8::try_from(h % 8).unwrap_or(0)
     }
 
     /// The event (master, not an instance) with a uid, and its account.

@@ -1,6 +1,6 @@
 //! The event and contact forms.
 
-use egui::{Margin, RichText, Sense, Ui, vec2};
+use egui::{Color32, Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Session;
 use mailcraft_engine::model::dates;
 use serde_json::{Value, json};
@@ -41,6 +41,9 @@ pub struct EventForm {
     /// The user was invited and hasn't answered.
     pub needs_reply: bool,
     pub read_only: bool,
+    /// Its categories, and every category there is (name, colour) to pick from.
+    pub categories: Vec<String>,
+    pub all_categories: Vec<(String, u8)>,
     pub error: Option<String>,
 }
 
@@ -81,6 +84,7 @@ impl EventForm {
             end_date: local_date(start + 3600, s),
             end: local_time(start + 3600, s),
             can_invite: true,
+            all_categories: all_categories(s, &[]),
             ..Default::default()
         }
     }
@@ -134,6 +138,8 @@ impl EventForm {
                 .join(", "),
             can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
             read_only,
+            categories: e.categories.clone(),
+            all_categories: all_categories(s, &e.categories),
             error: None,
         })
     }
@@ -152,6 +158,7 @@ impl EventForm {
             "end": end,
             "allDay": self.all_day,
             "repeat": if self.repeat.is_empty() { "none" } else { self.repeat.as_str() },
+            "categories": self.categories,
         });
         if self.can_invite {
             p["attendees"] = json!(self.guests.trim());
@@ -167,6 +174,18 @@ impl EventForm {
         }
         p
     }
+}
+
+/// The categories to pick from (name, colour): the ones made in MailCraft, and any an event
+/// already has from elsewhere.
+fn all_categories(s: &Session, has: &[String]) -> Vec<(String, u8)> {
+    let mut out: Vec<(String, u8)> = s.prefs.categories.iter().map(|c| (c.name.clone(), c.color)).collect();
+    for c in has {
+        if !out.iter().any(|(n, _)| n.eq_ignore_ascii_case(c)) {
+            out.push((c.clone(), s.category_color_of(c)));
+        }
+    }
+    out
 }
 
 fn partstat_label(p: &str) -> &'static str {
@@ -304,6 +323,31 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         form_row(ui, t, true, Some(Icon::Location), "Location", |ui| {
             field(ui, &mut f.location, tl!("Add a place"), f32::INFINITY);
         });
+        // Categories colour it in the calendar (Outlook's Categorize on an appointment).
+        if !f.all_categories.is_empty() {
+            form_row(ui, t, true, Some(Icon::Tag), "Categories", |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for (name, color) in f.all_categories.clone() {
+                        let on = f.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
+                        let c = theme::category_color(color, t.dark);
+                        let text = RichText::new(format!("● {}", name)).color(if on { Color32::WHITE } else { c });
+                        let r = ui.add(
+                            egui::Button::new(text)
+                                .fill(if on { c } else { Color32::TRANSPARENT })
+                                .stroke(egui::Stroke::new(1.0, c))
+                                .corner_radius(10),
+                        );
+                        if r.clicked() {
+                            if on {
+                                f.categories.retain(|x| !x.eq_ignore_ascii_case(&name));
+                            } else {
+                                f.categories.push(name.clone());
+                            }
+                        }
+                    }
+                });
+            });
+        }
         if f.can_invite {
             form_row(ui, t, true, Some(Icon::People), "Invite", |ui| {
                 field(ui, &mut f.guests, tl!("Names <addresses>, separated by ; or ,"), f32::INFINITY);

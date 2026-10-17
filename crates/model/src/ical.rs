@@ -69,6 +69,9 @@ pub struct CalEvent {
     pub status: String,
     #[serde(default)]
     pub sequence: u32,
+    /// Its categories (`CATEGORIES`), which colour it in the calendar as Outlook colours them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub categories: Vec<String>,
     /// Properties MailCraft doesn't read, kept as written (unfolded content lines).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<String>,
@@ -166,6 +169,28 @@ fn parse_line(raw: &str) -> Option<Line> {
 }
 
 /// A TEXT value with its escapes undone.
+/// A list of texts (`CATEGORIES:Work,Clients\, big`): split at commas that aren't escaped, each
+/// unescaped and trimmed.
+pub fn split_text_list(v: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut escaped = false;
+    for ch in v.chars() {
+        match ch {
+            _ if escaped => {
+                cur.push('\\');
+                cur.push(ch);
+                escaped = false;
+            }
+            '\\' => escaped = true,
+            ',' => out.push(unescape(std::mem::take(&mut cur).trim())),
+            _ => cur.push(ch),
+        }
+    }
+    out.push(unescape(cur.trim()));
+    out.into_iter().filter(|c| !c.is_empty()).collect()
+}
+
 pub fn unescape(v: &str) -> String {
     let mut out = String::with_capacity(v.len());
     let mut it = v.chars();
@@ -478,6 +503,13 @@ pub fn parse(text: &str, local_offset: i64) -> ICalendar {
             "SUMMARY" => e.summary = unescape(&l.value),
             "DESCRIPTION" => e.description = unescape(&l.value),
             "LOCATION" => e.location = unescape(&l.value),
+            "CATEGORIES" => {
+                for c in split_text_list(&l.value) {
+                    if !c.is_empty() && !e.categories.contains(&c) && e.categories.len() < 20 {
+                        e.categories.push(c);
+                    }
+                }
+            }
             "STATUS" => e.status = l.value.trim().to_ascii_uppercase(),
             "SEQUENCE" => e.sequence = l.value.trim().parse().unwrap_or(0),
             "DTSTART" => {
@@ -591,6 +623,9 @@ pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
     }
     if !e.description.is_empty() {
         lines.push(format!("DESCRIPTION:{}", escape(&e.description)));
+    }
+    if !e.categories.is_empty() {
+        lines.push(format!("CATEGORIES:{}", e.categories.iter().map(|c| escape(c)).collect::<Vec<_>>().join(",")));
     }
     if !e.status.is_empty() {
         lines.push(format!("STATUS:{}", e.status.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "")));
@@ -872,6 +907,19 @@ ORGANIZER;CN=\"Zoe Park\":mailto:zoe@studio.example\r\n\
 ATTENDEE;CN=Riley Moreno;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:riley@studio.example\r\n\
 X-MICROSOFT-CDO-BUSYSTATUS:BUSY\r\nBEGIN:VALARM\r\nTRIGGER:-PT15M\r\nACTION:DISPLAY\r\nEND:VALARM\r\n\
 SEQUENCE:2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    /// Categories (which colour an event) come in and go out, commas inside a name escaped.
+    #[test]
+    fn categories_both_ways() {
+        let ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:c1\r\nDTSTART:20261016T140000Z\r\nDTEND:20261016T150000Z\r\nCATEGORIES:Clients\\, big,Mix\r\nCATEGORIES:Mix,Lab\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let e = &parse(ics, 0).events[0];
+        assert_eq!(e.categories, ["Clients, big", "Mix", "Lab"]);
+        assert!(e.extra.iter().all(|l| !l.starts_with("CATEGORIES")));
+        let out = write(std::slice::from_ref(e), None, 0);
+        assert!(out.contains("CATEGORIES:Clients\\, big,Mix,Lab"), "{out}");
+        assert_eq!(parse(&out, 0).events[0].categories, e.categories);
+        assert_eq!(split_text_list(" a ,, b\\,c "), ["a", "b,c"]);
+    }
 
     #[test]
     fn reads_an_invitation() {

@@ -225,7 +225,8 @@ fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
 
 fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> egui::Response {
     let resp = ui.interact(rect, ui.id().with(("chip", &item.uid, item.start)), Sense::click());
-    let c = color(item.color, t);
+    // A category's colour, as Outlook draws a categorized appointment; else its calendar's.
+    let c = item.category.map_or_else(|| color(item.color, t), |i| theme::category_color(i, t.dark));
     let tentative = item.needs_reply || item.status == "TENTATIVE";
     // Stronger under the pointer, with its colour round it.
     let hovered = resp.hovered();

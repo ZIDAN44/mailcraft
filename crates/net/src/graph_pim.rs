@@ -18,7 +18,7 @@ use crate::{NetError, Result};
 const MAX_ITEMS: usize = 5000;
 /// The address book Graph's contacts go into.
 pub const CONTACTS: &str = "graph:contacts";
-const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type";
+const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories";
 const CONTACT_FIELDS: &str =
     "id,changeKey,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,personalNotes";
 
@@ -205,6 +205,11 @@ pub fn event_of(v: &Value) -> Option<CalEvent> {
         organizer: v.get("organizer").and_then(person),
         attendees,
         status: if v.get("isCancelled").and_then(Value::as_bool).unwrap_or(false) { "CANCELLED".into() } else { String::new() },
+        categories: v
+            .get("categories")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).map(str::trim).filter(|c| !c.is_empty()).take(20).map(str::to_string).collect())
+            .unwrap_or_default(),
         ..Default::default()
     })
 }
@@ -219,6 +224,7 @@ pub fn event_json(e: &CalEvent) -> Value {
         "start": if e.all_day { json!({"dateTime": format!("{}T00:00:00", ymd(e.start)), "timeZone": "UTC"}) } else { date_time(e.start) },
         "end": if e.all_day { json!({"dateTime": format!("{}T00:00:00", ymd(e.end.max(e.start + 86_400))), "timeZone": "UTC"}) } else { date_time(e.end) },
         "attendees": e.attendees.iter().map(|a| json!({"type": "required", "emailAddress": {"address": a.email, "name": a.name}})).collect::<Vec<_>>(),
+        "categories": e.categories,
     });
     v["recurrence"] = e.rrule.as_deref().and_then(|r| recurrence_of(r, e.start)).unwrap_or(Value::Null);
     v
@@ -450,7 +456,7 @@ mod tests {
             "body": {"contentType": "html", "content": "<p>Bring the <b>stems</b></p>"},
             "start": {"dateTime": "2026-10-16T14:00:00.0000000", "timeZone": "UTC"},
             "end": {"dateTime": "2026-10-16T15:00:00.0000000", "timeZone": "UTC"},
-            "location": {"displayName": "Lab"},
+            "location": {"displayName": "Lab"}, "categories": ["Clients", " ", "Mix"],
             "organizer": {"emailAddress": {"name": "Ana", "address": "ana@contoso.example"}},
             "attendees": [{"type": "required", "status": {"response": "tentativelyAccepted"}, "emailAddress": {"name": "Me", "address": "me@contoso.example"}}],
         });
@@ -460,8 +466,10 @@ mod tests {
         assert!(e.description.contains("stems"));
         assert_eq!(e.attendees[0].partstat, "TENTATIVE");
         assert_eq!(e.organizer.as_ref().unwrap().email, "ana@contoso.example");
+        assert_eq!(e.categories, ["Clients", "Mix"]);
         let back = event_json(&e);
         assert_eq!(back["start"]["dateTime"], "2026-10-16T14:00:00");
+        assert_eq!(back["categories"], json!(["Clients", "Mix"]));
         assert_eq!(back["subject"], "Mix review");
         let all_day = CalEvent { all_day: true, start: e.start - 14 * 3600, end: e.start - 14 * 3600 + 86_400, ..e.clone() };
         assert_eq!(event_json(&all_day)["end"]["dateTime"], "2026-10-17T00:00:00");

@@ -2039,3 +2039,31 @@ fn a_signature_goes_in_from_the_message() {
     s.run("compose.insertSignature", &json!({})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().body, "Hi\n\n-- \nR.\n\n> quoted");
 }
+
+/// Issue #1: events are drawn in their category's colour (shared with mail's categories), so a
+/// calendar isn't all one colour.
+#[test]
+fn events_take_their_categorys_colour() {
+    let mut s = sample_session("event-colours");
+    s.run("category.create", &json!({"name": "Clients", "color": 5})).unwrap();
+    let mut add = |summary: &str, categories: Value| {
+        s.run("event.create", &json!({"summary": summary, "start": "2026-10-16T10:00", "categories": categories})).unwrap();
+    };
+    add("Pitch", json!(["clients"]));
+    add("Mix", json!("Studio, Clients"));
+    add("Plain", json!([]));
+    let day = mailcraft_engine_day(&s);
+    let item = |name: &str| s.agenda(day, day + 86_400).into_iter().find(|i| i.summary == name).unwrap();
+    assert_eq!(item("Pitch").category, Some(5), "a category's own colour, whatever its case");
+    let studio = item("Mix").category.unwrap();
+    assert_eq!(studio, s.category_color_of("Studio"), "the first category; one from elsewhere gets one from its name");
+    assert_eq!(s.category_color_of("Studio"), s.category_color_of(" studio "));
+    assert_eq!(item("Plain").category, None, "no category: its calendar's colour");
+    let (_, stored) = s.find_event(&item("Mix").uid).unwrap();
+    assert_eq!(stored.event.categories, ["Studio", "Clients"]);
+}
+
+/// The start of 2026-10-16, local, as the sample's clock has it.
+fn mailcraft_engine_day(s: &Session) -> i64 {
+    crate::parse_local("2026-10-16", i64::from(s.clock.offset)).map(|(t, _)| t).unwrap()
+}
