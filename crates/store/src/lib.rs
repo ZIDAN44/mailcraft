@@ -474,13 +474,25 @@ impl Store {
         let dir = self.account_dir(account);
         let tmp = self.root.join(format!(".import-{}.tmp", safe_segment(account)));
         packed::read_data_file(path, &tmp, &mut |batch| {
-            // Paths come from a file: kept only when they stay inside the account.
-            let items: Vec<(PathBuf, Vec<u8>)> = batch.into_iter().filter_map(|(k, v)| inner_path(&k).map(|rel| (dir.join(rel), v))).collect();
+            // Paths come from a file: kept only when they stay inside the account. The old
+            // account's changes still to make on its server, and its unsent mail, stay behind.
+            let items: Vec<(PathBuf, Vec<u8>)> = batch
+                .into_iter()
+                .filter(|(k, _)| k != "ops.json" && !k.starts_with("outbox/"))
+                .filter_map(|(k, v)| inner_path(&k).map(|rel| (dir.join(rel), v)))
+                .collect();
             self.files.write_many(&items)
         })?;
-        // A message's key names the account it belongs to: this one now.
+        // Folders and messages name the account they belong to: this one now.
+        let mut folders = self.load_folders(account)?;
+        if folders.iter().any(|f| f.account != account) {
+            for f in &mut folders {
+                f.account = account.to_string();
+            }
+            self.save_folders(account, &folders)?;
+        }
         let mut messages = 0;
-        for f in self.load_folders(account)? {
+        for f in folders {
             let mut st = self.load_folder(account, &f.path)?;
             messages += st.messages.len();
             if st.messages.iter().any(|m| m.key.account != account) {

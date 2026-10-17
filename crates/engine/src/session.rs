@@ -610,6 +610,13 @@ impl Session {
             });
             for config in accounts {
                 let mut folders = store.load_folders(&config.id).unwrap_or_default();
+                // A folder belongs to the account it's kept with (a data file brought in from
+                // another account once kept that one's name).
+                for f in &mut folders {
+                    if f.account != config.id {
+                        f.account.clone_from(&config.id);
+                    }
+                }
                 sort_folders(&mut folders);
                 s.accounts.push(AccountState { config, folders, status: SyncStatus::Offline, quota: None, vacation: VacationState::Unknown });
             }
@@ -2585,6 +2592,12 @@ impl Session {
                 }
             }
             Event::Folders { account, mut folders } => {
+                // They're this account's, whatever name they were kept under.
+                for f in &mut folders {
+                    if f.account != account {
+                        f.account.clone_from(&account);
+                    }
+                }
                 sort_folders(&mut folders);
                 let first = self.account(&account).is_some_and(|a| a.folders.is_empty());
                 if let Some(a) = self.account_mut(&account) {

@@ -500,13 +500,19 @@ mod tests {
         st.messages.push(Summary { key: k.clone(), subject: "hi".into(), ..Default::default() });
         old.save_folder("a1", "INBOX", &st).unwrap();
         old.save_account_doc("a1", "pim.json", &serde_json::json!({"notes": []})).unwrap();
+        // Changes still to make on its server, and mail still to send: they stay behind.
+        old.save_ops("a1", &[mailcraft_model::Op::Expunge { keys: vec![k.clone()] }]).unwrap();
+        old.outbox_add("a1", &crate::OutboxItem { id: 4, ..Default::default() }, b"Subject: later\r\n\r\nx").unwrap();
         let file = old.data_file("a1").unwrap();
         drop(old);
 
         let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
         s.save_accounts(&[account("p7", "ana@example.org")]).unwrap();
         assert_eq!(s.import_data_file("p7", &file).unwrap(), 1);
-        assert_eq!(s.load_folders("p7").unwrap().len(), 1);
+        let folders = s.load_folders("p7").unwrap();
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0].account, "p7", "its folders are this account's (opening one named the old account)");
+        assert!(s.load_ops("p7").unwrap().is_empty() && s.outbox("p7").is_empty(), "the old account's pending work stays behind");
         let st = s.load_folder("p7", "INBOX").unwrap();
         let mine = MessageKey { account: "p7".into(), ..k.clone() };
         assert_eq!(st.messages[0].key, mine, "renumbered as this account's");

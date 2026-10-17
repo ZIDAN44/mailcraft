@@ -1797,3 +1797,21 @@ fn the_first_account_opens_and_accounts_can_be_reordered() {
     assert_eq!(s.view, View::Folder { account: "a3".into(), folder: "INBOX".into() });
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// An account whose folders were kept under another account's name (a data file brought in from
+/// it) opens them as its own: opening one said "no folder … in account a1".
+#[test]
+fn folders_kept_under_another_account_open_as_this_ones() {
+    use mailcraft_model::dates::Clock;
+    use mailcraft_model::{AccountConfig, Folder};
+    let dir = std::env::temp_dir().join(format!("mailcraft-folder-owner-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    store.save_accounts(&[AccountConfig { id: "a2".into(), email: "zidan@garnetbyte.example".into(), ..Default::default() }]).unwrap();
+    let f = |path: &str| Folder { account: "a1".into(), path: path.into(), ..Default::default() };
+    store.save_folders("a2", &[Folder { role: FolderRole::Inbox, ..f("INBOX") }, f("INBOX/gzamer")]).unwrap();
+    let mut s = Session::open(Some(store), Clock::new(1_700_000_000, 0));
+    assert!(s.accounts[0].folders.iter().all(|f| f.account == "a2"));
+    s.run("folder.open", &json!({"account": "a2", "folder": "INBOX/gzamer"})).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
