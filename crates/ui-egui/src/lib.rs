@@ -55,6 +55,21 @@ use theme::Tokens;
 
 /// Whether the message being written shows in the reading pane: when it isn't popped out, or
 /// where windows of its own can't open (the browser).
+/// How the app reads HTML from the clipboard, set once at start (the clipboard is the
+/// platform's; a build without one has none).
+static CLIPBOARD_HTML: std::sync::OnceLock<fn() -> Option<String>> = std::sync::OnceLock::new();
+
+/// Tell the editor how to read HTML from the clipboard, so text pasted from Outlook, Word or a
+/// web page keeps its look.
+pub fn set_clipboard_html(read: fn() -> Option<String>) {
+    let _ = CLIPBOARD_HTML.set(read);
+}
+
+/// HTML on the clipboard (`None` when there is none).
+pub(crate) fn clipboard_html() -> Option<String> {
+    CLIPBOARD_HTML.get().and_then(|read| read())
+}
+
 pub(crate) fn compose_inline(c: &mailcraft_engine::Compose, ctx: &egui::Context) -> bool {
     !c.window || ctx.embed_viewports()
 }
@@ -238,6 +253,11 @@ pub enum Action {
     PastePicture,
     /// Choose the interface language (`auto` or a code).
     SetLanguage(String),
+    /// Open the signature editor for an account (`insert`: from a message, putting it in).
+    EditSignature {
+        account: String,
+        insert: bool,
+    },
     /// A link in a message was clicked (web pages open in the browser; `mailto:` starts a message).
     OpenUrl(String),
     /// Run a command for the open dialog: it closes on success and shows the error otherwise.
@@ -1215,6 +1235,9 @@ impl MailApp {
                     }
                 }
             }
+            Action::EditSignature { account, insert } => {
+                self.ui.dialog = Some(Dialog::Signature(Box::new(dialogs::SignatureForm::new(&self.session, &account, insert))));
+            }
             Action::InsertSignature => {
                 let r = self.session.run("compose.insertSignature", &json!({"at": self.picture_at()}));
                 match r {
@@ -1235,7 +1258,10 @@ impl MailApp {
                 }
             }
             Action::PastePicture => {
-                if let Some(png) = self.services.clipboard_picture() {
+                // Formatted text that came with a picture (from Word or a web page) was pasted
+                // as text.
+                let text = clipboard_html().is_some_and(|h| !mailcraft_engine::mime::pasted_html(&h).0.trim().is_empty());
+                if !text && let Some(png) = self.services.clipboard_picture() {
                     let r = self.session.run("compose.insertPicture", &json!({"name": "pasted.png", "data": png, "at": self.picture_at()}));
                     self.place_picture(r);
                 }

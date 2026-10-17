@@ -803,12 +803,14 @@
 	Mobile phone	Cellulare
 	Home phone	Telefono casa
 	Address book	Rubrica
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Incollane una da Outlook o Word e mantiene il suo aspetto; Ctrl+B, Ctrl+I e Ctrl+U la formattano.
 	All contacts	Tutti i contatti
 	Always open with this address book	Apri sempre con questa rubrica
 	Day and week show each calendar in a pane of its own	Giorno e settimana mostrano ogni calendario in un riquadro proprio
 	Every contact, in every address book	Ogni contatto, in ogni rubrica
 	Everyone you've written to or heard from, and your contacts	Tutte le persone a cui hai scritto o da cui hai ricevuto messaggi, e i tuoi contatti
 	Hide {calendar}	Nascondi {calendar}
+	Write your signature, or paste it…	Scrivi la firma o incollala…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

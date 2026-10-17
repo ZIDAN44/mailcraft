@@ -804,12 +804,14 @@
 	Mobile phone	Téléphone mobile
 	Home phone	Téléphone domicile
 	Address book	Carnet d'adresses
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Collez-en une depuis Outlook ou Word et elle garde sa mise en forme ; Ctrl+B, Ctrl+I et Ctrl+U la mettent en forme.
 	All contacts	Tous les contacts
 	Always open with this address book	Toujours ouvrir avec ce carnet d'adresses
 	Day and week show each calendar in a pane of its own	Jour et semaine affichent chaque calendrier dans son propre volet
 	Every contact, in every address book	Chaque contact, dans tous les carnets d'adresses
 	Everyone you've written to or heard from, and your contacts	Toutes les personnes à qui vous avez écrit ou qui vous ont écrit, et vos contacts
 	Hide {calendar}	Masquer {calendar}
+	Write your signature, or paste it…	Écrivez votre signature ou collez-la…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

@@ -211,6 +211,9 @@ impl Editor {
 }
 
 /// The message text box's id.
+/// The id of the signature being edited (the signature editor is a message editor of its own).
+pub(crate) const SIGNATURE_ID: u64 = u64::MAX;
+
 pub(crate) fn body_id(c: &Compose) -> egui::Id {
     egui::Id::new(("compose-body", c.id))
 }
@@ -425,9 +428,36 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     if link_k {
         ed.link = Some(LinkForm::open(c, ed.sel.clone()));
     }
-    if book_k {
+    if book_k && c.id != SIGNATURE_ID {
         acts.push(Action::Dialog(Dialog::select_names(c, "to")));
     }
+}
+
+/// Paste what another program put on the clipboard as HTML (a signature copied from Outlook,
+/// part of a web page) with its look, in place of the selection. `false` when there is none,
+/// or it holds no text (a picture alone is pasted as a picture).
+fn paste_formatted(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, id: egui::Id) -> bool {
+    let Some(html) = crate::clipboard_html() else { return false };
+    let (add, add_styles) = mailcraft_engine::mime::pasted_html(&html);
+    if add.trim().is_empty() {
+        return false;
+    }
+    ui.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_))));
+    c.styles.fit(&c.body);
+    ed.undo.push(Snap { text: c.body.clone(), styles: c.styles.clone(), cursor: ed.sel.start });
+    if ed.undo.len() > UNDO_MAX {
+        ed.undo.remove(0);
+    }
+    ed.redo.clear();
+    let n = c.body.chars().count();
+    let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
+    rich::splice(&mut c.body, &mut c.styles, sel.clone(), &add, &add_styles);
+    let end = sel.start + add.chars().count();
+    set_selection(ui.ctx(), id, end..end);
+    ed.sel = end..end;
+    ed.typing = None;
+    ui.ctx().request_repaint();
+    true
 }
 
 /// A look as text formatting (the person's colours adjusted to stay readable on the page).
@@ -602,6 +632,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     }
     if ui.memory(|m| m.has_focus(id)) {
         keys(ui, ed, c, acts);
+        if !c.plain && ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_)))) {
+            paste_formatted(ui, ed, c, id);
+        }
     }
     let before = c.body.clone();
     let styles = c.styles.clone();
@@ -618,7 +651,11 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let behind = ui.painter().add(egui::Shape::Noop);
     // No hint over a first line that's a list item or indented (its bullet is drawn there).
     let p0 = c.styles.para(0);
-    let hint = if p0.list == List::None && p0.indent == 0 { tl!("Write your message…") } else { "" };
+    let hint = match (p0.list == List::None && p0.indent == 0, c.id == SIGNATURE_ID) {
+        (false, _) => "",
+        (true, true) => tl!("Write your signature, or paste it…"),
+        (true, false) => tl!("Write your message…"),
+    };
     let out = egui::TextEdit::multiline(&mut c.body)
         .id(id)
         .frame(egui::Frame::NONE)
@@ -984,7 +1021,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
                 ui.close();
             }
             if ui.button(tl!("Signatures…")).clicked() {
-                acts.push(Action::Dialog(Dialog::Signature { account: c.account.clone(), text: signature.to_string(), insert: true }));
+                acts.push(Action::EditSignature { account: c.account.clone(), insert: true });
                 ui.close();
             }
         });
@@ -1001,7 +1038,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
 
 /// Insert link, as Outlook's Insert Hyperlink keeps what mail needs: what the text says, and a
 /// web page (or file) or an email address with a subject. Shown over the message's own window.
-fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose) {
+pub(crate) fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose) {
     let Some(mut f) = ed.link.take() else { return };
     let mut close = false;
     let mut done: Option<Option<String>> = None;

@@ -426,6 +426,44 @@ fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action
     !cancel
 }
 
+/// The signature editor: the account's signature in a message editor of its own, so it can be
+/// formatted, or pasted from Outlook with its look.
+#[derive(Clone, Debug)]
+pub struct SignatureForm {
+    pub account: String,
+    pub compose: Compose,
+    /// Opened from a message being written: shown over its window, and put into it.
+    pub insert: bool,
+    editor: SignatureEditor,
+}
+
+impl SignatureForm {
+    pub fn new(s: &Session, account: &str, insert: bool) -> SignatureForm {
+        let (body, styles) = s.signature_rich(account);
+        SignatureForm {
+            account: account.to_string(),
+            compose: Compose { id: crate::rich_edit::SIGNATURE_ID, account: account.to_string(), body, styles, ..Default::default() },
+            insert,
+            editor: SignatureEditor(crate::rich_edit::Editor::new(crate::rich_edit::SIGNATURE_ID)),
+        }
+    }
+}
+
+/// The editor's state (undo, the selection); a copy starts afresh.
+pub(crate) struct SignatureEditor(pub crate::rich_edit::Editor);
+
+impl Clone for SignatureEditor {
+    fn clone(&self) -> SignatureEditor {
+        SignatureEditor(crate::rich_edit::Editor::new(self.0.id))
+    }
+}
+
+impl std::fmt::Debug for SignatureEditor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SignatureEditor")
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Dialog {
     AddAccount(Box<AccountForm>),
@@ -455,12 +493,7 @@ pub enum Dialog {
         email: String,
         error: String,
     },
-    Signature {
-        account: String,
-        text: String,
-        /// Opened from a message being written: shown over its window, and put into it.
-        insert: bool,
-    },
+    Signature(Box<SignatureForm>),
     /// An account's name, user name and servers.
     EditAccount(Box<EditForm>),
     /// An account's automatic replies.
@@ -743,7 +776,7 @@ impl Dialog {
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
     pub fn for_compose(&self) -> bool {
-        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::Signature { insert: true, .. })
+        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject) || matches!(self, Dialog::Signature(f) if f.insert)
     }
 
     /// The add-account dialog with the address filled in (servers guessed from it).
@@ -1597,15 +1630,30 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             }
             !cancel
         }
-        Dialog::Signature { account, text, insert } => {
-            ui.set_width(420.0);
+        Dialog::Signature(f) => {
+            ui.set_width(480.0);
             title(ui, t, "Signature");
             ui.label(RichText::new(tl!("Added to new messages, replies and forwards.")).color(t.dim).small());
-            ui.add(egui::TextEdit::multiline(text).desired_rows(5).desired_width(f32::INFINITY));
-            let (ok, cancel) = buttons(ui, t, if *insert { "Save and insert" } else { "Save" }, true);
+            ui.label(
+                RichText::new(tl!("Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.")).color(t.dim).small(),
+            );
+            ui.add_space(4.0);
+            egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+                egui::ScrollArea::vertical().id_salt("signature-text").max_height(220.0).auto_shrink([false, false]).show(ui, |ui| {
+                    ui.set_min_height(220.0);
+                    let SignatureForm { compose, editor, .. } = &mut **f;
+                    crate::rich_edit::body(ui, t, &mut editor.0, compose, None, acts);
+                    crate::rich_edit::link_dialog(ui, t, &mut editor.0, compose);
+                });
+            });
+            let (ok, cancel) = buttons(ui, t, if f.insert { "Save and insert" } else { "Save" }, true);
             if ok {
-                acts.push(Action::Run("account.setSignature", json!({"account": account, "signature": text})));
-                if *insert && !text.trim().is_empty() {
+                let text = f.compose.body.trim_end().to_string();
+                let mut styles = f.compose.styles.clone();
+                styles.fit(&text);
+                let html = if styles.is_plain() { None } else { Some(mailcraft_engine::mime::rich::to_html(&text, &styles)) };
+                acts.push(Action::Run("account.setSignature", json!({"account": f.account, "signature": text, "html": html})));
+                if f.insert && !text.trim().is_empty() {
                     acts.push(Action::InsertSignature);
                 }
                 return false;

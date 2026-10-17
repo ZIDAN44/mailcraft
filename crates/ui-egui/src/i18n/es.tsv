@@ -804,12 +804,14 @@
 	Mobile phone	Teléfono móvil
 	Home phone	Teléfono particular
 	Address book	Libreta de direcciones
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Pega una desde Outlook o Word y conserva su aspecto; Ctrl+B, Ctrl+I y Ctrl+U le dan formato.
 	All contacts	Todos los contactos
 	Always open with this address book	Abrir siempre con esta libreta de direcciones
 	Day and week show each calendar in a pane of its own	Día y semana muestran cada calendario en su propio panel
 	Every contact, in every address book	Cada contacto, en todas las libretas de direcciones
 	Everyone you've written to or heard from, and your contacts	Todas las personas a las que has escrito o que te han escrito, y tus contactos
 	Hide {calendar}	Ocultar {calendar}
+	Write your signature, or paste it…	Escribe tu firma o pégala…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

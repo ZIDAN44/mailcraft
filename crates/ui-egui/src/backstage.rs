@@ -267,7 +267,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             acts.push(Action::SignInAgain(id.clone()));
         }
         if ui.button(tl!("Signature…")).clicked() {
-            acts.push(Action::Dialog(Dialog::Signature { account: id.clone(), text: a.config.signature.clone(), insert: false }));
+            acts.push(Action::EditSignature { account: id.clone(), insert: false });
         }
         ui.separator();
         if ui.button(tl!("Remove account…")).clicked() {

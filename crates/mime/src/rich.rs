@@ -579,6 +579,35 @@ pub fn pictures(text: &str, styles: &Styles) -> Vec<String> {
     v
 }
 
+/// Characters `range` of a styled text, with their styles and their paragraphs' layout.
+pub fn slice(text: &str, styles: &Styles, range: std::ops::Range<usize>) -> (String, Styles) {
+    let n = char_len(text);
+    let range = range.start.min(n)..range.end.min(n).max(range.start.min(n));
+    let part: String = text.chars().skip(range.start).take(range.end - range.start).collect();
+    let mut out = Styles { chars: Vec::new(), palette: styles.palette.clone(), paras: Vec::new() };
+    let mut full = styles.clone();
+    full.fit(text);
+    out.chars = full.chars.get(range.clone()).map(<[u16]>::to_vec).unwrap_or_default();
+    let (first, _) = lines_of(text, range.start..range.start);
+    let lines = part.split('\n').count();
+    out.paras = (first..first + lines).map(|l| full.para(l)).collect();
+    out.fit(&part);
+    (part, out)
+}
+
+/// Put `add` (text and styles) in place of characters `range` of `text`: the paragraph it goes
+/// into keeps its layout, as text pasted into a line does.
+pub fn splice(text: &mut String, styles: &mut Styles, range: std::ops::Range<usize>, add: &str, add_styles: &Styles) {
+    let n = char_len(text);
+    let (start, end) = (range.start.min(n), range.end.min(n).max(range.start.min(n)));
+    let (mut out, mut out_styles) = slice(text, styles, 0..start);
+    let (rest, rest_styles) = slice(text, styles, end..n);
+    append(&mut out, &mut out_styles, add, add_styles);
+    append(&mut out, &mut out_styles, &rest, &rest_styles);
+    *text = out;
+    *styles = out_styles;
+}
+
 /// Append `add` (text and styles) to `text` and `styles`.
 pub fn append(text: &mut String, styles: &mut Styles, add: &str, add_styles: &Styles) {
     styles.fit(text);

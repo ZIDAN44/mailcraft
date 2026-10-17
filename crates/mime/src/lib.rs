@@ -333,6 +333,52 @@ pub type RichText = Vec<Vec<Span>>;
 /// Most lines kept of a rich rendering (the rest is shown as text).
 const RICH_MAX_LINES: usize = 20_000;
 
+/// Word's and Outlook's paragraphs (`class=MsoNormal`) have no space between them (their style
+/// sheet, which a copied fragment leaves behind, says so): as lines, not paragraphs.
+fn word_paragraphs(html: &str) -> String {
+    let lower = html.to_ascii_lowercase();
+    if !lower.contains("mso") {
+        return html.to_string();
+    }
+    let mut out = String::with_capacity(html.len());
+    let mut i = 0;
+    while let Some(off) = lower.get(i..).and_then(|rest| rest.find('<')) {
+        let at = i + off;
+        out.push_str(html.get(i..at).unwrap_or(""));
+        let tag = lower.get(at..).unwrap_or("");
+        let after = |n: usize| tag.as_bytes().get(n).is_none_or(|c| c.is_ascii_whitespace() || matches!(c, b'>' | b'/'));
+        if tag.starts_with("<p") && after(2) {
+            out.push_str("<div");
+            i = at + 2;
+        } else if tag.starts_with("</p") && after(3) {
+            out.push_str("</div");
+            i = at + 3;
+        } else {
+            out.push('<');
+            i = at + 1;
+        }
+    }
+    out.push_str(html.get(i..).unwrap_or(""));
+    out
+}
+
+/// HTML pasted from another program (a signature copied from Outlook or Word, part of a web
+/// page) as text and styles to put into a message: its formatting and links, without pictures
+/// (they'd point at the other program's files or the web) or the empty lines around it.
+pub fn pasted_html(html: &str) -> (String, rich::Styles) {
+    let mut lines = html_to_rich(&word_paragraphs(html));
+    for line in &mut lines {
+        line.retain(|sp| sp.image.is_none());
+    }
+    let blank = |l: &Vec<Span>| l.iter().all(|sp| sp.text.trim().is_empty());
+    while lines.last().is_some_and(blank) {
+        lines.pop();
+    }
+    let first = lines.iter().position(|l| !blank(l)).unwrap_or(lines.len());
+    lines.drain(..first);
+    rich::from_rich(&lines)
+}
+
 /// HTML → lines of formatted spans: paragraphs, emphasis, links, list bullets, quotes, tables
 /// laid out as text, and pictures by reference. No scripts, styles or remote loads: what comes
 /// out is plain data. Never panics; empty when conversion fails.
@@ -1112,6 +1158,53 @@ pub fn reply_doc(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, sign
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Issue #1: a signature copied from Outlook (Word's HTML on the clipboard, only the copied
+    /// fragment) keeps its look when pasted.
+    #[test]
+    fn a_signature_pasted_from_outlook_keeps_its_formatting() {
+        let html = "<!--StartFragment--><p class=MsoNormal><b><span style='font-size:14.0pt;font-family:\"Arial\",sans-serif;color:#BFBFBF'>Company bv<o:p></o:p></span></b></p>\r\n\
+<p class=MsoNormal><span style='font-size:10.0pt;font-family:\"Tahoma\",sans-serif'><o:p>&nbsp;</o:p></span></p>\r\n\
+<p class=MsoNormal><span style='font-size:10.0pt;font-family:\"Tahoma\",sans-serif'>An street 1<br>B-1000 Brussel<br>Belgium<br>VAT BE 01234 567 890<br>Mob&nbsp;&nbsp;&nbsp;&nbsp; +32 (0)490 12 34 56<br>\
+<a href=\"http://www.company.com/\"><span style='color:#44546A'>www.company.com</span></a><o:p></o:p></span></p>\r\n\
+<p class=MsoNormal><span style='font-size:10.0pt'><o:p>&nbsp;</o:p></span></p>\r\n\
+<p class=MsoNormal><i><span style='font-size:14.0pt;color:#BFBFBF'>\u{2018}Choose a job you like' \u{2013} Confucius<o:p></o:p></span></i></p>\r\n\
+<p class=MsoNormal><span style='font-size:10.0pt'><o:p>&nbsp;</o:p></span></p>\r\n\
+<p class=MsoNormal><i><span style='font-size:10.0pt'>The information contained in this message is confidential &amp; intended for the addressee.<o:p></o:p></span></i></p>\r\n\
+<p class=MsoNormal><img width=120 height=40 src=\"file:///C:/Users/x/AppData/Local/Temp/msohtmlclip1/01/clip_image001.png\"><o:p></o:p></p><!--EndFragment-->";
+        let (text, styles) = pasted_html(html);
+        let lines: Vec<&str> = text.split('\n').collect();
+        assert_eq!(lines.first().map(|l| l.trim()), Some("Company bv"));
+        assert_eq!(lines.get(1).map(|l| l.trim()), Some(""), "one empty line, as in Outlook");
+        assert_eq!(lines.get(2).map(|l| l.trim()), Some("An street 1"));
+        assert!(lines.iter().any(|l| l.contains("Mob") && l.contains("+32")));
+        assert!(!text.contains("[picture]") && !text.contains('\u{FFFC}'), "the other program's pictures aren't brought along");
+        let at = |needle: &str| styles.style(text.find(needle).map(|b| text[..b].chars().count()).unwrap());
+        let company = at("Company");
+        assert!(company.bold && company.color == Some([0xBF, 0xBF, 0xBF]), "{company:?}");
+        assert_eq!(at("www.company").link.as_deref(), Some("http://www.company.com/"));
+        let quote = at("Choose");
+        assert!(quote.italic && quote.color == Some([0xBF, 0xBF, 0xBF]), "{quote:?}");
+        assert!(at("The information").italic);
+        assert!(!at("Belgium").bold && !at("Belgium").italic);
+        // As the message sends it: HTML with the look, and a plain-text twin.
+        let out = rich::to_html(&text, &styles);
+        assert!(out.contains("<b") || out.contains("font-weight"), "{out}");
+        assert!(out.contains("http://www.company.com/"));
+        // Into a message, between what was there.
+        let (mut body, mut st) = ("Hi\n\nBye".to_string(), rich::Styles::plain("Hi\n\nBye"));
+        rich::splice(&mut body, &mut st, 3..3, &text, &styles);
+        assert!(body.starts_with("Hi\nCompany bv") && body.ends_with("\nBye"), "{body}");
+        assert_eq!(st.chars.len(), body.chars().count());
+        assert!(st.style(3).bold && !st.style(0).bold && !st.style(body.chars().count() - 1).italic);
+        // Word's paragraphs are lines (one line per paragraph isn't double-spaced); a web
+        // page's keep their space.
+        assert_eq!(pasted_html("<p class=MsoNormal>Riley<o:p></o:p></p>\r\n<p class=MsoNormal>Studio</p>").0, "Riley\nStudio");
+        assert_eq!(pasted_html("<p>Riley</p><p>Studio</p>").0, "Riley\n\nStudio");
+        assert_eq!(pasted_html("<P CLASS=MsoNormal>a</P><pre class=MsoNormal>b</pre>").0.matches('a').count(), 1);
+        assert!(pasted_html("").0.is_empty());
+        assert!(pasted_html("<img src=\"https://x.example/a.png\">").0.is_empty());
+    }
 
     const SIMPLE: &[u8] = b"From: Zoe Park <zoe@studio.example>\r\n\
 To: Ann <ann@studio.example>, ops@studio.example\r\n\

@@ -78,6 +78,10 @@ pub struct AccountConfig {
     pub smtp: ServerConfig,
     #[serde(default)]
     pub signature: String,
+    /// The signature's look, as HTML (empty when it's plain text): bold, colours, sizes and
+    /// links, as pasted from Outlook or set in the signature editor.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub signature_html: String,
     /// The colour index the UI uses for this account's marker.
     #[serde(default)]
     pub color: u8,
@@ -189,6 +193,7 @@ impl AccountConfig {
             imap: ServerConfig { host: imap_host, port: 993, security: Security::Tls },
             smtp,
             signature: String::new(),
+            signature_html: String::new(),
             color: 0,
             oauth: None,
             jmap: None,

@@ -921,7 +921,7 @@ impl Session {
     /// closing it then asks whether to keep it.
     pub fn compose_written(&self) -> bool {
         let Some(c) = &self.compose else { return false };
-        let signature = self.account(&c.account).map(|a| a.config.signature.trim().to_string()).unwrap_or_default();
+        let signature = self.signature(&c.account).trim().to_string();
         let body = c.body.trim();
         !(c.to.trim().is_empty()
             && c.cc.trim().is_empty()
@@ -936,10 +936,12 @@ impl Session {
     /// exchanged with). Filtered by `query` (name or address), sorted by name.
     pub fn address_book(&mut self, source: &str, query: &str) -> Vec<EmailAddress> {
         const MAX: usize = 2000;
-        if source == "people" {
+        let book = source.strip_prefix("book:").and_then(|b| b.split_once(':'));
+        if source == "people" || book.is_some() {
             let mut v: Vec<EmailAddress> = self
                 .people(query)
                 .into_iter()
+                .filter(|p| book.is_none_or(|(a, b)| p.account == a && p.book == b))
                 .flat_map(|p| p.card.emails.iter().map(|e| EmailAddress::new(p.card.display(), e.value.clone())).collect::<Vec<_>>())
                 .collect();
             v.truncate(MAX);
@@ -947,6 +949,8 @@ impl Session {
         }
         self.ensure_contacts();
         self.contacts.as_ref().map(|b| b.list(query, MAX).into_iter().map(|c| c.address).collect()).unwrap_or_default()
+    }
+
     /// The address books Select Names can show besides everyone (`all`) and every contact
     /// (`people`): each account's, as (source, name, the account's address).
     pub fn address_books(&self) -> Vec<(String, String, String)> {
@@ -2085,7 +2089,28 @@ impl Session {
     }
 
     fn signature(&self, account: &str) -> String {
-        self.account(account).map(|a| a.config.signature.clone()).unwrap_or_default()
+        self.signature_rich(account).0
+    }
+
+    /// An account's signature with its look: its text and styles (plain when it has none).
+    pub fn signature_rich(&self, account: &str) -> (String, mime::rich::Styles) {
+        let Some(a) = self.account(account) else { return (String::new(), mime::rich::Styles::default()) };
+        if !a.config.signature_html.trim().is_empty() {
+            let (text, styles) = mime::pasted_html(&a.config.signature_html);
+            if !text.trim().is_empty() {
+                return (text, styles);
+            }
+        }
+        (a.config.signature.clone(), mime::rich::Styles::plain(&a.config.signature))
+    }
+
+    /// The signature in the message being made, given its look (the text went in plain).
+    fn style_signature(&mut self) {
+        let Some(account) = self.compose.as_ref().map(|c| c.account.clone()) else { return };
+        let sig = self.signature_rich(&account);
+        if let Some(c) = self.compose.as_mut() {
+            style_signature(c, &sig);
+        }
     }
 
     pub fn new_compose(&mut self, account: Option<&str>) -> Result<&mut Compose, CmdError> {
@@ -2099,7 +2124,9 @@ impl Session {
         let body = if sig.trim().is_empty() { String::new() } else { format!("\n\n{}", signature_block(&sig)) };
         let window = self.prefs.new_mail_window;
         let signature = if sig.trim().is_empty() { String::new() } else { signature_block(&sig) };
-        self.compose = Some(Compose { id, account, body, window, signature, ..Default::default() });
+        let styles = mime::rich::Styles::plain(&body);
+        self.compose = Some(Compose { id, account, body, styles, window, signature, ..Default::default() });
+        self.style_signature();
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
 
@@ -2136,6 +2163,7 @@ impl Session {
             source: Some(r.key),
             ..Default::default()
         });
+        self.style_signature();
         Ok(serde_json::json!({ "compose": id }))
     }
 
@@ -2154,6 +2182,7 @@ impl Session {
             c.signature = if sig.trim().is_empty() { String::new() } else { signature_block(&sig) };
             c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw }];
         }
+        self.style_signature();
         Ok(out)
     }
 
@@ -3008,4 +3037,24 @@ fn follow_up_id(m: &Summary) -> String {
 /// A signature as it goes into a message: after the usual `-- ` line (RFC 3676's delimiter).
 pub fn signature_block(sig: &str) -> String {
     format!("-- \n{}", sig.trim_end())
+}
+
+/// Give the signature in a message (`c.signature`, where it still stands as put there) the look
+/// it has: `sig` is its text and styles.
+pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles)) {
+    let (text, styles) = sig;
+    if c.signature.is_empty() || styles.is_plain() {
+        return;
+    }
+    let mut block = "-- \n".to_string();
+    let mut block_styles = mime::rich::Styles::plain(&block);
+    mime::rich::append(&mut block, &mut block_styles, text.trim_end(), styles);
+    if block != c.signature {
+        return;
+    }
+    let Some(b) = c.body.rfind(&c.signature) else { return };
+    let start = c.body.get(..b).unwrap_or("").chars().count();
+    let n = block.chars().count();
+    c.styles.fit(&c.body);
+    mime::rich::splice(&mut c.body, &mut c.styles, start..start + n, &block, &block_styles);
 }

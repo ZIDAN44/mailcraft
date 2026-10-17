@@ -2045,6 +2045,49 @@ fn a_signature_goes_in_from_the_message() {
     assert_eq!(s.compose.as_ref().unwrap().body, "Hi\n\n-- \nR.\n\n> quoted");
 }
 
+/// Issue #1: a signature pasted from Outlook keeps its look: kept as HTML, and put into new
+/// messages, replies and Insert signature with it; its text is the plain-text twin.
+#[test]
+fn a_formatted_signature_keeps_its_look() {
+    let mut s = sample_session("formatted-signature");
+    let html = "<p class=MsoNormal><b><span style='color:#BFBFBF'>Company bv</span></b></p>\
+                <p class=MsoNormal>An street 1<br><a href=\"http://www.company.com/\">www.company.com</a></p>\
+                <p class=MsoNormal><i>Confidential.</i></p>";
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "ignored", "html": html})).unwrap();
+    let config = s.account("sample").unwrap().config.clone();
+    assert_eq!(config.signature, "Company bv\nAn street 1\nwww.company.com\nConfidential.");
+    assert!(!config.signature_html.is_empty());
+    let check = |s: &Session| {
+        let c = s.compose.as_ref().unwrap();
+        let at = c.body.find("Company bv").map(|b| c.body[..b].chars().count()).unwrap();
+        let st = c.styles.style(at);
+        assert!(st.bold && st.color == Some([0xBF, 0xBF, 0xBF]), "{st:?}");
+        let link = c.body.find("www.company").map(|b| c.body[..b].chars().count()).unwrap();
+        assert_eq!(c.styles.style(link).link.as_deref(), Some("http://www.company.com/"));
+        assert!(!c.styles.style(0).bold, "the text before it stays as it was");
+        assert_eq!(c.styles.chars.len(), c.body.chars().count());
+        let html = mailcraft_mime::rich::to_html(&c.body, &c.styles);
+        assert!(html.contains("http://www.company.com/"), "{html}");
+    };
+    s.run("mail.new", &json!({})).unwrap();
+    assert!(s.compose.as_ref().unwrap().body.ends_with("-- \nCompany bv\nAn street 1\nwww.company.com\nConfidential."));
+    check(&s);
+    assert!(!s.compose_written(), "a message with only its signature has nothing written");
+    // Insert signature replaces it, keeping the look.
+    s.run("compose.insertSignature", &json!({})).unwrap();
+    check(&s);
+    s.run("compose.discard", &json!({})).ok();
+    s.compose = None;
+    let k = s.list.first().map(|m| m.key.clone()).unwrap();
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    check(&s);
+    // Saved plain again, the look goes.
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "R."})).unwrap();
+    assert!(s.account("sample").unwrap().config.signature_html.is_empty());
+    assert!(s.run("account.setSignature", &json!({"account": "sample", "signature": "x", "html": "<p><b>\u{0}"})).is_ok(), "junk HTML");
+}
+
 /// Issue #1: Select Names opens with the address book chosen (Outlook's "Show this address list
 /// first"), and one address book can be shown alone.
 #[test]

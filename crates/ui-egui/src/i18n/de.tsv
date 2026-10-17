@@ -804,12 +804,14 @@
 	Mobile phone	Mobiltelefon
 	Home phone	Telefon privat
 	Address book	Adressbuch
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Aus Outlook oder Word eingefügt, behält sie ihr Aussehen; Strg+B, Strg+I und Strg+U formatieren sie.
 	All contacts	Alle Kontakte
 	Always open with this address book	Immer mit diesem Adressbuch öffnen
 	Day and week show each calendar in a pane of its own	Tag und Woche zeigen jeden Kalender in einem eigenen Bereich
 	Every contact, in every address book	Jeder Kontakt, in jedem Adressbuch
 	Everyone you've written to or heard from, and your contacts	Alle, denen Sie geschrieben haben oder die Ihnen geschrieben haben, und Ihre Kontakte
 	Hide {calendar}	{calendar} ausblenden
+	Write your signature, or paste it…	Signatur eingeben oder einfügen…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

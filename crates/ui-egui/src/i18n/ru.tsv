@@ -803,12 +803,14 @@
 	Mobile phone	Мобильный телефон
 	Home phone	Домашний телефон
 	Address book	Адресная книга
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Вставьте подпись из Outlook или Word — оформление сохранится; Ctrl+B, Ctrl+I и Ctrl+U форматируют её.
 	All contacts	Все контакты
 	Always open with this address book	Всегда открывать эту адресную книгу
 	Day and week show each calendar in a pane of its own	День и неделя показывают каждый календарь в отдельной панели
 	Every contact, in every address book	Все контакты из всех адресных книг
 	Everyone you've written to or heard from, and your contacts	Все, кому вы писали или кто писал вам, и ваши контакты
 	Hide {calendar}	Скрыть {calendar}
+	Write your signature, or paste it…	Введите подпись или вставьте её…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив
