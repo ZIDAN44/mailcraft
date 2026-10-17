@@ -238,7 +238,7 @@ impl Client {
                 seg(folder),
                 limit.clamp(1, 1000)
             ),
-            limit,
+            limit.min(100_000),
         )?;
         let ids = list.iter().filter_map(|m| Some((m.get("id")?.as_str()?.to_string(), flags(m)))).collect();
         let f = self.get(&format!("/me/mailFolders/{}?$select=totalItemCount,unreadItemCount", seg(folder)))?;

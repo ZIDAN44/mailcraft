@@ -202,6 +202,11 @@ pub struct Prefs {
     pub calendars_side_by_side: bool,
     /// Months shown one under another in the calendar's side pane (1 to 6).
     pub calendar_months: u8,
+    /// The newest messages of each folder kept on this computer (0: all of them), as Outlook's
+    /// "Mail to keep offline".
+    pub keep_messages: u32,
+    /// Of those, the newest downloaded in full ahead of reading (the rest when opened).
+    pub keep_offline: u32,
     /// With `ReadInPane::Shown`: after it's been shown this many seconds (0: at once).
     pub read_after_secs: u32,
     /// Show the first line of text under each message.
@@ -386,6 +391,8 @@ impl Default for Prefs {
             hidden_calendars: BTreeSet::new(),
             calendars_side_by_side: false,
             calendar_months: 1,
+            keep_messages: 1000,
+            keep_offline: 40,
             read_after_secs: 0,
             show_preview: true,
             compact: false,
@@ -2747,6 +2754,18 @@ impl Session {
     /// Ask every account to sync now.
     /// Work offline, or connect again: every account's connection closes (changes, sent mail and
     /// drafts wait on this computer) or opens. Ahead of anything queued, so what follows sees it.
+    #[cfg(test)]
+    pub(crate) fn jobs_push_for_test(&mut self, j: Job) {
+        self.jobs.push(j);
+    }
+
+    /// Tell the network side how much mail to keep (ahead of anything queued, so accounts
+    /// start with it).
+    pub fn apply_sync_prefs(&mut self) {
+        self.jobs.retain(|j| !matches!(j, Job::SetSync { .. }));
+        self.jobs.insert(0, Job::SetSync { messages: self.prefs.keep_messages, offline: self.prefs.keep_offline });
+    }
+
     pub fn set_work_offline(&mut self, on: bool) {
         self.prefs.work_offline = on;
         self.jobs.retain(|j| !matches!(j, Job::WorkOffline { .. }));

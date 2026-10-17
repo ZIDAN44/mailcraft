@@ -877,7 +877,7 @@ fn long_folders_render_quickly() {
             ..Default::default()
         })
         .collect();
-    store.save_folder("sample", "Archive", &FolderState { validity: 1, uid_next: 2001, highest_modseq: 0, messages }).unwrap();
+    store.save_folder("sample", "Archive", &FolderState { validity: 1, uid_next: 2001, highest_modseq: 0, messages, window: 0 }).unwrap();
     a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
     a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
     assert_eq!(a.session.list.len(), 2000);

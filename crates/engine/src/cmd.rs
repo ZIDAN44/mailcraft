@@ -390,6 +390,17 @@ pub fn registry() -> Registry {
             Ok(json!({"count": s.prefs.calendar_months}))
         })
         .params(r#"{"count": number (1 to 6)}"#),
+        CommandSpec::new("account.keepMail", "Mail kept on this computer", "File › Options › Mail", |s, v| {
+            if let Some(n) = p::u64(v, "messages") {
+                s.prefs.keep_messages = u32::try_from(n.min(1_000_000)).unwrap_or(0);
+            }
+            if let Some(n) = p::u64(v, "offline") {
+                s.prefs.keep_offline = u32::try_from(n.min(100_000)).unwrap_or(0);
+            }
+            s.apply_sync_prefs();
+            Ok(json!({"messages": s.prefs.keep_messages, "offline": s.prefs.keep_offline}))
+        })
+        .params(r#"{"messages"?: number (the newest of each folder kept; 0: all), "offline"?: number (of those, the newest downloaded in full)}"#),
         CommandSpec::new("note.arrange", "Arrange notes", "Notes › Arrange by", |s, v| {
             s.prefs.notes_order = match p::req_str(v, "by")? {
                 "modified" => crate::session::NotesOrder::Modified,

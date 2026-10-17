@@ -731,6 +731,14 @@ mod tests {
         // Later syncs only add what's new, not the older backlog.
         st.lock().unwrap().add("INBOX", "m8", &[]);
         assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &opts).unwrap().new, 1);
+        // More kept since (Options): the older mail comes in once, up to the new number.
+        let more = SyncOptions { window: 6, ..opts };
+        assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &more).unwrap().new, 2);
+        let uids: Vec<u32> = store.load_folder("a1", "INBOX").unwrap().messages.iter().map(|m| m.key.uid).collect();
+        assert_eq!(uids, vec![9, 8, 7, 6, 5, 4]);
+        assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &more).unwrap().new, 0, "once");
+        let all = SyncOptions { window: usize::MAX, ..opts };
+        assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &all).unwrap().new, 3, "all of it");
         let _ = std::fs::remove_dir_all(store.root());
     }
 

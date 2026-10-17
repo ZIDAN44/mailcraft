@@ -552,6 +552,32 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         check(ui, s.prefs.new_mail_window, "Write new messages in a window of their own", "view.newMailWindow", acts);
         check(ui, s.prefs.show_html, "Show HTML mail formatted (otherwise as plain text)", "view.html", acts);
     });
+    // How much mail is kept on this computer, as Outlook's "Mail to keep offline".
+    group(ui, "Mail kept on this computer", &mut |ui| {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tl!("Of each folder, keep"));
+            for (n, label) in [(1000u32, "the newest 1,000"), (5000, "5,000"), (20000, "20,000"), (0, "all")] {
+                if ui.radio(s.prefs.keep_messages == n, tl!(label)).clicked() {
+                    acts.push(Action::Run("account.keepMail", json!({"messages": n})));
+                }
+            }
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tl!("Download in full for reading offline"));
+            for (n, label) in [(40u32, "the newest 40"), (200, "200"), (1000, "1,000")] {
+                if ui.radio(s.prefs.keep_offline == n, tl!(label)).clicked() {
+                    acts.push(Action::Run("account.keepMail", json!({"offline": n})));
+                }
+            }
+        });
+        ui.label(
+            RichText::new(tl!(
+                "New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened."
+            ))
+            .color(t.faint)
+            .small(),
+        );
+    });
     group(ui, "Inbox and notifications", &mut |ui| {
         check(ui, s.prefs.notify, "Show a desktop notification when new mail arrives", "view.notifications", acts);
         check(ui, s.prefs.focused_inbox, "Focused Inbox: put newsletters and automatic mail in Other", "view.focused", acts);

@@ -60,6 +60,10 @@ pub struct FolderState {
     pub highest_modseq: u64,
     /// Newest first.
     pub messages: Vec<Summary>,
+    /// How many of the newest messages it was filled with (the setting then): raised since,
+    /// the older mail is fetched once.
+    #[serde(default)]
+    pub window: usize,
 }
 
 impl FolderState {
@@ -859,7 +863,7 @@ mod tests {
         s.save_folders("a1", std::slice::from_ref(&f)).unwrap();
         assert_eq!(s.load_folders("a1").unwrap(), vec![f]);
 
-        let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 77, messages: vec![msg(9, false), msg(4, true)] };
+        let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 77, messages: vec![msg(9, false), msg(4, true)], window: 0 };
         s.save_folder("a1", "INBOX", &st).unwrap();
         let back = s.load_folder("a1", "INBOX").unwrap();
         assert_eq!(back, st);
@@ -889,7 +893,7 @@ mod tests {
     #[test]
     fn ops_apply_locally_and_persist() {
         let s = temp_store("ops");
-        let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false), msg(4, false), msg(2, false)] };
+        let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false), msg(4, false), msg(2, false)], window: 0 };
         s.save_folder("a1", "INBOX", &st).unwrap();
         let k9 = st.messages[0].key.clone();
         let k4 = st.messages[1].key.clone();
@@ -933,7 +937,8 @@ mod tests {
         };
         s.save_folders("a1", &[f("INBOX"), f("Projects"), f("Projects/Film")]).unwrap();
         let film = MessageKey { account: "a1".into(), folder: "Projects/Film".into(), validity: 3, uid: 9 };
-        s.save_folder("a1", "Projects/Film", &FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false)] }).unwrap();
+        s.save_folder("a1", "Projects/Film", &FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false)], window: 0 })
+            .unwrap();
         s.write_body(&film, b"Subject: x\r\n\r\nfilm").unwrap();
 
         assert_eq!(s.apply_op("a1", &Op::CreateFolder { path: "Clients".into() }).unwrap(), vec!["Clients".to_string()]);

@@ -782,6 +782,13 @@
 	Hidden: click to show it	Скрыт: щёлкните, чтобы показать
 	Shown: click to hide it	Показан: щёлкните, чтобы скрыть
 	Side by side	Рядом
+	Mail kept on this computer	Почта на этом компьютере
+	Of each folder, keep	Из каждой папки хранить
+	Download in full for reading offline	Загружать полностью для чтения без сети
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Новая почта приходит всегда. Более старая остаётся на сервере; остальное в каждом письме загружается при открытии.
+	the newest 1,000	последние 1000
+	the newest 40	последние 40
+	all	все
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -2059,8 +2059,14 @@ impl MailApp {
     pub fn restore_state(&mut self, v: &Value) {
         if let Some(p) = v.get("prefs").and_then(|p| serde_json::from_value::<mailcraft_engine::Prefs>(p.clone()).ok()) {
             let offline = p.work_offline;
+            let keep = (p.keep_messages, p.keep_offline);
             self.session.prefs = p;
             self.session.refresh_list();
+            // How much mail to keep, before any account connects (when it isn't the default).
+            let d = mailcraft_engine::Prefs::default();
+            if keep != (d.keep_messages, d.keep_offline) {
+                self.session.apply_sync_prefs();
+            }
             // Still working offline from last time: before any account connects.
             if offline {
                 self.session.set_work_offline(true);

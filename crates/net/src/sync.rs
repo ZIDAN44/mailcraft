@@ -128,8 +128,20 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
             let skip = all.len().saturating_sub(opts.window);
             let first: Vec<u32> = all.into_iter().skip(skip).collect();
             fetch_headers(c, &mut st, account, folder, &first, &mut report)?;
+            st.window = opts.window;
         } else {
             new_mail(c, &mut st, account, folder, known_max, &mut report)?;
+            // 3: kept more since it was filled: the older mail too, once.
+            if opts.window > st.window && st.messages.len() < opts.window {
+                let oldest = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
+                if oldest > 1 {
+                    let older = c.uid_search(&format!("UID 1:{}", oldest - 1))?;
+                    let want = opts.window - st.messages.len();
+                    let take: Vec<u32> = older.iter().rev().take(want).rev().copied().collect();
+                    fetch_headers(c, &mut st, account, folder, &take, &mut report)?;
+                }
+                st.window = opts.window;
+            }
         }
     }
 

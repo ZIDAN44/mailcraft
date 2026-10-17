@@ -783,6 +783,13 @@
 	Hidden: click to show it	Masqué : cliquez pour l'afficher
 	Shown: click to hide it	Affiché : cliquez pour le masquer
 	Side by side	Côte à côte
+	Mail kept on this computer	Courrier conservé sur cet ordinateur
+	Of each folder, keep	De chaque dossier, conserver
+	Download in full for reading offline	Télécharger en entier pour lire hors connexion
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Le nouveau courrier arrive toujours. Le courrier plus ancien reste sur le serveur ; le reste de chaque message est téléchargé à son ouverture.
+	the newest 1,000	les 1 000 plus récents
+	the newest 40	les 40 plus récents
+	all	tous
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

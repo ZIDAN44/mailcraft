@@ -226,6 +226,9 @@ xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\">\
     )
 }
 
+/// Messages kept of one folder at most, when all of them are asked for.
+const MAX_KEPT: usize = 100_000;
+
 /// Base64 without line breaks.
 fn b64(data: &[u8]) -> String {
     crate::imap::base64(data)
@@ -598,17 +601,33 @@ impl Client {
     }
 
     /// The newest `limit` messages of a folder with their flags.
+    /// The newest `limit` messages' ids and flags, a page of up to a thousand at a time (EWS
+    /// pages by offset; it says when the last page is in).
     fn newest(&self, folder: &str, limit: usize) -> Result<Vec<(String, Flags)>> {
-        let m = self.call_one(&format!(
-            "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{FLAG_FIELDS}</t:AdditionalProperties></m:ItemShape>\
-             <m:IndexedPageItemView MaxEntriesReturned=\"{}\" Offset=\"0\" BasePoint=\"Beginning\"/>\
-             <m:SortOrder><t:FieldOrder Order=\"Descending\"><t:FieldURI FieldURI=\"item:DateTimeReceived\"/></t:FieldOrder></m:SortOrder>\
-             <m:ParentFolderIds><t:FolderId Id=\"{}\"/></m:ParentFolderIds></m:FindItem>",
-            limit.clamp(1, 1000),
-            esc(folder)
-        ))?;
-        let Some(items) = m.find("Items") else { return Ok(Vec::new()) };
-        Ok(items.kids.iter().filter_map(|it| Some((it.child("ItemId")?.attr("Id")?.to_string(), flags(it)))).collect())
+        let limit = limit.clamp(1, MAX_KEPT);
+        let mut out: Vec<(String, Flags)> = Vec::new();
+        while out.len() < limit {
+            let page = (limit - out.len()).min(1000);
+            let m = self.call_one(&format!(
+                "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{FLAG_FIELDS}</t:AdditionalProperties></m:ItemShape>\
+                 <m:IndexedPageItemView MaxEntriesReturned=\"{}\" Offset=\"{}\" BasePoint=\"Beginning\"/>\
+                 <m:SortOrder><t:FieldOrder Order=\"Descending\"><t:FieldURI FieldURI=\"item:DateTimeReceived\"/></t:FieldOrder></m:SortOrder>\
+                 <m:ParentFolderIds><t:FolderId Id=\"{}\"/></m:ParentFolderIds></m:FindItem>",
+                page,
+                out.len(),
+                esc(folder)
+            ))?;
+            let last = m.find("RootFolder").and_then(|r| r.attr("IncludesLastItemInRange")) != Some("false");
+            let Some(items) = m.find("Items") else { break };
+            let got: Vec<(String, Flags)> =
+                items.kids.iter().filter_map(|it| Some((it.child("ItemId")?.attr("Id")?.to_string(), flags(it)))).collect();
+            let n = got.len();
+            out.extend(got);
+            if last || n == 0 || n < page {
+                break;
+            }
+        }
+        Ok(out)
     }
 
     /// Messages' details, for the list.

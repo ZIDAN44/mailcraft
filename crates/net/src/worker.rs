@@ -291,6 +291,18 @@ impl Pool {
             }
             Job::ImportPst { account, path } => self.import_pst(account, path),
             Job::ExportPst { account, path, name } => self.export_pst(account, path, name),
+            Job::SetSync { messages, offline } => {
+                let opts =
+                    SyncOptions { window: if messages == 0 { usize::MAX } else { messages as usize }, prefetch: offline as usize, ..self.opts };
+                if opts.window != self.opts.window || opts.prefetch != self.opts.prefetch {
+                    self.opts = opts;
+                    // Connected accounts start again with it (a rare change, from Options).
+                    let running: Vec<AccountConfig> = self.workers.keys().filter_map(|id| self.configs.get(id).cloned()).collect();
+                    for c in running {
+                        self.start(c, None);
+                    }
+                }
+            }
             Job::WorkOffline { on } => {
                 self.offline = on;
                 if on {
@@ -1197,7 +1209,7 @@ impl Worker {
                 }
             }
             Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } | Job::ExportPst { .. } => {}
-            Job::Start { .. } | Job::Remove { .. } | Job::WorkOffline { .. } => {}
+            Job::Start { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}
         }
     }
 

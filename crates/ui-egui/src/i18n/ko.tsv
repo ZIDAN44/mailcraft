@@ -782,6 +782,13 @@
 	Hidden: click to show it	숨김: 클릭하여 표시
 	Shown: click to hide it	표시됨: 클릭하여 숨기기
 	Side by side	나란히 보기
+	Mail kept on this computer	이 컴퓨터에 보관할 메일
+	Of each folder, keep	각 폴더에서 보관
+	Download in full for reading offline	오프라인으로 읽도록 전체 다운로드
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	새 메일은 항상 들어옵니다. 그보다 오래된 메일은 서버에 남고, 각 메시지의 나머지는 열 때 다운로드됩니다.
+	the newest 1,000	최신 1,000개
+	the newest 40	최신 40개
+	all	모두
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

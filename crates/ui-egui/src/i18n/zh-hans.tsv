@@ -785,3 +785,10 @@ month	May	5月
 	Hidden: click to show it	已隐藏：单击以显示
 	Shown: click to hide it	已显示：单击以隐藏
 	Side by side	并排
+	Mail kept on this computer	保存在此电脑上的邮件
+	Of each folder, keep	每个文件夹保留
+	Download in full for reading offline	完整下载以便脱机阅读
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	新邮件总会收到。更早的邮件留在服务器上；每封邮件的其余部分在打开时下载。
+	the newest 1,000	最新 1,000 封
+	the newest 40	最新 40 封
+	all	全部

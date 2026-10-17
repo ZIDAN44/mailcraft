@@ -782,6 +782,13 @@
 	Hidden: click to show it	已隱藏：按一下以顯示
 	Shown: click to hide it	已顯示：按一下以隱藏
 	Side by side	並排
+	Mail kept on this computer	保留在此電腦上的郵件
+	Of each folder, keep	每個資料夾保留
+	Download in full for reading offline	完整下載以便離線閱讀
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	新郵件一律會收到。更早的郵件留在伺服器上；每封郵件的其餘部分會在開啟時下載。
+	the newest 1,000	最新 1,000 封
+	the newest 40	最新 40 封
+	all	全部
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

@@ -783,6 +783,13 @@
 	Hidden: click to show it	Oculto: clique para mostrar
 	Shown: click to hide it	Visível: clique para ocultar
 	Side by side	Lado a lado
+	Mail kept on this computer	E-mail mantido neste computador
+	Of each folder, keep	De cada pasta, manter
+	Download in full for reading offline	Baixar completos para ler offline
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	E-mails novos sempre chegam. Os mais antigos ficam no servidor; o restante de cada mensagem é baixado ao abri-la.
+	the newest 1,000	os 1.000 mais recentes
+	the newest 40	os 40 mais recentes
+	all	todos
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

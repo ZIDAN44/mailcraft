@@ -150,6 +150,9 @@ pub enum Job {
     /// Work offline (every account's connection closed, changes and mail kept to send later), or
     /// connect again.
     WorkOffline { on: bool },
+    /// How much mail is kept on this computer: the newest `messages` of each folder (0: all of
+    /// them), and the newest `offline` of them downloaded in full ahead of reading.
+    SetSync { messages: u32, offline: u32 },
     /// Read the account's automatic replies from the server.
     GetVacation { account: String },
     /// Change them.
@@ -180,7 +183,7 @@ impl Job {
             | Job::SyncDav { account }
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } => "",
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => "",
             Job::SignIn { account } => &account.id,
         }
     }

@@ -785,3 +785,10 @@ month	May	5月
 	Hidden: click to show it	非表示: クリックで表示
 	Shown: click to hide it	表示中: クリックで非表示
 	Side by side	並べて表示
+	Mail kept on this computer	このコンピューターに保持するメール
+	Of each folder, keep	各フォルダーで保持
+	Download in full for reading offline	オフラインで読むために全体をダウンロード
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	新着メールは常に届きます。これより古いメールはサーバーに残り、各メッセージの残りは開いたときにダウンロードされます。
+	the newest 1,000	最新 1,000 件
+	the newest 40	最新 40 件
+	all	すべて

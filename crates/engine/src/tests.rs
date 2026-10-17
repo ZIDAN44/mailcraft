@@ -666,7 +666,9 @@ fn web_pictures_load_only_when_asked() {
         mailcraft_model::Summary { key: key(1), subject: "News".into(), date: NOW, ..Default::default() },
         mailcraft_model::Summary { key: key(2), subject: "More".into(), date: NOW - 1, ..Default::default() },
     ];
-    store.save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 1, uid_next: 3, highest_modseq: 0, messages: msgs }).unwrap();
+    store
+        .save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 1, uid_next: 3, highest_modseq: 0, messages: msgs, window: 0 })
+        .unwrap();
     let html = |n: u32| {
         format!(
             "From: Shop <news@shop.example>\r\nSubject: n\r\nContent-Type: text/html\r\n\r\n<p>Sale</p><img src=\"https://cdn.shop.example/{n}.png\">"
@@ -824,7 +826,9 @@ fn only_mail_that_arrives_later_is_announced() {
         ..Default::default()
     };
     let save = |msgs: Vec<mailcraft_model::Summary>| {
-        store.save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 99, highest_modseq: 0, messages: msgs }).unwrap();
+        store
+            .save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 99, highest_modseq: 0, messages: msgs, window: 0 })
+            .unwrap();
     };
     // The first sync's backlog is not news.
     save(vec![m(2, false, 60), m(1, false, 120)]);
@@ -945,6 +949,7 @@ fn remote_accounts_go_through_jobs_and_events() {
         uid_next: 2,
         highest_modseq: 0,
         messages: vec![mailcraft_model::Summary { key: key.clone(), subject: "Hello".into(), date: NOW - 60, ..Default::default() }],
+        window: 0,
     };
     s.store.as_ref().unwrap().save_folder(&id, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
@@ -2096,4 +2101,21 @@ fn calendars_can_be_hidden_and_shown_side_by_side() {
     // The sample's events in categories take their colours.
     let edit = s.agenda(from, to).into_iter().find(|i| i.summary == "Lunch with Jun").unwrap();
     assert_eq!(edit.category, Some(s.category_color_of("Personal")));
+}
+
+/// Issue #1: how much mail is kept on this computer is a setting (Outlook's "Mail to keep
+/// offline"), told to the network side ahead of anything queued.
+#[test]
+fn how_much_mail_is_kept_is_a_setting() {
+    let mut s = sample_session("keep-mail");
+    assert_eq!((s.prefs.keep_messages, s.prefs.keep_offline), (1000, 40));
+    s.jobs_push_for_test(Job::SyncAll { account: "sample".into() });
+    s.run("account.keepMail", &json!({"messages": 0, "offline": 200})).unwrap();
+    let jobs = s.take_jobs();
+    assert!(matches!(jobs.first(), Some(Job::SetSync { messages: 0, offline: 200 })), "{jobs:?}");
+    s.run("account.keepMail", &json!({"messages": 5000})).unwrap();
+    s.run("account.keepMail", &json!({"messages": 20000})).unwrap();
+    let jobs = s.take_jobs();
+    assert_eq!(jobs.iter().filter(|j| matches!(j, Job::SetSync { .. })).count(), 1, "the last one only");
+    assert!(matches!(jobs.first(), Some(Job::SetSync { messages: 20000, offline: 200 })));
 }

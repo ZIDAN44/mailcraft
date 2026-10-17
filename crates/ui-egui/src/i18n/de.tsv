@@ -783,6 +783,13 @@
 	Hidden: click to show it	Ausgeblendet: zum Einblenden klicken
 	Shown: click to hide it	Eingeblendet: zum Ausblenden klicken
 	Side by side	Nebeneinander
+	Mail kept on this computer	Auf diesem Computer behaltene E-Mails
+	Of each folder, keep	Aus jedem Ordner behalten
+	Download in full for reading offline	Vollständig für das Offline-Lesen herunterladen
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Neue E-Mails kommen immer an. Ältere bleiben auf dem Server; der Rest einer Nachricht wird beim Öffnen geladen.
+	the newest 1,000	die neuesten 1.000
+	the newest 40	die neuesten 40
+	all	alle
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
