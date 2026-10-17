@@ -18,7 +18,7 @@ _Status: v0.13, 2026-10-17._
 | 4 | **Drag attachments out under Wayland** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND). A native Wayland window would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **HTML layout: positioning and background pictures** | Tables, flexbox rows, grids, inline-block and floated boxes keep their columns; absolutely positioned boxes and background pictures still flow as text. |
-| 7 | **Public folders on Exchange Online; writing to shared calendars** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online routes public-folder requests to a mailbox found through Autodiscover's user settings (`X-AnchorMailbox`), not done yet, and Graph has no public folders. Other people's calendars open read-only, even where their owner allowed editing. |
+| 7 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
 
 ## Done
 
@@ -215,3 +215,7 @@ Microsoft sign-in, tried end to end once the release builds carried a registrati
 - **Microsoft sign-in in release builds:** the test builds carry MailCraft's Microsoft Entra
   registration (the repository secret), so Outlook.com, Hotmail and Live accounts sign in
   ([docs/oauth.md](oauth.md)); the gap is closed.
+- **Other people's calendars can be changed** where their owner made this account an editor:
+  Graph reads the calendar's `canEdit` (with `Calendars.ReadWrite.Shared`), EWS the folder's
+  EffectiveRights; new events go into the owner's calendar, and changes and deletions reach it
+  too. Those they didn't allow stay read-only, and only those say "read-only".
