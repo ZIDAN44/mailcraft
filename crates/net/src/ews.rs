@@ -282,6 +282,47 @@ pub struct Client {
     signed_in: RefCell<bool>,
     /// The account's own address (automatic replies are asked for by it).
     email: String,
+    /// The public folder mailbox requests are routed to (`X-AnchorMailbox` and
+    /// `X-PublicFolderMailbox`), while reading a public folder's content.
+    route: RefCell<Option<String>>,
+    /// Public folder mailboxes found by Autodiscover: GUID → address.
+    pf_mailboxes: RefCell<HashMap<String, String>>,
+}
+
+/// A public folder in the tree.
+pub(crate) struct PublicFolder {
+    pub id: String,
+    /// Its path under Public Folders.
+    pub path: String,
+    pub class: String,
+    pub total: u32,
+    /// The GUID of the public folder mailbox holding its content (`PR_REPLICA_LIST`).
+    pub replica: Option<String>,
+}
+
+/// A folder found walking the public folders.
+struct TreeFolder {
+    mailbox: Mailbox,
+    class: String,
+    children: bool,
+    replica: Option<String>,
+}
+
+/// `PR_REPLICA_LIST`, asked for with public folders.
+const REPLICA_LIST: &str = "<t:ExtendedFieldURI PropertyTag=\"26264\" PropertyType=\"Binary\"/>";
+
+/// The mailbox GUID in a `PR_REPLICA_LIST` value (base64 of the GUID as ASCII, NUL-ended).
+fn replica_guid(value: &str) -> Option<String> {
+    let bytes = unb64(value.trim())?;
+    let guid = String::from_utf8(bytes.get(..36)?.to_vec()).ok()?;
+    let ok = guid.char_indices().all(|(i, c)| if matches!(i, 8 | 13 | 18 | 23) { c == '-' } else { c.is_ascii_hexdigit() });
+    ok.then(|| guid.to_ascii_lowercase())
+}
+
+/// The address and the public folder mailbox in an Autodiscover answer about a mailbox.
+fn autodiscover_smtp(xml: &str) -> Option<String> {
+    let doc = parse(xml);
+    doc.find("AutoDiscoverSMTPAddress").map(|a| a.text.trim().to_string()).filter(|a| a.contains('@') && a.len() < 320)
 }
 
 /// What a `…ResponseMessage` said.
@@ -329,7 +370,63 @@ impl Client {
             scheme: RefCell::new(Scheme::Unknown),
             signed_in: RefCell::new(false),
             email: email.to_string(),
+            route: RefCell::new(None),
+            pf_mailboxes: RefCell::new(HashMap::new()),
         })
+    }
+
+    /// Run `f` with every request routed to a public folder mailbox.
+    pub(crate) fn routed_to<T>(&self, mailbox: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+        let before = self.route.replace(Some(mailbox.to_string()));
+        let r = f();
+        *self.route.borrow_mut() = before;
+        r
+    }
+
+    /// The address of the public folder mailbox with this GUID, from Autodiscover (asked at
+    /// the Exchange server's own Autodiscover first, then the domain's), kept once found.
+    pub(crate) fn public_folder_mailbox(&self, guid: &str) -> Result<String> {
+        if let Some(m) = self.pf_mailboxes.borrow().get(guid) {
+            return Ok(m.clone());
+        }
+        let domain = self.email.rsplit_once('@').map(|(_, d)| d.trim().to_ascii_lowercase()).unwrap_or_default();
+        if domain.is_empty() {
+            return Err(NetError::No("no domain to ask about public folders".into()));
+        }
+        let address = format!("{guid}@{domain}");
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\">\
+             <Request><EMailAddress>{}</EMailAddress><AcceptableResponseSchema>http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a</AcceptableResponseSchema></Request></Autodiscover>",
+            esc(&address)
+        );
+        let mut urls = Vec::new();
+        if let Ok(u) = http::Url::parse(&self.url)
+            && let Some(origin) = self.url.len().checked_sub(u.path.len()).and_then(|end| self.url.get(..end))
+        {
+            urls.push(format!("{origin}/autodiscover/autodiscover.xml"));
+        }
+        urls.extend(autodiscover_urls(&address));
+        let mut last = NetError::No("Autodiscover didn't find the public folder mailbox".into());
+        for url in urls {
+            let c = match Client::new(&url, &self.user, &self.password, &self.email) {
+                Ok(c) => c,
+                Err(e) => {
+                    last = e;
+                    continue;
+                }
+            };
+            match c.post(body.clone().into_bytes()) {
+                Ok(resp) if resp.ok() => {
+                    if let Some(found) = autodiscover_smtp(&String::from_utf8_lossy(&resp.body)) {
+                        self.pf_mailboxes.borrow_mut().insert(guid.to_string(), found.clone());
+                        return Ok(found);
+                    }
+                }
+                Ok(resp) => last = NetError::Protocol(format!("Autodiscover answered HTTP {}", resp.status)),
+                Err(e) => last = e,
+            }
+        }
+        Err(last)
     }
 
     /// Connect and check the password (asks for the Inbox).
@@ -360,7 +457,10 @@ impl Client {
 
     /// Send a request signed in the way the server wants.
     pub(crate) fn post(&self, body: Vec<u8>) -> Result<Response> {
-        let base = Request::post(&self.url, "text/xml; charset=utf-8", body, MAX_ANSWER).header("Accept", "text/xml");
+        let mut base = Request::post(&self.url, "text/xml; charset=utf-8", body, MAX_ANSWER).header("Accept", "text/xml");
+        if let Some(mailbox) = self.route.borrow().as_ref() {
+            base = base.header("X-AnchorMailbox", mailbox).header("X-PublicFolderMailbox", mailbox);
+        }
         for attempt in 0..3 {
             let scheme = *self.scheme.borrow();
             let resp = match scheme {
@@ -535,8 +635,8 @@ impl Client {
         // kept for them.
         let mut out: Vec<Mailbox> = all
             .into_iter()
-            .filter(|(_, class, children)| class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.") || *children)
-            .map(|(m, _, _)| m)
+            .filter(|t| t.class.is_empty() || t.class == "IPF.Note" || t.class.starts_with("IPF.Note.") || t.children)
+            .map(|t| t.mailbox)
             .collect();
         if out.is_empty() {
             return Ok(out);
@@ -545,19 +645,18 @@ impl Client {
         Ok(out)
     }
 
-    /// Exchange's public contact folders and calendars (shared address books and calendars):
-    /// (id, its path under Public Folders, its class).
-    pub(crate) fn public_pim_folders(&self) -> Result<Vec<(String, String, String)>> {
+    /// Exchange's public contact folders and calendars (shared address books and calendars).
+    pub(crate) fn public_pim_folders(&self) -> Result<Vec<PublicFolder>> {
         let (_, all) = self.public_tree()?;
         let path = |m: &Mailbox| {
             let mut parts = vec![m.name.clone()];
             let mut up = m.parent.clone();
             while let Some(p) = up.take() {
-                if let Some((f, _, _)) = all.iter().find(|(x, _, _)| x.id == p)
+                if let Some(t) = all.iter().find(|t| t.mailbox.id == p)
                     && parts.len() < PUBLIC_DEPTH + 1
                 {
-                    parts.push(f.name.clone());
-                    up = f.parent.clone();
+                    parts.push(t.mailbox.name.clone());
+                    up = t.mailbox.parent.clone();
                 }
             }
             parts.reverse();
@@ -565,20 +664,27 @@ impl Client {
         };
         Ok(all
             .iter()
-            .filter(|(_, class, _)| class.starts_with("IPF.Contact") || class.starts_with("IPF.Appointment"))
-            .map(|(m, class, _)| (m.id.clone(), path(m), class.clone()))
+            .filter(|t| t.class.starts_with("IPF.Contact") || t.class.starts_with("IPF.Appointment"))
+            .map(|t| PublicFolder {
+                id: t.mailbox.id.clone(),
+                path: path(&t.mailbox),
+                class: t.class.clone(),
+                total: t.mailbox.total,
+                replica: t.replica.clone(),
+            })
             .collect())
     }
 
     /// Every public folder (walked a level at a time, a few levels deep): the root's id, and
-    /// each folder with its class and whether it holds others.
-    fn public_tree(&self) -> Result<(String, Vec<(Mailbox, String, bool)>)> {
+    /// each folder with its class, whether it holds others and where its content is kept. A
+    /// folder that won't list its own is passed over.
+    fn public_tree(&self) -> Result<(String, Vec<TreeFolder>)> {
         let root = self.call_one(
             "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape>\
              <m:FolderIds><t:DistinguishedFolderId Id=\"publicfoldersroot\"/></m:FolderIds></m:GetFolder>",
         )?;
         let Some(root_id) = root.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) else { return Ok((String::new(), Vec::new())) };
-        let mut out: Vec<(Mailbox, String, bool)> = Vec::new();
+        let mut out: Vec<TreeFolder> = Vec::new();
         let mut queue: std::collections::VecDeque<(String, usize)> = std::collections::VecDeque::from([(root_id.clone(), 0)]);
         while let Some((parent, depth)) = queue.pop_front() {
             if depth >= PUBLIC_DEPTH || out.len() >= MAX_PUBLIC {
@@ -588,11 +694,19 @@ impl Client {
                 "<m:FindFolder Traversal=\"Shallow\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
                  <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:TotalCount\"/>\
                  <t:FieldURI FieldURI=\"folder:UnreadCount\"/><t:FieldURI FieldURI=\"folder:FolderClass\"/>\
-                 <t:FieldURI FieldURI=\"folder:ChildFolderCount\"/></t:AdditionalProperties></m:FolderShape>\
+                 <t:FieldURI FieldURI=\"folder:ChildFolderCount\"/>{REPLICA_LIST}</t:AdditionalProperties></m:FolderShape>\
                  <m:IndexedPageFolderView MaxEntriesReturned=\"200\" Offset=\"0\" BasePoint=\"Beginning\"/>\
                  <m:ParentFolderIds><t:FolderId Id=\"{}\"/></m:ParentFolderIds></m:FindFolder>",
                 esc(&parent)
-            ))?;
+            ));
+            let m = match m {
+                Ok(m) => m,
+                Err(e) if depth == 0 => return Err(e),
+                Err(e) => {
+                    log::info!("a public folder's folders: {e}");
+                    continue;
+                }
+            };
             let mut folders = Vec::new();
             if let Some(rf) = m.child("RootFolder") {
                 rf.all("Folder", &mut folders);
@@ -601,8 +715,17 @@ impl Client {
                 let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
                 let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
                 let class = f.text_of("FolderClass").unwrap_or("").to_string();
-                out.push((
-                    Mailbox {
+                let replica = f
+                    .children("ExtendedProperty")
+                    .find(|p| {
+                        p.child("ExtendedFieldURI")
+                            .and_then(|u| u.attr("PropertyTag"))
+                            .is_some_and(|t| t.eq_ignore_ascii_case("0x6698") || t == "26264")
+                    })
+                    .and_then(|p| p.text_of("Value"))
+                    .and_then(replica_guid);
+                out.push(TreeFolder {
+                    mailbox: Mailbox {
                         name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
                         parent: Some(parent.clone()),
                         role: FolderRole::Other,
@@ -611,8 +734,9 @@ impl Client {
                         id: id.clone(),
                     },
                     class,
-                    count("ChildFolderCount") > 0,
-                ));
+                    children: count("ChildFolderCount") > 0,
+                    replica,
+                });
                 if count("ChildFolderCount") > 0 {
                     queue.push_back((id, depth + 1));
                 }
@@ -1237,6 +1361,13 @@ mod tests {
         assert_eq!(autodiscover_answer(plain).0, None, "never plain http");
         assert_eq!(autodiscover_urls("riley@Contoso.example")[0], "https://autodiscover.contoso.example/autodiscover/autodiscover.xml");
         assert!(autodiscover_urls("riley@bad/host").is_empty());
+        // A public folder's content mailbox: PR_REPLICA_LIST as Exchange sends it.
+        assert_eq!(replica_guid("MWVjMmEyMzYtZWQ5My00Zjg4LWI5YzYtMzNlNjNmYTRhYTQ0AA==").as_deref(), Some("1ec2a236-ed93-4f88-b9c6-33e63fa4aa44"));
+        assert_eq!(replica_guid("bm90IGEgZ3VpZA=="), None);
+        assert_eq!(replica_guid("%%%"), None);
+        let pf = "<Autodiscover><Response><User><AutoDiscoverSMTPAddress>PFContent@contoso.example</AutoDiscoverSMTPAddress></User></Response></Autodiscover>";
+        assert_eq!(autodiscover_smtp(pf).as_deref(), Some("PFContent@contoso.example"));
+        assert_eq!(autodiscover_smtp("<x/>"), None);
     }
 
     #[test]

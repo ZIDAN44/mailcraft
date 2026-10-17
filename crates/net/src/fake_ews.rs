@@ -54,8 +54,16 @@ pub struct Data {
     pub url: String,
     /// People whose calendars this account may change (delegates with editor rights).
     pub editors: Vec<String>,
+    /// The public folder mailbox holding the public folders' content (Exchange 2013 and
+    /// later): reading inside them is only answered when routed there.
+    pub pf_mailbox: Option<String>,
+    /// The request's `X-PublicFolderMailbox` header.
+    routed: String,
     next: u32,
 }
+
+/// The public folder content mailbox's GUID, as `PR_REPLICA_LIST` names it.
+pub const PF_GUID: &str = "1ec2a236-ed93-4f88-b9c6-33e63fa4aa44";
 
 impl Default for Data {
     fn default() -> Data {
@@ -70,6 +78,8 @@ impl Default for Data {
             handshakes: 0,
             url: String::new(),
             editors: Vec::new(),
+            pf_mailbox: None,
+            routed: String::new(),
             next: 0,
         };
         d.folders.push(Fo {
@@ -137,15 +147,30 @@ impl Data {
     }
 
     fn folder_xml(&self, f: &Fo) -> String {
-        let total = self.items.iter().filter(|i| i.folder == f.id).count();
+        let total = self.items.iter().filter(|i| i.folder == f.id).count() + self.pim.iter().filter(|(_, x, _)| *x == f.id).count();
         let unread = self.items.iter().filter(|i| i.folder == f.id && !i.read).count();
+        // Public folders name the mailbox holding their content (a GUID, as ASCII, NUL-ended).
+        let replica = if self.pf_mailbox.is_some() && self.public_ids().contains(&f.id) {
+            format!(
+                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x6698\" PropertyType=\"Binary\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
+                crate::imap::base64(format!("{PF_GUID}\0").as_bytes())
+            )
+        } else {
+            String::new()
+        };
         format!(
-            "<t:Folder><t:FolderId Id=\"{}\"/><t:ParentFolderId Id=\"{}\"/><t:FolderClass>{}</t:FolderClass><t:DisplayName>{}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount></t:Folder>",
+            "<t:Folder><t:FolderId Id=\"{}\"/><t:ParentFolderId Id=\"{}\"/><t:FolderClass>{}</t:FolderClass><t:DisplayName>{}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount>{replica}</t:Folder>",
             f.id,
             f.parent,
             f.class,
             esc(&f.name)
         )
+    }
+
+    /// Whether a request for this folder's content goes unanswered: a public folder, asked
+    /// without being routed to the mailbox holding it.
+    fn unrouted(&self, folder: &str) -> bool {
+        self.pf_mailbox.as_ref().is_some_and(|m| *m != self.routed) && self.public_ids().iter().any(|p| p == folder)
     }
 
     fn item_xml(&self, it: &It, mime_content: bool) -> String {
@@ -228,7 +253,7 @@ impl Data {
                         out.push(ok(format!(
                             "<m:Folders><t:CalendarFolder><t:FolderId Id=\"mailbox:{who}\"/><t:EffectiveRights><t:CreateAssociated>false</t:CreateAssociated>\
                              <t:CreateContents>{edit}</t:CreateContents><t:CreateHierarchy>false</t:CreateHierarchy><t:Delete>{edit}</t:Delete>\
-                             <t:Modify>{edit}</t:Modify><t:Read>true</t:Read></t:EffectiveRights></t:CalendarFolder></m:Folders>"
+                             <t:Modify>false</t:Modify><t:Read>true</t:Read></t:EffectiveRights></t:CalendarFolder></m:Folders>"
                         )));
                         continue;
                     }
@@ -270,6 +295,10 @@ impl Data {
             }
             "FindItem" if self.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())) => {
                 let folder = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
+                if self.unrouted(&folder) {
+                    out.push(err("ErrorFolderNotFound"));
+                    return ("FindItemResponse".into(), out);
+                }
                 let items: String =
                     self.pim.iter().filter(|(_, f, _)| *f == folder).map(|(id, _, _)| format!("<t:Item><t:ItemId Id=\"{id}\"/></t:Item>")).collect();
                 out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>")));
@@ -308,6 +337,10 @@ impl Data {
             "GetItem" => {
                 let mime = op.find("IncludeMimeContent").is_some_and(|m| m.text == "true");
                 for id in ids(op.child("ItemIds")) {
+                    if self.pim.iter().any(|(i, f, _)| *i == id && self.unrouted(f)) {
+                        out.push(err("ErrorItemNotFound"));
+                        continue;
+                    }
                     if let Some((_, _, el)) = self.pim.iter().find(|(i, _, _)| *i == id) {
                         let mut el = el.clone();
                         el.kids.insert(
@@ -543,7 +576,7 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
         if reader.read_line(&mut first).unwrap_or(0) == 0 {
             return;
         }
-        let (mut len, mut auth) = (0usize, String::new());
+        let (mut len, mut auth, mut routed) = (0usize, String::new(), String::new());
         loop {
             let mut line = String::new();
             if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
@@ -555,6 +588,9 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
                 }
                 if k.eq_ignore_ascii_case("authorization") {
                     auth = v.trim().to_string();
+                }
+                if k.eq_ignore_ascii_case("x-publicfoldermailbox") {
+                    routed = v.trim().to_string();
                 }
             }
         }
@@ -593,7 +629,21 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
         let doc = parse(&String::from_utf8_lossy(&body));
         // Autodiscover: this server's own address.
         if doc.find("Autodiscover").is_some_and(|a| a.find("EMailAddress").is_some()) {
-            let url = shared.lock().unwrap().url.clone();
+            let (url, pf) = {
+                let d = shared.lock().unwrap();
+                (d.url.clone(), d.pf_mailbox.clone())
+            };
+            // The public folder mailbox, asked for by its GUID: its address.
+            let asked = doc.find("EMailAddress").map(|e| e.text.clone()).unwrap_or_default();
+            if let Some(pf) = pf.filter(|_| asked.starts_with(PF_GUID)) {
+                let answer = format!(
+                    "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Public folders</DisplayName>\
+                     <AutoDiscoverSMTPAddress>{pf}</AutoDiscoverSMTPAddress></User><Account><AccountType>email</AccountType><Action>settings</Action>\
+                     <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol></Account></Response></Autodiscover>"
+                );
+                respond(&mut s, 200, &[], answer.as_bytes());
+                continue;
+            }
             let answer = format!(
                 "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Riley</DisplayName></User><Account><AccountType>email</AccountType><Action>settings</Action>\
                  <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol></Account></Response></Autodiscover>"
@@ -612,6 +662,7 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
         };
         let mut d = shared.lock().unwrap();
         d.calls.push(op.name.clone());
+        d.routed = routed;
         let (name, parts) = d.route(&op);
         drop(d);
         let inner = if name.starts_with("GetUserOof") || name.starts_with("SetUserOof") {
@@ -1034,7 +1085,7 @@ mod tests {
 
     #[test]
     fn public_folders_list_under_their_own_folder_and_sync() {
-        let mut d = Data::default();
+        let mut d = Data { pf_mailbox: Some("PFContent@contoso.example".into()), ..Default::default() };
         d.folder("Inbox", None, Some("inbox"), "IPF.Note");
         d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
         d.folder("Contacts", None, Some("contacts"), "IPF.Contact");

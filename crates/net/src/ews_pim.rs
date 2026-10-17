@@ -401,7 +401,9 @@ fn calendar_folder(owner: Option<&str>) -> String {
     }
 }
 
-/// Whether this account may add and change items in a folder (its EffectiveRights).
+/// Whether this account may add and change items in a folder (its EffectiveRights). A folder's
+/// `Modify` is about the folder itself (its name and permissions, the owner's alone), so an
+/// editor is known by `CreateContents`.
 fn may_edit(c: &Client, folder: &str) -> bool {
     let doc = c.call(&format!(
         "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
@@ -410,7 +412,27 @@ fn may_edit(c: &Client, folder: &str) -> bool {
     ));
     let Ok(doc) = doc else { return false };
     let right = |name: &str| doc.find(name).is_some_and(|e| e.text.trim() == "true");
-    right("CreateContents") && right("Modify")
+    right("CreateContents")
+}
+
+/// A public folder's items. On Exchange 2013 and later its content is kept in a public folder
+/// mailbox, and reading it is routed there (asked for by the GUID the folder names); a server
+/// that answers without that (older ones, a single public folder mailbox) is asked plainly
+/// first.
+fn public_items(c: &Client, id: &str, replica: Option<&str>, total: u32) -> Result<Vec<El>> {
+    let folder = format!("<t:FolderId Id=\"{}\"/>", esc(id));
+    let plain = items_in(c, &folder, "");
+    let Some(guid) = replica else { return plain };
+    match plain {
+        Ok(list) if !list.is_empty() || total == 0 => Ok(list),
+        plain => match c.public_folder_mailbox(guid) {
+            Ok(mailbox) => c.routed_to(&mailbox, || items_in(c, &folder, "")),
+            Err(e) => {
+                log::info!("public folder mailbox {guid}: {e}");
+                plain
+            }
+        },
+    }
 }
 
 /// Send what changed here, then read the calendar and contacts again.
@@ -542,10 +564,16 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     // folders has none.
     match c.public_pim_folders() {
         Ok(list) => {
-            for (n, (id, name, class)) in list.into_iter().take(MAX_PUBLIC_PIM).enumerate() {
+            for (n, f) in list.into_iter().take(MAX_PUBLIC_PIM).enumerate() {
+                let (id, name, class) = (f.id, f.path, f.class);
                 let key = format!("public:{id}");
-                let folder = format!("<t:FolderId Id=\"{}\"/>", esc(&id));
-                let Ok(found) = items_in(c, &folder, "") else { continue };
+                let found = match public_items(c, &id, f.replica.as_deref(), f.total) {
+                    Ok(found) => found,
+                    Err(e) => {
+                        out.errors.push(format!("{name}: {e}"));
+                        continue;
+                    }
+                };
                 if class.starts_with("IPF.Contact") {
                     for it in found {
                         if let Some(card) = card_of(&it) {
