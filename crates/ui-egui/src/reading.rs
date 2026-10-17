@@ -315,9 +315,11 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             if s.prefs.show_html && !p.rich.is_empty() {
                 rich_body(s, st, ui, &r.key, p, acts);
             } else if crate::bidi::has_rtl(&p.text) {
-                // Right-to-left text, laid out line by line (not selectable: the lines are in the
-                // order they're seen, not as written).
-                crate::bidi::label(ui, &p.text, theme::regular(14.5), t.text);
+                // Right-to-left text, laid out line by line. egui can't select it (its text layout
+                // miscounts right-to-left letters, so a selection copies nothing): right-click
+                // copies it as written instead.
+                let r = crate::bidi::label(ui, &p.text, theme::regular(14.5), t.text);
+                rtl_copy_menu(&r, None, &p.text);
             } else {
                 let mut text = p.text.as_str();
                 ui.add(
@@ -736,7 +738,9 @@ impl Body<'_> {
                 }
                 job.wrap.max_width = width;
                 let job = ui.fonts_mut(|f| crate::bidi::job(f, job));
-                ui.add(egui::Label::new(job).selectable(false));
+                let r = ui.add(egui::Label::new(job).selectable(false));
+                let written: String = line.iter().map(|sp| sp.text.as_str()).collect();
+                rtl_copy_menu(&r, Some(&written), &self.p.text);
                 continue;
             }
             // Centred or right-aligned: pictures in the middle (or at the end), and a line that
@@ -1032,6 +1036,23 @@ fn natural_width(ui: &Ui, blocks: &[mime::layout::Block]) -> Option<f32> {
         }
     }
     Some(widest)
+}
+
+/// Right-click on right-to-left text (which can't be selected): copy the line, or the whole
+/// message, as written.
+fn rtl_copy_menu(r: &egui::Response, line: Option<&str>, whole: &str) {
+    r.interact(Sense::click()).context_menu(|ui| {
+        if let Some(line) = line
+            && ui.button(tl!("Copy")).clicked()
+        {
+            ui.ctx().copy_text(line.trim().to_string());
+            ui.close();
+        }
+        if ui.button(tl!("Copy the whole message")).clicked() {
+            ui.ctx().copy_text(whole.trim().to_string());
+            ui.close();
+        }
+    });
 }
 
 /// A message's picture, as far as it can be had now.

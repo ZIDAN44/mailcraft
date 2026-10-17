@@ -745,6 +745,7 @@
 	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	誰的行事曆?如果對方已在 Exchange 中與您共用,它會以唯讀方式在您的行事曆旁開啟。
 	read-only	唯讀
 	Public Folders	公用資料夾
+	Copy the whole message	複製整封郵件
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

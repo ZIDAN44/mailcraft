@@ -745,6 +745,7 @@
 	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Чей календарь? Он откроется только для чтения рядом с вашим, если им поделились с вами в Exchange.
 	read-only	только чтение
 	Public Folders	Общедоступные папки
+	Copy the whole message	Копировать всё сообщение
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -746,6 +746,7 @@
 	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	¿De quién es el calendario? Se abre de solo lectura junto al suyo, si se lo compartió en Exchange.
 	read-only	solo lectura
 	Public Folders	Carpetas públicas
+	Copy the whole message	Copiar todo el mensaje
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

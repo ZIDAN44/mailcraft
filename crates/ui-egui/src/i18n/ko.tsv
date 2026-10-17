@@ -745,6 +745,7 @@
 	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	누구의 일정인가요? Exchange에서 공유된 경우 내 일정 옆에 읽기 전용으로 열립니다.
 	read-only	읽기 전용
 	Public Folders	공용 폴더
+	Copy the whole message	메시지 전체 복사
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

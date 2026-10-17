@@ -746,6 +746,7 @@
 	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Wessen Kalender? Er öffnet sich schreibgeschützt neben Ihrem, wenn er in Exchange für Sie freigegeben wurde.
 	read-only	schreibgeschützt
 	Public Folders	Öffentliche Ordner
+	Copy the whole message	Ganze Nachricht kopieren
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv
