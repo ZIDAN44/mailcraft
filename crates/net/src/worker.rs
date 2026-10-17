@@ -212,11 +212,27 @@ impl Pool {
         }
     }
 
-    /// Import a data file on a thread of its own.
+    /// Import a data file on a thread of its own: an Outlook one (`.pst`), or MailCraft's own
+    /// (`.mailcraft`, copied in as it is).
     fn import_pst(&mut self, account: String, path: String) {
         let sink = self.sink.clone();
         let store = self.store.clone();
         let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
+            if path.to_ascii_lowercase().ends_with(".mailcraft") {
+                match store.import_data_file(&account, std::path::Path::new(&path)) {
+                    Ok(messages) => {
+                        let folders = store.load_folders(&account).unwrap_or_default();
+                        let paths: Vec<String> = folders.iter().map(|f| f.path.clone()).collect();
+                        sink.emit(Event::Folders { account: account.clone(), folders });
+                        for folder in paths {
+                            sink.emit(Event::FolderChanged { account: account.clone(), folder });
+                        }
+                        sink.emit(Event::Imported { account, messages, skipped: 0, done: true, error: None });
+                    }
+                    Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e.to_string()) }),
+                }
+                return;
+            }
             let mut progress = |messages| sink.emit(Event::Imported { account: account.clone(), messages, skipped: 0, done: false, error: None });
             let result = crate::pst::import(std::path::Path::new(&path), &store, &account, &mut progress);
             match result {
@@ -1553,6 +1569,34 @@ mod tests {
         assert_eq!(m.get(&a).as_deref(), Some("pw"));
         m.delete(&a);
         assert_eq!(m.get(&a), None);
+    }
+
+    /// A MailCraft data file (`.mailcraft`) comes in through the same job as a `.pst`.
+    #[test]
+    fn a_mailcraft_data_file_is_imported() {
+        let t = std::env::temp_dir().join(format!("mailcraft-worker-datafile-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&t);
+        let old = Store::open_packed(t.join("old"), t.join("Old Files")).unwrap();
+        old.save_accounts(&[AccountConfig { id: "a1".into(), email: "zoe@studio.example".into(), ..Default::default() }]).unwrap();
+        old.save_folders("a1", &[Folder { path: "INBOX".into(), role: FolderRole::Inbox, ..Default::default() }]).unwrap();
+        let k = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 3 };
+        let mut st = old.load_folder("a1", "INBOX").unwrap();
+        st.messages.push(mailcraft_model::Summary { key: k, subject: "Kept".into(), ..Default::default() });
+        old.save_folder("a1", "INBOX", &st).unwrap();
+        let file = old.data_file("a1").unwrap();
+        drop(old);
+        let store = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+        let mut p = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+        p.submit(Job::ImportPst { account: "p1".into(), path: file.to_string_lossy().into_owned() });
+        let end = Instant::now() + Duration::from_secs(20);
+        let mut seen = Vec::new();
+        while Instant::now() < end && !seen.iter().any(|e| matches!(e, Event::Imported { done: true, .. })) {
+            seen.extend(p.wait(Duration::from_millis(100)));
+        }
+        assert!(seen.iter().any(|e| matches!(e, Event::Imported { messages: 1, done: true, error: None, .. })), "{seen:?}");
+        assert!(seen.iter().any(|e| matches!(e, Event::Folders { folders, .. } if folders.len() == 1)));
+        assert_eq!(store.load_folder("p1", "INBOX").unwrap().messages[0].key.account, "p1");
+        let _ = std::fs::remove_dir_all(&t);
     }
 
     #[test]

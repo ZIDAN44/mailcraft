@@ -565,7 +565,7 @@ pub fn registry() -> Registry {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
         })
-        .params(r#"{"path": string (a .pst file; its mail goes into a new account on this computer)}"#),
+        .params(r#"{"path": string (a .pst or .mailcraft data file; its mail goes into a new account on this computer)}"#),
         CommandSpec::new("account.exportPst", "Export to Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             let account = match p::str(v, "account") {

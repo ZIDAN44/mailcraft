@@ -237,7 +237,12 @@ impl Services for Desktop {
         rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
     }
     fn pick_data_file(&mut self) -> Option<PathBuf> {
-        rfd::FileDialog::new().set_title("Open Outlook data file").add_filter("Outlook data files", &["pst"]).pick_file()
+        rfd::FileDialog::new()
+            .set_title("Open data file")
+            .add_filter("Data files", &["pst", "mailcraft"])
+            .add_filter("Outlook data files", &["pst"])
+            .add_filter("MailCraft data files", &["mailcraft"])
+            .pick_file()
     }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
         rfd::FileDialog::new()

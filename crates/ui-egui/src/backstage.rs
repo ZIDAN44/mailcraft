@@ -389,8 +389,8 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         t,
         Icon::Folder,
         "Open data file",
-        "Open Outlook data file",
-        "Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.",
+        "Open a data file",
+        "Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.",
         |ui| {
             let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
             if !files.is_empty() {

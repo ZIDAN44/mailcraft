@@ -746,6 +746,10 @@
 	read-only	읽기 전용
 	Public Folders	공용 폴더
 	Copy the whole message	메시지 전체 복사
+	Existing data file (optional)	기존 데이터 파일(선택 사항)
+	Mail from an old .pst or .mailcraft file comes in first	이전 .pst 또는 .mailcraft 파일의 메일을 먼저 가져옵니다
+	Open a data file	데이터 파일 열기
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook 데이터 파일(.pst) 또는 MailCraft 파일(.mailcraft)을 가져옵니다. 폴더와 함께 별도의 사서함으로 열리며 이 컴퓨터에 보관됩니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

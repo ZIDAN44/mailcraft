@@ -120,6 +120,28 @@ pub(crate) fn safe_segment(s: &str) -> String {
     if v.is_empty() { format!("x{:x}", fnv64(s)) } else { v }
 }
 
+/// A path inside an account (`a/b/c`) from a data file, when every part of it is a plain name:
+/// nothing that climbs out (`..`), no drive or root, no odd characters.
+#[cfg(not(target_arch = "wasm32"))]
+fn inner_path(key: &str) -> Option<PathBuf> {
+    if key.is_empty() || key.len() > 512 {
+        return None;
+    }
+    let mut out = PathBuf::new();
+    for part in key.split('/') {
+        let plain = !part.is_empty()
+            && part != "."
+            && part != ".."
+            && part.len() <= 128
+            && part.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+        if !plain {
+            return None;
+        }
+        out.push(part);
+    }
+    Some(out)
+}
+
 /// A document name kept inside the data folder.
 fn safe_doc(name: &str) -> String {
     let v: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')).take(64).collect();
@@ -175,6 +197,19 @@ impl Files {
             Files::Memory(m, _) => {
                 Files::with(m, |m| m.insert(p.to_path_buf(), bytes.to_vec()));
                 self.mark([p]);
+                Ok(())
+            }
+        }
+    }
+
+    fn write_many(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.write_many(items),
+            _ => {
+                for (p, bytes) in items {
+                    self.write(p, bytes)?;
+                }
                 Ok(())
             }
         }
@@ -428,6 +463,33 @@ impl Store {
 
     fn account_dir(&self, account: &str) -> PathBuf {
         self.root.join(safe_segment(account))
+    }
+
+    /// Fill an account from an existing MailCraft data file (`.mailcraft`): its folders, mail,
+    /// calendar and contacts, as they were. The file is only read (from a copy). Messages are
+    /// renumbered as this account's; returns how many there are.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn import_data_file(&self, account: &str, path: &Path) -> Result<usize> {
+        let dir = self.account_dir(account);
+        let tmp = self.root.join(format!(".import-{}.tmp", safe_segment(account)));
+        packed::read_data_file(path, &tmp, &mut |batch| {
+            // Paths come from a file: kept only when they stay inside the account.
+            let items: Vec<(PathBuf, Vec<u8>)> = batch.into_iter().filter_map(|(k, v)| inner_path(&k).map(|rel| (dir.join(rel), v))).collect();
+            self.files.write_many(&items)
+        })?;
+        // A message's key names the account it belongs to: this one now.
+        let mut messages = 0;
+        for f in self.load_folders(account)? {
+            let mut st = self.load_folder(account, &f.path)?;
+            messages += st.messages.len();
+            if st.messages.iter().any(|m| m.key.account != account) {
+                for m in &mut st.messages {
+                    m.key.account = account.to_string();
+                }
+                self.save_folder(account, &f.path, &st)?;
+            }
+        }
+        Ok(messages)
     }
 
     fn folder_dir(&self, account: &str, folder: &str) -> PathBuf {

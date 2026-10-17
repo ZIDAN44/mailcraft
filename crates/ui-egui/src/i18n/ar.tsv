@@ -748,3 +748,7 @@ month	May	مايو
 	read-only	للقراءة فقط
 	Public Folders	المجلدات العامة
 	Copy the whole message	نسخ الرسالة كاملة
+	Existing data file (optional)	ملف بيانات موجود (اختياري)
+	Mail from an old .pst or .mailcraft file comes in first	يُستورد بريد ملف ‎.pst أو ‎.mailcraft قديم أولاً
+	Open a data file	فتح ملف بيانات
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	استورد ملف بيانات Outlook ‏(.pst) أو ملف MailCraft ‏(.mailcraft). يُفتح كصندوق بريد مستقل بمجلداته، محفوظ على هذا الكمبيوتر.

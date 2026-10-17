@@ -39,7 +39,7 @@ pub struct AccountForm {
     pub pop_security: Security,
     /// POP: when the server's copy of downloaded mail goes.
     pub pop_keep: PopKeep,
-    /// POP: an existing Outlook data file whose mail comes in first (Outlook's "use an existing data file").
+    /// POP: an existing data file (Outlook's `.pst` or MailCraft's own `.mailcraft`) whose mail comes in first.
     pub pst: String,
     pub error: Option<String>,
     /// The address whose looked-up settings are filled in, and where they came from.
@@ -1245,11 +1245,11 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     if f.pop {
                         // Outlook's "use an existing data file": mail kept from before comes in first.
                         ui.add_space(4.0);
-                        label(ui, "Existing Outlook data file (optional)");
+                        label(ui, "Existing data file (optional)");
                         ui.horizontal(|ui| {
                             ui.add_sized(
                                 [w - 90.0, 26.0],
-                                egui::TextEdit::singleline(&mut f.pst).hint_text(tl!("Mail from an old .pst comes in first")),
+                                egui::TextEdit::singleline(&mut f.pst).hint_text(tl!("Mail from an old .pst or .mailcraft file comes in first")),
                             );
                             if ui.button(tl!("Browse…")).clicked() {
                                 acts.push(Action::PickAccountDataFile);

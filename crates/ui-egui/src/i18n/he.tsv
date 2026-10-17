@@ -748,3 +748,7 @@ month	May	מאי
 	read-only	קריאה בלבד
 	Public Folders	תיקיות ציבוריות
 	Copy the whole message	העתק את כל ההודעה
+	Existing data file (optional)	קובץ נתונים קיים (אופציונלי)
+	Mail from an old .pst or .mailcraft file comes in first	הדואר מקובץ ‎.pst או ‎.mailcraft ישן נכנס קודם
+	Open a data file	פתח קובץ נתונים
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	ייבא קובץ נתונים של Outlook ‏(.pst) או של MailCraft ‏(.mailcraft). הוא נפתח כתיבת דואר נפרדת עם התיקיות שלה, ונשמר במחשב זה.

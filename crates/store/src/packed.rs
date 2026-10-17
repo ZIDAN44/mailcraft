@@ -103,7 +103,7 @@ impl Packs {
             .and_then(|b| serde_json::from_slice::<Vec<mailcraft_model::AccountConfig>>(&b).ok())
             .and_then(|list| list.into_iter().find(|a| crate::safe_segment(&a.id) == account).map(|a| a.email));
         let stem = email.as_deref().map(str::trim).filter(|e| !e.is_empty()).unwrap_or(account);
-        let stem = stem.strip_suffix(".pst").or_else(|| stem.strip_suffix(".ost")).unwrap_or(stem);
+        let stem = stem.strip_suffix(".pst").or_else(|| stem.strip_suffix(".ost")).or_else(|| stem.strip_suffix(".mailcraft")).unwrap_or(stem);
         let stem: String = stem
             .chars()
             .map(|c| if c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') { '_' } else { c })
@@ -201,6 +201,27 @@ impl Packs {
             f(&mut table)?;
         }
         tx.commit().map_err(other)
+    }
+
+    /// Write many files at once: one transaction per data file (a commit each was slow).
+    pub(crate) fn write_many(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+        let mut by_account: std::collections::BTreeMap<String, Vec<(String, &[u8])>> = std::collections::BTreeMap::new();
+        for (p, bytes) in items {
+            match self.place(p) {
+                Place::In(a, k) => by_account.entry(a).or_default().push((k, bytes.as_slice())),
+                Place::Account(_) | Place::Disk => write_atomic(p, bytes)?,
+            }
+        }
+        for (a, files) in by_account {
+            self.change(&a, |t| {
+                for (k, bytes) in &files {
+                    t.insert(k.as_str(), *bytes).map_err(other)?;
+                }
+                Ok(())
+            })
+            .map_err(|source| StoreError::Io { path: a.clone(), source })?;
+        }
+        Ok(())
     }
 
     pub(crate) fn read(&self, p: &Path) -> io::Result<Vec<u8>> {
@@ -404,6 +425,49 @@ impl Packs {
     }
 }
 
+/// Batches of a data file read for copying, at most this many bytes each.
+const BATCH: usize = 32 << 20;
+
+/// Every file in the data file at `path` (its path inside the account, its bytes), handed to
+/// `each` in batches. It's read from a copy at `tmp`, so the original is never changed (opening a
+/// database may write to it) and one another MailCraft has open can still be read.
+pub(crate) fn read_data_file(path: &Path, tmp: &Path, each: &mut dyn FnMut(Vec<(String, Vec<u8>)>) -> Result<()>) -> Result<usize> {
+    let io_err = |source: io::Error| StoreError::Io { path: path.display().to_string(), source };
+    fs::copy(path, tmp).map_err(|e| match e.raw_os_error() {
+        // Windows' sharing and lock violations: an account here (or another copy) has it open.
+        Some(32 | 33) => io_err(io::Error::other("it's in use: an account in MailCraft has it open")),
+        _ => io_err(e),
+    })?;
+    let read = (|| -> Result<usize> {
+        let not_ours = |e: &dyn std::fmt::Display| io_err(io::Error::new(io::ErrorKind::InvalidData, format!("not a MailCraft data file ({e})")));
+        let db = Database::builder().set_cache_size(CACHE).open(tmp).map_err(|e| not_ours(&e))?;
+        let tx = db.begin_read().map_err(|e| not_ours(&e))?;
+        let table = match tx.open_table(FILES) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(0),
+            Err(e) => return Err(not_ours(&e)),
+        };
+        let (mut batch, mut size, mut n) = (Vec::new(), 0usize, 0usize);
+        for item in table.iter().map_err(|e| not_ours(&e))? {
+            let (k, v) = item.map_err(|e| not_ours(&e))?;
+            let v = v.value().to_vec();
+            size = size.saturating_add(v.len());
+            batch.push((k.value().to_string(), v));
+            n += 1;
+            if size >= BATCH {
+                each(std::mem::take(&mut batch))?;
+                size = 0;
+            }
+        }
+        if !batch.is_empty() {
+            each(batch)?;
+        }
+        Ok(n)
+    })();
+    let _ = fs::remove_file(tmp);
+    read
+}
+
 #[cfg(test)]
 mod tests {
     use mailcraft_model::{AccountConfig, Flags, MessageKey, Summary};
@@ -420,6 +484,61 @@ mod tests {
         AccountConfig { id: id.into(), email: email.into(), ..Default::default() }
     }
 
+    /// A new account starts from an existing data file: its folders, mail and documents come in,
+    /// the messages as this account's; junk is refused and paths that climb out are dropped.
+    #[test]
+    fn an_account_starts_from_an_existing_data_file() {
+        use mailcraft_model::{Folder, FolderRole};
+        let t = temp("from-file");
+        let old = Store::open_packed(t.join("old"), t.join("Old Files")).unwrap();
+        old.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+        old.save_folders("a1", &[Folder { path: "INBOX".into(), role: FolderRole::Inbox, ..Default::default() }]).unwrap();
+        let k = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 7 };
+        old.write_body(&k, b"Subject: hi\r\n\r\nhello").unwrap();
+        let mut st = old.load_folder("a1", "INBOX").unwrap();
+        st.validity = 1;
+        st.messages.push(Summary { key: k.clone(), subject: "hi".into(), ..Default::default() });
+        old.save_folder("a1", "INBOX", &st).unwrap();
+        old.save_account_doc("a1", "pim.json", &serde_json::json!({"notes": []})).unwrap();
+        let file = old.data_file("a1").unwrap();
+        drop(old);
+
+        let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+        s.save_accounts(&[account("p7", "ana@example.org")]).unwrap();
+        assert_eq!(s.import_data_file("p7", &file).unwrap(), 1);
+        assert_eq!(s.load_folders("p7").unwrap().len(), 1);
+        let st = s.load_folder("p7", "INBOX").unwrap();
+        let mine = MessageKey { account: "p7".into(), ..k.clone() };
+        assert_eq!(st.messages[0].key, mine, "renumbered as this account's");
+        assert_eq!(s.read_body(&mine).unwrap(), b"Subject: hi\r\n\r\nhello");
+        assert_eq!(s.load_account_doc::<serde_json::Value>("p7", "pim.json").unwrap(), serde_json::json!({"notes": []}));
+        assert!(file.exists(), "the file it came from stays");
+        assert!(!t.join("app").join(".import-p7.tmp").exists(), "the copy read from is gone");
+
+        // Junk: refused, and nothing written.
+        let junk = t.join("junk.mailcraft");
+        std::fs::write(&junk, b"not a database at all").unwrap();
+        assert!(s.import_data_file("p8", &junk).is_err());
+        assert!(s.load_folders("p8").unwrap().is_empty());
+
+        // A crafted file: paths that climb out of the account are left out.
+        let crafted = t.join("crafted.mailcraft");
+        {
+            let db = redb::Database::create(&crafted).unwrap();
+            let tx = db.begin_write().unwrap();
+            {
+                let mut table = tx.open_table(super::FILES).unwrap();
+                for key in ["../escape.json", "a/../../b", "C:/x", "/root", "ok/fine.json"] {
+                    table.insert(key, b"x".as_slice()).unwrap();
+                }
+            }
+            tx.commit().unwrap();
+        }
+        s.import_data_file("p9", &crafted).unwrap();
+        assert!(s.files.exists(&t.join("app").join("p9").join("ok").join("fine.json")));
+        assert!(!t.join("app").join("escape.json").exists() && !t.join("escape.json").exists() && !t.join("b").exists());
+        let _ = std::fs::remove_dir_all(&t);
+    }
     #[test]
     fn each_account_is_one_data_file_named_after_it() {
         let t = temp("one-file");

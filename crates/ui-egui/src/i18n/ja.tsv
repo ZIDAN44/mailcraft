@@ -749,3 +749,7 @@ month	May	5月
 	read-only	読み取り専用
 	Public Folders	パブリック フォルダー
 	Copy the whole message	メッセージ全体をコピー
+	Existing data file (optional)	既存のデータ ファイル (省略可)
+	Mail from an old .pst or .mailcraft file comes in first	古い .pst または .mailcraft ファイルのメールを最初に取り込みます
+	Open a data file	データ ファイルを開く
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook のデータ ファイル (.pst) または MailCraft のファイル (.mailcraft) を取り込みます。フォルダーごと独立したメールボックスとして開き、このコンピューターに保存されます。

@@ -747,6 +747,10 @@
 	read-only	somente leitura
 	Public Folders	Pastas Públicas
 	Copy the whole message	Copiar a mensagem inteira
+	Existing data file (optional)	Arquivo de dados existente (opcional)
+	Mail from an old .pst or .mailcraft file comes in first	Os e-mails de um arquivo .pst ou .mailcraft antigo entram primeiro
+	Open a data file	Abrir um arquivo de dados
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Traga um arquivo de dados do Outlook (.pst) ou do MailCraft (.mailcraft). Ele abre como uma caixa de correio própria, com suas pastas, guardada neste computador.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

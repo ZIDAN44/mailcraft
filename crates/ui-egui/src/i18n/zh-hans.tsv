@@ -749,3 +749,7 @@ month	May	5月
 	read-only	只读
 	Public Folders	公用文件夹
 	Copy the whole message	复制整封邮件
+	Existing data file (optional)	现有数据文件(可选)
+	Mail from an old .pst or .mailcraft file comes in first	先导入旧 .pst 或 .mailcraft 文件中的邮件
+	Open a data file	打开数据文件
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	导入 Outlook 数据文件 (.pst) 或 MailCraft 文件 (.mailcraft)。它会连同文件夹作为独立的邮箱打开,保存在此计算机上。
