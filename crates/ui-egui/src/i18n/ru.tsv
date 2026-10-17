@@ -796,6 +796,13 @@
 	My contacts only	Только мои контакты
 	No one	Никто
 	In a shared address book: read-only	В общей адресной книге: только чтение
+	Click a column to sort by it; right-click to choose the columns	Щёлкните столбец, чтобы сортировать по нему; правый щелчок — выбор столбцов
+	Columns	Столбцы
+	List	Список
+	Business phone	Рабочий телефон
+	Mobile phone	Мобильный телефон
+	Home phone	Домашний телефон
+	Address book	Адресная книга
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

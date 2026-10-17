@@ -797,6 +797,13 @@
 	My contacts only	Solo mis contactos
 	No one	Nadie
 	In a shared address book: read-only	En una libreta de direcciones compartida: solo lectura
+	Click a column to sort by it; right-click to choose the columns	Haz clic en una columna para ordenar; clic derecho para elegir las columnas
+	Columns	Columnas
+	List	Lista
+	Business phone	Teléfono del trabajo
+	Mobile phone	Teléfono móvil
+	Home phone	Teléfono particular
+	Address book	Libreta de direcciones
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

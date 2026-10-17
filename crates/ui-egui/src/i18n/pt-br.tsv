@@ -797,6 +797,13 @@
 	My contacts only	Somente meus contatos
 	No one	Ninguém
 	In a shared address book: read-only	Em um catálogo de endereços compartilhado: somente leitura
+	Click a column to sort by it; right-click to choose the columns	Clique em uma coluna para ordenar; clique com o botão direito para escolher as colunas
+	Columns	Colunas
+	List	Lista
+	Business phone	Telefone comercial
+	Mobile phone	Celular
+	Home phone	Telefone residencial
+	Address book	Catálogo de endereços
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

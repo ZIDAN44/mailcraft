@@ -797,6 +797,13 @@
 	My contacts only	Mes contacts uniquement
 	No one	Personne
 	In a shared address book: read-only	Dans un carnet d'adresses partagé : lecture seule
+	Click a column to sort by it; right-click to choose the columns	Cliquez sur une colonne pour trier ; clic droit pour choisir les colonnes
+	Columns	Colonnes
+	List	Liste
+	Business phone	Téléphone professionnel
+	Mobile phone	Téléphone mobile
+	Home phone	Téléphone domicile
+	Address book	Carnet d'adresses
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

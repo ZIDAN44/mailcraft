@@ -797,6 +797,13 @@
 	My contacts only	Nur meine Kontakte
 	No one	Niemand
 	In a shared address book: read-only	In einem freigegebenen Adressbuch: schreibgeschützt
+	Click a column to sort by it; right-click to choose the columns	Auf eine Spalte klicken, um danach zu sortieren; Rechtsklick, um die Spalten zu wählen
+	Columns	Spalten
+	List	Liste
+	Business phone	Telefon geschäftlich
+	Mobile phone	Mobiltelefon
+	Home phone	Telefon privat
+	Address book	Adressbuch
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

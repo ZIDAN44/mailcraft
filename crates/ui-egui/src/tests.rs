@@ -1106,11 +1106,18 @@ fn people_lay_out_as_a_list_cards_or_a_phone_list() {
         frame(&ctx, &mut a, vec![]);
     }
     // The layout is remembered with the window's other settings.
+    // The list's columns and sort are kept too.
+    a.ui.people_list.columns = vec![crate::people::Column::Mobile, crate::people::Column::Book];
+    a.ui.people_list.sort = Some(crate::people::Column::Book);
+    frame(&ctx, &mut a, vec![]);
     let saved = a.saved_state();
     assert_eq!(saved["peopleView"], "phone");
     a.ui.people_view = crate::people::PeopleView::People;
+    a.ui.people_list = Default::default();
     a.restore_state(&saved);
     assert_eq!(a.ui.people_view, crate::people::PeopleView::Phone);
+    assert_eq!(a.ui.people_list.columns, [crate::people::Column::Mobile, crate::people::Column::Book]);
+    assert_eq!(a.ui.people_list.sort, Some(crate::people::Column::Book));
     let _ = std::fs::remove_dir_all(dir);
 }
 

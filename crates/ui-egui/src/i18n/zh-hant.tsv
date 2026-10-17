@@ -796,6 +796,13 @@
 	My contacts only	僅我的連絡人
 	No one	不回覆任何人
 	In a shared address book: read-only	在共用通訊錄中：唯讀
+	Click a column to sort by it; right-click to choose the columns	按一下欄以排序；按右鍵以選擇欄
+	Columns	欄
+	List	清單
+	Business phone	公司電話
+	Mobile phone	行動電話
+	Home phone	住家電話
+	Address book	通訊錄
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

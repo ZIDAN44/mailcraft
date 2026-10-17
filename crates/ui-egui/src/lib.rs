@@ -391,6 +391,8 @@ pub struct UiState {
     pub(crate) people_query: String,
     /// How People lays contacts out (Outlook's Change View).
     pub people_view: people::PeopleView,
+    /// The People list's columns and sort.
+    pub people_list: people::ListSettings,
     /// Notes: the search, the note being written on (and its text), a new note to write on,
     /// and the keyboard to give its text box.
     pub(crate) notes_query: String,
@@ -478,6 +480,7 @@ impl MailApp {
                 cal_scrolled: [false; 2],
                 people_query: String::new(),
                 people_view: people::PeopleView::default(),
+                people_list: people::ListSettings::default(),
                 notes_query: String::new(),
                 months_drag: 0.0,
                 note_edit: None,
@@ -1685,6 +1688,13 @@ impl MailApp {
                             self.ui.people_view = v;
                         }
                     }
+                    // The list's columns (also from its header's right-click).
+                    if self.ui.people_view == people::PeopleView::Phone {
+                        let r = widgets::tool_button(ui, Icon::Layout, "Columns", &t, true);
+                        egui::Popup::menu(&r)
+                            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                            .show(|ui| people::column_menu(ui, &mut self.ui.people_list));
+                    }
                 }
             });
             return;
@@ -2055,7 +2065,7 @@ impl MailApp {
 
     /// Preferences and theme for the app to save.
     pub fn saved_state(&self) -> Value {
-        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language, "windows": self.ui.places, "peopleView": self.ui.people_view })
+        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language, "windows": self.ui.places, "peopleView": self.ui.people_view, "peopleList": self.ui.people_list })
     }
 
     pub fn restore_state(&mut self, v: &Value) {
@@ -2077,6 +2087,9 @@ impl MailApp {
         self.ui.dark = v.get("dark").and_then(Value::as_bool);
         if let Some(pv) = v.get("peopleView").and_then(|w| serde_json::from_value(w.clone()).ok()) {
             self.ui.people_view = pv;
+        }
+        if let Some(pl) = v.get("peopleList").and_then(|w| serde_json::from_value(w.clone()).ok()) {
+            self.ui.people_list = pl;
         }
         if let Some(w) = v.get("windows").and_then(|w| serde_json::from_value(w.clone()).ok()) {
             self.ui.places = w;

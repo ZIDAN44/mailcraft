@@ -796,6 +796,13 @@
 	My contacts only	Solo i miei contatti
 	No one	Nessuno
 	In a shared address book: read-only	In una rubrica condivisa: sola lettura
+	Click a column to sort by it; right-click to choose the columns	Fai clic su una colonna per ordinare; clic destro per scegliere le colonne
+	Columns	Colonne
+	List	Elenco
+	Business phone	Telefono ufficio
+	Mobile phone	Cellulare
+	Home phone	Telefono casa
+	Address book	Rubrica
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

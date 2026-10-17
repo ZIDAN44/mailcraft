@@ -17,8 +17,105 @@ pub enum PeopleView {
     People,
     /// Business cards, side by side.
     Cards,
-    /// A table: name, company, job title, email, phone.
+    /// A table of the columns chosen (Outlook's List view; kept as `phone` in saved settings).
     Phone,
+}
+
+/// A column the list can show besides the name (Outlook's List view fields).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Column {
+    Company,
+    Title,
+    Email,
+    Business,
+    Mobile,
+    Home,
+    Notes,
+    Book,
+}
+
+impl Column {
+    pub const ALL: [Column; 8] =
+        [Column::Company, Column::Title, Column::Email, Column::Business, Column::Mobile, Column::Home, Column::Notes, Column::Book];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Column::Company => "Company",
+            Column::Title => "Job title",
+            Column::Email => "Email",
+            Column::Business => "Business phone",
+            Column::Mobile => "Mobile phone",
+            Column::Home => "Home phone",
+            Column::Notes => "Notes",
+            Column::Book => "Address book",
+        }
+    }
+
+    /// Its share of the width against the others shown.
+    fn weight(self) -> f32 {
+        match self {
+            Column::Email | Column::Notes => 1.4,
+            Column::Book => 1.1,
+            _ => 1.0,
+        }
+    }
+
+    /// What it shows for someone.
+    fn text(self, s: &Session, p: &mailcraft_engine::Person) -> String {
+        let c = &p.card;
+        let phone = |kinds: &[&str]| c.phones.iter().find(|x| kinds.contains(&x.kind.as_str())).map(|x| x.value.clone()).unwrap_or_default();
+        match self {
+            Column::Company => c.org.clone(),
+            Column::Title => c.title.clone(),
+            Column::Email => c.emails.first().map(|e| e.value.clone()).unwrap_or_default(),
+            Column::Business => phone(&["work", "", "voice", "pref"]),
+            Column::Mobile => phone(&["cell", "mobile"]),
+            Column::Home => phone(&["home"]),
+            Column::Notes => c.note.lines().next().unwrap_or_default().to_string(),
+            Column::Book => s
+                .pim
+                .get(&p.account)
+                .and_then(|pim| pim.books.iter().find(|b| b.id == p.book))
+                .map(|b| if b.id == mailcraft_engine::model::pim::LOCAL { tl!("Contacts").to_string() } else { b.name.clone() })
+                .unwrap_or_default(),
+        }
+    }
+}
+
+/// What the list shows and how it's sorted (kept with the window's settings).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ListSettings {
+    pub columns: Vec<Column>,
+    /// Sorted by this column (`None`: by name).
+    pub sort: Option<Column>,
+    pub descending: bool,
+}
+
+impl Default for ListSettings {
+    fn default() -> Self {
+        ListSettings { columns: vec![Column::Company, Column::Title, Column::Email, Column::Business, Column::Mobile], sort: None, descending: false }
+    }
+}
+
+/// Columns to tick (Outlook's Field Chooser), for the header's right-click and the ribbon.
+pub fn column_menu(ui: &mut Ui, list: &mut ListSettings) {
+    for c in Column::ALL {
+        let mut on = list.columns.contains(&c);
+        if ui.checkbox(&mut on, tl!(c.label())).changed() {
+            if on {
+                // In the order the menu lists them.
+                list.columns.push(c);
+                list.columns.sort_by_key(|x| Column::ALL.iter().position(|y| y == x));
+            } else {
+                list.columns.retain(|x| *x != c);
+                if list.sort == Some(c) {
+                    list.sort = None;
+                }
+            }
+        }
+    }
 }
 
 impl PeopleView {
@@ -28,7 +125,7 @@ impl PeopleView {
         match self {
             PeopleView::People => "People",
             PeopleView::Cards => "Cards",
-            PeopleView::Phone => "Phone list",
+            PeopleView::Phone => "List",
         }
     }
 
@@ -298,30 +395,65 @@ fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
 }
 
-/// Everyone in a table (Outlook's Phone view): name, company, job title, email and phone.
+/// Everyone in a table (Outlook's List view): the name and the columns chosen (right-click the
+/// header), sorted by the column clicked.
 fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let people = s.people(&st.people_query);
+    let mut people = s.people(&st.people_query);
+    let list = st.people_list.clone();
+    if let Some(col) = list.sort {
+        people.sort_by_cached_key(|p| (col.text(s, p).to_lowercase(), p.card.display().to_lowercase()));
+    }
+    if list.descending {
+        people.reverse();
+    }
     egui::Frame::new().inner_margin(Margin::same(14)).show(ui, |ui| {
         let w = ui.available_width();
-        // Column widths: a share of the pane each.
-        let cols = [("Full name", 0.24), ("Company", 0.18), ("Job title", 0.16), ("Email", 0.26), ("Phone", 0.16)];
-        let row = |ui: &mut Ui, cells: [&str; 5], header: bool, fill: Option<egui::Color32>| -> egui::Response {
-            let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), if header { Sense::hover() } else { Sense::click() });
+        // Column widths: the name a share and a half, the others by their weight.
+        let cols: Vec<Option<Column>> = std::iter::once(None).chain(list.columns.iter().copied().map(Some)).collect();
+        let weight = |c: &Option<Column>| c.map_or(1.5, Column::weight);
+        let total: f32 = cols.iter().map(weight).sum::<f32>().max(1.0);
+        let widths: Vec<f32> = cols.iter().map(|c| w * weight(c) / total).collect();
+        let row = |ui: &mut Ui, cells: &[String], header: bool, fill: Option<egui::Color32>| -> (egui::Response, Vec<egui::Rect>) {
+            let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), Sense::click());
             if let Some(f) = fill {
                 ui.painter().rect_filled(r, 4.0, f);
             }
             let mut x = r.left() + 8.0;
-            for ((_, share), text) in cols.iter().zip(cells) {
-                let cw = w * share;
+            let mut rects = Vec::new();
+            for (cw, text) in widths.iter().zip(cells) {
                 let font = if header { theme::bold(12.5) } else { theme::regular(13.0) };
                 let g = widgets::one_line(ui, text, font, if header { t.dim } else { t.text }, cw - 12.0);
                 ui.painter().galley(egui::pos2(x, r.center().y - g.size().y / 2.0), g, t.text);
+                rects.push(egui::Rect::from_min_size(egui::pos2(x - 8.0, r.top()), vec2(*cw, r.height())));
                 x += cw;
             }
-            resp
+            (resp, rects)
         };
-        row(ui, cols.map(|(h, _)| tl!(h)), true, None);
+        // The header: click a column to sort by it (again: the other way); right-click to choose.
+        let arrow = if list.descending { " ↓" } else { " ↑" };
+        let heads: Vec<String> = cols
+            .iter()
+            .map(|c| {
+                let name = c.map_or_else(|| tl!("Full name").to_string(), |c| tl!(c.label()).to_string());
+                if *c == list.sort { format!("{name}{arrow}") } else { name }
+            })
+            .collect();
+        let (head, rects) = row(ui, &heads, true, None);
+        if head.clicked()
+            && let Some(p) = head.interact_pointer_pos()
+            && let Some(i) = rects.iter().position(|r| r.contains(p))
+            && let Some(c) = cols.get(i)
+        {
+            if *c == st.people_list.sort {
+                st.people_list.descending = !st.people_list.descending;
+            } else {
+                st.people_list.sort = *c;
+                st.people_list.descending = false;
+            }
+        }
+        head.on_hover_text(tl!("Click a column to sort by it; right-click to choose the columns"))
+            .context_menu(|ui| column_menu(ui, &mut st.people_list));
         let line = ui.available_rect_before_wrap();
         ui.painter().line_segment([line.left_top(), line.right_top()], egui::Stroke::new(1.0, t.border));
         ui.add_space(2.0);
@@ -333,9 +465,7 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
             ui.spacing_mut().item_spacing.y = 0.0;
             for (i, p) in people.iter().enumerate() {
                 let c = &p.card;
-                let name = c.display();
-                let email = c.emails.first().map_or("", |e| e.value.as_str());
-                let phone = c.phones.first().map_or("", |e| e.value.as_str());
+                let cells: Vec<String> = cols.iter().map(|col| col.map_or_else(|| c.display(), |col| col.text(s, p))).collect();
                 let selected = st.person.as_deref() == Some(c.uid.as_str());
                 let id = ui.id().with(("phone-row", i));
                 let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
@@ -348,7 +478,7 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 } else {
                     None
                 };
-                let resp = ui.push_id(id, |ui| row(ui, [&name, &c.org, &c.title, email, phone], false, fill)).inner;
+                let resp = ui.push_id(id, |ui| row(ui, &cells, false, fill).0).inner;
                 if resp.clicked() {
                     st.person = Some(c.uid.clone());
                 }
