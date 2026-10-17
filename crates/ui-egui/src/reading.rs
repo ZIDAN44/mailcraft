@@ -257,12 +257,8 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             // Attachments.
             // Pictures the formatted message shows in place aren't listed again as files.
             let formatted = s.prefs.show_html && !p.rich.is_empty();
-            let in_place = |a: &mime::AttachmentInfo| {
-                formatted
-                    && a.content_id
-                        .as_ref()
-                        .is_some_and(|c| p.images.iter().any(|i| i.strip_prefix("cid:").is_some_and(|x| x.eq_ignore_ascii_case(c))))
-            };
+            let shown: Vec<usize> = if formatted { p.images.iter().filter_map(|i| mime::picture_attachment(p, i)).collect() } else { Vec::new() };
+            let in_place = |a: &mime::AttachmentInfo| shown.contains(&a.index);
             // An invitation is shown as its card above, not as a file.
             let invitation = st.invite.as_ref().is_some_and(|(k, _, i)| k == &r.key && i.is_some()) && !in_window;
             let is_invite_file = |a: &mime::AttachmentInfo| {
@@ -861,8 +857,9 @@ impl Body<'_> {
                                 // Its place in the drawing: above the fill, under the content.
                                 let slot = ui.painter().add(egui::Shape::Noop);
                                 ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
+                                let columns = column_widths(&table.rows);
                                 for row in &table.rows {
-                                    self.row(st, ui, row, tw, page, depth);
+                                    self.row(st, ui, row, &columns, tw, page, depth);
                                 }
                                 slot
                             });
@@ -929,16 +926,38 @@ impl Body<'_> {
     }
 
     /// A table row: its cells side by side, or one under the other when there's no room.
-    fn row(&mut self, st: &mut UiState, ui: &mut Ui, row: &[mime::layout::Cell], width: f32, page: [u8; 3], depth: usize) {
+    /// `columns`: the widths the table's columns ask for (a width set in one row is the whole
+    /// column's, as HTML sizes columns).
+    #[allow(clippy::too_many_arguments)]
+    fn row(
+        &mut self,
+        st: &mut UiState,
+        ui: &mut Ui,
+        row: &[mime::layout::Cell],
+        columns: &[Option<mime::layout::Width>],
+        width: f32,
+        page: [u8; 3],
+        depth: usize,
+    ) {
         use mime::layout::Width;
         const PAD: f32 = 6.0;
-        // Widths: what cells ask for, the rest shared by the others.
+        let px = |w: Width| match w {
+            Width::Px(px) => px as f32,
+            Width::Percent(pc) => width * f32::from(pc) / 100.0,
+        };
+        // Widths: what cells (or their columns) ask for, the rest shared by the others.
+        let mut col = 0usize;
         let asked: Vec<Option<f32>> = row
             .iter()
-            .map(|c| match c.width {
-                Some(Width::Px(px)) => Some(px as f32),
-                Some(Width::Percent(pc)) => Some(width * f32::from(pc) / 100.0),
-                None => None,
+            .map(|c| {
+                let span = usize::from(c.span.max(1));
+                let from_columns = || {
+                    let parts = columns.get(col..col + span)?;
+                    (parts.len() == span && parts.iter().all(Option::is_some)).then(|| parts.iter().flatten().map(|w| px(*w)).sum::<f32>())
+                };
+                let w = c.width.map(px).or_else(from_columns);
+                col += span;
+                w
             })
             .collect();
         let fixed: f32 = asked.iter().flatten().sum();
@@ -1064,13 +1083,41 @@ enum Pic {
     Missing,
 }
 
+/// The width each column of a table asks for: the first cell of one column that sets one, in any
+/// row (HTML sizes a whole column so; only the first row set it in a report whose other rows then
+/// lined up elsewhere).
+fn column_widths(rows: &[Vec<mime::layout::Cell>]) -> Vec<Option<mime::layout::Width>> {
+    const MAX_COLUMNS: usize = 64;
+    let mut out: Vec<Option<mime::layout::Width>> = Vec::new();
+    for row in rows {
+        let mut col = 0usize;
+        for c in row {
+            let span = usize::from(c.span.max(1));
+            if span == 1 && col < MAX_COLUMNS {
+                if out.len() <= col {
+                    out.resize(col + 1, None);
+                }
+                if let (Some(slot), Some(w)) = (out.get_mut(col), c.width)
+                    && slot.is_none()
+                {
+                    *slot = Some(w);
+                }
+            }
+            col = col.saturating_add(span);
+        }
+    }
+    out
+}
+
 /// A picture of an HTML message: one inside it (`cid:`) always, one on the web once allowed.
 fn picture_texture(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey, p: &mime::Parsed, src: &str, allowed: bool) -> Pic {
-    if let Some(cid) = src.strip_prefix("cid:").or_else(|| src.strip_prefix("CID:")) {
-        let Some(index) = p.attachments.iter().find(|a| a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(cid))).map(|a| a.index) else {
-            return Pic::Missing;
+    // One sent with the message: by `cid:`, or by the name or address it was sent under.
+    let lower = src.to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+        return match mime::picture_attachment(p, src) {
+            Some(index) => preview(s, st, ctx, key, index).map_or(Pic::Missing, Pic::Ready),
+            None => Pic::Missing,
         };
-        return preview(s, st, ctx, key, index).map_or(Pic::Missing, Pic::Ready);
     }
     if !allowed {
         return Pic::Missing;

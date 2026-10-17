@@ -224,9 +224,10 @@ pub fn surface_rgb(t: &Tokens) -> [u8; 3] {
 }
 
 /// A box's colour (a highlight, a table cell's background) on `page`, when it's kept: one too
-/// close to the page goes, and grey or white ones go in dark mode (the page is dark).
+/// close to the page to see goes (a report's light grey stripes, #f0f0f0 on white, stay), and grey
+/// or white ones go in dark mode (the page is dark).
 pub fn box_color(bg: Option<[u8; 3]>, page: [u8; 3], t: &Tokens) -> Option<[u8; 3]> {
-    bg.filter(|b| contrast(*b, page) > 1.15 && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25))
+    bg.filter(|b| contrast(*b, page) > 1.06 && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25))
 }
 
 /// [`mail_colors`] for text on `page` (a coloured table cell's background).

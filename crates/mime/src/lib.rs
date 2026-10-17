@@ -12,6 +12,7 @@
 //! additionally fenced with `catch_unwind` and size caps, since mail is hostile input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod css;
 pub mod layout;
 pub mod markup;
 pub mod office;
@@ -179,6 +180,10 @@ pub struct AttachmentInfo {
     /// `Content-ID` without angle brackets, for pictures the HTML shows (`cid:`).
     #[serde(default)]
     pub content_id: Option<String>,
+    /// `Content-Location` (RFC 2557): the address the HTML may show it by instead
+    /// (`<img src="logo.png">`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_location: Option<String>,
 }
 
 impl AttachmentInfo {
@@ -337,7 +342,7 @@ pub fn html_to_rich(html: &str) -> RichText {
         None => html,
     };
     // Wide enough that paragraphs stay one line each (the UI wraps them to the pane).
-    let marked = close_css_rules(&mark_headings(html));
+    let marked = close_css_rules(&mark_pictures(&mark_headings(html)));
     // The message's own CSS is read for colours and hidden parts (`display: none`), nothing else.
     let result = std::panic::catch_unwind(|| html2text::config::rich().use_doc_css().lines_from_read(marked.as_bytes(), 2000));
     let Ok(Ok(lines)) = result else { return Vec::new() };
@@ -393,7 +398,7 @@ pub fn html_to_rich(html: &str) -> RichText {
             }
         }
         for sp in &mut spans {
-            sp.text = sp.text.replace(HEADING_MARK, "");
+            sp.text = sp.text.replace([HEADING_MARK, PICTURE_MARK], "");
         }
         // List bullets (`* item`, indented when nested) as real bullets.
         if let Some(first) = spans.first_mut() {
@@ -431,6 +436,113 @@ pub fn html_to_rich(html: &str) -> RichText {
 
 /// Marks where a heading starts, so a paragraph that just begins with `#` isn't taken for one.
 const HEADING_MARK: char = '\u{E000}';
+
+/// The description given to pictures that have none (a report's charts, a logo), which the
+/// converter would otherwise leave out: removed again once they're pictures.
+const PICTURE_MARK: char = '\u{E001}';
+
+/// An attribute's value in a tag's text (`<img alt="x" …>`), as written; `Some("")` when it's
+/// there and empty.
+fn tag_attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let lower = tag.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(i) = lower.get(from..).and_then(|r| r.find(name)).map(|i| i + from) {
+        from = i + name.len();
+        let before = lower.as_bytes().get(i.wrapping_sub(1)).copied().unwrap_or(b' ');
+        if !before.is_ascii_whitespace() || i == 0 {
+            continue;
+        }
+        let after = lower.get(from..).unwrap_or("").trim_start();
+        if !after.starts_with('=') {
+            // A bare attribute (`alt`): there, and empty.
+            if after.starts_with(|c: char| c.is_ascii_whitespace() || c == '>' || c == '/') || after.is_empty() {
+                return Some("");
+            }
+            continue;
+        }
+        let at = tag.len() - after.len() + 1;
+        let v = tag.get(at..).unwrap_or("").trim_start();
+        return Some(match v.chars().next() {
+            Some(q @ ('"' | '\'')) => v.get(1..).and_then(|r| r.split(q).next()).unwrap_or(""),
+            _ => v.split(|c: char| c.is_ascii_whitespace() || c == '>').next().unwrap_or(""),
+        });
+    }
+    None
+}
+
+/// `html` with a description on every picture that has none, except tracking pixels (1 by 1).
+fn mark_pictures(html: &str) -> String {
+    let html = html.replace(PICTURE_MARK, "");
+    let lower = html.to_ascii_lowercase();
+    let mut out = String::with_capacity(html.len() + 64);
+    let mut last = 0;
+    let mut from = 0;
+    while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
+        let start = from + i;
+        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let tag = html.get(start..end).unwrap_or("");
+        let tiny = |a: &str| tag_attr(tag, a).is_some_and(|v| v.trim().trim_end_matches("px").trim().parse::<f32>().is_ok_and(|n| n <= 2.0));
+        let described = tag_attr(tag, "alt").is_some_and(|a| !a.trim().is_empty());
+        if !described && !tiny("width") && !tiny("height") && tag_attr(tag, "src").is_some_and(|s| !s.trim().is_empty()) {
+            out.push_str(html.get(last..start + 4).unwrap_or(""));
+            out.push_str(&format!(" alt=\"{PICTURE_MARK}\""));
+            last = start + 4;
+        }
+        from = end + 1;
+    }
+    out.push_str(html.get(last..).unwrap_or(""));
+    out
+}
+
+/// The attachment a picture of the HTML is, by its address: `cid:` (RFC 2392, %-escapes
+/// decoded) matched to a `Content-ID`, or to a file name when there's no such id; any other
+/// address that isn't on the web (`logo.png`, `images/chart.png`) matched to a part's
+/// `Content-Location` (RFC 2557) or its file name, as Outlook finds them.
+pub fn picture_attachment(p: &Parsed, src: &str) -> Option<usize> {
+    let src = src.trim();
+    let lower = src.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("data:") || src.is_empty() || src.len() > 4096 {
+        return None;
+    }
+    let decoded = |s: &str| {
+        let b = s.as_bytes();
+        let mut out = Vec::with_capacity(b.len());
+        let mut i = 0;
+        while let Some(&c) = b.get(i) {
+            let hex = b.get(i + 1..i + 3).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
+            match (c, hex) {
+                (b'%', Some(v)) => {
+                    out.push(v);
+                    i += 3;
+                }
+                _ => {
+                    out.push(c);
+                    i += 1;
+                }
+            }
+        }
+        String::from_utf8_lossy(&out).into_owned()
+    };
+    let last_part = |s: &str| s.rsplit(['/', '\\']).next().unwrap_or(s).to_string();
+    let name_is = |a: &AttachmentInfo, n: &str| !n.is_empty() && a.name.eq_ignore_ascii_case(n);
+    if let Some(cid) = src.get(..4).filter(|s| s.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..)) {
+        let cid = cid.trim().trim_matches(['<', '>']);
+        let plain = decoded(cid);
+        let by_id = |id: &str| p.attachments.iter().find(|a| a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(id)));
+        return by_id(cid)
+            .or_else(|| by_id(&plain))
+            .or_else(|| p.attachments.iter().find(|a| name_is(a, &plain)))
+            .or_else(|| p.attachments.iter().find(|a| a.content_location.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(&plain))))
+            .map(|a| a.index);
+    }
+    let path = decoded(src.split(['?', '#']).next().unwrap_or(src));
+    let file = last_part(&path);
+    p.attachments
+        .iter()
+        .find(|a| a.content_location.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(&path) || last_part(l).eq_ignore_ascii_case(&file)))
+        .or_else(|| p.attachments.iter().find(|a| name_is(a, &file) || a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(&file))))
+        .map(|a| a.index)
+}
 
 /// End every CSS declaration block in `<style>` elements with a `;` (the last declaration may
 /// lack one, which html2text's parser would otherwise skip with the whole rule).
@@ -556,6 +668,8 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     let real_html = m.html_bodies().any(|p| p.is_text_html());
     let (rich, images, layout) = match m.body_html(0).filter(|_| real_html) {
         Some(h) => {
+            // Style sheet rules as inline styles, so cells keep their colours and titles their size.
+            let h = layout::inline_css(&h);
             let layout = layout::html_layout(&h);
             // Pictures behind boxes are shown, or held back, like the others.
             let mut images = html_images(&h);
@@ -592,6 +706,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
                 size: p.len(),
                 inline: p.is_inline_part(),
                 content_id: p.content_id().map(|c| c.trim().trim_matches(['<', '>']).to_string()),
+                content_location: p.content_location().map(|c| c.trim().trim_matches(['<', '>', '"']).to_string()).filter(|c| !c.is_empty()),
             }
         })
         .collect();
@@ -1077,7 +1192,9 @@ iVBORw0KGgo=\r\n\
         let h = html_to_rich("<h2>Big news</h2><p># not a heading</p>");
         assert_eq!((h[0][0].text.as_str(), h[0][0].heading), ("Big news", 2));
         assert!(h.iter().flatten().any(|s| s.heading == 0 && s.text.starts_with('#')), "{h:?}");
-        assert!(remote_images(&r).is_empty(), "a picture without a description leaves no text");
+        // A picture without a description keeps its place (shown once the web is allowed).
+        assert_eq!(remote_images(&r), ["https://t.example/p.gif"]);
+        assert!(all.iter().filter(|s| s.image.is_some()).all(|s| !s.text.contains(PICTURE_MARK)));
         assert!(html_to_rich("").is_empty());
         let p = parse(MULTI).unwrap();
         assert!(!p.rich.is_empty());
@@ -1303,5 +1420,96 @@ mod importance_tests {
             let raw = format!("From: a@b.example\r\nSubject: s\r\n{h}\r\n\r\nbody\r\n");
             assert_eq!(summary_from_full(raw.as_bytes(), k.clone(), Flags::default(), 1, 0).importance, want, "{h}");
         }
+    }
+}
+
+#[cfg(test)]
+mod report_tests {
+    use super::*;
+
+    pub(crate) fn report() -> Vec<u8> {
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        format!("From: Reports <reports@fw.example>\r\nTo: me@studio.example\r\nSubject: Reports: Daily\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"M\"\r\n\r\n\
+--M\r\nContent-Type: multipart/alternative; boundary=\"A\"\r\n\r\n\
+--A\r\nContent-Type: text/plain\r\n\r\nHTML Report enclosed.\r\n\
+--A\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+<html><head><style>.title {{ background-color: #888888; color: #ffffff; font-size: 20px }} td.odd {{ background-color: #f0f0f0 }} .bar {{ background-color:#333333; color:#fff }}</style></head><body>\
+<table width=\"100%\"><tr><td><img src=\"cid:logo@x\"></td><td><h2>Reports: Daily</h2></td></tr></table>\
+<table width=\"100%\"><tr><td class=\"bar\"><img src=\"icon_config.png\"> Config</td></tr></table>\
+<table width=\"100%\"><tr><td class=\"title\" colspan=\"2\">Summary</td></tr><tr><td>Hostname</td><td>untangle</td></tr><tr><td class=\"odd\">Version</td><td class=\"odd\">17.4.1</td></tr></table>\
+<div style=\"text-align:center\"><img src=\"cid:chart%201.png\"><img src=\"cid:host.png\"></div></body></html>\r\n\
+--A--\r\n\
+--M\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=\"BrandingLogo.png\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{png}\r\n\
+--M\r\nContent-Type: image/png\r\nContent-Location: icon_config.png\r\nContent-Transfer-Encoding: base64\r\n\r\n{png}\r\n\
+--M\r\nContent-Type: image/png\r\nContent-ID: <chart 1.png>\r\nContent-Disposition: inline; filename=\"chart 1.png\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{png}\r\n\
+--M\r\nContent-Type: image/png\r\nContent-Disposition: attachment; filename=\"host.png\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{png}\r\n\
+--M--\r\n").into_bytes()
+    }
+
+    /// Issue #1: a firewall's daily report as Outlook shows it. Its logo, icon and charts have
+    /// no description and are found by `cid:`, by Content-Location and by file name; its grey
+    /// bars and striped rows come from a style sheet's classes, and its titles are sized ones.
+    #[test]
+    fn a_generated_report_keeps_its_pictures_colours_and_titles() {
+        let p = parse(&report()).unwrap();
+        let found: Vec<Option<usize>> = p.images.iter().map(|i| picture_attachment(&p, i)).collect();
+        assert_eq!(found, [Some(0), Some(1), Some(2), Some(3)], "{:?}", p.images);
+        assert_eq!(picture_attachment(&p, "https://fw.example/logo.png"), None, "the web is never an attachment");
+        assert_eq!(picture_attachment(&p, "cid:nothing@x"), None);
+        assert_eq!(picture_attachment(&p, "images/host.png?v=2"), Some(3), "a path's file name");
+        // Every picture has its place, in the flowing text and in the layout.
+        let pictures = |r: &RichText| r.iter().flatten().filter(|s| s.image.is_some()).count();
+        assert_eq!(pictures(&p.rich), 4);
+        let mut cells = Vec::new();
+        fn walk<'a>(b: &'a [layout::Block], out: &mut Vec<&'a layout::Cell>) {
+            for x in b {
+                if let layout::Block::Table(t) = x {
+                    for c in t.rows.iter().flatten() {
+                        out.push(c);
+                        walk(&c.blocks, out);
+                    }
+                }
+            }
+        }
+        walk(&p.layout, &mut cells);
+        let text = |c: &layout::Cell| -> String {
+            c.blocks
+                .iter()
+                .map(|b| if let layout::Block::Text(r) = b { r.iter().flatten().map(|s| s.text.as_str()).collect::<String>() } else { String::new() })
+                .collect()
+        };
+        let cell = |t: &str| cells.iter().find(|c| text(c).contains(t)).copied().unwrap();
+        assert_eq!(cell("Config").background, Some([0x33, 0x33, 0x33]), "a class's background");
+        let summary = cell("Summary");
+        assert_eq!((summary.background, summary.span), (Some([0x88, 0x88, 0x88]), 2));
+        assert!(
+            matches!(&summary.blocks[0], layout::Block::Text(r) if r[0][0].heading == 3 && r[0][0].color == Some([255, 255, 255])),
+            "sized as a title, in the class's colour"
+        );
+        assert_eq!(cell("17.4.1").background, Some([0xf0, 0xf0, 0xf0]), "td.odd");
+        assert_eq!(cell("untangle").background, None);
+        let logo = cells.iter().find(
+            |c| matches!(c.blocks.first(), Some(layout::Block::Text(r)) if r.iter().flatten().any(|s| s.image.as_deref() == Some("cid:logo@x"))),
+        );
+        assert!(logo.is_some(), "the logo's cell stays");
+        let charts = cells.iter().find(
+            |c| matches!(c.blocks.first(), Some(layout::Block::Text(r)) if r.iter().flatten().any(|s| s.image.as_deref() == Some("cid:host.png"))),
+        );
+        assert_eq!(charts.map(|c| c.align), Some(layout::Align::Center), "centred charts stay centred");
+    }
+
+    /// Tracking pixels stay out; a picture's own description is kept; `<font size>` titles.
+    #[test]
+    fn pictures_without_a_description_keep_their_place() {
+        let r = html_to_rich(
+            r#"<p><img src="cid:a@x"><img src="https://t.example/p.gif" width="1" height="1"><img src="cid:b@x" alt="Chart"><img alt="" src='cid:c@x'></p>"#,
+        );
+        let imgs: Vec<(&str, &str)> = r.iter().flatten().filter_map(|s| Some((s.image.as_deref()?, s.text.as_str()))).collect();
+        assert_eq!(imgs, [("cid:a@x", ""), ("cid:b@x", "Chart"), ("cid:c@x", "")]);
+        assert!(r.iter().flatten().all(|s| !s.text.contains(PICTURE_MARK)));
+        let p = layout::inline_css(r#"<div><font size="6">Big</font></div><div style="font-size:11pt">Body</div>"#);
+        let r = html_to_rich(&p);
+        let level = |t: &str| r.iter().flatten().find(|s| s.text.contains(t)).map(|s| s.heading);
+        assert_eq!((level("Big"), level("Body")), (Some(1), Some(0)), "{p}");
     }
 }
