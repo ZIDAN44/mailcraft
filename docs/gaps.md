@@ -238,4 +238,7 @@ Microsoft sign-in, tried end to end once the release builds carried a registrati
 - **MailCraft's own data files:** a POP account can start from a `.mailcraft` file as well as a
   `.pst`, and File › Open a data file opens one as a mailbox of its own (read from a copy, so
   the file itself isn't touched).
+- **The folder pane remembers:** Favorites, accounts and folders with folders in them collapse,
+  and stay as they were left from one start to the next; accounts can also be dragged into a
+  new order.
 

@@ -199,6 +199,10 @@ pub struct Prefs {
     pub ignored: BTreeSet<String>,
     /// The folder pane minimized to a narrow strip (View › Folder pane, or its ‹ button).
     pub folder_pane_minimized: bool,
+    /// What's collapsed in the folder pane, kept from one start to the next as Outlook keeps it:
+    /// `favorites`, `account:<id>`, `folder:<account>/<path>`.
+    #[serde(default)]
+    pub collapsed: BTreeSet<String>,
     /// When flagged messages are due (Follow Up › Today, Tomorrow…): Message-ID → local day.
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default)]
@@ -356,6 +360,7 @@ impl Default for Prefs {
             ignored: BTreeSet::new(),
             follow_up: BTreeMap::new(),
             folder_pane_minimized: false,
+            collapsed: BTreeSet::new(),
         }
     }
 }

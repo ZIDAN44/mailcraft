@@ -1815,3 +1815,19 @@ fn folders_kept_under_another_account_open_as_this_ones() {
     s.run("folder.open", &json!({"account": "a2", "folder": "INBOX/gzamer"})).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Collapsing in the folder pane is kept with the settings (as Outlook keeps it).
+#[test]
+fn collapsing_in_the_folder_pane_is_kept() {
+    let mut s = sample_session("collapse");
+    s.run("view.collapse", &json!({"key": "favorites"})).unwrap();
+    s.run("view.collapse", &json!({"key": "account:sample", "collapsed": true})).unwrap();
+    s.run("view.collapse", &json!({"key": "folder:sample/Projects"})).unwrap();
+    s.run("view.collapse", &json!({"key": "folder:sample/Projects"})).unwrap();
+    let kept: Vec<&str> = s.prefs.collapsed.iter().map(String::as_str).collect();
+    assert_eq!(kept, ["account:sample", "favorites"]);
+    // Saved with the rest of the settings and read back.
+    let back: crate::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!(back.collapsed, s.prefs.collapsed);
+    assert!(s.run("view.collapse", &json!({"key": ""})).is_err());
+}

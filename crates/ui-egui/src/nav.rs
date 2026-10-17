@@ -1,6 +1,8 @@
 //! The folder pane: Favorites, then each account's folders as a tree with unread counts.
 //! Messages dragged from the list drop onto a folder to move them; a folder dragged onto another
-//! moves inside it. Right-click a folder to create, rename, move, delete or pin it to Favorites.
+//! moves inside it; an account dragged onto another takes its place. Right-click a folder to
+//! create, rename, move, delete or pin it to Favorites. Favorites, accounts and folders with
+//! folders in them collapse, and stay so from one start to the next.
 
 use egui::{Color32, RichText, Sense, Ui, vec2};
 use mailcraft_engine::model::{Folder, FolderRole};
@@ -28,6 +30,34 @@ fn role_icon(role: FolderRole) -> Icon {
 pub struct DragFolder {
     pub account: String,
     pub path: String,
+}
+
+/// What a dragged account carries (its id).
+pub struct DragAccount(pub String);
+
+/// The key a folder is collapsed under (see `Prefs::collapsed`).
+fn folder_key(account: &str, path: &str) -> String {
+    format!("folder:{account}/{path}")
+}
+
+/// The folders a folder is inside (`A/B/C` → `A`, `A/B`).
+fn ancestors(f: &Folder) -> Vec<String> {
+    let d = f.delimiter.unwrap_or('/');
+    let parts: Vec<&str> = f.path.split(d).collect();
+    (1..parts.len()).map(|n| parts.get(..n).unwrap_or_default().join(&d.to_string())).collect()
+}
+
+/// A section's heading that collapses it (Favorites), with its arrow; whether it was clicked.
+fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
+    ui.add_space(2.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, 4.0, t.hover_row);
+    }
+    let chev = egui::Rect::from_min_size(egui::pos2(rect.min.x + 2.0, rect.center().y - 6.0), vec2(12.0, 12.0));
+    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.faint);
+    ui.painter().text(egui::pos2(rect.min.x + 18.0, rect.center().y), egui::Align2::LEFT_CENTER, tl!(label), theme::bold(12.0), t.faint);
+    resp.clicked()
 }
 
 /// One row; returns its response.
@@ -83,8 +113,11 @@ fn row(
 pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
-        section(ui, t, "Favorites");
-        if s.accounts.len() > 1 {
+        let favorites_open = !s.prefs.collapsed.contains("favorites");
+        if section_header(ui, t, "Favorites", favorites_open) {
+            acts.push(Action::Run("view.collapse", json!({"key": "favorites"})));
+        }
+        if favorites_open && s.accounts.len() > 1 {
             let unread: u32 = s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum();
             let sel = s.view == View::Unified { role: FolderRole::Inbox } && s.search.is_none();
             if row(ui, t, Icon::Inbox, "All Inboxes", unread, 0, sel, false, false).clicked() {
@@ -95,9 +128,9 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 acts.push(Action::Run("folder.unified", json!({"role": "sent"})));
             }
         }
-        for fav in s.favorites() {
+        for fav in s.favorites().into_iter().filter(|_| favorites_open) {
             if let Some(f) = s.folder(&fav.account, &fav.folder) {
-                folder_row(s, t, ui, acts, f, 0, true);
+                folder_row(s, t, ui, acts, f, 0, true, None);
             }
         }
         if !s.outbox.is_empty() {
@@ -108,13 +141,31 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             }
         }
         ui.add_space(8.0);
-        for a in &s.accounts {
-            let id = ui.make_persistent_id(("acct", &a.config.id));
-            let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true);
-            let open = state.is_open();
-            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
-            if resp.hovered() {
+        for (at, a) in s.accounts.iter().enumerate() {
+            let key = format!("account:{}", a.config.id);
+            let open = !s.prefs.collapsed.contains(&key);
+            // Dragged onto another account, it takes its place (above or below it).
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+            if resp.hovered() || resp.dragged() {
                 ui.painter().rect_filled(rect, 6.0, t.hover_row);
+            }
+            if resp.drag_started() {
+                resp.dnd_set_drag_payload(DragAccount(a.config.id.clone()));
+            }
+            let below = ui.ctx().pointer_interact_pos().is_some_and(|p| p.y > rect.center().y);
+            if resp.dnd_hover_payload::<DragAccount>().is_some_and(|d| d.0 != a.config.id) {
+                let y = if below { rect.bottom() } else { rect.top() };
+                ui.painter().line_segment([egui::pos2(rect.left() + 4.0, y), egui::pos2(rect.right() - 4.0, y)], egui::Stroke::new(2.0, t.accent));
+            }
+            if let Some(dragged) = resp.dnd_release_payload::<DragAccount>()
+                && let Some(from) = s.accounts.iter().position(|x| x.config.id == dragged.0)
+                && dragged.0 != a.config.id
+            {
+                let before = if below { at + 1 } else { at };
+                let to = if from < before { before - 1 } else { before };
+                if to != from {
+                    acts.push(Action::Run("account.move", json!({"account": dragged.0, "by": to as i64 - from as i64})));
+                }
             }
             let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);
@@ -128,7 +179,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             };
             ui.painter().with_clip_rect(rect).text(rect.min + vec2(36.0, 15.0), egui::Align2::LEFT_CENTER, label, theme::bold(13.0), t.text);
             if resp.clicked() {
-                state.toggle(ui);
+                acts.push(Action::Run("view.collapse", json!({"key": key})));
             }
             let config = a.config.clone();
             resp.context_menu(|ui| {
@@ -184,27 +235,30 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
             });
-            state.store(ui.ctx());
             if !open {
                 continue;
             }
             if a.folders.is_empty() {
                 ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
             }
+            // Folders with folders in them collapse; what's inside a collapsed one is hidden.
+            let parents: std::collections::HashSet<String> = a.folders.iter().flat_map(ancestors).collect();
             for f in &a.folders {
-                folder_row(s, t, ui, acts, f, f.depth() + 1, false);
+                if ancestors(f).iter().any(|up| s.prefs.collapsed.contains(&folder_key(&f.account, up))) {
+                    continue;
+                }
+                let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
+                folder_row(s, t, ui, acts, f, f.depth() + 1, false, collapse);
             }
             ui.add_space(6.0);
         }
     });
 }
 
-fn section(ui: &mut Ui, t: &Tokens, label: &str) {
-    ui.add_space(2.0);
-    ui.label(RichText::new(tl!(label)).font(theme::bold(12.0)).color(t.faint));
-}
-
-fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &Folder, depth: usize, favorite: bool) {
+/// A folder's row; `collapse` is whether it's collapsed, for one with folders in it (it gets
+/// an arrow).
+#[allow(clippy::too_many_arguments)]
+fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &Folder, depth: usize, favorite: bool, collapse: Option<bool>) {
     let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
     let name = match s.account(&f.account) {
         Some(a) if favorite && s.accounts.len() > 1 => {
@@ -216,6 +270,15 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     let unread = if matches!(f.role, FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Archive) { 0 } else { f.unread };
     let user_folder = f.role == FolderRole::Other && !f.path.eq_ignore_ascii_case("INBOX");
     let resp = row(ui, t, role_icon(f.role), &name, unread, depth, selected, f.selectable, user_folder && !favorite);
+    if let Some(collapsed) = collapse {
+        let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
+        let chev = egui::Rect::from_min_size(egui::pos2(x, resp.rect.center().y - 6.0), vec2(12.0, 12.0));
+        let c = ui.interact(chev.expand(4.0), resp.id.with("collapse"), Sense::click());
+        icons::paint(ui.painter(), chev, if collapsed { Icon::ChevronRight } else { Icon::ChevronDown }, if c.hovered() { t.text } else { t.dim });
+        if c.clicked() {
+            acts.push(Action::Run("view.collapse", json!({"key": folder_key(&f.account, &f.path)})));
+        }
+    }
     if f.selectable && resp.clicked() {
         acts.push(Action::Run("folder.open", json!({"account": f.account, "folder": f.path})));
     }

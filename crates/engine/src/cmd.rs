@@ -304,6 +304,25 @@ pub fn registry() -> Registry {
             Ok(json!({"minimized": s.prefs.folder_pane_minimized}))
         })
         .params(r#"{"minimized"?: bool}"#),
+        CommandSpec::new("view.collapse", "Collapse or expand in the folder pane", "Folder pane", |s, v| {
+            let key = p::req_str(v, "key")?.trim();
+            if key.is_empty() || key.len() > 600 {
+                return Err(CmdError::Params("`key` names what to collapse: favorites, account:<id> or folder:<account>/<path>".into()));
+            }
+            let collapse = p::bool(v, "collapsed").unwrap_or(!s.prefs.collapsed.contains(key));
+            if collapse {
+                // A bounded list: the oldest go first when there are very many.
+                while s.prefs.collapsed.len() >= 2_000 {
+                    let Some(first) = s.prefs.collapsed.iter().next().cloned() else { break };
+                    s.prefs.collapsed.remove(&first);
+                }
+                s.prefs.collapsed.insert(key.to_string());
+            } else {
+                s.prefs.collapsed.remove(key);
+            }
+            Ok(json!({"key": key, "collapsed": collapse}))
+        })
+        .params(r#"{"key": string (favorites, account:<id> or folder:<account>/<path>), "collapsed"?: bool (default: the other way)}"#),
         CommandSpec::new("view.focused", "Focused Inbox", "View › Messages", |s, v| {
             s.prefs.focused_inbox = p::bool(v, "on").unwrap_or(!s.prefs.focused_inbox);
             s.focus_other = false;
