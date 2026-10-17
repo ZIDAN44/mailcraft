@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.13, 2026-10-17._
+_Status: v0.14, 2026-10-17._
 
 ## Open
 
@@ -242,3 +242,32 @@ Microsoft sign-in, tried end to end once the release builds carried a registrati
   and stay as they were left from one start to the next; accounts can also be dragged into a
   new order.
 
+### v0.14 — What testers asked for
+From issues #1 and #2, each reproduced first (an IMAP server that answers as Outlook.com does,
+an Exchange report as it arrived), then fixed and tried again.
+- **Microsoft sign-in, the ways it failed:** a Hotmail account added with a password switches to
+  Sign in with Microsoft from the status bar and keeps its mail; adding one offers no password;
+  "User is authenticated but not connected" (IMAP off, or another account picked in the browser)
+  says what to do instead of asking to sign in again, the address the browser signed in as is
+  tried, and **Use Microsoft Graph** moves the account off IMAP; Automatic replies on an account
+  that can't connect no longer leave the status on "Connecting…".
+- **Generated HTML mail:** pictures without a description keep their place (only trackers go);
+  pictures are found by `cid:` (%-escapes too), Content-Location or file name; style sheets
+  colour cells and text (tag, class, id and descendant selectors); sized text reads as headings;
+  rows' colours, whole-column widths and centred pictures, and light stripes, as Outlook shows
+  them.
+- **Search:** typing stays quick on a big mailbox (each message's words read once; a moment
+  after the last key); the box at the top searches People and Notes where you are.
+- **Reading:** mail is marked read when shown (after a wait), once another is chosen, or only
+  when opened in its own window.
+- **Signatures from the message:** Insert signature and Signatures… on the Message ribbon.
+- **Notes** arrange by title, colour or last change.
+- **Calendar:** events in their category's colour (categories kept with Exchange, Graph and
+  CalDAV, chosen on the event); calendars ticked to show or hide; side by side in day and week;
+  up to six months in the side pane.
+- **People:** the List view's columns are chosen and sort by the one clicked; an organisation's
+  shared contacts and calendars in Exchange public folders come in, read-only.
+- **Automatic replies on Exchange:** another reply for outside the organisation, and to whom.
+- **Mail kept on this computer:** the newest 1,000, 5,000, 20,000 or all of each folder, 40 to
+  1,000 downloaded ahead (EWS now pages past the first 1,000).
+- **Open folder** opens it (Explorer on Windows).

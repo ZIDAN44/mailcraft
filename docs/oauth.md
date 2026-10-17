@@ -50,3 +50,21 @@ both; then the account is added once, with that address.
 
 Sign in once with a test account: if Microsoft says the redirect URI doesn't match
 (`AADSTS50011`), check the two loopback addresses in step 2.
+
+## When an Outlook.com or Hotmail account doesn't connect
+
+- **"Microsoft doesn't accept passwords from mail apps":** the account was added with a password
+  (an older MailCraft, or a password typed in). Click **Sign in with Microsoft** in the status bar
+  (or on the account's right-click menu): the browser opens, and the account keeps its mail.
+  MailCraft no longer offers a password for these addresses when it can sign in with Microsoft.
+- **"Microsoft signed you in, but its mail server won't open this mailbox over IMAP"** (the
+  server's words: *User is authenticated but not connected*): the token is good, but IMAP won't
+  open the mailbox. Either IMAP is switched off for it (Outlook.com › Settings › Mail ›
+  Forwarding and IMAP › *Let devices and apps use IMAP*, off by default on new accounts; for a
+  work account, the organisation's administrator), or the browser signed in as **another
+  account** than the one added (a browser already signed in to Microsoft picks that one). MailCraft
+  asks Microsoft who signed in, tries that address once, and otherwise names it in the message.
+  Turn IMAP on, or sign in again with the right account, then choose Sync; or **Use Microsoft
+  Graph**, which reaches the mailbox without IMAP (and brings its calendar and contacts): the
+  account starts again through Graph.
+
