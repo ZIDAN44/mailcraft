@@ -52,9 +52,13 @@ local-first, media-aware v1); the fuller request is
    opens in the browser on Windows, accounts that sign in that way ask to sign in again rather
    than for a password, an account Microsoft refuses says why, sent mail shows in Sent Items at
    once; dialogs and the folder pane keep their sizes.
-13. **v0.13 — The open gaps, again** (in progress) From an audit of [docs/gaps.md](docs/gaps.md).
+13. **v0.13 — The open gaps, again** ✅ From an audit of [docs/gaps.md](docs/gaps.md): other
+   people's Exchange calendars can be changed where they allow it, HTML mail's background
+   pictures and boxes placed over others, text in its cell's colour, Outlook's notes from a data
+   file, right-to-left mail copied as written; calendar boxes that fit their lines.
 14. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
-   browser, bidirectional editing, Wayland drag-out, what the `.pst` libraries can't do yet.
+   browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
+   libraries can't do yet.
 
 ## Progress log
 
@@ -103,3 +107,7 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-17** — **v0.12**: Microsoft sign-in tried end to end (Outlook.com over IMAP, a
   personal Microsoft account through Graph): the sign-in page opens on Windows, "Sign in again"
   instead of a password, refusals say why, Sent Items catches up at once; dialog and pane sizes.
+- **2026-10-17** — **v0.13**: the gaps audited again: shared Exchange calendars editable where
+  allowed (Graph and EWS), background pictures and placed boxes in HTML mail, cell colours, notes
+  from `.pst` files, right-to-left text copied from a right-click; Exchange Online's public
+  folders wait on Microsoft (EWS is being retired there).
