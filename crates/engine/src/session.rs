@@ -475,7 +475,7 @@ pub struct Notice {
 struct SearchIndex {
     index: Index,
     keys: Vec<MessageKey>,
-    bodies: HashMap<MessageKey, String>,
+    bodies: HashMap<MessageKey, Arc<str>>,
     scope: SearchScope,
     view: View,
 }
@@ -548,6 +548,10 @@ pub struct Session {
     /// The local day the calendar shows (`None`: today).
     pub cal_day: Option<i64>,
     index: Option<SearchIndex>,
+    /// Each downloaded message's words for search (its text and attachment names), read from
+    /// the cache once: the index is rebuilt whenever mail changes, and parsing every message
+    /// again each time made typing in the search box hang.
+    body_words: HashMap<MessageKey, Arc<str>>,
     registry: Arc<Registry>,
     next_id: u64,
     seed: u64,
@@ -601,6 +605,7 @@ impl Session {
             cal_mode: pim::CalMode::Week,
             cal_day: None,
             index: None,
+            body_words: HashMap::new(),
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
             next_id: u64::try_from(clock.now.max(0)).unwrap_or(0).saturating_mul(1000),
@@ -1117,14 +1122,32 @@ impl Session {
             w.parsed = mime::parse(raw);
             w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
         }
-        let parsed = mime::parse(raw);
+        // Only the open message is laid out (bodies downloaded ahead aren't, each costing time).
         if let Some(r) = self.reading.as_mut()
             && &r.key == key
         {
+            let parsed = mime::parse(raw);
             r.error = if parsed.is_none() { Some("this message could not be read".into()) } else { None };
             r.parsed = parsed;
         }
         self.request_pictures();
+    }
+
+    /// A body that came in joins the search index there is (rather than throwing it away).
+    fn index_body(&mut self, key: &MessageKey, raw: &[u8]) {
+        // No index yet: read when one is built (downloading ahead costs nothing extra then).
+        if self.index.is_none() {
+            return;
+        }
+        let words: Arc<str> = Arc::from(mime::search_text(raw));
+        self.body_words.insert(key.clone(), words.clone());
+        if let Some(ix) = self.index.as_mut()
+            && let Some(doc) = ix.keys.iter().position(|k| k == key)
+            && !ix.bodies.contains_key(key)
+        {
+            ix.index.add(u32::try_from(doc).unwrap_or(u32::MAX), &words);
+            ix.bodies.insert(key.clone(), words);
+        }
     }
 
     // ----- pictures from the web -----
@@ -1871,20 +1894,28 @@ impl Session {
             for m in msgs {
                 let doc = u32::try_from(keys.len()).unwrap_or(u32::MAX);
                 index.add(doc, &summary_text(&m));
-                if let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(&m.key))
-                    && let Some(p) = mime::parse(&raw)
-                {
-                    let text: String = p.text.chars().take(50_000).collect();
-                    index.add(doc, &text);
-                    for att in &p.attachments {
-                        index.add(doc, &att.name);
-                    }
-                    bodies.insert(m.key.clone(), text);
+                if let Some(words) = self.words_of(&m.key) {
+                    index.add(doc, &words);
+                    bodies.insert(m.key.clone(), words);
                 }
                 keys.push(m.key);
             }
         }
         self.index = Some(SearchIndex { index, keys, bodies, scope, view: self.view.clone() });
+    }
+
+    /// A downloaded message's words for search, read once (`None`: not downloaded).
+    fn words_of(&mut self, key: &MessageKey) -> Option<Arc<str>> {
+        if let Some(w) = self.body_words.get(key) {
+            return Some(w.clone());
+        }
+        let raw = self.store.as_ref().and_then(|s| s.read_body(key))?;
+        if self.body_words.len() > 200_000 {
+            self.body_words.clear();
+        }
+        let words: Arc<str> = Arc::from(mime::search_text(&raw));
+        self.body_words.insert(key.clone(), words.clone());
+        Some(words)
     }
 
     fn search_results(&mut self, q: &str, scope: SearchScope) -> Vec<Summary> {
@@ -1910,7 +1941,7 @@ impl Session {
         for doc in ix.index.candidates(&query) {
             let Some(key) = ix.keys.get(doc as usize) else { continue };
             let Some(m) = self.folder_state(&key.account, &key.folder).find(key.uid).cloned() else { continue };
-            if query.matches(&Doc { summary: &m, body: ix.bodies.get(key).map(String::as_str) }) {
+            if query.matches(&Doc { summary: &m, body: ix.bodies.get(key).map(|b| &**b) }) {
                 out.push(m);
             }
         }
@@ -2730,7 +2761,7 @@ impl Session {
             }
             Event::Body { key, raw } => {
                 self.show_body(&key, &raw);
-                self.index = None;
+                self.index_body(&key, &raw);
             }
             Event::BodyFailed { key, error } => {
                 for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {

@@ -329,6 +329,8 @@ pub struct UiState {
     search_focused: bool,
     /// Put the search box's cursor at the end when it next takes the focus.
     search_cursor_end: bool,
+    /// When to search for what's typed (a moment after the last key, so typing stays quick).
+    search_due: Option<f64>,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
     pub compose_alert: Option<String>,
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
@@ -439,6 +441,7 @@ impl MailApp {
                 focus_search: false,
                 search_focused: false,
                 search_cursor_end: false,
+                search_due: None,
                 compose_alert: None,
                 attachment_view: None,
                 ribbon_rect: None,
@@ -1457,6 +1460,30 @@ impl MailApp {
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), r, Icon::Search, t.dim);
+                    // In People and Notes it searches those (as Outlook's box searches where you are).
+                    let module = self.session.module;
+                    if matches!(module, Module::People | Module::Notes) {
+                        let focus = std::mem::take(&mut self.ui.focus_search);
+                        let (query, hint) = if module == Module::People {
+                            (&mut self.ui.people_query, tl!("Search people"))
+                        } else {
+                            (&mut self.ui.notes_query, tl!("Search notes"))
+                        };
+                        let resp = ui.add(
+                            egui::TextEdit::singleline(query)
+                                .hint_text(hint)
+                                .frame(egui::Frame::NONE)
+                                .desired_width(search_w - 60.0)
+                                .text_color(t.text),
+                        );
+                        if focus {
+                            resp.request_focus();
+                        }
+                        if !query.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
+                            query.clear();
+                        }
+                        return;
+                    }
                     let te = egui::TextEdit::singleline(&mut self.ui.search_text)
                         .hint_text(tl!("Search mail (from:, subject:, has:attachment…)"))
                         .frame(egui::Frame::NONE)
@@ -1480,9 +1507,20 @@ impl MailApp {
                         resp.request_focus();
                         self.ui.focus_search = false;
                     }
+                    // Searched a moment after the last key (Enter: at once), not on every key.
+                    let now = ui.input(|i| i.time);
                     if resp.changed() {
-                        let q = self.ui.search_text.clone();
-                        acts.push(Action::Run("search.run", json!({"query": q})));
+                        self.ui.search_due = Some(now + SEARCH_PAUSE);
+                    }
+                    let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    match self.ui.search_due {
+                        Some(due) if enter || now >= due || self.ui.search_text.is_empty() => {
+                            self.ui.search_due = None;
+                            let q = self.ui.search_text.clone();
+                            acts.push(Action::Run("search.run", json!({"query": q})));
+                        }
+                        Some(due) => ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64((due - now).max(0.01))),
+                        None => {}
                     }
                     if !self.ui.search_text.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
                         acts.push(Action::Run("search.clear", json!({})));
@@ -2004,6 +2042,9 @@ impl MailApp {
 
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so
 /// they close this one; so do Delete and Archive.
+/// How long the search box waits after the last key before searching, in seconds.
+const SEARCH_PAUSE: f64 = 0.3;
+
 /// An account that waits for you to do something: sign in (again, or with Microsoft rather than
 /// a password), or choose what to do about a mailbox Microsoft won't open over IMAP.
 fn needs_you(a: &mailcraft_engine::AccountState) -> bool {

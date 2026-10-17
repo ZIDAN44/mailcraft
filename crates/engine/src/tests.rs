@@ -1907,3 +1907,46 @@ fn a_microsoft_account_moves_to_graph() {
     assert!(s.run("account.useGraph", &json!({"account": new})).is_err(), "already on Graph");
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Typing in the search box stays quick on a big mailbox: a search after mail changes (which
+/// rebuilds the index) doesn't parse every message again.
+#[test]
+fn searching_a_big_mailbox_stays_quick() {
+    let store = temp("big-search");
+    store.save_accounts(&[mailcraft_model::AccountConfig { id: "a1".into(), email: "me@studio.example".into(), ..Default::default() }]).unwrap();
+    store
+        .save_folders(
+            "a1",
+            &[mailcraft_model::Folder {
+                account: "a1".into(),
+                path: "INBOX".into(),
+                role: FolderRole::Inbox,
+                selectable: true,
+                ..Default::default()
+            }],
+        )
+        .unwrap();
+    let mut st = store.load_folder("a1", "INBOX").unwrap();
+    for uid in 1..=3000u32 {
+        let key = mailcraft_model::MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
+        let html = format!("<html><body><table><tr><td><h1>Report {uid}</h1></td><td>{}</td></tr></table></body></html>", "word ".repeat(400));
+        let raw = format!("From: a@x.example\r\nSubject: Report {uid}\r\nContent-Type: text/html\r\n\r\n{html}\r\n");
+        store.write_body(&key, raw.as_bytes()).unwrap();
+        st.messages.push(mailcraft_model::Summary { key, subject: format!("Report {uid}"), ..Default::default() });
+    }
+    st.messages[1234].subject = "needle here".into();
+    store.save_folder("a1", "INBOX", &st).unwrap();
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.take_jobs();
+    let t = std::time::Instant::now();
+    assert_eq!(s.run("search.run", &json!({"query": "needle"})).unwrap()["results"], 1);
+    let first = t.elapsed();
+    // Mail changes (as a sync does), and the next key is typed: the index is built again.
+    s.open_view(View::Folder { account: "a1".into(), folder: "INBOX".into() });
+    let t = std::time::Instant::now();
+    assert_eq!(s.run("search.run", &json!({"query": "needl"})).unwrap()["results"], 1);
+    let again = t.elapsed();
+    println!("first {first:?}, again {again:?}");
+    assert!(again < first / 2 || again < std::time::Duration::from_millis(300), "first {first:?}, again {again:?}");
+    let _ = std::fs::remove_dir_all(store.root());
+}

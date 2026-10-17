@@ -56,15 +56,13 @@ fn index_letter(name: &str) -> char {
     }
 }
 
-/// The side pane: search, then everyone, A to Z.
+/// The side pane: everyone, A to Z (searched from the box at the top).
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     if widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {
         acts.push(Action::Dialog(Dialog::new_contact()));
     }
     ui.add_space(8.0);
-    ui.add(egui::TextEdit::singleline(&mut st.people_query).hint_text(tl!("Search people")).desired_width(f32::INFINITY));
-    ui.add_space(6.0);
     let people = s.people(&st.people_query);
     if people.is_empty() {
         ui.label(RichText::new(tl!(if st.people_query.trim().is_empty() { "No contacts yet." } else { "No one matches." })).color(t.faint));

@@ -736,6 +736,20 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     })
 }
 
+/// A message's words for search: its text (HTML as text) and its attachments' names. Lighter
+/// than [`parse`] (no formatting, no layout), for indexing every downloaded message.
+pub fn search_text(raw: &[u8]) -> String {
+    let Some(m) = MessageParser::default().parse(raw) else { return String::new() };
+    let mut out: String = m.body_text(0).map(|t| t.chars().take(50_000).collect()).unwrap_or_default();
+    for a in m.attachments() {
+        if let Some(n) = a.attachment_name() {
+            out.push('\n');
+            out.push_str(n);
+        }
+    }
+    out
+}
+
 /// The summary for a fully downloaded message (preview from the real body, HTML included).
 pub fn summary_from_full(raw: &[u8], key: MessageKey, flags: Flags, size: u32, fallback_date: i64) -> Summary {
     let mut s = summary_from_header(raw, key, flags, size, fallback_date);
