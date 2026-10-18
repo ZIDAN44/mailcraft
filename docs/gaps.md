@@ -311,6 +311,16 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   name.
 - **Someone's Exchange calendar** is editable when its events' own rights say so, for servers
   whose answer about the folder doesn't.
+- **Sending and automatic replies never wait behind a sync:** each account has a second, quiet
+  connection for them (the main one keeps syncing), signed in with the same token; a message
+  that can't go yet goes to the main connection's Outbox, and Sent Items is read after.
+- **Address suggestions** under To, Cc and Bcc are as wide as the longest one, and a click
+  anywhere on a row takes it.
+- **A log file:** `mailcraft.log` in the data folder (the previous run's kept as
+  `mailcraft.old.log`, at most 4 MB a run): accounts' statuses and errors, how long a sync took,
+  what a calendar or public folder said; never a message's content or a password.
+- **French:** a value filled in at run time never comes straight after « de », « le », « que » or
+  another word French elides before a vowel (« de Anna »); a test checks the catalog.
 - **Public folders on Exchange 2013 and later:** listing is routed to the account's hierarchy
   mailbox (Autodiscover's `PublicFolderInformation`); anything not found while there are public
   folders is asked again in the mailboxes holding their content, so their mail syncs too; a server
