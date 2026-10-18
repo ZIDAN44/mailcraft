@@ -1743,11 +1743,25 @@ fn recipient_field(
             }
         });
     }
+    // Backspace right after a whole recipient takes all of it, as Outlook does with a resolved
+    // name (a half-typed one loses a character as usual).
+    let edit_id = ui.id().with(("recipient", name));
+    if ui.memory(|m| m.has_focus(edit_id))
+        && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id)
+        && let Some(range) = state.cursor.char_range().filter(|r| r.is_empty())
+        && let Some((rest, at)) = mailcraft_engine::model::contacts::remove_recipient(value, range.primary.index.0)
+        && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace))
+    {
+        *value = rest;
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(at))));
+        state.store(ui.ctx(), edit_id);
+        st.suggest_dismissed = Some(value.clone());
+    }
     let (pressed, r) = ui
         .horizontal(|ui| {
             // The field's button opens the address book (the caller's to show).
             let b = label_button(ui, &t, label, true);
-            (b.clicked(), underlined(ui, &t, egui::TextEdit::singleline(value).hint_text(tl!(hint))))
+            (b.clicked(), underlined(ui, &t, egui::TextEdit::singleline(value).id(edit_id).hint_text(tl!(hint))))
         })
         .inner;
     if focus {

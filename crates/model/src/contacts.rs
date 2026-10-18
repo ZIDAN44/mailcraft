@@ -152,10 +152,82 @@ pub fn complete(field: &str, a: &EmailAddress) -> String {
     format!("{keep}{a}, ")
 }
 
+/// Backspace right after a whole recipient (`Name <address>`, or one ended by `,` or `;`):
+/// the field without it and where the cursor goes (characters), as Outlook takes a resolved name
+/// away in one go. `None` when the cursor is inside a half-typed address (an ordinary backspace).
+pub fn remove_recipient(field: &str, cursor: usize) -> Option<(String, usize)> {
+    let chars: Vec<char> = field.chars().collect();
+    let cursor = cursor.min(chars.len());
+    // Separators outside quotes and angle brackets.
+    let mut seps: Vec<usize> = Vec::new();
+    let (mut quoted, mut angle) = (false, false);
+    for (i, c) in chars.iter().enumerate().take(cursor) {
+        match c {
+            '"' if !angle => quoted = !quoted,
+            '<' if !quoted => angle = true,
+            '>' if !quoted => angle = false,
+            ',' | ';' if !quoted && !angle => seps.push(i),
+            _ => {}
+        }
+    }
+    if quoted || angle {
+        return None;
+    }
+    let mut end = cursor;
+    while end > 0 && chars.get(end - 1).is_some_and(|c| c.is_whitespace()) {
+        end -= 1;
+    }
+    let last = *chars.get(end.checked_sub(1)?)?;
+    let entry_end = match last {
+        ',' | ';' => end - 1,
+        '>' => end,
+        _ => return None,
+    };
+    let start = seps.iter().rev().find(|s| **s < entry_end).map_or(0, |s| s + 1);
+    let entry: String = chars.get(start..entry_end)?.iter().collect();
+    if entry.trim().is_empty() {
+        return None;
+    }
+    // A plain address ended by a separator counts too; a half-typed word before `>` doesn't.
+    if last == '>' && !entry.contains('<') {
+        return None;
+    }
+    let keep_to = if start == 0 { 0 } else { start };
+    let before: String = chars.get(..keep_to).unwrap_or(&[]).iter().collect();
+    let after: String = chars.get(cursor..).unwrap_or(&[]).iter().collect();
+    let before = if after.trim().is_empty() && keep_to > 0 { format!("{} ", before.trim_end()) } else { before };
+    let at = before.chars().count();
+    Some((format!("{before}{}", after.trim_start()), at))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::MessageKey;
+
+    /// Issue #1: a wrong address picked from the suggestions goes with one Backspace.
+    #[test]
+    fn backspace_takes_a_whole_recipient() {
+        let f = "Ana Lima <ana@x.example>, Zoe <zoe@x.example>, ";
+        let (out, at) = remove_recipient(f, f.chars().count()).unwrap();
+        assert_eq!(out, "Ana Lima <ana@x.example>, ");
+        assert_eq!(at, out.chars().count());
+        let (out, _) = remove_recipient(&out, out.chars().count()).unwrap();
+        assert_eq!(out, "");
+        let f = "\"Park, Zoe\" <zoe@x.example>";
+        assert_eq!(remove_recipient(f, f.chars().count()).unwrap().0, "", "a comma in a quoted name isn't a separator");
+        assert_eq!(remove_recipient("ana@x.example; ", 15).unwrap().0, "");
+        // Half-typed, or inside an address: an ordinary backspace.
+        assert_eq!(remove_recipient("Ana Lima <ana@x.example>, zo", 28), None);
+        assert_eq!(remove_recipient("Ana <ana@x.exa", 14), None);
+        assert_eq!(remove_recipient("", 0), None);
+        assert_eq!(remove_recipient(", ", 2), None);
+        // In the middle: the one before the cursor goes, the rest stays.
+        let f = "Ana <a@x.example>, Zoe <z@x.example>";
+        let (out, at) = remove_recipient(f, 18).unwrap();
+        assert_eq!((out.as_str(), at), ("Zoe <z@x.example>", 0));
+        assert_eq!(remove_recipient("abc", 99), None);
+    }
 
     fn msg(from: (&str, &str), to: &[(&str, &str)], date: i64) -> Summary {
         Summary {
