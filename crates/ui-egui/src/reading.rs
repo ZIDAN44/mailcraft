@@ -1774,13 +1774,37 @@ fn recipient_field(
     if showing && take.is_none() {
         let area = egui::Area::new(ui.id().with(("suggest", name))).order(egui::Order::Foreground).fixed_pos(r.rect.left_bottom() + vec2(0.0, 2.0));
         area.show(ui.ctx(), |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.set_width(r.rect.width().min(420.0));
+            egui::Frame::popup(ui.style()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
+                // As wide as the longest suggestion (within the box's width), every row taking
+                // a click anywhere on it: the name, and the address dimmer beside it.
+                let name_font = theme::regular(13.5);
+                let mail_font = theme::regular(12.5);
+                let text_w = |text: &str, font: &egui::FontId| ui.fonts_mut(|f| f.layout_no_wrap(text.to_string(), font.clone(), t.text).size().x);
+                let widest = suggestions
+                    .iter()
+                    .map(|c| {
+                        let name = if c.address.name.is_empty() { 0.0 } else { text_w(&c.address.name, &name_font) + 12.0 };
+                        name + text_w(&c.address.email, &mail_font)
+                    })
+                    .fold(0.0_f32, f32::max);
+                let w = (widest + 24.0).clamp(200.0, r.rect.width().clamp(200.0, 520.0));
+                ui.spacing_mut().item_spacing.y = 0.0;
                 for (i, c) in suggestions.iter().enumerate() {
                     let on = i == st.suggest_index;
-                    let text =
-                        if c.address.name.is_empty() { c.address.email.clone() } else { format!("{}  ·  {}", c.address.name, c.address.email) };
-                    let resp = ui.selectable_label(on, RichText::new(text).color(t.text));
+                    let (row, resp) = ui.allocate_exact_size(vec2(w, 28.0), egui::Sense::click());
+                    if on || resp.hovered() {
+                        ui.painter().rect_filled(row, 4.0, if on { t.accent_soft } else { t.hover_row });
+                    }
+                    let clip = ui.painter().with_clip_rect(row.shrink2(vec2(8.0, 0.0)));
+                    let mut x = row.left() + 10.0;
+                    if !c.address.name.is_empty() {
+                        let g = clip.layout_no_wrap(c.address.name.clone(), name_font.clone(), t.text);
+                        let gw = g.size().x;
+                        clip.galley(egui::pos2(x, row.center().y - g.size().y / 2.0), g, t.text);
+                        x += gw + 12.0;
+                    }
+                    let g = clip.layout_no_wrap(c.address.email.clone(), mail_font.clone(), t.dim);
+                    clip.galley(egui::pos2(x, row.center().y - g.size().y / 2.0), g, t.dim);
                     // On press: the box loses focus on the same click, before a release would count.
                     if resp.hovered() && ui.input(|i| i.pointer.primary_pressed()) {
                         take = Some(i);
