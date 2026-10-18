@@ -26,6 +26,7 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 struct Keychain;
 
 #[cfg(windows)]
+mod logfile;
 mod toast;
 mod video;
 #[cfg(all(unix, not(target_os = "macos")))]
@@ -447,6 +448,11 @@ fn main() -> eframe::Result {
     // (`--data`) or in Documents.
     let files =
         (!sample).then(|| root.as_ref().map(|r| base.as_deref().map_or_else(|| r.join(location::FILES_FOLDER), location::files_dir))).flatten();
+    // Diagnostics go to `mailcraft.log` in the data folder.
+    let echo = cfg!(debug_assertions) || args.iter().any(|a| a == "--log");
+    if let Some(path) = logfile::start(root.as_deref(), echo) {
+        log::info!("{} started; log at {}", version_line(), path.display());
+    }
 
     let (now, offset) = Desktop::default().clock();
     let store = root.as_ref().and_then(|r| {
