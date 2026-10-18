@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.15 — What testers asked for, again (2026-10-18). Each milestone below is a version: v0.1 was
+**Stage:** v0.16 — Contacts as Outlook keeps them (2026-10-19). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 301 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 306 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -65,7 +65,12 @@ local-first, media-aware v1); the fuller request is
    side each in a pane of its own, other people's Exchange calendars editable by their editors,
    signatures and text pasted from Outlook with their look, public folder contacts on Exchange
    2013 and later, the address book to open with, and long names in it.
-16. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+16. **v0.16 — Contacts as Outlook keeps them** ✅ From issue #1's third round: contacts' numbers
+   by kind, their business, home and other addresses and birthday (vCard, Exchange, Graph, data
+   files); signatures pasted with their sizes and typefaces; a wrong recipient gone with one
+   Backspace; someone's Exchange calendar editable when its events say so; public folders routed
+   on Exchange 2013 and later (listing and mail too), and People's address books to find them.
+17. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -129,4 +134,9 @@ local-first, media-aware v1); the fuller request is
   it (a pane per calendar), an editor's rights on someone's Exchange calendar read as Exchange
   gives them, public folder content routed to the mailbox holding it, HTML on the clipboard pasted
   with its look and signatures kept formatted, Select Names opening with the address book chosen.
+- **2026-10-19** — **v0.16**: issue #1's third round, each reproduced first: contacts' phones by
+  kind, addresses and birthdays through every kind of account and the contact form, People's
+  address books (an organisation's shared ones among them), pasted fonts and sizes, Backspace on a
+  whole recipient, an editor told by the events' rights, public folder hierarchy and content
+  routing with errors shown.
 

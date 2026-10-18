@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.15, 2026-10-18._
+_Status: v0.16, 2026-10-19._
 
 ## Open
 
@@ -292,3 +292,26 @@ again.
 - **Select Names** opens with the address book chosen ("Always open with this address book"):
   everyone, every contact, or one account's contacts or shared ones; long names and addresses are
   cut short with "…".
+
+### v0.16 — Contacts as Outlook keeps them
+From issue #1's third round, each reproduced first (the Exchange test server answering as the
+tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed and tried again.
+- **Contacts' fields:** every number keeps what it is (business, home, mobile, fax, pager,
+  other; two of business and home on Exchange), business, home and other addresses and the
+  birthday are fields of their own, read and written with vCard (`ADR`, `BDAY`), Exchange
+  (`PhysicalAddresses`, `Birthday`), Graph and Outlook data files. The contact form is Outlook's
+  (three emails, a field per number, one address at a time); People shows each with its kind, and
+  the List view has columns for fax, the addresses and birthdays.
+- **People's address books** list each account's and an organisation's shared ones (public
+  folders); a click shows one alone.
+- **Signatures keep sizes and typefaces:** pasted HTML's `font-size`, `font-family` and
+  `<font>` become the text's size (whole points: 7.5 is 8) and typeface, sent with the message;
+  the editor shows the sizes in its own font.
+- **Backspace** right after a whole recipient takes all of it, as Outlook does with a resolved
+  name.
+- **Someone's Exchange calendar** is editable when its events' own rights say so, for servers
+  whose answer about the folder doesn't.
+- **Public folders on Exchange 2013 and later:** listing is routed to the account's hierarchy
+  mailbox (Autodiscover's `PublicFolderInformation`); anything not found while there are public
+  folders is asked again in the mailboxes holding their content, so their mail syncs too; a server
+  with public folders that won't list them says why in the status bar.
