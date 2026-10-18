@@ -57,6 +57,8 @@ pub struct Data {
     /// The folder's rights say nothing of that (as some servers answer for another mailbox's
     /// calendar): only each item's rights do.
     pub item_rights_only: bool,
+    /// Listing a mail folder's messages takes this long (a big mailbox's first sync).
+    pub hold: Option<std::time::Duration>,
     /// The public folder mailbox holding the public folders' content (Exchange 2013 and
     /// later): reading inside them is only answered when routed there.
     pub pf_mailbox: Option<String>,
@@ -85,6 +87,7 @@ impl Default for Data {
             url: String::new(),
             editors: Vec::new(),
             item_rights_only: false,
+            hold: None,
             pf_mailbox: None,
             pf_hierarchy: None,
             routed: String::new(),
@@ -701,6 +704,14 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
             );
             continue;
         };
+        // A slow server: listing a mail folder takes its time (without holding up the others).
+        let hold = {
+            let d = shared.lock().unwrap();
+            d.hold.filter(|_| op.name == "FindItem" && !d.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())))
+        };
+        if let Some(h) = hold {
+            std::thread::sleep(h);
+        }
         let mut d = shared.lock().unwrap();
         d.calls.push(op.name.clone());
         d.routed = routed;
@@ -1150,6 +1161,103 @@ mod tests {
             (Some(false), Some(true)),
             "Ana made this account an editor; Ben didn't"
         );
+    }
+
+    /// Mail sent and automatic replies asked for while a big mailbox's first sync is still going
+    /// go at once.
+    #[test]
+    fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
+        let mut d = Data { hold: Some(Duration::from_secs(4)), ..Default::default() };
+        let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.folder("Sent Items", None, Some("sentitems"), "IPF.Note");
+        d.folder("Projects", None, None, "IPF.Note");
+        d.folder("Archive 2024", None, None, "IPF.Note");
+        d.deliver(&inbox, &mail("Storyboard", "m1"), false, "2024-05-06T09:00:00Z");
+        let server = serve(d);
+        let data = server.data.clone();
+        let dir = std::env::temp_dir().join(format!("mailcraft-ews-busy-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let mut pool = crate::worker::Pool::new(store, Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig {
+            id: "a1".into(),
+            name: "Riley".into(),
+            email: "riley@contoso.example".into(),
+            username: format!("{DOMAIN}\\{USER}"),
+            ews: Some(server.url.clone()),
+            ..Default::default()
+        };
+        pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+        // The folders are listed; their messages take 4 s a folder from here.
+        until(&pool, "folders", |e| matches!(e, Event::Folders { .. }));
+        let raw = b"From: riley@contoso.example\r\nTo: zoe@contoso.example\r\nSubject: Quick answer\r\nMessage-ID: <q1@x>\r\n\r\nYes.\r\n".to_vec();
+        let asked = Instant::now();
+        pool.submit(Job::Send {
+            account: "a1".into(),
+            id: 7,
+            raw,
+            from: "riley@contoso.example".into(),
+            recipients: vec!["zoe@contoso.example".into()],
+            sent_folder: Some("Sent Items".into()),
+        });
+        pool.submit(Job::GetVacation { account: "a1".into() });
+        let (mut sent, mut replies) = (None, None);
+        let end = Instant::now() + Duration::from_secs(30);
+        while Instant::now() < end && (sent.is_none() || replies.is_none()) {
+            match pool.wait(Duration::from_millis(50)) {
+                Some(Event::Sent { id: 7, .. }) => sent = Some(asked.elapsed()),
+                Some(Event::SendFailed { error, .. }) => panic!("send failed: {error}"),
+                Some(Event::Vacation { vacation: Some(_), .. }) => replies = Some(asked.elapsed()),
+                _ => {}
+            }
+        }
+        let (sent, replies) = (sent.expect("sent"), replies.expect("replies read"));
+        assert!(sent < Duration::from_secs(3), "the message went in {sent:?}, behind the sync");
+        assert!(replies < Duration::from_secs(3), "the replies came in {replies:?}, behind the sync");
+        assert_eq!(data.lock().unwrap().sent.len(), 1, "sent once");
+        // Several at once, and the replies changed meanwhile: each goes once, in order.
+        for (id, subject) in [(8u64, "Second"), (9, "Third"), (10, "Fourth")] {
+            pool.submit(Job::Send {
+                account: "a1".into(),
+                id,
+                raw: format!("From: riley@contoso.example\r\nTo: zoe@contoso.example\r\nSubject: {subject}\r\nMessage-ID: <{id}@x>\r\n\r\nx\r\n")
+                    .into_bytes(),
+                from: "riley@contoso.example".into(),
+                recipients: vec!["zoe@contoso.example".into()],
+                sent_folder: Some("Sent Items".into()),
+            });
+        }
+        let away = mailcraft_model::job::Vacation { enabled: true, text: "Away".into(), ..Default::default() };
+        pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
+        let asked = Instant::now();
+        let mut done: Vec<u64> = Vec::new();
+        let mut set = false;
+        while asked.elapsed() < Duration::from_secs(30) && (done.len() < 3 || !set) {
+            match pool.wait(Duration::from_millis(50)) {
+                Some(Event::Sent { id, .. }) => done.push(id),
+                Some(Event::SendFailed { error, .. }) => panic!("send failed: {error}"),
+                Some(Event::Vacation { vacation: Some(v), error: None, .. }) if v == away => set = true,
+                Some(Event::Vacation { error: Some(e), .. }) => panic!("replies: {e}"),
+                _ => {}
+            }
+        }
+        assert_eq!(done, [8, 9, 10]);
+        assert!(set && asked.elapsed() < Duration::from_secs(4), "{:?}", asked.elapsed());
+        let subjects: Vec<String> =
+            data.lock().unwrap().sent.iter().map(|r| mailcraft_mime::parse(r).map(|p| p.subject).unwrap_or_default()).collect();
+        assert_eq!(subjects, ["Quick answer", "Second", "Third", "Fourth"]);
+        // The sync carries on, and finishes (each folder 4 s, Sent Items read again once however
+        // many went).
+        let end = Instant::now() + Duration::from_secs(60);
+        while !matches!(pool.wait(Duration::from_millis(100)), Some(Event::Status { status: SyncStatus::Online { .. }, .. })) {
+            assert!(Instant::now() < end, "the sync never finished");
+        }
+        assert_eq!(data.lock().unwrap().sent.len(), 4, "not sent again");
+        // Removing the account stops both connections.
+        pool.submit(Job::Remove { account: "a1".into() });
+        pool.submit(Job::GetVacation { account: "a1".into() });
+        until(&pool, "offline answer", |e| matches!(e, Event::Vacation { error: Some(_), .. }));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -69,6 +69,42 @@ impl Sink {
 struct Handle {
     tx: Sender<Job>,
     thread: Option<JoinHandle<()>>,
+    /// The account's second connection, for work the user sees happen (sending, automatic
+    /// replies): it never waits behind a sync. `None` where it can't be used (POP, JMAP sends).
+    quick: Option<Sender<Job>>,
+    quick_thread: Option<JoinHandle<()>>,
+}
+
+/// What an account signs in with, shared by its connections: the password or refresh token, and
+/// the current access token (refreshed by one, used by both).
+struct Auth {
+    secret: String,
+    access: Option<crate::oauth::Tokens>,
+}
+
+impl Auth {
+    fn shared(secret: impl Into<String>) -> Arc<Mutex<Auth>> {
+        Arc::new(Mutex::new(Auth { secret: secret.into(), access: None }))
+    }
+}
+
+/// Queue a job, unless it's a folder to read that is waiting already (a few messages sent in a
+/// row each ask for Sent Items: once is enough).
+fn push_job(queue: &mut VecDeque<Job>, j: Job) {
+    if matches!(j, Job::SyncFolder { .. }) && queue.contains(&j) {
+        return;
+    }
+    queue.push_back(j);
+}
+
+/// Whether a job goes on the account's second connection: sending (not over JMAP, whose filing
+/// needs the main connection's mailbox ids) and automatic replies.
+fn quick_job(j: &Job, acc: &AccountConfig) -> bool {
+    match j {
+        Job::Send { .. } => acc.pop.is_none() && acc.jmap.is_none(),
+        Job::GetVacation { .. } | Job::SetVacation { .. } => acc.pop.is_none(),
+        _ => false,
+    }
 }
 
 /// Runs jobs for every account.
@@ -392,8 +428,18 @@ impl Pool {
             }
             other => {
                 let id = other.account().to_string();
+                let quick = self.configs.get(&id).is_some_and(|c| quick_job(&other, c));
                 match self.workers.get(&id) {
                     Some(h) => {
+                        // Sending and automatic replies go on the second connection; if it has
+                        // stopped, the main one does it (after its sync).
+                        let other = match h.quick.as_ref().filter(|_| quick) {
+                            Some(q) => match q.send(other) {
+                                Ok(()) => return,
+                                Err(mpsc::SendError(j)) => j,
+                            },
+                            None => other,
+                        };
                         if h.tx.send(other).is_err() {
                             self.sink.emit(Event::Notice {
                                 account: id,
@@ -430,13 +476,23 @@ impl Pool {
             return;
         };
         let (tx, rx) = mpsc::channel();
-        let mut w = Worker::new(account.clone(), pw, self.store.clone(), self.sink.clone(), self.opts);
+        let auth = Auth::shared(pw);
+        let mut w = Worker::new(account.clone(), auth.clone(), self.store.clone(), self.sink.clone(), self.opts);
         w.creds = Some(self.creds.clone());
         w.sieve_port = self.sieve_port;
+        // The second connection: quiet (the account's status is the main one's), connecting
+        // only when there's something to do.
+        let (qtx, qrx) = mpsc::channel();
+        let mut q = Worker::new(account.clone(), auth, self.store.clone(), self.sink.clone(), self.opts);
+        q.creds = Some(self.creds.clone());
+        q.sieve_port = self.sieve_port;
+        q.main = Some(tx.clone());
+        let quick_thread = std::thread::Builder::new().name(format!("mail-{}-quick", account.id)).spawn(move || q.run_quick(qrx)).ok();
+        let quick = quick_thread.is_some().then_some(qtx);
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
-                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread) });
+                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread });
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
         }
@@ -446,9 +502,10 @@ impl Pool {
     fn stop(&mut self, account: &str) {
         if let Some(mut h) = self.workers.remove(account) {
             drop(h.tx);
+            drop(h.quick.take());
             // The thread notices the closed channel within half a second (IDLE slices); don't
             // block the UI waiting for a slow network call to finish.
-            if let Some(t) = h.thread.take() {
+            for t in [h.thread.take(), h.quick_thread.take()].into_iter().flatten() {
                 std::thread::spawn(move || {
                     let _ = t.join();
                 });
@@ -480,6 +537,8 @@ const POLL_EVERY: Duration = Duration::from_secs(120);
 /// moment later), and once more in case that was too soon.
 const SENT_SOON: Duration = Duration::from_secs(3);
 const SENT_LATER: Duration = Duration::from_secs(15);
+/// An account's second connection lets go after this long with nothing to do.
+const QUICK_IDLE: Duration = Duration::from_secs(5 * 60);
 
 /// The connection to an account's server.
 enum Conn {
@@ -493,7 +552,10 @@ enum Conn {
 
 struct Worker {
     acc: AccountConfig,
-    pw: String,
+    auth: Arc<Mutex<Auth>>,
+    /// Set on an account's second connection: the main one's queue, for what this one leaves to
+    /// it (a message that can't go yet, Sent Items to look at).
+    main: Option<Sender<Job>>,
     store: Store,
     sink: Sink,
     opts: SyncOptions,
@@ -521,18 +583,17 @@ struct Worker {
     /// Folders to look at again soon: Graph and Exchange file a sent message's copy a moment
     /// after taking it, so Sent Items is read again then rather than at the next poll.
     soon: Vec<(Instant, String)>,
-    /// The current OAuth access token.
-    access: Option<crate::oauth::Tokens>,
 }
 
 impl Worker {
-    fn new(acc: AccountConfig, pw: String, store: Store, sink: Sink, opts: SyncOptions) -> Worker {
+    fn new(acc: AccountConfig, auth: Arc<Mutex<Auth>>, store: Store, sink: Sink, opts: SyncOptions) -> Worker {
         let ops = store.load_ops(&acc.id).unwrap_or_default();
         let folders = store.load_folders(&acc.id).unwrap_or_default();
         let jstate = if acc.is_api() { jmap::State::load(&store, &acc.id) } else { jmap::State::default() };
         Worker {
             acc,
-            pw,
+            auth,
+            main: None,
             store,
             sink,
             opts,
@@ -547,7 +608,6 @@ impl Worker {
             auth_failed: false,
             closed: false,
             creds: None,
-            access: None,
             sieve_port: crate::sieve::PORT,
             no_push: false,
             pushed: false,
@@ -558,27 +618,36 @@ impl Worker {
     /// What to sign in with: the password, or for OAuth accounts a current access token
     /// (refreshed from the stored refresh token when needed).
     fn secret(&mut self) -> Result<String> {
-        let Some(id) = self.acc.oauth.clone() else { return Ok(self.pw.clone()) };
-        if let Some(t) = &self.access
+        // Held while refreshing: the account's other connection waits for the new token rather
+        // than refreshing with the same old one.
+        let mut auth = self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(id) = self.acc.oauth.clone() else { return Ok(auth.secret.clone()) };
+        if let Some(t) = &auth.access
             && t.expires_at > Instant::now()
         {
             return Ok(t.access.clone());
         }
         let p = crate::oauth::provider_for_account(&self.acc)
             .ok_or_else(|| NetError::Auth(format!("signing in with {id} isn't set up in this copy of MailCraft")))?;
-        let t = crate::oauth::refresh(&p, &self.pw)?;
+        let t = crate::oauth::refresh(&p, &auth.secret)?;
         // Some providers hand out a new refresh token each time: keep the newest.
-        if let Some(r) = t.refresh.clone().filter(|r| *r != self.pw) {
-            self.pw = r.clone();
+        if let Some(r) = t.refresh.clone().filter(|r| *r != auth.secret) {
+            auth.secret = r.clone();
             if let Some(c) = &self.creds
                 && let Err(e) = c.set(&self.acc, &r)
             {
-                self.notice(format!("the new sign-in couldn't be saved in the keychain: {e}"));
+                self.sink
+                    .emit(Event::Notice { account: self.acc.id.clone(), message: format!("the new sign-in couldn't be saved in the keychain: {e}") });
             }
         }
         let access = t.access.clone();
-        self.access = Some(t);
+        auth.access = Some(t);
         Ok(access)
+    }
+
+    /// What Microsoft's sign-in granted (its scopes), when known.
+    fn granted(&self) -> String {
+        self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).access.as_ref().map(|t| t.granted.clone()).unwrap_or_default()
     }
 
     fn id(&self) -> String {
@@ -586,7 +655,16 @@ impl Worker {
     }
 
     fn status(&self, status: SyncStatus) {
-        self.sink.emit(Event::Status { account: self.id(), status });
+        // The second connection's comings and goings aren't the account's.
+        if self.main.is_none() {
+            match &status {
+                SyncStatus::Error { error } => log::warn!("{}: {error}", self.acc.id),
+                SyncStatus::NeedsPassword { error } => log::warn!("{}: needs signing in again: {error}", self.acc.id),
+                SyncStatus::Online { .. } | SyncStatus::Syncing { .. } => {}
+                s => log::info!("{}: {s:?}", self.acc.id),
+            }
+            self.sink.emit(Event::Status { account: self.id(), status });
+        }
     }
 
     fn notice(&self, message: impl Into<String>) {
@@ -596,7 +674,7 @@ impl Worker {
     fn drain(&mut self, rx: &Receiver<Job>) {
         loop {
             match rx.try_recv() {
-                Ok(j) => self.queue.push_back(j),
+                Ok(j) => push_job(&mut self.queue, j),
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
                     self.closed = true;
@@ -620,7 +698,7 @@ impl Worker {
             if self.conn.is_none() {
                 if self.auth_failed {
                     match rx.recv() {
-                        Ok(j) => self.queue.push_back(j),
+                        Ok(j) => push_job(&mut self.queue, j),
                         Err(_) => break,
                     }
                     continue;
@@ -628,7 +706,7 @@ impl Worker {
                 let wait = self.next_attempt.saturating_duration_since(Instant::now());
                 if !wait.is_zero() {
                     match rx.recv_timeout(wait) {
-                        Ok(j) => self.queue.push_back(j),
+                        Ok(j) => push_job(&mut self.queue, j),
                         Err(RecvTimeoutError::Timeout) => {}
                         Err(RecvTimeoutError::Disconnected) => break,
                     }
@@ -648,6 +726,110 @@ impl Worker {
         }
     }
 
+    /// The account's second connection: sends mail and reads or changes the automatic replies,
+    /// whatever the main connection is doing. It connects when there's something to do, and lets
+    /// go of an idle connection after a while.
+    fn run_quick(mut self, rx: Receiver<Job>) {
+        loop {
+            let job = match rx.recv_timeout(QUICK_IDLE) {
+                Ok(j) => j,
+                Err(RecvTimeoutError::Timeout) => {
+                    self.let_go();
+                    continue;
+                }
+                Err(RecvTimeoutError::Disconnected) => break,
+            };
+            match job {
+                Job::Send { account, id, raw, from, recipients, sent_folder } => {
+                    self.send_quick(Job::Send { account, id, raw, from, recipients, sent_folder });
+                }
+                j @ (Job::GetVacation { .. } | Job::SetVacation { .. }) => self.handle(j),
+                // Anything else belongs to the main connection.
+                other => {
+                    if let Some(m) = &self.main {
+                        let _ = m.send(other);
+                    }
+                }
+            }
+        }
+        self.let_go();
+    }
+
+    /// Close an idle connection (servers drop them anyway).
+    fn let_go(&mut self) {
+        if let Some(Conn::Imap(c)) = self.conn.as_mut() {
+            c.logout();
+        }
+        self.conn = None;
+    }
+
+    /// Send on the second connection. Sent: a copy filed in Sent Items (IMAP), and the main
+    /// connection told to look there. Not sent for now (offline, asked to wait): handed to the
+    /// main connection, which keeps it in the Outbox; refused: said.
+    fn send_quick(&mut self, job: Job) {
+        let Job::Send { id, raw, from, recipients, sent_folder, .. } = &job else { return };
+        match self.deliver(raw, from, recipients, sent_folder.as_deref()) {
+            Ok(()) => {
+                log::info!("{}: message {id} sent to {} recipient(s)", self.acc.id, recipients.len());
+                self.sink.emit(Event::Sent { account: self.id(), id: *id });
+                self.file_sent_quick(raw, sent_folder.clone());
+            }
+            Err(e) if e.is_retryable() => {
+                log::info!("{}: sending on the second connection: {e}; left to the main one", self.acc.id);
+                self.conn = None;
+                if let Some(m) = &self.main
+                    && m.send(job.clone()).is_err()
+                {
+                    self.sink.emit(Event::SendFailed { account: self.id(), id: *id, error: e.to_string() });
+                }
+            }
+            Err(e) => {
+                if matches!(e, NetError::Closed(_) | NetError::Io(_)) {
+                    self.conn = None;
+                }
+                self.sink.emit(Event::SendFailed { account: self.id(), id: *id, error: e.to_string() });
+            }
+        }
+    }
+
+    /// A sent message's copy: Exchange, Graph and JMAP file it themselves; IMAP servers get one
+    /// (not Gmail, which files its own). Then the main connection reads Sent Items, now and, where
+    /// the server files it a moment later, again then.
+    fn file_sent_quick(&mut self, raw: &[u8], sent_folder: Option<String>) {
+        let folder = sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()));
+        let Some(folder) = folder else { return };
+        if !self.acc.is_api() {
+            let files_itself = self.acc.smtp.host.ends_with("gmail.com") || self.acc.smtp.host.ends_with("googlemail.com");
+            if !files_itself {
+                let r = (|| -> Result<()> {
+                    if self.conn.is_none() {
+                        self.connect()?;
+                    }
+                    self.client()?.append(&folder, "\\Seen", raw).map(|_| ())
+                })();
+                if let Err(e) = r {
+                    self.conn = None;
+                    self.notice(format!("sent, but no copy was saved in Sent Items: {e}"));
+                    return;
+                }
+            }
+        }
+        let Some(main) = self.main.clone() else { return };
+        let job = Job::SyncFolder { account: self.id(), folder: folder.clone() };
+        let _ = main.send(job.clone());
+        if self.acc.is_api() {
+            // Graph and Exchange file the copy a moment after taking the message.
+            let _ = std::thread::Builder::new().name("sent-later".into()).spawn(move || {
+                for wait in [SENT_SOON, SENT_LATER.saturating_sub(SENT_SOON)] {
+                    std::thread::sleep(wait);
+                    if main.send(job.clone()).is_err() {
+                        return;
+                    }
+                }
+            });
+        }
+    }
+
     /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
     fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
         let inbox = self.inbox();
@@ -659,7 +841,7 @@ impl Worker {
             let next_soon = self.soon.iter().map(|(at, _)| *at).min();
             let wait = next_soon.map_or(POLL_EVERY, |at| at.saturating_duration_since(Instant::now()).min(POLL_EVERY));
             match rx.recv_timeout(wait) {
-                Ok(j) => self.queue.push_back(j),
+                Ok(j) => push_job(&mut self.queue, j),
                 Err(RecvTimeoutError::Disconnected) => self.closed = true,
                 Err(RecvTimeoutError::Timeout) if next_soon.is_some_and(|at| at <= Instant::now()) => {
                     let now = Instant::now();
@@ -690,7 +872,7 @@ impl Worker {
             c.idle(IDLE_FOR, || {
                 loop {
                     match rx.try_recv() {
-                        Ok(j) => queue.push_back(j),
+                        Ok(j) => push_job(queue, j),
                         Err(TryRecvError::Empty) => break,
                         Err(TryRecvError::Disconnected) => {
                             *closed = true;
@@ -972,6 +1154,7 @@ impl Worker {
     }
 
     fn sync_all(&mut self, rx: &Receiver<Job>) {
+        let began = Instant::now();
         if !self.relist() {
             return;
         }
@@ -998,6 +1181,7 @@ impl Worker {
             self.last_full = Some(Instant::now());
             // Anything left from a failed attempt gets another try every full sync.
             self.flush_outbox();
+            log::info!("{}: synced {} folders in {:.1} s", self.acc.id, self.folders.len(), began.elapsed().as_secs_f32());
             self.status(SyncStatus::Online { at: now() });
         }
     }
@@ -1218,11 +1402,15 @@ impl Worker {
     fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
         // Not connected: one try, and a failure shows as the account's status (it said
         // "Connecting…" for good when the vacation page was opened on an account that can't).
-        if self.conn.is_none() {
+        // (The second connection asks ManageSieve straight away: it needs no IMAP session.)
+        if self.conn.is_none() && (self.main.is_none() || self.acc.is_api()) {
             if self.auth_failed {
                 return Err(NetError::Refused("it shows once the account is connected".into()));
             }
             if let Err(e) = self.connect() {
+                if self.main.is_some() {
+                    return Err(e);
+                }
                 self.connect_failed(e);
                 return Err(NetError::Refused("it shows once the account is connected".into()));
             }
@@ -1302,7 +1490,8 @@ impl Worker {
         }
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
-        let dav = crate::dav::Dav::new(&user, &self.pw);
+        let password = self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone();
+        let dav = crate::dav::Dav::new(&user, &password);
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
         match crate::dav::sync(&dav, &self.acc.email, host, &pim, now()) {
             Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
@@ -1394,7 +1583,7 @@ impl Worker {
         smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw).map_err(|e| match e {
             // Say whether the sign-in covered sending: Microsoft lists what it granted.
             NetError::Auth(m) if self.acc.oauth.as_deref() == Some("microsoft") => {
-                let granted = self.access.as_ref().map(|t| t.granted.clone()).unwrap_or_default();
+                let granted = self.granted();
                 let why = if granted.is_empty() {
                     String::new()
                 } else if granted.to_ascii_lowercase().contains("smtp.send") {
@@ -1628,6 +1817,19 @@ pub fn apply_remote<S: std::io::Read + std::io::Write>(c: &mut Client<S>, op: &O
 mod tests {
     use super::*;
 
+    /// Sent Items asked for after each of several messages is read once.
+    #[test]
+    fn a_folder_waiting_to_be_read_isnt_queued_twice() {
+        let mut q = VecDeque::new();
+        let sent = Job::SyncFolder { account: "a".into(), folder: "Sent".into() };
+        push_job(&mut q, sent.clone());
+        push_job(&mut q, Job::SyncFolder { account: "a".into(), folder: "INBOX".into() });
+        push_job(&mut q, sent.clone());
+        push_job(&mut q, Job::GetVacation { account: "a".into() });
+        push_job(&mut q, Job::GetVacation { account: "a".into() });
+        assert_eq!(q.len(), 4, "only the folder read is merged");
+    }
+
     #[test]
     fn memory_credentials() {
         let m = MemoryCredentials::default();
@@ -1656,22 +1858,22 @@ mod tests {
             oauth: Some("microsoft".into()),
             ..Default::default()
         };
-        let w = Worker::new(acc.clone(), "refresh".into(), store.clone(), pool.sink.clone(), SyncOptions::default());
+        let w = Worker::new(acc.clone(), Auth::shared("refresh"), store.clone(), pool.sink.clone(), SyncOptions::default());
         let e = w.imap_with_token("zoe@hotmail.example", crate::fake::GOOD_TOKEN).err().unwrap();
         assert!(e.to_string().starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) && e.to_string().contains("IMAP"), "{e:?}");
         // The browser signed in as the mailbox's own address: that one opens it.
         acc.oauth_user = Some("me@studio.example".into());
-        let w = Worker::new(acc.clone(), "refresh".into(), store.clone(), pool.sink.clone(), SyncOptions::default());
+        let w = Worker::new(acc.clone(), Auth::shared("refresh"), store.clone(), pool.sink.clone(), SyncOptions::default());
         assert!(w.imap_with_token("zoe@hotmail.example", crate::fake::GOOD_TOKEN).is_ok());
         // Signed in as another account that can't open it either: named in the refusal.
         acc.oauth_user = Some("someone@else.example".into());
-        let w = Worker::new(acc, "refresh".into(), store, pool.sink.clone(), SyncOptions::default());
+        let w = Worker::new(acc, Auth::shared("refresh"), store, pool.sink.clone(), SyncOptions::default());
         let e = w.imap_with_token("zoe@hotmail.example", crate::fake::GOOD_TOKEN).err().unwrap();
         assert!(matches!(&e, NetError::Refused(m) if m.contains("signed in as someone@else.example")), "{e:?}");
         // A token that's simply refused is still a sign-in to ask for again.
         let w = Worker::new(
             AccountConfig { oauth_user: None, ..w.acc.clone() },
-            "refresh".into(),
+            Auth::shared("refresh"),
             crate::fake::tests_store("closed-mailbox-2"),
             pool.sink.clone(),
             SyncOptions::default(),
