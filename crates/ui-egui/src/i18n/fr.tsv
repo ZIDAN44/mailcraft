@@ -25,7 +25,7 @@
 	Archive	Archiver
 	Archive (Backspace)	Archiver (Retour arrière)
 	Ask before deleting for good	Demander avant de supprimer définitivement
-	At the top of {account}	En haut de {account}
+	At the top of {account}	À la racine du compte {account}
 	Attach file	Joindre un fichier
 	Audio	Audio
 	Aug	août
@@ -69,7 +69,7 @@
 	Edit	Modifier
 	Edit rule	Modifier la règle
 	Email address	Adresse e-mail
-	Enter the password for {email}.	Saisissez le mot de passe de {email}.
+	Enter the password for {email}.	Mot de passe du compte {email} :
 	Favorites	Favoris
 	Feb	févr.
 	File	Fichier
@@ -87,7 +87,7 @@
 	Friday	vendredi
 	From	De
 	From contains	L’expéditeur contient
-	From {names}	De {names}
+	From {names}	Expéditeurs : {names}
 	Group messages by conversation	Regrouper les messages par conversation
 	Has attachments	Contient des pièces jointes
 	Has files	Contient des fichiers
@@ -119,7 +119,7 @@
 	Links like {link} aren't opened	Les liens comme {link} ne sont pas ouverts
 	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Local d’abord : le courrier est conservé sur cet ordinateur pour une recherche rapide hors connexion. Les mots de passe restent dans le trousseau du système.
 	Looking up the server settings…	Recherche des paramètres du serveur…
-	Mail from {sender}	Courrier de {sender}
+	Mail from {sender}	Nouveau message — expéditeur : {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · une application ArtCraft · MIT OR Apache-2.0
 	Mailing list: unsubscribe at {address}	Liste de diffusion : désabonnement à {address}
@@ -308,7 +308,7 @@
 	Upcoming	À venir
 	Update folder	Actualiser le dossier
 	Updated {time}	Mis à jour {time}
-	Updating {folder}…	Mise à jour de {folder}…
+	Updating {folder}…	Actualisation : dossier {folder}…
 	User name	Nom d’utilisateur
 	Usually the email address	En général, l’adresse e-mail
 	Video	Vidéo
@@ -327,7 +327,7 @@
 	Your name	Votre nom
 	categorize {category}	classer dans {category}
 	folder	dossier
-	from “{text}”	vient de « {text} »
+	from “{text}”	a pour expéditeur « {text} »
 	in your browser: no password stored	dans votre navigateur : aucun mot de passe enregistré
 	mentions “{text}”	mentionne « {text} »
 	move to {folder}	déplacer vers {folder}
@@ -441,7 +441,7 @@
 	Every week	Toutes les semaines
 	Every year	Tous les ans
 	February	février
-	In the address book of {account}	Dans le carnet d’adresses de {account}
+	In the address book of {account}	Carnet d’adresses : {account}
 	January	janvier
 	Job title	Fonction
 	July	juillet
@@ -501,7 +501,7 @@
 	Outlook data file	Fichier de données Outlook
 	Opened from an Outlook data file, kept on this computer only	Ouvert depuis un fichier de données Outlook, conservé sur cet ordinateur uniquement
 	Not available: a data file has no server.	Non disponible : un fichier de données n’a pas de serveur.
-	Opening {file}…	Ouverture de {file}…
+	Opening {file}…	Lecture : {file}…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	Serveur : {url} (Microsoft Graph)
@@ -644,7 +644,7 @@
 	Account settings…	Paramètres du compte…
 	Delete all…	Tout supprimer…
 	Delete all	Tout supprimer
-	Delete everything in “{folder}”?	Supprimer tout le contenu de « {folder} » ?
+	Delete everything in “{folder}”?	Vider entièrement « {folder} » ?
 	Every message in it will be moved to Deleted Items.	Tous ses messages seront déplacés dans Éléments supprimés.
 	Find related	Rechercher les éléments associés
 	Messages in this conversation	Messages de cette conversation
@@ -656,7 +656,7 @@
 	Messages	Messages
 	Open file location	Ouvrir l'emplacement du fichier
 	Properties…	Propriétés…
-	{folder} Properties	Propriétés de {folder}
+	{folder} Properties	{folder} : propriétés
 	Size on this computer	Taille sur cet ordinateur
 	Quick print	Impression rapide
 	Always move to Focused	Toujours déplacer vers Prioritaire

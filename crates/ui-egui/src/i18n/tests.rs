@@ -367,6 +367,38 @@ fn catalogs_parse_cleanly() {
     }
 }
 
+/// The word written just before byte `at` of a sentence (spaces and an opening « skipped),
+/// lower case.
+fn word_before(sentence: &str, at: usize) -> String {
+    let head = sentence.get(..at).unwrap_or("").trim_end_matches(|c: char| c.is_whitespace() || c == '«');
+    let start = head.rfind(|c: char| !c.is_alphabetic()).map_or(0, |i| i + head.get(i..).and_then(|r| r.chars().next()).map_or(1, char::len_utf8));
+    head.get(start..).unwrap_or("").to_lowercase()
+}
+
+/// In French « de », « le », « que » and a few more lose their vowel before one (« d’Ana »), so
+/// a value filled in when the app runs can't come straight after them: the catalog says
+/// « du dossier {folder} », « du compte {account} » instead. Values that are dates begin with the
+/// day's name and may follow « le ».
+#[test]
+fn french_keeps_filled_in_values_away_from_words_that_elide() {
+    const ELIDING: [&str; 10] = ["ce", "de", "je", "la", "le", "me", "ne", "que", "se", "te"];
+    let Some(fr) = LANGUAGES.iter().find(|l| l.code == "fr") else { panic!("no French catalog") };
+    let (entries, _) = parse(fr.source);
+    let mut wrong: Vec<String> = Vec::new();
+    for (source, french) in &entries {
+        for (at, _) in french.match_indices('{') {
+            let value: String = french.get(at + 1..).unwrap_or("").chars().take_while(|c| *c != '}').collect();
+            let dated = matches!(value.as_str(), "date" | "when");
+            if !dated && ELIDING.contains(&word_before(french, at).as_str()) {
+                wrong.push(format!("{source} | {french}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "a value straight after a word French elides: {wrong:#?}");
+    assert_eq!(word_before("Mise à jour de « {x}", 19), "de");
+    assert_eq!(word_before("{x}", 0), "");
+}
+
 #[test]
 fn every_interface_string_is_translated() {
     let strings = interface_strings();
