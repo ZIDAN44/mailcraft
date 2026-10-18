@@ -38,6 +38,10 @@ pub struct Style {
     /// Points; `None` is [`DEFAULT_SIZE`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<u8>,
+    /// A typeface (pasted from Outlook: Tahoma, Calibri…); `None` is the message's own. Sent
+    /// with the message; shown in the editor's font.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<[u8; 3]>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -339,6 +343,11 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
             h = format!("<b>{h}</b>");
         }
         let mut css = Vec::new();
+        if let Some(f) =
+            st.font.as_ref().map(|f| f.replace(|c: char| !(c.is_alphanumeric() || matches!(c, ' ' | '-' | '_')), "")).filter(|f| !f.trim().is_empty())
+        {
+            css.push(format!("font-family:'{}',sans-serif", f.trim()));
+        }
         if let Some(sz) = st.size.filter(|s| *s != DEFAULT_SIZE) {
             css.push(format!("font-size:{sz}pt"));
         }

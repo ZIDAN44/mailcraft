@@ -433,7 +433,7 @@ fn raw_text(tag: &str) -> bool {
 }
 
 /// How big text is, in pixels, from a CSS `font-size` (`20px`, `15pt`, `1.5em`, `x-large`).
-fn font_px(v: &str) -> Option<f32> {
+pub(crate) fn font_px(v: &str) -> Option<f32> {
     let v = v.trim().to_ascii_lowercase();
     let num = |s: &str| s.trim().parse::<f32>().ok().filter(|n| n.is_finite() && *n > 0.0);
     let px = if let Some(n) = v.strip_suffix("px") {
@@ -457,7 +457,7 @@ fn font_px(v: &str) -> Option<f32> {
 }
 
 /// `<font size="…">` in pixels (1 to 7, as browsers size them; `+n` and `-n` from 3).
-fn font_attr_px(v: &str) -> Option<f32> {
+pub(crate) fn font_attr_px(v: &str) -> Option<f32> {
     let v = v.trim();
     let n: i32 = if let Some(d) = v.strip_prefix('+') {
         3i32.saturating_add(d.parse::<i32>().ok()?)

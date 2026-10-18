@@ -13,6 +13,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod css;
+mod fonts;
 pub mod layout;
 pub mod markup;
 pub mod office;
@@ -366,7 +367,8 @@ fn word_paragraphs(html: &str) -> String {
 /// page) as text and styles to put into a message: its formatting and links, without pictures
 /// (they'd point at the other program's files or the web) or the empty lines around it.
 pub fn pasted_html(html: &str) -> (String, rich::Styles) {
-    let mut lines = html_to_rich(&word_paragraphs(html));
+    let (marked, fonts) = fonts::mark(&word_paragraphs(html));
+    let mut lines = html_to_rich(&marked);
     for line in &mut lines {
         line.retain(|sp| sp.image.is_none());
     }
@@ -376,7 +378,8 @@ pub fn pasted_html(html: &str) -> (String, rich::Styles) {
     }
     let first = lines.iter().position(|l| !blank(l)).unwrap_or(lines.len());
     lines.drain(..first);
-    rich::from_rich(&lines)
+    let (text, styles) = rich::from_rich(&lines);
+    fonts::apply(&text, &styles, &fonts)
 }
 
 /// HTML → lines of formatted spans: paragraphs, emphasis, links, list bullets, quotes, tables
@@ -1186,6 +1189,16 @@ mod tests {
         let quote = at("Choose");
         assert!(quote.italic && quote.color == Some([0xBF, 0xBF, 0xBF]), "{quote:?}");
         assert!(at("The information").italic);
+        // Issue #1 again: each part keeps its size and typeface (Arial 14, Tahoma 10, 14, 10).
+        assert_eq!((company.size, company.font.as_deref()), (Some(14), Some("Arial")));
+        assert_eq!((at("Belgium").size, at("Belgium").font.as_deref()), (Some(10), Some("Tahoma")));
+        assert_eq!((quote.size, at("The information").size), (Some(14), Some(10)));
+        let html = rich::to_html(&text, &styles);
+        assert!(html.contains("font-family:'Tahoma',sans-serif") && html.contains("font-size:14pt"), "{html}");
+        // As kept and read again (a saved signature): the same.
+        let (again, again_styles) = pasted_html(&html);
+        assert_eq!(again, text);
+        assert_eq!(again_styles.style(text.find("Belgium").map(|b| text[..b].chars().count()).unwrap()).size, Some(10));
         assert!(!at("Belgium").bold && !at("Belgium").italic);
         // As the message sends it: HTML with the look, and a plain-text twin.
         let out = rich::to_html(&text, &styles);
