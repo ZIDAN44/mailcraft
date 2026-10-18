@@ -54,9 +54,15 @@ pub struct Data {
     pub url: String,
     /// People whose calendars this account may change (delegates with editor rights).
     pub editors: Vec<String>,
+    /// The folder's rights say nothing of that (as some servers answer for another mailbox's
+    /// calendar): only each item's rights do.
+    pub item_rights_only: bool,
     /// The public folder mailbox holding the public folders' content (Exchange 2013 and
     /// later): reading inside them is only answered when routed there.
     pub pf_mailbox: Option<String>,
+    /// The public folder hierarchy mailbox (Exchange 2013 and later): listing public folders is
+    /// only answered when routed there.
+    pub pf_hierarchy: Option<String>,
     /// The request's `X-PublicFolderMailbox` header.
     routed: String,
     next: u32,
@@ -78,7 +84,9 @@ impl Default for Data {
             handshakes: 0,
             url: String::new(),
             editors: Vec::new(),
+            item_rights_only: false,
             pf_mailbox: None,
+            pf_hierarchy: None,
             routed: String::new(),
             next: 0,
         };
@@ -167,6 +175,12 @@ impl Data {
         )
     }
 
+    /// Whether listing under this folder goes unanswered: the public folders, asked without
+    /// being routed to the hierarchy mailbox.
+    fn unrouted_hierarchy(&self, folder: &str) -> bool {
+        self.pf_hierarchy.as_ref().is_some_and(|m| *m != self.routed) && self.public_ids().iter().any(|p| p == folder)
+    }
+
     /// Whether a request for this folder's content goes unanswered: a public folder, asked
     /// without being routed to the mailbox holding it.
     fn unrouted(&self, folder: &str) -> bool {
@@ -249,7 +263,7 @@ impl Data {
                 for f in op.child("FolderIds").map(|f| f.kids.clone()).unwrap_or_default() {
                     // Someone else's calendar: what this account may do there.
                     if let Some(who) = self.folder_id(&f).and_then(|id| id.strip_prefix("mailbox:").map(str::to_string)) {
-                        let edit = self.editors.contains(&who);
+                        let edit = self.editors.contains(&who) && !self.item_rights_only;
                         out.push(ok(format!(
                             "<m:Folders><t:CalendarFolder><t:FolderId Id=\"mailbox:{who}\"/><t:EffectiveRights><t:CreateAssociated>false</t:CreateAssociated>\
                              <t:CreateContents>{edit}</t:CreateContents><t:CreateHierarchy>false</t:CreateHierarchy><t:Delete>{edit}</t:Delete>\
@@ -257,7 +271,11 @@ impl Data {
                         )));
                         continue;
                     }
+                    let root = f.attr("Id") == Some("publicfoldersroot");
                     match self.folder_id(&f).and_then(|id| self.folders.iter().find(|x| x.id == id).cloned()) {
+                        // The root is the hierarchy's; any other public folder, its content's.
+                        Some(fo) if root && self.unrouted_hierarchy(&fo.id) => out.push(err("ErrorFolderNotFound")),
+                        Some(fo) if !root && self.unrouted(&fo.id) => out.push(err("ErrorFolderNotFound")),
                         Some(fo) => out.push(ok(format!("<m:Folders>{}</m:Folders>", self.folder_xml(&fo)))),
                         None => out.push(err("ErrorFolderNotFound")),
                     }
@@ -266,6 +284,10 @@ impl Data {
             // Shallow (public folders): the folders right under the one asked for.
             "FindFolder" if op.attr("Traversal") == Some("Shallow") => {
                 let parent = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
+                if self.unrouted_hierarchy(&parent) {
+                    out.push(err("ErrorFolderNotFound"));
+                    return ("FindFolderResponse".into(), out);
+                }
                 let kids: Vec<String> = self
                     .folders
                     .iter()
@@ -309,6 +331,10 @@ impl Data {
                     out.push(err("ErrorFolderNotFound"));
                     return ("FindItemResponse".into(), out);
                 };
+                if self.unrouted(&folder) {
+                    out.push(err("ErrorFolderNotFound"));
+                    return ("FindItemResponse".into(), out);
+                }
                 let max: usize =
                     op.child("IndexedPageItemView").and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000);
                 let mut list: Vec<&It> = self.items.iter().filter(|i| i.folder == folder).collect();
@@ -351,10 +377,22 @@ impl Data {
                                 ..Default::default()
                             },
                         );
+                        // Each item's own rights (`item:EffectiveRights`), when asked for.
+                        let mut fields = Vec::new();
+                        op.all("FieldURI", &mut fields);
+                        if fields.iter().any(|f| f.attr("FieldURI") == Some("item:EffectiveRights")) {
+                            let edit = self.may_change(&id);
+                            let rights = parse(&format!(
+                                "<t:EffectiveRights><t:CreateAssociated>false</t:CreateAssociated><t:CreateContents>false</t:CreateContents>\
+                                 <t:CreateHierarchy>false</t:CreateHierarchy><t:Delete>{edit}</t:Delete><t:Modify>{edit}</t:Modify><t:Read>true</t:Read></t:EffectiveRights>"
+                            ));
+                            el.kids.extend(rights.kids);
+                        }
                         out.push(ok(format!("<m:Items>{}</m:Items>", xml(&el))));
                         continue;
                     }
                     match self.items.iter().find(|i| i.id == id) {
+                        Some(i) if self.unrouted(&i.folder) => out.push(err("ErrorItemNotFound")),
                         Some(i) => out.push(ok(format!("<m:Items>{}</m:Items>", self.item_xml(i, mime)))),
                         None => out.push(err("ErrorItemNotFound")),
                     }
@@ -629,9 +667,9 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
         let doc = parse(&String::from_utf8_lossy(&body));
         // Autodiscover: this server's own address.
         if doc.find("Autodiscover").is_some_and(|a| a.find("EMailAddress").is_some()) {
-            let (url, pf) = {
+            let (url, pf, hierarchy) = {
                 let d = shared.lock().unwrap();
-                (d.url.clone(), d.pf_mailbox.clone())
+                (d.url.clone(), d.pf_mailbox.clone(), d.pf_hierarchy.clone())
             };
             // The public folder mailbox, asked for by its GUID: its address.
             let asked = doc.find("EMailAddress").map(|e| e.text.clone()).unwrap_or_default();
@@ -644,9 +682,12 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
                 respond(&mut s, 200, &[], answer.as_bytes());
                 continue;
             }
+            // The account's: its server, and its public folder hierarchy mailbox.
+            let public =
+                hierarchy.map(|h| format!("<PublicFolderInformation><SmtpAddress>{h}</SmtpAddress></PublicFolderInformation>")).unwrap_or_default();
             let answer = format!(
                 "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Riley</DisplayName></User><Account><AccountType>email</AccountType><Action>settings</Action>\
-                 <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol></Account></Response></Autodiscover>"
+                 <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol>{public}</Account></Response></Autodiscover>"
             );
             respond(&mut s, 200, &[], answer.as_bytes());
             continue;
@@ -1083,9 +1124,43 @@ mod tests {
         assert!(!d.pim.iter().any(|(_, f, el)| !f.starts_with("mailbox:") && el.text_of("Subject") == Some("Poster check")), "not in this mailbox");
     }
 
+    /// Issue #1, again: a server whose answer about someone's calendar folder doesn't say an
+    /// editor may change it, while each of its events does (as Outlook finds by trying).
+    #[test]
+    fn an_editor_is_known_by_the_events_rights_too() {
+        use mailcraft_model::pim::{Pim, shared_calendar_id};
+        let mut d = Data { editors: vec!["ana@contoso.example".into()], item_rights_only: true, ..Default::default() };
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+        let item = parse(
+            "<t:CalendarItem><t:Subject>Budget review</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
+             <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>budget-1</t:UID></t:CalendarItem>",
+        );
+        d.pim.push(("S1".into(), "mailbox:ana@contoso.example".into(), item.kids[0].clone()));
+        d.pim.push(("B1".into(), "mailbox:ben@contoso.example".into(), item.kids[0].clone()));
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let pim = Pim { shared: vec!["ana@contoso.example".into(), "ben@contoso.example".into()], ..Default::default() };
+        let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+        let cals = sync.calendars.clone().unwrap();
+        let ro = |id: &str| cals.iter().find(|x| x.id == id).map(|x| x.read_only);
+        assert_eq!(
+            (ro(&shared_calendar_id("ana@contoso.example")), ro(&shared_calendar_id("ben@contoso.example"))),
+            (Some(false), Some(true)),
+            "Ana made this account an editor; Ben didn't"
+        );
+    }
+
     #[test]
     fn public_folders_list_under_their_own_folder_and_sync() {
-        let mut d = Data { pf_mailbox: Some("PFContent@contoso.example".into()), ..Default::default() };
+        // Exchange 2013 and later: the hierarchy and the content each in a public folder mailbox
+        // of their own, reached only when routed there.
+        let mut d = Data {
+            pf_mailbox: Some("PFContent@contoso.example".into()),
+            pf_hierarchy: Some("PFHierarchy@contoso.example".into()),
+            ..Default::default()
+        };
         d.folder("Inbox", None, Some("inbox"), "IPF.Note");
         d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
         d.folder("Contacts", None, Some("contacts"), "IPF.Contact");

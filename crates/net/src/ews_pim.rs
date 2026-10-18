@@ -460,7 +460,7 @@ fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Vec<El>> {
         let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
         let doc = c.call(&format!(
             "<m:GetItem><m:ItemShape><t:BaseShape>AllProperties</t:BaseShape><t:BodyType>Text</t:BodyType>\
-             <t:AdditionalProperties><t:FieldURI FieldURI=\"calendar:Recurrence\"/>{}</t:AdditionalProperties></m:ItemShape>\
+             <t:AdditionalProperties><t:FieldURI FieldURI=\"calendar:Recurrence\"/><t:FieldURI FieldURI=\"item:EffectiveRights\"/>{}</t:AdditionalProperties></m:ItemShape>\
              <m:ItemIds>{list}</m:ItemIds></m:GetItem>",
             extra
         ))?;
@@ -500,18 +500,21 @@ fn calendar_folder(owner: Option<&str>) -> String {
     }
 }
 
-/// Whether this account may add and change items in a folder (its EffectiveRights). A folder's
-/// `Modify` is about the folder itself (its name and permissions, the owner's alone), so an
-/// editor is known by `CreateContents`.
-fn may_edit(c: &Client, folder: &str) -> bool {
-    let doc = c.call(&format!(
+/// Whether this account may add items to a folder (its EffectiveRights): `None` when the server
+/// doesn't say. A folder's `Modify` is about the folder itself (its name and permissions, the
+/// owner's alone), so an editor is known by `CreateContents`.
+fn may_edit(c: &Client, folder: &str) -> Result<bool> {
+    let m = c.call_one(&format!(
         "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
          <t:FieldURI FieldURI=\"folder:EffectiveRights\"/></t:AdditionalProperties></m:FolderShape>\
          <m:FolderIds>{folder}</m:FolderIds></m:GetFolder>"
-    ));
-    let Ok(doc) = doc else { return false };
-    let right = |name: &str| doc.find(name).is_some_and(|e| e.text.trim() == "true");
-    right("CreateContents")
+    ))?;
+    Ok(m.find("CreateContents").is_some_and(|e| e.text.trim().eq_ignore_ascii_case("true")))
+}
+
+/// Whether an item says this account may change it (its own EffectiveRights).
+fn item_may_change(it: &El) -> bool {
+    it.child("EffectiveRights").and_then(|r| r.child("Modify")).is_some_and(|m| m.text.trim().eq_ignore_ascii_case("true"))
 }
 
 /// A public folder's items. On Exchange 2013 and later its content is kept in a public folder
@@ -625,9 +628,16 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     for (n, email) in pim.shared.iter().enumerate() {
         let id = mailcraft_model::pim::shared_calendar_id(email);
         let parent = calendar_folder(Some(email));
-        let can_edit = may_edit(c, &parent);
+        // Editable when the folder's rights say so, or (some servers say nothing useful about
+        // another mailbox's folder) when its events do, as Outlook finds by trying.
+        let folder_rights = may_edit(c, &parent);
+        let mut can_edit = *folder_rights.as_ref().unwrap_or(&false);
         match items_in(c, &parent, "") {
             Ok(list) => {
+                can_edit |= list.iter().any(item_may_change);
+                if !can_edit && let Err(e) = &folder_rights {
+                    log::info!("{email}'s calendar rights: {e}");
+                }
                 for it in list {
                     if let Some(event) = event_of(&it) {
                         let (href, etag) = it
@@ -707,6 +717,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
                 }
             }
         }
+        // A server with public folders that won't list them says why; one without has none.
+        Err(e) if c.public_hierarchy_mailbox().is_some() => out.errors.push(format!("Public folders: {e}")),
         Err(e) => log::info!("no public contacts or calendars: {e}"),
     }
     out.books = Some(books);

@@ -486,7 +486,7 @@ enum Conn {
     Imap(Client<Stream>),
     Jmap(jmap::Client),
     Graph(crate::graph::Client),
-    Ews(crate::ews::Client),
+    Ews(Box<crate::ews::Client>),
     /// POP3: signed in once to check the password; every download is a session of its own.
     Pop,
 }
@@ -830,7 +830,7 @@ impl Worker {
             } else {
                 url.clone()
             };
-            self.conn = Some(Conn::Ews(crate::ews::Client::connect(&url, &user, &secret, &self.acc.email)?));
+            self.conn = Some(Conn::Ews(Box::new(crate::ews::Client::connect(&url, &user, &secret, &self.acc.email)?)));
             self.backoff = Duration::from_secs(5);
             return Ok(());
         }

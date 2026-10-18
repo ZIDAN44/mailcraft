@@ -287,6 +287,13 @@ pub struct Client {
     route: RefCell<Option<String>>,
     /// Public folder mailboxes found by Autodiscover: GUID → address.
     pf_mailboxes: RefCell<HashMap<String, String>>,
+    /// The account's public folder hierarchy mailbox (Autodiscover's PublicFolderInformation),
+    /// once asked: `None` inside when there is none.
+    pf_hierarchy: RefCell<Option<Option<String>>>,
+    /// The public folder mailboxes holding the public folders' content (their GUIDs, from the
+    /// folders' PR_REPLICA_LIST): a request one of their folders or items isn't found by is
+    /// tried there.
+    pf_replicas: RefCell<Vec<String>>,
 }
 
 /// A public folder in the tree.
@@ -319,10 +326,20 @@ fn replica_guid(value: &str) -> Option<String> {
     ok.then(|| guid.to_ascii_lowercase())
 }
 
-/// The address and the public folder mailbox in an Autodiscover answer about a mailbox.
+/// The address in an Autodiscover answer about a mailbox.
 fn autodiscover_smtp(xml: &str) -> Option<String> {
     let doc = parse(xml);
     doc.find("AutoDiscoverSMTPAddress").map(|a| a.text.trim().to_string()).filter(|a| a.contains('@') && a.len() < 320)
+}
+
+/// The public folder hierarchy mailbox in an Autodiscover answer about the account (Exchange
+/// 2013 and later: `PublicFolderInformation`'s `SmtpAddress`).
+fn autodiscover_public(xml: &str) -> Option<String> {
+    let doc = parse(xml);
+    doc.find("PublicFolderInformation")
+        .and_then(|p| p.find("SmtpAddress"))
+        .map(|a| a.text.trim().to_string())
+        .filter(|a| a.contains('@') && a.len() < 320)
 }
 
 /// What a `…ResponseMessage` said.
@@ -372,7 +389,53 @@ impl Client {
             email: email.to_string(),
             route: RefCell::new(None),
             pf_mailboxes: RefCell::new(HashMap::new()),
+            pf_hierarchy: RefCell::new(None),
+            pf_replicas: RefCell::new(Vec::new()),
         })
+    }
+
+    /// Ask Autodiscover about an address (at the Exchange server's own Autodiscover first, then
+    /// the domain's): the first answer.
+    fn ask_autodiscover(&self, address: &str) -> Result<String> {
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\">\
+             <Request><EMailAddress>{}</EMailAddress><AcceptableResponseSchema>http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a</AcceptableResponseSchema></Request></Autodiscover>",
+            esc(address)
+        );
+        let mut urls = Vec::new();
+        if let Ok(u) = http::Url::parse(&self.url)
+            && let Some(origin) = self.url.len().checked_sub(u.path.len()).and_then(|end| self.url.get(..end))
+        {
+            urls.push(format!("{origin}/autodiscover/autodiscover.xml"));
+        }
+        urls.extend(autodiscover_urls(address));
+        let mut last = NetError::No("Autodiscover didn't answer".into());
+        for url in urls {
+            let c = match Client::new(&url, &self.user, &self.password, &self.email) {
+                Ok(c) => c,
+                Err(e) => {
+                    last = e;
+                    continue;
+                }
+            };
+            match c.post(body.clone().into_bytes()) {
+                Ok(resp) if resp.ok() => return Ok(String::from_utf8_lossy(&resp.body).into_owned()),
+                Ok(resp) => last = NetError::Protocol(format!("Autodiscover answered HTTP {}", resp.status)),
+                Err(e) => last = e,
+            }
+        }
+        Err(last)
+    }
+
+    /// The account's public folder hierarchy mailbox, from Autodiscover (asked once): where
+    /// listing public folders is routed on Exchange 2013 and later.
+    pub(crate) fn public_hierarchy_mailbox(&self) -> Option<String> {
+        if let Some(known) = self.pf_hierarchy.borrow().clone() {
+            return known;
+        }
+        let found = self.ask_autodiscover(&self.email).ok().as_deref().and_then(autodiscover_public);
+        *self.pf_hierarchy.borrow_mut() = Some(found.clone());
+        found
     }
 
     /// Run `f` with every request routed to a public folder mailbox.
@@ -393,40 +456,10 @@ impl Client {
         if domain.is_empty() {
             return Err(NetError::No("no domain to ask about public folders".into()));
         }
-        let address = format!("{guid}@{domain}");
-        let body = format!(
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?><Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\">\
-             <Request><EMailAddress>{}</EMailAddress><AcceptableResponseSchema>http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a</AcceptableResponseSchema></Request></Autodiscover>",
-            esc(&address)
-        );
-        let mut urls = Vec::new();
-        if let Ok(u) = http::Url::parse(&self.url)
-            && let Some(origin) = self.url.len().checked_sub(u.path.len()).and_then(|end| self.url.get(..end))
-        {
-            urls.push(format!("{origin}/autodiscover/autodiscover.xml"));
-        }
-        urls.extend(autodiscover_urls(&address));
-        let mut last = NetError::No("Autodiscover didn't find the public folder mailbox".into());
-        for url in urls {
-            let c = match Client::new(&url, &self.user, &self.password, &self.email) {
-                Ok(c) => c,
-                Err(e) => {
-                    last = e;
-                    continue;
-                }
-            };
-            match c.post(body.clone().into_bytes()) {
-                Ok(resp) if resp.ok() => {
-                    if let Some(found) = autodiscover_smtp(&String::from_utf8_lossy(&resp.body)) {
-                        self.pf_mailboxes.borrow_mut().insert(guid.to_string(), found.clone());
-                        return Ok(found);
-                    }
-                }
-                Ok(resp) => last = NetError::Protocol(format!("Autodiscover answered HTTP {}", resp.status)),
-                Err(e) => last = e,
-            }
-        }
-        Err(last)
+        let answer = self.ask_autodiscover(&format!("{guid}@{domain}"))?;
+        let found = autodiscover_smtp(&answer).ok_or_else(|| NetError::No("Autodiscover didn't find the public folder mailbox".into()))?;
+        self.pf_mailboxes.borrow_mut().insert(guid.to_string(), found.clone());
+        Ok(found)
     }
 
     /// Connect and check the password (asks for the Inbox).
@@ -518,8 +551,29 @@ impl Client {
         Err(NetError::Auth("the server refused the user name or password".into()))
     }
 
-    /// Run one operation; the answer's elements (a SOAP fault is an error).
+    /// Run one operation; the answer's elements (a SOAP fault is an error). Something not found
+    /// while the account has public folders is asked for again in the public folder mailboxes
+    /// holding their content (Exchange 2013 and later answer only there).
     pub fn call(&self, body: &str) -> Result<El> {
+        let doc = self.call_here(body)?;
+        let missing = |doc: &El| messages(doc).iter().any(|m| matches!(m.text_of("ResponseCode"), Some("ErrorFolderNotFound" | "ErrorItemNotFound")));
+        if self.route.borrow().is_some() || !missing(&doc) {
+            return Ok(doc);
+        }
+        let guids = self.pf_replicas.borrow().clone();
+        for guid in guids {
+            let Ok(mailbox) = self.public_folder_mailbox(&guid) else { continue };
+            if let Ok(there) = self.routed_to(&mailbox, || self.call_here(body))
+                && !missing(&there)
+            {
+                return Ok(there);
+            }
+        }
+        Ok(doc)
+    }
+
+    /// [`Client::call`] where the request is sent, without looking elsewhere.
+    fn call_here(&self, body: &str) -> Result<El> {
         let resp = self.post(envelope(body).into_bytes())?;
         let text = String::from_utf8_lossy(&resp.body);
         let doc = parse(&text);
@@ -675,10 +729,26 @@ impl Client {
             .collect())
     }
 
-    /// Every public folder (walked a level at a time, a few levels deep): the root's id, and
-    /// each folder with its class, whether it holds others and where its content is kept. A
-    /// folder that won't list its own is passed over.
+    /// Every public folder: asked plainly (older servers, one public folder mailbox), else
+    /// routed to the account's public folder hierarchy mailbox, as Exchange 2013 and later want.
     fn public_tree(&self) -> Result<(String, Vec<TreeFolder>)> {
+        let plain = self.public_tree_walk();
+        if plain.as_ref().is_ok_and(|(_, all)| !all.is_empty()) {
+            return plain;
+        }
+        match self.public_hierarchy_mailbox() {
+            Some(mailbox) => match self.routed_to(&mailbox, || self.public_tree_walk()) {
+                Ok(t) => Ok(t),
+                Err(e) => Err(NetError::No(format!("public folders ({mailbox}): {e}"))),
+            },
+            None => plain,
+        }
+    }
+
+    /// Walk the public folders a level at a time, a few levels deep: the root's id, and each
+    /// folder with its class, whether it holds others and where its content is kept. A folder
+    /// that won't list its own is passed over.
+    fn public_tree_walk(&self) -> Result<(String, Vec<TreeFolder>)> {
         let root = self.call_one(
             "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape>\
              <m:FolderIds><t:DistinguishedFolderId Id=\"publicfoldersroot\"/></m:FolderIds></m:GetFolder>",
@@ -724,6 +794,12 @@ impl Client {
                     })
                     .and_then(|p| p.text_of("Value"))
                     .and_then(replica_guid);
+                if let Some(g) = &replica {
+                    let mut known = self.pf_replicas.borrow_mut();
+                    if !known.contains(g) && known.len() < 20 {
+                        known.push(g.clone());
+                    }
+                }
                 out.push(TreeFolder {
                     mailbox: Mailbox {
                         name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
