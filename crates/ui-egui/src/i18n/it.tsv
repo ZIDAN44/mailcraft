@@ -811,6 +811,25 @@
 	Everyone you've written to or heard from, and your contacts	Tutte le persone a cui hai scritto o da cui hai ricevuto messaggi, e i tuoi contatti
 	Hide {calendar}	Nascondi {calendar}
 	Write your signature, or paste it…	Scrivi la firma o incollala…
+	Address books	Rubriche
+	Birthday	Compleanno
+	Business	Ufficio
+	City	Città
+	Fax	Fax
+	Mobile	Cellulare
+	Pager	Cercapersone
+	Shared with you through {account}: read-only	Condivisa con te tramite {account}: sola lettura
+	YYYY-MM-DD	AAAA-MM-GG
+	Email 2	Posta elettronica 2
+	Email 3	Posta elettronica 3
+	Business fax	Fax ufficio
+	Other phone	Altro telefono
+	Street	Via
+	Postal code	CAP
+	State/Province	Provincia
+	Country/Region	Paese
+	Business address	Indirizzo ufficio
+	Home address	Indirizzo abitazione
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

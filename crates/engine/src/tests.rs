@@ -2088,6 +2088,44 @@ fn a_formatted_signature_keeps_its_look() {
     assert!(s.run("account.setSignature", &json!({"account": "sample", "signature": "x", "html": "<p><b>\u{0}"})).is_ok(), "junk HTML");
 }
 
+/// Issue #1: a contact's numbers keep what they are (business, home, mobile…), and its
+/// addresses and birthday are fields of their own, as in Outlook.
+#[test]
+fn contacts_keep_typed_numbers_addresses_and_birthdays() {
+    let mut s = sample_session("contact-fields");
+    let uid = s
+        .run(
+            "contact.create",
+            &json!({
+                "name": "Jos Peeters",
+                "emails": ["jos@company.example", "jos@home.example"],
+                "phones": [{"value": "+32 2 123 45 67", "kind": "work"}, {"value": "+32 490 12 34 56", "kind": "cell"}, {"value": "+32 9 765 43 21", "kind": "home"}],
+                "addresses": [{"kind": "work", "street": "An street 1", "postcode": "1000", "city": "Brussel", "country": "Belgium"}, {"kind": "home", "city": "Gent"}, {"street": " "}],
+                "birthday": "1980-02-29",
+            }),
+        )
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let c = s.find_person(&uid).unwrap().card;
+    let kinds: Vec<(&str, &str)> = c.phones.iter().map(|p| (p.kind.as_str(), p.value.as_str())).collect();
+    assert_eq!(kinds, [("work", "+32 2 123 45 67"), ("cell", "+32 490 12 34 56"), ("home", "+32 9 765 43 21")]);
+    assert_eq!(c.addresses.len(), 2, "an empty one isn't kept");
+    assert_eq!(c.addresses[0].one_line(), "An street 1, 1000 Brussel, Belgium");
+    assert_eq!(c.birthday, "1980-02-29");
+    assert_eq!(c.emails.len(), 2);
+    // Changing one thing leaves the rest; a birthday that isn't a date is refused.
+    s.run("contact.update", &json!({"uid": uid, "title": "Owner"})).unwrap();
+    assert_eq!(s.find_person(&uid).unwrap().card.phones.len(), 3);
+    assert!(s.run("contact.update", &json!({"uid": uid, "birthday": "next tuesday"})).is_err());
+    s.run("contact.update", &json!({"uid": uid, "birthday": ""})).unwrap();
+    assert!(s.find_person(&uid).unwrap().card.birthday.is_empty());
+    // Strings still work for phones (kind unknown).
+    s.run("contact.update", &json!({"uid": uid, "phones": "+1 555 0100, +1 555 0101"})).unwrap();
+    assert_eq!(s.find_person(&uid).unwrap().card.phones.len(), 2);
+}
+
 /// Issue #1: Select Names opens with the address book chosen (Outlook's "Show this address list
 /// first"), and one address book can be shown alone.
 #[test]

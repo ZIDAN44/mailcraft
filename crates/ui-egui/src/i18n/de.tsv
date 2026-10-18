@@ -812,6 +812,25 @@
 	Everyone you've written to or heard from, and your contacts	Alle, denen Sie geschrieben haben oder die Ihnen geschrieben haben, und Ihre Kontakte
 	Hide {calendar}	{calendar} ausblenden
 	Write your signature, or paste it…	Signatur eingeben oder einfügen…
+	Address books	Adressbücher
+	Birthday	Geburtstag
+	Business	Geschäftlich
+	City	Ort
+	Fax	Fax
+	Mobile	Mobil
+	Pager	Pager
+	Shared with you through {account}: read-only	Über {account} für Sie freigegeben: schreibgeschützt
+	YYYY-MM-DD	JJJJ-MM-TT
+	Email 2	E-Mail 2
+	Email 3	E-Mail 3
+	Business fax	Fax geschäftlich
+	Other phone	Weiteres Telefon
+	Street	Straße
+	Postal code	Postleitzahl
+	State/Province	Bundesland/Kanton
+	Country/Region	Land/Region
+	Business address	Adresse geschäftlich
+	Home address	Adresse privat
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

@@ -9,7 +9,7 @@
 
 use mailcraft_model::ical::{Attendee, CalEvent};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, Note, Pim, StoredCard, StoredEvent, StoredNote};
-use mailcraft_model::vcard::{Card, Typed};
+use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use serde_json::{Value, json};
 
 use crate::ews::{Client, El, esc};
@@ -220,22 +220,65 @@ fn contact_xml(c: &Card) -> String {
         }
         x.push_str("</t:EmailAddresses>");
     }
+    // Its addresses (Exchange keeps one each of business, home and other).
+    let addresses: Vec<(&str, &PostalAddress)> = ["Business", "Home", "Other"]
+        .into_iter()
+        .filter_map(|key| {
+            let kind = match key {
+                "Business" => "work",
+                "Home" => "home",
+                _ => "",
+            };
+            c.addresses
+                .iter()
+                .find(|a| !a.is_empty() && (a.kind == kind || (key == "Other" && !matches!(a.kind.as_str(), "work" | "home"))))
+                .map(|a| (key, a))
+        })
+        .collect();
+    if !addresses.is_empty() {
+        x.push_str("<t:PhysicalAddresses>");
+        for (key, a) in addresses {
+            x.push_str(&format!("<t:Entry Key=\"{key}\">"));
+            for (name, v) in
+                [("Street", &a.street), ("City", &a.city), ("State", &a.region), ("CountryOrRegion", &a.country), ("PostalCode", &a.postcode)]
+            {
+                if !v.trim().is_empty() {
+                    x.push_str(&format!("<t:{name}>{}</t:{name}>", esc(v.trim())));
+                }
+            }
+            x.push_str("</t:Entry>");
+        }
+        x.push_str("</t:PhysicalAddresses>");
+    }
     if !c.phones.is_empty() {
         x.push_str("<t:PhoneNumbers>");
         let mut used: Vec<&str> = Vec::new();
         for p in &c.phones {
-            let key = match p.kind.as_str() {
-                "cell" => "MobilePhone",
-                "home" => "HomePhone",
-                "fax" => "BusinessFax",
-                _ => "BusinessPhone",
+            let kind = match p.kind.as_str() {
+                "cell" | "mobile" => "cell",
+                "home" => "home",
+                "fax" => "fax",
+                "pager" => "pager",
+                "work" => "work",
+                _ => "",
             };
-            if !used.contains(&key) {
+            // The first free entry for its kind (another number of a kind already full goes to
+            // Other).
+            let key = PHONE_KEYS
+                .iter()
+                .find(|(k, kd)| *kd == kind && !used.contains(k))
+                .or_else(|| PHONE_KEYS.iter().find(|(k, _)| *k == "OtherTelephone" && !used.contains(k)))
+                .map(|(k, _)| *k);
+            if let Some(key) = key {
                 used.push(key);
                 x.push_str(&format!("<t:Entry Key=\"{key}\">{}</t:Entry>", esc(&p.value)));
             }
         }
         x.push_str("</t:PhoneNumbers>");
+    }
+    // A birthday at midday UTC, so it's the same day everywhere.
+    if let Some(b) = mailcraft_model::vcard::birthday_of(&c.birthday).filter(|b| !b.starts_with("--")) {
+        x.push_str(&format!("<t:Birthday>{b}T12:00:00Z</t:Birthday>"));
     }
     if !c.title.is_empty() {
         x.push_str(&format!("<t:JobTitle>{}</t:JobTitle>", esc(&c.title)));
@@ -258,21 +301,62 @@ pub fn card_of(it: &El) -> Option<Card> {
     let emails = entries("EmailAddresses")
         .into_iter()
         .filter(|(_, v)| v.contains('@'))
-        .map(|(_, v)| Typed { value: v.trim_start_matches("SMTP:").to_string(), kind: String::new() })
+        .map(|(_, v)| Typed { value: v.trim_start_matches("SMTP:").trim_start_matches("smtp:").to_string(), kind: String::new() })
         .collect();
-    let phones = entries("PhoneNumbers")
+    let mut phones: Vec<Typed> = entries("PhoneNumbers")
         .into_iter()
         .filter(|(_, v)| !v.is_empty())
         .map(|(k, v)| {
             let kind = match k.as_str() {
                 "MobilePhone" => "cell",
                 "HomePhone" | "HomePhone2" => "home",
-                "BusinessFax" | "HomeFax" => "fax",
-                _ => "work",
+                "BusinessFax" | "HomeFax" | "OtherFax" => "fax",
+                "BusinessPhone" | "BusinessPhone2" | "CompanyMainPhone" => "work",
+                "Pager" => "pager",
+                _ => "",
             };
             Typed { value: v, kind: kind.into() }
         })
         .collect();
+    // As Outlook lists them: business, home, mobile, then the rest.
+    phones.sort_by_key(|p| match p.kind.as_str() {
+        "work" => 0,
+        "home" => 1,
+        "cell" => 2,
+        _ => 3,
+    });
+    let addresses = it
+        .child("PhysicalAddresses")
+        .map(|l| {
+            l.children("Entry")
+                .map(|e| PostalAddress {
+                    kind: match e.attr("Key").unwrap_or("") {
+                        "Business" => "work",
+                        "Home" => "home",
+                        _ => "",
+                    }
+                    .into(),
+                    street: e.text_of("Street").unwrap_or("").trim().replace("\r\n", "\n"),
+                    city: e.text_of("City").unwrap_or("").trim().to_string(),
+                    region: e.text_of("State").unwrap_or("").trim().to_string(),
+                    postcode: e.text_of("PostalCode").unwrap_or("").trim().to_string(),
+                    country: e.text_of("CountryOrRegion").unwrap_or("").trim().to_string(),
+                })
+                .filter(|a| !a.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    // Exchange keeps a birthday as the start of that day where it was set, in UTC (the evening
+    // before, east of Greenwich); MailCraft writes noon. Either way, the day from just after
+    // noon the day before to noon is the one.
+    let birthday = it
+        .text_of("Birthday")
+        .and_then(|b| mailcraft_jmap::utc_date(b.trim()))
+        .map(|t| {
+            let (y, m, d) = mailcraft_model::dates::civil_from_days((t + 12 * 3600 - 1).div_euclid(86_400));
+            format!("{y:04}-{m:02}-{d:02}")
+        })
+        .unwrap_or_default();
     let body = it.child("Body").map(|b| b.text.trim().to_string()).unwrap_or_default();
     Some(Card {
         uid: id,
@@ -284,9 +368,24 @@ pub fn card_of(it: &El) -> Option<Card> {
         org: text(it, "CompanyName"),
         title: text(it, "JobTitle"),
         note: body,
+        addresses,
+        birthday,
         extra: Vec::new(),
     })
 }
+
+/// Exchange's phone entries, by the kind each takes (two of business and home).
+const PHONE_KEYS: [(&str, &str); 9] = [
+    ("BusinessPhone", "work"),
+    ("BusinessPhone2", "work"),
+    ("HomePhone", "home"),
+    ("HomePhone2", "home"),
+    ("MobilePhone", "cell"),
+    ("BusinessFax", "fax"),
+    ("HomeFax", "fax"),
+    ("Pager", "pager"),
+    ("OtherTelephone", ""),
+];
 
 /// A sticky note's colour (MS-OXONOTE PidLidNoteColor), as EWS asks for it.
 const NOTE_COLOR: &str = r#"<t:ExtendedFieldURI PropertySetId="0006200E-0000-0000-C000-000000000046" PropertyId="35584" PropertyType="Integer"/>"#;
@@ -672,13 +771,37 @@ mod tests {
             given: "Ana".into(),
             family: "Lima".into(),
             emails: vec![Typed { value: "ana@contoso.example".into(), kind: String::new() }],
-            phones: vec![Typed { value: "+1 555 0100".into(), kind: "cell".into() }],
+            // Issue #1: each number keeps what it is, two of a kind too.
+            phones: vec![
+                Typed { value: "+1 555 0101".into(), kind: "work".into() },
+                Typed { value: "+1 555 0102".into(), kind: "work".into() },
+                Typed { value: "+1 555 0103".into(), kind: "home".into() },
+                Typed { value: "+1 555 0100".into(), kind: "cell".into() },
+                Typed { value: "+1 555 0104".into(), kind: "fax".into() },
+            ],
             org: "Contoso & Co".into(),
             title: "Producer".into(),
             note: "Met at the fair".into(),
+            addresses: vec![
+                PostalAddress {
+                    kind: "work".into(),
+                    street: "An street 1".into(),
+                    city: "Brussel".into(),
+                    postcode: "1000".into(),
+                    country: "Belgium".into(),
+                    ..Default::default()
+                },
+                PostalAddress { kind: "home".into(), street: "Rue Haute 9".into(), city: "Gent".into(), ..Default::default() },
+            ],
+            birthday: "1990-07-12".into(),
             extra: Vec::new(),
         };
         let xml = contact_xml(&card).replace("<t:Contact>", "<t:Contact><t:ItemId Id=\"C1\" ChangeKey=\"k\"/>");
+        // In the schema's order: addresses between emails and phones, the birthday after phones.
+        let at = |s: &str| xml.find(s).unwrap();
+        assert!(at("<t:EmailAddresses>") < at("<t:PhysicalAddresses>") && at("<t:PhysicalAddresses>") < at("<t:PhoneNumbers>"));
+        assert!(at("<t:PhoneNumbers>") < at("<t:Birthday>") && at("<t:Birthday>") < at("<t:JobTitle>"));
+        assert!(xml.contains("<t:Entry Key=\"BusinessPhone2\">+1 555 0102</t:Entry>"));
         let back = card_of(parse(&xml).find("Contact").unwrap()).unwrap();
         assert_eq!(
             (back.name.as_str(), back.org.as_str(), back.note.as_str(), back.uid.as_str()),
@@ -686,6 +809,11 @@ mod tests {
         );
         assert_eq!(back.phones, card.phones);
         assert_eq!(back.emails, card.emails);
+        assert_eq!(back.addresses, card.addresses);
+        assert_eq!(back.birthday, "1990-07-12");
+        // Exchange's own: a birthday kept as the start of that day in Brussels, in UTC.
+        let theirs = "<t:Contact><t:ItemId Id=\"C2\"/><t:Birthday>1990-07-11T22:00:00Z</t:Birthday></t:Contact>";
+        assert_eq!(card_of(parse(theirs).find("Contact").unwrap()).unwrap().birthday, "1990-07-12");
     }
 
     /// An appointment's categories come in, and go out between its body and its start (the

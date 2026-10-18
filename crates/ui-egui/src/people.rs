@@ -33,11 +33,27 @@ pub enum Column {
     Home,
     Notes,
     Book,
+    Fax,
+    BusinessAddress,
+    HomeAddress,
+    Birthday,
 }
 
 impl Column {
-    pub const ALL: [Column; 8] =
-        [Column::Company, Column::Title, Column::Email, Column::Business, Column::Mobile, Column::Home, Column::Notes, Column::Book];
+    pub const ALL: [Column; 12] = [
+        Column::Company,
+        Column::Title,
+        Column::Email,
+        Column::Business,
+        Column::Mobile,
+        Column::Home,
+        Column::Fax,
+        Column::BusinessAddress,
+        Column::HomeAddress,
+        Column::Birthday,
+        Column::Notes,
+        Column::Book,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -49,6 +65,10 @@ impl Column {
             Column::Home => "Home phone",
             Column::Notes => "Notes",
             Column::Book => "Address book",
+            Column::Fax => "Business fax",
+            Column::BusinessAddress => "Business address",
+            Column::HomeAddress => "Home address",
+            Column::Birthday => "Birthday",
         }
     }
 
@@ -56,6 +76,8 @@ impl Column {
     fn weight(self) -> f32 {
         match self {
             Column::Email | Column::Notes => 1.4,
+            Column::BusinessAddress | Column::HomeAddress => 1.6,
+            Column::Birthday => 0.7,
             Column::Book => 1.1,
             _ => 1.0,
         }
@@ -69,7 +91,11 @@ impl Column {
             Column::Company => c.org.clone(),
             Column::Title => c.title.clone(),
             Column::Email => c.emails.first().map(|e| e.value.clone()).unwrap_or_default(),
-            Column::Business => phone(&["work", "", "voice", "pref"]),
+            Column::Business => phone(&["work", "voice", "pref"]),
+            Column::Fax => phone(&["fax"]),
+            Column::BusinessAddress => c.addresses.iter().find(|a| a.kind == "work").map(|a| a.one_line()).unwrap_or_default(),
+            Column::HomeAddress => c.addresses.iter().find(|a| a.kind == "home").map(|a| a.one_line()).unwrap_or_default(),
+            Column::Birthday => c.birthday.clone(),
             Column::Mobile => phone(&["cell", "mobile"]),
             Column::Home => phone(&["home"]),
             Column::Notes => c.note.lines().next().unwrap_or_default().to_string(),
@@ -154,13 +180,84 @@ fn index_letter(name: &str) -> char {
 }
 
 /// The side pane: everyone, A to Z (searched from the box at the top).
+/// The people shown: those matching the search, in the address book chosen.
+pub(crate) fn shown(s: &Session, st: &UiState) -> Vec<mailcraft_engine::Person> {
+    let mut people = s.people(&st.people_query);
+    if let Some((account, book)) = &st.people_book {
+        people.retain(|p| p.account == *account && p.book == *book);
+    }
+    people
+}
+
+/// Each account's address books, as Outlook lists contact folders (its Contacts, an
+/// organisation's shared ones in public folders): a click shows that one alone.
+fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
+    let t = st.tokens;
+    let all: Vec<(String, mailcraft_engine::model::pim::BookInfo, String)> = s
+        .accounts
+        .iter()
+        .filter_map(|a| s.pim.get(&a.config.id).map(|p| (a, p)))
+        .flat_map(|(a, p)| p.books.iter().map(move |b| (a.config.id.clone(), b.clone(), a.config.email.clone())))
+        .collect();
+    if all.len() < 2 {
+        if st.people_book.is_some() {
+            st.people_book = None;
+        }
+        return;
+    }
+    // A book gone (an account removed): everyone again.
+    if st.people_book.as_ref().is_some_and(|(a, b)| !all.iter().any(|(x, y, _)| x == a && y.id == *b)) {
+        st.people_book = None;
+    }
+    let accounts = all.iter().map(|(a, _, _)| a).collect::<std::collections::BTreeSet<_>>().len();
+    let row = |ui: &mut Ui, on: bool, label: &str, tip: Option<String>, shared: bool| {
+        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
+        if on || resp.hovered() {
+            ui.painter().rect_filled(r, 5.0, if on { t.accent_soft } else { t.hover_row });
+        }
+        let icon = egui::Rect::from_center_size(r.left_center() + vec2(14.0, 0.0), vec2(14.0, 14.0));
+        icons::paint(ui.painter(), icon, if shared { Icon::People } else { Icon::Person }, if on { t.accent } else { t.dim });
+        ui.painter().with_clip_rect(r.shrink2(vec2(4.0, 0.0))).text(
+            r.left_center() + vec2(28.0, 0.0),
+            egui::Align2::LEFT_CENTER,
+            label,
+            theme::regular(13.0),
+            t.text,
+        );
+        match tip {
+            Some(tip) => resp.on_hover_text(tip).clicked(),
+            None => resp.clicked(),
+        }
+    };
+    ui.label(RichText::new(tl!("Address books")).font(theme::bold(12.0)).color(t.dim));
+    if row(ui, st.people_book.is_none(), tl!("All contacts"), None, false) {
+        st.people_book = None;
+    }
+    for (account, b, email) in &all {
+        let on = st.people_book.as_ref().is_some_and(|(a, x)| a == account && *x == b.id);
+        let name = if b.id == mailcraft_engine::model::pim::LOCAL || b.name.is_empty() || b.name == "Contacts" {
+            tl!("Contacts").to_string()
+        } else {
+            b.name.clone()
+        };
+        let label = if accounts > 1 && !b.read_only { format!("{name} ({email})") } else { name };
+        let tip = if b.read_only { tf!("Shared with you through {account}: read-only", account = email) } else { email.clone() };
+        if row(ui, on, &label, Some(tip), b.read_only) {
+            st.people_book = Some((account.clone(), b.id.clone()));
+        }
+    }
+    ui.add_space(6.0);
+    ui.separator();
+}
+
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     if widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {
         acts.push(Action::Dialog(Dialog::new_contact()));
     }
     ui.add_space(8.0);
-    let people = s.people(&st.people_query);
+    books(s, st, ui);
+    let people = shown(s, st);
     if people.is_empty() {
         ui.label(RichText::new(tl!(if st.people_query.trim().is_empty() { "No contacts yet." } else { "No one matches." })).color(t.faint));
     }
@@ -201,9 +298,21 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     }
                     let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
                     widgets::avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark));
-                    ui.painter().text(r.left_center() + vec2(42.0, -7.0), egui::Align2::LEFT_CENTER, &name, theme::regular(13.5), t.text);
+                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
+                        r.left_center() + vec2(42.0, -7.0),
+                        egui::Align2::LEFT_CENTER,
+                        &name,
+                        theme::regular(13.5),
+                        t.text,
+                    );
                     let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
-                    ui.painter().text(r.left_center() + vec2(42.0, 8.0), egui::Align2::LEFT_CENTER, sub, theme::regular(11.5), t.dim);
+                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
+                        r.left_center() + vec2(42.0, 8.0),
+                        egui::Align2::LEFT_CENTER,
+                        sub,
+                        theme::regular(11.5),
+                        t.dim,
+                    );
                     if resp.clicked() {
                         st.person = Some(p.card.uid.clone());
                     }
@@ -308,8 +417,26 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             for e in &c.emails {
                 field(ui, &t, Icon::Unread, &e.value, &e.kind);
             }
+            // Each number with what it is (Outlook's Business, Home, Mobile…).
             for ph in &c.phones {
-                field(ui, &t, Icon::Phone, &ph.value, &ph.kind);
+                field(ui, &t, Icon::Phone, &ph.value, phone_kind(&ph.kind));
+            }
+            for a in c.addresses.iter().filter(|a| !a.is_empty()) {
+                let kind = match a.kind.as_str() {
+                    "work" => tl!("Business"),
+                    "home" => tl!("Home"),
+                    _ => tl!("Other"),
+                };
+                let lines =
+                    [a.street.clone(), format!("{} {}", a.postcode.trim(), a.city.trim()).trim().to_string(), a.region.clone(), a.country.clone()]
+                        .into_iter()
+                        .filter(|x| !x.trim().is_empty())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                field(ui, &t, Icon::Location, &lines, kind);
+            }
+            if !c.birthday.is_empty() {
+                field(ui, &t, Icon::Calendar, &c.birthday, tl!("Birthday"));
             }
             if !c.note.is_empty() {
                 ui.add_space(10.0);
@@ -324,11 +451,23 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     });
 }
 
+/// What a number is, as Outlook names it.
+fn phone_kind(kind: &str) -> &'static str {
+    match kind {
+        "work" | "voice" => tl!("Business"),
+        "home" => tl!("Home"),
+        "cell" | "mobile" => tl!("Mobile"),
+        "fax" => tl!("Fax"),
+        "pager" => tl!("Pager"),
+        _ => tl!("Other"),
+    }
+}
+
 /// Everyone as business cards, side by side (Outlook's Business Card view): a click picks one,
 /// a double-click edits it.
 fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let people = s.people(&st.people_query);
+    let people = shown(s, st);
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("people-cards").show(ui, |ui| {
         egui::Frame::new().inner_margin(Margin::same(18)).show(ui, |ui| {
             if people.is_empty() {
@@ -399,7 +538,7 @@ fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
 /// header), sorted by the column clicked.
 fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let mut people = s.people(&st.people_query);
+    let mut people = shown(s, st);
     let list = st.people_list.clone();
     if let Some(col) = list.sort {
         people.sort_by_cached_key(|p| (col.text(s, p).to_lowercase(), p.card.display().to_lowercase()));

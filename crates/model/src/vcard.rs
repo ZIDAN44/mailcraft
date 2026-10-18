@@ -16,6 +16,60 @@ pub struct Typed {
     pub kind: String,
 }
 
+/// A postal address with its kind (`work`, `home`, or empty for another), as vCard's `ADR`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PostalAddress {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub kind: String,
+    /// Street and number (lines kept with `\n`).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub street: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub city: String,
+    /// State or province.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub region: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub postcode: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub country: String,
+}
+
+impl PostalAddress {
+    pub fn is_empty(&self) -> bool {
+        [&self.street, &self.city, &self.region, &self.postcode, &self.country].iter().all(|x| x.trim().is_empty())
+    }
+
+    /// On one line: street, postcode and city, region, country.
+    pub fn one_line(&self) -> String {
+        let town = format!("{} {}", self.postcode.trim(), self.city.trim()).trim().to_string();
+        [self.street.replace('\n', ", ").trim().to_string(), town, self.region.trim().to_string(), self.country.trim().to_string()]
+            .into_iter()
+            .filter(|x| !x.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+/// A birthday as written (`YYYY-MM-DD`, or `--MM-DD` without the year), from vCard's `BDAY`
+/// (`19900401`, `1990-04-01`, `--0401`, a date and time): `None` when it isn't a date.
+pub fn birthday_of(v: &str) -> Option<String> {
+    let v = v.trim();
+    let v = v.split('T').next().unwrap_or(v);
+    let digits: String = v.chars().filter(char::is_ascii_digit).collect();
+    let (year, rest) = if v.starts_with("--") { (None, digits.as_str()) } else { (Some(digits.get(..4)?), digits.get(4..)?) };
+    let month: u32 = rest.get(..2)?.parse().ok()?;
+    let day: u32 = rest.get(2..4)?.parse().ok()?;
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    Some(match year {
+        Some(y) => format!("{y}-{month:02}-{day:02}"),
+        None => format!("--{month:02}-{day:02}"),
+    })
+}
+
 /// A person or organisation.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Card {
@@ -36,6 +90,12 @@ pub struct Card {
     pub title: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
+    /// Postal addresses: work, home, other.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub addresses: Vec<PostalAddress>,
+    /// `YYYY-MM-DD` (or `--MM-DD`); empty when not known.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub birthday: String,
     /// Other properties, as written (unfolded content lines).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<String>,
@@ -160,6 +220,16 @@ pub fn parse(text: &str) -> Vec<Card> {
                     "ORG" => c.org = components(value).into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(", "),
                     "TITLE" => c.title = text(),
                     "NOTE" => c.note = components(value).join(";"),
+                    "ADR" if c.addresses.len() < 20 => {
+                        let a = components(value);
+                        let part = |i: usize| a.get(i).map(|x| x.trim().to_string()).unwrap_or_default();
+                        let street = [part(0), part(1), part(2)].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join("\n");
+                        let adr = PostalAddress { kind: kind(&params), street, city: part(3), region: part(4), postcode: part(5), country: part(6) };
+                        if !adr.is_empty() {
+                            c.addresses.push(adr);
+                        }
+                    }
+                    "BDAY" if birthday_of(value).is_some() => c.birthday = birthday_of(value).unwrap_or_default(),
                     _ => {
                         if c.extra.len() < 200 {
                             c.extra.push(raw.clone());
@@ -215,6 +285,17 @@ pub fn write(c: &Card) -> String {
     if !c.note.is_empty() {
         lines.push(format!("NOTE:{}", esc(&c.note)));
     }
+    for a in c.addresses.iter().filter(|a| !a.is_empty()) {
+        let kind = a.kind.replace(|ch: char| !ch.is_ascii_alphanumeric() && ch != '-', "");
+        let head = if kind.is_empty() { "ADR".to_string() } else { format!("ADR;TYPE={kind}") };
+        lines.push(format!("{head}:;;{};{};{};{};{}", esc(&a.street), esc(&a.city), esc(&a.region), esc(&a.postcode), esc(&a.country)));
+    }
+    if let Some(b) = birthday_of(&c.birthday) {
+        lines.push(match b.strip_prefix("--") {
+            Some(md) => format!("BDAY:--{}", md.replace('-', "")),
+            None => format!("BDAY:{}", b.replace('-', "")),
+        });
+    }
     lines.extend(c.extra.iter().map(|x| x.replace(['\r', '\n'], "")));
     lines.push("END:VCARD".into());
     let mut out = String::new();
@@ -247,12 +328,43 @@ BEGIN:VCARD\r\nVERSION:4.0\r\nUID:urn:uuid:ann\r\nEMAIL:ann@x.example\r\nEND:VCA
         assert_eq!(z.phones[0], Typed { value: "+49 151 234".into(), kind: "cell".into() });
         assert_eq!((z.org.as_str(), z.title.as_str()), ("Studio Lantern, Story", "Director"));
         assert_eq!(z.note, "Prefers mornings, not Mondays.\nCall first.");
-        assert!(z.extra.iter().any(|x| x.starts_with("BDAY")) && z.extra.iter().any(|x| x.contains("AAAABBBB")), "the rest is kept");
+        assert_eq!(z.birthday, "1990-04-01");
+        assert!(z.extra.iter().any(|x| x.contains("AAAABBBB")), "the rest is kept");
         assert_eq!(cards[1].display(), "ann@x.example");
         let back = parse(&write(z));
         assert_eq!(back.len(), 1);
         assert_eq!(back[0], Card { org: "Studio Lantern\\, Story".replace("\\,", ","), ..z.clone() });
         assert!(z.matches("lantern") && z.matches("ZOE@home") && z.matches("+49151") && !z.matches("ann"));
+    }
+
+    /// Issue #1: addresses and birthdays are fields of their own (Outlook's Business, Home and
+    /// Other addresses, and Birthday).
+    #[test]
+    fn addresses_and_birthdays() {
+        let text = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Jos\r\nADR;TYPE=WORK:;;An street 1;Brussel;;1000;Belgium\r\n\
+ADR;TYPE=home:;Flat 2;Rue Haute 9;Gent;Oost-Vlaanderen;9000;Belgium\r\nBDAY:--0712\r\nTEL;TYPE=WORK:+32 2 123\r\n\
+TEL;TYPE=HOME:+32 9 456\r\nTEL;TYPE=CELL:+32 490\r\nEND:VCARD\r\n";
+        let c = parse(text).remove(0);
+        assert_eq!(c.addresses.len(), 2);
+        assert_eq!((c.addresses[0].kind.as_str(), c.addresses[0].street.as_str(), c.addresses[0].postcode.as_str()), ("work", "An street 1", "1000"));
+        assert_eq!(c.addresses[1].street, "Flat 2\nRue Haute 9");
+        assert_eq!(c.addresses[0].one_line(), "An street 1, 1000 Brussel, Belgium");
+        assert_eq!(c.birthday, "--07-12");
+        let kinds: Vec<&str> = c.phones.iter().map(|p| p.kind.as_str()).collect();
+        assert_eq!(kinds, ["work", "home", "cell"]);
+        let back = parse(&write(&c)).remove(0);
+        assert_eq!((back.addresses.clone(), back.birthday.clone(), back.phones.clone()), (c.addresses.clone(), c.birthday.clone(), c.phones.clone()));
+        assert!(write(&Card { birthday: "1990-04-01".into(), ..Default::default() }).contains("BDAY:19900401"));
+        for (v, want) in [
+            ("19900401", Some("1990-04-01")),
+            ("1990-04-01T00:00:00Z", Some("1990-04-01")),
+            ("--0401", Some("--04-01")),
+            ("1990-13-01", None),
+            ("x", None),
+            ("", None),
+        ] {
+            assert_eq!(birthday_of(v).as_deref(), want, "{v}");
+        }
     }
 
     #[test]

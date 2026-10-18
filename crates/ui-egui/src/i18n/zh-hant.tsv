@@ -811,6 +811,25 @@
 	Everyone you've written to or heard from, and your contacts	與你通過郵件的所有人，以及你的連絡人
 	Hide {calendar}	隱藏 {calendar}
 	Write your signature, or paste it…	輸入簽名或貼上…
+	Address books	通訊錄
+	Birthday	生日
+	Business	商務
+	City	城市
+	Fax	傳真
+	Mobile	行動電話
+	Pager	呼叫器
+	Shared with you through {account}: read-only	透過 {account} 與你共用：唯讀
+	YYYY-MM-DD	YYYY-MM-DD
+	Email 2	電子郵件 2
+	Email 3	電子郵件 3
+	Business fax	商務傳真
+	Other phone	其他電話
+	Street	街道
+	Postal code	郵遞區號
+	State/Province	省/市
+	Country/Region	國家/地區
+	Business address	商務地址
+	Home address	住家地址
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

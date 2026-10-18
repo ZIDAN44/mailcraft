@@ -498,11 +498,21 @@ fn calendar_and_people_forms_save_through_commands() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::Event(f)) if f.error.is_some()));
     // A person from the form is picked afterwards.
     a.ui.dialog = Some(Dialog::new_contact());
-    let mut f = crate::pim_dialogs::ContactForm { name: "Mira Chen".into(), emails: "mira@colour.example".into(), ..Default::default() };
+    let mut f = crate::pim_dialogs::ContactForm { name: "Mira Chen".into(), ..Default::default() };
+    f.emails[0] = "mira@colour.example".into();
+    f.phones[2] = "+32 490 12 34 56".into();
+    f.addresses[1].city = "Gent".into();
+    f.birthday = "1990-07-12".into();
     a.act(crate::Action::Submit("contact.create", f.params()));
     let picked = a.ui.person.clone().unwrap();
-    assert_eq!(a.session.find_person(&picked).unwrap().card.display(), "Mira Chen");
-    f.emails = "not an address".into();
+    let card = a.session.find_person(&picked).unwrap().card;
+    assert_eq!(card.display(), "Mira Chen");
+    // Issue #1: each number keeps its kind, the address and birthday their fields, and the form
+    // shows them where they were.
+    assert_eq!((card.phones[0].kind.as_str(), card.addresses[0].kind.as_str(), card.birthday.as_str()), ("cell", "home", "1990-07-12"));
+    let back = crate::pim_dialogs::ContactForm::edit(&card);
+    assert_eq!((back.phones[2].as_str(), back.addresses[1].city.as_str(), back.address_shown), ("+32 490 12 34 56", "Gent", 1));
+    f.emails[0] = "not an address".into();
     a.ui.dialog = Some(Dialog::new_contact());
     a.act(crate::Action::Submit("contact.create", f.params()));
     assert!(matches!(&a.ui.dialog, Some(Dialog::Contact(f)) if f.error.is_some()));

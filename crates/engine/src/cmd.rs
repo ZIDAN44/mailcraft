@@ -595,7 +595,9 @@ pub fn registry() -> Registry {
             let c = card_from(v, mailcraft_model::vcard::Card::default())?;
             s.create_card(p::str(v, "account"), c)
         })
-        .params(r#"{"name": string, "emails"?: [string] | "a, b", "phones"?: [string] | "…", "org"?: string, "title"?: string, "note"?: string, "account"?: string}"#),
+        .params(
+            r#"{"name": string, "emails"?: [string] | "a, b", "phones"?: [string | {"value": string, "kind"?: "work"|"home"|"cell"|"fax"|"pager"}], "addresses"?: [{"kind"?: "work"|"home", "street"?, "city"?, "region"?, "postcode"?, "country"?}], "birthday"?: "YYYY-MM-DD" | "", "org"?: string, "title"?: string, "note"?: string, "account"?: string}"#,
+        ),
         CommandSpec::new("contact.update", "Edit contact", "People › Contact", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let current = s.find_person(&uid).map(|x| x.card).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
@@ -1613,11 +1615,62 @@ fn card_from(v: &Value, mut c: mailcraft_model::vcard::Card) -> Result<mailcraft
         c.given.clear();
         c.family.clear();
     }
-    if let Some(e) = list("emails") {
-        c.emails = e.into_iter().take(20).map(|value| mailcraft_model::vcard::Typed { value, kind: String::new() }).collect();
+    use mailcraft_model::vcard::{PostalAddress, Typed};
+    // A list of values, each a string or {"value", "kind"} (a phone's kind: work, home, cell,
+    // fax, pager, or none).
+    let typed = |k: &str| -> Option<Vec<Typed>> {
+        match v.get(k)? {
+            Value::Array(a) => Some(
+                a.iter()
+                    .filter_map(|x| match x {
+                        Value::String(s) => Some(Typed { value: s.trim().to_string(), kind: String::new() }),
+                        Value::Object(_) => Some(Typed {
+                            value: p::str(x, "value").or_else(|| p::str(x, "number")).unwrap_or_default().trim().to_string(),
+                            kind: p::str(x, "kind").unwrap_or_default().trim().to_ascii_lowercase(),
+                        }),
+                        _ => None,
+                    })
+                    .filter(|t| !t.value.is_empty())
+                    .map(|mut t| {
+                        t.value = t.value.chars().take(300).collect();
+                        t.kind = t.kind.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(20).collect();
+                        t
+                    })
+                    .collect(),
+            ),
+            Value::String(_) => list(k).map(|l| l.into_iter().map(|value| Typed { value, kind: String::new() }).collect()),
+            _ => None,
+        }
+    };
+    if let Some(e) = typed("emails") {
+        c.emails = e.into_iter().take(20).collect();
     }
-    if let Some(ph) = list("phones") {
-        c.phones = ph.into_iter().take(20).map(|value| mailcraft_model::vcard::Typed { value, kind: String::new() }).collect();
+    if let Some(ph) = typed("phones") {
+        c.phones = ph.into_iter().take(20).collect();
+    }
+    if let Some(list) = v.get("addresses").and_then(Value::as_array) {
+        let field = |a: &Value, k: &str| p::str(a, k).unwrap_or_default().trim().chars().take(500).collect::<String>();
+        c.addresses = list
+            .iter()
+            .filter(|a| a.is_object())
+            .map(|a| PostalAddress {
+                kind: field(a, "kind").to_ascii_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).collect(),
+                street: field(a, "street"),
+                city: field(a, "city"),
+                region: field(a, "region"),
+                postcode: field(a, "postcode"),
+                country: field(a, "country"),
+            })
+            .filter(|a| !a.is_empty())
+            .take(10)
+            .collect();
+    }
+    if let Some(b) = p::str(v, "birthday") {
+        c.birthday = if b.trim().is_empty() {
+            String::new()
+        } else {
+            mailcraft_model::vcard::birthday_of(b).ok_or_else(|| CmdError::Params(format!("`{b}` is not a date (YYYY-MM-DD)")))?
+        };
     }
     for (k, field) in [("org", &mut c.org), ("title", &mut c.title), ("note", &mut c.note)] {
         if let Some(x) = p::str(v, k) {

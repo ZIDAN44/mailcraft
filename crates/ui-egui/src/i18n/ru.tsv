@@ -811,6 +811,25 @@
 	Everyone you've written to or heard from, and your contacts	Все, кому вы писали или кто писал вам, и ваши контакты
 	Hide {calendar}	Скрыть {calendar}
 	Write your signature, or paste it…	Введите подпись или вставьте её…
+	Address books	Адресные книги
+	Birthday	День рождения
+	Business	Рабочий
+	City	Город
+	Fax	Факс
+	Mobile	Мобильный
+	Pager	Пейджер
+	Shared with you through {account}: read-only	Доступно вам через {account}: только чтение
+	YYYY-MM-DD	ГГГГ-ММ-ДД
+	Email 2	Эл. почта 2
+	Email 3	Эл. почта 3
+	Business fax	Рабочий факс
+	Other phone	Другой телефон
+	Street	Улица
+	Postal code	Почтовый индекс
+	State/Province	Область
+	Country/Region	Страна или регион
+	Business address	Рабочий адрес
+	Home address	Домашний адрес
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

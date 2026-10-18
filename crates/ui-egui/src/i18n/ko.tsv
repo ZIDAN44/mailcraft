@@ -811,6 +811,25 @@
 	Everyone you've written to or heard from, and your contacts	메일을 주고받은 모든 사람과 연락처
 	Hide {calendar}	{calendar} 숨기기
 	Write your signature, or paste it…	서명을 입력하거나 붙여 넣으세요…
+	Address books	주소록
+	Birthday	생일
+	Business	회사
+	City	구/군/시
+	Fax	팩스
+	Mobile	휴대폰
+	Pager	호출기
+	Shared with you through {account}: read-only	{account}을(를) 통해 공유됨: 읽기 전용
+	YYYY-MM-DD	YYYY-MM-DD
+	Email 2	전자 메일 2
+	Email 3	전자 메일 3
+	Business fax	회사 팩스
+	Other phone	기타 전화
+	Street	도로명
+	Postal code	우편 번호
+	State/Province	시/도
+	Country/Region	국가/지역
+	Business address	회사 주소
+	Home address	집 주소
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

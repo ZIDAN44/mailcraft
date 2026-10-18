@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use mailcraft_model::EmailAddress;
 use mailcraft_model::dates::civil_from_days;
 use mailcraft_model::ical::{Attendee, CalEvent};
-use mailcraft_model::vcard::{Card, Typed};
+use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use outlook_pst::ltp::prop_context::{GuidValue, PropertyValue};
 use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId, PS_MAPI, PS_PUBLIC_STRINGS};
 use outlook_pst::messaging::store::Store as PstStore;
@@ -74,6 +74,9 @@ pub(crate) struct Extra {
     pub title: String,
     pub emails: Vec<String>,
     pub phones: Vec<(String, &'static str)>,
+    /// Business, home and other addresses.
+    pub addresses: Vec<PostalAddress>,
+    pub birthday: Option<i64>,
     pub start: Option<i64>,
     /// A task's due date, and whether it's done.
     pub due: Option<i64>,
@@ -103,12 +106,35 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<&'a PropertyValue>, named: &
             x.emails.push(e);
         }
     }
-    for (id, kind) in [(0x3A08, "work"), (0x3A09, "home"), (0x3A1C, "cell"), (0x3A24, "fax")] {
+    // MS-OXOCNTC's telephone numbers: business (and its second), home (and its second),
+    // mobile, fax, pager, other.
+    for (id, kind) in
+        [(0x3A08, "work"), (0x3A1B, "work"), (0x3A09, "home"), (0x3A2F, "home"), (0x3A1C, "cell"), (0x3A24, "fax"), (0x3A21, "pager"), (0x3A1F, "")]
+    {
         let v = s(id);
         if !v.trim().is_empty() {
             x.phones.push((v.trim().to_string(), kind));
         }
     }
+    // Its addresses: (street, city, state, postal code, country) of business, home and other.
+    for (kind, [street, city, state, code, country]) in [
+        ("work", [0x3A29, 0x3A27, 0x3A28, 0x3A2A, 0x3A26]),
+        ("home", [0x3A5D, 0x3A59, 0x3A5C, 0x3A5B, 0x3A5A]),
+        ("", [0x3A63, 0x3A5F, 0x3A62, 0x3A61, 0x3A60]),
+    ] {
+        let a = PostalAddress {
+            kind: kind.into(),
+            street: s(street).trim().replace("\r\n", "\n"),
+            city: s(city).trim().to_string(),
+            region: s(state).trim().to_string(),
+            postcode: s(code).trim().to_string(),
+            country: s(country).trim().to_string(),
+        };
+        if !a.is_empty() {
+            x.addresses.push(a);
+        }
+    }
+    x.birthday = p(0x3A42).and_then(crate::pst::time_of);
     x.start = time(PSETID_APPOINTMENT, 0x820D, 0x0060);
     x.end = time(PSETID_APPOINTMENT, 0x820E, 0x0061);
     x.location = ns(PSETID_APPOINTMENT, 0x8208);
@@ -141,6 +167,15 @@ pub(crate) fn card_of(x: &Extra, body: &str, uid: String) -> Card {
         org: x.company.clone(),
         title: x.title.clone(),
         note: body.trim().to_string(),
+        addresses: x.addresses.clone(),
+        // Kept as the start of the day where it was set, in UTC.
+        birthday: x
+            .birthday
+            .map(|t| {
+                let (y, m, d) = civil_from_days((t + 12 * 3600 - 1).div_euclid(86_400));
+                format!("{y:04}-{m:02}-{d:02}")
+            })
+            .unwrap_or_default(),
         extra: Vec::new(),
     }
 }

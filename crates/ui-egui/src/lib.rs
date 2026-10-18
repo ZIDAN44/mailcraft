@@ -409,6 +409,8 @@ pub struct UiState {
     /// The day and week views have been scrolled to the working day once (each has its own scroll).
     pub(crate) cal_scrolled: [bool; 2],
     pub(crate) people_query: String,
+    /// The address book People shows (account, book id); `None`: all of them.
+    pub(crate) people_book: Option<(String, String)>,
     /// How People lays contacts out (Outlook's Change View).
     pub people_view: people::PeopleView,
     /// The People list's columns and sort.
@@ -499,6 +501,7 @@ impl MailApp {
                 mini_month: None,
                 cal_scrolled: [false; 2],
                 people_query: String::new(),
+                people_book: None,
                 people_view: people::PeopleView::default(),
                 people_list: people::ListSettings::default(),
                 notes_query: String::new(),
@@ -1991,7 +1994,7 @@ impl MailApp {
         ui.horizontal_centered(|ui| {
             // The items of what's shown: the list's mail, or (in People) the contacts.
             if s.module == Module::People {
-                ui.label(RichText::new(tf!("Items: {n}", n = s.people(&self.ui.people_query).len())).color(t.dim).small());
+                ui.label(RichText::new(tf!("Items: {n}", n = people::shown(s, &self.ui).len())).color(t.dim).small());
             } else if s.module == Module::Mail {
                 let unread = s.list.iter().filter(|m| !m.flags.seen).count();
                 ui.label(RichText::new(tf!("Items: {n}", n = s.list.len())).color(t.dim).small());

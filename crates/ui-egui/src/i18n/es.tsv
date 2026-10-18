@@ -812,6 +812,25 @@
 	Everyone you've written to or heard from, and your contacts	Todas las personas a las que has escrito o que te han escrito, y tus contactos
 	Hide {calendar}	Ocultar {calendar}
 	Write your signature, or paste it…	Escribe tu firma o pégala…
+	Address books	Libretas de direcciones
+	Birthday	Cumpleaños
+	Business	Trabajo
+	City	Ciudad
+	Fax	Fax
+	Mobile	Móvil
+	Pager	Buscapersonas
+	Shared with you through {account}: read-only	Compartida contigo a través de {account}: solo lectura
+	YYYY-MM-DD	AAAA-MM-DD
+	Email 2	Correo 2
+	Email 3	Correo 3
+	Business fax	Fax del trabajo
+	Other phone	Otro teléfono
+	Street	Calle
+	Postal code	Código postal
+	State/Province	Estado o provincia
+	Country/Region	País o región
+	Business address	Dirección del trabajo
+	Home address	Dirección particular
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

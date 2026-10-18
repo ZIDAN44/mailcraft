@@ -812,6 +812,25 @@
 	Everyone you've written to or heard from, and your contacts	Toutes les personnes à qui vous avez écrit ou qui vous ont écrit, et vos contacts
 	Hide {calendar}	Masquer {calendar}
 	Write your signature, or paste it…	Écrivez votre signature ou collez-la…
+	Address books	Carnets d'adresses
+	Birthday	Anniversaire
+	Business	Bureau
+	City	Ville
+	Fax	Télécopie
+	Mobile	Mobile
+	Pager	Récepteur de radiomessagerie
+	Shared with you through {account}: read-only	Partagé avec vous via {account} : lecture seule
+	YYYY-MM-DD	AAAA-MM-JJ
+	Email 2	Adresse de messagerie 2
+	Email 3	Adresse de messagerie 3
+	Business fax	Télécopie (bureau)
+	Other phone	Autre téléphone
+	Street	Rue
+	Postal code	Code postal
+	State/Province	État/Province
+	Country/Region	Pays/Région
+	Business address	Adresse (bureau)
+	Home address	Adresse (domicile)
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

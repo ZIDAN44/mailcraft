@@ -8,7 +8,7 @@
 
 use mailcraft_model::ical::{Attendee, CalEvent};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent};
-use mailcraft_model::vcard::{Card, Typed};
+use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use serde_json::{Value, json};
 
 use crate::graph::Client;
@@ -19,8 +19,7 @@ const MAX_ITEMS: usize = 5000;
 /// The address book Graph's contacts go into.
 pub const CONTACTS: &str = "graph:contacts";
 const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories";
-const CONTACT_FIELDS: &str =
-    "id,changeKey,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,personalNotes";
+const CONTACT_FIELDS: &str = "id,changeKey,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,personalNotes,businessAddress,homeAddress,otherAddress,birthday";
 
 fn seg(id: &str) -> String {
     mailcraft_jmap::pct(id)
@@ -262,6 +261,28 @@ pub fn card_of(v: &Value) -> Option<Card> {
         org: s(v, "companyName"),
         title: s(v, "jobTitle"),
         note: s(v, "personalNotes"),
+        addresses: [("businessAddress", "work"), ("homeAddress", "home"), ("otherAddress", "")]
+            .into_iter()
+            .filter_map(|(k, kind)| {
+                let a = v.get(k)?;
+                let a = PostalAddress {
+                    kind: kind.into(),
+                    street: s(a, "street"),
+                    city: s(a, "city"),
+                    region: s(a, "state"),
+                    postcode: s(a, "postalCode"),
+                    country: s(a, "countryOrRegion"),
+                };
+                (!a.is_empty()).then_some(a)
+            })
+            .collect(),
+        // The start of the day where it was set, in UTC (or noon, as MailCraft writes it).
+        birthday: mailcraft_jmap::utc_date(&s(v, "birthday"))
+            .map(|t| {
+                let (y, m, d) = mailcraft_model::dates::civil_from_days((t + 12 * 3600 - 1).div_euclid(86_400));
+                format!("{y:04}-{m:02}-{d:02}")
+            })
+            .unwrap_or_default(),
         extra: Vec::new(),
     })
 }
@@ -272,6 +293,13 @@ pub fn card_json(c: &Card) -> Value {
     let mut work = phones("work");
     let other: Vec<String> = c.phones.iter().filter(|p| p.kind.is_empty()).map(|p| p.value.clone()).collect();
     work.extend(other);
+    let address = |kind: &str| {
+        let a = c.addresses.iter().find(|a| if kind.is_empty() { !matches!(a.kind.as_str(), "work" | "home") } else { a.kind == kind });
+        a.map_or_else(
+            || json!({}),
+            |a| json!({"street": a.street, "city": a.city, "state": a.region, "postalCode": a.postcode, "countryOrRegion": a.country}),
+        )
+    };
     json!({
         "displayName": c.display(),
         "givenName": c.given,
@@ -283,6 +311,10 @@ pub fn card_json(c: &Card) -> Value {
         "companyName": c.org,
         "jobTitle": c.title,
         "personalNotes": c.note,
+        "businessAddress": address("work"),
+        "homeAddress": address("home"),
+        "otherAddress": address(""),
+        "birthday": mailcraft_model::vcard::birthday_of(&c.birthday).filter(|b| !b.starts_with("--")).map(|b| format!("{b}T12:00:00Z")),
     })
 }
 
