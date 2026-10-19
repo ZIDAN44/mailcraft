@@ -2,6 +2,7 @@
 name = "mailcraft-ui-egui"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "MailCraft egui front end (folders, message list, reading pane, compose); swappable: nothing below depends on it"
 

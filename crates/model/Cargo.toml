@@ -2,6 +2,7 @@
 name = "mailcraft-model"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "MailCraft data model: accounts, folders, messages, threading, search queries, dates (pure, wasm-safe)"
 

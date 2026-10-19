@@ -2,6 +2,7 @@
 name = "mailcraft-print"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "MailCraft print and export: a message laid out on pages as a PDF (pure, wasm-safe)"
 
