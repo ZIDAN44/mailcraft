@@ -497,8 +497,18 @@ fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, 
     if wanted.is_empty() {
         return Ok(());
     }
+    let mut failures = crate::sync::AheadFailures::new();
     for (n, id) in &wanted {
-        let raw = c.download(id)?;
+        let raw = match c.download(id) {
+            Ok(raw) => {
+                failures.ok();
+                raw
+            }
+            Err(e) => {
+                failures.failed(&format!("{account}/{folder}: message {n}"), e)?;
+                continue;
+            }
+        };
         if raw.len() > usize::try_from(opts.prefetch_max_bytes).unwrap_or(usize::MAX) {
             continue;
         }

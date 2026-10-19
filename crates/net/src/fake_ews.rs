@@ -59,6 +59,8 @@ pub struct Data {
     pub item_rights_only: bool,
     /// Listing a mail folder's messages takes this long (a big mailbox's first sync).
     pub hold: Option<std::time::Duration>,
+    /// Messages whose source can't be had (the server fails on it).
+    pub unreadable: Vec<String>,
     /// The public folder mailbox holding the public folders' content (Exchange 2013 and
     /// later): reading inside them is only answered when routed there.
     pub pf_mailbox: Option<String>,
@@ -88,6 +90,7 @@ impl Default for Data {
             editors: Vec::new(),
             item_rights_only: false,
             hold: None,
+            unreadable: Vec::new(),
             pf_mailbox: None,
             pf_hierarchy: None,
             routed: String::new(),
@@ -396,6 +399,7 @@ impl Data {
                     }
                     match self.items.iter().find(|i| i.id == id) {
                         Some(i) if self.unrouted(&i.folder) => out.push(err("ErrorItemNotFound")),
+                        Some(i) if mime && self.unreadable.contains(&i.id) => out.push(err("ErrorInternalServerError")),
                         Some(i) => out.push(ok(format!("<m:Items>{}</m:Items>", self.item_xml(i, mime)))),
                         None => out.push(err("ErrorItemNotFound")),
                     }
@@ -1342,5 +1346,28 @@ mod tests {
         let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
         assert_eq!(c.mailboxes().unwrap().len(), 1);
         assert!(matches!(crate::ews::Client::connect(&server.url, "x", "y", "e"), Err(crate::NetError::Auth(_))));
+    }
+
+    /// A message whose source the server won't give doesn't stop the folder: the others
+    /// download, and the folder syncs.
+    #[test]
+    fn one_unreadable_message_holds_up_nothing() {
+        let mut d = Data::default();
+        let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.deliver(&inbox, &mail("one", "m1"), false, "2026-10-01T09:00:00Z");
+        let bad = d.deliver(&inbox, &mail("two", "m2"), false, "2026-10-01T10:00:00Z");
+        d.deliver(&inbox, &mail("three", "m3"), false, "2026-10-01T11:00:00Z");
+        d.unreadable.push(bad);
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let store = crate::fake::tests_store("ews-unreadable");
+        let mut st = crate::jmap::State::default();
+        crate::ews::list_folders(&c, &mut st, "a1").unwrap();
+        crate::ews::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions::default()).unwrap();
+        let fs = store.load_folder("a1", "INBOX").unwrap();
+        assert_eq!(fs.messages.len(), 3);
+        let with_body: Vec<&str> = fs.messages.iter().filter(|m| store.has_body(&m.key)).map(|m| m.subject.as_str()).collect();
+        assert_eq!(with_body, ["three", "one"], "the others downloaded");
+        let _ = std::fs::remove_dir_all(store.root());
     }
 }

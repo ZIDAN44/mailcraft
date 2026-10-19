@@ -1219,8 +1219,18 @@ fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, 
     if wanted.is_empty() {
         return Ok(());
     }
+    let mut failures = crate::sync::AheadFailures::new();
     for (n, id) in &wanted {
-        let raw = c.download(id)?;
+        let raw = match c.download(id) {
+            Ok(raw) => {
+                failures.ok();
+                raw
+            }
+            Err(e) => {
+                failures.failed(&format!("{account}/{folder}: message {n}"), e)?;
+                continue;
+            }
+        };
         let Some(m) = fs.find_mut(*n) else { continue };
         store.write_body(&m.key, &raw)?;
         fill_from_source(m, &raw);

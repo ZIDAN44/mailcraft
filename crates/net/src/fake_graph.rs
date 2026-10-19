@@ -51,6 +51,8 @@ pub struct Data {
     /// Other people whose calendars are shared with this account: (address, may edit). Their
     /// events have `calendar` = `user:<address>`.
     pub others: Vec<(String, bool)>,
+    /// Messages whose source can't be had (the server fails on it).
+    pub unreadable: Vec<String>,
     late: Vec<(std::time::Instant, Vec<u8>)>,
     next: u32,
 }
@@ -243,6 +245,9 @@ impl Data {
                     }
                     _ => not_found(),
                 }
+            }
+            ("GET", ["me", "messages", id, "$value"]) if self.unreadable.iter().any(|u| u == id) => {
+                (500, json!({"error": {"code": "ErrorInternalServerError", "message": "can't read it"}}).to_string().into_bytes(), "application/json")
             }
             ("GET", ["me", "messages", id, "$value"]) => match self.message(id) {
                 Some(m) => (200, m.raw.clone(), "text/plain"),
@@ -817,5 +822,31 @@ mod tests {
         assert!(data.lock().unwrap().calls.iter().any(|c| c.starts_with("POST /$batch")), "small requests go in batches");
         pool.submit(Job::Remove { account: "a1".into() });
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A message whose source the server won't give doesn't stop the folder: the others
+    /// download, and the folder syncs.
+    #[test]
+    fn one_unreadable_message_holds_up_nothing() {
+        let mut d = Data::default();
+        let inbox = d.folder("Inbox", None, Some("inbox"));
+        let mail = |s: &str| {
+            format!("From: Zoe <zoe@studio.example>\r\nTo: me@x.example\r\nSubject: {s}\r\nMessage-ID: <{s}@x>\r\n\r\nHello.\r\n").into_bytes()
+        };
+        d.deliver(&inbox, &mail("one"), false, "2026-10-01T09:00:00Z");
+        let bad = d.deliver(&inbox, &mail("two"), false, "2026-10-01T10:00:00Z");
+        d.deliver(&inbox, &mail("three"), false, "2026-10-01T11:00:00Z");
+        d.unreadable.push(bad);
+        let server = serve(d);
+        let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+        let store = crate::fake::tests_store("graph-unreadable");
+        let mut st = crate::jmap::State::default();
+        crate::graph::list_folders(&c, &mut st, "a1").unwrap();
+        crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions::default()).unwrap();
+        let fs = store.load_folder("a1", "INBOX").unwrap();
+        assert_eq!(fs.messages.len(), 3);
+        let with_body: Vec<&str> = fs.messages.iter().filter(|m| store.has_body(&m.key)).map(|m| m.subject.as_str()).collect();
+        assert_eq!(with_body, ["three", "one"], "the others downloaded");
+        let _ = std::fs::remove_dir_all(store.root());
     }
 }

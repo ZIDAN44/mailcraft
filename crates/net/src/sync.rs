@@ -22,10 +22,45 @@ use mailcraft_mime as mime;
 use mailcraft_model::{Flags, MessageKey, Summary, sort_newest_first};
 use mailcraft_store::{FolderState, Store};
 
-use crate::Result;
 use crate::imap::{Client, Fetched, uid_chunks, uid_set};
+use crate::{NetError, Result};
 
 pub use mailcraft_jmap::{SyncOptions, SyncReport, fill_from_source};
+
+/// Downloading ahead, one message at a time: whether to go on after one failed. A message the
+/// server won't give (gone meanwhile, or failing on its side) is left for when it's opened, and
+/// the rest still come down; a refused sign-in, or several failures running (the connection,
+/// then), stop it.
+pub struct AheadFailures {
+    running: u32,
+}
+
+impl AheadFailures {
+    pub fn new() -> AheadFailures {
+        AheadFailures { running: 0 }
+    }
+
+    /// One went well.
+    pub fn ok(&mut self) {
+        self.running = 0;
+    }
+
+    /// One failed: `Ok` to go on with the next, or the error to stop with.
+    pub fn failed(&mut self, what: &str, e: NetError) -> Result<()> {
+        self.running += 1;
+        if matches!(e, NetError::Auth(_)) || self.running >= 3 {
+            return Err(e);
+        }
+        log::info!("{what}: left for when it's opened: {e}");
+        Ok(())
+    }
+}
+
+impl Default for AheadFailures {
+    fn default() -> AheadFailures {
+        AheadFailures::new()
+    }
+}
 
 const HEADER_ITEMS: &str = "UID FLAGS RFC822.SIZE INTERNALDATE BODY.PEEK[HEADER]";
 
@@ -237,4 +272,22 @@ pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &Messa
         store.save_folder(&key.account, &key.folder, &st)?;
     }
     Ok(raw)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Downloading ahead goes past a message that fails, but not a refused sign-in, nor three
+    /// failures running.
+    #[test]
+    fn ahead_failures_go_on_until_they_mean_the_connection() {
+        let mut f = AheadFailures::new();
+        assert!(f.failed("m1", NetError::No("gone".into())).is_ok());
+        f.ok();
+        assert!(f.failed("m2", NetError::Protocol("x".into())).is_ok());
+        assert!(f.failed("m3", NetError::Closed("HTTP 500".into())).is_ok());
+        assert!(f.failed("m4", NetError::Closed("HTTP 500".into())).is_err(), "three running");
+        assert!(AheadFailures::new().failed("m", NetError::Auth("expired".into())).is_err());
+    }
 }
