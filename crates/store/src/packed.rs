@@ -21,8 +21,139 @@ use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
 use crate::{Result, StoreError, io_err, write_atomic};
 
-/// The one table: path inside the account's folder → bytes.
+/// The main table: path inside the account's folder → bytes.
 const FILES: TableDefinition<&str, &[u8]> = TableDefinition::new("files");
+/// Big files in pieces: (path, piece) → bytes. The database gives a value whole runs of pages,
+/// doubling (a 300 KB message took 512 KB, and imported mail half again its size in waste), so a
+/// big file goes in pieces that each fill their pages, and `FILES` keeps a note of it.
+const PIECES: TableDefinition<(&str, u32), &[u8]> = TableDefinition::new("pieces");
+/// The note in `FILES` for a file kept in pieces: this, then its length (8 bytes, little-endian).
+/// Nothing MailCraft keeps starts with a NUL.
+const PIECED: &[u8] = b"\0MailCraft:pieces\0";
+/// Files up to this size (as kept: compressed when that helps) stay whole: one page's worth. A
+/// bigger value took the next power of two of pages, so it goes in pieces.
+const WHOLE_MAX: usize = PAGE - PAGE_SLACK;
+/// A file kept compressed starts with this, then its deflate stream.
+const DEFLATED: &[u8] = b"\0MailCraft:deflate\0";
+/// Files smaller than this aren't worth compressing.
+const DEFLATE_MIN: usize = 1024;
+/// The most a compressed file may come to (a crafted data file can't fill the memory).
+const INFLATE_MAX: u64 = 1 << 30;
+
+/// A file as kept: compressed (fast deflate) when that saves a tenth or more.
+fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    use std::io::Write;
+    if bytes.len() < DEFLATE_MIN || bytes.starts_with(DEFLATED) {
+        return bytes.into();
+    }
+    let mut z = flate2::write::DeflateEncoder::new(DEFLATED.to_vec(), flate2::Compression::fast());
+    match z.write_all(bytes).and_then(|()| z.finish()) {
+        Ok(out) if out.len() < bytes.len() - bytes.len() / 10 => out.into(),
+        _ => bytes.into(),
+    }
+}
+
+/// A file as kept, back as it was written.
+fn unpack(kept: Vec<u8>) -> io::Result<Vec<u8>> {
+    use std::io::Read;
+    let Some(stream) = kept.strip_prefix(DEFLATED) else { return Ok(kept) };
+    let mut out = Vec::with_capacity(stream.len().saturating_mul(3).min(64 << 20));
+    flate2::read::DeflateDecoder::new(stream).take(INFLATE_MAX + 1).read_to_end(&mut out)?;
+    if out.len() as u64 > INFLATE_MAX {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "a compressed file is too big"));
+    }
+    Ok(out)
+}
+/// The database's page, and what a page run needs besides the value (its header and the key).
+const PAGE: usize = 4096;
+const PAGE_SLACK: usize = 512;
+
+/// The sizes a file of `len` bytes is cut into: pieces filling 16 pages, then the rest in pieces
+/// filling 8, 4, 2 and 1 (the last one smaller).
+fn piece_sizes(len: usize) -> Vec<usize> {
+    let mut out = Vec::new();
+    let mut left = len;
+    while left > 0 {
+        let fits = [16usize, 8, 4, 2, 1].into_iter().map(|pages| pages * PAGE - PAGE_SLACK).find(|cap| *cap <= left);
+        let n = fits.unwrap_or(left).min(left);
+        out.push(n);
+        left -= n;
+    }
+    out
+}
+
+/// A file kept in pieces: its length.
+fn pieced_len(note: &[u8]) -> Option<u64> {
+    let rest = note.strip_prefix(PIECED)?;
+    Some(u64::from_le_bytes(rest.get(..8)?.try_into().ok()?))
+}
+
+/// An account's tables in a write transaction: files whole or in pieces.
+struct Tables<'t> {
+    files: redb::Table<'t, &'static str, &'static [u8]>,
+    pieces: redb::Table<'t, (&'static str, u32), &'static [u8]>,
+}
+
+impl Tables<'_> {
+    fn has(&self, key: &str) -> io::Result<bool> {
+        Ok(self.files.get(key).map_err(other)?.is_some())
+    }
+
+    /// Keep `bytes` at `key` (replacing what was there), compressed when that helps.
+    fn put(&mut self, key: &str, bytes: &[u8]) -> io::Result<()> {
+        self.put_kept(key, &pack(bytes))
+    }
+
+    /// Keep bytes already as kept (compressed or not), whole or in pieces.
+    fn put_kept(&mut self, key: &str, bytes: &[u8]) -> io::Result<()> {
+        self.drop_pieces(key)?;
+        if bytes.len() <= WHOLE_MAX {
+            self.files.insert(key, bytes).map_err(other)?;
+            return Ok(());
+        }
+        let mut note = PIECED.to_vec();
+        note.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+        self.files.insert(key, note.as_slice()).map_err(other)?;
+        let mut at = 0;
+        for (i, n) in piece_sizes(bytes.len()).into_iter().enumerate() {
+            let piece = bytes.get(at..at + n).ok_or_else(|| other("piece out of range"))?;
+            self.pieces.insert((key, u32::try_from(i).map_err(other)?), piece).map_err(other)?;
+            at += n;
+        }
+        Ok(())
+    }
+
+    /// Take the file at `key` out: its bytes as kept (still compressed), when it was there.
+    fn take_kept(&mut self, key: &str) -> io::Result<Option<Vec<u8>>> {
+        let Some(v) = self.files.remove(key).map_err(other)?.map(|g| g.value().to_vec()) else { return Ok(None) };
+        let Some(len) = pieced_len(&v) else { return Ok(Some(v)) };
+        let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(1 << 30));
+        for (_, piece) in self.pieces.extract_from_if((key, 0)..=(key, u32::MAX), |_, _| true).map_err(other)?.flatten() {
+            out.extend_from_slice(piece.value());
+        }
+        Ok(Some(out))
+    }
+
+    fn drop_pieces(&mut self, key: &str) -> io::Result<()> {
+        self.pieces.retain_in((key, 0)..=(key, u32::MAX), |_, _| false).map_err(other)
+    }
+}
+
+/// A file from a read transaction: whole, or put together from its pieces, and uncompressed.
+fn read_file(tx: &redb::ReadTransaction, files: &impl ReadableTable<&'static str, &'static [u8]>, key: &str) -> io::Result<Option<Vec<u8>>> {
+    let Some(v) = files.get(key).map_err(other)?.map(|g| g.value().to_vec()) else { return Ok(None) };
+    let Some(len) = pieced_len(&v) else { return unpack(v).map(Some) };
+    let pieces = tx.open_table(PIECES).map_err(other)?;
+    let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(1 << 30));
+    for item in pieces.range((key, 0)..=(key, u32::MAX)).map_err(other)? {
+        let (_, piece) = item.map_err(other)?;
+        out.extend_from_slice(piece.value());
+    }
+    if out.len() as u64 != len {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("{key}: pieces missing")));
+    }
+    unpack(out).map(Some)
+}
 /// A data file's extension.
 pub const EXTENSION: &str = "mailcraft";
 /// Which data file is whose (in the root).
@@ -167,7 +298,18 @@ impl Packs {
             Err(redb::TableError::TableDoesNotExist(_)) => return Ok(None),
             Err(e) => return Err(other(e)),
         };
-        Ok(table.get(key).map_err(other)?.map(|v| v.value().to_vec()))
+        read_file(&tx, &table, key)
+    }
+
+    /// Whether a file is there (without reading it).
+    fn has(&self, account: &str, key: &str) -> io::Result<bool> {
+        let Some(db) = self.db(account, false)? else { return Ok(false) };
+        let tx = db.begin_read().map_err(other)?;
+        match tx.open_table(FILES) {
+            Ok(t) => Ok(t.get(key).map_err(other)?.is_some()),
+            Err(redb::TableError::TableDoesNotExist(_)) => Ok(false),
+            Err(e) => Err(other(e)),
+        }
     }
 
     /// Keys under `prefix` (a folder: `""` for the account's own), with their sizes.
@@ -187,18 +329,19 @@ impl Packs {
             if !k.starts_with(&start) {
                 break;
             }
-            out.push((k.to_string(), v.value().len() as u64));
+            let v = v.value();
+            out.push((k.to_string(), pieced_len(v).unwrap_or(v.len() as u64)));
         }
         Ok(out)
     }
 
     /// Change an account's data file in one transaction.
-    fn change(&self, account: &str, f: impl FnOnce(&mut redb::Table<&str, &[u8]>) -> io::Result<()>) -> io::Result<()> {
+    fn change(&self, account: &str, f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>) -> io::Result<()> {
         let Some(db) = self.db(account, true)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
         let tx = db.begin_write().map_err(other)?;
         {
-            let mut table = tx.open_table(FILES).map_err(other)?;
-            f(&mut table)?;
+            let mut tables = Tables { files: tx.open_table(FILES).map_err(other)?, pieces: tx.open_table(PIECES).map_err(other)? };
+            f(&mut tables)?;
         }
         tx.commit().map_err(other)
     }
@@ -215,7 +358,7 @@ impl Packs {
         for (a, files) in by_account {
             self.change(&a, |t| {
                 for (k, bytes) in &files {
-                    t.insert(k.as_str(), *bytes).map_err(other)?;
+                    t.put(k.as_str(), bytes)?;
                 }
                 Ok(())
             })
@@ -234,9 +377,9 @@ impl Packs {
 
     pub(crate) fn write(&self, p: &Path, bytes: &[u8]) -> Result<()> {
         match self.place(p) {
-            Place::In(a, k) => self
-                .change(&a, |t| t.insert(k.as_str(), bytes).map(drop).map_err(other))
-                .map_err(|source| StoreError::Io { path: p.display().to_string(), source }),
+            Place::In(a, k) => {
+                self.change(&a, |t| t.put(k.as_str(), bytes)).map_err(|source| StoreError::Io { path: p.display().to_string(), source })
+            }
             Place::Account(_) | Place::Disk => write_atomic(p, bytes),
         }
     }
@@ -244,16 +387,16 @@ impl Packs {
     pub(crate) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         match (self.place(from), self.place(to)) {
             (Place::In(a, k), Place::In(b, k2)) if a == b => {
-                let moving: Vec<String> = self.keys(&a, &k)?.into_iter().map(|(n, _)| n).chain(self.get(&a, &k)?.map(|_| k.clone())).collect();
+                let moving: Vec<String> = self.keys(&a, &k)?.into_iter().map(|(n, _)| n).chain(self.has(&a, &k)?.then(|| k.clone())).collect();
                 if moving.is_empty() {
                     return Err(io::Error::from(io::ErrorKind::NotFound));
                 }
                 self.change(&a, |t| {
                     for old in &moving {
                         let new = format!("{k2}{}", old.strip_prefix(k.as_str()).unwrap_or(""));
-                        let v = t.remove(old.as_str()).map_err(other)?.map(|g| g.value().to_vec());
-                        if let Some(v) = v {
-                            t.insert(new.as_str(), v.as_slice()).map_err(other)?;
+                        // Moved as kept: not uncompressed and compressed again.
+                        if let Some(v) = t.take_kept(old.as_str())? {
+                            t.put_kept(new.as_str(), &v)?;
                         }
                     }
                     Ok(())
@@ -267,10 +410,10 @@ impl Packs {
     pub(crate) fn remove_file(&self, p: &Path) -> io::Result<()> {
         match self.place(p) {
             Place::In(a, k) => {
-                if self.get(&a, &k)?.is_none() {
+                if !self.has(&a, &k)? {
                     return Err(io::Error::from(io::ErrorKind::NotFound));
                 }
-                self.change(&a, |t| t.remove(k.as_str()).map(drop).map_err(other))
+                self.change(&a, |t| t.take_kept(k.as_str()).map(drop))
             }
             Place::Account(_) => Err(io::Error::from(io::ErrorKind::IsADirectory)),
             Place::Disk => fs::remove_file(p),
@@ -300,7 +443,7 @@ impl Packs {
                 }
                 self.change(&a, |t| {
                     for g in &gone {
-                        t.remove(g.as_str()).map_err(other)?;
+                        t.take_kept(g.as_str())?;
                     }
                     Ok(())
                 })
@@ -311,7 +454,7 @@ impl Packs {
 
     pub(crate) fn is_file(&self, p: &Path) -> bool {
         match self.place(p) {
-            Place::In(a, k) => self.get(&a, &k).ok().flatten().is_some(),
+            Place::In(a, k) => self.has(&a, &k).unwrap_or(false),
             Place::Account(_) => false,
             Place::Disk => p.is_file(),
         }
@@ -319,7 +462,7 @@ impl Packs {
 
     pub(crate) fn exists(&self, p: &Path) -> bool {
         match self.place(p) {
-            Place::In(a, k) => self.get(&a, &k).ok().flatten().is_some() || self.keys(&a, &k).is_ok_and(|v| !v.is_empty()),
+            Place::In(a, k) => self.has(&a, &k).unwrap_or(false) || self.keys(&a, &k).is_ok_and(|v| !v.is_empty()),
             Place::Account(a) => self.file(&a).is_some_and(|f| f.exists()),
             Place::Disk => p.exists(),
         }
@@ -392,8 +535,8 @@ impl Packs {
                 self.change(&name, |t| {
                     for (key, path) in &files {
                         // A file already in the data file is newer than one left in a folder.
-                        if t.get(key.as_str()).map_err(other)?.is_none() {
-                            t.insert(key.as_str(), fs::read(path)?.as_slice()).map_err(other)?;
+                        if !t.has(key.as_str())? {
+                            t.put(key.as_str(), &fs::read(path)?)?;
                         }
                     }
                     Ok(())
@@ -449,8 +592,8 @@ pub(crate) fn read_data_file(path: &Path, tmp: &Path, each: &mut dyn FnMut(Vec<(
         };
         let (mut batch, mut size, mut n) = (Vec::new(), 0usize, 0usize);
         for item in table.iter().map_err(|e| not_ours(&e))? {
-            let (k, v) = item.map_err(|e| not_ours(&e))?;
-            let v = v.value().to_vec();
+            let (k, _) = item.map_err(|e| not_ours(&e))?;
+            let Some(v) = read_file(&tx, &table, k.value()).map_err(|e| not_ours(&e))? else { continue };
             size = size.saturating_add(v.len());
             batch.push((k.value().to_string(), v));
             n += 1;
@@ -578,6 +721,144 @@ mod tests {
         assert!(s.read_body(&MessageKey { folder: "Kept".into(), ..k.clone() }).is_some(), "its messages moved too");
         s.remove_account("a1").unwrap();
         assert!(!t.join("MailCraft Files").join("zoe@studio.example.mailcraft").exists());
+        let _ = std::fs::remove_dir_all(t);
+    }
+
+    /// Big files go in pieces that fill their pages (a whole value took the next power of two
+    /// of pages: imported mail came to more than twice its size), and come back whole, through
+    /// renames, removals, overwrites and copies into another data file.
+    #[test]
+    fn big_files_are_kept_in_pieces_and_come_back_whole() {
+        let t = temp("pieces");
+        let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+        s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+        // Bytes that don't compress, so they're kept in pieces as they are.
+        let big = noise(1_234_567, 1);
+        let edge = noise(super::WHOLE_MAX + 1, 2);
+        let small = b"Subject: small
+
+x"
+        .to_vec();
+        let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
+        s.write_bodies(&[(key(1), big.clone()), (key(2), edge.clone()), (key(3), small.clone())]).unwrap();
+        assert_eq!(s.read_body(&key(1)).unwrap(), big);
+        assert_eq!(s.read_body(&key(2)).unwrap(), edge);
+        assert_eq!(s.read_body(&key(3)).unwrap(), small);
+        assert!(s.has_body(&key(1)));
+        let dir = s.body_path(&key(1)).parent().unwrap().to_path_buf();
+        // Sizes are what the files take (compressed: this test's bytes repeat), not the notes'.
+        let kept = s.files.size(&dir);
+        assert!(kept > 1_000 && kept <= (big.len() + edge.len() + small.len()) as u64, "{kept}");
+        // Overwritten smaller: no pieces left behind; and bigger again.
+        s.write_body(&key(1), &small).unwrap();
+        assert_eq!(s.read_body(&key(1)).unwrap(), small);
+        s.write_body(&key(1), &big).unwrap();
+        assert_eq!(s.read_body(&key(1)).unwrap(), big);
+        // A folder renamed takes its pieces.
+        s.save_folders("a1", &[mailcraft_model::Folder { account: "a1".into(), path: "INBOX".into(), selectable: true, ..Default::default() }])
+            .unwrap();
+        s.apply_op("a1", &mailcraft_model::Op::RenameFolder { from: "INBOX".into(), to: "Kept".into() }).unwrap();
+        let kept = |uid: u32| MessageKey { folder: "Kept".into(), ..key(uid) };
+        assert_eq!(s.read_body(&kept(1)).unwrap(), big);
+        assert!(s.read_body(&key(1)).is_none());
+        // Removed: gone, pieces and all.
+        s.remove_body(&kept(2));
+        assert!(s.read_body(&kept(2)).is_none() && !s.has_body(&kept(2)));
+        // Copied into another account's data file: whole.
+        let file = s.data_file("a1").unwrap();
+        drop(s);
+        let other = Store::open_packed(t.join("app2"), t.join("Files2")).unwrap();
+        other.save_accounts(&[account("b1", "ana@example.org")]).unwrap();
+        other.import_data_file("b1", &file).unwrap();
+        assert_eq!(other.read_body(&MessageKey { account: "b1".into(), ..kept(1) }).unwrap(), big);
+        // The pieces fill their pages: many messages of awkward sizes leave little unused (a whole
+        // value each left 40% of the file unused).
+        let t2 = temp("pieces-waste");
+        let s = Store::open_packed(t2.join("app"), t2.join("Files")).unwrap();
+        s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+        let bodies: Vec<(MessageKey, Vec<u8>)> =
+            (0..120u32).map(|i| (key(i), noise(70_000 + (i as usize * 2_731) % 200_000, u64::from(i) + 9))).collect();
+        let stored: usize = bodies.iter().map(|(_, b)| b.len()).sum();
+        s.write_bodies(&bodies).unwrap();
+        let file2 = s.data_file("a1").unwrap();
+        drop(s);
+        let pages = |path: &std::path::Path| {
+            let db = redb::Database::open(path).unwrap();
+            let st = db.begin_write().unwrap().stats().unwrap();
+            st.allocated_pages() * st.page_size() as u64
+        };
+        let pieced = pages(&file2);
+        // The same bodies as whole values, for comparison.
+        let whole_file = t2.join("whole.redb");
+        {
+            let db = redb::Database::create(&whole_file).unwrap();
+            let tx = db.begin_write().unwrap();
+            {
+                let mut table = tx.open_table(super::FILES).unwrap();
+                for (k, b) in &bodies {
+                    table.insert(format!("m{}", k.uid).as_str(), b.as_slice()).unwrap();
+                }
+            }
+            tx.commit().unwrap();
+        }
+        let whole = pages(&whole_file);
+        assert!(pieced < stored as u64 * 112 / 100, "pieces took {pieced} for {stored}");
+        assert!(pieced * 100 < whole * 85, "pieces {pieced}, whole values {whole}");
+        let _ = std::fs::remove_dir_all(t2);
+        let sizes = super::piece_sizes(big.len());
+        assert_eq!(sizes.iter().sum::<usize>(), big.len());
+        assert!(sizes.iter().all(|n| *n <= 16 * super::PAGE - super::PAGE_SLACK));
+        assert!(super::piece_sizes(0).is_empty() && super::piece_sizes(1) == [1]);
+        let _ = std::fs::remove_dir_all(t);
+    }
+
+    /// Bytes that don't compress (xorshift).
+    fn noise(n: usize, seed: u64) -> Vec<u8> {
+        let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        (0..n)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x as u8
+            })
+            .collect()
+    }
+
+    /// Text (mail, folder lists) is kept compressed and reads back as written; what doesn't
+    /// compress is kept as it is; files from before compression still read; and a crafted
+    /// compressed value that would come to more than the cap is refused, not inflated.
+    #[test]
+    fn text_is_kept_compressed() {
+        let t = temp("deflate");
+        let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+        s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+        let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
+        let text: Vec<u8> = "Subject: report
+
+"
+        .bytes()
+        .chain("The figures for October are in the attached sheet. ".repeat(4000).bytes())
+        .collect();
+        s.write_body(&key(1), &text).unwrap();
+        assert_eq!(s.read_body(&key(1)).unwrap(), text);
+        let dir = s.body_path(&key(1)).parent().unwrap().to_path_buf();
+        assert!(s.files.size(&dir) * 20 < text.len() as u64, "kept in {} bytes", s.files.size(&dir));
+        let random = noise(5000, 3);
+        assert_eq!(super::pack(&random).as_ref(), random.as_slice(), "not compressed when it doesn't help");
+        assert_eq!(super::pack(b"short").as_ref(), b"short");
+        assert_eq!(super::unpack(b"plain old bytes".to_vec()).unwrap(), b"plain old bytes", "from before compression");
+        // A crafted value: a deflate stream of more than the cap.
+        let bomb = {
+            use std::io::Write;
+            let mut z = flate2::write::DeflateEncoder::new(super::DEFLATED.to_vec(), flate2::Compression::best());
+            let zeros = vec![0u8; 1 << 20];
+            for _ in 0..(super::INFLATE_MAX >> 20) + 2 {
+                z.write_all(&zeros).unwrap();
+            }
+            z.finish().unwrap()
+        };
+        assert!(super::unpack(bomb).is_err());
         let _ = std::fs::remove_dir_all(t);
     }
 

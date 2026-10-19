@@ -19,5 +19,7 @@ thiserror = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Each account's mail in one data file (`packed.rs`): a crash-safe, pure-Rust embedded database.
 redb = "=4.3.0"
+# What a data file keeps is compressed (deflate, pure Rust): mail and folder lists are text.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # The Documents folder (where "MailCraft Files" goes), wherever the system has put it.
 dirs = "6"

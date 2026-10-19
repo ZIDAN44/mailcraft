@@ -25,13 +25,13 @@ mod packed;
 #[cfg(not(target_arch = "wasm32"))]
 pub use packed::EXTENSION as DATA_FILE_EXTENSION;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use mailcraft_model::{AccountConfig, Folder, MessageKey, Op, Summary};
+use mailcraft_model::{AccountConfig, Folder, MessageKey, Op, Summary, sort_newest_first};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +64,114 @@ pub struct FolderState {
     /// the older mail is fetched once.
     #[serde(default)]
     pub window: usize,
+}
+
+/// Folder lists longer than this are kept in pages of this many messages (by number, so new mail
+/// changes the last page only, and a flag one page).
+pub const PAGE_MESSAGES: usize = 4096;
+
+/// A folder's `state.json`: the folder's sync state and its list, or for a big folder the hashes
+/// of the pages its list is kept in (`state-<n>.json`).
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct StateFile {
+    validity: u32,
+    uid_next: u32,
+    highest_modseq: u64,
+    messages: Vec<Summary>,
+    window: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pages: Vec<u64>,
+    /// How many messages its pages hold.
+    #[serde(skip_serializing_if = "is_zero_usize")]
+    count: usize,
+}
+
+fn is_zero_usize(n: &usize) -> bool {
+    *n == 0
+}
+
+/// A folder's list being written a page at a time (see [`Store::list_writer`]).
+pub struct ListWriter {
+    account: String,
+    folder: String,
+    /// Hashes of the pages written.
+    pages: Vec<u64>,
+    /// Messages not yet in a page.
+    page: Vec<Summary>,
+    total: usize,
+    unread: u32,
+}
+
+impl ListWriter {
+    /// Add messages (in rising number order); full pages are written as they fill.
+    pub fn push(&mut self, store: &Store, messages: Vec<Summary>) -> Result<()> {
+        for m in messages {
+            self.total += 1;
+            if !m.flags.seen && !m.flags.deleted {
+                self.unread = self.unread.saturating_add(1);
+            }
+            self.page.push(m);
+            if self.page.len() == PAGE_MESSAGES {
+                self.write_page(store)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_page(&mut self, store: &Store) -> Result<()> {
+        let path = store.folder_dir(&self.account, &self.folder).join(format!("state-{}.json", self.pages.len()));
+        let p = path.display().to_string();
+        let bytes = serde_json::to_vec(&self.page).map_err(|source| StoreError::Json { path: p, source })?;
+        store.files.write(&path, &bytes)?;
+        self.pages.push(page_hash(&bytes));
+        self.page.clear();
+        Ok(())
+    }
+
+    /// Write what's left and the list (with `head`'s sync state): its (unread, total).
+    pub fn finish(mut self, store: &Store, head: &FolderState) -> Result<(u32, u32)> {
+        let counts = (self.unread, u32::try_from(self.total).unwrap_or(u32::MAX));
+        if self.pages.is_empty() {
+            // Small: kept whole, as save_folder keeps it.
+            let mut st = FolderState { messages: std::mem::take(&mut self.page), ..head.clone() };
+            sort_newest_first(&mut st.messages);
+            store.save_folder(&self.account, &self.folder, &st)?;
+            return Ok(counts);
+        }
+        if !self.page.is_empty() {
+            self.write_page(store)?;
+        }
+        let dir = store.folder_dir(&self.account, &self.folder);
+        let path = dir.join("state.json");
+        let old: StateFile = store.read_json(&path).unwrap_or_default();
+        let file = StateFile {
+            validity: head.validity,
+            uid_next: head.uid_next,
+            highest_modseq: head.highest_modseq,
+            messages: Vec::new(),
+            window: head.window,
+            count: self.total,
+            pages: self.pages,
+        };
+        let p = path.display().to_string();
+        let bytes = serde_json::to_vec(&file).map_err(|source| StoreError::Json { path: p, source })?;
+        store.files.write(&path, &bytes)?;
+        for i in file.pages.len()..old.pages.len() {
+            let _ = store.files.remove_file(&dir.join(format!("state-{i}.json")));
+        }
+        Ok(counts)
+    }
+}
+
+/// A page's hash (FNV-1a over its JSON), to tell which pages changed.
+fn page_hash(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
 }
 
 impl FolderState {
@@ -577,7 +685,23 @@ impl Store {
     }
 
     pub fn load_folder(&self, account: &str, folder: &str) -> Result<FolderState> {
-        let mut st: FolderState = self.read_json(&self.folder_dir(account, folder).join("state.json"))?;
+        let dir = self.folder_dir(account, folder);
+        let file: StateFile = self.read_json(&dir.join("state.json"))?;
+        let mut st = FolderState {
+            validity: file.validity,
+            uid_next: file.uid_next,
+            highest_modseq: file.highest_modseq,
+            messages: file.messages,
+            window: file.window,
+        };
+        // A big folder's list in pages (by number): put together, newest first again.
+        if !file.pages.is_empty() {
+            for i in 0..file.pages.len() {
+                let page: Vec<Summary> = self.read_json(&dir.join(format!("state-{i}.json")))?;
+                st.messages.extend(page);
+            }
+            sort_newest_first(&mut st.messages);
+        }
         // Keys are rebuilt rather than trusted: a renamed or copied cache stays consistent.
         for m in &mut st.messages {
             m.key.account = account.to_string();
@@ -587,8 +711,101 @@ impl Store {
         Ok(st)
     }
 
+    /// Keep a folder's list. A big one goes in pages of [`PAGE_MESSAGES`] by number, and only
+    /// the pages that changed are written: one message marked read in a folder of hundreds of
+    /// thousands rewrote all of it (hundreds of megabytes, held in memory twice over).
     pub fn save_folder(&self, account: &str, folder: &str, state: &FolderState) -> Result<()> {
-        self.write_json(&self.folder_dir(account, folder).join("state.json"), state)
+        self.save_folder_counted(account, folder, state, None).map(drop)
+    }
+
+    /// [`Store::save_folder`] after only these messages' flags changed (the same messages, in
+    /// number): only their pages are made again (a big folder's other pages aren't even turned
+    /// into text to see they're the same).
+    pub fn save_folder_changed(&self, account: &str, folder: &str, state: &FolderState, changed: &std::collections::HashSet<u32>) -> Result<()> {
+        self.save_folder_counted(account, folder, state, Some(changed)).map(drop)
+    }
+
+    /// [`Store::save_folder`], saying how many files it wrote (the list and the pages that
+    /// changed).
+    pub(crate) fn save_folder_counted(
+        &self,
+        account: &str,
+        folder: &str,
+        state: &FolderState,
+        changed: Option<&std::collections::HashSet<u32>>,
+    ) -> Result<usize> {
+        let dir = self.folder_dir(account, folder);
+        let head = dir.join("state.json");
+        let json_err = |p: &Path| {
+            let p = p.display().to_string();
+            move |source| StoreError::Json { path: p, source }
+        };
+        let old: StateFile = self.read_json(&head).unwrap_or_default();
+        let mut file = StateFile {
+            validity: state.validity,
+            uid_next: state.uid_next,
+            highest_modseq: state.highest_modseq,
+            messages: Vec::new(),
+            window: state.window,
+            pages: Vec::new(),
+            count: 0,
+        };
+        let mut writes: Vec<(PathBuf, Vec<u8>)> = Vec::new();
+        if state.messages.len() <= PAGE_MESSAGES {
+            file.messages = state.messages.clone();
+        } else {
+            let mut by_number: Vec<&Summary> = state.messages.iter().collect();
+            by_number.sort_by_key(|m| m.key.uid);
+            file.count = by_number.len();
+            // The same messages as last time, some flags changed: the other pages stand.
+            let same = changed.filter(|_| old.count == by_number.len() && old.pages.len() == by_number.len().div_ceil(PAGE_MESSAGES));
+            for (i, page) in by_number.chunks(PAGE_MESSAGES).enumerate() {
+                if let Some(changed) = same
+                    && let Some(&hash) = old.pages.get(i)
+                    && !page.iter().any(|m| changed.contains(&m.key.uid))
+                {
+                    file.pages.push(hash);
+                    continue;
+                }
+                let path = dir.join(format!("state-{i}.json"));
+                let bytes = serde_json::to_vec(page).map_err(json_err(&path))?;
+                let hash = page_hash(&bytes);
+                if old.pages.get(i) != Some(&hash) || !self.files.is_file(&path) {
+                    writes.push((path, bytes));
+                }
+                file.pages.push(hash);
+            }
+        }
+        writes.push((head.clone(), serde_json::to_vec(&file).map_err(json_err(&head))?));
+        // The list and its pages together (one transaction in a data file).
+        self.write_files(&writes)?;
+        // Pages the list no longer has.
+        for i in file.pages.len()..old.pages.len() {
+            let _ = self.files.remove_file(&dir.join(format!("state-{i}.json")));
+        }
+        Ok(writes.len())
+    }
+
+    /// Write a folder's list a page at a time (importing a data file, the whole list needn't be
+    /// held): messages are handed over in rising number order, then [`ListWriter::finish`]. The
+    /// pages come out as [`Store::save_folder`] makes them.
+    pub fn list_writer(&self, account: &str, folder: &str) -> ListWriter {
+        ListWriter { account: account.to_string(), folder: folder.to_string(), pages: Vec::new(), page: Vec::new(), total: 0, unread: 0 }
+    }
+
+    /// Several files at once (one transaction in a data file).
+    fn write_files(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.files.write_many(items)
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            for (p, bytes) in items {
+                self.files.write(p, bytes)?;
+            }
+            Ok(())
+        }
     }
 
     /// Forget a folder's cache (UIDVALIDITY changed, or the folder was deleted on the server).
@@ -624,6 +841,23 @@ impl Store {
 
     pub fn write_body(&self, key: &MessageKey, raw: &[u8]) -> Result<()> {
         self.files.write(&self.body_path(key), raw)
+    }
+
+    /// Many message sources at once: one transaction for all of them in a data file (importing
+    /// hundreds of thousands, a commit each spent most of the time waiting for the disk).
+    pub fn write_bodies(&self, bodies: &[(MessageKey, Vec<u8>)]) -> Result<()> {
+        let items: Vec<(PathBuf, Vec<u8>)> = bodies.iter().map(|(k, raw)| (self.body_path(k), raw.clone())).collect();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.files.write_many(&items)
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            for (p, raw) in &items {
+                self.files.write(p, raw)?;
+            }
+            Ok(())
+        }
     }
 
     pub fn remove_body(&self, key: &MessageKey) {
@@ -675,13 +909,15 @@ impl Store {
             let in_folder = |k: &MessageKey| k.account == account && &k.folder == folder && k.validity == st.validity;
             match op {
                 Op::SetFlag { keys, flag, on } => {
-                    let uids: Vec<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    // A set: every message of a folder may change at once (looked up in a list, that was quadratic).
+                    let uids: HashSet<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
                     for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
                         flag.set(&mut m.flags, *on);
                     }
                 }
                 Op::SetKeyword { keys, keyword, on } => {
-                    let uids: Vec<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    // A set: every message of a folder may change at once (looked up in a list, that was quadratic).
+                    let uids: HashSet<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
                     for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
                         m.flags.set_keyword(keyword, *on);
                     }
@@ -690,7 +926,8 @@ impl Store {
                     if to == folder {
                         continue;
                     }
-                    let uids: Vec<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    // A set: every message of a folder may change at once (looked up in a list, that was quadratic).
+                    let uids: HashSet<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
                     st.messages.retain(|m| !uids.contains(&m.key.uid));
                 }
                 Op::Expunge { keys } => {
@@ -698,7 +935,8 @@ impl Store {
                     for k in &gone {
                         self.remove_body(k);
                     }
-                    st.messages.retain(|m| !gone.iter().any(|k| k.uid == m.key.uid));
+                    let uids: HashSet<u32> = gone.iter().map(|k| k.uid).collect();
+                    st.messages.retain(|m| !uids.contains(&m.key.uid));
                 }
                 Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
             }
@@ -835,6 +1073,61 @@ mod tests {
     use mailcraft_model::{Flag, Flags};
 
     use super::*;
+
+    /// A big folder's list is kept in pages by number: read back newest first as it was; a flag
+    /// change writes one page, new mail the last one; shrunk, the pages go; and a list kept whole
+    /// (from before) still reads.
+    #[test]
+    fn a_big_folder_list_is_kept_in_pages() {
+        for packed in [false, true] {
+            let dir = std::env::temp_dir().join(format!("mailcraft-pages-{packed}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            let s = if packed { Store::open_packed(dir.join("app"), dir.join("Files")).unwrap() } else { Store::open(&dir).unwrap() };
+            let n = PAGE_MESSAGES as u32 * 2 + 500;
+            let msg = |uid: u32| Summary {
+                key: MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 3, uid },
+                subject: format!("Report {uid}"),
+                date: 1_700_000_000 + i64::from(uid % 977) * 60,
+                ..Default::default()
+            };
+            let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(msg).collect(), ..Default::default() };
+            sort_newest_first(&mut st.messages);
+            assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 4, "three pages and the list");
+            let back = s.load_folder("a1", "INBOX").unwrap();
+            assert_eq!(back, st, "{packed}: read back newest first, as it was");
+            // A flag: one page.
+            if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 10) {
+                m.flags.seen = true;
+            }
+            assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 2, "one page and the list");
+            assert!(s.load_folder("a1", "INBOX").unwrap().find(10).unwrap().flags.seen);
+            // Told which changed: the same, without looking at the rest.
+            if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 8000) {
+                m.flags.flagged = true;
+            }
+            let changed: std::collections::HashSet<u32> = [8000].into_iter().collect();
+            assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 2);
+            assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
+            // New mail: the last page.
+            st.messages.insert(0, msg(n + 1));
+            st.uid_next = n + 2;
+            assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 2);
+            assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize + 1);
+            // Told only of a flag, but a message came too: every page looked at, so it's kept.
+            st.messages.insert(0, msg(n + 2));
+            st.uid_next = n + 3;
+            assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 2);
+            assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize + 2);
+            // Nothing changed: the list alone.
+            assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 1);
+            // Shrunk to a small folder: kept whole again, the pages gone.
+            st.messages.truncate(10);
+            s.save_folder("a1", "INBOX", &st).unwrap();
+            assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
+            assert!(!s.files.is_file(&s.folder_dir("a1", "INBOX").join("state-0.json")));
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
 
     pub(crate) fn temp_store(name: &str) -> Store {
         let dir = std::env::temp_dir().join(format!("mailcraft-store-{name}-{}", std::process::id()));

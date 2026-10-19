@@ -2783,6 +2783,7 @@ name = "mailcraft-store"
 version = "0.16.0"
 dependencies = [
  "dirs",
+ "flate2",
  "log",
  "mailcraft-model",
  "redb",
