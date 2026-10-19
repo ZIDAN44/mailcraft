@@ -673,6 +673,9 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     // folders has none.
     match c.public_pim_folders() {
         Ok(list) => {
+            // Said in the log, found or not: what a "where are my shared contacts?" needs.
+            let contacts = list.iter().filter(|f| f.class.starts_with("IPF.Contact")).count();
+            log::info!("public folders: {contacts} address books, {} calendars", list.len() - contacts);
             for (n, f) in list.into_iter().take(MAX_PUBLIC_PIM).enumerate() {
                 let (id, name, class) = (f.id, f.path, f.class);
                 let key = format!("public:{id}");

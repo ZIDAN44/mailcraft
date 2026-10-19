@@ -172,8 +172,15 @@ impl Data {
         } else {
             String::new()
         };
+        // As Exchange answers: each folder in an element of its kind (EWS's folder array).
+        let kind = match f.class.as_str() {
+            c if c.starts_with("IPF.Contact") => "ContactsFolder",
+            c if c.starts_with("IPF.Appointment") => "CalendarFolder",
+            c if c.starts_with("IPF.Task") => "TasksFolder",
+            _ => "Folder",
+        };
         format!(
-            "<t:Folder><t:FolderId Id=\"{}\"/><t:ParentFolderId Id=\"{}\"/><t:FolderClass>{}</t:FolderClass><t:DisplayName>{}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount>{replica}</t:Folder>",
+            "<t:{kind}><t:FolderId Id=\"{}\"/><t:ParentFolderId Id=\"{}\"/><t:FolderClass>{}</t:FolderClass><t:DisplayName>{}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount>{replica}</t:{kind}>",
             f.id,
             f.parent,
             f.class,

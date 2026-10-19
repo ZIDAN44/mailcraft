@@ -80,7 +80,26 @@ impl El {
     pub fn text_of(&self, name: &str) -> Option<&str> {
         self.child(name).map(|c| c.text.as_str())
     }
+    /// The folders in an answer, whatever their kind: Exchange gives each in an element of its
+    /// own (`Folder`, `ContactsFolder`, `CalendarFolder`, `TasksFolder`, `SearchFolder`).
+    pub fn folders(&self) -> Vec<&El> {
+        fn walk<'a>(el: &'a El, out: &mut Vec<&'a El>) {
+            for k in &el.kids {
+                if FOLDER_KINDS.contains(&k.name.as_str()) {
+                    out.push(k);
+                } else {
+                    walk(k, out);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(self, &mut out);
+        out
+    }
 }
+
+/// The elements a folder comes in (EWS's array of folders).
+const FOLDER_KINDS: [&str; 5] = ["Folder", "ContactsFolder", "CalendarFolder", "TasksFolder", "SearchFolder"];
 
 fn local(name: &str) -> String {
     name.rsplit(':').next().unwrap_or("").to_string()
@@ -641,8 +660,7 @@ impl Client {
             let Some(m) = messages(&doc).first().map(|m| (*m).clone()) else { break };
             check_message(&m)?;
             let Some(rf) = m.child("RootFolder") else { break };
-            let mut folders = Vec::new();
-            rf.all("Folder", &mut folders);
+            let folders = rf.folders();
             let n = folders.len();
             for f in folders {
                 let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
@@ -776,10 +794,7 @@ impl Client {
                     continue;
                 }
             };
-            let mut folders = Vec::new();
-            if let Some(rf) = m.child("RootFolder") {
-                rf.all("Folder", &mut folders);
-            }
+            let folders = m.child("RootFolder").map(El::folders).unwrap_or_default();
             for f in folders {
                 let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
                 let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
@@ -831,7 +846,7 @@ impl Client {
              <m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:GetFolder>",
             esc(folder)
         ))?;
-        let f = m.find("Folder");
+        let f = m.folders().into_iter().next();
         let count = |k: &str| f.and_then(|f| f.text_of(k)).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
         Ok((count("TotalCount"), count("UnreadCount")))
     }
@@ -1428,6 +1443,12 @@ mod tests {
         let deep = "<a>".repeat(10_000);
         let _ = parse(&deep);
         let _ = parse("<a><b></a></b>&bogus;&#xFFFFFFFF;");
+        // Folders of every kind, in the answer's order (contacts and calendars aren't `Folder`).
+        let f = parse(
+            "<m:RootFolder><t:Folders><t:Folder><t:DisplayName>A</t:DisplayName></t:Folder>                       <t:ContactsFolder><t:DisplayName>B</t:DisplayName></t:ContactsFolder><t:CalendarFolder><t:DisplayName>C</t:DisplayName></t:CalendarFolder>                       <t:TasksFolder><t:DisplayName>D</t:DisplayName></t:TasksFolder><t:SearchFolder><t:DisplayName>E</t:DisplayName></t:SearchFolder></t:Folders></m:RootFolder>",
+        );
+        let names: Vec<&str> = f.folders().iter().filter_map(|x| x.text_of("DisplayName")).collect();
+        assert_eq!(names, ["A", "B", "C", "D", "E"]);
         // Entities in text and attributes, CDATA and numeric references, read as text.
         let e = parse("<t:a xmlns:t=\"x\" t:Id=\"R&amp;D &quot;1&quot;\">Tom &amp; Jerry &lt;3 &#233;t&#xE9; <![CDATA[<raw> & co]]> ünï</t:a>");
         let a = e.find("a").unwrap();
