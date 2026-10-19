@@ -365,7 +365,13 @@ fn shared_header(t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, a: &mailcraft_
 #[allow(clippy::too_many_arguments)]
 fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &Folder, depth: usize, favorite: bool, collapse: Option<bool>) {
     let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
+    // In Favorites, a shared mailbox's folder says whose it is (its Inbox isn't the account's).
+    let shared_top = f.mailbox.as_ref().and_then(|_| {
+        let top = f.delimiter.and_then(|d| f.path.split(d).next()).unwrap_or(&f.path);
+        s.folder(&f.account, top).map(crate::i18n::folder)
+    });
     let name = match s.account(&f.account) {
+        _ if favorite && let Some(top) = shared_top => format!("{} · {top}", crate::i18n::folder(f)),
         Some(a) if favorite && s.accounts.len() > 1 => {
             format!("{} · {}", crate::i18n::folder(f), a.config.email.split('@').next().unwrap_or_default())
         }

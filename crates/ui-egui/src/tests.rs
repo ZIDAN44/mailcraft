@@ -1282,6 +1282,8 @@ fn a_shared_mailbox_draws_as_a_mailbox_of_its_own() {
     frame(&ctx, &mut a, vec![]);
     a.run("folder.open", json!({"account": "sample", "folder": "Test Grommunio/Postvak IN"}));
     frame(&ctx, &mut a, vec![]);
+    // In Favorites it says whose Inbox it is.
+    a.run("folder.favorite", json!({"account": "sample", "folder": "Test Grommunio/Postvak IN", "on": true}));
     a.run("view.collapse", json!({"key": "folder:sample/Test Grommunio"}));
     frame(&ctx, &mut a, vec![]);
     let e = a.session.run("folder.rename", &json!({"account": "sample", "folder": "Test Grommunio/Postvak IN", "name": "X"})).unwrap_err();
