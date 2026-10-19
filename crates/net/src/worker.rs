@@ -27,6 +27,10 @@ pub trait Credentials: Send + Sync {
     fn get(&self, account: &AccountConfig) -> Option<String>;
     fn set(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String>;
     fn delete(&self, account: &AccountConfig);
+    /// The outgoing server's own password (accounts with an `smtp_username`), kept apart.
+    fn get_smtp(&self, account: &AccountConfig) -> Option<String>;
+    fn set_smtp(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String>;
+    fn delete_smtp(&self, account: &AccountConfig);
 }
 
 /// Passwords held in memory only (tests, the CLI, and when no keychain is available).
@@ -44,6 +48,18 @@ impl Credentials for MemoryCredentials {
     fn delete(&self, account: &AccountConfig) {
         if let Ok(mut m) = self.0.lock() {
             m.remove(&account.id);
+        }
+    }
+    fn get_smtp(&self, account: &AccountConfig) -> Option<String> {
+        self.0.lock().ok().and_then(|m| m.get(&format!("{}|smtp", account.id)).cloned())
+    }
+    fn set_smtp(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String> {
+        self.0.lock().map_err(|e| e.to_string())?.insert(format!("{}|smtp", account.id), password.to_string());
+        Ok(())
+    }
+    fn delete_smtp(&self, account: &AccountConfig) {
+        if let Ok(mut m) = self.0.lock() {
+            m.remove(&format!("{}|smtp", account.id));
         }
     }
 }
@@ -368,10 +384,19 @@ impl Pool {
                 self.configs.insert(account.id.clone(), account);
             }
             Job::Start { account, password } => self.start(account, password),
+            Job::SmtpPassword { account, password } => {
+                if let Err(e) = self.creds.set_smtp(&account, &password.0) {
+                    self.sink.emit(Event::Notice {
+                        account: account.id.clone(),
+                        message: format!("the outgoing server's password could not be saved in the keychain: {e}"),
+                    });
+                }
+            }
             Job::Remove { account } => {
                 self.stop(&account);
                 if let Some(c) = self.configs.remove(&account) {
                     self.creds.delete(&c);
+                    self.creds.delete_smtp(&c);
                 }
             }
             Job::FetchBody { key } if !self.workers.contains_key(&key.account) => {
@@ -1396,7 +1421,7 @@ impl Worker {
                 }
             }
             Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } | Job::ExportPst { .. } => {}
-            Job::Start { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}
+            Job::Start { .. } | Job::SmtpPassword { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}
         }
     }
 
@@ -1581,8 +1606,19 @@ impl Worker {
             let Some(Conn::Jmap(c)) = &self.conn else { return Err(NetError::Closed("not connected".into())) };
             return jmap::send(c, &self.jstate, sent.as_deref(), raw, from, recipients);
         }
-        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
-        let secret = self.secret()?;
+        let (user, secret) = match self.acc.smtp_username.as_deref().map(str::trim).filter(|u| !u.is_empty() && self.acc.oauth.is_none()) {
+            // The outgoing server's own sign-in (issue #3: its user name differs from the
+            // incoming server's), with its own password.
+            Some(u) => {
+                let pw = self.creds.as_ref().and_then(|c| c.get_smtp(&self.acc)).ok_or_else(|| {
+                    NetError::Auth(format!(
+                        "the outgoing server's password for {u} isn't on this computer: enter it in the account's Server settings"
+                    ))
+                })?;
+                (u.to_string(), pw)
+            }
+            None => (if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() }, self.secret()?),
+        };
         smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw).map_err(|e| match e {
             // Say whether the sign-in covered sending: Microsoft lists what it granted.
             NetError::Auth(m) if self.acc.oauth.as_deref() == Some("microsoft") => {

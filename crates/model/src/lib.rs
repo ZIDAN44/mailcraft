@@ -76,6 +76,10 @@ pub struct AccountConfig {
     pub username: String,
     pub imap: ServerConfig,
     pub smtp: ServerConfig,
+    /// The outgoing server's own user name, when it doesn't share the incoming server's sign-in
+    /// (its password is kept apart in the keychain); otherwise SMTP signs in as IMAP or POP does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub smtp_username: Option<String>,
     #[serde(default)]
     pub signature: String,
     /// The signature's look, as HTML (empty when it's plain text): bold, colours, sizes and
@@ -196,6 +200,7 @@ impl AccountConfig {
             username: email.to_string(),
             imap: ServerConfig { host: imap_host, port: 993, security: Security::Tls },
             smtp,
+            smtp_username: None,
             signature: String::new(),
             signature_html: String::new(),
             color: 0,

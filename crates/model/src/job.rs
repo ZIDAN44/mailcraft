@@ -138,6 +138,9 @@ pub enum Job {
     /// Start (or restart) the worker for an account. `password` is set when the user just typed
     /// it (the app stores it in the system keychain); otherwise the keychain is asked.
     Start { account: AccountConfig, password: Option<Secret> },
+    /// Keep the outgoing server's own password (an account whose SMTP sign-in isn't the incoming
+    /// server's: `smtp_username`), in the system keychain apart from the account's password.
+    SmtpPassword { account: AccountConfig, password: Secret },
     /// Stop the worker and forget the stored password.
     Remove { account: String },
     /// Refresh the folder list and every folder.
@@ -183,7 +186,7 @@ pub enum Job {
 impl Job {
     pub fn account(&self) -> &str {
         match self {
-            Job::Start { account, .. } => &account.id,
+            Job::Start { account, .. } | Job::SmtpPassword { account, .. } => &account.id,
             Job::FetchBody { key } => &key.account,
             Job::Remove { account }
             | Job::SyncAll { account }

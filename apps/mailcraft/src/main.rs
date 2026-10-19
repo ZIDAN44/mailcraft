@@ -38,6 +38,11 @@ fn entry(a: &AccountConfig) -> Result<keyring::Entry, String> {
     keyring::Entry::new(SERVICE, &format!("{}|{}|{}", a.id, a.username, a.imap.host)).map_err(|e| e.to_string())
 }
 
+/// The outgoing server's own password, for an account whose SMTP sign-in is its own.
+fn smtp_entry(a: &AccountConfig) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(SERVICE, &format!("{}|smtp", a.id)).map_err(|e| e.to_string())
+}
+
 impl Credentials for Keychain {
     fn get(&self, account: &AccountConfig) -> Option<String> {
         entry(account).ok()?.get_password().ok()
@@ -47,6 +52,17 @@ impl Credentials for Keychain {
     }
     fn delete(&self, account: &AccountConfig) {
         if let Ok(e) = entry(account) {
+            let _ = e.delete_credential();
+        }
+    }
+    fn get_smtp(&self, account: &AccountConfig) -> Option<String> {
+        smtp_entry(account).ok()?.get_password().ok()
+    }
+    fn set_smtp(&self, account: &AccountConfig, password: &str) -> Result<(), String> {
+        smtp_entry(account)?.set_password(password).map_err(|e| e.to_string())
+    }
+    fn delete_smtp(&self, account: &AccountConfig) {
+        if let Ok(e) = smtp_entry(account) {
             let _ = e.delete_credential();
         }
     }

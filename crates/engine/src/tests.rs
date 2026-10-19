@@ -2529,3 +2529,40 @@ fn a_removed_account_keeps_its_data_file() {
     drop(s);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #3: an account whose outgoing server has its own user name and password. The user name
+/// is kept with the account, the password goes to the keychain on its own (never in the
+/// account's settings), a new one needs its password, and turning it off signs in as IMAP does.
+#[test]
+fn the_outgoing_server_keeps_a_sign_in_of_its_own() {
+    let mut s = sample_session("smtp-sign-in");
+    let add = json!({"email": "zoe@example.org", "password": "imap-pw", "imapHost": "imap.example.org", "smtpHost": "mail.relay.example",
+        "smtpUsername": "relay-user"});
+    assert!(s.run("account.add", &add).unwrap_err().to_string().contains("outgoing server's password"));
+    let mut add = add;
+    add["smtpPassword"] = json!("smtp-pw");
+    let id = s.run("account.add", &add).unwrap()["account"].as_str().unwrap().to_string();
+    let jobs = s.take_jobs();
+    assert!(
+        matches!(jobs.as_slice(), [Job::Start { account, password: Some(p) }, Job::SmtpPassword { account: a2, password: sp }]
+            if account.smtp_username.as_deref() == Some("relay-user") && p.0 == "imap-pw" && a2.id == id && sp.0 == "smtp-pw"),
+        "{jobs:?}"
+    );
+    let saved = std::fs::read_to_string(s.store.as_ref().unwrap().root().join("accounts.json")).unwrap();
+    assert!(saved.contains("relay-user"));
+    assert!(!saved.contains("smtp-pw") && !saved.contains("imap-pw"), "passwords stay out of MailCraft's files");
+    // Its password changed alone: kept, no reconnecting.
+    s.run("account.update", &json!({"account": id, "smtpUsername": "relay-user", "smtpPassword": "new-pw"})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::SmtpPassword { password, .. }] if password.0 == "new-pw"));
+    // A new user name with the password kept: it reconnects with it.
+    s.run("account.update", &json!({"account": id, "smtpUsername": "relay-2"})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.smtp_username.as_deref() == Some("relay-2")));
+    // Off: SMTP signs in as IMAP does.
+    s.run("account.update", &json!({"account": id, "smtpUsername": null})).unwrap();
+    assert!(s.account(&id).unwrap().config.smtp_username.is_none());
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }]));
+    // Accounts that don't send over SMTP have none.
+    let ews = json!({"email": "riley@contoso.example", "password": "pw", "ews": "mail.contoso.example", "smtpUsername": "x", "smtpPassword": "y"});
+    assert!(s.run("account.add", &ews).is_err());
+    done(s);
+}

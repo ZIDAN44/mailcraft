@@ -408,6 +408,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
         Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
         Job::Start { .. }
+        | Job::SmtpPassword { .. }
         | Job::Remove { .. }
         | Job::FetchUrl { .. }
         | Job::Discover { .. }

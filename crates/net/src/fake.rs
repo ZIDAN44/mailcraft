@@ -1207,4 +1207,49 @@ y"
         pool.submit(Job::Remove { account: "a1".into() });
         let _ = std::fs::remove_dir_all(store.root());
     }
+
+    /// Issue #3: an outgoing server whose user name and password aren't the incoming server's.
+    /// Without its password kept, sending says so (and nothing goes as the IMAP user); once kept,
+    /// SMTP signs in with its own user name and password while IMAP keeps its own.
+    #[test]
+    fn the_outgoing_server_signs_in_with_its_own_user_name_and_password() {
+        let st = State::new();
+        let imap_port = serve_tcp(&st);
+        let (smtp_port, smtp_log) = crate::smtp::tests::serve_once();
+        let store = store("smtp-own-sign-in");
+        let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig {
+            id: "a1".into(),
+            email: "me@studio.example".into(),
+            username: "me@studio.example".into(),
+            imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
+            smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None },
+            smtp_username: Some("relay-user".into()),
+            ..Default::default()
+        };
+        pool.submit(Job::Start { account: account.clone(), password: Some(Secret("pw".into())) });
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        let send = |id: u64| Job::Send {
+            account: "a1".into(),
+            id,
+            raw: b"From: me@studio.example\r\nTo: zoe@studio.example\r\nSubject: relay\r\n\r\nhi\r\n".to_vec(),
+            from: "me@studio.example".into(),
+            recipients: vec!["zoe@studio.example".into()],
+            sent_folder: None,
+        };
+        pool.submit(send(1));
+        until(&pool, "no password", |e| match e {
+            Event::SendFailed { id: 1, error, .. } | Event::Queued { id: 1, error, .. } => error.contains("outgoing server's password"),
+            _ => false,
+        });
+        pool.submit(Job::SmtpPassword { account: account.clone(), password: Secret("smtp-secret".into()) });
+        pool.submit(send(2));
+        until(&pool, "sent", |e| matches!(e, Event::Sent { id: 2, .. }));
+        let log = smtp_log.join().unwrap();
+        let own = crate::imap::base64(b"\0relay-user\0smtp-secret");
+        assert!(log.contains(&own), "SMTP signed in as relay-user: {log}");
+        assert!(!log.contains(&crate::imap::base64(b"\0me@studio.example\0pw")), "not as the IMAP user");
+        pool.submit(Job::Remove { account: "a1".into() });
+        let _ = std::fs::remove_dir_all(store.root());
+    }
 }

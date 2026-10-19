@@ -679,7 +679,7 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft)}"#),
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
@@ -759,7 +759,7 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
-            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool}"#,
+            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool}"#,
         ),
         CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
             let id = account_param(s, v)?;
@@ -1435,6 +1435,7 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         username: p::str(v, "username").map(str::to_string).unwrap_or(guess.username.clone()),
         imap: if plain || pop.is_some() { ServerConfig::default() } else { server(v, "imap", &guess.imap)? },
         smtp: if plain { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
+        smtp_username: None,
         signature: p::str(v, "signature").unwrap_or_default().to_string(),
         signature_html: String::new(),
         color: 0,
@@ -1464,7 +1465,13 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     if !local && !defer && config.oauth.is_none() && password.as_deref().is_none_or(str::is_empty) {
         return Err(CmdError::Params("`password` is required".into()));
     }
+    // The outgoing server's own sign-in (IMAP or POP with SMTP).
+    let mut config = config;
+    let smtp_password = smtp_sign_in(v, &mut config, true)?;
     let id = s.add_account(config, password)?;
+    if let Some(pw) = smtp_password {
+        s.keep_smtp_password(&id, pw);
+    }
     // `pst`: an existing data file whose mail comes into the account first.
     if let Some(path) = p::str(v, "pst").map(str::trim).filter(|p| !p.is_empty()) {
         s.attach_data_file(&id, path)?;
@@ -1532,7 +1539,37 @@ fn update_account(s: &mut Session, v: &Value) -> CmdResult {
             return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
         }
     }
-    s.update_account(c, None)
+    let smtp_password = smtp_sign_in(v, &mut c, false)?;
+    let done = s.update_account(c, None)?;
+    if let Some(pw) = smtp_password {
+        s.keep_smtp_password(id, pw);
+    }
+    Ok(done)
+}
+
+/// The outgoing server's own sign-in, as Outlook's "Log on using" for SMTP (issue #3: its user
+/// name and password aren't the incoming server's): `smtpUsername` (null or empty: signs in as
+/// the incoming server does) and `smtpPassword`, which is returned to be kept. A new one needs
+/// its password; one already kept keeps it when none is given.
+fn smtp_sign_in(v: &Value, c: &mut AccountConfig, adding: bool) -> Result<Option<String>, CmdError> {
+    let password = p::str(v, "smtpPassword").filter(|p| !p.is_empty()).map(str::to_string);
+    let user = match v.get("smtpUsername") {
+        None => return Ok(password.filter(|_| c.smtp_username.is_some())),
+        Some(Value::Null) => None,
+        Some(u) => u.as_str().map(str::trim).filter(|u| !u.is_empty()).map(|u| u.chars().take(320).collect::<String>()),
+    };
+    let Some(user) = user else {
+        c.smtp_username = None;
+        return Ok(None);
+    };
+    if c.is_local() || c.is_api() {
+        return Err(CmdError::Params("only accounts that send over SMTP have an outgoing server's sign-in".into()));
+    }
+    if password.is_none() && (adding || c.smtp_username.is_none()) && !p::bool(v, "deferSignIn").unwrap_or(false) {
+        return Err(CmdError::Params("the outgoing server's password is required".into()));
+    }
+    c.smtp_username = Some(user);
+    Ok(password)
 }
 
 fn set_signature(s: &mut Session, v: &Value) -> CmdResult {

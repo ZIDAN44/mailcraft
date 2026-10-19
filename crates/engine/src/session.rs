@@ -2987,6 +2987,13 @@ impl Session {
         Ok(serde_json::json!({ "account": new, "graph": true }))
     }
 
+    /// Keep an account's outgoing server's own password (its `smtp_username`'s), in the keychain.
+    pub(crate) fn keep_smtp_password(&mut self, account: &str, password: String) {
+        if let Some(a) = self.account(account) {
+            self.jobs.push(Job::SmtpPassword { account: a.config.clone(), password: Secret(password) });
+        }
+    }
+
     pub fn update_account(&mut self, config: AccountConfig, password: Option<String>) -> CmdResult {
         let id = config.id.clone();
         let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
@@ -3000,6 +3007,7 @@ impl Session {
             || a.config.pop_keep_days != config.pop_keep_days
             || a.config.pop_delete_with_trash != config.pop_delete_with_trash
             || a.config.username != config.username
+            || a.config.smtp_username != config.smtp_username
             || a.config.shared_mailboxes != config.shared_mailboxes
             || password.is_some();
         a.config = config.clone();
