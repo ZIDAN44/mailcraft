@@ -2839,8 +2839,8 @@ impl Session {
         }
         match error {
             Some(e) => {
-                // Nothing came in: the account goes again.
-                let _ = self.remove_account(account);
+                // Nothing came in: the account goes again, and the file it was starting.
+                let _ = self.drop_account(account, false);
                 self.notice(format!("{name} could not be opened: {e}"), true);
             }
             None => {
@@ -2876,17 +2876,30 @@ impl Session {
         Ok(serde_json::json!({ "account": id, "position": to }))
     }
 
+    /// Remove an account as Outlook does: gone from here, its data file kept (closed) where it
+    /// is, so it can be opened again from File › Open & Export; nothing changes on the server.
     pub fn remove_account(&mut self, id: &str) -> CmdResult {
-        if self.account(id).is_none() {
+        self.drop_account(id, true)
+    }
+
+    /// An account gone; `keep` keeps its data file (an account the user removes), otherwise the
+    /// file goes too (one that never held anyone's mail, or an account starting again).
+    fn drop_account(&mut self, id: &str, keep: bool) -> CmdResult {
+        let Some(email) = self.account(id).map(|a| a.config.email.clone()) else {
             return Err(CmdError::Params(format!("no account `{id}`")));
-        }
+        };
         self.accounts.retain(|a| a.config.id != id);
         self.cache.retain(|(a, _), _| a != id);
         self.pim.remove(id);
-        if let Some(store) = &self.store
-            && let Err(e) = store.remove_account(id)
-        {
-            self.notice(e.to_string(), true);
+        let mut kept = None;
+        if let Some(store) = &self.store {
+            let gone = if keep { store.remove_account(id).map(|f| kept = f) } else { store.delete_account(id) };
+            if let Err(e) = gone {
+                self.notice(e.to_string(), true);
+            }
+        }
+        if let Some(f) = &kept {
+            self.notice(format!("{email} removed. Its data file stays at {}", f.display()), false);
         }
         self.save_accounts();
         self.jobs.push(Job::Remove { account: id.to_string() });
@@ -2895,7 +2908,7 @@ impl Session {
         }
         let view = self.default_view();
         self.open_view(view);
-        Ok(serde_json::json!({ "removed": id }))
+        Ok(serde_json::json!({ "removed": id, "dataFile": kept.map(|f| f.display().to_string()) }))
     }
 
     /// An account that signs in to Microsoft with a password (which Microsoft refuses) switched to
@@ -2935,7 +2948,8 @@ impl Session {
             return Err(CmdError::Params("signing in with Microsoft isn't set up in this copy of MailCraft".into()));
         }
         let at = self.accounts.iter().position(|x| x.config.id == id).unwrap_or(0);
-        self.remove_account(id)?;
+        // Starting again from the server: its old file isn't kept beside the new one.
+        self.drop_account(id, false)?;
         let config = AccountConfig {
             name: c.name,
             email: c.email,

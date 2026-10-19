@@ -337,7 +337,6 @@
 	{a} and {b}	{a}、{b}
 	{a}, {b} and others	{a}、{b} ほか
 	{email} (sample)	{email} (サンプル)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} とダウンロード済みのメールがこのコンピューターから削除されます。サーバー上では何も削除されません。
 	{name} could not be opened: {error}	{name} を開けませんでした: {error}
 	{n} attachments	添付ファイル {n} 個
 	{n} messages in this conversation	このスレッドのメッセージ {n} 件
@@ -867,3 +866,7 @@ month	May	5月
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	フォルダーはこのアカウントの下に表示されます。Exchange サーバーでのアクセス権が必要です。フル アクセス権のあるメールボックスは自動的に開きます。
 	Mailboxes you have full access to open by themselves.	フル アクセス権のあるメールボックスは自動的に開きます。
 	Shared mailboxes	共有メールボックス
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} を MailCraft から削除します。データ ファイル {file} は MailCraft Files フォルダーに残ります。[ファイル] › [開く/エクスポート] から開くと、メールをまた見られます。サーバー上では何も削除されません。
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} を MailCraft から削除します。サーバー上では何も削除されません。
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} を MailCraft から削除します。データ ファイル {file} は MailCraft Files フォルダーに残ります。[ファイル] › [開く/エクスポート] から開くと、メールをまた見られます。
+	{email} will be removed from MailCraft.	{email} を MailCraft から削除します。

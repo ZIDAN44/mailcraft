@@ -337,7 +337,6 @@
 	{a} and {b}	{a} e {b}
 	{a}, {b} and others	{a}, {b} e altri
 	{email} (sample)	{email} (esempio)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} e la posta scaricata verranno rimossi da questo computer. Sul server non viene eliminato nulla.
 	{name} could not be opened: {error}	Impossibile aprire {name}: {error}
 	{n} attachments	{n} allegati
 	{n} messages in this conversation	{n} messaggi in questa conversazione
@@ -864,6 +863,10 @@
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Le sue cartelle compaiono sotto questo account. Serve l'accesso sul server Exchange; quelle a cui hai accesso completo si aprono da sole.
 	Mailboxes you have full access to open by themselves.	Le cassette a cui hai accesso completo si aprono da sole.
 	Shared mailboxes	Cassette postali condivise
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} verrà rimosso da MailCraft. Il file di dati, {file}, resta nella cartella MailCraft Files: aprilo da File › Apri ed esporta per rivederne la posta. Sul server non viene eliminato nulla.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} verrà rimosso da MailCraft. Sul server non viene eliminato nulla.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} verrà rimosso da MailCraft. Il file di dati, {file}, resta nella cartella MailCraft Files: aprilo da File › Apri ed esporta per rivederne la posta.
+	{email} will be removed from MailCraft.	{email} verrà rimosso da MailCraft.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

@@ -1620,13 +1620,25 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::RemoveAccount { account, email } => {
             ui.set_width(380.0);
             title(ui, t, "Remove account?");
-            ui.label(
-                RichText::new(tf!(
-                    "{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.",
-                    email = email
-                ))
-                .color(t.dim),
-            );
+            // As Outlook removes one: its data file stays, to open again from Open & Export.
+            let file = s.store.as_ref().and_then(|st| st.data_file(account)).filter(|f| f.exists());
+            // A mailbox with no server (an opened data file) has nothing there to keep.
+            let local = s.account(account).is_some_and(|a| a.is_local());
+            let text = match file.as_ref().and_then(|f| f.file_name()).map(|n| n.to_string_lossy().into_owned()) {
+                Some(file) if local => tf!(
+                    "{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.",
+                    email = email,
+                    file = file
+                ),
+                Some(file) => tf!(
+                    "{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.",
+                    email = email,
+                    file = file
+                ),
+                None if local => tf!("{email} will be removed from MailCraft.", email = email),
+                None => tf!("{email} will be removed from MailCraft. Nothing is deleted on the server.", email = email),
+            };
+            ui.add(egui::Label::new(RichText::new(text).color(t.dim)).wrap());
             let (ok, cancel) = buttons(ui, t, "Remove", true);
             if ok {
                 acts.push(Action::Run("account.remove", json!({"account": account})));

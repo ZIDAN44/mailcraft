@@ -337,7 +337,6 @@
 	{a} and {b}	{a} und {b}
 	{a}, {b} and others	{a}, {b} und andere
 	{email} (sample)	{email} (Beispiel)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} und die heruntergeladenen E-Mails werden von diesem Computer entfernt. Auf dem Server wird nichts gelöscht.
 	{name} could not be opened: {error}	{name} konnte nicht geöffnet werden: {error}
 	{n} attachments	{n} Anhänge
 	{n} messages in this conversation	{n} Nachrichten in dieser Unterhaltung
@@ -865,6 +864,10 @@
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Seine Ordner erscheinen unter diesem Konto. Sie brauchen auf dem Exchange-Server Zugriff darauf; Postfächer mit Vollzugriff öffnen sich von selbst.
 	Mailboxes you have full access to open by themselves.	Postfächer mit Vollzugriff öffnen sich von selbst.
 	Shared mailboxes	Freigegebene Postfächer
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} wird aus MailCraft entfernt. Die Datendatei {file} bleibt im Ordner „MailCraft Files“: Öffnen Sie sie über Datei › Öffnen und exportieren, um die E-Mails wieder zu sehen. Auf dem Server wird nichts gelöscht.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} wird aus MailCraft entfernt. Auf dem Server wird nichts gelöscht.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} wird aus MailCraft entfernt. Die Datendatei {file} bleibt im Ordner „MailCraft Files“: Öffnen Sie sie über Datei › Öffnen und exportieren, um die E-Mails wieder zu sehen.
+	{email} will be removed from MailCraft.	{email} wird aus MailCraft entfernt.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

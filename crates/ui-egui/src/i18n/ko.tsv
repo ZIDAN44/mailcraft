@@ -337,7 +337,6 @@
 	{a} and {b}	{a}, {b}
 	{a}, {b} and others	{a}, {b} 외
 	{email} (sample)	{email} (예제)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email}과(와) 다운로드한 메일이 이 컴퓨터에서 제거됩니다. 서버에서는 아무것도 삭제되지 않습니다.
 	{name} could not be opened: {error}	{name}을(를) 열 수 없습니다: {error}
 	{n} attachments	첨부 파일 {n}개
 	{n} messages in this conversation	이 대화의 메시지 {n}개
@@ -864,6 +863,10 @@
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	폴더가 이 계정 아래에 표시됩니다. Exchange 서버에서 액세스 권한이 필요하며, 모든 권한이 있는 사서함은 자동으로 열립니다.
 	Mailboxes you have full access to open by themselves.	모든 권한이 있는 사서함은 자동으로 열립니다.
 	Shared mailboxes	공유 사서함
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email}이(가) MailCraft에서 제거됩니다. 데이터 파일 {file}은(는) MailCraft Files 폴더에 남으며, 파일 › 열기 및 내보내기에서 열면 메일을 다시 볼 수 있습니다. 서버에서는 아무것도 삭제되지 않습니다.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email}이(가) MailCraft에서 제거됩니다. 서버에서는 아무것도 삭제되지 않습니다.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email}이(가) MailCraft에서 제거됩니다. 데이터 파일 {file}은(는) MailCraft Files 폴더에 남으며, 파일 › 열기 및 내보내기에서 열면 메일을 다시 볼 수 있습니다.
+	{email} will be removed from MailCraft.	{email}이(가) MailCraft에서 제거됩니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

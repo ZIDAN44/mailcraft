@@ -337,7 +337,6 @@
 	{a} and {b}	{a} ו-{b}
 	{a}, {b} and others	{a}, {b} ואחרים
 	{email} (sample)	{email} (לדוגמה)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} והדואר שהורד ממנו יוסרו מהמחשב הזה. שום דבר לא נמחק בשרת.
 	{name} could not be opened: {error}	לא ניתן היה לפתוח את {name}: {error}
 	{n} attachments	{n} קבצים מצורפים
 	{n} messages in this conversation	{n} הודעות בשיחה הזו
@@ -866,3 +865,7 @@ month	May	מאי
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	התיקיות שלה יופיעו תחת החשבון הזה. נדרשת לך גישה אליה בשרת Exchange; תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.
 	Mailboxes you have full access to open by themselves.	תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.
 	Shared mailboxes	תיבות דואר משותפות
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} יוסר מ-MailCraft. קובץ הנתונים שלו, {file}, נשאר בתיקייה MailCraft Files: פתח אותו מקובץ › פתיחה וייצוא כדי לראות שוב את הדואר שלו. דבר אינו נמחק בשרת.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} יוסר מ-MailCraft. דבר אינו נמחק בשרת.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} יוסר מ-MailCraft. קובץ הנתונים שלו, {file}, נשאר בתיקייה MailCraft Files: פתח אותו מקובץ › פתיחה וייצוא כדי לראות שוב את הדואר שלו.
+	{email} will be removed from MailCraft.	{email} יוסר מ-MailCraft.

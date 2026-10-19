@@ -337,7 +337,6 @@
 	{a} and {b}	{a} и {b}
 	{a}, {b} and others	{a}, {b} и другие
 	{email} (sample)	{email} (пример)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} и загруженная почта будут удалены с этого компьютера. На сервере ничего не удаляется.
 	{name} could not be opened: {error}	Не удалось открыть {name}: {error}
 	{n} attachments	Вложений: {n}
 	{n} messages in this conversation	Писем в этой беседе: {n}
@@ -864,6 +863,10 @@
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Его папки появятся в этой учётной записи. Нужен доступ к нему на сервере Exchange; ящики с полным доступом открываются сами.
 	Mailboxes you have full access to open by themselves.	Ящики с полным доступом открываются сами.
 	Shared mailboxes	Общие почтовые ящики
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} будет удалена из MailCraft. Её файл данных {file} останется в папке MailCraft Files: откройте его через Файл › Открыть и экспортировать, чтобы снова увидеть почту. На сервере ничего не удаляется.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} будет удалена из MailCraft. На сервере ничего не удаляется.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} будет удалена из MailCraft. Её файл данных {file} останется в папке MailCraft Files: откройте его через Файл › Открыть и экспортировать, чтобы снова увидеть почту.
+	{email} will be removed from MailCraft.	{email} будет удалена из MailCraft.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

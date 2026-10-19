@@ -337,7 +337,6 @@
 	{a} and {b}	{a} 和 {b}
 	{a}, {b} and others	{a}、{b} 等人
 	{email} (sample)	{email} (示例)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} 及其已下载的邮件将从这台电脑上移除。服务器上不会删除任何内容。
 	{name} could not be opened: {error}	无法打开 {name}: {error}
 	{n} attachments	{n} 个附件
 	{n} messages in this conversation	此对话中有 {n} 封邮件
@@ -867,3 +866,7 @@ month	May	5月
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其文件夹显示在此帐户下。你需要在 Exchange 服务器上拥有访问权限；拥有完全访问权限的邮箱会自动打开。
 	Mailboxes you have full access to open by themselves.	拥有完全访问权限的邮箱会自动打开。
 	Shared mailboxes	共享邮箱
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	将从 MailCraft 中删除 {email}。其数据文件 {file} 会保留在 MailCraft Files 文件夹中：从“文件 › 打开和导出”打开即可再次查看其邮件。服务器上的内容不会被删除。
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	将从 MailCraft 中删除 {email}。服务器上的内容不会被删除。
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	将从 MailCraft 中删除 {email}。其数据文件 {file} 会保留在 MailCraft Files 文件夹中：从“文件 › 打开和导出”打开即可再次查看其邮件。
+	{email} will be removed from MailCraft.	将从 MailCraft 中删除 {email}。

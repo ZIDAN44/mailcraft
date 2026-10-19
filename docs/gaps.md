@@ -430,3 +430,10 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
 - **Enter in one-field dialogs:** the password, shared calendar and shared mailbox dialogs gave
   the field its focus back before looking for the Enter that ended input, so only the button
   submitted them. A headless test presses Enter.
+- **A removed account's data file stays:** removing an account deleted its `.mailcraft` file
+  with all the mail in it. Outlook leaves a removed account's `.pst` on disk (Microsoft: removing
+  one only disconnects it), and so does MailCraft now: the file is closed and no one's, the
+  Remove dialog names it, and the notice says where it is. The same address added again gets a
+  file of its own (`address (2).mailcraft`), the kept one untouched; Open & Export's picker
+  starts in MailCraft Files, and the kept file opens there as a mailbox of its own. A file that
+  failed to open, and an account moving to Graph (starting again from the server), still go.

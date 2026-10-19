@@ -337,7 +337,6 @@
 	{a} and {b}	{a} en {b}
 	{a}, {b} and others	{a}, {b} en anderen
 	{email} (sample)	{email} (voorbeeld)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} en de gedownloade mail worden van deze computer verwijderd. Op de server wordt niets verwijderd.
 	{name} could not be opened: {error}	{name} kon niet worden geopend: {error}
 	{n} attachments	{n} bijlagen
 	{n} messages in this conversation	{n} berichten in dit gesprek
@@ -866,3 +865,7 @@ month	May	mei
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	De mappen verschijnen onder dit account. U hebt er toegang toe nodig op de Exchange-server; postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
 	Mailboxes you have full access to open by themselves.	Postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
 	Shared mailboxes	Gedeelde postvakken
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} wordt uit MailCraft verwijderd. Het gegevensbestand {file} blijft in de map MailCraft Files: open het via Bestand › Openen en exporteren om de e-mail weer te zien. Er wordt niets van de server verwijderd.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} wordt uit MailCraft verwijderd. Er wordt niets van de server verwijderd.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} wordt uit MailCraft verwijderd. Het gegevensbestand {file} blijft in de map MailCraft Files: open het via Bestand › Openen en exporteren om de e-mail weer te zien.
+	{email} will be removed from MailCraft.	{email} wordt uit MailCraft verwijderd.

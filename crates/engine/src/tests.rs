@@ -2471,3 +2471,41 @@ fn shared_mailboxes_are_added_and_removed() {
     assert!(s.run("account.removeSharedMailbox", &json!({"account": id, "address": "sales@contoso.example"})).is_err());
     done(s);
 }
+
+/// Removing an account keeps its data file where it is, as Outlook keeps a removed account's
+/// .pst: the same address added again gets a file of its own beside it, and the kept one opens
+/// again as a data file. A file that failed to open, or an account starting again, isn't kept.
+#[test]
+fn a_removed_account_keeps_its_data_file() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-engine-keep-file-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let files = dir.join("MailCraft Files");
+    let store = Store::open_packed(dir.join("app"), &files).unwrap();
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let st = s.store.clone().unwrap();
+    st.save_folders(&id, &[mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), selectable: true, ..Default::default() }]).unwrap();
+    let kept = files.join("zoe@example.org.mailcraft");
+    assert_eq!(st.data_file(&id).as_deref(), Some(kept.as_path()));
+
+    let r = s.run("account.remove", &json!({"account": id})).unwrap();
+    assert_eq!(r["dataFile"].as_str(), Some(kept.display().to_string().as_str()));
+    assert!(kept.exists(), "the data file stays");
+    assert!(s.accounts.is_empty() && st.data_file(&id).is_none());
+
+    // Added again: a file of its own, the kept one untouched.
+    let before = std::fs::read(&kept).unwrap();
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    st.save_folders(&id, &[mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), selectable: true, ..Default::default() }]).unwrap();
+    let second = files.join("zoe@example.org (2).mailcraft");
+    assert_eq!(st.data_file(&id).as_deref(), Some(second.as_path()));
+    assert_eq!(std::fs::read(&kept).unwrap(), before);
+
+    // The kept file opens again (File › Open & Export) as a mailbox of its own.
+    let opened = st.clone();
+    let n = opened.import_data_file("a9", &kept).unwrap();
+    assert_eq!(n, 0, "no mail in it, but it opens");
+    assert_eq!(opened.load_folders("a9").unwrap().len(), 1);
+    drop(s);
+    let _ = std::fs::remove_dir_all(dir);
+}

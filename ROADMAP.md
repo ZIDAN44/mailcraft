@@ -85,7 +85,8 @@ local-first, media-aware v1); the fuller request is
    Exchange account's shared mailboxes open under it by themselves (the ones Autodiscover names)
    or by hand (Info › Account settings › Shared mailboxes); a name in a message's header opens a
    contact card (send an email, add or edit the contact, copy the address) and its right-click
-   menu has the same; Enter submits the one-field dialogs again.
+   menu has the same; Enter submits the one-field dialogs again. A removed account's data file
+   stays, as Outlook keeps a removed account's `.pst`.
 19. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -207,3 +208,6 @@ local-first, media-aware v1); the fuller request is
   message's header opens a contact card, its address a new message to them, and right-click ›
   Add to contacts a filled-in contact. Enter hadn't submitted the password, shared calendar or
   shared mailbox dialog: they took the focus back before seeing the Enter that let it go.
+  Removing an account deleted its `.mailcraft` file; as Outlook leaves a removed account's
+  `.pst` on disk, the file now stays (closed, no one's), the same address added again gets a
+  file of its own beside it, and Open & Export's picker starts in MailCraft Files to open it.

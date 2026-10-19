@@ -337,7 +337,6 @@
 	{a} and {b}	{a} و{b}
 	{a}, {b} and others	{a} و{b} وآخرون
 	{email} (sample)	{email} (تجريبي)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	سيُزال {email} وبريده المُنزّل من هذا الكمبيوتر. لا يُحذف شيء من الخادم.
 	{name} could not be opened: {error}	تعذّر فتح {name}: {error}
 	{n} attachments	{n} مرفقات
 	{n} messages in this conversation	{n} رسائل في هذه المحادثة
@@ -866,3 +865,7 @@ month	May	مايو
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	تظهر مجلداته تحت هذا الحساب. تحتاج إلى صلاحية الوصول إليه على خادم Exchange؛ وتُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
 	Mailboxes you have full access to open by themselves.	تُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
 	Shared mailboxes	صناديق البريد المشتركة
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	ستتم إزالة {email} من MailCraft. يبقى ملف بياناته {file} في مجلد MailCraft Files: افتحه من ملف › فتح وتصدير لرؤية بريده مرة أخرى. لا يُحذف شيء من الخادم.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	ستتم إزالة {email} من MailCraft. لا يُحذف شيء من الخادم.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	ستتم إزالة {email} من MailCraft. يبقى ملف بياناته {file} في مجلد MailCraft Files: افتحه من ملف › فتح وتصدير لرؤية بريده مرة أخرى.
+	{email} will be removed from MailCraft.	ستتم إزالة {email} من MailCraft.

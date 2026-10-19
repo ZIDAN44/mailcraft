@@ -420,6 +420,18 @@ impl Packs {
         }
     }
 
+    /// An account let go but its data file kept where it is, as Outlook keeps a removed account's
+    /// `.pst`: closed and no longer anyone's, so it can be opened again (File › Open & Export) and
+    /// the same address added again gets a file of its own beside it. Returns the file.
+    pub(crate) fn let_go(&self, account: &str) -> Option<PathBuf> {
+        Packs::lock(&self.open).remove(account);
+        let name = Packs::lock(&self.names).remove(account);
+        if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
+            let _ = write_atomic(&self.root.join(NAMES), &json);
+        }
+        name.map(|n| self.dir.join(n)).filter(|f| f.exists())
+    }
+
     pub(crate) fn remove_dir_all(&self, p: &Path) -> io::Result<()> {
         match self.place(p) {
             // The account goes: its data file with it.
@@ -719,8 +731,27 @@ mod tests {
         s.apply_op("a1", &mailcraft_model::Op::RenameFolder { from: "INBOX".into(), to: "Kept".into() }).unwrap();
         assert_eq!(s.load_folder("a1", "Kept").unwrap().messages.len(), 1);
         assert!(s.read_body(&MessageKey { folder: "Kept".into(), ..k.clone() }).is_some(), "its messages moved too");
-        s.remove_account("a1").unwrap();
-        assert!(!t.join("MailCraft Files").join("zoe@studio.example.mailcraft").exists());
+        // Removing the account keeps its file, as Outlook keeps a .pst: closed, and no one's.
+        let kept = t.join("MailCraft Files").join("zoe@studio.example.mailcraft");
+        assert_eq!(s.remove_account("a1").unwrap(), Some(kept.clone()));
+        assert!(kept.exists() && s.data_file("a1").is_none());
+        // It still reads (as a file opened from Open & Export).
+        let mut keys = Vec::new();
+        super::read_data_file(&kept, &t.join("read.tmp"), &mut |batch| {
+            keys.extend(batch.into_iter().map(|(k, _)| k));
+            Ok(())
+        })
+        .unwrap();
+        assert!(keys.iter().any(|k| k.ends_with(".eml")) && keys.iter().any(|k| k == "folders.json"), "{keys:?}");
+        // The same address added again: a file of its own beside the kept one, which stays as it was.
+        let before = std::fs::read(&kept).unwrap();
+        s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+        s.save_folder("a1", "INBOX", &st).unwrap();
+        assert_eq!(s.data_file("a1"), Some(t.join("MailCraft Files").join("zoe@studio.example (2).mailcraft")));
+        assert_eq!(std::fs::read(&kept).unwrap(), before);
+        // Deleting (what never held anyone's mail) takes the file.
+        s.delete_account("a1").unwrap();
+        assert!(!t.join("MailCraft Files").join("zoe@studio.example (2).mailcraft").exists() && kept.exists());
         let _ = std::fs::remove_dir_all(t);
     }
 

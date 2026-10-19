@@ -337,7 +337,6 @@
 	{a} and {b}	{a} 和 {b}
 	{a}, {b} and others	{a}、{b} 等人
 	{email} (sample)	{email} (範例)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} 和已下載的郵件將從這台電腦移除。伺服器上不會刪除任何內容。
 	{name} could not be opened: {error}	無法開啟 {name}: {error}
 	{n} attachments	{n} 個附件
 	{n} messages in this conversation	此交談中有 {n} 封郵件
@@ -864,6 +863,10 @@
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其資料夾會顯示在此帳戶下。你需要在 Exchange 伺服器上擁有存取權；擁有完整存取權的信箱會自動開啟。
 	Mailboxes you have full access to open by themselves.	擁有完整存取權的信箱會自動開啟。
 	Shared mailboxes	共用信箱
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	將從 MailCraft 移除 {email}。其資料檔 {file} 會保留在 MailCraft Files 資料夾中：從「檔案 › 開啟與匯出」開啟即可再次查看其郵件。伺服器上的內容不會被刪除。
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	將從 MailCraft 移除 {email}。伺服器上的內容不會被刪除。
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	將從 MailCraft 移除 {email}。其資料檔 {file} 會保留在 MailCraft Files 資料夾中：從「檔案 › 開啟與匯出」開啟即可再次查看其郵件。
+	{email} will be removed from MailCraft.	將從 MailCraft 移除 {email}。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

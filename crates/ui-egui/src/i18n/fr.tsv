@@ -337,7 +337,6 @@
 	{a} and {b}	{a} et {b}
 	{a}, {b} and others	{a}, {b} et d’autres
 	{email} (sample)	{email} (exemple)
-	{email} and its downloaded mail will be removed from this computer. Nothing is deleted on the server.	{email} et son courrier téléchargé seront retirés de cet ordinateur. Rien n’est supprimé sur le serveur.
 	{name} could not be opened: {error}	Impossible d’ouvrir {name} : {error}
 	{n} attachments	{n} pièces jointes
 	{n} messages in this conversation	{n} messages dans cette conversation
@@ -865,6 +864,10 @@
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Ses dossiers apparaissent sous ce compte. Vous devez y avoir accès sur le serveur Exchange ; celles auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.
 	Mailboxes you have full access to open by themselves.	Les boîtes auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.
 	Shared mailboxes	Boîtes aux lettres partagées
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} sera supprimé de MailCraft. Son fichier de données, {file}, reste dans le dossier MailCraft Files : ouvrez-le depuis Fichier › Ouvrir et exporter pour revoir son courrier. Rien n'est supprimé sur le serveur.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} sera supprimé de MailCraft. Rien n'est supprimé sur le serveur.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} sera supprimé de MailCraft. Son fichier de données, {file}, reste dans le dossier MailCraft Files : ouvrez-le depuis Fichier › Ouvrir et exporter pour revoir son courrier.
+	{email} will be removed from MailCraft.	{email} sera supprimé de MailCraft.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

@@ -257,8 +257,12 @@ impl Services for Desktop {
         rfd::FileDialog::new().set_title("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file()
     }
     fn pick_data_file(&mut self) -> Option<PathBuf> {
-        rfd::FileDialog::new()
-            .set_title("Open data file")
+        let mut d = rfd::FileDialog::new();
+        // Where the data files are (a removed account's stays there), as Outlook opens its own.
+        if let Some(dir) = self.data.as_ref().filter(|d| d.is_dir()) {
+            d = d.set_directory(dir);
+        }
+        d.set_title("Open data file")
             .add_filter("Data files", &["pst", "mailcraft"])
             .add_filter("Outlook data files", &["pst"])
             .add_filter("MailCraft data files", &["mailcraft"])

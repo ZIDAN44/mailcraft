@@ -822,8 +822,22 @@ impl Store {
         self.files.size(&self.account_dir(account))
     }
 
-    /// Forget everything about an account.
-    pub fn remove_account(&self, account: &str) -> Result<()> {
+    /// An account removed, as Outlook removes one: its data file stays where it is, closed and
+    /// no one's (returned, when there is one), and what's kept outside data files goes.
+    pub fn remove_account(&self, account: &str) -> Result<Option<PathBuf>> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Files::Packed(x) = &self.files {
+            let kept = x.let_go(&safe_segment(account));
+            // A folder from before data files, if one is still there.
+            let _ = fs::remove_dir_all(self.account_dir(account));
+            return Ok(kept);
+        }
+        self.delete_account(account).map(|()| None)
+    }
+
+    /// Forget everything about an account, its data file too (one that never held anyone's mail:
+    /// a file that failed to open, an account starting again).
+    pub fn delete_account(&self, account: &str) -> Result<()> {
         let dir = self.account_dir(account);
         match self.files.remove_dir_all(&dir) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&dir)(e)),
