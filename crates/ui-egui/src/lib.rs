@@ -411,6 +411,8 @@ pub struct UiState {
     pub(crate) people_query: String,
     /// The address book People shows (account, book id); `None`: all of them.
     pub(crate) people_book: Option<(String, String)>,
+    /// The message list's rows and where each starts, kept while the list stays the same.
+    pub(crate) list_rows: Option<list::ListRows>,
     /// How People lays contacts out (Outlook's Change View).
     pub people_view: people::PeopleView,
     /// The People list's columns and sort.
@@ -502,6 +504,7 @@ impl MailApp {
                 cal_scrolled: [false; 2],
                 people_query: String::new(),
                 people_book: None,
+                list_rows: None,
                 people_view: people::PeopleView::default(),
                 people_list: people::ListSettings::default(),
                 notes_query: String::new(),

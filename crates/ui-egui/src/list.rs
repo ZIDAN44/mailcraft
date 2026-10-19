@@ -12,6 +12,16 @@ use crate::theme;
 use crate::widgets;
 use crate::{Action, Dialog, UiState};
 
+/// The list's rows (date headings and messages) and their tops, made again only when the list
+/// changes (its revision), the day turns or the row height changes: a big folder's hundreds of
+/// thousands of rows, each with its heading's label, were made again every frame.
+pub(crate) struct ListRows {
+    key: (u64, i64, u32),
+    rows: Vec<Row>,
+    tops: Vec<f32>,
+    total: f32,
+}
+
 /// What a dragged row carries.
 pub struct DragKeys(pub Vec<MessageKey>);
 
@@ -116,7 +126,21 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let sep = ui.available_rect_before_wrap();
     ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
 
-    let rows = s.rows();
+    let mh = row_height(s);
+    let key = (s.revision, (s.clock.now + i64::from(s.clock.offset)).div_euclid(86_400), mh.to_bits());
+    if st.list_rows.as_ref().is_none_or(|c| c.key != key) {
+        let rows = s.rows();
+        let mut tops = Vec::with_capacity(rows.len());
+        let mut y = 0.0;
+        for r in &rows {
+            tops.push(y);
+            y += if matches!(r, Row::Header(_) | Row::Group(_)) { HEADER_H } else { mh };
+        }
+        st.list_rows = Some(ListRows { key, rows, tops, total: y });
+    }
+    let Some(cached) = st.list_rows.take() else { return };
+    let ListRows { rows, tops, total, .. } = &cached;
+    let (rows, tops, total) = (rows.as_slice(), tops.as_slice(), *total);
     if rows.is_empty() {
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
@@ -132,17 +156,10 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             };
             ui.label(RichText::new(msg).color(t.dim));
         });
+        st.list_rows = Some(cached);
         return;
     }
 
-    let mh = row_height(s);
-    let mut tops = Vec::with_capacity(rows.len());
-    let mut y = 0.0;
-    for r in &rows {
-        tops.push(y);
-        y += if matches!(r, Row::Header(_) | Row::Group(_)) { HEADER_H } else { mh };
-    }
-    let total = y;
     let focus_index = s.focus.as_ref().and_then(|k| s.list.iter().position(|m| &m.key == k));
     let scroll_to = if st.scroll_to_focus {
         st.scroll_to_focus = false;
@@ -186,6 +203,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
         }
     });
+    st.list_rows = Some(cached);
 }
 
 /// Arrange the list by…, as a menu (the list's own and the View tab's).
