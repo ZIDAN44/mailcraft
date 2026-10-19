@@ -870,3 +870,7 @@ month	May	5月
 	{email} will be removed from MailCraft. Nothing is deleted on the server.	将从 MailCraft 中删除 {email}。服务器上的内容不会被删除。
 	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	将从 MailCraft 中删除 {email}。其数据文件 {file} 会保留在 MailCraft Files 文件夹中：从“文件 › 打开和导出”打开即可再次查看其邮件。
 	{email} will be removed from MailCraft.	将从 MailCraft 中删除 {email}。
+	Add shared mailbox…	添加共享邮箱…
+	Remove shared mailbox	删除共享邮箱
+	Opened by the server for your access to it	因你有访问权限，由服务器打开
+	Shared mailbox {address}, opened by {email}	共享邮箱 {address}，由 {email} 打开

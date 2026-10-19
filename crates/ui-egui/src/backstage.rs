@@ -415,7 +415,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                     acts.push(Action::Dialog(Dialog::ConfirmEmpty {
                         account: id.clone(),
                         folder: f.path.clone(),
-                        name: crate::i18n::tc("folder", &f.display_name()).to_string(),
+                        name: crate::i18n::folder(f),
                         for_good: true,
                     }));
                 }

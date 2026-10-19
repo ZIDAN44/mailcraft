@@ -5,7 +5,7 @@
 use mailcraft_model::{Folder, MessageKey, Op};
 use mailcraft_store::Store;
 
-pub use mailcraft_jmap::{Mailbox, State, VALIDITY, block_on, folders, session_url, utc_date};
+pub use mailcraft_jmap::{Mailbox, State, VALIDITY, block_on, folders, name_special, session_url, utc_date};
 
 use crate::sync::{SyncOptions, SyncReport};
 use crate::{NetError, Result, http};

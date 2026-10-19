@@ -1250,3 +1250,41 @@ fn enter_submits_a_one_field_dialog() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::AddSharedMailbox { error: Some(_), .. })), "submitted: {:?}", a.ui.dialog.is_some());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #1: a shared mailbox is a mailbox of its own in the folder pane, after the account's
+/// folders, open or collapsed (its unread mail then beside its name); a special folder under the
+/// server's own name draws as it is.
+#[test]
+fn a_shared_mailbox_draws_as_a_mailbox_of_its_own() {
+    use mailcraft_engine::model::{Folder, FolderRole};
+    let (mut a, dir) = app("shared-mailbox");
+    let mut folders = a.session.account("sample").unwrap().folders.clone();
+    if let Some(inbox) = folders.iter_mut().find(|f| f.role == FolderRole::Inbox) {
+        inbox.name = Some("Postvak IN".into());
+    }
+    let shared = |path: &str, role: FolderRole, unread: u32| Folder {
+        account: "sample".into(),
+        path: path.into(),
+        delimiter: Some('/'),
+        selectable: true,
+        unread,
+        mailbox: Some("test@studio.example".into()),
+        mailbox_role: role,
+        ..Default::default()
+    };
+    folders.push(shared("Test Grommunio/Postvak IN", FolderRole::Inbox, 3));
+    folders.push(shared("Test Grommunio", FolderRole::Other, 0));
+    folders.push(shared("Test Grommunio/Postvak IN/Orders", FolderRole::Other, 0));
+    a.session.apply(MailEvent::Folders { account: "sample".into(), folders });
+    let paths: Vec<String> = a.session.account("sample").unwrap().folders.iter().map(|f| f.path.clone()).collect();
+    assert_eq!(&paths[paths.len() - 3..], ["Test Grommunio", "Test Grommunio/Postvak IN", "Test Grommunio/Postvak IN/Orders"]);
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("folder.open", json!({"account": "sample", "folder": "Test Grommunio/Postvak IN"}));
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.collapse", json!({"key": "folder:sample/Test Grommunio"}));
+    frame(&ctx, &mut a, vec![]);
+    let e = a.session.run("folder.rename", &json!({"account": "sample", "folder": "Test Grommunio/Postvak IN", "name": "X"})).unwrap_err();
+    assert!(e.to_string().contains("can't be renamed"), "{e}");
+    let _ = std::fs::remove_dir_all(dir);
+}

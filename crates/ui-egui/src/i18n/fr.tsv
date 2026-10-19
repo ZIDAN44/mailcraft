@@ -874,3 +874,7 @@ folder	Archive	Archives
 
 # A month's full name, where it differs from its short form.
 month	May	mai
+	Add shared mailbox…	Ajouter une boîte aux lettres partagée…
+	Remove shared mailbox	Supprimer la boîte aux lettres partagée
+	Opened by the server for your access to it	Ouverte par le serveur, car vous y avez accès
+	Shared mailbox {address}, opened by {email}	Boîte aux lettres partagée {address}, ouverte par {email}

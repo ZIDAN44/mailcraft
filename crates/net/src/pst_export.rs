@@ -259,8 +259,7 @@ mod tests {
             delimiter: Some('/'),
             role,
             selectable: true,
-            unread: 0,
-            total: 0,
+            ..Default::default()
         };
         let inbox = FolderState {
             validity: 1,

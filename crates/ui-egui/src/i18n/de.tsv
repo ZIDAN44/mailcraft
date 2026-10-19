@@ -874,3 +874,7 @@ folder	Archive	Archiv
 
 # A month's full name, where it differs from its short form.
 month	May	Mai
+	Add shared mailbox…	Freigegebenes Postfach hinzufügen…
+	Remove shared mailbox	Freigegebenes Postfach entfernen
+	Opened by the server for your access to it	Vom Server geöffnet, da Sie Zugriff darauf haben
+	Shared mailbox {address}, opened by {email}	Freigegebenes Postfach {address}, geöffnet über {email}

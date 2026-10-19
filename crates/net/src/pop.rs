@@ -284,7 +284,7 @@ pub fn folders(store: &Store, account: &str) -> Result<Vec<Folder>> {
     let mut added = false;
     for (path, role) in FOLDERS {
         if !list.iter().any(|f| f.path == path || f.role == role) {
-            list.push(Folder { account: account.to_string(), path: path.into(), delimiter: Some('/'), role, selectable: true, unread: 0, total: 0 });
+            list.push(Folder { account: account.to_string(), path: path.into(), delimiter: Some('/'), role, selectable: true, ..Default::default() });
             added = true;
         }
     }

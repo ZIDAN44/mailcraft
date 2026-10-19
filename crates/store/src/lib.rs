@@ -967,14 +967,17 @@ impl Store {
         let changed = match op {
             Op::CreateFolder { path } => {
                 if !list.iter().any(|f| &f.path == path) {
+                    // Made in another mailbox (a shared one), it's in that mailbox too.
+                    let parent = delimiter.and_then(|d| path.rsplit_once(d)).map(|(p, _)| p);
+                    let mailbox = list.iter().find(|f| Some(f.path.as_str()) == parent).and_then(|f| f.mailbox.clone());
                     list.push(Folder {
                         account: account.to_string(),
                         path: path.clone(),
                         delimiter,
                         role: mailcraft_model::FolderRole::Other,
                         selectable: true,
-                        unread: 0,
-                        total: 0,
+                        mailbox,
+                        ..Default::default()
                     });
                 }
                 vec![path.clone()]

@@ -286,6 +286,15 @@ pub fn tc<'a>(ctx: &str, s: &'a str) -> &'a str {
     current().0.catalog().get(&format!("{ctx}{CTX}{s}")).map_or_else(|| t(s), |v| shown(v))
 }
 
+/// A folder's name as shown: the name its server gives a special folder as it is (Exchange
+/// names them in the mailbox's language, as Outlook shows them), any other translated.
+pub fn folder(f: &mailcraft_engine::model::Folder) -> String {
+    match f.server_name() {
+        Some(n) => n.to_string(),
+        None => tc("folder", &f.display_name()).to_string(),
+    }
+}
+
 /// `s` in `lang` (unchanged without a translation).
 pub fn tr(lang: Lang, s: &str) -> &str {
     #[cfg(test)]

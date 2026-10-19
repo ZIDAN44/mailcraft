@@ -425,8 +425,10 @@ fn header_block(m: &Value) -> Vec<u8> {
 
 /// Refresh the folder list (and the folder ids behind it).
 pub fn list_folders(c: &Client, st: &mut State, account: &str) -> Result<Vec<Folder>> {
-    let found = jmap::folders(account, &c.mailboxes()?);
+    let boxes = c.mailboxes()?;
+    let mut found = jmap::folders(account, &boxes);
     st.mailboxes = found.iter().map(|(f, id)| (f.path.clone(), id.clone())).collect();
+    jmap::name_special(&mut found, &boxes);
     Ok(found.into_iter().map(|(f, _)| f).collect())
 }
 

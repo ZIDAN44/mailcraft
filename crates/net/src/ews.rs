@@ -321,6 +321,9 @@ pub struct Client {
     shared_open: RefCell<Vec<String>>,
     /// The account's Autodiscover answer, once asked (`None` inside when there was none).
     discovered: RefCell<Option<Option<String>>>,
+    /// The folders of the shared mailboxes listed: the mailbox each is in (its address) and the
+    /// role it has there (`Other` for its top folder and the folders that aren't special).
+    shared_roles: RefCell<HashMap<String, (String, FolderRole)>>,
 }
 
 /// Another mailbox the account opens (Outlook's shared mailboxes): its address and name.
@@ -332,6 +335,16 @@ pub struct SharedMailbox {
 
 /// Most shared mailboxes an account opens.
 const MAX_SHARED: usize = 20;
+
+/// A mailbox's special folders: their distinguished ids and roles.
+const SPECIAL: [(&str, FolderRole); 6] = [
+    ("inbox", FolderRole::Inbox),
+    ("drafts", FolderRole::Drafts),
+    ("sentitems", FolderRole::Sent),
+    ("deleteditems", FolderRole::Trash),
+    ("junkemail", FolderRole::Junk),
+    ("archive", FolderRole::Archive),
+];
 
 /// A public folder in the tree.
 pub(crate) struct PublicFolder {
@@ -459,6 +472,7 @@ impl Client {
             shared_added: RefCell::new(Vec::new()),
             shared_open: RefCell::new(Vec::new()),
             discovered: RefCell::new(None),
+            shared_roles: RefCell::new(HashMap::new()),
         })
     }
 
@@ -534,7 +548,8 @@ impl Client {
     }
 
     /// A shared mailbox's mail folders, under a folder named for it (`top`): asked for in that
-    /// mailbox (its root named with the `Mailbox` element), routed there.
+    /// mailbox (its root named with the `Mailbox` element), routed there. Its special folders'
+    /// roles there are noted (`shared_roles`), for their icons and places.
     fn shared_folders(&self, sm: &SharedMailbox, top: &str) -> Result<Vec<Mailbox>> {
         let mb = format!("<t:Mailbox><t:EmailAddress>{}</t:EmailAddress></t:Mailbox>", esc(&sm.address));
         self.anchored_to(&sm.address, || {
@@ -543,15 +558,30 @@ impl Client {
                  <m:FolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\">{mb}</t:DistinguishedFolderId></m:FolderIds></m:GetFolder>"
             ))?;
             let Some(root_id) = root.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) else { return Ok(Vec::new()) };
-            // Its Outbox and the like stay out, as the account's own do.
-            let mut skip: Vec<String> = Vec::new();
-            for hidden in ["outbox", "conversationhistory", "syncissues"] {
-                if let Ok(m) = self.call_one(&format!(
-                    "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape>\
-                     <m:FolderIds><t:DistinguishedFolderId Id=\"{hidden}\">{mb}</t:DistinguishedFolderId></m:FolderIds></m:GetFolder>"
-                )) && let Some(id) = m.find("FolderId").and_then(|f| f.attr("Id"))
-                {
-                    skip.push(id.to_string());
+            // Its special folders, and its Outbox and the like, which stay out as the account's
+            // own do; one it hasn't is an error in its place.
+            let hidden = ["outbox", "conversationhistory", "syncissues"];
+            let ids: String = SPECIAL
+                .iter()
+                .map(|(n, _)| *n)
+                .chain(hidden)
+                .map(|n| format!("<t:DistinguishedFolderId Id=\"{n}\">{mb}</t:DistinguishedFolderId>"))
+                .collect();
+            let doc = self.call(&format!(
+                "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape><m:FolderIds>{ids}</m:FolderIds></m:GetFolder>"
+            ))?;
+            let found: Vec<Option<String>> = messages(&doc)
+                .iter()
+                .map(|m| if m.attr("ResponseClass") == Some("Error") { None } else { m.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) })
+                .collect();
+            let skip: Vec<String> = found.iter().skip(SPECIAL.len()).flatten().cloned().collect();
+            {
+                let mut roles = self.shared_roles.borrow_mut();
+                roles.insert(root_id.clone(), (sm.address.clone(), FolderRole::Other));
+                for ((_, role), id) in SPECIAL.iter().zip(&found) {
+                    if let Some(id) = id {
+                        roles.insert(id.clone(), (sm.address.clone(), *role));
+                    }
                 }
             }
             let mut out = vec![Mailbox { id: root_id.clone(), name: top.to_string(), parent: None, role: FolderRole::Other, total: 0, unread: 0 }];
@@ -576,6 +606,7 @@ impl Client {
                     }
                     let parent = f.child("ParentFolderId").and_then(|p| p.attr("Id")).map(str::to_string).or_else(|| Some(root_id.clone()));
                     let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
+                    self.shared_roles.borrow_mut().entry(id.clone()).or_insert_with(|| (sm.address.clone(), FolderRole::Other));
                     out.push(Mailbox {
                         name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
                         parent,
@@ -819,14 +850,7 @@ impl Client {
 
     /// The account's mail folders, with their roles and counts.
     pub fn mailboxes(&self) -> Result<Vec<Mailbox>> {
-        let roles = [
-            ("inbox", FolderRole::Inbox),
-            ("drafts", FolderRole::Drafts),
-            ("sentitems", FolderRole::Sent),
-            ("deleteditems", FolderRole::Trash),
-            ("junkemail", FolderRole::Junk),
-            ("archive", FolderRole::Archive),
-        ];
+        let roles = SPECIAL;
         let hidden = ["msgfolderroot", "outbox", "conversationhistory", "syncissues"];
         let ids: String = roles.iter().map(|(n, _)| *n).chain(hidden).map(|n| format!("<t:DistinguishedFolderId Id=\"{n}\"/>")).collect();
         let doc = self.call(&format!(
@@ -892,6 +916,7 @@ impl Client {
         // Shared mailboxes, each under a folder of its own (named so it can't be taken for one
         // of the account's folders).
         let mut open = Vec::new();
+        self.shared_roles.borrow_mut().clear();
         for sm in self.shared_mailboxes() {
             let taken = |n: &str| out.iter().any(|m| m.parent.is_none() && m.name.eq_ignore_ascii_case(n));
             let top = if taken(&sm.name) { format!("{} ({})", sm.name, sm.address) } else { sm.name.clone() };
@@ -1374,8 +1399,18 @@ fn mime_word(s: &str) -> String {
 
 /// Refresh the folder list (and the folder ids behind it).
 pub fn list_folders(c: &Client, st: &mut State, account: &str) -> Result<Vec<Folder>> {
-    let found = jmap::folders(account, &c.mailboxes()?);
+    let boxes = c.mailboxes()?;
+    let mut found = jmap::folders(account, &boxes);
     st.mailboxes = found.iter().map(|(f, id)| (f.path.clone(), id.clone())).collect();
+    jmap::name_special(&mut found, &boxes);
+    // A shared mailbox's folders say whose they are, and what each is there.
+    let shared = c.shared_roles.borrow();
+    for (f, id) in &mut found {
+        if let Some((address, role)) = shared.get(id.as_str()) {
+            f.mailbox = Some(address.clone());
+            f.mailbox_role = *role;
+        }
+    }
     Ok(found.into_iter().map(|(f, _)| f).collect())
 }
 

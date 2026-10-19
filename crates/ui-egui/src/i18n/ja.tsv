@@ -870,3 +870,7 @@ month	May	5月
 	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} を MailCraft から削除します。サーバー上では何も削除されません。
 	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} を MailCraft から削除します。データ ファイル {file} は MailCraft Files フォルダーに残ります。[ファイル] › [開く/エクスポート] から開くと、メールをまた見られます。
 	{email} will be removed from MailCraft.	{email} を MailCraft から削除します。
+	Add shared mailbox…	共有メールボックスを追加…
+	Remove shared mailbox	共有メールボックスを削除
+	Opened by the server for your access to it	アクセス権があるため、サーバーが開いています
+	Shared mailbox {address}, opened by {email}	共有メールボックス {address} ({email} で開いています)

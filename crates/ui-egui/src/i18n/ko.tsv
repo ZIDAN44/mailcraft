@@ -873,3 +873,7 @@ folder	Archive	보관함
 
 # A month's full name, where it differs from its short form.
 month	May	5월
+	Add shared mailbox…	공유 사서함 추가…
+	Remove shared mailbox	공유 사서함 제거
+	Opened by the server for your access to it	액세스 권한이 있어 서버가 엽니다
+	Shared mailbox {address}, opened by {email}	공유 사서함 {address}, {email}에서 열림

@@ -571,7 +571,7 @@ impl<S: Read + Write> Client<S> {
             if out.iter().any(|f| f.path == path) {
                 continue;
             }
-            out.push(Folder { account: account.to_string(), path, delimiter, role, selectable, unread: 0, total: 0 });
+            out.push(Folder { account: account.to_string(), path, delimiter, role, selectable, ..Default::default() });
         }
         // One folder per special role: the first wins, later ones become ordinary folders.
         let mut seen = HashSet::new();

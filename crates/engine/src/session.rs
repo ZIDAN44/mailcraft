@@ -1612,14 +1612,17 @@ impl Session {
             match op {
                 Op::CreateFolder { path } => {
                     if !a.folders.iter().any(|f| &f.path == path) {
+                        // Made in another mailbox (a shared one), it's in that mailbox too.
+                        let parent = delimiter.and_then(|d| path.rsplit_once(d)).map(|(p, _)| p);
+                        let mailbox = a.folders.iter().find(|f| Some(f.path.as_str()) == parent).and_then(|f| f.mailbox.clone());
                         a.folders.push(Folder {
                             account: account.to_string(),
                             path: path.clone(),
                             delimiter,
                             role: FolderRole::Other,
                             selectable: true,
-                            unread: 0,
-                            total: 0,
+                            mailbox,
+                            ..Default::default()
                         });
                     }
                 }
@@ -1771,7 +1774,7 @@ impl Session {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
         let f = self.folder(account, path).cloned().ok_or_else(|| CmdError::Params(format!("no folder `{path}`")))?;
-        if f.role != FolderRole::Other || f.path.eq_ignore_ascii_case("INBOX") {
+        if f.is_fixed() {
             return Err(CmdError::Failed(format!("{} can't be renamed, moved or deleted", f.display_name())));
         }
         Ok(f)

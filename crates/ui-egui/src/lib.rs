@@ -2266,13 +2266,9 @@ fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::AccountState) -
         }
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
         SyncStatus::Syncing { .. } if a.is_data_file() => (t.accent, tf!("Opening {file}…", file = a.config.email)),
-        SyncStatus::Syncing { folder } => (
-            t.accent,
-            tf!(
-                "Updating {folder}…",
-                folder = s.folder(&a.config.id, folder).map(|f| i18n::tc("folder", &f.display_name()).to_string()).unwrap_or_default()
-            ),
-        ),
+        SyncStatus::Syncing { folder } => {
+            (t.accent, tf!("Updating {folder}…", folder = s.folder(&a.config.id, folder).map(i18n::folder).unwrap_or_default()))
+        }
         SyncStatus::Connecting => (t.accent, tl!("Connecting…").to_string()),
         SyncStatus::Offline if a.is_data_file() => (t.faint, tl!("Outlook data file").to_string()),
         SyncStatus::Offline if a.is_local() => (t.faint, tl!("Sample mailbox (offline)").to_string()),

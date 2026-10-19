@@ -833,7 +833,7 @@ impl Dialog {
         let unread = if kept.messages.is_empty() { f.unread as usize } else { kept.messages.iter().filter(|m| !m.flags.seen).count() };
         let email = s.account(&f.account).map(|a| a.config.email.clone()).unwrap_or_default();
         Dialog::FolderProperties {
-            name: crate::i18n::tc("folder", &f.display_name()).to_string(),
+            name: crate::i18n::folder(f),
             location: {
                 let decoded = mailcraft_engine::model::utf7::decode(&f.path);
                 match f.delimiter {
@@ -1730,7 +1730,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                 for f in &folders {
                     let indent = "    ".repeat(f.depth());
-                    if ui.selectable_label(false, format!("{indent}{}", f.display_name())).clicked() {
+                    if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
                         chosen = Some(f.path.clone());
                     }
                 }
@@ -1799,7 +1799,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         continue;
                     }
                     let indent = "    ".repeat(f.depth());
-                    if ui.selectable_label(false, format!("{indent}{}", f.display_name())).clicked() {
+                    if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
                         chosen = Some(Some(f.path.clone()));
                     }
                 }
@@ -2056,14 +2056,16 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                             .account
                             .as_deref()
                             .and_then(|a| s.folder(a, &f.target))
-                            .map(|x| format!("{} ({})", x.display_name(), s.account(&x.account).map(|a| a.config.email.as_str()).unwrap_or_default()))
+                            .map(|x| {
+                                format!("{} ({})", crate::i18n::folder(x), s.account(&x.account).map(|a| a.config.email.as_str()).unwrap_or_default())
+                            })
                             .unwrap_or_else(|| tl!("Choose…").into());
                         egui::ComboBox::from_id_salt("rule-folder").width(300.0).selected_text(shown).show_ui(ui, |ui| {
                             for a in &s.accounts {
                                 ui.label(RichText::new(&a.config.email).small().color(t.faint));
                                 for x in a.folders.iter().filter(|x| x.selectable) {
                                     let on = f.account.as_deref() == Some(a.config.id.as_str()) && f.target == x.path;
-                                    if ui.selectable_label(on, format!("{}{}", "    ".repeat(x.depth()), x.display_name())).clicked() {
+                                    if ui.selectable_label(on, format!("{}{}", "    ".repeat(x.depth()), crate::i18n::folder(x))).clicked() {
                                         f.account = Some(a.config.id.clone());
                                         f.target = x.path.clone();
                                     }

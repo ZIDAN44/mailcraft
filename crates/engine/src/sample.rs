@@ -513,7 +513,7 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
         ("Projects/Short film", FolderRole::Other),
     ]
     .into_iter()
-    .map(|(p, role)| Folder { account: SAMPLE_ACCOUNT.into(), path: p.into(), delimiter: Some('/'), role, selectable: true, unread: 0, total: 0 })
+    .map(|(p, role)| Folder { account: SAMPLE_ACCOUNT.into(), path: p.into(), delimiter: Some('/'), role, selectable: true, ..Default::default() })
     .collect();
 
     let mut states: Vec<(String, FolderState)> =

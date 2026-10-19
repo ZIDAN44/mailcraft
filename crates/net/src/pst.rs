@@ -543,8 +543,7 @@ impl Out<'_> {
             delimiter: Some('/'),
             role,
             selectable: true,
-            unread: 0,
-            total: 0,
+            ..Default::default()
         });
         self.states.insert(path.clone(), Open { uid_next: 1, waiting: Vec::new(), list: self.store.list_writer(self.account, &path) });
         path

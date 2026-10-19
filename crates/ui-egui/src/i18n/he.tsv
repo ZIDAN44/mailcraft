@@ -869,3 +869,7 @@ month	May	מאי
 	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} יוסר מ-MailCraft. דבר אינו נמחק בשרת.
 	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} יוסר מ-MailCraft. קובץ הנתונים שלו, {file}, נשאר בתיקייה MailCraft Files: פתח אותו מקובץ › פתיחה וייצוא כדי לראות שוב את הדואר שלו.
 	{email} will be removed from MailCraft.	{email} יוסר מ-MailCraft.
+	Add shared mailbox…	הוספת תיבת דואר משותפת…
+	Remove shared mailbox	הסרת תיבת הדואר המשותפת
+	Opened by the server for your access to it	נפתחה על ידי השרת כי יש לך גישה אליה
+	Shared mailbox {address}, opened by {email}	תיבת דואר משותפת {address}, נפתחת על ידי {email}

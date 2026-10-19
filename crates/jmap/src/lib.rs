@@ -599,11 +599,33 @@ pub fn folders(account: &str, boxes: &[Mailbox]) -> Vec<(Folder, String)> {
         if path.is_empty() || out.iter().any(|(f, _)| f.path == path) {
             path = format!("{path}~{}", b.id.chars().filter(char::is_ascii_alphanumeric).take(16).collect::<String>());
         }
-        let folder =
-            Folder { account: account.to_string(), path, delimiter: Some('/'), role: b.role, selectable: true, unread: b.unread, total: b.total };
+        let folder = Folder {
+            account: account.to_string(),
+            path,
+            delimiter: Some('/'),
+            role: b.role,
+            selectable: true,
+            unread: b.unread,
+            total: b.total,
+            ..Default::default()
+        };
         out.push((folder, b.id.clone()));
     }
     out
+}
+
+/// Special folders keep the names their mailbox gives them (Exchange names them in the
+/// language the mailbox was made in: "Postvak IN", "Verzonden items"), shown as Outlook shows
+/// them rather than in MailCraft's own words.
+pub fn name_special(found: &mut [(Folder, String)], boxes: &[Mailbox]) {
+    let names: HashMap<&str, &str> = boxes.iter().map(|b| (b.id.as_str(), b.name.trim())).collect();
+    for (f, id) in found {
+        if f.role != FolderRole::Other
+            && let Some(name) = names.get(id.as_str()).filter(|n| !n.is_empty())
+        {
+            f.name = Some((*name).to_string());
+        }
+    }
 }
 
 /// What an account keeps between syncs: the numbers given to message ids, and the mailbox id

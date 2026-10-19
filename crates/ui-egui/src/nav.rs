@@ -1,4 +1,5 @@
-//! The folder pane: Favorites, then each account's folders as a tree with unread counts.
+//! The folder pane: Favorites, then each account's folders as a tree with unread counts, and
+//! after it the shared mailboxes it opens, each a mailbox of its own as Outlook shows them.
 //! Messages dragged from the list drop onto a folder to move them; a folder dragged onto another
 //! moves inside it; an account dragged onto another takes its place. Right-click a folder to
 //! create, rename, move, delete or pin it to Favorites. Favorites, accounts and folders with
@@ -60,7 +61,7 @@ fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
     resp.clicked()
 }
 
-/// One row; returns its response.
+/// One row (its label as shown, translated); returns its response.
 #[allow(clippy::too_many_arguments)]
 fn row(
     ui: &mut Ui,
@@ -95,7 +96,7 @@ fn row(
     icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
     let font = if unread > 0 || selected { theme::bold(13.5) } else { theme::regular(13.5) };
     let text_right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
-    let galley = ui.painter().layout(tl!(label).to_string(), font, t.text, (text_right - x - 24.0).max(10.0));
+    let galley = ui.painter().layout(label.to_string(), font, t.text, (text_right - x - 24.0).max(10.0));
     let gy = rect.center().y - galley.size().y / 2.0;
     ui.painter().with_clip_rect(egui::Rect::from_x_y_ranges(x..=text_right, rect.y_range())).galley(egui::pos2(x + 24.0, gy), galley, t.text);
     if unread > 0 {
@@ -120,11 +121,11 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if favorites_open && s.accounts.len() > 1 {
             let unread: u32 = s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum();
             let sel = s.view == View::Unified { role: FolderRole::Inbox } && s.search.is_none();
-            if row(ui, t, Icon::Inbox, "All Inboxes", unread, 0, sel, false, false).clicked() {
+            if row(ui, t, Icon::Inbox, tl!("All Inboxes"), unread, 0, sel, false, false).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "inbox"})));
             }
             let sel = s.view == View::Unified { role: FolderRole::Sent } && s.search.is_none();
-            if row(ui, t, Icon::Sent, "All Sent", 0, 0, sel, false, false).clicked() {
+            if row(ui, t, Icon::Sent, tl!("All Sent"), 0, 0, sel, false, false).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "sent"})));
             }
         }
@@ -136,7 +137,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if !s.outbox.is_empty() {
             let sel = s.view == View::Outbox && s.search.is_none();
             let n = u32::try_from(s.outbox.len()).unwrap_or(u32::MAX);
-            if row(ui, t, Icon::Outbox, "Outbox", n, 0, sel, false, false).on_hover_text(tl!("Messages waiting to be sent")).clicked() {
+            if row(ui, t, Icon::Outbox, tl!("Outbox"), n, 0, sel, false, false).on_hover_text(tl!("Messages waiting to be sent")).clicked() {
                 acts.push(Action::Run("folder.outbox", json!({})));
             }
         }
@@ -209,6 +210,12 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::EditSignature { account: config.id.clone(), insert: false });
                     ui.close();
                 }
+                // Exchange: another mailbox opened beside this one, as Outlook's Open these
+                // additional mailboxes.
+                if config.ews.is_some() && ui.button(tl!("Add shared mailbox…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::AddSharedMailbox { account: config.id.clone(), address: String::new(), error: None }));
+                    ui.close();
+                }
                 if ui.button(tl!("New folder…")).clicked() {
                     // In the folder open now (as Outlook's New Folder starts), else at the top.
                     let here = match &s.view {
@@ -237,24 +244,120 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
             });
-            if !open {
-                continue;
-            }
-            if a.folders.is_empty() {
-                ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
-            }
             // Folders with folders in them collapse; what's inside a collapsed one is hidden.
             let parents: std::collections::HashSet<String> = a.folders.iter().flat_map(ancestors).collect();
-            for f in &a.folders {
-                if ancestors(f).iter().any(|up| s.prefs.collapsed.contains(&folder_key(&f.account, up))) {
+            let hidden = |f: &Folder| ancestors(f).iter().any(|up| s.prefs.collapsed.contains(&folder_key(&f.account, up)));
+            if open {
+                if a.folders.is_empty() {
+                    ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
+                }
+                for f in a.folders.iter().filter(|f| f.mailbox.is_none()) {
+                    if hidden(f) {
+                        continue;
+                    }
+                    let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
+                    folder_row(s, t, ui, acts, f, f.depth() + 1, false, collapse);
+                }
+                ui.add_space(6.0);
+            }
+            // The shared mailboxes it opens, each a mailbox of its own under its name: its top
+            // folder is its heading, and its folders are under it as an account's are.
+            for top in a.folders.iter().filter(|f| f.mailbox.is_some() && f.depth() == 0) {
+                let key = folder_key(&a.config.id, &top.path);
+                let open = !s.prefs.collapsed.contains(&key);
+                if shared_header(t, ui, acts, a, top, open) {
+                    acts.push(Action::Run("view.collapse", json!({"key": key})));
+                }
+                if !open {
                     continue;
                 }
-                let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
-                folder_row(s, t, ui, acts, f, f.depth() + 1, false, collapse);
+                for f in a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.depth() > 0) {
+                    if hidden(f) {
+                        continue;
+                    }
+                    let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
+                    folder_row(s, t, ui, acts, f, f.depth(), false, collapse);
+                }
+                ui.add_space(6.0);
             }
-            ui.add_space(6.0);
         }
     });
+}
+
+/// A shared mailbox's heading (its top folder `top`): its name, an arrow that collapses it, and
+/// a menu. Whether it was clicked.
+fn shared_header(t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, a: &mailcraft_engine::AccountState, top: &Folder, open: bool) -> bool {
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+    let dropping = resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some();
+    if resp.hovered() || dropping {
+        ui.painter().rect_filled(rect, 6.0, if dropping { t.accent.gamma_multiply(0.3) } else { t.hover_row });
+    }
+    let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
+    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);
+    let ir = egui::Rect::from_min_size(rect.min + vec2(20.0, 8.0), vec2(14.0, 14.0));
+    icons::paint(ui.painter(), ir, Icon::People, t.dim);
+    let name = crate::i18n::folder(top);
+    // Its unread mail, as Outlook shows a collapsed mailbox's Inbox.
+    let unread: u32 =
+        if open { 0 } else { a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.mailbox_role == FolderRole::Inbox).map(|f| f.unread).sum() };
+    let right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
+    ui.painter().with_clip_rect(egui::Rect::from_x_y_ranges(rect.min.x..=right, rect.y_range())).text(
+        rect.min + vec2(40.0, 15.0),
+        egui::Align2::LEFT_CENTER,
+        &name,
+        theme::bold(13.0),
+        t.text,
+    );
+    if unread > 0 {
+        ui.painter().text(
+            egui::pos2(rect.max.x - 10.0, rect.center().y),
+            egui::Align2::RIGHT_CENTER,
+            unread.to_string(),
+            theme::bold(12.5),
+            t.accent,
+        );
+    }
+    let address = top.mailbox.clone().unwrap_or_default();
+    let resp = resp.on_hover_text(tf!("Shared mailbox {address}, opened by {email}", address = address, email = a.config.email));
+    // Dropped messages or folders go into its top folder, as onto a folder.
+    if let Some(p) = resp.dnd_release_payload::<DragKeys>()
+        && p.0.iter().all(|k| k.account == top.account)
+    {
+        acts.push(Action::Run("mail.move", json!({"folder": top.path})));
+    }
+    if let Some(p) = resp.dnd_release_payload::<DragFolder>()
+        && p.account == top.account
+    {
+        acts.push(Action::Run("folder.move", json!({"account": top.account, "folder": p.path, "parent": top.path})));
+    }
+    let added = a.config.shared_mailboxes.iter().any(|m| m.eq_ignore_ascii_case(&address));
+    let account = a.config.id.clone();
+    let path = top.path.clone();
+    resp.context_menu(|ui| {
+        if ui.button(tl!("Send / Receive")).clicked() {
+            acts.push(Action::Run("mail.sync", json!({})));
+            ui.close();
+        }
+        if ui.button(tl!("New folder…")).clicked() {
+            acts.push(Action::Dialog(Dialog::new_folder(&account, Some(&path))));
+            ui.close();
+        }
+        ui.separator();
+        // One added by hand is removed here; one the server opens is the server's to stop.
+        if added {
+            if ui.button(RichText::new(tl!("Remove shared mailbox")).color(t.danger)).clicked() {
+                acts.push(Action::Run("account.removeSharedMailbox", json!({"account": account, "address": address})));
+                ui.close();
+            }
+        } else {
+            ui.add_enabled(false, egui::Button::new(tl!("Opened by the server for your access to it")));
+        }
+        if ui.button(tl!("Add shared mailbox…")).clicked() {
+            acts.push(Action::Dialog(Dialog::AddSharedMailbox { account: account.clone(), address: String::new(), error: None }));
+            ui.close();
+        }
+    });
+    resp.clicked()
 }
 
 /// A folder's row; `collapse` is whether it's collapsed, for one with folders in it (it gets
@@ -264,14 +367,14 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
     let name = match s.account(&f.account) {
         Some(a) if favorite && s.accounts.len() > 1 => {
-            format!("{} · {}", crate::i18n::tc("folder", &f.display_name()), a.config.email.split('@').next().unwrap_or_default())
+            format!("{} · {}", crate::i18n::folder(f), a.config.email.split('@').next().unwrap_or_default())
         }
-        _ => crate::i18n::tc("folder", &f.display_name()).to_string(),
+        _ => crate::i18n::folder(f),
     };
     // Unread counts matter for mail you receive, not for Sent or Drafts.
-    let unread = if matches!(f.role, FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Archive) { 0 } else { f.unread };
-    let user_folder = f.role == FolderRole::Other && !f.path.eq_ignore_ascii_case("INBOX");
-    let resp = row(ui, t, role_icon(f.role), &name, unread, depth, selected, f.selectable, user_folder && !favorite);
+    let unread = if matches!(f.look(), FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Archive) { 0 } else { f.unread };
+    let user_folder = !f.is_fixed();
+    let resp = row(ui, t, role_icon(f.look()), &name, unread, depth, selected, f.selectable, user_folder && !favorite);
     if let Some(collapsed) = collapse {
         let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
         let chev = egui::Rect::from_min_size(egui::pos2(x, resp.rect.center().y - 6.0), vec2(12.0, 12.0));
@@ -323,8 +426,8 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
             acts.push(Action::Dialog(Dialog::ConfirmEmpty {
                 account: account.clone(),
                 folder: path.clone(),
-                name: crate::i18n::tc("folder", &f.display_name()).to_string(),
-                for_good: matches!(f.role, FolderRole::Trash | FolderRole::Junk),
+                name: crate::i18n::folder(f),
+                for_good: matches!(f.look(), FolderRole::Trash | FolderRole::Junk),
             }));
             ui.close();
         }

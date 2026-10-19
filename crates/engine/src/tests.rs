@@ -1409,8 +1409,7 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         delimiter: Some('/'),
         role: FolderRole::Inbox,
         selectable: true,
-        unread: 0,
-        total: 0,
+        ..Default::default()
     };
     s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
     // The file's contacts were written next to its mail: they show once it's done.

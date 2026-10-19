@@ -709,7 +709,12 @@ fn respond(s: &mut impl Write, status: u16, headers: &[(&str, String)], body: &[
 
 /// Start the server; it runs until the test process ends.
 pub fn serve(data: Data) -> Server {
-    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    serve_at(data, "127.0.0.1:0")
+}
+
+/// Start the server on an address of its own.
+fn serve_at(data: Data, at: &str) -> Server {
+    let l = TcpListener::bind(at).unwrap();
     let url = format!("http://127.0.0.1:{}/EWS/Exchange.asmx", l.local_addr().unwrap().port());
     let mut data = data;
     data.url = url.clone();
@@ -1510,6 +1515,58 @@ mod tests {
         let _ = std::fs::remove_dir_all(store.root());
     }
 
+    /// Issue #1: a mailbox made in Dutch showed "Inbox", "Sent Items"… where Outlook shows the
+    /// names Exchange gave them ("Postvak IN", "Verzonden items"); they're kept now, and the
+    /// folders are still the account's Inbox, Sent Items… A folder of the user's own is as it was.
+    #[test]
+    fn special_folders_keep_the_names_exchange_gives_them() {
+        let mut d = Data::default();
+        d.folder("Postvak IN", None, Some("inbox"), "IPF.Note");
+        d.folder("Verzonden items", None, Some("sentitems"), "IPF.Note");
+        d.folder("Verwijderde items", None, Some("deleteditems"), "IPF.Note");
+        d.folder("Afgehandeld", None, None, "IPF.Note");
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let folders = crate::ews::list_folders(&c, &mut crate::jmap::State::default(), "a1").unwrap();
+        let named = |role: mailcraft_model::FolderRole| folders.iter().find(|f| f.role == role).map(|f| (f.path.clone(), f.display_name())).unwrap();
+        assert_eq!(named(mailcraft_model::FolderRole::Inbox), ("INBOX".to_string(), "Postvak IN".to_string()));
+        assert_eq!(named(mailcraft_model::FolderRole::Sent).1, "Verzonden items");
+        assert_eq!(named(mailcraft_model::FolderRole::Trash).1, "Verwijderde items");
+        let own = folders.iter().find(|f| f.path == "Afgehandeld").unwrap();
+        assert_eq!((own.name.as_deref(), own.display_name().as_str()), (None, "Afgehandeld"));
+    }
+
+    /// For looking at the app against an Exchange server whose mailbox was made in Dutch, with
+    /// a shared mailbox mapped to it, on 127.0.0.1:8085 without TLS (`CONTOSO\riley`, password
+    /// `pw`): add the account with `"ews": "http://127.0.0.1:8085/EWS/Exchange.asmx"`.
+    /// Run: `cargo test -p mailcraft-net serve_ews_for_the_app -- --ignored`.
+    #[test]
+    #[ignore]
+    fn serve_ews_for_the_app() {
+        let mut d = Data::default();
+        let inbox = d.folder("Postvak IN", None, Some("inbox"), "IPF.Note");
+        d.folder("Concepten", None, Some("drafts"), "IPF.Note");
+        d.folder("Verzonden items", None, Some("sentitems"), "IPF.Note");
+        d.folder("Verwijderde items", None, Some("deleteditems"), "IPF.Note");
+        d.folder("Ongewenste e-mail", None, Some("junkemail"), "IPF.Note");
+        d.folder("Postvak UIT", None, Some("outbox"), "IPF.Note");
+        d.folder("Afgehandeld", None, None, "IPF.Note");
+        d.deliver(&inbox, &mail("Weekly report", "o1"), false, "2026-10-19T08:00:00Z");
+        d.deliver(&inbox, &mail("Re: Weekly report", "o2"), false, "2026-10-19T09:00:00Z");
+        let shared = d.shared_mailbox(SharedBox {
+            address: "test@contoso.example".into(),
+            name: "Test Grommunio".into(),
+            automap: true,
+            legacy: false,
+            granted: true,
+        });
+        d.deliver(&shared, &mail("For the team", "s1"), false, "2026-10-19T10:00:00Z");
+        let _server = serve_at(d, "127.0.0.1:8085");
+        loop {
+            std::thread::park();
+        }
+    }
+
     /// Shared mailboxes (issue #1): those the server maps to the account open by themselves, one
     /// named by its Exchange address only is looked up, one added by hand opens too; each under
     /// a folder of its own, routed to it, its Outbox left out, its Inbox not the account's. One
@@ -1550,6 +1607,38 @@ mod tests {
         assert!(!paths.iter().any(|p| p.contains("Boss") || p.contains("Archive") || p.ends_with("Outbox")), "{paths:?}");
         assert!(!paths.iter().any(|p| p.contains("riley@")), "the account's own mailbox isn't a shared one");
         assert_eq!(folders.iter().filter(|f| f.role == mailcraft_model::FolderRole::Inbox).count(), 1, "only the account's own Inbox is its Inbox");
+        // Each shared mailbox is a mailbox of its own (issue #1: it showed as one of the
+        // account's folders): its folders say whose they are, and what each is there.
+        let folder = |path: &str| folders.iter().find(|f| f.path == path).unwrap();
+        let top = folder(sales_top);
+        assert_eq!((top.mailbox.as_deref(), top.depth()), (Some("sales@contoso.example"), 0));
+        let shared_inbox = folder(&format!("{sales_top}/Inbox"));
+        assert_eq!(shared_inbox.mailbox.as_deref(), Some("sales@contoso.example"));
+        assert_eq!((shared_inbox.role, shared_inbox.mailbox_role), (mailcraft_model::FolderRole::Other, mailcraft_model::FolderRole::Inbox));
+        assert!(shared_inbox.is_fixed() && top.is_fixed(), "a shared mailbox's top folder and Inbox can't be renamed or deleted");
+        let quotes = folder(&format!("{sales_top}/Inbox/Quotes"));
+        assert_eq!((quotes.mailbox.as_deref(), quotes.mailbox_role), (Some("sales@contoso.example"), mailcraft_model::FolderRole::Other));
+        assert!(!quotes.is_fixed());
+        assert_eq!(folder("Team/Inbox").mailbox.as_deref(), Some("team@contoso.example"));
+        assert!(folder("INBOX").mailbox.is_none() && folder("Sales").mailbox.is_none(), "the account's own folders are its own");
+        // Shown after the account's own folders, each mailbox together, its Inbox first.
+        let mut sorted = folders.clone();
+        mailcraft_model::sort_folders(&mut sorted);
+        let order: Vec<&str> = sorted.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(
+            order,
+            [
+                "INBOX",
+                "Sales",
+                sales_top,
+                &format!("{sales_top}/Inbox"),
+                &format!("{sales_top}/Inbox/Quotes"),
+                "Support",
+                "Support/Inbox",
+                "Team",
+                "Team/Inbox"
+            ],
+        );
         // Their mail syncs as any folder's.
         let store = crate::fake::tests_store("shared-mailboxes");
         let r = crate::ews::sync_folder(&c, &mut st, &store, "a1", &format!("{sales_top}/Inbox"), &crate::sync::SyncOptions::default()).unwrap();
