@@ -878,3 +878,7 @@ month	May	Mai
 	Remove shared mailbox	Freigegebenes Postfach entfernen
 	Opened by the server for your access to it	Vom Server geöffnet, da Sie Zugriff darauf haben
 	Shared mailbox {address}, opened by {email}	Freigegebenes Postfach {address}, geöffnet über {email}
+	The outgoing server has its own user name and password	Der Postausgangsserver hat einen eigenen Benutzernamen und ein eigenes Kennwort
+	Its user name	Sein Benutzername
+	Its password	Sein Kennwort
+	Password (unchanged when empty)	Kennwort (bleibt, wenn leer)

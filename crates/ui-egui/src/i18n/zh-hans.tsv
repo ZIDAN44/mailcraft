@@ -874,3 +874,7 @@ month	May	5月
 	Remove shared mailbox	删除共享邮箱
 	Opened by the server for your access to it	因你有访问权限，由服务器打开
 	Shared mailbox {address}, opened by {email}	共享邮箱 {address}，由 {email} 打开
+	The outgoing server has its own user name and password	发送服务器有自己的用户名和密码
+	Its user name	其用户名
+	Its password	其密码
+	Password (unchanged when empty)	密码（留空则不变）

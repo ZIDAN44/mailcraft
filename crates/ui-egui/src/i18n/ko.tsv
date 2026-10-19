@@ -877,3 +877,7 @@ month	May	5월
 	Remove shared mailbox	공유 사서함 제거
 	Opened by the server for your access to it	액세스 권한이 있어 서버가 엽니다
 	Shared mailbox {address}, opened by {email}	공유 사서함 {address}, {email}에서 열림
+	The outgoing server has its own user name and password	보내는 서버에 별도의 사용자 이름과 암호가 있음
+	Its user name	해당 사용자 이름
+	Its password	해당 암호
+	Password (unchanged when empty)	암호(비워 두면 그대로)

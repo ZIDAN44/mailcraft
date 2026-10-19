@@ -25,6 +25,8 @@ pub struct AccountForm {
     pub smtp_host: String,
     pub smtp_port: String,
     pub smtp_security: Security,
+    /// The outgoing server's own user name and password.
+    pub smtp_sign_in: SmtpSignIn,
     /// Syncs over JMAP instead of IMAP and SMTP, through this session address.
     pub jmap: bool,
     pub jmap_url: String,
@@ -46,6 +48,53 @@ pub struct AccountForm {
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
     pub found_source: Option<String>,
+}
+
+/// The outgoing server's own sign-in, as Outlook's "Log on using" for SMTP: for servers whose
+/// user name and password aren't the incoming server's (issue #3).
+#[derive(Clone, Debug, Default)]
+pub struct SmtpSignIn {
+    pub own: bool,
+    pub username: String,
+    pub password: String,
+    /// Its password is kept already (an account being changed): left empty, it stays.
+    pub kept: bool,
+}
+
+impl SmtpSignIn {
+    fn of(c: &AccountConfig) -> SmtpSignIn {
+        SmtpSignIn {
+            own: c.smtp_username.is_some(),
+            username: c.smtp_username.clone().unwrap_or_default(),
+            password: String::new(),
+            kept: c.smtp_username.is_some(),
+        }
+    }
+
+    /// `smtpUsername` (null: the incoming server's sign-in) and `smtpPassword`.
+    fn params(&self, p: &mut serde_json::Value) {
+        if self.own {
+            p["smtpUsername"] = json!(self.username.trim());
+            if !self.password.is_empty() {
+                p["smtpPassword"] = json!(self.password);
+            }
+        } else {
+            p["smtpUsername"] = serde_json::Value::Null;
+        }
+    }
+
+    fn ui(&mut self, ui: &mut Ui, w: f32) {
+        ui.checkbox(&mut self.own, tl!("The outgoing server has its own user name and password"));
+        if self.own {
+            ui.horizontal(|ui| {
+                let half = ((w - 30.0) / 2.0).max(100.0);
+                ui.add_space(22.0);
+                ui.add_sized([half, 26.0], egui::TextEdit::singleline(&mut self.username).hint_text(tl!("Its user name")));
+                let hint = if self.kept { tl!("Password (unchanged when empty)") } else { tl!("Its password") };
+                ui.add_sized([half, 26.0], egui::TextEdit::singleline(&mut self.password).password(true).hint_text(hint));
+            });
+        }
+    }
 }
 
 /// When a POP server's copy of downloaded mail goes: kept (for so many days, or until it's deleted
@@ -161,12 +210,13 @@ impl AccountForm {
                 "smtpSecurity": self.smtp_security.code(),
             });
             self.pop_keep.params(&mut p);
+            self.smtp_sign_in.params(&mut p);
             if !self.pst.trim().is_empty() {
                 p["pst"] = json!(self.pst.trim());
             }
             return p;
         }
-        json!({
+        let mut p = json!({
             "email": self.email.trim(),
             "name": self.name.trim(),
             "password": self.password,
@@ -177,7 +227,9 @@ impl AccountForm {
             "smtpHost": self.smtp_host.trim(),
             "smtpPort": port(&self.smtp_port),
             "smtpSecurity": self.smtp_security.code(),
-        })
+        });
+        self.smtp_sign_in.params(&mut p);
+        p
     }
 }
 
@@ -202,6 +254,8 @@ pub struct EditForm {
     pub smtp_host: String,
     pub smtp_port: String,
     pub smtp_security: Security,
+    /// The outgoing server's own user name and password.
+    pub smtp_sign_in: SmtpSignIn,
     pub error: Option<String>,
 }
 
@@ -227,9 +281,10 @@ impl EditForm {
                 "smtpSecurity": self.smtp_security.code(),
             });
             self.pop_keep.params(&mut v);
+            self.smtp_sign_in.params(&mut v);
             return v;
         }
-        json!({
+        let mut v = json!({
             "account": self.account,
             "name": self.name.trim(),
             "username": self.username.trim(),
@@ -240,7 +295,11 @@ impl EditForm {
             "smtpHost": self.smtp_host.trim(),
             "smtpPort": port(&self.smtp_port),
             "smtpSecurity": self.smtp_security.code(),
-        })
+        });
+        if !self.jmap {
+            self.smtp_sign_in.params(&mut v);
+        }
+        v
     }
 }
 
@@ -320,6 +379,7 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
             ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP));
             security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
         });
+        f.smtp_sign_in.ui(ui, w);
     } else {
         ui.horizontal(|ui| {
             label(ui, "Mail server");
@@ -345,6 +405,7 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
             ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP));
             security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
         });
+        f.smtp_sign_in.ui(ui, w);
         if f.imap_security == Security::None || f.smtp_security == Security::None {
             ui.label(
                 RichText::new(tl!("Without encryption your password travels in the clear. Use only for local test servers.")).color(t.warn).small(),
@@ -883,6 +944,7 @@ impl Dialog {
             smtp_host: a.smtp.host.clone(),
             smtp_port: a.smtp.port.to_string(),
             smtp_security: a.smtp.security,
+            smtp_sign_in: SmtpSignIn::of(a),
             error: None,
         }))
     }
@@ -1394,6 +1456,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     label(ui, "User name");
                     edited |=
                         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
+                    f.smtp_sign_in.ui(ui, w);
                     f.servers_edited |= edited;
                     if f.pop {
                         // Outlook's "use an existing data file": mail kept from before comes in first.

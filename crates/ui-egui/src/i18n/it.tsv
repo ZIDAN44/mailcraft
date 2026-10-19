@@ -877,3 +877,7 @@ month	May	maggio
 	Remove shared mailbox	Rimuovi cassetta postale condivisa
 	Opened by the server for your access to it	Aperta dal server perché vi hai accesso
 	Shared mailbox {address}, opened by {email}	Cassetta postale condivisa {address}, aperta da {email}
+	The outgoing server has its own user name and password	Il server in uscita ha nome utente e password propri
+	Its user name	Il suo nome utente
+	Its password	La sua password
+	Password (unchanged when empty)	Password (invariata se vuota)

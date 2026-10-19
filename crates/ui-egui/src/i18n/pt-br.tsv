@@ -878,3 +878,7 @@ month	May	maio
 	Remove shared mailbox	Remover caixa de correio compartilhada
 	Opened by the server for your access to it	Aberta pelo servidor porque você tem acesso a ela
 	Shared mailbox {address}, opened by {email}	Caixa de correio compartilhada {address}, aberta por {email}
+	The outgoing server has its own user name and password	O servidor de saída tem nome de usuário e senha próprios
+	Its user name	Nome de usuário dele
+	Its password	Senha dele
+	Password (unchanged when empty)	Senha (inalterada se vazia)

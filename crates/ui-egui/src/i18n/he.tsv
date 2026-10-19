@@ -873,3 +873,7 @@ month	May	מאי
 	Remove shared mailbox	הסרת תיבת הדואר המשותפת
 	Opened by the server for your access to it	נפתחה על ידי השרת כי יש לך גישה אליה
 	Shared mailbox {address}, opened by {email}	תיבת דואר משותפת {address}, נפתחת על ידי {email}
+	The outgoing server has its own user name and password	לשרת הדואר היוצא יש שם משתמש וסיסמה משלו
+	Its user name	שם המשתמש שלו
+	Its password	הסיסמה שלו
+	Password (unchanged when empty)	סיסמה (ללא שינוי אם ריקה)

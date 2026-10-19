@@ -873,3 +873,7 @@ month	May	mei
 	Remove shared mailbox	Gedeeld postvak verwijderen
 	Opened by the server for your access to it	Door de server geopend omdat u er toegang toe hebt
 	Shared mailbox {address}, opened by {email}	Gedeeld postvak {address}, geopend via {email}
+	The outgoing server has its own user name and password	De server voor uitgaande e-mail heeft een eigen gebruikersnaam en wachtwoord
+	Its user name	Gebruikersnaam ervan
+	Its password	Wachtwoord ervan
+	Password (unchanged when empty)	Wachtwoord (ongewijzigd als leeg)

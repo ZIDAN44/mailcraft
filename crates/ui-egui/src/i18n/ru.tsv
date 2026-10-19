@@ -877,3 +877,7 @@ month	May	Май
 	Remove shared mailbox	Удалить общий почтовый ящик
 	Opened by the server for your access to it	Открыт сервером, так как у вас есть доступ
 	Shared mailbox {address}, opened by {email}	Общий почтовый ящик {address}, открыт через {email}
+	The outgoing server has its own user name and password	У сервера исходящей почты свои имя пользователя и пароль
+	Its user name	Его имя пользователя
+	Its password	Его пароль
+	Password (unchanged when empty)	Пароль (без изменений, если пусто)

@@ -1288,3 +1288,21 @@ fn a_shared_mailbox_draws_as_a_mailbox_of_its_own() {
     assert!(e.to_string().contains("can't be renamed"), "{e}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #3: Server settings show the outgoing server's own sign-in; left alone, its kept
+/// password stays (none is sent), and turned off it goes back to the incoming server's.
+#[test]
+fn server_settings_keep_the_outgoing_servers_own_sign_in() {
+    let mut c = mailcraft_engine::model::AccountConfig::guess("zoe@example.org");
+    c.id = "a1".into();
+    c.smtp_username = Some("relay-user".into());
+    let Dialog::EditAccount(mut f) = Dialog::edit_account(&c) else { panic!("the server settings") };
+    assert!(f.smtp_sign_in.own && f.smtp_sign_in.kept);
+    let p = f.params();
+    assert_eq!(p["smtpUsername"], "relay-user");
+    assert!(p.get("smtpPassword").is_none(), "the kept password stays");
+    f.smtp_sign_in.password = "new".into();
+    assert_eq!(f.params()["smtpPassword"], "new");
+    f.smtp_sign_in.own = false;
+    assert!(f.params()["smtpUsername"].is_null());
+}

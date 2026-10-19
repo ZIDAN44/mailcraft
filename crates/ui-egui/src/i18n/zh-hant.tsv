@@ -877,3 +877,7 @@ month	May	5月
 	Remove shared mailbox	移除共用信箱
 	Opened by the server for your access to it	因您有存取權，由伺服器開啟
 	Shared mailbox {address}, opened by {email}	共用信箱 {address}，由 {email} 開啟
+	The outgoing server has its own user name and password	外寄伺服器有自己的使用者名稱和密碼
+	Its user name	其使用者名稱
+	Its password	其密碼
+	Password (unchanged when empty)	密碼（留空則不變）
