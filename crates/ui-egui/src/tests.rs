@@ -1189,12 +1189,19 @@ fn ctrl_a_selects_attachments_when_they_have_the_keyboard() {
     let picked = a.ui.attachment_selected.as_ref().map(|(_, v)| v.len());
     assert_eq!(picked, Some(4), "all four attachments");
     assert_eq!(a.session.selection.len(), 1, "the mail selection is left alone");
+    // Escape lets go of them.
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(a.ui.attachment_selected.is_none() && !a.ui.attachments_active);
+    a.ui.attachments_active = true;
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    assert_eq!(a.ui.attachment_selected.as_ref().map(|(_, v)| v.len()), Some(4));
     // Elsewhere (a press off the attachments), Ctrl+A selects the mail again.
     let off = egui::pos2(5.0, 400.0);
     frame(&ctx, &mut a, vec![Event::PointerMoved(off)]);
     frame(&ctx, &mut a, vec![Event::PointerButton { pos: off, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
     frame(&ctx, &mut a, vec![Event::PointerButton { pos: off, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
     assert!(!a.ui.attachments_active);
+    assert!(a.ui.attachment_selected.is_none(), "a click elsewhere lets go of them");
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert_eq!(a.session.selection.len(), a.session.list.len());
     let _ = std::fs::remove_dir_all(dir);

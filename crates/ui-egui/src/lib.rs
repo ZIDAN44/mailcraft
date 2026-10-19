@@ -1461,9 +1461,15 @@ impl MailApp {
             return;
         }
         let typing = ctx.text_edit_focused();
-        // A press anywhere but on an attachment hands the keyboard back from the attachments.
+        // A press anywhere but on an attachment hands the keyboard back from the attachments and
+        // clears their selection; not one in a menu over them (Save Selected… is one).
         if ctx.input(|i| i.pointer.primary_pressed()) && !self.ui.attachment_hovered {
-            self.ui.attachments_active = false;
+            let in_menu =
+                ctx.input(|i| i.pointer.interact_pos()).and_then(|p| ctx.layer_id_at(p)).is_some_and(|l| l.order != egui::Order::Background);
+            if !in_menu {
+                self.ui.attachments_active = false;
+                self.ui.attachment_selected = None;
+            }
         }
         self.ui.attachment_hovered = false;
         // Text selected in a message (its body, headers): Ctrl+A and Ctrl+C are the text's.
@@ -1516,6 +1522,12 @@ impl MailApp {
                 continue;
             }
             if combo == "Escape" {
+                // Escape lets go of selected attachments first.
+                if self.ui.attachment_selected.as_ref().is_some_and(|(_, v)| !v.is_empty()) {
+                    self.ui.attachment_selected = None;
+                    self.ui.attachments_active = false;
+                    continue;
+                }
                 if self.session.search.is_some() {
                     self.ui.search_text.clear();
                     self.run("search.clear", json!({}));

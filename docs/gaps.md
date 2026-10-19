@@ -394,7 +394,8 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   - Print wrote its PDF to a temporary folder: it asks where it goes, then opens it.
   - Ctrl+A in a message's text selected the whole message list as well; with text selected
     there, Ctrl+A and Ctrl+C are the text's. In the attachments, Ctrl+A selects them all and
-    Ctrl+click picks some; several selected save together (`attachment.saveAll` with `indices`).
+    Ctrl+click picks some or lets one go, and a click elsewhere or Esc lets go of them all; several
+    selected save together (`attachment.saveAll` with `indices`).
   - Rules: `rules.export` and `rules.import` (Open & Export, and the Rules dialog), MailCraft's
     own file, each rule's account by its address (one this computer doesn't have comes in off).
     The Rules dialog shows a rule a line, scrolls, has a find box past six rules, and Run all.
