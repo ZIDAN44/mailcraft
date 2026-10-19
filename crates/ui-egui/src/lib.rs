@@ -1217,9 +1217,8 @@ impl MailApp {
             Action::InsertPicture if self.services.pick_later("picture") => {}
             Action::AttachFiles if self.services.pick_later("attach") => {}
             Action::Print => {
-                let dir = std::env::temp_dir().join("mailcraft-print");
-                let _ = std::fs::create_dir_all(&dir);
-                let path = dir.join(format!("{}.pdf", self.message_file_name()));
+                // The message as a PDF, saved where asked, then opened to print from the viewer.
+                let Some(path) = self.services.save_path(&format!("{}.pdf", self.message_file_name())) else { return };
                 match self.session.run("message.exportPdf", &json!({"path": path.to_string_lossy()})) {
                     Ok(_) => match self.services.open_path(&path) {
                         Ok(()) => self.session.notice(tl!("Opened as a PDF: print it from the viewer"), false),
