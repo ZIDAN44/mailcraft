@@ -158,6 +158,69 @@ fn kind(params: &[(String, String)]) -> String {
     kinds.into_iter().next().unwrap_or_default()
 }
 
+/// Whether a property's head (`NOTE;ENCODING=QUOTED-PRINTABLE`, 2.1's bare
+/// `NOTE;QUOTED-PRINTABLE`) says its value is quoted-printable.
+fn quoted_printable_line(line: &str) -> bool {
+    let head = line.split(':').next().unwrap_or("");
+    head.split(';').skip(1).any(|p| {
+        let v = p.split_once('=').map_or(p, |(k, v)| if k.trim().eq_ignore_ascii_case("ENCODING") { v } else { "" });
+        v.trim().trim_matches('"').eq_ignore_ascii_case("QUOTED-PRINTABLE")
+    })
+}
+
+/// Upper-cased value of `CHARSET=` in a property head; empty means UTF-8.
+fn charset_of(head: &str) -> String {
+    head.split(';')
+        .skip(1)
+        .find_map(|p| p.split_once('=').filter(|(k, _)| k.trim().eq_ignore_ascii_case("CHARSET")))
+        .map(|(_, v)| v.trim().trim_matches('"').to_ascii_uppercase())
+        .unwrap_or_default()
+}
+
+/// A quoted-printable value as text: `=XX` bytes read in its character set (UTF-8, or the
+/// single-byte Western sets older phones and address books wrote).
+fn quoted_printable(v: &str, charset: String) -> String {
+    let mut bytes = Vec::with_capacity(v.len());
+    let b = v.as_bytes();
+    let mut i = 0;
+    while let Some(&c) = b.get(i) {
+        let hex = |j: usize| b.get(j).and_then(|h| (*h as char).to_digit(16));
+        match (c, hex(i + 1), hex(i + 2)) {
+            (b'=', Some(hi), Some(lo)) => {
+                bytes.push(u8::try_from(hi * 16 + lo).unwrap_or(b'?'));
+                i += 3;
+            }
+            _ => {
+                bytes.push(c);
+                i += 1;
+            }
+        }
+    }
+    let single_byte = charset.starts_with("ISO-8859")
+        || charset.starts_with("WINDOWS-125")
+        || charset.starts_with("CP125")
+        || charset == "LATIN1"
+        || charset == "US-ASCII";
+    match String::from_utf8(bytes) {
+        Ok(s) if !single_byte => s,
+        Ok(s) if s.is_ascii() => s,
+        Ok(s) => s.bytes().map(western).collect(),
+        Err(e) => e.into_bytes().into_iter().map(western).collect(),
+    }
+}
+
+/// A byte of Windows-1252 (a superset of Latin-1 for text) as a character.
+fn western(b: u8) -> char {
+    const HIGH: [char; 32] = [
+        '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8d}', 'Ž', '\u{8f}', '\u{90}', '‘', '’', '“', '”', '•', '–', '—',
+        '˜', '™', 'š', '›', 'œ', '\u{9d}', 'ž', 'Ÿ',
+    ];
+    match b {
+        0x80..=0x9f => HIGH.get(usize::from(b - 0x80)).copied().unwrap_or('?'),
+        _ => char::from(b),
+    }
+}
+
 /// Read every card in a text (one `.vcf` can hold many).
 pub fn parse(text: &str) -> Vec<Card> {
     let text = text.get(..MAX_INPUT).unwrap_or(text);
@@ -165,6 +228,11 @@ pub fn parse(text: &str) -> Vec<Card> {
     for l in text.split('\n') {
         let l = l.strip_suffix('\r').unwrap_or(l);
         match (l.strip_prefix(' ').or_else(|| l.strip_prefix('\t')), unfolded.last_mut()) {
+            // 2.1's quoted-printable values break lines with a trailing `=`, the next line as it is.
+            (_, Some(prev)) if prev.ends_with('=') && quoted_printable_line(prev) => {
+                prev.pop();
+                prev.push_str(l);
+            }
             (Some(rest), Some(prev)) => prev.push_str(rest),
             _ => unfolded.push(l.to_string()),
         }
@@ -182,6 +250,13 @@ pub fn parse(text: &str) -> Vec<Card> {
             continue;
         };
         let (head, value) = (raw.get(..colon.0).unwrap_or(""), raw.get(colon.0 + 1..).unwrap_or(""));
+        let decoded;
+        let value = if quoted_printable_line(head) {
+            decoded = quoted_printable(value, charset_of(head));
+            decoded.as_str()
+        } else {
+            value
+        };
         let mut parts = head.split(';');
         // Properties may carry a group prefix (`item1.EMAIL`).
         let name = parts.next().unwrap_or("").rsplit('.').next().unwrap_or("").trim().to_ascii_uppercase();
@@ -365,6 +440,28 @@ TEL;TYPE=HOME:+32 9 456\r\nTEL;TYPE=CELL:+32 490\r\nEND:VCARD\r\n";
         ] {
             assert_eq!(birthday_of(v).as_deref(), want, "{v}");
         }
+    }
+
+    /// Version 2.1 cards (older phones, exported address books) write accented text as
+    /// quoted-printable, with soft line breaks and a character set.
+    #[test]
+    fn quoted_printable_values() {
+        let v = "BEGIN:VCARD\r\nVERSION:2.1\r\n\
+N;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:M=C3=BCller;J=C3=BCrgen\r\n\
+FN;CHARSET=ISO-8859-1;QUOTED-PRINTABLE:J=FCrgen M=FCller\r\n\
+NOTE;ENCODING=QUOTED-PRINTABLE:Caf=C3=A9 au lait,=0D=0Athen a very long line that has been bro=\r\n\
+ken in two\r\n\
+ORG;CHARSET=WINDOWS-1252;ENCODING=QUOTED-PRINTABLE:=93Studio=94 =3D 50=80\r\n\
+TITLE:Price=5 not encoded\r\nEND:VCARD\r\n";
+        let c = parse(v).remove(0);
+        assert_eq!((c.family.as_str(), c.given.as_str()), ("Müller", "Jürgen"));
+        assert_eq!(c.name, "Jürgen Müller");
+        assert_eq!(c.note, "Café au lait,\r\nthen a very long line that has been broken in two");
+        assert_eq!(c.org, "“Studio” = 50€");
+        assert_eq!(c.title, "Price=5 not encoded");
+        // Broken escapes stay as written.
+        assert_eq!(quoted_printable("a=Zb=4", String::new()), "a=Zb=4");
+        assert_eq!(quoted_printable("=FF=FE", String::new()), "ÿþ");
     }
 
     #[test]
