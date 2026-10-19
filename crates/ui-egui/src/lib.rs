@@ -243,6 +243,11 @@ pub enum Action {
     OpenInCraft(usize, &'static str),
     /// Save every attachment of the open message into a folder.
     SaveAll,
+    /// Save some attachments of the open message (by index) into a folder.
+    SaveAttachments(Vec<usize>),
+    /// The rules to a file, or rules from one (Outlook's Export and Import Rules).
+    ExportRules,
+    ImportRules,
     /// Sign an account in again: the browser for OAuth accounts, else the password dialog.
     SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).
@@ -358,6 +363,13 @@ pub struct UiState {
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
     /// previews attachments in the reading pane.
     pub attachment_view: Option<(MessageKey, usize)>,
+    /// The attachments selected in a message's strip (a click picks one, Ctrl+click adds or
+    /// removes one, Ctrl+A takes them all), and whether the strip has the keyboard: it was the
+    /// last thing clicked, so Ctrl+A selects attachments rather than mail.
+    pub attachment_selected: Option<(MessageKey, Vec<usize>)>,
+    pub attachments_active: bool,
+    /// The pointer was over an attachment chip in the last frame drawn.
+    pub attachment_hovered: bool,
     /// Where the ribbon was last drawn (a click on the Search tab's buttons takes the focus
     /// from the box, and mustn't close the tab).
     ribbon_rect: Option<egui::Rect>,
@@ -477,6 +489,9 @@ impl MailApp {
                 search_due: None,
                 compose_alert: None,
                 attachment_view: None,
+                attachment_selected: None,
+                attachments_active: false,
+                attachment_hovered: false,
                 ribbon_rect: None,
                 dialog: None,
                 previews: HashMap::new(),
@@ -1236,9 +1251,10 @@ impl MailApp {
                     }
                 }
             }
-            Action::SaveAll => {
+            Action::SaveAll | Action::SaveAttachments(_) => {
+                let indices = if let Action::SaveAttachments(v) = &a { json!(v) } else { Value::Null };
                 if let Some(dir) = self.services.pick_folder() {
-                    match self.session.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})) {
+                    match self.session.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy(), "indices": indices})) {
                         Ok(v) => {
                             let n = v.get("saved").and_then(Value::as_array).map_or(0, Vec::len);
                             self.session.notice(tf!("Saved {n} attachments in {folder}", n = n, folder = dir.display()), false);
@@ -1391,6 +1407,13 @@ impl MailApp {
             .unwrap_or_else(|| "attachment".into())
     }
 
+    /// Every attachment of the message being read, selected (Ctrl+A in its attachments).
+    fn select_all_attachments(&mut self) {
+        let Some(r) = self.session.reading.as_ref() else { return };
+        let all: Vec<usize> = r.parsed.as_ref().map(|p| p.attachments.iter().filter(|a| !a.inline).map(|a| a.index).collect()).unwrap_or_default();
+        self.ui.attachment_selected = Some((r.key.clone(), all));
+    }
+
     fn shortcuts(&mut self, ctx: &egui::Context) {
         if self.ui.dialog.is_some() {
             if ctx.input(|i| i.key_pressed(Key::Escape)) {
@@ -1405,6 +1428,13 @@ impl MailApp {
             return;
         }
         let typing = ctx.text_edit_focused();
+        // A press anywhere but on an attachment hands the keyboard back from the attachments.
+        if ctx.input(|i| i.pointer.primary_pressed()) && !self.ui.attachment_hovered {
+            self.ui.attachments_active = false;
+        }
+        self.ui.attachment_hovered = false;
+        // Text selected in a message (its body, headers): Ctrl+A and Ctrl+C are the text's.
+        let text_selected = ctx.plugin_opt::<egui::text_selection::LabelSelectionState>().is_some_and(|p| p.lock().has_selection());
         let pressed: Vec<(Key, egui::Modifiers)> = ctx.input(|i| {
             i.events
                 .iter()
@@ -1461,6 +1491,14 @@ impl MailApp {
             }
             // In a text box these edit the text (select all, undo, redo).
             if typing && matches!(combo.as_str(), "Mod+A" | "Mod+Z" | "Mod+Y" | "Mod+Shift+Z") {
+                continue;
+            }
+            // Ctrl+A in the attachments selects them all, as Outlook's does.
+            if combo == "Mod+A" && self.ui.attachments_active {
+                self.select_all_attachments();
+                continue;
+            }
+            if text_selected && matches!(combo.as_str(), "Mod+A" | "Mod+C") {
                 continue;
             }
             if let Some(spec) = reg.by_shortcut(&combo) {

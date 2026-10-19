@@ -1167,6 +1167,9 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
     // The Craft app for the file, when it's installed.
     let craft = mime::craft_app_for(&a.mime, &a.name).and_then(|(cmd, name)| st.craft_apps.iter().any(|(c, _)| *c == cmd).then_some((cmd, name)));
     let text_preview = mime::text_preview_kind(&a.mime, &a.name).is_some();
+    // Several selected, this one among them: its menu can save them together.
+    let several: Option<Vec<usize>> =
+        st.attachment_selected.as_ref().filter(|(k, v)| k == key && v.len() > 1 && v.contains(&a.index)).map(|(_, v)| v.clone());
     let menu = |ui: &mut Ui, acts: &mut Vec<Action>| {
         if kind == AttachmentKind::Image && ui.button(tl!("Preview")).clicked() {
             acts.push(Action::Dialog(crate::Dialog::PicturePreview { key: key.clone(), index: a.index, name: a.name.clone() }));
@@ -1191,6 +1194,12 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
             acts.push(Action::SaveAttachment(a.index));
             ui.close();
         }
+        if let Some(v) = &several
+            && ui.button(tf!("Save {n} Selected…", n = v.len())).clicked()
+        {
+            acts.push(Action::SaveAttachments(v.clone()));
+            ui.close();
+        }
         if ui.button(tl!("Save All Attachments…")).clicked() {
             acts.push(Action::SaveAll);
             ui.close();
@@ -1204,16 +1213,32 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
     // egui counts the chip as hovered under the ▾ too (it senses drags); the ▾ wins there.
     let on_more = more.contains_pointer();
     let body_hovered = resp.hovered() && !on_more;
-    let sel_id = egui::Id::new(("attachment-selected", key.to_id()));
-    if resp.clicked() || resp.secondary_clicked() || more.clicked() {
-        ui.ctx().data_mut(|d| d.insert_temp(sel_id, a.index));
+    if resp.contains_pointer() || more.contains_pointer() {
+        st.attachment_hovered = true;
     }
-    // A click shows it in place of the message's text, as Outlook previews attachments.
-    if resp.clicked() && !on_more {
+    // The selection: a click picks this one, Ctrl+click adds or removes it; a right-click or
+    // the ▾ on one not selected picks it alone. Any of them gives the strip the keyboard.
+    let mut picked: Vec<usize> = st.attachment_selected.as_ref().filter(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default();
+    let ctrl = ui.input(|i| i.modifiers.command);
+    if resp.clicked() && !on_more && ctrl {
+        if let Some(at) = picked.iter().position(|i| *i == a.index) {
+            picked.remove(at);
+        } else {
+            picked.push(a.index);
+        }
+    } else if (resp.clicked() && !on_more) || ((resp.secondary_clicked() || more.clicked()) && !picked.contains(&a.index)) {
+        picked = vec![a.index];
+    }
+    if resp.clicked() || resp.secondary_clicked() || more.clicked() {
+        st.attachment_selected = Some((key.clone(), picked.clone()));
+        st.attachments_active = true;
+    }
+    // A plain click shows it in place of the message's text, as Outlook previews attachments.
+    if resp.clicked() && !on_more && !ctrl {
         st.attachment_view = Some((key.clone(), a.index));
     }
     let previewed = st.attachment_view.as_ref().is_some_and(|(k, i)| k == key && *i == a.index);
-    let selected = previewed || ui.ctx().data(|d| d.get_temp::<usize>(sel_id)) == Some(a.index);
+    let selected = previewed || picked.contains(&a.index);
     if ui.is_rect_visible(rect) {
         let p = ui.painter();
         p.rect(

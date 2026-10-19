@@ -1173,3 +1173,29 @@ fn notes_are_written_on_and_kept() {
     assert_eq!(a.session.module, mailcraft_engine::Module::Mail);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Ctrl+A goes to what was last clicked: the attachments when they were, else the mail list.
+#[test]
+fn ctrl_a_selects_attachments_when_they_have_the_keyboard() {
+    let (mut a, dir) = app("attach-all");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.iter().find(|m| m.subject.contains("festival poster")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    a.ui.attachments_active = true;
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    let picked = a.ui.attachment_selected.as_ref().map(|(_, v)| v.len());
+    assert_eq!(picked, Some(4), "all four attachments");
+    assert_eq!(a.session.selection.len(), 1, "the mail selection is left alone");
+    // Elsewhere (a press off the attachments), Ctrl+A selects the mail again.
+    let off = egui::pos2(5.0, 400.0);
+    frame(&ctx, &mut a, vec![Event::PointerMoved(off)]);
+    frame(&ctx, &mut a, vec![Event::PointerButton { pos: off, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
+    frame(&ctx, &mut a, vec![Event::PointerButton { pos: off, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
+    assert!(!a.ui.attachments_active);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    assert_eq!(a.session.selection.len(), a.session.list.len());
+    let _ = std::fs::remove_dir_all(dir);
+}

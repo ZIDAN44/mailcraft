@@ -565,6 +565,13 @@ fn attachments_preview_and_save_all() {
     let again = s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})).unwrap();
     assert!(again["saved"][0].as_str().unwrap().contains("(2)"), "names already taken get a number");
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+    // Only the ones asked for (those selected).
+    let only = s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy(), "indices": [9999]})).unwrap();
+    assert_eq!(only["saved"].as_array().map(Vec::len), Some(0));
+    let index = s.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.attachments[0].index).unwrap();
+    let only = s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy(), "indices": [index]})).unwrap();
+    assert_eq!(only["saved"].as_array().map(Vec::len), Some(1));
+    assert!(s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy(), "indices": "junk"})).is_ok(), "junk means all");
     assert!(s.run("attachment.saveAll", &json!({"dir": "/no/such/folder"})).is_err());
     assert_eq!(mailcraft_mime::craft_app_for("application/pdf", "a.pdf"), Some(("pdfcraft", "PdfCraft")));
     assert_eq!(mailcraft_mime::craft_app_for("application/octet-stream", "q.XLSX").map(|a| a.0), Some("gridcraft"));
