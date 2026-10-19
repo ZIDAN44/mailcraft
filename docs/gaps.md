@@ -378,3 +378,24 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
     servers with `X-GM-EXT-1` they move into Trash and are expunged by the UIDs COPYUID reports.
   - Prefilled To/Cc on replies (and To/Cc/Bcc of a message pulled back from the Outbox) had no
     trailing separator, so typing appended to the last address. They end with `; ` now.
+- **The File pages and the reading pane:**
+  - Options was a column of radio buttons and checkboxes: now cards of settings, one a row, the
+    control on the right (switches for on/off, joined buttons for a few choices). Account
+    information and Open & Export use the same rows; Info's Server settings, Password,
+    Signature and Remove account each have a button instead of a menu behind a tile.
+  - Export: the tile and a row of address buttons both exported (the first account unless one
+    was clicked). One list of accounts now, beside one Export… button; the file is named after
+    the account's address (it was "Mail.pst" for an account with no display name) and Save as
+    offers Outlook data file (*.pst).
+  - The Outbox/Export icon had a stray stroke (its tray's edge drawn closed); From's menu showed
+    "▾" as an empty box (no such glyph in the system fonts): drawn now.
+  - To, Cc and Bcc: a suggestion clicked lost the box's focus on the button's release, so the
+    next address needed another click. The box keeps the cursor now.
+  - Print wrote its PDF to a temporary folder: it asks where it goes, then opens it.
+  - Ctrl+A in a message's text selected the whole message list as well; with text selected
+    there, Ctrl+A and Ctrl+C are the text's. In the attachments, Ctrl+A selects them all and
+    Ctrl+click picks some; several selected save together (`attachment.saveAll` with `indices`).
+  - Rules: `rules.export` and `rules.import` (Open & Export, and the Rules dialog), MailCraft's
+    own file, each rule's account by its address (one this computer doesn't have comes in off).
+    The Rules dialog shows a rule a line, scrolls, has a find box past six rules, and Run all.
+

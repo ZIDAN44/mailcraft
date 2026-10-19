@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 325 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 327 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -74,7 +74,9 @@ local-first, media-aware v1); the fuller request is
    sync; diagnostics in mailcraft.log; French values kept away from words that elide; address
    suggestions that fit and click anywhere. Big data files and mailboxes: a 64.5 GB `.pst` of
    800,000 messages imports in 13 minutes under 850 MB of memory, and a mailbox that size opens,
-   searches and changes without reading all of it.
+   searches and changes without reading all of it. The File pages laid out as settings
+   (Options, Account information, Open & Export), rules exported, imported and run all at once,
+   Print asking where the PDF goes, Ctrl+A for the text or the attachments being looked at.
 17. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -162,3 +164,14 @@ local-first, media-aware v1); the fuller request is
   the Outbox delivers; search accepts `from: zoe`; removing a contact needs confirmation; vCard
   2.1 quoted-printable is decoded; no taskbar highlight for new mail; permanent delete on Gmail
   moves to Trash and expunges there; prefilled reply recipients end with `; `.
+- **2026-10-19** — **v0.16**, the File pages and the reading pane: Options, Account information
+  and Open & Export as cards of settings, each with its control or button on the right
+  (switches, choices side by side; Info's account actions no longer hidden in a tile's menu);
+  Export says which account it writes, in a list, names the file after its address and offers
+  `.pst` as its type; one stray stroke fixed in the Outbox/Export icon; From's menu drawn with a
+  chevron (the font had no ▾). A suggestion picked with the mouse keeps the cursor in To, Cc or
+  Bcc. Print asks where the PDF goes. Ctrl+A in a message's text no longer selects the whole
+  list too; in the attachments it selects them all (Ctrl+click picks some), and several are
+  saved together. Rules go to a file and come back (an account by its address, a missing
+  category made), the Rules dialog lists them a line each, with a find box past six, and Run
+  all runs every rule that's on.
