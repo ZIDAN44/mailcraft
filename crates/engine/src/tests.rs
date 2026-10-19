@@ -2249,3 +2249,70 @@ fn shared_contacts_are_read_only() {
     let made = s.run("contact.create", &json!({"name": "New one"})).unwrap();
     assert!(!s.person_read_only(made["uid"].as_str().unwrap()));
 }
+
+/// A big folder (tens of thousands of messages, as a 60 GB data file brings): selecting all and
+/// marking them read, then deleting them, takes moments, not minutes (per message, a delete read
+/// its whole folder again, and lookups went through whole lists: 8,000 took 65 s).
+#[test]
+fn a_big_folder_changes_all_at_once_quickly() {
+    let store = temp("big-folder-ops");
+    sample::seed_if_empty(&store, NOW).unwrap();
+    let n = 20_000u32;
+    let mut st = store.load_folder("sample", "Projects").unwrap();
+    st.validity = 7;
+    st.messages = (1..=n)
+        .map(|uid| mailcraft_model::Summary {
+            key: mailcraft_model::MessageKey { account: "sample".into(), folder: "Projects".into(), validity: 7, uid },
+            subject: format!("Report {uid}"),
+            date: NOW - i64::from(uid) * 60,
+            ..Default::default()
+        })
+        .collect();
+    store.save_folder("sample", "Projects", &st).unwrap();
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    assert_eq!(s.list.len(), n as usize);
+    let began = std::time::Instant::now();
+    s.run("list.selectAll", &json!({})).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    let took = began.elapsed();
+    assert!(s.list.iter().all(|m| m.flags.seen));
+    assert!(s.store.as_ref().unwrap().load_folder("sample", "Projects").unwrap().messages.iter().all(|m| m.flags.seen));
+    assert!(took < std::time::Duration::from_secs(15), "marking {n} read took {took:?}");
+    let began = std::time::Instant::now();
+    s.run("list.selectAll", &json!({})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    let took = began.elapsed();
+    assert!(s.list.is_empty(), "{}", s.list.len());
+    assert!(took < std::time::Duration::from_secs(15), "deleting {n} took {took:?}");
+}
+
+/// Looking through a big mailbox (the address book reads every folder) keeps only so many
+/// messages' summaries in memory; the folder on screen stays, and one let go reads back whole.
+#[test]
+fn the_folder_cache_lets_go_of_folders_past_its_limit() {
+    let mut s = sample_session("folder-cache-limit");
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.set_cache_limit(3);
+    let inbox = s.list.len();
+    assert!(inbox > 3, "the sample's Inbox is bigger than the limit");
+    // A change: the address book is built again, reading every folder.
+    s.run("list.selectAll", &json!({})).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    let loads = s.cache_order.len();
+    let _ = s.address_book("all", "");
+    assert!(s.cache_order.len() >= loads, "every folder was read");
+    let cached: usize = s.cache.values().map(|st| st.messages.len()).sum();
+    assert!(s.cache.contains_key(&("sample".to_string(), "INBOX".to_string())), "the folder on screen stays");
+    // The one on screen, and the one just read (kept even past the limit: it's being used).
+    let biggest = s.account("sample").unwrap().folders.iter().filter(|f| f.path != "INBOX").map(|f| f.total as usize).max().unwrap_or(0);
+    let held: Vec<(String, usize)> = s.cache.iter().map(|(k, v)| (k.1.clone(), v.messages.len())).collect();
+    assert!(cached <= inbox + biggest.max(3), "{cached} summaries kept: {held:?}, inbox {inbox}, biggest {biggest}, view {:?}", s.view);
+    let total: usize = s.account("sample").unwrap().folders.iter().map(|f| f.total as usize).sum();
+    assert!(cached < total, "not the whole mailbox: {cached} of {total}");
+    // A folder let go reads back as it was.
+    let sent_before = s.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap().messages.len();
+    assert_eq!(s.folder_state("sample", "Sent").messages.len(), sent_before);
+    s.refresh_list();
+    assert_eq!(s.list.len(), inbox);
+}

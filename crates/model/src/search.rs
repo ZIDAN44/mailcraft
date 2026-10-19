@@ -63,6 +63,10 @@ pub struct Query {
 pub struct Doc<'a> {
     pub summary: &'a Summary,
     pub body: Option<&'a str>,
+    /// It came from an [`Index`] search for the query's words: words looked for anywhere are known
+    /// to be there, without its body (reading a big mailbox's bodies again for every search was
+    /// most of its time).
+    pub indexed: bool,
 }
 
 fn split_tokens(input: &str) -> Vec<String> {
@@ -171,6 +175,17 @@ impl Query {
     pub fn matches(&self, doc: &Doc<'_>) -> bool {
         self.clauses.iter().all(|c| clause_matches(&c.term, doc) != c.negated)
     }
+
+    /// Whether checking a message found through the index needs its body: a phrase, words in the
+    /// body alone, words that must be missing, or addresses (matched inside words). Plain words
+    /// looked for anywhere are settled by the index.
+    pub fn needs_body(&self) -> bool {
+        self.clauses.iter().any(|c| match &c.term {
+            Term::Phrase(Field::Any | Field::Body, _) | Term::Words(Field::Body, _) => true,
+            Term::Words(Field::Any, ws) => c.negated || ws.iter().any(|w| w.contains(['@', '.'])),
+            _ => false,
+        })
+    }
 }
 
 fn addr_text(list: &[EmailAddress]) -> String {
@@ -219,6 +234,8 @@ fn clause_matches(term: &Term, doc: &Doc<'_>) -> bool {
         Term::Categorized(ks) if ks.is_empty() => m.flags.keywords.iter().any(|k| !k.starts_with('$')),
         Term::Categorized(ks) => ks.iter().any(|k| m.flags.has(k)),
         Term::Phrase(f, p) => field_text(f, doc).to_lowercase().contains(p.as_str()),
+        // Found through the index for these words: they're there (summary or body).
+        Term::Words(Field::Any, ws) if doc.indexed && doc.body.is_none() && ws.iter().all(|w| !w.contains(['@', '.'])) => true,
         Term::Words(f, ws) => {
             let text = field_text(f, doc);
             let have: Vec<String> = words(&text).collect();
@@ -231,7 +248,9 @@ fn clause_matches(term: &Term, doc: &Doc<'_>) -> bool {
 /// Words → documents. Document ids are the caller's (positions in its message table).
 #[derive(Clone, Debug, Default)]
 pub struct Index {
-    postings: BTreeMap<String, BTreeSet<u32>>,
+    /// Each word's documents, sorted (an array: a set per word took several times the memory,
+    /// gigabytes for a big mailbox).
+    postings: BTreeMap<String, Vec<u32>>,
     docs: BTreeSet<u32>,
 }
 
@@ -266,7 +285,17 @@ impl Index {
         for w in words(text) {
             // Very long "words" (base64 debris) only bloat the index.
             if w.chars().count() <= 40 {
-                self.postings.entry(w).or_default().insert(doc);
+                let list = self.postings.entry(w).or_default();
+                // Documents mostly come in order: appended; one added later goes in its place.
+                match list.last() {
+                    Some(&last) if last == doc => {}
+                    Some(&last) if last > doc => {
+                        if let Err(at) = list.binary_search(&doc) {
+                            list.insert(at, doc);
+                        }
+                    }
+                    _ => list.push(doc),
+                }
             }
         }
     }
@@ -320,7 +349,7 @@ mod tests {
     }
 
     fn q(s: &str, m: &Summary) -> bool {
-        Query::parse(s).matches(&Doc { summary: m, body: None })
+        Query::parse(s).matches(&Doc { summary: m, body: None, indexed: false })
     }
 
     #[test]
@@ -355,8 +384,8 @@ mod tests {
         m2.flags.keywords = vec!["$Pinned".into(), "work".into()];
         assert!(q("is:important is:categorized", &m2));
         let label = Query { clauses: vec![Clause { term: Term::Categorized(vec!["$label1".into()]), negated: false }] };
-        assert!(!label.matches(&Doc { summary: &m2, body: None }));
-        assert!(Query::parse("").matches(&Doc { summary: &m, body: None }));
+        assert!(!label.matches(&Doc { summary: &m2, body: None, indexed: false }));
+        assert!(Query::parse("").matches(&Doc { summary: &m, body: None, indexed: false }));
     }
 
     #[test]
@@ -374,5 +403,29 @@ mod tests {
         assert!(ix.candidates(&Query::parse("nothing-here")).is_empty());
         ix.add(1, "late body text");
         assert_eq!(ix.candidates(&Query::parse("late")), BTreeSet::from([1]));
+    }
+
+    /// The index keeps each word's documents sorted and once, whatever order they come in; plain
+    /// words found through it need no body, while phrases, missing words and addresses do.
+    #[test]
+    fn the_index_settles_plain_words() {
+        let mut ix = Index::new();
+        ix.add(5, "storyboard review");
+        ix.add(2, "storyboard storyboard");
+        ix.add(9, "budget");
+        ix.add(5, "storyboard again");
+        assert_eq!(ix.prefix("story").into_iter().collect::<Vec<_>>(), [2, 5]);
+        let q = Query::parse("storyboard review");
+        assert_eq!(ix.candidates(&q).into_iter().collect::<Vec<_>>(), [5]);
+        assert!(!q.needs_body());
+        let m = Summary { subject: "Weekly".into(), ..Default::default() };
+        assert!(q.matches(&Doc { summary: &m, body: None, indexed: true }), "the index found both words");
+        assert!(!q.matches(&Doc { summary: &m, body: None, indexed: false }), "without it, the words aren't in the summary");
+        for needs in ["\"storyboard review\"", "-budget storyboard", "body:storyboard", "zoe@studio.example"] {
+            assert!(Query::parse(needs).needs_body(), "{needs}");
+        }
+        for not in ["from:zoe storyboard", "is:unread budget", "subject:weekly"] {
+            assert!(!Query::parse(not).needs_body(), "{not}");
+        }
     }
 }
