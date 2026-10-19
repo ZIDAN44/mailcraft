@@ -52,7 +52,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         .map(|(_, i)| *i)
         .filter(|i| r.parsed.as_ref().is_some_and(|p| p.attachments.iter().any(|a| a.index == *i)));
     if viewing.is_some() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
-        st.attachment_view = None;
+        close_attachment_view(st);
     }
     let viewing = viewing.filter(|_| st.attachment_view.is_some());
     egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", in_window, r.key.to_id(), viewing)).show(ui, |ui| {
@@ -84,6 +84,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 && let Some(a) = p.attachments.iter().find(|a| a.index == index)
             {
                 preview_header(&t, ui, a, acts, &mut st.attachment_view);
+                if st.attachment_view.is_none() {
+                    close_attachment_view(st);
+                }
             }
             if viewing.is_none() {
                 // Subject.
@@ -1290,6 +1293,14 @@ fn attachment_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey,
     if !on_more {
         resp.on_hover_text(a.name.clone());
     }
+}
+
+/// Back to the message from a previewed attachment: the chip clicked to show it isn't left
+/// selected either.
+fn close_attachment_view(st: &mut UiState) {
+    st.attachment_view = None;
+    st.attachment_selected = None;
+    st.attachments_active = false;
 }
 
 /// Above a previewed attachment: back to the message, the file's name and size, and Open and

@@ -1206,3 +1206,21 @@ fn ctrl_a_selects_attachments_when_they_have_the_keyboard() {
     assert_eq!(a.session.selection.len(), a.session.list.len());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Back from a previewed attachment, its chip isn't left selected.
+#[test]
+fn leaving_an_attachment_preview_lets_go_of_its_chip() {
+    let (mut a, dir) = app("attach-back");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.iter().find(|m| m.subject.contains("festival poster")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    let index = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.attachments[0].index).unwrap();
+    a.ui.attachment_view = Some((k.clone(), index));
+    a.ui.attachment_selected = Some((k.clone(), vec![index]));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(a.ui.attachment_view.is_none() && a.ui.attachment_selected.is_none());
+    let _ = std::fs::remove_dir_all(dir);
+}
