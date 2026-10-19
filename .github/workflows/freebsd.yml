@@ -13,6 +13,11 @@ on:
       - .github/workflows/freebsd.yml
       - packaging/freebsd/**
   workflow_dispatch:
+    inputs:
+      aarch64:
+        description: "Also build and test on aarch64 (emulated on an x86 runner: hours, and it may reach the job's time limit)"
+        type: boolean
+        default: false
 
 concurrency:
   group: freebsd-${{ github.ref }}
@@ -26,3 +31,8 @@ jobs:
     # Intentionally tracked at @main (not SHA-pinned) so org-wide CI improvements, security fixes, and build optimizations propagate without PR churn across all craftapp repos.
     # No craft-fonts-ref: MailCraft bundles no fonts (it uses the system's at runtime).
     uses: storytold/craft-common-actions/.github/workflows/freebsd.yml@main
+    with:
+      # aarch64 runs in a VM emulated on an x86 runner: building and testing the workspace there
+      # outlasted the 5-hour limit, so its cache was never saved and every push ran it again. x86_64
+      # on every push; aarch64 only when asked for by hand.
+      architectures: ${{ github.event_name == 'workflow_dispatch' && inputs.aarch64 && '["x86_64","aarch64"]' || '["x86_64"]' }}
