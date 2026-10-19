@@ -167,6 +167,68 @@ pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response
     resp
 }
 
+/// An on/off switch (a setting that applies at once). `label` (translated) is for screen readers
+/// only; the row shows its own. Clicking it flips `on`; the response says it changed.
+pub fn switch(ui: &mut Ui, t: &Tokens, on: &mut bool, label: &str) -> Response {
+    let (rect, mut resp) = ui.allocate_exact_size(vec2(36.0, 20.0), Sense::click());
+    if resp.clicked() {
+        *on = !*on;
+        resp.mark_changed();
+    }
+    let label = label.to_string();
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, ui.is_enabled(), *on, &label));
+    let k = ui.ctx().animate_bool_responsive(resp.id, *on);
+    let enabled = ui.is_enabled();
+    let track = if *on {
+        t.accent
+    } else if resp.hovered() {
+        t.hover
+    } else {
+        t.surface
+    };
+    let track = if enabled { track } else { track.gamma_multiply(0.5) };
+    let edge = if *on { t.accent } else { t.dim };
+    ui.painter().rect(rect, 10.0, track, Stroke::new(1.0, if enabled { edge } else { t.border }), egui::StrokeKind::Inside);
+    let x = egui::lerp(rect.left() + 10.0..=rect.right() - 10.0, k);
+    let knob = if *on { t.on_accent } else { t.dim };
+    ui.painter().circle_filled(egui::pos2(x, rect.center().y), if resp.hovered() && enabled { 6.5 } else { 6.0 }, knob);
+    if resp.has_focus() {
+        ui.painter().rect_stroke(rect.expand(2.0), 12.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
+    }
+    resp
+}
+
+/// One choice among a few, as joined buttons (Theme: System, Light, Dark), labels translated.
+/// The picked one is raised; returns the index clicked, if any.
+pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: usize) -> Option<usize> {
+    let font = theme::regular(13.0);
+    let labels: Vec<String> = options.iter().map(|o| o.to_string()).collect();
+    let widths: Vec<f32> = labels.iter().map(|l| ui.painter().layout_no_wrap(l.clone(), font.clone(), t.text).size().x + 24.0).collect();
+    let total: f32 = widths.iter().sum::<f32>() + 4.0;
+    let (rect, _) = ui.allocate_exact_size(vec2(total, 28.0), Sense::hover());
+    ui.painter().rect(rect, 6.0, t.bg, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    let mut x = rect.left() + 2.0;
+    let mut clicked = None;
+    for (i, (label, w)) in labels.iter().zip(&widths).enumerate() {
+        let r = egui::Rect::from_min_size(egui::pos2(x, rect.top() + 2.0), vec2(*w, 24.0));
+        let resp = ui.interact(r, ui.id().with(("segment", id, i)), Sense::click());
+        let on = i == selected;
+        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::RadioButton, ui.is_enabled(), on, label));
+        if on {
+            ui.painter().rect(r, 4.0, t.surface, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+        } else if resp.hovered() {
+            ui.painter().rect_filled(r, 4.0, t.hover);
+        }
+        let color = if on { t.text } else { t.dim };
+        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label, if on { theme::bold(13.0) } else { font.clone() }, color);
+        if resp.clicked() && !on {
+            clicked = Some(i);
+        }
+        x += w;
+    }
+    clicked
+}
+
 pub fn group_sep(ui: &mut Ui, t: &Tokens) {
     ui.add_space(4.0);
     let (r, _) = ui.allocate_exact_size(vec2(1.0, 26.0), Sense::hover());

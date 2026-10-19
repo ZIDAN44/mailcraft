@@ -555,7 +555,7 @@
 	Exporting to {file}…	正在匯出到 {file}…
 	Export	匯出
 	Export to Outlook data file	匯出到 Outlook 資料檔
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	將帳戶的郵件連同資料夾寫入 Outlook 和其他郵件應用程式可以開啟的 Outlook 資料檔 (.pst)。從未下載的郵件不包含在內。
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	將帳戶的郵件連同資料夾寫入 Outlook 和其他郵件應用程式可以開啟的 Outlook 資料檔 (.pst)。
 	Exchange server (EWS)	Exchange 伺服器 (EWS)
 	Exchange server	Exchange 伺服器
 	Server: {url} (EWS)	伺服器：{url} (EWS)
@@ -832,6 +832,7 @@
 	Delete “{name}”?	刪除「{name}」?
 	Delete this contact?	刪除此連絡人?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	將刪除此連絡人及其儲存的所有資訊。此動作無法復原。
+	Export…	匯出…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

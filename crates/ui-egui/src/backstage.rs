@@ -31,11 +31,13 @@ pub struct Backstage {
     asked: HashSet<String>,
     /// Bytes cached per account, measured once per visit.
     cached: HashMap<String, u64>,
+    /// The account Export writes (the one being looked at until another is picked).
+    export: Option<String>,
 }
 
 impl Backstage {
     pub fn new(page: Page) -> Backstage {
-        Backstage { page, account: None, asked: HashSet::new(), cached: HashMap::new() }
+        Backstage { page, account: None, asked: HashSet::new(), cached: HashMap::new(), export: None }
     }
 }
 
@@ -113,7 +115,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 ui.set_max_width(820.0);
                 match b.page {
                     Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
-                    Page::Open => open(s, &t, ui, acts),
+                    Page::Open => open(s, &t, ui, &mut b, acts),
                     Page::Options => options(s, st, ui, acts),
                     Page::About => about(&t, ui, acts),
                 }
@@ -384,7 +386,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
 }
 
 /// Open & Export: Outlook data files.
-fn open(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Open & Export");
     let r = tile(
         ui,
@@ -403,27 +405,41 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     if r.clicked() {
         acts.push(Action::OpenDataFile);
     }
-    let current = s.current_account().map(|a| a.config.id.clone());
+    // The account to export: picked in the list (one line, however many accounts there are),
+    // else the one being looked at.
+    let chosen = b
+        .export
+        .as_deref()
+        .and_then(|id| s.account(id))
+        .or_else(|| s.current_account())
+        .or_else(|| s.accounts.first())
+        .map(|a| (a.config.id.clone(), format!("{}   ·   {}", a.config.email, tl!(kind(a)))));
+    let mut export = false;
     let r = tile(
         ui,
         t,
         Icon::Outbox,
         "Export",
         "Export to Outlook data file",
-        "Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.",
+        "Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.",
         |ui| {
             ui.label(RichText::new(tl!("Its calendar and contacts go beside it, as .ics and .vcf files.")).color(t.faint).small());
-            ui.horizontal_wrapped(|ui| {
-                for a in &s.accounts {
-                    if ui.button(RichText::new(&a.config.email).small()).clicked() {
-                        acts.push(Action::ExportDataFile(a.config.id.clone()));
+            ui.add_space(6.0);
+            let Some((id, label)) = &chosen else { return };
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("export-account").width(360.0).selected_text(label).show_ui(ui, |ui| {
+                    for a in &s.accounts {
+                        if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
+                            b.export = Some(a.config.id.clone());
+                        }
                     }
-                }
+                });
+                export = widgets::pill_button(ui, Icon::Outbox, "Export…", t).clicked();
             });
         },
     );
-    if r.clicked()
-        && let Some(id) = current
+    if (r.clicked() || export)
+        && let Some((id, _)) = chosen
     {
         acts.push(Action::ExportDataFile(id));
     }
@@ -432,35 +448,77 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
 fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     heading(ui, &t, "Options");
-    let group = |ui: &mut Ui, title: &str, body: &mut dyn FnMut(&mut Ui)| {
-        egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::same(14)).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.label(RichText::new(tl!(title)).font(theme::bold(15.0)).color(t.text));
-            ui.add_space(6.0);
-            body(ui);
-        });
-        ui.add_space(12.0);
+    ui.set_max_width(760.0);
+    // A card per subject: its title, an optional line about it, then its settings one per row.
+    let group = |ui: &mut Ui, title: &str, about: Option<&str>, body: &mut dyn FnMut(&mut Ui)| {
+        egui::Frame::new()
+            .fill(t.surface)
+            .stroke(egui::Stroke::new(1.0, t.border))
+            .corner_radius(10)
+            .inner_margin(Margin { left: 20, right: 20, top: 16, bottom: 10 })
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(RichText::new(title).font(theme::bold(15.0)).color(t.text));
+                if let Some(about) = about {
+                    ui.add_space(2.0);
+                    ui.label(RichText::new(about).color(t.dim).size(12.5));
+                }
+                ui.add_space(6.0);
+                body(ui);
+            });
+        ui.add_space(14.0);
     };
-    let check = |ui: &mut Ui, on: bool, label: &str, id: &'static str, acts: &mut Vec<Action>| {
+    // One setting: its name (and a line under it) on the left, its control on the right; a
+    // thin line between settings.
+    let setting = |ui: &mut Ui, first: bool, label: &str, about: Option<&str>, control: &mut dyn FnMut(&mut Ui)| {
+        if !first {
+            let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+            ui.painter().rect_filled(r, 0.0, t.border.gamma_multiply(0.6));
+        }
+        ui.add_space(7.0);
+        // The name and its control centred on each other, the control against the right edge.
+        let left = (ui.available_width() - 280.0).max(ui.available_width() * 0.5);
+        egui::Sides::new().height(if about.is_some() { 38.0 } else { 28.0 }).show(
+            ui,
+            |ui| match about {
+                None => {
+                    ui.add(egui::Label::new(RichText::new(label).color(t.text)).truncate());
+                }
+                Some(about) => {
+                    ui.vertical(|ui| {
+                        ui.set_max_width(left);
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.label(RichText::new(label).color(t.text));
+                        ui.label(RichText::new(about).color(t.faint).size(12.0));
+                    });
+                }
+            },
+            |ui| control(ui),
+        );
+        ui.add_space(7.0);
+    };
+    let switch = |ui: &mut Ui, on: bool, label: &str, id: &'static str, acts: &mut Vec<Action>| {
         let mut v = on;
-        if ui.checkbox(&mut v, tl!(label)).changed() {
+        if widgets::switch(ui, &t, &mut v, label).changed() {
             acts.push(Action::Run(id, json!({"on": v})));
         }
     };
-    group(ui, "General", &mut |ui| {
-        ui.horizontal(|ui| {
-            ui.label(tl!("Theme"));
-            for (v, label) in [(None, "Same as the system"), (Some(false), "Light"), (Some(true), "Dark")] {
-                if ui.radio(st.dark == v, tl!(label)).clicked() {
-                    acts.push(Action::SetDark(v));
-                }
+
+    group(ui, tl!("General"), None, &mut |ui| {
+        setting(ui, true, tl!("Theme"), None, &mut |ui| {
+            let options = [tl!("System"), tl!("Light"), tl!("Dark")];
+            let values = [None, Some(false), Some(true)];
+            let now = values.iter().position(|v| *v == st.dark).unwrap_or(0);
+            if let Some(i) = widgets::segmented(ui, &t, "theme", &options, now)
+                && let Some(v) = values.get(i)
+            {
+                acts.push(Action::SetDark(*v));
             }
         });
-        ui.horizontal(|ui| {
-            ui.label(tl!("Language"));
+        setting(ui, false, tl!("Language"), None, &mut |ui| {
             let language = st.language.as_str();
             let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());
-            egui::ComboBox::from_id_salt("language").selected_text(current).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("language").width(200.0).selected_text(current).show_ui(ui, |ui| {
                 if ui.selectable_label(language == crate::i18n::AUTO, tl!("Same as the system")).clicked() {
                     acts.push(Action::SetLanguage(crate::i18n::AUTO.into()));
                 }
@@ -472,67 +530,86 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
             });
         });
     });
+
     // Where the data files are (one per account, as Outlook's .pst files); movable as those are.
     if let Some((dir, movable)) = &st.data_folder {
-        group(ui, "Data files", &mut |ui| {
-            ui.label(
-                RichText::new(tl!(
-                    "Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info."
-                ))
-                .color(t.dim),
-            );
-            ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(dir.display().to_string()).color(t.text));
-                if ui.small_button(tl!("Open folder")).clicked() {
-                    acts.push(Action::OpenFolder(dir.clone()));
-                }
-                if *movable && ui.small_button(tl!("Move…")).clicked() {
-                    acts.push(Action::MoveDataFolder);
-                }
-            });
-            if let Some(to) = &st.pending_move {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        RichText::new(tf!("Moves to {folder} the next time MailCraft starts.", folder = to.display().to_string()))
-                            .color(t.warn)
-                            .small(),
-                    );
-                    if ui.small_button(tl!("Cancel")).clicked() {
-                        acts.push(Action::CancelDataMove);
+        group(
+            ui,
+            tl!("Data files"),
+            Some(tl!(
+                "Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info."
+            )),
+            &mut |ui| {
+                let path = dir.display().to_string();
+                setting(ui, true, tl!("Folder"), Some(&path), &mut |ui| {
+                    if *movable && ui.button(tl!("Move…")).clicked() {
+                        acts.push(Action::MoveDataFolder);
+                    }
+                    if ui.button(tl!("Open folder")).clicked() {
+                        acts.push(Action::OpenFolder(dir.clone()));
                     }
                 });
-            } else if !*movable {
-                ui.label(
-                    RichText::new(tl!("Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here."))
-                        .color(t.faint)
-                        .small(),
-                );
-            }
-        });
-    }
-    group(ui, "Reading", &mut |ui| {
-        ui.horizontal(|ui| {
-            ui.label(tl!("Reading pane"));
-            for (v, label, code) in
-                [(ReadingPane::Right, "Right", "right"), (ReadingPane::Bottom, "Bottom", "bottom"), (ReadingPane::Off, "Off", "off")]
-            {
-                if ui.radio(s.prefs.reading_pane == v, tl!(label)).clicked() {
-                    acts.push(Action::Run("view.readingPane", json!({"value": code})));
+                if !*movable && st.pending_move.is_none() {
+                    ui.label(
+                        RichText::new(tl!("Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here."))
+                            .color(t.faint)
+                            .small(),
+                    );
                 }
+                if let Some(to) = &st.pending_move {
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new(tf!("Moves to {folder} the next time MailCraft starts.", folder = to.display().to_string()))
+                                .color(t.warn)
+                                .small(),
+                        );
+                        if ui.small_button(tl!("Cancel")).clicked() {
+                            acts.push(Action::CancelDataMove);
+                        }
+                    });
+                }
+                ui.add_space(8.0);
+            },
+        );
+    }
+
+    group(ui, tl!("Reading"), None, &mut |ui| {
+        setting(ui, true, tl!("Reading pane"), None, &mut |ui| {
+            let values = [(ReadingPane::Right, "right"), (ReadingPane::Bottom, "bottom"), (ReadingPane::Off, "off")];
+            let now = values.iter().position(|(v, _)| *v == s.prefs.reading_pane).unwrap_or(0);
+            if let Some(i) = widgets::segmented(ui, &t, "reading-pane", &[tl!("Right"), tl!("Bottom"), tl!("Off")], now)
+                && let Some((_, code)) = values.get(i)
+            {
+                acts.push(Action::Run("view.readingPane", json!({"value": code})));
             }
         });
-        check(ui, s.prefs.conversations, "Group messages by conversation", "view.conversations", acts);
-        check(ui, s.prefs.show_preview, "Show a line of each message in the list", "view.preview", acts);
-        check(ui, s.prefs.compact, "Compact list", "view.compact", acts);
+        setting(ui, false, tl!("Group messages by conversation"), None, &mut |ui| {
+            switch(ui, s.prefs.conversations, tl!("Group messages by conversation"), "view.conversations", acts);
+        });
+        setting(ui, false, tl!("Show a line of each message in the list"), None, &mut |ui| {
+            switch(ui, s.prefs.show_preview, tl!("Show a line of each message in the list"), "view.preview", acts);
+        });
+        setting(ui, false, tl!("Compact list"), None, &mut |ui| {
+            switch(ui, s.prefs.compact, tl!("Compact list"), "view.compact", acts);
+        });
         // When the reading pane marks mail read, as Outlook's Reading Pane options: when shown
         // (after a wait), once another message is chosen, or not at all (only a message opened
         // in its own window is then).
-        let mut on = s.prefs.mark_read_on_open;
-        if ui.checkbox(&mut on, tl!("Mark messages as read in the reading pane")).changed() {
-            acts.push(Action::Run("view.readingOptions", json!({"markRead": on})));
-        }
-        ui.add_enabled_ui(on, |ui| {
+        let on = s.prefs.mark_read_on_open;
+        setting(
+            ui,
+            false,
+            tl!("Mark messages as read in the reading pane"),
+            Some(tl!("A message opened in its own window (double-click) is always marked as read.")),
+            &mut |ui| {
+                let mut v = on;
+                if widgets::switch(ui, &t, &mut v, tl!("Mark messages as read in the reading pane")).changed() {
+                    acts.push(Action::Run("view.readingOptions", json!({"markRead": v})));
+                }
+            },
+        );
+        if on {
             ui.indent("read-when", |ui| {
                 let shown = s.prefs.read_in_pane == mailcraft_engine::ReadInPane::Shown;
                 ui.horizontal(|ui| {
@@ -549,51 +626,64 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Run("view.readingOptions", json!({"when": "left"})));
                 }
             });
+            ui.add_space(8.0);
+        }
+        setting(ui, false, tl!("Write new messages in a window of their own"), None, &mut |ui| {
+            switch(ui, s.prefs.new_mail_window, tl!("Write new messages in a window of their own"), "view.newMailWindow", acts);
         });
-        ui.label(RichText::new(tl!("A message opened in its own window (double-click) is always marked as read.")).color(t.faint).small());
-        check(ui, s.prefs.new_mail_window, "Write new messages in a window of their own", "view.newMailWindow", acts);
-        check(ui, s.prefs.show_html, "Show HTML mail formatted (otherwise as plain text)", "view.html", acts);
+        setting(ui, false, tl!("Show HTML mail formatted (otherwise as plain text)"), None, &mut |ui| {
+            switch(ui, s.prefs.show_html, tl!("Show HTML mail formatted (otherwise as plain text)"), "view.html", acts);
+        });
     });
+
     // How much mail is kept on this computer, as Outlook's "Mail to keep offline".
-    group(ui, "Mail kept on this computer", &mut |ui| {
-        ui.horizontal_wrapped(|ui| {
-            ui.label(tl!("Of each folder, keep"));
-            for (n, label) in [(1000u32, "the newest 1,000"), (5000, "5,000"), (20000, "20,000"), (0, "all")] {
-                if ui.radio(s.prefs.keep_messages == n, tl!(label)).clicked() {
+    group(
+        ui,
+        tl!("Mail kept on this computer"),
+        Some(tl!("New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.")),
+        &mut |ui| {
+            setting(ui, true, tl!("Of each folder, keep"), None, &mut |ui| {
+                let values = [1000u32, 5000, 20000, 0];
+                let now = values.iter().position(|v| *v == s.prefs.keep_messages).unwrap_or(0);
+                if let Some(i) = widgets::segmented(ui, &t, "keep", &["1,000", "5,000", "20,000", tl!("All")], now)
+                    && let Some(n) = values.get(i)
+                {
                     acts.push(Action::Run("account.keepMail", json!({"messages": n})));
                 }
-            }
-        });
-        ui.horizontal_wrapped(|ui| {
-            ui.label(tl!("Download in full for reading offline"));
-            for (n, label) in [(40u32, "the newest 40"), (200, "200"), (1000, "1,000")] {
-                if ui.radio(s.prefs.keep_offline == n, tl!(label)).clicked() {
+            });
+            setting(ui, false, tl!("Download in full for reading offline"), None, &mut |ui| {
+                let values = [40u32, 200, 1000];
+                let now = values.iter().position(|v| *v == s.prefs.keep_offline).unwrap_or(0);
+                if let Some(i) = widgets::segmented(ui, &t, "offline", &["40", "200", "1,000"], now)
+                    && let Some(n) = values.get(i)
+                {
                     acts.push(Action::Run("account.keepMail", json!({"offline": n})));
                 }
-            }
+            });
+        },
+    );
+
+    group(ui, tl!("Inbox and notifications"), None, &mut |ui| {
+        setting(ui, true, tl!("Show a desktop notification when new mail arrives"), None, &mut |ui| {
+            switch(ui, s.prefs.notify, tl!("Show a desktop notification when new mail arrives"), "view.notifications", acts);
         });
-        ui.label(
-            RichText::new(tl!(
-                "New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened."
-            ))
-            .color(t.faint)
-            .small(),
-        );
+        setting(ui, false, tl!("Focused Inbox: put newsletters and automatic mail in Other"), None, &mut |ui| {
+            switch(ui, s.prefs.focused_inbox, tl!("Focused Inbox: put newsletters and automatic mail in Other"), "view.focused", acts);
+        });
+        setting(ui, false, tl!("Ask before deleting for good"), None, &mut |ui| {
+            switch(ui, s.prefs.confirm_permanent_delete, tl!("Ask before deleting for good"), "view.confirmDelete", acts);
+        });
     });
-    group(ui, "Inbox and notifications", &mut |ui| {
-        check(ui, s.prefs.notify, "Show a desktop notification when new mail arrives", "view.notifications", acts);
-        check(ui, s.prefs.focused_inbox, "Focused Inbox: put newsletters and automatic mail in Other", "view.focused", acts);
-        check(ui, s.prefs.confirm_permanent_delete, "Ask before deleting for good", "view.confirmDelete", acts);
-    });
-    group(ui, "Privacy", &mut |ui| {
-        ui.label(RichText::new(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")).color(t.dim));
+
+    group(ui, tl!("Privacy"), Some(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")), &mut |ui| {
         if s.prefs.trusted_senders.is_empty() {
+            ui.add_space(4.0);
             ui.label(RichText::new(tl!("No senders yet.")).color(t.faint).small());
+            ui.add_space(8.0);
         }
-        for who in &s.prefs.trusted_senders {
-            ui.horizontal(|ui| {
-                ui.label(who);
-                if ui.small_button(tl!("Remove")).clicked() {
+        for (i, who) in s.prefs.trusted_senders.iter().enumerate() {
+            setting(ui, i == 0, who, None, &mut |ui| {
+                if ui.button(tl!("Remove")).clicked() {
                     acts.push(Action::Run("view.trustSender", json!({"address": who, "on": false})));
                 }
             });

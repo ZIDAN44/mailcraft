@@ -555,7 +555,7 @@
 	Exporting to {file}…	Экспорт в {file}…
 	Export	Экспорт
 	Export to Outlook data file	Экспорт в файл данных Outlook
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	Записывает почту учётной записи вместе с папками в файл данных Outlook (.pst), который могут открыть Outlook и другие почтовые программы. Никогда не загружавшиеся письма пропускаются.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	Записывает почту учётной записи вместе с папками в файл данных Outlook (.pst), который могут открыть Outlook и другие почтовые программы.
 	Exchange server (EWS)	Сервер Exchange (EWS)
 	Exchange server	Сервер Exchange
 	Server: {url} (EWS)	Сервер: {url} (EWS)
@@ -832,6 +832,7 @@
 	Delete “{name}”?	Удалить «{name}»?
 	Delete this contact?	Удалить этот контакт?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Этот контакт будет удалён вместе со всеми сведениями о нём. Это действие нельзя отменить.
+	Export…	Экспорт…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

@@ -555,7 +555,7 @@
 	Exporting to {file}…	{file}(으)로 내보내는 중…
 	Export	내보내기
 	Export to Outlook data file	Outlook 데이터 파일로 내보내기
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	계정의 메일을 폴더와 함께 Outlook 및 다른 메일 앱에서 열 수 있는 Outlook 데이터 파일(.pst)로 저장합니다. 다운로드되지 않은 메일은 제외됩니다.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	계정의 메일을 폴더와 함께 Outlook 및 다른 메일 앱에서 열 수 있는 Outlook 데이터 파일(.pst)로 저장합니다.
 	Exchange server (EWS)	Exchange 서버(EWS)
 	Exchange server	Exchange 서버
 	Server: {url} (EWS)	서버: {url}(EWS)
@@ -832,6 +832,7 @@
 	Delete “{name}”?	'{name}'을(를) 삭제할까요?
 	Delete this contact?	이 연락처를 삭제할까요?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	이 연락처와 저장된 모든 정보가 삭제됩니다. 되돌릴 수 없습니다.
+	Export…	내보내기…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

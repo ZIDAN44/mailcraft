@@ -86,7 +86,22 @@ impl Services for Desktop {
         rfd::FileDialog::new().set_title("Attach files").pick_files().unwrap_or_default()
     }
     fn save_path(&mut self, suggested: &str) -> Option<PathBuf> {
-        rfd::FileDialog::new().set_title("Save as").set_file_name(suggested).save_file()
+        let mut d = rfd::FileDialog::new().set_title("Save as").set_file_name(suggested);
+        // Save as type: the suggested name's kind first, so the system keeps its extension.
+        if let Some((_, ext)) = suggested.rsplit_once('.').filter(|(_, e)| !e.is_empty() && e.len() <= 8) {
+            let kind = match ext.to_ascii_lowercase().as_str() {
+                "pst" => "Outlook data file".to_string(),
+                "eml" => "Email message".to_string(),
+                "pdf" => "PDF document".to_string(),
+                "ics" => "Calendar".to_string(),
+                "vcf" => "Contact card".to_string(),
+                "txt" => "Text".to_string(),
+                "html" | "htm" => "Web page".to_string(),
+                e => format!("{} file", e.to_ascii_uppercase()),
+            };
+            d = d.add_filter(kind, &[ext]).add_filter("All files", &["*"]);
+        }
+        d.save_file()
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         shell_open(path.as_os_str())

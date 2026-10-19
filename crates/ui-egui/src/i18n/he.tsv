@@ -555,7 +555,7 @@
 	Exporting to {file}…	מייצא אל {file}…
 	Export	ייצוא
 	Export to Outlook data file	ייצוא לקובץ נתונים של Outlook
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	כתוב את הדואר של חשבון, עם התיקיות שלו, לקובץ נתונים של Outlook ‏(.pst) ש-Outlook ואפליקציות דואר אחרות יכולות לפתוח. דואר שמעולם לא הורד לא נכלל.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	כתוב את הדואר של חשבון, עם התיקיות שלו, לקובץ נתונים של Outlook ‏(.pst) ש-Outlook ואפליקציות דואר אחרות יכולות לפתוח.
 folder	Archive	ארכיון
 month	May	מאי
 	Exchange server (EWS)	שרת Exchange ‏(EWS)
@@ -834,3 +834,4 @@ month	May	מאי
 	Delete “{name}”?	למחוק את „{name}”?
 	Delete this contact?	למחוק את איש הקשר הזה?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	איש הקשר יימחק, יחד עם כל מה שנשמר עליו. אי אפשר לבטל זאת.
+	Export…	ייצוא…

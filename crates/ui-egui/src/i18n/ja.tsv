@@ -558,7 +558,7 @@ month	May	5月
 	Exporting to {file}…	{file} にエクスポートしています…
 	Export	エクスポート
 	Export to Outlook data file	Outlook データ ファイルにエクスポート
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	アカウントのメールをフォルダーごと、Outlook や他のメール アプリで開ける Outlook データ ファイル (.pst) に書き出します。ダウンロードされていないメールは含まれません。
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	アカウントのメールをフォルダーごと、Outlook や他のメール アプリで開ける Outlook データ ファイル (.pst) に書き出します。
 	Exchange server (EWS)	Exchange サーバー (EWS)
 	Exchange server	Exchange サーバー
 	Server: {url} (EWS)	サーバー: {url} (EWS)
@@ -835,3 +835,4 @@ month	May	5月
 	Delete “{name}”?	「{name}」を削除しますか?
 	Delete this contact?	この連絡先を削除しますか?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	この連絡先と、保存されているすべての情報が削除されます。元に戻すことはできません。
+	Export…	エクスポート…

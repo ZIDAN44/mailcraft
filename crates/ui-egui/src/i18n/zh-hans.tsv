@@ -558,7 +558,7 @@ month	May	5月
 	Exporting to {file}…	正在导出到 {file}…
 	Export	导出
 	Export to Outlook data file	导出到 Outlook 数据文件
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	将帐户的邮件连同文件夹写入 Outlook 和其他邮件应用可以打开的 Outlook 数据文件 (.pst)。从未下载的邮件不包括在内。
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	将帐户的邮件连同文件夹写入 Outlook 和其他邮件应用可以打开的 Outlook 数据文件 (.pst)。
 	Exchange server (EWS)	Exchange 服务器 (EWS)
 	Exchange server	Exchange 服务器
 	Server: {url} (EWS)	服务器：{url} (EWS)
@@ -835,3 +835,4 @@ month	May	5月
 	Delete “{name}”?	删除“{name}”?
 	Delete this contact?	删除此联系人?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	将删除此联系人及其保存的所有信息。此操作无法撤消。
+	Export…	导出…

@@ -556,7 +556,7 @@
 	Exporting to {file}…	Wird nach {file} exportiert…
 	Export	Exportieren
 	Export to Outlook data file	In Outlook-Datendatei exportieren
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	Schreibt die E-Mails eines Kontos samt Ordnern in eine Outlook-Datendatei (.pst), die Outlook und andere E-Mail-Apps öffnen können. Nie heruntergeladene E-Mails werden ausgelassen.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	Schreibt die E-Mails eines Kontos samt Ordnern in eine Outlook-Datendatei (.pst), die Outlook und andere E-Mail-Apps öffnen können.
 	Exchange server (EWS)	Exchange-Server (EWS)
 	Exchange server	Exchange-Server
 	Server: {url} (EWS)	Server: {url} (EWS)
@@ -833,6 +833,7 @@
 	Delete “{name}”?	„{name}“ löschen?
 	Delete this contact?	Diesen Kontakt löschen?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Dieser Kontakt wird mit allem, was zu ihm gespeichert ist, gelöscht. Das lässt sich nicht rückgängig machen.
+	Export…	Exportieren…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

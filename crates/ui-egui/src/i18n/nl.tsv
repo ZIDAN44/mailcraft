@@ -555,7 +555,7 @@
 	Exporting to {file}…	Exporteren naar {file}…
 	Export	Exporteren
 	Export to Outlook data file	Exporteren naar Outlook-gegevensbestand
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	Schrijf de mail van een account, met de mappen, naar een Outlook-gegevensbestand (.pst) dat Outlook en andere mail-apps kunnen openen. Mail die nooit is gedownload, blijft buiten beschouwing.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	Schrijf de mail van een account, met de mappen, naar een Outlook-gegevensbestand (.pst) dat Outlook en andere mail-apps kunnen openen.
 	Exchange server (EWS)	Exchange-server (EWS)
 	Exchange server	Exchange-server
 	Server: {url} (EWS)	Server: {url} (EWS)
@@ -834,3 +834,4 @@ month	May	mei
 	Delete “{name}”?	‘{name}’ verwijderen?
 	Delete this contact?	Dit contact verwijderen?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Dit contact wordt verwijderd, met alles wat erover is bewaard. Dit kan niet ongedaan worden gemaakt.
+	Export…	Exporteren…

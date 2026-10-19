@@ -555,7 +555,7 @@
 	Exporting to {file}…	جارٍ التصدير إلى {file}…
 	Export	تصدير
 	Export to Outlook data file	تصدير إلى ملف بيانات Outlook
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open. Mail that was never downloaded is left out.	اكتب بريد حساب، بمجلداته، في ملف بيانات Outlook (.pst) يمكن لـ Outlook وتطبيقات البريد الأخرى فتحه. يُستبعد البريد الذي لم يُنزّل قط.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	اكتب بريد حساب، بمجلداته، في ملف بيانات Outlook (.pst) يمكن لـ Outlook وتطبيقات البريد الأخرى فتحه.
 folder	Archive	أرشيف
 month	May	مايو
 	Exchange server (EWS)	خادم Exchange (EWS)
@@ -834,3 +834,4 @@ month	May	مايو
 	Delete “{name}”?	هل تريد حذف «{name}»؟
 	Delete this contact?	هل تريد حذف جهة الاتصال هذه؟
 	This contact will be deleted, along with everything kept about them. This can't be undone.	سيتم حذف جهة الاتصال هذه مع كل ما هو محفوظ عنها. لا يمكن التراجع عن ذلك.
+	Export…	تصدير…

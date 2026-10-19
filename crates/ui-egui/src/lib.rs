@@ -1107,7 +1107,12 @@ impl MailApp {
                 }
             }
             Action::ExportDataFile(account) => {
-                let name = self.session.account(&account).map(|a| a.config.name.clone()).unwrap_or_default();
+                // Named after the account's address, as Outlook names a data file.
+                let name = self
+                    .session
+                    .account(&account)
+                    .map(|a| if a.config.email.trim().is_empty() { a.config.name.clone() } else { a.config.email.clone() })
+                    .unwrap_or_default();
                 let name = mailcraft_engine::mime::sanitize_filename(if name.trim().is_empty() { "Mail" } else { name.trim() });
                 if let Some(path) = self.services.save_path(&format!("{name}.pst")) {
                     match self.session.run("account.exportPst", &json!({"account": account, "path": path.to_string_lossy()})) {
