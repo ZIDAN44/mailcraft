@@ -80,7 +80,8 @@ fn split_tokens(input: &str) -> Vec<String> {
                 cur.push(c);
             }
             c if c.is_whitespace() && !quoted => {
-                if !cur.is_empty() {
+                // Whitespace after a bare `field:` is skipped, joining the value to the field.
+                if !cur.is_empty() && !field_waiting(&cur) {
                     out.push(std::mem::take(&mut cur));
                 }
             }
@@ -91,6 +92,31 @@ fn split_tokens(input: &str) -> Vec<String> {
         out.push(cur);
     }
     out
+}
+
+/// Field prefixes the parser recognises.
+const FIELDS: &[&str] = &[
+    "from",
+    "to",
+    "cc",
+    "subject",
+    "body",
+    "has",
+    "hasattachment",
+    "hasattachments",
+    "is",
+    "isread",
+    "isflagged",
+    "keyword",
+    "category",
+    "label",
+    "tag",
+];
+
+/// True for a bare `field:` (optionally negated) still missing its value.
+fn field_waiting(tok: &str) -> bool {
+    let name = tok.strip_prefix('-').unwrap_or(tok);
+    name.strip_suffix(':').is_some_and(|k| FIELDS.iter().any(|f| f.eq_ignore_ascii_case(k)))
 }
 
 fn yes_no(v: &str) -> Option<bool> {
@@ -350,6 +376,19 @@ mod tests {
 
     fn q(s: &str, m: &Summary) -> bool {
         Query::parse(s).matches(&Doc { summary: m, body: None, indexed: false })
+    }
+
+    /// Whitespace between `field:` and its value is tolerated.
+    #[test]
+    fn whitespace_between_field_and_value() {
+        let m = sample();
+        assert_eq!(Query::parse("from: zoe").clauses, Query::parse("from:zoe").clauses);
+        assert_eq!(Query::parse("FROM:   \"zoe park\"  -is:  read").clauses, Query::parse("from:\"zoe park\" -is:read").clauses);
+        assert!(q("from: zoe", &m) && !q("from: ann", &m) && q("to: ann", &m) && q("-is: read", &m));
+        // Unknown prefixes stay plain words, and so does a trailing `from:`.
+        assert_eq!(Query::parse("note: zoe").clauses.len(), 2);
+        assert_eq!(Query::parse("zoe from:").clauses.len(), 2);
+        assert!(Query::parse("from:\t\n").clauses.len() == 1);
     }
 
     #[test]
