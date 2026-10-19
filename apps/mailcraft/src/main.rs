@@ -25,8 +25,8 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 /// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
 struct Keychain;
 
-#[cfg(windows)]
 mod logfile;
+#[cfg(windows)]
 mod toast;
 mod video;
 #[cfg(all(unix, not(target_os = "macos")))]
