@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.16 — Contacts as Outlook keeps them (2026-10-19). Each milestone below is a version: v0.1 was
+**Stage:** v0.17 — Copy and paste, and public folder contacts (2026-10-19). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -77,7 +77,11 @@ local-first, media-aware v1); the fuller request is
    searches and changes without reading all of it. The File pages laid out as settings
    (Options, Account information, Open & Export), rules exported, imported and run all at once,
    Print asking where the PDF goes, Ctrl+A for the text or the attachments being looked at.
-17. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+17. **v0.17 — Copy and paste, and public folder contacts** ✅ From issue #1's fourth round: the
+   clipboard back (nothing could be pasted or copied since egui 0.37), so signatures paste from
+   Outlook again; the organisation's shared contacts and calendars found in Exchange's public
+   folders, and the log saying how many.
+18. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -183,4 +187,10 @@ local-first, media-aware v1); the fuller request is
   data file read and written by 4.4 and read back by 4.3), dirs 7 and miniz_oxide 0.9. skrifa,
   windows-registry and x11rb stay on the versions egui, ipconfig and winit use, so each is built
   once; keyring stays on 3.x, as its 4.0 asks of existing applications.
-
+- **2026-10-19** — **v0.17**, issue #1's fourth round: nothing could be pasted (a signature from
+  Outlook, or text anywhere) or copied since egui 0.37, which made the clipboard a feature of
+  eframe's own, left out with its defaults; named now, with a test that it stays. And the
+  organisation's shared contacts and calendars never appeared: Exchange answers each folder in
+  an element of its kind (`ContactsFolder`, `CalendarFolder`…), and only `Folder` was read.
+  Every kind is read, the fake Exchange answers that way (its test failed until then), and the
+  log says how many public address books and calendars were found.

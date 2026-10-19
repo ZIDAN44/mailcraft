@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.16, 2026-10-19._
+_Status: v0.17, 2026-10-19._
 
 ## Open
 
@@ -399,4 +399,18 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   - Rules: `rules.export` and `rules.import` (Open & Export, and the Rules dialog), MailCraft's
     own file, each rule's account by its address (one this computer doesn't have comes in off).
     The Rules dialog shows a rule a line, scrolls, has a find box past six rules, and Run all.
+
+### v0.17 — Copy and paste, and public folder contacts
+- **The clipboard:** nothing could be pasted (a signature copied from Outlook, or text into any
+  box) or copied out since egui 0.37, which made the clipboard a feature of eframe's own, left
+  out with its default features. It's named now, and a test checks it stays named. Seen in the
+  app: text pasted into the search box, a formatted signature copied from Word pasted with its
+  sizes, typefaces and colours, text copied out reaching the system clipboard.
+- **Public folder contacts and calendars:** Exchange answers FindFolder with each folder in an
+  element of its kind (`Folder`, `ContactsFolder`, `CalendarFolder`, `TasksFolder`,
+  `SearchFolder`) and only `Folder` was read, so the organisation's shared address books and
+  calendars were passed over without a word. Every kind is read, in the answer's order (the
+  mailbox's own folder list now pages by the right count too). The fake Exchange answers the
+  same way, which its public folder test failed on until then, and the log says how many public
+  address books and calendars were found.
 
