@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 311 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 318 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -72,7 +72,9 @@ local-first, media-aware v1); the fuller request is
    on Exchange 2013 and later (listing and mail too), and People's address books to find them.
    A second connection per account for sending and automatic replies, so neither waits for a
    sync; diagnostics in mailcraft.log; French values kept away from words that elide; address
-   suggestions that fit and click anywhere.
+   suggestions that fit and click anywhere. Big data files and mailboxes: a 64.5 GB `.pst` of
+   800,000 messages imports in 13 minutes under 850 MB of memory, and a mailbox that size opens,
+   searches and changes without reading all of it.
 17. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -147,4 +149,12 @@ local-first, media-aware v1); the fuller request is
   go on a second connection now, sharing the sign-in. Diagnostics had nowhere to be written:
   `mailcraft.log` keeps them. French sentences keep filled-in values away from « de », « le »
   and other words that elide, and a test checks the catalog.
+- **2026-10-19** — **v0.16**, big mailboxes, measured on generated data files (3 GB, 9.4 GB of
+  800,000 messages, 64.5 GB): imports wrote a transaction per message (386/s), held every folder's
+  list, parsed each message twice and stored values rounded up to powers of two (2.1x the file);
+  now 6,000/s, 624 MB at most for the 9.4 GB file, a cache smaller than the file (compressed, in
+  page-filling pieces), lists written a page at a time. In the app: deleting 8,000 messages took
+  65 s (quadratic), one flag 4.7 s, a search 80-150 s and 3.5 GB; now 0.2 s, 0.5 s, 2 s again and
+  2.5 GB, with folder lists kept in pages and only the changed ones written, a bounded cache of
+  lists and of search text, and the message list's rows made once per change.
 

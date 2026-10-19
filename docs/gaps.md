@@ -325,3 +325,37 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   mailbox (Autodiscover's `PublicFolderInformation`); anything not found while there are public
   folders is asked again in the mailboxes holding their content, so their mail syncs too; a server
   with public folders that won't list them says why in the status bar.
+
+- **Big data files** (measured with generated files: 3 GB, 9.4 GB of 800,000 messages, and
+  64.5 GB of 800,000 messages with attachments):
+  - Importing wrote each message in a transaction of its own, waiting for the disk each time:
+    now 2,000 messages or 16 MB a transaction. 386 messages a second became about 6,000.
+  - Each message was parsed twice more for its summary and preview: now the rebuilt headers
+    alone, the preview from the item's text.
+  - Every folder's list was held to the end, and a folder's whole list at once: now a list goes
+    out a page at a time, once its messages' sources are written. Memory for the 9.4 GB file
+    peaked at 624 MB (1.74 GB before); the 64.5 GB file took 13 minutes, under 850 MB.
+  - The data file kept each value in a power-of-two run of pages (6.4 GB for a 3 GB file): big
+    values now go in pieces that fill their pages, and everything is compressed when that saves a
+    tenth (mail and lists are text). The 9.4 GB file's cache came to 8.6 GB (17.2 GB before).
+  - Exporting wrote a hundred messages at a time, and the writer rewrites a folder's table each
+    time: now up to 2,000 or 48 MB.
+- **Big mailboxes in the app:**
+  - A folder's list is kept in pages of 4,096 by number; only pages that changed are written
+    (one flag in a folder of 440,000 rewrote all of it), and told which messages changed only
+    theirs are made again.
+  - Moving or deleting read the whole source folder again for every message, and lookups went
+    through whole lists: deleting 8,000 took 65 s, now 0.2 s; marking a folder read is linear.
+  - Lists kept in memory are limited (300,000 summaries besides the folders on screen), the
+    least recently used let go; search keeps its word index but not every body's text (read
+    again only when a query needs it, in a 48 MB cache), each word's documents in an array, and
+    plain words are settled by the index: a repeated search of 800,000 messages takes 2 s (73 s
+    before), its peak 2.5 GB (3.5 GB).
+  - A local account's change recounted every folder (reading all of them): now the folders it
+    touched; a big one keeps the counts it saved when it opens.
+  - The message list's rows (and their date headings) were made again every frame: now once per
+    change of the list.
+- **Still to do for big mailboxes:** the first search of everything reads every body to build its
+  index (75 s for 800,000 messages; an index kept on disk would save it); the reading library
+  holds a big folder's table of contents while importing it (about 400 MB for 440,000 messages);
+  a search matching most of a huge mailbox holds every match's summary.
