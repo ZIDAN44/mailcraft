@@ -985,8 +985,7 @@ impl MailApp {
         }
     }
 
-    /// New mail: a desktop notification, the taskbar asking for attention when the window is in
-    /// the background, and the unread count in the window title.
+    /// New mail: a desktop notification and the unread count in the window title.
     fn announce(&mut self, ctx: &egui::Context) {
         let news = self.session.take_new_mail();
         if !news.is_empty() {
@@ -1010,10 +1009,9 @@ impl MailApp {
                     (tf!("{n} new messages", n = many.len()), tf!("From {names}", names = names))
                 }
             });
+            // Only the system notification and the title's unread count announce mail. No
+            // RequestUserAttention: Windows keeps that highlight on the taskbar until focus returns.
             self.services.notify(&title, &body);
-            if !ctx.input(|i| i.focused) {
-                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
-            }
         }
         let unread = self.session.inbox_unread();
         // The system lays out the title (right-to-left text too): as written.
