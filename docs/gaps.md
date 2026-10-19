@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.17, 2026-10-19._
+_Status: v0.18, 2026-10-19._
 
 ## Open
 
@@ -414,3 +414,19 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   same way, which its public folder test failed on until then, and the log says how many public
   address books and calendars were found.
 
+### v0.18 — Shared mailboxes and the contact card
+- **Shared mailboxes (Exchange):** none showed, and none could be added. The ones Autodiscover
+  names (`AlternativeMailbox`, delegate and team mailboxes the account has full access to; an
+  archive isn't one, a legacy name is resolved to its address) open under the account by
+  themselves; others are added by address in Info › Account settings › Shared mailboxes, and
+  removed there. Each is listed with its `Mailbox` and the `X-AnchorMailbox` header, its mail
+  folders only, under its name (the address too when two share one); one with no access is
+  logged and passed over. The fake Exchange has shared mailboxes, and its test lists and syncs
+  them. Not yet: Exchange Online accounts connected through Microsoft Graph.
+- **The contact card:** From, To and Cc names in a message's header are links: a click opens a
+  card with the name, the address (which starts a message to them), Send email, Add to contacts
+  or Edit contact, and Copy address; right-click has the same. Add to contacts opens a new
+  contact with the name and address filled in. `mail.new` takes `to`.
+- **Enter in one-field dialogs:** the password, shared calendar and shared mailbox dialogs gave
+  the field its focus back before looking for the Enter that ended input, so only the button
+  submitted them. A headless test presses Enter.

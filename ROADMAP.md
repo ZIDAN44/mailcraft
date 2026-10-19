@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.17 — Copy and paste, and public folder contacts (2026-10-19). Each milestone below is a version: v0.1 was
+**Stage:** v0.18 — Shared mailboxes and the contact card (2026-10-19). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -81,7 +81,12 @@ local-first, media-aware v1); the fuller request is
    clipboard back (nothing could be pasted or copied since egui 0.37), so signatures paste from
    Outlook again; the organisation's shared contacts and calendars found in Exchange's public
    folders, and the log saying how many.
-18. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+18. **v0.18 — Shared mailboxes and the contact card** ✅ From issue #1's fifth round: an
+   Exchange account's shared mailboxes open under it by themselves (the ones Autodiscover names)
+   or by hand (Info › Account settings › Shared mailboxes); a name in a message's header opens a
+   contact card (send an email, add or edit the contact, copy the address) and its right-click
+   menu has the same; Enter submits the one-field dialogs again.
+19. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -194,3 +199,11 @@ local-first, media-aware v1); the fuller request is
   an element of its kind (`ContactsFolder`, `CalendarFolder`…), and only `Folder` was read.
   Every kind is read, the fake Exchange answers that way (its test failed until then), and the
   log says how many public address books and calendars were found.
+- **2026-10-19** — **v0.18**, issue #1's fifth round: shared mailboxes didn't show for Exchange
+  and couldn't be added. Autodiscover's `AlternativeMailbox` entries (delegate and team
+  mailboxes; archives left out) open by themselves, others are added by address, and each is
+  listed through EWS with its `Mailbox` and the `X-AnchorMailbox` header; the fake Exchange has
+  them (with no-access and by-legacy-name cases) and its test lists and syncs them. A name in a
+  message's header opens a contact card, its address a new message to them, and right-click ›
+  Add to contacts a filled-in contact. Enter hadn't submitted the password, shared calendar or
+  shared mailbox dialog: they took the focus back before seeing the Enter that let it go.
