@@ -832,3 +832,6 @@ month	May	مايو
 	Country/Region	البلد/المنطقة
 	Business address	عنوان العمل
 	Home address	عنوان المنزل
+	Delete “{name}”?	هل تريد حذف «{name}»؟
+	Delete this contact?	هل تريد حذف جهة الاتصال هذه؟
+	This contact will be deleted, along with everything kept about them. This can't be undone.	سيتم حذف جهة الاتصال هذه مع كل ما هو محفوظ عنها. لا يمكن التراجع عن ذلك.

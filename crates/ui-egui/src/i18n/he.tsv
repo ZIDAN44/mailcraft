@@ -832,3 +832,6 @@ month	May	מאי
 	Country/Region	מדינה/אזור
 	Business address	כתובת בעבודה
 	Home address	כתובת בבית
+	Delete “{name}”?	למחוק את „{name}”?
+	Delete this contact?	למחוק את איש הקשר הזה?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	איש הקשר יימחק, יחד עם כל מה שנשמר עליו. אי אפשר לבטל זאת.

@@ -397,7 +397,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                                 acts.push(Action::Dialog(Dialog::edit_contact(c)));
                             }
                             if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
-                                acts.push(Action::Run("contact.delete", json!({"uid": c.uid})));
+                                acts.push(Action::Dialog(Dialog::ConfirmDeleteContact { uid: c.uid.clone(), name: c.display() }));
                             }
                         }
                     });

@@ -830,6 +830,9 @@
 	Country/Region	Страна или регион
 	Business address	Рабочий адрес
 	Home address	Домашний адрес
+	Delete “{name}”?	Удалить «{name}»?
+	Delete this contact?	Удалить этот контакт?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	Этот контакт будет удалён вместе со всеми сведениями о нём. Это действие нельзя отменить.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

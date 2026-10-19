@@ -831,6 +831,9 @@
 	Country/Region	Land/Region
 	Business address	Adresse geschäftlich
 	Home address	Adresse privat
+	Delete “{name}”?	„{name}“ löschen?
+	Delete this contact?	Diesen Kontakt löschen?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	Dieser Kontakt wird mit allem, was zu ihm gespeichert ist, gelöscht. Das lässt sich nicht rückgängig machen.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

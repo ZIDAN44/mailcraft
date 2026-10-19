@@ -153,6 +153,7 @@ pub(crate) fn tour() {
             Dialog::add_account(),
             Dialog::move_to(),
             Dialog::ConfirmDelete { count: 2 },
+            Dialog::ConfirmDeleteContact { uid: "zoe".into(), name: "Zoe Park".into() },
             Dialog::EmptySubject,
             Dialog::edit_account(&a.session.accounts[0].config),
             Dialog::vacation(

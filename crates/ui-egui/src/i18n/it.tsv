@@ -830,6 +830,9 @@
 	Country/Region	Paese
 	Business address	Indirizzo ufficio
 	Home address	Indirizzo abitazione
+	Delete “{name}”?	Eliminare «{name}»?
+	Delete this contact?	Eliminare questo contatto?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	Questo contatto verrà eliminato, insieme a tutto ciò che è salvato su di esso. L'operazione non si può annullare.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

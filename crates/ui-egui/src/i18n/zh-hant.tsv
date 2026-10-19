@@ -830,6 +830,9 @@
 	Country/Region	國家/地區
 	Business address	商務地址
 	Home address	住家地址
+	Delete “{name}”?	刪除「{name}」?
+	Delete this contact?	刪除此連絡人?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	將刪除此連絡人及其儲存的所有資訊。此動作無法復原。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

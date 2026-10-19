@@ -479,6 +479,11 @@ pub enum Dialog {
     ConfirmDelete {
         count: usize,
     },
+    /// Confirmation before `contact.delete`, which can't be undone.
+    ConfirmDeleteContact {
+        uid: String,
+        name: String,
+    },
     MoveTo {
         filter: String,
     },
@@ -1547,6 +1552,21 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             let (ok, cancel) = buttons(ui, t, "Delete", true);
             if ok {
                 acts.push(Action::Run("mail.delete", json!({"permanent": true})));
+                return false;
+            }
+            !cancel
+        }
+        Dialog::ConfirmDeleteContact { uid, name } => {
+            ui.set_width(380.0);
+            if name.trim().is_empty() {
+                title(ui, t, "Delete this contact?");
+            } else {
+                title(ui, t, &tf!("Delete “{name}”?", name = name));
+            }
+            ui.label(RichText::new(tl!("This contact will be deleted, along with everything kept about them. This can't be undone.")).color(t.dim));
+            let (ok, cancel) = buttons(ui, t, "Delete", true);
+            if ok {
+                acts.push(Action::Run("contact.delete", json!({"uid": uid})));
                 return false;
             }
             !cancel

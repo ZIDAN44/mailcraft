@@ -831,6 +831,9 @@
 	Country/Region	Pays/Région
 	Business address	Adresse (bureau)
 	Home address	Adresse (domicile)
+	Delete “{name}”?	Supprimer « {name} » ?
+	Delete this contact?	Supprimer ce contact ?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	Ce contact sera supprimé, avec tout ce qui est enregistré à son sujet. Cette action est irréversible.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

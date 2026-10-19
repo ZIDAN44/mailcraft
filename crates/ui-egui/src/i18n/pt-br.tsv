@@ -831,6 +831,9 @@
 	Country/Region	País/Região
 	Business address	Endereço comercial
 	Home address	Endereço residencial
+	Delete “{name}”?	Excluir “{name}”?
+	Delete this contact?	Excluir este contato?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	Este contato será excluído, com tudo o que está guardado sobre ele. Isso não pode ser desfeito.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Arquivo

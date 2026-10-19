@@ -833,3 +833,6 @@ month	May	5月
 	Country/Region	国/地域
 	Business address	勤務先住所
 	Home address	自宅住所
+	Delete “{name}”?	「{name}」を削除しますか?
+	Delete this contact?	この連絡先を削除しますか?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	この連絡先と、保存されているすべての情報が削除されます。元に戻すことはできません。

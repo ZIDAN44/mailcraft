@@ -1718,7 +1718,7 @@ impl MailApp {
                     if widgets::tool_button(ui, Icon::Delete, "Delete", &t, picked.is_some()).clicked()
                         && let Some(p) = &picked
                     {
-                        acts.push(Action::Run("contact.delete", json!({"uid": p.card.uid})));
+                        acts.push(Action::Dialog(Dialog::ConfirmDeleteContact { uid: p.card.uid.clone(), name: p.card.display() }));
                     }
                     // Outlook's Change View: the list with a card, business cards, a phone list.
                     widgets::group_sep(ui, &t);

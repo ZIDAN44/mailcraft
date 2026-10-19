@@ -833,3 +833,6 @@ month	May	5月
 	Country/Region	国家/地区
 	Business address	商务地址
 	Home address	住宅地址
+	Delete “{name}”?	删除“{name}”?
+	Delete this contact?	删除此联系人?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	将删除此联系人及其保存的所有信息。此操作无法撤消。
