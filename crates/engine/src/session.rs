@@ -542,6 +542,9 @@ struct SearchIndex {
     view: View,
 }
 
+/// File for the Replied/Forwarded flags still owed by replies and forwards in the Outbox.
+const PENDING_MARKS: &str = "pending-marks.json";
+
 /// A local account with more messages than this keeps the counts it saved when it opens, rather
 /// than reading every folder to count them.
 const RECOUNT_MAX: u64 = 50_000;
@@ -587,6 +590,9 @@ pub struct Session {
     pub(crate) cache: HashMap<(String, String), FolderState>,
     /// The cached folders, the least recently used first.
     pub(crate) cache_order: Vec<(String, String)>,
+    /// Flags owed to originals, keyed by the Outbox id of the reply or forward that earns them:
+    /// set when the server accepts that message. Saved to disk so a restart keeps them.
+    pending_marks: BTreeMap<u64, (MessageKey, Flag)>,
     /// Summaries kept cached at most ([`CACHE_MESSAGES`]; tests make it small).
     pub(crate) cache_limit: usize,
     /// Built on first use from the cached mail; dropped when mail arrives.
@@ -670,6 +676,7 @@ impl Session {
             jobs: Vec::new(),
             cache: HashMap::new(),
             cache_order: Vec::new(),
+            pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,
             contacts: None,
             seen_uid: HashMap::new(),
@@ -702,6 +709,12 @@ impl Session {
         if let Some(store) = &s.store {
             s.rules = store.load_doc("rules.json").unwrap_or_default();
             s.snoozes = store.load_doc("snoozes.json").unwrap_or_default();
+            s.pending_marks = store
+                .load_doc::<Vec<(u64, MessageKey, Flag)>>(PENDING_MARKS)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(id, k, f)| (id, (k, f)))
+                .collect();
             let accounts = store.load_accounts().unwrap_or_else(|e| {
                 log::warn!("accounts: {e}");
                 Vec::new()
@@ -2302,8 +2315,8 @@ impl Session {
             id,
             account,
             signature: if sig.trim().is_empty() { String::new() } else { signature_block(&sig) },
-            to: addr::format_list(&d.to),
-            cc: addr::format_list(&d.cc),
+            to: addr::format_field(&d.to),
+            cc: addr::format_field(&d.cc),
             subject: d.subject,
             body: d.body,
             styles,
@@ -2397,7 +2410,7 @@ impl Session {
             let store = self.store.as_ref().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
             store.outbox_add(&c.account, &item, &raw).map_err(|e| CmdError::Failed(format!("the Outbox couldn't keep it: {e}")))?;
             self.after_outbox_change();
-            self.finish_sent(&c);
+            self.finish_sent(&c, false);
             // finish_sent says "sent"; it isn't yet.
             self.notices.pop();
             self.notice(format!("It will be sent {}", mailcraft_model::dates::full_time(at, &self.clock)), false);
@@ -2407,7 +2420,7 @@ impl Session {
             if let Some(folder) = &sent_folder {
                 self.file_locally(&c.account, folder, &raw, true);
             }
-            self.finish_sent(&c);
+            self.finish_sent(&c, true);
             return Ok(serde_json::json!({ "sent": c.id, "local": true }));
         }
         self.jobs.push(Job::Send { account: c.account.clone(), id: c.id, raw, from, recipients: d.recipients(), sent_folder });
@@ -2418,10 +2431,27 @@ impl Session {
         Ok(serde_json::json!({ "sending": c.id }))
     }
 
-    fn finish_sent(&mut self, c: &Compose) {
+    fn save_pending_marks(&self) {
+        let list: Vec<(u64, &MessageKey, &Flag)> = self.pending_marks.iter().map(|(id, (k, f))| (*id, k, f)).collect();
+        if let Some(store) = &self.store
+            && let Err(e) = store.save_doc(PENDING_MARKS, &list)
+        {
+            log::warn!("{PENDING_MARKS}: {e}");
+        }
+    }
+
+    /// The compose is finished. `delivered`: the server accepted it, so the original gets its
+    /// Replied or Forwarded flag now; otherwise it sits in the Outbox and the flag is owed until
+    /// delivery.
+    fn finish_sent(&mut self, c: &Compose, delivered: bool) {
         if let (Some(src), Some(mode)) = (&c.source, c.mode) {
             let flag = if mode == ReplyMode::Forward { Flag::Forwarded } else { Flag::Answered };
-            self.apply_op(&src.account.clone(), Op::SetFlag { keys: vec![src.clone()], flag, on: true });
+            if delivered {
+                self.apply_op(&src.account.clone(), Op::SetFlag { keys: vec![src.clone()], flag, on: true });
+            } else if self.pending_marks.len() < 1000 {
+                self.pending_marks.insert(c.id, (src.clone(), flag));
+                self.save_pending_marks();
+            }
         }
         if let Some(draft) = &c.draft {
             self.apply_op(&draft.account.clone(), Op::Expunge { keys: vec![draft.clone()] });
@@ -2603,6 +2633,12 @@ impl Session {
                 store.outbox_remove(a, i.id);
             }
         }
+        // Removed from the Outbox undelivered: whatever flags they owed are dropped.
+        let before = self.pending_marks.len();
+        self.pending_marks.retain(|id, _| !gone.iter().any(|(_, i)| i.id == *id));
+        if self.pending_marks.len() != before {
+            self.save_pending_marks();
+        }
         self.reading = None;
         self.selection.clear();
         self.focus = None;
@@ -2629,9 +2665,9 @@ impl Session {
         self.compose = Some(Compose {
             id,
             account: account.clone(),
-            to: addr::format_list(&p.to),
-            cc: addr::format_list(&p.cc),
-            bcc: bcc.join(", "),
+            to: addr::format_field(&p.to),
+            cc: addr::format_field(&p.cc),
+            bcc: if bcc.is_empty() { String::new() } else { format!("{}; ", bcc.join("; ")) },
             show_cc: !bcc.is_empty(),
             subject: p.subject.clone(),
             body: p.text.clone(),
@@ -2640,6 +2676,14 @@ impl Session {
             attachments,
             ..Default::default()
         });
+        // Pulled back for editing: the owed flag moves onto the compose, for its delivery.
+        if let Some((src, flag)) = self.pending_marks.remove(&item.id) {
+            self.save_pending_marks();
+            if let Some(c) = self.compose.as_mut() {
+                c.source = Some(src);
+                c.mode = Some(if flag == Flag::Forwarded { ReplyMode::Forward } else { ReplyMode::Reply });
+            }
+        }
         store.outbox_remove(&account, item.id);
         self.reading = None;
         self.selection.clear();
@@ -3085,16 +3129,22 @@ impl Session {
             }
             Event::Sent { id, .. } => {
                 if let Some(c) = self.compose.clone().filter(|c| c.id == id) {
-                    self.finish_sent(&c);
+                    self.finish_sent(&c, true);
                 } else {
                     self.notice("Message sent", false);
+                }
+                // Delivered from the Outbox: set the flag it owed.
+                if let Some((key, flag)) = self.pending_marks.remove(&id) {
+                    self.save_pending_marks();
+                    self.apply_op(&key.account.clone(), Op::SetFlag { keys: vec![key], flag, on: true });
                 }
                 self.after_outbox_change();
             }
             Event::Queued { id, error, .. } => {
                 if let Some(c) = self.compose.clone().filter(|c| c.id == id) {
-                    // It's safe in the Outbox: as far as the user is concerned, the message is done.
-                    self.finish_sent(&c);
+                    // It's safe in the Outbox: as far as the user is concerned, the message is done
+                    // (a Replied/Forwarded flag stays owed until delivery).
+                    self.finish_sent(&c, false);
                     self.notices.pop();
                     self.notice("Saved in the Outbox: it will be sent when you're back online", false);
                 } else {

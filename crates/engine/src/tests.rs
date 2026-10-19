@@ -214,7 +214,7 @@ fn compose_reply_and_send_locally() {
     s.run("list.open", &k).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
     let c = s.compose.clone().unwrap();
-    assert_eq!(c.to, "Print Shop <orders@printshop.example>");
+    assert_eq!(c.to, "Print Shop <orders@printshop.example>; ", "ready for another address");
     assert_eq!(c.subject, "Re: Your proof for the festival poster is ready");
     assert!(c.body.contains("\nFrom: Print Shop <orders@printshop.example>\nSent: "));
     assert!(c.body.contains("The proof for order 4471"));
@@ -901,7 +901,7 @@ fn offline_sends_wait_in_the_outbox() {
     // Edit takes it back out, Bcc and attachment included.
     s.run("outbox.edit", &json!({"key": key.to_id()})).unwrap();
     let c = s.compose.clone().unwrap();
-    assert_eq!((c.to.as_str(), c.bcc.as_str(), c.subject.as_str()), ("ann@example.org", "boss@example.org", "Plans"));
+    assert_eq!((c.to.as_str(), c.bcc.as_str(), c.subject.as_str()), ("ann@example.org; ", "boss@example.org; ", "Plans"));
     assert_eq!(c.attachments.len(), 1);
     assert!(s.outbox.is_empty() && store.outbox(&id).is_empty());
 
@@ -982,6 +982,68 @@ fn remote_accounts_go_through_jobs_and_events() {
     s.apply(Event::Sent { account: id.clone(), id: send_id });
     assert!(s.compose.is_none());
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::SetFlag { flag: Flag::Answered, .. }, .. })));
+
+    // Queued instead of delivered: no Answered flag yet.
+    s.run("mail.reply", &json!({})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    let send_id = match s.take_jobs().into_iter().find(|j| matches!(j, Job::Send { .. })) {
+        Some(Job::Send { id, .. }) => id,
+        _ => panic!(),
+    };
+    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into() });
+    assert!(s.compose.is_none(), "the compose closes anyway");
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::SetFlag { flag: Flag::Answered, .. }, .. })), "no flag before delivery");
+    // The owed flag survives a restart and is set on delivery.
+    let mut again = Session::open(s.store.clone(), mailcraft_model::dates::Clock::new(NOW, 0));
+    again.take_jobs();
+    again.apply(Event::Sent { account: id.clone(), id: send_id });
+    assert!(
+        again.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::SetFlag { flag: Flag::Answered, keys, .. }, .. } if keys.contains(&key)))
+    );
+    again.apply(Event::Sent { account: id.clone(), id: send_id });
+    assert!(!again.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::SetFlag { .. }, .. })), "set a single time");
+    drop(again);
+    let mut s = Session::open(s.store.clone(), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.apply(Event::Folders {
+        account: id.clone(),
+        folders: vec![
+            mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() },
+            mailcraft_model::Folder { account: id.clone(), path: "Trash".into(), role: FolderRole::Trash, selectable: true, ..Default::default() },
+        ],
+    });
+    let answered = |s: &mut Session| s.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::SetFlag { flag: Flag::Answered, .. }, .. }));
+    // Queue a reply in the Outbox (as the network layer does when it can't send) and show it.
+    let queue_reply = |s: &mut Session| -> mailcraft_model::MessageKey {
+        s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+        s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+        s.apply(Event::Body { key: key.clone(), raw: b"From: a@b.example\r\nSubject: Hello\r\nMessage-ID: <h@b>\r\n\r\nHi there\r\n".to_vec() });
+        s.run("mail.reply", &json!({})).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        let Some(Job::Send { id: send_id, raw, from, recipients, .. }) = s.take_jobs().into_iter().find(|j| matches!(j, Job::Send { .. })) else {
+            panic!()
+        };
+        let item = mailcraft_store::OutboxItem { id: send_id, from, recipients, queued: NOW, error: Some("offline".into()), ..Default::default() };
+        s.store.as_ref().unwrap().outbox_add(&id, &item, &raw).unwrap();
+        s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into() });
+        s.run("folder.outbox", &json!({})).unwrap();
+        s.list[0].key.clone()
+    };
+    // Edited from the Outbox, then delivered: the flag follows the edit.
+    let queued = queue_reply(&mut s);
+    s.run("outbox.edit", &json!({"key": queued.to_id()})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    let Some(Job::Send { id: resent, .. }) = s.take_jobs().into_iter().find(|j| matches!(j, Job::Send { .. })) else { panic!() };
+    s.apply(Event::Sent { account: id.clone(), id: resent });
+    assert!(answered(&mut s), "flag set when the edited reply is delivered");
+    // Removed from the Outbox: the owed flag is dropped.
+    let queued = queue_reply(&mut s);
+    let gone_id = s.outbox.first().map(|(_, i)| i.id).unwrap();
+    s.run("list.select", &json!({"key": queued.to_id()})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    assert!(s.outbox.is_empty());
+    s.apply(Event::Sent { account: id.clone(), id: gone_id });
+    assert!(!answered(&mut s), "no flag for an undelivered reply");
+    s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
 
     // Delete moves to Deleted Items through a job.
     s.run("list.select", &json!({"key": key.to_id()})).unwrap();

@@ -124,6 +124,12 @@ pub fn format_list(list: &[EmailAddress]) -> String {
     list.iter().map(ToString::to_string).collect::<Vec<_>>().join("; ")
 }
 
+/// Recipients to put in a field being written: the list with a separator after it, so an
+/// address typed next starts an entry of its own (empty for no one).
+pub fn format_field(list: &[EmailAddress]) -> String {
+    if list.is_empty() { String::new() } else { format!("{}; ", format_list(list)) }
+}
+
 /// Short form for the reading pane (`Zoe Park; ops@example.org`).
 pub fn display_list(list: &[EmailAddress]) -> String {
     list.iter().map(EmailAddress::display).collect::<Vec<_>>().join("; ")
