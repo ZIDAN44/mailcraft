@@ -437,3 +437,29 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   file of its own (`address (2).mailcraft`), the kept one untouched; Open & Export's picker
   starts in MailCraft Files, and the kept file opens there as a mailbox of its own. A file that
   failed to open, and an account moving to Graph (starting again from the server), still go.
+
+### v0.19 — Shared mailboxes of their own, and SMTP's own sign-in
+- **A shared mailbox is a mailbox of its own:** it showed as a folder inside the account's
+  mailbox, its Inbox drawn as any folder. As Outlook, it now comes after the account's folders
+  under its name, with an arrow that collapses it (its unread mail beside the name then), and its
+  Inbox, Drafts, Sent Items… with their icons and in their places; pinned to Favorites, a folder
+  says whose it is. Each folder knows the mailbox it's in and the role it has there (asked of
+  Exchange in one GetFolder); its own role stays Other, so the account's Inbox, notifications and
+  rules aren't taken for the shared one's, and its top and special folders can't be renamed,
+  moved or deleted. Its menu has Send / Receive, New folder, Remove (one added by hand) and Add
+  shared mailbox, which an Exchange account's menu has too. A tester who couldn't find
+  "Shared mailboxes" was on v0.17, before it was added to Info › Account settings.
+- **Exchange's folder names:** a mailbox made in Dutch showed "Inbox", "Sent Items"… where Outlook
+  shows the names Exchange gave them ("Postvak IN", "Verzonden items"). Special folders from
+  Exchange (EWS and Graph) keep the server's name, shown as it is rather than translated; IMAP and
+  JMAP folders are as before.
+- **The conversation above a message:** the reading pane listed every message of a conversation
+  above the one opened even when the list wasn't grouped by conversation, and nothing turned it
+  off. As Outlook, it shows only while View › Conversations is on, and turning that on or off
+  changes the open message at once.
+- **The outgoing server's own sign-in (issue #3):** IMAP or POP and SMTP shared one user name and
+  password, so an account whose servers sign in differently couldn't send. Add account and Server
+  settings have "The outgoing server has its own user name and password"; its password is kept in
+  the keychain apart from the account's and never in MailCraft's files, stays when left empty in
+  Server settings, and is forgotten with the account. Sending without it says where to enter it
+  rather than signing in as the IMAP user; a test checks the SMTP server sees its own user.

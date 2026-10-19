@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 327 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 340 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -216,3 +216,12 @@ local-first, media-aware v1); the fuller request is
   Removing an account deleted its `.mailcraft` file; as Outlook leaves a removed account's
   `.pst` on disk, the file now stays (closed, no one's), the same address added again gets a
   file of its own beside it, and Open & Export's picker starts in MailCraft Files to open it.
+- **2026-10-20** — **v0.19**, issue #1's sixth round and issue #3, each reproduced in the app first
+  (against a fake Exchange made in Dutch with a shared mailbox mapped to it): a shared mailbox
+  showed as a folder of the account's own mailbox; it's a mailbox of its own now, after the
+  account, its Inbox, Sent Items… with their icons and places, collapsible, with Add and Remove
+  in its menu and the account's. Exchange's special folders showed MailCraft's English words
+  ("Inbox") where Outlook shows the server's ("Postvak IN"); they keep the server's names (EWS
+  and Graph). The reading pane showed a message's whole conversation above it though the list
+  wasn't grouped; only when grouped now, as Outlook. And an outgoing server can sign in with a
+  user name and password of its own (issue #3), its password kept apart in the keychain.
