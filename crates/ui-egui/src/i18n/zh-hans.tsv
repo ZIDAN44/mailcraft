@@ -852,3 +852,7 @@ month	May	5月
 	Save your rules in a file, to keep them or to use them on another computer.	将规则保存到文件中，以便保留或在另一台计算机上使用。
 	Rules saved in {file}: {n}	已将 {n} 条规则保存到 {file}
 	Save {n} Selected…	保存所选的 {n} 个…
+	Run all	全部运行
+	Run every rule that's on, on the mail already in the Inbox	对收件箱中已有的邮件运行所有已打开的规则
+	Find a rule	查找规则
+	No rule matches.	没有匹配的规则。

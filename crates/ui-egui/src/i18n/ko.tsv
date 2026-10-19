@@ -849,6 +849,10 @@
 	Save your rules in a file, to keep them or to use them on another computer.	규칙을 파일로 저장하여 보관하거나 다른 컴퓨터에서 사용합니다.
 	Rules saved in {file}: {n}	규칙 {n}개를 {file}에 저장했습니다
 	Save {n} Selected…	선택한 {n}개 저장…
+	Run all	모두 실행
+	Run every rule that's on, on the mail already in the Inbox	켜져 있는 모든 규칙을 받은 편지함에 이미 있는 메일에 실행합니다
+	Find a rule	규칙 찾기
+	No rule matches.	일치하는 규칙이 없습니다.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

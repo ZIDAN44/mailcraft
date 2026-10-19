@@ -849,6 +849,10 @@
 	Save your rules in a file, to keep them or to use them on another computer.	Сохраняет правила в файл, чтобы сохранить их или использовать на другом компьютере.
 	Rules saved in {file}: {n}	Правил сохранено в {file}: {n}
 	Save {n} Selected…	Сохранить выбранные ({n})…
+	Run all	Выполнить все
+	Run every rule that's on, on the mail already in the Inbox	Выполняет все включённые правила для писем, которые уже во «Входящих»
+	Find a rule	Найти правило
+	No rule matches.	Нет подходящих правил.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

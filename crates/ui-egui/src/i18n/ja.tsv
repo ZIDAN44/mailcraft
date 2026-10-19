@@ -852,3 +852,7 @@ month	May	5月
 	Save your rules in a file, to keep them or to use them on another computer.	ルールをファイルに保存して、保管したり別のコンピューターで使ったりできます。
 	Rules saved in {file}: {n}	{n} 件のルールを {file} に保存しました
 	Save {n} Selected…	選択した {n} 件を保存…
+	Run all	すべて実行
+	Run every rule that's on, on the mail already in the Inbox	オンになっているすべてのルールを、受信トレイに既にあるメールに対して実行します
+	Find a rule	ルールを検索
+	No rule matches.	一致するルールはありません。

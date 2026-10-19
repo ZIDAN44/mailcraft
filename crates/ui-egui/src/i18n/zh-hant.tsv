@@ -849,6 +849,10 @@
 	Save your rules in a file, to keep them or to use them on another computer.	將規則儲存到檔案中，以便保留或在另一台電腦上使用。
 	Rules saved in {file}: {n}	已將 {n} 條規則儲存到 {file}
 	Save {n} Selected…	儲存所選的 {n} 個…
+	Run all	全部執行
+	Run every rule that's on, on the mail already in the Inbox	對收件匣中已有的郵件執行所有已開啟的規則
+	Find a rule	尋找規則
+	No rule matches.	沒有符合的規則。
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

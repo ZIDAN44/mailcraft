@@ -1,6 +1,6 @@
 //! Modal dialogs: add an account, sign in again, move to a folder, confirmations, settings.
 
-use egui::{Margin, Rect, RichText, Ui, vec2};
+use egui::{Margin, Rect, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Compose;
 use mailcraft_engine::Session;
 use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
@@ -8,7 +8,7 @@ use mailcraft_engine::model::{AccountConfig, Folder, FolderRole, Security};
 use serde_json::json;
 
 use crate::theme::{self, Tokens};
-use crate::{Action, widgets};
+use crate::{Action, Icon, widgets};
 
 #[derive(Clone, Debug, Default)]
 pub struct AccountForm {
@@ -1887,59 +1887,101 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             !cancel
         }
         Dialog::Rules => {
-            ui.set_width(520.0);
+            ui.set_width(560.0);
             title(ui, t, "Rules");
             ui.label(RichText::new(tl!("Rules run on new mail as it arrives in an Inbox, in this order.")).color(t.dim).small());
             ui.add_space(6.0);
+            // Many rules: a box to find one by its name or what it does.
+            let find_id = egui::Id::new("rules-find");
+            let mut find: String = ui.ctx().data(|d| d.get_temp(find_id)).unwrap_or_default();
+            if s.rules.len() > 6 {
+                ui.add(egui::TextEdit::singleline(&mut find).hint_text(tl!("Find a rule")).desired_width(f32::INFINITY));
+                ui.ctx().data_mut(|d| d.insert_temp(find_id, find.clone()));
+                ui.add_space(4.0);
+            }
+            let needle = find.trim().to_lowercase();
             if s.rules.is_empty() {
                 ui.label(RichText::new(tl!("No rules yet.")).color(t.faint));
             }
             let mut rules = s.rules.clone();
             let mut changed = false;
             let mut remove = None;
-            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
-                for (i, r) in rules.iter_mut().enumerate() {
-                    // The rule's switch, name and buttons on one line; what it does under the
-                    // name, wrapping, so the buttons never cover it.
-                    egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        let mut name_x = ui.min_rect().left();
-                        ui.horizontal(|ui| {
-                            changed |= ui.checkbox(&mut r.enabled, "").on_hover_text(tl!("On / off")).changed();
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.button(tl!("Delete")).clicked() {
-                                    remove = Some(i);
-                                }
-                                if ui.button(tl!("Edit")).clicked() {
-                                    acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
-                                }
-                                if ui.button(tl!("Run now")).on_hover_text(tl!("Run on the mail already in the Inbox")).clicked() {
-                                    acts.push(Action::Run("rules.run", json!({"index": i, "inbox": true})));
-                                }
-                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                    let name = RichText::new(&r.name).strong().color(if r.enabled { t.text } else { t.faint });
-                                    name_x = ui.add(egui::Label::new(name).truncate()).rect.left();
-                                });
+            let mut shown = 0usize;
+            // One line a rule (its switch, name, what it does, and its buttons as icons), in a
+            // list that scrolls past a dozen or so.
+            egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
+                // With the find box, a steady height, so the dialog doesn't jump while typing.
+                let steady = s.rules.len() > 6;
+                egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, !steady]).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    for (i, r) in rules.iter_mut().enumerate() {
+                        let what = describe(s, r);
+                        if !needle.is_empty() && !r.name.to_lowercase().contains(&needle) && !what.to_lowercase().contains(&needle) {
+                            continue;
+                        }
+                        let (row, hover) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
+                        if hover.hovered() {
+                            ui.painter().rect_filled(row, 0.0, t.hover_row);
+                        } else if shown % 2 == 1 {
+                            ui.painter().rect_filled(row, 0.0, t.chrome);
+                        }
+                        shown += 1;
+                        let mut inner = ui.new_child(
+                            egui::UiBuilder::new().max_rect(row.shrink2(vec2(8.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center)),
+                        );
+                        let ui = &mut inner;
+                        changed |= ui.checkbox(&mut r.enabled, "").on_hover_text(tl!("On / off")).changed();
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            if widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t).clicked() {
+                                remove = Some(i);
+                            }
+                            if widgets::tiny_icon_button(ui, Icon::Drafts, "Edit", t).clicked() {
+                                acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
+                            }
+                            if widgets::tiny_icon_button(ui, Icon::Sync, "Run now", t).clicked() {
+                                acts.push(Action::Run("rules.run", json!({"index": i, "inbox": true})));
+                            }
+                            ui.add_space(6.0);
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                let mut job = egui::text::LayoutJob::default();
+                                let strong = egui::TextFormat {
+                                    font_id: theme::bold(13.0),
+                                    color: if r.enabled { t.text } else { t.faint },
+                                    ..Default::default()
+                                };
+                                job.append(&r.name, 0.0, strong);
+                                let dim = egui::TextFormat { font_id: theme::regular(12.0), color: t.dim, ..Default::default() };
+                                job.append(&what, 10.0, dim);
+                                job.wrap = egui::text::TextWrapping::truncate_at_width(ui.available_width());
+                                ui.add(egui::Label::new(job).selectable(false)).on_hover_text(format!("{}\n{}", r.name, what));
                             });
                         });
-                        ui.horizontal(|ui| {
-                            // Under the name, lined up with it.
-                            ui.add_space((name_x - ui.min_rect().left()).max(0.0));
-                            ui.add(egui::Label::new(RichText::new(describe(s, r)).color(t.dim).small()).wrap());
-                        });
-                    });
-                    ui.add_space(4.0);
-                }
+                    }
+                    if shown == 0 && !s.rules.is_empty() {
+                        ui.add_space(8.0);
+                        ui.label(RichText::new(tl!("No rule matches.")).color(t.faint));
+                        ui.add_space(8.0);
+                    }
+                });
             });
             if let Some(i) = remove {
                 acts.push(Action::Run("rules.delete", json!({"index": i})));
             } else if changed {
                 acts.push(Action::Run("rules.set", json!({"rules": rules})));
             }
-            ui.add_space(6.0);
+            ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if ui.button(tl!("New rule…")).clicked() {
                     acts.push(Action::Dialog(Dialog::rule_from("", "")));
+                }
+                let any_on = s.rules.iter().any(|r| r.enabled);
+                if ui
+                    .add_enabled(any_on, egui::Button::new(tl!("Run all")))
+                    .on_hover_text(tl!("Run every rule that's on, on the mail already in the Inbox"))
+                    .clicked()
+                {
+                    acts.push(Action::Run("rules.run", json!({"inbox": true})));
                 }
                 // As Outlook's Rules options: the rules to a file, or rules from one.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

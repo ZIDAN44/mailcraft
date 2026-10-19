@@ -851,3 +851,7 @@ month	May	مايو
 	Save your rules in a file, to keep them or to use them on another computer.	يحفظ قواعدك في ملف للاحتفاظ بها أو لاستخدامها على كمبيوتر آخر.
 	Rules saved in {file}: {n}	تم حفظ القواعد في {file}: {n}
 	Save {n} Selected…	حفظ العناصر المحددة ({n})…
+	Run all	تشغيل الكل
+	Run every rule that's on, on the mail already in the Inbox	يشغّل كل القواعد المفعّلة على البريد الموجود في البريد الوارد
+	Find a rule	البحث عن قاعدة
+	No rule matches.	لا توجد قاعدة مطابقة.

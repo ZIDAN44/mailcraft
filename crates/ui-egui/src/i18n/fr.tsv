@@ -850,6 +850,10 @@
 	Save your rules in a file, to keep them or to use them on another computer.	Enregistre vos règles dans un fichier, pour les conserver ou les utiliser sur un autre ordinateur.
 	Rules saved in {file}: {n}	Règles enregistrées dans {file} : {n}
 	Save {n} Selected…	Enregistrer les {n} sélectionnés…
+	Run all	Tout exécuter
+	Run every rule that's on, on the mail already in the Inbox	Exécute toutes les règles activées sur le courrier déjà dans la boîte de réception
+	Find a rule	Rechercher une règle
+	No rule matches.	Aucune règle ne correspond.
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

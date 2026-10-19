@@ -851,3 +851,7 @@ month	May	מאי
 	Save your rules in a file, to keep them or to use them on another computer.	שומר את הכללים שלך בקובץ, כדי לשמור אותם או להשתמש בהם במחשב אחר.
 	Rules saved in {file}: {n}	כללים נשמרו ב-{file}: {n}
 	Save {n} Selected…	שמירת {n} שנבחרו…
+	Run all	הפעלת הכול
+	Run every rule that's on, on the mail already in the Inbox	מפעיל את כל הכללים הפעילים על הדואר שכבר נמצא בתיבת הדואר הנכנס
+	Find a rule	חיפוש כלל
+	No rule matches.	אין כלל תואם.

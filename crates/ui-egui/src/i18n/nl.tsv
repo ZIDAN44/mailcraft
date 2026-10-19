@@ -851,3 +851,7 @@ month	May	mei
 	Save your rules in a file, to keep them or to use them on another computer.	Slaat uw regels op in een bestand, om ze te bewaren of op een andere computer te gebruiken.
 	Rules saved in {file}: {n}	Regels opgeslagen in {file}: {n}
 	Save {n} Selected…	{n} geselecteerde opslaan…
+	Run all	Alle uitvoeren
+	Run every rule that's on, on the mail already in the Inbox	Voert alle ingeschakelde regels uit op de mail die al in het Postvak IN staat
+	Find a rule	Een regel zoeken
+	No rule matches.	Geen regel komt overeen.
