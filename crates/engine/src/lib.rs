@@ -144,4 +144,6 @@ pub mod p {
 }
 
 #[cfg(test)]
+mod bench;
+#[cfg(test)]
 mod tests;

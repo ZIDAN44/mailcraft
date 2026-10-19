@@ -29,6 +29,8 @@ pub mod ntlm;
 pub mod oauth;
 pub mod pop;
 pub mod pst;
+#[cfg(test)]
+mod pst_bench;
 pub mod pst_export;
 mod pst_pim;
 pub mod sieve;
