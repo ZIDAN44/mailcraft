@@ -176,7 +176,7 @@ pub fn switch(ui: &mut Ui, t: &Tokens, on: &mut bool, label: &str) -> Response {
         resp.mark_changed();
     }
     let label = label.to_string();
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, ui.is_enabled(), *on, &label));
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), *on, &label));
     let k = ui.ctx().animate_bool_responsive(resp.id, *on);
     let enabled = ui.is_enabled();
     let track = if *on {
@@ -211,9 +211,9 @@ pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: 
     let mut clicked = None;
     for (i, (label, w)) in labels.iter().zip(&widths).enumerate() {
         let r = egui::Rect::from_min_size(egui::pos2(x, rect.top() + 2.0), vec2(*w, 24.0));
-        let resp = ui.interact(r, ui.id().with(("segment", id, i)), Sense::click());
+        let resp = ui.interact(r, ui.scope_id().with(("segment", id, i)), Sense::click());
         let on = i == selected;
-        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::RadioButton, ui.is_enabled(), on, label));
+        resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, ui.is_enabled(), on, label));
         if on {
             ui.painter().rect(r, 4.0, t.surface, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         } else if resp.hovered() {

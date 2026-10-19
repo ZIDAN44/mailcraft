@@ -5,7 +5,7 @@
 //!
 //! The challenge is hostile input: every offset and length in it is checked.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use md4::{Digest, Md4};
 use md5::Md5;
 
@@ -36,7 +36,7 @@ fn utf16(s: &str) -> Vec<u8> {
 }
 
 fn hmac_md5(key: &[u8], parts: &[&[u8]]) -> [u8; 16] {
-    let Ok(mut mac) = <Hmac<Md5> as Mac>::new_from_slice(key) else { return [0; 16] };
+    let Ok(mut mac) = <Hmac<Md5> as KeyInit>::new_from_slice(key) else { return [0; 16] };
     for p in parts {
         mac.update(p);
     }

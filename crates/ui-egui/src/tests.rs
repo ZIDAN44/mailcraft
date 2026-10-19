@@ -65,7 +65,16 @@ fn a_banner_and_a_placed_label_draw() {
 fn people_keep_the_pane_its_width() {
     let (mut a, dir) = app("pane-width");
     let ctx = egui::Context::default();
-    let width = |ctx: &egui::Context| egui::containers::panel::PanelState::load(ctx, egui::Id::new("nav")).map_or(0.0, |p| p.size().x);
+    // A panel's id is its parent's (the window's root) salted with its name.
+    let mut root = egui::Id::NULL;
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| {
+        root = ui.scope_id();
+        a.ui(ui);
+    });
+    out.textures_delta.clear();
+    let nav = root.with_salt(egui::IdSalt::new("nav"));
+    let width = |ctx: &egui::Context| egui::containers::panel::PanelState::load(ctx, nav).map_or(0.0, |p| p.size().x);
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
     }
@@ -89,7 +98,7 @@ fn dialogs_fit_what_they_show() {
     let ctx = egui::Context::default();
     let height = |ctx: &egui::Context, d: &Dialog| {
         // Its own window (or, before, the one all dialogs shared).
-        let ids = [egui::Id::new(("dialog", std::mem::discriminant(d))), egui::Id::new("dialog")];
+        let ids = [egui::Id::unique(("dialog", std::mem::discriminant(d))), egui::Id::unique("dialog")];
         ids.iter().find_map(|id| ctx.memory(|m| m.area_rect(*id))).map_or(0.0, |r| r.height())
     };
     let shown = |a: &mut MailApp, d: Dialog| {

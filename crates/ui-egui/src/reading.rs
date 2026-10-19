@@ -285,7 +285,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     }
                 });
                 // Wrapped into rows, scrolling past three, as Outlook's are.
-                widgets::chip_grid(ui, egui::Id::new(("attachments", r.key.to_id())), files.len(), 240.0, 400.0, CHIP_H, 3, |ui, i, w| {
+                widgets::chip_grid(ui, egui::Id::unique(("attachments", r.key.to_id())), files.len(), 240.0, 400.0, CHIP_H, 3, |ui, i, w| {
                     if let Some(a) = files.get(i) {
                         attachment_card(s, st, ui, &r.key, a, w, acts);
                     }
@@ -504,7 +504,7 @@ fn preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &MessageKey,
 
 /// A picture attachment at a size to look at (decoded once and kept by egui while it's shown).
 pub(crate) fn big_picture(s: &Session, ctx: &egui::Context, key: &MessageKey, index: usize) -> Option<egui::TextureHandle> {
-    let id = egui::Id::new(("big-picture", key.to_id(), index));
+    let id = egui::Id::unique(("big-picture", key.to_id(), index));
     if let Some(t) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {
         return t;
     }
@@ -1348,7 +1348,7 @@ enum Shown {
 /// presentation's slides; other files say there's no preview, with Open and Save As.
 fn attachment_preview(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let id = egui::Id::new(("attachment-shown", key.to_id(), a.index));
+    let id = egui::Id::unique(("attachment-shown", key.to_id(), a.index));
     let shown = match ui.ctx().data(|d| d.get_temp::<std::sync::Arc<Shown>>(id)) {
         Some(x) => x,
         None => {
@@ -1456,7 +1456,7 @@ const PDF_PAGES: usize = 60;
 fn pdf_pages(s: &Session, st: &UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, width: f32, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let px = (width * ui.ctx().pixels_per_point()).clamp(200.0, 2400.0) as u32;
-    let count_id = egui::Id::new(("pdf-count", key.to_id(), a.index));
+    let count_id = egui::Id::unique(("pdf-count", key.to_id(), a.index));
     let mut rendered_one = false;
     let mut n = 0usize;
     loop {
@@ -1464,7 +1464,7 @@ fn pdf_pages(s: &Session, st: &UiState, ui: &mut Ui, key: &MessageKey, a: &mime:
         if count.is_some_and(|c| n >= c) || n >= PDF_PAGES {
             break;
         }
-        let pid = egui::Id::new(("pdf-page", key.to_id(), a.index, n, px / 100));
+        let pid = egui::Id::unique(("pdf-page", key.to_id(), a.index, n, px / 100));
         let tex = match ui.ctx().data(|d| d.get_temp::<Option<egui::TextureHandle>>(pid)) {
             Some(t) => t,
             None if rendered_one => {
@@ -1536,14 +1536,14 @@ fn office_preview(t: &Tokens, ui: &mut Ui, p: &mime::office::Preview, index: usi
                         }
                     }
                     Block::Table(rows) => {
-                        table(t, ui, egui::Id::new(("doc-table", index, k)), rows, false);
+                        table(t, ui, egui::Id::unique(("doc-table", index, k)), rows, false);
                         ui.add_space(8.0);
                     }
                 }
             }
         }
         Preview::Workbook(sheets) => {
-            let sel_id = egui::Id::new(("sheet-tab", index));
+            let sel_id = egui::Id::unique(("sheet-tab", index));
             let mut sel = ui.ctx().data(|d| d.get_temp::<usize>(sel_id)).unwrap_or(0).min(sheets.len().saturating_sub(1));
             if sheets.len() > 1 {
                 ui.horizontal_wrapped(|ui| {
@@ -1560,7 +1560,7 @@ fn office_preview(t: &Tokens, ui: &mut Ui, p: &mime::office::Preview, index: usi
                 Some((_, rows)) if !rows.is_empty() => {
                     egui::ScrollArea::horizontal()
                         .id_salt(("sheet", index, sel))
-                        .show(ui, |ui| table(t, ui, egui::Id::new(("sheet-grid", index, sel)), rows, true));
+                        .show(ui, |ui| table(t, ui, egui::Id::unique(("sheet-grid", index, sel)), rows, true));
                 }
                 _ => {
                     ui.label(RichText::new(tl!("The sheet is empty.")).color(t.dim));
@@ -1657,7 +1657,7 @@ fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, clock:
     }
     ui.separator();
     // A day and time of one's own (local), kept while the menu is open.
-    let id = egui::Id::new(("delay-custom", c.id));
+    let id = egui::Id::unique(("delay-custom", c.id));
     let (mut day, mut time) = ui.data(|d| d.get_temp::<(String, String)>(id)).unwrap_or_else(|| {
         let c0 = dates::civil(c.send_after.unwrap_or(clock.now + 3600), clock);
         (format!("{:04}-{:02}-{:02}", c0.year, c0.month, c0.day), format!("{:02}:{:02}", c0.hour, c0.minute))
@@ -1705,7 +1705,7 @@ const ROW_H: f32 = 30.0;
 
 /// A field box drawn the way Outlook's are: no frame, a line under it (the accent while typing).
 fn underlined(ui: &mut Ui, t: &Tokens, edit: egui::TextEdit<'_>) -> egui::Response {
-    let r = ui.add_sized(vec2(ui.available_width(), ROW_H - 4.0), edit.frame(egui::Frame::NONE).vertical_align(egui::Align::Center));
+    let r = ui.add_sized(vec2(ui.available_width(), ROW_H - 4.0), edit.frame(egui::Frame::NONE).align(egui::Align2::LEFT_CENTER));
     let y = r.rect.bottom();
     let color = if r.has_focus() { t.accent } else { t.border };
     ui.painter().line_segment([egui::pos2(r.rect.left(), y), egui::pos2(r.rect.right(), y)], egui::Stroke::new(1.0, color));
@@ -1796,7 +1796,7 @@ fn recipient_field(
     }
     // Backspace right after a whole recipient takes all of it, as Outlook does with a resolved
     // name (a half-typed one loses a character as usual).
-    let edit_id = ui.id().with(("recipient", name));
+    let edit_id = ui.scope_id().with(("recipient", name));
     if ui.memory(|m| m.has_focus(edit_id))
         && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id)
         && let Some(range) = state.cursor.char_range().filter(|r| r.is_empty())
@@ -1831,7 +1831,8 @@ fn recipient_field(
         st.suggest_dismissed = None;
     }
     if showing && take.is_none() {
-        let area = egui::Area::new(ui.id().with(("suggest", name))).order(egui::Order::Foreground).fixed_pos(r.rect.left_bottom() + vec2(0.0, 2.0));
+        let area =
+            egui::Area::new(ui.scope_id().with(("suggest", name))).order(egui::Order::Foreground).fixed_pos(r.rect.left_bottom() + vec2(0.0, 2.0));
         area.show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
                 // As wide as the longest suggestion (within the box's width), every row taking
@@ -1946,7 +1947,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     let Some(mut ed) = st.editor.take() else { return };
     // Why it couldn't go: over the message, in its own window when it has one.
     if let Some(msg) = st.compose_alert.clone() {
-        let modal = egui::Modal::new(egui::Id::new(("compose-alert", c.id))).frame(crate::dialogs::dialog_frame(&t)).show(ui.ctx(), |ui| {
+        let modal = egui::Modal::new(egui::Id::unique(("compose-alert", c.id))).frame(crate::dialogs::dialog_frame(&t)).show(ui.ctx(), |ui| {
             ui.set_width(380.0);
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::hover());
@@ -2152,7 +2153,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     ui.vertical(|ui| {
                         // Wrapped into rows, scrolling past two, as Outlook's are.
                         let n = c.attachments.len();
-                        widgets::chip_grid(ui, egui::Id::new(("compose-attachments", c.id)), n, 220.0, 320.0, 28.0, 2, |ui, i, w| {
+                        widgets::chip_grid(ui, egui::Id::unique(("compose-attachments", c.id)), n, 220.0, 320.0, 28.0, 2, |ui, i, w| {
                             let Some(a) = c.attachments.get(i) else { return };
                             let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::hover());
                             let x_rect = Rect::from_center_size(egui::pos2(rect.right() - 15.0, rect.center().y), vec2(22.0, 22.0));

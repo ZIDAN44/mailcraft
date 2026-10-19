@@ -12,4 +12,5 @@ workspace = true
 # Glyph ids and widths of the system font that gets embedded.
 ttf-parser = { version = "0.25", default-features = false, features = ["std", "opentype-layout", "apple-layout", "variable-fonts", "glyph-names"] }
 # Compressed page and font streams.
-miniz_oxide = "0.8"
+# The version flate2 (the PDF reader's) uses, so it's built once.
+miniz_oxide = "0.9"

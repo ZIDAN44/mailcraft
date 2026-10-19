@@ -247,7 +247,7 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> egui::Respo
             .desired_width(w)
             .min_size(vec2(w, FIELD_H))
             .margin(Margin::symmetric(8, 6))
-            .vertical_align(egui::Align::Center),
+            .align(egui::Align2::LEFT_CENTER),
     )
 }
 
@@ -277,7 +277,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 .desired_width(w)
                 .min_size(vec2(w, 36.0))
                 .margin(Margin::symmetric(10, 8))
-                .vertical_align(egui::Align::Center),
+                .align(egui::Align2::LEFT_CENTER),
         );
         ui.add_space(12.0);
         form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {

@@ -89,7 +89,7 @@ impl PopKeep {
             ui.horizontal(|ui| {
                 ui.add_space(22.0);
                 ui.checkbox(&mut self.for_days, tl!("Remove it from the server after"));
-                ui.add_enabled(self.for_days, egui::TextEdit::singleline(&mut self.days).desired_width(36.0).horizontal_align(egui::Align::Center));
+                ui.add_enabled(self.for_days, egui::TextEdit::singleline(&mut self.days).desired_width(36.0).align(egui::Align2::CENTER_TOP));
                 ui.label(tl!("days"));
             });
             ui.horizontal(|ui| {
@@ -309,7 +309,7 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
         label(ui, "Incoming mail (POP)");
         ui.horizontal(|ui| {
             ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(host).hint_text("pop.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(port).hint_text("995").horizontal_align(egui::Align::Center));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(port).hint_text("995").align(egui::Align2::CENTER_TOP));
             security_combo(ui, "edit-popsec", security);
         });
         f.pop_keep.ui(ui);
@@ -317,7 +317,7 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
         label(ui, "Outgoing mail (SMTP)");
         ui.horizontal(|ui| {
             ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").horizontal_align(egui::Align::Center));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP));
             security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
         });
     } else {
@@ -335,14 +335,14 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
         label(ui, "Incoming mail (IMAP)");
         ui.horizontal(|ui| {
             ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").horizontal_align(egui::Align::Center));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").align(egui::Align2::CENTER_TOP));
             security_combo(ui, "edit-imapsec", &mut f.imap_security);
         });
         ui.add_space(4.0);
         label(ui, "Outgoing mail (SMTP)");
         ui.horizontal(|ui| {
             ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").horizontal_align(egui::Align::Center));
+            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP));
             security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
         });
         if f.imap_security == Security::None || f.smtp_security == Security::None {
@@ -1185,7 +1185,7 @@ pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: 
     let frame = dialog_frame(t);
     // Each kind of dialog keeps its own size: one id for all let a small one open at the size
     // of the last big one.
-    let modal = egui::Modal::new(egui::Id::new(("dialog", std::mem::discriminant(d)))).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
+    let modal = egui::Modal::new(egui::Id::unique(("dialog", std::mem::discriminant(d)))).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
     let keep = modal.inner;
     keep && !modal.should_close()
 }
@@ -1346,7 +1346,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                             edited |= ui
                                 .add_sized(
                                     [56.0, 26.0],
-                                    egui::TextEdit::singleline(&mut f.pop_port).hint_text("995").horizontal_align(egui::Align::Center),
+                                    egui::TextEdit::singleline(&mut f.pop_port).hint_text("995").align(egui::Align2::CENTER_TOP),
                                 )
                                 .changed();
                             security_combo(ui, "popsec", &mut f.pop_security);
@@ -1360,7 +1360,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                             edited |= ui
                                 .add_sized(
                                     [56.0, 26.0],
-                                    egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").horizontal_align(egui::Align::Center),
+                                    egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").align(egui::Align2::CENTER_TOP),
                                 )
                                 .changed();
                             security_combo(ui, "imapsec", &mut f.imap_security);
@@ -1373,7 +1373,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                         edited |= ui
                             .add_sized(
                                 [56.0, 26.0],
-                                egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").horizontal_align(egui::Align::Center),
+                                egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP),
                             )
                             .changed();
                         security_combo(ui, "smtpsec", &mut f.smtp_security);
@@ -1892,7 +1892,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             ui.label(RichText::new(tl!("Rules run on new mail as it arrives in an Inbox, in this order.")).color(t.dim).small());
             ui.add_space(6.0);
             // Many rules: a box to find one by its name or what it does.
-            let find_id = egui::Id::new("rules-find");
+            let find_id = egui::Id::unique("rules-find");
             let mut find: String = ui.ctx().data(|d| d.get_temp(find_id)).unwrap_or_default();
             if s.rules.len() > 6 {
                 ui.add(egui::TextEdit::singleline(&mut find).hint_text(tl!("Find a rule")).desired_width(f32::INFINITY));

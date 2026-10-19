@@ -22,15 +22,15 @@ ring = "0.17"
 serde = { workspace = true }
 serde_json = { workspace = true }
 # WebDAV answers (CalDAV, CardDAV).
-quick-xml = "0.41"
+quick-xml = "0.42"
 # Outlook data files (.pst), for importing them (Microsoft's reader, MIT).
 outlook-pst = "1.2"
 # Writes them, for exporting (MIT; a fork of the reader with the same library name, so renamed).
 pst_rw = { package = "outlook-pst-rw", version = "1.2.14" }
 # NTLM sign-in for on-premises Exchange (EWS): MD4, MD5 and HMAC (RustCrypto, MIT / Apache-2.0).
-md4 = "0.10"
-md-5 = "0.10"
-hmac = "0.12"
+md4 = "0.11"
+md-5 = "0.11"
+hmac = "0.13"
 log = { workspace = true }
 thiserror = { workspace = true }
 

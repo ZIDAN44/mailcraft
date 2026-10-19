@@ -292,7 +292,7 @@ fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
 }
 
 fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> egui::Response {
-    let resp = ui.interact(rect, ui.id().with(("chip", &item.uid, item.start)), Sense::click());
+    let resp = ui.interact(rect, ui.scope_id().with(("chip", &item.uid, item.start)), Sense::click());
     // A category's colour, as Outlook draws a categorized appointment; else its calendar's.
     let c = item.category.map_or_else(|| color(item.color, t), |i| theme::category_color(i, t.dark));
     let tentative = item.needs_reply || item.status == "TENTATIVE";
@@ -358,7 +358,7 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
                     t.faint
                 },
             );
-            let bg = ui.interact(r, ui.id().with(("month-day", d)), Sense::click());
+            let bg = ui.interact(r, ui.scope_id().with(("month-day", d)), Sense::click());
             let todays: Vec<&AgendaItem> =
                 items.iter().filter(|it| day_of(it.start, s) <= d && day_of(it.end.max(it.start + 1) - 1, s) >= d).collect();
             let fit = ((rh - 26.0) / 19.0).floor().max(0.0) as usize;
@@ -439,7 +439,7 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
                 t.text,
             );
             let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
-            let resp = ui.interact(x, ui.id().with(("hide-calendar", account, id)), Sense::click());
+            let resp = ui.interact(x, ui.scope_id().with(("hide-calendar", account, id)), Sense::click());
             if resp.hovered() {
                 ui.painter().rect_filled(x, 3.0, t.hover);
             }
@@ -542,7 +542,7 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
         for j in 0..k {
             for i in 0..n {
                 let col = Rect::from_min_size(pos2(grid.min.x + day_x(i, j), grid.min.y), vec2(cw, grid.height()));
-                let r = ui.interact(col, ui.id().with(("hours", d0 + i, j)), Sense::click());
+                let r = ui.interact(col, ui.scope_id().with(("hours", d0 + i, j)), Sense::click());
                 // The half hour under the pointer lights up: a click adds an event there.
                 if let Some(p) = r.hover_pos() {
                     let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0);

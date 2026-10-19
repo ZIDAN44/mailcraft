@@ -980,7 +980,7 @@ impl MailApp {
                 }
                 let mut mine: Vec<Action> = Vec::new();
                 let closing = ui.input(|i| i.viewport().close_requested() || i.key_pressed(Key::Escape));
-                egui::Panel::top(egui::Id::new(("message-window-bar", key.to_id())))
+                egui::Panel::top(egui::Id::unique(("message-window-bar", key.to_id())))
                     .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 6)).stroke(egui::Stroke::new(1.0, t.border)))
                     .show(ui, |ui| window_toolbar(ui, session, &t, &key, &mut mine));
                 egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
@@ -2174,7 +2174,7 @@ impl MailApp {
             return;
         }
         let t = self.ui.tokens;
-        egui::Area::new(egui::Id::new("toast")).anchor(egui::Align2::RIGHT_BOTTOM, vec2(-16.0, -36.0)).order(egui::Order::Foreground).show(
+        egui::Area::new(egui::Id::unique("toast")).anchor(egui::Align2::RIGHT_BOTTOM, vec2(-16.0, -36.0)).order(egui::Order::Foreground).show(
             ctx,
             |ui| {
                 egui::Frame::new()

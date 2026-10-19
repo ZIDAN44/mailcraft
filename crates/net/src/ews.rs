@@ -82,9 +82,8 @@ impl El {
     }
 }
 
-fn local(name: &[u8]) -> String {
-    let s = String::from_utf8_lossy(name);
-    s.rsplit(':').next().unwrap_or("").to_string()
+fn local(name: &str) -> String {
+    name.rsplit(':').next().unwrap_or("").to_string()
 }
 
 /// An attribute's value with its entities replaced.
@@ -150,7 +149,7 @@ pub fn parse(xml: &str) -> El {
                 count += 1;
                 let el = El {
                     name: local(e.name().as_ref()),
-                    attrs: e.attributes().flatten().map(|a| (local(a.key.as_ref()), unescape(&String::from_utf8_lossy(&a.value)))).collect(),
+                    attrs: e.attributes().flatten().map(|a| (local(a.key.as_ref()), unescape(&a.value))).collect(),
                     ..Default::default()
                 };
                 stack.push(el);
@@ -160,16 +159,16 @@ pub fn parse(xml: &str) -> El {
             }
             X::Text(t) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&t.decode().unwrap_or_default());
+                    top.text.push_str(&t);
                 }
             }
             X::CData(t) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&t.decode().unwrap_or_default());
+                    top.text.push_str(&t);
                 }
             }
             X::GeneralRef(g) => {
-                let name = g.decode().unwrap_or_default().to_string();
+                let name = g.to_string();
                 let c = match name.as_str() {
                     "amp" => Some('&'),
                     "lt" => Some('<'),
@@ -1429,6 +1428,11 @@ mod tests {
         let deep = "<a>".repeat(10_000);
         let _ = parse(&deep);
         let _ = parse("<a><b></a></b>&bogus;&#xFFFFFFFF;");
+        // Entities in text and attributes, CDATA and numeric references, read as text.
+        let e = parse("<t:a xmlns:t=\"x\" t:Id=\"R&amp;D &quot;1&quot;\">Tom &amp; Jerry &lt;3 &#233;t&#xE9; <![CDATA[<raw> & co]]> ünï</t:a>");
+        let a = e.find("a").unwrap();
+        assert_eq!(a.attr("Id"), Some("R&D \"1\""));
+        assert_eq!(a.text, "Tom & Jerry <3 été <raw> & co ünï");
         assert_eq!(unb64("aGk=\r\n"), Some(b"hi".to_vec()));
         assert_eq!(unb64("**"), None);
         assert_eq!(esc("a<b&\"c\u{1}"), "a&lt;b&amp;&quot;c");

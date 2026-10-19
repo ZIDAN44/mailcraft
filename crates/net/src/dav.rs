@@ -45,9 +45,8 @@ pub struct Item {
     pub writable: Option<bool>,
 }
 
-fn local(name: &[u8]) -> String {
-    let s = String::from_utf8_lossy(name);
-    s.rsplit(':').next().unwrap_or("").to_ascii_lowercase()
+fn local(name: &str) -> String {
+    name.rsplit(':').next().unwrap_or("").to_ascii_lowercase()
 }
 
 /// Read a `207 Multi-Status` body.
@@ -74,7 +73,7 @@ pub fn multistatus(xml: &str) -> Vec<Item> {
                 if name == "comp" && parent == "supported-calendar-component-set" {
                     for a in e.attributes().flatten() {
                         if local(a.key.as_ref()) == "name" {
-                            pending.comps.push(String::from_utf8_lossy(&a.value).to_ascii_uppercase());
+                            pending.comps.push(a.value.to_ascii_uppercase());
                         }
                     }
                 }
@@ -100,16 +99,16 @@ pub fn multistatus(xml: &str) -> Vec<Item> {
             }
             X::Text(t) => {
                 if text.len() < MAX_BODY {
-                    text.push_str(&t.decode().unwrap_or_default());
+                    text.push_str(&t);
                 }
             }
             X::CData(t) => {
                 if text.len() < MAX_BODY {
-                    text.push_str(&t.decode().unwrap_or_default());
+                    text.push_str(&t);
                 }
             }
             X::GeneralRef(g) => {
-                let name = g.decode().unwrap_or_default().to_string();
+                let name = g.to_string();
                 let c = match name.as_str() {
                     "amp" => Some('&'),
                     "lt" => Some('<'),

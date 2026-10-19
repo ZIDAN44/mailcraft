@@ -215,7 +215,7 @@ impl Editor {
 pub(crate) const SIGNATURE_ID: u64 = u64::MAX;
 
 pub(crate) fn body_id(c: &Compose) -> egui::Id {
-    egui::Id::new(("compose-body", c.id))
+    egui::Id::unique(("compose-body", c.id))
 }
 
 fn selection(ctx: &egui::Context, id: egui::Id, n: usize) -> Option<Range<usize>> {
@@ -1042,7 +1042,7 @@ pub(crate) fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Comp
     let Some(mut f) = ed.link.take() else { return };
     let mut close = false;
     let mut done: Option<Option<String>> = None;
-    let modal = egui::Modal::new(egui::Id::new(("link-dialog", c.id))).frame(crate::dialogs::dialog_frame(t)).show(ui.ctx(), |ui| {
+    let modal = egui::Modal::new(egui::Id::unique(("link-dialog", c.id))).frame(crate::dialogs::dialog_frame(t)).show(ui.ctx(), |ui| {
         ui.set_width(440.0);
         ui.label(RichText::new(tl!(if f.editing { "Edit link" } else { "Insert link" })).font(theme::bold(18.0)).color(t.text));
         ui.add_space(10.0);

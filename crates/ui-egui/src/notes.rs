@@ -106,7 +106,7 @@ pub(crate) fn save_edit(st: &mut UiState, acts: &mut Vec<Action>) {
 fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_engine::NoteRef, size: f32, acts: &mut Vec<Action>) -> bool {
     let uid = &n.note.uid;
     let editing = st.note_edit.as_ref().is_some_and(|(u, _)| u == uid);
-    let id = ui.id().with(("note", uid));
+    let id = ui.scope_id().with(("note", uid));
     let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
     let hovered = resp.hovered() || editing;
     let fill = paper(n.note.color, t.dark);

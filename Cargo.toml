@@ -37,8 +37,8 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 webpki-roots = "1"
 
 # ui
-egui = "0.36"
-eframe = { version = "0.36", default-features = false }
+egui = "0.37"
+eframe = { version = "0.37", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

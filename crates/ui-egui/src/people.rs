@@ -271,7 +271,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         v.dedup();
         v
     };
-    let jump_id = egui::Id::new("people-jump");
+    let jump_id = egui::Id::unique("people-jump");
     let jump: Option<char> = ui.ctx().data_mut(|d| d.remove_temp(jump_id));
     ui.horizontal_top(|ui| {
         // The list leaves room for the index and the gap before it exactly: a few pixels more and
@@ -606,7 +606,7 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 let c = &p.card;
                 let cells: Vec<String> = cols.iter().map(|col| col.map_or_else(|| c.display(), |col| col.text(s, p))).collect();
                 let selected = st.person.as_deref() == Some(c.uid.as_str());
-                let id = ui.id().with(("phone-row", i));
+                let id = ui.scope_id().with(("phone-row", i));
                 let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
                 let fill = if selected {
                     Some(t.accent_soft)

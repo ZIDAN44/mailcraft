@@ -10,7 +10,9 @@ workspace = true
 
 [dependencies]
 mailcraft-engine = { workspace = true }
-egui = { workspace = true }
+# egui's emoji and symbol fonts, as egui had them by default before 0.37: emoji in subjects and
+# text, and symbols such as ▾, otherwise draw as empty boxes.
+egui = { workspace = true, features = ["monochrome_emoji_fonts"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
@@ -19,6 +21,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 # Right-to-left text: the Unicode Bidirectional Algorithm, and fonts' character maps (the
 # version egui's text layout uses).
 unicode-bidi = "0.3"
+# The version egui's own text (epaint) uses, so the font reader is built once.
 skrifa = "0.44"
 # The system's interface language.
 sys-locale = "0.3"
