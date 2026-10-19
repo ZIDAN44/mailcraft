@@ -15,8 +15,11 @@ use mailcraft_model::{FolderRole, MessageKey, utf7};
 use mailcraft_store::Store;
 use pst_rw::{UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
-/// Messages written per commit to the file.
-const BATCH: usize = 100;
+/// Messages written per commit to the file, at most: the writer rewrites the folder's table of
+/// contents with each, so a big folder written a hundred at a time took longer with every batch.
+const BATCH: usize = 2000;
+/// …and their bytes (attachments and all), at most.
+const BATCH_BYTES: usize = 48 << 20;
 /// Attachments larger than this are left out.
 const MAX_ATTACHMENT: usize = 100 * 1024 * 1024;
 
@@ -102,15 +105,21 @@ pub fn export(store: &Store, account: &str, name: &str, path: &Path, progress: &
             let folder = names(&f.path, f.delimiter, f.role);
             let folder: Vec<&str> = folder.iter().map(String::as_str).collect();
             let mut batch = Vec::new();
+            let mut bytes = 0usize;
             for s in &st.messages {
                 let key = MessageKey { account: account.to_string(), folder: f.path.clone(), validity: s.key.validity, uid: s.key.uid };
                 match store.read_body(&key).and_then(|raw| owned(&raw)) {
-                    Some(m) => batch.push(m),
+                    Some(m) => {
+                        bytes += m.body.len() + m.html.as_ref().map_or(0, String::len) + m.files.iter().map(|f| f.3.len()).sum::<usize>();
+                        batch.push(m);
+                    }
                     None => done.skipped += 1,
                 }
-                if batch.len() >= BATCH {
+                if batch.len() >= BATCH || bytes >= BATCH_BYTES {
+                    let n = batch.len();
                     write(&temp, &folder, &std::mem::take(&mut batch), &mut created)?;
-                    done.messages += BATCH;
+                    bytes = 0;
+                    done.messages += n;
                     progress(done.messages);
                 }
             }

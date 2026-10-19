@@ -17,7 +17,7 @@ use std::rc::Rc;
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
 use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote};
-use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, sort_newest_first, utf7};
+use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::{FolderState, Store};
 use outlook_pst::ltp::prop_context::PropertyValue;
 use outlook_pst::ltp::table_context::TableContext;
@@ -53,7 +53,18 @@ pub struct Imported {
 /// Import the data file at `path` into `account`'s cache (an account with no server). Calls
 /// `progress` with the number of messages imported so far, every so often.
 pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(usize)) -> Result<Imported, String> {
-    let mut out = Out { store, account, folders: Vec::new(), states: HashMap::new(), imported: 0, skipped: 0, progress, pim: Pim::default() };
+    let mut out = Out {
+        store,
+        account,
+        folders: Vec::new(),
+        states: HashMap::new(),
+        imported: 0,
+        skipped: 0,
+        progress,
+        pim: Pim::default(),
+        pending: Vec::new(),
+        pending_bytes: 0,
+    };
     // `!BDN` then the client magic: `SM` a data file, `SO` Outlook's offline copy of a server
     // account (MS-PST 2.2.2.6).
     let mut head = [0u8; 10];
@@ -453,17 +464,54 @@ fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress]) -> Vec<u8>
     raw
 }
 
+/// Message sources written to the cache together (one transaction): at most this many…
+const BATCH_MESSAGES: usize = 2000;
+/// …or this many bytes.
+const BATCH_BYTES: usize = 16 << 20;
+
+/// A message's summary from its rebuilt source's headers, with its preview and attachments
+/// from the item itself (parsing the whole source again, attachments and all, only to find them
+/// cost more than reading it).
+fn summary_of(raw: &[u8], it: &Item, key: MessageKey, size: u32) -> mailcraft_model::Summary {
+    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").map_or(raw.len(), |i| i + 4);
+    let mut s = mime::summary_from_header(raw.get(..end).unwrap_or(raw), key, it.flags.clone(), size, it.date);
+    s.has_attachments = !it.files.is_empty();
+    let text = if it.body.trim().is_empty() {
+        it.html
+            .as_deref()
+            .map(|h| mime::html_to_text(h.get(..h.char_indices().nth(64 * 1024).map_or(h.len(), |(i, _)| i)).unwrap_or(h)))
+            .unwrap_or_default()
+    } else {
+        it.body.replace("\r\n", "\n")
+    };
+    s.preview = mime::preview(&text);
+    s
+}
+
+/// A folder being read.
+struct Open {
+    uid_next: u32,
+    /// Messages whose sources may not be written yet (they go to the list once they are).
+    waiting: Vec<mailcraft_model::Summary>,
+    list: mailcraft_store::ListWriter,
+}
+
 /// What has been written so far.
 struct Out<'a> {
     store: &'a Store,
     account: &'a str,
     folders: Vec<Folder>,
-    states: HashMap<String, FolderState>,
+    /// The folders being read: their next number, and their list going out a page at a time
+    /// (a folder of hundreds of thousands isn't held whole; written ones keep only their counts).
+    states: HashMap<String, Open>,
     imported: usize,
     skipped: usize,
     progress: &'a mut dyn FnMut(usize),
     /// Contacts and calendar items read so far.
     pim: Pim,
+    /// Sources read but not yet written, and their size.
+    pending: Vec<(MessageKey, Vec<u8>)>,
+    pending_bytes: usize,
 }
 
 impl Out<'_> {
@@ -498,7 +546,7 @@ impl Out<'_> {
             unread: 0,
             total: 0,
         });
-        self.states.insert(path.clone(), FolderState { validity: 1, uid_next: 1, ..Default::default() });
+        self.states.insert(path.clone(), Open { uid_next: 1, waiting: Vec::new(), list: self.store.list_writer(self.account, &path) });
         path
     }
 
@@ -559,28 +607,68 @@ impl Out<'_> {
             }
         };
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
-        if let Err(e) = self.store.write_body(&key, &raw) {
-            log::warn!("import: {e}");
-            self.skipped += 1;
-            return;
-        }
         st.uid_next = uid.saturating_add(1);
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-        st.messages.push(mime::summary_from_full(&raw, key, it.flags, size, it.date));
+        st.waiting.push(summary_of(&raw, &it, key.clone(), size));
+        let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;
+        self.pending_bytes += raw.len();
+        self.pending.push((key, raw));
+        if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {
+            self.flush();
+        }
+        // A page's worth whose sources are written: into the folder's list.
+        if page_full {
+            self.list_out(path);
+        }
         if self.imported.is_multiple_of(200) {
             (self.progress)(self.imported);
         }
     }
 
-    /// Write a finished folder's list and counts.
-    fn save_folder(&mut self, path: &str) {
+    /// Write the sources read so far, together. A batch that can't be written leaves its
+    /// messages out of their folders' lists (counted as skipped), as one failed write did.
+    fn flush(&mut self) {
+        if self.pending.is_empty() {
+            return;
+        }
+        let batch = std::mem::take(&mut self.pending);
+        self.pending_bytes = 0;
+        if let Err(e) = self.store.write_bodies(&batch) {
+            log::warn!("import: {e}");
+            for (key, _) in &batch {
+                if let Some(st) = self.states.get_mut(&key.folder) {
+                    st.waiting.retain(|m| m.key.uid != key.uid);
+                }
+            }
+            self.imported = self.imported.saturating_sub(batch.len());
+            self.skipped += batch.len();
+        }
+    }
+
+    /// Hand a folder's messages whose sources are written to its list (full pages go out).
+    fn list_out(&mut self, path: &str) {
         let Some(st) = self.states.get_mut(path) else { return };
-        sort_newest_first(&mut st.messages);
-        if let Err(e) = self.store.save_folder(self.account, path, st) {
+        let ready = std::mem::take(&mut st.waiting);
+        if let Err(e) = st.list.push(self.store, ready) {
             log::warn!("import: {e}");
         }
-        let (unread, total) = (st.unread(), u32::try_from(st.messages.len()).unwrap_or(u32::MAX));
+    }
+
+    /// Write a finished folder's list and counts, then let go of it (only the counts are needed
+    /// from here).
+    fn save_folder(&mut self, path: &str) {
+        self.flush();
+        self.list_out(path);
+        let Some(st) = self.states.remove(path) else { return };
+        let head = FolderState { validity: 1, uid_next: st.uid_next, ..Default::default() };
+        let (unread, total) = match st.list.finish(self.store, &head) {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("import: {e}");
+                (0, 0)
+            }
+        };
         if let Some(f) = self.folders.iter_mut().find(|f| f.path == path) {
             f.unread = unread;
             f.total = total;
@@ -588,14 +676,14 @@ impl Out<'_> {
     }
 
     fn finish(mut self) -> Result<Imported, String> {
+        self.flush();
         // An Inbox to open, even when the file had none.
         if !self.folders.iter().any(|f| f.role == FolderRole::Inbox) {
             let path = self.add_folder(None, "Inbox");
             self.save_folder(&path);
         }
         // Folders left part-way (the file ended early) still get their list.
-        let unsaved: Vec<String> =
-            self.folders.iter().filter(|f| self.store.load_folder(self.account, &f.path).is_err()).map(|f| f.path.clone()).collect();
+        let unsaved: Vec<String> = self.states.keys().cloned().collect();
         for p in unsaved {
             self.save_folder(&p);
         }
@@ -629,6 +717,8 @@ mod tests {
             skipped: 0,
             progress: &mut progress,
             pim: Pim::default(),
+            pending: Vec::new(),
+            pending_bytes: 0,
         };
         let note = |body: &str, color: Option<u8>| Item {
             class: "IPM.StickyNote".into(),
