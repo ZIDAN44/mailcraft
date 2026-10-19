@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.18 — Shared mailboxes and the contact card (2026-10-19). Each milestone below is a version: v0.1 was
+**Stage:** v0.19 — Shared mailboxes of their own, and SMTP's own sign-in (2026-10-20). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -87,7 +87,12 @@ local-first, media-aware v1); the fuller request is
    contact card (send an email, add or edit the contact, copy the address) and its right-click
    menu has the same; Enter submits the one-field dialogs again. A removed account's data file
    stays, as Outlook keeps a removed account's `.pst`.
-19. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+19. **v0.19 — Shared mailboxes of their own, and SMTP's own sign-in** ✅ From issue #1's sixth
+   round and issue #3: an Exchange shared mailbox shown as a mailbox of its own, Exchange's
+   folders under the names the server gives them, the conversation above a message only when
+   the list is grouped by conversation, and an outgoing server signed in to with a user name
+   and password of its own.
+20. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
