@@ -196,8 +196,12 @@ fn setting_row(ui: &mut Ui, t: &Tokens, first: bool, label: RichText, about: Opt
     egui::Sides::new().height(if about.is_some() { 38.0 } else { 28.0 }).show(
         ui,
         |ui| match about {
+            // One line, cut short before the controls (all of it on hover).
             None => {
-                ui.add(egui::Label::new(label).truncate());
+                ui.scope(|ui| {
+                    ui.set_max_width(left);
+                    ui.add(egui::Label::new(label).truncate());
+                });
             }
             Some(about) => {
                 ui.vertical(|ui| {
@@ -289,6 +293,25 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                 acts.push(Action::Dialog(Dialog::edit_account(&a.config)));
             }
         });
+        if a.config.ews.is_some() {
+            let added = &a.config.shared_mailboxes;
+            let about = if added.is_empty() { tl!("Mailboxes you have full access to open by themselves.").to_string() } else { added.join(", ") };
+            setting_row(ui, t, false, name(t, tl!("Shared mailboxes")), Some(note(t, &about)), |ui| {
+                if ui.button(tl!("Add…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::AddSharedMailbox { account: id.clone(), address: String::new(), error: None }));
+                }
+                if !added.is_empty() {
+                    ui.menu_button(tl!("Remove"), |ui| {
+                        for m in added {
+                            if ui.button(m).clicked() {
+                                acts.push(Action::Run("account.removeSharedMailbox", json!({"account": id, "address": m})));
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+            });
+        }
         setting_row(ui, t, false, name(t, tl!("Signature")), None, |ui| {
             if ui.button(tl!("Signature…")).clicked() {
                 acts.push(Action::EditSignature { account: id.clone(), insert: false });

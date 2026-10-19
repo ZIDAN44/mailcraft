@@ -854,6 +854,17 @@
 	Run every rule that's on, on the mail already in the Inbox	Führt alle eingeschalteten Regeln für die E-Mails aus, die schon im Posteingang sind
 	Find a rule	Regel suchen
 	No rule matches.	Keine Regel passt.
+	 and {n} more	 und {n} weitere
+	Add to contacts…	Zu Kontakten hinzufügen…
+	Copy address	Adresse kopieren
+	Edit contact…	Kontakt bearbeiten…
+	Send email	E-Mail senden
+	Add	Hinzufügen
+	Add a shared mailbox	Freigegebenes Postfach hinzufügen
+	Add…	Hinzufügen…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Seine Ordner erscheinen unter diesem Konto. Sie brauchen auf dem Exchange-Server Zugriff darauf; Postfächer mit Vollzugriff öffnen sich von selbst.
+	Mailboxes you have full access to open by themselves.	Postfächer mit Vollzugriff öffnen sich von selbst.
+	Shared mailboxes	Freigegebene Postfächer
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

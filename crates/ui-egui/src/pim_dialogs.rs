@@ -456,6 +456,13 @@ pub struct ContactForm {
 }
 
 impl ContactForm {
+    /// A new contact with a name and address filled in (Add to contacts on someone in a message).
+    pub fn from_address(a: &mailcraft_engine::model::EmailAddress) -> ContactForm {
+        let mut f = ContactForm { uid: None, name: a.name.trim().to_string(), ..Default::default() };
+        f.emails[0] = a.email.trim().to_string();
+        f
+    }
+
     pub fn edit(c: &mailcraft_engine::model::vcard::Card) -> ContactForm {
         let mut f = ContactForm {
             uid: Some(c.uid.clone()),
@@ -537,6 +544,8 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
     form_header(ui, t, badge, if f.uid.is_some() { "Edit contact" } else { "New contact" });
     let tall = ui.ctx().content_rect().height() * 0.62;
     egui::ScrollArea::vertical().max_height(tall.max(260.0)).auto_shrink([false, true]).show(ui, |ui| {
+        // Room on the right for the scroll bar, so it doesn't run over the fields.
+        ui.set_max_width((ui.available_width() - 14.0).max(120.0));
         form_row(ui, t, false, None, "Name", |ui| {
             field(ui, &mut f.name, tl!("First and last name"), f32::INFINITY);
         });

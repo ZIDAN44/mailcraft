@@ -855,3 +855,14 @@ month	May	מאי
 	Run every rule that's on, on the mail already in the Inbox	מפעיל את כל הכללים הפעילים על הדואר שכבר נמצא בתיבת הדואר הנכנס
 	Find a rule	חיפוש כלל
 	No rule matches.	אין כלל תואם.
+	 and {n} more	 ועוד {n}
+	Add to contacts…	הוספה לאנשי הקשר…
+	Copy address	העתקת הכתובת
+	Edit contact…	עריכת איש הקשר…
+	Send email	שליחת דואר
+	Add	הוספה
+	Add a shared mailbox	הוספת תיבת דואר משותפת
+	Add…	הוספה…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	התיקיות שלה יופיעו תחת החשבון הזה. נדרשת לך גישה אליה בשרת Exchange; תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.
+	Mailboxes you have full access to open by themselves.	תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.
+	Shared mailboxes	תיבות דואר משותפות

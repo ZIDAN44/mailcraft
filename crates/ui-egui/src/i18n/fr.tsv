@@ -854,6 +854,17 @@
 	Run every rule that's on, on the mail already in the Inbox	Exécute toutes les règles activées sur le courrier déjà dans la boîte de réception
 	Find a rule	Rechercher une règle
 	No rule matches.	Aucune règle ne correspond.
+	 and {n} more	 et {n} de plus
+	Add to contacts…	Ajouter aux contacts…
+	Copy address	Copier l'adresse
+	Edit contact…	Modifier le contact…
+	Send email	Envoyer un courrier
+	Add	Ajouter
+	Add a shared mailbox	Ajouter une boîte aux lettres partagée
+	Add…	Ajouter…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Ses dossiers apparaissent sous ce compte. Vous devez y avoir accès sur le serveur Exchange ; celles auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.
+	Mailboxes you have full access to open by themselves.	Les boîtes auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.
+	Shared mailboxes	Boîtes aux lettres partagées
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archives

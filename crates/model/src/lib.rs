@@ -120,6 +120,10 @@ pub struct AccountConfig {
     /// differs from `email`: an alias, or another account picked on the sign-in page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth_user: Option<String>,
+    /// Other mailboxes this account opens, added by hand (Exchange: Outlook's "Open these
+    /// additional mailboxes"); those the server maps to it open by themselves.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shared_mailboxes: Vec<String>,
 }
 
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
@@ -204,6 +208,7 @@ impl AccountConfig {
             pop_keep_days: None,
             pop_delete_with_trash: false,
             oauth_user: None,
+            shared_mailboxes: Vec::new(),
         }
     }
 

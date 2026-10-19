@@ -39,7 +39,10 @@ fn can_connect(s: &Session) -> Option<&'static str> {
 pub fn registry() -> Registry {
     Registry::new(vec![
         // Home › New
-        CommandSpec::new("mail.new", "New mail", "Home › New", new_mail).key("Mod+N").params(r#"{"account"?: string}"#).when(has_account),
+        CommandSpec::new("mail.new", "New mail", "Home › New", new_mail)
+            .key("Mod+N")
+            .params(r#"{"account"?: string, "to"?: string (who it's to, "Name <address>")}"#)
+            .when(has_account),
         // Home › Delete
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).when(has_selection),
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
@@ -746,6 +749,14 @@ pub fn registry() -> Registry {
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature)
             .params(r#"{"account": string, "signature": string, "html"?: string (its look: bold, colours, links; the text then comes from it)}"#),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
+        CommandSpec::new("account.addSharedMailbox", "Add a shared mailbox", "File › Info › Account settings", |s, v| {
+            shared_mailbox(s, v, true)
+        })
+        .params(r#"{"account": string, "address": string (a mailbox the account has access to on the Exchange server)}"#),
+        CommandSpec::new("account.removeSharedMailbox", "Remove a shared mailbox", "File › Info › Account settings", |s, v| {
+            shared_mailbox(s, v, false)
+        })
+        .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
             r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool}"#,
         ),
@@ -797,7 +808,15 @@ fn account_param(s: &Session, v: &Value) -> Result<String, CmdError> {
 }
 
 fn new_mail(s: &mut Session, v: &Value) -> CmdResult {
+    // Who it's to, checked before anything opens.
+    let to = match p::str(v, "to").map(str::trim).filter(|t| !t.is_empty()) {
+        Some(t) => mailcraft_model::addr::parse_list(t).map_err(|bad| CmdError::Params(format!("not an email address: {bad}")))?,
+        None => Vec::new(),
+    };
     let c = s.new_compose(p::str(v, "account"))?;
+    if !to.is_empty() {
+        c.to = mailcraft_model::addr::format_field(&to);
+    }
     Ok(json!({"compose": c.id}))
 }
 
@@ -1432,6 +1451,7 @@ fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         },
         pop_delete_with_trash: p::bool(v, "popDeleteWithTrash").unwrap_or(false),
         oauth_user: None,
+        shared_mailboxes: Vec::new(),
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)
@@ -1713,4 +1733,36 @@ fn read_capped(path: &str, max: u64) -> Result<Vec<u8>, CmdError> {
         return Err(CmdError::Params(format!("{path} is too big")));
     }
     Ok(bytes)
+}
+
+/// Add a shared mailbox to an Exchange account by its address (Outlook's "Open these additional
+/// mailboxes"), or remove one; the account connects again to list its folders.
+fn shared_mailbox(s: &mut Session, v: &Value, add: bool) -> CmdResult {
+    let id = p::req_str(v, "account")?;
+    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    if c.ews.is_none() {
+        return Err(CmdError::Params("shared mailboxes are opened on Exchange accounts (EWS)".into()));
+    }
+    let address = p::req_str(v, "address")?.trim().to_string();
+    let parsed = mailcraft_model::addr::parse_list(&address).map_err(|bad| CmdError::Params(format!("not an email address: {bad}")))?;
+    let [one] = parsed.as_slice() else { return Err(CmdError::Params("one address at a time".into())) };
+    let email = one.email.trim().to_string();
+    let known = c.shared_mailboxes.iter().position(|a| a.eq_ignore_ascii_case(&email));
+    if add {
+        if email.eq_ignore_ascii_case(&c.email) {
+            return Err(CmdError::Params("that's this account's own mailbox".into()));
+        }
+        if known.is_some() {
+            return Err(CmdError::Params(format!("{email} is already open in this account")));
+        }
+        if c.shared_mailboxes.len() >= 20 {
+            return Err(CmdError::Params("at most 20 shared mailboxes".into()));
+        }
+        c.shared_mailboxes.push(email.clone());
+    } else {
+        let at = known.ok_or_else(|| CmdError::Params(format!("{email} isn't open in this account")))?;
+        c.shared_mailboxes.remove(at);
+    }
+    s.update_account(c, None)?;
+    Ok(json!({ "account": id, "address": email, "added": add }))
 }

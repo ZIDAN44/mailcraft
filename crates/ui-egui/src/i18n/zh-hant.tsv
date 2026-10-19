@@ -853,6 +853,17 @@
 	Run every rule that's on, on the mail already in the Inbox	對收件匣中已有的郵件執行所有已開啟的規則
 	Find a rule	尋找規則
 	No rule matches.	沒有符合的規則。
+	 and {n} more	 等另外 {n} 人
+	Add to contacts…	新增至連絡人…
+	Copy address	複製地址
+	Edit contact…	編輯連絡人…
+	Send email	傳送電子郵件
+	Add	新增
+	Add a shared mailbox	新增共用信箱
+	Add…	新增…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其資料夾會顯示在此帳戶下。你需要在 Exchange 伺服器上擁有存取權；擁有完整存取權的信箱會自動開啟。
+	Mailboxes you have full access to open by themselves.	擁有完整存取權的信箱會自動開啟。
+	Shared mailboxes	共用信箱
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

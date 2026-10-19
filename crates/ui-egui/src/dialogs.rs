@@ -516,6 +516,13 @@ pub enum Dialog {
         email: String,
         error: Option<String>,
     },
+    /// Open another mailbox in an Exchange account by its address (Outlook's "Open these
+    /// additional mailboxes").
+    AddSharedMailbox {
+        account: String,
+        address: String,
+        error: Option<String>,
+    },
     /// A folder's Properties: where it is, how many messages, how much is on this computer.
     FolderProperties {
         name: String,
@@ -854,6 +861,11 @@ impl Dialog {
         Dialog::Contact(Box::new(crate::pim_dialogs::ContactForm::edit(c)))
     }
 
+    /// A new contact for someone in a message, their name and address filled in.
+    pub fn contact_from(a: &mailcraft_engine::model::EmailAddress) -> Dialog {
+        Dialog::Contact(Box::new(crate::pim_dialogs::ContactForm::from_address(a)))
+    }
+
     pub fn edit_account(a: &AccountConfig) -> Dialog {
         Dialog::EditAccount(Box::new(EditForm {
             account: a.id.clone(),
@@ -910,7 +922,7 @@ impl Dialog {
             Dialog::Event(f) => f.error = Some(e),
             Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
-            Dialog::OpenSharedCalendar { error, .. } => *error = Some(e),
+            Dialog::OpenSharedCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => *error = Some(e),
             _ => {}
         }
     }
@@ -1528,11 +1540,12 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             ui.label(RichText::new(tf!("Enter the password for {email}.", email = email)).color(t.dim));
             ui.add_space(8.0);
             let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
+            // Before the focus request below, which would hide the Enter that ended input.
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             // The one thing to type: ready for it.
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
-            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             let (ok, cancel) = buttons(ui, t, "Sign in", !password.is_empty());
             if (ok || enter) && !password.is_empty() {
                 acts.push(Action::Run("account.setPassword", json!({"account": account, "password": password})));
@@ -2106,6 +2119,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             );
             ui.add_space(8.0);
             let r = ui.add(egui::TextEdit::singleline(email).hint_text("name@example.com").desired_width(f32::INFINITY));
+            // Before the focus request below, which would hide the Enter that ended input.
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
@@ -2113,11 +2128,38 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 ui.add_space(4.0);
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
             }
-            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             let ready = email.contains('@');
             let (ok, cancel) = buttons(ui, t, "Open", ready);
             if (ok || enter) && ready {
                 acts.push(Action::Submit("calendar.openShared", json!({"email": email.trim()})));
+            }
+            !cancel
+        }
+        Dialog::AddSharedMailbox { account, address, error } => {
+            ui.set_width(420.0);
+            title(ui, t, "Add a shared mailbox");
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tl!("Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves."))
+                        .color(t.dim),
+                )
+                .wrap(),
+            );
+            ui.add_space(8.0);
+            let r = ui.add(egui::TextEdit::singleline(address).hint_text("sales@example.com").desired_width(f32::INFINITY));
+            // Before the focus request below, which would hide the Enter that ended input.
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            if let Some(e) = error {
+                ui.add_space(4.0);
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let ready = address.contains('@');
+            let (ok, cancel) = buttons(ui, t, "Add", ready);
+            if (ok || enter) && ready {
+                acts.push(Action::Submit("account.addSharedMailbox", json!({"account": account, "address": address.trim()})));
             }
             !cancel
         }

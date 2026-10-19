@@ -2969,6 +2969,7 @@ impl Session {
             || a.config.pop_keep_days != config.pop_keep_days
             || a.config.pop_delete_with_trash != config.pop_delete_with_trash
             || a.config.username != config.username
+            || a.config.shared_mailboxes != config.shared_mailboxes
             || password.is_some();
         a.config = config.clone();
         let local = a.is_local();

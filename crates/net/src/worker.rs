@@ -1012,7 +1012,9 @@ impl Worker {
             } else {
                 url.clone()
             };
-            self.conn = Some(Conn::Ews(Box::new(crate::ews::Client::connect(&url, &user, &secret, &self.acc.email)?)));
+            let c = crate::ews::Client::connect(&url, &user, &secret, &self.acc.email)?;
+            c.set_shared(&self.acc.shared_mailboxes);
+            self.conn = Some(Conn::Ews(Box::new(c)));
             self.backoff = Duration::from_secs(5);
             return Ok(());
         }

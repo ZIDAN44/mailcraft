@@ -853,6 +853,17 @@
 	Run every rule that's on, on the mail already in the Inbox	Esegue tutte le regole attive sulla posta già presente nella Posta in arrivo
 	Find a rule	Trova una regola
 	No rule matches.	Nessuna regola corrisponde.
+	 and {n} more	 e altri {n}
+	Add to contacts…	Aggiungi ai contatti…
+	Copy address	Copia indirizzo
+	Edit contact…	Modifica contatto…
+	Send email	Invia email
+	Add	Aggiungi
+	Add a shared mailbox	Aggiungi una cassetta postale condivisa
+	Add…	Aggiungi…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Le sue cartelle compaiono sotto questo account. Serve l'accesso sul server Exchange; quelle a cui hai accesso completo si aprono da sole.
+	Mailboxes you have full access to open by themselves.	Le cassette a cui hai accesso completo si aprono da sole.
+	Shared mailboxes	Cassette postali condivise
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivio

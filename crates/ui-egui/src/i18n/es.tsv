@@ -854,6 +854,17 @@
 	Run every rule that's on, on the mail already in the Inbox	Ejecuta todas las reglas activadas en el correo que ya está en la Bandeja de entrada
 	Find a rule	Buscar una regla
 	No rule matches.	Ninguna regla coincide.
+	 and {n} more	 y {n} más
+	Add to contacts…	Agregar a contactos…
+	Copy address	Copiar dirección
+	Edit contact…	Editar contacto…
+	Send email	Enviar correo
+	Add	Agregar
+	Add a shared mailbox	Agregar un buzón compartido
+	Add…	Agregar…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Sus carpetas aparecen debajo de esta cuenta. Necesitas acceso a él en el servidor Exchange; los buzones a los que tienes acceso completo se abren solos.
+	Mailboxes you have full access to open by themselves.	Los buzones a los que tienes acceso completo se abren solos.
+	Shared mailboxes	Buzones compartidos
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archivo

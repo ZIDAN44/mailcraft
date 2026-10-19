@@ -312,7 +312,26 @@ pub struct Client {
     /// folders' PR_REPLICA_LIST): a request one of their folders or items isn't found by is
     /// tried there.
     pf_replicas: RefCell<Vec<String>>,
+    /// The mailbox requests are routed to (`X-AnchorMailbox`) while working in a shared mailbox.
+    anchor: RefCell<Option<String>>,
+    /// Shared mailboxes added to the account by hand (their addresses).
+    shared_added: RefCell<Vec<String>>,
+    /// The shared mailboxes whose folders were listed: a request not found in this one is
+    /// tried routed to them.
+    shared_open: RefCell<Vec<String>>,
+    /// The account's Autodiscover answer, once asked (`None` inside when there was none).
+    discovered: RefCell<Option<Option<String>>>,
 }
+
+/// Another mailbox the account opens (Outlook's shared mailboxes): its address and name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SharedMailbox {
+    pub address: String,
+    pub name: String,
+}
+
+/// Most shared mailboxes an account opens.
+const MAX_SHARED: usize = 20;
 
 /// A public folder in the tree.
 pub(crate) struct PublicFolder {
@@ -358,6 +377,33 @@ fn autodiscover_public(xml: &str) -> Option<String> {
         .and_then(|p| p.find("SmtpAddress"))
         .map(|a| a.text.trim().to_string())
         .filter(|a| a.contains('@') && a.len() < 320)
+}
+
+/// A mailbox Autodiscover maps to the account (Outlook opens these by itself).
+struct Alternative {
+    name: String,
+    smtp: Option<String>,
+    legacy_dn: Option<String>,
+}
+
+/// The mailboxes an Autodiscover answer maps to the account: `AlternativeMailbox` entries for
+/// mailboxes it may open (`Delegate`, `TeamMailbox`), not its archive.
+fn alternative_mailboxes(xml: &str) -> Vec<Alternative> {
+    let doc = parse(xml);
+    let mut alts = Vec::new();
+    doc.all("AlternativeMailbox", &mut alts);
+    alts.iter()
+        .filter(|a| a.text_of("Type").is_some_and(|t| matches!(t.trim(), "Delegate" | "TeamMailbox")))
+        .map(|a| {
+            let text = |k: &str| a.text_of(k).map(|v| v.trim().to_string()).filter(|v| !v.is_empty() && v.len() < 500);
+            Alternative {
+                name: text("DisplayName").unwrap_or_default(),
+                smtp: text("SmtpAddress").filter(|v| v.contains('@')),
+                legacy_dn: text("LegacyDN"),
+            }
+        })
+        .take(MAX_SHARED)
+        .collect()
 }
 
 /// What a `…ResponseMessage` said.
@@ -409,6 +455,146 @@ impl Client {
             pf_mailboxes: RefCell::new(HashMap::new()),
             pf_hierarchy: RefCell::new(None),
             pf_replicas: RefCell::new(Vec::new()),
+            anchor: RefCell::new(None),
+            shared_added: RefCell::new(Vec::new()),
+            shared_open: RefCell::new(Vec::new()),
+            discovered: RefCell::new(None),
+        })
+    }
+
+    /// The shared mailboxes added to the account by hand.
+    pub fn set_shared(&self, addresses: &[String]) {
+        *self.shared_added.borrow_mut() = addresses.iter().map(|a| a.trim().to_string()).filter(|a| a.contains('@')).take(MAX_SHARED).collect();
+    }
+
+    /// The account's Autodiscover answer, asked once.
+    fn discovery(&self) -> Option<String> {
+        if let Some(known) = self.discovered.borrow().clone() {
+            return known;
+        }
+        let found = self.ask_autodiscover(&self.email).ok();
+        *self.discovered.borrow_mut() = Some(found.clone());
+        found
+    }
+
+    /// The mailboxes this account opens besides its own: those added by hand, then those the
+    /// server maps to it (Autodiscover's `AlternativeMailbox`, the mailboxes it has full access
+    /// to, as Outlook opens them by itself). Its own address isn't one; each is there once.
+    pub fn shared_mailboxes(&self) -> Vec<SharedMailbox> {
+        let mut out: Vec<SharedMailbox> = Vec::new();
+        let add = |out: &mut Vec<SharedMailbox>, address: String, name: String| {
+            let a = address.trim().to_string();
+            if a.contains('@')
+                && !a.eq_ignore_ascii_case(&self.email)
+                && !out.iter().any(|x| x.address.eq_ignore_ascii_case(&a))
+                && out.len() < MAX_SHARED
+            {
+                let name = if name.trim().is_empty() { a.clone() } else { name.trim().chars().take(120).collect() };
+                out.push(SharedMailbox { address: a, name });
+            }
+        };
+        // Added by hand: named as the server knows it (its address when it doesn't say).
+        for a in self.shared_added.borrow().clone() {
+            let name = self.resolve(&a).map(|(_, name)| name).unwrap_or_default();
+            add(&mut out, a, name);
+        }
+        if let Some(xml) = self.discovery() {
+            for alt in alternative_mailboxes(&xml) {
+                // An older server names it by its Exchange address only: asked for its email address.
+                let address = alt.smtp.or_else(|| alt.legacy_dn.as_deref().and_then(|dn| self.resolve(dn)).map(|(a, _)| a));
+                match address {
+                    Some(a) => add(&mut out, a, alt.name),
+                    None => log::info!("shared mailbox {}: no address for it", alt.name),
+                }
+            }
+        }
+        out
+    }
+
+    /// A mailbox the server knows by an address (an email address, or an Exchange address
+    /// `/o=…`): its email address and name.
+    fn resolve(&self, entry: &str) -> Option<(String, String)> {
+        let m = self
+            .call_one(&format!(
+                "<m:ResolveNames ReturnFullContactData=\"false\"><m:UnresolvedEntry>{}</m:UnresolvedEntry></m:ResolveNames>",
+                esc(entry)
+            ))
+            .ok()?;
+        let b = m.find("Mailbox")?;
+        let address = b.text_of("EmailAddress").map(|a| a.trim().to_string()).filter(|a| a.contains('@'))?;
+        Some((address, b.text_of("Name").unwrap_or("").trim().to_string()))
+    }
+
+    /// Run `f` with every request routed to another mailbox (a shared one).
+    fn anchored_to<T>(&self, mailbox: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+        let before = self.anchor.replace(Some(mailbox.to_string()));
+        let r = f();
+        *self.anchor.borrow_mut() = before;
+        r
+    }
+
+    /// A shared mailbox's mail folders, under a folder named for it (`top`): asked for in that
+    /// mailbox (its root named with the `Mailbox` element), routed there.
+    fn shared_folders(&self, sm: &SharedMailbox, top: &str) -> Result<Vec<Mailbox>> {
+        let mb = format!("<t:Mailbox><t:EmailAddress>{}</t:EmailAddress></t:Mailbox>", esc(&sm.address));
+        self.anchored_to(&sm.address, || {
+            let root = self.call_one(&format!(
+                "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape>\
+                 <m:FolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\">{mb}</t:DistinguishedFolderId></m:FolderIds></m:GetFolder>"
+            ))?;
+            let Some(root_id) = root.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) else { return Ok(Vec::new()) };
+            // Its Outbox and the like stay out, as the account's own do.
+            let mut skip: Vec<String> = Vec::new();
+            for hidden in ["outbox", "conversationhistory", "syncissues"] {
+                if let Ok(m) = self.call_one(&format!(
+                    "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape>\
+                     <m:FolderIds><t:DistinguishedFolderId Id=\"{hidden}\">{mb}</t:DistinguishedFolderId></m:FolderIds></m:GetFolder>"
+                )) && let Some(id) = m.find("FolderId").and_then(|f| f.attr("Id"))
+                {
+                    skip.push(id.to_string());
+                }
+            }
+            let mut out = vec![Mailbox { id: root_id.clone(), name: top.to_string(), parent: None, role: FolderRole::Other, total: 0, unread: 0 }];
+            let mut offset = 0;
+            loop {
+                let m = self.call_one(&format!(
+                    "<m:FindFolder Traversal=\"Deep\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
+                     <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:ParentFolderId\"/>\
+                     <t:FieldURI FieldURI=\"folder:TotalCount\"/><t:FieldURI FieldURI=\"folder:UnreadCount\"/>\
+                     <t:FieldURI FieldURI=\"folder:FolderClass\"/></t:AdditionalProperties></m:FolderShape>\
+                     <m:IndexedPageFolderView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
+                     <m:ParentFolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\">{mb}</t:DistinguishedFolderId></m:ParentFolderIds></m:FindFolder>"
+                ))?;
+                let Some(rf) = m.child("RootFolder") else { break };
+                let folders = rf.folders();
+                let n = folders.len();
+                for f in folders {
+                    let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
+                    let class = f.text_of("FolderClass").unwrap_or("");
+                    if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.")) || skip.contains(&id) || out.len() >= MAX_FOLDERS {
+                        continue;
+                    }
+                    let parent = f.child("ParentFolderId").and_then(|p| p.attr("Id")).map(str::to_string).or_else(|| Some(root_id.clone()));
+                    let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
+                    out.push(Mailbox {
+                        name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
+                        parent,
+                        role: FolderRole::Other,
+                        total: count("TotalCount"),
+                        unread: count("UnreadCount"),
+                        id,
+                    });
+                }
+                let last = rf.attr("IncludesLastItemInRange").is_none_or(|v| v == "true");
+                offset += n;
+                if last || n == 0 || out.len() >= MAX_FOLDERS {
+                    break;
+                }
+            }
+            // Folders under a hidden one go too.
+            let ids: Vec<String> = out.iter().map(|m| m.id.clone()).collect();
+            out.retain(|m| m.parent.as_ref().is_none_or(|p| ids.contains(p)));
+            Ok(out)
         })
     }
 
@@ -451,7 +637,7 @@ impl Client {
         if let Some(known) = self.pf_hierarchy.borrow().clone() {
             return known;
         }
-        let found = self.ask_autodiscover(&self.email).ok().as_deref().and_then(autodiscover_public);
+        let found = self.discovery().as_deref().and_then(autodiscover_public);
         *self.pf_hierarchy.borrow_mut() = Some(found.clone());
         found
     }
@@ -511,6 +697,8 @@ impl Client {
         let mut base = Request::post(&self.url, "text/xml; charset=utf-8", body, MAX_ANSWER).header("Accept", "text/xml");
         if let Some(mailbox) = self.route.borrow().as_ref() {
             base = base.header("X-AnchorMailbox", mailbox).header("X-PublicFolderMailbox", mailbox);
+        } else if let Some(mailbox) = self.anchor.borrow().as_ref() {
+            base = base.header("X-AnchorMailbox", mailbox);
         }
         for attempt in 0..3 {
             let scheme = *self.scheme.borrow();
@@ -575,8 +763,15 @@ impl Client {
     pub fn call(&self, body: &str) -> Result<El> {
         let doc = self.call_here(body)?;
         let missing = |doc: &El| messages(doc).iter().any(|m| matches!(m.text_of("ResponseCode"), Some("ErrorFolderNotFound" | "ErrorItemNotFound")));
-        if self.route.borrow().is_some() || !missing(&doc) {
+        if self.route.borrow().is_some() || self.anchor.borrow().is_some() || !missing(&doc) {
             return Ok(doc);
+        }
+        for mailbox in self.shared_open.borrow().clone() {
+            if let Ok(there) = self.anchored_to(&mailbox, || self.call_here(body))
+                && !missing(&there)
+            {
+                return Ok(there);
+            }
         }
         let guids = self.pf_replicas.borrow().clone();
         for guid in guids {
@@ -694,6 +889,23 @@ impl Client {
             Ok(pf) => out.extend(pf),
             Err(e) => log::info!("no public folders: {e}"),
         }
+        // Shared mailboxes, each under a folder of its own (named so it can't be taken for one
+        // of the account's folders).
+        let mut open = Vec::new();
+        for sm in self.shared_mailboxes() {
+            let taken = |n: &str| out.iter().any(|m| m.parent.is_none() && m.name.eq_ignore_ascii_case(n));
+            let top = if taken(&sm.name) { format!("{} ({})", sm.name, sm.address) } else { sm.name.clone() };
+            match self.shared_folders(&sm, &top) {
+                Ok(f) if !f.is_empty() => {
+                    log::info!("shared mailbox {}: {} folders", sm.address, f.len().saturating_sub(1));
+                    open.push(sm.address.clone());
+                    out.extend(f);
+                }
+                Ok(_) => log::info!("shared mailbox {}: no folders", sm.address),
+                Err(e) => log::warn!("shared mailbox {}: {e}", sm.address),
+            }
+        }
+        *self.shared_open.borrow_mut() = open;
         Ok(out)
     }
 

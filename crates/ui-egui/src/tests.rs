@@ -199,6 +199,7 @@ pub(crate) fn tour() {
                 size: 20_480,
             },
             Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) },
+            Dialog::AddSharedMailbox { account: "sample".into(), address: "sales@contoso.example".into(), error: Some("already open".into()) },
             Dialog::RemoveAccount { account: "sample".into(), email: "x".into() },
             Dialog::MailboxClosed {
                 account: "sample".into(),
@@ -1231,5 +1232,21 @@ fn leaving_an_attachment_preview_lets_go_of_its_chip() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     assert!(a.ui.attachment_view.is_none() && a.ui.attachment_selected.is_none());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Enter in a dialog's one field submits it: the dialog gave the field its focus back before
+/// looking for the Enter that had just ended input, so only the button worked.
+#[test]
+fn enter_submits_a_one_field_dialog() {
+    let (mut a, dir) = app("enter-submits");
+    let ctx = egui::Context::default();
+    // The sample account isn't an Exchange one, so the submit comes back as the dialog's error.
+    a.ui.dialog = Some(Dialog::AddSharedMailbox { account: "sample".into(), address: "sales@contoso.example".into(), error: None });
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::AddSharedMailbox { error: Some(_), .. })), "submitted: {:?}", a.ui.dialog.is_some());
     let _ = std::fs::remove_dir_all(dir);
 }

@@ -856,3 +856,14 @@ month	May	5月
 	Run every rule that's on, on the mail already in the Inbox	对收件箱中已有的邮件运行所有已打开的规则
 	Find a rule	查找规则
 	No rule matches.	没有匹配的规则。
+	 and {n} more	 等另外 {n} 人
+	Add to contacts…	添加到联系人…
+	Copy address	复制地址
+	Edit contact…	编辑联系人…
+	Send email	发送电子邮件
+	Add	添加
+	Add a shared mailbox	添加共享邮箱
+	Add…	添加…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其文件夹显示在此帐户下。你需要在 Exchange 服务器上拥有访问权限；拥有完全访问权限的邮箱会自动打开。
+	Mailboxes you have full access to open by themselves.	拥有完全访问权限的邮箱会自动打开。
+	Shared mailboxes	共享邮箱

@@ -856,3 +856,14 @@ month	May	5月
 	Run every rule that's on, on the mail already in the Inbox	オンになっているすべてのルールを、受信トレイに既にあるメールに対して実行します
 	Find a rule	ルールを検索
 	No rule matches.	一致するルールはありません。
+	 and {n} more	 ほか {n} 名
+	Add to contacts…	連絡先に追加…
+	Copy address	アドレスをコピー
+	Edit contact…	連絡先を編集…
+	Send email	メールを送信
+	Add	追加
+	Add a shared mailbox	共有メールボックスを追加
+	Add…	追加…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	フォルダーはこのアカウントの下に表示されます。Exchange サーバーでのアクセス権が必要です。フル アクセス権のあるメールボックスは自動的に開きます。
+	Mailboxes you have full access to open by themselves.	フル アクセス権のあるメールボックスは自動的に開きます。
+	Shared mailboxes	共有メールボックス

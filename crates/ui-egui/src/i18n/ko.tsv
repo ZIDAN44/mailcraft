@@ -853,6 +853,17 @@
 	Run every rule that's on, on the mail already in the Inbox	켜져 있는 모든 규칙을 받은 편지함에 이미 있는 메일에 실행합니다
 	Find a rule	규칙 찾기
 	No rule matches.	일치하는 규칙이 없습니다.
+	 and {n} more	 외 {n}명
+	Add to contacts…	연락처에 추가…
+	Copy address	주소 복사
+	Edit contact…	연락처 편집…
+	Send email	메일 보내기
+	Add	추가
+	Add a shared mailbox	공유 사서함 추가
+	Add…	추가…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	폴더가 이 계정 아래에 표시됩니다. Exchange 서버에서 액세스 권한이 필요하며, 모든 권한이 있는 사서함은 자동으로 열립니다.
+	Mailboxes you have full access to open by themselves.	모든 권한이 있는 사서함은 자동으로 열립니다.
+	Shared mailboxes	공유 사서함
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

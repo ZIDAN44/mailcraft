@@ -853,6 +853,17 @@
 	Run every rule that's on, on the mail already in the Inbox	Выполняет все включённые правила для писем, которые уже во «Входящих»
 	Find a rule	Найти правило
 	No rule matches.	Нет подходящих правил.
+	 and {n} more	 и ещё {n}
+	Add to contacts…	Добавить в контакты…
+	Copy address	Копировать адрес
+	Edit contact…	Изменить контакт…
+	Send email	Отправить письмо
+	Add	Добавить
+	Add a shared mailbox	Добавить общий почтовый ящик
+	Add…	Добавить…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Его папки появятся в этой учётной записи. Нужен доступ к нему на сервере Exchange; ящики с полным доступом открываются сами.
+	Mailboxes you have full access to open by themselves.	Ящики с полным доступом открываются сами.
+	Shared mailboxes	Общие почтовые ящики
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

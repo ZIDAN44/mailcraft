@@ -855,3 +855,14 @@ month	May	مايو
 	Run every rule that's on, on the mail already in the Inbox	يشغّل كل القواعد المفعّلة على البريد الموجود في البريد الوارد
 	Find a rule	البحث عن قاعدة
 	No rule matches.	لا توجد قاعدة مطابقة.
+	 and {n} more	 و{n} آخرون
+	Add to contacts…	إضافة إلى جهات الاتصال…
+	Copy address	نسخ العنوان
+	Edit contact…	تحرير جهة الاتصال…
+	Send email	إرسال بريد إلكتروني
+	Add	إضافة
+	Add a shared mailbox	إضافة صندوق بريد مشترك
+	Add…	إضافة…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	تظهر مجلداته تحت هذا الحساب. تحتاج إلى صلاحية الوصول إليه على خادم Exchange؛ وتُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
+	Mailboxes you have full access to open by themselves.	تُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
+	Shared mailboxes	صناديق البريد المشتركة

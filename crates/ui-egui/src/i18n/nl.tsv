@@ -855,3 +855,14 @@ month	May	mei
 	Run every rule that's on, on the mail already in the Inbox	Voert alle ingeschakelde regels uit op de mail die al in het Postvak IN staat
 	Find a rule	Een regel zoeken
 	No rule matches.	Geen regel komt overeen.
+	 and {n} more	 en nog {n}
+	Add to contacts…	Toevoegen aan contactpersonen…
+	Copy address	Adres kopiëren
+	Edit contact…	Contactpersoon bewerken…
+	Send email	E-mail verzenden
+	Add	Toevoegen
+	Add a shared mailbox	Een gedeeld postvak toevoegen
+	Add…	Toevoegen…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	De mappen verschijnen onder dit account. U hebt er toegang toe nodig op de Exchange-server; postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
+	Mailboxes you have full access to open by themselves.	Postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
+	Shared mailboxes	Gedeelde postvakken
