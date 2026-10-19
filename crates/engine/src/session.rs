@@ -1195,14 +1195,28 @@ impl Session {
     }
 
     /// The conversation a message belongs to in the current list.
+    /// The open message's conversation again (conversations turned on or off).
+    pub(crate) fn rethread_reading(&mut self) {
+        let Some(key) = self.reading.as_ref().map(|r| r.key.clone()) else { return };
+        let thread = self.thread_of(&key);
+        if let Some(r) = self.reading.as_mut() {
+            r.thread = thread;
+        }
+    }
+
+    /// The conversation a message is in, shown above it in the reading pane: only while the list
+    /// is grouped by conversation (as Outlook's reading pane shows one message otherwise).
     fn thread_of(&self, key: &MessageKey) -> Vec<MessageKey> {
+        if !self.prefs.conversations {
+            return Vec::new();
+        }
         let Some(i) = self.list.iter().position(|m| &m.key == key) else { return Vec::new() };
         let ts;
-        let threads = if self.prefs.conversations {
-            &self.threads
-        } else {
+        let threads = if self.threads.is_empty() {
             ts = threads(&self.list);
             &ts
+        } else {
+            &self.threads
         };
         threads
             .iter()

@@ -90,7 +90,7 @@ fn open_marks_read_and_shows_text_and_attachments() {
     let p = r.parsed.unwrap();
     assert!(p.text.contains("revised frames"));
     assert_eq!(p.attachments[0].name, "colour-key.png");
-    assert_eq!(r.thread.len(), 2, "the reply joins the conversation");
+    assert!(r.thread.is_empty(), "one message shown, as the list isn't grouped by conversation (issue #1)");
     assert!(s.list.iter().find(|m| m.subject == "Storyboard review on Thursday").unwrap().flags.seen);
     // Persisted for local accounts.
     let st = s.store.as_ref().unwrap().load_folder(sample::SAMPLE_ACCOUNT, "INBOX").unwrap();
@@ -186,6 +186,27 @@ fn flags_filters_and_conversations() {
     s.run("list.next", &json!({})).unwrap();
     s.run("list.prev", &json!({})).unwrap();
     assert!(s.focus.is_some());
+    done(s);
+}
+
+/// Issue #1: a message's whole conversation showed above it in the reading pane though the
+/// list wasn't grouped by conversation; as Outlook, it shows only while grouped, and turning
+/// conversations on or off changes the open message at once.
+#[test]
+fn the_conversation_shows_above_a_message_only_when_grouped() {
+    let mut s = sample_session("conversation-pane");
+    assert!(!s.prefs.conversations);
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.open", &k).unwrap();
+    assert!(s.reading.as_ref().unwrap().thread.is_empty());
+    s.run("view.conversations", &json!({"on": true})).unwrap();
+    assert_eq!(s.reading.as_ref().unwrap().thread.len(), 2, "the reply joins the conversation");
+    // Arranged by something other than date, conversations still show above the message.
+    s.run("view.arrange", &json!({"by": "from"})).unwrap();
+    s.run("list.open", &k).unwrap();
+    assert_eq!(s.reading.as_ref().unwrap().thread.len(), 2);
+    s.run("view.conversations", &json!({"on": false})).unwrap();
+    assert!(s.reading.as_ref().unwrap().thread.is_empty());
     done(s);
 }
 

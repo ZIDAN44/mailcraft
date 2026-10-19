@@ -286,6 +286,7 @@ pub fn registry() -> Registry {
         CommandSpec::new("view.conversations", "Show as conversations", "View › Messages", |s, v| {
             s.prefs.conversations = p::bool(v, "on").unwrap_or(!s.prefs.conversations);
             s.refresh_list();
+            s.rethread_reading();
             Ok(json!({"on": s.prefs.conversations}))
         })
         .params(r#"{"on"?: bool}"#),
