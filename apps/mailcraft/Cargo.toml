@@ -15,7 +15,9 @@ workspace = true
 mailcraft-engine = { workspace = true }
 mailcraft-net = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
-eframe = { workspace = true, features = ["default_fonts", "system_fonts", "wgpu", "accesskit", "wayland", "x11"] }
+# Without default features, so each is named: "clipboard" is copy and paste (eframe 0.37 made it
+# a feature of its own; leaving it out leaves the app without a clipboard).
+eframe = { workspace = true, features = ["clipboard", "default_fonts", "system_fonts", "wgpu", "accesskit", "wayland", "x11"] }
 egui = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }

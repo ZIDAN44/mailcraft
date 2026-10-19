@@ -591,6 +591,15 @@ fn main() -> eframe::Result {
 mod tests {
     use super::*;
 
+    /// eframe is used without its default features, and copy and paste are one of them since
+    /// 0.37: the app had no clipboard (nothing pasted anywhere) until it was named.
+    #[test]
+    fn the_window_has_a_clipboard() {
+        let manifest = include_str!("../Cargo.toml");
+        let eframe = manifest.lines().find(|l| l.trim_start().starts_with("eframe")).unwrap_or("");
+        assert!(eframe.contains("\"clipboard\""), "eframe without its clipboard feature: {eframe}");
+    }
+
     #[test]
     fn video_thumbnails_are_made_off_the_ui_thread() {
         let Some(ffmpeg) = video::find_tool("ffmpeg", &[]) else { return };
