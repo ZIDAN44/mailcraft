@@ -175,3 +175,12 @@ local-first, media-aware v1); the fuller request is
   saved together. Rules go to a file and come back (an account by its address, a missing
   category made), the Rules dialog lists them a line each, with a find box past six, and Run
   all runs every rule that's on.
+- **2026-10-19** — **v0.16**, dependencies brought up to date, each changelog read and the change
+  checked: egui and eframe 0.37 (ids, `scope_id`, `Role`, text alignment; its emoji fonts
+  turned back on, and missing characters, ✓ ▾ or Devanagari, now found among the system's fonts),
+  quick-xml 0.42 (text and attributes as `str`; a test of entities, CDATA and references), hmac
+  0.13 with md-5 and md4 0.11 (the NTLM test vectors pass), redb 4.4 (same file format: a 4.3
+  data file read and written by 4.4 and read back by 4.3), dirs 7 and miniz_oxide 0.9. skrifa,
+  windows-registry and x11rb stay on the versions egui, ipconfig and winit use, so each is built
+  once; keyring stays on 3.x, as its 4.0 asks of existing applications.
+
