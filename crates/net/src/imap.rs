@@ -107,6 +107,29 @@ fn info(o: &imap_proto::Outcome<'_>) -> String {
     o.information.as_deref().unwrap_or("").to_string()
 }
 
+/// The destination UIDs of a `COPYUID` code among a command's responses (at most 100,000).
+fn copied_uids(rs: &[Response<'_>]) -> Vec<u32> {
+    let mut out = Vec::new();
+    for r in rs {
+        let outcome = match r {
+            Response::Data { status: Status::Ok, outcome } | Response::Done { status: Status::Ok, outcome, .. } => outcome,
+            _ => continue,
+        };
+        if let Some(ResponseCode::CopyUid(_, _, to)) = &outcome.code {
+            for m in to {
+                match m {
+                    imap_proto::rfc4315::UidSetMember::Uid(u) => out.push(*u),
+                    imap_proto::rfc4315::UidSetMember::UidRange(r) => out.extend(r.clone().take(100_000usize.saturating_sub(out.len()))),
+                }
+                if out.len() >= 100_000 {
+                    return out;
+                }
+            }
+        }
+    }
+    out
+}
+
 /// One message from a `UID FETCH`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Fetched {
@@ -687,18 +710,25 @@ impl<S: Read + Write> Client<S> {
 
     /// Move messages: `UID MOVE` (RFC 6851) or COPY + `\Deleted` + expunge.
     pub fn uid_move(&mut self, set: &str, dest: &str) -> Result<()> {
+        self.uid_move_to(set, dest).map(drop)
+    }
+
+    /// Move messages and say their UIDs in `dest`, when the server does (UIDPLUS `COPYUID`, sent
+    /// with MOVE's untagged OK or COPY's tagged one); empty when it doesn't.
+    pub fn uid_move_to(&mut self, set: &str, dest: &str) -> Result<Vec<u32>> {
         if set.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let dest = mailbox_arg(dest);
         if self.has("MOVE") {
             let cmd = format!("UID MOVE {set} {dest}");
-            return self.conn.run(&[Part::Text(&cmd)]).map(|_| ());
+            return self.conn.run(&[Part::Text(&cmd)]).map(|rs| copied_uids(&rs));
         }
         let cmd = format!("UID COPY {set} {dest}");
-        self.conn.run(&[Part::Text(&cmd)])?;
+        let uids = copied_uids(&self.conn.run(&[Part::Text(&cmd)])?);
         self.uid_store(set, true, "\\Deleted")?;
-        self.expunge(set)
+        self.expunge(set)?;
+        Ok(uids)
     }
 
     /// Expunge exactly `set` (UIDPLUS), or everything marked `\Deleted` without it.

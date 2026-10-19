@@ -341,6 +341,11 @@ impl Fake {
             let mut extra = String::new();
             let mut moved: Vec<Msg> = Vec::new();
             let mut dest = String::new();
+            // Gmail mode: an EXPUNGE in a label folder (anything but Trash/Spam) drops the label
+            // and archives the message into "[Gmail]/All Mail".
+            let labels = st.caps.contains("X-GM-EXT-1");
+            let mut copied_from = 0;
+            let mut copyuid = String::new();
             {
                 let Some(b) = st.boxes.iter_mut().find(|b| b.name == sel) else {
                     if upper == "NOOP" || upper == "LOGOUT" {
@@ -421,13 +426,23 @@ impl Fake {
                             .msgs
                             .iter()
                             .filter(|m| in_set(m.uid, set, max))
-                            .map(|m| Msg { uid: 0, flags: m.flags.clone(), raw: m.raw.clone(), modseq: 0 })
+                            .map(|m| Msg { uid: m.uid, flags: m.flags.clone(), raw: m.raw.clone(), modseq: 0 })
                             .collect();
                     }
+                    copied_from = b.validity;
                 } else if verb == "EXPUNGE" || upper == "EXPUNGE" {
                     let set = words.get(2).copied().unwrap_or("1:*");
                     let gone: Vec<u32> =
                         b.msgs.iter().filter(|m| in_set(m.uid, set, max) && m.flags.iter().any(|f| f == "\\Deleted")).map(|m| m.uid).collect();
+                    if labels && !matches!(b.attr, "\\Trash" | "\\Junk") {
+                        moved = b
+                            .msgs
+                            .iter()
+                            .filter(|m| gone.contains(&m.uid))
+                            .map(|m| Msg { uid: m.uid, flags: Vec::new(), raw: m.raw.clone(), modseq: 0 })
+                            .collect();
+                        dest = "[Gmail]/All Mail".into();
+                    }
                     b.msgs.retain(|m| !gone.contains(&m.uid));
                     b.expunged.extend(gone.iter().map(|u| (*u, modseq_now + 1)));
                 } else {
@@ -438,11 +453,17 @@ impl Fake {
                 st.modseq += 1;
                 let ms = st.modseq;
                 if let Some(d) = st.mailbox(&dest) {
+                    let (mut from, mut to) = (Vec::new(), Vec::new());
                     for mut m in moved {
+                        from.push(m.uid.to_string());
                         m.uid = d.uid_next;
+                        to.push(m.uid.to_string());
                         d.uid_next += 1;
                         m.modseq = ms;
                         d.msgs.push(m);
+                    }
+                    if copied_from != 0 && !from.is_empty() {
+                        copyuid = format!("[COPYUID {} {} {}] ", d.validity, from.join(","), to.join(","));
                     }
                 }
             } else if upper.contains("STORE") || upper.contains("EXPUNGE") {
@@ -458,7 +479,7 @@ impl Fake {
                 if upper == "LOGOUT" {
                     self.say("* BYE bye");
                 }
-                ok(self, "");
+                ok(self, &copyuid);
             }
         } else {
             self.say(&format!("{tag} BAD unsupported"));
@@ -740,6 +761,59 @@ mod tests {
         let all = SyncOptions { window: usize::MAX, ..opts };
         assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &all).unwrap().new, 3, "all of it");
         let _ = std::fs::remove_dir_all(store.root());
+    }
+
+    /// Permanent delete on a Gmail-style server: moved into Trash and expunged there. Other
+    /// servers get a plain EXPUNGE.
+    #[test]
+    fn gmail_permanent_delete_moves_to_trash_then_expunges() {
+        let st = State::new();
+        {
+            let mut s = st.lock().unwrap();
+            s.caps = "IMAP4rev1 UIDPLUS MOVE X-GM-EXT-1";
+            for (name, attr, validity) in [("[Gmail]/All Mail", "\\All", 500), ("[Gmail]/Trash", "\\Trash", 600)] {
+                s.boxes.push(Mailbox { name: name.into(), attr, validity, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() });
+            }
+            for subject in ["a", "b", "c", "d"] {
+                s.add("INBOX", subject, &[]);
+            }
+            s.add("[Gmail]/Trash", "binned", &[]);
+        }
+        let mut c = login(&st);
+        let key = |folder: &str, validity, uid| MessageKey { account: "a1".into(), folder: folder.into(), validity, uid };
+        let count = |name: &str| st.lock().unwrap().mailbox(name).map_or(0, |b| b.msgs.len());
+        // No Trash path given: plain EXPUNGE, which Gmail turns into an archive.
+        apply_remote(&mut c, &Op::Expunge { keys: vec![key("INBOX", 100, 1)] }).unwrap();
+        assert_eq!((count("INBOX"), count("[Gmail]/All Mail")), (3, 1));
+        // With the Trash path: moved, then expunged; nothing left behind.
+        let trash = Some("[Gmail]/Trash");
+        crate::worker::apply_remote_with(&mut c, &Op::Expunge { keys: vec![key("INBOX", 100, 2), key("INBOX", 100, 3)] }, trash).unwrap();
+        assert_eq!((count("INBOX"), count("[Gmail]/All Mail"), count("[Gmail]/Trash")), (1, 1, 1));
+        // Keys already in Trash: expunged in place.
+        crate::worker::apply_remote_with(&mut c, &Op::Expunge { keys: vec![key("[Gmail]/Trash", 600, 1)] }, trash).unwrap();
+        assert_eq!((count("[Gmail]/All Mail"), count("[Gmail]/Trash")), (1, 0));
+        // Non-Gmail server: the Trash path is ignored.
+        st.lock().unwrap().caps = "IMAP4rev1 UIDPLUS MOVE";
+        let mut c = login(&st);
+        crate::worker::apply_remote_with(&mut c, &Op::Expunge { keys: vec![key("INBOX", 100, 4)] }, trash).unwrap();
+        assert_eq!((count("INBOX"), count("[Gmail]/All Mail"), count("[Gmail]/Trash")), (0, 1, 0));
+    }
+
+    /// A move says where its messages went (COPYUID), with MOVE and without.
+    #[test]
+    fn a_move_says_the_new_uids() {
+        let st = State::new();
+        for s in ["a", "b", "c"] {
+            st.lock().unwrap().add("INBOX", s, &[]);
+        }
+        let mut c = login(&st);
+        c.select("INBOX", false).unwrap();
+        assert_eq!(c.uid_move_to("1,3", "Archive").unwrap(), vec![1, 2]);
+        st.lock().unwrap().caps = "IMAP4rev1 UIDPLUS";
+        let mut c = login(&st);
+        c.select("INBOX", false).unwrap();
+        assert_eq!(c.uid_move_to("2", "Archive").unwrap(), vec![3]);
+        assert_eq!(st.lock().unwrap().mailbox("INBOX").map(|b| b.msgs.len()), Some(0));
     }
 
     #[test]
