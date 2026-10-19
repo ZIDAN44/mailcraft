@@ -1937,9 +1937,20 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 acts.push(Action::Run("rules.set", json!({"rules": rules})));
             }
             ui.add_space(6.0);
-            if ui.button(tl!("New rule…")).clicked() {
-                acts.push(Action::Dialog(Dialog::rule_from("", "")));
-            }
+            ui.horizontal(|ui| {
+                if ui.button(tl!("New rule…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::rule_from("", "")));
+                }
+                // As Outlook's Rules options: the rules to a file, or rules from one.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add_enabled(!s.rules.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
+                        acts.push(Action::ExportRules);
+                    }
+                    if ui.button(tl!("Import…")).clicked() {
+                        acts.push(Action::ImportRules);
+                    }
+                });
+            });
             ui.add_space(6.0);
             close_row(ui)
         }

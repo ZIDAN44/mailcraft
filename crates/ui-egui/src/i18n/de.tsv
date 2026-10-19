@@ -834,6 +834,22 @@
 	Delete this contact?	Diesen Kontakt löschen?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Dieser Kontakt wird mit allem, was zu ihm gespeichert ist, gelöscht. Das lässt sich nicht rückgängig machen.
 	Export…	Exportieren…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Fügt die Regeln aus einer von MailCraft gespeicherten Datei hinzu. Eine Regel für ein Konto, das es auf diesem Computer nicht gibt, kommt ausgeschaltet an.
+	Change…	Ändern…
+	Clean up	Aufräumen
+	Export rules	Regeln exportieren
+	Import rules	Regeln importieren
+	Rules imported: {n}	Importierte Regeln: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	Importierte Regeln: {n}; {off} ausgeschaltet, da ihr Konto nicht auf diesem Computer ist
+	Import…	Importieren…
+	No data file is open.	Keine Datendatei ist geöffnet.
+	On the server	Auf dem Server
+	On this computer	Auf diesem Computer
+	Open…	Öffnen…
+	Remove account	Konto entfernen
+	Save your rules in a file, to keep them or to use them on another computer.	Speichert Ihre Regeln in einer Datei, um sie aufzubewahren oder auf einem anderen Computer zu verwenden.
+	Rules saved in {file}: {n}	In {file} gespeicherte Regeln: {n}
+	Save {n} Selected…	{n} ausgewählte speichern…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Archiv

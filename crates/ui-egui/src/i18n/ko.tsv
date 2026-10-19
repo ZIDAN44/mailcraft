@@ -833,6 +833,22 @@
 	Delete this contact?	이 연락처를 삭제할까요?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	이 연락처와 저장된 모든 정보가 삭제됩니다. 되돌릴 수 없습니다.
 	Export…	내보내기…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft에서 저장한 파일의 규칙을 추가합니다. 이 컴퓨터에 없는 계정의 규칙은 꺼진 상태로 추가됩니다.
+	Change…	변경…
+	Clean up	정리
+	Export rules	규칙 내보내기
+	Import rules	규칙 가져오기
+	Rules imported: {n}	규칙 {n}개를 가져왔습니다
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	규칙 {n}개를 가져왔습니다. 계정이 이 컴퓨터에 없어 {off}개는 꺼져 있습니다
+	Import…	가져오기…
+	No data file is open.	열려 있는 데이터 파일이 없습니다.
+	On the server	서버
+	On this computer	이 컴퓨터
+	Open…	열기…
+	Remove account	계정 제거
+	Save your rules in a file, to keep them or to use them on another computer.	규칙을 파일로 저장하여 보관하거나 다른 컴퓨터에서 사용합니다.
+	Rules saved in {file}: {n}	규칙 {n}개를 {file}에 저장했습니다
+	Save {n} Selected…	선택한 {n}개 저장…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	보관함

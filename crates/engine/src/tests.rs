@@ -2385,3 +2385,49 @@ fn the_folder_cache_lets_go_of_folders_past_its_limit() {
     s.refresh_list();
     assert_eq!(s.list.len(), inbox);
 }
+
+/// Rules go to a file and come back, on this computer or another: an account by its address,
+/// a missing category made, a rule already here not doubled, junk refused.
+#[test]
+fn rules_export_and_import() {
+    let mut s = sample_session("rules-io");
+    s.run("category.create", &json!({"name": "Clients"})).unwrap();
+    let rule = |name: &str, account: Option<&str>| json!({"rule": {"name": name, "conditions": [{"if": "from", "value": "printshop"}], "actions": [{"do": "categorize", "value": "Clients"}], "account": account}});
+    s.run("rules.add", &rule("Print shop", Some("sample"))).unwrap();
+    s.run("rules.add", &rule("Everywhere", None)).unwrap();
+    let file = s.store.as_ref().unwrap().root().join("rules.mailcraft-rules");
+    s.run("rules.export", &json!({"path": file.to_string_lossy()})).unwrap();
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains("\"accountEmail\"") && !text.contains("\"account\": \"sample\""), "an account by its address: {text}");
+
+    // Here again: nothing doubled.
+    let r = s.run("rules.import", &json!({"path": file.to_string_lossy()})).unwrap();
+    assert_eq!((r["added"].as_u64(), s.rules.len()), (Some(0), 2));
+
+    // Another computer: the same address, no Clients category yet.
+    let mut other = sample_session("rules-io-2");
+    assert!(other.category("Clients").is_none());
+    let r = other.run("rules.import", &json!({"path": file.to_string_lossy()})).unwrap();
+    assert_eq!((r["added"].as_u64(), r["turnedOff"].as_u64()), (Some(2), Some(0)));
+    assert!(other.category("Clients").is_some(), "the category is made");
+    assert_eq!(other.rules[0].account.as_deref(), Some("sample"));
+    assert!(other.rules[0].enabled);
+
+    // An account this computer doesn't have: the rule comes in turned off. (Saved again by an
+    // editor that starts it with a byte order mark.)
+    let foreign = text.replacen("riley@studio.example", "nobody@elsewhere.example", 1);
+    std::fs::write(&file, [&b"\xEF\xBB\xBF"[..], foreign.as_bytes()].concat()).unwrap();
+    let r = other.run("rules.import", &json!({"path": file.to_string_lossy(), "replace": true})).unwrap();
+    assert_eq!((r["turnedOff"].as_u64(), other.rules.len()), (Some(1), 2));
+    assert!(!other.rules[0].enabled && other.rules[0].account.is_none());
+
+    // Junk, and a file that isn't one.
+    for junk in [&b"{\"rules\": []}"[..], b"not json", b"{\"mailcraftRules\": 1, \"rules\": [{\"name\": 3}]}", &[0xff; 64][..]] {
+        std::fs::write(&file, junk).unwrap();
+        assert!(other.run("rules.import", &json!({"path": file.to_string_lossy()})).is_err());
+    }
+    assert_eq!(other.rules.len(), 2, "a bad file changes nothing");
+    assert!(other.run("rules.import", &json!({"path": "/no/such/file"})).is_err());
+    done(other);
+    done(s);
+}

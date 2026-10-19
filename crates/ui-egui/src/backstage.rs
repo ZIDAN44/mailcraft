@@ -164,37 +164,67 @@ fn heading(ui: &mut Ui, t: &Tokens, text: &str) {
     ui.add_space(14.0);
 }
 
-/// A big square button with an icon, and its title, description and anything else beside it.
-fn tile(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, title: &str, about: &str, extra: impl FnOnce(&mut Ui)) -> egui::Response {
-    let mut out = None;
-    ui.horizontal_top(|ui| {
-        let (r, resp) = ui.allocate_exact_size(vec2(104.0, 92.0), Sense::click());
-        let fill = if resp.hovered() { t.hover } else { t.surface };
-        ui.painter().rect(r, 6.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-        // The icon over its label, the two centred in the tile together (a label in two lines,
-        // as some languages need, moves the icon up), each line of the label centred.
-        let mut job = egui::text::LayoutJob::simple(tl!(label).to_string(), theme::regular(12.5), t.text, 100.0);
-        job.halign = egui::Align::Center;
-        let galley = ui.painter().layout_job(job);
-        let block = 28.0 + 8.0 + galley.size().y;
-        let top = r.center().y - block / 2.0;
-        icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(r.center().x, top + 14.0), vec2(28.0, 28.0)), icon, t.accent);
-        ui.painter().galley(egui::pos2(r.center().x, top + 36.0), galley, t.text);
-        ui.add_space(14.0);
-        ui.vertical(|ui| {
-            ui.label(RichText::new(tl!(title)).font(theme::bold(16.0)).color(t.text));
-            ui.label(RichText::new(tl!(about)).color(t.dim));
-            ui.add_space(4.0);
-            extra(ui);
+/// A card on a File page: its title and a line about it, then its rows.
+fn card(ui: &mut Ui, t: &Tokens, title: &str, about: Option<&str>, body: impl FnOnce(&mut Ui)) {
+    egui::Frame::new()
+        .fill(t.surface)
+        .stroke(egui::Stroke::new(1.0, t.border))
+        .corner_radius(10)
+        .inner_margin(Margin { left: 20, right: 20, top: 16, bottom: 10 })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(title).font(theme::bold(15.0)).color(t.text));
+            if let Some(about) = about {
+                ui.add_space(2.0);
+                ui.label(RichText::new(about).color(t.dim).size(12.5));
+            }
+            ui.add_space(6.0);
+            body(ui);
         });
-        out = Some(resp);
-    });
-    ui.add_space(18.0);
-    out.unwrap_or_else(|| ui.label(""))
+    ui.add_space(14.0);
+}
+
+/// One row of a card: its name (and a line under it) on the left, its controls against the
+/// right edge, centred on each other; a thin line above every row but the first.
+fn setting_row(ui: &mut Ui, t: &Tokens, first: bool, label: RichText, about: Option<RichText>, control: impl FnOnce(&mut Ui)) {
+    if !first {
+        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+        ui.painter().rect_filled(r, 0.0, t.border.gamma_multiply(0.6));
+    }
+    ui.add_space(7.0);
+    let left = (ui.available_width() - 300.0).max(ui.available_width() * 0.45);
+    egui::Sides::new().height(if about.is_some() { 38.0 } else { 28.0 }).show(
+        ui,
+        |ui| match about {
+            None => {
+                ui.add(egui::Label::new(label).truncate());
+            }
+            Some(about) => {
+                ui.vertical(|ui| {
+                    ui.set_max_width(left);
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.label(label);
+                    ui.label(about);
+                });
+            }
+        },
+        control,
+    );
+    ui.add_space(7.0);
+}
+
+/// A row's name and the line under it, in the page's colours.
+fn name(t: &Tokens, s: &str) -> RichText {
+    RichText::new(s).color(t.text)
+}
+
+fn note(t: &Tokens, s: &str) -> RichText {
+    RichText::new(s).color(t.faint).size(12.0)
 }
 
 fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Account information");
+    ui.set_max_width(760.0);
     let Some(a) = b.account.as_deref().and_then(|id| s.account(id)).or_else(|| s.accounts.first()) else {
         ui.label(RichText::new(tl!("Add an email account")).color(t.dim));
         if ui.button(tl!("Add account…")).clicked() {
@@ -217,12 +247,12 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             acts.push(Action::Dialog(Dialog::add_account()));
         }
     });
-    ui.add_space(18.0);
+    ui.add_space(16.0);
     if !a.is_local() && b.asked.insert(id.clone()) {
         acts.push(Action::Run("account.vacation", json!({"account": id})));
     }
 
-    // Account settings.
+    // Account settings: where it connects, and every change to it, each with its own button.
     let servers = if a.is_data_file() {
         tl!("Opened from an Outlook data file, kept on this computer only").to_string()
     } else if a.is_local() {
@@ -250,35 +280,29 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             smtp_port = a.config.smtp.port
         )
     };
-    let r = tile(
-        ui,
-        t,
-        Icon::Person,
-        "Account settings",
-        "Account settings",
-        "Change this account's name, servers and sign-in, or its signature.",
-        |ui| {
-            ui.label(RichText::new(servers).color(t.faint).small());
-        },
-    );
-    egui::Popup::menu(&r).show(|ui| {
-        if !a.is_local() && a.config.graph.is_none() && ui.button(tl!("Server settings…")).clicked() {
-            acts.push(Action::Dialog(Dialog::edit_account(&a.config)));
-        }
-        if !a.is_local() && ui.button(tl!(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" })).clicked() {
-            acts.push(Action::SignInAgain(id.clone()));
-        }
-        if ui.button(tl!("Signature…")).clicked() {
-            acts.push(Action::EditSignature { account: id.clone(), insert: false });
-        }
-        ui.separator();
-        if ui.button(tl!("Remove account…")).clicked() {
-            acts.push(Action::Dialog(Dialog::RemoveAccount { account: id.clone(), email: a.config.email.clone() }));
-        }
+    card(ui, t, tl!("Account settings"), Some(tl!("Change this account's name, servers and sign-in, or its signature.")), |ui| {
+        setting_row(ui, t, true, name(t, &a.config.email), Some(note(t, &servers)), |ui| {
+            if !a.is_local() && ui.button(tl!(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" })).clicked() {
+                acts.push(Action::SignInAgain(id.clone()));
+            }
+            if !a.is_local() && a.config.graph.is_none() && ui.button(tl!("Server settings…")).clicked() {
+                acts.push(Action::Dialog(Dialog::edit_account(&a.config)));
+            }
+        });
+        setting_row(ui, t, false, name(t, tl!("Signature")), None, |ui| {
+            if ui.button(tl!("Signature…")).clicked() {
+                acts.push(Action::EditSignature { account: id.clone(), insert: false });
+            }
+        });
+        setting_row(ui, t, false, name(t, tl!("Remove account")), None, |ui| {
+            if ui.button(RichText::new(tl!("Remove account…")).color(t.danger)).clicked() {
+                acts.push(Action::Dialog(Dialog::RemoveAccount { account: id.clone(), email: a.config.email.clone() }));
+            }
+        });
     });
 
-    // Automatic replies.
-    let status = match &a.vacation {
+    // Automatic replies: on or off, and a button to change them where the server has them.
+    let (color, status) = match &a.vacation {
         _ if a.is_data_file() => (t.faint, tl!("Not available: a data file has no server.").to_string()),
         _ if a.is_local() => (t.faint, tl!("Not available: the sample mailbox has no server.").to_string()),
         VacationState::Unknown | VacationState::Loading => (t.faint, tl!("Checking with the server…").to_string()),
@@ -294,75 +318,76 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
         VacationState::Loaded(_) => (t.dim, tl!("Off").to_string()),
         VacationState::Failed(e) => (t.warn, tf!("Not available: {error}", error = tl!(e))),
     };
-    let r = tile(
+    let can_change = !a.is_local() && !matches!(a.vacation, VacationState::Failed(_));
+    card(
         ui,
         t,
-        Icon::Away,
-        "Automatic replies",
-        "Automatic replies",
-        "Tell people you're away: each sender gets one reply while they're on, even when this computer is off.",
+        tl!("Automatic replies"),
+        Some(tl!("Tell people you're away: each sender gets one reply while they're on, even when this computer is off.")),
         |ui| {
-            ui.horizontal(|ui| {
+            setting_row(ui, t, true, RichText::new(&status).color(color), None, |ui| {
+                if ui.add_enabled(can_change, egui::Button::new(tl!("Change…"))).clicked() {
+                    let current = match &a.vacation {
+                        VacationState::Loaded(v) => v.clone(),
+                        _ => Default::default(),
+                    };
+                    // Exchange keeps one reply for inside the organisation and one for outside.
+                    let exchange = a.config.ews.is_some() || a.config.graph.is_some();
+                    acts.push(Action::Dialog(Dialog::vacation(&id, &current, exchange)));
+                }
                 if matches!(a.vacation, VacationState::Loading) {
                     ui.spinner();
                 }
-                ui.label(RichText::new(status.1).color(status.0));
             });
         },
     );
-    if r.clicked() && !a.is_local() {
-        let current = match &a.vacation {
-            VacationState::Loaded(v) => v.clone(),
-            _ => Default::default(),
-        };
-        // Exchange keeps one reply for inside the organisation and one for outside.
-        let exchange = a.config.ews.is_some() || a.config.graph.is_some();
-        acts.push(Action::Dialog(Dialog::vacation(&id, &current, exchange)));
-    }
 
-    // Mailbox: space used, what this computer keeps, emptying.
+    // Mailbox: space used on the server and here, where the data file is, emptying.
     let cached = *b.cached.entry(id.clone()).or_insert_with(|| s.cache_size(&id));
     let size = |n: u64| widgets::human_size(usize::try_from(n).unwrap_or(usize::MAX));
-    tile(ui, t, Icon::Storage, "Mailbox", "Mailbox settings", "See how much space your mail takes, and empty Deleted Items and Junk Email.", |ui| {
-        match a.quota {
-            Some((used, limit)) if limit > 0 => {
-                let frac = (used as f32 / limit as f32).clamp(0.0, 1.0);
-                ui.add(egui::ProgressBar::new(frac).desired_width(260.0).fill(if frac > 0.9 { t.danger } else { t.accent }));
-                ui.label(
-                    RichText::new(tf!("{free} free of {total}", free = size(limit.saturating_sub(used)), total = size(limit))).color(t.dim).small(),
-                );
-            }
-            Some((used, _)) => {
-                ui.label(RichText::new(tf!("{used} used on the server", used = size(used))).color(t.dim).small());
-            }
-            None if !a.is_local() => {
-                ui.label(RichText::new(tl!("The server doesn't say how much space is used.")).color(t.faint).small());
-            }
-            None => {}
+    card(ui, t, tl!("Mailbox settings"), Some(tl!("See how much space your mail takes, and empty Deleted Items and Junk Email.")), |ui| {
+        let mut first = true;
+        if !a.is_local() {
+            let (line, frac) = match a.quota {
+                Some((used, limit)) if limit > 0 => (
+                    tf!("{free} free of {total}", free = size(limit.saturating_sub(used)), total = size(limit)),
+                    Some((used as f32 / limit as f32).clamp(0.0, 1.0)),
+                ),
+                Some((used, _)) => (tf!("{used} used on the server", used = size(used)), None),
+                None => (tl!("The server doesn't say how much space is used.").to_string(), None),
+            };
+            setting_row(ui, t, true, name(t, tl!("On the server")), Some(note(t, &line)), |ui| {
+                if let Some(frac) = frac {
+                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).fill(if frac > 0.9 { t.danger } else { t.accent }));
+                }
+            });
+            first = false;
         }
-        ui.label(RichText::new(tf!("Kept on this computer: {size}", size = size(cached))).color(t.faint).small());
         // Where, as Outlook shows a data file's place; and a copy as one.
-        if has_files && let Some(file) = s.store.as_ref().map(|store| store.account_path(&id)) {
-            ui.label(RichText::new(file.display().to_string()).color(t.faint).small());
-            ui.horizontal(|ui| {
-                if ui.add(egui::Button::new(tl!("Open folder")).small()).clicked() {
+        let file = if has_files { s.store.as_ref().map(|store| store.account_path(&id)) } else { None };
+        let here = match &file {
+            Some(f) => format!("{}\n{}", tf!("Kept on this computer: {size}", size = size(cached)), f.display()),
+            None => tf!("Kept on this computer: {size}", size = size(cached)),
+        };
+        setting_row(ui, t, first, name(t, tl!("On this computer")), Some(note(t, &here)), |ui| {
+            if let Some(file) = &file {
+                if ui.button(tl!("Save as an Outlook data file…")).clicked() {
+                    acts.push(Action::ExportDataFile(id.clone()));
+                }
+                if ui.button(tl!("Open folder")).clicked() {
                     // The folder the data file is in (or the account's own folder).
                     let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), Path::to_path_buf) };
                     acts.push(Action::OpenFolder(dir));
                 }
-                if ui.add(egui::Button::new(tl!("Save as an Outlook data file…")).small()).clicked() {
-                    acts.push(Action::ExportDataFile(id.clone()));
-                }
-            });
-        }
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
+            }
+        });
+        setting_row(ui, t, false, name(t, tl!("Clean up")), None, |ui| {
             for (role, label) in [
-                (mailcraft_engine::model::FolderRole::Trash, "Empty Deleted Items…"),
                 (mailcraft_engine::model::FolderRole::Junk, "Empty Junk Email…"),
+                (mailcraft_engine::model::FolderRole::Trash, "Empty Deleted Items…"),
             ] {
                 if let Some(f) = a.folder(role)
-                    && ui.add_enabled(f.total > 0 || a.is_local(), egui::Button::new(tl!(label)).small()).clicked()
+                    && ui.add_enabled(f.total > 0 || a.is_local(), egui::Button::new(tl!(label))).clicked()
                 {
                     acts.push(Action::Dialog(Dialog::ConfirmEmpty {
                         account: id.clone(),
@@ -377,34 +402,38 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
 
     // Rules.
     let n = s.rules.len();
-    let r = tile(ui, t, Icon::Funnel, "Manage rules", "Rules", "Sort new mail as it arrives: move it, flag it, categorize it.", |ui| {
-        ui.label(RichText::new(if n == 0 { tl!("No rules yet.").to_string() } else { tf!("Rules: {n}", n = n) }).color(t.faint).small());
+    card(ui, t, tl!("Rules"), Some(tl!("Sort new mail as it arrives: move it, flag it, categorize it.")), |ui| {
+        let count = if n == 0 { tl!("No rules yet.").to_string() } else { tf!("Rules: {n}", n = n) };
+        setting_row(ui, t, true, name(t, &count), None, |ui| {
+            if ui.button(tl!("Manage rules")).clicked() {
+                acts.push(Action::Dialog(Dialog::Rules));
+            }
+        });
     });
-    if r.clicked() {
-        acts.push(Action::Dialog(Dialog::Rules));
-    }
 }
 
-/// Open & Export: Outlook data files.
+/// Open & Export: Outlook data files, and the rules as a file.
 fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Open & Export");
-    let r = tile(
+    ui.set_max_width(760.0);
+    card(
         ui,
         t,
-        Icon::Folder,
-        "Open data file",
-        "Open a data file",
-        "Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.",
+        tl!("Open a data file"),
+        Some(tl!(
+            "Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer."
+        )),
         |ui| {
             let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
-            if !files.is_empty() {
-                ui.label(RichText::new(tf!("Open now: {files}", files = files.join(", "))).color(t.faint).small());
-            }
+            let open_now = (!files.is_empty()).then(|| tf!("Open now: {files}", files = files.join(", ")));
+            let label = open_now.as_deref().map_or_else(|| note(t, tl!("No data file is open.")), |s| note(t, s));
+            setting_row(ui, t, true, label, None, |ui| {
+                if ui.button(tl!("Open…")).clicked() {
+                    acts.push(Action::OpenDataFile);
+                }
+            });
         },
     );
-    if r.clicked() {
-        acts.push(Action::OpenDataFile);
-    }
     // The account to export: picked in the list (one line, however many accounts there are),
     // else the one being looked at.
     let chosen = b
@@ -414,88 +443,71 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
         .or_else(|| s.current_account())
         .or_else(|| s.accounts.first())
         .map(|a| (a.config.id.clone(), format!("{}   ·   {}", a.config.email, tl!(kind(a)))));
-    let mut export = false;
-    let r = tile(
+    card(
         ui,
         t,
-        Icon::Outbox,
-        "Export",
-        "Export to Outlook data file",
-        "Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.",
+        tl!("Export to Outlook data file"),
+        Some(tl!("Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.")),
         |ui| {
-            ui.label(RichText::new(tl!("Its calendar and contacts go beside it, as .ics and .vcf files.")).color(t.faint).small());
-            ui.add_space(6.0);
             let Some((id, label)) = &chosen else { return };
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("export-account").width(360.0).selected_text(label).show_ui(ui, |ui| {
-                    for a in &s.accounts {
-                        if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
-                            b.export = Some(a.config.id.clone());
-                        }
+            setting_row(
+                ui,
+                t,
+                true,
+                name(t, tl!("Account")),
+                Some(note(t, tl!("Its calendar and contacts go beside it, as .ics and .vcf files."))),
+                |ui| {
+                    if ui.button(tl!("Export…")).clicked() {
+                        acts.push(Action::ExportDataFile(id.clone()));
                     }
-                });
-                export = widgets::pill_button(ui, Icon::Outbox, "Export…", t).clicked();
-            });
+                    egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
+                        for a in &s.accounts {
+                            if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
+                                b.export = Some(a.config.id.clone());
+                            }
+                        }
+                    });
+                },
+            );
         },
     );
-    if (r.clicked() || export)
-        && let Some((id, _)) = chosen
-    {
-        acts.push(Action::ExportDataFile(id));
-    }
+    // Rules to a file and back, as Outlook's Import and Export Rules.
+    card(ui, t, tl!("Rules"), None, |ui| {
+        setting_row(
+            ui,
+            t,
+            true,
+            name(t, tl!("Export rules")),
+            Some(note(t, tl!("Save your rules in a file, to keep them or to use them on another computer."))),
+            |ui| {
+                if ui.add_enabled(!s.rules.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
+                    acts.push(Action::ExportRules);
+                }
+            },
+        );
+        setting_row(
+            ui,
+            t,
+            false,
+            name(t, tl!("Import rules")),
+            Some(note(t, tl!("Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off."))),
+            |ui| {
+                if ui.button(tl!("Import…")).clicked() {
+                    acts.push(Action::ImportRules);
+                }
+            },
+        );
+    });
 }
 
 fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     heading(ui, &t, "Options");
     ui.set_max_width(760.0);
-    // A card per subject: its title, an optional line about it, then its settings one per row.
-    let group = |ui: &mut Ui, title: &str, about: Option<&str>, body: &mut dyn FnMut(&mut Ui)| {
-        egui::Frame::new()
-            .fill(t.surface)
-            .stroke(egui::Stroke::new(1.0, t.border))
-            .corner_radius(10)
-            .inner_margin(Margin { left: 20, right: 20, top: 16, bottom: 10 })
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.label(RichText::new(title).font(theme::bold(15.0)).color(t.text));
-                if let Some(about) = about {
-                    ui.add_space(2.0);
-                    ui.label(RichText::new(about).color(t.dim).size(12.5));
-                }
-                ui.add_space(6.0);
-                body(ui);
-            });
-        ui.add_space(14.0);
-    };
-    // One setting: its name (and a line under it) on the left, its control on the right; a
-    // thin line between settings.
+    // A card per subject, one setting per row (the helpers Info and Open & Export use too).
+    let group = |ui: &mut Ui, title: &str, about: Option<&str>, body: &mut dyn FnMut(&mut Ui)| card(ui, &t, title, about, |ui| body(ui));
     let setting = |ui: &mut Ui, first: bool, label: &str, about: Option<&str>, control: &mut dyn FnMut(&mut Ui)| {
-        if !first {
-            let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
-            ui.painter().rect_filled(r, 0.0, t.border.gamma_multiply(0.6));
-        }
-        ui.add_space(7.0);
-        // The name and its control centred on each other, the control against the right edge.
-        let left = (ui.available_width() - 280.0).max(ui.available_width() * 0.5);
-        egui::Sides::new().height(if about.is_some() { 38.0 } else { 28.0 }).show(
-            ui,
-            |ui| match about {
-                None => {
-                    ui.add(egui::Label::new(RichText::new(label).color(t.text)).truncate());
-                }
-                Some(about) => {
-                    ui.vertical(|ui| {
-                        ui.set_max_width(left);
-                        ui.spacing_mut().item_spacing.y = 2.0;
-                        ui.label(RichText::new(label).color(t.text));
-                        ui.label(RichText::new(about).color(t.faint).size(12.0));
-                    });
-                }
-            },
-            |ui| control(ui),
-        );
-        ui.add_space(7.0);
+        setting_row(ui, &t, first, name(&t, label), about.map(|a| note(&t, a)), |ui| control(ui));
     };
     let switch = |ui: &mut Ui, on: bool, label: &str, id: &'static str, acts: &mut Vec<Action>| {
         let mut v = on;

@@ -110,6 +110,10 @@ pub trait Services {
     fn open_with(&mut self, _app: &std::path::Path, _file: &std::path::Path) -> Result<(), String> {
         Err("not available".into())
     }
+    /// A rules file to import (`None` when cancelled, or where there's no file picker).
+    fn pick_rules_file(&mut self) -> Option<PathBuf> {
+        None
+    }
     /// A folder to save into (`None` when cancelled).
     fn pick_folder(&mut self) -> Option<PathBuf> {
         None
@@ -1134,6 +1138,35 @@ impl MailApp {
                         Ok(_) => {
                             self.ui.backstage = None;
                             self.session.notice(tf!("Exporting to {file}…", file = path.file_name().unwrap_or_default().to_string_lossy()), false);
+                        }
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
+            Action::ExportRules => {
+                if let Some(path) = self.services.save_path("MailCraft rules.json") {
+                    match self.session.run("rules.export", &json!({"path": path.to_string_lossy()})) {
+                        Ok(v) => {
+                            let n = v.get("rules").and_then(Value::as_u64).unwrap_or(0);
+                            let file = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                            self.session.notice(tf!("Rules saved in {file}: {n}", n = n, file = file), false);
+                        }
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
+            Action::ImportRules => {
+                if let Some(path) = self.services.pick_rules_file() {
+                    match self.session.run("rules.import", &json!({"path": path.to_string_lossy()})) {
+                        Ok(v) => {
+                            let n = v.get("added").and_then(Value::as_u64).unwrap_or(0);
+                            let off = v.get("turnedOff").and_then(Value::as_u64).unwrap_or(0);
+                            let text = if off > 0 {
+                                tf!("Rules imported: {n} ({off} turned off, as their account isn't on this computer)", n = n, off = off)
+                            } else {
+                                tf!("Rules imported: {n}", n = n)
+                            };
+                            self.session.notice(text, false);
                         }
                         Err(e) => self.session.notice(e.to_string(), true),
                     }

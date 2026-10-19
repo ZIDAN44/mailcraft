@@ -835,3 +835,19 @@ month	May	מאי
 	Delete this contact?	למחוק את איש הקשר הזה?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	איש הקשר יימחק, יחד עם כל מה שנשמר עליו. אי אפשר לבטל זאת.
 	Export…	ייצוא…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	מוסיף את הכללים מקובץ ש-MailCraft שמר. כלל של חשבון שאינו במחשב הזה נוסף כשהוא כבוי.
+	Change…	שינוי…
+	Clean up	ניקוי
+	Export rules	ייצוא כללים
+	Import rules	ייבוא כללים
+	Rules imported: {n}	יובאו כללים: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	יובאו כללים: {n}; {off} כבויים, כי החשבון שלהם אינו במחשב הזה
+	Import…	ייבוא…
+	No data file is open.	אין קובץ נתונים פתוח.
+	On the server	בשרת
+	On this computer	במחשב הזה
+	Open…	פתיחה…
+	Remove account	הסרת חשבון
+	Save your rules in a file, to keep them or to use them on another computer.	שומר את הכללים שלך בקובץ, כדי לשמור אותם או להשתמש בהם במחשב אחר.
+	Rules saved in {file}: {n}	כללים נשמרו ב-{file}: {n}
+	Save {n} Selected…	שמירת {n} שנבחרו…

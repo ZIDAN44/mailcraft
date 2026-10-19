@@ -835,3 +835,19 @@ month	May	mei
 	Delete this contact?	Dit contact verwijderen?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Dit contact wordt verwijderd, met alles wat erover is bewaard. Dit kan niet ongedaan worden gemaakt.
 	Export…	Exporteren…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Voegt de regels toe uit een bestand dat MailCraft heeft opgeslagen. Een regel voor een account dat niet op deze computer staat, komt uitgeschakeld binnen.
+	Change…	Wijzigen…
+	Clean up	Opruimen
+	Export rules	Regels exporteren
+	Import rules	Regels importeren
+	Rules imported: {n}	Regels geïmporteerd: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	Regels geïmporteerd: {n}; {off} uitgeschakeld, omdat hun account niet op deze computer staat
+	Import…	Importeren…
+	No data file is open.	Er is geen gegevensbestand geopend.
+	On the server	Op de server
+	On this computer	Op deze computer
+	Open…	Openen…
+	Remove account	Account verwijderen
+	Save your rules in a file, to keep them or to use them on another computer.	Slaat uw regels op in een bestand, om ze te bewaren of op een andere computer te gebruiken.
+	Rules saved in {file}: {n}	Regels opgeslagen in {file}: {n}
+	Save {n} Selected…	{n} geselecteerde opslaan…

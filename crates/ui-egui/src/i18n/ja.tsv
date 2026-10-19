@@ -836,3 +836,19 @@ month	May	5月
 	Delete this contact?	この連絡先を削除しますか?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	この連絡先と、保存されているすべての情報が削除されます。元に戻すことはできません。
 	Export…	エクスポート…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft で保存したファイルからルールを追加します。このコンピューターにないアカウントのルールはオフの状態で追加されます。
+	Change…	変更…
+	Clean up	クリーンアップ
+	Export rules	ルールのエクスポート
+	Import rules	ルールのインポート
+	Rules imported: {n}	{n} 件のルールをインポートしました
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	{n} 件のルールをインポートしました。{off} 件はアカウントがこのコンピューターにないためオフです
+	Import…	インポート…
+	No data file is open.	開いているデータ ファイルはありません。
+	On the server	サーバー上
+	On this computer	このコンピューター上
+	Open…	開く…
+	Remove account	アカウントの削除
+	Save your rules in a file, to keep them or to use them on another computer.	ルールをファイルに保存して、保管したり別のコンピューターで使ったりできます。
+	Rules saved in {file}: {n}	{n} 件のルールを {file} に保存しました
+	Save {n} Selected…	選択した {n} 件を保存…

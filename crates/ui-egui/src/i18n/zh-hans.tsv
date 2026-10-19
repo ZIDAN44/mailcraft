@@ -836,3 +836,19 @@ month	May	5月
 	Delete this contact?	删除此联系人?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	将删除此联系人及其保存的所有信息。此操作无法撤消。
 	Export…	导出…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	添加由 MailCraft 保存的文件中的规则。此计算机上没有的帐户的规则会以关闭状态添加。
+	Change…	更改…
+	Clean up	清理
+	Export rules	导出规则
+	Import rules	导入规则
+	Rules imported: {n}	已导入 {n} 条规则
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	已导入 {n} 条规则；{off} 条因其帐户不在此计算机上而关闭
+	Import…	导入…
+	No data file is open.	没有打开的数据文件。
+	On the server	服务器上
+	On this computer	此计算机上
+	Open…	打开…
+	Remove account	删除帐户
+	Save your rules in a file, to keep them or to use them on another computer.	将规则保存到文件中，以便保留或在另一台计算机上使用。
+	Rules saved in {file}: {n}	已将 {n} 条规则保存到 {file}
+	Save {n} Selected…	保存所选的 {n} 个…

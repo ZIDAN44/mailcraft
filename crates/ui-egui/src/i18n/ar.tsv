@@ -835,3 +835,19 @@ month	May	مايو
 	Delete this contact?	هل تريد حذف جهة الاتصال هذه؟
 	This contact will be deleted, along with everything kept about them. This can't be undone.	سيتم حذف جهة الاتصال هذه مع كل ما هو محفوظ عنها. لا يمكن التراجع عن ذلك.
 	Export…	تصدير…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	يضيف القواعد من ملف حفظه MailCraft. القاعدة الخاصة بحساب غير موجود على هذا الكمبيوتر تُضاف معطّلة.
+	Change…	تغيير…
+	Clean up	تنظيف
+	Export rules	تصدير القواعد
+	Import rules	استيراد القواعد
+	Rules imported: {n}	تم استيراد القواعد: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	تم استيراد القواعد: {n}؛ عُطّل منها {off} لأن حسابها غير موجود على هذا الكمبيوتر
+	Import…	استيراد…
+	No data file is open.	لا يوجد ملف بيانات مفتوح.
+	On the server	على الخادم
+	On this computer	على هذا الكمبيوتر
+	Open…	فتح…
+	Remove account	إزالة الحساب
+	Save your rules in a file, to keep them or to use them on another computer.	يحفظ قواعدك في ملف للاحتفاظ بها أو لاستخدامها على كمبيوتر آخر.
+	Rules saved in {file}: {n}	تم حفظ القواعد في {file}: {n}
+	Save {n} Selected…	حفظ العناصر المحددة ({n})…

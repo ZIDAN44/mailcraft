@@ -237,6 +237,75 @@ impl Session {
         Ok(serde_json::json!({ "rules": self.rules.len() }))
     }
 
+    /// The rules as a file to keep or take to another computer (Outlook's Export Rules): each
+    /// rule's account named by its address, which another computer knows it by.
+    pub fn rules_file(&self) -> Result<Vec<u8>, CmdError> {
+        let rules: Vec<serde_json::Value> = self
+            .rules
+            .iter()
+            .map(|r| {
+                let mut v = serde_json::to_value(r).unwrap_or_default();
+                if let (Some(id), Some(o)) = (&r.account, v.as_object_mut()) {
+                    let email = self.account(id).map(|a| a.config.email.clone()).unwrap_or_default();
+                    o.insert("account".into(), serde_json::Value::Null);
+                    o.insert("accountEmail".into(), serde_json::Value::String(email));
+                }
+                v
+            })
+            .collect();
+        let doc = serde_json::json!({ "mailcraftRules": 1, "rules": rules });
+        serde_json::to_vec_pretty(&doc).map_err(|e| CmdError::Failed(e.to_string()))
+    }
+
+    /// Add the rules in a file made by [`Session::rules_file`] (Outlook's Import Rules) after
+    /// those here, or in place of them (`replace`). A rule for an account this computer doesn't
+    /// have comes in turned off; a category one files mail under is made when it's missing; a
+    /// rule already here (the same in every part) isn't added twice. What came in, and how many
+    /// were turned off.
+    pub fn import_rules(&mut self, bytes: &[u8], replace: bool) -> CmdResult {
+        if bytes.len() > 4 << 20 {
+            return Err(CmdError::Failed("that file is too big for a rules file".into()));
+        }
+        // A file saved again by an editor may start with a byte order mark.
+        let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+        let doc: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| CmdError::Failed("not a MailCraft rules file".into()))?;
+        let list = match (doc.get("mailcraftRules"), doc.get("rules").and_then(serde_json::Value::as_array)) {
+            (Some(_), Some(list)) => list.clone(),
+            _ => return Err(CmdError::Failed("not a MailCraft rules file".into())),
+        };
+        let mut rules = if replace { Vec::new() } else { self.rules.clone() };
+        let (mut added, mut off) = (0usize, 0usize);
+        for (i, v) in list.into_iter().take(500).enumerate() {
+            let email = v.get("accountEmail").and_then(serde_json::Value::as_str).map(str::to_string);
+            let mut rule: Rule =
+                serde_json::from_value(v).map_err(|e| CmdError::Failed(format!("not a MailCraft rules file: rule {}: {e}", i + 1)))?;
+            rule.account = None;
+            if let Some(email) = email.filter(|e| !e.is_empty()) {
+                match self.accounts.iter().find(|a| a.config.email.eq_ignore_ascii_case(&email)) {
+                    Some(a) => rule.account = Some(a.config.id.clone()),
+                    // Kept for that account only: off until it's chosen again.
+                    None => {
+                        rule.enabled = false;
+                        off += 1;
+                    }
+                }
+            }
+            for a in &rule.actions {
+                if let RuleAction::Categorize(c) = a
+                    && self.category(c).is_none()
+                {
+                    self.add_category(c, None)?;
+                }
+            }
+            if !rules.contains(&rule) {
+                rules.push(rule);
+                added += 1;
+            }
+        }
+        self.set_rules(rules)?;
+        Ok(serde_json::json!({ "added": added, "turnedOff": off, "rules": self.rules.len() }))
+    }
+
     // ----- ignoring conversations -----
 
     /// The Message-IDs a message names: its own, and those it replies to.

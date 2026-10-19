@@ -833,6 +833,22 @@
 	Delete this contact?	刪除此連絡人?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	將刪除此連絡人及其儲存的所有資訊。此動作無法復原。
 	Export…	匯出…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	新增由 MailCraft 儲存的檔案中的規則。此電腦上沒有的帳戶的規則會以關閉狀態新增。
+	Change…	變更…
+	Clean up	清理
+	Export rules	匯出規則
+	Import rules	匯入規則
+	Rules imported: {n}	已匯入 {n} 條規則
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	已匯入 {n} 條規則；{off} 條因其帳戶不在此電腦上而關閉
+	Import…	匯入…
+	No data file is open.	沒有開啟的資料檔。
+	On the server	伺服器上
+	On this computer	此電腦上
+	Open…	開啟…
+	Remove account	移除帳戶
+	Save your rules in a file, to keep them or to use them on another computer.	將規則儲存到檔案中，以便保留或在另一台電腦上使用。
+	Rules saved in {file}: {n}	已將 {n} 條規則儲存到 {file}
+	Save {n} Selected…	儲存所選的 {n} 個…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	封存

@@ -96,6 +96,7 @@ impl Services for Desktop {
                 "ics" => "Calendar".to_string(),
                 "vcf" => "Contact card".to_string(),
                 "txt" => "Text".to_string(),
+                "json" => "MailCraft rules".to_string(),
                 "html" | "htm" => "Web page".to_string(),
                 e => format!("{} file", e.to_ascii_uppercase()),
             };
@@ -251,6 +252,9 @@ impl Services for Desktop {
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {
         rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
+    }
+    fn pick_rules_file(&mut self) -> Option<PathBuf> {
+        rfd::FileDialog::new().set_title("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file()
     }
     fn pick_data_file(&mut self) -> Option<PathBuf> {
         rfd::FileDialog::new()

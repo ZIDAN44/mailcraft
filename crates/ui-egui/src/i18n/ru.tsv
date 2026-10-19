@@ -833,6 +833,22 @@
 	Delete this contact?	Удалить этот контакт?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Этот контакт будет удалён вместе со всеми сведениями о нём. Это действие нельзя отменить.
 	Export…	Экспорт…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Добавляет правила из файла, сохранённого MailCraft. Правило для учётной записи, которой нет на этом компьютере, добавляется выключенным.
+	Change…	Изменить…
+	Clean up	Очистка
+	Export rules	Экспорт правил
+	Import rules	Импорт правил
+	Rules imported: {n}	Импортировано правил: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	Импортировано правил: {n}; выключено: {off}, так как их учётной записи нет на этом компьютере
+	Import…	Импорт…
+	No data file is open.	Нет открытых файлов данных.
+	On the server	На сервере
+	On this computer	На этом компьютере
+	Open…	Открыть…
+	Remove account	Удалить учётную запись
+	Save your rules in a file, to keep them or to use them on another computer.	Сохраняет правила в файл, чтобы сохранить их или использовать на другом компьютере.
+	Rules saved in {file}: {n}	Правил сохранено в {file}: {n}
+	Save {n} Selected…	Сохранить выбранные ({n})…
 
 # The Archive folder, where the plain entry is the command.
 folder	Archive	Архив

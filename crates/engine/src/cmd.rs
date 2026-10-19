@@ -112,6 +112,19 @@ pub fn registry() -> Registry {
             s.set_rules(rules)
         })
         .params(r#"{"index": number}"#),
+        CommandSpec::new("rules.export", "Export rules", "Home › Rules › Options", |s, v| {
+            let path = p::req_str(v, "path")?;
+            let bytes = s.rules_file()?;
+            std::fs::write(path, bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+            Ok(json!({ "rules": s.rules.len(), "path": path }))
+        })
+        .params(r#"{"path": string}"#),
+        CommandSpec::new("rules.import", "Import rules", "Home › Rules › Options", |s, v| {
+            let path = p::req_str(v, "path")?;
+            let bytes = read_capped(path, 4 << 20)?;
+            s.import_rules(&bytes, p::bool(v, "replace").unwrap_or(false))
+        })
+        .params(r#"{"path": string, "replace"?: bool (in place of the rules here; else added after them)}"#),
         CommandSpec::new("rules.run", "Run rules now", "Home › Rules", |s, v| {
             s.run_rules_now(p::u64(v, "index").and_then(|i| usize::try_from(i).ok()), p::bool(v, "inbox").unwrap_or(false))
         })
@@ -1688,4 +1701,16 @@ fn organized_by_me(s: &Session, e: &mailcraft_model::ical::CalEvent) -> bool {
         && e.organizer.as_ref().is_some_and(|o| {
             s.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(&o.email) || a.config.username.eq_ignore_ascii_case(&o.email))
         })
+}
+
+/// A file's bytes, refused when it's bigger than `max` (read no further than that).
+fn read_capped(path: &str, max: u64) -> Result<Vec<u8>, CmdError> {
+    use std::io::Read;
+    let f = std::fs::File::open(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    let mut bytes = Vec::new();
+    f.take(max.saturating_add(1)).read_to_end(&mut bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    if bytes.len() as u64 > max {
+        return Err(CmdError::Params(format!("{path} is too big")));
+    }
+    Ok(bytes)
 }
