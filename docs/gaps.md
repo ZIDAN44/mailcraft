@@ -359,3 +359,22 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   index (75 s for 800,000 messages; an index kept on disk would save it); the reading library
   holds a big folder's table of contents while importing it (about 400 MB for 440,000 messages);
   a search matching most of a huge mailbox holds every match's summary.
+
+- **Everyday fixes:**
+  - Prefetch over Graph and EWS: an error on one message aborted the rest of the folder. It's
+    skipped (fetched on open instead); an auth error, or three errors in a row, still abort.
+  - Replied/Forwarded flags were set when a reply was queued in the Outbox. They're now owed,
+    saved in `pending-marks.json`, and set on delivery; Edit carries them over, removing the
+    queued message drops them.
+  - Search: whitespace after a bare `field:` split the query into plain words. The parser now
+    joins it to the next token.
+  - `contact.delete` from the ribbon or the card ran without confirmation; a dialog comes first.
+  - vCard 2.1 `QUOTED-PRINTABLE` values (with `CHARSET`, and `=` soft breaks) were shown raw;
+    they're decoded (UTF-8, else Windows-1252 for the single-byte Western sets).
+  - New mail called RequestUserAttention, which on Windows keeps the taskbar entry highlighted
+    until focus returns. The system notification and the title's unread count remain.
+  - Gmail: an EXPUNGE in a label folder only archives to All Mail, so permanent deletes there
+    (`mail.delete` with `permanent`, a replaced or sent draft's old copy) left the message. On
+    servers with `X-GM-EXT-1` they move into Trash and are expunged by the UIDs COPYUID reports.
+  - Prefilled To/Cc on replies (and To/Cc/Bcc of a message pulled back from the Outbox) had no
+    trailing separator, so typing appended to the last address. They end with `; ` now.

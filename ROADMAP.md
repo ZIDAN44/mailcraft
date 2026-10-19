@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 318 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 325 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -157,4 +157,8 @@ local-first, media-aware v1); the fuller request is
   65 s (quadratic), one flag 4.7 s, a search 80-150 s and 3.5 GB; now 0.2 s, 0.5 s, 2 s again and
   2.5 GB, with folder lists kept in pages and only the changed ones written, a bounded cache of
   lists and of search text, and the message list's rows made once per change.
-
+- **2026-10-19** — **v0.16**, a round of everyday fixes: Graph and EWS prefetch skips a message
+  the server errors on instead of abandoning the folder; Replied/Forwarded flags are owed until
+  the Outbox delivers; search accepts `from: zoe`; removing a contact needs confirmation; vCard
+  2.1 quoted-printable is decoded; no taskbar highlight for new mail; permanent delete on Gmail
+  moves to Trash and expunges there; prefilled reply recipients end with `; `.
