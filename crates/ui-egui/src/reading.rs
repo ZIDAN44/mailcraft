@@ -1678,10 +1678,25 @@ fn underlined(ui: &mut Ui, t: &Tokens, edit: egui::TextEdit<'_>) -> egui::Respon
 
 /// A small framed button naming a field (To, Cc…), as in Outlook's message window.
 fn label_button(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool) -> egui::Response {
+    label_button_menu(ui, t, label, enabled, false)
+}
+
+/// A label button that opens a menu: its label and a small drawn chevron, centred together.
+fn label_button_menu(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool, menu: bool) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(LABEL_W - 8.0, ROW_H - 4.0), if enabled { Sense::click() } else { Sense::hover() });
     let fill = if resp.hovered() && enabled { t.hover } else { t.surface };
     ui.painter().rect(rect, 3.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, tl!(label), theme::regular(13.0), if enabled { t.text } else { t.dim });
+    let color = if enabled { t.text } else { t.dim };
+    let galley = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.0), color);
+    let chevron = if menu { 14.0 } else { 0.0 };
+    let left = rect.center().x - (galley.size().x + chevron) / 2.0;
+    let text_pos = egui::pos2(left, rect.center().y - galley.size().y / 2.0);
+    let text_w = galley.size().x;
+    ui.painter().galley(text_pos, galley, color);
+    if menu {
+        let r = egui::Rect::from_center_size(egui::pos2(left + text_w + 4.0 + 5.0, rect.center().y + 0.5), vec2(10.0, 10.0));
+        icons::paint(ui.painter(), r, Icon::ChevronDown, t.dim);
+    }
     ui.add_space(8.0);
     resp
 }
@@ -1767,6 +1782,14 @@ fn recipient_field(
     if focus {
         r.request_focus();
     }
+    // Picked from the suggestions: the box stays the one being typed in, cursor at the end,
+    // until the click that picked is over.
+    if st.suggest_refocus == Some(name) {
+        r.request_focus();
+        if ui.input(|i| !i.pointer.any_down() && !i.pointer.any_released()) {
+            st.suggest_refocus = None;
+        }
+    }
     if r.changed() {
         st.suggest_index = 0;
         st.suggest_dismissed = None;
@@ -1818,6 +1841,7 @@ fn recipient_field(
     {
         *value = mailcraft_engine::model::contacts::complete(value, &c.address);
         st.suggest_index = 0;
+        st.suggest_refocus = Some(name);
         r.request_focus();
         if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
             let end = egui::text::CCursor::new(value.chars().count());
@@ -1825,13 +1849,13 @@ fn recipient_field(
             state.store(ui.ctx(), r.id);
         }
     }
-    if r.has_focus() || take.is_some() {
+    if r.has_focus() || take.is_some() || st.suggest_refocus == Some(name) {
         st.suggest_field = Some(name);
     } else if st.suggest_field == Some(name) {
         st.suggest_field = None;
     }
     // Half-typed addresses are fine while typing; check once the box is left.
-    address_check(ui, &t, value, !r.has_focus());
+    address_check(ui, &t, value, !r.has_focus() && st.suggest_refocus != Some(name));
     pressed
 }
 
@@ -2044,7 +2068,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     ui.horizontal(|ui| {
                         let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
                         let many = accounts.len() > 1;
-                        let b = label_button(ui, &t, if many { "From ▾" } else { "From" }, many);
+                        let b = label_button_menu(ui, &t, "From", many, many);
                         if many {
                             egui::Popup::menu(&b).show(|ui| {
                                 for (id, label) in &accounts {

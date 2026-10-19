@@ -649,11 +649,29 @@ fn recipient_boxes_suggest_people() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     assert_eq!(a.session.compose.as_ref().unwrap().to, "Zoe Park <zoe@studio.example>, ");
+    // Picked with the mouse: the box keeps the cursor after the click, so the next address is
+    // typed straight in.
+    frame(&ctx, &mut a, vec![Event::Text("sh".into())]);
+    frame(&ctx, &mut a, vec![]);
+    let list =
+        ctx.memory(|m| m.areas().visible_layer_ids().into_iter().filter(|l| l.order == egui::Order::Foreground).find_map(|l| m.area_rect(l.id)));
+    let row = list.map(|r| r.left_top() + egui::vec2(20.0, 16.0)).expect("the suggestions show");
+    let button = |pressed| Event::PointerButton { pos: row, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(&ctx, &mut a, vec![Event::PointerMoved(row)]);
+    frame(&ctx, &mut a, vec![button(true)]);
+    frame(&ctx, &mut a, vec![button(false)]);
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Text("x".into())]);
+    let to = a.session.compose.as_ref().unwrap().to.clone();
+    assert!(to.starts_with("Zoe Park <zoe@studio.example>, ") && to.ends_with(">, x") && to.matches('@').count() == 2, "{to}");
+    a.session.compose.as_mut().unwrap().to = "Zoe Park <zoe@studio.example>, ".into();
+
     // The next address starts fresh; Escape hides the list.
     frame(&ctx, &mut a, vec![Event::Text("sh".into())]);
     frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE), key(Key::Escape, Modifiers::NONE)]);
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     assert!(a.session.compose.as_ref().unwrap().to.ends_with(", sh"), "{}", a.session.compose.as_ref().unwrap().to);
+
     let _ = std::fs::remove_dir_all(dir);
 }
 
