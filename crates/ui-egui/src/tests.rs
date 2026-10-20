@@ -1352,3 +1352,30 @@ fn a_window_too_big_for_its_screen_shrinks_to_fit() {
     let max = egui::ViewportInfo { maximized: Some(true), ..big };
     assert_eq!(WindowPlace::fit(&max, true), None);
 }
+
+/// A damaged system font (or a file that isn't a font, or a collection index past its end)
+/// panicked in egui's `set_fonts` at start-up before egui 0.37 (GridCraft found); egui now skips
+/// such a face. This keeps it so: the window still draws with them installed.
+#[test]
+fn a_damaged_system_font_doesnt_stop_the_window() {
+    let real = crate::craft_fonts::fallbacks().next().map(|f| f.bytes.to_vec());
+    let garbage = b"not a font at all, just text".to_vec();
+    let truncated = real.as_ref().map(|r| r[..r.len().min(200)].to_vec()).unwrap_or_else(|| b"\x00\x01\x00\x00\x00\x0c".to_vec());
+    // Installed as install_fonts_with does, without noting the main font's coverage (which other
+    // tests share): first in every family, a collection index past its end among them.
+    let mut defs = egui::FontDefinitions::default();
+    for (name, bytes, index) in [("garbage", garbage.clone(), 0), ("truncated", truncated, 0), ("past-end", garbage, 3)] {
+        let mut data = egui::FontData::from_owned(bytes);
+        data.index = index;
+        defs.font_data.insert(name.into(), std::sync::Arc::new(data));
+        for family in defs.families.values_mut() {
+            family.insert(0, name.into());
+        }
+    }
+    let ctx = egui::Context::default();
+    ctx.set_fonts(defs);
+    let (mut a, dir) = app("bad-fonts");
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}

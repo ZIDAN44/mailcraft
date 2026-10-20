@@ -159,7 +159,8 @@ fn version_line() -> String {
 }
 
 fn run() -> Result<(), String> {
-    let raw: Vec<String> = std::env::args().skip(1).collect();
+    // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
+    let raw: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
     if raw.iter().any(|a| a == "--version" || a == "-V") {
         println!("{}", version_line());
         return Ok(());

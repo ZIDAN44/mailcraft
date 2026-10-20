@@ -466,13 +466,22 @@ impl eframe::App for App {
         {
             let _ = mailcraft_engine::store::write_atomic(p, &bytes);
         }
+        // macOS: end here, before eframe tears the window down. AccessKit's macOS adapter
+        // subclasses the window's content view and puts its class back on teardown; AppKit's
+        // Touch Bar support observes that view, so in the next display cycle it throws ("not
+        // registered") and quitting ends in a crash report (DeckCraft and GridCraft found). Every
+        // way of quitting comes here, and nothing after it is needed: the window's state is
+        // saved, the log is unbuffered and the data files keep what they committed.
+        #[cfg(target_os = "macos")]
+        std::process::exit(0);
     }
 }
 
 fn main() -> eframe::Result {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
+    let args: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("{}", version_line());
+        say_out(&version_line());
         return Ok(());
     }
     let cmd_args = args.clone();
@@ -517,7 +526,7 @@ fn main() -> eframe::Result {
         match opened {
             Ok(s) => Some(s),
             Err(e) => {
-                eprintln!("mailcraft: the mail cache can't be opened ({e}); running without one");
+                say(&format!("the mail cache can't be opened ({e}); running without one"));
                 None
             }
         }
@@ -526,7 +535,7 @@ fn main() -> eframe::Result {
         && let Some(s) = &store
         && let Err(e) = mailcraft_engine::sample::seed_if_empty_at(s, now, i64::from(offset))
     {
-        eprintln!("mailcraft: the sample mailbox couldn't be created: {e}");
+        say(&format!("the sample mailbox couldn't be created: {e}"));
     }
     let mut session = Session::open(store.clone(), Clock::new(now, offset));
     let desktop_data = store.as_ref().and_then(Store::data_files_dir);
@@ -578,7 +587,7 @@ fn main() -> eframe::Result {
             .unwrap_or_else(|| "it stopped unexpectedly".into()),
     };
     log::error!("the window couldn't open: {failed}");
-    eprintln!("mailcraft: the window couldn't open: {failed}");
+    say(&format!("the window couldn't open: {failed}"));
     rfd::MessageDialog::new()
         .set_level(rfd::MessageLevel::Error)
         .set_title("MailCraft")
@@ -611,6 +620,18 @@ fn read_clipboard<T: Send + 'static>(read: fn(&mut arboard::Clipboard) -> Option
 #[cfg(not(all(unix, not(target_os = "macos"))))]
 fn read_clipboard<T>(read: fn(&mut arboard::Clipboard) -> Option<T>) -> Option<T> {
     read(&mut arboard::Clipboard::new().ok()?)
+}
+
+/// Tell standard error (and the log). `eprintln!` panics when standard error is a broken pipe,
+/// which a launch from another program can leave it as (PdfCraft and GridCraft found).
+fn say(what: &str) {
+    log::warn!("{what}");
+    let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("mailcraft: {what}\n"));
+}
+
+/// Tell standard output, as `println!` would without its panic on a closed pipe.
+fn say_out(what: &str) {
+    let _ = std::io::Write::write_fmt(&mut std::io::stdout(), format_args!("{what}\n"));
 }
 
 /// What the message box says when the window can't open.
@@ -695,7 +716,7 @@ fn run(
                     "ui.newContact" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_contact()),
                     _ => match serde_json::from_str(params) {
                         Ok(p) => app.run(id, p),
-                        Err(e) => eprintln!("--cmd {id}: bad JSON: {e}"),
+                        Err(e) => say(&format!("--cmd {id}: bad JSON: {e}")),
                     },
                 }
             }
