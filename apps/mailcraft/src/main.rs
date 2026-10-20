@@ -31,6 +31,8 @@ mod logfile;
 #[cfg(windows)]
 mod toast;
 mod video;
+#[cfg(test)]
+mod windows_manifest;
 #[cfg(all(unix, not(target_os = "macos")))]
 mod xdnd;
 
