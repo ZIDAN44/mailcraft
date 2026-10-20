@@ -13,6 +13,17 @@
 //! compiled with FXC, part of Windows (`WGPU_DX12_COMPILER` chooses another): wgpu's default loads
 //! whichever `dxcompiler.dll` the DLL search path finds, and one without its `dxil.dll` loses the
 //! device before the first frame.
+//!
+//! Everywhere, what the Craft apps learnt on users' machines:
+//! - the device asks for what the adapter has ([`device_limits`]): egui-wgpu asks for fixed limits,
+//!   which some GPUs fall short of, and for 8192-pixel textures at most, so a window wider than that
+//!   (3440 points at 250%) panicked configuring its surface;
+//! - on Intel Macs wgpu's indirect-call validation shaders are left out: Metal's Intel compiler
+//!   aborts on them and the window never opens (MailCraft draws nothing indirect);
+//! - on Linux and the BSDs the window is drawn on the GPU the desktop runs on, not always the
+//!   discrete one, which on a PRIME laptop showed stale or garbled frames;
+//! - once the window has drawn its first frames, a wgpu error is logged rather than ending the app
+//!   ([`log_errors`]); before that it still ends the start, which then says why.
 
 use eframe::wgpu::{self, DeviceType, PowerPreference};
 
@@ -64,11 +75,50 @@ fn software_only() -> bool {
     std::env::var("WGPU_FORCE_FALLBACK_ADAPTER").is_ok_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
 }
 
-/// Sets up the window's graphics: on Windows as the module says, elsewhere wgpu's own way.
+/// Sets up the window's graphics as the module says.
 pub fn configure(options: &mut eframe::NativeOptions) {
     if cfg!(windows) {
         windows_setup(options, wgpu::Backends::from_env(), wgpu::Dx12Compiler::from_env(), software_only());
     }
+    common_setup(options, cfg!(target_os = "macos") && cfg!(target_arch = "x86_64"), cfg!(all(unix, not(target_os = "macos"))));
+}
+
+/// The limits to ask the device for: egui-wgpu's `required`, no more than the adapter has
+/// (`supported`), and the adapter's whole texture size, so a window as large as the GPU can draw
+/// can be drawn (egui-wgpu asks for 8192 pixels).
+pub fn device_limits(required: wgpu::Limits, supported: &wgpu::Limits) -> wgpu::Limits {
+    let mut limits = required.or_worse_values_from(supported);
+    limits.max_texture_dimension_2d = supported.max_texture_dimension_2d;
+    limits
+}
+
+/// Every platform: the device's limits from the adapter; with `intel_mac`, no indirect-call
+/// validation (`WGPU_VALIDATION_INDIRECT_CALL=1` turns it back on); with `desktop_gpu`, no power
+/// preference, so wgpu takes the GPU the desktop runs on (`WGPU_POWER_PREF` still chooses).
+fn common_setup(options: &mut eframe::NativeOptions, intel_mac: bool, desktop_gpu: bool) {
+    let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup else { return };
+    let asked = std::sync::Arc::clone(&setup.device_descriptor);
+    setup.device_descriptor = std::sync::Arc::new(move |adapter: &wgpu::Adapter| {
+        let mut d = asked(adapter);
+        d.required_limits = device_limits(d.required_limits, &adapter.limits());
+        d
+    });
+    if intel_mac {
+        setup.instance_descriptor.flags = setup.instance_descriptor.flags.difference(wgpu::InstanceFlags::VALIDATION_INDIRECT_CALL).with_env();
+    }
+    if desktop_gpu {
+        setup.power_preference = PowerPreference::from_env().unwrap_or(PowerPreference::None);
+    }
+}
+
+/// How many frames the window draws before a wgpu error is only logged (see [`log_errors`]).
+pub const STARTUP_FRAMES: u32 = 3;
+
+/// From now on, a wgpu error on `device` (a validation error, running out of memory) is written to
+/// mailcraft.log instead of ending the app: wgpu's own handler panics. Called once the window is
+/// past its first frames, so a GPU that can't start still ends the start with its reason.
+pub fn log_errors(device: &wgpu::Device) {
+    device.on_uncaptured_error(std::sync::Arc::new(|e: wgpu::Error| log::error!("graphics: {e}")));
 }
 
 /// DirectX 12 alone (unless `backends` overrides it), shaders compiled with `compiler` or FXC,
@@ -149,6 +199,42 @@ mod tests {
         let only_gpu = found(&[("Intel(R) UHD Graphics", DeviceType::IntegratedGpu)]);
         let e = choose(&only_gpu, false, true).unwrap_err();
         assert!(e.contains("software renderer") && e.contains("Intel(R) UHD Graphics"), "{e}");
+    }
+
+    /// The device asks for no more than the adapter has, and for its whole texture size (a 3440-point
+    /// window at 250% needs 8600 pixels; egui-wgpu asked for 8192).
+    #[test]
+    fn the_device_asks_for_what_the_adapter_has() {
+        let required = wgpu::Limits { max_texture_dimension_2d: 8192, ..wgpu::Limits::default() };
+        let big = wgpu::Limits { max_texture_dimension_2d: 16384, ..wgpu::Limits::default() };
+        assert_eq!(device_limits(required.clone(), &big).max_texture_dimension_2d, 16384);
+        // A GPU short of the defaults (Raspberry Pi's V3D: 15 inter-stage variables, 4096 pixels).
+        let small = wgpu::Limits { max_texture_dimension_2d: 4096, max_inter_stage_shader_variables: 15, ..wgpu::Limits::default() };
+        let got = device_limits(required, &small);
+        assert!(got.check_limits(&small), "{got:?}");
+        assert_eq!((got.max_texture_dimension_2d, got.max_inter_stage_shader_variables), (4096, 15));
+    }
+
+    /// Intel Macs leave the indirect-call validation out; other platforms keep wgpu's flags. Linux
+    /// and the BSDs ask for no power preference unless told one.
+    #[test]
+    fn intel_macs_and_linux_get_their_own_setup() {
+        let setup_of = |intel_mac: bool, desktop_gpu: bool| {
+            let mut o = eframe::NativeOptions::default();
+            common_setup(&mut o, intel_mac, desktop_gpu);
+            match o.wgpu_options.wgpu_setup {
+                eframe::egui_wgpu::WgpuSetup::CreateNew(s) => Some(s),
+                _ => None,
+            }
+        };
+        let plain = setup_of(false, false).unwrap();
+        if std::env::var_os("WGPU_VALIDATION_INDIRECT_CALL").is_none() {
+            let mac = setup_of(true, false).unwrap();
+            assert!(!mac.instance_descriptor.flags.contains(wgpu::InstanceFlags::VALIDATION_INDIRECT_CALL));
+        }
+        assert_eq!(plain.power_preference, PowerPreference::from_env().unwrap_or(PowerPreference::HighPerformance));
+        let linux = setup_of(false, true).unwrap();
+        assert_eq!(linux.power_preference, PowerPreference::from_env().unwrap_or(PowerPreference::None));
     }
 
     /// DirectX 12 only, never Vulkan or OpenGL (eframe's default starts both), shaders with FXC,

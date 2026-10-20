@@ -441,10 +441,19 @@ fn drag_out(_frame: &eframe::Frame, _path: PathBuf) {}
 struct App {
     app: MailApp,
     state_path: Option<PathBuf>,
+    /// The window's GPU device, until its errors are only logged (`graphics::log_errors`).
+    gpu: Option<eframe::wgpu::Device>,
+    frames: u32,
 }
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.frames = self.frames.saturating_add(1);
+        if self.frames >= graphics::STARTUP_FRAMES
+            && let Some(device) = self.gpu.take()
+        {
+            graphics::log_errors(&device);
+        }
         self.app.ui(ui);
         if let Some(path) = self.app.take_drag_out() {
             drag_out(frame, path);
@@ -656,7 +665,8 @@ fn run(
                     },
                 }
             }
-            Ok(Box::new(App { app, state_path }))
+            let gpu = cc.wgpu_render_state.as_ref().map(|rs| rs.device.clone());
+            Ok(Box::new(App { app, state_path, gpu, frames: 0 }))
         }),
     )
 }
