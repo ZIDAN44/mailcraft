@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.19 — Shared mailboxes of their own, and SMTP's own sign-in (2026-10-20). Each milestone below is a version: v0.1 was
+**Stage:** v0.20 — A window on every Windows PC (2026-10-20). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -92,7 +92,10 @@ local-first, media-aware v1); the fuller request is
    folders under the names the server gives them, the conversation above a message only when
    the list is grouped by conversation, and an outgoing server signed in to with a user name
    and password of its own.
-20. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+20. **v0.20 — A window on every Windows PC** ✅ Windows draws with DirectX 12 alone: a real GPU
+   first, Windows' software renderer (WARP) on a PC without one, where the window never opened;
+   a window that can't open says why.
+21. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
