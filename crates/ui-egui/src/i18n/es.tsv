@@ -892,3 +892,10 @@ month	May	mayo
 	MailCraft {version} is available.	MailCraft {version} está disponible.
 	What's new	Novedades
 	You have the newest version.	Tienes la versión más reciente.
+	Online only: keep none of this account's mail on this computer	Solo en línea: no guardar ningún correo de esta cuenta en este equipo
+	Online only: none of this account's mail is kept on this computer.	Solo en línea: no se guarda ningún correo de esta cuenta en este equipo.
+	Online only: {email}	Solo en línea: {email}
+	New message	Mensaje nuevo
+	Open MailCraft to read it.	Abre MailCraft para leerlo.
+	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	Su correo se lee del servidor y se mantiene en memoria mientras MailCraft está abierto; no se escribe nada en este equipo. Cada mensaje se descarga al abrirlo. El correo pendiente de envío, los cambios hechos sin conexión y los elementos de calendario, contactos y notas guardados solo en MailCraft se pierden al cerrarlo.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Portátil: todo se guarda en MailCraftData junto a MailCraft, y las contraseñas solo hasta que se cierra.

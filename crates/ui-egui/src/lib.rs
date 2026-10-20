@@ -1113,8 +1113,15 @@ impl MailApp {
     fn announce(&mut self, ctx: &egui::Context) {
         let news = self.session.take_new_mail();
         if !news.is_empty() {
+            // Issue #4: the system keeps its notifications (Windows, in its history): one for an
+            // account kept online only names neither sender nor subject.
+            let private = news.iter().any(|m| self.session.account(&m.key.account).is_some_and(|a| a.config.keeps_online()));
             // A system notification: text as written.
             let (title, body) = i18n::as_written(|| match news.as_slice() {
+                _ if private => (
+                    if news.len() == 1 { tl!("New message").to_string() } else { tf!("{n} new messages", n = news.len()) },
+                    tl!("Open MailCraft to read it.").to_string(),
+                ),
                 [m] => (m.from.display().to_string(), if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() }),
                 many => {
                     let mut who: Vec<&str> = Vec::new();

@@ -656,6 +656,8 @@ pub struct Session {
     held: HashMap<String, Job>,
     /// OAuth providers this copy can sign in with (set by the app).
     pub oauth_available: Vec<String>,
+    /// Running portable (set by the app): everything is kept beside it, passwords only in memory.
+    pub portable: bool,
     /// Only JMAP accounts can be added (the browser, which can't open IMAP or SMTP connections).
     pub jmap_only: bool,
     /// The fonts PDFs embed (regular, bold): the system's, set by the app.
@@ -733,6 +735,7 @@ impl Session {
             discovered: HashMap::new(),
             held: HashMap::new(),
             oauth_available: Vec::new(),
+            portable: false,
             jmap_only: false,
             print_fonts: None,
             open_urls: Vec::new(),
@@ -766,6 +769,12 @@ impl Session {
                 Vec::new()
             });
             for config in accounts {
+                // Online only: held in memory from the start (anything left on disk goes).
+                if config.keeps_online()
+                    && let Err(e) = store.set_online_only(&config.id, true)
+                {
+                    log::warn!("{}: couldn't be kept online only: {e}", config.id);
+                }
                 let mut folders = store.load_folders(&config.id).unwrap_or_default();
                 // A folder belongs to the account it's kept with (a data file brought in from
                 // another account once kept that one's name).
@@ -2779,6 +2788,14 @@ impl Session {
             return Err(CmdError::Params("incoming and outgoing server names and ports are required".into()));
         }
         let id = config.id.clone();
+        if config.online_only && !config.can_be_online_only() {
+            return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));
+        }
+        if let Some(store) = &self.store
+            && config.keeps_online()
+        {
+            store.set_online_only(&id, true).map_err(|e| CmdError::Failed(e.to_string()))?;
+        }
         self.accounts.push(AccountState {
             config: config.clone(),
             folders: Vec::new(),
@@ -3061,7 +3078,18 @@ impl Session {
             || a.config.username != config.username
             || a.config.smtp_username != config.smtp_username
             || a.config.shared_mailboxes != config.shared_mailboxes
+            || a.config.online_only != config.online_only
             || password.is_some();
+        if config.online_only && !config.can_be_online_only() {
+            return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));
+        }
+        // Online only, or kept here again: what's kept moves between memory and the disk first.
+        if a.config.online_only != config.online_only
+            && let Some(store) = self.store.clone()
+        {
+            store.set_online_only(&id, config.keeps_online()).map_err(|e| CmdError::Failed(e.to_string()))?;
+        }
+        let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
         a.config = config.clone();
         let local = a.is_local();
         self.save_accounts();

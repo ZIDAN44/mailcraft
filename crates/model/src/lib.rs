@@ -128,6 +128,12 @@ pub struct AccountConfig {
     /// additional mailboxes"); those the server maps to it open by themselves.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shared_mailboxes: Vec<String>,
+    /// Online only (issue #4): none of the account's mail is kept on this computer. Its folders,
+    /// messages, changes waiting for the server and Outbox are held in memory while MailCraft
+    /// runs, and a message is downloaded when it's opened. Not for POP, whose mail has no other
+    /// home, nor an account with no server ([`AccountConfig::keeps_online`]).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub online_only: bool,
 }
 
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
@@ -214,7 +220,19 @@ impl AccountConfig {
             pop_delete_with_trash: false,
             oauth_user: None,
             shared_mailboxes: Vec::new(),
+            online_only: false,
         }
+    }
+
+    /// Whether the account's mail is kept online only: asked for, and on a server that keeps it.
+    pub fn keeps_online(&self) -> bool {
+        self.online_only && self.can_be_online_only()
+    }
+
+    /// Whether the account can be kept online only: its mail lives on a server (IMAP, JMAP,
+    /// Graph, EWS), not only here (POP downloads it; the sample mailbox has no server).
+    pub fn can_be_online_only(&self) -> bool {
+        !self.is_local() && self.pop.is_none()
     }
 
     /// Kept on this computer only, with no server (the sample mailbox).

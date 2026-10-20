@@ -891,3 +891,10 @@ month	May	Май
 	MailCraft {version} is available.	Доступна версия MailCraft {version}.
 	What's new	Что нового
 	You have the newest version.	У вас последняя версия.
+	Online only: keep none of this account's mail on this computer	Только в сети: не хранить почту этой учётной записи на этом компьютере
+	Online only: none of this account's mail is kept on this computer.	Только в сети: почта этой учётной записи не хранится на этом компьютере.
+	Online only: {email}	Только в сети: {email}
+	New message	Новое сообщение
+	Open MailCraft to read it.	Откройте MailCraft, чтобы прочитать.
+	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	Почта читается с сервера и хранится в памяти, пока работает MailCraft; на этот компьютер ничего не записывается. Каждое сообщение загружается при открытии. Письма, ожидающие отправки, изменения, сделанные вне сети, а также события календаря, контакты и заметки, хранящиеся только в MailCraft, теряются при его закрытии.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Портативный режим: всё хранится в MailCraftData рядом с MailCraft, а пароли — только до его закрытия.

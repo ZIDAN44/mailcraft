@@ -887,3 +887,10 @@ month	May	mei
 	MailCraft {version} is available.	MailCraft {version} is beschikbaar.
 	What's new	Wat is er nieuw
 	You have the newest version.	U hebt de nieuwste versie.
+	Online only: keep none of this account's mail on this computer	Alleen online: geen e-mail van dit account op deze computer bewaren
+	Online only: none of this account's mail is kept on this computer.	Alleen online: er wordt geen e-mail van dit account op deze computer bewaard.
+	Online only: {email}	Alleen online: {email}
+	New message	Nieuw bericht
+	Open MailCraft to read it.	Open MailCraft om het te lezen.
+	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	De e-mail wordt van de server gelezen en in het geheugen gehouden zolang MailCraft draait; er wordt niets op deze computer geschreven. Elk bericht wordt gedownload wanneer u het opent. E-mail die nog moet worden verzonden, offline gemaakte wijzigingen en agenda-items, contactpersonen en notities die alleen in MailCraft staan, gaan verloren bij het sluiten.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Draagbaar: alles wordt bewaard in MailCraftData naast MailCraft, en wachtwoorden alleen tot het wordt gesloten.

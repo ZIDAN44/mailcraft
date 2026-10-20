@@ -888,3 +888,10 @@ month	May	5月
 	MailCraft {version} is available.	MailCraft {version} を利用できます。
 	What's new	新機能
 	You have the newest version.	最新バージョンを使用しています。
+	Online only: keep none of this account's mail on this computer	オンラインのみ: このアカウントのメールをこのコンピューターに保存しない
+	Online only: none of this account's mail is kept on this computer.	オンラインのみ: このアカウントのメールはこのコンピューターに保存されません。
+	Online only: {email}	オンラインのみ: {email}
+	New message	新しいメッセージ
+	Open MailCraft to read it.	MailCraft を開いて読んでください。
+	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	メールはサーバーから読み込まれ、MailCraft の実行中はメモリにのみ保持されます。このコンピューターには何も書き込まれません。各メッセージは開いたときにダウンロードされます。送信待ちのメール、オフライン中の変更、MailCraft にのみ保存されている予定・連絡先・メモは、閉じると失われます。
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	ポータブル: すべて MailCraft の横の MailCraftData に保存され、パスワードは閉じるまでだけ保持されます。

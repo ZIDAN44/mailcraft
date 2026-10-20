@@ -203,8 +203,17 @@ impl Session {
     }
 
     pub(super) fn save_snoozes(&mut self) {
+        // An online-only account's snoozed mail is kept without its subject (issue #4).
+        let kept: Vec<_> = self
+            .snoozes
+            .iter()
+            .map(|s| match self.account(&s.account) {
+                Some(a) if a.config.keeps_online() => mailcraft_model::organize::Snooze { subject: String::new(), ..s.clone() },
+                _ => s.clone(),
+            })
+            .collect();
         if let Some(store) = &self.store
-            && let Err(e) = store.save_doc("snoozes.json", &self.snoozes)
+            && let Err(e) = store.save_doc("snoozes.json", &kept)
         {
             self.notice(format!("snoozed mail couldn't be saved: {e}"), true);
         }

@@ -1379,3 +1379,56 @@ fn a_damaged_system_font_doesnt_stop_the_window() {
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #4: online only, from the account forms and File › Options. Added with it ticked (on
+/// from the start when portable), the account's mail is kept in memory; Options lists a switch
+/// for each account that can be online only (not the sample mailbox), and Account settings keeps it.
+#[test]
+fn an_account_is_kept_online_only_from_the_forms() {
+    let (mut a, dir) = app("online-only");
+    let ctx = egui::Context::default();
+    a.session.portable = true;
+    a.ui.dialog = Some(Dialog::add_account_with("zoe@example.org", false));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    let mut p = match &mut a.ui.dialog {
+        Some(Dialog::AddAccount(f)) => {
+            assert_eq!(f.online_only, Some(true), "ticked when portable");
+            f.password = "pw".into();
+            f.params()
+        }
+        _ => serde_json::Value::Null,
+    };
+    assert_eq!(p["onlineOnly"], json!(true));
+    p["imapHost"] = json!("mail.example.org");
+    a.act(crate::Action::Submit("account.add", p));
+    let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
+    assert!(a.session.store.as_ref().unwrap().is_online_only(&id));
+
+    // File › Options and Info draw it; the switch turns it off.
+    crate::tests::backstage_tour(&mut a, &ctx);
+    a.act(crate::Action::Run("account.onlineOnly", json!({"account": id, "on": false})));
+    assert!(!a.session.store.as_ref().unwrap().is_online_only(&id));
+
+    // Account settings: the box is as the account is; ticked and saved, it's online only again.
+    let config = a.session.account(&id).unwrap().config.clone();
+    let mut d = Dialog::edit_account(&config);
+    let p = match &mut d {
+        Dialog::EditAccount(f) => {
+            assert!(!f.online_only);
+            f.online_only = true;
+            f.params()
+        }
+        _ => serde_json::Value::Null,
+    };
+    a.ui.dialog = Some(d);
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Submit("account.update", p));
+    assert!(a.session.store.as_ref().unwrap().is_online_only(&id));
+    // Not portable: a new account isn't, unless asked.
+    a.session.portable = false;
+    a.ui.dialog = Some(Dialog::add_account_with("ana@example.org", false));
+    frame(&ctx, &mut a, vec![]);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.online_only == Some(false) && f.params().get("onlineOnly").is_none()));
+    let _ = std::fs::remove_dir_all(dir);
+}

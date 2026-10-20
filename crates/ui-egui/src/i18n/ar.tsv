@@ -887,3 +887,10 @@ month	May	مايو
 	MailCraft {version} is available.	يتوفر MailCraft {version}.
 	What's new	ما الجديد
 	You have the newest version.	لديك أحدث إصدار.
+	Online only: keep none of this account's mail on this computer	عبر الإنترنت فقط: عدم الاحتفاظ بأي بريد لهذا الحساب على هذا الكمبيوتر
+	Online only: none of this account's mail is kept on this computer.	عبر الإنترنت فقط: لا يُحتفظ بأي بريد لهذا الحساب على هذا الكمبيوتر.
+	Online only: {email}	عبر الإنترنت فقط: {email}
+	New message	رسالة جديدة
+	Open MailCraft to read it.	افتح MailCraft لقراءتها.
+	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	يُقرأ بريده من الخادم ويُحتفظ به في الذاكرة أثناء تشغيل MailCraft، ولا يُكتب منه شيء على هذا الكمبيوتر. تُنزَّل كل رسالة عند فتحها. تضيع عند إغلاقه الرسائل التي تنتظر الإرسال، والتغييرات التي أُجريت دون اتصال، وعناصر التقويم وجهات الاتصال والملاحظات المحفوظة في MailCraft فقط.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	محمول: يُحفظ كل شيء في MailCraftData بجانب MailCraft، وكلمات المرور حتى إغلاقه فقط.

@@ -891,3 +891,10 @@ month	May	5월
 	MailCraft {version} is available.	MailCraft {version}을(를) 사용할 수 있습니다.
 	What's new	새로운 기능
 	You have the newest version.	최신 버전을 사용하고 있습니다.
+	Online only: keep none of this account's mail on this computer	온라인 전용: 이 계정의 메일을 이 컴퓨터에 보관하지 않음
+	Online only: none of this account's mail is kept on this computer.	온라인 전용: 이 계정의 메일은 이 컴퓨터에 보관되지 않습니다.
+	Online only: {email}	온라인 전용: {email}
+	New message	새 메시지
+	Open MailCraft to read it.	MailCraft를 열어 읽으세요.
+	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	메일은 서버에서 읽어 MailCraft가 실행되는 동안 메모리에만 보관되며, 이 컴퓨터에는 아무것도 기록되지 않습니다. 각 메시지는 열 때 다운로드됩니다. 보내기를 기다리는 메일, 오프라인 중 변경 내용, MailCraft에만 보관된 일정 항목·연락처·메모는 닫으면 사라집니다.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	포터블: 모든 것이 MailCraft 옆의 MailCraftData에 보관되며, 암호는 닫을 때까지만 보관됩니다.

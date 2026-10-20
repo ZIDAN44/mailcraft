@@ -2628,3 +2628,59 @@ fn each_accounts_calendar_has_the_accounts_colour() {
     assert!(s.agenda(from, to).iter().filter(|i| i.calendar == mailcraft_model::pim::LOCAL).all(|i| i.color == sample));
     done(s);
 }
+
+/// Issue #4: an account kept online only (from when it's added, or switched in Options) has none
+/// of its mail kept on this computer: the store holds it in memory, its worker starts again with
+/// the change, and the next start holds it in memory from the outset. POP and the sample mailbox
+/// keep their mail here and can't be. A snoozed message of it is remembered without its subject.
+#[test]
+fn an_account_can_be_kept_online_only() {
+    let mut s = sample_session("online-only");
+    let store = s.store.clone().unwrap();
+    let a = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "onlineOnly": true})).unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(s.account(&a).unwrap().config.keeps_online() && store.is_online_only(&a));
+    s.take_jobs();
+
+    assert_eq!(s.run("account.onlineOnly", &json!({"account": a, "on": false})).unwrap()["on"], false);
+    assert!(!store.is_online_only(&a));
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Start { account, .. } if account.id == a && !account.online_only)), "it starts again");
+    assert_eq!(s.run("account.onlineOnly", &json!({"account": a})).unwrap()["on"], true, "the other way");
+    assert!(store.is_online_only(&a));
+    assert!(
+        s.run("account.update", &json!({"account": a, "imapHost": "mail.example.org", "smtpHost": "mail.example.org", "onlineOnly": false})).is_ok()
+    );
+    assert!(!store.is_online_only(&a));
+    s.run("account.update", &json!({"account": a, "imapHost": "mail.example.org", "smtpHost": "mail.example.org", "onlineOnly": true})).unwrap();
+    assert!(store.is_online_only(&a));
+
+    assert!(s.run("account.onlineOnly", &json!({"account": "sample", "on": true})).is_err(), "the sample mailbox has no server");
+    assert!(!store.is_online_only("sample"));
+    let pop = json!({"email": "pop@example.org", "password": "pw", "pop": true, "popHost": "pop.example.org", "popPort": 995, "smtpHost": "smtp.example.org", "onlineOnly": true});
+    assert!(s.run("account.add", &pop).is_err(), "POP's mail has no other home");
+    assert!(s.accounts.iter().all(|x| x.config.email != "pop@example.org"));
+
+    // Snoozed: remembered without the subject (the sample mailbox's keeps it).
+    let snooze = |account: &str, subject: &str| mailcraft_model::organize::Snooze {
+        account: account.into(),
+        message_id: format!("<{}@example.org>", subject.len()),
+        folder: "Snoozed".into(),
+        back_to: "INBOX".into(),
+        until: NOW + 86_400,
+        subject: subject.into(),
+    };
+    // (One of an account that's gone, due: dropped, and the rest saved.)
+    let gone = mailcraft_model::organize::Snooze { until: NOW - 60, ..snooze("gone", "Gone") };
+    s.snoozes = vec![snooze(&a, "SECRET-SNOOZED"), snooze("sample", "Sample snoozed"), gone];
+    s.tick();
+    let saved = std::fs::read_to_string(store.root().join("snoozes.json")).unwrap();
+    assert!(!saved.contains("SECRET-SNOOZED") && saved.contains("Sample snoozed") && saved.contains(&a), "{saved}");
+
+    // Opened again: held in memory from the start.
+    let again = Session::open(Some(Store::open(store.root()).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert!(again.store.as_ref().unwrap().is_online_only(&a));
+    assert!(!again.store.as_ref().unwrap().is_online_only("sample"));
+    done(s);
+}

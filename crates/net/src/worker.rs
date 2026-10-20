@@ -628,6 +628,9 @@ impl Worker {
         let ops = store.load_ops(&acc.id).unwrap_or_default();
         let folders = store.load_folders(&acc.id).unwrap_or_default();
         let jstate = if acc.is_api() { jmap::State::load(&store, &acc.id) } else { jmap::State::default() };
+        // Online only (issue #4): nothing downloaded in full ahead of reading; a message comes
+        // when it's opened, and is held in memory only.
+        let opts = if acc.keeps_online() { SyncOptions { prefetch: 0, ..opts } } else { opts };
         Worker {
             acc,
             auth,

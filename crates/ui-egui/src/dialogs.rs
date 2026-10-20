@@ -44,6 +44,9 @@ pub struct AccountForm {
     pub pop_keep: PopKeep,
     /// POP: an existing data file (Outlook's `.pst` or MailCraft's own `.mailcraft`) whose mail comes in first.
     pub pst: String,
+    /// Keep none of its mail on this computer (issue #4; not for POP). Until it's chosen, as
+    /// MailCraft runs: on when portable.
+    pub online_only: Option<bool>,
     pub error: Option<String>,
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
@@ -172,6 +175,14 @@ impl AccountForm {
     }
 
     pub(crate) fn params(&self) -> serde_json::Value {
+        let mut p = self.server_params();
+        if self.online_only == Some(true) && !self.pop {
+            p["onlineOnly"] = json!(true);
+        }
+        p
+    }
+
+    fn server_params(&self) -> serde_json::Value {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
         if self.graph {
             return json!({"email": self.email.trim(), "name": self.name.trim(), "graph": true});
@@ -256,11 +267,21 @@ pub struct EditForm {
     pub smtp_security: Security,
     /// The outgoing server's own user name and password.
     pub smtp_sign_in: SmtpSignIn,
+    /// Keep none of its mail on this computer (issue #4; not for POP).
+    pub online_only: bool,
     pub error: Option<String>,
 }
 
 impl EditForm {
     pub(crate) fn params(&self) -> serde_json::Value {
+        let mut p = self.server_params();
+        if self.pop.is_none() {
+            p["onlineOnly"] = json!(self.online_only);
+        }
+        p
+    }
+
+    fn server_params(&self) -> serde_json::Value {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
         if let Some(u) = &self.ews {
             return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "ews": u.trim()});
@@ -412,6 +433,9 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
             );
         }
     }
+    if f.pop.is_none() {
+        online_only(ui, t, &mut f.online_only);
+    }
     if let Some(e) = &f.error {
         ui.add_space(6.0);
         ui.label(RichText::new(e).color(t.danger));
@@ -422,6 +446,22 @@ fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action
         acts.push(Action::Submit("account.update", f.params()));
     }
     !cancel
+}
+
+/// Online only (issue #4), as an account is added or changed: none of its mail on this computer.
+fn online_only(ui: &mut Ui, t: &Tokens, on: &mut bool) {
+    ui.add_space(6.0);
+    ui.checkbox(on, tl!("Online only: keep none of this account's mail on this computer"));
+    if *on {
+        ui.add(egui::Label::new(RichText::new(online_only_about()).color(t.faint).small()).wrap());
+    }
+}
+
+/// What online only means, said where it's chosen.
+pub(crate) fn online_only_about() -> &'static str {
+    tl!(
+        "Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes."
+    )
 }
 
 fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
@@ -945,6 +985,7 @@ impl Dialog {
             smtp_port: a.smtp.port.to_string(),
             smtp_security: a.smtp.security,
             smtp_sign_in: SmtpSignIn::of(a),
+            online_only: a.online_only,
             error: None,
         }))
     }
@@ -1531,6 +1572,11 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     );
                 }
                 _ => {}
+            }
+            if !f.pop {
+                let mut on = f.online_only.unwrap_or(s.portable);
+                online_only(ui, t, &mut on);
+                f.online_only = Some(on);
             }
             if let Some(e) = &f.error {
                 ui.add_space(6.0);

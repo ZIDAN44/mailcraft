@@ -888,3 +888,10 @@ month	May	5月
 	MailCraft {version} is available.	MailCraft {version} 已推出。
 	What's new	新功能
 	You have the newest version.	你使用的是最新版本。
+	Online only: keep none of this account's mail on this computer	仅联机：不在此电脑上保留此帐户的任何邮件
+	Online only: none of this account's mail is kept on this computer.	仅联机：此帐户的邮件不会保留在此电脑上。
+	Online only: {email}	仅联机：{email}
+	New message	新邮件
+	Open MailCraft to read it.	打开 MailCraft 阅读。
+	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	其邮件从服务器读取，并在 MailCraft 运行期间仅保存在内存中；不会写入此电脑。每封邮件在打开时下载。等待发送的邮件、脱机时所做的更改，以及仅保存在 MailCraft 中的日历项、联系人和便笺，会在关闭时丢失。
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	便携版：所有内容都保存在 MailCraft 旁边的 MailCraftData 中，密码仅保留到关闭为止。

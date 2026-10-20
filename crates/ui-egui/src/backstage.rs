@@ -387,8 +387,10 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             first = false;
         }
         // Where, as Outlook shows a data file's place; and a copy as one.
-        let file = if has_files { s.store.as_ref().map(|store| store.account_path(&id)) } else { None };
+        let online = a.config.keeps_online();
+        let file = if has_files && !online { s.store.as_ref().map(|store| store.account_path(&id)) } else { None };
         let here = match &file {
+            _ if online => tl!("Online only: none of this account's mail is kept on this computer.").to_string(),
             Some(f) => format!("{}\n{}", tf!("Kept on this computer: {size}", size = size(cached)), f.display()),
             None => tf!("Kept on this computer: {size}", size = size(cached)),
         };
@@ -585,11 +587,12 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     }
                 });
                 if !*movable && st.pending_move.is_none() {
-                    ui.label(
-                        RichText::new(tl!("Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here."))
-                            .color(t.faint)
-                            .small(),
-                    );
+                    let why = if s.portable {
+                        tl!("Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.")
+                    } else {
+                        tl!("Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.")
+                    };
+                    ui.label(RichText::new(why).color(t.faint).small());
                 }
                 if let Some(to) = &st.pending_move {
                     ui.add_space(6.0);
@@ -695,6 +698,18 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Run("account.keepMail", json!({"offline": n})));
                 }
             });
+            // Issue #4: an account kept online only has none of its mail here.
+            let servers: Vec<&mailcraft_engine::model::AccountConfig> =
+                s.accounts.iter().map(|a| &a.config).filter(|c| c.can_be_online_only()).collect();
+            for (i, c) in servers.iter().enumerate() {
+                let label = tf!("Online only: {email}", email = c.email);
+                setting(ui, false, &label, (i == 0).then(crate::dialogs::online_only_about), &mut |ui| {
+                    let mut on = c.keeps_online();
+                    if widgets::switch(ui, &t, &mut on, &label).changed() {
+                        acts.push(Action::Run("account.onlineOnly", json!({"account": c.id, "on": on})));
+                    }
+                });
+            }
         },
     );
 

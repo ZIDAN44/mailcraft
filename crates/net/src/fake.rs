@@ -1068,6 +1068,82 @@ y"
         let _ = std::fs::remove_dir_all(store.root());
     }
 
+    /// Issue #4: an account kept online only syncs its folders and opens its mail as any other,
+    /// but none of it reaches the disk: no data file, nothing downloaded ahead of reading, and
+    /// once MailCraft closes, nothing of its mail is anywhere under the data folders. The other
+    /// account beside it keeps its mail as before (and shows the search finds what's kept).
+    #[test]
+    fn an_online_only_account_syncs_and_reads_with_nothing_on_disk() {
+        fn on_disk(dir: &std::path::Path, needle: &[u8]) -> bool {
+            let Ok(rd) = std::fs::read_dir(dir) else { return false };
+            rd.flatten().any(|e| {
+                let p = e.path();
+                if p.is_dir() { on_disk(&p, needle) } else { std::fs::read(&p).is_ok_and(|b| b.windows(needle.len()).any(|w| w == needle)) }
+            })
+        }
+        let mail = |subject: &str, body: &str| {
+            format!("From: Ana <ana@studio.example>\r\nTo: me@studio.example\r\nSubject: {subject}\r\nMessage-ID: <{subject}@studio.example>\r\n\r\n{body}\r\n").into_bytes()
+        };
+        let (online, kept) = (State::new(), State::new());
+        for i in 1..=3 {
+            online.lock().unwrap().add_raw("INBOX", mail(&format!("ONLINE-SUBJECT-{i}"), &format!("ONLINE-BODY-{i}")));
+            kept.lock().unwrap().add_raw("INBOX", mail(&format!("KEPT-SUBJECT-{i}"), &format!("KEPT-BODY-{i}")));
+        }
+        let t = std::env::temp_dir().join(format!("mailcraft-fake-online-only-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&t);
+        let store = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+        let account = |id: &str, port: u16, online_only: bool| AccountConfig {
+            id: id.into(),
+            email: format!("{id}@studio.example"),
+            username: "me@studio.example".into(),
+            imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
+            smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+            online_only,
+            ..Default::default()
+        };
+        let (a1, a2) = (account("a1", serve_tcp(&online), true), account("a2", serve_tcp(&kept), false));
+        store.save_accounts(&[a1.clone(), a2.clone()]).unwrap();
+        // As the engine does when it opens.
+        store.set_online_only("a1", true).unwrap();
+        let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+        pool.submit(Job::Start { account: a1, password: Some(Secret("pw".into())) });
+        pool.submit(Job::Start { account: a2, password: Some(Secret("pw".into())) });
+        let end = Instant::now() + Duration::from_secs(20);
+        let synced = |a: &str| store.load_folder(a, "INBOX").is_ok_and(|f| f.messages.len() == 3);
+        while !(synced("a1") && synced("a2") && store.load_folder("a2", "INBOX").unwrap().messages.iter().all(|m| store.has_body(&m.key))) {
+            assert!(Instant::now() < end, "never synced");
+            let _ = pool.wait(Duration::from_millis(100));
+        }
+        let inbox = store.load_folder("a1", "INBOX").unwrap();
+        assert!(inbox.messages.iter().any(|m| m.subject == "ONLINE-SUBJECT-2"));
+        assert!(inbox.messages.iter().all(|m| !store.has_body(&m.key)), "nothing downloaded ahead of reading");
+        // Opening one downloads it, into memory.
+        let key = inbox.messages[0].key.clone();
+        pool.submit(Job::FetchBody { key: key.clone() });
+        let seen = until(&pool, "the opened message", |e| matches!(e, Event::Body { key: k, .. } if *k == key));
+        assert!(seen.iter().any(|e| matches!(e, Event::Body { raw, .. } if String::from_utf8_lossy(raw).contains("ONLINE-BODY"))));
+        assert!(store.has_body(&key));
+        assert_eq!(store.data_file("a1"), None, "no data file");
+
+        // MailCraft closes (its threads let the data files go).
+        let kept_file = store.data_file("a2").unwrap();
+        drop(pool);
+        drop(store);
+        let end = Instant::now() + Duration::from_secs(20);
+        while std::fs::read(&kept_file).is_err() {
+            assert!(Instant::now() < end, "the data file stayed open");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        for i in 1..=3 {
+            assert!(!on_disk(&t, format!("ONLINE-SUBJECT-{i}").as_bytes()) && !on_disk(&t, format!("ONLINE-BODY-{i}").as_bytes()), "{i}");
+            assert!(on_disk(&t, format!("KEPT-SUBJECT-{i}").as_bytes()) && on_disk(&t, format!("KEPT-BODY-{i}").as_bytes()), "{i}");
+        }
+        let files: Vec<String> =
+            std::fs::read_dir(t.join("MailCraft Files")).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        assert_eq!(files, ["a2@studio.example.mailcraft"], "only the other account has a data file");
+        let _ = std::fs::remove_dir_all(&t);
+    }
+
     #[test]
     fn outbox_holds_mail_until_smtp_is_back() {
         let st = State::new();
