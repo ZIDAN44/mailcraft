@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 340 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 345 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -228,3 +228,9 @@ local-first, media-aware v1); the fuller request is
   and Graph). The reading pane showed a message's whole conversation above it though the list
   wasn't grouped; only when grouped now, as Outlook. And an outgoing server can sign in with a
   user name and password of its own (issue #3), its password kept apart in the keychain.
+- **2026-10-20** — **v0.20**: on some Windows PCs without a GPU the window never opened; the
+  process stayed in the background holding the data files (so later launches were told another
+  copy had them) and crashed when Windows shut it down. wgpu started Vulkan and OpenGL beside
+  DirectX 12, and without a GPU those find only leftover or overlay drivers and Windows' OpenGL
+  1.1. Only DirectX 12 starts now, the adapter picked by MailCraft (a real GPU first, WARP when
+  there's none), its shaders compiled with FXC; a window that can't open says why in a message.

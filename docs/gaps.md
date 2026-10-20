@@ -463,3 +463,20 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   the keychain apart from the account's and never in MailCraft's files, stays when left empty in
   Server settings, and is forgotten with the account. Sending without it says where to enter it
   rather than signing in as the IMAP user; a test checks the SMTP server sees its own user.
+
+### v0.20 — A window on every Windows PC
+- **No GPU, no window:** on some Windows PCs without a GPU the app never showed its window. The
+  process stayed in the background, kept later launches out (its data files were open: "open in
+  another copy of MailCraft") and crashed when Windows shut it down. wgpu started Vulkan and
+  OpenGL as well as DirectX 12; without a GPU those load only leftover or overlay drivers and
+  Windows' OpenGL 1.1 software renderer, while DirectX 12 works through WARP. On Windows only
+  DirectX 12 starts now, and MailCraft picks the adapter: a real GPU first (discrete, or
+  integrated with `WGPU_POWER_PREF=low`), WARP when there's none, all of them and the choice in
+  `mailcraft.log`. Shaders are compiled with FXC, part of Windows, rather than any
+  `dxcompiler.dll` on the search path. `WGPU_BACKEND` still overrides it, and
+  `WGPU_FORCE_FALLBACK_ADAPTER=1` draws with WARP.
+- **A window that can't open says why:** an error or a panic while the window opens shows a
+  message box with the reason, what may help and where the log is, and the process ends.
+- Checked on a PC with an RTX 4070 Ti SUPER, an integrated Radeon and WARP: the GPU draws (185 MB
+  of its memory, the others none); forced, WARP draws the whole window (200 MB on the Basic
+  Render Driver); with no adapter, the message shows and the process exits on OK.
