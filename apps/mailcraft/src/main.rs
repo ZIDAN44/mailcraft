@@ -25,6 +25,7 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 /// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
 struct Keychain;
 
+mod graphics;
 mod logfile;
 #[cfg(windows)]
 mod toast;
@@ -539,10 +540,63 @@ fn main() -> eframe::Result {
             .with_icon(Arc::new(app_icon())),
         ..Default::default()
     };
-    let options = match main_place {
+    let mut options = match main_place {
         Some(p) => eframe::NativeOptions { viewport: p.apply(options.viewport), ..options },
         None => options,
     };
+    graphics::configure(&mut options);
+    // A window that can't open says why, rather than the app leaving without a word (or
+    // staying in the background); a panic on the way is caught for that too.
+    let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run(options, sample, store, session, desktop_data, base, moved, state_path, cmd_args)
+    }));
+    let failed = match ran {
+        Ok(Ok(())) => return Ok(()),
+        Ok(Err(e)) => e.to_string(),
+        Err(p) => p
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_string())
+            .or_else(|| p.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "it stopped unexpectedly".into()),
+    };
+    log::error!("the window couldn't open: {failed}");
+    eprintln!("mailcraft: the window couldn't open: {failed}");
+    rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Error)
+        .set_title("MailCraft")
+        .set_description(cant_open(&failed))
+        .set_buttons(rfd::MessageButtons::Ok)
+        .show();
+    std::process::exit(1)
+}
+
+/// What the message box says when the window can't open.
+fn cant_open(why: &str) -> String {
+    let (help, log) = if cfg!(windows) {
+        (
+            "Updating it may help, or starting MailCraft with the environment variable WGPU_FORCE_FALLBACK_ADAPTER=1, which draws it with \
+             Windows' software renderer.",
+            "%APPDATA%\\MailCraft\\mailcraft.log",
+        )
+    } else {
+        ("Updating it may help.", "mailcraft.log, in MailCraft's data folder")
+    };
+    format!("MailCraft's window couldn't open:\n{why}\n\nThis is usually the graphics driver. {help}\n\nThe details are in {log}.")
+}
+
+/// Open the window and run the app until it closes.
+#[allow(clippy::too_many_arguments)]
+fn run(
+    options: eframe::NativeOptions,
+    sample: bool,
+    store: Option<Store>,
+    session: Session,
+    desktop_data: Option<PathBuf>,
+    base: Option<PathBuf>,
+    moved: Option<Result<PathBuf, String>>,
+    state_path: Option<PathBuf>,
+    cmd_args: Vec<String>,
+) -> eframe::Result {
     eframe::run_native(
         "MailCraft",
         options,
@@ -618,6 +672,14 @@ mod tests {
         let manifest = include_str!("../Cargo.toml");
         let eframe = manifest.lines().find(|l| l.trim_start().starts_with("eframe")).unwrap_or("");
         assert!(eframe.contains("\"clipboard\""), "eframe without its clipboard feature: {eframe}");
+    }
+
+    /// A window that can't open says why, in plain sentences (no gaps left from the source).
+    #[test]
+    fn a_window_that_cant_open_says_why() {
+        let m = cant_open("no graphics adapter");
+        assert!(m.starts_with("MailCraft's window couldn't open:\nno graphics adapter\n"), "{m}");
+        assert!(m.contains("mailcraft.log") && !m.contains("  "), "{m}");
     }
 
     #[test]
