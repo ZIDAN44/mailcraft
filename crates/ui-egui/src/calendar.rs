@@ -15,9 +15,17 @@ const HOUR: f32 = 46.0;
 const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/// A calendar's colour (the first one is the app's).
+/// A calendar's colour: an account's own calendar in the account's colour, others in the
+/// calendar palette (`Session::calendar_color`).
 pub fn color(i: u8, t: &Tokens) -> Color32 {
-    if i == 0 { t.accent } else { theme::category_color(i.saturating_sub(1), t.dark) }
+    let account = mailcraft_engine::ACCOUNT_COLOR;
+    if i >= account {
+        theme::account_color(i - account)
+    } else if i == 0 {
+        t.accent
+    } else {
+        theme::category_color(i.saturating_sub(1), t.dark)
+    }
 }
 
 fn today(s: &Session) -> i64 {
@@ -73,15 +81,31 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         ui.add_space(12.0);
         ui.label(RichText::new(tl!("Calendars")).font(theme::bold(12.0)).color(t.faint));
         let several = s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1;
+        // Several accounts: each one's calendars under its address, in its colour (as Outlook
+        // groups them), since each has its own "Calendar".
+        let grouped = s.accounts.iter().filter(|a| s.pim.get(&a.config.id).is_some_and(|p| !p.calendars.is_empty())).count() > 1;
         for a in &s.accounts {
             let Some(p) = s.pim.get(&a.config.id) else { continue };
+            if grouped && !p.calendars.is_empty() {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+                    ui.painter().circle_filled(r.center(), 4.0, theme::account_color(a.config.color));
+                    ui.add(egui::Label::new(RichText::new(&a.config.email).font(theme::bold(12.0)).color(t.dim)).truncate());
+                });
+            }
             for c in &p.calendars {
                 let shared = c.id.strip_prefix("shared:").map(str::to_string);
+                // A shared mailbox's calendar comes with the mailbox; only one opened by hand closes.
+                let opened = shared.as_ref().is_some_and(|e| p.shared.iter().any(|x| x.eq_ignore_ascii_case(e)));
                 let shown = s.calendar_shown(&a.config.id, &c.id);
                 let row = ui.horizontal(|ui| {
+                    if grouped {
+                        ui.add_space(10.0);
+                    }
                     // Ticked: shown (in its colour); click to leave it out, as Outlook's boxes.
                     let (r, resp) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::click());
-                    let c32 = color(c.color, &t);
+                    let c32 = color(Session::calendar_color(a, c), &t);
                     if shown {
                         ui.painter().rect_filled(r, 3.0, c32);
                         let p = |x: f32, y: f32| pos2(r.min.x + r.width() * x, r.min.y + r.height() * y);
@@ -95,7 +119,9 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         acts.push(Action::Run("calendar.show", json!({"account": a.config.id, "calendar": c.id, "shown": !shown})));
                     }
                     let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
-                    let tip = if shared.is_some() {
+                    let tip = if let Some(owner) = shared.as_ref().filter(|_| !opened) {
+                        tf!("Shared mailbox {address}, opened by {email}", address = owner, email = a.config.email)
+                    } else if shared.is_some() {
                         tf!("Shared with you, opened from {account}", account = a.config.email)
                     } else {
                         a.config.email.clone()
@@ -105,8 +131,8 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         ui.label(RichText::new(tl!("read-only")).color(t.faint).small());
                     }
                 });
-                // Someone else's calendar: right-click closes it.
-                if let Some(email) = shared {
+                // Someone else's calendar opened by hand: right-click closes it.
+                if let Some(email) = shared.filter(|_| opened) {
                     row.response.interact(Sense::click()).context_menu(|ui| {
                         if ui.button(tl!("Remove this calendar")).clicked() {
                             acts.push(Action::Run("calendar.closeShared", json!({"email": email})));
@@ -292,7 +318,10 @@ fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
 }
 
 fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> egui::Response {
-    let resp = ui.interact(rect, ui.scope_id().with(("chip", &item.uid, item.start)), Sense::click());
+    // The same meeting can be in two calendars (two accounts', or an account's and a shared
+    // mailbox's) at the same time: told apart by whose it is, or the click went to neither and
+    // started a new event behind them.
+    let resp = ui.interact(rect, ui.scope_id().with(("chip", &item.account, &item.calendar, &item.uid, item.start)), Sense::click());
     // A category's colour, as Outlook draws a categorized appointment; else its calendar's.
     let c = item.category.map_or_else(|| color(item.color, t), |i| theme::category_color(i, t.dark));
     let tentative = item.needs_reply || item.status == "TENTATIVE";
@@ -430,7 +459,13 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
         for (j, (account, id, name, c)) in cals.iter().enumerate() {
             let r = Rect::from_min_size(pos2(names.min.x + pane_x(j), names.min.y), vec2(pane, 24.0)).shrink2(vec2(0.0, 1.0));
             ui.painter().rect_filled(r, 3.0, color(*c, &t).gamma_multiply(if t.dark { 0.45 } else { 0.3 }));
-            let label = if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.clone() };
+            let mut label = if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.clone() };
+            // Two accounts' "Calendar": which is whose.
+            if cals.iter().filter(|(_, _, n, _)| n == name).count() > 1
+                && let Some(email) = s.account(account).map(|a| a.config.email.clone())
+            {
+                label = format!("{label} · {email}");
+            }
             ui.painter().with_clip_rect(r.shrink2(vec2(6.0, 0.0)).with_max_x(r.max.x - 24.0)).text(
                 pos2(r.min.x + 8.0, r.center().y),
                 Align2::LEFT_CENTER,

@@ -66,6 +66,9 @@ pub struct Person {
     pub card: Card,
 }
 
+/// A calendar colour of this or above is an account's colour ([`Session::calendar_color`]).
+pub const ACCOUNT_COLOR: u8 = 16;
+
 impl Session {
     pub(crate) fn load_pim(&mut self) {
         let Some(store) = self.store.clone() else { return };
@@ -173,16 +176,26 @@ impl Session {
         self.accounts
             .iter()
             .filter_map(|a| self.pim.get(&a.config.id).map(|p| (a, p)))
-            .flat_map(|(a, p)| p.calendars.iter().map(move |c| (a.config.id.clone(), c.id.clone(), c.name.clone(), c.color)))
+            .flat_map(|(a, p)| p.calendars.iter().map(move |c| (a.config.id.clone(), c.id.clone(), c.name.clone(), Session::calendar_color(a, c))))
             .filter(|(a, c, _, _)| self.calendar_shown(a, c))
             .collect()
     }
 
+    /// The colour a calendar is drawn in (with its events): an account's own calendar in the
+    /// account's colour, as its mail shows it, so each account's calendar can be told apart
+    /// (they used to share one); its others in theirs. [`ACCOUNT_COLOR`] and above stand for
+    /// an account's colour (`ACCOUNT_COLOR + AccountConfig::color`).
+    pub fn calendar_color(a: &AccountState, c: &mailcraft_model::pim::CalendarInfo) -> u8 {
+        if c.color == 0 { ACCOUNT_COLOR.saturating_add(a.config.color) } else { c.color }
+    }
+
     /// The occurrences overlapping `[from, to)`, by start, from every calendar that's shown.
+    /// (Each with its calendar's colour: [`Session::calendar_color`].)
     pub fn agenda(&self, from: i64, to: i64) -> Vec<AgendaItem> {
         let off = i64::from(self.clock.offset);
         let mut out = Vec::new();
         for (account, p) in &self.pim {
+            let Some(acc) = self.account(account) else { continue };
             for cal in p.calendars.iter().filter(|c| self.calendar_shown(account, &c.id)) {
                 let stored: Vec<&StoredEvent> = p.events.iter().filter(|e| e.calendar == cal.id).collect();
                 let events: Vec<CalEvent> = stored.iter().map(|e| e.event.clone()).collect();
@@ -207,7 +220,7 @@ impl Session {
                         start,
                         end,
                         all_day: e.all_day,
-                        color: cal.color,
+                        color: Session::calendar_color(acc, cal),
                         category: e.categories.first().map(|c| self.category_color_of(c)),
                         status: e.status.clone(),
                         needs_reply,

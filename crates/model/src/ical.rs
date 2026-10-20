@@ -75,6 +75,95 @@ pub struct CalEvent {
     /// Properties MailCraft doesn't read, kept as written (unfolded content lines).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<String>,
+    /// The address to join it online, when the server gives one apart from its notes (Microsoft
+    /// Graph's `onlineMeeting.joinUrl`); otherwise found in its notes ([`CalEvent::join_link`]).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub join_url: String,
+}
+
+/// Most web addresses taken from an event's notes.
+const MAX_LINKS: usize = 20;
+
+/// The web addresses in a text, once each and in order: written out, or as the `[1]: https://…`
+/// footnotes an HTML body's links become when it's made text (a Teams invitation's "Join the
+/// meeting now"). Only `http` and `https`; a sentence's closing punctuation isn't part of one.
+pub fn links_in(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let lower = text.to_ascii_lowercase();
+    let mut at = 0;
+    while out.len() < MAX_LINKS {
+        let next = [lower.get(at..).and_then(|r| r.find("https://")), lower.get(at..).and_then(|r| r.find("http://"))].into_iter().flatten().min();
+        let Some(rel) = next else { break };
+        let start = at + rel;
+        let rest = text.get(start..).unwrap_or("");
+        let len = rest.find(|c: char| c.is_whitespace() || matches!(c, '<' | '>' | '"' | '\'' | '[' | ']' | '{' | '}' | '|')).unwrap_or(rest.len());
+        let mut link = rest.get(..len).unwrap_or("");
+        // Closing punctuation, and a closing bracket the link didn't open.
+        loop {
+            let trimmed = link.trim_end_matches(['.', ',', ';', ':', '!', '?']);
+            let trimmed = if trimmed.ends_with(')') && trimmed.matches('(').count() < trimmed.matches(')').count() {
+                trimmed.get(..trimmed.len() - 1).unwrap_or(trimmed)
+            } else {
+                trimmed
+            };
+            if trimmed.len() == link.len() {
+                break;
+            }
+            link = trimmed;
+        }
+        at = start + len.max(1);
+        let host_ok = link.split_once("://").is_some_and(|(_, r)| r.split(['/', '?', '#']).next().is_some_and(|h| h.contains('.') && h.len() < 256));
+        if host_ok && link.len() <= 4096 && !out.iter().any(|l| l == link) {
+            out.push(link.to_string());
+        }
+    }
+    out
+}
+
+/// Whether a web address joins an online meeting: Microsoft Teams, Zoom, Google Meet, Webex,
+/// GoTo Meeting, Jitsi, Whereby, Skype.
+pub fn is_meeting_link(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    let Some(rest) = lower.strip_prefix("https://").or_else(|| lower.strip_prefix("http://")) else { return false };
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let host = host.split(':').next().unwrap_or(host);
+    let on = |domain: &str| host == domain || host.ends_with(&format!(".{domain}"));
+    (on("teams.microsoft.com") && (path.starts_with("l/meetup-join") || path.starts_with("meet/")))
+        || (on("teams.live.com") && path.starts_with("meet"))
+        || (on("zoom.us") && (path.starts_with("j/") || path.starts_with("w/") || path.starts_with("my/")))
+        || on("meet.google.com")
+        || (on("webex.com") && (path.contains("j.php") || path.starts_with("meet") || path.contains("/meet")))
+        || (on("gotomeeting.com") && path.starts_with("join"))
+        || on("meet.goto.com")
+        || on("meet.jit.si")
+        || on("whereby.com")
+        || on("join.skype.com")
+}
+
+impl CalEvent {
+    /// The address that joins it online: the server's own, else the first meeting link in its
+    /// location or notes (as Outlook's Join finds a Teams or Zoom meeting).
+    pub fn join_link(&self) -> Option<String> {
+        if is_meeting_link(&self.join_url) {
+            return Some(self.join_url.clone());
+        }
+        links_in(&self.location).into_iter().chain(links_in(&self.description)).find(|l| is_meeting_link(l))
+    }
+
+    /// Every web address in its location and notes (and its join address), once each.
+    pub fn links(&self) -> Vec<String> {
+        let mut out = links_in(&self.location);
+        for l in links_in(&self.description) {
+            if !out.contains(&l) {
+                out.push(l);
+            }
+        }
+        if !self.join_url.is_empty() && !out.contains(&self.join_url) && self.join_url.starts_with("http") {
+            out.insert(0, self.join_url.clone());
+        }
+        out.truncate(MAX_LINKS);
+        out
+    }
 }
 
 /// A calendar file: what it asks (`METHOD`, for invitations) and its events.
@@ -888,6 +977,55 @@ pub fn occurrences(events: &[CalEvent], from: i64, to: i64) -> Vec<Occurrence> {
 
 #[cfg(test)]
 mod tests {
+    /// Web addresses in an event's notes: written out or as footnotes, once each, without the
+    /// sentence's punctuation; and which one joins the meeting.
+    #[test]
+    fn an_events_links_and_the_one_that_joins_it() {
+        let notes = "Join here: https://zoom.us/j/9876543210?pwd=abc. Slides (https://docs.example.org/deck) attached.\n\
+                     [1]: https://teams.microsoft.com/l/meetup-join/19%3ameeting_x%40thread.v2/0\n\
+                     Again https://zoom.us/j/9876543210?pwd=abc, and ftp://files.example.org and http://localhost/x";
+        assert_eq!(
+            links_in(notes),
+            [
+                "https://zoom.us/j/9876543210?pwd=abc",
+                "https://docs.example.org/deck",
+                "https://teams.microsoft.com/l/meetup-join/19%3ameeting_x%40thread.v2/0",
+            ]
+        );
+        for meeting in [
+            "https://teams.microsoft.com/l/meetup-join/19%3a",
+            "https://teams.live.com/meet/9312",
+            "https://us02web.zoom.us/j/123",
+            "https://meet.google.com/abc-defg-hij",
+            "https://acme.webex.com/acme/j.php?MTID=m1",
+            "https://meet.jit.si/Standup",
+        ] {
+            assert!(is_meeting_link(meeting), "{meeting}");
+        }
+        for not in [
+            "https://docs.example.org/deck",
+            "https://zoom.us/pricing",
+            "https://teams.microsoft.com/",
+            "https://evil.example/zoom.us/j/1",
+            "javascript:alert(1)",
+        ] {
+            assert!(!is_meeting_link(not), "{not}");
+        }
+        // The first meeting link, from its place before its notes; the server's own first.
+        let e = CalEvent { location: "Microsoft Teams Meeting".into(), description: notes.into(), ..Default::default() };
+        assert_eq!(e.join_link().as_deref(), Some("https://zoom.us/j/9876543210?pwd=abc"));
+        let e = CalEvent { join_url: "https://teams.microsoft.com/l/meetup-join/own".into(), description: notes.into(), ..Default::default() };
+        assert_eq!(e.join_link().as_deref(), Some("https://teams.microsoft.com/l/meetup-join/own"));
+        assert_eq!(e.links().first().map(String::as_str), Some("https://teams.microsoft.com/l/meetup-join/own"));
+        assert_eq!(CalEvent::default().join_link(), None);
+        // Long or odd text doesn't run away.
+        let many = "https://a.example/x ".repeat(5000);
+        assert_eq!(links_in(&many).len(), 1);
+        let junk: String = (0..20_000).map(|i| char::from_u32(0x20 + (i * 7919) % 0x2000).unwrap_or('x')).collect();
+        let _ = links_in(&junk);
+        assert!(links_in("https://").is_empty() && links_in("http://x").is_empty());
+    }
+
     use super::*;
 
     fn at(y: i64, m: u32, d: u32, h: i64, mi: i64) -> i64 {

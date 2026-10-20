@@ -18,7 +18,8 @@ use crate::{NetError, Result};
 const MAX_ITEMS: usize = 5000;
 /// The address book Graph's contacts go into.
 pub const CONTACTS: &str = "graph:contacts";
-const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories";
+const EVENT_FIELDS: &str =
+    "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories,onlineMeeting";
 const CONTACT_FIELDS: &str = "id,changeKey,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,personalNotes,businessAddress,homeAddress,otherAddress,birthday";
 
 fn seg(id: &str) -> String {
@@ -175,7 +176,8 @@ pub fn event_of(v: &Value) -> Option<CalEvent> {
     let end = when(v.get("end")).unwrap_or(start + 3600).max(start);
     let body = v.get("body").cloned().unwrap_or(Value::Null);
     let content = s(&body, "content");
-    let description = if s(&body, "contentType").eq_ignore_ascii_case("html") { mailcraft_mime::html_to_text(&content) } else { content };
+    let html_body = s(&body, "contentType").eq_ignore_ascii_case("html").then(|| content.clone());
+    let description = if html_body.is_some() { mailcraft_mime::html_to_text(&content) } else { content };
     let attendees = v
         .get("attendees")
         .and_then(Value::as_array)
@@ -197,6 +199,16 @@ pub fn event_of(v: &Value) -> Option<CalEvent> {
         summary: s(v, "subject"),
         description: description.trim().to_string(),
         location: v.get("location").map(|l| s(l, "displayName")).unwrap_or_default(),
+        // A Teams meeting's join address (onlineMeetingUrl is retired for it), else the first
+        // meeting link in its HTML body, whole (its text wraps long ones).
+        join_url: v
+            .get("onlineMeeting")
+            .map(|m| s(m, "joinUrl"))
+            .filter(|u| u.starts_with("https://") && u.len() <= 8192)
+            .or_else(|| {
+                html_body.as_deref().and_then(|h| mailcraft_mime::html_links(h).into_iter().find(|l| mailcraft_model::ical::is_meeting_link(l)))
+            })
+            .unwrap_or_default(),
         start,
         end,
         all_day,
@@ -455,6 +467,22 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
 
 #[cfg(test)]
 mod tests {
+    /// A Teams meeting through Graph: its join address from `onlineMeeting`, not only its body.
+    #[test]
+    fn a_teams_meetings_join_address_is_kept() {
+        let v = serde_json::json!({
+            "iCalUId": "t1", "subject": "Sync", "isAllDay": false,
+            "start": {"dateTime": "2026-10-20T13:00:00.0000000", "timeZone": "UTC"},
+            "end": {"dateTime": "2026-10-20T13:30:00.0000000", "timeZone": "UTC"},
+            "body": {"contentType": "text", "content": "See you"},
+            "onlineMeeting": {"joinUrl": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_g%40thread.v2/0"}
+        });
+        let e = event_of(&v).unwrap();
+        assert_eq!(e.join_link().as_deref(), Some("https://teams.microsoft.com/l/meetup-join/19%3ameeting_g%40thread.v2/0"));
+        let odd = serde_json::json!({"iCalUId": "t2", "start": {"dateTime": "2026-10-20T13:00:00", "timeZone": "UTC"}, "onlineMeeting": {"joinUrl": "javascript:alert(1)"}});
+        assert_eq!(event_of(&odd).unwrap().join_url, "");
+    }
+
     use super::*;
 
     #[test]

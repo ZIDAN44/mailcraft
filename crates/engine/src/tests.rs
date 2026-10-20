@@ -2566,3 +2566,23 @@ fn the_outgoing_server_keeps_a_sign_in_of_its_own() {
     assert!(s.run("account.add", &ews).is_err());
     done(s);
 }
+
+/// Issue #1: every account's own calendar was named "Calendar" in one colour, so they couldn't
+/// be told apart. An account's own calendar takes the account's colour (as its mail shows it),
+/// its events too; its other calendars keep theirs.
+#[test]
+fn each_accounts_calendar_has_the_accounts_colour() {
+    let mut s = sample_session("calendar-colours");
+    let a = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let mut p = mailcraft_model::pim::Pim::default();
+    p.ensure_defaults();
+    s.pim.insert(a.clone(), p);
+    let colour = |s: &Session, account: &str, cal: &str| s.shown_calendars().into_iter().find(|c| c.0 == account && c.1 == cal).map(|c| c.3);
+    let (sample, zoe) = (colour(&s, "sample", mailcraft_model::pim::LOCAL).unwrap(), colour(&s, &a, mailcraft_model::pim::LOCAL).unwrap());
+    assert_ne!(sample, zoe, "two accounts' calendars, two colours");
+    assert_eq!(zoe, crate::ACCOUNT_COLOR + s.account(&a).unwrap().config.color);
+    assert_eq!(colour(&s, "sample", crate::sample::STUDIO_CALENDAR), Some(3), "another calendar keeps its own");
+    let (from, to) = (s.clock.now - 7 * 86_400, s.clock.now + 7 * 86_400);
+    assert!(s.agenda(from, to).iter().filter(|i| i.calendar == mailcraft_model::pim::LOCAL).all(|i| i.color == sample));
+    done(s);
+}

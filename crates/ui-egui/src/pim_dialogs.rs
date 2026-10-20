@@ -44,6 +44,10 @@ pub struct EventForm {
     /// Its categories, and every category there is (name, colour) to pick from.
     pub categories: Vec<String>,
     pub all_categories: Vec<(String, u8)>,
+    /// The web addresses in its place and notes, and the one that joins it online (Teams, Zoom…):
+    /// shown as links to open, as the notes box can't open them.
+    pub links: Vec<String>,
+    pub join: Option<String>,
     pub error: Option<String>,
 }
 
@@ -137,6 +141,8 @@ impl EventForm {
                 .collect::<Vec<_>>()
                 .join(", "),
             can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
+            links: e.links(),
+            join: e.join_link(),
             read_only,
             categories: e.categories.clone(),
             all_categories: all_categories(s, &e.categories),
@@ -268,6 +274,13 @@ fn footer_rule(ui: &mut Ui, t: &Tokens) {
 pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(540.0);
     form_header(ui, t, Ok(Icon::Calendar), if f.uid.is_some() { "Event" } else { "New event" });
+    // An online meeting (Teams, Zoom…): Join, as Outlook has it, read-only calendar or not.
+    if let Some(url) = f.join.clone() {
+        if ui.add(egui::Button::new(RichText::new(tl!("Join meeting")).color(t.on_accent).strong()).fill(t.accent)).on_hover_text(&url).clicked() {
+            acts.push(Action::OpenUrl(url));
+        }
+        ui.add_space(8.0);
+    }
     ui.add_enabled_ui(!f.read_only, |ui| {
         let w = ui.available_width();
         ui.add(
@@ -367,6 +380,20 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         }
         area(ui, &mut f.description, tl!("Notes"), 4);
     });
+    // The notes' links, to open (the box above only edits them): a Teams invitation's "Join the
+    // meeting now", a document, a dial-in page.
+    if !f.links.is_empty() {
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(tl!("Links:")).color(t.dim).small());
+            for url in &f.links {
+                let shown = url.split_once("://").map_or(url.as_str(), |(_, r)| r);
+                if ui.link(RichText::new(crate::widgets::shorten(shown, 48)).small()).on_hover_text(url).clicked() {
+                    acts.push(Action::OpenUrl(url.clone()));
+                }
+            }
+        });
+    }
     if f.recurring {
         ui.add_space(4.0);
         ui.label(RichText::new(tl!("Changes apply to every occurrence.")).color(t.faint).small());

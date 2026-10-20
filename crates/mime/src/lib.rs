@@ -690,6 +690,50 @@ pub fn html_to_text(html: &str) -> String {
     }
 }
 
+/// The web addresses an HTML body links to (`href`), once each and in order: whole, however
+/// long, where [`html_to_text`] keeps them as footnotes it wraps at its line width (a long Teams
+/// join link came out cut). Only `http` and `https`; bounded in what it reads and returns.
+pub fn html_links(html: &str) -> Vec<String> {
+    let html = match html.char_indices().nth(HTML_MAX) {
+        Some((i, _)) => html.get(..i).unwrap_or(html),
+        None => html,
+    };
+    let lower = html.to_ascii_lowercase();
+    let mut out: Vec<String> = Vec::new();
+    let mut at = 0;
+    while out.len() < 50 {
+        let Some(rel) = lower.get(at..).and_then(|r| r.find("href")) else { break };
+        let mut i = at + rel + 4;
+        at = i;
+        let rest = html.get(i..).unwrap_or("");
+        let trimmed = rest.trim_start();
+        let Some(after_eq) = trimmed.strip_prefix('=') else { continue };
+        i += rest.len() - trimmed.len() + 1;
+        let value = after_eq.trim_start();
+        i += after_eq.len() - value.len();
+        let (quote, body) = match value.chars().next() {
+            Some(q @ ('"' | '\'')) => (Some(q), value.get(1..).unwrap_or("")),
+            _ => (None, value),
+        };
+        let end = match quote {
+            Some(q) => body.find(q),
+            None => body.find(|c: char| c.is_whitespace() || c == '>'),
+        }
+        .unwrap_or(body.len());
+        at = i + end.max(1);
+        let raw = body.get(..end).unwrap_or("").trim();
+        if raw.len() > 8192 {
+            continue;
+        }
+        let url = raw.replace("&amp;", "&").replace("&#38;", "&").replace("&quot;", "\"").replace("&#39;", "'");
+        let lower_url = url.to_ascii_lowercase();
+        if (lower_url.starts_with("https://") || lower_url.starts_with("http://")) && !url.contains(char::is_whitespace) && !out.contains(&url) {
+            out.push(url);
+        }
+    }
+    out
+}
+
 /// Trim trailing spaces and collapse runs of blank lines.
 fn tidy_text(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -1160,6 +1204,39 @@ pub fn reply_doc(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, sign
 
 #[cfg(test)]
 mod tests {
+    /// An HTML body's links read whole from its `href`s: a 900-character Teams link that the
+    /// text's footnote wraps (it came out cut at 395), quoted either way or not, with entities,
+    /// once each; nothing that isn't a web address, and nothing runaway.
+    #[test]
+    fn an_html_bodys_links_come_whole() {
+        let long = format!("https://teams.microsoft.com/l/meetup-join/19%3ameeting_{}%40thread.v2/0?context=%7b%22Tid%22%7d", "Nj".repeat(400));
+        let html = format!(
+            "<p>Hi</p><a href=\"{long}\">Join</a> <A HREF='https://x.example/a?b=1&amp;c=2'>x</A> <a href=https://y.example/u>y</a>             <a href = \"javascript:alert(1)\">no</a><a href=\"mailto:z@x.example\">m</a><a href=\"{long}\">again</a><a href>bare</a>"
+        );
+        assert_eq!(html_links(&html), [long.clone(), "https://x.example/a?b=1&c=2".into(), "https://y.example/u".into()]);
+        let cut = mailcraft_model::ical::CalEvent { description: html_to_text(&html), ..Default::default() }.join_link().unwrap_or_default();
+        assert!(cut.len() < long.len(), "the text alone cuts it ({}), which is why the HTML is read", cut.len());
+        assert!(html_links(&"<a href=\"".repeat(10_000)).is_empty());
+        assert!(html_links("href").is_empty() && html_links("").is_empty());
+        let many: String = (0..200).map(|i| format!("<a href=\"https://h{i}.example/\">l</a>")).collect();
+        assert_eq!(html_links(&many).len(), 50);
+    }
+
+    /// Issue #1: a Teams invitation's "Join the meeting now" is a link in its HTML body; made
+    /// text, the address stays (a footnote), so the calendar can offer it to join.
+    #[test]
+    fn a_teams_invitations_join_link_survives_as_text() {
+        let html = "<html><body><p>Agenda: the release.</p><div>________________</div>\
+            <div><span>Microsoft Teams <a href=\"https://aka.ms/JoinTeamsMeeting\">Need help?</a></span></div>\
+            <div><a href=\"https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA3%40thread.v2/0?context=%7b%22Tid%22%3a%22c1%22%7d\">\
+            <span>Join the meeting now</span></a></div><div>Meeting ID: 366 254 181 924</div></body></html>";
+        let text = html_to_text(html);
+        let event = mailcraft_model::ical::CalEvent { description: text.clone(), ..Default::default() };
+        let join = event.join_link().unwrap_or_default();
+        assert!(join.starts_with("https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA3%40thread.v2/0?context="), "{join} in {text}");
+        assert!(event.links().contains(&"https://aka.ms/JoinTeamsMeeting".to_string()), "{text}");
+    }
+
     use super::*;
 
     /// Issue #1: a signature copied from Outlook (Word's HTML on the clipboard, only the copied

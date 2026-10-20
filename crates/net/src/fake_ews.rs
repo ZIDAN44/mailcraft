@@ -1536,6 +1536,54 @@ mod tests {
         assert_eq!((own.name.as_deref(), own.display_name().as_str()), (None, "Afgehandeld"));
     }
 
+    /// Issue #1: a shared mailbox's calendar never showed (only calendars opened by hand were
+    /// read), and every account's own calendar was "Calendar" whatever the server called it.
+    /// The shared mailbox's calendar is read with its mail, named after it, editable as its
+    /// rights say; one without a calendar for the account is passed over quietly; the account's
+    /// own calendar and contacts keep the server's names.
+    #[test]
+    fn a_shared_mailboxs_calendar_is_read_with_it() {
+        let mut d = Data::default();
+        d.folder("Postvak IN", None, Some("inbox"), "IPF.Note");
+        d.folder("Agenda", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contactpersonen", None, Some("contacts"), "IPF.Contact");
+        d.shared_mailbox(SharedBox { address: "sales@contoso.example".into(), name: "Sales".into(), automap: true, legacy: false, granted: true });
+        d.shared_mailbox(SharedBox { address: "boss@contoso.example".into(), name: "Boss".into(), automap: true, legacy: false, granted: false });
+        let cal = d.id("S");
+        d.folders.push(Fo {
+            id: cal.clone(),
+            name: "Calendar".into(),
+            parent: String::new(),
+            class: "IPF.Appointment".into(),
+            known: Some("calendar".into()),
+            owner: "sales@contoso.example".into(),
+        });
+        let plan = parse(
+            "<t:CalendarItem><t:Subject>Team planning</t:Subject><t:Start>2026-10-20T09:00:00Z</t:Start><t:End>2026-10-20T10:00:00Z</t:End>             <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>team-plan-1</t:UID></t:CalendarItem>",
+        );
+        d.pim.push(("T1".into(), cal, plan.kids[0].clone()));
+        // A Teams meeting in the account's own calendar, its join link longer than a text line.
+        let agenda = d.folders.iter().find(|f| f.name == "Agenda").map(|f| f.id.clone()).unwrap();
+        let long = format!("https://teams.microsoft.com/l/meetup-join/19%3ameeting_{}%40thread.v2/0?context=%7b%22Tid%22%7d", "Nj".repeat(300));
+        let teams = parse(&format!(
+            "<t:CalendarItem><t:Subject>Sync</t:Subject><t:Body BodyType=\"HTML\">&lt;p&gt;Hi&lt;/p&gt;&lt;a href=\"{}\"&gt;Join the meeting now&lt;/a&gt;</t:Body>             <t:Start>2026-10-20T13:00:00Z</t:Start><t:End>2026-10-20T13:30:00Z</t:End><t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>sync-1</t:UID></t:CalendarItem>",
+            long.replace('&', "&amp;amp;")
+        ));
+        d.pim.push(("M1".into(), agenda, teams.kids[0].clone()));
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        crate::ews::list_folders(&c, &mut crate::jmap::State::default(), "a1").unwrap();
+        let out = crate::ews_pim::sync(&c, &mailcraft_model::pim::Pim::default(), 1_792_000_000).unwrap();
+        let cals = out.calendars.clone().unwrap();
+        let names: Vec<(&str, &str)> = cals.iter().map(|c| (c.id.as_str(), c.name.as_str())).collect();
+        assert_eq!(names, [(crate::ews_pim::CALENDAR, "Agenda"), ("shared:sales@contoso.example", "Sales")], "{names:?}");
+        assert!(out.events.iter().any(|e| e.calendar == "shared:sales@contoso.example" && e.event.summary == "Team planning"));
+        assert!(out.errors.is_empty(), "the boss's calendar is passed over quietly: {:?}", out.errors);
+        assert_eq!(out.books.as_ref().unwrap()[0].name, "Contactpersonen");
+        let sync = out.events.iter().find(|e| e.event.summary == "Sync").unwrap();
+        assert_eq!(sync.event.join_link().as_deref(), Some(long.as_str()), "the whole join link");
+    }
+
     /// For looking at the app against an Exchange server whose mailbox was made in Dutch, with
     /// a shared mailbox mapped to it, on 127.0.0.1:8085 without TLS (`CONTOSO\riley`, password
     /// `pw`): add the account with `"ews": "http://127.0.0.1:8085/EWS/Exchange.asmx"`.
@@ -1561,6 +1609,27 @@ mod tests {
             granted: true,
         });
         d.deliver(&shared, &mail("For the team", "s1"), false, "2026-10-19T10:00:00Z");
+        // A Teams meeting today, its join link in the HTML body as Teams writes it, and the shared
+        // mailbox's calendar with an event of its own.
+        let agenda = d.folder("Agenda", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contactpersonen", None, Some("contacts"), "IPF.Contact");
+        let teams = parse(
+            "<t:CalendarItem><t:Subject>Weekly sync</t:Subject><t:Body BodyType=\"HTML\">&lt;html&gt;&lt;body&gt;&lt;p&gt;Agenda: the release.&lt;/p&gt;             &lt;div&gt;________________________________________________________________________________&lt;/div&gt;             &lt;div&gt;&lt;span style=\"font-size:24px\"&gt;Microsoft Teams &lt;a href=\"https://aka.ms/JoinTeamsMeeting\"&gt;Need help?&lt;/a&gt;&lt;/span&gt;&lt;/div&gt;             &lt;div&gt;&lt;a href=\"https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA3%40thread.v2/0?context=%7b%22Tid%22%3a%22c1%22%7d\"&gt;             &lt;span style=\"font-size:21px\"&gt;Join the meeting now&lt;/span&gt;&lt;/a&gt;&lt;/div&gt;&lt;div&gt;Meeting ID: 366 254 181 924&lt;/div&gt;             &lt;div&gt;Passcode: Ab3cD9&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;</t:Body>             <t:Start>2026-10-20T13:00:00Z</t:Start><t:End>2026-10-20T13:30:00Z</t:End><t:IsAllDayEvent>false</t:IsAllDayEvent>             <t:Location>Microsoft Teams Meeting</t:Location><t:UID>weekly-sync-1</t:UID></t:CalendarItem>",
+        );
+        d.pim.push(("E1".into(), agenda, teams.kids[0].clone()));
+        let shared_cal = d.id("S");
+        d.folders.push(Fo {
+            id: shared_cal.clone(),
+            name: "Agenda".into(),
+            parent: String::new(),
+            class: "IPF.Appointment".into(),
+            known: Some("calendar".into()),
+            owner: "test@contoso.example".into(),
+        });
+        let team = parse(
+            "<t:CalendarItem><t:Subject>Team planning</t:Subject><t:Start>2026-10-20T09:00:00Z</t:Start><t:End>2026-10-20T10:00:00Z</t:End>             <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>team-plan-1</t:UID></t:CalendarItem>",
+        );
+        d.pim.push(("T1".into(), shared_cal, team.kids[0].clone()));
         let _server = serve_at(d, "127.0.0.1:8085");
         loop {
             std::thread::park();
