@@ -102,7 +102,8 @@ local-first, media-aware v1); the fuller request is
    arguments and quitting that can't crash, DPI awareness, files for other apps kept private;
    and from issue #1, calendars told apart by account, shared mailboxes' calendars, Join and
    links in meetings, Check for updates; and from issue #5, a Microsoft 365 sign-in kept in
-   Windows' Credential Manager whatever its length.
+   Windows' Credential Manager whatever its length; and from issue #4, accounts kept online only
+   (none of their mail written to the computer) and a portable mode that leaves nothing behind.
 21. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -263,3 +264,8 @@ local-first, media-aware v1); the fuller request is
   refresh token, about 2,000 characters, is over the 1,280 a Credential Manager entry held as
   the keyring crate wrote it); kept as UTF-8 over as many entries as it needs, reproduced and
   tested on the real Credential Manager.
+- **2026-10-20** — **v0.20**, issue #4: an account can be kept online only (its mail held in
+  memory, each message downloaded when opened, its data file gone) and `portable.txt` beside the
+  app keeps everything in MailCraftData there, passwords in memory only; reproduced with the app
+  against a fake IMAP server (a 557 KB data file holding every subject and body, then nothing),
+  the host's folders, Credential Manager and registry compared before and after.

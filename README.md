@@ -88,6 +88,12 @@ cargo run --release -p mailcraft -- --sample
 `--sample` opens a local-only sample mailbox, so you can try everything without a server. Run
 without it to add your own account (the gear button, or the welcome screen).
 
+To keep no mail on the computer, tick **Online only** when adding an account (or later in File ›
+Options › Mail): its mail stays on the server and in memory while MailCraft runs. The Windows
+portable zip runs from any folder, a USB stick included: its `portable.txt` keeps everything
+MailCraft writes in `MailCraftData` beside it, and passwords only until it closes (put a
+`portable.txt` beside the app on macOS and Linux for the same).
+
 From the command line (passwords come from `MAILCRAFT_PASSWORD` or a prompt, never stored):
 
 ```bash

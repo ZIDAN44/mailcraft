@@ -535,3 +535,32 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   characters fit, and a Microsoft refresh token is about 2,000. Reproduced on Credential Manager;
   a secret is now kept as UTF-8 over as many entries as it needs (earlier passwords still read,
   leftover parts removed), tested there growing, shrinking and removed.
+- **Online only, and a portable copy that leaves nothing behind (issue #4):** asked for to run
+  MailCraft from a USB stick or on a shared PC with no mail left there, and without downloading
+  thousands of messages. Reproduced first: one IMAP account, five messages, twenty seconds, and
+  its data file (557 KB) held every subject and body; the password was in Credential Manager.
+  - **Online only, per account** (Add account, Account settings, File › Options › Mail): the
+    store holds that account's folders, lists, message sources, changes waiting for the server,
+    Outbox, calendars, contacts and notes in memory (`Store::set_online_only`); turned on, what
+    was kept comes into memory and its data file goes; turned off, it's written out again; at
+    start it's held in memory from the outset (a data file left by a crash goes). Nothing is
+    downloaded in full ahead of reading: a message comes when it's opened. Its snoozed mail is
+    remembered without the subject, its notifications name neither sender nor subject (Windows
+    keeps them), and attachments opened with other apps go from the temporary folder when
+    MailCraft closes. Not for POP, whose mail has no other home, nor the sample mailbox. As
+    Thunderbird's "Keep messages for this account on this computer" off, the list still comes
+    from the server at each start.
+  - **Portable** (the Craft apps' scheme, as PdfCraft and PhotoCraft): `portable.txt` or
+    `MailCraft.portable` beside the app (beside the `.app` on macOS) keeps the account list,
+    the window's state, the log and the data files in `MailCraftData` there; passwords and
+    sign-ins stay in memory (asked again at the next start), nothing goes to the registry, and
+    a new account starts with Online only ticked. A folder that can't be written turns it off
+    and says why. The Windows portable zip ships `portable.txt`.
+  - Checked with the app against a fake IMAP server: online only, the mail listed and opened,
+    the app killed, and none of its subjects or bodies anywhere in the data folder; portable,
+    `%APPDATA%`, Documents, Credential Manager and the registry the same before and after.
+    Turning online only on for an account that already kept mail removes its data file, but
+    the disk may still hold what the file held until it's overwritten: for no trace at all, add
+    the account with Online only ticked. What another app has open (an attachment in Word) stays
+    until that app lets it go, and what Windows keeps of its own (its search index, if the
+    data folder is indexed; the GPU driver's shader cache) is outside MailCraft's reach.
