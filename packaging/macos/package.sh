@@ -114,6 +114,11 @@ sed -e "s/@VERSION@/$VERSION/g" -e "s/@SHORT_VERSION@/$SHORT_VERSION/g" \
 plutil -lint "$APP/Contents/Info.plist"
 printf 'APPL????' >"$APP/Contents/PkgInfo"
 
+# codesign --strict rejects extended attributes such as com.apple.FinderInfo or a resource fork
+# ("Finder information, or similar detritus not allowed"); a file copied in can carry them. Clear
+# them before signing; nothing after this point may write xattrs onto the bundle.
+xattr -cr "$APP"
+
 # Sign inside-out: nested code first, then the bundle itself (no --deep on the final signature).
 # Today the only nested code is the main executable; frameworks/helpers would be signed here too.
 sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP/Contents/MacOS/MailCraft"
@@ -141,13 +146,39 @@ if [ -f "$HERE/dmg/background.tiff" ] && [ -f "$HERE/dmg/dmg-layout.DS_Store" ];
   cp "$HERE/dmg/background.tiff" "$STAGE/.background/background.tiff"
   cp "$HERE/dmg/dmg-layout.DS_Store" "$STAGE/.DS_Store"
 fi
-rm -f "$DMG" "$WORK/raw.dmg"
-# makehybrid + convert builds the image without attaching a device, unlike `create -srcfolder`,
-# which is flaky on CI runners ("Resource busy") and hangs in sandboxed sessions.
-# The volume name has no version: .DS_Store finds the background through an alias that includes it.
-hdiutil makehybrid -hfs -hfs-volume-name "MailCraft" -hfs-openfolder "$STAGE" -o "$WORK/raw.dmg" "$STAGE"
-hdiutil convert "$WORK/raw.dmg" -format UDZO -imagekey zlib-level=9 -o "$DMG"
-rm -f "$WORK/raw.dmg"
+rm -f "$DMG"
+# Retries an hdiutil verb that attaches a device: on CI runners it fails now and then with
+# "Resource busy". Usage: hdiutil_retry <verb> <args...>; five tries with growing pauses.
+hdiutil_retry() {
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if hdiutil "$@"; then
+      return 0
+    fi
+    if [ "$attempt" = 5 ]; then
+      echo "error: hdiutil $1 failed 5 times" >&2
+      return 1
+    fi
+    echo "hdiutil $1 failed (attempt $attempt of 5); retrying in $((attempt * 10))s" >&2
+    sleep $((attempt * 10))
+  done
+}
+# `hdiutil create -srcfolder` copies the staged files as they are. `makehybrid -hfs` + `convert`
+# gave every file in the image a com.apple.FinderInfo, so the app in the DMG, and a copy installed
+# from it, failed `codesign --verify --strict --deep` (as the other Craft apps found: WordCraft,
+# PdfCraft, VectorCraft, DesignCraft). The volume name has no version: .DS_Store finds the
+# background through an alias that includes it.
+hdiutil_retry create -srcfolder "$STAGE" -volname "MailCraft" -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$DMG"
+# The app inside the image must still pass --strict, so that regression can't ship again.
+MOUNT="$WORK/dmg-check"
+rm -rf "$MOUNT"
+mkdir -p "$MOUNT"
+hdiutil_retry attach -nobrowse -readonly -mountpoint "$MOUNT" "$DMG" >/dev/null
+if ! codesign --verify --strict --deep --verbose=2 "$MOUNT/MailCraft.app"; then
+  hdiutil_retry detach "$MOUNT" >/dev/null || true
+  exit 1
+fi
+hdiutil_retry detach "$MOUNT" >/dev/null
 sign "$DMG"
 codesign --verify --strict --verbose=2 "$DMG"
 if [ "$NOTARIZE" = 1 ]; then

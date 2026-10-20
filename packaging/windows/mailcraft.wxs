@@ -25,6 +25,19 @@
         DowngradeErrorMessage="A newer version of MailCraft is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
+    <!-- Windows 10 or later: the Rust standard library has needed it since 1.78 (on Windows 7 and
+         8 the app fails at launch: "The procedure entry point ProcessPrng could not be located in
+         bcryptprimitives.dll"), and MailCraft draws with DirectX 12. The installer says so rather
+         than installing an app that can't start. `CurrentMajorVersionNumber` exists only from
+         Windows 10 on, in the 32- and 64-bit registry views alike; MSI's own VersionNT has
+         reported both 603 and 1000 there (as PhotoCraft found). `Installed` keeps repair and
+         uninstall working on any Windows. -->
+    <Property Id="WINDOWS10ORLATER" Secure="yes">
+      <RegistrySearch Id="WindowsMajorVersion" Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+          Name="CurrentMajorVersionNumber" Type="raw" />
+    </Property>
+    <Launch Condition="Installed OR WINDOWS10ORLATER" Message="MailCraft needs Windows 10 or later." />
+
     <Icon Id="MailcraftIcon.ico" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="MailcraftIcon.ico" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/ZIDAN44/mailcraft" />
