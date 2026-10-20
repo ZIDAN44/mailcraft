@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 355 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 365 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -99,7 +99,9 @@ local-first, media-aware v1); the fuller request is
    and drop, clipboard reads that can't hang, a maximized window that doesn't blink, the DMG's
    strict signature, Windows 10 at install), and from WordCraft, PdfCraft, DeckCraft and
    GridCraft's desktop glue: winit's input-method and monitor fixes, windows back on screen,
-   arguments and quitting that can't crash, DPI awareness, files for other apps kept private.
+   arguments and quitting that can't crash, DPI awareness, files for other apps kept private;
+   and from issue #1, calendars told apart by account, shared mailboxes' calendars, Join and
+   links in meetings, Check for updates.
 21. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -252,3 +254,7 @@ local-first, media-aware v1); the fuller request is
   maximized: now shown once, maximized), windows brought back on screen and fitted to it,
   non-Unicode arguments, broken standard error and quitting on macOS made safe, per-monitor DPI
   in the manifest, and attachments for other apps in a folder of the user's own.
+- **2026-10-20** — **v0.20**, issue #1's calendars, reproduced against a fake Exchange first: each
+  account's calendars under its address in its colour and the server's name, a shared mailbox's
+  calendar read with it, Join meeting and the notes' links (a long Teams link read whole from
+  the HTML), a meeting in two calendars that opens again, and File › About's Check for updates.

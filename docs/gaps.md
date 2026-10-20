@@ -513,3 +513,19 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   mail links), single-instance hand-off and portable mode (features of their own), WordCraft's
   built-in file browser for Linux desktops without a file chooser (a feature of its own), and
   app-specific fixes.
+- **Calendars from issue #1, each reproduced first** (a fake Exchange with two accounts, a Dutch
+  mailbox, a shared mailbox's calendar and a Teams meeting as Teams writes it):
+  - every account's own calendar was "Calendar" in one colour; with several accounts they're
+    listed under each one's address, an account's own calendar in the account's colour (its
+    events too) and named as the server names it ("Agenda"); side by side, two of one name say
+    whose each is;
+  - a shared mailbox's calendar never showed; it's read with the mailbox, named after it,
+    editable as its rights say (one not shared with the account is passed over quietly);
+  - a meeting's links couldn't be opened from its notes; Join meeting opens its Teams, Zoom,
+    Meet or Webex link (Graph's `onlineMeeting.joinUrl`, else the first meeting link in its
+    body, read whole from the HTML: the text's footnotes cut a 904-character link to 395), and
+    its notes' links are listed to open;
+  - a meeting in two calendars at once didn't open (a click started a new event behind it).
+- **Check for updates (File › About):** the newest release from GitHub (pre-releases included,
+  and a later test build of this version told by the build's commit), Download offering this
+  system's installer (or the release page on Linux), What's new; nothing installs by itself.
