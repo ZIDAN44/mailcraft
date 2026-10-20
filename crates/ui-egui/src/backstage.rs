@@ -117,7 +117,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, &mut b, acts),
                     Page::Options => options(s, st, ui, acts),
-                    Page::About => about(&t, ui, acts),
+                    Page::About => about(s, &t, ui, acts),
                 }
             });
         });
@@ -726,7 +726,46 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
 }
 
-fn about(t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+/// Check for updates, and what it found: a newer release to download (its installer for this
+/// system, else its page) and what's new in it. Nothing installs by itself.
+fn updates(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    use mailcraft_engine::UpdateCheck;
+    if s.jmap_only {
+        return;
+    }
+    ui.horizontal_wrapped(|ui| {
+        let checking = s.update == UpdateCheck::Checking;
+        if ui.add_enabled(!checking, egui::Button::new(tl!("Check for updates"))).clicked() {
+            acts.push(Action::Run("app.checkUpdates", json!({})));
+        }
+        match &s.update {
+            UpdateCheck::NotAsked => {}
+            UpdateCheck::Checking => {
+                ui.spinner();
+                ui.label(RichText::new(tl!("Checking…")).color(t.dim));
+            }
+            UpdateCheck::UpToDate(_) => {
+                ui.label(RichText::new(tl!("You have the newest version.")).color(t.dim));
+            }
+            UpdateCheck::Available(r) => {
+                let name = r.tag.trim_start_matches('v').to_string();
+                ui.label(RichText::new(tf!("MailCraft {version} is available.", version = name)).color(t.text).strong());
+                let target = if r.download.is_empty() { r.page.clone() } else { r.download.clone() };
+                if widgets::accent_button(ui, Icon::Sync, "Download", t, true).on_hover_text(&target).clicked() {
+                    acts.push(Action::OpenUrl(target));
+                }
+                if ui.link(tl!("What's new")).on_hover_text(&r.page).clicked() {
+                    acts.push(Action::OpenUrl(r.page.clone()));
+                }
+            }
+            UpdateCheck::Failed(e) => {
+                ui.label(RichText::new(tf!("Couldn't check for updates: {error}", error = e)).color(t.danger));
+            }
+        }
+    });
+}
+
+fn about(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     heading(ui, t, "About MailCraft");
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
@@ -738,6 +777,8 @@ fn about(t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             ui.label(RichText::new(tl!("An ArtCraft app · MIT OR Apache-2.0")).color(t.dim));
         });
     });
+    ui.add_space(10.0);
+    updates(s, t, ui, acts);
     ui.add_space(14.0);
     for line in [
         "Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.",

@@ -2567,6 +2567,48 @@ fn the_outgoing_server_keeps_a_sign_in_of_its_own() {
     done(s);
 }
 
+/// Issue #1 (an Update button): MailCraft's releases are test builds of a version; a newer
+/// version is an update, and so is a later test build of this one when this build is an earlier
+/// test build (known by its commit). A developer's build, ahead or level, is up to date.
+#[test]
+fn update_checks_tell_newer_releases_and_test_builds() {
+    use mailcraft_model::job::Release;
+    let r = |tag: &str, version: &str, build: u32, commit: &str| Release {
+        tag: tag.into(),
+        version: version.into(),
+        build,
+        commit: commit.into(),
+        page: format!("https://github.com/ZIDAN44/mailcraft/releases/tag/{tag}"),
+        download: String::new(),
+    };
+    let sha15 = "8bdba5ceb26a8b910102731c634d6998b8ab25d1";
+    let sha14 = "23c7fb53b86cce9856b1b9fc76bf32f9ef397b83";
+    let list = vec![r("v0.19.0-test.15", "0.19.0", 15, sha15), r("v0.19.0-test.14", "0.19.0", 14, sha14), r("v0.18.0-test.13", "0.18.0", 13, "")];
+    let newer = |version: &str, sha: Option<&str>| crate::newer_release(version, sha, &list).map(|r| r.tag.clone());
+    assert_eq!(newer("0.18.0", None).as_deref(), Some("v0.19.0-test.15"), "a newer version");
+    assert_eq!(newer("0.19.0", Some(sha14)).as_deref(), Some("v0.19.0-test.15"), "a later test build of this version");
+    assert_eq!(newer("0.19.0", Some(&sha14[..9])).as_deref(), Some("v0.19.0-test.15"), "a short commit");
+    assert_eq!(newer("0.19.0", Some(sha15)), None, "this is the newest");
+    assert_eq!(newer("0.19.0", None), None, "a developer's build of the newest version");
+    assert_eq!(newer("0.20.0", Some("0123456789abcdef")), None, "a developer's build ahead");
+    assert_eq!(newer("1.0", None), None);
+    assert_eq!(crate::newer_release("0.19.0", None, &[]), None);
+
+    // The command asks the network side; the answer decides what File › About shows.
+    let mut s = sample_session("updates");
+    s.run("app.checkUpdates", &json!({})).unwrap();
+    assert_eq!(s.update, crate::UpdateCheck::Checking);
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::CheckUpdates)));
+    let ahead = vec![r("v99.0.0-test.1", "99.0.0", 1, "")];
+    s.apply(Event::Releases { releases: ahead, error: None });
+    assert!(matches!(&s.update, crate::UpdateCheck::Available(r) if r.version == "99.0.0"));
+    s.apply(Event::Releases { releases: list.clone(), error: None });
+    assert!(matches!(&s.update, crate::UpdateCheck::UpToDate(_)), "{:?}", s.update);
+    s.apply(Event::Releases { releases: Vec::new(), error: Some("offline".into()) });
+    assert_eq!(s.update, crate::UpdateCheck::Failed("offline".into()));
+    done(s);
+}
+
 /// Issue #1: every account's own calendar was named "Calendar" in one colour, so they couldn't
 /// be told apart. An account's own calendar takes the account's colour (as its mail shows it),
 /// its events too; its other calendars keep theirs.

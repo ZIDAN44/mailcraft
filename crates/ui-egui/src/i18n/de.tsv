@@ -883,5 +883,12 @@ month	May	Mai
 	Its password	Sein Kennwort
 	Password (unchanged when empty)	Kennwort (bleibt, wenn leer)
 	There's no folder to put the attachment in for another app	Es gibt keinen Ordner, in dem der Anhang für eine andere App abgelegt werden kann
+	Check for updates	Nach Updates suchen
+	Checking…	Wird geprüft…
+	Couldn't check for updates: {error}	Updates konnten nicht gesucht werden: {error}
+	Download	Herunterladen
 	Join meeting	An Besprechung teilnehmen
 	Links:	Links:
+	MailCraft {version} is available.	MailCraft {version} ist verfügbar.
+	What's new	Neuerungen
+	You have the newest version.	Sie verwenden die neueste Version.

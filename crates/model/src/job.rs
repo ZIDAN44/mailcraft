@@ -131,6 +131,22 @@ impl Op {
     }
 }
 
+/// A published MailCraft release.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Release {
+    /// As tagged (`v0.19.0-test.15`).
+    pub tag: String,
+    /// `0.19.0`, and its test build (15; 0 for none).
+    pub version: String,
+    pub build: u32,
+    /// The commit it was built from (empty when not said).
+    pub commit: String,
+    /// Its page (release notes and every file).
+    pub page: String,
+    /// The installer for this system, when there is one to offer (else the page).
+    pub download: String,
+}
+
 /// Work for the network layer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "job", rename_all = "camelCase")]
@@ -177,6 +193,9 @@ pub enum Job {
     /// Sync the account's calendars and address books with its CalDAV / CardDAV server (changes
     /// made here first).
     SyncDav { account: String },
+    /// Ask where MailCraft is published for its recent releases (File › About › Check for
+    /// updates); answered by [`Event::Releases`].
+    CheckUpdates,
     /// Read an Outlook data file (`.pst`) into an account with no server.
     ImportPst { account: String, path: String },
     /// Write the account's mail to an Outlook data file, which opens as `name`.
@@ -200,7 +219,7 @@ impl Job {
             | Job::SyncDav { account }
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => "",
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } | Job::CheckUpdates => "",
             Job::SignIn { account } => &account.id,
         }
     }
@@ -284,6 +303,11 @@ pub enum Event {
         account: String,
         op: Op,
         error: String,
+    },
+    /// MailCraft's recent releases (newest first), or why they couldn't be had.
+    Releases {
+        releases: Vec<Release>,
+        error: Option<String>,
     },
     /// A downloaded picture (`data`), or why it couldn't be fetched.
     Fetched {

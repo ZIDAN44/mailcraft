@@ -1,0 +1,179 @@
+//! File › About › Check for updates: MailCraft's releases, as GitHub lists them.
+//!
+//! MailCraft's releases are pre-releases (`v0.19.0-test.15`), which GitHub's "latest release"
+//! leaves out, so the recent ones are listed and the engine picks (`Session::check_updates`).
+//! The answer is untrusted: its size is capped, and only addresses on the project's own releases
+//! pages are kept (anything else falls back to the release's page, or nothing).
+
+use mailcraft_model::job::Release;
+use serde_json::Value;
+
+use crate::http::{Request, send};
+use crate::{NetError, Result};
+
+/// Where MailCraft is published.
+pub const REPO: &str = "ZIDAN44/mailcraft";
+
+/// The largest answer read (ten releases with their files lists).
+const MAX_ANSWER: usize = 2 << 20;
+
+/// The most recent releases (drafts left out), newest first as GitHub gives them.
+pub fn releases() -> Result<Vec<Release>> {
+    let req = Request::get(&format!("https://api.github.com/repos/{REPO}/releases?per_page=10"), MAX_ANSWER)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION")));
+    let resp = send(&req)?;
+    // GitHub answers 403 (or 429) when its anonymous quota ran out (60 an hour for everyone
+    // behind the same address); when it refills rides along.
+    if matches!(resp.status, 403 | 429) {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        return Err(NetError::Later(rate_limited(resp.header("x-ratelimit-reset"), now)));
+    }
+    if !resp.ok() {
+        return Err(NetError::Protocol(format!("GitHub answered HTTP {}", resp.status)));
+    }
+    parse(&String::from_utf8_lossy(&resp.body), asset_suffix())
+}
+
+/// What to say when GitHub's quota ran out: `reset` is its `x-ratelimit-reset` header (the Unix
+/// time it refills), `now` the time now.
+pub fn rate_limited(reset: Option<&str>, now: u64) -> String {
+    let fallback = "GitHub is limiting update checks for now (an hourly quota shared by everyone on this network); try again later".to_string();
+    let Some(at) = reset.and_then(|r| r.trim().parse::<u64>().ok()).filter(|at| *at > now) else { return fallback };
+    let minutes = (at - now).div_ceil(60);
+    if minutes > 24 * 60 {
+        return fallback;
+    }
+    format!(
+        "GitHub is limiting update checks for now (an hourly quota shared by everyone on this network); try again in {minutes} minute{}",
+        if minutes == 1 { "" } else { "s" }
+    )
+}
+
+/// The installer for this system among a release's files (by the end of its name), when there
+/// is one to offer: Linux and the BSDs install in many ways, so their users get the page.
+fn asset_suffix() -> Option<&'static str> {
+    if cfg!(target_os = "windows") {
+        Some(if cfg!(target_arch = "aarch64") {
+            "-windows-arm64.msi"
+        } else if cfg!(target_arch = "x86") {
+            "-windows-x86.msi"
+        } else {
+            "-windows-x64.msi"
+        })
+    } else if cfg!(target_os = "macos") {
+        Some("-macos-universal.dmg")
+    } else {
+        None
+    }
+}
+
+/// An address on the project's releases pages, else `None`.
+fn ours(url: &str) -> Option<String> {
+    let base = format!("https://github.com/{REPO}/releases/");
+    (url.starts_with(&base) && url.len() < 1024 && !url.contains(['\r', '\n', ' '])).then(|| url.to_string())
+}
+
+/// A tag as a version and test build: `v0.19.0-test.15` → ("0.19.0", 15); `v1.2.3` → ("1.2.3", 0).
+pub fn tag_version(tag: &str) -> Option<(String, u32)> {
+    let t = tag.trim().strip_prefix('v').unwrap_or(tag.trim());
+    let (version, rest) = t.split_once('-').unwrap_or((t, ""));
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() != 3 || parts.iter().any(|p| p.is_empty() || p.len() > 6 || !p.bytes().all(|b| b.is_ascii_digit())) {
+        return None;
+    }
+    let build = rest.rsplit('.').next().and_then(|n| n.parse::<u32>().ok()).unwrap_or(0);
+    Some((version.to_string(), build))
+}
+
+/// The releases in GitHub's answer; `suffix` picks each one's installer for this system.
+pub fn parse(body: &str, suffix: Option<&str>) -> Result<Vec<Release>> {
+    let v: Value = serde_json::from_str(body).map_err(|e| NetError::Protocol(format!("GitHub's answer can't be read: {e}")))?;
+    let list = v.as_array().ok_or_else(|| NetError::Protocol("GitHub's answer isn't a list of releases".into()))?;
+    let text = |r: &Value, k: &str| r.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+    let mut out = Vec::new();
+    for r in list.iter().take(20) {
+        if r.get("draft").and_then(Value::as_bool).unwrap_or(false) {
+            continue;
+        }
+        let tag = text(r, "tag_name");
+        let Some((version, build)) = tag_version(&tag) else { continue };
+        let page = ours(&text(r, "html_url")).unwrap_or_else(|| format!("https://github.com/{REPO}/releases"));
+        let download = suffix
+            .and_then(|s| {
+                r.get("assets")?
+                    .as_array()?
+                    .iter()
+                    .take(100)
+                    .find(|a| text(a, "name").ends_with(s))
+                    .and_then(|a| ours(&text(a, "browser_download_url")))
+            })
+            .unwrap_or_default();
+        let commit = text(r, "target_commitish");
+        out.push(Release {
+            tag: tag.chars().take(64).collect(),
+            version,
+            build,
+            commit: if commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit()) { commit } else { String::new() },
+            page,
+            download,
+        });
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tags_are_versions_and_test_builds() {
+        assert_eq!(tag_version("v0.19.0-test.15"), Some(("0.19.0".into(), 15)));
+        assert_eq!(tag_version("v1.2.3"), Some(("1.2.3".into(), 0)));
+        assert_eq!(tag_version("0.20.0-rc.2"), Some(("0.20.0".into(), 2)));
+        for bad in ["web-0.15.0-2d69edf", "v1.2", "vx.y.z", "", "v1.2.3.4", "v99999999.0.0"] {
+            assert_eq!(tag_version(bad), None, "{bad}");
+        }
+    }
+
+    /// GitHub's answer, as it lists MailCraft's pre-releases: drafts and other tags left out, the
+    /// right installer picked, and nothing but the project's own release pages kept.
+    #[test]
+    fn releases_are_read_from_githubs_answer() {
+        let body = r#"[
+          {"tag_name": "v0.20.0-test.16", "draft": true, "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.20.0-test.16", "assets": []},
+          {"tag_name": "v0.19.0-test.15", "draft": false, "prerelease": true, "target_commitish": "8bdba5ceb26a8b910102731c634d6998b8ab25d1",
+           "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.19.0-test.15",
+           "assets": [
+             {"name": "mailcraft-0.19.0-windows-arm64.msi", "browser_download_url": "https://github.com/ZIDAN44/mailcraft/releases/download/v0.19.0-test.15/mailcraft-0.19.0-windows-arm64.msi"},
+             {"name": "mailcraft-0.19.0-windows-x64.msi", "browser_download_url": "https://github.com/ZIDAN44/mailcraft/releases/download/v0.19.0-test.15/mailcraft-0.19.0-windows-x64.msi"},
+             {"name": "mailcraft-0.19.0-macos-universal.dmg", "browser_download_url": "https://evil.example/mailcraft.dmg"}
+           ]},
+          {"tag_name": "web-0.15.0-2d69edf", "draft": false, "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/web-0.15.0-2d69edf", "assets": []},
+          {"tag_name": "v0.18.0-test.14", "draft": false, "target_commitish": "release", "html_url": "https://evil.example/", "assets": []}
+        ]"#;
+        let r = parse(body, Some("-windows-x64.msi")).unwrap();
+        assert_eq!(r.len(), 2);
+        let first = &r[0];
+        assert_eq!((first.version.as_str(), first.build), ("0.19.0", 15));
+        assert_eq!(first.commit, "8bdba5ceb26a8b910102731c634d6998b8ab25d1");
+        assert!(first.download.ends_with("/mailcraft-0.19.0-windows-x64.msi"), "{}", first.download);
+        assert_eq!(r[1].page, "https://github.com/ZIDAN44/mailcraft/releases", "a page elsewhere isn't offered");
+        assert_eq!(r[1].commit, "", "a branch name isn't a commit");
+        // Another site's file is never offered for download.
+        assert_eq!(parse(body, Some("-macos-universal.dmg")).unwrap()[0].download, "");
+        assert_eq!(parse(body, None).unwrap()[0].download, "");
+        assert!(parse("{\"message\": \"Not Found\"}", None).is_err());
+        assert!(parse("not json", None).is_err());
+    }
+
+    #[test]
+    fn a_used_up_quota_says_how_long_to_wait() {
+        assert!(rate_limited(Some("1800001200"), 1_800_000_000).ends_with("try again in 20 minutes"));
+        assert!(rate_limited(Some("1800000060"), 1_800_000_000).ends_with("try again in 1 minute"));
+        for odd in [None, Some("soon"), Some("1700000000"), Some("1900000000")] {
+            assert!(rate_limited(odd, 1_800_000_000).ends_with("try again later"), "{odd:?}");
+        }
+    }
+}

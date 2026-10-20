@@ -878,5 +878,12 @@ month	May	מאי
 	Its password	הסיסמה שלו
 	Password (unchanged when empty)	סיסמה (ללא שינוי אם ריקה)
 	There's no folder to put the attachment in for another app	אין תיקייה שבה אפשר לשים את הקובץ המצורף עבור יישום אחר
+	Check for updates	חיפוש עדכונים
+	Checking…	בודק…
+	Couldn't check for updates: {error}	לא ניתן היה לחפש עדכונים: {error}
+	Download	הורדה
 	Join meeting	הצטרפות לפגישה
 	Links:	קישורים:
+	MailCraft {version} is available.	MailCraft {version} זמין.
+	What's new	מה חדש
+	You have the newest version.	יש לך את הגרסה החדשה ביותר.

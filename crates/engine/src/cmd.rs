@@ -750,6 +750,14 @@ pub fn registry() -> Registry {
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature)
             .params(r#"{"account": string, "signature": string, "html"?: string (its look: bold, colours, links; the text then comes from it)}"#),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
+        // Asks where MailCraft is published; File › About shows the answer (`Session::update`).
+        CommandSpec::new("app.checkUpdates", "Check for updates", "File › About", |s, _| {
+            if s.jmap_only {
+                return Err(CmdError::Failed("the browser version is always the newest".into()));
+            }
+            s.check_updates();
+            Ok(json!({"checking": true}))
+        }),
         CommandSpec::new("account.addSharedMailbox", "Add a shared mailbox", "File › Info › Account settings", |s, v| {
             shared_mailbox(s, v, true)
         })

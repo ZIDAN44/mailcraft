@@ -882,5 +882,12 @@ month	May	5月
 	Its password	其密碼
 	Password (unchanged when empty)	密碼（留空則不變）
 	There's no folder to put the attachment in for another app	沒有資料夾可存放要交給其他應用程式的附件
+	Check for updates	檢查更新
+	Checking…	正在檢查…
+	Couldn't check for updates: {error}	無法檢查更新：{error}
+	Download	下載
 	Join meeting	加入會議
 	Links:	連結：
+	MailCraft {version} is available.	MailCraft {version} 已推出。
+	What's new	新功能
+	You have the newest version.	您使用的是最新版本。

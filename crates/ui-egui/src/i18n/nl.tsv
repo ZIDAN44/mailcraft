@@ -878,5 +878,12 @@ month	May	mei
 	Its password	Wachtwoord ervan
 	Password (unchanged when empty)	Wachtwoord (ongewijzigd als leeg)
 	There's no folder to put the attachment in for another app	Er is geen map om de bijlage voor een andere app in te zetten
+	Check for updates	Controleren op updates
+	Checking…	Bezig met controleren…
+	Couldn't check for updates: {error}	Kan niet controleren op updates: {error}
+	Download	Downloaden
 	Join meeting	Deelnemen aan vergadering
 	Links:	Koppelingen:
+	MailCraft {version} is available.	MailCraft {version} is beschikbaar.
+	What's new	Wat is er nieuw
+	You have the newest version.	U hebt de nieuwste versie.

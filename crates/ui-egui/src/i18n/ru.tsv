@@ -882,5 +882,12 @@ month	May	Май
 	Its password	Его пароль
 	Password (unchanged when empty)	Пароль (без изменений, если пусто)
 	There's no folder to put the attachment in for another app	Нет папки, куда положить вложение для другого приложения
+	Check for updates	Проверить обновления
+	Checking…	Проверка…
+	Couldn't check for updates: {error}	Не удалось проверить обновления: {error}
+	Download	Скачать
 	Join meeting	Присоединиться к собранию
 	Links:	Ссылки:
+	MailCraft {version} is available.	Доступна версия MailCraft {version}.
+	What's new	Что нового
+	You have the newest version.	У вас последняя версия.

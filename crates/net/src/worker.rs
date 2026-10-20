@@ -326,6 +326,19 @@ impl Pool {
     pub fn submit(&mut self, job: Job) {
         match job {
             Job::FetchUrl { url } => self.fetch_url(url),
+            Job::CheckUpdates => {
+                let sink = self.sink.clone();
+                let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
+                    let (releases, error) = match crate::updates::releases() {
+                        Ok(r) => (r, None),
+                        Err(e) => (Vec::new(), Some(e.to_string())),
+                    };
+                    sink.emit(Event::Releases { releases, error });
+                });
+                if let Err(e) = spawned {
+                    self.sink.emit(Event::Releases { releases: Vec::new(), error: Some(e.to_string()) });
+                }
+            }
             Job::SignIn { account } => self.sign_in(account),
             Job::Discover { email } => {
                 let sink = self.sink.clone();
@@ -1420,7 +1433,7 @@ impl Worker {
                     }
                 }
             }
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } | Job::ExportPst { .. } => {}
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } | Job::ExportPst { .. } | Job::CheckUpdates => {}
             Job::Start { .. } | Job::SmtpPassword { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}
         }
     }

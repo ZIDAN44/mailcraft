@@ -63,6 +63,45 @@ impl AccountState {
     }
 }
 
+/// File › About › Check for updates.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum UpdateCheck {
+    #[default]
+    NotAsked,
+    Checking,
+    /// This is the newest (the newest release's tag, when there is one).
+    UpToDate(String),
+    /// A newer one is out.
+    Available(mailcraft_model::job::Release),
+    Failed(String),
+}
+
+/// The newest release `releases` has for a build of `version` made from commit `build_sha`:
+/// `Some` when it's newer. A newer version is; the same version at a later test build is when
+/// this build is one of that version's earlier test builds (by its commit). A build made from
+/// no release (a developer's), ahead or the same, is up to date.
+pub fn newer_release<'a>(
+    version: &str,
+    build_sha: Option<&str>,
+    releases: &'a [mailcraft_model::job::Release],
+) -> Option<&'a mailcraft_model::job::Release> {
+    let parse = |v: &str| -> Option<(u32, u32, u32)> {
+        let mut p = v.split('.').map(|n| n.parse::<u32>().ok());
+        Some((p.next()??, p.next()??, p.next()??))
+    };
+    let current = parse(version)?;
+    let newest = releases.iter().filter_map(|r| parse(&r.version).map(|v| (v, r))).max_by_key(|(v, r)| (*v, r.build))?;
+    match newest.0.cmp(&current) {
+        std::cmp::Ordering::Greater => Some(newest.1),
+        std::cmp::Ordering::Less => None,
+        std::cmp::Ordering::Equal => {
+            let sha = build_sha.map(str::trim).filter(|s| s.len() >= 7)?;
+            let mine = releases.iter().find(|r| !r.commit.is_empty() && (r.commit.starts_with(sha) || sha.starts_with(&r.commit)))?;
+            (mine.version == newest.1.version && mine.build < newest.1.build).then_some(newest.1)
+        }
+    }
+}
+
 /// What the message list shows.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -644,6 +683,11 @@ pub struct Session {
     registry: Arc<Registry>,
     next_id: u64,
     seed: u64,
+    /// The commit this build was made from (release builds: `MAILCRAFT_BUILD_SHA`), for
+    /// telling its test build from a later one of the same version.
+    pub build_sha: Option<String>,
+    /// File › About's update check.
+    pub update: UpdateCheck,
 }
 
 const NOTICE_MAX: usize = 50;
@@ -705,6 +749,8 @@ impl Session {
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
             next_id: u64::try_from(clock.now.max(0)).unwrap_or(0).saturating_mul(1000),
             seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15,
+            build_sha: None,
+            update: UpdateCheck::NotAsked,
         };
         if let Some(store) = &s.store {
             s.rules = store.load_doc("rules.json").unwrap_or_default();
@@ -2987,6 +3033,12 @@ impl Session {
         Ok(serde_json::json!({ "account": new, "graph": true }))
     }
 
+    /// Ask for MailCraft's releases (File › About › Check for updates).
+    pub(crate) fn check_updates(&mut self) {
+        self.update = UpdateCheck::Checking;
+        self.jobs.push(Job::CheckUpdates);
+    }
+
     /// Keep an account's outgoing server's own password (its `smtp_username`'s), in the keychain.
     pub(crate) fn keep_smtp_password(&mut self, account: &str, password: String) {
         if let Some(a) = self.account(account) {
@@ -3228,6 +3280,15 @@ impl Session {
             }
             Event::Discovered { email, config, source } => {
                 self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config.map(|c| *c), source)));
+            }
+            Event::Releases { releases, error } => {
+                self.update = match error {
+                    Some(e) => UpdateCheck::Failed(e),
+                    None => match newer_release(env!("CARGO_PKG_VERSION"), self.build_sha.as_deref(), &releases) {
+                        Some(r) => UpdateCheck::Available(r.clone()),
+                        None => UpdateCheck::UpToDate(releases.first().map(|r| r.tag.clone()).unwrap_or_default()),
+                    },
+                };
             }
             Event::Fetched { url, data, error } => {
                 let p = match (data, error) {

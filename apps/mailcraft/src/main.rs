@@ -542,6 +542,8 @@ fn main() -> eframe::Result {
     let mut session = Session::open(store.clone(), Clock::new(now, offset));
     let desktop_data = store.as_ref().and_then(Store::data_files_dir);
     session.oauth_available = mailcraft_net::oauth::available();
+    // A release build's commit, so File › About can tell its test build from a later one.
+    session.build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
 
     // The main window opens where it was, at the size it was, maximized if it was.

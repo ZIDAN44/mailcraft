@@ -37,6 +37,7 @@ pub mod sieve;
 pub mod smtp;
 pub mod stream;
 pub mod sync;
+pub mod updates;
 pub mod worker;
 
 #[cfg(test)]

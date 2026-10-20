@@ -883,5 +883,12 @@ month	May	maio
 	Its password	Senha dele
 	Password (unchanged when empty)	Senha (inalterada se vazia)
 	There's no folder to put the attachment in for another app	Não há pasta para colocar o anexo para outro aplicativo
+	Check for updates	Verificar atualizações
+	Checking…	Verificando…
+	Couldn't check for updates: {error}	Não foi possível verificar atualizações: {error}
+	Download	Baixar
 	Join meeting	Ingressar na reunião
 	Links:	Links:
+	MailCraft {version} is available.	O MailCraft {version} está disponível.
+	What's new	Novidades
+	You have the newest version.	Você tem a versão mais recente.
