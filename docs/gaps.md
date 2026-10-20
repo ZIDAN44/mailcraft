@@ -488,13 +488,28 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
     a wgpu error is logged rather than ending the app; Intel Macs leave out wgpu's indirect-call
     validation, which Metal's Intel compiler aborts on; Linux draws on the desktop's GPU;
   - on Windows a window saved maximized no longer appears, vanishes and appears again at
-    start-up (measured 6 times in 6; now shown once);
+    start-up (measured 6 times in 6; now shown once, maximized, through the vendored winit);
   - on Linux the window opens through XWayland when there is one, so attachments drag in and
     out on Wayland desktops (a stale `DISPLAY` opens on Wayland), and clipboard reads give up
     after two seconds instead of freezing the window while another app hangs;
   - the DMG is built with `hdiutil create`, as `makehybrid` left Finder information on the app
     that `codesign --strict` rejects, and the MSI says MailCraft needs Windows 10 or later
     rather than installing an app that can't start on 7 or 8.
+- **WordCraft, PdfCraft, DeckCraft and GridCraft, every change to their desktop glue:** the
+  four closest siblings' 367 commits to their desktop apps, packaging and build tools were read
+  one by one (not by keyword), and these adopted:
+  - winit 0.30.13 as PdfCraft carries it (`vendor/README.md`): a window dragged to a monitor
+    with another scale on Windows 11, input methods on Windows (Korean), X11, Wayland and macOS,
+    and windows created maximized;
+  - windows come back on screen when their monitor went, and fit a screen smaller than they were;
+  - an argument that isn't Unicode no longer ends the app or the CLI before they start, messages
+    on start-up can't panic on a broken standard error, and quitting on macOS no longer crashes;
+  - `mailcraft.exe` declares per-monitor DPI awareness;
+  - files handed to other apps (an opened attachment, video frames) go in a folder of the user's
+    own, not in a shared `/tmp`.
   Looked at and left: OpenGL fallbacks (DirectX 12 with WARP covers a PC without a GPU),
-  egui's keyboard zoom (MailCraft binds none of its keys), single-instance hand-off and
-  portable mode (features of their own), and app-specific fixes.
+  egui's keyboard zoom (MailCraft binds none of its keys), GridCraft's damaged-font guard
+  (egui 0.37 skips such a font; a test keeps it so), links (MailCraft already opens only web and
+  mail links), single-instance hand-off and portable mode (features of their own), WordCraft's
+  built-in file browser for Linux desktops without a file chooser (a feature of its own), and
+  app-specific fixes.

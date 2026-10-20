@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 349 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 355 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -97,7 +97,9 @@ local-first, media-aware v1); the fuller request is
    a window that can't open says why; and the other Craft apps' fixes to shared ground that
    apply to MailCraft (GPU device limits and errors, Intel Macs, Linux's GPU, XWayland for drag
    and drop, clipboard reads that can't hang, a maximized window that doesn't blink, the DMG's
-   strict signature, Windows 10 at install).
+   strict signature, Windows 10 at install), and from WordCraft, PdfCraft, DeckCraft and
+   GridCraft's desktop glue: winit's input-method and monitor fixes, windows back on screen,
+   arguments and quitting that can't crash, DPI awareness, files for other apps kept private.
 21. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -244,3 +246,9 @@ local-first, media-aware v1); the fuller request is
   Wayland desktops; a stale DISPLAY falls back), clipboard reads with a time limit, no blink
   from a maximized window at start-up, the DMG built so its app passes `codesign --strict`, and
   the MSI's Windows 10 condition.
+- **2026-10-20** — **v0.20**, the four closest siblings again, every commit to their desktop apps,
+  packaging and build tools (367) read rather than searched: winit 0.30.13 vendored as PdfCraft
+  carries it (Windows 11 monitor scale, input methods on every platform, windows created
+  maximized: now shown once, maximized), windows brought back on screen and fitted to it,
+  non-Unicode arguments, broken standard error and quitting on macOS made safe, per-monitor DPI
+  in the manifest, and attachments for other apps in a folder of the user's own.
