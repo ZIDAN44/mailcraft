@@ -332,13 +332,45 @@ impl WindowPlace {
             .filter(|p| p.x > -2_000.0 && p.y > -200.0 && p.x < 20_000.0 && p.y < 20_000.0)
     }
 
+    /// Whether the window is maximized after it has opened rather than as it opens. On Windows,
+    /// winit shows a window the moment it creates it maximized, even one eframe keeps hidden until
+    /// its first frame, so a window saved maximized appeared, vanished and appeared again half a
+    /// second later (measured: 6 starts in 6; WordCraft found the same). There it opens at its
+    /// normal size, still hidden, and its first frame maximizes it ([`maximize_after_open`]).
+    pub fn maximizes_after_open(self) -> bool {
+        self.maximized && cfg!(windows)
+    }
+
     /// Open a window where this place says.
     pub fn apply(self, b: egui::ViewportBuilder) -> egui::ViewportBuilder {
         match self.usable() {
-            Some(p) => b.with_position([p.x, p.y]).with_inner_size([p.w, p.h]).with_maximized(p.maximized),
+            Some(p) => b.with_position([p.x, p.y]).with_inner_size([p.w, p.h]).with_maximized(p.maximized && !p.maximizes_after_open()),
             None => b,
         }
     }
+}
+
+/// Maximize a window that opened at its normal size because its place (as it opened: `place`)
+/// says maximized ([`WindowPlace::maximizes_after_open`]), in its first frame, before eframe shows
+/// it (waiting for its monitor to be known showed it at its normal size for a frame). Called at
+/// the top of each of its frames, before the place is noted again; `forget` when it closes, so
+/// it does the same when it opens again.
+pub fn maximize_after_open(ui: &Ui, place: Option<WindowPlace>) {
+    let id = egui::Id::unique(("maximize-after-open", ui.ctx().viewport_id()));
+    // Absent: the window's first frame; 1: to maximize; 2: done.
+    let state = ui.ctx().data(|d| d.get_temp::<u8>(id));
+    let state = state.unwrap_or_else(|| if place.is_some_and(|p| p.usable().is_some() && p.maximizes_after_open()) { 1 } else { 2 });
+    if state == 1 {
+        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+        ui.ctx().data_mut(|d| d.insert_temp(id, 2u8));
+    } else {
+        ui.ctx().data_mut(|d| d.insert_temp(id, state));
+    }
+}
+
+/// A closed window opens afresh next time ([`maximize_after_open`]).
+fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
+    ctx.data_mut(|d| d.remove::<u8>(egui::Id::unique(("maximize-after-open", viewport))));
 }
 
 /// UI-only state.
@@ -643,6 +675,7 @@ impl MailApp {
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
         let mut main = self.ui.places.get("main").copied();
+        maximize_after_open(ui, main);
         WindowPlace::note(&mut main, ui);
         if let Some(p) = main {
             self.ui.places.insert("main".into(), p);
@@ -873,6 +906,7 @@ impl MailApp {
         let (session, st) = (&mut self.session, &mut self.ui);
         let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
             let mut place = st.places.get("compose").copied();
+            maximize_after_open(ui, place);
             WindowPlace::note(&mut place, ui);
             if let Some(p) = place {
                 st.places.insert("compose".into(), p);
@@ -902,6 +936,7 @@ impl MailApp {
             closing
         });
         if close {
+            forget_open(ctx, id);
             acts.push(Action::Run("compose.close", json!({"save": false})));
         }
     }
@@ -974,6 +1009,7 @@ impl MailApp {
             let (session, st) = (&mut self.session, &mut self.ui);
             let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
                 let mut place = st.places.get("message").copied();
+                maximize_after_open(ui, place);
                 WindowPlace::note(&mut place, ui);
                 if let Some(p) = place {
                     st.places.insert("message".into(), p);
@@ -1003,6 +1039,7 @@ impl MailApp {
                 closing && !leave
             });
             if close {
+                forget_open(ctx, id);
                 acts.push(Action::Run("message.closeWindow", json!({"key": key.to_id()})));
             }
         }
