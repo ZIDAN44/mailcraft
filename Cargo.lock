@@ -2811,6 +2811,7 @@ dependencies = [
  "rfd",
  "serde_json",
  "windows-registry",
+ "winit",
  "winresource",
  "x11rb",
 ]

@@ -25,6 +25,7 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 /// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
 struct Keychain;
 
+mod display;
 mod graphics;
 mod logfile;
 #[cfg(windows)]
@@ -293,7 +294,7 @@ impl Services for Desktop {
             .unwrap_or_default()
     }
     fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
-        let img = arboard::Clipboard::new().ok()?.get_image().ok()?;
+        let img = read_clipboard(|c| c.get_image().ok())?;
         let (w, h) = (u32::try_from(img.width).ok()?, u32::try_from(img.height).ok()?);
         let rgba = image::RgbaImage::from_raw(w, h, img.bytes.into_owned())?;
         let mut png = Vec::new();
@@ -477,7 +478,7 @@ fn main() -> eframe::Result {
     let cmd_args = args.clone();
     let sample = args.iter().any(|a| a == "--sample");
     // Text pasted from Outlook, Word or a web page keeps its look.
-    mailcraft_ui_egui::set_clipboard_html(|| arboard::Clipboard::new().ok()?.get().html().ok().filter(|h| !h.trim().is_empty()));
+    mailcraft_ui_egui::set_clipboard_html(|| read_clipboard(|c| c.get().html().ok()).filter(|h| !h.trim().is_empty()));
     // Each account is a data file in Documents\MailCraft Files (as Outlook keeps .pst files in
     // Outlook Files); the account list and the app's state stay in the app folder. The data files'
     // folder can be moved (File › Options) when it's the usual one: a move asked for is carried
@@ -554,6 +555,14 @@ fn main() -> eframe::Result {
         None => options,
     };
     graphics::configure(&mut options);
+    // Linux and the BSDs: through XWayland on a Wayland desktop, so attachments drag in and out.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    if display::choose_from_env() == display::Choice::X11 {
+        options.event_loop_builder = Some(Box::new(|b| {
+            use winit::platform::x11::EventLoopBuilderExtX11;
+            b.with_x11();
+        }));
+    }
     // A window that can't open says why, rather than the app leaving without a word (or
     // staying in the background); a panic on the way is caught for that too.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -577,6 +586,31 @@ fn main() -> eframe::Result {
         .set_buttons(rfd::MessageButtons::Ok)
         .show();
     std::process::exit(1)
+}
+
+/// How long a clipboard read may wait on the app that copied (Linux and the BSDs).
+#[cfg(all(unix, not(target_os = "macos")))]
+const CLIPBOARD_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Read the clipboard. On Linux and the BSDs the read runs on a thread of its own and gives up
+/// after [`CLIPBOARD_WAIT`]: a Wayland or X11 read waits on the app that copied, with no time
+/// limit of its own, so an app that hangs would hang MailCraft's window too (FigCraft found).
+#[cfg(all(unix, not(target_os = "macos")))]
+fn read_clipboard<T: Send + 'static>(read: fn(&mut arboard::Clipboard) -> Option<T>) -> Option<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("clipboard".into())
+        .spawn(move || {
+            let _ = tx.send(arboard::Clipboard::new().ok().and_then(|mut c| read(&mut c)));
+        })
+        .ok()?;
+    rx.recv_timeout(CLIPBOARD_WAIT).ok().flatten()
+}
+
+/// Read the clipboard (Windows' and macOS's reads don't wait on the app that copied).
+#[cfg(not(all(unix, not(target_os = "macos"))))]
+fn read_clipboard<T>(read: fn(&mut arboard::Clipboard) -> Option<T>) -> Option<T> {
+    read(&mut arboard::Clipboard::new().ok()?)
 }
 
 /// What the message box says when the window can't open.

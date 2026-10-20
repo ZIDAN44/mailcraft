@@ -55,6 +55,8 @@ keyring = { version = "3.6", default-features = false, features = ["async-secret
 # version winit and arboard use, so it's built once.
 x11rb = "0.13"
 raw-window-handle = "0.6"
+# Opening the window through XWayland (`display.rs`); the version eframe uses, so it's built once.
+winit = { version = "0.30", default-features = false, features = ["x11"] }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dev-dependencies]
 # The drag test plays the user on a virtual X server (Xvfb).
