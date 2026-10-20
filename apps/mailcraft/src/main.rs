@@ -96,7 +96,8 @@ struct Desktop {
     base: Option<PathBuf>,
     /// How a move carried out at this start went (told once).
     moved: Option<Result<PathBuf, String>>,
-    /// Portable mode (`portable.rs`): nothing written to the system, its registry included.
+    /// Portable mode (`portable.rs`): MailCraft's name isn't written to Windows' registry.
+    #[cfg(windows)]
     portable: bool,
 }
 
@@ -710,8 +711,18 @@ fn run(
                 }
                 None => Box::new(mailcraft_ui_egui::NullBackend),
             };
-            let mut app =
-                MailApp::new(session, backend, Box::new(Desktop { data: desktop_data, base, moved, portable: app_portable, ..Default::default() }));
+            let mut app = MailApp::new(
+                session,
+                backend,
+                Box::new(Desktop {
+                    data: desktop_data,
+                    base,
+                    moved,
+                    #[cfg(windows)]
+                    portable: app_portable,
+                    ..Default::default()
+                }),
+            );
             if sample {
                 app.ui.title_base = "MailCraft – Sample mailbox".into();
             }
