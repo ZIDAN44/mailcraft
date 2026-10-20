@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
+# Patched copies of upstream crates (vendor/README.md): not workspace members, so its lints and
+# tests stay theirs.
+exclude = ["vendor"]
 
 [workspace.package]
 version = "0.20.0"
@@ -55,3 +58,7 @@ opt-level = 2
 [profile.release]
 opt-level = 3
 lto = "thin"
+
+# winit 0.30.13 with the upstream fixes no 0.30 release has (vendor/README.md), as PdfCraft carries.
+[patch.crates-io]
+winit = { path = "vendor/winit" }
