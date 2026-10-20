@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 365 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 369 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -101,7 +101,8 @@ local-first, media-aware v1); the fuller request is
    GridCraft's desktop glue: winit's input-method and monitor fixes, windows back on screen,
    arguments and quitting that can't crash, DPI awareness, files for other apps kept private;
    and from issue #1, calendars told apart by account, shared mailboxes' calendars, Join and
-   links in meetings, Check for updates.
+   links in meetings, Check for updates; and from issue #5, a Microsoft 365 sign-in kept in
+   Windows' Credential Manager whatever its length.
 21. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -258,3 +259,7 @@ local-first, media-aware v1); the fuller request is
   account's calendars under its address in its colour and the server's name, a shared mailbox's
   calendar read with it, Join meeting and the notes' links (a long Teams link read whole from
   the HTML), a meeting in two calendars that opens again, and File › About's Check for updates.
+- **2026-10-20** — **v0.20**, issue #5: an Office 365 sign-in couldn't be kept on Windows (its
+  refresh token, about 2,000 characters, is over the 1,280 a Credential Manager entry held as
+  the keyring crate wrote it); kept as UTF-8 over as many entries as it needs, reproduced and
+  tested on the real Credential Manager.

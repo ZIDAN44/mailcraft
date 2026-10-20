@@ -529,3 +529,9 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
 - **Check for updates (File › About):** the newest release from GitHub (pre-releases included,
   and a later test build of this version told by the build's commit), Download offering this
   system's installer (or the release page on Linux), What's new; nothing installs by itself.
+- **A Microsoft 365 sign-in kept on Windows (issue #5):** "the sign-in couldn't be kept in the
+  keychain: password encoded as UTF-16 is longer than platform limit of 2560 chars". Credential
+  Manager holds 2560 bytes an entry and the keyring crate wrote UTF-16, so nothing over 1280
+  characters fit, and a Microsoft refresh token is about 2,000. Reproduced on Credential Manager;
+  a secret is now kept as UTF-8 over as many entries as it needs (earlier passwords still read,
+  leftover parts removed), tested there growing, shrinking and removed.
