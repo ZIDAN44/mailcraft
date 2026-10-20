@@ -1073,7 +1073,7 @@ fn craft_fonts_are_the_last_fallbacks() {
 #[test]
 fn window_places_open_only_where_they_make_sense() {
     use crate::WindowPlace;
-    let p = |x: f32, y: f32, w: f32, h: f32| WindowPlace { x, y, w, h, maximized: false };
+    let p = |x: f32, y: f32, w: f32, h: f32| WindowPlace { x, y, w, h, maximized: false, monitor: None };
     assert!(p(213.0, 157.0, 1011.0, 707.0).usable().is_some());
     assert!(p(-1920.0, 40.0, 900.0, 700.0).usable().is_some(), "a screen to the left");
     assert!(p(100.0, 100.0, 50.0, 40.0).usable().is_none(), "too small to use");
@@ -1307,4 +1307,48 @@ fn server_settings_keep_the_outgoing_servers_own_sign_in() {
     assert_eq!(f.params()["smtpPassword"], "new");
     f.smtp_sign_in.own = false;
     assert!(f.params()["smtpUsername"].is_null());
+}
+
+/// A window restored onto a monitor that went away is brought back, centred on the primary one;
+/// one on the monitor it was saved on stays put; a maximized one fills whichever monitor it gets.
+#[test]
+fn a_window_whose_monitor_went_comes_back_on_screen() {
+    use crate::WindowPlace;
+    let saved = WindowPlace { x: 2100.0, y: 50.0, w: 1200.0, h: 800.0, maximized: false, monitor: Some([1920.0, 1080.0]) };
+    let info = |monitor: egui::Vec2| egui::ViewportInfo { monitor_size: Some(monitor), ..Default::default() };
+    assert_eq!(saved.rescue(&info(egui::vec2(1600.0, 900.0))), Some(egui::pos2(200.0, 50.0)));
+    assert_eq!(saved.rescue(&info(egui::vec2(1920.0, 1080.0))), None, "the same monitor");
+    assert_eq!(saved.rescue(&egui::ViewportInfo::default()), None, "not known yet");
+    assert_eq!(WindowPlace { maximized: true, ..saved }.rescue(&info(egui::vec2(1600.0, 900.0))), None);
+    assert_eq!(WindowPlace { monitor: None, ..saved }.rescue(&info(egui::vec2(1600.0, 900.0))), None, "saved before monitors were kept");
+}
+
+/// A window too big for its screen, frame included, shrinks to fit and is centred; one that fits
+/// is left alone; the system's own placement counts its position, a restored one only its size.
+#[test]
+fn a_window_too_big_for_its_screen_shrinks_to_fit() {
+    use crate::WindowPlace;
+    let rect = |x: f32, y: f32, w: f32, h: f32| egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h));
+    let info = |outer: egui::Rect, inner: egui::Rect, monitor: egui::Vec2| egui::ViewportInfo {
+        outer_rect: Some(outer),
+        inner_rect: Some(inner),
+        monitor_size: Some(monitor),
+        ..Default::default()
+    };
+    let laptop = egui::vec2(1366.0, 768.0);
+    // 1320 x 820 with a 31-point title bar on a 1366 x 768 screen.
+    let big = info(rect(26.0, 26.0, 1336.0, 859.0), rect(34.0, 57.0, 1320.0, 820.0), laptop);
+    let (pos, size) = WindowPlace::fit(&big, true).unwrap();
+    assert!(size.x + 16.0 <= laptop.x - 96.0 + 0.5 && size.y + 39.0 <= laptop.y - 96.0 + 0.5, "{size:?}");
+    assert!(pos.x >= 0.0 && pos.y >= 0.0);
+    // Fits: nothing to do.
+    let fits = info(rect(100.0, 100.0, 1016.0, 739.0), rect(108.0, 131.0, 1000.0, 700.0), egui::vec2(1920.0, 1080.0));
+    assert_eq!(WindowPlace::fit(&fits, true), None);
+    // Placed by the system past the screen's edge (not too big): moved; restored there: left.
+    let past = info(rect(900.0, 300.0, 1016.0, 600.0), rect(908.0, 331.0, 1000.0, 561.0), egui::vec2(1920.0, 1080.0));
+    assert!(WindowPlace::fit(&past, false).is_some());
+    assert_eq!(WindowPlace::fit(&past, true), None);
+    // Maximized: fills its monitor already.
+    let max = egui::ViewportInfo { maximized: Some(true), ..big };
+    assert_eq!(WindowPlace::fit(&max, true), None);
 }
