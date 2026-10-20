@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 345 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 349 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -94,7 +94,10 @@ local-first, media-aware v1); the fuller request is
    and password of its own.
 20. **v0.20 — A window on every Windows PC** ✅ Windows draws with DirectX 12 alone: a real GPU
    first, Windows' software renderer (WARP) on a PC without one, where the window never opened;
-   a window that can't open says why.
+   a window that can't open says why; and the other Craft apps' fixes to shared ground that
+   apply to MailCraft (GPU device limits and errors, Intel Macs, Linux's GPU, XWayland for drag
+   and drop, clipboard reads that can't hang, a maximized window that doesn't blink, the DMG's
+   strict signature, Windows 10 at install).
 21. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -234,3 +237,10 @@ local-first, media-aware v1); the fuller request is
   DirectX 12, and without a GPU those find only leftover or overlay drivers and Windows' OpenGL
   1.1. Only DirectX 12 starts now, the adapter picked by MailCraft (a real GPU first, WARP when
   there's none), its shaders compiled with FXC; a window that can't open says why in a message.
+- **2026-10-20** — **v0.20**, more: the sixteen sibling Craft repositories were cloned and their
+  fixes to what every Craft app shares were read and checked against MailCraft. Adopted, each
+  tested: device limits from the adapter, wgpu errors logged after start-up, Intel Macs without
+  indirect-call validation, Linux on the desktop's GPU and through XWayland (attachments drag on
+  Wayland desktops; a stale DISPLAY falls back), clipboard reads with a time limit, no blink
+  from a maximized window at start-up, the DMG built so its app passes `codesign --strict`, and
+  the MSI's Windows 10 condition.
