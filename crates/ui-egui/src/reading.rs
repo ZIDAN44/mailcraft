@@ -566,8 +566,7 @@ fn video_preview(s: &Session, st: &mut UiState, ctx: &egui::Context, key: &Messa
             let written = (|| {
                 let raw = s.store.as_ref()?.read_body(key)?;
                 let data = mime::attachment_data(&raw, a.index)?;
-                let dir = std::env::temp_dir().join("mailcraft-thumbs");
-                std::fs::create_dir_all(&dir).ok()?;
+                let dir = mailcraft_engine::store::scratch_dir("thumbs")?;
                 let name = format!("{:016x}-{}", mailcraft_engine::store::fnv64(&key.to_id()), mime::sanitize_filename(&a.name));
                 let path = dir.join(name);
                 std::fs::write(&path, &data).ok()?;

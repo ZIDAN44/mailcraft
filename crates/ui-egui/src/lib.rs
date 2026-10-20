@@ -1519,8 +1519,10 @@ impl MailApp {
             return None;
         }
         let name = self.attachment_name(i);
-        let dir = std::env::temp_dir().join("mailcraft-open");
-        let _ = std::fs::create_dir_all(&dir);
+        let Some(dir) = mailcraft_engine::store::scratch_dir("open") else {
+            self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
+            return None;
+        };
         let path = dir.join(mailcraft_engine::mime::sanitize_filename(&name));
         match self.session.run("attachment.save", &json!({"index": i, "path": path.to_string_lossy()})) {
             Ok(_) => Some(path),

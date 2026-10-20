@@ -124,7 +124,8 @@ public static class MailCraftThumbnail {
 /// A file name of our own in the temp folder.
 fn scratch(ext: &str) -> PathBuf {
     static N: AtomicU64 = AtomicU64::new(0);
-    std::env::temp_dir().join(format!("mailcraft-frame-{}-{}.{ext}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)))
+    let name = format!("frame-{}-{}.{ext}", std::process::id(), N.fetch_add(1, Ordering::Relaxed));
+    mailcraft_engine::store::scratch_dir("frames").unwrap_or_else(std::env::temp_dir).join(name)
 }
 
 /// The PNG a tool wrote (removed afterwards), when it finished well.

@@ -1072,6 +1072,39 @@ pub fn default_root() -> Option<PathBuf> {
     location::base_root()
 }
 
+/// A folder of this user's own for files MailCraft hands to other apps (an attachment opened with
+/// its app, a video's frames): `name` inside it, made when missing. Not the shared temporary
+/// folder on Linux and the BSDs, where `/tmp` is everyone's: a folder of a predictable name there
+/// could be made first by another user, who could then read the attachments put in it or plant
+/// links that a write would follow (PdfCraft and GridCraft found). There it is under
+/// `$XDG_RUNTIME_DIR` (the user's own, 0700) or the user's cache folder, owner-only. Windows' and
+/// macOS's temporary folders are the user's already. `None` in the browser, or when it can't be
+/// made.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn scratch_dir(name: &str) -> Option<PathBuf> {
+    let dir = if cfg!(all(unix, not(target_os = "macos"))) {
+        let base = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).filter(|p| p.is_absolute()).or_else(dirs::cache_dir)?;
+        let own = base.join("mailcraft");
+        fs::create_dir_all(&own).ok()?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&own, fs::Permissions::from_mode(0o700)).ok()?;
+        }
+        own.join(name)
+    } else {
+        std::env::temp_dir().join(format!("mailcraft-{name}"))
+    };
+    fs::create_dir_all(&dir).ok()?;
+    Some(dir)
+}
+
+/// No files in the browser.
+#[cfg(target_arch = "wasm32")]
+pub fn scratch_dir(_name: &str) -> Option<PathBuf> {
+    None
+}
+
 /// Write `bytes` to `path` via a temporary file and a rename.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
@@ -1094,6 +1127,25 @@ mod tests {
     /// A big folder's list is kept in pages by number: read back newest first as it was; a flag
     /// change writes one page, new mail the last one; shrunk, the pages go; and a list kept whole
     /// (from before) still reads.
+    /// Files handed to other apps go in a folder of the user's own, made when missing; on Linux
+    /// and the BSDs not in the shared /tmp, and owner-only.
+    #[test]
+    fn scratch_folders_are_the_users_own() {
+        let a = scratch_dir("test-scratch").unwrap();
+        assert!(a.is_dir());
+        assert_eq!(scratch_dir("test-scratch"), Some(a.clone()), "the same folder each time");
+        if cfg!(all(unix, not(target_os = "macos"))) {
+            assert!(!a.starts_with("/tmp"), "{}", a.display());
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let parent = a.parent().unwrap();
+                assert_eq!(fs::metadata(parent).unwrap().permissions().mode() & 0o777, 0o700);
+            }
+        }
+        let _ = fs::remove_dir(&a);
+    }
+
     #[test]
     fn a_big_folder_list_is_kept_in_pages() {
         for packed in [false, true] {
