@@ -1,0 +1,17 @@
+MailCraft portable mode
+
+While this file sits next to mailcraft.exe, MailCraft keeps everything it writes in the
+MailCraftData folder beside it: the account list, the window's state, the log and each account's
+data file. Nothing goes to %APPDATA%, Documents or the Windows registry, and passwords and
+sign-ins are never put in Windows Credential Manager: they are held in memory only, and MailCraft
+asks for them again the next time it starts. New-mail notifications name neither the sender nor
+the subject, since Windows keeps its notifications. Copy the whole folder to move MailCraft with
+its accounts.
+
+To keep no mail at all, not even in MailCraftData, turn on "Online only" for an account (when you
+add it, or in File > Options > Mail): its mail is read from the server and held in memory while
+MailCraft runs, and each message downloads when you open it.
+
+Delete this file to use the normal per-user folders (%APPDATA%\MailCraft and
+Documents\MailCraft Files) instead. If MailCraftData can't be written (for example on a read-only
+drive), MailCraft says so and uses the per-user folders instead.

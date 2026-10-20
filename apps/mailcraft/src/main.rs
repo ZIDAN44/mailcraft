@@ -28,6 +28,7 @@ struct Keychain;
 mod display;
 mod graphics;
 mod logfile;
+mod portable;
 mod secrets;
 #[cfg(windows)]
 mod toast;
@@ -95,6 +96,8 @@ struct Desktop {
     base: Option<PathBuf>,
     /// How a move carried out at this start went (told once).
     moved: Option<Result<PathBuf, String>>,
+    /// Portable mode (`portable.rs`): nothing written to the system, its registry included.
+    portable: bool,
 }
 
 impl Services for Desktop {
@@ -319,13 +322,16 @@ impl Services for Desktop {
     }
     fn notify(&mut self, title: &str, body: &str) {
         let (title, body) = (title.to_string(), body.to_string());
+        #[cfg(windows)]
+        let portable = self.portable;
         // Off the UI thread: the notification service can be slow, or missing.
         std::thread::spawn(move || {
             let mut n = notify_rust::Notification::new();
             n.summary(&title).body(&body).appname("MailCraft");
             // Windows names a toast after its app id (PowerShell's when none is given).
+            // (Portable: its name isn't written to the registry.)
             #[cfg(windows)]
-            if toast::registered() {
+            if !portable && toast::registered() {
                 n.app_id(toast::APP_ID);
             }
             if let Err(e) = n.show() {
@@ -468,6 +474,13 @@ impl eframe::App for App {
         {
             let _ = mailcraft_engine::store::write_atomic(p, &bytes);
         }
+        // Issue #4: attachments handed to other apps, and pictures made of them, go with
+        // MailCraft when it's portable or keeps an account online only (one still open in an
+        // app stays until that app lets it go).
+        let s = &self.app.session;
+        if s.portable || s.accounts.iter().any(|a| a.config.keeps_online()) {
+            mailcraft_engine::store::clear_scratch();
+        }
         // macOS: end here, before eframe tears the window down. AccessKit's macOS adapter
         // subclasses the window's content view and puts its class back on teardown; AppKit's
         // Touch Bar support observes that view, so in the next display cycle it throws ("not
@@ -494,16 +507,22 @@ fn main() -> eframe::Result {
     // Outlook Files); the account list and the app's state stay in the app folder. The data files'
     // folder can be moved (File › Options) when it's the usual one: a move asked for is carried
     // out now, before anything opens them.
-    let base = (!sample && !args.iter().any(|a| a == "--data") && std::env::var_os("MAILCRAFT_DATA").is_none_or(|d| d.is_empty()))
-        .then(location::base_root)
-        .flatten();
+    let chosen = sample || args.iter().any(|a| a == "--data") || std::env::var_os("MAILCRAFT_DATA").is_some_and(|d| !d.is_empty());
+    // Portable (issue #4): `portable.txt` beside the app keeps everything in MailCraftData there.
+    let portable = if chosen { portable::Portable::default() } else { portable::current().clone() };
+    let base = (!chosen && portable.dir.is_none()).then(location::base_root).flatten();
     let mut moved = match base.as_deref().map(location::apply_pending_move) {
         Some(Ok(Some(to))) => Some(Ok(to)),
         Some(Err(e)) => Some(Err(e)),
         _ => None,
     };
-    let data =
-        args.iter().position(|a| a == "--data").and_then(|i| args.get(i + 1)).map(PathBuf::from).or_else(mailcraft_engine::store::default_root);
+    let data = args
+        .iter()
+        .position(|a| a == "--data")
+        .and_then(|i| args.get(i + 1))
+        .map(PathBuf::from)
+        .or_else(|| portable.dir.clone())
+        .or_else(mailcraft_engine::store::default_root);
     let root = data.map(|d| if sample { d.join("sample") } else { d });
     // The sample mailbox stays a folder of files; anything else keeps its data files beside it
     // (`--data`) or in Documents.
@@ -513,6 +532,13 @@ fn main() -> eframe::Result {
     let echo = cfg!(debug_assertions) || args.iter().any(|a| a == "--log");
     if let Some(path) = logfile::start(root.as_deref(), echo) {
         log::info!("{} started; log at {}", version_line(), path.display());
+    }
+    if let Some(dir) = &portable.dir {
+        log::info!("portable: everything is kept in {}", dir.display());
+    }
+    if let Some(why) = &portable.unwritable {
+        log::warn!("{why}");
+        say(why);
     }
 
     let (now, offset) = Desktop::default().clock();
@@ -542,6 +568,7 @@ fn main() -> eframe::Result {
     let mut session = Session::open(store.clone(), Clock::new(now, offset));
     let desktop_data = store.as_ref().and_then(Store::data_files_dir);
     session.oauth_available = mailcraft_net::oauth::available();
+    session.portable = portable.dir.is_some();
     // A release build's commit, so File › About can tell its test build from a later one.
     session.build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
@@ -670,16 +697,21 @@ fn run(
         options,
         Box::new(move |cc| {
             let args = cmd_args;
+            let app_portable = session.portable;
             let backend: Box<dyn Backend> = match store {
                 Some(store) => {
-                    let pool = Pool::new(store, Arc::new(Keychain));
+                    // Portable: passwords and sign-ins in memory only, never the system's keychain.
+                    let creds: Arc<dyn Credentials> =
+                        if app_portable { Arc::new(mailcraft_net::worker::MemoryCredentials::default()) } else { Arc::new(Keychain) };
+                    let pool = Pool::new(store, creds);
                     let ctx = cc.egui_ctx.clone();
                     pool.set_waker(Arc::new(move || ctx.request_repaint()));
                     Box::new(PoolBackend(pool))
                 }
                 None => Box::new(mailcraft_ui_egui::NullBackend),
             };
-            let mut app = MailApp::new(session, backend, Box::new(Desktop { data: desktop_data, base, moved, ..Default::default() }));
+            let mut app =
+                MailApp::new(session, backend, Box::new(Desktop { data: desktop_data, base, moved, portable: app_portable, ..Default::default() }));
             if sample {
                 app.ui.title_base = "MailCraft – Sample mailbox".into();
             }

@@ -5,7 +5,7 @@
 .DESCRIPTION
   Produces, in $env:DIST (default: dist/release):
     mailcraft-<version>-windows-<arch>.msi            per-machine installer (WiX v5)
-    mailcraft-<version>-windows-<arch>-portable.zip   mailcraft.exe + mailcraft-cli.exe
+    mailcraft-<version>-windows-<arch>-portable.zip   mailcraft.exe + mailcraft-cli.exe + portable.txt
 
   The binaries link the C runtime statically (+crt-static), so neither the MSI nor the portable
   zip needs the Visual C++ redistributable. Signing is delegated to sign.ps1 (skipped with a
@@ -111,6 +111,9 @@ foreach ($f in 'README.md', 'LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'ATTRIBU
   $p = Join-Path $Root $f
   if (Test-Path $p) { Copy-Item $p $Portable }
 }
+# portable.txt beside mailcraft.exe switches on portable mode: everything goes to MailCraftData\ next
+# to the exe, passwords stay in memory (issue #4; see apps/mailcraft/src/portable.rs).
+Copy-Item (Join-Path $PSScriptRoot 'portable.txt') $Portable
 $Zip = Join-Path $Dist "mailcraft-$Version-windows-$Arch-portable.zip"
 Remove-Item -Force $Zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $Portable -DestinationPath $Zip
