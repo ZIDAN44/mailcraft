@@ -505,6 +505,17 @@ impl Packs {
             .collect()
     }
 
+    /// Every file under a folder (an account's: all of its data file), at any depth.
+    pub(crate) fn walk(&self, dir: &Path) -> Vec<PathBuf> {
+        let (a, k) = match self.place(dir) {
+            Place::In(a, k) => (a, k),
+            Place::Account(a) => (a, String::new()),
+            Place::Disk => return Vec::new(),
+        };
+        let base = self.root.join(&a);
+        self.keys(&a, &k).unwrap_or_default().into_iter().map(|(key, _)| key.split('/').fold(base.clone(), |p, seg| p.join(seg))).collect()
+    }
+
     /// Bytes under a folder: an account's is its data file's size.
     pub(crate) fn size(&self, dir: &Path) -> Option<u64> {
         match self.place(dir) {
@@ -924,6 +935,93 @@ x"
         assert!(s.read_body(&k).is_none());
         s.write_body(&k, b"x").unwrap();
         assert!(files.join("zoe@studio.example.mailcraft.damaged").exists());
+        let _ = std::fs::remove_dir_all(t);
+    }
+
+    /// Whether any file under `dir` holds `needle`.
+    fn on_disk(dir: &std::path::Path, needle: &[u8]) -> bool {
+        let Ok(rd) = std::fs::read_dir(dir) else { return false };
+        rd.flatten().any(|e| {
+            let p = e.path();
+            if p.is_dir() { on_disk(&p, needle) } else { std::fs::read(&p).is_ok_and(|b| b.windows(needle.len()).any(|w| w == needle)) }
+        })
+    }
+
+    /// Issue #4: an account kept online only writes none of its mail anywhere. What it had on disk
+    /// comes into memory and its data file goes; it works as before while MailCraft runs (lists,
+    /// sources, changes waiting, the Outbox), and the next start finds nothing of it. Other
+    /// accounts keep theirs; turned off again, what's held is written out.
+    #[test]
+    fn an_online_only_account_leaves_nothing_on_disk() {
+        use mailcraft_model::{Folder, FolderRole};
+        let t = temp("online-only");
+        let (app, files) = (t.join("app"), t.join("MailCraft Files"));
+        let s = Store::open_packed(&app, &files).unwrap();
+        s.save_accounts(&[account("a1", "zoe@studio.example"), account("a2", "ana@studio.example")]).unwrap();
+        let k = |a: &str, uid| MessageKey { account: a.into(), folder: "INBOX".into(), validity: 1, uid };
+        let fill = |s: &Store, a: &str, uid, text: &str| {
+            s.save_folders(a, &[Folder { path: "INBOX".into(), role: FolderRole::Inbox, ..Default::default() }]).unwrap();
+            let mut st = s.load_folder(a, "INBOX").unwrap();
+            st.validity = 1;
+            st.messages.push(Summary { key: k(a, uid), subject: format!("{text} subject"), ..Default::default() });
+            s.save_folder(a, "INBOX", &st).unwrap();
+            s.write_body(&k(a, uid), format!("Subject: {text}\r\n\r\n{text} body").as_bytes()).unwrap();
+        };
+        fill(&s, "a1", 1, "EARLIER-ZOE");
+        fill(&s, "a2", 1, "ANA-KEPT");
+        let zoe_file = s.data_file("a1").unwrap();
+        // (A data file can be read only once it's closed.)
+        drop(s);
+        assert!(zoe_file.exists() && on_disk(&t, b"EARLIER-ZOE"), "the search finds what's kept");
+        let s = Store::open_packed(&app, &files).unwrap();
+
+        s.set_online_only("a1", true).unwrap();
+        assert!(s.is_online_only("a1") && !s.is_online_only("a2"));
+        assert!(!zoe_file.exists(), "its data file goes");
+        assert_eq!(s.data_file("a1"), None);
+        // What it had is still there while MailCraft runs.
+        assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), 1);
+        assert_eq!(s.read_body(&k("a1", 1)).unwrap(), b"Subject: EARLIER-ZOE\r\n\r\nEARLIER-ZOE body");
+        // New mail, changes, the Outbox and documents: in memory only.
+        fill(&s, "a1", 2, "SECRET-ZOE");
+        s.write_bodies(&[(k("a1", 3), b"Subject: x\r\n\r\nSECRET-BATCH".to_vec()), (k("a2", 3), b"Subject: x\r\n\r\nANA-BATCH".to_vec())]).unwrap();
+        s.save_ops("a1", &[mailcraft_model::Op::Expunge { keys: vec![k("a1", 1)] }]).unwrap();
+        s.outbox_add("a1", &crate::OutboxItem { id: 4, ..Default::default() }, b"Subject: later\r\n\r\nSECRET-OUTBOX").unwrap();
+        s.save_account_doc("a1", "pim.json", &serde_json::json!({"notes": ["SECRET-NOTE"]})).unwrap();
+        assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), 2);
+        assert!(s.has_body(&k("a1", 2)) && s.read_body(&k("a1", 3)).is_some());
+        assert_eq!(s.load_ops("a1").unwrap().len(), 1);
+        assert_eq!(s.outbox("a1").len(), 1);
+        assert!(s.account_size("a1") > 0);
+
+        // MailCraft closes: nothing of it on disk, and the next start finds nothing of it.
+        drop(s);
+        for secret in [&b"EARLIER-ZOE"[..], b"SECRET-ZOE", b"SECRET-BATCH", b"SECRET-OUTBOX", b"SECRET-NOTE"] {
+            assert!(!on_disk(&t, secret), "{}", String::from_utf8_lossy(secret));
+        }
+        assert!(on_disk(&t, b"ANA-BATCH") && on_disk(&t, b"ANA-KEPT"), "the other account keeps its mail on disk");
+        assert!(!std::fs::read_to_string(app.join(super::NAMES)).unwrap().contains("a1"), "no data file is named for it");
+        let s = Store::open_packed(&app, &files).unwrap();
+        s.set_online_only("a1", true).unwrap();
+        assert!(s.load_folder("a1", "INBOX").unwrap().messages.is_empty() && s.load_ops("a1").unwrap().is_empty());
+        assert_eq!(s.read_body(&k("a2", 1)).unwrap(), b"Subject: ANA-KEPT\r\n\r\nANA-KEPT body");
+
+        // Turned off: what's held is written out to a data file again.
+        fill(&s, "a1", 5, "BACK-ON-DISK");
+        s.set_online_only("a1", false).unwrap();
+        assert!(!s.is_online_only("a1"));
+        assert!(s.data_file("a1").is_some_and(|f| f.exists()));
+        assert_eq!(s.read_body(&k("a1", 5)).unwrap(), b"Subject: BACK-ON-DISK\r\n\r\nBACK-ON-DISK body");
+        drop(s);
+        let s = Store::open_packed(&app, &files).unwrap();
+        assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), 1, "kept across a start");
+
+        // Removing an online-only account: nothing to keep, nothing left.
+        s.set_online_only("a1", true).unwrap();
+        assert_eq!(s.remove_account("a1").unwrap(), None);
+        assert!(!s.is_online_only("a1") && s.load_folder("a1", "INBOX").unwrap().messages.is_empty());
+        drop(s);
+        assert!(!on_disk(&t, b"BACK-ON-DISK"));
         let _ = std::fs::remove_dir_all(t);
     }
 }

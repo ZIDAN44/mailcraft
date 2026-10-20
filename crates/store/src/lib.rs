@@ -426,6 +426,30 @@ impl Files {
         }
     }
 
+    /// Every file under a folder, at any depth.
+    fn walk(&self, dir: &Path) -> Vec<PathBuf> {
+        fn disk(p: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+            let Ok(rd) = fs::read_dir(p) else { return };
+            for e in rd.filter_map(|e| e.ok()) {
+                match e.file_type() {
+                    Ok(t) if t.is_dir() && depth < 8 => disk(&e.path(), depth + 1, out),
+                    Ok(t) if t.is_file() => out.push(e.path()),
+                    _ => {}
+                }
+            }
+        }
+        match self {
+            Files::Disk => {
+                let mut out = Vec::new();
+                disk(dir, 0, &mut out);
+                out
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.walk(dir),
+            Files::Memory(m, _) => Files::with(m, |m| m.keys().filter(|k| k.starts_with(dir)).cloned().collect()),
+        }
+    }
+
     /// Bytes under a folder.
     fn size(&self, dir: &Path) -> u64 {
         fn walk(p: &Path, depth: usize) -> u64 {
@@ -449,10 +473,86 @@ impl Files {
     }
 }
 
+/// Where each path goes: an account kept online only ([`Store::set_online_only`]) in memory,
+/// everything else in the store's own files.
+#[derive(Clone, Debug)]
+struct Routed {
+    root: PathBuf,
+    main: Files,
+    /// The online-only accounts' files: never written anywhere.
+    held: Files,
+    /// Those accounts (their folder names, `safe_segment`).
+    online: Arc<Mutex<std::collections::BTreeSet<String>>>,
+}
+
+impl Routed {
+    fn new(root: &Path, main: Files) -> Routed {
+        Routed { root: root.to_path_buf(), main, held: Files::Memory(Arc::default(), Arc::default()), online: Arc::default() }
+    }
+
+    fn online(&self) -> std::sync::MutexGuard<'_, std::collections::BTreeSet<String>> {
+        self.online.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// The files a path is in: an online-only account's are held in memory.
+    fn at(&self, p: &Path) -> &Files {
+        let account = p.strip_prefix(&self.root).ok().and_then(|r| r.iter().next()).and_then(|a| a.to_str());
+        match account {
+            Some(a) if self.online().contains(a) => &self.held,
+            _ => &self.main,
+        }
+    }
+
+    fn read(&self, p: &Path) -> io::Result<Vec<u8>> {
+        self.at(p).read(p)
+    }
+
+    fn write(&self, p: &Path, bytes: &[u8]) -> Result<()> {
+        self.at(p).write(p, bytes)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn write_many(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+        let (held, main): (Vec<_>, Vec<_>) = items.iter().cloned().partition(|(p, _)| std::ptr::eq(self.at(p), &self.held));
+        if !held.is_empty() {
+            self.held.write_many(&held)?;
+        }
+        if main.is_empty() { Ok(()) } else { self.main.write_many(&main) }
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        self.at(from).rename(from, to)
+    }
+
+    fn remove_file(&self, p: &Path) -> io::Result<()> {
+        self.at(p).remove_file(p)
+    }
+
+    fn remove_dir_all(&self, p: &Path) -> io::Result<()> {
+        self.at(p).remove_dir_all(p)
+    }
+
+    fn is_file(&self, p: &Path) -> bool {
+        self.at(p).is_file(p)
+    }
+
+    fn exists(&self, p: &Path) -> bool {
+        self.at(p).exists(p)
+    }
+
+    fn list(&self, dir: &Path) -> Vec<(String, PathBuf)> {
+        self.at(dir).list(dir)
+    }
+
+    fn size(&self, dir: &Path) -> u64 {
+        self.at(dir).size(dir)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Store {
     root: PathBuf,
-    files: Files,
+    files: Routed,
 }
 
 impl Store {
@@ -460,7 +560,7 @@ impl Store {
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
         fs::create_dir_all(&root).map_err(io_err(&root))?;
-        Ok(Store { root, files: Files::Disk })
+        Ok(Store { files: Routed::new(&root, Files::Disk), root })
     }
 
     /// A cache whose accounts are each one data file in `files` (as Outlook keeps a `.pst` per
@@ -471,14 +571,15 @@ impl Store {
         let root = root.into();
         fs::create_dir_all(&root).map_err(io_err(&root))?;
         let packs = packed::Packs::open(&root, files.as_ref())?;
-        Ok(Store { root, files: Files::Packed(Arc::new(packs)) })
+        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root })
     }
 
     /// The data file an account is kept in, when the cache keeps them so.
     pub fn data_file(&self, account: &str) -> Option<PathBuf> {
-        #[cfg(target_arch = "wasm32")]
-        let _ = account;
-        match &self.files {
+        if self.is_online_only(account) {
+            return None;
+        }
+        match &self.files.main {
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => x.file(&safe_segment(account)),
             _ => None,
@@ -487,7 +588,7 @@ impl Store {
 
     /// The folder the data files are in, when the cache keeps them so.
     pub fn data_files_dir(&self) -> Option<PathBuf> {
-        match &self.files {
+        match &self.files.main {
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => Some(x.dir().to_path_buf()),
             _ => None,
@@ -496,13 +597,14 @@ impl Store {
 
     /// A cache kept in memory only (clones share it).
     pub fn memory() -> Store {
-        Store { root: PathBuf::from("memory"), files: Files::Memory(Arc::default(), Arc::default()) }
+        let root = PathBuf::from("memory");
+        Store { files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())), root }
     }
 
     /// A memory cache holding files from an earlier [`Store::snapshot`].
     pub fn memory_from(files: Vec<(String, Vec<u8>)>) -> Store {
         let s = Store::memory();
-        if let Files::Memory(m, _) = &s.files {
+        if let Files::Memory(m, _) = &s.files.main {
             // Paths stay inside the cache.
             let inside = files.into_iter().filter(|(p, _)| !p.split('/').any(|seg| seg.is_empty() || seg == "." || seg == ".."));
             let entries: BTreeMap<PathBuf, Vec<u8>> = inside.map(|(p, v)| (p.split('/').fold(s.root.clone(), |acc, seg| acc.join(seg)), v)).collect();
@@ -514,7 +616,7 @@ impl Store {
     /// A memory cache's files whose relative path (`a1/folders.json`) `keep` accepts; empty for
     /// a cache on disk.
     pub fn snapshot(&self, keep: impl Fn(&str) -> bool) -> Vec<(String, Vec<u8>)> {
-        let Files::Memory(m, _) = &self.files else { return Vec::new() };
+        let Files::Memory(m, _) = &self.files.main else { return Vec::new() };
         Files::with(m, |m| {
             m.iter()
                 .filter_map(|(k, v)| {
@@ -530,12 +632,12 @@ impl Store {
 
     /// Whether the cache lives in memory.
     pub fn is_memory(&self) -> bool {
-        matches!(self.files, Files::Memory(..))
+        matches!(self.files.main, Files::Memory(..))
     }
 
     /// Start noting which files of a memory cache change, for [`Store::take_changes`].
     pub fn track_changes(&self) {
-        if let Files::Memory(_, changed) = &self.files {
+        if let Files::Memory(_, changed) = &self.files.main {
             let mut g = changed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             g.get_or_insert_with(Default::default);
         }
@@ -545,7 +647,7 @@ impl Store {
     /// started): relative path and the bytes now, `None` for a file removed. Lets the browser
     /// keep the cache between visits.
     pub fn take_changes(&self) -> Vec<(String, Option<Vec<u8>>)> {
-        let Files::Memory(m, changed) = &self.files else { return Vec::new() };
+        let Files::Memory(m, changed) = &self.files.main else { return Vec::new() };
         let paths = {
             let mut g = changed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             match g.as_mut() {
@@ -567,6 +669,61 @@ impl Store {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Keep an account online only (issue #4): its mail, folder lists, changes waiting for the
+    /// server, Outbox, calendars and contacts are held in memory and never written anywhere, so
+    /// nothing of it is left on this computer once MailCraft closes. Turned on, what was kept on
+    /// disk comes into memory (nothing is lost while MailCraft runs) and its data file goes;
+    /// turned off, what's held is written out to disk again.
+    pub fn set_online_only(&self, account: &str, on: bool) -> Result<()> {
+        if self.is_online_only(account) == on {
+            return Ok(());
+        }
+        let dir = self.account_dir(account);
+        let (from, to) = if on { (&self.files.main, &self.files.held) } else { (&self.files.held, &self.files.main) };
+        let mut items = Vec::new();
+        for p in from.walk(&dir) {
+            if let Ok(bytes) = from.read(&p) {
+                items.push((p, bytes));
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        to.write_many(&items)?;
+        #[cfg(target_arch = "wasm32")]
+        for (p, bytes) in &items {
+            to.write(p, bytes)?;
+        }
+        {
+            let mut online = self.files.online();
+            if on {
+                online.insert(safe_segment(account));
+            } else {
+                online.remove(&safe_segment(account));
+            }
+        }
+        // Only once it's all on the other side: a failure above leaves it where it was. A data
+        // file the system won't let go of yet (a sync writing to it) is switched all the same;
+        // the next start, holding the account in memory from the outset, removes it.
+        match from.remove_dir_all(&dir) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => log::warn!("{}: left for the next start: {e}", dir.display()),
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Whether an account is kept online only.
+    pub fn is_online_only(&self, account: &str) -> bool {
+        self.files.online().contains(&safe_segment(account))
+    }
+
+    /// Drop an online-only account's held files; `false` when it isn't one.
+    fn forget_online(&self, account: &str) -> bool {
+        if !self.files.online().remove(&safe_segment(account)) {
+            return false;
+        }
+        let _ = self.files.held.remove_dir_all(&self.account_dir(account));
+        true
     }
 
     /// Where an account's mail is kept (to show the user): its data file, or its folder. Before
@@ -825,8 +982,11 @@ impl Store {
     /// An account removed, as Outlook removes one: its data file stays where it is, closed and
     /// no one's (returned, when there is one), and what's kept outside data files goes.
     pub fn remove_account(&self, account: &str) -> Result<Option<PathBuf>> {
+        if self.forget_online(account) {
+            return Ok(None);
+        }
         #[cfg(not(target_arch = "wasm32"))]
-        if let Files::Packed(x) = &self.files {
+        if let Files::Packed(x) = &self.files.main {
             let kept = x.let_go(&safe_segment(account));
             // A folder from before data files, if one is still there.
             let _ = fs::remove_dir_all(self.account_dir(account));
@@ -838,6 +998,9 @@ impl Store {
     /// Forget everything about an account, its data file too (one that never held anyone's mail:
     /// a file that failed to open, an account starting again).
     pub fn delete_account(&self, account: &str) -> Result<()> {
+        if self.forget_online(account) {
+            return Ok(());
+        }
         let dir = self.account_dir(account);
         match self.files.remove_dir_all(&dir) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&dir)(e)),
@@ -1103,6 +1266,20 @@ pub fn scratch_dir(name: &str) -> Option<PathBuf> {
 #[cfg(target_arch = "wasm32")]
 pub fn scratch_dir(_name: &str) -> Option<PathBuf> {
     None
+}
+
+/// The [`scratch_dir`]s MailCraft puts mail in: attachments opened with other apps, and the
+/// pictures and video frames made of them.
+pub const SCRATCH: [&str; 3] = ["open", "thumbs", "frames"];
+
+/// Remove what's in the [`SCRATCH`] folders (issue #4: nothing of an online-only account, or a
+/// portable copy, stays behind). A file another app still has open stays.
+pub fn clear_scratch() {
+    for name in SCRATCH {
+        if let Some(dir) = scratch_dir(name) {
+            let _ = fs::remove_dir_all(&dir);
+        }
+    }
 }
 
 /// Write `bytes` to `path` via a temporary file and a rename.
