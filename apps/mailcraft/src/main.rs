@@ -469,6 +469,37 @@ struct App {
     native_wayland: bool,
     /// Installs a downloaded update as MailCraft closes.
     updater: Option<self_update::Updater>,
+    /// The settings as last written, and when they were last looked at ([`App::keep_state`]).
+    saved: Vec<u8>,
+    looked: std::time::Instant,
+}
+
+/// How often changed settings are written while MailCraft runs.
+const KEEP_STATE_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
+
+impl App {
+    /// Write the settings when they've changed: a reminder dismissed or a sender blocked isn't
+    /// lost if MailCraft is ended without closing (a crash, a power cut, a forced quit).
+    fn keep_state(&mut self, ctx: Option<&egui::Context>, force: bool) {
+        let since = self.looked.elapsed();
+        if !force && since < KEEP_STATE_EVERY {
+            // Something may have changed in this frame: look again when it's time, even if
+            // nothing else draws a frame by then.
+            if let Some(ctx) = ctx {
+                ctx.request_repaint_after(KEEP_STATE_EVERY.saturating_sub(since));
+            }
+            return;
+        }
+        self.looked = std::time::Instant::now();
+        let Some(p) = &self.state_path else { return };
+        let Ok(bytes) = serde_json::to_vec_pretty(&self.app.saved_state()) else { return };
+        if bytes != self.saved {
+            match mailcraft_engine::store::write_atomic(p, &bytes) {
+                Ok(()) => self.saved = bytes,
+                Err(e) => log::warn!("the settings weren't saved: {e}"),
+            }
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -487,6 +518,7 @@ impl eframe::App for App {
             graphics::log_errors(&device);
         }
         self.app.ui(ui);
+        self.keep_state(Some(ui.ctx()), false);
         if let Some(path) = self.app.take_drag_out() {
             drag_out(frame, path);
         }
@@ -501,11 +533,7 @@ impl eframe::App for App {
         {
             log::warn!("updates: {e}");
         }
-        if let Some(p) = &self.state_path
-            && let Ok(bytes) = serde_json::to_vec_pretty(&self.app.saved_state())
-        {
-            let _ = mailcraft_engine::store::write_atomic(p, &bytes);
-        }
+        self.keep_state(None, true);
         // Issue #4: attachments handed to other apps, and pictures made of them, go with
         // MailCraft when it's portable or keeps an account online only (one still open in an
         // app stays until that app lets it go).
@@ -825,7 +853,17 @@ fn run(
             let native_wayland = cfg!(all(unix, not(target_os = "macos")))
                 && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty())
                 && display::choose_from_env() != display::Choice::X11;
-            Ok(Box::new(App { app, state_path, gpu, frames: 0, instance, native_wayland, updater }))
+            Ok(Box::new(App {
+                app,
+                state_path,
+                gpu,
+                frames: 0,
+                instance,
+                native_wayland,
+                updater,
+                saved: Vec::new(),
+                looked: std::time::Instant::now(),
+            }))
         }),
     )
 }
