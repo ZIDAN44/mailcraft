@@ -361,6 +361,8 @@ pub(crate) fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
     ctx.data_mut(|d| d.remove::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport))));
 }
 
+/// The toolbar of a message window. Replying and forwarding happen in the main window, so
+/// they close this one; so do Delete and Archive.
 pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, t: &Tokens, key: &MessageKey, acts: &mut Vec<Action>) {
     let close = || Action::Run("message.closeWindow", json!({"key": key.to_id()}));
     let flagged = s.summary(key).is_some_and(|m| m.flags.flagged);

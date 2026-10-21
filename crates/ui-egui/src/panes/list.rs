@@ -97,15 +97,18 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     }
                 }
                 // A Search Folder always looks everywhere: no scope to pick.
-                if let Some((q, scope)) = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none()) {
+                if let Some((q, current)) = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none()) {
                     ui.add_space(8.0);
-                    let all = *scope == SearchScope::All;
-                    if ui.selectable_label(all, RichText::new(tl!("All folders")).small()).clicked() && !all {
-                        acts.push(Action::Run("search.run", json!({"query": q, "scope": "all"})));
-                    }
-                    if ui.selectable_label(!all, RichText::new(tl!("This folder")).small()).clicked() && all {
-                        acts.push(Action::Run("search.run", json!({"query": q, "scope": "current"})));
-                    }
+                    ui.menu_button(RichText::new(format!("{} ▾", crate::scope_label(*current))).small(), |ui| {
+                        for scope in SearchScope::ALL {
+                            if ui.selectable_label(scope == *current, crate::scope_label(scope)).clicked() {
+                                acts.push(Action::Run("search.run", json!({"query": q, "scope": scope.code()})));
+                                ui.close();
+                            }
+                        }
+                    })
+                    .response
+                    .on_hover_text(tl!("Look in"));
                 }
             });
             if s.search.is_none() {
@@ -148,7 +151,9 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             let (r, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
             icons::paint(ui.painter(), r, if s.search.is_some() { Icon::Search } else { Icon::Inbox }, t.faint);
             ui.add_space(8.0);
-            let msg = if s.search.is_some() {
+            let msg = if s.search.as_ref().is_some_and(|(_, scope)| *scope == SearchScope::All) {
+                tl!("No results. Try fewer words.")
+            } else if s.search.is_some() {
                 tl!("No results. Try fewer words, or search all folders.")
             } else if s.filter != ListFilter::All {
                 tl!("Nothing matches this filter.")

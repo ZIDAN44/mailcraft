@@ -145,3 +145,36 @@ fn quick_steps_are_made_and_done_with_their_keys() {
     assert!(crate::dialogs::QuickStepForm { name: "x".into(), ..Default::default() }.actions().is_empty());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #4: the search box's recent searches (those with what's typed so far; none, closed)
+/// and its advanced search (filled from the box, written back to it), drawn in a frame; Esc
+/// closes them; where it looks named in every language's terms.
+#[test]
+fn the_search_box_drops_down_recent_and_advanced_search() {
+    let (mut a, dir) = app("search-box");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.session.prefs.recent_searches = vec!["budget".into(), "storyboard".into()];
+    a.ui.search_drop = crate::SearchDrop::Recent;
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_drop, crate::SearchDrop::Recent);
+    a.ui.search_text = "story".into();
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_drop, crate::SearchDrop::Recent, "storyboard has it");
+    a.ui.search_text = "zzz".into();
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_drop, crate::SearchDrop::None, "nothing to show: closed");
+
+    a.ui.search_text = "budget from:ana".into();
+    let form = mailcraft_engine::model::search::Advanced::from_query(&a.ui.search_text);
+    assert_eq!((form.words.as_str(), form.from.as_str()), ("budget", "ana"));
+    a.ui.search_drop = crate::SearchDrop::Advanced(form.clone());
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_drop, crate::SearchDrop::Advanced(form), "stays open, the form as it was");
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert_eq!(a.ui.search_drop, crate::SearchDrop::None);
+    for scope in mailcraft_engine::SearchScope::ALL {
+        assert!(!crate::scope_label(scope).is_empty());
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}

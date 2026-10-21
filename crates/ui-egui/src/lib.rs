@@ -46,7 +46,7 @@ use mailcraft_engine::model::{MessageKey, SyncStatus};
 use mailcraft_engine::{CalMode, Module, ReadingPane, SearchScope, Session};
 use serde_json::{Value, json};
 
-pub(crate) use app::junk_menu;
+pub(crate) use app::{SearchDrop, junk_menu, scope_label};
 pub use app::{WindowPlace, after_open};
 pub use dialogs::Dialog;
 use icons::Icon;
@@ -199,6 +199,8 @@ pub struct UiState {
     search_cursor_end: bool,
     /// When to search for what's typed (a moment after the last key, so typing stays quick).
     search_due: Option<f64>,
+    /// The search box's recent searches or advanced search, when open.
+    search_drop: SearchDrop,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
     pub compose_alert: Option<String>,
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
@@ -339,6 +341,7 @@ impl MailApp {
                 search_focused: false,
                 search_cursor_end: false,
                 search_due: None,
+                search_drop: SearchDrop::None,
                 compose_alert: None,
                 attachment_view: None,
                 attachment_selected: None,
