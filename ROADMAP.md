@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.22 — Test builds update themselves (2026-10-22). Each milestone below is a version: v0.1 was
+**Stage:** v0.22 — Outlook's everyday tools, and test builds that update themselves (2026-10-22). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -110,10 +110,14 @@ local-first, media-aware v1); the fuller request is
    fit the window, older mail shown and searched on the server (every kind of account, and in
    the browser), and online only made clearer (a password asked for at start, a warning before
    closing loses anything).
-22. **v0.22 — Test builds update themselves** ✅ A build from the unsigned test-build workflow
-   fetches the next test build in the background, checks its SHA-256 against the release, and
-   installs it when MailCraft closes (or at once with Restart to update), the way that copy was
-   installed: `.msi`, portable `.zip`, `.dmg` or `.AppImage`. Signed releases are unaffected.
+22. **v0.22 — Outlook's everyday tools, and test builds that update themselves** ✅ What a 1:1
+   look at Outlook's Home ribbon and calendar found missing: reminders that pop up (snooze,
+   dismiss, open), blocked and safe senders, Clean Up, Search Folders, Quick Steps
+   (Ctrl+Shift+1…9), the Work Week view, Insert date & time and Word count. A build from the
+   unsigned test-build workflow fetches the next test build in the background, checks its
+   SHA-256 against the release, and installs it when MailCraft closes (or at once with Restart
+   to update), the way that copy was installed: `.msi`, portable `.zip`, `.dmg` or
+   `.AppImage`. Signed releases are unaffected.
 23. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -303,6 +307,21 @@ local-first, media-aware v1); the fuller request is
   sibling message windows no longer drag each other around; non-recurring appointments sharing a
   UID stay separate; the 1604 placeholder year is read as "no year"; hidden Exchange folders are
   skipped; Online is shown once mail is current; dead IPv6 routes cost 3 s, not 20 s.
+- **2026-10-22** — **v0.22**, Outlook's everyday tools, from a side-by-side look at Outlook's
+  ribbon and calendar: calendar reminders (VALARM, mapped to EWS and Graph) with a Reminders
+  window, snooze, dismiss and a desktop notification; blocked and safe senders applied as mail
+  arrives (and to Junk, whose high-water mark is now set as soon as it's known: against a real
+  IMAP server, mail filed there before Junk first changed was never seen arriving); Clean Up
+  (messages a later reply quotes in full, conservative by design); Search Folders (with
+  `larger:`/`smaller:` and `from:a,b` in the search language, sent to IMAP and JMAP servers too);
+  Quick Steps with Ctrl+Shift+1…9 (digit shortcuts now read by key position, so Shift or AZERTY
+  don't break them); the Work Week view; Insert date & time and Word count while writing. Found
+  on the way: settings were written only on a clean close, so a crash or a forced quit lost
+  every change (now kept every few seconds when changed); the log's terminal echo panicked once
+  standard error went away (MailCraft ended at the next log line), and the CLI did the same
+  writing into a closed pipe; the ribbon's last buttons were cut off at 1336 px (labels now drop
+  from the end as needed); a big calendar's expansion was quadratic. Tested against a GreenMail
+  IMAP server in Docker as well as the sample mailbox.
 - **2026-10-22** — **v0.22**, test builds update themselves (`apps/mailcraft/src/self_update.rs`),
   modelled on how the Craft launcher replaces its own copy and on Office's install-on-close: a
   check a minute after start and then about hourly with jitter (`If-None-Match`, so an unchanged

@@ -661,3 +661,33 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   release's record, and installs it as MailCraft closes, or at once from **Restart to update**
   (status bar, File › About). `.deb`, `.rpm`, Flatpak and FreeBSD copies keep the Download link.
   `MAILCRAFT_NO_AUTO_UPDATE=1` turns it off; signed releases never update themselves this way.
+
+### v0.22 — Outlook's everyday tools
+- **Reminders:** an event's reminder (Outlook's list, None to 2 weeks; 15 minutes for a new
+  one) is the VALARM it carries, kept by CalDAV and mapped to Exchange's and Graph's own
+  fields. When one comes due a Reminders window opens (each with its time and how soon,
+  overdue in red; Dismiss, Dismiss All, Open Item, Snooze from 5 minutes to a day or "0 minutes
+  before start") and a desktop notification is shown once. Answers are kept per occurrence.
+- **Junk Email lists:** Block sender, Never block sender and Never block sender's domain (the
+  ribbon's Junk drop-down and the message's menu), and both lists in File › Options. Blocked
+  senders' mail goes to Junk as it arrives; safe senders' mail filed in Junk by the server comes
+  back to the Inbox, and their pictures load. Not junk can also trust the sender.
+- **Clean Up:** Clean up conversation and Clean up folder (Delete drop-down) move to Deleted
+  Items each message a later reply in its chain quotes in full, as whole words; never one
+  unread, flagged, pinned, categorized, not downloaded, or with attachments the reply lacks.
+  Undo brings them back.
+- **Search Folders:** saved searches in the folder pane (unread, flagged, important,
+  categorized, with attachments, large, pinned, from specific people, or any search), over every
+  folder but Deleted Items and Junk. The search language gains `larger:`/`smaller:` and lists
+  in `from:`/`to:`.
+- **Quick Steps:** named sets of marks and one move, from the ribbon or Ctrl+Shift+1 to 9.
+- **Calendar:** the Work Week view (Monday to Friday).
+- **Writing:** Insert date & time (written out, as numbers, with the time, or the time alone)
+  and Word count (words, characters with and without spaces, paragraphs, lines; the selection's
+  when there is one).
+- **Reliability found on the way:** settings are saved every few seconds when they change, not
+  only on a clean close; the log's terminal echo and the CLI no longer panic when their output
+  is gone; the ribbon drops labels from its end when the window is too narrow for them; Junk's
+  high-water mark is set when the folder is known.
+- Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
+  (needs a dictionary MailCraft can ship).
