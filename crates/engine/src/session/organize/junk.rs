@@ -119,7 +119,7 @@ impl Session {
     }
 
     /// Mail just arrived in an Inbox from blocked senders goes to Junk; returns those keys.
-    pub(super) fn block_arrived(&mut self, msgs: &[Summary]) -> Vec<MessageKey> {
+    pub(in crate::session) fn block_arrived(&mut self, msgs: &[Summary]) -> Vec<MessageKey> {
         if self.prefs.blocked_senders.is_empty() {
             return Vec::new();
         }
@@ -140,7 +140,7 @@ impl Session {
     }
 
     /// Mail just arrived in Junk from safe senders goes back to the Inbox.
-    pub(super) fn rescue_arrived(&mut self, msgs: &[Summary]) {
+    pub(in crate::session) fn rescue_arrived(&mut self, msgs: &[Summary]) {
         if self.prefs.safe_senders.is_empty() {
             return;
         }

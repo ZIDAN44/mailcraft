@@ -5,6 +5,10 @@ use mailcraft_model::{PINNED, is_keyword};
 
 use super::*;
 
+pub mod junk;
+pub mod quick_steps;
+pub mod search_folders;
+
 /// The folder snoozed mail waits in.
 const SNOOZED: &str = "Snoozed";
 
