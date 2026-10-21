@@ -15,7 +15,8 @@
 //!   search QUERY                   search the cache (from:, subject:, has:attachment…)
 //!   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
 //!   commands                       every engine command, as JSON
-//!   run ID [JSON]                  run an engine command against the cache
+//!   run ID [JSON]                  run an engine command against the cache (its changes
+//!                                  to mail go to the server with the next `sync`)
 //!   --version                      print the version
 //! ```
 //!
@@ -364,9 +365,12 @@ fn run() -> Result<(), String> {
                 None => json!({}),
             };
             print(&s.run(&id, &params).map_err(|e| e.to_string())?);
-            let jobs = s.take_jobs();
-            if !jobs.is_empty() {
-                errln!("{} network job(s) queued (they run in the app or with `sync`)", jobs.len());
+            let (queued, other) = keep_changes(&store, s.take_jobs())?;
+            if queued > 0 {
+                errln!("{queued} change(s) queued for the server: `sync` sends them");
+            }
+            if other > 0 {
+                errln!("{other} other network job(s) skipped: they run in the app");
             }
         }
         _ => {
@@ -376,6 +380,24 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
+/// Changes to mail (moves, flags, deletions, folders) kept as the app keeps them: made in the
+/// cache and queued for the server, which the next `sync` sends (they were dropped before).
+/// How many were kept, and how many other jobs (sending, fetching) were left to the app.
+fn keep_changes(store: &Store, jobs: Vec<Job>) -> Result<(usize, usize), String> {
+    let (mut queued, mut other) = (0, 0);
+    for job in jobs {
+        match job {
+            Job::Apply { account, op } => {
+                store.apply_op(&account, &op).map_err(|e| e.to_string())?;
+                store.add_op(&account, op).map_err(|e| e.to_string())?;
+                queued += 1;
+            }
+            _ => other += 1,
+        }
+    }
+    Ok((queued, other))
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -383,5 +405,26 @@ fn main() -> ExitCode {
             errln!("error: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mailcraft_engine::model::job::Op;
+    use mailcraft_engine::model::{Flag, MessageKey};
+
+    /// A change made with `run` waits for `sync` instead of being dropped.
+    #[test]
+    fn changes_made_with_run_are_kept_for_sync() {
+        let dir = std::env::temp_dir().join(format!("mailcraft-cli-keep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 7 };
+        let op = Op::SetFlag { keys: vec![key], flag: Flag::Flagged, on: true };
+        let jobs = vec![Job::Apply { account: "a1".into(), op: op.clone() }, Job::SyncAll { account: "a1".into() }];
+        assert_eq!(keep_changes(&store, jobs).unwrap(), (1, 1));
+        assert_eq!(store.load_ops("a1").unwrap(), vec![op]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -11,5 +11,6 @@ mailcraft-cli [--data DIR] <command>
   search QUERY                   search the cache (from:, subject:, has:attachment…)
   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
   commands                       every engine command, as JSON
-  run ID [JSON]                  run an engine command against the cache
+  run ID [JSON]                  run an engine command against the cache (its changes
+                                 to mail go to the server with the next `sync`)
   --version                      print the version
