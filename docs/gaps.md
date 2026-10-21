@@ -17,7 +17,6 @@ _Status: v0.21, 2026-10-21._
 | 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail, contacts, calendar items, notes and tasks with a due date come in; export writes the mail as `.pst` and the calendar and contacts beside it as `.ics` and `.vcf`. The writer (`outlook-pst-rw`) makes mail items only, marked read, so contacts, appointments and flags can't go inside the `.pst`; the reader (`outlook-pst`) doesn't open the attachments of an attached message; tasks without a due date are left out (MailCraft has no task list). |
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
-| 7 | **Searching the server for JMAP, Graph and EWS accounts** | Search the server (mail past what's kept here, issue #4) asks IMAP servers (`SEARCH`); an Exchange, Microsoft 365 or JMAP account says it can't yet. Their own searches (EWS `QueryString`, Graph `$search`, JMAP's `text` filter) would answer it. Show more works for every kind of account on the desktop, not yet in the browser. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
 
 ## Done
@@ -613,3 +612,23 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   with its links, the dialog scrolled to its Save; Show more brought the 501 others; Message 120,
   not kept, found by Search the server and opened; offline, a flag change made closing ask, and
   Close anyway closed; a portable copy asked for its password at its second start.
+- **Searching the server for every kind of account (gap #7):** Search the server asked IMAP
+  servers only; an Exchange, Microsoft 365 or JMAP account said it couldn't. Each now asks its
+  server its own way: JMAP an `Email/query` filter (`text`, `from`, `subject`, `NOT`, the `$seen`
+  and `$flagged` keywords), Microsoft Graph `$search` (KQL, the whole quoted) or, for the read and
+  flag state alone, `$filter`, and EWS a `QueryString` (AQS) or a `Restriction`. What a user types
+  can't break out of the query (quotes and backslashes dropped, XML escaped). What's found stays
+  in its folder past the newest kept, as IMAP keeps what it fetches: each sync checks the server
+  still has it there and follows its read and flag state, and drops it when it's gone. The
+  browser searches JMAP servers and shows more too (its own `windows.json`).
+- **JMAP folders kept no more than one request's worth:** a JMAP folder kept at most the server's
+  `maxObjectsInGet` messages (often 500, 100 on some), whatever it was to keep, so Show more
+  showed nothing more. The newest are now asked a page at a time.
+- **The reading pane's header in a narrow pane:** the date ran over the sender's address; it now
+  keeps its room, or goes under the sender when the pane is too narrow, and Reply, Forward,
+  Print, Save and More wrap instead of being cut off.
+- Checked in the app against a fake Exchange server (1,500 in a folder, 1,000 kept): Message 321
+  found by Search the server and opened; a second search and a sync kept it; Show more brought
+  the other 499; a query of quotes, a backslash and `]]>` asked without an error. And in the
+  browser against a fake JMAP server (601 in a folder): 300 kept (100 before), Search the server
+  and Show more (all 601).

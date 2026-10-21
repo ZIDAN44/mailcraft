@@ -107,8 +107,9 @@ local-first, media-aware v1); the fuller request is
 21. **v0.21 — One MailCraft at a time** ✅ Started again, MailCraft brings its window forward
    rather than opening a second one on the same data; and from issues #1 and #4, shared
    mailboxes as mailboxes of their own, invitations that read with their links in dialogs that
-   fit the window, older mail shown and searched on the server, and online only made clearer
-   (a password asked for at start, a warning before closing loses anything).
+   fit the window, older mail shown and searched on the server (every kind of account, and in
+   the browser), and online only made clearer (a password asked for at start, a warning before
+   closing loses anything).
 22. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -284,3 +285,9 @@ local-first, media-aware v1); the fuller request is
   screen); Show more at the end of a folder and Search the server at the end of a search, for
   mail past what's kept (IMAP); online only explained again, its password asked for at start,
   and a warning before closing would lose unsent mail or changes.
+- **2026-10-21** — **v0.21**, the gaps audited again (craft-fonts still has no Hebrew or Korean
+  font, the `.pst` crates no new release): gap #7 closed, Search the server for JMAP, Microsoft
+  Graph and EWS accounts, their finds kept while the server has them; the browser searches its
+  server and shows more; JMAP folders keep more than one `Email/get` (they kept 100 to 500); the
+  reading pane's header fits a narrow pane. Checked against fake Exchange and JMAP servers, in
+  the app and the browser.
