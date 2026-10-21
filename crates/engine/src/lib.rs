@@ -29,6 +29,7 @@ pub use session::{
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
     pim::{ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, Module, NoteRef, Person, parse_local},
+    search_folders::SearchFolder,
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]

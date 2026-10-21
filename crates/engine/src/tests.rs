@@ -3056,3 +3056,61 @@ fn the_work_week_is_monday_to_friday() {
     assert!(events.as_array().is_some());
     assert!(s.run("calendar.view", &json!({"mode": "fortnight"})).is_err());
 }
+
+/// Search Folders: saved searches over every folder but Deleted Items and Junk, kept with the
+/// settings; renamed, changed, deleted (its mail stays); names and queries checked.
+#[test]
+fn search_folders_find_mail_everywhere_but_deleted_and_junk() {
+    let mut s = sample_session("search-folders");
+    let r = s.run("searchFolder.create", &json!({"name": "Unread mail", "query": "is:unread"})).unwrap();
+    let unread_everywhere: Vec<String> = s.list.iter().map(|m| m.subject.clone()).collect();
+    assert_eq!(r["messages"], unread_everywhere.len());
+    assert!(!unread_everywhere.is_empty());
+    assert_eq!(s.open_search_folder_name(), Some("Unread mail"));
+    // Junk's unread one isn't in it; the plain search finds it.
+    let junk = s.account("sample").and_then(|a| a.folder(FolderRole::Junk)).map(|f| f.path.clone()).unwrap();
+    let junk_unread = s.folder_state("sample", &junk).messages.iter().filter(|m| !m.flags.seen).count();
+    assert!(junk_unread > 0, "the sample's Junk has unread mail");
+    assert!(s.list.iter().all(|m| m.key.folder != junk));
+    s.run("search.run", &json!({"query": "is:unread"})).unwrap();
+    assert!(s.list.iter().any(|m| m.key.folder == junk), "a search of its own isn't the Search Folder");
+    assert_eq!(s.open_search_folder_name(), None);
+    // From certain people, any of them; larger than.
+    s.run("searchFolder.create", &json!({"name": "From Zoe or Ana", "query": "from:zoe,ana"})).unwrap();
+    let froms: Vec<String> = s.list.iter().map(|m| m.from.email.clone()).collect();
+    assert!(froms.iter().any(|f| f.starts_with("zoe")) && froms.iter().any(|f| f.starts_with("ana")), "{froms:?}");
+    assert!(froms.iter().all(|f| f.starts_with("zoe") || f.starts_with("ana")));
+    // Changed and renamed while open: shows what it finds now.
+    let r = s.run("searchFolder.edit", &json!({"name": "from zoe or ana", "newName": "Zoe", "query": "from:zoe"})).unwrap();
+    assert_eq!(r["name"], "Zoe");
+    assert!(s.list.iter().all(|m| m.from.email.starts_with("zoe")));
+    assert_eq!(s.open_search_folder_name(), Some("Zoe"));
+    // Checked: names unique whatever their case, a query that searches, limits.
+    for bad in [
+        json!({"name": "", "query": "is:unread"}),
+        json!({"name": "  ", "query": "is:unread"}),
+        json!({"name": "UNREAD MAIL", "query": "is:flagged"}),
+        json!({"name": "Nothing", "query": "   "}),
+        json!({"name": "x".repeat(101), "query": "is:unread"}),
+        json!({"name": "Long", "query": "a".repeat(1001)}),
+        json!({"name": "Ctl\u{7}", "query": "is:unread"}),
+        json!({"name": "No query"}),
+    ] {
+        assert!(s.run("searchFolder.create", &bad).is_err(), "{bad}");
+    }
+    assert!(s.run("searchFolder.edit", &json!({"name": "Zoe", "newName": "Unread mail"})).is_err(), "taken");
+    assert!(s.run("searchFolder.open", &json!({"name": "Nope"})).is_err());
+    assert!(s.run("searchFolder.delete", &json!({"name": "Nope"})).is_err());
+    // Deleted while open: the search goes, the mail stays.
+    let before = s.folder_state("sample", "INBOX").messages.len();
+    s.run("searchFolder.delete", &json!({"name": "zoe"})).unwrap();
+    assert!(s.search.is_none());
+    assert_eq!(s.folder_state("sample", "INBOX").messages.len(), before);
+    // Kept with the settings; capped.
+    let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!(back.search_folders, s.prefs.search_folders);
+    for n in 0..200 {
+        let _ = s.run("searchFolder.create", &json!({"name": format!("F{n}"), "query": "is:flagged"}));
+    }
+    assert_eq!(s.prefs.search_folders.len(), crate::session::search_folders::SEARCH_FOLDERS_MAX);
+}

@@ -23,6 +23,7 @@ pub mod invite;
 pub mod junk;
 mod organize;
 pub mod pim;
+pub mod search_folders;
 
 /// One account and what the session knows about it.
 #[derive(Clone, Debug, PartialEq)]
@@ -328,6 +329,9 @@ pub struct Prefs {
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default)]
     pub follow_up: BTreeMap<String, i64>,
+    /// Search Folders: saved searches shown as folders ([`search_folders`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub search_folders: Vec<search_folders::SearchFolder>,
     /// Reminders answered ([`Session::due_reminders`]), by occurrence
     /// (`<account>|<uid>|<occurrence>`): 0 dismissed, else snoozed until that Unix time.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -496,6 +500,7 @@ impl Default for Prefs {
             ignored: BTreeSet::new(),
             follow_up: BTreeMap::new(),
             reminders: BTreeMap::new(),
+            search_folders: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),
             pane_order: Vec::new(),
@@ -645,6 +650,9 @@ pub struct Session {
     pub filter: ListFilter,
     /// The active search (query text and scope).
     pub search: Option<(String, SearchScope)>,
+    /// The Search Folder last opened ([`Session::open_search_folder_name`]: while the search is
+    /// still its own).
+    pub search_folder: Option<String>,
     /// The search box's query asked of the servers too (issue #4: mail past what's kept here).
     pub server_search: Option<ServerSearch>,
     /// A folder whose older mail is being fetched (Show more), until its list changes.
@@ -755,6 +763,7 @@ impl Session {
             view: View::Empty,
             filter: ListFilter::All,
             search: None,
+            search_folder: None,
             server_search: None,
             showing_more: None,
             ask_password: Vec::new(),
@@ -1199,6 +1208,10 @@ impl Session {
                 if let Some(m) = self.folder_state(&key.account, &key.folder).messages.iter().find(|m| m.key.uid == key.uid).cloned() {
                     found.push(m);
                 }
+            }
+            // A Search Folder leaves out Deleted Items and Junk, as Outlook's.
+            if self.open_search_folder_name().is_some() {
+                found.retain(|m| self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk)));
             }
             sort_newest_first(&mut found);
             found
@@ -2378,6 +2391,13 @@ impl Session {
     }
 
     pub fn run_search(&mut self, query: &str, scope: SearchScope) -> usize {
+        self.search_as(query, scope, None)
+    }
+
+    /// A search, or (`folder`) a Search Folder's: a search typed in is never one, whatever it
+    /// asks.
+    pub(crate) fn search_as(&mut self, query: &str, scope: SearchScope, folder: Option<String>) -> usize {
+        self.search_folder = folder;
         let q = query.trim();
         self.search = if q.is_empty() { None } else { Some((q.to_string(), scope)) };
         if self.server_search.as_ref().is_some_and(|ss| ss.query != q) {

@@ -289,6 +289,20 @@ pub fn registry() -> Registry {
         .params(r#"{"on"?: bool}"#),
         // Search
         CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(r#"{"query": string, "scope"?: "all"|"current"}"#),
+        // Search Folders
+        CommandSpec::new("searchFolder.list", "Search Folders", "Folder pane › Search Folders", |s, _| Ok(json!(s.prefs.search_folders))),
+        CommandSpec::new("searchFolder.create", "New Search Folder", "Folder pane › Search Folders", |s, v| {
+            s.create_search_folder(p::req_str(v, "name")?, p::req_str(v, "query")?)
+        })
+        .params(r#"{"name": string, "query": string (as typed in the search box: "is:unread", "from:ana,jun", "larger:1MB")}"#),
+        CommandSpec::new("searchFolder.edit", "Customize Search Folder", "Folder pane › Search Folders", |s, v| {
+            s.edit_search_folder(p::req_str(v, "name")?, p::str(v, "newName"), p::str(v, "query"))
+        })
+        .params(r#"{"name": string, "newName"?: string, "query"?: string}"#),
+        CommandSpec::new("searchFolder.delete", "Delete Search Folder", "Folder pane › Search Folders", |s, v| s.delete_search_folder(p::req_str(v, "name")?))
+            .params(r#"{"name": string (its messages stay where they are)}"#),
+        CommandSpec::new("searchFolder.open", "Open Search Folder", "Folder pane › Search Folders", |s, v| s.open_search_folder(p::req_str(v, "name")?))
+            .params(r#"{"name": string}"#),
         CommandSpec::new("search.clear", "Clear search", "Search box", |s, _| Ok(json!({"results": s.run_search("", SearchScope::All)}))).key("Escape"),
         CommandSpec::new("search.server", "Search the server", "Search › end of the results", |s, _| s.search_server())
             .when(|s| s.search.is_none().then_some("search for something first")),
