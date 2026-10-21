@@ -284,7 +284,7 @@ fn contact_xml(c: &Card) -> String {
         x.push_str("</t:PhoneNumbers>");
     }
     // A birthday at midday UTC, so it's the same day everywhere.
-    if let Some(b) = mailcraft_model::vcard::birthday_of(&c.birthday).filter(|b| !b.starts_with("--")) {
+    if let Some(b) = mailcraft_model::vcard::birthday_for_exchange(&c.birthday) {
         x.push_str(&format!("<t:Birthday>{b}T12:00:00Z</t:Birthday>"));
     }
     if !c.title.is_empty() {
@@ -363,6 +363,7 @@ pub fn card_of(it: &El) -> Option<Card> {
             let (y, m, d) = mailcraft_model::dates::civil_from_days((t + 12 * 3600 - 1).div_euclid(86_400));
             format!("{y:04}-{m:02}-{d:02}")
         })
+        .and_then(|b| mailcraft_model::vcard::birthday_of(&b))
         .unwrap_or_default();
     let body = it.child("Body").map(|b| b.text.trim().to_string()).unwrap_or_default();
     Some(Card {
@@ -784,6 +785,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         Ok(list) => out.notes = Some(list.iter().filter_map(note_of).collect()),
         Err(e) => log::info!("no Notes folder: {e}"),
     }
+    mailcraft_model::pim::separate_shared_uids(&mut out.events);
     Ok(out)
 }
 

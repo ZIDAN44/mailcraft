@@ -912,3 +912,4 @@ month	May	5月
 	{n} more on the server	伺服器上還有 {n} 封
 	Changes not yet on the server: {n}	尚未同步到伺服器的變更：{n}
 	Messages waiting to be sent: {n}	等待傳送的郵件：{n}
+	{day} {month}	{month}{day}日

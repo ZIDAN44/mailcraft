@@ -909,3 +909,4 @@ month	May	5月
 	{n} more on the server	服务器上还有 {n} 封
 	Changes not yet on the server: {n}	尚未同步到服务器的更改：{n}
 	Messages waiting to be sent: {n}	等待发送的邮件：{n}
+	{day} {month}	{month}{day}日

@@ -913,3 +913,4 @@ month	May	mayo
 	{n} more on the server	{n} más en el servidor
 	Changes not yet on the server: {n}	Cambios aún no en el servidor: {n}
 	Messages waiting to be sent: {n}	Mensajes esperando para enviarse: {n}
+	{day} {month}	{day} de {month}

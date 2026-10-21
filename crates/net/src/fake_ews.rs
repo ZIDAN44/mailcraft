@@ -74,6 +74,8 @@ pub struct Data {
     pub item_rights_only: bool,
     /// Listing a mail folder's messages takes this long (a big mailbox's first sync).
     pub hold: Option<std::time::Duration>,
+    /// Ids of folders listed with `PidTagAttributeHidden` true.
+    pub flagged_hidden: Vec<String>,
     /// Messages whose source can't be had (the server fails on it).
     pub unreadable: Vec<String>,
     /// The public folder mailbox holding the public folders' content (Exchange 2013 and
@@ -114,6 +116,7 @@ impl Default for Data {
             editors: Vec::new(),
             item_rights_only: false,
             hold: None,
+            flagged_hidden: Vec::new(),
             unreadable: Vec::new(),
             pf_mailbox: None,
             pf_hierarchy: None,
@@ -248,6 +251,13 @@ impl Data {
             )
         } else {
             String::new()
+        };
+        let replica = if self.flagged_hidden.contains(&f.id) {
+            format!(
+                "{replica}<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x10f4\" PropertyType=\"Boolean\"/><t:Value>true</t:Value></t:ExtendedProperty>"
+            )
+        } else {
+            replica
         };
         // As Exchange answers: each folder in an element of its kind (EWS's folder array).
         let kind = match f.class.as_str() {
@@ -1282,6 +1292,50 @@ mod tests {
         assert!(!sync.synced_calendars.contains(&shared_calendar_id("nobody@contoso.example")));
     }
 
+    /// A folder flagged hidden is not offered as mail, nor is anything nested in it at any
+    /// depth; its siblings and their subfolders still are.
+    #[test]
+    fn exchanges_own_folders_are_left_out_of_the_list() {
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        let projects = d.folder("Projects", None, None, "IPF.Note");
+        let working = d.folder("Working Set", None, None, "IPF.Note");
+        let inner = d.folder("Inner", Some(&working), None, "IPF.Note");
+        d.folder("Deeper", Some(&inner), None, "IPF.Note");
+        d.folder("2024", Some(&projects), None, "IPF.Note");
+        d.flagged_hidden.push(working);
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let mut names: Vec<String> = c.mailboxes().unwrap().into_iter().map(|m| m.name).collect();
+        names.sort();
+        assert_eq!(names, ["2024", "Inbox", "Projects"]);
+    }
+
+    /// Three plain appointments carrying one UID: the sync hands the engine three distinct
+    /// identities, not one.
+    #[test]
+    fn meetings_reusing_one_uid_each_reach_the_calendar() {
+        use mailcraft_model::pim::Pim;
+        let mut d = Data::default();
+        d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        let cal = d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+        d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+        for (id, day) in [("C1", "06"), ("C2", "13"), ("C3", "20")] {
+            let it = parse(&format!(
+                "<t:CalendarItem><t:Subject>Safety committee</t:Subject><t:Start>2026-10-{day}T08:00:00Z</t:Start><t:End>2026-10-{day}T10:00:00Z</t:End>\
+                 <t:IsAllDayEvent>false</t:IsAllDayEvent><t:CalendarItemType>Single</t:CalendarItemType><t:UID>committee-series</t:UID></t:CalendarItem>"
+            ));
+            d.pim.push((id.into(), cal.clone(), it.kids[0].clone()));
+        }
+        let server = serve(d);
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let sync = crate::ews_pim::sync(&c, &Pim::default(), 1_792_000_000).unwrap();
+        // Distinct (UID, instance) pairs: what the engine stores separately.
+        let ids: std::collections::HashSet<(String, Option<i64>)> =
+            sync.events.iter().filter(|e| e.event.summary == "Safety committee").map(|e| (e.event.uid.clone(), e.event.recurrence_id)).collect();
+        assert_eq!(ids.len(), 3, "{ids:?}");
+    }
+
     /// Someone who made this account an editor of their calendar: events go in, change and go
     /// there; someone who didn't keeps theirs read-only.
     #[test]
@@ -1372,6 +1426,63 @@ mod tests {
             (Some(false), Some(true)),
             "Ana made this account an editor; Ben didn't"
         );
+    }
+
+    /// Flag a message while a slow full sync runs, then shut the pool down: the flag is in the
+    /// cache and ops.json straight away, and the next session delivers it to the server.
+    #[test]
+    fn a_flag_set_mid_sync_is_not_lost() {
+        let mut d = Data::default();
+        let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.folder("Projects", None, None, "IPF.Note");
+        d.folder("Archive 2024", None, None, "IPF.Note");
+        let id = d.deliver(&inbox, &mail("Storyboard", "m1"), false, "2024-05-06T09:00:00Z");
+        let server = serve(d);
+        let data = server.data.clone();
+        let dir = std::env::temp_dir().join(format!("mailcraft-ews-changes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let account = AccountConfig {
+            id: "a1".into(),
+            name: "Riley".into(),
+            email: "riley@contoso.example".into(),
+            username: format!("{DOMAIN}\\{USER}"),
+            ews: Some(server.url.clone()),
+            ..Default::default()
+        };
+        let start = |store: &Store| {
+            let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+            pool.submit(Job::Start { account: account.clone(), password: Some(Secret(PASSWORD.into())) });
+            pool
+        };
+        let mut pool = start(&store);
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
+
+        // Slow the server down, start a full sync, flag the message during it.
+        data.lock().unwrap().hold = Some(Duration::from_secs(2));
+        pool.submit(Job::SyncAll { account: "a1".into() });
+        std::thread::sleep(Duration::from_millis(300));
+        let op = Op::SetFlag { keys: vec![key.clone()], flag: Flag::Flagged, on: true };
+        pool.submit(Job::Apply { account: "a1".into(), op: op.clone() });
+        let flagged = || store.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.key == key && m.flags.flagged);
+        assert!(flagged(), "cache updated immediately");
+        assert_eq!(store.load_ops("a1").unwrap(), [op], "ops.json written immediately");
+        // Shut down mid-sync; a fresh pool must push the flag and keep showing it.
+        drop(pool);
+        data.lock().unwrap().hold = None;
+        std::thread::sleep(Duration::from_millis(2500));
+        let pool = start(&store);
+        until(&pool, "online again", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        let on_server = || data.lock().unwrap().items.iter().any(|i| i.id == id && i.flagged);
+        let end = Instant::now() + Duration::from_secs(20);
+        while !on_server() || !store.load_ops("a1").unwrap().is_empty() {
+            assert!(Instant::now() < end, "the flag never arrived on the server");
+            let _ = pool.wait(Duration::from_millis(100));
+        }
+        assert!(flagged(), "the later syncs kept the flag locally");
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Mail sent and automatic replies asked for while a big mailbox's first sync is still going

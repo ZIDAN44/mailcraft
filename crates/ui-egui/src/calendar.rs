@@ -12,7 +12,8 @@ use crate::{Action, Dialog, UiState, widgets};
 
 /// Height of an hour in the day and week views.
 const HOUR: f32 = 46.0;
-const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+pub(crate) const MONTHS: [&str; 12] =
+    ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /// A calendar's colour: an account's own calendar in the account's colour, others in the

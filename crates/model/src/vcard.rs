@@ -52,13 +52,18 @@ impl PostalAddress {
     }
 }
 
+/// Placeholder year Exchange stores for a birthday entered as day and month only.
+const NO_YEAR: &str = "1604";
+
 /// A birthday as written (`YYYY-MM-DD`, or `--MM-DD` without the year), from vCard's `BDAY`
-/// (`19900401`, `1990-04-01`, `--0401`, a date and time): `None` when it isn't a date.
+/// (`19900401`, `1990-04-01`, `--0401`, a date and time) or from Exchange, whose placeholder
+/// year means "no year": `None` when it isn't a date.
 pub fn birthday_of(v: &str) -> Option<String> {
     let v = v.trim();
     let v = v.split('T').next().unwrap_or(v);
     let digits: String = v.chars().filter(char::is_ascii_digit).collect();
     let (year, rest) = if v.starts_with("--") { (None, digits.as_str()) } else { (Some(digits.get(..4)?), digits.get(4..)?) };
+    let year = year.filter(|y| *y != NO_YEAR);
     let month: u32 = rest.get(..2)?.parse().ok()?;
     let day: u32 = rest.get(2..4)?.parse().ok()?;
     if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
@@ -67,6 +72,15 @@ pub fn birthday_of(v: &str) -> Option<String> {
     Some(match year {
         Some(y) => format!("{y}-{month:02}-{day:02}"),
         None => format!("--{month:02}-{day:02}"),
+    })
+}
+
+/// The `YYYY-MM-DD` to send to Exchange: a day-and-month birthday gets the placeholder year.
+pub fn birthday_for_exchange(v: &str) -> Option<String> {
+    let b = birthday_of(v)?;
+    Some(match b.strip_prefix("--") {
+        Some(day) => format!("{NO_YEAR}-{day}"),
+        None => b,
     })
 }
 
@@ -404,6 +418,11 @@ BEGIN:VCARD\r\nVERSION:4.0\r\nUID:urn:uuid:ann\r\nEMAIL:ann@x.example\r\nEND:VCA
         assert_eq!((z.org.as_str(), z.title.as_str()), ("Studio Lantern, Story", "Director"));
         assert_eq!(z.note, "Prefers mornings, not Mondays.\nCall first.");
         assert_eq!(z.birthday, "1990-04-01");
+        // Exchange's placeholder year in, `--MM-DD` out, and back again.
+        assert_eq!(birthday_of("1604-02-20T00:00:00Z").as_deref(), Some("--02-20"));
+        assert_eq!(birthday_for_exchange("--02-20").as_deref(), Some("1604-02-20"));
+        assert_eq!(birthday_for_exchange("1990-04-01").as_deref(), Some("1990-04-01"));
+        assert_eq!(birthday_for_exchange("soon"), None);
         assert!(z.extra.iter().any(|x| x.contains("AAAABBBB")), "the rest is kept");
         assert_eq!(cards[1].display(), "ann@x.example");
         let back = parse(&write(z));

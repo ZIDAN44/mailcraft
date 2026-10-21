@@ -912,3 +912,4 @@ month	May	5월
 	{n} more on the server	서버에 {n}개 더
 	Changes not yet on the server: {n}	아직 서버에 반영되지 않은 변경: {n}
 	Messages waiting to be sent: {n}	보내기 대기 중인 메시지: {n}
+	{day} {month}	{month} {day}일

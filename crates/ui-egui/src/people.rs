@@ -95,7 +95,7 @@ impl Column {
             Column::Fax => phone(&["fax"]),
             Column::BusinessAddress => c.addresses.iter().find(|a| a.kind == "work").map(|a| a.one_line()).unwrap_or_default(),
             Column::HomeAddress => c.addresses.iter().find(|a| a.kind == "home").map(|a| a.one_line()).unwrap_or_default(),
-            Column::Birthday => c.birthday.clone(),
+            Column::Birthday => birthday_shown(&c.birthday),
             Column::Mobile => phone(&["cell", "mobile"]),
             Column::Home => phone(&["home"]),
             Column::Notes => c.note.lines().next().unwrap_or_default().to_string(),
@@ -170,6 +170,18 @@ fn initials(name: &str) -> String {
 
 /// The A–Z index's width.
 const INDEX_W: f32 = 18.0;
+
+/// Display form of a stored birthday: `--MM-DD` becomes a localized "20 February"; full
+/// dates are shown as stored.
+fn birthday_shown(b: &str) -> String {
+    let Some(b) = mailcraft_engine::model::vcard::birthday_of(b) else { return b.to_string() };
+    let Some((mm, dd)) = b.strip_prefix("--").and_then(|md| md.split_once('-')) else { return b };
+    let month_name = mm.parse::<usize>().ok().and_then(|m| m.checked_sub(1)).and_then(|i| crate::calendar::MONTHS.get(i).copied());
+    match (month_name, dd.parse::<u32>()) {
+        (Some(name), Ok(day)) => tf!("{day} {month}", day = day, month = crate::i18n::tc("month", name)),
+        _ => b.clone(),
+    }
+}
 
 /// A name's index letter: its first letter, or `#` for one that isn't a letter.
 fn index_letter(name: &str) -> char {
@@ -436,7 +448,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 field(ui, &t, Icon::Location, &lines, kind);
             }
             if !c.birthday.is_empty() {
-                field(ui, &t, Icon::Calendar, &c.birthday, tl!("Birthday"));
+                field(ui, &t, Icon::Calendar, &birthday_shown(&c.birthday), tl!("Birthday"));
             }
             if !c.note.is_empty() {
                 ui.add_space(10.0);

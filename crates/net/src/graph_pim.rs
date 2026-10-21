@@ -294,6 +294,7 @@ pub fn card_of(v: &Value) -> Option<Card> {
                 let (y, m, d) = mailcraft_model::dates::civil_from_days((t + 12 * 3600 - 1).div_euclid(86_400));
                 format!("{y:04}-{m:02}-{d:02}")
             })
+            .and_then(|b| mailcraft_model::vcard::birthday_of(&b))
             .unwrap_or_default(),
         extra: Vec::new(),
     })
@@ -326,7 +327,7 @@ pub fn card_json(c: &Card) -> Value {
         "businessAddress": address("work"),
         "homeAddress": address("home"),
         "otherAddress": address(""),
-        "birthday": mailcraft_model::vcard::birthday_of(&c.birthday).filter(|b| !b.starts_with("--")).map(|b| format!("{b}T12:00:00Z")),
+        "birthday": mailcraft_model::vcard::birthday_for_exchange(&c.birthday).map(|b| format!("{b}T12:00:00Z")),
     })
 }
 
@@ -462,6 +463,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     }
     out.books = Some(vec![BookInfo { id: CONTACTS.into(), name: "Contacts".into(), read_only: false, ctag: String::new() }]);
     out.synced_books.push(CONTACTS.into());
+    mailcraft_model::pim::separate_shared_uids(&mut out.events);
     Ok(out)
 }
 

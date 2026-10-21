@@ -912,3 +912,4 @@ month	May	Май
 	{n} more on the server	Ещё {n} на сервере
 	Changes not yet on the server: {n}	Изменения, ещё не на сервере: {n}
 	Messages waiting to be sent: {n}	Письма, ожидающие отправки: {n}
+	{day} {month}	{day} {month}

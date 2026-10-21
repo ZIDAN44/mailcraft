@@ -223,3 +223,53 @@ impl Pim {
         self.events.iter().enumerate().filter(|(_, e)| e.event.uid == uid).map(|(i, _)| i).collect()
     }
 }
+
+/// Make UIDs unique within each calendar. A calendar can hold several plain (non-recurring)
+/// appointments with one UID, e.g. invitations a scheduling tool sends per date under its
+/// series UID. The engine stores events by UID, so only one survived. Such appointments get
+/// `<uid>/<start>` here. Recurring masters and exceptions are untouched, and the new UID never
+/// goes back to the server.
+pub fn separate_shared_uids(events: &mut [StoredEvent]) {
+    let mut seen: std::collections::HashMap<(String, String), usize> = std::collections::HashMap::new();
+    for e in events.iter().filter(|e| e.event.recurrence_id.is_none()) {
+        *seen.entry((e.calendar.clone(), e.event.uid.clone())).or_default() += 1;
+    }
+    let mut taken: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    for e in events.iter_mut() {
+        let shared = seen.get(&(e.calendar.clone(), e.event.uid.clone())).is_some_and(|n| *n > 1);
+        if !shared || e.event.recurrence_id.is_some() || e.event.rrule.is_some() {
+            continue;
+        }
+        let mut uid = format!("{}/{}", e.event.uid, e.event.start);
+        let mut n = 1;
+        while !taken.insert((e.calendar.clone(), uid.clone())) && n < 1000 {
+            n += 1;
+            uid = format!("{}/{}-{n}", e.event.uid, e.event.start);
+        }
+        e.event.uid = uid;
+    }
+}
+
+#[cfg(test)]
+mod shared_uid_tests {
+    use super::*;
+
+    /// Duplicates get their start appended (a counter when the start repeats too); a lone
+    /// event and a recurring one in another calendar keep their UID.
+    #[test]
+    fn repeated_uids_get_their_start_appended() {
+        let ev = |cal: &str, start: i64, rrule: Option<&str>| StoredEvent {
+            calendar: cal.into(),
+            event: CalEvent { uid: "series-1".into(), start, rrule: rrule.map(str::to_string), ..Default::default() },
+            ..Default::default()
+        };
+        let mut list = vec![ev("cal", 100, None), ev("cal", 200, None), ev("cal", 100, None), ev("other", 100, Some("FREQ=WEEKLY"))];
+        separate_shared_uids(&mut list);
+        let uids: Vec<&str> = list.iter().map(|e| e.event.uid.as_str()).collect();
+        assert_eq!(uids, ["series-1/100", "series-1/200", "series-1/100-2", "series-1"]);
+        // Nothing to tell apart: unchanged.
+        let mut one = vec![ev("cal", 100, None)];
+        separate_shared_uids(&mut one);
+        assert_eq!(one[0].event.uid, "series-1");
+    }
+}

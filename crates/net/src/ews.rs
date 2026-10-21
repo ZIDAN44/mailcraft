@@ -591,7 +591,7 @@ impl Client {
                     "<m:FindFolder Traversal=\"Deep\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
                      <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:ParentFolderId\"/>\
                      <t:FieldURI FieldURI=\"folder:TotalCount\"/><t:FieldURI FieldURI=\"folder:UnreadCount\"/>\
-                     <t:FieldURI FieldURI=\"folder:FolderClass\"/></t:AdditionalProperties></m:FolderShape>\
+                     <t:FieldURI FieldURI=\"folder:FolderClass\"/>{HIDDEN}</t:AdditionalProperties></m:FolderShape>\
                      <m:IndexedPageFolderView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
                      <m:ParentFolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\">{mb}</t:DistinguishedFolderId></m:ParentFolderIds></m:FindFolder>"
                 ))?;
@@ -601,7 +601,7 @@ impl Client {
                 for f in folders {
                     let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
                     let class = f.text_of("FolderClass").unwrap_or("");
-                    if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.")) || skip.contains(&id) || out.len() >= MAX_FOLDERS {
+                    if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.")) || skip.contains(&id) || is_hidden(f) || out.len() >= MAX_FOLDERS {
                         continue;
                     }
                     let parent = f.child("ParentFolderId").and_then(|p| p.attr("Id")).map(str::to_string).or_else(|| Some(root_id.clone()));
@@ -622,9 +622,7 @@ impl Client {
                     break;
                 }
             }
-            // Folders under a hidden one go too.
-            let ids: Vec<String> = out.iter().map(|m| m.id.clone()).collect();
-            out.retain(|m| m.parent.as_ref().is_none_or(|p| ids.contains(p)));
+            keep_rooted(&mut out);
             Ok(out)
         })
     }
@@ -872,7 +870,7 @@ impl Client {
                 "<m:FindFolder Traversal=\"Deep\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
                  <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:ParentFolderId\"/>\
                  <t:FieldURI FieldURI=\"folder:TotalCount\"/><t:FieldURI FieldURI=\"folder:UnreadCount\"/>\
-                 <t:FieldURI FieldURI=\"folder:FolderClass\"/></t:AdditionalProperties></m:FolderShape>\
+                 <t:FieldURI FieldURI=\"folder:FolderClass\"/>{HIDDEN}</t:AdditionalProperties></m:FolderShape>\
                  <m:IndexedPageFolderView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
                  <m:ParentFolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\"/></m:ParentFolderIds></m:FindFolder>"
             ))?;
@@ -884,7 +882,12 @@ impl Client {
             for f in folders {
                 let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
                 let class = f.text_of("FolderClass").unwrap_or("");
-                if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.")) || skip.contains(&id) || out.len() >= MAX_FOLDERS {
+                // Skip anything flagged PidTagAttributeHidden: server bookkeeping, not mail.
+                if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note."))
+                    || skip.contains(&id)
+                    || is_hidden(f)
+                    || out.len() >= MAX_FOLDERS
+                {
                     continue;
                 }
                 let parent = f.child("ParentFolderId").and_then(|p| p.attr("Id")).map(str::to_string).filter(|p| Some(p) != root.as_ref());
@@ -904,9 +907,7 @@ impl Client {
                 break;
             }
         }
-        // Folders under a hidden one go too.
-        let ids: Vec<String> = out.iter().map(|m| m.id.clone()).collect();
-        out.retain(|m| m.parent.as_ref().is_none_or(|p| ids.contains(p)));
+        keep_rooted(&mut out);
         // Exchange's public folders, under a folder of their own (a server without them, or
         // one that won't show them, just has none).
         match self.public_folders() {
@@ -1371,6 +1372,27 @@ pub fn autodiscover(email: &str, user: &str, password: &str, base: Option<&str>)
         }
     }
     Err(NetError::No("Autodiscover sent MailCraft round in circles".into()))
+}
+
+/// Drop folders whose parent was dropped, repeating until every remaining parent is listed.
+fn keep_rooted(out: &mut Vec<Mailbox>) {
+    loop {
+        let ids: std::collections::HashSet<String> = out.iter().map(|m| m.id.clone()).collect();
+        let before = out.len();
+        out.retain(|m| m.parent.as_ref().is_none_or(|p| ids.contains(p)));
+        if out.len() == before {
+            break;
+        }
+    }
+}
+
+/// The `PidTagAttributeHidden` property ([MS-OXPROPS]), asked for with each folder.
+const HIDDEN: &str = "<t:ExtendedFieldURI PropertyTag=\"0x10f4\" PropertyType=\"Boolean\"/>";
+
+/// Whether a listed folder carries that property set to true.
+fn is_hidden(f: &El) -> bool {
+    let tagged = |p: &&El| p.child("ExtendedFieldURI").and_then(|u| u.attr("PropertyTag")).map(str::to_ascii_lowercase).as_deref() == Some("0x10f4");
+    f.children("ExtendedProperty").filter(tagged).filter_map(|p| p.text_of("Value")).any(|v| matches!(v.trim(), "true" | "True" | "1"))
 }
 
 /// The read, flag and draft state, asked for with every item.

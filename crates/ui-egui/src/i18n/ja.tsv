@@ -909,3 +909,4 @@ month	May	5月
 	{n} more on the server	サーバーにさらに {n} 件
 	Changes not yet on the server: {n}	サーバーに未反映の変更: {n}
 	Messages waiting to be sent: {n}	送信待ちのメッセージ: {n}
+	{day} {month}	{month}{day}日
