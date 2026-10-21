@@ -948,3 +948,8 @@ month	May	mei
 	Mail from these addresses and domains is never treated as junk, and its pictures load.	E-mail van deze adressen en domeinen wordt nooit als ongewenst behandeld en de afbeeldingen worden geladen.
 	name@example.com or @example.com	naam@example.com of @example.com
 	And {n} more	En nog {n}
+	Clean up conversation	Gesprek opschonen
+	Clean up folder	Map opschonen
+	Messages quoted in full by a later reply go to Deleted Items	Berichten die volledig in een later antwoord zijn geciteerd, gaan naar Verwijderde items
+	No conversations to clean up	Geen gesprekken om op te schonen
+	Nothing to clean up: no message is quoted in full by a later reply	Niets op te schonen: geen bericht is volledig geciteerd in een later antwoord

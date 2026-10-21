@@ -948,3 +948,8 @@ month	May	مايو
 	Mail from these addresses and domains is never treated as junk, and its pictures load.	لا يُعامل البريد من هذه العناوين والمجالات كبريد عشوائي أبداً، وتُحمَّل صوره.
 	name@example.com or @example.com	name@example.com أو ‎@example.com
 	And {n} more	و{n} أخرى
+	Clean up conversation	تنظيف المحادثة
+	Clean up folder	تنظيف المجلد
+	Messages quoted in full by a later reply go to Deleted Items	تنتقل الرسائل المقتبسة بالكامل في رد لاحق إلى العناصر المحذوفة
+	No conversations to clean up	لا توجد محادثات لتنظيفها
+	Nothing to clean up: no message is quoted in full by a later reply	لا شيء للتنظيف: لا توجد رسالة مقتبسة بالكامل في رد لاحق

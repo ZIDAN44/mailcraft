@@ -949,3 +949,8 @@ month	May	5月
 	Mail from these addresses and domains is never treated as junk, and its pictures load.	来自这些地址和域的邮件永远不会被视为垃圾邮件，其图片会加载。
 	name@example.com or @example.com	name@example.com 或 @example.com
 	And {n} more	还有 {n} 个
+	Clean up conversation	清理对话
+	Clean up folder	清理文件夹
+	Messages quoted in full by a later reply go to Deleted Items	被后续答复完整引用的邮件将移至“已删除邮件”
+	No conversations to clean up	没有要清理的对话
+	Nothing to clean up: no message is quoted in full by a later reply	没有要清理的内容: 没有邮件被后续答复完整引用

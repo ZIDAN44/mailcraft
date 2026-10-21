@@ -952,3 +952,8 @@ month	May	5월
 	Mail from these addresses and domains is never treated as junk, and its pictures load.	이 주소와 도메인에서 온 메일은 정크로 처리되지 않으며 그림이 로드됩니다.
 	name@example.com or @example.com	name@example.com 또는 @example.com
 	And {n} more	외 {n}개
+	Clean up conversation	대화 정리
+	Clean up folder	폴더 정리
+	Messages quoted in full by a later reply go to Deleted Items	이후 회신에 전체가 인용된 메시지는 지운 항목으로 이동합니다
+	No conversations to clean up	정리할 대화가 없습니다
+	Nothing to clean up: no message is quoted in full by a later reply	정리할 항목이 없습니다. 이후 회신에 전체가 인용된 메시지가 없습니다

@@ -2060,6 +2060,17 @@ impl MailApp {
                                 acts.push(Action::Run("mail.ignore", json!({})));
                                 ui.close();
                             }
+                            // Clean Up: what a later reply quotes in full goes to Deleted Items.
+                            ui.separator();
+                            let tip = tl!("Messages quoted in full by a later reply go to Deleted Items");
+                            if ui.add_enabled(enabled("mail.cleanUp"), egui::Button::new(tl!("Clean up conversation"))).on_hover_text(tip).clicked() {
+                                acts.push(Action::Run("mail.cleanUp", json!({})));
+                                ui.close();
+                            }
+                            if ui.add_enabled(enabled("folder.cleanUp"), egui::Button::new(tl!("Clean up folder"))).on_hover_text(tip).clicked() {
+                                acts.push(Action::Run("folder.cleanUp", json!({})));
+                                ui.close();
+                            }
                         });
                         if widgets::tool_button(ui, Icon::Archive, "Archive", &t, enabled("mail.archive"))
                             .on_hover_text(tl!("Archive (Backspace)"))

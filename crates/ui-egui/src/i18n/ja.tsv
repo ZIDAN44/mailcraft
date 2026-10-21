@@ -949,3 +949,8 @@ month	May	5月
 	Mail from these addresses and domains is never treated as junk, and its pictures load.	これらのアドレスとドメインからのメールは迷惑メールとして扱わず、画像も読み込みます。
 	name@example.com or @example.com	name@example.com または @example.com
 	And {n} more	他 {n} 件
+	Clean up conversation	スレッドのクリーンアップ
+	Clean up folder	フォルダーのクリーンアップ
+	Messages quoted in full by a later reply go to Deleted Items	後の返信に全文が引用されているメッセージを削除済みアイテムに移動します
+	No conversations to clean up	クリーンアップするスレッドはありません
+	Nothing to clean up: no message is quoted in full by a later reply	クリーンアップするものはありません: 後の返信に全文が引用されたメッセージはありません

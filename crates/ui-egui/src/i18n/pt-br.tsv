@@ -953,3 +953,8 @@ month	May	maio
 	Mail from these addresses and domains is never treated as junk, and its pictures load.	E-mails destes endereços e domínios nunca são tratados como lixo e suas imagens são carregadas.
 	name@example.com or @example.com	nome@example.com ou @example.com
 	And {n} more	E mais {n}
+	Clean up conversation	Limpar conversa
+	Clean up folder	Limpar pasta
+	Messages quoted in full by a later reply go to Deleted Items	Mensagens citadas por completo em uma resposta posterior vão para Itens Excluídos
+	No conversations to clean up	Nenhuma conversa para limpar
+	Nothing to clean up: no message is quoted in full by a later reply	Nada para limpar: nenhuma mensagem é citada por completo em uma resposta posterior

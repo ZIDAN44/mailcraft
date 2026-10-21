@@ -952,3 +952,8 @@ month	May	maggio
 	Mail from these addresses and domains is never treated as junk, and its pictures load.	La posta da questi indirizzi e domini non è mai considerata indesiderata e le sue immagini vengono caricate.
 	name@example.com or @example.com	nome@example.com o @example.com
 	And {n} more	E altri {n}
+	Clean up conversation	Pulisci conversazione
+	Clean up folder	Pulisci cartella
+	Messages quoted in full by a later reply go to Deleted Items	I messaggi citati per intero da una risposta successiva vanno in Posta eliminata
+	No conversations to clean up	Nessuna conversazione da pulire
+	Nothing to clean up: no message is quoted in full by a later reply	Niente da pulire: nessun messaggio è citato per intero da una risposta successiva
