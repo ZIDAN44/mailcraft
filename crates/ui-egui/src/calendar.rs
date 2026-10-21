@@ -61,13 +61,17 @@ pub fn title(s: &Session) -> String {
                 tf!("{from} {month_from} – {to} {month} {year}", from = a, month_from = month(m0), to = b, month = month(m1), year = y1)
             }
         }
-        CalMode::Day => {
-            let (y, m, d) = civil_from_days(d0);
-            let wd = (d0 + 3).rem_euclid(7) as usize;
-            let day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].get(wd).copied().unwrap_or("");
-            tf!("{weekday}, {day} {month} {year}", weekday = tl!(day_name), day = d, month = month(m), year = y)
-        }
+        CalMode::Day => long_date(d0),
     }
+}
+
+/// A day written out: `Thursday, 22 October 2026`, in the interface's language.
+pub fn long_date(day: i64) -> String {
+    let (y, m, d) = civil_from_days(day);
+    let month = crate::i18n::tc("month", MONTHS.get(m as usize - 1).copied().unwrap_or("")).to_string();
+    let wd = (day + 3).rem_euclid(7) as usize;
+    let day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].get(wd).copied().unwrap_or("");
+    tf!("{weekday}, {day} {month} {year}", weekday = tl!(day_name), day = d, month = month, year = y)
 }
 
 /// The side pane: a month to jump around in, then the calendars.

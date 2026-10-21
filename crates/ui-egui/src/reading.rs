@@ -2144,7 +2144,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         // The Message ribbon.
         egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
             ui.set_width(ui.available_width());
-            rich_edit::ribbon(ui, &t, &mut ed, c, &signature, acts);
+            rich_edit::ribbon(ui, &t, &mut ed, c, &signature, &clock, acts);
         });
         ui.add_space(4.0);
         // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);

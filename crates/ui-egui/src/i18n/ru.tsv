@@ -987,3 +987,10 @@ month	May	Май
 	Then move to	Затем переместить в
 	Don't move	Не перемещать
 	Delete this Quick Step	Удалить это быстрое действие
+	Date & time	Дата и время
+	Word count	Статистика
+	Words	Слова
+	Characters (no spaces)	Знаки (без пробелов)
+	Characters (with spaces)	Знаки (с пробелами)
+	Paragraphs	Абзацы
+	Lines	Строки

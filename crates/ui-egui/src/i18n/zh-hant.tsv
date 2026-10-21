@@ -987,3 +987,10 @@ month	May	5月
 	Then move to	然後移至
 	Don't move	不移動
 	Delete this Quick Step	刪除此快速步驟
+	Date & time	日期和時間
+	Word count	字數統計
+	Words	字數
+	Characters (no spaces)	字元數 (不含空格)
+	Characters (with spaces)	字元數 (含空格)
+	Paragraphs	段落數
+	Lines	行數

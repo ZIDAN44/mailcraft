@@ -988,3 +988,10 @@ month	May	Mai
 	Then move to	Dann verschieben nach
 	Don't move	Nicht verschieben
 	Delete this Quick Step	Diesen QuickStep löschen
+	Date & time	Datum und Uhrzeit
+	Word count	Wörter zählen
+	Words	Wörter
+	Characters (no spaces)	Zeichen (ohne Leerzeichen)
+	Characters (with spaces)	Zeichen (mit Leerzeichen)
+	Paragraphs	Absätze
+	Lines	Zeilen

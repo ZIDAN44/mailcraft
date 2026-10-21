@@ -987,3 +987,10 @@ month	May	maggio
 	Then move to	Quindi sposta in
 	Don't move	Non spostare
 	Delete this Quick Step	Elimina questa azione rapida
+	Date & time	Data e ora
+	Word count	Conteggio parole
+	Words	Parole
+	Characters (no spaces)	Caratteri (spazi esclusi)
+	Characters (with spaces)	Caratteri (spazi inclusi)
+	Paragraphs	Paragrafi
+	Lines	Righe

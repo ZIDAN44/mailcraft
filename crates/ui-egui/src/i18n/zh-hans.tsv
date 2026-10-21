@@ -984,3 +984,10 @@ month	May	5月
 	Then move to	然后移动到
 	Don't move	不移动
 	Delete this Quick Step	删除此快速步骤
+	Date & time	日期和时间
+	Word count	字数统计
+	Words	字数
+	Characters (no spaces)	字符数(不计空格)
+	Characters (with spaces)	字符数(计空格)
+	Paragraphs	段落数
+	Lines	行数

@@ -1673,3 +1673,42 @@ fn quick_steps_are_made_and_done_with_their_keys() {
     assert!(crate::dialogs::QuickStepForm { name: "x".into(), ..Default::default() }.actions().is_empty());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Writing: today's date or the time goes in at the cursor (a plain message stays plain, and
+/// Undo takes it out); Word count counts the message, or what's selected.
+#[test]
+fn the_date_goes_in_and_words_are_counted() {
+    let (mut a, dir) = app("date-words");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let choices = crate::rich_edit::date_choices(&a.session.clock);
+    assert_eq!(choices.len(), 4);
+    let iso = mailcraft_engine::model::dates::day_string(NOW.div_euclid(86_400));
+    assert_eq!(choices[1], iso);
+    assert!(choices[0].contains(&mailcraft_engine::model::dates::civil(NOW, &a.session.clock).year.to_string()));
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.as_mut().unwrap();
+    c.body = "Hello  world.\n\nSecond paragraph here".into();
+    c.plain = true;
+    let mut ed = crate::rich_edit::Editor::new(c.id);
+    ed.sel = 5..5;
+    crate::rich_edit::apply(&mut ed, c, crate::rich_edit::Op::Insert(format!(" {iso}")));
+    assert_eq!(c.body, format!("Hello {iso}  world.\n\nSecond paragraph here"));
+    assert!(c.plain, "a plain message stays plain");
+    assert_eq!(ed.sel, 5 + 1 + iso.chars().count()..5 + 1 + iso.chars().count());
+    // Past the end, or a selection replaced.
+    ed.sel = 10_000..10_000;
+    crate::rich_edit::apply(&mut ed, c, crate::rich_edit::Op::Insert("!".into()));
+    assert!(c.body.ends_with('!'));
+    let n = crate::rich_edit::count_words(&c.body);
+    assert_eq!((n.words, n.paragraphs, n.lines), (6, 2, 3), "{n:?}");
+    assert_eq!(crate::rich_edit::count_words(""), crate::rich_edit::Counts::default());
+    let w = crate::rich_edit::count_words("naïve café — 東京 2026 don't");
+    assert_eq!((w.words, w.chars_no_spaces), (6, "naïvecafé—東京2026don't".chars().count()), "{w:?}");
+    // Shown where the message is being written (its own window), as Address Book is.
+    assert!(Dialog::WordCount(n, false).for_compose());
+    a.ui.dialog = Some(Dialog::WordCount(n, false));
+    frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}

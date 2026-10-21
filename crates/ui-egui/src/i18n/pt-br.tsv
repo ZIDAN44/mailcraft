@@ -988,3 +988,10 @@ month	May	maio
 	Then move to	Depois mover para
 	Don't move	Não mover
 	Delete this Quick Step	Excluir esta Etapa Rápida
+	Date & time	Data e Hora
+	Word count	Contar Palavras
+	Words	Palavras
+	Characters (no spaces)	Caracteres (sem espaços)
+	Characters (with spaces)	Caracteres (com espaços)
+	Paragraphs	Parágrafos
+	Lines	Linhas

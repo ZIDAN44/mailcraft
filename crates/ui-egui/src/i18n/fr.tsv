@@ -988,3 +988,10 @@ month	May	mai
 	Then move to	Puis déplacer vers
 	Don't move	Ne pas déplacer
 	Delete this Quick Step	Supprimer cette action rapide
+	Date & time	Date et heure
+	Word count	Statistiques
+	Words	Mots
+	Characters (no spaces)	Caractères (espaces non compris)
+	Characters (with spaces)	Caractères (espaces compris)
+	Paragraphs	Paragraphes
+	Lines	Lignes

@@ -14,6 +14,7 @@ use egui::text::{CCursor, CCursorRange, LayoutJob, TextFormat};
 use egui::{Color32, FontId, Galley, Key, Modifiers, Rect, RichText, Sense, Stroke, Ui, vec2};
 use mailcraft_engine::Compose;
 use mailcraft_engine::mime::rich::{self, Align, List, PICTURE, Style, Styles};
+use mailcraft_engine::model::dates::Clock;
 
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
@@ -264,6 +265,8 @@ pub(crate) enum Op {
     Clear,
     Link(String),
     Unlink,
+    /// Text put in at the cursor (in place of the selection), as typing would.
+    Insert(String),
 }
 
 /// Apply `op` to the selection (or to what's typed next, when nothing is selected).
@@ -271,6 +274,12 @@ pub(crate) fn apply(ed: &mut Editor, c: &mut Compose, op: Op) {
     c.styles.fit(&c.body);
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
+    // Typed in, it takes the style typing would; a plain text message stays plain.
+    if let Op::Insert(text) = &op {
+        let style = ed.typing.clone().unwrap_or_else(|| typing_style(&c.body, &c.styles, sel.start));
+        replace(ed, c, sel, text, style);
+        return;
+    }
     ed.remember(c, sel.end);
     let collapsed = sel.is_empty();
     let base = ed.typing.clone().unwrap_or_else(|| typing_style(&c.body, &c.styles, sel.start));
@@ -937,7 +946,7 @@ fn color_button(
 /// The Message ribbon: font size, bold / italic / underline / strikethrough, colours, lists,
 /// alignment, indent, clear formatting; then names, files, links and pictures.
 /// The Message ribbon; `signature` is the sending account's (for Insert › Signature).
-pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, signature: &str, acts: &mut Vec<Action>) {
+pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, signature: &str, clock: &Clock, acts: &mut Vec<Action>) {
     c.styles.fit(&c.body);
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
@@ -1025,6 +1034,22 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
                 ui.close();
             }
         });
+        // Today's date or the time at the cursor, in one of a few ways (Outlook's Date & Time).
+        let r = crate::widgets::tool_button(ui, Icon::Calendar, "Date & time", t, !c.sending);
+        egui::Popup::menu(&r).show(|ui| {
+            for text in date_choices(clock) {
+                if ui.button(text.as_str()).clicked() {
+                    ops.push(Op::Insert(text));
+                    ui.close();
+                }
+            }
+        });
+        // How much is written: the selection's count, or the whole message's.
+        if crate::widgets::tool_button(ui, Icon::ListNumber, "Word count", t, true).clicked() {
+            let range = if sel.is_empty() { 0..n } else { sel.clone() };
+            let text: String = c.body.chars().skip(range.start).take(range.end - range.start).filter(|ch| *ch != rich::PICTURE).collect();
+            acts.push(Action::Dialog(Dialog::WordCount(count_words(&text), !sel.is_empty())));
+        }
     });
     link_dialog(ui, t, ed, c);
     let changed = !ops.is_empty();
@@ -1033,6 +1058,56 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
     }
     if changed {
         ed.refocus = Some(ed.sel.clone());
+    }
+}
+
+/// The ways today's date and the time can go in: written out, as numbers, with the time, the
+/// time alone.
+pub(crate) fn date_choices(clock: &Clock) -> Vec<String> {
+    let now = mailcraft_engine::model::dates::civil(clock.now, clock);
+    let day = clock.now.saturating_add(i64::from(clock.offset)).div_euclid(86_400);
+    let iso = format!("{:04}-{:02}-{:02}", now.year, now.month, now.day);
+    let time = format!("{:02}:{:02}", now.hour, now.minute);
+    vec![crate::calendar::long_date(day), iso.clone(), format!("{iso} {time}"), time]
+}
+
+/// What Word count shows: words, characters with and without spaces, paragraphs and lines.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Counts {
+    pub words: usize,
+    pub chars: usize,
+    pub chars_no_spaces: usize,
+    pub paragraphs: usize,
+    pub lines: usize,
+}
+
+/// Words in a run without spaces, as word processors count them: `2026-10-22` and `don't` are
+/// one; in Chinese, Japanese and Korean each character is one (and the rest around them one each).
+fn token_words(token: &str) -> usize {
+    let wide =
+        |c: char| matches!(c as u32, 0x1100..=0x11FF | 0x2E80..=0x9FFF | 0xAC00..=0xD7AF | 0xF900..=0xFAFF | 0xFF66..=0xFF9F | 0x20000..=0x2FA1F);
+    let mut n = 0;
+    let mut in_run = false;
+    for c in token.chars() {
+        if wide(c) {
+            n += 1;
+            in_run = false;
+        } else if c.is_alphanumeric() && !in_run {
+            n += 1;
+            in_run = true;
+        }
+    }
+    // Punctuation alone (a dash between words) is no word.
+    n
+}
+
+pub(crate) fn count_words(text: &str) -> Counts {
+    Counts {
+        words: text.split_whitespace().map(token_words).sum(),
+        chars: text.chars().filter(|c| *c != '\n' && *c != '\r').count(),
+        chars_no_spaces: text.chars().filter(|c| !c.is_whitespace()).count(),
+        paragraphs: text.split('\n').filter(|l| !l.trim().is_empty()).count(),
+        lines: if text.is_empty() { 0 } else { text.split('\n').count() },
     }
 }
 

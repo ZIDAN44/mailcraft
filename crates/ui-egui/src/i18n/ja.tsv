@@ -984,3 +984,10 @@ month	May	5月
 	Then move to	その後の移動先
 	Don't move	移動しない
 	Delete this Quick Step	このクイック操作を削除
+	Date & time	日付と時刻
+	Word count	文字カウント
+	Words	単語数
+	Characters (no spaces)	文字数 (スペースを含めない)
+	Characters (with spaces)	文字数 (スペースを含める)
+	Paragraphs	段落数
+	Lines	行数

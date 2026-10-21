@@ -629,6 +629,8 @@ pub enum Dialog {
         address: String,
         error: Option<String>,
     },
+    /// Word count of the message being written (or its selection: the `bool`).
+    WordCount(crate::rich_edit::Counts, bool),
     /// A folder's Properties: where it is, how many messages, how much is on this computer.
     FolderProperties {
         name: String,
@@ -1072,7 +1074,8 @@ impl Dialog {
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
     pub fn for_compose(&self) -> bool {
-        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject) || matches!(self, Dialog::Signature(f) if f.insert)
+        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::WordCount(..))
+            || matches!(self, Dialog::Signature(f) if f.insert)
     }
 
     /// The add-account dialog with the address filled in (servers guessed from it).
@@ -2620,6 +2623,29 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                 acts.push(Action::Submit(if f.original.is_some() { "quickStep.edit" } else { "quickStep.create" }, p));
             }
             !cancel
+        }
+        Dialog::WordCount(n, selection) => {
+            ui.set_width(320.0);
+            title(ui, t, "Word count");
+            if *selection {
+                ui.label(RichText::new(tl!("The selected text")).color(t.dim).small());
+                ui.add_space(4.0);
+            }
+            egui::Grid::new("word-count").num_columns(2).spacing(vec2(24.0, 6.0)).show(ui, |ui| {
+                for (label, value) in [
+                    (tl!("Words"), n.words),
+                    (tl!("Characters (no spaces)"), n.chars_no_spaces),
+                    (tl!("Characters (with spaces)"), n.chars),
+                    (tl!("Paragraphs"), n.paragraphs),
+                    (tl!("Lines"), n.lines),
+                ] {
+                    ui.label(RichText::new(label).color(t.dim));
+                    ui.label(value.to_string());
+                    ui.end_row();
+                }
+            });
+            ui.add_space(8.0);
+            close_row(ui)
         }
         Dialog::FolderProperties { name, account, location, total, unread, size } => {
             ui.set_width(380.0);

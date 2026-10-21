@@ -983,3 +983,10 @@ month	May	mei
 	Then move to	Daarna verplaatsen naar
 	Don't move	Niet verplaatsen
 	Delete this Quick Step	Deze snelle stap verwijderen
+	Date & time	Datum en tijd
+	Word count	Aantal woorden
+	Words	Woorden
+	Characters (no spaces)	Tekens (zonder spaties)
+	Characters (with spaces)	Tekens (met spaties)
+	Paragraphs	Alinea's
+	Lines	Regels

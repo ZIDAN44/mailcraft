@@ -987,3 +987,10 @@ month	May	5월
 	Then move to	그런 다음 이동할 위치
 	Don't move	이동 안 함
 	Delete this Quick Step	이 빠른 단계 삭제
+	Date & time	날짜 및 시간
+	Word count	단어 개수
+	Words	단어 수
+	Characters (no spaces)	문자 수(공백 제외)
+	Characters (with spaces)	문자 수(공백 포함)
+	Paragraphs	단락 수
+	Lines	줄 수
