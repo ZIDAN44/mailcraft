@@ -378,11 +378,8 @@ impl Session {
     pub fn search_server(&mut self) -> CmdResult {
         let (q, scope) = self.search.clone().ok_or_else(|| CmdError::Disabled("search for something first".into()))?;
         let mut by_account: Vec<(String, Vec<String>)> = Vec::new();
-        let folders: Vec<(String, String)> = match scope {
-            SearchScope::Current => self.view_folders(),
-            SearchScope::All => self.accounts.iter().flat_map(|a| a.folders.iter().map(|f| (a.config.id.clone(), f.path.clone()))).collect(),
-        };
-        for (a, f) in folders {
+        self.remember_search(&q);
+        for (a, f) in self.scope_folders(scope) {
             if self.account(&a).is_none_or(|x| x.is_local() || x.config.pop.is_some()) {
                 continue;
             }
@@ -394,9 +391,11 @@ impl Session {
         if by_account.is_empty() {
             return Err(CmdError::Disabled("no account here has its mail on a server".into()));
         }
-        self.server_search = Some(ServerSearch { query: q.clone(), pending: by_account.len(), ..Default::default() });
+        self.searches = self.searches.wrapping_add(1).max(1);
+        let id = self.searches;
+        self.server_search = Some(ServerSearch { id, query: q.clone(), pending: by_account.len(), ..Default::default() });
         for (account, folders) in by_account {
-            self.jobs.push(Job::SearchServer { account, folders, query: q.clone() });
+            self.jobs.push(Job::SearchServer { account, folders, query: q.clone(), search: id });
         }
         Ok(serde_json::json!({ "query": q, "searching": true }))
     }

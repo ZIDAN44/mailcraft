@@ -120,6 +120,7 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
         report.removed = gone.len();
         st.messages = kept;
         new_mail(c, &mut st, account, folder, cached_max, &mut report)?;
+        keep_more(c, &mut st, account, folder, opts.window, &mut report)?;
     } else {
         let known_max = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
         let known_min = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
@@ -166,16 +167,7 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
             st.window = opts.window;
         } else {
             new_mail(c, &mut st, account, folder, known_max, &mut report)?;
-            // 3: kept more since it was filled (Options, or Show more on the server): the newest
-            // of what isn't kept yet, once. Not only what's older than the oldest kept: a message
-            // found by searching the server can be older than the ones skipped.
-            if opts.window > st.window && st.messages.len() < opts.window {
-                let all = c.uid_search("ALL")?;
-                let want = opts.window - st.messages.len();
-                let take: Vec<u32> = all.iter().rev().filter(|u| st.find(**u).is_none()).take(want).copied().collect();
-                fetch_headers(c, &mut st, account, folder, &take, &mut report)?;
-                st.window = opts.window;
-            }
+            keep_more(c, &mut st, account, folder, opts.window, &mut report)?;
         }
     }
 
@@ -340,8 +332,16 @@ pub fn word_query(query: &str) -> Option<WordQuery> {
     (!out.text.is_empty() || out.unread.is_some() || out.flagged.is_some() || out.attachment.is_some()).then_some(out)
 }
 
+/// How many messages one `SEARCH` of a folder covers at first; it grows while the server answers
+/// quickly and shrinks when it's slow (a server without a text index reads every message).
+const SEARCH_STEP: u32 = 500;
+const SEARCH_STEP_MAX: u32 = 20_000;
+
 /// The messages of `folder` the server finds for `criteria`, the newest `cap` of them: those not
-/// kept yet come into its list (issue #4). Their keys, and how many came in. A folder never
+/// kept yet come into its list (issue #4). The folder is searched newest first, a range of
+/// message numbers at a time (`UID SEARCH 9501:10000 TEXT …`), and what each range finds goes to
+/// `found` with how many came into the list, as it's found; `found` answers whether to go on
+/// (the search can be stopped between two ranges). How many were found in all. A folder never
 /// synced (or whose UIDVALIDITY changed) is left to its sync.
 pub fn find_on_server<S: Read + Write>(
     c: &mut Client<S>,
@@ -350,22 +350,68 @@ pub fn find_on_server<S: Read + Write>(
     folder: &str,
     criteria: &[SearchArg],
     cap: usize,
-) -> Result<(Vec<mailcraft_model::MessageKey>, usize)> {
+    found: &mut dyn FnMut(Vec<MessageKey>, usize) -> bool,
+) -> Result<usize> {
     let info = c.select(folder, true)?;
     let mut st = store.load_folder(account, folder)?;
     if st.validity == 0 || st.validity != info.validity {
-        return Ok((Vec::new(), 0));
+        return Ok(0);
     }
-    let mut uids = c.uid_search_args(criteria)?;
-    let uids = uids.split_off(uids.len().saturating_sub(cap));
-    let missing: Vec<u32> = uids.iter().filter(|u| st.find(**u).is_none()).copied().collect();
-    let mut report = SyncReport::default();
-    fetch_headers(c, &mut st, account, folder, &missing, &mut report)?;
-    if report.new > 0 {
-        sort_newest_first(&mut st.messages);
-        store.save_folder(account, folder, &st)?;
+    let (mut hi, mut step, mut total) = (info.exists, SEARCH_STEP, 0usize);
+    while hi > 0 && total < cap {
+        let lo = hi.saturating_sub(step - 1).max(1);
+        let began = std::time::Instant::now();
+        let mut args = vec![SearchArg::Atom(format!("{lo}:{hi}"))];
+        args.extend(criteria.iter().cloned());
+        let mut uids = c.uid_search_args(&args)?;
+        uids.sort_unstable();
+        let uids = uids.split_off(uids.len().saturating_sub(cap - total));
+        total += uids.len();
+        let missing: Vec<u32> = uids.iter().filter(|u| st.find(**u).is_none()).copied().collect();
+        let mut report = SyncReport::default();
+        fetch_headers(c, &mut st, account, folder, &missing, &mut report)?;
+        if report.new > 0 {
+            sort_newest_first(&mut st.messages);
+            store.save_folder(account, folder, &st)?;
+        }
+        let keys = uids.iter().filter_map(|u| st.find(*u).map(|m| m.key.clone())).collect();
+        if !found(keys, report.new) {
+            break;
+        }
+        hi = lo - 1;
+        let took = began.elapsed();
+        step = if took < std::time::Duration::from_secs(1) {
+            step.saturating_mul(2).min(SEARCH_STEP_MAX)
+        } else if took > std::time::Duration::from_secs(4) {
+            (step / 2).max(100)
+        } else {
+            step
+        };
     }
-    Ok((uids.iter().filter_map(|u| st.find(*u).map(|m| m.key.clone())).collect(), report.new))
+    Ok(total)
+}
+
+/// Kept more since the folder was filled (Options, or Show more on the server): the newest of
+/// what isn't kept yet, once. Not only what's older than the oldest kept: a message found by
+/// searching the server can be older than the ones skipped. Both ways of syncing come here (the
+/// QRESYNC one too, issue #4: Dovecot's Show more did nothing).
+fn keep_more<S: Read + Write>(
+    c: &mut Client<S>,
+    st: &mut FolderState,
+    account: &str,
+    folder: &str,
+    window: usize,
+    report: &mut SyncReport,
+) -> Result<()> {
+    if window <= st.window || st.messages.len() >= window {
+        return Ok(());
+    }
+    let all = c.uid_search("ALL")?;
+    let want = window - st.messages.len();
+    let take: Vec<u32> = all.iter().rev().filter(|u| st.find(**u).is_none()).take(want).copied().collect();
+    fetch_headers(c, st, account, folder, &take, report)?;
+    st.window = window;
+    Ok(())
 }
 
 /// Headers for every message at or above the cached UIDNEXT.

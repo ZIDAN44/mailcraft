@@ -7,6 +7,7 @@
 //! password stops retrying until the user enters a new one.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -143,6 +144,9 @@ pub struct Pool {
     fetcher: Option<Sender<String>>,
     /// Working offline: no account connects until it's turned off.
     offline: bool,
+    /// The server search still wanted ([`Job::SearchServer`]'s `search`; 0: none), shared with
+    /// every worker so a search running stops when it's no longer wanted.
+    search: Arc<AtomicU64>,
 }
 
 /// Drafts that couldn't be saved to the server (offline, or it failed), kept with the account
@@ -201,6 +205,7 @@ impl Pool {
             sieve_port: crate::sieve::PORT,
             fetcher: None,
             offline: false,
+            search: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -329,8 +334,12 @@ impl Pool {
     }
 
     pub fn submit(&mut self, job: Job) {
+        if let Job::SearchServer { search, .. } = &job {
+            self.search.store(*search, Ordering::Relaxed);
+        }
         match job {
             Job::FetchUrl { url } => self.fetch_url(url),
+            Job::StopSearch => self.search.store(0, Ordering::Relaxed),
             Job::CheckUpdates => {
                 let sink = self.sink.clone();
                 let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
@@ -435,7 +444,7 @@ impl Pool {
             // Offline: changes wait in the cache for the next sync.
             Job::SyncDav { account } if !self.workers.contains_key(&account) => {}
             Job::SearchServer { account, query, .. } if !self.workers.contains_key(&account) => {
-                self.sink.emit(Event::ServerSearched { account, query, keys: Vec::new(), error: Some("the account is offline".into()) });
+                self.sink.emit(Event::ServerSearched { account, query, keys: Vec::new(), error: Some("the account is offline".into()), done: true });
             }
             // Working offline: nothing connects, by choice.
             Job::SyncAll { account } | Job::SyncFolder { account, .. } | Job::FlushOutbox { account }
@@ -548,6 +557,7 @@ impl Pool {
         let mut w = Worker::new(account.clone(), auth.clone(), self.store.clone(), self.sink.clone(), self.opts);
         w.creds = Some(self.creds.clone());
         w.sieve_port = self.sieve_port;
+        w.search = self.search.clone();
         // The second connection: quiet (the account's status is the main one's), connecting
         // only when there's something to do.
         let (qtx, qrx) = mpsc::channel();
@@ -595,12 +605,12 @@ impl Drop for Pool {
     }
 }
 
-/// Largest picture downloaded for a message.
 mod changes;
 mod connect;
 mod send;
 mod sync;
 
+/// Largest picture downloaded for a message.
 const MAX_PICTURE: usize = 8 << 20;
 
 const FULL_SYNC_EVERY: Duration = Duration::from_secs(15 * 60);
@@ -658,6 +668,8 @@ struct Worker {
     /// Folders asked to keep more than the setting (Show more on the server, issue #4): how
     /// many of each (`windows.json` with the account).
     windows: HashMap<String, usize>,
+    /// The server search still wanted (the pool's).
+    search: Arc<AtomicU64>,
 }
 
 /// Where an account keeps its folders' own windows.
@@ -695,6 +707,7 @@ impl Worker {
             no_push: false,
             pushed: false,
             soon: Vec::new(),
+            search: Arc::new(AtomicU64::new(0)),
         }
     }
 

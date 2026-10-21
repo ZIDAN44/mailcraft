@@ -98,6 +98,77 @@ fn the_conversation_shows_above_a_message_only_when_grouped() {
     done(s);
 }
 
+/// Issue #4: the search box looks in the folder, it and its subfolders, its mailbox (at first)
+/// or every mailbox, the one picked kept for the next searches; the recent searches are kept,
+/// newest first, once each, ten of them, and can be cleared.
+#[test]
+fn search_scopes_and_recent_searches() {
+    let mut s = sample_session("scopes");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    assert_eq!(s.prefs.search_scope, SearchScope::Mailbox, "Current Mailbox at first");
+    s.accounts[0].folders.push(mailcraft_model::Folder {
+        account: a.clone(),
+        path: "Projects old".into(),
+        delimiter: Some('/'),
+        selectable: true,
+        ..Default::default()
+    });
+    s.open_view(View::Folder { account: a.clone(), folder: "Projects".into() });
+    let folders = |s: &Session, scope| s.scope_folders(scope).into_iter().map(|(_, f)| f).collect::<Vec<_>>();
+    assert_eq!(folders(&s, SearchScope::Current), ["Projects"]);
+    assert_eq!(folders(&s, SearchScope::Subfolders), ["Projects", "Projects/Short film"], "not a folder whose name only starts the same");
+    assert_eq!(folders(&s, SearchScope::Mailbox).len(), 9);
+    // "shot list" is in Projects/Short film.
+    let found = |s: &mut Session, scope: Option<&str>| {
+        let mut v = json!({"query": "shot list"});
+        if let Some(sc) = scope {
+            v["scope"] = json!(sc);
+        }
+        s.run("search.run", &v).unwrap()["results"].as_u64().unwrap()
+    };
+    assert_eq!(found(&mut s, Some("current")), 0);
+    assert_eq!(s.prefs.search_scope, SearchScope::Current, "kept for the next searches");
+    assert_eq!(found(&mut s, None), 0);
+    assert_eq!(found(&mut s, Some("subfolders")), 1);
+    assert_eq!(found(&mut s, Some("mailbox")), 1);
+    assert_eq!(found(&mut s, Some("all")), 1);
+    assert_eq!(s.search.as_ref().map(|x| x.1), Some(SearchScope::All));
+    assert!(s.run("search.run", &json!({"query": "x", "scope": "everywhere"})).is_err());
+    // From a unified view, the mailbox is every account's.
+    s.open_view(View::Unified { role: FolderRole::Inbox });
+    assert_eq!(s.scope_folders(SearchScope::Mailbox).len(), s.scope_folders(SearchScope::All).len());
+
+    // Recent searches: only those asked to be kept (Enter, a pick, leaving the box).
+    assert!(s.prefs.recent_searches.is_empty(), "typing doesn't keep each word typed");
+    assert!(s.run("search.forgetRecent", &json!({})).is_err(), "nothing to clear");
+    s.run("search.run", &json!({"query": "budget", "remember": true})).unwrap();
+    s.run("search.remember", &json!({"query": "  storyboard "})).unwrap();
+    s.run("search.run", &json!({"query": "budget", "remember": true})).unwrap();
+    assert_eq!(s.prefs.recent_searches, ["budget", "storyboard"]);
+    for n in 0..12 {
+        s.remember_search(&format!("q{n}"));
+    }
+    assert_eq!(s.prefs.recent_searches.len(), 10);
+    assert_eq!(s.prefs.recent_searches.first().map(String::as_str), Some("q11"));
+    s.remember_search("   ");
+    assert_eq!(s.prefs.recent_searches.len(), 10);
+    s.run("search.forgetRecent", &json!({})).unwrap();
+    assert!(s.prefs.recent_searches.is_empty());
+
+    // An account kept online only: what's searched for stays in memory (issue #4), and what was
+    // kept with the settings before goes from them.
+    s.remember_search("on disk");
+    s.accounts[0].config.imap.host = "imap.studio.example".into();
+    s.accounts[0].config.online_only = true;
+    assert!(s.accounts[0].config.keeps_online());
+    s.remember_search("private words");
+    assert!(s.prefs.recent_searches.is_empty(), "nothing of it in the settings");
+    assert_eq!(s.recent_searches(), ["private words", "on disk"]);
+    s.run("search.forgetRecent", &json!({})).unwrap();
+    assert!(s.recent_searches().is_empty());
+    done(s);
+}
+
 #[test]
 fn search_finds_bodies_fields_and_attachment_names() {
     let mut s = sample_session("search");
@@ -559,7 +630,14 @@ fn more_on_the_server_and_searching_it() {
     s.take_jobs();
     s.apply(Event::Folders {
         account: a.clone(),
-        folders: vec![Folder { account: a.clone(), path: "INBOX".into(), role: FolderRole::Inbox, total: 50, ..Default::default() }],
+        folders: vec![Folder {
+            account: a.clone(),
+            path: "INBOX".into(),
+            role: FolderRole::Inbox,
+            total: 50,
+            selectable: true,
+            ..Default::default()
+        }],
     });
     let store = s.store.clone().unwrap();
     let key = |uid| MessageKey { account: a.clone(), folder: "INBOX".into(), validity: 1, uid };
@@ -585,7 +663,7 @@ fn more_on_the_server_and_searching_it() {
     let jobs = s.take_jobs();
     assert!(
         jobs.iter().any(
-            |j| matches!(j, Job::SearchServer { account, query, folders } if *account == a && query == "needle" && folders == &["INBOX".to_string()])
+            |j| matches!(j, Job::SearchServer { account, query, folders, search: 1 } if *account == a && query == "needle" && folders == &["INBOX".to_string()])
         ),
         "{jobs:?}"
     );
@@ -595,14 +673,30 @@ fn more_on_the_server_and_searching_it() {
     st.messages.push(Summary { key: key(7), subject: "Old one".into(), ..Default::default() });
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
-    s.apply(Event::ServerSearched { account: a.clone(), query: "needle".into(), keys: vec![key(7)], error: None });
+    // Shown as soon as it's found, the account still searching.
+    s.apply(Event::ServerSearched { account: a.clone(), query: "needle".into(), keys: vec![key(7)], error: None, done: false });
     assert_eq!(s.list.iter().map(|m| m.subject.as_str()).collect::<Vec<_>>(), ["Old one"]);
+    assert_eq!(s.server_search.as_ref().map(|x| (x.pending, x.found.len())), Some((1, 1)));
+    s.apply(Event::ServerSearched { account: a.clone(), query: "needle".into(), keys: Vec::new(), error: None, done: true });
     assert_eq!(s.server_search.as_ref().map(|x| (x.pending, x.found.len())), Some((0, 1)));
     // An answer for another query is not this search's; a new query starts again.
-    s.apply(Event::ServerSearched { account: a.clone(), query: "other".into(), keys: vec![key(41)], error: None });
+    s.apply(Event::ServerSearched { account: a.clone(), query: "other".into(), keys: vec![key(41)], error: None, done: true });
     assert_eq!(s.list.len(), 1);
     s.run("search.run", &json!({"query": "something else", "scope": "all"})).unwrap();
     assert!(s.server_search.is_none());
+    assert!(!s.take_jobs().contains(&Job::StopSearch), "nothing was still searching");
+    // Clearing the search box (Esc, or its ×) stops a search still running: a new id each time.
+    s.run("search.server", &json!({})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SearchServer { search: 2, .. })));
+    s.run("search.clear", &json!({})).unwrap();
+    assert!(s.server_search.is_none());
+    assert_eq!(s.take_jobs(), vec![Job::StopSearch]);
+    // Leaving the folder stops one too.
+    s.run("search.run", &json!({"query": "needle", "scope": "all"})).unwrap();
+    s.run("search.server", &json!({})).unwrap();
+    s.take_jobs();
+    s.open_view(crate::View::Folder { account: a.clone(), folder: "INBOX".into() });
+    assert_eq!(s.take_jobs(), vec![Job::StopSearch]);
     done(s);
 }
 

@@ -2,17 +2,42 @@
 
 use super::*;
 
+/// How many searches the search box remembers.
+pub const RECENT_SEARCHES: usize = 10;
+
 impl Session {
+    /// The folders a search looks in: the one on view, it and the folders inside it, its
+    /// account's (every account's from a unified view), or every account's.
+    pub(crate) fn scope_folders(&self, scope: SearchScope) -> Vec<(String, String)> {
+        let every = |a: &AccountState| a.folders.iter().filter(|f| f.selectable).map(|f| (a.config.id.clone(), f.path.clone())).collect::<Vec<_>>();
+        match (scope, &self.view) {
+            (SearchScope::Current, _) => self.view_folders(),
+            (SearchScope::Subfolders, View::Folder { account, folder }) => {
+                let Some(a) = self.account(account) else { return Vec::new() };
+                let inside = |p: &str| {
+                    a.folders
+                        .iter()
+                        .find(|f| f.path == *folder)
+                        .and_then(|f| f.delimiter)
+                        .is_some_and(|d| p.strip_prefix(folder.as_str()).is_some_and(|rest| rest.starts_with(d)))
+                };
+                a.folders
+                    .iter()
+                    .filter(|f| f.selectable && (f.path == *folder || inside(&f.path)))
+                    .map(|f| (account.clone(), f.path.clone()))
+                    .collect()
+            }
+            (SearchScope::Subfolders, _) => self.view_folders(),
+            (SearchScope::Mailbox, View::Folder { account, .. }) => self.account(account).map(every).unwrap_or_default(),
+            (SearchScope::Mailbox | SearchScope::All, _) => self.accounts.iter().flat_map(every).collect(),
+        }
+    }
+
     pub(super) fn ensure_index(&mut self, scope: SearchScope) {
         if self.index.as_ref().is_some_and(|ix| ix.scope == scope && (scope == SearchScope::All || ix.view == self.view)) {
             return;
         }
-        let folders: Vec<(String, String)> = match scope {
-            SearchScope::Current => self.view_folders(),
-            SearchScope::All => {
-                self.accounts.iter().flat_map(|a| a.folders.iter().filter(|f| f.selectable).map(|f| (a.config.id.clone(), f.path.clone()))).collect()
-            }
-        };
+        let folders = self.scope_folders(scope);
         let mut index = Index::new();
         let mut keys = Vec::new();
         let mut has_body = Vec::new();
@@ -109,6 +134,54 @@ impl Session {
         out
     }
 
+    /// The servers' search is no longer wanted (the search box cleared or changed, issue #4):
+    /// the accounts still searching stop; what they found stays in the folders' lists.
+    pub(crate) fn stop_server_search(&mut self) {
+        if let Some(ss) = self.server_search.take()
+            && ss.pending > 0
+        {
+            self.jobs.push(Job::StopSearch);
+        }
+    }
+
+    /// The search box's recent searches, newest first: kept with the settings, or, while an
+    /// account is kept online only, in memory only.
+    pub fn recent_searches(&self) -> &[String] {
+        if self.searches_in_memory() { &self.recent_in_memory } else { &self.prefs.recent_searches }
+    }
+
+    /// Nothing of an online-only account reaches the disk (issue #4), its searches neither.
+    fn searches_in_memory(&self) -> bool {
+        self.accounts.iter().any(|a| a.config.keeps_online())
+    }
+
+    /// Forget the recent searches.
+    pub fn forget_recent_searches(&mut self) {
+        self.prefs.recent_searches.clear();
+        self.recent_in_memory.clear();
+    }
+
+    /// Keep a search among the recent ones (the search box's list): newest first, once, ten.
+    pub fn remember_search(&mut self, query: &str) {
+        let q: String = query.trim().chars().take(500).collect();
+        if q.is_empty() {
+            return;
+        }
+        let recent = if self.searches_in_memory() {
+            // Those kept on disk before go too.
+            if self.recent_in_memory.is_empty() {
+                self.recent_in_memory = std::mem::take(&mut self.prefs.recent_searches);
+            }
+            self.prefs.recent_searches.clear();
+            &mut self.recent_in_memory
+        } else {
+            &mut self.prefs.recent_searches
+        };
+        recent.retain(|r| *r != q);
+        recent.insert(0, q);
+        recent.truncate(RECENT_SEARCHES);
+    }
+
     pub fn run_search(&mut self, query: &str, scope: SearchScope) -> usize {
         self.search_as(query, scope, None)
     }
@@ -120,7 +193,7 @@ impl Session {
         let q = query.trim();
         self.search = if q.is_empty() { None } else { Some((q.to_string(), scope)) };
         if self.server_search.as_ref().is_some_and(|ss| ss.query != q) {
-            self.server_search = None;
+            self.stop_server_search();
         }
         self.selection.clear();
         self.focus = None;

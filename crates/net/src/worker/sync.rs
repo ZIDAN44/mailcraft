@@ -222,10 +222,18 @@ impl Worker {
     }
 
     /// Search folders on the server (issue #4): IMAP's `SEARCH`, JMAP's `Email/query`, Graph's
-    /// `$search` and EWS's `QueryString`, the messages found brought into their folders' lists.
-    pub(super) fn search_server(&mut self, folders: &[String], query: String) {
+    /// `$search` and EWS's `QueryString`, the messages found brought into their folders' lists
+    /// and sent as they're found (an IMAP folder a range at a time, the others a folder at a
+    /// time). Stops between two when a newer search is asked, or none (the search box cleared).
+    pub(super) fn search_server(&mut self, folders: &[String], query: String, search: u64) {
         let id = self.id();
-        let answer = |keys, error| Event::ServerSearched { account: id.clone(), query: query.clone(), keys, error };
+        let (sink, wanted) = (self.sink.clone(), self.search.clone());
+        let still = move || wanted.load(Ordering::Relaxed) == search;
+        let answer = |keys, error, done| Event::ServerSearched { account: id.clone(), query: query.clone(), keys, error, done };
+        if !still() {
+            self.sink.emit(answer(Vec::new(), None, true));
+            return;
+        }
         if self.conn.is_none() {
             self.next_attempt = Instant::now();
             self.connect_and_sync();
@@ -234,11 +242,11 @@ impl Worker {
         let (imap, filter, words) = (crate::sync::imap_criteria(&query), mailcraft_jmap::search_filter(&query), crate::sync::word_query(&query));
         let asks = match self.conn.as_ref() {
             None => {
-                self.sink.emit(answer(Vec::new(), Some("the account isn't connected".into())));
+                self.sink.emit(answer(Vec::new(), Some("the account isn't connected".into()), true));
                 return;
             }
             Some(Conn::Pop) => {
-                self.sink.emit(answer(Vec::new(), Some("a POP account keeps all its mail here".into())));
+                self.sink.emit(answer(Vec::new(), Some("a POP account keeps all its mail here".into()), true));
                 return;
             }
             Some(Conn::Imap(_)) => imap.is_some(),
@@ -246,43 +254,56 @@ impl Worker {
             Some(Conn::Graph(_) | Conn::Ews(_)) => words.is_some(),
         };
         if !asks {
-            self.sink.emit(answer(Vec::new(), None));
+            self.sink.emit(answer(Vec::new(), None, true));
             return;
         }
-        let (mut keys, mut changed, mut failed) = (Vec::new(), Vec::new(), None);
+        let (mut any, mut failed) = (false, None);
         for f in folders.iter().take(200) {
+            if !still() {
+                break;
+            }
+            // What a folder finds goes out as it's found.
+            let mut sent = |keys: Vec<MessageKey>, new: usize| {
+                if new > 0 {
+                    sink.emit(Event::FolderChanged { account: id.clone(), folder: f.clone() });
+                }
+                if !keys.is_empty() {
+                    any = true;
+                    sink.emit(answer(keys, None, false));
+                }
+                still()
+            };
             let found = match (self.conn.as_mut(), &imap, &filter, &words) {
-                (Some(Conn::Imap(c)), Some(q), _, _) => crate::sync::find_on_server(c, &store, &id, f, q, FOUND_MAX),
-                (Some(Conn::Jmap(c)), _, Some(q), _) => jmap::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX),
-                (Some(Conn::Graph(c)), _, _, Some(q)) => crate::graph::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX),
-                (Some(Conn::Ews(c)), _, _, Some(q)) => crate::ews::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX),
+                (Some(Conn::Imap(c)), Some(q), _, _) => crate::sync::find_on_server(c, &store, &id, f, q, FOUND_MAX, &mut sent).map(|_| ()),
+                (Some(Conn::Jmap(c)), _, Some(q), _) => jmap::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX).map(|(keys, new)| {
+                    sent(keys, new);
+                }),
+                (Some(Conn::Graph(c)), _, _, Some(q)) => {
+                    crate::graph::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX).map(|(keys, new)| {
+                        sent(keys, new);
+                    })
+                }
+                (Some(Conn::Ews(c)), _, _, Some(q)) => {
+                    crate::ews::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX).map(|(keys, new)| {
+                        sent(keys, new);
+                    })
+                }
                 _ => break,
             };
-            match found {
-                Ok((found, new)) => {
-                    keys.extend(found);
-                    if new > 0 {
-                        changed.push(f.clone());
-                    }
-                }
-                Err(e) => {
-                    log::info!("{id}/{f}: searching the server: {e}");
-                    failed = Some(e.to_string());
-                    if matches!(e, NetError::Io(_) | NetError::Closed(_)) {
-                        self.conn = None;
-                        break;
-                    }
+            if let Err(e) = found {
+                log::info!("{id}/{f}: searching the server: {e}");
+                failed = Some(e.to_string());
+                if matches!(e, NetError::Io(_) | NetError::Closed(_)) {
+                    self.conn = None;
+                    break;
                 }
             }
         }
         if !matches!(self.conn, Some(Conn::Imap(_))) {
             self.save_jstate();
         }
-        for f in changed {
-            self.sink.emit(Event::FolderChanged { account: id.clone(), folder: f });
-        }
-        let error = if keys.is_empty() { failed } else { None };
-        self.sink.emit(answer(keys, error));
+        let error = if any { None } else { failed };
+        self.sink.emit(answer(Vec::new(), error, true));
     }
 
     pub(super) fn sync_one(&mut self, path: &str) {

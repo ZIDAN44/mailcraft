@@ -80,9 +80,12 @@ impl Session {
                     }
                 }
             }
-            Event::ServerSearched { account, query, keys, error } => {
+            Event::ServerSearched { account, query, keys, error, done } => {
                 if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.query == query) {
-                    ss.pending = ss.pending.saturating_sub(1);
+                    // What's found so far shows at once; the account is done at its last answer.
+                    if done {
+                        ss.pending = ss.pending.saturating_sub(1);
+                    }
                     ss.found.extend(keys);
                     if let Some(e) = error {
                         let who = self.accounts.iter().find(|a| a.config.id == account).map(|a| a.config.email.clone()).unwrap_or(account);

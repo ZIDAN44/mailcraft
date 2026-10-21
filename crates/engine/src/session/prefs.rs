@@ -97,6 +97,11 @@ pub struct Prefs {
     /// (`<account>|<uid>|<occurrence>`): 0 dismissed, else snoozed until that Unix time.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub reminders: BTreeMap<String, i64>,
+    /// Where the search box looks unless told (its menu, as Outlook's; Current Mailbox at first).
+    pub search_scope: SearchScope,
+    /// The last searches, newest first (the search box's list; cleared from it).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub recent_searches: Vec<String>,
 }
 
 impl Default for Prefs {
@@ -135,6 +140,8 @@ impl Default for Prefs {
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
             animations: true,
+            search_scope: SearchScope::Mailbox,
+            recent_searches: Vec::new(),
             quick_steps: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),

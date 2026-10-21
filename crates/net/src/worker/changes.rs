@@ -37,7 +37,7 @@ impl Worker {
                     self.sync_one(&folder);
                 }
             }
-            Job::SearchServer { folders, query, .. } => self.search_server(&folders, query),
+            Job::SearchServer { folders, query, search, .. } => self.search_server(&folders, query, search),
             Job::FetchBody { key } => self.fetch(key),
             // Already persisted by the pool; just push the queue.
             Job::Apply { op, .. } if self.acc.pop.is_none() => {
@@ -167,7 +167,13 @@ impl Worker {
                     }
                 }
             }
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::SignIn { .. } | Job::ImportPst { .. } | Job::ExportPst { .. } | Job::CheckUpdates => {}
+            Job::FetchUrl { .. }
+            | Job::Discover { .. }
+            | Job::SignIn { .. }
+            | Job::ImportPst { .. }
+            | Job::ExportPst { .. }
+            | Job::CheckUpdates
+            | Job::StopSearch => {}
             Job::Start { .. } | Job::SmtpPassword { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}
         }
     }

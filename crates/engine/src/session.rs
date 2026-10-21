@@ -196,11 +196,34 @@ impl ListFilter {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SearchScope {
-    /// Every folder of every account.
-    #[default]
+    /// Every folder of every account (Outlook's All Mailboxes).
     All,
+    /// Every folder of the account on view (Outlook's Current Mailbox, its default); every
+    /// account's from a unified view.
+    #[default]
+    Mailbox,
+    /// The folder on view and the folders inside it.
+    Subfolders,
     /// The folder (or unified view) on screen.
     Current,
+}
+
+impl SearchScope {
+    pub const ALL: [SearchScope; 4] = [SearchScope::Current, SearchScope::Subfolders, SearchScope::Mailbox, SearchScope::All];
+
+    /// Its name in commands (`search.run`'s `scope`).
+    pub fn code(self) -> &'static str {
+        match self {
+            SearchScope::All => "all",
+            SearchScope::Mailbox => "mailbox",
+            SearchScope::Subfolders => "subfolders",
+            SearchScope::Current => "current",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<SearchScope> {
+        SearchScope::ALL.into_iter().find(|s| s.code().eq_ignore_ascii_case(code))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,6 +263,8 @@ pub enum ReadInPane {
 /// A search asked of the servers ([`Session::search_server`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ServerSearch {
+    /// Which search it is (the jobs' `search`), so a newer one stops it.
+    pub id: u64,
     pub query: String,
     /// Accounts still searching.
     pub pending: usize,
@@ -535,6 +560,11 @@ pub struct Session {
     pub search_folder: Option<String>,
     /// The search box's query asked of the servers too (issue #4: mail past what's kept here).
     pub server_search: Option<ServerSearch>,
+    /// Server searches asked so far (each one's id).
+    searches: u64,
+    /// The recent searches while an account is kept online only (issue #4): in memory only,
+    /// since what's searched for can tell what the mail says.
+    recent_in_memory: Vec<String>,
     /// A folder whose older mail is being fetched (Show more), until its list changes.
     pub showing_more: Option<(String, String)>,
     /// Accounts whose password to ask for now (issue #4: a portable copy keeps none, so each
@@ -650,6 +680,8 @@ impl Session {
             search: None,
             search_folder: None,
             server_search: None,
+            searches: 0,
+            recent_in_memory: Vec::new(),
             showing_more: None,
             ask_password: Vec::new(),
             asked_password: HashSet::new(),

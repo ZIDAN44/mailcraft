@@ -177,8 +177,11 @@ pub enum Job {
     MoreMail { account: String, folder: String, more: u32 },
     /// Search these folders on the server for `query` (the search box's words), for mail past
     /// what's kept here; the messages found come into their folders' lists, answered by
-    /// [`Event::ServerSearched`].
-    SearchServer { account: String, folders: Vec<String>, query: String },
+    /// [`Event::ServerSearched`], as they're found. `search` names the search: every account's
+    /// share of one carries the same, and a newer one (or [`Job::StopSearch`]) stops it.
+    SearchServer { account: String, folders: Vec<String>, query: String, search: u64 },
+    /// Stop the servers' searches (the search box cleared, issue #4): what's found so far stays.
+    StopSearch,
     /// Download a message's full source.
     FetchBody { key: MessageKey },
     /// Apply a mailbox change on the server.
@@ -241,7 +244,7 @@ impl Job {
             | Job::SyncDav { account }
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } | Job::CheckUpdates => "",
+            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } | Job::CheckUpdates | Job::StopSearch => "",
             Job::SignIn { account } => &account.id,
         }
     }
@@ -396,12 +399,13 @@ pub enum Event {
         message: String,
     },
     /// What the server found for a [`Job::SearchServer`]: the messages, now in their folders'
-    /// lists, or why it couldn't search.
+    /// lists, or why it couldn't search. Sent as they're found (more to come until `done`).
     ServerSearched {
         account: String,
         query: String,
         keys: Vec<MessageKey>,
         error: Option<String>,
+        done: bool,
     },
 }
 

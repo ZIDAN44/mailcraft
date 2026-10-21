@@ -60,6 +60,8 @@ struct Shared {
     accounts: HashMap<String, Account>,
     ctx: egui::Context,
     opts: SyncOptions,
+    /// The server search still wanted (`Job::SearchServer`'s `search`; 0: none).
+    search: u64,
 }
 
 type Rcs = Rc<RefCell<Shared>>;
@@ -71,7 +73,7 @@ pub struct WebBackend {
 impl WebBackend {
     pub fn new(store: Store, ctx: egui::Context) -> WebBackend {
         let opts = SyncOptions { window: 300, prefetch: 20, ..SyncOptions::default() };
-        WebBackend { shared: Rc::new(RefCell::new(Shared { store, events: Vec::new(), accounts: HashMap::new(), ctx, opts })) }
+        WebBackend { shared: Rc::new(RefCell::new(Shared { store, events: Vec::new(), accounts: HashMap::new(), ctx, opts, search: 0 })) }
     }
 }
 
@@ -288,34 +290,41 @@ async fn sync_one(sh: &Rcs, id: &str, path: &str) {
 }
 
 /// Search folders on the server (issue #4): JMAP's `Email/query`, the messages found brought
-/// into their folders' lists.
-async fn search_server(sh: &Rcs, id: &str, folders: &[String], query: String) {
-    let answer = |keys, error| Event::ServerSearched { account: id.to_string(), query: query.clone(), keys, error };
+/// into their folders' lists and sent a folder at a time; stops when the search is no longer
+/// wanted (a newer one, or the search box cleared).
+async fn search_server(sh: &Rcs, id: &str, folders: &[String], query: String, search: u64) {
+    let answer = |keys, error, done| Event::ServerSearched { account: id.to_string(), query: query.clone(), keys, error, done };
     let Some(c) = client(sh, id) else {
-        emit(sh, answer(Vec::new(), Some("the account isn't connected".into())));
+        emit(sh, answer(Vec::new(), Some("the account isn't connected".into()), true));
         return;
     };
     let Some(filter) = mailcraft_jmap::search_filter(&query) else {
-        emit(sh, answer(Vec::new(), None));
+        emit(sh, answer(Vec::new(), None, true));
         return;
     };
     let store = store(sh);
     let mut st = state(sh, id);
-    let (mut keys, mut failed) = (Vec::new(), None);
+    let (mut any, mut failed) = (false, None);
     for f in folders.iter().take(200) {
+        if sh.borrow().search != search {
+            break;
+        }
         match mailcraft_jmap::find_on_server(&c, &mut st, &store, id, f, &filter, mailcraft_jmap::FOUND_MAX).await {
             Ok((found, new)) => {
-                keys.extend(found);
                 if new > 0 {
                     emit(sh, Event::FolderChanged { account: id.to_string(), folder: f.clone() });
+                }
+                if !found.is_empty() {
+                    any = true;
+                    emit(sh, answer(found, None, false));
                 }
             }
             Err(e) => failed = Some(e.to_string()),
         }
     }
     put_state(sh, id, st);
-    let error = if keys.is_empty() { failed } else { None };
-    emit(sh, answer(keys, error));
+    let error = if any { None } else { failed };
+    emit(sh, answer(Vec::new(), error, true));
 }
 
 /// A change on the server (after the cache has it); then what it touched is shown afresh.
@@ -447,7 +456,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
         Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
         // Mail past what's kept (issue #4).
-        Job::SearchServer { folders, query, .. } => search_server(sh, id, &folders, query).await,
+        Job::SearchServer { folders, query, search, .. } => search_server(sh, id, &folders, query, search).await,
         Job::MoreMail { folder, more, .. } => {
             let windows = {
                 let mut s = sh.borrow_mut();
@@ -466,6 +475,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         Job::Start { .. }
         | Job::SmtpPassword { .. }
         | Job::CheckUpdates
+        | Job::StopSearch
         | Job::Remove { .. }
         | Job::FetchUrl { .. }
         | Job::Discover { .. }
@@ -631,7 +641,11 @@ impl Backend for WebBackend {
             Job::Remove { account } => {
                 sh.borrow_mut().accounts.remove(&account);
             }
+            Job::StopSearch => sh.borrow_mut().search = 0,
             other => {
+                if let Job::SearchServer { search, .. } = &other {
+                    sh.borrow_mut().search = *search;
+                }
                 let id = other.account().to_string();
                 if sh.borrow().accounts.contains_key(&id) {
                     enqueue(sh, &id, Task::Job(other));

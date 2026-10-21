@@ -6,6 +6,7 @@ impl Session {
     pub fn open_view(&mut self, view: View) {
         self.view = view;
         self.search = None;
+        self.stop_server_search();
         self.index = None;
         self.selection.clear();
         self.focus = None;

@@ -110,7 +110,19 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"on"?: bool}"#),
         // Search
-        CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(r#"{"query": string, "scope"?: "all"|"current"}"#),
+        CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(
+            r#"{"query": string, "scope"?: "current"|"subfolders"|"mailbox"|"all" (kept for the next searches; default: the last one), "remember"?: bool (among the recent searches)}"#,
+        ),
+        CommandSpec::new("search.remember", "Remember a search", "Search box (left with a search in it)", |s, v| {
+            s.remember_search(p::req_str(v, "query")?);
+            Ok(json!({"recent": s.recent_searches().len()}))
+        })
+        .params(r#"{"query": string}"#),
+        CommandSpec::new("search.forgetRecent", "Clear recent searches", "Search box › recent searches", |s, _| {
+            s.forget_recent_searches();
+            Ok(json!({}))
+        })
+        .when(|s| s.recent_searches().is_empty().then_some("no recent searches")),
         // Home › Quick Steps
         CommandSpec::new("quickStep.list", "Quick Steps", "Home › Quick Steps", |s, _| Ok(json!(s.prefs.quick_steps))),
         CommandSpec::new("quickStep.create", "New Quick Step", "Home › Quick Steps", |s, v| {
@@ -341,10 +353,18 @@ pub(super) fn read_message(s: &mut Session, v: &Value) -> CmdResult {
 
 pub(super) fn search(s: &mut Session, v: &Value) -> CmdResult {
     let q = p::req_str(v, "query")?.to_string();
+    // A scope asked for is where the box looks from now on (as Outlook's menu); none: that one.
     let scope = match p::str(v, "scope") {
-        Some(x) if x.eq_ignore_ascii_case("current") => SearchScope::Current,
-        _ => SearchScope::All,
+        Some(x) => {
+            let scope = SearchScope::from_code(x).ok_or_else(|| CmdError::Params(format!("no search scope `{x}`")))?;
+            s.prefs.search_scope = scope;
+            scope
+        }
+        None => s.prefs.search_scope,
     };
+    if p::bool(v, "remember").unwrap_or(false) {
+        s.remember_search(&q);
+    }
     let n = s.run_search(&q, scope);
-    Ok(json!({"results": n}))
+    Ok(json!({"results": n, "scope": scope.code()}))
 }
