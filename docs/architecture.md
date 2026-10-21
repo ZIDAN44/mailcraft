@@ -33,6 +33,20 @@
 `cargo xtask layers` enforces this, including that `egui` stays in L6 and network crates stay in `net`.
 `cargo xtask wasm` checks that every crate but `net`, and the web app, build for `wasm32`.
 
+## Source layout
+
+Modules use the 2018+ layout (`foo.rs` beside `foo/`, no `mod.rs`), split by topic, with every
+file at most 1000 lines and every folder at most 16 Rust files (`cargo xtask sizes`, rules in
+`CLAUDE.md` › File size). The big types are one `impl` continued across files:
+
+| Where | What |
+|---|---|
+| `engine/src/session.rs` + `session/` | `Session`'s state; its `impl` continued per area (`opening`, `changing`, `writing`, `outbox`, `searching`, `accounts`, `events`, `prefs`…; `organize/` for junk, Quick Steps, Search Folders) |
+| `engine/src/cmd.rs` + `cmd/` | the registry; each area (`home`, `navigation`, `compose`, `view`, `pim`, `accounts`) returns its commands |
+| `ui-egui/src/app.rs` + `app/` | `MailApp`, the window: `frame`, `ribbon`, `bars`, `keys`, `actions`, `windows` |
+| `ui-egui/src/panes/`, `dialogs/`, `reading/`, `rich_edit/`, `look/` | the panes, the dialogs by group, the reading pane and compose window, the editor, and theme/icons/motion/widgets |
+| `net/src/protocols/`, `exchange/`, `data_files/`, `fakes/`, `worker/` | IMAP/SMTP/POP/JMAP/DAV/Sieve; Graph/EWS/NTLM; `.pst`; the in-memory test servers; the worker pool |
+
 ## Transports
 
 An account syncs over one of four transports behind the same `Job`s and `Event`s, chosen by its
@@ -98,7 +112,7 @@ their licences on the About page. It is an optional build input, never a Cargo d
 unset, the table is empty and nothing changes.
 
 egui shapes each run of text in its script's direction but lays runs out left to right, with no
-bidirectional algorithm. `ui-egui/src/bidi.rs` orders right-to-left text itself: each line goes
+bidirectional algorithm. `ui-egui/src/look/bidi.rs` orders right-to-left text itself: each line goes
 through the Unicode Bidirectional Algorithm (`unicode-bidi`), is cut where egui will cut it into
 runs (the main font's coverage, read with `skrifa`), and runs egui will turn around are handed
 over turned around; Arabic that egui won't shape gets its joined forms. Wrapped text (mail bodies,

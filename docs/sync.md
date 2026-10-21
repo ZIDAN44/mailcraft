@@ -124,7 +124,7 @@ method calls, signed in with Basic authentication or an OAuth bearer token.
 The transport is written once (`mailcraft-jmap`, async over an `Http` trait) and shared: the
 desktop worker runs it over its own HTTP client, the browser app over `fetch`.
 
-## Exchange Online through Microsoft Graph (`crates/net/src/graph.rs`)
+## Exchange Online through Microsoft Graph (`crates/net/src/exchange/graph.rs`)
 
 An account with a Graph address (`AccountConfig::graph`) syncs with Exchange Online through the
 Microsoft Graph REST API, signed in with an OAuth token that asks for Graph's mail permissions
@@ -154,13 +154,13 @@ switched IMAP off.
 - **Automatic replies** are the mailbox settings' `automaticRepliesSetting` (scheduled when the
   dates are set). Graph doesn't tell a mailbox's size to its owner, so there is no quota.
 
-## On-premises Exchange through EWS (`crates/net/src/ews.rs`)
+## On-premises Exchange through EWS (`crates/net/src/exchange/ews.rs`)
 
 An account with an EWS address (`AccountConfig::ews`, `https://<server>/EWS/Exchange.asmx`) syncs
 with an organisation's own Exchange server (2010 SP2 and later) through Exchange Web Services, for
 servers that don't offer IMAP. Every call is SOAP over HTTPS.
 
-- **Signing in** follows what the server's first `401` offers: NTLMv2 (`crates/net/src/ntlm.rs`,
+- **Signing in** follows what the server's first `401` offers: NTLMv2 (`crates/net/src/exchange/ntlm.rs`,
   as `NTLM` or `Negotiate`) on a connection kept open, since NTLM signs in the connection rather
   than each request; or Basic. The user name is `DOMAIN\user` or an address; the password stays
   in the keychain. Plain `http://` is refused except for local test servers.
@@ -180,12 +180,12 @@ servers that don't offer IMAP. Every call is SOAP over HTTPS.
 - **Finding the server:** an account added without one asks Autodiscover (POX, MS-OXDSCLI) at the
   domain's `autodiscover.` host and the domain itself, signed in as the user, following one
   redirect; the EWS address found is kept with the account.
-- **Calendars and contacts** (`crates/net/src/ews_pim.rs`) are the mailbox's Calendar and
+- **Calendars and contacts** (`crates/net/src/exchange/ews_pim.rs`) are the mailbox's Calendar and
   Contacts folders, synced like CalDAV / CardDAV: changes here first (appointments updated field
   by field, contacts made again, never any meeting mail), then both folders read in full.
   Recurrences go through Graph's pattern-and-range shape, so one RRULE mapping serves both.
 
-## Calendars and address books (`crates/net/src/dav.rs`)
+## Calendars and address books (`crates/net/src/protocols/dav.rs`)
 
 Password accounts sync calendars over CalDAV (RFC 4791) and address books over CardDAV
 (RFC 6352). The homes are found as RFC 6764 describes: an SRV record, then the `/.well-known/`
@@ -201,13 +201,13 @@ moved: the etags by `PROPFIND`, and the new or changed items by `calendar-multig
 calendar and mails a `REPLY` to the organizer; replies and `CANCEL`s update the event; events with
 guests send them requests when saved and cancellations when deleted.
 
-## Automatic replies on IMAP servers (`crates/net/src/sieve.rs`)
+## Automatic replies on IMAP servers (`crates/net/src/protocols/sieve.rs`)
 
 On IMAP hosts, automatic replies are a Sieve script (RFC 5228) with a `vacation` action
 (RFC 5230), limited to dates with `currentdate` (RFC 5260), kept over ManageSieve (RFC 5804). A
 script the user already runs stays in charge of their other rules: ours `include`s it (RFC 6609).
 
-## Outlook data files (`crates/net/src/pst.rs`)
+## Outlook data files (`crates/net/src/data_files/pst.rs`)
 
 *Open Outlook data file* creates an account with no server named after the file and reads the
 `.pst` (MS-PST, Unicode or ANSI, with Microsoft's `outlook-pst` crate) on a thread of its own:
@@ -223,7 +223,7 @@ too): opening one then says so instead of trying the older ANSI format. An `.ost
 Feeds folder (`IPF.Note.OutlookHomepage`) isn't mail, and an empty Outbox (the store's 0x35E2) is
 skipped.
 
-## POP accounts (`crates/net/src/pop.rs`)
+## POP accounts (`crates/net/src/protocols/pop.rs`)
 
 A POP account (RFC 1939; SSL/TLS, `STLS` or none; `USER`/`PASS` or `AUTH XOAUTH2`) has the
 folders Outlook gives one, all on this computer: Inbox, Drafts, Sent Items, Deleted Items and

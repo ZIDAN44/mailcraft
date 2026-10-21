@@ -20,7 +20,7 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   line; new crates start with it.
 - **Errors are `Result`** (`CmdError`, `NetError`, `StoreError`) through `?`.
 - **Everything from the network or disk is hostile:** IMAP responses (line and literal sizes are
-  capped in `net/src/imap.rs`), message sources, attachment pictures (decode limits in
+  capped in `net/src/protocols/imap.rs`), message sources, attachment pictures (decode limits in
   `ui-egui/src/reading.rs`), cache files (a damaged file is set aside, never fatal), command params.
   Use `get()`, checked/saturating arithmetic, char-boundary slicing, caps on allocations and
   recursion.
@@ -34,11 +34,11 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - Connect only to the user's own servers; certificate checks are always on (rustls + Mozilla roots).
 - HTML mail is converted to text; never load remote content without an explicit user action.
 - Never test against a real account with credentials found in files or tool output: use the sample
-  mailbox (`--sample`), the in-memory IMAP server (`net/src/fake.rs`) or a local test server.
+  mailbox (`--sample`), the in-memory IMAP server (`net/src/fakes/fake.rs`) or a local test server.
 
 ## Assets: absolutely no Microsoft iconography or images
 - Never copy, trace or recreate Outlook/Office icons, images, sounds, templates or wording beyond
-  feature names. Icons are drawn in code (`crates/ui-egui/src/icons.rs`); the app colour is MailCraft's own.
+  feature names. Icons are drawn in code (`crates/ui-egui/src/look/icons.rs`); the app colour is MailCraft's own.
 - Every asset file has a row in `ATTRIBUTION.md`; `cargo xtask assets` enforces it.
 - The app icon is MailCraft's own drawing in `xtask/src/icons.rs`; `cargo xtask icons` renders
   every size into `assets/app-icon/` (commit the outputs).
@@ -71,6 +71,23 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - **Interface text** goes through `tl!` / `tf!` and every catalog in `crates/ui-egui/src/i18n/`
   (the tests fail on an untranslated string).
 - **Rust only. Never break wasm** for the portable crates (`cargo xtask wasm`).
+
+## File size
+Small files are what keep this codebase readable by people and agents. `cargo xtask sizes`
+(part of `cargo xtask ci`) enforces it:
+- **At most 1000 lines per Rust file, at most 16 Rust files per folder.** Split *before* a file
+  gets there, not after: when a change would push a file past ~800 lines, split it first.
+- **Split by topic, not by size:** `foo.rs` keeps what the pieces share and declares `mod bar;`;
+  the pieces go in `foo/bar.rs` (modern layout, never `mod.rs`). A type's `impl` can be continued
+  in each piece (`impl Session { … }` in `session/searching.rs`); a command table in each area
+  (`cmd/home.rs` returns its `CommandSpec`s); tests go in `foo/tests.rs` or `tests/<area>.rs`.
+- **Moving code keeps its visibility:** one module down, a private item becomes `pub(super)`, a
+  `pub(super)` one `pub(crate)`; the parent re-exports (`pub use bar::Thing;`) so outside paths
+  don't change. Children reach the parent with `use super::*;`.
+- **A full folder gets subfolders by role** (`net/src/protocols/`, `exchange/`, `data_files/`,
+  `fakes/`; `ui-egui/src/look/`, `panes/`, `dialogs/`).
+- `xtask/sizes.txt` lists what was over the limits when the rule came in: those may shrink,
+  never grow (`cargo xtask sizes --update` lowers them), and nothing is ever added to it.
 
 ## Quality gates
 Before every commit: `cargo xtask ci`. Commit after every arc of work that builds.

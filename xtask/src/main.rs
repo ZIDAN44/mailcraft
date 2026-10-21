@@ -5,6 +5,7 @@
 
 mod ico;
 mod icons;
+mod sizes;
 mod version;
 
 use std::path::{Path, PathBuf};
@@ -16,9 +17,11 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
-  ci       fmt --check, clippy -D warnings, tests, layers, assets, wasm (stops at the first failure)
+  ci       fmt --check, sizes, clippy -D warnings, tests, layers, assets, wasm (stops at the first failure)
   layers   enforce the crate layering (docs/architecture.md)
   assets   check that every asset file is attributed in ATTRIBUTION.md
+  sizes    files stay under 1000 lines and folders under 16 Rust files (xtask/sizes.txt holds
+           what was over then, which may shrink but never grow); `sizes --update` lowers it
   wasm     cargo check --target wasm32-unknown-unknown for the portable crates and the web app
   icons    render the app icon into assets/app-icon/ (PNGs, SVG, .ico, .icns)
   ico      pack PNGs into a Windows .ico: ico <out.ico> <in.png>…
@@ -179,6 +182,7 @@ fn cmd_ci() -> Result<(), String> {
     let mut fmt = cargo();
     fmt.args(["fmt", "--all", "--", "--check"]);
     run(fmt, "cargo fmt --check")?;
+    sizes::run(&root(), &[])?;
     let mut clippy = cargo();
     clippy.args(["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]);
     run(clippy, "cargo clippy -D warnings")?;
@@ -196,6 +200,7 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("layers") => cmd_layers(),
         Some("assets") => cmd_assets(),
+        Some("sizes") => sizes::run(&root(), &args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),
         Some("wasm") => cmd_wasm(),
         Some("icons") => icons::run(&root()),
         Some("ico") => ico::run(&args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),

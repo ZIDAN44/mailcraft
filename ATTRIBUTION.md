@@ -4,7 +4,7 @@ Every non-code asset in this repository has a row here (path, author, source, li
 `cargo xtask assets` (part of `cargo xtask ci`) fails otherwise.
 
 MailCraft ships no third-party assets: the interface icons are drawn in code
-(`crates/ui-egui/src/icons.rs`), the sample picture is generated in code, and the UI uses an
+(`crates/ui-egui/src/look/icons.rs`), the sample picture is generated in code, and the UI uses an
 installed system font when one is found. Builds made with `CRAFT_FONTS_DIR` (the releases) embed
 the fonts listed in [storytold/craft-fonts](https://github.com/storytold/craft-fonts)' `ATTRIBUTION.md`
 (SIL Open Font License 1.1); none are in this repository, and each one's licence is shown on the
