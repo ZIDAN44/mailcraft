@@ -688,6 +688,7 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
 - **Reliability found on the way:** settings are saved every few seconds when they change, not
   only on a clean close; the log's terminal echo and the CLI no longer panic when their output
   is gone; the ribbon drops labels from its end when the window is too narrow for them; Junk's
-  high-water mark is set when the folder is known.
+  high-water mark is set when the folder is known; changes made with `mailcraft-cli run` now
+  reach the server with the next `sync` (they were dropped).
 - Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
   (needs a dictionary MailCraft can ship).
