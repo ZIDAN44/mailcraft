@@ -937,3 +937,18 @@ month	May	Май
 	In {n} minutes	Через {n} мин.
 	In {n} hours	Через {n} ч.
 	In {n} days	Через {n} дн.
+	Junk	Нежелательная почта
+	Junk options	Параметры нежелательной почты
+	Junk Email options…	Параметры нежелательной почты…
+	Block sender	Заблокировать отправителя
+	Never block sender	Никогда не блокировать отправителя
+	Never block sender's domain	Никогда не блокировать домен отправителя
+	Their mail goes to Junk Email from now on	Их письма теперь будут попадать в нежелательную почту
+	Their mail is never treated as junk	Их письма никогда не считаются нежелательными
+	Mail from anyone at their domain is never treated as junk	Письма от любого адреса этого домена никогда не считаются нежелательными
+	Blocked senders	Заблокированные отправители
+	Safe senders	Надежные отправители
+	Mail from these addresses and domains goes to Junk Email as it arrives.	Письма с этих адресов и доменов при получении попадают в нежелательную почту.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	Письма с этих адресов и доменов никогда не считаются нежелательными, и их изображения загружаются.
+	name@example.com or @example.com	name@example.com или @example.com
+	And {n} more	И ещё {n}

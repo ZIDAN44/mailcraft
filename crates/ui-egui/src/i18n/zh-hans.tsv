@@ -934,3 +934,18 @@ month	May	5月
 	In {n} minutes	{n} 分钟后
 	In {n} hours	{n} 小时后
 	In {n} days	{n} 天后
+	Junk	垃圾邮件
+	Junk options	垃圾邮件选项
+	Junk Email options…	垃圾邮件选项…
+	Block sender	阻止发件人
+	Never block sender	从不阻止发件人
+	Never block sender's domain	从不阻止发件人的域
+	Their mail goes to Junk Email from now on	今后其邮件将进入垃圾邮件
+	Their mail is never treated as junk	其邮件永远不会被视为垃圾邮件
+	Mail from anyone at their domain is never treated as junk	来自该域任何人的邮件永远不会被视为垃圾邮件
+	Blocked senders	阻止的发件人
+	Safe senders	安全发件人
+	Mail from these addresses and domains goes to Junk Email as it arrives.	来自这些地址和域的邮件在到达时进入垃圾邮件。
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	来自这些地址和域的邮件永远不会被视为垃圾邮件，其图片会加载。
+	name@example.com or @example.com	name@example.com 或 @example.com
+	And {n} more	还有 {n} 个

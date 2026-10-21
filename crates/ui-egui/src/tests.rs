@@ -1561,3 +1561,23 @@ fn reminders_pop_up_snooze_and_dismiss() {
     assert!(!crate::reminders::showing(&a.ui.reminders));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Junk Email: the menu blocks the sender, and the lists in Options draw, long ones in part.
+#[test]
+fn junk_lists_block_and_draw() {
+    let (mut a, dir) = app("junk-lists");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("list.open", json!({"key": "sample:1:1:INBOX"}));
+    a.act(crate::Action::Run("junk.blockSender", json!({})));
+    assert!(a.session.prefs.blocked_senders.contains("zoe@studio.example"));
+    for n in 0..1500 {
+        a.run("junk.edit", json!({"list": if n % 2 == 0 { "blocked" } else { "safe" }, "entry": format!("@d{n}.example")}));
+    }
+    assert_eq!(a.session.prefs.blocked_senders.len() + a.session.prefs.safe_senders.len(), 1501);
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.backstage.is_some());
+    let _ = std::fs::remove_dir_all(dir);
+}

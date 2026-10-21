@@ -938,3 +938,18 @@ month	May	maio
 	In {n} minutes	Em {n} minutos
 	In {n} hours	Em {n} horas
 	In {n} days	Em {n} dias
+	Junk	Lixo eletrônico
+	Junk options	Opções de lixo eletrônico
+	Junk Email options…	Opções de lixo eletrônico…
+	Block sender	Bloquear remetente
+	Never block sender	Nunca bloquear remetente
+	Never block sender's domain	Nunca bloquear o domínio do remetente
+	Their mail goes to Junk Email from now on	Os e-mails dele irão para o Lixo eletrônico a partir de agora
+	Their mail is never treated as junk	Os e-mails dele nunca serão tratados como lixo
+	Mail from anyone at their domain is never treated as junk	E-mails de qualquer pessoa desse domínio nunca serão tratados como lixo
+	Blocked senders	Remetentes bloqueados
+	Safe senders	Remetentes confiáveis
+	Mail from these addresses and domains goes to Junk Email as it arrives.	E-mails destes endereços e domínios vão para o Lixo eletrônico ao chegar.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	E-mails destes endereços e domínios nunca são tratados como lixo e suas imagens são carregadas.
+	name@example.com or @example.com	nome@example.com ou @example.com
+	And {n} more	E mais {n}

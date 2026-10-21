@@ -2072,6 +2072,9 @@ impl MailApp {
                         if widgets::tool_button(ui, Icon::Junk, jl, &t, enabled(jid)).clicked() {
                             acts.push(Action::Run(jid, json!({})));
                         }
+                        // The Junk drop-down: the sender's lists, as Outlook's.
+                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Junk options", &t);
+                        egui::Popup::menu(&r).show(|ui| junk_menu(ui, s, acts));
                         widgets::group_sep(ui, &t);
                         if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled("mail.move"))
                             .on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)"))
@@ -2578,6 +2581,27 @@ pub(crate) fn view_title(s: &Session) -> String {
     match &s.search {
         Some((q, _)) => tf!("Results for “{query}”", query = q),
         None => i18n::tc("folder", &s.view_title()).to_string(),
+    }
+}
+
+/// The Junk menu: block the selection's senders, or never block them (or their domain), and
+/// the lists themselves (File › Options).
+pub(crate) fn junk_menu(ui: &mut egui::Ui, s: &Session, acts: &mut Vec<Action>) {
+    let has = !s.selection.is_empty();
+    for (id, label, tip) in [
+        ("junk.blockSender", "Block sender", "Their mail goes to Junk Email from now on"),
+        ("junk.neverBlockSender", "Never block sender", "Their mail is never treated as junk"),
+        ("junk.neverBlockDomain", "Never block sender's domain", "Mail from anyone at their domain is never treated as junk"),
+    ] {
+        if ui.add_enabled(has, egui::Button::new(tl!(label))).on_hover_text(tl!(tip)).clicked() {
+            acts.push(Action::Run(id, json!({})));
+            ui.close();
+        }
+    }
+    ui.separator();
+    if ui.button(tl!("Junk Email options…")).clicked() {
+        acts.push(Action::Backstage(backstage::Page::Options));
+        ui.close();
     }
 }
 

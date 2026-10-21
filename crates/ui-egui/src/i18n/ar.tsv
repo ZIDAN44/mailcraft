@@ -933,3 +933,18 @@ month	May	مايو
 	In {n} minutes	بعد {n} دقيقة
 	In {n} hours	بعد {n} ساعات
 	In {n} days	بعد {n} أيام
+	Junk	البريد العشوائي
+	Junk options	خيارات البريد العشوائي
+	Junk Email options…	خيارات البريد العشوائي…
+	Block sender	حظر المرسل
+	Never block sender	عدم حظر المرسل مطلقاً
+	Never block sender's domain	عدم حظر مجال المرسل مطلقاً
+	Their mail goes to Junk Email from now on	سينتقل بريده إلى البريد العشوائي من الآن فصاعداً
+	Their mail is never treated as junk	لن يُعامل بريده كبريد عشوائي أبداً
+	Mail from anyone at their domain is never treated as junk	لن يُعامل البريد من أي شخص في مجاله كبريد عشوائي أبداً
+	Blocked senders	المرسلون المحظورون
+	Safe senders	المرسلون الآمنون
+	Mail from these addresses and domains goes to Junk Email as it arrives.	ينتقل البريد من هذه العناوين والمجالات إلى البريد العشوائي عند وصوله.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	لا يُعامل البريد من هذه العناوين والمجالات كبريد عشوائي أبداً، وتُحمَّل صوره.
+	name@example.com or @example.com	name@example.com أو ‎@example.com
+	And {n} more	و{n} أخرى

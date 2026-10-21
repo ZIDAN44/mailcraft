@@ -937,3 +937,18 @@ month	May	5월
 	In {n} minutes	{n}분 후
 	In {n} hours	{n}시간 후
 	In {n} days	{n}일 후
+	Junk	정크 메일
+	Junk options	정크 메일 옵션
+	Junk Email options…	정크 메일 옵션…
+	Block sender	보낸 사람 차단
+	Never block sender	보낸 사람 차단 안 함
+	Never block sender's domain	보낸 사람 도메인 차단 안 함
+	Their mail goes to Junk Email from now on	이제부터 이 사람의 메일은 정크 메일로 이동합니다
+	Their mail is never treated as junk	이 사람의 메일은 정크로 처리되지 않습니다
+	Mail from anyone at their domain is never treated as junk	이 도메인의 모든 사람이 보낸 메일은 정크로 처리되지 않습니다
+	Blocked senders	수신 거부 목록
+	Safe senders	수신 허용 목록
+	Mail from these addresses and domains goes to Junk Email as it arrives.	이 주소와 도메인에서 온 메일은 도착 시 정크 메일로 이동합니다.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	이 주소와 도메인에서 온 메일은 정크로 처리되지 않으며 그림이 로드됩니다.
+	name@example.com or @example.com	name@example.com 또는 @example.com
+	And {n} more	외 {n}개

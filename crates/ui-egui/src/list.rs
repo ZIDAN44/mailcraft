@@ -477,6 +477,7 @@ fn message_row(
         item(ui, acts, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
         item(ui, acts, tl!("Archive"), Action::Run("mail.archive", json!({})));
         item(ui, acts, tl!("Report junk"), Action::Run("mail.junk", json!({})));
+        ui.menu_button(tl!("Junk"), |ui| crate::junk_menu(ui, s, acts));
         item(ui, acts, tl!("Ignore"), Action::Run("mail.ignore", json!({})));
         item(ui, acts, tl!("Delete"), Action::Run("mail.delete", json!({})));
         ui.separator();

@@ -938,3 +938,18 @@ month	May	mai
 	In {n} minutes	Dans {n} minutes
 	In {n} hours	Dans {n} heures
 	In {n} days	Dans {n} jours
+	Junk	Courrier indésirable
+	Junk options	Options du courrier indésirable
+	Junk Email options…	Options du courrier indésirable…
+	Block sender	Bloquer l'expéditeur
+	Never block sender	Ne jamais bloquer l'expéditeur
+	Never block sender's domain	Ne jamais bloquer le domaine de l'expéditeur
+	Their mail goes to Junk Email from now on	Ses messages iront désormais dans Courrier indésirable
+	Their mail is never treated as junk	Ses messages ne seront jamais traités comme indésirables
+	Mail from anyone at their domain is never treated as junk	Les messages de toute personne de ce domaine ne seront jamais traités comme indésirables
+	Blocked senders	Expéditeurs bloqués
+	Safe senders	Expéditeurs approuvés
+	Mail from these addresses and domains goes to Junk Email as it arrives.	Les messages de ces adresses et domaines vont dans Courrier indésirable dès leur arrivée.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	Les messages de ces adresses et domaines ne sont jamais traités comme indésirables, et leurs images se chargent.
+	name@example.com or @example.com	nom@example.com ou @example.com
+	And {n} more	Et {n} de plus

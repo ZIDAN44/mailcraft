@@ -739,6 +739,48 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         });
     });
 
+    // Junk Email: the blocked and safe senders, each list with a box to add to it.
+    for (list, title, about) in [
+        ("blocked", "Blocked senders", "Mail from these addresses and domains goes to Junk Email as it arrives."),
+        ("safe", "Safe senders", "Mail from these addresses and domains is never treated as junk, and its pictures load."),
+    ] {
+        let entries = if list == "blocked" { &s.prefs.blocked_senders } else { &s.prefs.safe_senders };
+        group(ui, tl!(title), Some(tl!(about)), &mut |ui| {
+            let id = egui::Id::unique(("junk-add", list));
+            let mut text: String = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
+            let mut add = false;
+            ui.horizontal(|ui| {
+                let r = ui.add(egui::TextEdit::singleline(&mut text).hint_text(tl!("name@example.com or @example.com")).desired_width(320.0));
+                add |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                add |= ui.add_enabled(!text.trim().is_empty(), egui::Button::new(tl!("Add"))).clicked();
+            });
+            if add && !text.trim().is_empty() {
+                acts.push(Action::Run("junk.edit", json!({"list": list, "entry": text.trim()})));
+                // One that can't be added stays to be corrected (the reason shows as a notice).
+                if mailcraft_engine::junk_entry(&text).is_some() {
+                    text.clear();
+                }
+            }
+            ui.data_mut(|d| d.insert_temp(id, text));
+            if entries.is_empty() {
+                ui.add_space(4.0);
+                ui.label(RichText::new(tl!("No senders yet.")).color(t.faint).small());
+                ui.add_space(8.0);
+            }
+            // A long list is shown in part: the first ones, and how many more.
+            for (i, who) in entries.iter().take(200).enumerate() {
+                setting(ui, i == 0, who, None, &mut |ui| {
+                    if ui.button(tl!("Remove")).clicked() {
+                        acts.push(Action::Run("junk.edit", json!({"list": list, "entry": who, "on": false})));
+                    }
+                });
+            }
+            if entries.len() > 200 {
+                ui.label(RichText::new(tf!("And {n} more", n = entries.len() - 200)).color(t.faint).small());
+            }
+        });
+    }
+
     group(ui, tl!("Privacy"), Some(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")), &mut |ui| {
         if s.prefs.trusted_senders.is_empty() {
             ui.add_space(4.0);

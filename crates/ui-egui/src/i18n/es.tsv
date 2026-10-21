@@ -938,3 +938,18 @@ month	May	mayo
 	In {n} minutes	En {n} minutos
 	In {n} hours	En {n} horas
 	In {n} days	En {n} días
+	Junk	Correo no deseado
+	Junk options	Opciones de correo no deseado
+	Junk Email options…	Opciones de correo no deseado…
+	Block sender	Bloquear remitente
+	Never block sender	No bloquear nunca al remitente
+	Never block sender's domain	No bloquear nunca el dominio del remitente
+	Their mail goes to Junk Email from now on	Su correo irá a Correo no deseado a partir de ahora
+	Their mail is never treated as junk	Su correo nunca se tratará como no deseado
+	Mail from anyone at their domain is never treated as junk	El correo de cualquier persona de su dominio nunca se tratará como no deseado
+	Blocked senders	Remitentes bloqueados
+	Safe senders	Remitentes seguros
+	Mail from these addresses and domains goes to Junk Email as it arrives.	El correo de estas direcciones y dominios va a Correo no deseado al llegar.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	El correo de estas direcciones y dominios nunca se trata como no deseado y sus imágenes se cargan.
+	name@example.com or @example.com	nombre@example.com o @example.com
+	And {n} more	Y {n} más

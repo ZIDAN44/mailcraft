@@ -933,3 +933,18 @@ month	May	mei
 	In {n} minutes	Over {n} minuten
 	In {n} hours	Over {n} uur
 	In {n} days	Over {n} dagen
+	Junk	Ongewenste e-mail
+	Junk options	Opties voor ongewenste e-mail
+	Junk Email options…	Opties voor ongewenste e-mail…
+	Block sender	Afzender blokkeren
+	Never block sender	Afzender nooit blokkeren
+	Never block sender's domain	Domein van afzender nooit blokkeren
+	Their mail goes to Junk Email from now on	Hun e-mail gaat voortaan naar Ongewenste e-mail
+	Their mail is never treated as junk	Hun e-mail wordt nooit als ongewenst behandeld
+	Mail from anyone at their domain is never treated as junk	E-mail van iedereen op dit domein wordt nooit als ongewenst behandeld
+	Blocked senders	Geblokkeerde afzenders
+	Safe senders	Veilige afzenders
+	Mail from these addresses and domains goes to Junk Email as it arrives.	E-mail van deze adressen en domeinen gaat bij aankomst naar Ongewenste e-mail.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	E-mail van deze adressen en domeinen wordt nooit als ongewenst behandeld en de afbeeldingen worden geladen.
+	name@example.com or @example.com	naam@example.com of @example.com
+	And {n} more	En nog {n}

@@ -933,3 +933,18 @@ month	May	מאי
 	In {n} minutes	בעוד {n} דקות
 	In {n} hours	בעוד {n} שעות
 	In {n} days	בעוד {n} ימים
+	Junk	דואר זבל
+	Junk options	אפשרויות דואר זבל
+	Junk Email options…	אפשרויות דואר זבל…
+	Block sender	חסום שולח
+	Never block sender	לעולם אל תחסום את השולח
+	Never block sender's domain	לעולם אל תחסום את תחום השולח
+	Their mail goes to Junk Email from now on	הדואר שלו יעבור לדואר זבל מעכשיו
+	Their mail is never treated as junk	הדואר שלו לעולם לא ייחשב כזבל
+	Mail from anyone at their domain is never treated as junk	דואר מכל אחד בתחום שלו לעולם לא ייחשב כזבל
+	Blocked senders	שולחים חסומים
+	Safe senders	שולחים בטוחים
+	Mail from these addresses and domains goes to Junk Email as it arrives.	דואר מכתובות ותחומים אלה עובר לדואר זבל עם הגעתו.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	דואר מכתובות ותחומים אלה לעולם לא ייחשב כזבל, והתמונות שלו נטענות.
+	name@example.com or @example.com	name@example.com או ‎@example.com
+	And {n} more	ועוד {n}

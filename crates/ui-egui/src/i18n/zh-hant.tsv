@@ -937,3 +937,18 @@ month	May	5月
 	In {n} minutes	{n} 分鐘後
 	In {n} hours	{n} 小時後
 	In {n} days	{n} 天後
+	Junk	垃圾郵件
+	Junk options	垃圾郵件選項
+	Junk Email options…	垃圾郵件選項…
+	Block sender	封鎖寄件者
+	Never block sender	永不封鎖寄件者
+	Never block sender's domain	永不封鎖寄件者的網域
+	Their mail goes to Junk Email from now on	此後其郵件將移至垃圾郵件
+	Their mail is never treated as junk	其郵件永遠不會被視為垃圾郵件
+	Mail from anyone at their domain is never treated as junk	來自該網域任何人的郵件永遠不會被視為垃圾郵件
+	Blocked senders	封鎖的寄件者
+	Safe senders	安全寄件者
+	Mail from these addresses and domains goes to Junk Email as it arrives.	來自這些位址和網域的郵件在送達時移至垃圾郵件。
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	來自這些位址和網域的郵件永遠不會被視為垃圾郵件，其圖片會載入。
+	name@example.com or @example.com	name@example.com 或 @example.com
+	And {n} more	還有 {n} 個

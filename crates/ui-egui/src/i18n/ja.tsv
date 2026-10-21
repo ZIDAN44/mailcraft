@@ -934,3 +934,18 @@ month	May	5月
 	In {n} minutes	{n} 分後
 	In {n} hours	{n} 時間後
 	In {n} days	{n} 日後
+	Junk	迷惑メール
+	Junk options	迷惑メールのオプション
+	Junk Email options…	迷惑メールのオプション…
+	Block sender	受信拒否リストに追加
+	Never block sender	差出人を受信拒否しない
+	Never block sender's domain	差出人のドメインを受信拒否しない
+	Their mail goes to Junk Email from now on	今後、この差出人のメールは迷惑メールに移動します
+	Their mail is never treated as junk	この差出人のメールは迷惑メールとして扱いません
+	Mail from anyone at their domain is never treated as junk	このドメインの誰からのメールも迷惑メールとして扱いません
+	Blocked senders	受信拒否リスト
+	Safe senders	差出人セーフ リスト
+	Mail from these addresses and domains goes to Junk Email as it arrives.	これらのアドレスとドメインからのメールは、受信時に迷惑メールに移動します。
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	これらのアドレスとドメインからのメールは迷惑メールとして扱わず、画像も読み込みます。
+	name@example.com or @example.com	name@example.com または @example.com
+	And {n} more	他 {n} 件

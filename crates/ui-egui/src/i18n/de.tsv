@@ -938,3 +938,18 @@ month	May	Mai
 	In {n} minutes	In {n} Minuten
 	In {n} hours	In {n} Stunden
 	In {n} days	In {n} Tagen
+	Junk	Junk-E-Mail
+	Junk options	Junk-E-Mail-Optionen
+	Junk Email options…	Junk-E-Mail-Optionen…
+	Block sender	Absender blockieren
+	Never block sender	Absender nie blockieren
+	Never block sender's domain	Domäne des Absenders nie blockieren
+	Their mail goes to Junk Email from now on	Ihre E-Mails landen ab jetzt in Junk-E-Mail
+	Their mail is never treated as junk	Ihre E-Mails werden nie als Junk behandelt
+	Mail from anyone at their domain is never treated as junk	E-Mails von allen Absendern dieser Domäne werden nie als Junk behandelt
+	Blocked senders	Blockierte Absender
+	Safe senders	Sichere Absender
+	Mail from these addresses and domains goes to Junk Email as it arrives.	E-Mails von diesen Adressen und Domänen werden beim Eingang nach Junk-E-Mail verschoben.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	E-Mails von diesen Adressen und Domänen werden nie als Junk behandelt, und ihre Bilder werden geladen.
+	name@example.com or @example.com	name@example.com oder @example.com
+	And {n} more	Und {n} weitere
