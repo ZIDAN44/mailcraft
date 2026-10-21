@@ -514,3 +514,51 @@ impl Session {
         Ok(serde_json::json!({ "focused": focused, "senders": sel.len() }))
     }
 }
+
+impl Session {
+    // ----- clean up -----
+
+    /// Clean Up, as Outlook's: messages of a conversation that a later reply quotes in full go to
+    /// Deleted Items ([`mailcraft_model::cleanup`]). In these folders, every conversation, or
+    /// (`only`) those holding these messages. Bodies not downloaded are left alone.
+    pub fn clean_up(&mut self, folders: &[(String, String)], only: Option<&[MessageKey]>) -> CmdResult {
+        let categories: Vec<String> = self.prefs.categories.iter().map(|c| c.keyword.clone()).collect();
+        let mut gone: Vec<MessageKey> = Vec::new();
+        let mut looked = 0usize;
+        for (a, f) in folders {
+            // Deleted Items and Junk aren't cleaned up into Deleted Items.
+            if self.folder(a, f).is_none_or(|x| matches!(x.role, FolderRole::Trash | FolderRole::Junk)) {
+                continue;
+            }
+            let msgs: Vec<Summary> = self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).cloned().collect();
+            for t in mailcraft_model::thread::threads(&msgs) {
+                let members: Vec<&Summary> = t.messages.iter().filter_map(|&i| msgs.get(i)).collect();
+                if members.len() < 2 || only.is_some_and(|keys| !members.iter().any(|m| keys.contains(&m.key))) {
+                    continue;
+                }
+                looked += 1;
+                let texts: Vec<Option<String>> = members
+                    .iter()
+                    .map(|m| self.store.as_ref().and_then(|s| s.read_body(&m.key)).and_then(|raw| mime::parse(&raw)).map(|p| p.text))
+                    .collect();
+                gone.extend(
+                    mailcraft_model::cleanup::redundant(&members, &texts, &categories)
+                        .into_iter()
+                        .filter_map(|i| members.get(i).map(|m| m.key.clone())),
+                );
+            }
+        }
+        if gone.is_empty() {
+            let why = if looked == 0 { "No conversations to clean up" } else { "Nothing to clean up: no message is quoted in full by a later reply" };
+            self.notice(why.to_string(), false);
+            return Ok(serde_json::json!({ "moved": 0, "conversations": looked }));
+        }
+        // Through the selection, so it can be undone like any move.
+        let n = gone.len();
+        self.selection = gone;
+        self.move_selection(MoveTarget::Role(FolderRole::Trash))?;
+        let what = if n == 1 { "1 message".to_string() } else { format!("{n} messages") };
+        self.notice(format!("Clean Up moved {what} to Deleted Items"), false);
+        Ok(serde_json::json!({ "moved": n, "conversations": looked }))
+    }
+}

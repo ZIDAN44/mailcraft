@@ -50,6 +50,33 @@ pub fn registry() -> Registry {
             .key("Backspace")
             .when(has_selection),
         CommandSpec::new("mail.ignore", "Ignore conversation", "Home › Delete", |s, _| s.ignore_selection()).when(has_selection),
+        CommandSpec::new("mail.cleanUp", "Clean up conversation", "Home › Delete › Clean Up", |s, _| {
+            let sel = s.selected();
+            let keys: Vec<mailcraft_model::MessageKey> = sel.iter().map(|m| m.key.clone()).collect();
+            let mut folders: Vec<(String, String)> = sel.iter().map(|m| (m.key.account.clone(), m.key.folder.clone())).collect();
+            folders.sort();
+            folders.dedup();
+            s.clean_up(&folders, Some(&keys))
+        })
+        .when(has_selection),
+        CommandSpec::new("folder.cleanUp", "Clean up folder", "Home › Delete › Clean Up", |s, v| {
+            let folders = match p::str(v, "folder") {
+                Some(f) => {
+                    let account = account_param(s, v)?;
+                    if s.folder(&account, f).is_none() {
+                        return Err(CmdError::Params(format!("no folder `{f}`")));
+                    }
+                    vec![(account, f.to_string())]
+                }
+                None => match &s.view {
+                    View::Folder { account, folder } => vec![(account.clone(), folder.clone())],
+                    View::Unified { role } => s.accounts.iter().filter_map(|a| a.folder(*role).map(|f| (a.config.id.clone(), f.path.clone()))).collect(),
+                    _ => return Err(CmdError::Disabled("open a folder first".into())),
+                },
+            };
+            s.clean_up(&folders, None)
+        })
+        .params(r#"{"account"?: string, "folder"?: string (none: the folder on screen)}"#),
         CommandSpec::new("mail.junk", "Report junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Junk))).when(has_selection),
         CommandSpec::new("mail.notJunk", "Not junk", "Home › Delete", |s, v| {
             // "Always trust mail from this sender", as Outlook asks.

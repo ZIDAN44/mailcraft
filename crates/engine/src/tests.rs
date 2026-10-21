@@ -2976,3 +2976,66 @@ fn blocked_and_safe_senders_sort_mail_as_it_arrives() {
     let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!((back.safe_senders, back.blocked_senders), (s.prefs.safe_senders.clone(), s.prefs.blocked_senders.clone()));
 }
+
+/// Clean Up: in a conversation, a message a later reply quotes in full goes to Deleted Items
+/// (undoably); one that isn't, isn't downloaded, or is flagged, stays.
+#[test]
+fn clean_up_moves_only_what_a_reply_quotes() {
+    let mut s = sample_session("clean-up");
+    let trash = s.account("sample").and_then(|a| a.folder(FolderRole::Trash)).map(|f| f.path.clone()).unwrap();
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder("sample", "INBOX").unwrap();
+    let template = st.messages[0].clone();
+    let thread = [
+        (801, "Frames for Thursday", "Can you send the frames?\r\n\r\nZoe", true),
+        (802, "Re: Frames for Thursday", "Sure.\r\n\r\n> Can you send the frames?\r\n>\r\n> Zoe", true),
+        (803, "Re: Frames for Thursday", "Thanks!\r\n\r\n> Sure.\r\n>\r\n>> Can you send the frames?\r\n>>\r\n>> Zoe", true),
+        // Another conversation: one not downloaded, and a flagged one.
+        (811, "Budget", "Numbers attached.", false),
+        (812, "Re: Budget", "Got them.\r\n> Numbers attached.", true),
+    ];
+    for (i, (uid, subject, body, downloaded)) in thread.iter().enumerate() {
+        let mut m = template.clone();
+        m.key.uid = *uid;
+        m.subject = subject.to_string();
+        m.message_id = format!("c{uid}@studio.example");
+        let parent = if *uid == 801 || *uid == 811 { None } else { Some(format!("c{}@studio.example", uid - 1)) };
+        m.in_reply_to = parent.clone().unwrap_or_default();
+        m.references = if *uid == 803 { vec!["c801@studio.example".into(), "c802@studio.example".into()] } else { parent.into_iter().collect() };
+        m.date = NOW - 1000 + i as i64;
+        m.flags.seen = true;
+        m.has_attachments = false;
+        st.messages.insert(0, m.clone());
+        if *downloaded {
+            let raw = format!(
+                "From: a@b.example\r\nSubject: {subject}\r\nMessage-ID: <c{uid}@studio.example>\r\nContent-Type: text/plain\r\n\r\n{body}\r\n"
+            );
+            store.write_body(&m.key, raw.as_bytes()).unwrap();
+        }
+    }
+    store.save_folder("sample", "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let in_trash = |s: &mut Session, uid_subject: &str| s.folder_state("sample", &trash).messages.iter().any(|m| m.message_id == uid_subject);
+    // The selection's conversation only.
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let k = s.list.iter().find(|m| m.message_id == "c803@studio.example").map(|m| json!({"key": m.key.to_id()})).unwrap();
+    s.run("list.select", &k).unwrap();
+    assert_eq!(s.run("mail.cleanUp", &json!({})).unwrap()["moved"], 2);
+    assert!(in_trash(&mut s, "c801@studio.example") && in_trash(&mut s, "c802@studio.example") && !in_trash(&mut s, "c803@studio.example"));
+    // Undone: back.
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(!in_trash(&mut s, "c801@studio.example"));
+    // The folder: the budget thread's first isn't downloaded, so it stays; flag the first of
+    // the frames thread and only the reply in the middle goes.
+    let k = s.list.iter().find(|m| m.message_id == "c801@studio.example").map(|m| json!({"key": m.key.to_id()})).unwrap();
+    s.run("list.select", &k).unwrap();
+    s.run("mail.flag", &json!({})).unwrap();
+    let r = s.run("folder.cleanUp", &json!({})).unwrap();
+    assert_eq!(r["moved"], 1, "{r}");
+    assert!(in_trash(&mut s, "c802@studio.example") && !in_trash(&mut s, "c801@studio.example") && !in_trash(&mut s, "c811@studio.example"));
+    // Again: nothing more; Deleted Items isn't cleaned; bad params.
+    assert_eq!(s.run("folder.cleanUp", &json!({"account": "sample", "folder": "INBOX"})).unwrap()["moved"], 0);
+    assert_eq!(s.run("folder.cleanUp", &json!({"account": "sample", "folder": trash})).unwrap()["moved"], 0);
+    assert!(s.run("folder.cleanUp", &json!({"account": "sample", "folder": "Nope"})).is_err());
+    assert!(s.run("folder.cleanUp", &json!({"account": "nobody", "folder": "INBOX"})).is_err());
+}
