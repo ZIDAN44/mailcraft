@@ -955,3 +955,21 @@ month	May	5月
 	Work week	稼働日
 	No conversations to clean up	クリーンアップするスレッドはありません
 	Nothing to clean up: no message is quoted in full by a later reply	クリーンアップするものはありません: 後の返信に全文が引用されたメッセージはありません
+	Search Folders	検索フォルダー
+	New Search Folder…	新しい検索フォルダー…
+	New Search Folder	新しい検索フォルダー
+	Edit Search Folder	検索フォルダーの編集
+	Customize this Search Folder…	この検索フォルダーのカスタマイズ…
+	Delete Search Folder	検索フォルダーの削除
+	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	削除済みアイテムと迷惑メールを除く、すべてのフォルダーで見つかったメールを表示します。
+	Show	表示
+	From these people (addresses or names, separated by commas)	次の人から (アドレスまたは名前をコンマで区切って入力)
+	Search for	検索する内容
+	Unread mail	未読メール
+	Mail flagged for follow up	フラグの付いたメール
+	Important mail	重要なメール
+	Categorized mail	分類されたメール
+	Mail with attachments	添付ファイル付きのメール
+	Large mail (over 100 KB)	サイズの大きいメール (100 KB 超)
+	Pinned mail	ピン留めしたメール
+	Mail from specific people	特定の人からのメール

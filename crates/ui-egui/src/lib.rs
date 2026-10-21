@@ -802,6 +802,7 @@ impl MailApp {
         if let Some((q, _)) = &self.session.search
             && self.ui.search_text.is_empty()
             && !ctx.text_edit_focused()
+            && self.session.open_search_folder_name().is_none()
         {
             self.ui.search_text = q.clone();
         }
@@ -1247,7 +1248,8 @@ impl MailApp {
                 Err(e) => self.session.notice(e.to_string(), true),
             },
             Action::Run(id, p) => {
-                if id == "search.clear" {
+                // A Search Folder isn't a search typed in: the box is left empty.
+                if matches!(id, "search.clear" | "searchFolder.open") {
                     self.ui.search_text.clear();
                 }
                 self.run(id, p);
@@ -1386,6 +1388,10 @@ impl MailApp {
                 Ok(v) => {
                     if id == "contact.create" {
                         self.ui.person = v.get("uid").and_then(Value::as_str).map(str::to_string);
+                    }
+                    // A Search Folder made or changed opens: not a search typed in.
+                    if self.session.open_search_folder_name().is_some() {
+                        self.ui.search_text.clear();
                     }
                     self.ui.dialog = None;
                 }
@@ -2594,6 +2600,9 @@ fn module_switch_vertical(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Ve
 
 /// The list's title in the interface language.
 pub(crate) fn view_title(s: &Session) -> String {
+    if let Some(name) = s.open_search_folder_name() {
+        return name.to_string();
+    }
     match &s.search {
         Some((q, _)) => tf!("Results for “{query}”", query = q),
         None => i18n::tc("folder", &s.view_title()).to_string(),

@@ -96,7 +96,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                         acts.push(Action::Run("list.filter", json!({"value": f.code()})));
                     }
                 }
-                if let Some((q, scope)) = &s.search {
+                // A Search Folder always looks everywhere: no scope to pick.
+                if let Some((q, scope)) = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none()) {
                     ui.add_space(8.0);
                     let all = *scope == SearchScope::All;
                     if ui.selectable_label(all, RichText::new(tl!("All folders")).small()).clicked() && !all {

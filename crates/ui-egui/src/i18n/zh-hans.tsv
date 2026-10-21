@@ -955,3 +955,21 @@ month	May	5月
 	Work week	工作周
 	No conversations to clean up	没有要清理的对话
 	Nothing to clean up: no message is quoted in full by a later reply	没有要清理的内容: 没有邮件被后续答复完整引用
+	Search Folders	搜索文件夹
+	New Search Folder…	新建搜索文件夹…
+	New Search Folder	新建搜索文件夹
+	Edit Search Folder	编辑搜索文件夹
+	Customize this Search Folder…	自定义此搜索文件夹…
+	Delete Search Folder	删除搜索文件夹
+	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	显示在除“已删除邮件”和“垃圾邮件”以外的所有文件夹中找到的邮件。
+	Show	显示
+	From these people (addresses or names, separated by commas)	来自以下人员(地址或姓名，以逗号分隔)
+	Search for	搜索
+	Unread mail	未读邮件
+	Mail flagged for follow up	标记为待办的邮件
+	Important mail	重要邮件
+	Categorized mail	已分类的邮件
+	Mail with attachments	带附件的邮件
+	Large mail (over 100 KB)	大邮件(超过 100 KB)
+	Pinned mail	已固定的邮件
+	Mail from specific people	来自特定人员的邮件

@@ -668,6 +668,8 @@ pub enum Dialog {
     },
     Rules,
     EditRule(Box<RuleForm>),
+    /// A Search Folder made or changed (Outlook's New Search Folder).
+    SearchFolder(Box<SearchFolderForm>),
     /// A picture attachment, larger.
     PicturePreview {
         key: mailcraft_engine::model::MessageKey,
@@ -733,6 +735,82 @@ impl RuleDo {
             RuleDo::Flag => "Flag",
             RuleDo::Pin => "Pin",
         })
+    }
+}
+
+/// The Search Folders offered, as Outlook's New Search Folder lists them: a name and what it
+/// searches for. "Mail from specific people" asks for them; "Custom" for the search.
+pub const SEARCH_PRESETS: [(&str, &str); 9] = [
+    ("Unread mail", "is:unread"),
+    ("Mail flagged for follow up", "is:flagged"),
+    ("Important mail", "is:important"),
+    ("Categorized mail", "is:categorized"),
+    ("Mail with attachments", "has:attachment"),
+    ("Large mail (over 100 KB)", "larger:100KB"),
+    ("Pinned mail", "is:pinned"),
+    ("Mail from specific people", "from:"),
+    ("Custom", ""),
+];
+const PRESET_PEOPLE: usize = 7;
+const PRESET_CUSTOM: usize = 8;
+
+#[derive(Clone, Debug, Default)]
+pub struct SearchFolderForm {
+    /// The name it had (`None`: a new one).
+    pub original: Option<String>,
+    /// Which of [`SEARCH_PRESETS`].
+    pub preset: usize,
+    pub name: String,
+    /// For "Mail from specific people": addresses or names, separated by commas.
+    pub people: String,
+    /// For "Custom": the search, as typed in the search box.
+    pub query: String,
+    pub error: Option<String>,
+}
+
+impl SearchFolderForm {
+    pub fn new() -> SearchFolderForm {
+        SearchFolderForm { name: tl!("Unread mail").to_string(), ..Default::default() }
+    }
+
+    /// An existing one, to change: its search shown as written.
+    pub fn edit(f: &mailcraft_engine::SearchFolder) -> SearchFolderForm {
+        let preset = SEARCH_PRESETS.iter().position(|p| !p.1.is_empty() && p.1 != "from:" && p.1 == f.query).unwrap_or(PRESET_CUSTOM);
+        SearchFolderForm { original: Some(f.name.clone()), preset, name: f.name.clone(), query: f.query.clone(), ..Default::default() }
+    }
+
+    /// Another kind picked: its name follows, unless one was typed.
+    pub fn apply_preset(&mut self, before: usize) {
+        let was = SEARCH_PRESETS.get(before).map(|p| tl!(p.0).to_string()).unwrap_or_default();
+        if self.name.trim().is_empty() || self.name == was {
+            self.name = SEARCH_PRESETS.get(self.preset).map(|p| tl!(p.0).to_string()).unwrap_or_default();
+        }
+        if self.preset == PRESET_CUSTOM && self.query.trim().is_empty() {
+            self.query = SEARCH_PRESETS.get(before).map(|p| p.1.to_string()).filter(|q| q != "from:").unwrap_or_default();
+        }
+    }
+
+    /// Whether it asks for people, and for a search of its own.
+    pub fn needs(&self) -> (bool, bool) {
+        (self.preset == PRESET_PEOPLE, self.preset == PRESET_CUSTOM)
+    }
+
+    /// What it searches for: `from:ana,"zoe park"` for people.
+    pub fn final_query(&self) -> String {
+        match self.preset {
+            PRESET_PEOPLE => {
+                let people: Vec<String> = self
+                    .people
+                    .split([',', ';'])
+                    .map(|p| p.trim().replace('"', ""))
+                    .filter(|p| !p.is_empty())
+                    .map(|p| if p.contains(char::is_whitespace) { format!("\"{p}\"") } else { p })
+                    .collect();
+                if people.is_empty() { String::new() } else { format!("from:{}", people.join(",")) }
+            }
+            PRESET_CUSTOM => self.query.trim().to_string(),
+            i => SEARCH_PRESETS.get(i).map(|p| p.1.to_string()).unwrap_or_default(),
+        }
     }
 }
 
@@ -1026,6 +1104,7 @@ impl Dialog {
             | Dialog::DeleteFolder { error, .. }
             | Dialog::NewCategory { error, .. } => *error = Some(e),
             Dialog::EditRule(f) => f.error = Some(e),
+            Dialog::SearchFolder(f) => f.error = Some(e),
             Dialog::EditAccount(f) => f.error = Some(e),
             Dialog::Event(f) => f.error = Some(e),
             Dialog::Contact(f) => f.error = Some(e),
@@ -2321,6 +2400,58 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             let (ok, cancel) = buttons(ui, t, "Add", ready);
             if (ok || enter) && ready {
                 acts.push(Action::Submit("account.addSharedMailbox", json!({"account": account, "address": address.trim()})));
+            }
+            !cancel
+        }
+        Dialog::SearchFolder(f) => {
+            ui.set_width(460.0);
+            title(ui, t, if f.original.is_some() { "Edit Search Folder" } else { "New Search Folder" });
+            ui.add(
+                egui::Label::new(RichText::new(tl!("Shows the mail it finds in every folder, except Deleted Items and Junk Email.")).color(t.dim))
+                    .wrap(),
+            );
+            ui.add_space(8.0);
+            ui.label(RichText::new(tl!("Show")).color(t.dim).small());
+            let before = f.preset;
+            egui::ComboBox::from_id_salt("search-folder-preset")
+                .width(ui.available_width())
+                .selected_text(tl!(SEARCH_PRESETS.get(f.preset).map_or("Custom", |p| p.0)))
+                .show_ui(ui, |ui| {
+                    for (i, (label, _)) in SEARCH_PRESETS.iter().enumerate() {
+                        ui.selectable_value(&mut f.preset, i, tl!(label));
+                    }
+                });
+            if f.preset != before {
+                f.apply_preset(before);
+            }
+            let (needs_people, custom) = f.needs();
+            if needs_people {
+                ui.add_space(6.0);
+                ui.label(RichText::new(tl!("From these people (addresses or names, separated by commas)")).color(t.dim).small());
+                ui.add(egui::TextEdit::singleline(&mut f.people).hint_text("ana@example.com, Jun").desired_width(f32::INFINITY));
+            }
+            if custom {
+                ui.add_space(6.0);
+                ui.label(RichText::new(tl!("Search for")).color(t.dim).small());
+                ui.add(egui::TextEdit::singleline(&mut f.query).hint_text("from:ana subject:invoice has:attachment").desired_width(f32::INFINITY));
+            }
+            ui.add_space(6.0);
+            ui.label(RichText::new(tl!("Name")).color(t.dim).small());
+            let r = ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(f32::INFINITY));
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if let Some(e) = &f.error {
+                ui.add_space(4.0);
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let query = f.final_query();
+            let ready = !f.name.trim().is_empty() && !query.trim().is_empty();
+            let (ok, cancel) = buttons(ui, t, if f.original.is_some() { "Save" } else { "Create" }, ready);
+            if (ok || enter) && ready {
+                let p = match &f.original {
+                    Some(old) => json!({"name": old, "newName": f.name.trim(), "query": query}),
+                    None => json!({"name": f.name.trim(), "query": query}),
+                };
+                acts.push(Action::Submit(if f.original.is_some() { "searchFolder.edit" } else { "searchFolder.create" }, p));
             }
             !cancel
         }

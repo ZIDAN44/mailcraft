@@ -1581,3 +1581,49 @@ fn junk_lists_block_and_draw() {
     assert!(a.ui.backstage.is_some());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Search Folders: made from the dialog (a kind, or people), opened from the pane, the heading
+/// its name and the search box left empty; the dialog shows the reason when refused.
+#[test]
+fn search_folders_are_made_from_the_dialog_and_open() {
+    let (mut a, dir) = app("search-folders");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let mut f = crate::dialogs::SearchFolderForm::new();
+    assert_eq!(f.final_query(), "is:unread");
+    let before = f.preset;
+    f.preset = 7;
+    f.apply_preset(before);
+    assert_eq!(f.name, "Mail from specific people", "the name follows the kind until one is typed");
+    f.people = "zoe@studio.example; Ana Lima, , \"x".into();
+    assert_eq!(f.final_query(), "from:zoe@studio.example,\"Ana Lima\",x");
+    f.name = "Zoe and Ana".into();
+    a.ui.dialog = Some(Dialog::SearchFolder(Box::new(f.clone())));
+    frame(&ctx, &mut a, vec![]);
+    a.ui.search_text = "typed before".into();
+    a.act(crate::Action::Submit("searchFolder.create", json!({"name": f.name, "query": f.final_query()})));
+    assert!(a.ui.dialog.is_none());
+    assert_eq!(crate::view_title(&a.session), "Zoe and Ana");
+    assert!(a.ui.search_text.is_empty());
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.search_text.is_empty(), "the box isn't filled with its query");
+    assert!(!a.session.list.is_empty() && a.session.list.iter().all(|m| m.from.email.starts_with("zoe") || m.from.name.contains("Ana")));
+    // The same name again: the dialog stays, with why.
+    a.ui.dialog = Some(Dialog::SearchFolder(Box::new(f.clone())));
+    a.act(crate::Action::Submit("searchFolder.create", json!({"name": "zoe AND ana", "query": "is:unread"})));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::SearchFolder(f)) if f.error.is_some()));
+    // Edited: a preset's search shows as that kind, anything else as Custom.
+    let edit = crate::dialogs::SearchFolderForm::edit(&a.session.prefs.search_folders[0]);
+    assert_eq!((edit.preset, edit.query.as_str()), (8, "from:zoe@studio.example,\"Ana Lima\",x"));
+    a.ui.dialog = Some(Dialog::SearchFolder(Box::new(edit)));
+    frame(&ctx, &mut a, vec![]);
+    // Many, with long names, draw.
+    for n in 0..60 {
+        a.run("searchFolder.create", json!({"name": format!("{} {n}", "Quite a long Search Folder name ".repeat(3)), "query": "is:flagged"}));
+    }
+    a.ui.dialog = None;
+    frame(&ctx, &mut a, vec![]);
+    a.run("search.run", json!({"query": "storyboard"}));
+    assert!(crate::view_title(&a.session).contains("storyboard"));
+    let _ = std::fs::remove_dir_all(dir);
+}
