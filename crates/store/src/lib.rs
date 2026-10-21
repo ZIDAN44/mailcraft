@@ -553,6 +553,8 @@ impl Routed {
 pub struct Store {
     root: PathBuf,
     files: Routed,
+    /// Serializes read-modify-write of ops.json between the UI-side pool and account threads.
+    changes: Arc<Mutex<()>>,
 }
 
 impl Store {
@@ -560,7 +562,7 @@ impl Store {
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
         fs::create_dir_all(&root).map_err(io_err(&root))?;
-        Ok(Store { files: Routed::new(&root, Files::Disk), root })
+        Ok(Store { files: Routed::new(&root, Files::Disk), root, changes: Arc::default() })
     }
 
     /// A cache whose accounts are each one data file in `files` (as Outlook keeps a `.pst` per
@@ -571,7 +573,7 @@ impl Store {
         let root = root.into();
         fs::create_dir_all(&root).map_err(io_err(&root))?;
         let packs = packed::Packs::open(&root, files.as_ref())?;
-        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root })
+        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default() })
     }
 
     /// The data file an account is kept in, when the cache keeps them so.
@@ -598,7 +600,7 @@ impl Store {
     /// A cache kept in memory only (clones share it).
     pub fn memory() -> Store {
         let root = PathBuf::from("memory");
-        Store { files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())), root }
+        Store { files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())), root, changes: Arc::default() }
     }
 
     /// A memory cache holding files from an earlier [`Store::snapshot`].
@@ -1045,6 +1047,25 @@ impl Store {
         self.read_json(&self.account_dir(account).join("ops.json"))
     }
 
+    /// Append `op` to ops.json.
+    pub fn add_op(&self, account: &str, op: Op) -> Result<()> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut ops = self.load_ops(account).unwrap_or_default();
+        ops.push(op);
+        self.save_ops(account, &ops)
+    }
+
+    /// Delete the first entry equal to `op` from ops.json, if any.
+    pub fn remove_op(&self, account: &str, op: &Op) -> Result<()> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut ops = self.load_ops(account).unwrap_or_default();
+        if let Some(i) = ops.iter().position(|o| o == op) {
+            ops.remove(i);
+            self.save_ops(account, &ops)?;
+        }
+        Ok(())
+    }
+
     pub fn save_ops(&self, account: &str, ops: &[Op]) -> Result<()> {
         let path = self.account_dir(account).join("ops.json");
         if ops.is_empty() {
@@ -1287,7 +1308,11 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(io_err(parent))?;
     }
-    let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+    // Unique per call, so concurrent writers to one target can't clobber each other's scratch.
+    static WRITES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let seq = WRITES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let base = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let tmp = path.with_file_name(format!(".{base}.{}.{seq}.part", std::process::id()));
     fs::write(&tmp, bytes).map_err(io_err(&tmp))?;
     fs::rename(&tmp, path).map_err(|e| {
         let _ = fs::remove_file(&tmp);

@@ -123,6 +123,11 @@ fn quick_job(j: &Job, acc: &AccountConfig) -> bool {
     }
 }
 
+/// Jobs a full sync handles between two folders rather than at its end.
+fn between_folders(j: &Job) -> bool {
+    matches!(j, Job::FetchBody { .. } | Job::Apply { .. })
+}
+
 /// Runs jobs for every account.
 pub struct Pool {
     store: Store,
@@ -447,24 +452,29 @@ impl Pool {
             Job::GetVacation { account } | Job::SetVacation { account, .. } if !self.workers.contains_key(&account) => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
             }
-            Job::Apply { account, op } if !self.workers.contains_key(&account) => {
-                // Offline: change the cache now and keep the change for the next connection.
+            // Persist the change here, on the caller's thread, before the account thread is
+            // free: it may be minutes into a full sync. Waiting meant the cache could be
+            // overwritten by a folder refresh and an exit dropped the job. POP accounts keep the
+            // old route since their worker does extra local bookkeeping.
+            Job::Apply { account, op } if self.records_edits(&account) => {
                 match self.store.apply_op(&account, &op) {
                     Ok(changed) => {
                         if op.is_folder_op() {
                             let folders = self.store.load_folders(&account).unwrap_or_default();
                             self.sink.emit(Event::Folders { account: account.clone(), folders });
                         }
-                        let mut ops = self.store.load_ops(&account).unwrap_or_default();
-                        ops.push(op);
-                        if let Err(e) = self.store.save_ops(&account, &ops) {
+                        if let Err(e) = self.store.add_op(&account, op.clone()) {
                             self.sink.emit(Event::Notice { account: account.clone(), message: e.to_string() });
                         }
                         for folder in changed {
                             self.sink.emit(Event::FolderChanged { account: account.clone(), folder });
                         }
                     }
-                    Err(e) => self.sink.emit(Event::Notice { account, message: e.to_string() }),
+                    Err(e) => self.sink.emit(Event::Notice { account: account.clone(), message: e.to_string() }),
+                }
+                // Wake the account thread so it uploads the queue at its next opportunity.
+                if let Some(h) = self.workers.get(&account) {
+                    let _ = h.tx.send(Job::Apply { account, op });
                 }
             }
             other => {
@@ -491,6 +501,16 @@ impl Pool {
                     None => self.sink.emit(Event::Notice { account: id, message: "the account is not connected".into() }),
                 }
             }
+        }
+    }
+
+    /// Whether this side writes an account's edits to the cache and ops.json: always when no
+    /// thread runs for it; for a running one unless it is POP (whose thread does it, with its
+    /// own bookkeeping).
+    fn records_edits(&self, account: &str) -> bool {
+        match self.workers.get(account) {
+            None => true,
+            Some(_) => matches!(self.configs.get(account), Some(c) if c.pop.is_none()),
         }
     }
 
@@ -604,7 +624,6 @@ struct Worker {
     /// JMAP and Graph accounts: message numbers and mailbox ids.
     jstate: jmap::State,
     folders: Vec<Folder>,
-    ops: Vec<Op>,
     queue: VecDeque<Job>,
     backoff: Duration,
     next_attempt: Instant,
@@ -636,7 +655,6 @@ const FOUND_MAX: usize = 500;
 
 impl Worker {
     fn new(acc: AccountConfig, auth: Arc<Mutex<Auth>>, store: Store, sink: Sink, opts: SyncOptions) -> Worker {
-        let ops = store.load_ops(&acc.id).unwrap_or_default();
         let folders = store.load_folders(&acc.id).unwrap_or_default();
         let jstate = if acc.is_api() { jmap::State::load(&store, &acc.id) } else { jmap::State::default() };
         // Online only (issue #4): nothing downloaded in full ahead of reading; a message comes
@@ -654,7 +672,6 @@ impl Worker {
             jstate,
             folders,
             windows,
-            ops,
             queue: VecDeque::new(),
             backoff: Duration::from_secs(5),
             next_attempt: Instant::now(),
@@ -1217,9 +1234,9 @@ impl Worker {
         let paths: Vec<String> = self.folders.iter().filter(|f| f.selectable).map(|f| f.path.clone()).collect();
         for path in paths {
             self.drain(rx);
-            // Opened messages jump the queue.
-            let urgent: Vec<Job> = self.queue.iter().filter(|j| matches!(j, Job::FetchBody { .. })).cloned().collect();
-            self.queue.retain(|j| !matches!(j, Job::FetchBody { .. }));
+            // Body fetches and local edits are served between folders, ahead of the rest.
+            let (urgent, rest): (VecDeque<Job>, VecDeque<Job>) = std::mem::take(&mut self.queue).into_iter().partition(between_folders);
+            self.queue = rest;
             for j in urgent {
                 self.handle(j);
             }
@@ -1228,17 +1245,21 @@ impl Worker {
             }
             self.sync_one(&path);
         }
+        // Report Online after mail; CalDAV/EWS calendars and contacts can take far longer and
+        // shouldn't hold the status bar on the last folder name.
         if self.conn.is_some() {
             self.report_quota();
-            self.sync_dav();
-        }
-        if self.conn.is_some() {
             self.prune_jmap_numbers();
             self.last_full = Some(Instant::now());
             // Anything left from a failed attempt gets another try every full sync.
             self.flush_outbox();
             log::info!("{}: synced {} folders in {:.1} s", self.acc.id, self.folders.len(), began.elapsed().as_secs_f32());
             self.status(SyncStatus::Online { at: now() });
+        }
+        if self.conn.is_some() {
+            let began = Instant::now();
+            self.sync_dav();
+            log::info!("{}: PIM pass took {:?}", self.acc.id, began.elapsed());
         }
     }
 
@@ -1247,7 +1268,8 @@ impl Worker {
         if !matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_))) {
             return;
         }
-        let mut keep: std::collections::HashSet<u32> = self.ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
+        let ops = self.store.load_ops(&self.acc.id).unwrap_or_default();
+        let mut keep: std::collections::HashSet<u32> = ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
         for f in &self.folders {
             if let Ok(st) = self.store.load_folder(&self.acc.id, &f.path) {
                 keep.extend(st.messages.iter().map(|m| m.key.uid));
@@ -1362,7 +1384,11 @@ impl Worker {
             None => Err(NetError::Closed("not connected".into())),
         };
         match result {
-            Ok(r) => {
+            Ok(mut r) => {
+                // The listing predates any queued edits: replay them locally (RFC 4549).
+                if self.reapply_waiting(path) {
+                    r.changed += 1;
+                }
                 let first = self.folders.iter().find(|f| f.path == path).is_some_and(|f| f.total == 0 && r.total > 0);
                 if let Some(f) = self.folders.iter_mut().find(|f| f.path == path) {
                     let counts_changed = f.unread != r.unread || f.total != r.total;
@@ -1419,10 +1445,19 @@ impl Worker {
             }
             Job::SearchServer { folders, query, .. } => self.search_server(&folders, query),
             Job::FetchBody { key } => self.fetch(key),
+            // Already persisted by the pool; just push the queue.
+            Job::Apply { op, .. } if self.acc.pop.is_none() => {
+                if op.is_folder_op() {
+                    self.folders = self.store.load_folders(&self.acc.id).unwrap_or_default();
+                }
+                if self.conn.is_some() {
+                    self.replay();
+                }
+            }
             Job::Apply { op, .. } => {
                 // POP: a move is carried out here (there's no server copy to come back); what's
                 // deleted for good is noted, for removing the server's copy when the account says.
-                if self.acc.pop.is_some() {
+                {
                     let gone: Vec<mailcraft_model::MessageKey> = match &op {
                         Op::Expunge { keys } => keys.clone(),
                         Op::EmptyFolder { path } => {
@@ -1450,8 +1485,9 @@ impl Worker {
                     }
                     Err(e) => self.notice(e.to_string()),
                 }
-                self.ops.push(op);
-                let _ = self.store.save_ops(&self.acc.id, &self.ops);
+                if let Err(e) = self.store.add_op(&self.acc.id, op) {
+                    self.notice(e.to_string());
+                }
                 if self.conn.is_some() {
                     self.replay();
                 }
@@ -1852,11 +1888,30 @@ impl Worker {
     }
 
     /// Replay offline changes on the server, oldest first.
+    /// Re-apply queued ops that touch `path` to its freshly saved cache. True if the cache
+    /// changed as a result.
+    fn reapply_waiting(&mut self, path: &str) -> bool {
+        let mut any = false;
+        for op in self.store.load_ops(&self.acc.id).unwrap_or_default() {
+            let touches = match &op {
+                Op::EmptyFolder { path: p } => p == path,
+                o if o.is_folder_op() => false,
+                o => o.keys().iter().any(|k| k.folder == path),
+            };
+            if touches && self.store.apply_op(&self.acc.id, &op).is_ok_and(|c| !c.is_empty()) {
+                any = true;
+            }
+        }
+        any
+    }
+
     fn replay(&mut self) {
         let mut destinations: Vec<String> = Vec::new();
         let mut relist = false;
         let trash = self.folders.iter().find(|f| f.role == FolderRole::Trash).map(|f| f.path.clone());
-        while let Some(op) = self.ops.first().cloned() {
+        // Cap the loop in case removal keeps failing.
+        for _ in 0..100_000 {
+            let Some(op) = self.store.load_ops(&self.acc.id).unwrap_or_default().into_iter().next() else { break };
             let r = match self.conn.as_mut() {
                 Some(Conn::Imap(c)) => apply_remote_with(c, &op, trash.as_deref()),
                 Some(Conn::Jmap(c)) => jmap::apply_remote(c, &self.jstate, &op),
@@ -1878,16 +1933,22 @@ impl Worker {
                         Op::EmptyFolder { path } => destinations.push(path.clone()),
                         Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
                     }
-                    self.ops.remove(0);
+                    if let Err(e) = self.store.remove_op(&self.acc.id, &op) {
+                        self.notice(e.to_string());
+                        break;
+                    }
                 }
                 Err(e) if e.is_fatal() => {
-                    let _ = self.store.save_ops(&self.acc.id, &self.ops);
-                    return self.failed(e);
+                    self.failed(e);
+                    return;
                 }
                 Err(e) => {
                     // The server refused: drop the change and resync so the cache matches the
                     // server again (forcing a full flag check).
-                    self.ops.remove(0);
+                    if let Err(e) = self.store.remove_op(&self.acc.id, &op) {
+                        self.notice(e.to_string());
+                        break;
+                    }
                     let mut folders: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
                     folders.dedup();
                     for f in &folders {
@@ -1903,7 +1964,6 @@ impl Worker {
                 }
             }
         }
-        let _ = self.store.save_ops(&self.acc.id, &self.ops);
         if relist {
             self.relist();
         }
