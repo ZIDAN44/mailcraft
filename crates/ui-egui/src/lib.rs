@@ -1666,7 +1666,17 @@ impl MailApp {
             i.events
                 .iter()
                 .filter_map(|e| match e {
-                    egui::Event::Key { key, pressed: true, modifiers, .. } => Some((*key, *modifiers)),
+                    // The digit row by where it is: with Shift, or on a layout whose top row types
+                    // other characters (AZERTY), Ctrl+Shift+1 is still 1, not `!` or `&`.
+                    egui::Event::Key { key, physical_key, pressed: true, modifiers, .. } => {
+                        let digit = physical_key.filter(|p| {
+                            matches!(
+                                p,
+                                Key::Num0 | Key::Num1 | Key::Num2 | Key::Num3 | Key::Num4 | Key::Num5 | Key::Num6 | Key::Num7 | Key::Num8 | Key::Num9
+                            )
+                        });
+                        Some((digit.unwrap_or(*key), *modifiers))
+                    }
                     _ => None,
                 })
                 .collect()
@@ -2104,6 +2114,9 @@ impl MailApp {
                         {
                             acts.push(Action::Dialog(Dialog::move_to()));
                         }
+                        // Quick Steps: each done to the selection in one click (Ctrl+Shift+1…9).
+                        let r = widgets::tool_button(ui, Icon::Steps, "Quick steps", &t, true);
+                        egui::Popup::menu(&r).show(|ui| quick_steps_menu(ui, s, acts));
                         widgets::group_sep(ui, &t);
                         for (id, icon, label, tip) in [
                             ("mail.reply", Icon::Reply, "Reply", "Reply (Ctrl+R)"),
@@ -2606,6 +2619,39 @@ pub(crate) fn view_title(s: &Session) -> String {
     match &s.search {
         Some((q, _)) => tf!("Results for “{query}”", query = q),
         None => i18n::tc("folder", &s.view_title()).to_string(),
+    }
+}
+
+/// The Quick Steps menu: each step (done to the selection), then making and changing them.
+pub(crate) fn quick_steps_menu(ui: &mut egui::Ui, s: &Session, acts: &mut Vec<Action>) {
+    let has = !s.selection.is_empty();
+    if s.prefs.quick_steps.is_empty() {
+        ui.label(RichText::new(tl!("No Quick Steps yet.")).weak());
+    }
+    for (i, q) in s.prefs.quick_steps.iter().enumerate() {
+        let mut b = egui::Button::new(q.name.as_str());
+        if i < 9 {
+            b = b.shortcut_text(format!("Ctrl+Shift+{}", i + 1));
+        }
+        if ui.add_enabled(has, b).clicked() {
+            acts.push(Action::Run("quickStep.run", json!({"index": i})));
+            ui.close();
+        }
+    }
+    ui.separator();
+    if ui.button(tl!("New Quick Step…")).clicked() {
+        acts.push(Action::Dialog(Dialog::QuickStep(Box::new(crate::dialogs::QuickStepForm::new(s)))));
+        ui.close();
+    }
+    if !s.prefs.quick_steps.is_empty() {
+        ui.menu_button(tl!("Edit a Quick Step"), |ui| {
+            for q in &s.prefs.quick_steps {
+                if ui.button(q.name.as_str()).clicked() {
+                    acts.push(Action::Dialog(Dialog::QuickStep(Box::new(crate::dialogs::QuickStepForm::edit(s, q)))));
+                    ui.close();
+                }
+            }
+        });
     }
 }
 

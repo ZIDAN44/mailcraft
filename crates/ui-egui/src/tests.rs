@@ -1627,3 +1627,49 @@ fn search_folders_are_made_from_the_dialog_and_open() {
     assert!(crate::view_title(&a.session).contains("storyboard"));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Quick Steps: made from the dialog, done with Ctrl+Shift+1, changed and deleted from it.
+#[test]
+fn quick_steps_are_made_and_done_with_their_keys() {
+    let (mut a, dir) = app("quick-steps");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let mut f = crate::dialogs::QuickStepForm::new(&a.session);
+    assert_eq!(f.actions(), vec![json!({"do": "markRead"}), json!({"do": "moveToRole", "value": "archive"})], "Done, as Outlook's");
+    f.name = "Done".into();
+    f.flag = true;
+    a.ui.dialog = Some(Dialog::QuickStep(Box::new(f.clone())));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Submit("quickStep.create", json!({"name": f.name, "actions": f.actions()})));
+    assert!(a.ui.dialog.is_none() && a.session.prefs.quick_steps.len() == 1);
+    // Ctrl+Shift+1 on the first message: flagged, read, archived.
+    frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    let m = a.session.selected()[0].clone();
+    // As Windows sends it: Shift makes the key `!`; where it is says 1.
+    let shifted = Event::Key {
+        key: Key::Exclamationmark,
+        physical_key: Some(Key::Num1),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+    };
+    frame(&ctx, &mut a, vec![shifted]);
+    let archive = a.session.account("sample").and_then(|x| x.folder(mailcraft_engine::model::FolderRole::Archive)).map(|x| x.path.clone()).unwrap();
+    let there = a.session.folder_state("sample", &archive).messages.iter().find(|x| x.message_id == m.message_id).cloned().unwrap();
+    assert!(there.flags.seen && there.flags.flagged);
+    // Opened again, it shows what it does; renamed to a taken name: the reason in the dialog.
+    a.run("quickStep.create", json!({"name": "Later", "actions": [{"do": "pin"}]}));
+    let mut edit = crate::dialogs::QuickStepForm::edit(&a.session, &a.session.prefs.quick_steps[0]);
+    assert!(edit.read && edit.flag && edit.move_to == crate::dialogs::StepMove::Role(mailcraft_engine::model::FolderRole::Archive));
+    edit.name = "later".into();
+    a.ui.dialog = Some(Dialog::QuickStep(Box::new(edit.clone())));
+    a.act(crate::Action::Submit("quickStep.edit", json!({"name": "Done", "newName": edit.name, "actions": edit.actions()})));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::QuickStep(f)) if f.error.is_some()));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Submit("quickStep.delete", json!({"name": "Done"})));
+    assert!(a.ui.dialog.is_none());
+    assert_eq!(a.session.prefs.quick_steps.len(), 1);
+    // Nothing to do: the dialog can't be saved.
+    assert!(crate::dialogs::QuickStepForm { name: "x".into(), ..Default::default() }.actions().is_empty());
+    let _ = std::fs::remove_dir_all(dir);
+}

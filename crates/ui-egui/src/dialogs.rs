@@ -670,6 +670,8 @@ pub enum Dialog {
     EditRule(Box<RuleForm>),
     /// A Search Folder made or changed (Outlook's New Search Folder).
     SearchFolder(Box<SearchFolderForm>),
+    /// A Quick Step made or changed.
+    QuickStep(Box<QuickStepForm>),
     /// A picture attachment, larger.
     PicturePreview {
         key: mailcraft_engine::model::MessageKey,
@@ -810,6 +812,104 @@ impl SearchFolderForm {
             }
             PRESET_CUSTOM => self.query.trim().to_string(),
             i => SEARCH_PRESETS.get(i).map(|p| p.1.to_string()).unwrap_or_default(),
+        }
+    }
+}
+
+/// Where a Quick Step moves mail: nowhere, a folder with a role, or a folder by its path.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum StepMove {
+    #[default]
+    Stay,
+    Role(FolderRole),
+    Folder(String),
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct QuickStepForm {
+    /// The name it had (`None`: a new one).
+    pub original: Option<String>,
+    pub name: String,
+    pub read: bool,
+    pub flag: bool,
+    pub pin: bool,
+    /// A category to add (empty: none).
+    pub category: String,
+    pub move_to: StepMove,
+    /// The folders to offer: each account's own, by path, once.
+    pub folders: Vec<String>,
+    pub error: Option<String>,
+}
+
+impl QuickStepForm {
+    fn folders(s: &Session) -> Vec<String> {
+        let mut v: Vec<String> = s
+            .accounts
+            .iter()
+            .flat_map(|a| a.folders.iter())
+            .filter(|f| matches!(f.role, FolderRole::Other | FolderRole::Inbox) && f.mailbox.is_none())
+            .map(|f| f.path.clone())
+            .collect();
+        v.sort();
+        v.dedup();
+        v.truncate(500);
+        v
+    }
+
+    /// A new one: marked read and moved to Archive, as Outlook's "Done".
+    pub fn new(s: &Session) -> QuickStepForm {
+        QuickStepForm { read: true, move_to: StepMove::Role(FolderRole::Archive), folders: Self::folders(s), ..Default::default() }
+    }
+
+    pub fn edit(s: &Session, q: &mailcraft_engine::QuickStep) -> QuickStepForm {
+        use mailcraft_engine::model::organize::RuleAction;
+        let mut f = QuickStepForm { original: Some(q.name.clone()), name: q.name.clone(), folders: Self::folders(s), ..Default::default() };
+        for a in &q.actions {
+            match a {
+                RuleAction::MarkRead => f.read = true,
+                RuleAction::Flag => f.flag = true,
+                RuleAction::Pin => f.pin = true,
+                RuleAction::Categorize(c) => f.category = c.clone(),
+                RuleAction::MoveTo(p) => f.move_to = StepMove::Folder(p.clone()),
+                RuleAction::MoveToRole(r) => f.move_to = StepMove::Role(*r),
+                RuleAction::Delete => f.move_to = StepMove::Role(FolderRole::Trash),
+            }
+        }
+        f
+    }
+
+    /// Its actions as `quickStep.create` takes them.
+    pub fn actions(&self) -> Vec<serde_json::Value> {
+        let mut v = Vec::new();
+        if self.read {
+            v.push(json!({"do": "markRead"}));
+        }
+        if self.flag {
+            v.push(json!({"do": "flag"}));
+        }
+        if self.pin {
+            v.push(json!({"do": "pin"}));
+        }
+        if !self.category.is_empty() {
+            v.push(json!({"do": "categorize", "value": self.category}));
+        }
+        match &self.move_to {
+            StepMove::Stay => {}
+            StepMove::Role(FolderRole::Trash) => v.push(json!({"do": "delete"})),
+            StepMove::Role(r) => v.push(json!({"do": "moveToRole", "value": r.code()})),
+            StepMove::Folder(p) => v.push(json!({"do": "moveTo", "value": p})),
+        }
+        v
+    }
+
+    fn move_label(m: &StepMove) -> String {
+        match m {
+            StepMove::Stay => tl!("Don't move").to_string(),
+            StepMove::Role(FolderRole::Archive) => tl!("Archive").to_string(),
+            StepMove::Role(FolderRole::Trash) => tl!("Deleted Items").to_string(),
+            StepMove::Role(FolderRole::Junk) => tl!("Junk Email").to_string(),
+            StepMove::Role(r) => r.label().unwrap_or("").to_string(),
+            StepMove::Folder(p) => p.clone(),
         }
     }
 }
@@ -1105,6 +1205,7 @@ impl Dialog {
             | Dialog::NewCategory { error, .. } => *error = Some(e),
             Dialog::EditRule(f) => f.error = Some(e),
             Dialog::SearchFolder(f) => f.error = Some(e),
+            Dialog::QuickStep(f) => f.error = Some(e),
             Dialog::EditAccount(f) => f.error = Some(e),
             Dialog::Event(f) => f.error = Some(e),
             Dialog::Contact(f) => f.error = Some(e),
@@ -2452,6 +2553,71 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
                     None => json!({"name": f.name.trim(), "query": query}),
                 };
                 acts.push(Action::Submit(if f.original.is_some() { "searchFolder.edit" } else { "searchFolder.create" }, p));
+            }
+            !cancel
+        }
+        Dialog::QuickStep(f) => {
+            ui.set_width(440.0);
+            title(ui, t, if f.original.is_some() { "Edit Quick Step" } else { "New Quick Step" });
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tl!("Done to the selected mail in one click; the first nine also with Ctrl+Shift+1 to 9.")).color(t.dim),
+                )
+                .wrap(),
+            );
+            ui.add_space(8.0);
+            ui.label(RichText::new(tl!("Name")).color(t.dim).small());
+            let r = ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Done")).desired_width(f32::INFINITY));
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            ui.add_space(6.0);
+            ui.checkbox(&mut f.read, tl!("Mark as read"));
+            ui.checkbox(&mut f.flag, tl!("Flag"));
+            ui.checkbox(&mut f.pin, tl!("Pin"));
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(tl!("Categorize"));
+                let shown = if f.category.is_empty() { tl!("None").to_string() } else { f.category.clone() };
+                egui::ComboBox::from_id_salt("quick-step-category").width(220.0).selected_text(shown).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut f.category, String::new(), tl!("None"));
+                    for c in &s.prefs.categories {
+                        ui.selectable_value(&mut f.category, c.name.clone(), c.name.as_str());
+                    }
+                });
+            });
+            ui.horizontal(|ui| {
+                ui.label(tl!("Then move to"));
+                egui::ComboBox::from_id_salt("quick-step-move").width(220.0).selected_text(QuickStepForm::move_label(&f.move_to)).show_ui(ui, |ui| {
+                    let mut choices = vec![
+                        StepMove::Stay,
+                        StepMove::Role(FolderRole::Archive),
+                        StepMove::Role(FolderRole::Trash),
+                        StepMove::Role(FolderRole::Junk),
+                    ];
+                    choices.extend(f.folders.iter().map(|p| StepMove::Folder(p.clone())));
+                    for c in choices {
+                        let label = QuickStepForm::move_label(&c);
+                        ui.selectable_value(&mut f.move_to, c, label);
+                    }
+                });
+            });
+            if let Some(e) = &f.error {
+                ui.add_space(4.0);
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let ready = !f.name.trim().is_empty() && !f.actions().is_empty();
+            if let Some(old) = f.original.clone() {
+                ui.add_space(6.0);
+                if ui.button(RichText::new(tl!("Delete this Quick Step")).color(t.danger)).clicked() {
+                    acts.push(Action::Submit("quickStep.delete", json!({"name": old})));
+                }
+            }
+            let (ok, cancel) = buttons(ui, t, if f.original.is_some() { "Save" } else { "Create" }, ready);
+            if (ok || enter) && ready {
+                let p = match &f.original {
+                    Some(old) => json!({"name": old, "newName": f.name.trim(), "actions": f.actions()}),
+                    None => json!({"name": f.name.trim(), "actions": f.actions()}),
+                };
+                acts.push(Action::Submit(if f.original.is_some() { "quickStep.edit" } else { "quickStep.create" }, p));
             }
             !cancel
         }

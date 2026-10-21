@@ -68,6 +68,8 @@ pub enum Icon {
     AddressBook,
     /// A sticky note (Notes).
     Note,
+    /// Two chevrons running ahead (Quick Steps: several things in one go).
+    Steps,
 }
 
 struct Pen<'a> {
@@ -342,6 +344,10 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(7.0, 2.5), (2.5, 2.5), (2.5, 13.5), (13.5, 13.5), (13.5, 9.0)]);
             pen.line(&[(7.5, 8.5), (13.5, 2.5)]);
             pen.line(&[(9.5, 2.5), (13.5, 2.5), (13.5, 6.5)]);
+        }
+        Icon::Steps => {
+            pen.line(&[(3.0, 4.0), (7.0, 8.0), (3.0, 12.0)]);
+            pen.line(&[(8.5, 4.0), (12.5, 8.0), (8.5, 12.0)]);
         }
         Icon::PopIn => {
             pen.line(&[(7.0, 2.5), (2.5, 2.5), (2.5, 13.5), (13.5, 13.5), (13.5, 9.0)]);
