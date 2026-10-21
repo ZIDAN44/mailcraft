@@ -25,10 +25,17 @@ struct FileLog {
     echo: bool,
 }
 
+/// A line to the terminal; a terminal gone (standard error closed, or a broken pipe once the
+/// program that started MailCraft has ended) is passed over. `eprint!` panicked there, and
+/// the next line logged ended MailCraft.
+fn echo(to: &mut dyn Write, line: &str) {
+    let _ = to.write_all(line.as_bytes());
+}
+
 impl FileLog {
     fn write_line(&self, line: &str) {
         if self.echo {
-            eprint!("{line}");
+            echo(&mut std::io::stderr(), line);
         }
         let mut out = self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some((file, written)) = out.as_mut() else { return };
@@ -109,6 +116,29 @@ pub fn start(dir: Option<&Path>, echo: bool) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A terminal that's gone doesn't end MailCraft (found when its starter exited).
+    #[test]
+    fn a_closed_terminal_is_passed_over() {
+        struct Gone;
+        impl Write for Gone {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+            }
+        }
+        echo(
+            &mut Gone, "a line
+",
+        );
+        let log = FileLog { out: Mutex::new(None), echo: true };
+        log.write_line(
+            "still here
+",
+        );
+    }
 
     #[test]
     fn lines_and_levels() {
