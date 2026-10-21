@@ -795,6 +795,13 @@ pub fn fill_from_source(m: &mut Summary, raw: &[u8]) {
     let full = mime::summary_from_full(raw, m.key.clone(), m.flags.clone(), m.size, m.date);
     m.preview = full.preview;
     m.has_attachments = full.has_attachments;
+    // Entries built from a Graph listing carry no References or List-Id: take them now.
+    let threaded = !m.in_reply_to.is_empty() || !m.references.is_empty();
+    if !threaded {
+        (m.in_reply_to, m.references) = (full.in_reply_to, full.references);
+    }
+    m.bulk = m.bulk || full.bulk;
+    m.importance = if m.importance != 0 { m.importance } else { full.importance };
     if m.size == 0 {
         m.size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
     }

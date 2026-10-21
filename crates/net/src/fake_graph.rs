@@ -53,6 +53,13 @@ pub struct Data {
     pub others: Vec<(String, bool)>,
     /// Messages whose source can't be had (the server fails on it).
     pub unreadable: Vec<String>,
+    /// Per-batch concurrency cap: entries past this index get a 429 with Retry-After.
+    pub at_once: Option<usize>,
+    /// Number of upcoming top-level requests to refuse with 429.
+    pub throttle: u32,
+    /// Set per request from its `Prefer` header; without `IdType="ImmutableId"` message ids
+    /// are returned in the other (prefixed) form.
+    asked_immutable: bool,
     late: Vec<(std::time::Instant, Vec<u8>)>,
     next: u32,
 }
@@ -84,6 +91,7 @@ impl Data {
     }
 
     pub fn message(&self, id: &str) -> Option<&Msg> {
+        let id = plain_id(id);
         self.messages.iter().find(|m| m.id == id)
     }
 
@@ -108,7 +116,7 @@ impl Data {
         let p = mailcraft_mime::parse(&m.raw);
         let addr = |a: &mailcraft_model::EmailAddress| json!({"emailAddress": {"name": a.name, "address": a.email}});
         json!({
-            "id": m.id, "parentFolderId": m.folder, "isRead": m.read, "isDraft": m.draft,
+            "id": if self.asked_immutable { m.id.clone() } else { format!("{REGULAR}{}", m.id) }, "parentFolderId": m.folder, "isRead": m.read, "isDraft": m.draft,
             "flag": {"flagStatus": if m.flagged { "flagged" } else { "notFlagged" }},
             "subject": p.as_ref().map(|p| p.subject.clone()),
             "from": p.as_ref().map(|p| addr(&p.from)),
@@ -144,9 +152,22 @@ impl Data {
         match (method, parts.as_slice()) {
             ("POST", ["$batch"]) => {
                 let mut out = Vec::new();
-                for r in input["requests"].as_array().cloned().unwrap_or_default() {
+                for (i, r) in input["requests"].as_array().cloned().unwrap_or_default().into_iter().enumerate() {
+                    if self.at_once.is_some_and(|n| i >= n) {
+                        let mut refused = serde_json::Map::new();
+                        refused.insert("id".into(), r["id"].clone());
+                        refused.insert("status".into(), json!(429));
+                        refused.insert("headers".into(), json!({ "retry-after": 1 }));
+                        refused.insert("body".into(), json!({"error": {"code": "TooManyRequests"}}));
+                        out.push(Value::Object(refused));
+                        continue;
+                    }
+                    // Graph reads Prefer from each batch entry's own headers.
+                    let prefer = r.pointer("/headers/Prefer").and_then(Value::as_str).unwrap_or_default();
+                    self.asked_immutable = prefer.split(',').any(|part| part.trim() == "IdType=\"ImmutableId\"");
                     let b = serde_json::to_vec(&r["body"]).unwrap_or_default();
                     let (status, rb, _) = self.route(r["method"].as_str().unwrap_or("GET"), r["url"].as_str().unwrap_or("/"), &b, base);
+                    self.asked_immutable = true;
                     let rbody: Value = serde_json::from_slice(&rb).unwrap_or(Value::Null);
                     out.push(json!({"id": r["id"], "status": status, "body": rbody}));
                 }
@@ -238,7 +259,7 @@ impl Data {
                 ok(json!({ "id": id, "parentFolderId": drafts }))
             }
             ("GET", ["me", "messages", id]) => self.message(id).map_or_else(not_found, |m| ok(self.message_json(m))),
-            ("PATCH", ["me", "messages", id]) => match self.messages.iter_mut().find(|m| m.id == *id) {
+            ("PATCH", ["me", "messages", id]) => match self.messages.iter_mut().find(|m| m.id == plain_id(id)) {
                 Some(m) => {
                     if let Some(r) = input["isRead"].as_bool() {
                         m.read = r;
@@ -251,13 +272,13 @@ impl Data {
                 None => not_found(),
             },
             ("DELETE", ["me", "messages", id]) => {
-                let id = id.to_string();
+                let id = plain_id(id).to_string();
                 self.messages.retain(|m| m.id != id);
                 (204, Vec::new(), "text/plain")
             }
             ("POST", ["me", "messages", id, "move"]) => {
                 let dest = input["destinationId"].as_str().and_then(|d| self.resolve(d));
-                match (dest, self.messages.iter_mut().find(|m| m.id == *id)) {
+                match (dest, self.messages.iter_mut().find(|m| m.id == plain_id(id))) {
                     (Some(d), Some(m)) => {
                         m.folder = d;
                         ok(json!({ "id": id }))
@@ -265,7 +286,7 @@ impl Data {
                     _ => not_found(),
                 }
             }
-            ("GET", ["me", "messages", id, "$value"]) if self.unreadable.iter().any(|u| u == id) => {
+            ("GET", ["me", "messages", id, "$value"]) if self.unreadable.iter().any(|u| u == plain_id(id)) => {
                 (500, json!({"error": {"code": "ErrorInternalServerError", "message": "can't read it"}}).to_string().into_bytes(), "application/json")
             }
             ("GET", ["me", "messages", id, "$value"]) => match self.message(id) {
@@ -484,8 +505,20 @@ pub struct Server {
     pub data: Arc<Mutex<Data>>,
 }
 
+/// Prefix that turns a stored id into its non-immutable spelling.
+const REGULAR: &str = "AAMk-";
+
+/// Strip [`REGULAR`] if present.
+fn plain_id(id: &str) -> &str {
+    id.strip_prefix(REGULAR).unwrap_or(id)
+}
+
 fn respond(s: &mut impl Write, status: u16, body: &[u8], kind: &str) {
-    let head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+    let mut head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n", body.len());
+    if status == 429 {
+        head.push_str("Retry-After: 1\r\n");
+    }
+    head.push_str("Connection: close\r\n\r\n");
     let _ = s.write_all(head.as_bytes());
     let _ = s.write_all(body);
 }
@@ -528,7 +561,16 @@ pub fn serve(data: Data) -> Server {
             let mut words = first.split(' ');
             let (method, target) = (words.next().unwrap_or("GET").to_string(), words.next().unwrap_or("/").to_string());
             let target = target.strip_prefix("/v1.0").unwrap_or(&target).to_string();
-            let (status, out, kind) = shared.lock().unwrap().route(&method, &target, &body, &b);
+            let (status, out, kind) = {
+                let mut d = shared.lock().unwrap();
+                if d.throttle > 0 {
+                    d.throttle -= 1;
+                    (429, br#"{"error": {"code": "TooManyRequests"}}"#.to_vec(), "application/json")
+                } else {
+                    d.asked_immutable = true;
+                    d.route(&method, &target, &body, &b)
+                }
+            };
             respond(&mut s, status, &out, kind);
         }
     });
@@ -750,6 +792,49 @@ mod tests {
         std::thread::sleep(Duration::from_millis(1500));
         let tries = server.data.lock().unwrap().calls.len();
         assert!(tries <= 2, "asked once, not over and over: {tries} requests");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Two regressions together. Batched GETs lacked the ImmutableId preference, so their ids
+    /// didn't match the listing's and a third sync re-downloaded everything; and 429 entries
+    /// inside a batch were treated as absent. Here the server caps batches at 4 (then 2) and
+    /// refuses the first request outright.
+    #[test]
+    fn graph_batched_details_keep_stable_ids_and_retry_when_busy() {
+        let mut d = Data { at_once: Some(4), throttle: 1, ..Default::default() };
+        let inbox = d.folder("Inbox", None, Some("inbox"));
+        for n in 1..=30 {
+            let raw = format!("From: Zoe <zoe@studio.example>\r\nTo: me@x.example\r\nSubject: Note {n}\r\nMessage-ID: <n{n}@x>\r\n\r\nHi.\r\n");
+            d.deliver(&inbox, raw.as_bytes(), true, &format!("2024-05-{:02}T09:00:00Z", n % 28 + 1));
+        }
+        let server = serve(d);
+        let dir = std::env::temp_dir().join(format!("mailcraft-graph-batches-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+        let mut st = crate::jmap::State::default();
+        crate::graph::list_folders(&c, &mut st, "a1").unwrap();
+        let opts = crate::sync::SyncOptions { window: 1000, prefetch: 0, ..Default::default() };
+        let first = crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &opts).unwrap();
+        assert_eq!((first.new, store.load_folder("a1", "INBOX").unwrap().messages.len()), (30, 30), "all 30 arrived");
+        // Ten more: below the threshold, so they're fetched individually through $batch.
+        {
+            let mut d = server.data.lock().unwrap();
+            let inbox = d.resolve("inbox").unwrap();
+            for n in 31..=40 {
+                let raw = format!("From: Zoe <zoe@studio.example>\r\nTo: me@x.example\r\nSubject: Note {n}\r\nMessage-ID: <n{n}@x>\r\n\r\nHi.\r\n");
+                d.deliver(&inbox, raw.as_bytes(), true, "2024-06-01T09:00:00Z");
+            }
+            d.at_once = Some(2);
+        }
+        let more = crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &opts).unwrap();
+        assert_eq!((more.new, store.load_folder("a1", "INBOX").unwrap().messages.len()), (10, 40));
+        assert!(server.data.lock().unwrap().calls.iter().any(|c| c.starts_with("POST /$batch")), "used $batch");
+        server.data.lock().unwrap().calls.clear();
+        let again = crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &opts).unwrap();
+        let calls = server.data.lock().unwrap().calls.clone();
+        assert_eq!((again.new, again.removed), (0, 0), "{calls:?}");
+        assert!(!calls.iter().any(|c| c.contains("/me/messages/")), "no per-message GETs on a quiet sync: {calls:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
