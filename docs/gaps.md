@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.20, 2026-10-20._
+_Status: v0.21, 2026-10-21._
 
 ## Open
 
@@ -564,3 +564,19 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
     the account with Online only ticked. What another app has open (an attachment in Word) stays
     until that app lets it go, and what Windows keeps of its own (its search index, if the
     data folder is indexed; the GPU driver's shader cache) is outside MailCraft's reach.
+
+### v0.21 — One MailCraft at a time
+- **Started again, the running MailCraft comes forward:** a second launch (a second click on the
+  taskbar or Start, a shortcut, a `mailto:` handler) opened another window on the same data,
+  whose accounts' data files were open in the first ("open in another copy of MailCraft"), and
+  its log replaced the running one's. Now the first MailCraft on a data folder listens on a
+  socket in the user's own scratch folder, named after the data folder and the Windows session
+  or display, and a later launch on that data asks it to show its window and leaves before it
+  touches anything. The window comes out of the taskbar and in front (on Wayland it asks for
+  attention, as it can't put itself in front), handled while minimized too. Another data folder
+  is another MailCraft. Launches started together take turns, a socket left by a crash is
+  replaced, and any failure leaves the launch a window of its own, as before. As PdfCraft does
+  (`single_instance.rs`); macOS, where Finder already brings a running app forward, gets it for
+  launches from a terminal or a script.
+- Checked in the app: the first window minimized behind Notepad, a second launch leaves in 181 ms
+  and the window is restored and in front; after a clean close or a kill, the next launch opens.

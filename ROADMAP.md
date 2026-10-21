@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.20 — A window on every Windows PC (2026-10-20). Each milestone below is a version: v0.1 was
+**Stage:** v0.21 — One MailCraft at a time (2026-10-21). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -104,7 +104,9 @@ local-first, media-aware v1); the fuller request is
    links in meetings, Check for updates; and from issue #5, a Microsoft 365 sign-in kept in
    Windows' Credential Manager whatever its length; and from issue #4, accounts kept online only
    (none of their mail written to the computer) and a portable mode that leaves nothing behind.
-21. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+21. **v0.21 — One MailCraft at a time** ✅ Started again, MailCraft brings its window forward
+   rather than opening a second one on the same data.
+22. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -269,3 +271,6 @@ local-first, media-aware v1); the fuller request is
   app keeps everything in MailCraftData there, passwords in memory only; reproduced with the app
   against a fake IMAP server (a 557 KB data file holding every subject and body, then nothing),
   the host's folders, Credential Manager and registry compared before and after.
+- **2026-10-21** — **v0.21**: started again, MailCraft brings its window forward (minimized or
+  behind other windows) instead of opening a second one on the same data, as PdfCraft does;
+  another data folder (`--data`, `--sample`, a portable copy) still opens its own.
