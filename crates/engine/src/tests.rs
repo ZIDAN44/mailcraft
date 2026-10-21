@@ -3039,3 +3039,20 @@ fn clean_up_moves_only_what_a_reply_quotes() {
     assert!(s.run("folder.cleanUp", &json!({"account": "sample", "folder": "Nope"})).is_err());
     assert!(s.run("folder.cleanUp", &json!({"account": "nobody", "folder": "INBOX"})).is_err());
 }
+
+/// The work week: Monday to Friday of the week the day is in, moving a week at a time.
+#[test]
+fn the_work_week_is_monday_to_friday() {
+    let mut s = sample_session("work-week");
+    // Saturday 2026-10-24.
+    s.run("calendar.goto", &json!({"date": "2026-10-24"})).unwrap();
+    let r = s.run("calendar.view", &json!({"mode": "workWeek"})).unwrap();
+    assert_eq!(r["mode"], "workweek");
+    let (d0, d1) = s.cal_days();
+    assert_eq!((mailcraft_model::dates::day_string(d0), d1 - d0), ("2026-10-19".to_string(), 5));
+    s.run("calendar.goto", &json!({"step": 1})).unwrap();
+    assert_eq!(mailcraft_model::dates::day_string(s.cal_days().0), "2026-10-26");
+    let events = s.run("calendar.events", &json!({})).unwrap();
+    assert!(events.as_array().is_some());
+    assert!(s.run("calendar.view", &json!({"mode": "fortnight"})).is_err());
+}

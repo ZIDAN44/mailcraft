@@ -1922,7 +1922,12 @@ impl MailApp {
                         acts.push(Action::Run("calendar.goto", json!({"date": "today"})));
                     }
                     widgets::group_sep(ui, &t);
-                    for (mode, label, code) in [(CalMode::Day, "Day", "day"), (CalMode::Week, "Week", "week"), (CalMode::Month, "Month", "month")] {
+                    for (mode, label, code) in [
+                        (CalMode::Day, "Day", "day"),
+                        (CalMode::WorkWeek, "Work week", "workWeek"),
+                        (CalMode::Week, "Week", "week"),
+                        (CalMode::Month, "Month", "month"),
+                    ] {
                         let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
                         if r.clicked() {
                             acts.push(Action::Run("calendar.view", json!({"mode": code})));

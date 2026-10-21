@@ -53,7 +53,7 @@ pub fn title(s: &Session) -> String {
             let (y, m, _) = civil_from_days(s.cal_day());
             tf!("{month} {year}", month = month(m), year = y)
         }
-        CalMode::Week => {
+        CalMode::WorkWeek | CalMode::Week => {
             let ((y0, m0, a), (y1, m1, b)) = (civil_from_days(d0), civil_from_days(d1 - 1));
             if (y0, m0) == (y1, m1) {
                 tf!("{from} – {to} {month} {year}", from = a, to = b, month = month(m1), year = y1)
@@ -326,7 +326,12 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             ui.add_space(6.0);
             ui.label(RichText::new(title(s)).font(theme::bold(18.0)).color(t.text));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                for (mode, label, code) in [(CalMode::Month, "Month", "month"), (CalMode::Week, "Week", "week"), (CalMode::Day, "Day", "day")] {
+                for (mode, label, code) in [
+                    (CalMode::Month, "Month", "month"),
+                    (CalMode::Week, "Week", "week"),
+                    (CalMode::WorkWeek, "Work week", "workWeek"),
+                    (CalMode::Day, "Day", "day"),
+                ] {
                     if ui.selectable_label(s.cal_mode == mode, tl!(label)).clicked() {
                         acts.push(Action::Run("calendar.view", json!({"mode": code})));
                     }
@@ -338,7 +343,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let items = s.agenda(s.local_midnight(d0), s.local_midnight(d1));
     match s.cal_mode {
         CalMode::Month => month(s, &t, ui, &items, d0, acts),
-        CalMode::Day | CalMode::Week => days(s, st, ui, &items, d0, d1, acts),
+        CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, d0, d1, acts),
     }
 }
 

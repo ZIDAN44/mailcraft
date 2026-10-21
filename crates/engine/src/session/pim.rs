@@ -28,6 +28,8 @@ pub enum Module {
 #[serde(rename_all = "lowercase")]
 pub enum CalMode {
     Day,
+    /// Monday to Friday.
+    WorkWeek,
     #[default]
     Week,
     Month,
@@ -135,12 +137,14 @@ impl Session {
         self.cal_day.unwrap_or_else(|| self.clock.now.saturating_add(i64::from(self.clock.offset)).div_euclid(86_400))
     }
 
-    /// The local days on screen: a day, the week (Monday first) or the weeks of the month.
+    /// The local days on screen: a day, the work week (Monday to Friday), the week (Monday first)
+    /// or the weeks of the month.
     pub fn cal_days(&self) -> (i64, i64) {
         let d = self.cal_day();
         let monday = |x: i64| x - (x + 3).rem_euclid(7);
         match self.cal_mode {
             CalMode::Day => (d, d + 1),
+            CalMode::WorkWeek => (monday(d), monday(d) + 5),
             CalMode::Week => (monday(d), monday(d) + 7),
             CalMode::Month => {
                 let (y, m, _) = civil_from_days(d);
@@ -170,7 +174,7 @@ impl Session {
         let step = step.clamp(-1200, 1200);
         d = match self.cal_mode {
             CalMode::Day => d + step,
-            CalMode::Week => d + 7 * step,
+            CalMode::WorkWeek | CalMode::Week => d + 7 * step,
             CalMode::Month => {
                 let (y, m, day) = civil_from_days(d);
                 let total = i64::from(m) - 1 + step;
