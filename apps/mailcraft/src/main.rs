@@ -30,6 +30,7 @@ mod graphics;
 mod logfile;
 mod portable;
 mod secrets;
+mod single_instance;
 #[cfg(windows)]
 mod toast;
 mod video;
@@ -454,9 +455,19 @@ struct App {
     /// The window's GPU device, until its errors are only logged (`graphics::log_errors`).
     gpu: Option<eframe::wgpu::Device>,
     frames: u32,
+    /// Answering later launches on the same data folder (`single_instance.rs`).
+    instance: Option<single_instance::Server>,
+    native_wayland: bool,
 }
 
 impl eframe::App for App {
+    // Every frame, the window minimized or hidden too (when eframe runs no `ui`): started again,
+    // this window comes forward instead of a second one.
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if self.instance.as_ref().is_some_and(single_instance::Server::take_show) {
+            single_instance::show(ctx, self.native_wayland);
+        }
+    }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frames = self.frames.saturating_add(1);
         if self.frames >= graphics::STARTUP_FRAMES
@@ -470,6 +481,9 @@ impl eframe::App for App {
         }
     }
     fn on_exit(&mut self) {
+        if let Some(server) = &self.instance {
+            server.close();
+        }
         if let Some(p) = &self.state_path
             && let Ok(bytes) = serde_json::to_vec_pretty(&self.app.saved_state())
         {
@@ -512,11 +526,6 @@ fn main() -> eframe::Result {
     // Portable (issue #4): `portable.txt` beside the app keeps everything in MailCraftData there.
     let portable = if chosen { portable::Portable::default() } else { portable::current().clone() };
     let base = (!chosen && portable.dir.is_none()).then(location::base_root).flatten();
-    let mut moved = match base.as_deref().map(location::apply_pending_move) {
-        Some(Ok(Some(to))) => Some(Ok(to)),
-        Some(Err(e)) => Some(Err(e)),
-        _ => None,
-    };
     let data = args
         .iter()
         .position(|a| a == "--data")
@@ -525,6 +534,25 @@ fn main() -> eframe::Result {
         .or_else(|| portable.dir.clone())
         .or_else(mailcraft_engine::store::default_root);
     let root = data.map(|d| if sample { d.join("sample") } else { d });
+    // One MailCraft per data folder: started again, it brings the running one forward and leaves,
+    // before it moves, logs or opens anything there (`single_instance.rs`).
+    let instance = match root.as_deref().map(single_instance::claim) {
+        Some(single_instance::Claim::Shown) => {
+            say(if args.iter().any(|a| a == "--cmd") {
+                "MailCraft is already running: its window is brought forward (--cmd is run only by the first)"
+            } else {
+                "MailCraft is already running: its window is brought forward"
+            });
+            return Ok(());
+        }
+        Some(single_instance::Claim::Primary(server)) => Some(server),
+        _ => None,
+    };
+    let mut moved = match base.as_deref().map(location::apply_pending_move) {
+        Some(Ok(Some(to))) => Some(Ok(to)),
+        Some(Err(e)) => Some(Err(e)),
+        _ => None,
+    };
     // The sample mailbox stays a folder of files; anything else keeps its data files beside it
     // (`--data`) or in Documents.
     let files =
@@ -607,7 +635,7 @@ fn main() -> eframe::Result {
     // A window that can't open says why, rather than the app leaving without a word (or
     // staying in the background); a panic on the way is caught for that too.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run(options, sample, store, session, desktop_data, base, moved, state_path, cmd_args)
+        run(options, sample, store, session, desktop_data, base, moved, state_path, cmd_args, instance)
     }));
     let failed = match ran {
         Ok(Ok(())) => return Ok(()),
@@ -692,6 +720,7 @@ fn run(
     moved: Option<Result<PathBuf, String>>,
     state_path: Option<PathBuf>,
     cmd_args: Vec<String>,
+    instance: Option<single_instance::Server>,
 ) -> eframe::Result {
     eframe::run_native(
         "MailCraft",
@@ -768,7 +797,14 @@ fn run(
                 }
             }
             let gpu = cc.wgpu_render_state.as_ref().map(|rs| rs.device.clone());
-            Ok(Box::new(App { app, state_path, gpu, frames: 0 }))
+            if let Some(server) = &instance {
+                server.connect(&cc.egui_ctx);
+            }
+            // A Wayland window can't bring itself forward: it asks for attention instead.
+            let native_wayland = cfg!(all(unix, not(target_os = "macos")))
+                && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty())
+                && display::choose_from_env() != display::Choice::X11;
+            Ok(Box::new(App { app, state_path, gpu, frames: 0, instance, native_wayland }))
         }),
     )
 }

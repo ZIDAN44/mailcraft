@@ -45,6 +45,9 @@ keyring = { version = "3.6", default-features = false, features = ["windows-nati
 # Notifications under MailCraft's name: its app id's name and icon, per user (`toast.rs`).
 # The version ipconfig (the network crate's DNS settings) uses, so it's built once.
 windows-registry = "0.6"
+# One MailCraft per data folder (`single_instance.rs`): Unix sockets on Windows, which std lacks.
+# The version zbus brings, so it's built once.
+uds_windows = "1.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["apple-native"] }
