@@ -204,6 +204,25 @@ impl Data {
                 if let Some(o) = q("$orderby") {
                     assert_eq!(o, "receivedDateTime%20desc");
                 }
+                // A search: its words (KQL, the whole in quotes), or read and flag conditions.
+                if let Some(s) = q("$search") {
+                    let s = crate::oauth::unpct(&s);
+                    let inner = s.strip_prefix('"').and_then(|s| s.strip_suffix('"')).unwrap_or(&s).replace("\\\"", "\"");
+                    list.retain(|m| words_match(&inner, &m.raw));
+                }
+                if let Some(f) = q("$filter") {
+                    let f = crate::oauth::unpct(&f);
+                    for cond in f.split(" and ") {
+                        match cond {
+                            "isRead eq false" => list.retain(|m| !m.read),
+                            "isRead eq true" => list.retain(|m| m.read),
+                            "flag/flagStatus eq 'flagged'" => list.retain(|m| m.flagged),
+                            "flag/flagStatus ne 'flagged'" => list.retain(|m| !m.flagged),
+                            "hasAttachments eq true" => list.clear(),
+                            _ => {}
+                        }
+                    }
+                }
                 list.sort_by(|a, b| b.received.cmp(&a.received));
                 let top: usize = q("$top").and_then(|t| t.parse().ok()).unwrap_or(10);
                 let list: Vec<Value> = list.into_iter().take(top).map(|m| self.message_json(m)).collect();
@@ -391,6 +410,58 @@ impl Data {
     }
 }
 
+/// Whether a message meets a KQL (Graph's `$search`) or AQS (EWS's `QueryString`) query, as
+/// far as MailCraft writes them: words and `"phrases"`, `from:` `to:` `subject:` `body:`, `NOT`;
+/// a word as a part of what's searched, case aside.
+pub(crate) fn words_match(query: &str, raw: &[u8]) -> bool {
+    let p = mailcraft_mime::parse(raw);
+    let field = |f: &str| -> String {
+        let Some(p) = &p else { return String::new() };
+        let addr = |a: &mailcraft_model::EmailAddress| format!("{} {}", a.name, a.email);
+        match f {
+            "from" => addr(&p.from),
+            "to" => p.to.iter().map(addr).collect::<Vec<_>>().join(" "),
+            "subject" => p.subject.clone(),
+            "body" => p.text.clone(),
+            _ => format!("{} {} {}", addr(&p.from), p.subject, p.text),
+        }
+        .to_lowercase()
+    };
+    // Tokens, a quoted part kept whole.
+    let mut tokens: Vec<String> = Vec::new();
+    let (mut cur, mut quoted) = (String::new(), false);
+    for c in query.chars() {
+        match c {
+            '"' => quoted = !quoted,
+            ' ' if !quoted => {
+                if !cur.is_empty() {
+                    tokens.push(std::mem::take(&mut cur));
+                }
+            }
+            _ => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        tokens.push(cur);
+    }
+    let mut not = false;
+    for t in tokens {
+        if t == "NOT" {
+            not = true;
+            continue;
+        }
+        let (f, w) = match t.split_once(':') {
+            Some((f, w)) if ["from", "to", "subject", "body"].contains(&f) => (f, w),
+            _ => ("", t.as_str()),
+        };
+        if field(f).contains(&w.to_lowercase()) == not {
+            return false;
+        }
+        not = false;
+    }
+    true
+}
+
 fn unbase64(body: &[u8]) -> Vec<u8> {
     const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = Vec::new();
@@ -495,6 +566,43 @@ mod tests {
             assert!(Instant::now() < end, "never: {what}");
             std::thread::sleep(Duration::from_millis(50));
         }
+    }
+
+    /// Gap #7: searching Microsoft Graph (`$search`, and `$filter` for the read state) for mail
+    /// past the window.
+    #[test]
+    fn graph_is_searched_past_the_window() {
+        let mut d = Data::default();
+        let inbox = d.folder("Inbox", None, Some("inbox"));
+        let mut ids = Vec::new();
+        for n in 1..=25 {
+            ids.push(
+                d.deliver(
+                    &inbox,
+                    &format!(
+                        "From: Zoe Park <zoe@x.example>\r\nTo: me@x.example\r\nSubject: Message {n}\r\nMessage-ID: <s{n}@x>\r\n\r\nBody tag{n}.\r\n"
+                    )
+                    .into_bytes(),
+                    n > 5,
+                    &format!("2024-05-{n:02}T09:00:00Z"),
+                ),
+            );
+        }
+        let server = serve(d);
+        let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+        let data = server.data.clone();
+        crate::fake::search_the_server_past_the_window("graph-search", account, TOKEN, &|n, read| {
+            let mut d = data.lock().unwrap();
+            let id = ids[n as usize - 1].clone();
+            if read {
+                d.messages.iter_mut().filter(|m| m.id == id).for_each(|m| m.read = true);
+            } else {
+                d.messages.retain(|m| m.id != id);
+            }
+        });
+        let calls = server.data.lock().unwrap().calls.clone();
+        assert!(calls.iter().any(|c| c.contains("$search=%22tag3%22")), "{calls:?}");
+        assert!(calls.iter().any(|c| c.contains("$filter=isRead%20eq%20false")), "{calls:?}");
     }
 
     fn mail(subject: &str, id: &str) -> Vec<u8> {

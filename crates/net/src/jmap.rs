@@ -5,7 +5,7 @@
 use mailcraft_model::{Folder, MessageKey, Op};
 use mailcraft_store::Store;
 
-pub use mailcraft_jmap::{Mailbox, State, VALIDITY, block_on, folders, name_special, session_url, utc_date};
+pub use mailcraft_jmap::{FOUND_MAX, Mailbox, State, VALIDITY, block_on, folders, name_special, session_url, utc_date};
 
 use crate::sync::{SyncOptions, SyncReport};
 use crate::{NetError, Result, http};
@@ -94,6 +94,19 @@ pub fn list_folders(c: &Client, st: &mut State, account: &str) -> Result<Vec<Fol
 /// Bring one folder's cache up to date.
 pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions) -> Result<SyncReport> {
     Ok(block_on(mailcraft_jmap::sync_folder(&c.0, st, store, account, folder, opts))?)
+}
+
+/// What the server finds in a folder for a search (issue #4), brought into its list.
+pub fn find_on_server(
+    c: &Client,
+    st: &mut State,
+    store: &Store,
+    account: &str,
+    folder: &str,
+    filter: &serde_json::Value,
+    cap: usize,
+) -> Result<(Vec<MessageKey>, usize)> {
+    Ok(block_on(mailcraft_jmap::find_on_server(&c.0, st, store, account, folder, filter, cap))?)
 }
 
 /// Download one message's source (and cache it).

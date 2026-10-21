@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 
 use crate::http::{self, Request, Response};
 use crate::jmap::{self, Mailbox, State, VALIDITY};
-use crate::sync::{SyncOptions, SyncReport, fill_from_source};
+use crate::sync::{SyncOptions, SyncReport, WordQuery, fill_from_source};
 use crate::{NetError, Result};
 
 /// The Graph endpoint accounts use.
@@ -246,6 +246,18 @@ impl Client {
         Ok((ids, (count("totalItemCount"), count("unreadItemCount"))))
     }
 
+    /// Of these messages, those still in a folder, with their flags (one batch request for 20).
+    fn still_in(&self, folder: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
+        let reqs: Vec<(&str, String, Option<Value>)> =
+            ids.iter().map(|id| ("GET", format!("/me/messages/{}?$select=id,isRead,isDraft,flag,parentFolderId", seg(id)), None)).collect();
+        Ok(self
+            .batch(&reqs)?
+            .into_iter()
+            .filter(|(s, m)| *s == 200 && m.get("parentFolderId").and_then(Value::as_str).is_none_or(|p| p == folder))
+            .filter_map(|(_, m)| Some((m.get("id")?.as_str()?.to_string(), flags(&m))))
+            .collect())
+    }
+
     /// Messages' details, for the list.
     fn headers(&self, ids: &[String]) -> Result<Vec<Value>> {
         let reqs: Vec<(&str, String, Option<Value>)> =
@@ -444,7 +456,13 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
         report.reset = true;
     }
     fs.validity = VALIDITY;
-    let wanted: HashMap<u32, Flags> = newest.iter().map(|(id, f)| (st.number(id), f.clone())).collect();
+    let mut wanted: HashMap<u32, Flags> = newest.iter().map(|(id, f)| (st.number(id), f.clone())).collect();
+    // Found by a search of the server past the window: kept while still in the folder.
+    let extra = st.found_outside(folder, &fs.messages, &wanted);
+    for (found, f) in c.still_in(&id, &extra)? {
+        wanted.insert(st.number(&found), f);
+    }
+    st.keep_found(folder, |n| wanted.contains_key(&n));
     let (kept, gone): (Vec<Summary>, Vec<Summary>) = std::mem::take(&mut fs.messages).into_iter().partition(|m| wanted.contains_key(&m.key.uid));
     for m in &gone {
         store.remove_body(&m.key);
@@ -471,11 +489,7 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
         if fs.find(key.uid).is_some() {
             continue;
         }
-        let received = m.get("receivedDateTime").and_then(Value::as_str).and_then(jmap::utc_date).unwrap_or(0);
-        let mut s = mime::summary_from_header(&header_block(&m), key, flags(&m), 0, received);
-        s.preview = m.get("bodyPreview").and_then(Value::as_str).map(mime::preview).unwrap_or_default();
-        s.has_attachments = m.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false);
-        fs.messages.push(s);
+        fs.messages.push(message_summary(&m, key));
         report.new += 1;
     }
     sort_newest_first(&mut fs.messages);
@@ -485,6 +499,72 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
     report.total = total;
     report.unread = unread;
     Ok(report)
+}
+
+/// A message's list entry from its details.
+fn message_summary(m: &Value, key: MessageKey) -> Summary {
+    let received = m.get("receivedDateTime").and_then(Value::as_str).and_then(jmap::utc_date).unwrap_or(0);
+    let mut s = mime::summary_from_header(&header_block(m), key, flags(m), 0, received);
+    s.preview = m.get("bodyPreview").and_then(Value::as_str).map(mime::preview).unwrap_or_default();
+    s.has_attachments = m.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false);
+    s
+}
+
+/// The messages of `folder` the server finds for a search (issue #4), the newest `cap` of them:
+/// its words through `$search` (KQL), or, with none, its read and flag conditions through
+/// `$filter`. Those not kept yet come into its list and stay there past the window while the
+/// folder has them. Their keys, and how many came in.
+pub fn find_on_server(
+    c: &Client,
+    st: &mut State,
+    store: &Store,
+    account: &str,
+    folder: &str,
+    query: &WordQuery,
+    cap: usize,
+) -> Result<(Vec<MessageKey>, usize)> {
+    let id = st.mailbox(folder)?.to_string();
+    let mut fs = store.load_folder(account, folder)?;
+    if fs.validity != VALIDITY {
+        return Ok((Vec::new(), 0));
+    }
+    let cap = cap.min(jmap::FOUND_MAX);
+    let ask = if query.text.is_empty() {
+        let mut f = Vec::new();
+        if let Some(u) = query.unread {
+            f.push(format!("isRead eq {}", !u));
+        }
+        if let Some(on) = query.flagged {
+            f.push(format!("flag/flagStatus {} 'flagged'", if on { "eq" } else { "ne" }));
+        }
+        if let Some(a) = query.attachment {
+            f.push(format!("hasAttachments eq {a}"));
+        }
+        format!("$filter={}", http::pct(&f.join(" and ")))
+    } else {
+        format!("$search={}", http::pct(&format!("\"{}\"", query.text.replace('"', "\\\""))))
+    };
+    let found = c.all(&format!("/me/mailFolders/{}/messages?{ask}&$top={}&$select={HEADER_FIELDS}", seg(&id), cap.clamp(1, 1000)), cap)?;
+    let found: Vec<&Value> =
+        found.iter().filter(|m| query.admits(&flags(m), m.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false))).collect();
+    let mut numbers = Vec::new();
+    let mut new = 0;
+    for m in found {
+        let Some(mid) = m.get("id").and_then(Value::as_str) else { continue };
+        let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(mid) };
+        numbers.push(key.uid);
+        if fs.find(key.uid).is_none() {
+            fs.messages.push(message_summary(m, key));
+            new += 1;
+        }
+    }
+    st.add_found(folder, &numbers);
+    if new > 0 {
+        sort_newest_first(&mut fs.messages);
+        fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
+        store.save_folder(account, folder, &fs)?;
+    }
+    Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
 }
 
 fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, fs: &mut FolderState, opts: &SyncOptions) -> Result<()> {

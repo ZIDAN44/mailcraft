@@ -47,7 +47,12 @@ struct Account {
     generation: u32,
     /// The push stream is open: the Inbox needn't be polled.
     pushing: bool,
+    /// How many messages folders asked to show more keep (issue #4), by path.
+    windows: HashMap<String, usize>,
 }
+
+/// The account document with [`Account::windows`] (the desktop's, too).
+const WINDOWS: &str = "windows.json";
 
 struct Shared {
     store: Store,
@@ -251,7 +256,9 @@ async fn sync_one(sh: &Rcs, id: &str, path: &str) {
     status(sh, id, SyncStatus::Syncing { folder: path.to_string() });
     let (store, opts) = {
         let s = sh.borrow();
-        (s.store.clone(), s.opts)
+        // A folder asked to show more keeps more.
+        let window = s.accounts.get(id).and_then(|a| a.windows.get(path)).copied().unwrap_or(0).max(s.opts.window);
+        (s.store.clone(), SyncOptions { window, ..s.opts })
     };
     let mut st = state(sh, id);
     let r = mailcraft_jmap::sync_folder(&c, &mut st, &store, id, path, &opts).await;
@@ -278,6 +285,37 @@ async fn sync_one(sh: &Rcs, id: &str, path: &str) {
         }
         Err(e) => failed(sh, id, e),
     }
+}
+
+/// Search folders on the server (issue #4): JMAP's `Email/query`, the messages found brought
+/// into their folders' lists.
+async fn search_server(sh: &Rcs, id: &str, folders: &[String], query: String) {
+    let answer = |keys, error| Event::ServerSearched { account: id.to_string(), query: query.clone(), keys, error };
+    let Some(c) = client(sh, id) else {
+        emit(sh, answer(Vec::new(), Some("the account isn't connected".into())));
+        return;
+    };
+    let Some(filter) = mailcraft_jmap::search_filter(&query) else {
+        emit(sh, answer(Vec::new(), None));
+        return;
+    };
+    let store = store(sh);
+    let mut st = state(sh, id);
+    let (mut keys, mut failed) = (Vec::new(), None);
+    for f in folders.iter().take(200) {
+        match mailcraft_jmap::find_on_server(&c, &mut st, &store, id, f, &filter, mailcraft_jmap::FOUND_MAX).await {
+            Ok((found, new)) => {
+                keys.extend(found);
+                if new > 0 {
+                    emit(sh, Event::FolderChanged { account: id.to_string(), folder: f.clone() });
+                }
+            }
+            Err(e) => failed = Some(e.to_string()),
+        }
+    }
+    put_state(sh, id, st);
+    let error = if keys.is_empty() { failed } else { None };
+    emit(sh, answer(keys, error));
 }
 
 /// A change on the server (after the cache has it); then what it touched is shown afresh.
@@ -407,18 +445,22 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
         Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
-        // Mail past what's kept (issue #4) is asked of IMAP servers, not yet of JMAP ones.
-        Job::SearchServer { query, .. } => emit(
-            sh,
-            Event::ServerSearched {
-                account: id.to_string(),
-                query,
-                keys: Vec::new(),
-                error: Some("searching the server is for IMAP accounts for now".into()),
-            },
-        ),
-        Job::MoreMail { .. } => {
-            emit(sh, Event::Notice { account: id.to_string(), message: "showing more from the server isn't in the browser yet".into() })
+        // Mail past what's kept (issue #4).
+        Job::SearchServer { folders, query, .. } => search_server(sh, id, &folders, query).await,
+        Job::MoreMail { folder, more, .. } => {
+            let windows = {
+                let mut s = sh.borrow_mut();
+                let (store, base) = (s.store.clone(), s.opts.window);
+                let Some(a) = s.accounts.get_mut(id) else { return };
+                let kept = store.load_folder(id, &folder).map(|f| f.messages.len()).unwrap_or(0);
+                let now = a.windows.get(&folder).copied().unwrap_or(0).max(base).max(kept);
+                a.windows.insert(folder.clone(), now.saturating_add(more as usize).min(1_000_000));
+                a.windows.clone()
+            };
+            if let Err(e) = store.save_account_doc(id, WINDOWS, &windows) {
+                log::warn!("{id}: {WINDOWS}: {e}");
+            }
+            sync_one(sh, id, &folder).await;
         }
         Job::Start { .. }
         | Job::SmtpPassword { .. }
@@ -576,6 +618,7 @@ impl Backend for WebBackend {
                             running: false,
                             generation,
                             pushing: false,
+                            windows: store.load_account_doc(&id, WINDOWS).unwrap_or_default(),
                         },
                     );
                     generation

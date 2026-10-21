@@ -247,6 +247,73 @@ pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
     (!out.is_empty()).then_some(out)
 }
 
+/// The search box's query for Exchange's searches (issue #4): the words as KQL (Microsoft
+/// Graph's `$search`) or AQS (EWS's `QueryString`), which read the same for what MailCraft
+/// asks, and the read, flag and attachment conditions, which neither searches: those are asked
+/// as a filter when there are no words, and checked on what comes back.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WordQuery {
+    /// `from:ana subject:"short film" NOT budget`; empty when the query has no words.
+    pub text: String,
+    pub unread: Option<bool>,
+    pub flagged: Option<bool>,
+    pub attachment: Option<bool>,
+}
+
+impl WordQuery {
+    /// Whether a message's flags and attachments meet the query's conditions.
+    pub fn admits(&self, flags: &Flags, has_attachments: bool) -> bool {
+        self.unread.is_none_or(|u| u != flags.seen)
+            && self.flagged.is_none_or(|f| f == flags.flagged)
+            && self.attachment.is_none_or(|a| a == has_attachments)
+    }
+}
+
+/// [`WordQuery`] for a search box query; `None` when nothing is left to ask.
+pub fn word_query(query: &str) -> Option<WordQuery> {
+    use mailcraft_model::search::{Field, Query, Term};
+    let q = Query::parse(query);
+    let mut out = WordQuery::default();
+    let mut parts: Vec<String> = Vec::new();
+    let prefix = |f: &Field| match f {
+        Field::Any => "",
+        Field::From => "from:",
+        Field::To => "to:",
+        Field::Subject => "subject:",
+        Field::Body => "body:",
+    };
+    // A word as written when it's plain (a prefix match, as the list's own search), quoted
+    // otherwise; quotes and backslashes can't be asked for and are dropped.
+    let word = |w: &str| {
+        let w: String = w.chars().filter(|c| !matches!(c, '"' | '\\') && !c.is_control()).take(200).collect();
+        let plain =
+            w.chars().all(|c| c.is_alphanumeric() || matches!(c, '@' | '.' | '_' | '-' | '\'')) && !matches!(w.as_str(), "AND" | "OR" | "NOT");
+        if plain && !w.starts_with('-') { w } else { format!("\"{w}\"") }
+    };
+    for c in q.clauses.iter().take(16) {
+        let not = if c.negated { "NOT " } else { "" };
+        match &c.term {
+            Term::Words(f, words) => {
+                for w in words.iter().filter(|w| !w.is_empty()).take(8) {
+                    parts.push(format!("{not}{}{}", prefix(f), word(w)));
+                }
+            }
+            Term::Phrase(f, p) if !p.is_empty() => {
+                let p: String = p.chars().filter(|c| !matches!(c, '"' | '\\') && !c.is_control()).take(200).collect();
+                parts.push(format!("{not}{}\"{p}\"", prefix(f)));
+            }
+            Term::Unread(on) => out.unread = Some(*on != c.negated),
+            Term::Flagged(on) => out.flagged = Some(*on != c.negated),
+            Term::HasAttachment(on) => out.attachment = Some(*on != c.negated),
+            _ => {}
+        }
+    }
+    // Words that were nothing but quotes.
+    parts.retain(|p| !p.ends_with("\"\"") && !p.ends_with(':') && !p.trim_start_matches("NOT ").is_empty());
+    out.text = parts.join(" ");
+    (!out.text.is_empty() || out.unread.is_some() || out.flagged.is_some() || out.attachment.is_some()).then_some(out)
+}
+
 /// The messages of `folder` the server finds for `criteria`, the newest `cap` of them: those not
 /// kept yet come into its list (issue #4). Their keys, and how many came in. A folder never
 /// synced (or whose UIDVALIDITY changed) is left to its sync.

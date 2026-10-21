@@ -14,6 +14,8 @@ use serde_json::{Map, Value, json};
 pub const ACCOUNT: &str = "A1";
 pub const USER: &str = "me@studio.example";
 pub const PASSWORD: &str = "pw";
+/// The most objects one `/get` takes (the session's `maxObjectsInGet`).
+const MAX_GET: usize = 100;
 
 #[derive(Clone, Debug)]
 pub struct Mb {
@@ -86,6 +88,31 @@ impl Data {
 
     pub fn email(&self, id: &str) -> Option<&Em> {
         self.emails.iter().find(|e| e.id == id)
+    }
+
+    /// Whether an email meets an `Email/query` filter (RFC 8621 §4.4.1): the conditions and
+    /// operators MailCraft asks, the words checked in the raw message.
+    fn matches(&self, e: &Em, f: &Value) -> bool {
+        if let Some(op) = f.get("operator").and_then(Value::as_str) {
+            let conds = f.get("conditions").and_then(Value::as_array).cloned().unwrap_or_default();
+            return match op {
+                "AND" => conds.iter().all(|c| self.matches(e, c)),
+                "OR" => conds.iter().any(|c| self.matches(e, c)),
+                _ => !conds.iter().any(|c| self.matches(e, c)),
+            };
+        }
+        let raw = String::from_utf8_lossy(&self.blobs.get(&e.blob).cloned().unwrap_or_default()).to_lowercase();
+        let (head, body) = raw.split_once("\r\n\r\n").unwrap_or((&raw, ""));
+        let header = |n: &str| head.split("\r\n").filter(|l| l.starts_with(&format!("{n}:"))).collect::<Vec<_>>().join(" ");
+        let has = |hay: &str, k: &str| f.get(k).and_then(Value::as_str).is_none_or(|w| hay.contains(&w.to_lowercase()));
+        f.get("inMailbox").and_then(Value::as_str).is_none_or(|m| e.mailboxes.contains(m))
+            && f.get("hasKeyword").and_then(Value::as_str).is_none_or(|k| e.keywords.contains(k))
+            && f.get("notKeyword").and_then(Value::as_str).is_none_or(|k| !e.keywords.contains(k))
+            && has(&raw, "text")
+            && has(&header("from"), "from")
+            && has(&header("to"), "to")
+            && has(&header("subject"), "subject")
+            && has(body, "body")
     }
 
     fn email_json(&self, e: &Em) -> Value {
@@ -173,15 +200,23 @@ impl Data {
                 (name.into(), json!({"accountId": ACCOUNT, "created": created, "notUpdated": not_updated}))
             }
             "Email/query" => {
-                let mb = args["filter"]["inMailbox"].as_str().unwrap_or_default();
-                let mut found: Vec<&Em> = self.emails.iter().filter(|e| e.mailboxes.contains(mb)).collect();
+                let mut found: Vec<&Em> = self.emails.iter().filter(|e| self.matches(e, &args["filter"])).collect();
                 found.sort_by(|a, b| b.received.cmp(&a.received));
                 let limit = args["limit"].as_u64().unwrap_or(1000) as usize;
-                let ids: Vec<&str> = found.iter().take(limit).map(|e| e.id.as_str()).collect();
-                (name.into(), json!({"accountId": ACCOUNT, "queryState": "q", "ids": ids, "position": 0}))
+                let position = args["position"].as_u64().unwrap_or(0) as usize;
+                let ids: Vec<&str> = found.iter().skip(position).take(limit).map(|e| e.id.as_str()).collect();
+                let mut answer = json!({"accountId": ACCOUNT, "queryState": "q", "ids": ids, "position": position});
+                if args["calculateTotal"] == Value::Bool(true) {
+                    answer["total"] = json!(found.len());
+                }
+                (name.into(), answer)
             }
             "Email/get" => {
                 let want = ids(args).unwrap_or_default();
+                // As a server refuses more than its maxObjectsInGet (RFC 8620 §5.1).
+                if want.len() > MAX_GET {
+                    return ("error".into(), json!({"type": "requestTooLarge"}));
+                }
                 let list: Vec<Value> = want.iter().filter_map(|id| self.email(id)).map(|e| self.email_json(e)).collect();
                 (name.into(), json!({"accountId": ACCOUNT, "state": "s", "list": list}))
             }
@@ -366,7 +401,7 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
             }
             if path == "/.well-known/jmap" {
                 let session = json!({
-                    "capabilities": {"urn:ietf:params:jmap:core": {"maxObjectsInGet": 100}, "urn:ietf:params:jmap:mail": {}, "urn:ietf:params:jmap:submission": {}, "urn:ietf:params:jmap:quota": {}, "urn:ietf:params:jmap:vacationresponse": {}},
+                    "capabilities": {"urn:ietf:params:jmap:core": {"maxObjectsInGet": MAX_GET}, "urn:ietf:params:jmap:mail": {}, "urn:ietf:params:jmap:submission": {}, "urn:ietf:params:jmap:quota": {}, "urn:ietf:params:jmap:vacationresponse": {}},
                     "accounts": {ACCOUNT: {"name": USER}},
                     "primaryAccounts": {"urn:ietf:params:jmap:mail": ACCOUNT, "urn:ietf:params:jmap:submission": ACCOUNT},
                     "username": USER,
@@ -438,6 +473,71 @@ mod tests {
             assert!(Instant::now() < end, "never: {what}");
             std::thread::sleep(Duration::from_millis(50));
         }
+    }
+
+    /// A JMAP folder kept no more than the server's `maxObjectsInGet` (100 here) whatever it was
+    /// to keep, so Show more showed nothing more: the newest are asked a page at a time.
+    #[test]
+    fn a_jmap_folder_keeps_more_than_one_get() {
+        let mut d = Data::default();
+        let inbox = d.mailbox("Inbox", None, Some("inbox"));
+        for n in 1..=250 {
+            d.deliver(
+                &inbox,
+                &mail(&format!("Message {n}"), &format!("p{n}")),
+                &["$seen"],
+                &format!("2024-05-{:02}T{:02}:{:02}:00Z", 1 + n / 60, n % 24, n % 60),
+            );
+        }
+        let server = serve(d);
+        let dir = std::env::temp_dir().join(format!("mailcraft-jmap-pages-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let c = crate::jmap::Client::connect(&server.base, USER, PASSWORD, false).unwrap();
+        let mut st = crate::jmap::State::default();
+        crate::jmap::list_folders(&c, &mut st, "a1").unwrap();
+        let opts = |window| crate::sync::SyncOptions { window, prefetch: 0, ..Default::default() };
+        let r = crate::jmap::sync_folder(&c, &mut st, &store, "a1", "INBOX", &opts(1000)).unwrap();
+        assert_eq!((store.load_folder("a1", "INBOX").unwrap().messages.len(), r.total), (250, 250));
+        crate::jmap::sync_folder(&c, &mut st, &store, "a1", "INBOX", &opts(150)).unwrap();
+        assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 150, "a window of 150 keeps 150");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Gap #7: searching a JMAP server (`Email/query` with a filter) for mail past the window.
+    #[test]
+    fn a_jmap_server_is_searched_past_the_window() {
+        let mut d = Data::default();
+        let inbox = d.mailbox("Inbox", None, Some("inbox"));
+        let mut ids = Vec::new();
+        for n in 1..=25 {
+            ids.push(
+                d.deliver(
+                    &inbox,
+                    &format!(
+                        "From: Zoe Park <zoe@x.example>\r\nTo: me@x.example\r\nSubject: Message {n}\r\nMessage-ID: <s{n}@x>\r\n\r\nBody tag{n}.\r\n"
+                    )
+                    .into_bytes(),
+                    if n <= 5 { &[] } else { &["$seen"] },
+                    &format!("2024-05-{n:02}T09:00:00Z"),
+                ),
+            );
+        }
+        let server = serve(d);
+        let account =
+            AccountConfig { id: "a1".into(), email: USER.into(), username: USER.into(), jmap: Some(server.base.clone()), ..Default::default() };
+        let data = server.data.clone();
+        crate::fake::search_the_server_past_the_window("jmap-search", account, PASSWORD, &|n, read| {
+            let mut d = data.lock().unwrap();
+            let id = ids[n as usize - 1].clone();
+            if read {
+                d.emails.iter_mut().filter(|e| e.id == id).for_each(|e| {
+                    e.keywords.insert("$seen".into());
+                });
+            } else {
+                d.emails.retain(|e| e.id != id);
+            }
+        });
     }
 
     fn mail(subject: &str, id: &str) -> Vec<u8> {
@@ -623,6 +723,16 @@ mod tests {
         d.deliver(&inbox, &mail("Storyboard", "m1"), &["$seen"], "2026-10-14T09:00:00Z");
         d.deliver(&inbox, &mail("Sound mix", "m2"), &[], "2026-10-15T06:00:00Z");
         d.deliver(&projects, &mail("Plan", "m3"), &["$seen"], "2026-10-01T10:00:00Z");
+        // `MAILCRAFT_FAKE_COUNT`: that many older ones in Projects ("Message 1" the oldest, each
+        // body `needle-<n>`), for more mail than the page keeps (gap #7).
+        let count: u32 = std::env::var("MAILCRAFT_FAKE_COUNT").ok().and_then(|n| n.parse().ok()).unwrap_or(0);
+        for n in 1..=count.min(20_000) {
+            let raw = format!(
+                "From: Zoe Park <zoe@studio.example>\r\nTo: {USER}\r\nSubject: Message {n}\r\nMessage-ID: <old{n}@x>\r\n\r\nOld body needle-{n}.\r\n"
+            );
+            let at = format!("2025-01-{:02}T{:02}:{:02}:00Z", 1 + n / 1440, n / 60 % 24, n % 60);
+            d.deliver(&projects, raw.as_bytes(), &["$seen"], &at);
+        }
         let port = std::env::var("MAILCRAFT_FAKE_JMAP_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8775);
         let server = serve_at(d, port);
         println!("JMAP at {}/.well-known/jmap ({USER} / {PASSWORD})", server.base);

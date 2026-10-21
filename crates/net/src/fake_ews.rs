@@ -455,12 +455,35 @@ impl Data {
                     out.push(err("ErrorFolderNotFound"));
                     return ("FindItemResponse".into(), out);
                 }
-                let max: usize =
-                    op.child("IndexedPageItemView").and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000);
+                let view = op.child("IndexedPageItemView");
+                let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000);
+                // Pages by offset, as Exchange does (up to 1000 at a time).
+                let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
+                let max = max.min(1000);
                 let mut list: Vec<&It> = self.items.iter().filter(|i| i.folder == folder).collect();
                 list.sort_by(|a, b| b.received.cmp(&a.received));
+                // A search: AQS words, or a restriction on the read and flag state.
+                if let Some(q) = op.child("QueryString") {
+                    list.retain(|i| crate::fake_graph::words_match(&q.text, &i.raw));
+                }
+                if let Some(r) = op.child("Restriction") {
+                    let mut all = Vec::new();
+                    r.all("IsEqualTo", &mut all);
+                    for cond in all {
+                        let value = cond.find("Constant").and_then(|c| c.attr("Value")).unwrap_or("");
+                        if cond.find("FieldURI").and_then(|f| f.attr("FieldURI")) == Some("message:IsRead") {
+                            let want = value == "true";
+                            list.retain(|i| i.read == want);
+                        } else if cond.find("ExtendedFieldURI").is_some() {
+                            let negated = r.find("Not").is_some();
+                            list.retain(|i| i.flagged != negated);
+                        }
+                    }
+                }
+                let last = offset + max >= list.len();
                 let items: String = list
                     .iter()
+                    .skip(offset)
                     .take(max)
                     .map(|i| {
                         format!(
@@ -476,7 +499,7 @@ impl Data {
                     })
                     .collect();
                 out.push(ok(format!(
-                    "<m:RootFolder TotalItemsInView=\"{}\" IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>",
+                    "<m:RootFolder TotalItemsInView=\"{}\" IncludesLastItemInRange=\"{last}\"><t:Items>{items}</t:Items></m:RootFolder>",
                     list.len()
                 )));
             }
@@ -922,6 +945,46 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         panic!("timed out waiting for {what}");
+    }
+
+    /// Gap #7: searching Exchange through EWS (`QueryString`, and a `Restriction` for the read
+    /// state) for mail past the window.
+    #[test]
+    fn ews_is_searched_past_the_window() {
+        let mut d = Data::default();
+        let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        let mut ids = Vec::new();
+        for n in 1..=25 {
+            ids.push(
+                d.deliver(
+                    &inbox,
+                    &format!(
+                        "From: Zoe Park <zoe@x.example>\r\nTo: me@x.example\r\nSubject: Message {n}\r\nMessage-ID: <s{n}@x>\r\n\r\nBody tag{n}.\r\n"
+                    )
+                    .into_bytes(),
+                    n > 5,
+                    &format!("2024-05-{n:02}T09:00:00Z"),
+                ),
+            );
+        }
+        let server = serve(d);
+        let account = AccountConfig {
+            id: "a1".into(),
+            email: "riley@contoso.example".into(),
+            username: format!("{DOMAIN}\\{USER}"),
+            ews: Some(server.url.clone()),
+            ..Default::default()
+        };
+        let data = server.data.clone();
+        crate::fake::search_the_server_past_the_window("ews-search", account, PASSWORD, &|n, read| {
+            let mut d = data.lock().unwrap();
+            let id = ids[n as usize - 1].clone();
+            if read {
+                d.items.iter_mut().filter(|m| m.id == id).for_each(|m| m.read = true);
+            } else {
+                d.items.retain(|m| m.id != id);
+            }
+        });
     }
 
     fn mail(subject: &str, id: &str) -> Vec<u8> {
@@ -1601,6 +1664,17 @@ mod tests {
         d.folder("Afgehandeld", None, None, "IPF.Note");
         d.deliver(&inbox, &mail("Weekly report", "o1"), false, "2026-10-19T08:00:00Z");
         d.deliver(&inbox, &mail("Re: Weekly report", "o2"), false, "2026-10-19T09:00:00Z");
+        // `MAILCRAFT_FAKE_COUNT`: that many older ones in Afgehandeld ("Message 1" the oldest,
+        // each body `needle-<n>`), for more mail than is kept (gap #7).
+        let count: u32 = std::env::var("MAILCRAFT_FAKE_COUNT").ok().and_then(|n| n.parse().ok()).unwrap_or(0);
+        let done = d.by_name("Afgehandeld").map(|f| f.id.clone()).unwrap_or_default();
+        for n in 1..=count.min(20_000) {
+            let raw = format!(
+                "From: Zoe Park <zoe@contoso.example>\r\nTo: riley@contoso.example\r\nSubject: Message {n}\r\nMessage-ID: <old{n}@x>\r\n\r\nOld body needle-{n}.\r\n"
+            );
+            let at = format!("2025-01-{:02}T{:02}:{:02}:00Z", 1 + n / 1440, n / 60 % 24, n % 60);
+            d.deliver(&done, raw.as_bytes(), n % 7 != 0, &at);
+        }
         let shared = d.shared_mailbox(SharedBox {
             address: "test@contoso.example".into(),
             name: "Test Grommunio".into(),

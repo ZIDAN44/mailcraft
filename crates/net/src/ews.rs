@@ -24,7 +24,7 @@ use quick_xml::events::Event as X;
 
 use crate::http::{self, Conn, Request, Response};
 use crate::jmap::{self, Mailbox, State, VALIDITY};
-use crate::sync::{SyncOptions, SyncReport, fill_from_source};
+use crate::sync::{SyncOptions, SyncReport, WordQuery, fill_from_source};
 use crate::{NetError, Result};
 
 /// The EWS address of an account whose server Autodiscover finds.
@@ -1118,6 +1118,54 @@ impl Client {
         Ok(out)
     }
 
+    /// The newest `limit` ids of a folder's messages a search finds (one page: `limit` is at most
+    /// a few hundred).
+    fn find(&self, folder: &str, q: &WordQuery, limit: usize) -> Result<Vec<String>> {
+        let (restriction, words) = if q.text.is_empty() {
+            (restriction(q), String::new())
+        } else {
+            (String::new(), format!("<m:QueryString>{}</m:QueryString>", esc(&q.text)))
+        };
+        let m = self.call_one(&format!(
+            "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{FLAG_FIELDS}\
+             <t:FieldURI FieldURI=\"item:HasAttachments\"/></t:AdditionalProperties></m:ItemShape>\
+             <m:IndexedPageItemView MaxEntriesReturned=\"{}\" Offset=\"0\" BasePoint=\"Beginning\"/>{restriction}\
+             <m:SortOrder><t:FieldOrder Order=\"Descending\"><t:FieldURI FieldURI=\"item:DateTimeReceived\"/></t:FieldOrder></m:SortOrder>\
+             <m:ParentFolderIds><t:FolderId Id=\"{}\"/></m:ParentFolderIds>{words}</m:FindItem>",
+            limit.clamp(1, 1000),
+            esc(folder)
+        ))?;
+        let Some(items) = m.find("Items") else { return Ok(Vec::new()) };
+        Ok(items
+            .kids
+            .iter()
+            .filter(|it| q.admits(&flags(it), it.text_of("HasAttachments").is_some_and(|v| v == "true")))
+            .filter_map(|it| Some(it.child("ItemId")?.attr("Id")?.to_string()))
+            .take(limit)
+            .collect())
+    }
+
+    /// Of these messages, those still in a folder, with their flags.
+    fn still_in(&self, folder: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
+        let mut out = Vec::new();
+        for chunk in ids.chunks(BATCH) {
+            let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
+            let doc = self.call(&format!(
+                "<m:GetItem><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{FLAG_FIELDS}\
+                 <t:FieldURI FieldURI=\"item:ParentFolderId\"/></t:AdditionalProperties></m:ItemShape><m:ItemIds>{list}</m:ItemIds></m:GetItem>"
+            ))?;
+            for m in messages(&doc).into_iter().filter(|m| m.attr("ResponseClass") != Some("Error")) {
+                for it in m.child("Items").map(|i| i.kids.as_slice()).unwrap_or_default() {
+                    let Some(id) = it.child("ItemId").and_then(|i| i.attr("Id")) else { continue };
+                    if it.child("ParentFolderId").and_then(|p| p.attr("Id")).is_none_or(|p| p == folder) {
+                        out.push((id.to_string(), flags(it)));
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
     /// Messages' details, for the list.
     fn headers(&self, ids: &[String]) -> Result<Vec<El>> {
         let mut out = Vec::new();
@@ -1427,7 +1475,13 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
         report.reset = true;
     }
     fs.validity = VALIDITY;
-    let wanted: HashMap<u32, Flags> = newest.iter().map(|(id, f)| (st.number(id), f.clone())).collect();
+    let mut wanted: HashMap<u32, Flags> = newest.iter().map(|(id, f)| (st.number(id), f.clone())).collect();
+    // Found by a search of the server past the window: kept while still in the folder.
+    let extra = st.found_outside(folder, &fs.messages, &wanted);
+    for (found, f) in c.still_in(&id, &extra)? {
+        wanted.insert(st.number(&found), f);
+    }
+    st.keep_found(folder, |n| wanted.contains_key(&n));
     let (kept, gone): (Vec<Summary>, Vec<Summary>) = std::mem::take(&mut fs.messages).into_iter().partition(|m| wanted.contains_key(&m.key.uid));
     for m in &gone {
         store.remove_body(&m.key);
@@ -1453,11 +1507,7 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
         if fs.find(key.uid).is_some() {
             continue;
         }
-        let received = it.text_of("DateTimeReceived").and_then(jmap::utc_date).unwrap_or(0);
-        let size = it.text_of("Size").and_then(|s| s.trim().parse::<u32>().ok()).unwrap_or(0);
-        let mut s = mime::summary_from_header(&header_block(&it), key, flags(&it), size, received);
-        s.has_attachments = it.text_of("HasAttachments").is_some_and(|v| v == "true");
-        fs.messages.push(s);
+        fs.messages.push(item_summary(&it, key));
         report.new += 1;
     }
     sort_newest_first(&mut fs.messages);
@@ -1467,6 +1517,77 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
     report.total = total;
     report.unread = unread;
     Ok(report)
+}
+
+/// An item's list entry from its details.
+fn item_summary(it: &El, key: MessageKey) -> Summary {
+    let received = it.text_of("DateTimeReceived").and_then(jmap::utc_date).unwrap_or(0);
+    let size = it.text_of("Size").and_then(|s| s.trim().parse::<u32>().ok()).unwrap_or(0);
+    let mut s = mime::summary_from_header(&header_block(it), key, flags(it), size, received);
+    s.has_attachments = it.text_of("HasAttachments").is_some_and(|v| v == "true");
+    s
+}
+
+/// The messages of `folder` the server finds for a search (issue #4), the newest `cap` of them:
+/// its words as a `QueryString` (AQS), or, with none, its read and flag conditions as a
+/// `Restriction`. Those not kept yet come into its list and stay there past the window while the
+/// folder has them. Their keys, and how many came in.
+pub fn find_on_server(
+    c: &Client,
+    st: &mut State,
+    store: &Store,
+    account: &str,
+    folder: &str,
+    query: &WordQuery,
+    cap: usize,
+) -> Result<(Vec<MessageKey>, usize)> {
+    let id = st.mailbox(folder)?.to_string();
+    let mut fs = store.load_folder(account, folder)?;
+    if fs.validity != VALIDITY {
+        return Ok((Vec::new(), 0));
+    }
+    let ids = c.find(&id, query, cap.min(jmap::FOUND_MAX))?;
+    let numbers: Vec<u32> = ids.iter().map(|i| st.number(i)).collect();
+    let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| fs.find(**n).is_none()).map(|(i, _)| i.clone()).collect();
+    let mut new = 0;
+    for it in c.headers(&missing)? {
+        let Some(i) = it.child("ItemId").and_then(|i| i.attr("Id")) else { continue };
+        let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(i) };
+        if fs.find(key.uid).is_none() {
+            fs.messages.push(item_summary(&it, key));
+            new += 1;
+        }
+    }
+    st.add_found(folder, &numbers);
+    if new > 0 {
+        sort_newest_first(&mut fs.messages);
+        fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
+        store.save_folder(account, folder, &fs)?;
+    }
+    Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
+}
+
+/// A `Restriction` for a search's read, flag and attachment conditions.
+fn restriction(q: &WordQuery) -> String {
+    let equal = |field: &str, value: &str| {
+        format!("<t:IsEqualTo>{field}<t:FieldURIOrConstant><t:Constant Value=\"{value}\"/></t:FieldURIOrConstant></t:IsEqualTo>")
+    };
+    let mut parts = Vec::new();
+    if let Some(u) = q.unread {
+        parts.push(equal("<t:FieldURI FieldURI=\"message:IsRead\"/>", if u { "false" } else { "true" }));
+    }
+    if let Some(on) = q.flagged {
+        let e = equal("<t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/>", "2");
+        parts.push(if on { e } else { format!("<t:Not>{e}</t:Not>") });
+    }
+    if let Some(a) = q.attachment {
+        parts.push(equal("<t:FieldURI FieldURI=\"item:HasAttachments\"/>", if a { "true" } else { "false" }));
+    }
+    match parts.len() {
+        0 => String::new(),
+        1 => format!("<m:Restriction>{}</m:Restriction>", parts.concat()),
+        _ => format!("<m:Restriction><t:And>{}</t:And></m:Restriction>", parts.concat()),
+    }
 }
 
 fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, fs: &mut FolderState, opts: &SyncOptions) -> Result<()> {

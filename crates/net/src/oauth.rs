@@ -190,7 +190,7 @@ fn query_params(target: &str) -> Vec<(String, String)> {
     q.split('&').filter_map(|kv| kv.split_once('=')).map(|(k, v)| (unpct(k), unpct(&v.replace('+', " ")))).collect()
 }
 
-fn unpct(s: &str) -> String {
+pub(crate) fn unpct(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
