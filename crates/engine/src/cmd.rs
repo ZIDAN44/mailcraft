@@ -589,6 +589,11 @@ pub fn registry() -> Registry {
             Ok(json!({"markRead": s.prefs.mark_read_on_open, "when": when, "after": s.prefs.read_after_secs}))
         })
         .params(r#"{"markRead"?: bool (in the reading pane at all; opening a message in its own window always does), "when"?: "shown"|"left" (when it's shown, or once another is chosen), "after"?: number (seconds shown first, with "shown")}"#),
+        CommandSpec::new("view.animations", "Play animations", "File › Options › General", |s, v| {
+            s.prefs.animations = p::bool(v, "on").unwrap_or(!s.prefs.animations);
+            Ok(json!({ "on": s.prefs.animations }))
+        })
+        .params(r#"{"on"?: bool (none: switch)}"#),
         CommandSpec::new("view.trustSender", "Show pictures from a sender", "File › Options › Privacy", |s, v| {
             let who = p::req_str(v, "address")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&who) {

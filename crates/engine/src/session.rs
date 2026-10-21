@@ -333,6 +333,9 @@ pub struct Prefs {
     /// Quick Steps: actions done to the selection in one go ([`quick_steps`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quick_steps: Vec<quick_steps::QuickStep>,
+    /// Play animations: hovers and selections easing, panes sliding, notices sliding in (off:
+    /// everything changes at once).
+    pub animations: bool,
     /// Search Folders: saved searches shown as folders ([`search_folders`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub search_folders: Vec<search_folders::SearchFolder>,
@@ -505,6 +508,7 @@ impl Default for Prefs {
             follow_up: BTreeMap::new(),
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
+            animations: true,
             quick_steps: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),
