@@ -164,7 +164,7 @@ pub fn event_of(it: &El) -> Option<CalEvent> {
     }
     let id = it.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or("").to_string();
     let uid = [text(it, "UID"), id].into_iter().find(|u| !u.is_empty())?;
-    Some(CalEvent {
+    let mut event = CalEvent {
         uid,
         summary: text(it, "Subject"),
         join_url,
@@ -182,7 +182,13 @@ pub fn event_of(it: &El) -> Option<CalEvent> {
             .map(|c| c.children("String").map(|s| s.text.trim().to_string()).filter(|s| !s.is_empty()).take(20).collect())
             .unwrap_or_default(),
         ..Default::default()
-    })
+    };
+    // Exchange's reminder, kept as the event's alarm.
+    if it.text_of("ReminderIsSet") == Some("true") {
+        let minutes = it.text_of("ReminderMinutesBeforeStart").and_then(|m| m.trim().parse::<i64>().ok()).unwrap_or(15);
+        mailcraft_model::ical::set_reminder(&mut event, Some(minutes));
+    }
+    Some(event)
 }
 
 /// The fields of an appointment, in the order EWS wants them.
@@ -197,6 +203,12 @@ fn event_fields(e: &CalEvent) -> Vec<(&'static str, String)> {
     if !e.categories.is_empty() {
         let list: String = e.categories.iter().map(|c| format!("<t:String>{}</t:String>", esc(c))).collect();
         f.push(("Categories", format!("<t:Categories>{list}</t:Categories>")));
+    }
+    // Its reminder (after the item's other fields, before the appointment's).
+    let reminder = mailcraft_model::ical::reminder_minutes(e);
+    f.push(("ReminderIsSet", format!("<t:ReminderIsSet>{}</t:ReminderIsSet>", reminder.is_some())));
+    if let Some(m) = reminder {
+        f.push(("ReminderMinutesBeforeStart", format!("<t:ReminderMinutesBeforeStart>{m}</t:ReminderMinutesBeforeStart>")));
     }
     f.extend([
         ("Start", format!("<t:Start>{}</t:Start>", utc(start))),
@@ -583,7 +595,11 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             let mut updates: String = fields
                 .iter()
                 .map(|(name, x)| {
-                    let uri = if matches!(*name, "Subject" | "Body" | "Categories") { format!("item:{name}") } else { format!("calendar:{name}") };
+                    let uri = if matches!(*name, "Subject" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
+                        format!("item:{name}")
+                    } else {
+                        format!("calendar:{name}")
+                    };
                     format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
                 })
                 .collect();
@@ -875,7 +891,7 @@ mod tests {
         let e = event_of(parse(xml).find("CalendarItem").unwrap()).unwrap();
         assert_eq!(e.categories, ["Clients", "Red category"]);
         let names: Vec<&str> = event_fields(&e).iter().map(|(n, _)| *n).collect();
-        assert_eq!(names.get(..4), Some(&["Subject", "Body", "Categories", "Start"][..]));
+        assert_eq!(names.get(..5), Some(&["Subject", "Body", "Categories", "ReminderIsSet", "Start"][..]));
         assert!(event_fields(&e).iter().any(|(_, x)| x.contains("<t:String>Red category</t:String>")));
         let plain = CalEvent { categories: Vec::new(), ..e };
         assert!(event_fields(&plain).iter().all(|(n, _)| *n != "Categories"));

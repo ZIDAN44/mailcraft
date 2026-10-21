@@ -563,7 +563,49 @@ pub fn registry() -> Registry {
             }
             Ok(r)
         })
-        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "account"?: string, "calendar"?: string}"#),
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "account"?: string, "calendar"?: string}"#),
+        CommandSpec::new("reminders.list", "Reminders", "File › Reminders", |s, _| {
+            let now = s.clock.now;
+            Ok(json!(s
+                .due_reminders(now)
+                .iter()
+                .map(|r| json!({
+                    "key": r.key, "uid": r.uid, "account": r.account, "summary": r.summary, "location": r.location,
+                    "start": r.start, "end": r.end, "allDay": r.all_day, "occurrence": r.occurrence, "due": r.due,
+                }))
+                .collect::<Vec<_>>()))
+        })
+        .params("(the reminders due now)"),
+        CommandSpec::new("reminders.dismiss", "Dismiss", "Reminders", |s, v| {
+            let now = s.clock.now;
+            let key = p::str(v, "key");
+            if let Some(k) = key
+                && !s.due_reminders(now).iter().any(|r| r.key == k)
+            {
+                return Err(CmdError::Params(format!("no reminder `{k}` is due")));
+            }
+            let n = s.dismiss_reminders(key, now);
+            Ok(json!({ "dismissed": n }))
+        })
+        .params(r#"{"key"?: string (one reminder; none: every one due)}"#),
+        CommandSpec::new("reminders.snooze", "Snooze", "Reminders", |s, v| {
+            let now = s.clock.now;
+            let key = p::req_str(v, "key")?.to_string();
+            let Some(r) = s.due_reminders(now).into_iter().find(|r| r.key == key) else {
+                return Err(CmdError::Params(format!("no reminder `{key}` is due")));
+            };
+            // Minutes from now, or `"beforeStart": n` (n minutes before it starts, as Outlook's
+            // "0 minutes before start").
+            let until = match (p::i64(v, "minutes"), p::i64(v, "beforeStart")) {
+                (Some(m), _) if (1..=mailcraft_model::ical::REMINDER_MAX_MINUTES).contains(&m) => now + m * 60,
+                (None, Some(b)) if (0..=mailcraft_model::ical::REMINDER_MAX_MINUTES).contains(&b) && r.start - b * 60 > now => r.start - b * 60,
+                (None, Some(_)) => return Err(CmdError::Params("that time has passed".into())),
+                _ => return Err(CmdError::Params("`minutes` from 1 to four weeks, or `beforeStart`".into())),
+            };
+            s.snooze_reminder(&key, until);
+            Ok(json!({ "key": key, "until": until }))
+        })
+        .params(r#"{"key": string, "minutes"?: 1…40320 | "beforeStart"?: minutes before the event starts}"#),
         CommandSpec::new("event.update", "Edit event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let current = s.find_event(&uid).map(|(_, e)| e.event.clone()).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
@@ -1706,6 +1748,16 @@ fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::CalEvent) ->
     if let Some(mut list) = list {
         list.dedup();
         e.categories = list.into_iter().take(20).map(|c| c.chars().take(100).collect()).collect();
+    }
+    // Its reminder: minutes before it starts, or none.
+    match v.get("reminder") {
+        Some(Value::Null) => mailcraft_model::ical::set_reminder(&mut e, None),
+        Some(Value::String(x)) if matches!(x.trim(), "" | "none") => mailcraft_model::ical::set_reminder(&mut e, None),
+        Some(x) => match x.as_i64().or_else(|| x.as_str().and_then(|t| t.trim().parse().ok())) {
+            Some(m) if (0..=mailcraft_model::ical::REMINDER_MAX_MINUTES).contains(&m) => mailcraft_model::ical::set_reminder(&mut e, Some(m)),
+            _ => return Err(CmdError::Params("`reminder` is minutes before it starts (0 to four weeks) or none".into())),
+        },
+        None => {}
     }
     match p::str(v, "repeat").map(str::trim) {
         Some("" | "none" | "never") => e.rrule = None,

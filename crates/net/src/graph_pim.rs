@@ -18,8 +18,7 @@ use crate::{NetError, Result};
 const MAX_ITEMS: usize = 5000;
 /// The address book Graph's contacts go into.
 pub const CONTACTS: &str = "graph:contacts";
-const EVENT_FIELDS: &str =
-    "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories,onlineMeeting";
+const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories,onlineMeeting,isReminderOn,reminderMinutesBeforeStart";
 const CONTACT_FIELDS: &str = "id,changeKey,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,personalNotes,businessAddress,homeAddress,otherAddress,birthday";
 
 fn seg(id: &str) -> String {
@@ -194,7 +193,7 @@ pub fn event_of(v: &Value) -> Option<CalEvent> {
         })
         .unwrap_or_default();
     let uid = [s(v, "iCalUId"), s(v, "id")].into_iter().find(|u| !u.is_empty())?;
-    Some(CalEvent {
+    let mut event = CalEvent {
         uid,
         summary: s(v, "subject"),
         description: description.trim().to_string(),
@@ -222,7 +221,13 @@ pub fn event_of(v: &Value) -> Option<CalEvent> {
             .map(|a| a.iter().filter_map(Value::as_str).map(str::trim).filter(|c| !c.is_empty()).take(20).map(str::to_string).collect())
             .unwrap_or_default(),
         ..Default::default()
-    })
+    };
+    // Graph's reminder, kept as the event's alarm.
+    if v.get("isReminderOn").and_then(Value::as_bool) == Some(true) {
+        let minutes = v.get("reminderMinutesBeforeStart").and_then(Value::as_i64).unwrap_or(15);
+        mailcraft_model::ical::set_reminder(&mut event, Some(minutes));
+    }
+    Some(event)
 }
 
 /// An event as Graph's JSON (for creating or changing it).
@@ -237,6 +242,11 @@ pub fn event_json(e: &CalEvent) -> Value {
         "attendees": e.attendees.iter().map(|a| json!({"type": "required", "emailAddress": {"address": a.email, "name": a.name}})).collect::<Vec<_>>(),
         "categories": e.categories,
     });
+    let reminder = mailcraft_model::ical::reminder_minutes(e);
+    v["isReminderOn"] = json!(reminder.is_some());
+    if let Some(m) = reminder {
+        v["reminderMinutesBeforeStart"] = json!(m);
+    }
     v["recurrence"] = e.rrule.as_deref().and_then(|r| recurrence_of(r, e.start)).unwrap_or(Value::Null);
     v
 }

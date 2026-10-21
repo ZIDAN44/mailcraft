@@ -27,7 +27,7 @@ pub use session::{
     Reading, ReadingPane, Row, SearchScope, ServerSearch, Session, UpdateCheck, VacationState, View,
     invite::Invite,
     newer_release, parse_key,
-    pim::{ACCOUNT_COLOR, AgendaItem, CalMode, Module, NoteRef, Person, parse_local},
+    pim::{ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, Module, NoteRef, Person, parse_local},
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]

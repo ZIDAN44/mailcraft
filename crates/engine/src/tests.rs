@@ -2819,3 +2819,81 @@ fn closing_counts_whats_lost_and_a_missing_password_is_asked_for() {
     assert!(s.ask_password.is_empty(), "once while MailCraft runs");
     done(s);
 }
+
+/// Reminders: an event's reminder comes due at its time, snoozes, comes back, and goes when
+/// dismissed; each occurrence of a series has its own; one without a reminder, or cancelled,
+/// never comes; a hidden calendar's still does; and bad params are refused.
+#[test]
+fn reminders_come_snooze_and_go() {
+    let mut s = sample_session("reminders");
+    let tomorrow = s.clock.now - s.clock.now.rem_euclid(86_400) + 86_400;
+    let (start, review_at) = (tomorrow + 9 * 3600, tomorrow + 14 * 3600);
+    let day = mailcraft_model::dates::day_string(start.div_euclid(86_400));
+    let make = |s: &mut Session, summary: &str, time: &str, extra: Value| -> String {
+        let mut p = json!({"summary": summary, "start": format!("{day}T{time}"), "end": format!("{day}T{}", if time == "09:00" { "10:00" } else { "15:00" })});
+        if let (Some(o), Some(x)) = (p.as_object_mut(), extra.as_object()) {
+            o.extend(x.clone());
+        }
+        s.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string()
+    };
+    let standup = make(&mut s, "Stand-up", "09:00", json!({"reminder": 15, "repeat": "daily"}));
+    let quiet = make(&mut s, "No reminder", "09:00", json!({}));
+    let review = make(&mut s, "Review", "14:00", json!({"reminder": "60"}));
+    let due = |s: &Session| s.due_reminders(s.clock.now).into_iter().map(|r| r.summary).collect::<Vec<_>>();
+    // A day before: nothing yet.
+    s.clock.now = start - 86_400;
+    assert!(due(&s).is_empty(), "{:?}", due(&s));
+    // At 08:45 the stand-up's is due; the quiet one never.
+    s.clock.now = start - 15 * 60;
+    assert_eq!(due(&s), ["Stand-up"]);
+    let key = s.due_reminders(s.clock.now)[0].key.clone();
+    assert!(key.starts_with("local|") || key.contains(&standup), "{key}");
+    // Snoozed five minutes: gone, then back.
+    s.run("reminders.snooze", &json!({"key": key, "minutes": 5})).unwrap();
+    assert!(due(&s).is_empty());
+    s.clock.now += 5 * 60;
+    assert_eq!(due(&s), ["Stand-up"]);
+    // Snooze until "0 minutes before start" when that's still ahead; refused once it's passed.
+    s.run("reminders.snooze", &json!({"key": key, "beforeStart": 0})).unwrap();
+    assert!(due(&s).is_empty());
+    s.clock.now = start;
+    assert_eq!(due(&s), ["Stand-up"]);
+    assert!(s.run("reminders.snooze", &json!({"key": key, "beforeStart": 5})).is_err());
+    // Dismissed: gone for good; tomorrow's occurrence has its own.
+    s.run("reminders.dismiss", &json!({"key": key})).unwrap();
+    assert!(due(&s).is_empty());
+    s.clock.now = start + 86_400 - 10 * 60;
+    assert_eq!(due(&s), ["Review", "Stand-up"], "the next day's stand-up, and yesterday's review still unanswered (overdue)");
+    assert_eq!(s.run("reminders.dismiss", &json!({})).unwrap()["dismissed"], 2);
+    assert!(due(&s).is_empty());
+    // The 14:00 review's an hour before; hiding its calendar doesn't silence it.
+    s.prefs.reminders.clear();
+    s.clock.now = review_at - 3600;
+    s.prefs.hidden_calendars.insert("local:local".into());
+    assert_eq!(due(&s), ["Stand-up", "Review"], "the stand-up's of 09:00 is still unanswered too (soonest first)");
+    s.run("event.update", &json!({"uid": standup, "reminder": "none"})).unwrap();
+    assert_eq!(due(&s), ["Review"]);
+    // Changing its reminder to none: gone; a cancelled event never comes.
+    s.run("event.update", &json!({"uid": review, "reminder": "none"})).unwrap();
+    assert!(due(&s).is_empty());
+    s.run("event.update", &json!({"uid": review, "reminder": 60})).unwrap();
+    assert_eq!(due(&s), ["Review"]);
+    s.update_event(&review, |e| e.status = "CANCELLED".into()).unwrap();
+    assert!(due(&s).is_empty());
+    // Long after it ended, an unanswered reminder no longer waits.
+    s.update_event(&review, |e| e.status = String::new()).unwrap();
+    s.clock.now = review_at + 3 * 86_400;
+    assert!(!due(&s).contains(&"Review".to_string()));
+    // Junk.
+    for bad in
+        [json!({"key": "nope", "minutes": 5}), json!({"key": key}), json!({"key": key, "minutes": 0}), json!({"key": key, "minutes": 99_999_999})]
+    {
+        assert!(s.run("reminders.snooze", &bad).is_err(), "{bad}");
+    }
+    assert!(s.run("reminders.dismiss", &json!({"key": "nope"})).is_err());
+    for bad in [json!(-1), json!(999_999), json!("soon"), json!(true)] {
+        assert!(s.run("event.update", &json!({"uid": quiet, "reminder": bad})).is_err(), "{bad}");
+    }
+    assert!(s.run("reminders.list", &json!({})).unwrap().is_array());
+    done(s);
+}

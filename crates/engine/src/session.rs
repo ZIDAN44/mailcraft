@@ -320,6 +320,10 @@ pub struct Prefs {
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default)]
     pub follow_up: BTreeMap<String, i64>,
+    /// Reminders answered ([`Session::due_reminders`]), by occurrence
+    /// (`<account>|<uid>|<occurrence>`): 0 dismissed, else snoozed until that Unix time.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub reminders: BTreeMap<String, i64>,
 }
 
 /// What the message list is sorted and grouped by.
@@ -481,6 +485,7 @@ impl Default for Prefs {
             work_offline: false,
             ignored: BTreeSet::new(),
             follow_up: BTreeMap::new(),
+            reminders: BTreeMap::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),
             pane_order: Vec::new(),

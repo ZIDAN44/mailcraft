@@ -568,6 +568,80 @@ pub fn duration(v: &str) -> Option<i64> {
     num.is_empty().then_some(sign * total)
 }
 
+/// The longest reminder taken (four weeks before), as Outlook's own list goes.
+pub const REMINDER_MAX_MINUTES: i64 = 4 * 7 * 24 * 60;
+
+/// An event's reminder, in minutes before it starts, from its first alarm (`VALARM`) with a
+/// trigger relative to the start (`TRIGGER:-PT15M`, `TRIGGER;RELATED=START:-P1D`) or at a set
+/// time (`TRIGGER;VALUE=DATE-TIME:…Z`). `None`: no reminder. A trigger after the start counts as
+/// "at the start".
+pub fn reminder_minutes(e: &CalEvent) -> Option<i64> {
+    let mut in_alarm = false;
+    for raw in e.extra.iter().take(400) {
+        let line = raw.trim();
+        let upper = line.to_ascii_uppercase();
+        if upper == "BEGIN:VALARM" {
+            in_alarm = true;
+            continue;
+        }
+        if upper == "END:VALARM" {
+            in_alarm = false;
+            continue;
+        }
+        if !in_alarm || !upper.starts_with("TRIGGER") {
+            continue;
+        }
+        let Some((params, value)) = line.split_once(':') else { continue };
+        let params = params.to_ascii_uppercase();
+        if params.contains("RELATED=END") {
+            continue;
+        }
+        // One that can't be read is passed over for the next.
+        let before = if params.contains("VALUE=DATE-TIME") {
+            let Some((t, _, _)) = date_time(value) else { continue };
+            e.start.saturating_sub(t)
+        } else {
+            let Some(d) = duration(value) else { continue };
+            d.saturating_neg()
+        };
+        return Some((before / 60).clamp(0, REMINDER_MAX_MINUTES));
+    }
+    None
+}
+
+/// Give an event one display alarm `minutes` before it starts, in place of any it had, or none
+/// (`None`).
+pub fn set_reminder(e: &mut CalEvent, minutes: Option<i64>) {
+    // Every alarm goes, nested lines included.
+    let mut kept = Vec::with_capacity(e.extra.len());
+    let mut depth = 0usize;
+    for raw in std::mem::take(&mut e.extra) {
+        let upper = raw.trim().to_ascii_uppercase();
+        if upper == "BEGIN:VALARM" {
+            depth += 1;
+            continue;
+        }
+        if depth > 0 {
+            if upper == "END:VALARM" {
+                depth -= 1;
+            }
+            continue;
+        }
+        kept.push(raw);
+    }
+    e.extra = kept;
+    if let Some(m) = minutes {
+        let m = m.clamp(0, REMINDER_MAX_MINUTES);
+        e.extra.extend([
+            "BEGIN:VALARM".to_string(),
+            "ACTION:DISPLAY".to_string(),
+            "DESCRIPTION:Reminder".to_string(),
+            format!("TRIGGER:-PT{m}M"),
+            "END:VALARM".to_string(),
+        ]);
+    }
+}
+
 /// Read a mailbox (`mailto:a@b`) and its name.
 fn person(l: &Line) -> Attendee {
     let v = l.value.trim();
@@ -1075,14 +1149,26 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
 /// `RECURRENCE-ID` replace the occurrence of the same event they name; cancelled ones are left out.
 pub fn occurrences(events: &[CalEvent], from: i64, to: i64) -> Vec<Occurrence> {
     let mut out = Vec::new();
+    // The moved or changed occurrences of each series, gathered once (not per event: a big
+    // calendar would make that quadratic).
+    let mut moved: std::collections::BTreeMap<&str, Vec<i64>> = std::collections::BTreeMap::new();
+    for e in events {
+        if let Some(r) = e.recurrence_id {
+            moved.entry(e.uid.as_str()).or_default().push(r);
+        }
+    }
+    let none = Vec::new();
     for (i, e) in events.iter().enumerate() {
         if e.recurrence_id.is_some() || e.status == "CANCELLED" {
             continue;
         }
         let len = (e.end - e.start).max(0);
-        let overrides: Vec<i64> = events.iter().filter(|o| o.uid == e.uid && o.recurrence_id.is_some()).filter_map(|o| o.recurrence_id).collect();
+        let overrides = moved.get(e.uid.as_str()).unwrap_or(&none);
         let mut n = 0;
         for s in starts(e, to) {
+            if s >= to {
+                break;
+            }
             if s + len.max(1) <= from || e.exdates.contains(&s) || overrides.contains(&s) {
                 continue;
             }
@@ -1278,6 +1364,72 @@ SEQUENCE:2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
         // In winter the same zone is +1.
         let winter = INVITE.replace("20261015T140000", "20261215T140000").replace("20261015T153000", "20261215T153000");
         assert_eq!(parse(&winter, 0).events[0].start, at(2026, 12, 15, 13, 0));
+    }
+
+    /// A big calendar expands in one pass: the moved occurrences are gathered once, not looked
+    /// for again for every event.
+    #[test]
+    fn a_big_calendar_expands_quickly() {
+        let day = 86_400;
+        let mut events: Vec<CalEvent> = (0..30_000)
+            .map(|n| CalEvent { uid: format!("e{n}"), summary: format!("{n}"), start: n * 3600, end: n * 3600 + 1800, ..Default::default() })
+            .collect();
+        events.push(CalEvent { uid: "s".into(), start: 0, end: 600, rrule: Some("FREQ=DAILY".into()), ..Default::default() });
+        events.push(CalEvent { uid: "s".into(), recurrence_id: Some(2 * day), start: 2 * day + 60, end: 2 * day + 660, ..Default::default() });
+        let took = std::time::Instant::now();
+        let got = occurrences(&events, 0, 4 * day);
+        assert!(took.elapsed() < std::time::Duration::from_secs(5), "{:?}", took.elapsed());
+        let series: Vec<i64> = got.iter().filter(|o| events[o.event].uid == "s").map(|o| o.start).collect();
+        assert_eq!(series, [0, day, 2 * day + 60, 3 * day]);
+        assert_eq!(got.len(), 96 + 4);
+    }
+
+    #[test]
+    fn reminders_from_and_to_alarms() {
+        // Damaged triggers: the next alarm counts; huge ones are held to the longest.
+        let odd = |lines: &[&str]| {
+            reminder_minutes(&CalEvent { start: 1_000_000, extra: lines.iter().map(|l| l.to_string()).collect(), ..Default::default() })
+        };
+        assert_eq!(odd(&["BEGIN:VALARM", "TRIGGER:-PXM", "END:VALARM", "BEGIN:VALARM", "TRIGGER:-PT5M", "END:VALARM"]), Some(5));
+        assert_eq!(odd(&["BEGIN:VALARM", "TRIGGER:-P99999999999999999999W", "END:VALARM"]), None);
+        assert_eq!(odd(&["BEGIN:VALARM", "TRIGGER:-P9999999999999W", "END:VALARM"]), Some(REMINDER_MAX_MINUTES));
+        assert_eq!(odd(&["BEGIN:VALARM", "TRIGGER;VALUE=DATE-TIME:19700101T000000Z", "END:VALARM"]), Some(1_000_000 / 60));
+        assert_eq!(odd(&["BEGIN:VALARM", "TRIGGER:PT30M", "END:VALARM"]), Some(0));
+        assert_eq!(odd(&["TRIGGER:-PT5M"]), None, "outside an alarm");
+        let with = |lines: &[&str]| CalEvent { start: 1_800_000_000, extra: lines.iter().map(|s| s.to_string()).collect(), ..Default::default() };
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "END:VALARM"])), Some(15));
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER;RELATED=START:-P1DT2H", "END:VALARM"])), Some(26 * 60));
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER:PT0S", "END:VALARM"])), Some(0));
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER:PT10M", "END:VALARM"])), Some(0), "after the start: at it");
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER;VALUE=DATE-TIME:20270115T075000Z", "END:VALARM"])), Some(10));
+        // Relative to the end, or outside an alarm, or broken: no reminder from it.
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER;RELATED=END:-PT5M", "END:VALARM"])), None);
+        assert_eq!(reminder_minutes(&with(&["TRIGGER:-PT5M"])), None);
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER:soon", "END:VALARM"])), None);
+        assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER:-P9999W", "END:VALARM"])), Some(REMINDER_MAX_MINUTES));
+        // Set: one alarm instead of the others; other lines stay; none removes it.
+        let mut e = with(&[
+            "X-KEEP:1",
+            "BEGIN:VALARM",
+            "TRIGGER:-PT5M",
+            "BEGIN:X-NESTED",
+            "END:X-NESTED",
+            "END:VALARM",
+            "BEGIN:VALARM",
+            "TRIGGER:-P1D",
+            "END:VALARM",
+        ]);
+        set_reminder(&mut e, Some(30));
+        assert_eq!(reminder_minutes(&e), Some(30));
+        assert_eq!(e.extra.iter().filter(|l| *l == "BEGIN:VALARM").count(), 1);
+        assert!(e.extra.contains(&"X-KEEP:1".to_string()) && !e.extra.iter().any(|l| l.contains("NESTED")));
+        set_reminder(&mut e, None);
+        assert_eq!((reminder_minutes(&e), e.extra.clone()), (None, vec!["X-KEEP:1".to_string()]));
+        // Through a write and a read.
+        let mut ev = CalEvent { uid: "r1".into(), summary: "Call".into(), start: 1_800_000_000, end: 1_800_003_600, ..Default::default() };
+        set_reminder(&mut ev, Some(45));
+        let back = parse(&write(&[ev], None, 1_800_000_000), 0).events;
+        assert_eq!(back.first().and_then(reminder_minutes), Some(45));
     }
 
     #[test]
