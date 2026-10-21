@@ -701,7 +701,7 @@ pub struct Session {
     /// Built on first use from the cached mail; dropped when mail arrives.
     contacts: Option<ContactBook>,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
-    seen_uid: HashMap<(String, String), u32>,
+    pub(crate) seen_uid: HashMap<(String, String), u32>,
     /// New mail to announce (desktop notifications), oldest first.
     pub new_mail: Vec<Summary>,
     /// Inbox rules, run on mail as it arrives (`rules.json`).
@@ -877,6 +877,9 @@ impl Session {
             s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone()))).collect();
         for (a, f) in inboxes {
             s.note_new_mail(&a, &f);
+        }
+        for id in s.accounts.iter().map(|a| a.config.id.clone()).collect::<Vec<_>>() {
+            s.mark_junk(&id);
         }
         s.refresh_outbox();
         s.load_pim();
@@ -1106,6 +1109,16 @@ impl Session {
             // A burst (a first sync, a long time offline) is summed up by the UI; keep it bounded.
             let excess = self.new_mail.len().saturating_sub(50);
             self.new_mail.drain(..excess);
+        }
+    }
+
+    /// Junk's high-water mark, from what's kept, as soon as the folder is known: what the server
+    /// files there after is seen arriving (a safe sender's goes back to the Inbox), even when the
+    /// folder was empty at the first sync and so never changed until then.
+    fn mark_junk(&mut self, account: &str) {
+        let Some(junk) = self.account(account).and_then(|a| a.folder(FolderRole::Junk)).map(|f| f.path.clone()) else { return };
+        if !self.seen_uid.contains_key(&(account.to_string(), junk.clone())) {
+            self.note_new_mail(account, &junk);
         }
     }
 
@@ -3410,6 +3423,7 @@ impl Session {
                 } else if first {
                     self.refresh_list();
                 }
+                self.mark_junk(&account);
                 self.index = None;
             }
             Event::FolderChanged { account, folder } => {

@@ -2945,8 +2945,12 @@ fn blocked_and_safe_senders_sort_mail_as_it_arrives() {
     arrive(&mut s, "INBOX", 704, "a@spam.example", "Through");
     arrive(&mut s, "INBOX", 705, "d@spam.example", "Still junk");
     assert!(inbox_has(&mut s, "Through") && junk_has(&mut s, "Still junk"));
-    // A safe sender's mail filed in Junk by the server comes back to the Inbox.
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: junk.clone() });
+    // A safe sender's mail filed in Junk by the server comes back to the Inbox: Junk's mark is
+    // set as soon as its folder is known, so the first change it sees is already an arrival
+    // (found against a real server: Junk empty at the first sync sent no change).
+    s.seen_uid.clear();
+    let folders = s.account("sample").unwrap().folders.clone();
+    s.apply(Event::Folders { account: "sample".into(), folders });
     arrive(&mut s, &junk, 900, "a@spam.example", "Misfiled");
     assert!(inbox_has(&mut s, "Misfiled") && !junk_has(&mut s, "Misfiled"));
     // Never block from Junk: on the safe list, off the blocked one, and back to the Inbox.
