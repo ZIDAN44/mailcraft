@@ -20,6 +20,7 @@ use serde_json::Value;
 use crate::{CmdError, CmdResult, Registry};
 
 pub mod invite;
+pub mod junk;
 mod organize;
 pub mod pim;
 
@@ -293,6 +294,13 @@ pub struct Prefs {
     pub show_html: bool,
     /// Senders whose pictures from the web load without asking (lower-case addresses).
     pub trusted_senders: BTreeSet<String>,
+    /// Junk Email: senders (a lower-case address, or `@domain`) whose mail goes to Junk as it
+    /// arrives ([`junk`]).
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub blocked_senders: BTreeSet<String>,
+    /// Junk Email: senders whose mail is never junk (taken back out of Junk; pictures load).
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub safe_senders: BTreeSet<String>,
     /// Folders the user pinned to Favorites, in order. `None` until the user changes them: the
     /// Inbox, Sent Items and Drafts of a single account are shown.
     pub favorites: Option<Vec<FolderRef>>,
@@ -479,6 +487,8 @@ impl Default for Prefs {
             focus_overrides: std::collections::BTreeMap::new(),
             show_html: true,
             trusted_senders: BTreeSet::new(),
+            blocked_senders: BTreeSet::new(),
+            safe_senders: BTreeSet::new(),
             new_mail_window: true,
             arrange: Arrange::Date,
             reverse_sort: false,
@@ -1048,7 +1058,8 @@ impl Session {
     /// Remember what an Inbox holds; unread mail above the last high-water mark is new. The first
     /// look at a folder only sets the mark, so a first sync doesn't announce the backlog.
     fn note_new_mail(&mut self, account: &str, folder: &str) {
-        if self.folder(account, folder).is_none_or(|f| f.role != FolderRole::Inbox) {
+        let role = self.folder(account, folder).map(|f| f.role);
+        if !matches!(role, Some(FolderRole::Inbox | FolderRole::Junk)) {
             return;
         }
         let st = self.folder_state(account, folder);
@@ -1061,9 +1072,16 @@ impl Session {
             None => Vec::new(),
         };
         self.seen_uid.insert(k, max);
-        // Replies in ignored conversations go to Deleted Items, then rules; what they file away
-        // or mark read isn't announced.
-        let mut quiet = self.ignore_arrived(&arrived);
+        // Junk from safe senders goes back to the Inbox (and is seen arriving there).
+        if role == Some(FolderRole::Junk) {
+            self.rescue_arrived(&arrived);
+            return;
+        }
+        // Blocked senders' mail goes to Junk, replies in ignored conversations to Deleted Items,
+        // then rules; what they file away or mark read isn't announced.
+        let mut quiet = self.block_arrived(&arrived);
+        let rest: Vec<Summary> = arrived.iter().filter(|m| !quiet.contains(&m.key)).cloned().collect();
+        quiet.extend(self.ignore_arrived(&rest));
         let rest: Vec<Summary> = arrived.iter().filter(|m| !quiet.contains(&m.key)).cloned().collect();
         quiet.extend(self.run_rules(&rest));
         // Mail older than a day (a resync after a long time away) isn't "new" any more.
@@ -1494,7 +1512,7 @@ impl Session {
     pub fn pictures_allowed(&self) -> bool {
         let Some(r) = &self.reading else { return false };
         let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
-        self.pictures_for.contains(&r.key) || (!sender.is_empty() && self.prefs.trusted_senders.contains(&sender))
+        self.pictures_for.contains(&r.key) || (!sender.is_empty() && (self.prefs.trusted_senders.contains(&sender) || self.sender_safe(&sender)))
     }
 
     /// Ask the network layer for the open message's pictures, when allowed.

@@ -8,6 +8,7 @@ use mailcraft_mime::{OutAttachment, ReplyMode, mime_from_name, sanitize_filename
 use mailcraft_model::{AccountConfig, Flag, FolderRole, Security, ServerConfig};
 use serde_json::{Value, json};
 
+use crate::JunkList;
 use crate::session::{ListFilter, MoveTarget, ReadingPane, SearchScope, View, parse_key};
 use crate::{CmdError, CmdResult, CommandSpec, Registry, Session, p, parse_local};
 
@@ -50,7 +51,38 @@ pub fn registry() -> Registry {
             .when(has_selection),
         CommandSpec::new("mail.ignore", "Ignore conversation", "Home › Delete", |s, _| s.ignore_selection()).when(has_selection),
         CommandSpec::new("mail.junk", "Report junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Junk))).when(has_selection),
-        CommandSpec::new("mail.notJunk", "Not junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Inbox))).when(has_selection),
+        CommandSpec::new("mail.notJunk", "Not junk", "Home › Delete", |s, v| {
+            // "Always trust mail from this sender", as Outlook asks.
+            if p::bool(v, "always").unwrap_or(false) {
+                s.junk_list_selection(JunkList::Safe, false)?;
+                return Ok(json!({"trusted": true}));
+            }
+            s.move_selection(MoveTarget::Role(FolderRole::Inbox))
+        })
+        .params(r#"{"always"?: bool}"#)
+        .when(has_selection),
+        // Home › Delete › Junk
+        CommandSpec::new("junk.blockSender", "Block sender", "Home › Delete › Junk", |s, _| s.junk_list_selection(JunkList::Blocked, false))
+            .when(has_selection),
+        CommandSpec::new("junk.neverBlockSender", "Never block sender", "Home › Delete › Junk", |s, _| s.junk_list_selection(JunkList::Safe, false))
+            .when(has_selection),
+        CommandSpec::new("junk.neverBlockDomain", "Never block sender's domain", "Home › Delete › Junk", |s, _| {
+            s.junk_list_selection(JunkList::Safe, true)
+        })
+        .when(has_selection),
+        CommandSpec::new("junk.lists", "Junk Email options", "Home › Delete › Junk", |s, _| {
+            Ok(json!({"blocked": s.prefs.blocked_senders, "safe": s.prefs.safe_senders}))
+        }),
+        CommandSpec::new("junk.edit", "Edit a junk list", "Home › Delete › Junk › Junk Email options", |s, v| {
+            let which = match p::req_str(v, "list")? {
+                "blocked" => JunkList::Blocked,
+                "safe" => JunkList::Safe,
+                other => return Err(CmdError::Params(format!("no list `{other}` (blocked or safe)"))),
+            };
+            let entry = s.set_junk_entry(which, p::req_str(v, "entry")?, p::bool(v, "on").unwrap_or(true))?;
+            Ok(json!({"entry": entry, "blocked": s.prefs.blocked_senders, "safe": s.prefs.safe_senders}))
+        })
+        .params(r#"{"list": "blocked"|"safe", "entry": string (an address or @domain), "on"?: bool}"#),
         // Home › Respond
         CommandSpec::new("mail.reply", "Reply", "Home › Respond", |s, _| s.reply_compose(ReplyMode::Reply)).key("Mod+R").when(has_reading),
         CommandSpec::new("mail.replyAll", "Reply all", "Home › Respond", |s, _| s.reply_compose(ReplyMode::ReplyAll)).key("Mod+Shift+R").when(has_reading),

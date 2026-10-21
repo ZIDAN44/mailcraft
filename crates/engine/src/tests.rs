@@ -2897,3 +2897,82 @@ fn reminders_come_snooze_and_go() {
     assert!(s.run("reminders.list", &json!({})).unwrap().is_array());
     done(s);
 }
+
+/// Junk Email lists, as Outlook's: a blocked sender's mail goes to Junk as it arrives, a safe
+/// sender's comes back out of it; a domain covers every address at it; safe wins over blocked.
+#[test]
+fn blocked_and_safe_senders_sort_mail_as_it_arrives() {
+    let mut s = sample_session("junk-lists");
+    let junk = s.account("sample").and_then(|a| a.folder(FolderRole::Junk)).map(|f| f.path.clone()).unwrap();
+    let store = s.store.clone().unwrap();
+    let arrive = |s: &mut Session, folder: &str, uid: u32, from: &str, subject: &str| {
+        let mut st = store.load_folder("sample", folder).unwrap();
+        let mut m = store.load_folder("sample", "INBOX").unwrap().messages[0].clone();
+        m.key.folder = folder.into();
+        m.key.uid = uid;
+        m.key.validity = st.validity;
+        m.from = mailcraft_model::EmailAddress::new("", from);
+        m.subject = subject.into();
+        m.message_id = format!("{uid}@junk.example");
+        m.in_reply_to.clear();
+        m.references.clear();
+        m.flags.seen = false;
+        m.date = NOW;
+        st.messages.insert(0, m);
+        store.save_folder("sample", folder, &st).unwrap();
+        s.apply(Event::FolderChanged { account: "sample".into(), folder: folder.into() });
+    };
+    let inbox_has = |s: &mut Session, subject: &str| s.folder_state("sample", "INBOX").messages.iter().any(|m| m.subject == subject);
+    let junk_has = |s: &mut Session, subject: &str| s.folder_state("sample", &junk).messages.iter().any(|m| m.subject == subject);
+    // Block Zoe from the selection: her mail goes to Junk now, and as it comes.
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.select", &k).unwrap();
+    let r = s.run("junk.blockSender", &json!({})).unwrap();
+    assert_eq!(r["added"], json!(["zoe@studio.example"]));
+    assert!(junk_has(&mut s, "Storyboard review on Thursday"));
+    s.take_new_mail();
+    arrive(&mut s, "INBOX", 700, "ZOE@Studio.Example", "Again");
+    assert!(junk_has(&mut s, "Again") && !inbox_has(&mut s, "Again"), "an address matches whatever its case");
+    assert!(s.take_new_mail().is_empty(), "blocked mail isn't announced");
+    // A domain: every address at it, not its look-alikes.
+    s.run("junk.edit", &json!({"list": "blocked", "entry": "Spam.Example"})).unwrap();
+    arrive(&mut s, "INBOX", 701, "a@spam.example", "Offer");
+    arrive(&mut s, "INBOX", 702, "b@notspam.example", "Fine");
+    arrive(&mut s, "INBOX", 703, "c@spam.example.org", "Fine too");
+    assert!(junk_has(&mut s, "Offer") && inbox_has(&mut s, "Fine") && inbox_has(&mut s, "Fine too"));
+    // Safe wins: never blocking a@ lets just that address through.
+    s.run("junk.edit", &json!({"list": "safe", "entry": "<a@spam.example>"})).unwrap();
+    arrive(&mut s, "INBOX", 704, "a@spam.example", "Through");
+    arrive(&mut s, "INBOX", 705, "d@spam.example", "Still junk");
+    assert!(inbox_has(&mut s, "Through") && junk_has(&mut s, "Still junk"));
+    // A safe sender's mail filed in Junk by the server comes back to the Inbox.
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: junk.clone() });
+    arrive(&mut s, &junk, 900, "a@spam.example", "Misfiled");
+    assert!(inbox_has(&mut s, "Misfiled") && !junk_has(&mut s, "Misfiled"));
+    // Never block from Junk: on the safe list, off the blocked one, and back to the Inbox.
+    s.run("folder.open", &json!({"account": "sample", "folder": junk})).unwrap();
+    let k = key_of(&s, "Again");
+    s.run("list.select", &k).unwrap();
+    s.run("junk.neverBlockSender", &json!({})).unwrap();
+    assert!(inbox_has(&mut s, "Again"));
+    assert!(s.prefs.safe_senders.contains("zoe@studio.example") && !s.prefs.blocked_senders.contains("zoe@studio.example"));
+    // Not junk, always trusting the domain's sender; the domain itself.
+    let k = key_of(&s, "Still junk");
+    s.run("list.select", &k).unwrap();
+    s.run("junk.neverBlockDomain", &json!({})).unwrap();
+    assert!(s.prefs.safe_senders.contains("@spam.example") && !s.prefs.blocked_senders.contains("@spam.example"));
+    assert!(inbox_has(&mut s, "Still junk"));
+    // Junk entries and params.
+    for bad in ["", "@", "nobody", "a@", "@-x.example", "x..example", "a@b@c.example", &"x".repeat(400)] {
+        assert!(s.run("junk.edit", &json!({"list": "blocked", "entry": bad})).is_err(), "{bad:?}");
+    }
+    assert!(s.run("junk.edit", &json!({"list": "nope", "entry": "a@b.example"})).is_err());
+    assert!(s.run("junk.edit", &json!({"entry": "a@b.example"})).is_err());
+    let r = s.run("junk.edit", &json!({"list": "safe", "entry": "a@spam.example", "on": false})).unwrap();
+    assert!(!r["safe"].as_array().unwrap().iter().any(|e| e == "a@spam.example"));
+    // The lists are kept with the settings.
+    let lists = s.run("junk.lists", &json!({})).unwrap();
+    assert!(lists["safe"].as_array().unwrap().iter().any(|e| e == "@spam.example"));
+    let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!((back.safe_senders, back.blocked_senders), (s.prefs.safe_senders.clone(), s.prefs.blocked_senders.clone()));
+}
