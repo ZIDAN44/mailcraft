@@ -35,6 +35,9 @@ env:
   CRAFT_FONTS_REF: 3d9ab3a132ed0eff457e424226a435a901da30d3
   # Unsigned on purpose: the packaging scripts note it rather than warn.
   UNSIGNED_BUILD: "1"
+  # These builds update themselves to the next test build (apps/mailcraft/src/self_update.rs);
+  # release.yml doesn't set it, so signed releases never do.
+  MAILCRAFT_UPDATE_CHANNEL: test
   # Browser sign-in (OAuth) for Microsoft (Outlook.com, Hotmail, Microsoft 365) and Google is
   # built in when the repository has these secrets (an app registration's client id; empty
   # otherwise, and the build offers passwords only). See docs/oauth.md.
@@ -389,6 +392,8 @@ jobs:
           | Web | \`mailcraft-web-*.zip\` (a static site; see HOSTING.md inside) |
 
           Check a download against \`SHA256SUMS.txt\`.
+
+          Installed from the \`.msi\`, the portable \`.zip\`, the \`.dmg\` or the \`.AppImage\`, a test build updates itself: it downloads the next one in the background, checks it against its SHA-256, and installs it when MailCraft closes (or at once with *Restart to update*). \`MAILCRAFT_NO_AUTO_UPDATE=1\` turns that off.
           EOF
           gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
             --title "MailCraft $VERSION (unsigned test build ${{ github.run_number }})" \

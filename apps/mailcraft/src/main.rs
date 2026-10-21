@@ -30,6 +30,7 @@ mod graphics;
 mod logfile;
 mod portable;
 mod secrets;
+mod self_update;
 mod single_instance;
 #[cfg(windows)]
 mod toast;
@@ -100,6 +101,8 @@ struct Desktop {
     /// Portable mode (`portable.rs`): MailCraft's name isn't written to Windows' registry.
     #[cfg(windows)]
     portable: bool,
+    /// Test builds' updater (`self_update.rs`), when this one has it.
+    updater: Option<self_update::Updater>,
 }
 
 impl Services for Desktop {
@@ -131,6 +134,12 @@ impl Services for Desktop {
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         shell_open(path.as_os_str())
+    }
+    fn pending_update(&mut self) -> Option<String> {
+        self.updater.as_ref().and_then(self_update::Updater::ready)
+    }
+    fn restart_to_update(&mut self) -> bool {
+        self.updater.as_ref().is_some_and(self_update::Updater::restart_after_close)
     }
     fn data_folder(&self) -> Option<(PathBuf, bool)> {
         self.data.clone().map(|d| (d, self.base.is_some()))
@@ -458,6 +467,8 @@ struct App {
     /// Answering later launches on the same data folder (`single_instance.rs`).
     instance: Option<single_instance::Server>,
     native_wayland: bool,
+    /// Installs a downloaded update as MailCraft closes.
+    updater: Option<self_update::Updater>,
 }
 
 impl eframe::App for App {
@@ -483,6 +494,12 @@ impl eframe::App for App {
     fn on_exit(&mut self) {
         if let Some(server) = &self.instance {
             server.close();
+        }
+        // A test build downloaded and checked: installed now that MailCraft closes.
+        if let Some(u) = &self.updater
+            && let Err(e) = u.install(u.restart_wanted())
+        {
+            log::warn!("updates: {e}");
         }
         if let Some(p) = &self.state_path
             && let Ok(bytes) = serde_json::to_vec_pretty(&self.app.saved_state())
@@ -601,6 +618,8 @@ fn main() -> eframe::Result {
     // A release build's commit, so File › About can tell its test build from a later one.
     session.build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
+    // Test builds update themselves (`self_update.rs`); not the sample mailbox's run.
+    let updater = root.clone().filter(|_| !sample).and_then(|r| self_update::Updater::start(r, session.build_sha.clone()));
 
     // The main window opens where it was, at the size it was, maximized if it was.
     let main_place: Option<mailcraft_ui_egui::WindowPlace> = state_path
@@ -635,7 +654,7 @@ fn main() -> eframe::Result {
     // A window that can't open says why, rather than the app leaving without a word (or
     // staying in the background); a panic on the way is caught for that too.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run(options, sample, store, session, desktop_data, base, moved, state_path, cmd_args, instance)
+        run(options, sample, store, session, desktop_data, base, moved, state_path, cmd_args, instance, updater)
     }));
     let failed = match ran {
         Ok(Ok(())) => return Ok(()),
@@ -721,6 +740,7 @@ fn run(
     state_path: Option<PathBuf>,
     cmd_args: Vec<String>,
     instance: Option<single_instance::Server>,
+    updater: Option<self_update::Updater>,
 ) -> eframe::Result {
     eframe::run_native(
         "MailCraft",
@@ -749,6 +769,7 @@ fn run(
                     moved,
                     #[cfg(windows)]
                     portable: app_portable,
+                    updater: updater.clone(),
                     ..Default::default()
                 }),
             );
@@ -804,7 +825,7 @@ fn run(
             let native_wayland = cfg!(all(unix, not(target_os = "macos")))
                 && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty())
                 && display::choose_from_env() != display::Choice::X11;
-            Ok(Box::new(App { app, state_path, gpu, frames: 0, instance, native_wayland }))
+            Ok(Box::new(App { app, state_path, gpu, frames: 0, instance, native_wayland, updater }))
         }),
     )
 }

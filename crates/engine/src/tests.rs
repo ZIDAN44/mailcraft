@@ -2580,6 +2580,7 @@ fn update_checks_tell_newer_releases_and_test_builds() {
         commit: commit.into(),
         page: format!("https://github.com/ZIDAN44/mailcraft/releases/tag/{tag}"),
         download: String::new(),
+        ..Default::default()
     };
     let sha15 = "8bdba5ceb26a8b910102731c634d6998b8ab25d1";
     let sha14 = "23c7fb53b86cce9856b1b9fc76bf32f9ef397b83";

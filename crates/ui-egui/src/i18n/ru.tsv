@@ -913,3 +913,5 @@ month	May	Май
 	Changes not yet on the server: {n}	Изменения, ещё не на сервере: {n}
 	Messages waiting to be sent: {n}	Письма, ожидающие отправки: {n}
 	{day} {month}	{day} {month}
+	Restart to update	Перезапустить для обновления
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} загружен. Он установится при закрытии MailCraft.

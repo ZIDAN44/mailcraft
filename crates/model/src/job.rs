@@ -145,6 +145,15 @@ pub struct Release {
     pub page: String,
     /// The installer for this system, when there is one to offer (else the page).
     pub download: String,
+    /// That installer's SHA-256 (lowercase hex) as GitHub records it, when it does.
+    #[serde(default)]
+    pub sha256: String,
+    /// That installer's size in bytes (0 when not said).
+    #[serde(default)]
+    pub size: u64,
+    /// The release's `SHA256SUMS.txt`, for checking a download GitHub gives no digest for.
+    #[serde(default)]
+    pub sums: String,
 }
 
 /// Work for the network layer.

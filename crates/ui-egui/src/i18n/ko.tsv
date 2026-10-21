@@ -913,3 +913,5 @@ month	May	5월
 	Changes not yet on the server: {n}	아직 서버에 반영되지 않은 변경: {n}
 	Messages waiting to be sent: {n}	보내기 대기 중인 메시지: {n}
 	{day} {month}	{month} {day}일
+	Restart to update	다시 시작하여 업데이트
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version}이(가) 다운로드되었습니다. MailCraft를 닫으면 설치됩니다.

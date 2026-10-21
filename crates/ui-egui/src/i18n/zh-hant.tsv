@@ -913,3 +913,5 @@ month	May	5月
 	Changes not yet on the server: {n}	尚未同步到伺服器的變更：{n}
 	Messages waiting to be sent: {n}	等待傳送的郵件：{n}
 	{day} {month}	{month}{day}日
+	Restart to update	重新啟動以更新
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	已下載 MailCraft {version}。關閉 MailCraft 時將安裝。

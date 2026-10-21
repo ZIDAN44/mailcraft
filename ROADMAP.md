@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.21 — One MailCraft at a time (2026-10-21). Each milestone below is a version: v0.1 was
+**Stage:** v0.22 — Test builds update themselves (2026-10-22). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -110,7 +110,11 @@ local-first, media-aware v1); the fuller request is
    fit the window, older mail shown and searched on the server (every kind of account, and in
    the browser), and online only made clearer (a password asked for at start, a warning before
    closing loses anything).
-22. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+22. **v0.22 — Test builds update themselves** ✅ A build from the unsigned test-build workflow
+   fetches the next test build in the background, checks its SHA-256 against the release, and
+   installs it when MailCraft closes (or at once with Restart to update), the way that copy was
+   installed: `.msi`, portable `.zip`, `.dmg` or `.AppImage`. Signed releases are unaffected.
+23. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -299,3 +303,13 @@ local-first, media-aware v1); the fuller request is
   sibling message windows no longer drag each other around; non-recurring appointments sharing a
   UID stay separate; the 1604 placeholder year is read as "no year"; hidden Exchange folders are
   skipped; Online is shown once mail is current; dead IPv6 routes cost 3 s, not 20 s.
+- **2026-10-22** — **v0.22**, test builds update themselves (`apps/mailcraft/src/self_update.rs`),
+  modelled on how the Craft launcher replaces its own copy and on Office's install-on-close: a
+  check a minute after start and then about hourly with jitter (`If-None-Match`, so an unchanged
+  list costs no quota), never an older or the same build, the installer for how this copy was
+  installed, refused unless its size and SHA-256 match GitHub's per-file digest (or the release's
+  `SHA256SUMS.txt`), installed by a detached helper after MailCraft exits (logged to
+  `updates/install.log`), and a day-long marker against reinstall loops. Only
+  `release-wip.yml` turns it on (`MAILCRAFT_UPDATE_CHANNEL=test`); `release.yml` is unchanged.
+  Checked on Windows from a portable copy posing as 0.20.0: test build 18 downloaded, verified,
+  unzipped over the folder (data kept) and reopened.

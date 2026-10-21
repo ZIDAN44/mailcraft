@@ -117,7 +117,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, &mut b, acts),
                     Page::Options => options(s, st, ui, acts),
-                    Page::About => about(s, &t, ui, acts),
+                    Page::About => about(s, &t, st.pending_update.as_deref(), ui, acts),
                 }
             });
         });
@@ -794,7 +794,7 @@ fn updates(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
 }
 
-fn about(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+fn about(s: &Session, t: &Tokens, pending: Option<&str>, ui: &mut Ui, acts: &mut Vec<Action>) {
     heading(ui, t, "About MailCraft");
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
@@ -808,6 +808,17 @@ fn about(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
     ui.add_space(10.0);
     updates(s, t, ui, acts);
+    // A test build that updates itself, with the next one downloaded.
+    if let Some(tag) = pending {
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            let version = tag.trim_start_matches('v');
+            ui.label(RichText::new(tf!("MailCraft {version} is downloaded. It installs when you close MailCraft.", version = version)).color(t.text));
+            if widgets::accent_button(ui, Icon::Sync, "Restart to update", t, true).clicked() {
+                acts.push(Action::RestartToUpdate);
+            }
+        });
+    }
     ui.add_space(14.0);
     for line in [
         "Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.",

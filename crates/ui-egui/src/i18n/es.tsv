@@ -914,3 +914,5 @@ month	May	mayo
 	Changes not yet on the server: {n}	Cambios aún no en el servidor: {n}
 	Messages waiting to be sent: {n}	Mensajes esperando para enviarse: {n}
 	{day} {month}	{day} de {month}
+	Restart to update	Reiniciar para actualizar
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} se ha descargado. Se instalará al cerrar MailCraft.

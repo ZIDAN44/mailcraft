@@ -100,6 +100,15 @@ pub trait Services {
     fn save_path(&mut self, suggested: &str) -> Option<PathBuf>;
     /// Open a file with the system's default app.
     fn open_path(&mut self, path: &std::path::Path) -> Result<(), String>;
+    /// A newer MailCraft downloaded and waiting to be installed (its tag), in a build that
+    /// updates itself. The default: none.
+    fn pending_update(&mut self) -> Option<String> {
+        None
+    }
+    /// Install the waiting version as MailCraft closes, then open it. False when there's none.
+    fn restart_to_update(&mut self) -> bool {
+        false
+    }
     /// Show a desktop notification (new mail). The default does nothing.
     fn notify(&mut self, _title: &str, _body: &str) {}
     /// Where an installed Craft app is (`pdfcraft`, `wordcraft`…), if it is.
@@ -229,6 +238,8 @@ pub enum Action {
     Run(&'static str, Value),
     /// Close MailCraft though online-only accounts hold unsent mail or changes (issue #4).
     CloseAnyway,
+    /// Close, install the downloaded version, and open it.
+    RestartToUpdate,
     Open(MessageKey),
     Dialog(Dialog),
     OpenAttachment(usize),
@@ -454,6 +465,8 @@ pub struct UiState {
     /// the window is to close on the next frame.
     pub closing_anyway: bool,
     pub close_now: bool,
+    /// A newer MailCraft downloaded and waiting (its tag), from [`Services::pending_update`].
+    pub pending_update: Option<String>,
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
@@ -592,6 +605,7 @@ impl MailApp {
                 tokens: Tokens::light(),
                 closing_anyway: false,
                 close_now: false,
+                pending_update: None,
                 has_files,
                 data_folder,
                 pending_move,
@@ -768,6 +782,7 @@ impl MailApp {
         self.apply_language(&ctx);
         self.pump();
         self.announce(&ctx);
+        self.ui.pending_update = self.services.pending_update();
         // Closing with online-only accounts' unsent mail or changes held in memory: ask first.
         if self.ui.close_now {
             self.ui.close_now = false;
@@ -1207,6 +1222,11 @@ impl MailApp {
             Action::CloseAnyway => {
                 self.ui.closing_anyway = true;
                 self.ui.close_now = true;
+            }
+            Action::RestartToUpdate => {
+                if self.services.restart_to_update() {
+                    self.ui.close_now = true;
+                }
             }
             Action::Run("attachment.preview", p) => match self.session.run("attachment.preview", &p) {
                 Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
@@ -2231,6 +2251,7 @@ impl MailApp {
         let t = self.ui.tokens;
         let s = &self.session;
         let mut again: Option<String> = None;
+        let mut restart = false;
         ui.horizontal_centered(|ui| {
             // The items of what's shown: the list's mail, or (in People) the contacts.
             if s.module == Module::People {
@@ -2247,6 +2268,14 @@ impl MailApp {
             }
             if s.prefs.work_offline {
                 ui.label(RichText::new(tl!("Working offline")).color(t.warn).small());
+            }
+            // A test build downloaded: installed as MailCraft closes, or now.
+            if let Some(tag) = &self.ui.pending_update {
+                let version = tag.trim_start_matches('v');
+                let hint = tf!("MailCraft {version} is downloaded. It installs when you close MailCraft.", version = version);
+                if ui.link(RichText::new(tl!("Restart to update")).color(t.accent).small()).on_hover_text(hint).clicked() {
+                    restart = true;
+                }
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let dot = |ui: &mut Ui, color: egui::Color32| {
@@ -2303,6 +2332,9 @@ impl MailApp {
         });
         if let Some(id) = again {
             self.sign_in_again(&id);
+        }
+        if restart && self.services.restart_to_update() {
+            self.ui.close_now = true;
         }
     }
 

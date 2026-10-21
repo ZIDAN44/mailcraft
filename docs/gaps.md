@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.21, 2026-10-21._
+_Status: v0.22, 2026-10-22._
 
 ## Open
 
@@ -654,3 +654,10 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
 - **Connecting:** the two address families alternate, each attempt limited to 3 s unless it's the
   last candidate, and IPv4 leads after an IPv6 miss; a connection whose exchange failed is never
   reused; the account reports Online as soon as mail is done, with calendars and contacts after.
+- **Test builds update themselves (v0.22):** File › About only linked to a newer build. A build
+  from the unsigned test-build workflow now checks for the next one shortly after start and about
+  hourly, downloads the installer matching how it was installed (Windows `.msi` or portable
+  `.zip`, macOS `.dmg`, Linux `.AppImage`), accepts it only if its size and SHA-256 match the
+  release's record, and installs it as MailCraft closes, or at once from **Restart to update**
+  (status bar, File › About). `.deb`, `.rpm`, Flatpak and FreeBSD copies keep the Download link.
+  `MAILCRAFT_NO_AUTO_UPDATE=1` turns it off; signed releases never update themselves this way.

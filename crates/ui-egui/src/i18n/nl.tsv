@@ -909,3 +909,5 @@ month	May	mei
 	Changes not yet on the server: {n}	Wijzigingen nog niet op de server: {n}
 	Messages waiting to be sent: {n}	Berichten die wachten op verzending: {n}
 	{day} {month}	{day} {month}
+	Restart to update	Opnieuw starten om bij te werken
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} is gedownload. Het wordt geïnstalleerd wanneer u MailCraft sluit.

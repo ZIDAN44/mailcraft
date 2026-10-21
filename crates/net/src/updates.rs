@@ -1,9 +1,13 @@
-//! File › About › Check for updates: MailCraft's releases, as GitHub lists them.
+//! File › About › Check for updates: MailCraft's releases, as GitHub lists them; and, for the
+//! test builds' updater (`apps/mailcraft/src/self_update.rs`), fetching an installer and proving
+//! it is the one the release lists.
 //!
 //! MailCraft's releases are pre-releases (`v0.19.0-test.15`), which GitHub's "latest release"
 //! leaves out, so the recent ones are listed and the engine picks (`Session::check_updates`).
 //! The answer is untrusted: its size is capped, and only addresses on the project's own releases
-//! pages are kept (anything else falls back to the release's page, or nothing).
+//! pages are kept (anything else falls back to the release's page, or nothing). A download is
+//! accepted only if its SHA-256 matches the release's record of it: GitHub's per-file `digest`,
+//! else the release's `SHA256SUMS.txt`.
 
 use mailcraft_model::job::Release;
 use serde_json::Value;
@@ -17,13 +21,42 @@ pub const REPO: &str = "ZIDAN44/mailcraft";
 /// The largest answer read (ten releases with their files lists).
 const MAX_ANSWER: usize = 2 << 20;
 
+/// The largest installer accepted.
+const MAX_INSTALLER: usize = 400 << 20;
+/// The largest `SHA256SUMS.txt` read.
+const MAX_SUMS: usize = 256 << 10;
+
 /// The most recent releases (drafts left out), newest first as GitHub gives them.
 pub fn releases() -> Result<Vec<Release>> {
-    let req = Request::get(&format!("https://api.github.com/repos/{REPO}/releases?per_page=10"), MAX_ANSWER)
+    match releases_since(asset_suffix(), None)? {
+        Listing::Changed(list, _) => Ok(list),
+        Listing::Unchanged => Ok(Vec::new()),
+    }
+}
+
+/// What a conditional listing found.
+#[derive(Debug)]
+pub enum Listing {
+    /// The list, and its `ETag` to ask with next time.
+    Changed(Vec<Release>, Option<String>),
+    /// Nothing new since the `ETag` given (GitHub doesn't count this against the quota).
+    Unchanged,
+}
+
+/// The recent releases with `suffix` picking each one's installer, unless they're unchanged
+/// since `etag` (from an earlier answer).
+pub fn releases_since(suffix: Option<&str>, etag: Option<&str>) -> Result<Listing> {
+    let mut req = Request::get(&format!("https://api.github.com/repos/{REPO}/releases?per_page=10"), MAX_ANSWER)
         .header("Accept", "application/vnd.github+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
         .header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION")));
+    if let Some(tag) = etag.filter(|t| t.len() < 200 && t.is_ascii() && !t.contains(['\r', '\n'])) {
+        req = req.header("If-None-Match", tag);
+    }
     let resp = send(&req)?;
+    if resp.status == 304 {
+        return Ok(Listing::Unchanged);
+    }
     // GitHub answers 403 (or 429) when its anonymous quota ran out (60 an hour for everyone
     // behind the same address); when it refills rides along.
     if matches!(resp.status, 403 | 429) {
@@ -33,7 +66,64 @@ pub fn releases() -> Result<Vec<Release>> {
     if !resp.ok() {
         return Err(NetError::Protocol(format!("GitHub answered HTTP {}", resp.status)));
     }
-    parse(&String::from_utf8_lossy(&resp.body), asset_suffix())
+    let etag = resp.header("ETag").filter(|t| t.len() < 200).map(str::to_string);
+    Ok(Listing::Changed(parse(&String::from_utf8_lossy(&resp.body), suffix)?, etag))
+}
+
+/// The SHA-256 a `SHA256SUMS.txt` (as `sha256sum` writes it) gives `file`, in lowercase hex.
+pub fn sum_for(sums: &str, file: &str) -> Option<String> {
+    sums.lines().take(10_000).find_map(|line| {
+        let (hash, name) = line.trim().split_once(char::is_whitespace)?;
+        let name = name.trim_start().trim_start_matches('*');
+        (name == file && is_sha256(hash)).then(|| hash.to_ascii_lowercase())
+    })
+}
+
+fn is_sha256(h: &str) -> bool {
+    h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// The SHA-256 of `bytes`, in lowercase hex.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    ring::digest::digest(&ring::digest::SHA256, bytes).as_ref().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The checksum to hold `release`'s installer to: GitHub's own record, else its line in the
+/// release's `SHA256SUMS.txt`. An error when neither says.
+pub fn expected_sum(release: &Release) -> Result<String> {
+    if is_sha256(&release.sha256) {
+        return Ok(release.sha256.to_ascii_lowercase());
+    }
+    let file = release.download.rsplit('/').next().unwrap_or_default();
+    if release.sums.is_empty() || file.is_empty() {
+        return Err(NetError::No(format!("{} lists no checksum for its installer", release.tag)));
+    }
+    let resp = send(&Request::get(&release.sums, MAX_SUMS).header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION"))))?;
+    if !resp.ok() {
+        return Err(NetError::Protocol(format!("the checksums file answered HTTP {}", resp.status)));
+    }
+    sum_for(&String::from_utf8_lossy(&resp.body), file).ok_or_else(|| NetError::No(format!("{}'s checksums don't list {file}", release.tag)))
+}
+
+/// Download `release`'s installer and check it against `expected` (lowercase hex SHA-256) and the
+/// size the release gives: the bytes, or why they were refused.
+pub fn fetch_installer(release: &Release, expected: &str) -> Result<Vec<u8>> {
+    if ours(&release.download).is_none() {
+        return Err(NetError::No("the release has no installer on MailCraft's releases page".into()));
+    }
+    let cap = usize::try_from(release.size).ok().filter(|n| *n > 0).map_or(MAX_INSTALLER, |n| n.min(MAX_INSTALLER));
+    let resp = send(&Request::get(&release.download, cap).header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION"))))?;
+    if !resp.ok() {
+        return Err(NetError::Protocol(format!("the download answered HTTP {}", resp.status)));
+    }
+    if release.size > 0 && resp.body.len() as u64 != release.size {
+        return Err(NetError::Protocol(format!("the download is {} bytes, the release says {}", resp.body.len(), release.size)));
+    }
+    let got = sha256_hex(&resp.body);
+    if got != expected {
+        return Err(NetError::Protocol(format!("the download's checksum is {got}, the release says {expected}")));
+    }
+    Ok(resp.body)
 }
 
 /// What to say when GitHub's quota ran out: `reset` is its `x-ratelimit-reset` header (the Unix
@@ -100,16 +190,18 @@ pub fn parse(body: &str, suffix: Option<&str>) -> Result<Vec<Release>> {
         let tag = text(r, "tag_name");
         let Some((version, build)) = tag_version(&tag) else { continue };
         let page = ours(&text(r, "html_url")).unwrap_or_else(|| format!("https://github.com/{REPO}/releases"));
-        let download = suffix
-            .and_then(|s| {
-                r.get("assets")?
-                    .as_array()?
-                    .iter()
-                    .take(100)
-                    .find(|a| text(a, "name").ends_with(s))
-                    .and_then(|a| ours(&text(a, "browser_download_url")))
-            })
+        let assets: &[Value] = r.get("assets").and_then(Value::as_array).map_or(&[], |a| a.as_slice());
+        let assets = assets.get(..assets.len().min(100)).unwrap_or_default();
+        let installer = suffix.and_then(|s| assets.iter().find(|a| text(a, "name").ends_with(s)));
+        let download = installer.and_then(|a| ours(&text(a, "browser_download_url"))).unwrap_or_default();
+        // GitHub records each file's SHA-256 as `"digest": "sha256:<hex>"`.
+        let sha256 = installer
+            .filter(|_| !download.is_empty())
+            .and_then(|a| text(a, "digest").strip_prefix("sha256:").filter(|h| is_sha256(h)).map(str::to_ascii_lowercase))
             .unwrap_or_default();
+        let size = installer.filter(|_| !download.is_empty()).and_then(|a| a.get("size")?.as_u64()).unwrap_or(0);
+        let sums =
+            assets.iter().find(|a| text(a, "name") == "SHA256SUMS.txt").and_then(|a| ours(&text(a, "browser_download_url"))).unwrap_or_default();
         let commit = text(r, "target_commitish");
         out.push(Release {
             tag: tag.chars().take(64).collect(),
@@ -118,6 +210,9 @@ pub fn parse(body: &str, suffix: Option<&str>) -> Result<Vec<Release>> {
             commit: if commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit()) { commit } else { String::new() },
             page,
             download,
+            sha256,
+            size,
+            sums,
         });
     }
     Ok(out)
@@ -166,6 +261,43 @@ mod tests {
         assert_eq!(parse(body, None).unwrap()[0].download, "");
         assert!(parse("{\"message\": \"Not Found\"}", None).is_err());
         assert!(parse("not json", None).is_err());
+    }
+
+    /// What the updater holds a download to: GitHub's digest, else the checksums file's line;
+    /// only for an installer on the project's page, with its size.
+    #[test]
+    fn installers_come_with_what_to_check_them_against() {
+        let body = r#"[{"tag_name": "v0.21.0-test.19", "draft": false, "target_commitish": "8180a31aa25d1ea4c7e8b4bd94e0f0f2c3a1b2c3",
+          "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.21.0-test.19",
+          "assets": [
+            {"name": "mailcraft-0.21.0-windows-x64.msi", "size": 31457280,
+             "digest": "sha256:9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08",
+             "browser_download_url": "https://github.com/ZIDAN44/mailcraft/releases/download/v0.21.0-test.19/mailcraft-0.21.0-windows-x64.msi"},
+            {"name": "mailcraft-0.21.0-windows-x64-portable.zip", "size": 9, "digest": "md5:abc",
+             "browser_download_url": "https://github.com/ZIDAN44/mailcraft/releases/download/v0.21.0-test.19/mailcraft-0.21.0-windows-x64-portable.zip"},
+            {"name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/ZIDAN44/mailcraft/releases/download/v0.21.0-test.19/SHA256SUMS.txt"}
+          ]}]"#;
+        let msi = &parse(body, Some("-windows-x64.msi")).unwrap()[0];
+        assert_eq!((msi.sha256.as_str(), msi.size), ("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", 31_457_280));
+        assert!(msi.sums.ends_with("/v0.21.0-test.19/SHA256SUMS.txt"));
+        assert_eq!(expected_sum(msi).unwrap(), msi.sha256);
+        let zip = &parse(body, Some("-windows-x64-portable.zip")).unwrap()[0];
+        assert_eq!((zip.sha256.as_str(), zip.size), ("", 9), "a digest of another kind isn't taken");
+        let sums = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  mailcraft-0.21.0-windows-x64.msi\n\
+                    E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855 *mailcraft-0.21.0-windows-x64-portable.zip\n\
+                    nothexnothexnothexnothexnothexnothexnothexnothexnothexnothexnoth  mailcraft-x.dmg\n";
+        assert_eq!(
+            sum_for(sums, "mailcraft-0.21.0-windows-x64-portable.zip").as_deref(),
+            Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        );
+        assert_eq!(sum_for(sums, "mailcraft-x.dmg"), None, "not a checksum");
+        assert_eq!(sum_for(sums, "portable.zip"), None, "names match whole");
+        assert_eq!(sha256_hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        // Nothing to check against: refused before anything is fetched.
+        let bare = Release { download: msi.download.clone(), ..Default::default() };
+        assert!(expected_sum(&bare).is_err());
+        let elsewhere = Release { download: "https://evil.example/mailcraft.msi".into(), ..Default::default() };
+        assert!(fetch_installer(&elsewhere, &msi.sha256).is_err());
     }
 
     #[test]
