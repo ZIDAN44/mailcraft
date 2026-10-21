@@ -291,3 +291,11 @@ local-first, media-aware v1); the fuller request is
   server and shows more; JMAP folders keep more than one `Email/get` (they kept 100 to 500); the
   reading pane's header fits a narrow pane. Checked against fake Exchange and JMAP servers, in
   the app and the browser.
+- **2026-10-21** — **v0.21**, a reliability round, each problem first reproduced on the fake
+  servers or in the app: edits made mid-sync are now persisted on the spot and replayed
+  over refreshed folders (they could be undone on screen, or lost on exit); Graph `$batch` entries
+  now request immutable ids (mismatched ids caused endless re-downloads and dropped server-search
+  hits), are capped at 4 and retried on 429, and large first syncs read summaries from the listing;
+  sibling message windows no longer drag each other around; non-recurring appointments sharing a
+  UID stay separate; the 1604 placeholder year is read as "no year"; hidden Exchange folders are
+  skipped; Online is shown once mail is current; dead IPv6 routes cost 3 s, not 20 s.

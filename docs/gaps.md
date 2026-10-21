@@ -632,3 +632,25 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   the other 499; a query of quotes, a backslash and `]]>` asked without an error. And in the
   browser against a fake JMAP server (601 in a folder): 300 kept (100 before), Search the server
   and Show more (all 601).
+- **Edits made mid-sync:** the pool handed a flag change, move or delete to the account
+  thread, which only picked it up after a full sync (minutes on a big Exchange mailbox). Until
+  then a folder refresh could repaint the old state, and quitting discarded the job. The pool now
+  writes the edit to the cache and `ops.json` itself; the thread uploads between folders and
+  re-applies queued edits to any folder it refreshes. `write_atomic` gives each call its own
+  temporary file, since two threads may now write the same file.
+- **Graph `$batch`:** the immutable-id preference was sent only on the outer request, so batched
+  message fetches returned ids in the other format; the next sync didn't recognise them and fetched
+  again, and server-search hits vanished. Every entry now carries the header. Batches shrink to 4
+  entries and 429 entries are retried after `Retry-After`. When more than 20 messages are new, the
+  summaries come from the listing instead of one request per message; the downloaded source later
+  supplies threading and importance.
+- **Message windows:** saved geometry went into the viewport builder every frame, and since all
+  message windows share one saved place, moving one pulled the others onto it. Geometry is now
+  applied only as a window first appears.
+- **Exchange calendars and contacts:** several non-recurring appointments with the same UID were
+  merged into one (now `<uid>/<start>`); a birthday saved without a year showed the placeholder
+  1604 (now "20 February", and saved back with the placeholder); folders with
+  `PidTagAttributeHidden` set, and their subfolders at any depth, are no longer listed.
+- **Connecting:** the two address families alternate, each attempt limited to 3 s unless it's the
+  last candidate, and IPv4 leads after an IPv6 miss; a connection whose exchange failed is never
+  reused; the account reports Online as soon as mail is done, with calendars and contacts after.

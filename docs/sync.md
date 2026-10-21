@@ -48,8 +48,10 @@ Message sources live next to it as `<validity>/<uid>.eml`. A message is identifi
   with SASL-IR when offered, else `LOGIN`; non-ASCII credentials go as literals), `ENABLE QRESYNC`
   (or `ENABLE CONDSTORE` without it).
 - Replay pending offline changes, then **sync all**: `LIST` (special-use roles from RFC 6154
-  attributes, or the usual names), then every selectable folder, Inbox first. Opened messages jump
-  the queue between folders, so the UI stays responsive during a long first sync.
+  attributes, or the usual names), then every selectable folder, Inbox first. Between folders the
+  worker serves body fetches and uploads queued edits, so the UI stays responsive during a long
+  first sync. The status turns Online when mail is done; CalDAV/EWS calendars and contacts run
+  afterwards.
 - Then **wait for mail**: `IDLE` on the Inbox (RFC 2177) in half-second slices, so new jobs interrupt
   it at once; re-issued every 10 minutes (servers drop IDLE after 30). Without IDLE, poll every 2
   minutes. A full sync runs every 15 minutes.
@@ -60,8 +62,11 @@ Message sources live next to it as `<validity>/<uid>.eml`. A message is identifi
 ## Offline changes (RFC 4549 "pending actions")
 
 Flag changes, moves and deletes are applied to the cache immediately (the UI updates before the
-server answers) and recorded in `<account>/ops.json`. When connected, the worker replays them
-oldest first:
+server answers) and appended to `<account>/ops.json` by the pool on the UI side, not by the account
+thread, which may be busy for minutes; a store-wide mutex guards the file's read-modify-write.
+When connected, the worker replays them oldest first, deleting each entry once the server accepts
+or rejects it, also between folders of a full sync. After a folder is re-read from the server,
+queued ops that touch it are applied to the new cache again:
 
 - flags: `UID STORE <set> +FLAGS.SILENT (…)` / `-FLAGS.SILENT`;
 - move: `UID MOVE` (RFC 6851), else `UID COPY` + `\Deleted` + `UID EXPUNGE` (RFC 4315; plain
@@ -132,9 +137,16 @@ switched IMAP off.
   `@odata.nextLink` pages on the same server only. The well-known folders (`inbox`, `sentitems`,
   `deleteditems`…) are looked up in one JSON batch for their roles; the Outbox and Exchange's own
   bookkeeping folders are left out.
-- **A folder sync** lists the newest messages' ids with `isRead`, `flag` and `isDraft`, then the
-  details of those not cached yet (their internet headers when Exchange has them) in batches of
-  20. Sources come from `/messages/{id}/$value`; mail with attachments downloads when opened.
+- **A folder sync** pages through `/mailFolders/{id}/messages` with the summary fields
+  (`LIST_FIELDS`; `internetMessageHeaders` excluded because it slows listings to the point of
+  gateway timeouts). If at most 20 messages are new, each is then fetched with its internet
+  headers via `$batch`, four entries per batch to stay within Exchange Online's per-mailbox
+  concurrency, every entry carrying its own `Prefer: IdType="ImmutableId"` (a batch's outer
+  headers don't apply to its entries). With more new messages the listing's fields are used as
+  they are, and the References/List-Id headers are filled in when the source is downloaded.
+  HTTP 429 answers, top-level or per entry, are retried after `Retry-After` (at most 4 attempts,
+  20 s per wait). Sources come from `/messages/{id}/$value`; mail with attachments downloads when
+  opened.
 - **Changes** are `PATCH`es (`isRead`, `flag`), `move`, `DELETE` and folder calls, batched.
 - **Sending** posts the MIME source to `sendMail`, which files the copy in Sent Items; recipients
   only on the envelope go in a `Bcc:` header, which Exchange strips. Drafts are made from MIME and
