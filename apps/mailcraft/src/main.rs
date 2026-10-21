@@ -339,10 +339,10 @@ impl Services for Desktop {
         std::thread::spawn(move || {
             let mut n = notify_rust::Notification::new();
             n.summary(&title).body(&body).appname("MailCraft");
-            // Windows names a toast after its app id (PowerShell's when none is given).
-            // (Portable: its name isn't written to the registry.)
+            // Windows names a toast after its app id (PowerShell's when none is given). A
+            // portable copy writes nothing to the registry: it uses an installed MailCraft's.
             #[cfg(windows)]
-            if !portable && toast::registered() {
+            if (!portable && toast::registered()) || (portable && toast::installed()) {
                 n.app_id(toast::APP_ID);
             }
             if let Err(e) = n.show() {

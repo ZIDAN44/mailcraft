@@ -9,6 +9,17 @@
 /// MailCraft's id: also the Linux app id and the macOS bundle id.
 pub const APP_ID: &str = "ai.storyteller.mailcraft";
 
+/// Whether an installed MailCraft has made Windows know [`APP_ID`]: its Start menu shortcut
+/// (the installer's, for everyone or for this user). A portable copy, which writes nothing to
+/// the registry, shows its notifications under that name then; Windows shows a toast for an id
+/// known from the registry alone unreliably (often not at all, or under the bare id).
+pub fn installed() -> bool {
+    let start = |base: Option<std::ffi::OsString>| {
+        base.is_some_and(|b| std::path::Path::new(&b).join(r"Microsoft\Windows\Start Menu\Programs\MailCraft.lnk").is_file())
+    };
+    start(std::env::var_os("ProgramData")) || start(std::env::var_os("APPDATA"))
+}
+
 /// The icon shown on MailCraft's notifications.
 const ICON: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/ai.storyteller.mailcraft.png");
 
