@@ -123,11 +123,20 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 }
 
                 // Sender card.
-                ui.horizontal(|ui| {
+                ui.horizontal_top(|ui| {
                     let (ar, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
                     widgets::avatar(ui, ar.center(), 21.0, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark));
                     ui.add_space(4.0);
-                    ui.vertical(|ui| {
+                    // The date to the right, with room kept for it (the address ran under it in a
+                    // narrow pane); under the sender when the pane is too narrow for both.
+                    let when = summary.as_ref().map_or(p.date, |m| if p.date > 0 { p.date } else { m.date });
+                    let date = egui::WidgetText::from(RichText::new(crate::i18n::date(&dates::full_time(when, &s.clock))).color(t.dim).small())
+                        .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Small);
+                    let rest = ui.available_width() - date.size().x - 16.0;
+                    let beside = rest >= 200.0;
+                    let room = if beside { rest } else { ui.available_width() };
+                    ui.allocate_ui_with_layout(vec2(room, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+                        ui.set_max_width(room);
                         ui.horizontal_wrapped(|ui| {
                             let shown = crate::bidi::shown(p.from.display()).0;
                             let name = person_link(ui, &t, RichText::new(shown).font(theme::bold(15.0)).color(t.text));
@@ -161,11 +170,15 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                 }
                             });
                         }
+                        if !beside {
+                            ui.label(date.clone());
+                        }
                     });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                        let when = summary.as_ref().map_or(p.date, |m| if p.date > 0 { p.date } else { m.date });
-                        ui.label(RichText::new(crate::i18n::date(&dates::full_time(when, &s.clock))).color(t.dim).small());
-                    });
+                    if beside {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                            ui.label(date);
+                        });
+                    }
                 });
                 ui.add_space(8.0);
                 // What Outlook says above a message: its follow-up date, its importance.
@@ -225,8 +238,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                         }
                     });
                 } else if !in_window {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 6.0;
+                    // Wrapped: a narrow pane cut off Save and More.
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                         if widgets::pill_button(ui, Icon::Reply, "Reply", &t).clicked() {
                             acts.push(Action::Run("mail.reply", json!({})));
                         }
