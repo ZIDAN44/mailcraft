@@ -580,6 +580,8 @@ pub enum Dialog {
     ConfirmDelete {
         count: usize,
     },
+    /// Closing MailCraft with messages being written (how many): save them as drafts?
+    SaveOnClose(usize),
     /// Closing would lose what online-only accounts hold in memory only (issue #4).
     LostOnClose {
         unsent: usize,
@@ -1915,6 +1917,33 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             !cancel
         }
         Dialog::SelectNames(f) => select_names(ui, f, t, acts),
+        Dialog::SaveOnClose(n) => {
+            ui.set_width(400.0);
+            title(ui, t, if *n == 1 { "Save the message you're writing?" } else { "Save the messages you're writing?" });
+            let about = if *n == 1 {
+                tl!("It's kept in Drafts if you save it.").to_string()
+            } else {
+                tf!("{n} messages are being written. They're kept in Drafts if you save them.", n = n)
+            };
+            ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
+            ui.add_space(10.0);
+            let mut keep = true;
+            button_row(ui, |ui| {
+                if ui.button(tl!("Cancel")).clicked() {
+                    keep = false;
+                }
+                if ui.button(tl!("Don't save")).clicked() {
+                    acts.push(Action::CloseAnyway);
+                    keep = false;
+                }
+                if widgets::accent_button(ui, crate::icons::Icon::Drafts, "Save", t, true).clicked() {
+                    acts.push(Action::Run("compose.keepAll", json!({})));
+                    acts.push(Action::CloseAnyway);
+                    keep = false;
+                }
+            });
+            keep
+        }
         Dialog::SaveChanges => {
             ui.set_width(380.0);
             title(ui, t, "Want to save your changes?");

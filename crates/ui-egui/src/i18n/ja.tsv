@@ -991,3 +991,9 @@ month	May	5月
 	Characters (with spaces)	文字数 (スペースを含める)
 	Paragraphs	段落数
 	Lines	行数
+	Save the message you're writing?	作成中のメッセージを保存しますか?
+	Save the messages you're writing?	作成中のメッセージを保存しますか?
+	It's kept in Drafts if you save it.	保存すると下書きに保管されます。
+	{n} messages are being written. They're kept in Drafts if you save them.	{n} 件のメッセージを作成中です。保存すると下書きに保管されます。
+	Don't save	保存しない
+	Also being written:	ほかに作成中:

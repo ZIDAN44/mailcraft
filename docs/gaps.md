@@ -690,5 +690,14 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   is gone; the ribbon drops labels from its end when the window is too narrow for them; Junk's
   high-water mark is set when the folder is known; changes made with `mailcraft-cli run` now
   reach the server with the next `sync` (they were dropped).
+- **Several messages at once:** New mail, Reply or Forward while a message is being written
+  opens another window, as Outlook does; the first stays open (it was dropped, unsaved). Each
+  window keeps its own selection and undo, and its dialogs show in it. Closing MailCraft with
+  messages written asks to save them; saved, each is kept on this computer at once and filed in
+  Drafts on the server at the next connection.
+- **Notifications from a portable copy** say MailCraft when an installed MailCraft is on the
+  computer (its Start menu shortcut is what Windows goes by); a portable copy alone still shows
+  under Windows PowerShell's name, since naming it would mean writing to the registry or the
+  Start menu.
 - Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
   (needs a dictionary MailCraft can ship).

@@ -994,3 +994,9 @@ month	May	5月
 	Characters (with spaces)	字元數 (含空格)
 	Paragraphs	段落數
 	Lines	行數
+	Save the message you're writing?	要儲存正在撰寫的郵件嗎?
+	Save the messages you're writing?	要儲存正在撰寫的郵件嗎?
+	It's kept in Drafts if you save it.	儲存後會保留在「草稿」中。
+	{n} messages are being written. They're kept in Drafts if you save them.	正在撰寫 {n} 封郵件。儲存後會保留在「草稿」中。
+	Don't save	不要儲存
+	Also being written:	其他正在撰寫的郵件:

@@ -1712,3 +1712,71 @@ fn the_date_goes_in_and_words_are_counted() {
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Several messages written at once, each in its own window: a second New mail keeps the first;
+/// what a window does goes to its own message; each keeps its editor (selection, undo); a
+/// dialog opened from one shows in that one.
+#[test]
+fn several_messages_are_written_at_once() {
+    let (mut a, dir) = app("several-composes");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "First", "to": "ana@soundlab.example"}));
+    let first = a.session.compose.as_ref().unwrap().id;
+    frame(&ctx, &mut a, vec![]);
+    a.ui.editor.as_mut().unwrap().sel = 3..3;
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let second = a.session.compose.as_ref().unwrap().id;
+    assert_ne!(first, second);
+    assert_eq!(a.session.all_composes().count(), 2, "the first is kept");
+    // Its window's action goes to it, not to the one acted on last.
+    a.act(crate::Action::ForCompose(first, Box::new(crate::Action::Run("compose.update", json!({"subject": "First, changed"})))));
+    let subjects: Vec<String> = a.session.all_composes().map(|c| c.subject.clone()).collect();
+    assert!(subjects.contains(&"First, changed".to_string()) && subjects.contains(&String::new()), "{subjects:?}");
+    // Its editor came back with it.
+    assert_eq!(a.ui.editor.as_ref().map(|e| (e.id, e.sel.clone())), Some((first, 3..3)));
+    // A dialog from the first's window belongs to it.
+    a.act(crate::Action::ForCompose(first, Box::new(crate::Action::Dialog(Dialog::SaveChanges))));
+    assert_eq!(a.ui.dialog_for, Some(first));
+    a.ui.dialog = None;
+    // Closing one leaves the other.
+    a.act(crate::Action::ForCompose(second, Box::new(crate::Action::Run("compose.close", json!({"save": false})))));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.all_composes().map(|c| c.id).collect::<Vec<_>>(), vec![first]);
+    // An action for a message gone does nothing.
+    a.act(crate::Action::ForCompose(second, Box::new(crate::Action::Run("compose.update", json!({"subject": "ghost"})))));
+    assert_eq!(a.session.compose.as_ref().unwrap().subject, "First, changed");
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Closing MailCraft with messages being written asks first; Save keeps each as a draft.
+#[test]
+fn closing_with_messages_written_asks_and_keeps_them() {
+    let (mut a, dir) = app("save-on-close");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "Half done"}));
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "Also half done"}));
+    let close = RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
+            .collect(),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(close, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(2))), "asked");
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Run("compose.keepAll", json!({})));
+    let drafts = a.session.account("sample").and_then(|x| x.folder(mailcraft_engine::model::FolderRole::Drafts)).map(|f| f.path.clone()).unwrap();
+    let subjects: Vec<String> = a.session.folder_state("sample", &drafts).messages.iter().map(|m| m.subject.clone()).collect();
+    assert!(subjects.contains(&"Half done".into()) && subjects.contains(&"Also half done".into()), "{subjects:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}

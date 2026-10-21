@@ -994,3 +994,9 @@ month	May	Май
 	Characters (with spaces)	Знаки (с пробелами)
 	Paragraphs	Абзацы
 	Lines	Строки
+	Save the message you're writing?	Сохранить сообщение, которое вы пишете?
+	Save the messages you're writing?	Сохранить сообщения, которые вы пишете?
+	It's kept in Drafts if you save it.	Если сохранить, оно останется в черновиках.
+	{n} messages are being written. They're kept in Drafts if you save them.	Пишется сообщений: {n}. Если сохранить, они останутся в черновиках.
+	Don't save	Не сохранять
+	Also being written:	Также пишется:

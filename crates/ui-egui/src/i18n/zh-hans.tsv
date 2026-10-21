@@ -991,3 +991,9 @@ month	May	5月
 	Characters (with spaces)	字符数(计空格)
 	Paragraphs	段落数
 	Lines	行数
+	Save the message you're writing?	保存正在撰写的邮件?
+	Save the messages you're writing?	保存正在撰写的邮件?
+	It's kept in Drafts if you save it.	保存后会保留在“草稿”中。
+	{n} messages are being written. They're kept in Drafts if you save them.	正在撰写 {n} 封邮件。保存后会保留在“草稿”中。
+	Don't save	不保存
+	Also being written:	其他正在撰写的邮件:

@@ -2047,6 +2047,19 @@ pub fn compose_window(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
 
 fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, in_window: bool) {
     let t = st.tokens;
+    // Where there are no windows of their own (the browser), the other messages being written
+    // are a click away above this one.
+    if !in_window && !s.composes.is_empty() && ui.ctx().embed_viewports() {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(tl!("Also being written:")).color(t.dim).small());
+            for c in &s.composes {
+                let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
+                if ui.small_button(subject).clicked() {
+                    acts.push(Action::Run("compose.activate", json!({"id": c.id})));
+                }
+            }
+        });
+    }
     let accounts: Vec<(String, String)> =
         s.accounts.iter().map(|a| (a.config.id.clone(), EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string())).collect();
     // Suggestions for the recipient box being typed in (computed before the form borrows it).
@@ -2112,8 +2125,7 @@ fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         }
     }
     // A newly opened message: start in To (new mail) or the body (replies).
-    let fresh = st.compose_shown != Some(c.id);
-    st.compose_shown = Some(c.id);
+    let fresh = st.compose_shown.insert(c.id);
     let focus_to = fresh && c.to.trim().is_empty();
     let focus_body = fresh && !focus_to;
     let send = |c: &mailcraft_engine::Compose, acts: &mut Vec<Action>| {

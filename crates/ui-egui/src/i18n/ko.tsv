@@ -994,3 +994,9 @@ month	May	5월
 	Characters (with spaces)	문자 수(공백 포함)
 	Paragraphs	단락 수
 	Lines	줄 수
+	Save the message you're writing?	작성 중인 메시지를 저장할까요?
+	Save the messages you're writing?	작성 중인 메시지를 저장할까요?
+	It's kept in Drafts if you save it.	저장하면 임시 보관함에 보관됩니다.
+	{n} messages are being written. They're kept in Drafts if you save them.	메시지 {n}개를 작성 중입니다. 저장하면 임시 보관함에 보관됩니다.
+	Don't save	저장 안 함
+	Also being written:	작성 중인 다른 메시지:

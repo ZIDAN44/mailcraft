@@ -75,6 +75,17 @@ pub(crate) fn compose_inline(c: &mailcraft_engine::Compose, ctx: &egui::Context)
     !c.window || ctx.embed_viewports()
 }
 
+/// Put message `id`'s editor at hand (`st.editor`), keeping the one there for later.
+pub(crate) fn use_editor(st: &mut UiState, id: u64) {
+    if st.editor.as_ref().is_some_and(|e| e.id == id) {
+        return;
+    }
+    if let Some(e) = st.editor.take() {
+        st.editors.insert(e.id, e);
+    }
+    st.editor = st.editors.remove(&id);
+}
+
 /// The network side: the desktop app plugs in `mailcraft-net`'s worker pool.
 pub trait Backend {
     fn submit(&mut self, job: Job);
@@ -243,6 +254,9 @@ pub enum Action {
     RestartToUpdate,
     Open(MessageKey),
     Dialog(Dialog),
+    /// An action from one message's window: done to that message (several can be written at
+    /// once, each in a window of its own).
+    ForCompose(u64, Box<Action>),
     OpenAttachment(usize),
     SaveAttachment(usize),
     AttachFiles,
@@ -514,8 +528,12 @@ pub struct UiState {
     scroll_to_focus: bool,
     /// The named font families the UI uses are registered (`install_fonts`).
     fonts_ready: bool,
-    /// The compose form last shown, to focus its first field when a new one opens.
-    pub(crate) compose_shown: Option<u64>,
+    /// The messages being written that have been shown, to focus a new one's first field once.
+    pub(crate) compose_shown: std::collections::HashSet<u64>,
+    /// The editors of the messages being written other than the one acting now (`editor`).
+    pub(crate) editors: HashMap<u64, rich_edit::Editor>,
+    /// The message whose window a dialog for messages belongs to (Save changes, Address Book).
+    pub(crate) dialog_for: Option<u64>,
     /// The body's cursor (characters), where pictures go.
     /// The message editor's state (selection, undo, what's typed next).
     pub(crate) editor: Option<rich_edit::Editor>,
@@ -637,7 +655,9 @@ impl MailApp {
                 seen_notices: seen,
                 scroll_to_focus: false,
                 fonts_ready: false,
-                compose_shown: None,
+                compose_shown: Default::default(),
+                editors: HashMap::new(),
+                dialog_for: None,
                 editor: None,
                 suggest_field: None,
                 suggest_index: 0,
@@ -789,6 +809,7 @@ impl MailApp {
         }
         self.apply_language(&ctx);
         self.pump();
+        self.settle_composes(&ctx);
         self.announce(&ctx);
         self.ui.pending_update = self.services.pending_update();
         // Closing with online-only accounts' unsent mail or changes held in memory: ask first.
@@ -796,8 +817,14 @@ impl MailApp {
             self.ui.close_now = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else if ctx.input(|i| i.viewport().close_requested()) && !self.ui.closing_anyway {
+            // Messages being written: kept as drafts if wanted, as Outlook asks; never lost.
+            let written = self.session.all_composes().filter(|c| self.session.written(c) && !c.sending).count();
             let (unsent, changes) = self.session.lost_on_close();
-            if unsent + changes > 0 {
+            if written > 0 {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.ui.dialog = Some(Dialog::SaveOnClose(written));
+                self.ui.dialog_for = None;
+            } else if unsent + changes > 0 {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.ui.dialog = Some(Dialog::LostOnClose { unsent, changes });
             }
@@ -968,7 +995,7 @@ impl MailApp {
         }
 
         self.message_windows(&ctx, &mut acts);
-        self.compose_window(&ctx, &mut acts);
+        self.compose_windows(&ctx, &mut acts);
 
         // The address book reads the session's people.
         if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
@@ -1023,10 +1050,54 @@ impl MailApp {
         ctx.request_repaint_after(std::time::Duration::from_secs(if busy || self.ui.toast.is_some() { 1 } else { 20 }));
     }
 
-    /// The message being written, when it's in a window of its own (new mail, or popped out).
-    /// Closing the window keeps it in Drafts.
-    fn compose_window(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
-        let Some(c) = self.session.compose.as_ref().filter(|c| !compose_inline(c, ctx)) else { return };
+    /// Make message `id` the one acted on, with its editor (selection, undo) at hand.
+    fn use_compose(&mut self, id: u64) -> bool {
+        if !self.session.activate_compose(id) {
+            return false;
+        }
+        use_editor(&mut self.ui, id);
+        true
+    }
+
+    /// The message written in the main window, if any, made the one acted on (another's window
+    /// may have taken over last frame); editors of messages gone are dropped.
+    fn settle_composes(&mut self, ctx: &egui::Context) {
+        let live: std::collections::HashSet<u64> = self.session.all_composes().map(|c| c.id).collect();
+        self.ui.editors.retain(|id, _| live.contains(id));
+        self.ui.compose_shown.retain(|id| live.contains(id));
+        if self.ui.dialog_for.is_some_and(|id| !live.contains(&id)) {
+            self.ui.dialog_for = None;
+        }
+        let inline = self.session.all_composes().find(|c| compose_inline(c, ctx)).map(|c| c.id);
+        if let Some(id) = inline {
+            self.use_compose(id);
+        }
+    }
+
+    /// Each message being written in a window of its own (new mail, popped out, or set aside
+    /// when another was started), as Outlook keeps every one open. Closing one keeps it in Drafts.
+    fn compose_windows(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
+        let before = self.session.compose.as_ref().map(|c| c.id);
+        let ids: Vec<u64> = self.session.all_composes().filter(|c| !compose_inline(c, ctx)).map(|c| c.id).collect();
+        // A window opening goes a step down and right of those already open.
+        let open = ids.len().saturating_sub(1);
+        for id in ids {
+            if self.use_compose(id) {
+                let mut mine = Vec::new();
+                self.compose_window(ctx, open, &mut mine);
+                acts.extend(mine.into_iter().map(|a| Action::ForCompose(id, Box::new(a))));
+            }
+        }
+        if let Some(id) = before {
+            self.use_compose(id);
+        }
+    }
+
+    /// The window of the message acted on now, opening `n` steps down and right of the last
+    /// place (as many as are open already).
+    fn compose_window(&mut self, ctx: &egui::Context, n: usize, acts: &mut Vec<Action>) {
+        let Some(c) = self.session.compose.as_ref() else { return };
+        let mine = c.id;
         let t = self.ui.tokens;
         let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
         let id = egui::ViewportId::from_hash_of(("compose-window", c.id));
@@ -1034,9 +1105,10 @@ impl MailApp {
             .with_title(i18n::as_written(|| tf!("{subject} – Message", subject = subject)))
             .with_inner_size([900.0, 720.0])
             .with_min_inner_size([520.0, 420.0]);
-        // Where the last one was, and its size.
+        // Where the last one was, and its size; each further one a step down and right.
+        let step = 28.0 * (n % 8) as f32;
         let builder = match self.ui.places.get("compose") {
-            Some(p) if opening(ctx, id) => p.apply(builder),
+            Some(p) if opening(ctx, id) => WindowPlace { x: p.x + step, y: p.y + step, ..*p }.apply(builder),
             _ => builder,
         };
         let (session, st) = (&mut self.session, &mut self.ui);
@@ -1047,20 +1119,23 @@ impl MailApp {
             if let Some(p) = place {
                 st.places.insert("compose".into(), p);
             }
-            let mut mine: Vec<Action> = Vec::new();
+            let mut mine_acts: Vec<Action> = Vec::new();
             let mut closing = ui.input(|i| i.viewport().close_requested());
             // Something written: ask first, as Outlook does.
             if closing && session.compose_written() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 st.dialog = Some(Dialog::SaveChanges);
+                st.dialog_for = Some(mine);
                 closing = false;
             }
             egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                reading::compose_window(session, st, ui, &mut mine);
+                reading::compose_window(session, st, ui, &mut mine_acts);
             });
+            // A dialog for a message shows in that message's window only.
+            let here = st.dialog_for.is_none_or(|f| f == mine);
             if let Some(mut d) = st.dialog.take() {
-                if d.for_compose() {
-                    let keep = dialogs::show(ui.ctx(), &mut d, session, &t, &mut mine);
+                if d.for_compose() && here {
+                    let keep = dialogs::show(ui.ctx(), &mut d, session, &t, &mut mine_acts);
                     if keep && st.dialog.is_none() {
                         st.dialog = Some(d);
                     }
@@ -1068,7 +1143,7 @@ impl MailApp {
                     st.dialog = Some(d);
                 }
             }
-            acts.extend(mine);
+            acts.extend(mine_acts);
             closing
         });
         if close {
@@ -1250,6 +1325,15 @@ impl MailApp {
 
     fn act(&mut self, a: Action) {
         match a {
+            // Done to the message whose window asked; a dialog it opens shows there.
+            Action::ForCompose(id, inner) => {
+                if self.use_compose(id) {
+                    if matches!(*inner, Action::Dialog(ref d) if d.for_compose()) {
+                        self.ui.dialog_for = Some(id);
+                    }
+                    self.act(*inner);
+                }
+            }
             Action::CloseAnyway => {
                 self.ui.closing_anyway = true;
                 self.ui.close_now = true;
