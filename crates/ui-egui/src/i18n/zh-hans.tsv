@@ -997,3 +997,5 @@ month	May	5月
 	{n} messages are being written. They're kept in Drafts if you save them.	正在撰写 {n} 封邮件。保存后会保留在“草稿”中。
 	Don't save	不保存
 	Also being written:	其他正在撰写的邮件:
+	Play animations	播放动画
+	Hovers, selections and panes ease into place; off, everything changes at once	悬停、选择和窗格平滑过渡；关闭后一切立即变化

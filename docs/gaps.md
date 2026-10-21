@@ -699,5 +699,12 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   computer (its Start menu shortcut is what Windows goes by); a portable copy alone still shows
   under Windows PowerShell's name, since naming it would mean writing to the registry or the
   Start menu.
+- **Motion:** hovers and selections ease in and out (ribbon buttons, folders, messages; the
+  selection bar grows from its middle), the ribbon tab's underline glides to the tab chosen, the
+  folder pane slides between its full and minimized widths, a message just opened fades up into
+  the reading pane, and notices slide in and fade away. Coming in decelerates, leaving
+  accelerates, in 100 to 250 ms, on cubic Bézier curves solved in `motion.rs`. Play animations
+  (File › Options) turns it all off, egui's own fades and smooth scrolling included. The
+  ribbon is one height on every tab, so switching tabs no longer nudges the window below.
 - Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
   (needs a dictionary MailCraft can ship).

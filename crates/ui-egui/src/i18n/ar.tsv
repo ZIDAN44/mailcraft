@@ -996,3 +996,5 @@ month	May	مايو
 	{n} messages are being written. They're kept in Drafts if you save them.	يتم كتابة {n} رسائل. يتم الاحتفاظ بها في المسودات إذا قمت بحفظها.
 	Don't save	عدم الحفظ
 	Also being written:	قيد الكتابة أيضاً:
+	Play animations	تشغيل الرسوم المتحركة
+	Hovers, selections and panes ease into place; off, everything changes at once	تنتقل التمريرات والتحديدات والأجزاء إلى مكانها بسلاسة؛ عند الإيقاف يتغير كل شيء فوراً

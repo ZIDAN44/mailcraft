@@ -29,6 +29,7 @@ mod dialogs;
 pub mod i18n;
 pub mod icons;
 mod list;
+pub mod motion;
 mod nav;
 mod notes;
 mod organize;
@@ -74,6 +75,9 @@ pub(crate) fn clipboard_html() -> Option<String> {
 pub(crate) fn compose_inline(c: &mailcraft_engine::Compose, ctx: &egui::Context) -> bool {
     !c.window || ctx.embed_viewports()
 }
+
+/// The ribbon's height (its tabs and its row of buttons), the same whichever tab is shown.
+const RIBBON_H: f32 = 65.0;
 
 /// Put message `id`'s editor at hand (`st.editor`), keeping the one there for later.
 pub(crate) fn use_editor(st: &mut UiState, id: u64) {
@@ -808,6 +812,7 @@ impl MailApp {
             return;
         }
         self.apply_language(&ctx);
+        motion::set_enabled(&ctx, self.session.prefs.animations);
         self.pump();
         self.settle_composes(&ctx);
         self.announce(&ctx);
@@ -870,6 +875,8 @@ impl MailApp {
                 .show(ui, |ui| {
                     // Too wide for the window: its last buttons lose their labels, as few as it
                     // takes (worked out from this frame for the next).
+                    // One height on every tab: switching tabs doesn't nudge the window below.
+                    ui.set_min_height(RIBBON_H);
                     let id = widgets::ribbon_fit_id();
                     let start =
                         widgets::RibbonFit { active: true, icons_from: self.ui.ribbon_icons_from, right: ui.max_rect().left(), ..Default::default() };
@@ -903,48 +910,48 @@ impl MailApp {
             // the reading pane on the left.
             let rtl = i18n::current().rtl();
             let start = |id: &'static str| if rtl { egui::Panel::right(id) } else { egui::Panel::left(id) };
-            // Minimized: a narrow strip with the way back and the modules, as Outlook's.
-            let minimized = self.session.prefs.folder_pane_minimized;
-            if minimized {
-                start("nav-min")
-                    .resizable(false)
-                    .exact_size(52.0)
-                    .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(4, 8)))
-                    .show(ui, |ui| {
-                        ui.vertical_centered(|ui| {
-                            let chevron = if rtl { Icon::ChevronLeft } else { Icon::ChevronRight };
-                            if widgets::tiny_icon_button(ui, chevron, "Show the folder pane", &t).clicked() {
-                                acts.push(Action::Run("view.folderPane", json!({"minimized": false})));
-                            }
-                            ui.add_space(10.0);
-                            module_switch_vertical(ui, &t, module, &mut acts);
-                        });
-                    });
-            }
-            if !minimized {
-                start("nav")
-                    .resizable(true)
-                    .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
-                    .size_range(170.0..=380.0)
-                    .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)))
-                    .show(ui, |ui| {
-                        egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
-                            module_switch(ui, &t, module, &mut acts);
-                        });
-                        // Minimize, as Outlook's ‹ at the top of its folder pane.
-                        ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-                            let chevron = if rtl { Icon::ChevronRight } else { Icon::ChevronLeft };
-                            if widgets::tiny_icon_button(ui, chevron, "Minimize the folder pane", &t).clicked() {
-                                acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
-                            }
-                        });
-                        match module {
-                            Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
-                            Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
-                            Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
-                            Module::Notes => notes::nav(&self.session, &mut self.ui, ui, &mut acts),
+            // Minimized: a narrow strip with the way back and the modules, as Outlook's. Between
+            // the two, the pane slides (or changes at once, with animations off).
+            let mut expanded = !self.session.prefs.folder_pane_minimized;
+            let strip =
+                start("nav-min").resizable(false).exact_size(52.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(4, 8)));
+            let full = start("nav")
+                .resizable(true)
+                .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
+                .size_range(170.0..=380.0)
+                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)));
+            egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
+                if !wide {
+                    ui.vertical_centered(|ui| {
+                        let chevron = if rtl { Icon::ChevronLeft } else { Icon::ChevronRight };
+                        if widgets::tiny_icon_button(ui, chevron, "Show the folder pane", &t).clicked() {
+                            acts.push(Action::Run("view.folderPane", json!({"minimized": false})));
                         }
+                        ui.add_space(10.0);
+                        module_switch_vertical(ui, &t, module, &mut acts);
                     });
+                    return;
+                }
+                egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
+                    module_switch(ui, &t, module, &mut acts);
+                });
+                // Minimize, as Outlook's ‹ at the top of its folder pane.
+                ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                    let chevron = if rtl { Icon::ChevronRight } else { Icon::ChevronLeft };
+                    if widgets::tiny_icon_button(ui, chevron, "Minimize the folder pane", &t).clicked() {
+                        acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
+                    }
+                });
+                match module {
+                    Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
+                    Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
+                    Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
+                    Module::Notes => notes::nav(&self.session, &mut self.ui, ui, &mut acts),
+                }
+            });
+            // Dragged narrower than it goes: minimized, as the button does.
+            if expanded == self.session.prefs.folder_pane_minimized {
+                acts.push(Action::Run("view.folderPane", json!({"minimized": !expanded})));
             }
             let pane = self.session.prefs.reading_pane;
             let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
@@ -2013,9 +2020,13 @@ impl MailApp {
                     .frame_when_inactive(false),
                 );
                 if on {
+                    // The underline glides from the tab left to the one chosen.
                     let rect = r.rect;
+                    let ctx = ui.ctx().clone();
+                    let left = motion::glide(&ctx, egui::Id::unique("ribbon-tab-left"), rect.left() + 6.0, motion::NORMAL);
+                    let right = motion::glide(&ctx, egui::Id::unique("ribbon-tab-right"), rect.right() - 6.0, motion::NORMAL);
                     ui.painter().line_segment(
-                        [egui::pos2(rect.left() + 6.0, rect.bottom() + 1.0), egui::pos2(rect.right() - 6.0, rect.bottom() + 1.0)],
+                        [egui::pos2(left, rect.bottom() + 1.0), egui::pos2(right, rect.bottom() + 1.0)],
                         egui::Stroke::new(2.0, t.accent),
                     );
                 }
@@ -2506,9 +2517,27 @@ impl MailApp {
             return;
         }
         let t = self.ui.tokens;
-        egui::Area::new(egui::Id::unique("toast")).anchor(egui::Align2::RIGHT_BOTTOM, vec2(-16.0, -36.0)).order(egui::Order::Foreground).show(
-            ctx,
-            |ui| {
+        // In: up from a little below, settling; out: fading over its last moments.
+        let since = (now - at) as f32;
+        let (enter, leave) = if motion::enabled(ctx) {
+            (
+                motion::decelerate((since / motion::GENTLE).clamp(0.0, 1.0)),
+                1.0 - motion::accelerate(((since - (ttl as f32 - motion::GENTLE)) / motion::GENTLE).clamp(0.0, 1.0)),
+            )
+        } else {
+            (1.0, 1.0)
+        };
+        if enter < 1.0 || leave < 1.0 {
+            ctx.request_repaint();
+        } else {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64((at + ttl - motion::GENTLE as f64 - now).max(0.0)));
+        }
+        egui::Area::new(egui::Id::unique("toast"))
+            .anchor(egui::Align2::RIGHT_BOTTOM, vec2(-16.0, -36.0 + 14.0 * (1.0 - enter)))
+            .order(egui::Order::Foreground)
+            .fade_in(false)
+            .show(ctx, |ui| {
+                ui.multiply_opacity(enter.min(leave));
                 egui::Frame::new()
                     .fill(if error { t.danger } else { t.text })
                     .corner_radius(8)
@@ -2519,8 +2548,7 @@ impl MailApp {
                         // Notices from the engine are English; the ones with a fixed text have a translation.
                         ui.label(RichText::new(tl!(&text)).color(if error { Color32::WHITE } else { t.surface }));
                     });
-            },
-        );
+            });
     }
 
     /// Preferences and theme for the app to save.

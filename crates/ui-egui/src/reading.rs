@@ -23,7 +23,14 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
         empty(ui, &t, if s.list.is_empty() { "" } else { tl!("Select a message to read it") });
         return;
     }
-    message(s, st, ui, acts, false);
+    // A message just opened comes in: fading up from a few pixels below, quickly.
+    let key = s.reading.as_ref().map(|r| r.key.to_id()).unwrap_or_default();
+    let k = crate::motion::entrance(ui.ctx(), egui::Id::unique(("reading", key)), crate::motion::NORMAL);
+    ui.scope(|ui| {
+        ui.multiply_opacity(k);
+        ui.add_space(6.0 * (1.0 - k));
+        message(s, st, ui, acts, false);
+    });
 }
 
 /// A message in a window of its own. What it asks for applies to that message: it becomes the

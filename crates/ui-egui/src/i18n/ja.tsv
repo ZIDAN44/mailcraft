@@ -997,3 +997,5 @@ month	May	5月
 	{n} messages are being written. They're kept in Drafts if you save them.	{n} 件のメッセージを作成中です。保存すると下書きに保管されます。
 	Don't save	保存しない
 	Also being written:	ほかに作成中:
+	Play animations	アニメーションを再生する
+	Hovers, selections and panes ease into place; off, everything changes at once	ホバー、選択、ウィンドウ枠がなめらかに切り替わります。オフにするとすぐに切り替わります

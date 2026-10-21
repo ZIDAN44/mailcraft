@@ -1780,3 +1780,31 @@ fn closing_with_messages_written_asks_and_keeps_them() {
     assert!(subjects.contains(&"Half done".into()) && subjects.contains(&"Also half done".into()), "{subjects:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Motion: the folder pane slides between its two widths and the rest draws through it; Play
+/// animations off makes egui's own motion instant too; a message just opened fades in.
+#[test]
+fn motion_plays_and_stops() {
+    let (mut a, dir) = app("motion");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    assert!(crate::motion::enabled(&ctx));
+    for minimized in [true, false, true, false] {
+        a.run("view.folderPane", json!({"minimized": minimized}));
+        for _ in 0..4 {
+            frame(&ctx, &mut a, vec![]);
+        }
+    }
+    a.run("list.open", json!({"key": "sample:1:1:INBOX"}));
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.animations", json!({"on": false}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(!crate::motion::enabled(&ctx));
+    assert_eq!(ctx.global_style().animation_time, 0.0);
+    a.run("view.folderPane", json!({"minimized": true}));
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.animations", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.prefs.animations && crate::motion::enabled(&ctx));
+    let _ = std::fs::remove_dir_all(dir);
+}

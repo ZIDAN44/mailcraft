@@ -1000,3 +1000,5 @@ month	May	5월
 	{n} messages are being written. They're kept in Drafts if you save them.	메시지 {n}개를 작성 중입니다. 저장하면 임시 보관함에 보관됩니다.
 	Don't save	저장 안 함
 	Also being written:	작성 중인 다른 메시지:
+	Play animations	애니메이션 재생
+	Hovers, selections and panes ease into place; off, everything changes at once	마우스 오버, 선택, 창이 부드럽게 바뀝니다. 끄면 모든 것이 즉시 바뀝니다

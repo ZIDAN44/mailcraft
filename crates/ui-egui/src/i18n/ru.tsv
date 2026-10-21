@@ -1000,3 +1000,5 @@ month	May	Май
 	{n} messages are being written. They're kept in Drafts if you save them.	Пишется сообщений: {n}. Если сохранить, они останутся в черновиках.
 	Don't save	Не сохранять
 	Also being written:	Также пишется:
+	Play animations	Воспроизводить анимацию
+	Hovers, selections and panes ease into place; off, everything changes at once	Наведение, выделение и панели меняются плавно; если выключить, всё меняется сразу

@@ -62,13 +62,24 @@ fn reached(ui: &Ui, rect: egui::Rect) {
 }
 
 /// An icon alone, its label as the tooltip (a ribbon too wide for the window).
+/// A button's background as the pointer comes and goes: the hover fades in and out (quickly),
+/// a press shows at once.
+fn hover_fill(ui: &Ui, resp: &Response, rect: egui::Rect, t: &Tokens, enabled: bool) {
+    let k = crate::motion::toward(ui.ctx(), resp.id.with("hover"), enabled && resp.hovered(), crate::motion::FAST);
+    if enabled && resp.is_pointer_button_down_on() {
+        ui.painter().rect_filled(rect, 6.0, t.accent_soft);
+    } else if k > 0.0 {
+        ui.painter().rect_filled(rect, 6.0, t.hover.gamma_multiply(k));
+    }
+}
+
 fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 30.0), if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
     if on {
         ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.5)), egui::StrokeKind::Inside);
-    } else if enabled && (resp.hovered() || resp.is_pointer_button_down_on()) {
-        ui.painter().rect_filled(rect, 6.0, if resp.is_pointer_button_down_on() { t.accent_soft } else { t.hover });
+    } else {
+        hover_fill(ui, &resp, rect, t, enabled);
     }
     let ir = egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0));
     icons::paint(ui.painter(), ir, icon, if enabled { t.accent } else { t.faint });
@@ -86,9 +97,7 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
     let color = if enabled { t.text } else { t.faint };
-    if enabled && (resp.hovered() || resp.is_pointer_button_down_on()) {
-        ui.painter().rect_filled(rect, 6.0, if resp.is_pointer_button_down_on() { t.accent_soft } else { t.hover });
-    }
+    hover_fill(ui, &resp, rect, t, enabled);
     let ir = egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0));
     icons::paint(ui.painter(), ir, icon, if enabled { t.accent } else { t.faint });
     ui.painter().galley_with_override_text_color(rect.min + vec2(30.0, (30.0 - galley.size().y) / 2.0), galley, color);
@@ -104,10 +113,19 @@ pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -
     }
     let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 36.0, 30.0), Sense::click());
     reached(ui, rect);
-    if on {
-        ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.5)), egui::StrokeKind::Inside);
-    } else if resp.hovered() {
-        ui.painter().rect_filled(rect, 6.0, t.hover);
+    // Lit or not, easing between the two.
+    let lit = crate::motion::toward(ui.ctx(), resp.id.with("on"), on, crate::motion::NORMAL);
+    if lit > 0.0 {
+        ui.painter().rect(
+            rect,
+            6.0,
+            t.accent_soft.gamma_multiply(lit),
+            Stroke::new(1.0, t.accent.gamma_multiply(0.5 * lit)),
+            egui::StrokeKind::Inside,
+        );
+    }
+    if !on {
+        hover_fill(ui, &resp, rect, t, true);
     }
     icons::paint(ui.painter(), egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0)), icon, t.accent);
     ui.painter().galley_with_override_text_color(rect.min + vec2(30.0, (30.0 - galley.size().y) / 2.0), galley, t.text);

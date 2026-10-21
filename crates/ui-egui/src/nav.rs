@@ -5,7 +5,7 @@
 //! create, rename, move, delete or pin it to Favorites. Favorites, accounts and folders with
 //! folders in them collapse, and stay so from one start to the next.
 
-use egui::{Color32, RichText, Sense, Ui, vec2};
+use egui::{RichText, Sense, Ui, vec2};
 use mailcraft_engine::model::{Folder, FolderRole};
 use mailcraft_engine::{Session, View};
 use serde_json::json;
@@ -77,18 +77,14 @@ fn row(
     let h = 30.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
     let hovering_drop = drop_ok && (resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some());
-    let fill = if hovering_drop {
-        t.accent.gamma_multiply(0.3)
-    } else if selected {
-        t.accent_soft
-    } else if resp.hovered() {
-        t.hover_row
-    } else {
-        Color32::TRANSPARENT
-    };
+    let ctx = ui.ctx().clone();
+    let sel = crate::motion::toward(&ctx, resp.id.with("selected"), selected, crate::motion::NORMAL);
+    let hover = crate::motion::toward(&ctx, resp.id.with("hover"), resp.hovered(), crate::motion::FAST);
+    let fill = if hovering_drop { t.accent.gamma_multiply(0.3) } else { crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel) };
     ui.painter().rect_filled(rect, 6.0, fill);
-    if selected {
-        let bar = egui::Rect::from_min_size(rect.min + vec2(0.0, 7.0), vec2(3.0, h - 14.0));
+    if sel > 0.0 {
+        let full = h - 14.0;
+        let bar = egui::Rect::from_center_size(egui::pos2(rect.min.x + 1.5, rect.center().y), vec2(3.0, full * sel));
         ui.painter().rect_filled(bar, 2.0, t.accent);
     }
     let x = rect.min.x + 10.0 + depth as f32 * 14.0;

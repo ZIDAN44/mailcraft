@@ -737,6 +737,15 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         setting(ui, false, tl!("Ask before deleting for good"), None, &mut |ui| {
             switch(ui, s.prefs.confirm_permanent_delete, tl!("Ask before deleting for good"), "view.confirmDelete", acts);
         });
+        setting(
+            ui,
+            false,
+            tl!("Play animations"),
+            Some(tl!("Hovers, selections and panes ease into place; off, everything changes at once")),
+            &mut |ui| {
+                switch(ui, s.prefs.animations, tl!("Play animations"), "view.animations", acts);
+            },
+        );
     });
 
     // Junk Email: the blocked and safe senders, each list with a box to add to it.

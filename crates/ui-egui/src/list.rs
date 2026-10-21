@@ -296,13 +296,9 @@ fn message_row(
     let selected = s.selection.contains(&m.key);
     let unread = if count > 1 { unread_in_thread > 0 } else { !m.flags.seen };
     let p = ui.painter_at(r);
-    let fill = if selected {
-        t.accent_soft
-    } else if hovered {
-        t.hover_row
-    } else {
-        Color32::TRANSPARENT
-    };
+    let sel = crate::motion::toward(ui.ctx(), id.with("selected"), selected, crate::motion::NORMAL);
+    let hover = crate::motion::toward(ui.ctx(), id.with("hover"), hovered, crate::motion::FAST);
+    let fill = crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel);
     p.rect_filled(r.shrink2(vec2(4.0, 1.0)), 6.0, fill);
     if unread {
         p.rect_filled(Rect::from_min_size(r.min + vec2(4.0, 8.0), vec2(3.0, r.height() - 16.0)), 2.0, t.accent);
