@@ -1251,6 +1251,17 @@ y"
         assert_eq!(imap_criteria("has:attachment"), None, "nothing IMAP can ask");
         assert_eq!(imap_criteria(""), None);
         assert_eq!(imap_criteria("Grüße"), Some(vec![a("TEXT"), st("grüße")]));
+        // Sizes; a list as nested ORs (left to the list when one name is several words).
+        assert_eq!(imap_criteria("larger:1KB -smaller:10"), Some(vec![a("LARGER"), a("1024"), a("NOT"), a("SMALLER"), a("10")]));
+        assert_eq!(
+            imap_criteria("from:ana,jun,\"zoe park\""),
+            Some(vec![a("OR"), a("FROM"), st("ana"), a("OR"), a("FROM"), st("jun"), a("FROM"), st("zoe park")])
+        );
+        assert_eq!(imap_criteria("-to:ana,jun"), Some(vec![a("NOT"), a("OR"), a("TO"), st("ana"), a("TO"), st("jun")]));
+        assert_eq!(
+            imap_criteria("from:ana,jun lee"),
+            Some(vec![a("TEXT"), st("lee")]).map(|v| [vec![a("OR"), a("FROM"), st("ana"), a("FROM"), st("jun")], v].concat())
+        );
     }
 
     /// Gap #7: the query as Exchange's KQL/AQS words with the read, flag and attachment
@@ -1300,6 +1311,15 @@ y"
         );
         assert_eq!(mailcraft_jmap::search_filter("is:important"), None);
         assert_eq!(mailcraft_jmap::search_filter(""), None);
+        // Sizes (minSize is at least, so one more byte), and a list as OR.
+        assert_eq!(
+            mailcraft_jmap::search_filter("larger:1KB smaller:2KB from:ana,\"zoe park\""),
+            Some(json!({"operator": "AND", "conditions": [
+                {"minSize": 1025},
+                {"maxSize": 2048},
+                {"operator": "OR", "conditions": [{"from": "ana"}, {"from": "zoe park"}]},
+            ]}))
+        );
     }
 
     /// Issue #4: mail past what's kept is found on the server. A folder keeps its newest 10 of

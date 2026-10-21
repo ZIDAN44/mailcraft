@@ -3,7 +3,9 @@
 //! The syntax follows the familiar mail-client form: bare words match anywhere (as word
 //! prefixes, so `proj` finds "project"), `"quoted phrases"` match as written, and keywords narrow
 //! the field: `from:`, `to:` (also `cc:`), `subject:`, `body:`, `has:attachment` /
-//! `hasattachments:yes`, `is:unread` / `is:read`, `is:flagged`. A leading `-` negates a term.
+//! `hasattachments:yes`, `is:unread` / `is:read`, `is:flagged`, `larger:` / `smaller:` (a size:
+//! `100KB`, `2MB`, bytes alone). A leading `-` negates a term. `from:` and `to:` take a list,
+//! `from:ana,jun`, matching any of them (terms otherwise must all match).
 //!
 //! [`Index`] maps every word of every message to the messages containing it (a `BTreeMap`, so a
 //! prefix is one range scan). A query asks the index for candidates and then checks each
@@ -46,6 +48,10 @@ pub enum Term {
     /// Carries one of these keywords (`is:categorized`: the caller fills in its categories'
     /// keywords; left empty, any keyword that isn't a system one, `$…`, counts).
     Categorized(Vec<String>),
+    /// Bigger than this many bytes (`larger:`), or (`false`) smaller (`smaller:`).
+    Size(bool, u64),
+    /// Any one of these (`from:ana,jun`).
+    AnyOf(Vec<Term>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,6 +117,8 @@ const FIELDS: &[&str] = &[
     "category",
     "label",
     "tag",
+    "larger",
+    "smaller",
 ];
 
 /// True for a bare `field:` (optionally negated) still missing its value.
@@ -124,6 +132,51 @@ fn yes_no(v: &str) -> Option<bool> {
         "yes" | "true" | "1" => Some(true),
         "no" | "false" | "0" => Some(false),
         _ => None,
+    }
+}
+
+/// A size: `100KB`, `1.5MB`, `2 GB`, `300` (bytes); KB is 1024 bytes, as mail clients count.
+fn size(value: &str) -> Option<u64> {
+    let v = value.trim().to_ascii_lowercase();
+    let at = v.find(|c: char| !c.is_ascii_digit() && c != '.').unwrap_or(v.len());
+    let (num, unit) = v.split_at(at);
+    let n: f64 = num.parse().ok().filter(|n: &f64| n.is_finite() && *n >= 0.0)?;
+    let scale: f64 = match unit.trim() {
+        "" | "b" => 1.0,
+        "k" | "kb" => 1024.0,
+        "m" | "mb" => 1024.0 * 1024.0,
+        "g" | "gb" => 1024.0 * 1024.0 * 1024.0,
+        _ => return None,
+    };
+    let bytes = (n * scale).round();
+    // Past a terabyte it's no mail size: held there (an `as` cast of a huge float saturates).
+    Some(bytes.min(1024f64.powi(4)) as u64)
+}
+
+/// A field that may hold a list: `from:ana,jun` is any of them.
+fn list_term(field: Field, value: &str) -> Option<Term> {
+    // Split at commas outside quotes: `"park, zoe",ann` is two.
+    let mut parts = vec![String::new()];
+    let mut quoted = false;
+    for c in value.chars() {
+        match c {
+            '"' => {
+                quoted = !quoted;
+                parts.last_mut().map(|p| p.push(c)).unwrap_or_default();
+            }
+            ',' if !quoted => parts.push(String::new()),
+            c => parts.last_mut().map(|p| p.push(c)).unwrap_or_default(),
+        }
+    }
+    if parts.len() < 2 {
+        return text_term(field, value);
+    }
+    let any: Vec<Term> = parts.iter().take(50).filter_map(|v| text_term(field.clone(), v.trim())).collect();
+    match any.len() {
+        // Commas alone: looked for as they are.
+        0 => text_term(field, value),
+        1 => any.into_iter().next(),
+        _ => Some(Term::AnyOf(any)),
     }
 }
 
@@ -151,8 +204,10 @@ impl Query {
             };
             let term = match tok.split_once(':') {
                 Some((k, v)) if !v.is_empty() && !k.starts_with('"') => match k.to_ascii_lowercase().as_str() {
-                    "from" => text_term(Field::From, v),
-                    "to" | "cc" => text_term(Field::To, v),
+                    "from" => list_term(Field::From, v),
+                    "to" | "cc" => list_term(Field::To, v),
+                    "larger" => size(v).map(|b| Term::Size(true, b)),
+                    "smaller" => size(v).map(|b| Term::Size(false, b)),
                     "subject" => text_term(Field::Subject, v),
                     "body" => text_term(Field::Body, v),
                     "has" if v.eq_ignore_ascii_case("attachment") || v.eq_ignore_ascii_case("attachments") => Some(Term::HasAttachment(true)),
@@ -259,6 +314,9 @@ fn clause_matches(term: &Term, doc: &Doc<'_>) -> bool {
         Term::Important => m.importance > 0,
         Term::Categorized(ks) if ks.is_empty() => m.flags.keywords.iter().any(|k| !k.starts_with('$')),
         Term::Categorized(ks) => ks.iter().any(|k| m.flags.has(k)),
+        Term::Size(true, b) => u64::from(m.size) > *b,
+        Term::Size(false, b) => u64::from(m.size) < *b,
+        Term::AnyOf(ts) => ts.iter().any(|t| clause_matches(t, doc)),
         Term::Phrase(f, p) => field_text(f, doc).to_lowercase().contains(p.as_str()),
         // Found through the index for these words: they're there (summary or body).
         Term::Words(Field::Any, ws) if doc.indexed && doc.body.is_none() && ws.iter().all(|w| !w.contains(['@', '.'])) => true,
@@ -389,6 +447,24 @@ mod tests {
         assert_eq!(Query::parse("note: zoe").clauses.len(), 2);
         assert_eq!(Query::parse("zoe from:").clauses.len(), 2);
         assert!(Query::parse("from:\t\n").clauses.len() == 1);
+    }
+
+    /// Sizes, and lists matching any of their names.
+    #[test]
+    fn sizes_and_lists() {
+        let mut m = sample();
+        m.size = 300 * 1024;
+        assert!(q("larger:100KB", &m) && q("larger:100kb", &m) && !q("larger:1MB", &m) && q("smaller:0.5mb", &m) && !q("smaller:300K", &m));
+        assert!(q("-larger:1MB", &m) && q("larger:307199", &m) && !q("larger:307200", &m));
+        // Not sizes: plain words, never a crash.
+        for junk in ["larger:", "larger:big", "larger:-5", "larger:1e999MB", "larger:NaN", "smaller:12XB", "larger:99999999999999999999GB"] {
+            let _ = q(junk, &m);
+        }
+        assert_eq!(Query::parse("larger:99999999999999999999GB").clauses[0].term, Term::Size(true, 1024u64.pow(4)));
+        assert!(q("from:ana,zoe", &m) && q("from:\"zoe park\",ann", &m) && !q("from:ana,jun", &m) && q("to:x,ann", &m));
+        assert!(!q("-from:ana,zoe", &m) && q("from:zoe,", &m) && q("from:,zoe", &m));
+        assert_eq!(Query::parse("from:,,").clauses.len(), 1, "commas alone: a phrase to look for");
+        assert!(matches!(&Query::parse("from:a,b,c").clauses[0].term, Term::AnyOf(v) if v.len() == 3));
     }
 
     #[test]

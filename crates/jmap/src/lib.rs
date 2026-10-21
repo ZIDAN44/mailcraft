@@ -925,6 +925,23 @@ pub fn search_filter(query: &str) -> Option<Value> {
             Term::Unread(on) => conds.push(keyword("$seen", *on == c.negated)),
             Term::Flagged(on) => conds.push(keyword("$flagged", *on != c.negated)),
             Term::HasAttachment(on) => conds.push(json!({"hasAttachment": *on != c.negated})),
+            // Bigger than: minSize is "at least", so one byte more.
+            Term::Size(true, b) => conds.push(not(json!({"minSize": b.saturating_add(1)}))),
+            Term::Size(false, b) => conds.push(not(json!({"maxSize": b}))),
+            Term::AnyOf(any) => {
+                let one: Vec<Value> = any
+                    .iter()
+                    .filter_map(|t| match t {
+                        Term::Words(f, w) if !w.is_empty() => Some(json!({ field(f): w.join(" ").chars().take(200).collect::<String>() })),
+                        Term::Phrase(f, p) if !p.is_empty() => Some(json!({ field(f): p.chars().take(200).collect::<String>() })),
+                        _ => None,
+                    })
+                    .take(16)
+                    .collect();
+                if one.len() == any.len() && !one.is_empty() {
+                    conds.push(not(json!({"operator": "OR", "conditions": one})));
+                }
+            }
             Term::Keyword(k)
                 if !k.is_empty() && k.len() < 100 && k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '$' | '_' | '-' | '.')) =>
             {

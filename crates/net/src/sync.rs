@@ -235,6 +235,32 @@ pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
             }
             Term::Unread(on) => out.push(atom(if *on != c.negated { "UNSEEN" } else { "SEEN" })),
             Term::Flagged(on) => out.push(atom(if *on != c.negated { "FLAGGED" } else { "UNFLAGGED" })),
+            Term::Size(larger, bytes) => {
+                not(&mut out);
+                out.extend([atom(if *larger { "LARGER" } else { "SMALLER" }), atom(&bytes.to_string())]);
+            }
+            // `from:ana,jun`: OR ana OR jun …, when each is one key (a word or a phrase).
+            Term::AnyOf(any) => {
+                let keys: Vec<(&str, String)> = any
+                    .iter()
+                    .filter_map(|t| match t {
+                        Term::Words(f, w) if w.len() == 1 => w.first().map(|w| (key(f), w.chars().take(200).collect())),
+                        Term::Phrase(f, p) if !p.is_empty() => Some((key(f), p.chars().take(200).collect())),
+                        _ => None,
+                    })
+                    .take(16)
+                    .collect();
+                if keys.len() == any.len() && !keys.is_empty() {
+                    not(&mut out);
+                    let last = keys.len() - 1;
+                    for (i, (k, v)) in keys.into_iter().enumerate() {
+                        if i < last {
+                            out.push(atom("OR"));
+                        }
+                        out.extend([atom(k), SearchArg::Str(v)]);
+                    }
+                }
+            }
             Term::Keyword(k)
                 if !k.is_empty() && k.len() < 100 && k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '$' | '_' | '-' | '.')) =>
             {
