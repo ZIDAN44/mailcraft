@@ -37,19 +37,19 @@ pub struct LangInfo {
 
 pub static LANGUAGES: [LangInfo; 14] = [
     LangInfo { code: "en", name: "English", source: "", cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "es", name: "Español", source: include_str!("es.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "fr", name: "Français", source: include_str!("fr.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "de", name: "Deutsch", source: include_str!("de.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "nl", name: "Nederlands", source: include_str!("nl.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "pt-br", name: "Português (Brasil)", source: include_str!("pt-br.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "it", name: "Italiano", source: include_str!("it.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "ru", name: "Русский", source: include_str!("ru.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "ja", name: "日本語", source: include_str!("ja.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "ko", name: "한국어", source: include_str!("ko.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "zh-hans", name: "简体中文", source: include_str!("zh-hans.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "zh-hant", name: "繁體中文", source: include_str!("zh-hant.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
-    LangInfo { code: "ar", name: "العربية", source: include_str!("ar.tsv"), cjk: false, rtl: true, catalog: OnceLock::new() },
-    LangInfo { code: "he", name: "עברית", source: include_str!("he.tsv"), cjk: false, rtl: true, catalog: OnceLock::new() },
+    LangInfo { code: "es", name: "Español", source: include_str!("i18n/es.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "fr", name: "Français", source: include_str!("i18n/fr.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "de", name: "Deutsch", source: include_str!("i18n/de.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "nl", name: "Nederlands", source: include_str!("i18n/nl.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "pt-br", name: "Português (Brasil)", source: include_str!("i18n/pt-br.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "it", name: "Italiano", source: include_str!("i18n/it.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "ru", name: "Русский", source: include_str!("i18n/ru.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "ja", name: "日本語", source: include_str!("i18n/ja.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "ko", name: "한국어", source: include_str!("i18n/ko.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "zh-hans", name: "简体中文", source: include_str!("i18n/zh-hans.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "zh-hant", name: "繁體中文", source: include_str!("i18n/zh-hant.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "ar", name: "العربية", source: include_str!("i18n/ar.tsv"), cjk: false, rtl: true, catalog: OnceLock::new() },
+    LangInfo { code: "he", name: "עברית", source: include_str!("i18n/he.tsv"), cjk: false, rtl: true, catalog: OnceLock::new() },
 ];
 
 fn unescape(text: &str) -> Result<String, String> {

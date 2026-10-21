@@ -2,24 +2,35 @@ use std::collections::BTreeSet;
 
 use super::*;
 
+/// The UI crate's own Rust files, read from disk.
+fn ui_sources() -> Vec<String> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let mut paths: Vec<std::path::PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
+        paths.sort();
+        for p in paths {
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if p.is_dir() {
+                if name != "i18n" && name != "tests" {
+                    walk(&p, out);
+                }
+            } else if name.ends_with(".rs") && name != "tests.rs" {
+                out.push(std::fs::read_to_string(&p).unwrap_or_default());
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut out);
+    assert!(out.len() > 20, "the UI's sources weren't found");
+    out
+}
+
 /// Every interface string: literals in the UI code (`tl!`, `tf!` and the helpers that translate
 /// their label), the names the model hands up, and whatever a tour of the interface looks up.
 pub(crate) fn interface_strings() -> BTreeSet<String> {
-    let sources = [
-        include_str!("../lib.rs"),
-        include_str!("../list.rs"),
-        include_str!("../nav.rs"),
-        include_str!("../reading.rs"),
-        include_str!("../dialogs.rs"),
-        include_str!("../widgets.rs"),
-        include_str!("../organize.rs"),
-        include_str!("../rich_edit.rs"),
-        include_str!("../backstage.rs"),
-        include_str!("../calendar.rs"),
-        include_str!("../people.rs"),
-        include_str!("../pim_dialogs.rs"),
-        include_str!("../notes.rs"),
-    ];
+    // Every UI source file, wherever it sits (a file split into a folder stays covered); tests
+    // and the catalogs' own code left out.
+    let sources = ui_sources();
     // (prefix, which string literals after it are interface text)
     let prefixes: [(&str, &[usize]); 20] = [
         ("tl!(", &[0]),
@@ -44,7 +55,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         ("check(ui, s.prefs.", &[0]),
     ];
     let mut out = BTreeSet::new();
-    for src in sources {
+    for src in sources.iter().map(String::as_str) {
         for (p, which) in prefixes {
             let mut rest = src;
             while let Some(i) = rest.find(p) {
