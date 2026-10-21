@@ -1428,6 +1428,48 @@ mod tests {
         );
     }
 
+    /// Folder edits queued back to back (create, rename, delete, and a move into a new
+    /// folder): each must see the folder ids the previous one produced, within one replay.
+    #[test]
+    fn folder_edits_queued_together_each_find_their_folder() {
+        let mut d = Data::default();
+        let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+        d.deliver(&inbox, &mail("Storyboard", "m1"), false, "2024-05-06T09:00:00Z");
+        let server = serve(d);
+        let data = server.data.clone();
+        let store = crate::fake::tests_store("ews-folder-burst");
+        let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig {
+            id: "a1".into(),
+            email: "riley@contoso.example".into(),
+            username: format!("{DOMAIN}\\{USER}"),
+            ews: Some(server.url.clone()),
+            ..Default::default()
+        };
+        pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
+        // All submitted at once, before the first reaches the server.
+        for op in [
+            Op::CreateFolder { path: "Drafts 2".into() },
+            Op::RenameFolder { from: "Drafts 2".into(), to: "Clients".into() },
+            Op::Move { keys: vec![key], to: "Clients".into() },
+            Op::CreateFolder { path: "Old".into() },
+            Op::DeleteFolder { path: "Old".into() },
+        ] {
+            pool.submit(Job::Apply { account: "a1".into(), op });
+        }
+        eventually("all made on the server", || {
+            let d = data.lock().unwrap();
+            let clients = d.by_name("Clients").map(|f| f.id.clone());
+            clients.is_some_and(|c| d.items.iter().any(|i| i.folder == c))
+                && d.by_name("Drafts 2").is_none()
+                && d.by_name("Old").is_none()
+                && store.load_ops("a1").unwrap().is_empty()
+        });
+        drop(pool);
+    }
+
     /// Flag a message while a slow full sync runs, then shut the pool down: the flag is in the
     /// cache and ops.json straight away, and the next session delivers it to the server.
     #[test]

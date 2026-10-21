@@ -1937,6 +1937,11 @@ impl Worker {
                         self.notice(e.to_string());
                         break;
                     }
+                    // The next queued edit may name this folder (or its new name): refresh the
+                    // folder ids now rather than after the pass.
+                    if op.is_folder_op() && relist {
+                        relist = !self.relist();
+                    }
                 }
                 Err(e) if e.is_fatal() => {
                     self.failed(e);
