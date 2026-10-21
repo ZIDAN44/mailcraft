@@ -706,5 +706,30 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   accelerates, in 100 to 250 ms, on cubic Bézier curves solved in `motion.rs`. Play animations
   (File › Options) turns it all off, egui's own fades and smooth scrolling included. The
   ribbon is one height on every tab, so switching tabs no longer nudges the window below.
+- **Issue #4 again, on Dovecot:** Show more did nothing there. A server with QRESYNC (Dovecot
+  has it) syncs a folder from what its `SELECT` says, and that way never took in the larger
+  window; both ways now do. Search the server searched each folder whole in one `UID SEARCH`,
+  showed nothing until every folder was done, and went on after Esc (Dovecot reads every
+  message when it has no text index). A folder is now searched newest first, a range of message
+  numbers at a time (`UID SEARCH 2501:3000 TEXT …`, the ranges growing while the server answers
+  within a second and shrinking past four), what each range finds shown at once; clearing the
+  search box, a new search or leaving the folder stops it between two ranges, and the account
+  goes on with its other work. JMAP, Graph and EWS show theirs a folder at a time and stop the
+  same way, in the browser too.
+- **The search box, as Outlook's:** where to look on its left (Current Folder, Subfolders,
+  Current Mailbox, the default, or All Mailboxes; kept for the next searches, and in the
+  Search tab and the list's header too); the last ten searches drop down from it (kept on
+  Enter, a pick, or leaving the box with a search in it, never every word typed; Clear recent
+  searches; in memory only while an account is kept online only, since what's searched for
+  tells what the mail says); and Advanced search under the chevron on its right (words, From, To, Subject,
+  message text, has attachments, unread, flagged, high importance, and other terms kept as
+  written), filled from what's in the box and written back to it.
+- Checked in the app against Dovecot 2.3 in Docker (3,000 messages, 25 kept, online only),
+  the build before the fix first: Show more sent `SELECT … (QRESYNC …)` and nothing else, the
+  list still 25; now it fetches the next 25 (`UID FETCH 2951:2975`), 50 shown. Search the server
+  for "needle" asked `UID SEARCH 2501:3000`, `1501:2500`, `1:1500` and showed its 30.
 - Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
-  (needs a dictionary MailCraft can ship).
+  (needs a dictionary MailCraft can ship). IMAP METADATA (RFC 5464, suggested on issue #4) is
+  for annotations on mailboxes, not for searching; a server's own text index (Dovecot's FTS) is
+  used by the same `SEARCH` without MailCraft asking anything else, and a fuzzy search (RFC 6203)
+  is left for when a server that offers it can be tested.

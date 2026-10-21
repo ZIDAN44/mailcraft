@@ -332,3 +332,11 @@ local-first, media-aware v1); the fuller request is
   `release-wip.yml` turns it on (`MAILCRAFT_UPDATE_CHANNEL=test`); `release.yml` is unchanged.
   Checked on Windows from a portable copy posing as 0.20.0: test build 18 downloaded, verified,
   unzipped over the folder (data kept) and reopened.
+- **2026-10-22** — **v0.22**, issue #4 again, reproduced first against Dovecot 2.3 in Docker
+  with the build before the fix: Show more did nothing on a server with QRESYNC (that way of
+  syncing never took in the larger window), and Search the server ran each folder whole, showed
+  nothing until it ended and didn't stop on Esc. A folder is now searched newest first a range of
+  message numbers at a time, its finds shown as they come, and clearing the box, a new search or
+  leaving the folder stops it between two ranges. The search box gains Outlook's scope menu
+  (Current Folder, Subfolders, Current Mailbox, All Mailboxes), its recent searches and Advanced
+  search. Also found on the way: two doc comments the file split had left on the wrong item.
