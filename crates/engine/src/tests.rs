@@ -3114,3 +3114,69 @@ fn search_folders_find_mail_everywhere_but_deleted_and_junk() {
     }
     assert_eq!(s.prefs.search_folders.len(), crate::session::search_folders::SEARCH_FOLDERS_MAX);
 }
+
+/// Quick Steps: their marks, then their one move (undoable); by name, place or shortcut;
+/// checked as they're made; a category deleted since is passed over.
+#[test]
+fn quick_steps_mark_then_move_the_selection() {
+    let mut s = sample_session("quick-steps");
+    s.run("category.create", &json!({"name": "Done"})).unwrap();
+    let archive = s.account("sample").and_then(|a| a.folder(FolderRole::Archive)).map(|f| f.path.clone()).unwrap();
+    let r = s
+        .run(
+            "quickStep.create",
+            &json!({"name": "Done", "actions": [{"do": "moveToRole", "value": "archive"}, {"do": "markRead"}, {"do": "categorize", "value": "Done"}, {"do": "markRead"}]}),
+        )
+        .unwrap();
+    assert_eq!(r["index"], 0);
+    assert_eq!(s.prefs.quick_steps[0].actions.len(), 3, "the same action twice is done once");
+    s.run("quickStep.create", &json!({"name": "Flag it", "actions": [{"do": "flag"}, {"do": "pin"}]})).unwrap();
+    // Ctrl+Shift+1: the first, on Ana's unread message.
+    let k = key_of(&s, "Sound mix, version 3");
+    s.run("list.select", &k).unwrap();
+    let id = s.summary(&crate::parse_key(&k).unwrap()).unwrap().message_id.clone();
+    let by_key = crate::cmd::registry().all().iter().find(|c| c.shortcut == "Mod+Shift+1").map(|c| c.id);
+    assert_eq!(by_key, Some("quickStep.1"));
+    s.run("quickStep.1", &json!({})).unwrap();
+    let moved = s.folder_state("sample", &archive).messages.iter().find(|m| m.message_id == id).cloned().unwrap();
+    assert!(moved.flags.seen && !moved.flags.keywords.is_empty(), "read and categorized before it left: {:?}", moved.flags);
+    // Undone: back in the Inbox.
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.folder_state("sample", "INBOX").messages.iter().any(|m| m.message_id == id));
+    // By name: flagged and pinned, staying where it is.
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    s.run("quickStep.run", &json!({"name": "flag IT"})).unwrap();
+    let m = s.folder_state("sample", "INBOX").messages.iter().find(|m| m.subject == "Character turnarounds").cloned().unwrap();
+    assert!(m.flags.flagged && m.flags.pinned());
+    // A category deleted since: the rest is still done.
+    s.run("category.delete", &json!({"name": "Done"})).unwrap();
+    let k = key_of(&s, "Open call: winter group show");
+    s.run("list.select", &k).unwrap();
+    s.run("quickStep.run", &json!({"index": 0})).unwrap();
+    assert!(s.folder_state("sample", &archive).messages.iter().any(|m| m.subject == "Open call: winter group show"));
+    // No such step; none selected.
+    assert!(s.run("quickStep.9", &json!({})).is_err());
+    s.selection.clear();
+    assert!(s.run("quickStep.1", &json!({})).is_err());
+    // Checked as made and edited.
+    for bad in [
+        json!({"name": "", "actions": [{"do": "flag"}]}),
+        json!({"name": "done", "actions": [{"do": "flag"}]}),
+        json!({"name": "Nothing", "actions": []}),
+        json!({"name": "No actions"}),
+        json!({"name": "Two moves", "actions": [{"do": "delete"}, {"do": "moveToRole", "value": "archive"}]}),
+        json!({"name": "Ghost", "actions": [{"do": "categorize", "value": "Nope"}]}),
+        json!({"name": "Nowhere", "actions": [{"do": "moveTo", "value": "No/Such"}]}),
+        json!({"name": "Odd", "actions": [{"do": "explode"}]}),
+        json!({"name": "Many", "actions": vec![json!({"do": "flag"}); 11]}),
+    ] {
+        assert!(s.run("quickStep.create", &bad).is_err(), "{bad}");
+    }
+    s.run("quickStep.edit", &json!({"name": "Flag it", "newName": "Flag", "actions": [{"do": "flag"}]})).unwrap();
+    assert!(s.run("quickStep.edit", &json!({"name": "Flag", "newName": "Done"})).is_err(), "taken");
+    s.run("quickStep.delete", &json!({"name": "flag"})).unwrap();
+    assert_eq!(s.prefs.quick_steps.len(), 1);
+    let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!(back.quick_steps, s.prefs.quick_steps);
+}

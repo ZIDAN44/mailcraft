@@ -23,6 +23,7 @@ pub mod invite;
 pub mod junk;
 mod organize;
 pub mod pim;
+pub mod quick_steps;
 pub mod search_folders;
 
 /// One account and what the session knows about it.
@@ -329,6 +330,9 @@ pub struct Prefs {
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default)]
     pub follow_up: BTreeMap<String, i64>,
+    /// Quick Steps: actions done to the selection in one go ([`quick_steps`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub quick_steps: Vec<quick_steps::QuickStep>,
     /// Search Folders: saved searches shown as folders ([`search_folders`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub search_folders: Vec<search_folders::SearchFolder>,
@@ -501,6 +505,7 @@ impl Default for Prefs {
             follow_up: BTreeMap::new(),
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
+            quick_steps: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),
             pane_order: Vec::new(),

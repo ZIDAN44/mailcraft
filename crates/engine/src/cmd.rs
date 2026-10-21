@@ -289,6 +289,35 @@ pub fn registry() -> Registry {
         .params(r#"{"on"?: bool}"#),
         // Search
         CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(r#"{"query": string, "scope"?: "all"|"current"}"#),
+        // Home › Quick Steps
+        CommandSpec::new("quickStep.list", "Quick Steps", "Home › Quick Steps", |s, _| Ok(json!(s.prefs.quick_steps))),
+        CommandSpec::new("quickStep.create", "New Quick Step", "Home › Quick Steps", |s, v| {
+            let actions = quick_actions(v)?.ok_or_else(|| CmdError::Params("`actions` is required".into()))?;
+            s.create_quick_step(p::req_str(v, "name")?, actions)
+        })
+        .params(QUICK_STEP_PARAMS),
+        CommandSpec::new("quickStep.edit", "Edit Quick Step", "Home › Quick Steps", |s, v| {
+            let actions = quick_actions(v)?;
+            s.edit_quick_step(p::req_str(v, "name")?, p::str(v, "newName"), actions)
+        })
+        .params(r#"{"name": string, "newName"?: string, "actions"?: […] (as quickStep.create)}"#),
+        CommandSpec::new("quickStep.delete", "Delete Quick Step", "Home › Quick Steps", |s, v| s.delete_quick_step(p::req_str(v, "name")?))
+            .params(r#"{"name": string}"#),
+        CommandSpec::new("quickStep.run", "Do a Quick Step", "Home › Quick Steps", |s, v| {
+            let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok());
+            s.run_quick_step(p::str(v, "name"), index)
+        })
+        .params(r#"{"name"?: string, "index"?: number (from 0)}"#)
+        .when(has_selection),
+        CommandSpec::new("quickStep.1", "Quick Step 1", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(0))).key("Mod+Shift+1").when(has_selection),
+        CommandSpec::new("quickStep.2", "Quick Step 2", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(1))).key("Mod+Shift+2").when(has_selection),
+        CommandSpec::new("quickStep.3", "Quick Step 3", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(2))).key("Mod+Shift+3").when(has_selection),
+        CommandSpec::new("quickStep.4", "Quick Step 4", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(3))).key("Mod+Shift+4").when(has_selection),
+        CommandSpec::new("quickStep.5", "Quick Step 5", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(4))).key("Mod+Shift+5").when(has_selection),
+        CommandSpec::new("quickStep.6", "Quick Step 6", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(5))).key("Mod+Shift+6").when(has_selection),
+        CommandSpec::new("quickStep.7", "Quick Step 7", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(6))).key("Mod+Shift+7").when(has_selection),
+        CommandSpec::new("quickStep.8", "Quick Step 8", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(7))).key("Mod+Shift+8").when(has_selection),
+        CommandSpec::new("quickStep.9", "Quick Step 9", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(8))).key("Mod+Shift+9").when(has_selection),
         // Search Folders
         CommandSpec::new("searchFolder.list", "Search Folders", "Folder pane › Search Folders", |s, _| Ok(json!(s.prefs.search_folders))),
         CommandSpec::new("searchFolder.create", "New Search Folder", "Folder pane › Search Folders", |s, v| {
@@ -1076,6 +1105,16 @@ fn unified(s: &mut Session, v: &Value) -> CmdResult {
     };
     s.open_view(View::Unified { role });
     Ok(json!({"messages": s.list.len()}))
+}
+
+const QUICK_STEP_PARAMS: &str = r#"{"name": string, "actions": [{"do": "markRead"|"flag"|"pin"} | {"do": "categorize", "value": name} | {"do": "moveTo", "value": folder} | {"do": "moveToRole", "value": "archive"|"trash"|…} | {"do": "delete"}] (a move comes last; one at most)}"#;
+
+/// A Quick Step's `actions`, when given.
+fn quick_actions(v: &Value) -> Result<Option<Vec<mailcraft_model::organize::RuleAction>>, CmdError> {
+    match v.get("actions") {
+        None | Some(Value::Null) => Ok(None),
+        Some(a) => serde_json::from_value(a.clone()).map(Some).map_err(|e| CmdError::Params(format!("actions: {e}"))),
+    }
 }
 
 fn key_param(s: &Session, v: &Value) -> Result<mailcraft_model::MessageKey, CmdError> {
