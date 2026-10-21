@@ -434,6 +434,13 @@ pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
     ctx.data_mut(|d| d.insert_temp(id, pending));
 }
 
+/// True until [`after_open`] has run for this viewport. Saved geometry goes into the builder
+/// only then; egui turns a changed builder position into a move command, and windows of one
+/// kind share a saved place, so passing it on later frames dragged sibling windows around.
+fn opening(ctx: &egui::Context, viewport: egui::ViewportId) -> bool {
+    ctx.data(|d| d.get_temp::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport))).is_none())
+}
+
 /// A closed window opens afresh next time ([`after_open`]).
 fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
     ctx.data_mut(|d| d.remove::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport))));
@@ -983,8 +990,8 @@ impl MailApp {
             .with_min_inner_size([520.0, 420.0]);
         // Where the last one was, and its size.
         let builder = match self.ui.places.get("compose") {
-            Some(p) => p.apply(builder),
-            None => builder,
+            Some(p) if opening(ctx, id) => p.apply(builder),
+            _ => builder,
         };
         let (session, st) = (&mut self.session, &mut self.ui);
         let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
@@ -1086,8 +1093,8 @@ impl MailApp {
                 .with_min_inner_size([480.0, 360.0]);
             // Where the last one was, and its size.
             let builder = match self.ui.places.get("message") {
-                Some(p) => p.apply(builder),
-                None => builder,
+                Some(p) if opening(ctx, id) => p.apply(builder),
+                _ => builder,
             };
             let (session, st) = (&mut self.session, &mut self.ui);
             let close = ctx.show_viewport_immediate(id, builder, |ui, _| {

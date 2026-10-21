@@ -222,6 +222,9 @@ impl Conn {
         if !self.reaches(&req.url) {
             return Err(NetError::Protocol("a request for another server".into()));
         }
+        // Assume the worst until a full response has been read: after an error mid-exchange the
+        // stream position is unknown.
+        self.closing = true;
         write_request(&mut self.s, req, &url, true)?;
         let resp = read_response(&mut self.s, req.max, req.method == "HEAD")?;
         self.closing = resp.header("Connection").is_some_and(|c| c.eq_ignore_ascii_case("close"))
