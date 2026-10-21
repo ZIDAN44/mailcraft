@@ -915,3 +915,25 @@ month	May	5월
 	{day} {month}	{month} {day}일
 	Restart to update	다시 시작하여 업데이트
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version}이(가) 다운로드되었습니다. MailCraft를 닫으면 설치됩니다.
+	Reminder	미리 알림
+	None	없음
+	1 minute	1분
+	{n} minutes	{n}분
+	1 hour	1시간
+	{n} hours	{n}시간
+	1 day	1일
+	{n} days	{n}일
+	1 week	1주
+	{n} weeks	{n}주
+	0 minutes before start	시작 0분 전
+	1 Reminder	미리 알림 1개
+	{n} Reminders	미리 알림 {n}개
+	Click Snooze to be reminded again in:	다시 알림을 클릭하면 다음 시간 후에 다시 알립니다:
+	Dismiss	해제
+	Dismiss All	모두 해제
+	Open Item	항목 열기
+	Overdue	기한 지남
+	Now	지금
+	In {n} minutes	{n}분 후
+	In {n} hours	{n}시간 후
+	In {n} days	{n}일 후

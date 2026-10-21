@@ -1475,3 +1475,89 @@ fn invitations_read_and_the_new_footers_draw() {
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Services whose clock the test moves, remembering the notifications shown.
+struct Ticking(std::sync::Arc<std::sync::Mutex<i64>>, std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>);
+
+impl crate::Services for Ticking {
+    fn clock(&self) -> (i64, i32) {
+        (*self.0.lock().unwrap(), 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn notify(&mut self, title: &str, body: &str) {
+        self.1.lock().unwrap().push((title.into(), body.into()));
+    }
+}
+
+#[test]
+fn reminders_pop_up_snooze_and_dismiss() {
+    let (mut a, dir) = app("reminders");
+    let now = std::sync::Arc::new(std::sync::Mutex::new(NOW));
+    let shown = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    a.services = Box::new(Ticking(now.clone(), shown.clone()));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    assert!(!crate::reminders::showing(&a.ui.reminders), "the sample has none due");
+    // A new event's form starts with a 15-minute reminder, and saves it.
+    let start = NOW + 3600;
+    let mut d = Dialog::new_event(&a.session, Some(start));
+    let params = match &mut d {
+        Dialog::Event(f) => {
+            assert_eq!(f.reminder, Some(crate::pim_dialogs::DEFAULT_REMINDER));
+            f.summary = "Colour review".into();
+            f.location = "Suite B".into();
+            f.params()
+        }
+        _ => serde_json::Value::Null,
+    };
+    a.ui.dialog = Some(d);
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Submit("event.create", params));
+    let it = a.session.agenda(NOW, NOW + 86_400).into_iter().find(|i| i.summary == "Colour review").unwrap();
+    let reopened = Dialog::open_event(&a.session, &it.uid, it.occurrence).unwrap();
+    assert!(matches!(&reopened, Dialog::Event(f) if f.reminder == Some(15)));
+    // Not yet; then due: the window and one desktop notification.
+    frame(&ctx, &mut a, vec![]);
+    assert!(!crate::reminders::showing(&a.ui.reminders));
+    *now.lock().unwrap() = start - 15 * 60;
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(crate::reminders::showing(&a.ui.reminders));
+    assert_eq!(shown.lock().unwrap().iter().filter(|(t, _)| t == "Colour review").count(), 1, "told once");
+    // Snoozed: gone until the snooze is over, then back (and told again).
+    let key = a.ui.reminders.due[0].key.clone();
+    a.act(crate::Action::Run("reminders.snooze", json!({"key": key, "minutes": 5})));
+    frame(&ctx, &mut a, vec![]);
+    assert!(!crate::reminders::showing(&a.ui.reminders));
+    *now.lock().unwrap() = start - 10 * 60;
+    frame(&ctx, &mut a, vec![]);
+    assert!(crate::reminders::showing(&a.ui.reminders));
+    // Closed with the X: hidden, not dismissed; a new one brings it back with both.
+    a.ui.reminders.closed.insert(key.clone());
+    frame(&ctx, &mut a, vec![]);
+    assert!(!crate::reminders::showing(&a.ui.reminders));
+    // Many at once, with long names, still draw.
+    for n in 0..40 {
+        let p = json!({"summary": format!("{} {n}", "Very long meeting name ".repeat(8)), "start": mailcraft_engine::model::dates::day_string((start).div_euclid(86_400)) + "T23:59", "reminder": 20160});
+        a.run("event.create", p);
+    }
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(crate::reminders::showing(&a.ui.reminders));
+    assert!(a.ui.reminders.due.len() > 40);
+    // Dismiss all: gone, and stays gone.
+    a.act(crate::Action::Run("reminders.dismiss", json!({})));
+    frame(&ctx, &mut a, vec![]);
+    *now.lock().unwrap() += 3600;
+    frame(&ctx, &mut a, vec![]);
+    assert!(!crate::reminders::showing(&a.ui.reminders));
+    let _ = std::fs::remove_dir_all(dir);
+}

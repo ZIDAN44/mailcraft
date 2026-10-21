@@ -916,3 +916,25 @@ month	May	mai
 	{day} {month}	{day} {month}
 	Restart to update	Redémarrer pour mettre à jour
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} est téléchargé. Il s'installera à la fermeture de MailCraft.
+	Reminder	Rappel
+	None	Aucun
+	1 minute	1 minute
+	{n} minutes	{n} minutes
+	1 hour	1 heure
+	{n} hours	{n} heures
+	1 day	1 jour
+	{n} days	{n} jours
+	1 week	1 semaine
+	{n} weeks	{n} semaines
+	0 minutes before start	0 minute avant le début
+	1 Reminder	1 rappel
+	{n} Reminders	{n} rappels
+	Click Snooze to be reminded again in:	Cliquez sur Répéter pour être averti de nouveau dans :
+	Dismiss	Ignorer
+	Dismiss All	Tout ignorer
+	Open Item	Ouvrir l'élément
+	Overdue	En retard
+	Now	Maintenant
+	In {n} minutes	Dans {n} minutes
+	In {n} hours	Dans {n} heures
+	In {n} days	Dans {n} jours

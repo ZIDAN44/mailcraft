@@ -911,3 +911,25 @@ month	May	mei
 	{day} {month}	{day} {month}
 	Restart to update	Opnieuw starten om bij te werken
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} is gedownload. Het wordt geïnstalleerd wanneer u MailCraft sluit.
+	Reminder	Herinnering
+	None	Geen
+	1 minute	1 minuut
+	{n} minutes	{n} minuten
+	1 hour	1 uur
+	{n} hours	{n} uur
+	1 day	1 dag
+	{n} days	{n} dagen
+	1 week	1 week
+	{n} weeks	{n} weken
+	0 minutes before start	0 minuten voor aanvang
+	1 Reminder	1 herinnering
+	{n} Reminders	{n} herinneringen
+	Click Snooze to be reminded again in:	Klik op Uitstellen om opnieuw te worden herinnerd over:
+	Dismiss	Negeren
+	Dismiss All	Alles negeren
+	Open Item	Item openen
+	Overdue	Te laat
+	Now	Nu
+	In {n} minutes	Over {n} minuten
+	In {n} hours	Over {n} uur
+	In {n} days	Over {n} dagen

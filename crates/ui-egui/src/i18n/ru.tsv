@@ -915,3 +915,25 @@ month	May	Май
 	{day} {month}	{day} {month}
 	Restart to update	Перезапустить для обновления
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} загружен. Он установится при закрытии MailCraft.
+	Reminder	Напоминание
+	None	Нет
+	1 minute	1 минута
+	{n} minutes	{n} мин.
+	1 hour	1 час
+	{n} hours	{n} ч.
+	1 day	1 день
+	{n} days	{n} дн.
+	1 week	1 неделя
+	{n} weeks	{n} нед.
+	0 minutes before start	За 0 мин. до начала
+	1 Reminder	1 напоминание
+	{n} Reminders	Напоминаний: {n}
+	Click Snooze to be reminded again in:	Нажмите «Отложить», чтобы получить напоминание через:
+	Dismiss	Закрыть
+	Dismiss All	Закрыть все
+	Open Item	Открыть элемент
+	Overdue	Просрочено
+	Now	Сейчас
+	In {n} minutes	Через {n} мин.
+	In {n} hours	Через {n} ч.
+	In {n} days	Через {n} дн.

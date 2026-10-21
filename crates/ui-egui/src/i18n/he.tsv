@@ -911,3 +911,25 @@ month	May	מאי
 	{day} {month}	{day} ב{month}
 	Restart to update	הפעל מחדש לעדכון
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} הורד. הוא יותקן כשתסגור את MailCraft.
+	Reminder	תזכורת
+	None	ללא
+	1 minute	דקה אחת
+	{n} minutes	{n} דקות
+	1 hour	שעה אחת
+	{n} hours	{n} שעות
+	1 day	יום אחד
+	{n} days	{n} ימים
+	1 week	שבוע אחד
+	{n} weeks	{n} שבועות
+	0 minutes before start	0 דקות לפני ההתחלה
+	1 Reminder	תזכורת אחת
+	{n} Reminders	{n} תזכורות
+	Click Snooze to be reminded again in:	לחץ על 'נודניק' כדי לקבל תזכורת שוב בעוד:
+	Dismiss	בטל
+	Dismiss All	בטל הכל
+	Open Item	פתח פריט
+	Overdue	באיחור
+	Now	עכשיו
+	In {n} minutes	בעוד {n} דקות
+	In {n} hours	בעוד {n} שעות
+	In {n} days	בעוד {n} ימים

@@ -912,3 +912,25 @@ month	May	5月
 	{day} {month}	{month}{day}日
 	Restart to update	再起動して更新
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} をダウンロードしました。MailCraft を閉じるとインストールされます。
+	Reminder	アラーム
+	None	なし
+	1 minute	1 分
+	{n} minutes	{n} 分
+	1 hour	1 時間
+	{n} hours	{n} 時間
+	1 day	1 日
+	{n} days	{n} 日
+	1 week	1 週間
+	{n} weeks	{n} 週間
+	0 minutes before start	開始の 0 分前
+	1 Reminder	1 件のアラーム
+	{n} Reminders	{n} 件のアラーム
+	Click Snooze to be reminded again in:	[再通知] をクリックすると、次の時間後に再度通知します:
+	Dismiss	アラームを消す
+	Dismiss All	すべてのアラームを消す
+	Open Item	アイテムを開く
+	Overdue	期限切れ
+	Now	今
+	In {n} minutes	{n} 分後
+	In {n} hours	{n} 時間後
+	In {n} days	{n} 日後

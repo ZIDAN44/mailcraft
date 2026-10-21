@@ -912,3 +912,25 @@ month	May	5月
 	{day} {month}	{month}{day}日
 	Restart to update	重新启动以更新
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	已下载 MailCraft {version}。关闭 MailCraft 时将安装。
+	Reminder	提醒
+	None	无
+	1 minute	1 分钟
+	{n} minutes	{n} 分钟
+	1 hour	1 小时
+	{n} hours	{n} 小时
+	1 day	1 天
+	{n} days	{n} 天
+	1 week	1 周
+	{n} weeks	{n} 周
+	0 minutes before start	开始前 0 分钟
+	1 Reminder	1 个提醒
+	{n} Reminders	{n} 个提醒
+	Click Snooze to be reminded again in:	单击“推迟”，在以下时间后再次提醒:
+	Dismiss	关闭
+	Dismiss All	全部关闭
+	Open Item	打开项目
+	Overdue	已过期
+	Now	现在
+	In {n} minutes	{n} 分钟后
+	In {n} hours	{n} 小时后
+	In {n} days	{n} 天后

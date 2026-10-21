@@ -916,3 +916,25 @@ month	May	Mai
 	{day} {month}	{day}. {month}
 	Restart to update	Zum Aktualisieren neu starten
 	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} ist heruntergeladen. Es wird installiert, wenn Sie MailCraft schließen.
+	Reminder	Erinnerung
+	None	Keine
+	1 minute	1 Minute
+	{n} minutes	{n} Minuten
+	1 hour	1 Stunde
+	{n} hours	{n} Stunden
+	1 day	1 Tag
+	{n} days	{n} Tage
+	1 week	1 Woche
+	{n} weeks	{n} Wochen
+	0 minutes before start	0 Minuten vor Beginn
+	1 Reminder	1 Erinnerung
+	{n} Reminders	{n} Erinnerungen
+	Click Snooze to be reminded again in:	Klicken Sie auf „Erneut erinnern“, um erinnert zu werden in:
+	Dismiss	Schließen
+	Dismiss All	Alle schließen
+	Open Item	Element öffnen
+	Overdue	Überfällig
+	Now	Jetzt
+	In {n} minutes	In {n} Minuten
+	In {n} hours	In {n} Stunden
+	In {n} days	In {n} Tagen

@@ -9,6 +9,46 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, widgets};
 
+/// A new event's reminder (Outlook's default for appointments).
+pub const DEFAULT_REMINDER: i64 = 15;
+/// The reminders offered, in minutes before the start (Outlook's list).
+pub const REMINDER_CHOICES: [i64; 18] = [0, 5, 10, 15, 30, 60, 120, 180, 240, 480, 720, 1080, 1440, 2880, 4320, 5760, 10080, 20160];
+
+/// A reminder as the list shows it: `None`, `15 minutes`, `2 hours`, `1 day`, `2 weeks`.
+pub fn reminder_label(m: Option<i64>) -> String {
+    match m {
+        None => tl!("None").to_string(),
+        Some(m) if m >= 10080 && m % 10080 == 0 => {
+            if m == 10080 {
+                tl!("1 week").to_string()
+            } else {
+                tf!("{n} weeks", n = m / 10080)
+            }
+        }
+        Some(m) if m >= 1440 && m % 1440 == 0 => {
+            if m == 1440 {
+                tl!("1 day").to_string()
+            } else {
+                tf!("{n} days", n = m / 1440)
+            }
+        }
+        Some(m) if m >= 60 && m % 60 == 0 => {
+            if m == 60 {
+                tl!("1 hour").to_string()
+            } else {
+                tf!("{n} hours", n = m / 60)
+            }
+        }
+        Some(m) => {
+            if m == 1 {
+                tl!("1 minute").to_string()
+            } else {
+                tf!("{n} minutes", n = m)
+            }
+        }
+    }
+}
+
 /// An event being added or edited.
 #[derive(Clone, Debug, Default)]
 pub struct EventForm {
@@ -31,6 +71,8 @@ pub struct EventForm {
     pub all_day: bool,
     /// `""` (never), `daily`, `weekly`, `monthly`, `yearly`, or a rule kept as it was.
     pub repeat: String,
+    /// Its reminder, in minutes before it starts (`None`: none).
+    pub reminder: Option<i64>,
     pub organizer: Option<String>,
     /// (who, their answer).
     pub attendees: Vec<(String, String)>,
@@ -92,6 +134,8 @@ impl EventForm {
             end: local_time(start + 3600, s),
             can_invite: true,
             all_categories: all_categories(s, &[]),
+            // As Outlook sets a new appointment's reminder.
+            reminder: Some(DEFAULT_REMINDER),
             ..Default::default()
         }
     }
@@ -124,6 +168,7 @@ impl EventForm {
             end_date: local_date(end, s),
             end: local_time(end, s),
             all_day: e.all_day,
+            reminder: mailcraft_engine::model::ical::reminder_minutes(e),
             repeat: match e.rrule.as_deref() {
                 None => String::new(),
                 Some(r) => match r.to_ascii_uppercase().as_str() {
@@ -168,6 +213,7 @@ impl EventForm {
             "end": end,
             "allDay": self.all_day,
             "repeat": if self.repeat.is_empty() { "none" } else { self.repeat.as_str() },
+            "reminder": self.reminder.map_or_else(|| json!("none"), |m| json!(m)),
             "categories": self.categories,
         });
         if self.can_invite {
@@ -376,6 +422,20 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                     if custom {
                         let keep = f.repeat.clone();
                         ui.selectable_value(&mut f.repeat, keep, tl!("Custom"));
+                    }
+                });
+            });
+        });
+        form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
+            ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                let mut choices: Vec<Option<i64>> = std::iter::once(None).chain(REMINDER_CHOICES.iter().map(|m| Some(*m))).collect();
+                // One set elsewhere (another app, a server) stays offered as it is.
+                if !choices.contains(&f.reminder) {
+                    choices.push(f.reminder);
+                }
+                egui::ComboBox::from_id_salt("event-reminder").width(194.0).selected_text(reminder_label(f.reminder)).show_ui(ui, |ui| {
+                    for c in choices {
+                        ui.selectable_value(&mut f.reminder, c, reminder_label(c));
                     }
                 });
             });

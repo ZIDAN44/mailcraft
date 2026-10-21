@@ -35,6 +35,7 @@ mod organize;
 mod people;
 mod pim_dialogs;
 mod reading;
+mod reminders;
 mod rich_edit;
 pub mod theme;
 mod thumbs;
@@ -467,6 +468,8 @@ pub struct UiState {
     pub close_now: bool,
     /// A newer MailCraft downloaded and waiting (its tag), from [`Services::pending_update`].
     pub pending_update: Option<String>,
+    /// Calendar reminders come due ([`reminders`]).
+    pub reminders: reminders::State,
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
@@ -606,6 +609,7 @@ impl MailApp {
                 closing_anyway: false,
                 close_now: false,
                 pending_update: None,
+                reminders: reminders::State::default(),
                 has_files,
                 data_folder,
                 pending_move,
@@ -976,6 +980,16 @@ impl MailApp {
             }
         }
         self.toasts(&ctx);
+        // Calendar reminders: the window, and the desktop told of each as it comes.
+        for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
+            let start = mailcraft_engine::model::dates::civil(r.start, &self.session.clock);
+            let when = if r.all_day { String::new() } else { format!("{:02}:{:02}", start.hour, start.minute) };
+            self.services.notify(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
+        }
+        reminders::show(&ctx, &mut self.ui.reminders, &self.session, &t, &mut acts);
+        if reminders::showing(&self.ui.reminders) {
+            ctx.request_repaint_after(std::time::Duration::from_secs(15));
+        }
         // Video thumbnails the cards asked for.
         for (path, frame) in self.ui.video_frames.iter_mut().filter(|(_, f)| **f == VideoFrame::Pending) {
             *frame = self.services.video_frame(path);
