@@ -17,6 +17,7 @@ _Status: v0.21, 2026-10-21._
 | 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail, contacts, calendar items, notes and tasks with a due date come in; export writes the mail as `.pst` and the calendar and contacts beside it as `.ics` and `.vcf`. The writer (`outlook-pst-rw`) makes mail items only, marked read, so contacts, appointments and flags can't go inside the `.pst`; the reader (`outlook-pst`) doesn't open the attachments of an attached message; tasks without a due date are left out (MailCraft has no task list). |
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
+| 7 | **Searching the server for JMAP, Graph and EWS accounts** | Search the server (mail past what's kept here, issue #4) asks IMAP servers (`SEARCH`); an Exchange, Microsoft 365 or JMAP account says it can't yet. Their own searches (EWS `QueryString`, Graph `$search`, JMAP's `text` filter) would answer it. Show more works for every kind of account on the desktop, not yet in the browser. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
 
 ## Done
@@ -580,3 +581,35 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   launches from a terminal or a script.
 - Checked in the app: the first window minimized behind Notepad, a second launch leaves in 181 ms
   and the window is restored and in front; after a clean close or a kill, the next launch opens.
+- **Shared mailboxes as mailboxes of their own (issue #1):** a shared mailbox an account opens
+  was listed under that account, in the folder pane and the calendar. Each is now a mailbox of
+  its own there, after its account at first, and moves as an account does (drag its heading, or
+  Move up and Move down in its menu); the order is kept with the settings, and the calendar
+  list follows it, each shared mailbox's calendar under its own name.
+- **Invitations that read, dialogs that fit (issue #1):** an Exchange invitation's notes came as
+  Exchange makes HTML text, each link written after its words in angle brackets, and showed so
+  in the notes box, long Google links and all; the dialog grew taller than the window, its title
+  and buttons off screen (a 2160-pixel screen at 150%). The notes now read as the invitation
+  does: each link under its words (`Join with Google Meet`, `View all guest info`, a guest's
+  name, Google's Yes, No and More options), long addresses shortened, phone links as text, with
+  Edit notes for the box. Every dialog stays within the window, what doesn't fit scrolling.
+- **Mail past what's kept (issue #4):** past the newest 1,000 a folder keeps (File › Options),
+  nothing could be seen or searched. The end of a folder's list now says how many more its
+  server has, with Show more (as many again, kept for that folder across syncs:
+  `windows.json` with the account, for every kind of account); the end of a search has Search
+  the server, which asks IMAP servers (`UID SEARCH`, UTF-8 words as literals) in the folders
+  searched, and what they find comes into those folders' lists and the results, found by words
+  in mail not downloaded too. Bringing in older mail takes the newest of what isn't kept, so a
+  message found by searching doesn't leave a gap.
+- **Online only made clearer (issue #4):** its explanation now says that sending goes straight
+  to the server, that only mail that can't go yet waits, and which calendars, contacts and notes
+  stay (those on a server) and which go (those kept only in MailCraft). Closing with unsent mail
+  or changes not yet on the server of an online-only account asks first. An account with no
+  password kept (a portable copy's) asks for it when MailCraft starts, once. File › Options says
+  where the account list and settings are (the app folder, not the data files' folder in
+  Documents, where 3dluvr looked).
+- Checked in the app against fake IMAP (1,500 messages, online only) and Exchange servers: the
+  shared mailbox moved above its account, in the calendar list too; the Google invitation read
+  with its links, the dialog scrolled to its Save; Show more brought the 501 others; Message 120,
+  not kept, found by Search the server and opened; offline, a flag change made closing ask, and
+  Close anyway closed; a portable copy asked for its password at its second start.

@@ -105,7 +105,10 @@ local-first, media-aware v1); the fuller request is
    Windows' Credential Manager whatever its length; and from issue #4, accounts kept online only
    (none of their mail written to the computer) and a portable mode that leaves nothing behind.
 21. **v0.21 — One MailCraft at a time** ✅ Started again, MailCraft brings its window forward
-   rather than opening a second one on the same data.
+   rather than opening a second one on the same data; and from issues #1 and #4, shared
+   mailboxes as mailboxes of their own, invitations that read with their links in dialogs that
+   fit the window, older mail shown and searched on the server, and online only made clearer
+   (a password asked for at start, a warning before closing loses anything).
 22. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -274,3 +277,10 @@ local-first, media-aware v1); the fuller request is
 - **2026-10-21** — **v0.21**: started again, MailCraft brings its window forward (minimized or
   behind other windows) instead of opening a second one on the same data, as PdfCraft does;
   another data folder (`--data`, `--sample`, a portable copy) still opens its own.
+- **2026-10-21** — **v0.21**, issues #1 and #4 again, reproduced with the app against fake IMAP
+  (1,500 messages) and Exchange servers first: a shared mailbox in the folder pane and the
+  calendar as a mailbox of its own, moved like an account; a Google invitation's notes read with
+  their links, and every dialog within the window (its title and buttons were off a 2160-pixel
+  screen); Show more at the end of a folder and Search the server at the end of a search, for
+  mail past what's kept (IMAP); online only explained again, its password asked for at start,
+  and a warning before closing would lose unsent mail or changes.
