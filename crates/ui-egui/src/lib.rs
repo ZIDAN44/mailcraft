@@ -502,6 +502,9 @@ pub struct UiState {
     /// Where the ribbon was last drawn (a click on the Search tab's buttons takes the focus
     /// from the box, and mustn't close the tab).
     ribbon_rect: Option<egui::Rect>,
+    /// The ribbon's buttons from this one on go without their labels: it didn't fit the window
+    /// ([`widgets::RibbonFit`]).
+    ribbon_icons_from: usize,
     pub dialog: Option<Dialog>,
     previews: HashMap<(MessageKey, usize), Option<egui::TextureHandle>>,
     /// Decoded web pictures, by address.
@@ -626,6 +629,7 @@ impl MailApp {
                 attachments_active: false,
                 attachment_hovered: false,
                 ribbon_rect: None,
+                ribbon_icons_from: usize::MAX,
                 dialog: None,
                 previews: HashMap::new(),
                 web_pictures: HashMap::new(),
@@ -837,8 +841,20 @@ impl MailApp {
             egui::Panel::top("ribbon")
                 .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 4)).stroke(egui::Stroke::new(1.0, t.border)))
                 .show(ui, |ui| {
+                    // Too wide for the window: its last buttons lose their labels, as few as it
+                    // takes (worked out from this frame for the next).
+                    let id = widgets::ribbon_fit_id();
+                    let start =
+                        widgets::RibbonFit { active: true, icons_from: self.ui.ribbon_icons_from, right: ui.max_rect().left(), ..Default::default() };
+                    ui.ctx().data_mut(|d| d.insert_temp(id, start));
                     self.ribbon(ui, &mut acts);
+                    let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
                     self.ui.ribbon_rect = Some(ui.min_rect());
+                    let from = fit.fit(ui.max_rect().right());
+                    if from != self.ui.ribbon_icons_from.min(fit.count) {
+                        self.ui.ribbon_icons_from = from;
+                        ui.ctx().request_repaint();
+                    }
                 });
         }
         egui::Panel::bottom("status").exact_size(26.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3))).show(
