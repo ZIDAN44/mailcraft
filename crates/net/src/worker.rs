@@ -429,6 +429,9 @@ impl Pool {
             }
             // Offline: changes wait in the cache for the next sync.
             Job::SyncDav { account } if !self.workers.contains_key(&account) => {}
+            Job::SearchServer { account, query, .. } if !self.workers.contains_key(&account) => {
+                self.sink.emit(Event::ServerSearched { account, query, keys: Vec::new(), error: Some("the account is offline".into()) });
+            }
             // Working offline: nothing connects, by choice.
             Job::SyncAll { account } | Job::SyncFolder { account, .. } | Job::FlushOutbox { account }
                 if self.offline && !self.workers.contains_key(&account) => {}
@@ -621,7 +624,15 @@ struct Worker {
     /// Folders to look at again soon: Graph and Exchange file a sent message's copy a moment
     /// after taking it, so Sent Items is read again then rather than at the next poll.
     soon: Vec<(Instant, String)>,
+    /// Folders asked to keep more than the setting (Show more on the server, issue #4): how
+    /// many of each (`windows.json` with the account).
+    windows: HashMap<String, usize>,
 }
+
+/// Where an account keeps its folders' own windows.
+const WINDOWS: &str = "windows.json";
+/// The most messages of a folder a search of the server brings in.
+const FOUND_MAX: usize = 500;
 
 impl Worker {
     fn new(acc: AccountConfig, auth: Arc<Mutex<Auth>>, store: Store, sink: Sink, opts: SyncOptions) -> Worker {
@@ -631,6 +642,7 @@ impl Worker {
         // Online only (issue #4): nothing downloaded in full ahead of reading; a message comes
         // when it's opened, and is held in memory only.
         let opts = if acc.keeps_online() { SyncOptions { prefetch: 0, ..opts } } else { opts };
+        let windows = store.load_account_doc(&acc.id, WINDOWS).unwrap_or_default();
         Worker {
             acc,
             auth,
@@ -641,6 +653,7 @@ impl Worker {
             conn: None,
             jstate,
             folders,
+            windows,
             ops,
             queue: VecDeque::new(),
             backoff: Duration::from_secs(5),
@@ -1249,9 +1262,56 @@ impl Worker {
         self.sink.emit(Event::Folders { account: self.id(), folders: self.folders.clone() });
     }
 
+    /// Search folders on the server (issue #4): IMAP's `SEARCH`, the messages found brought into
+    /// their folders' lists.
+    fn search_server(&mut self, folders: &[String], query: String) {
+        let id = self.id();
+        let answer = |keys, error| Event::ServerSearched { account: id.clone(), query: query.clone(), keys, error };
+        let Some(criteria) = crate::sync::imap_criteria(&query) else {
+            self.sink.emit(answer(Vec::new(), None));
+            return;
+        };
+        if self.conn.is_none() {
+            self.next_attempt = Instant::now();
+            self.connect_and_sync();
+        }
+        let store = self.store.clone();
+        let Some(Conn::Imap(c)) = self.conn.as_mut() else {
+            let why = if self.conn.is_none() { "the account isn't connected" } else { "searching the server is for IMAP accounts for now" };
+            self.sink.emit(answer(Vec::new(), Some(why.into())));
+            return;
+        };
+        let (mut keys, mut changed, mut failed) = (Vec::new(), Vec::new(), None);
+        for f in folders.iter().take(200) {
+            match crate::sync::find_on_server(c, &store, &id, f, &criteria, FOUND_MAX) {
+                Ok((found, new)) => {
+                    keys.extend(found);
+                    if new > 0 {
+                        changed.push(f.clone());
+                    }
+                }
+                Err(e) => {
+                    log::info!("{id}/{f}: searching the server: {e}");
+                    failed = Some(e.to_string());
+                    if matches!(e, NetError::Io(_) | NetError::Closed(_)) {
+                        self.conn = None;
+                        break;
+                    }
+                }
+            }
+        }
+        for f in changed {
+            self.sink.emit(Event::FolderChanged { account: id.clone(), folder: f });
+        }
+        let error = if keys.is_empty() { failed } else { None };
+        self.sink.emit(answer(keys, error));
+    }
+
     fn sync_one(&mut self, path: &str) {
         self.status(SyncStatus::Syncing { folder: path.to_string() });
-        let (store, opts, id) = (self.store.clone(), self.opts, self.id());
+        // A folder asked to keep more keeps them (the API servers keep only the newest window).
+        let window = self.windows.get(path).copied().unwrap_or(0).max(self.opts.window);
+        let (store, opts, id) = (self.store.clone(), SyncOptions { window, ..self.opts }, self.id());
         let result = match self.conn.as_mut() {
             Some(Conn::Imap(c)) => sync_folder(c, &store, &id, path, &opts),
             Some(Conn::Jmap(c)) => {
@@ -1323,6 +1383,22 @@ impl Worker {
                     self.sync_one(&folder);
                 }
             }
+            Job::MoreMail { folder, more, .. } => {
+                let kept = self.store.load_folder(&self.acc.id, &folder).map(|f| f.messages.len()).unwrap_or(0);
+                let now = self.windows.get(&folder).copied().unwrap_or(0).max(self.opts.window).max(kept);
+                self.windows.insert(folder.clone(), now.saturating_add(more as usize).min(1_000_000));
+                if let Err(e) = self.store.save_account_doc(&self.acc.id, WINDOWS, &self.windows) {
+                    log::warn!("{}: {WINDOWS}: {e}", self.acc.id);
+                }
+                if self.conn.is_none() {
+                    self.next_attempt = Instant::now();
+                    self.connect_and_sync();
+                }
+                if self.conn.is_some() {
+                    self.sync_one(&folder);
+                }
+            }
+            Job::SearchServer { folders, query, .. } => self.search_server(&folders, query),
             Job::FetchBody { key } => self.fetch(key),
             Job::Apply { op, .. } => {
                 // POP: a move is carried out here (there's no server copy to come back); what's

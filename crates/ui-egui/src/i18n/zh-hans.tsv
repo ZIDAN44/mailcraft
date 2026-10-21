@@ -893,5 +893,19 @@ month	May	5月
 	Online only: {email}	仅联机：{email}
 	New message	新邮件
 	Open MailCraft to read it.	打开 MailCraft 阅读。
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	其邮件从服务器读取，并在 MailCraft 运行期间仅保存在内存中；不会写入此电脑。每封邮件在打开时下载。等待发送的邮件、脱机时所做的更改，以及仅保存在 MailCraft 中的日历项、联系人和便笺，会在关闭时丢失。
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	便携版：所有内容都保存在 MailCraft 旁边的 MailCraftData 中，密码仅保留到关闭为止。
+	Close MailCraft?	关闭 MailCraft?
+	Close anyway	仍然关闭
+	Edit notes	编辑备注
+	Getting them from the server…	正在从服务器获取…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	其邮件保留在服务器上，仅在 MailCraft 运行期间保存在内存中：不会写入此电脑，每封邮件在打开时下载。你发送的邮件会直接发往服务器；只有暂时无法发送的邮件（脱机时）才会等待，如果 MailCraft 先关闭，它们会连同脱机时所做的更改一起丢失（会先询问你）。服务器上的日历、联系人和便笺会保留在那里；仅保存在 MailCraft 中的会在关闭时丢失。
+	Mail older than what's kept here is only on the server.	比此处保留的更早的邮件仅在服务器上。
+	Search the server	搜索服务器
+	Searching the server…	正在搜索服务器…
+	Show more	显示更多
+	The account list (no passwords), the window's settings and the log	帐户列表（不含密码）、窗口设置和日志
+	The server found {n}	服务器找到 {n} 封
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	由于其帐户仅联机，这些内容仅保存在内存中，如果现在关闭 MailCraft 将会丢失：{what}。请先连接并发送（发送/接收），或仍然关闭。
+	{n} more on the server	服务器上还有 {n} 封
+	Changes not yet on the server: {n}	尚未同步到服务器的更改：{n}
+	Messages waiting to be sent: {n}	等待发送的邮件：{n}

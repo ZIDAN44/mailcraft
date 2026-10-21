@@ -897,5 +897,19 @@ month	May	maio
 	Online only: {email}	Somente online: {email}
 	New message	Nova mensagem
 	Open MailCraft to read it.	Abra o MailCraft para ler.
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	O email é lido do servidor e mantido na memória enquanto o MailCraft está aberto; nada é gravado neste computador. Cada mensagem é baixada quando você a abre. Emails aguardando envio, alterações feitas offline e itens de calendário, contatos e notas mantidos apenas no MailCraft são perdidos ao fechá-lo.
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Portátil: tudo é mantido em MailCraftData ao lado do MailCraft, e as senhas só até ele fechar.
+	Close MailCraft?	Fechar o MailCraft?
+	Close anyway	Fechar mesmo assim
+	Edit notes	Editar anotações
+	Getting them from the server…	Obtendo do servidor…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	O email fica no servidor e é mantido apenas na memória enquanto o MailCraft está aberto: nada é gravado neste computador, e cada mensagem é baixada quando você a abre. O email que você envia vai direto para o servidor; só espera o que ainda não pode ser enviado (offline), e ele se perde junto com as alterações feitas offline se o MailCraft fechar antes (você é avisado). Calendários, contatos e anotações em um servidor ficam lá; os mantidos apenas no MailCraft se perdem ao fechá-lo.
+	Mail older than what's kept here is only on the server.	Emails mais antigos que os mantidos aqui estão só no servidor.
+	Search the server	Pesquisar no servidor
+	Searching the server…	Pesquisando no servidor…
+	Show more	Mostrar mais
+	The account list (no passwords), the window's settings and the log	A lista de contas (sem senhas), as configurações da janela e o log
+	The server found {n}	O servidor encontrou {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	Eles estão apenas na memória, pois suas contas são somente online, e se perdem se o MailCraft fechar agora: {what}. Conecte-se e envie-os primeiro (Enviar/Receber), ou feche mesmo assim.
+	{n} more on the server	Mais {n} no servidor
+	Changes not yet on the server: {n}	Alterações ainda não no servidor: {n}
+	Messages waiting to be sent: {n}	Mensagens aguardando envio: {n}

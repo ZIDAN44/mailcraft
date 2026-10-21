@@ -892,5 +892,19 @@ month	May	mei
 	Online only: {email}	Alleen online: {email}
 	New message	Nieuw bericht
 	Open MailCraft to read it.	Open MailCraft om het te lezen.
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	De e-mail wordt van de server gelezen en in het geheugen gehouden zolang MailCraft draait; er wordt niets op deze computer geschreven. Elk bericht wordt gedownload wanneer u het opent. E-mail die nog moet worden verzonden, offline gemaakte wijzigingen en agenda-items, contactpersonen en notities die alleen in MailCraft staan, gaan verloren bij het sluiten.
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Draagbaar: alles wordt bewaard in MailCraftData naast MailCraft, en wachtwoorden alleen tot het wordt gesloten.
+	Close MailCraft?	MailCraft sluiten?
+	Close anyway	Toch sluiten
+	Edit notes	Notities bewerken
+	Getting them from the server…	Ophalen van de server…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	De e-mail blijft op de server en wordt alleen in het geheugen gehouden zolang MailCraft draait: er wordt niets op deze computer geschreven, en elk bericht wordt gedownload wanneer u het opent. E-mail die u verzendt, gaat direct naar de server; alleen e-mail die nog niet kan worden verzonden (offline) wacht, en die gaat samen met offline gemaakte wijzigingen verloren als MailCraft eerder wordt gesloten (u wordt dit gevraagd). Agenda's, contactpersonen en notities op een server blijven daar; die alleen in MailCraft staan, gaan verloren bij het sluiten.
+	Mail older than what's kept here is only on the server.	E-mail die ouder is dan wat hier wordt bewaard, staat alleen op de server.
+	Search the server	Zoeken op de server
+	Searching the server…	Zoeken op de server…
+	Show more	Meer weergeven
+	The account list (no passwords), the window's settings and the log	De lijst met accounts (zonder wachtwoorden), de vensterinstellingen en het logboek
+	The server found {n}	De server vond er {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	Deze worden alleen in het geheugen gehouden, omdat hun accounts alleen online zijn, en gaan verloren als MailCraft nu wordt gesloten: {what}. Maak eerst verbinding en verzend ze (Verzenden/ontvangen), of sluit toch.
+	{n} more on the server	Nog {n} op de server
+	Changes not yet on the server: {n}	Wijzigingen nog niet op de server: {n}
+	Messages waiting to be sent: {n}	Berichten die wachten op verzending: {n}

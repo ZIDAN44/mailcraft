@@ -586,6 +586,20 @@ fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         acts.push(Action::OpenFolder(dir.clone()));
                     }
                 });
+                // The account list, settings and log are in the app folder, not with the data
+                // files (issue #4 looked for them in Documents).
+                if let Some(app) = s.store.as_ref().map(|st| st.root().to_path_buf()).filter(|r| r != dir) {
+                    let path = app.display().to_string();
+                    setting(ui, false, tl!("Accounts and settings"), Some(&path), &mut |ui| {
+                        if ui
+                            .button(tl!("Open folder"))
+                            .on_hover_text(tl!("The account list (no passwords), the window's settings and the log"))
+                            .clicked()
+                        {
+                            acts.push(Action::OpenFolder(app.clone()));
+                        }
+                    });
+                }
                 if !*movable && st.pending_move.is_none() {
                     let why = if s.portable {
                         tl!("Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.")

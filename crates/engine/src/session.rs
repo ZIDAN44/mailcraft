@@ -222,6 +222,29 @@ pub enum ReadInPane {
     Left,
 }
 
+/// A search asked of the servers ([`Session::search_server`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ServerSearch {
+    pub query: String,
+    /// Accounts still searching.
+    pub pending: usize,
+    /// What the servers found (in their folders' lists now), shown whether or not the words are
+    /// in what's downloaded here.
+    pub found: HashSet<MessageKey>,
+    /// Why an account couldn't search.
+    pub errors: Vec<String>,
+}
+
+/// A mailbox in the folder pane: an account, or a shared mailbox one opens ([`Session::pane_sections`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PaneSection {
+    /// The account's id, or `<account>|<address>` for a shared mailbox.
+    pub key: String,
+    pub account: String,
+    /// A shared mailbox: its top folder's path.
+    pub mailbox: Option<String>,
+}
+
 /// Settings the user changes from the View tab (saved by the app).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -289,6 +312,10 @@ pub struct Prefs {
     /// `favorites`, `account:<id>`, `folder:<account>/<path>`.
     #[serde(default)]
     pub collapsed: BTreeSet<String>,
+    /// The folder pane's order of mailboxes, moved by the user ([`Session::pane_sections`]):
+    /// account ids, and shared mailboxes as `<account>|<address>`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pane_order: Vec<String>,
     /// When flagged messages are due (Follow Up › Today, Tomorrow…): Message-ID → local day.
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default)]
@@ -456,6 +483,7 @@ impl Default for Prefs {
             follow_up: BTreeMap::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),
+            pane_order: Vec::new(),
         }
     }
 }
@@ -602,6 +630,14 @@ pub struct Session {
     pub filter: ListFilter,
     /// The active search (query text and scope).
     pub search: Option<(String, SearchScope)>,
+    /// The search box's query asked of the servers too (issue #4: mail past what's kept here).
+    pub server_search: Option<ServerSearch>,
+    /// A folder whose older mail is being fetched (Show more), until its list changes.
+    pub showing_more: Option<(String, String)>,
+    /// Accounts whose password to ask for now (issue #4: a portable copy keeps none, so each
+    /// start asks), once each while MailCraft runs; the window asks when nothing else is open.
+    pub ask_password: Vec<String>,
+    asked_password: HashSet<String>,
     /// The messages on screen, newest first.
     pub list: Vec<Summary>,
     /// Conversations over `list` (when [`Prefs::conversations`] is on).
@@ -704,6 +740,10 @@ impl Session {
             view: View::Empty,
             filter: ListFilter::All,
             search: None,
+            server_search: None,
+            showing_more: None,
+            ask_password: Vec::new(),
+            asked_password: HashSet::new(),
             list: Vec::new(),
             threads: Vec::new(),
             selection: Vec::new(),
@@ -1128,7 +1168,17 @@ impl Session {
     /// Rebuild the list from the view, search and filter, keeping the selection where possible.
     pub fn refresh_list(&mut self) {
         let mut list: Vec<Summary> = if let Some((q, scope)) = self.search.clone() {
-            self.search_results(&q, scope)
+            let mut found = self.search_results(&q, scope);
+            // What the servers found: its words may be in mail not downloaded here.
+            let hits: Vec<MessageKey> = self.server_search.iter().filter(|ss| ss.query == q).flat_map(|ss| ss.found.iter().cloned()).collect();
+            let have: HashSet<MessageKey> = found.iter().map(|m| m.key.clone()).collect();
+            for key in hits.into_iter().filter(|k| !have.contains(k)) {
+                if let Some(m) = self.folder_state(&key.account, &key.folder).messages.iter().find(|m| m.key.uid == key.uid).cloned() {
+                    found.push(m);
+                }
+            }
+            sort_newest_first(&mut found);
+            found
         } else if self.view == View::Outbox {
             self.outbox_summaries()
         } else {
@@ -2307,6 +2357,9 @@ impl Session {
     pub fn run_search(&mut self, query: &str, scope: SearchScope) -> usize {
         let q = query.trim();
         self.search = if q.is_empty() { None } else { Some((q.to_string(), scope)) };
+        if self.server_search.as_ref().is_some_and(|ss| ss.query != q) {
+            self.server_search = None;
+        }
         self.selection.clear();
         self.focus = None;
         self.reading = None;
@@ -2944,16 +2997,59 @@ impl Session {
 
     /// Move an account up (`by` < 0) or down the folder pane, as Outlook moves a mailbox.
     pub fn move_account(&mut self, id: &str, by: i64) -> CmdResult {
-        let from = self.accounts.iter().position(|a| a.config.id == id).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
-        let last = self.accounts.len().saturating_sub(1);
+        if self.account(id).is_none() {
+            return Err(CmdError::Params(format!("no account `{id}`")));
+        }
+        let to = self.move_pane_section(id, by)?;
+        Ok(serde_json::json!({ "account": id, "position": to }))
+    }
+
+    /// The folder pane's mailboxes in order (issue #1): each account, and each shared mailbox an
+    /// account opens as a mailbox of its own (`<account>|<address>`), placed where the user moved
+    /// them; new ones after the mailbox they came with.
+    pub fn pane_sections(&self) -> Vec<PaneSection> {
+        let mut natural = Vec::new();
+        for a in &self.accounts {
+            natural.push(PaneSection { key: a.config.id.clone(), account: a.config.id.clone(), mailbox: None });
+            for top in a.folders.iter().filter(|f| f.depth() == 0) {
+                if let Some(address) = &top.mailbox {
+                    let key = format!("{}|{}", a.config.id, address.to_ascii_lowercase());
+                    if !natural.iter().any(|s: &PaneSection| s.key == key) {
+                        natural.push(PaneSection { key, account: a.config.id.clone(), mailbox: Some(top.path.clone()) });
+                    }
+                }
+            }
+        }
+        let mut out: Vec<PaneSection> = self.prefs.pane_order.iter().filter_map(|k| natural.iter().find(|s| &s.key == k).cloned()).collect();
+        for (i, s) in natural.iter().enumerate() {
+            if out.iter().any(|o| o.key == s.key) {
+                continue;
+            }
+            let after = natural.get(..i).unwrap_or_default().iter().rev().find_map(|p| out.iter().position(|o| o.key == p.key));
+            out.insert(after.map_or(0, |at| at + 1), s.clone());
+        }
+        out
+    }
+
+    /// Move a mailbox in the folder pane `by` places (an account's own order follows, as the
+    /// accounts' order is theirs everywhere else). Returns where it is now.
+    pub fn move_pane_section(&mut self, key: &str, by: i64) -> Result<usize, CmdError> {
+        let mut order: Vec<String> = self.pane_sections().into_iter().map(|s| s.key).collect();
+        let from = order.iter().position(|k| k == key).ok_or_else(|| CmdError::Params(format!("no mailbox `{key}` in the folder pane")))?;
+        let last = order.len().saturating_sub(1);
         let to = if by < 0 { from.saturating_sub(by.unsigned_abs() as usize) } else { from.saturating_add(by as usize).min(last) };
         if to != from {
-            let a = self.accounts.remove(from);
-            self.accounts.insert(to, a);
+            let k = order.remove(from);
+            order.insert(to, k);
+            let ids: Vec<String> = order.iter().filter(|k| !k.contains('|')).cloned().collect();
+            let mut accounts = std::mem::take(&mut self.accounts);
+            accounts.sort_by_key(|a| ids.iter().position(|id| *id == a.config.id).unwrap_or(usize::MAX));
+            self.accounts = accounts;
+            self.prefs.pane_order = order;
             self.save_accounts();
             self.revision = self.revision.wrapping_add(1);
         }
-        Ok(serde_json::json!({ "account": id, "position": to }))
+        Ok(to)
     }
 
     /// Remove an account as Outlook does: gone from here, its data file kept (closed) where it
@@ -3048,6 +3144,75 @@ impl Session {
         }
         self.open_view(View::Folder { account: new.clone(), folder: "INBOX".into() });
         Ok(serde_json::json!({ "account": new, "graph": true }))
+    }
+
+    /// What closing MailCraft would lose (issue #4): online-only accounts' mail still waiting to
+    /// be sent, and their changes not yet on the server, held in memory only.
+    pub fn lost_on_close(&self) -> (usize, usize) {
+        let online: Vec<&str> = self.accounts.iter().filter(|a| a.config.keeps_online()).map(|a| a.config.id.as_str()).collect();
+        if online.is_empty() {
+            return (0, 0);
+        }
+        let unsent = self.outbox.iter().filter(|(a, _)| online.contains(&a.as_str())).count();
+        let changes = online.iter().map(|a| self.store.as_ref().and_then(|s| s.load_ops(a).ok()).map_or(0, |o| o.len())).sum();
+        (unsent, changes)
+    }
+
+    /// How many more of the folder on view its server has than are kept here (issue #4), with
+    /// the folder: shown at the end of its list, to show more.
+    pub fn more_on_server(&self) -> Option<(String, String, u32)> {
+        let View::Folder { account, folder } = &self.view else { return None };
+        if self.search.is_some() {
+            return None;
+        }
+        let a = self.account(account)?;
+        if a.is_local() || a.config.pop.is_some() {
+            return None;
+        }
+        let total = a.folders.iter().find(|f| &f.path == folder)?.total;
+        // The folder on view is loaded (its list is on screen).
+        let kept = self.cache.get(&(account.clone(), folder.clone())).map_or(0, |st| st.messages.len());
+        let kept = u32::try_from(kept).unwrap_or(u32::MAX);
+        (total > kept).then(|| (account.clone(), folder.clone(), total - kept))
+    }
+
+    /// Keep `more` older messages of a folder than it keeps now, fetched from its server.
+    pub fn show_more(&mut self, account: &str, folder: &str, more: u32) -> CmdResult {
+        let a = self.account(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if a.is_local() || a.config.pop.is_some() {
+            return Err(CmdError::Disabled("this account keeps all its mail here".into()));
+        }
+        self.jobs.push(Job::MoreMail { account: account.to_string(), folder: folder.to_string(), more });
+        self.showing_more = Some((account.to_string(), folder.to_string()));
+        Ok(serde_json::json!({ "account": account, "folder": folder, "more": more }))
+    }
+
+    /// Ask the servers for the search box's query (issue #4: mail past what's kept here): the
+    /// folder on view, or every folder of every account with a server.
+    pub fn search_server(&mut self) -> CmdResult {
+        let (q, scope) = self.search.clone().ok_or_else(|| CmdError::Disabled("search for something first".into()))?;
+        let mut by_account: Vec<(String, Vec<String>)> = Vec::new();
+        let folders: Vec<(String, String)> = match scope {
+            SearchScope::Current => self.view_folders(),
+            SearchScope::All => self.accounts.iter().flat_map(|a| a.folders.iter().map(|f| (a.config.id.clone(), f.path.clone()))).collect(),
+        };
+        for (a, f) in folders {
+            if self.account(&a).is_none_or(|x| x.is_local() || x.config.pop.is_some()) {
+                continue;
+            }
+            match by_account.iter_mut().find(|(x, _)| *x == a) {
+                Some((_, v)) => v.push(f),
+                None => by_account.push((a, vec![f])),
+            }
+        }
+        if by_account.is_empty() {
+            return Err(CmdError::Disabled("no account here has its mail on a server".into()));
+        }
+        self.server_search = Some(ServerSearch { query: q.clone(), pending: by_account.len(), ..Default::default() });
+        for (account, folders) in by_account {
+            self.jobs.push(Job::SearchServer { account, folders, query: q.clone() });
+        }
+        Ok(serde_json::json!({ "query": q, "searching": true }))
     }
 
     /// Ask for MailCraft's releases (File › About › Check for updates).
@@ -3148,6 +3313,12 @@ impl Session {
     pub fn apply(&mut self, e: Event) {
         match e {
             Event::Status { account, status } => {
+                // Show more ended (with nothing new, or failing): its footer can be asked again.
+                if !matches!(status, SyncStatus::Syncing { .. } | SyncStatus::Connecting)
+                    && self.showing_more.as_ref().is_some_and(|(a, _)| *a == account)
+                {
+                    self.showing_more = None;
+                }
                 // Refusals that need something done say so once, as they come.
                 if let SyncStatus::Error { error } = &status
                     && (error.starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_model::MICROSOFT_NO_PASSWORDS))
@@ -3162,6 +3333,9 @@ impl Session {
                     // An account that signs in in the browser has no password to ask for.
                     let what = if browser { "needs you to sign in again" } else { "needs its password" };
                     self.notice(format!("{who} {what}{why}"), true);
+                    if !browser && self.asked_password.insert(account.clone()) {
+                        self.ask_password.push(account.clone());
+                    }
                 }
                 if let Some(a) = self.account_mut(&account) {
                     a.status = status;
@@ -3191,6 +3365,9 @@ impl Session {
                 self.index = None;
             }
             Event::FolderChanged { account, folder } => {
+                if self.showing_more.as_ref().is_some_and(|(a, f)| *a == account && *f == folder) {
+                    self.showing_more = None;
+                }
                 self.reload_folder(&account, &folder);
                 self.note_new_mail(&account, &folder);
                 let visible = self.search.is_some() || self.view_folders().iter().any(|(a, f)| *a == account && *f == folder);
@@ -3206,6 +3383,19 @@ impl Session {
                     if let Some(r) = self.reading.as_mut() {
                         r.thread = thread;
                     }
+                }
+            }
+            Event::ServerSearched { account, query, keys, error } => {
+                if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.query == query) {
+                    ss.pending = ss.pending.saturating_sub(1);
+                    ss.found.extend(keys);
+                    if let Some(e) = error {
+                        let who = self.accounts.iter().find(|a| a.config.id == account).map(|a| a.config.email.clone()).unwrap_or(account);
+                        if let Some(ss) = self.server_search.as_mut() {
+                            ss.errors.push(format!("{who}: {e}"));
+                        }
+                    }
+                    self.refresh_list();
                 }
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),

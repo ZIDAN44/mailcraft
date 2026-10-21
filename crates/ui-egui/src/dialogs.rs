@@ -460,7 +460,7 @@ fn online_only(ui: &mut Ui, t: &Tokens, on: &mut bool) {
 /// What online only means, said where it's chosen.
 pub(crate) fn online_only_about() -> &'static str {
     tl!(
-        "Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes."
+        "Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes."
     )
 }
 
@@ -579,6 +579,11 @@ pub enum Dialog {
     },
     ConfirmDelete {
         count: usize,
+    },
+    /// Closing would lose what online-only accounts hold in memory only (issue #4).
+    LostOnClose {
+        unsent: usize,
+        changes: usize,
     },
     /// Confirmation before `contact.delete`, which can't be undone.
     ConfirmDeleteContact {
@@ -1300,7 +1305,13 @@ pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: 
     let frame = dialog_frame(t);
     // Each kind of dialog keeps its own size: one id for all let a small one open at the size
     // of the last big one.
-    let modal = egui::Modal::new(egui::Id::unique(("dialog", std::mem::discriminant(d)))).frame(frame).show(ctx, |ui| body(ui, d, s, t, acts));
+    // Never taller than the window (issue #1: an invitation's notes put the dialog's title and
+    // buttons off a 2160-pixel screen): what doesn't fit scrolls.
+    let max = (ctx.content_rect().height() - 48.0).max(200.0);
+    let modal = egui::Modal::new(egui::Id::unique(("dialog", std::mem::discriminant(d)))).frame(frame).show(ctx, |ui| {
+        // As tall as it needs, up to the window: only then does it scroll.
+        egui::ScrollArea::vertical().id_salt("dialog-body").max_height(max).min_scrolled_height(max).show(ui, |ui| body(ui, d, s, t, acts)).inner
+    });
     let keep = modal.inner;
     keep && !modal.should_close()
 }
@@ -1658,6 +1669,33 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
             let (ok, cancel) = buttons(ui, t, "Sign in", !password.is_empty());
             if (ok || enter) && !password.is_empty() {
                 acts.push(Action::Run("account.setPassword", json!({"account": account, "password": password})));
+                return false;
+            }
+            !cancel
+        }
+        Dialog::LostOnClose { unsent, changes } => {
+            ui.set_width(420.0);
+            title(ui, t, "Close MailCraft?");
+            let mut lost = Vec::new();
+            if *unsent > 0 {
+                lost.push(tf!("Messages waiting to be sent: {n}", n = unsent));
+            }
+            if *changes > 0 {
+                lost.push(tf!("Changes not yet on the server: {n}", n = changes));
+            }
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tf!(
+                        "These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.",
+                        what = lost.join("; ")
+                    ))
+                    .color(t.dim),
+                )
+                .wrap(),
+            );
+            let (ok, cancel) = buttons(ui, t, "Close anyway", true);
+            if ok {
+                acts.push(Action::CloseAnyway);
                 return false;
             }
             !cancel

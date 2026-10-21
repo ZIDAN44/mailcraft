@@ -656,6 +656,53 @@ impl<S: Read + Write> Client<S> {
         Ok((total, unseen))
     }
 
+    /// `UID SEARCH` with these arguments: strings quoted, or sent as literals in UTF-8 (with
+    /// `CHARSET UTF-8`, RFC 3501 §6.4.4) when they aren't plain ASCII.
+    pub fn uid_search_args(&mut self, args: &[crate::sync::SearchArg]) -> Result<Vec<u32>> {
+        use crate::sync::SearchArg;
+        let utf8 = args.iter().any(|a| matches!(a, SearchArg::Str(s) if quoted(s).is_none()));
+        // The command's text between its literals, and the literals.
+        let mut texts: Vec<String> = vec![if utf8 { "UID SEARCH CHARSET UTF-8".into() } else { "UID SEARCH".into() }];
+        let mut literals: Vec<&[u8]> = Vec::new();
+        for a in args {
+            let (SearchArg::Atom(x) | SearchArg::Str(x)) = a;
+            let text = match (a, quoted(x)) {
+                (SearchArg::Atom(_), _) => format!(" {x}"),
+                (SearchArg::Str(_), Some(q)) => format!(" {q}"),
+                (SearchArg::Str(_), None) => {
+                    if let Some(t) = texts.last_mut() {
+                        t.push(' ');
+                    }
+                    literals.push(x.as_bytes());
+                    texts.push(String::new());
+                    continue;
+                }
+            };
+            if let Some(t) = texts.last_mut() {
+                t.push_str(&text);
+            }
+        }
+        let mut parts: Vec<Part<'_>> = Vec::new();
+        for (i, t) in texts.iter().enumerate() {
+            if !t.is_empty() {
+                parts.push(Part::Text(t));
+            }
+            if let Some(l) = literals.get(i) {
+                parts.push(Part::Literal(l));
+            }
+        }
+        let rs = self.conn.run(&parts)?;
+        let mut out = Vec::new();
+        for r in rs {
+            if let Response::MailboxData(MailboxDatum::Search(v)) = r {
+                out.extend(v);
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        Ok(out)
+    }
+
     pub fn uid_search(&mut self, criteria: &str) -> Result<Vec<u32>> {
         let cmd = format!("UID SEARCH {criteria}");
         let rs = self.conn.run(&[Part::Text(&cmd)])?;

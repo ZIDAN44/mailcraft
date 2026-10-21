@@ -896,5 +896,19 @@ month	May	Май
 	Online only: {email}	Только в сети: {email}
 	New message	Новое сообщение
 	Open MailCraft to read it.	Откройте MailCraft, чтобы прочитать.
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	Почта читается с сервера и хранится в памяти, пока работает MailCraft; на этот компьютер ничего не записывается. Каждое сообщение загружается при открытии. Письма, ожидающие отправки, изменения, сделанные вне сети, а также события календаря, контакты и заметки, хранящиеся только в MailCraft, теряются при его закрытии.
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Портативный режим: всё хранится в MailCraftData рядом с MailCraft, а пароли — только до его закрытия.
+	Close MailCraft?	Закрыть MailCraft?
+	Close anyway	Всё равно закрыть
+	Edit notes	Изменить заметки
+	Getting them from the server…	Загрузка с сервера…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	Почта остаётся на сервере и хранится только в памяти, пока работает MailCraft: на этот компьютер ничего не записывается, а каждое сообщение загружается при открытии. Отправляемые письма сразу уходят на сервер; ждут только те, что пока нельзя отправить (вне сети), и они теряются вместе с изменениями, сделанными вне сети, если MailCraft закроется раньше (вас спросят). Календари, контакты и заметки на сервере остаются там; хранящиеся только в MailCraft теряются при его закрытии.
+	Mail older than what's kept here is only on the server.	Письма старше хранящихся здесь есть только на сервере.
+	Search the server	Искать на сервере
+	Searching the server…	Поиск на сервере…
+	Show more	Показать ещё
+	The account list (no passwords), the window's settings and the log	Список учётных записей (без паролей), настройки окна и журнал
+	The server found {n}	Найдено на сервере: {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	Они хранятся только в памяти, так как их учётные записи работают только в сети, и будут потеряны, если закрыть MailCraft сейчас: {what}. Сначала подключитесь и отправьте их (Отправка и получение) или всё равно закройте.
+	{n} more on the server	Ещё {n} на сервере
+	Changes not yet on the server: {n}	Изменения, ещё не на сервере: {n}
+	Messages waiting to be sent: {n}	Письма, ожидающие отправки: {n}

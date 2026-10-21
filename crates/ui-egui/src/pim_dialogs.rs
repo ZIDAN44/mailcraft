@@ -48,6 +48,9 @@ pub struct EventForm {
     /// shown as links to open, as the notes box can't open them.
     pub links: Vec<String>,
     pub join: Option<String>,
+    /// The notes shown to read, their links to open, rather than in the box that edits them:
+    /// an invitation's (issue #1), or any with links.
+    pub reading_notes: bool,
     pub error: Option<String>,
 }
 
@@ -143,6 +146,7 @@ impl EventForm {
             can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
             links: e.links(),
             join: e.join_link(),
+            reading_notes: read_only || !e.links().is_empty(),
             read_only,
             categories: e.categories.clone(),
             all_categories: all_categories(s, &e.categories),
@@ -264,6 +268,49 @@ fn area(ui: &mut Ui, value: &mut String, hint: &str, rows: usize) -> egui::Respo
 }
 
 /// The line above a form's buttons.
+/// The tallest the notes are shown before they scroll.
+const NOTES_MAX_H: f32 = 320.0;
+
+/// An event's notes to read (issue #1): an invitation reads as it does in Outlook, each link
+/// under its words and opened from there, long addresses shortened, the whole scrolling when
+/// it's tall.
+fn notes(ui: &mut Ui, t: &Tokens, text: &str, acts: &mut Vec<Action>) {
+    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6.0).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        egui::ScrollArea::vertical().id_salt("event-notes-read").max_height(NOTES_MAX_H).show(ui, |ui| {
+            ui.spacing_mut().item_spacing = vec2(0.0, 2.0);
+            let mut blank = 0;
+            for line in mailcraft_engine::model::ical::note_lines(text) {
+                // Runs of blank lines as one gap.
+                if line.iter().all(|p| matches!(p, mailcraft_engine::model::ical::NotePart::Text(s) if s.trim().is_empty())) {
+                    blank += 1;
+                    if blank == 1 {
+                        ui.add_space(6.0);
+                    }
+                    continue;
+                }
+                blank = 0;
+                ui.horizontal_wrapped(|ui| {
+                    for part in line {
+                        match part {
+                            mailcraft_engine::model::ical::NotePart::Text(s) => {
+                                ui.label(RichText::new(s).color(t.text));
+                            }
+                            mailcraft_engine::model::ical::NotePart::Link { label, url } => {
+                                let shown =
+                                    if label == url { widgets::shorten(url.split_once("://").map_or(url.as_str(), |(_, r)| r), 56) } else { label };
+                                if ui.link(shown).on_hover_text(&url).clicked() {
+                                    acts.push(Action::OpenUrl(url));
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    });
+}
+
 fn footer_rule(ui: &mut Ui, t: &Tokens) {
     ui.add_space(6.0);
     let r = ui.available_rect_before_wrap();
@@ -378,11 +425,23 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 });
             });
         }
-        area(ui, &mut f.description, tl!("Notes"), 4);
+        if !f.reading_notes {
+            // Tall notes scroll in their box: the dialog keeps its buttons on screen.
+            egui::ScrollArea::vertical().id_salt("event-notes").max_height(NOTES_MAX_H).show(ui, |ui| {
+                area(ui, &mut f.description, tl!("Notes"), 4);
+            });
+        }
     });
+    if f.reading_notes {
+        ui.add_space(4.0);
+        notes(ui, t, &f.description, acts);
+        if !f.read_only && ui.small_button(tl!("Edit notes")).clicked() {
+            f.reading_notes = false;
+        }
+    }
     // The notes' links, to open (the box above only edits them): a Teams invitation's "Join the
     // meeting now", a document, a dial-in page.
-    if !f.links.is_empty() {
+    if !f.links.is_empty() && !f.reading_notes {
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(tl!("Links:")).color(t.dim).small());

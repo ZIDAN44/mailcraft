@@ -81,20 +81,49 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         ui.add_space(12.0);
         ui.label(RichText::new(tl!("Calendars")).font(theme::bold(12.0)).color(t.faint));
         let several = s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1;
-        // Several accounts: each one's calendars under its address, in its colour (as Outlook
-        // groups them), since each has its own "Calendar".
-        let grouped = s.accounts.iter().filter(|a| s.pim.get(&a.config.id).is_some_and(|p| !p.calendars.is_empty())).count() > 1;
-        for a in &s.accounts {
+        // Several mailboxes: each one's calendars under its address, in its colour (as Outlook
+        // groups them), since each has its own "Calendar"; a shared mailbox's under its own name,
+        // in the folder pane's order (issue #1).
+        let sections = s.pane_sections();
+        let groups: Vec<(&mailcraft_engine::AccountState, Option<String>, Vec<&mailcraft_engine::model::pim::CalendarInfo>)> = sections
+            .iter()
+            .filter_map(|sec| {
+                let a = s.account(&sec.account)?;
+                let p = s.pim.get(&a.config.id)?;
+                let mailbox = sec.key.split_once('|').map(|(_, m)| m.to_string());
+                let in_section = |c: &&mailcraft_engine::model::pim::CalendarInfo| {
+                    let owner = c.id.strip_prefix("shared:").map(str::to_ascii_lowercase);
+                    match &mailbox {
+                        Some(m) => owner.as_deref() == Some(m.as_str()),
+                        None => owner.is_none_or(|o| !sections.iter().any(|x| x.key == format!("{}|{o}", a.config.id))),
+                    }
+                };
+                let cals: Vec<_> = p.calendars.iter().filter(in_section).collect();
+                let label = match (&mailbox, sec.mailbox.as_ref().and_then(|path| a.folders.iter().find(|f| &f.path == path))) {
+                    (Some(m), Some(top)) => Some(format!("{} ({m})", crate::i18n::folder(top))),
+                    (Some(m), None) => Some(m.clone()),
+                    _ => None,
+                };
+                (!cals.is_empty()).then_some((a, label, cals))
+            })
+            .collect();
+        let grouped = groups.len() > 1;
+        for (a, mailbox, cals) in groups {
             let Some(p) = s.pim.get(&a.config.id) else { continue };
-            if grouped && !p.calendars.is_empty() {
+            if grouped {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
-                    ui.painter().circle_filled(r.center(), 4.0, theme::account_color(a.config.color));
-                    ui.add(egui::Label::new(RichText::new(&a.config.email).font(theme::bold(12.0)).color(t.dim)).truncate());
+                    if mailbox.is_some() {
+                        icons::paint(ui.painter(), r.expand(3.0), Icon::People, t.dim);
+                    } else {
+                        ui.painter().circle_filled(r.center(), 4.0, theme::account_color(a.config.color));
+                    }
+                    let name = mailbox.clone().unwrap_or_else(|| a.config.email.clone());
+                    ui.add(egui::Label::new(RichText::new(name).font(theme::bold(12.0)).color(t.dim)).truncate());
                 });
             }
-            for c in &p.calendars {
+            for c in cals {
                 let shared = c.id.strip_prefix("shared:").map(str::to_string);
                 // A shared mailbox's calendar comes with the mailbox; only one opened by hand closes.
                 let opened = shared.as_ref().is_some_and(|e| p.shared.iter().any(|x| x.eq_ignore_ascii_case(e)));

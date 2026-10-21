@@ -896,5 +896,19 @@ month	May	5月
 	Online only: {email}	僅限線上：{email}
 	New message	新郵件
 	Open MailCraft to read it.	開啟 MailCraft 閱讀。
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	其郵件從伺服器讀取，並在 MailCraft 執行期間僅保存在記憶體中；不會寫入此電腦。每封郵件在開啟時下載。等待傳送的郵件、離線時所做的變更，以及僅保存在 MailCraft 中的行事曆項目、連絡人和記事，會在關閉時遺失。
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	可攜版：所有內容都保存在 MailCraft 旁邊的 MailCraftData 中，密碼僅保留到關閉為止。
+	Close MailCraft?	關閉 MailCraft?
+	Close anyway	仍要關閉
+	Edit notes	編輯備註
+	Getting them from the server…	正在從伺服器取得…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	其郵件保留在伺服器上，僅在 MailCraft 執行期間保存在記憶體中：不會寫入此電腦，每封郵件在開啟時下載。你傳送的郵件會直接送往伺服器；只有暫時無法傳送的郵件（離線時）才會等待，如果 MailCraft 先關閉，它們會連同離線時所做的變更一起遺失（會先詢問你）。伺服器上的行事曆、連絡人和記事會保留在那裡；僅保存在 MailCraft 中的會在關閉時遺失。
+	Mail older than what's kept here is only on the server.	比此處保留的更早的郵件僅在伺服器上。
+	Search the server	搜尋伺服器
+	Searching the server…	正在搜尋伺服器…
+	Show more	顯示更多
+	The account list (no passwords), the window's settings and the log	帳戶清單（不含密碼）、視窗設定和記錄
+	The server found {n}	伺服器找到 {n} 封
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	由於其帳戶僅限線上，這些內容僅保存在記憶體中，如果現在關閉 MailCraft 將會遺失：{what}。請先連線並傳送（傳送/接收），或仍要關閉。
+	{n} more on the server	伺服器上還有 {n} 封
+	Changes not yet on the server: {n}	尚未同步到伺服器的變更：{n}
+	Messages waiting to be sent: {n}	等待傳送的郵件：{n}

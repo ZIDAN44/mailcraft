@@ -1432,3 +1432,46 @@ fn an_account_is_kept_online_only_from_the_forms() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.online_only == Some(false) && f.params().get("onlineOnly").is_none()));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #1: an invitation opens with its notes to read, its links under their words, and the
+/// dialog fits the window however long the notes are; Edit notes goes back to the box. Issue #4:
+/// the list's footer and the close warning draw.
+#[test]
+fn invitations_read_and_the_new_footers_draw() {
+    let (mut a, dir) = app("invitation");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let mut notes = String::from("Join with Google Meet<https://meet.google.com/abc-defg-hij>\nMeeting link\n");
+    for i in 0..60 {
+        notes.push_str(&format!("Line {i} More options<https://calendar.google.com/calendar/event?action=VIEW&eid={}>\n", "x".repeat(120)));
+    }
+    let mut d = Dialog::new_event(&a.session, None);
+    if let Dialog::Event(f) = &mut d {
+        f.description = notes.clone();
+        f.reading_notes = true;
+    }
+    a.ui.dialog = Some(d);
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    // However long, the dialog stays within the window (its body scrolls).
+    let shown = ctx.memory(|m| m.layer_ids().filter(|l| l.order == egui::Order::Foreground).count());
+    assert!(shown > 0, "the dialog is up");
+    let screen = ctx.content_rect();
+    let tallest = ctx.memory(|m| m.layer_ids().filter_map(|l| m.area_rect(l.id)).map(|r| r.height()).fold(0.0f32, f32::max));
+    assert!(tallest <= screen.height() + 1.0, "{tallest} in {}", screen.height());
+    if let Some(Dialog::Event(f)) = &mut a.ui.dialog {
+        assert_eq!(f.description, notes, "reading changes nothing");
+        f.reading_notes = false;
+    }
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = None;
+
+    // The list's footer: a search, before and after asking the server; the close warning.
+    a.run("search.run", serde_json::json!({"query": "zzz-nothing", "scope": "all"}));
+    frame(&ctx, &mut a, vec![]);
+    a.session.server_search = Some(mailcraft_engine::ServerSearch { query: "zzz-nothing".into(), pending: 1, ..Default::default() });
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::LostOnClose { unsent: 2, changes: 1 });
+    frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}

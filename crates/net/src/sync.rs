@@ -166,15 +166,14 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
             st.window = opts.window;
         } else {
             new_mail(c, &mut st, account, folder, known_max, &mut report)?;
-            // 3: kept more since it was filled: the older mail too, once.
+            // 3: kept more since it was filled (Options, or Show more on the server): the newest
+            // of what isn't kept yet, once. Not only what's older than the oldest kept: a message
+            // found by searching the server can be older than the ones skipped.
             if opts.window > st.window && st.messages.len() < opts.window {
-                let oldest = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
-                if oldest > 1 {
-                    let older = c.uid_search(&format!("UID 1:{}", oldest - 1))?;
-                    let want = opts.window - st.messages.len();
-                    let take: Vec<u32> = older.iter().rev().take(want).rev().copied().collect();
-                    fetch_headers(c, &mut st, account, folder, &take, &mut report)?;
-                }
+                let all = c.uid_search("ALL")?;
+                let want = opts.window - st.messages.len();
+                let take: Vec<u32> = all.iter().rev().filter(|u| st.find(**u).is_none()).take(want).copied().collect();
+                fetch_headers(c, &mut st, account, folder, &take, &mut report)?;
                 st.window = opts.window;
             }
         }
@@ -192,6 +191,88 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
     report.total = info.exists;
     report.unread = if info.exists == 0 { 0 } else { u32::try_from(c.uid_search("UNSEEN")?.len()).unwrap_or(u32::MAX) };
     Ok(report)
+}
+
+/// An argument of an IMAP `SEARCH`: a search key, or a string it takes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SearchArg {
+    Atom(String),
+    Str(String),
+}
+
+/// The search box's query as IMAP `SEARCH` keys (RFC 3501 §6.4.4), for mail past what's kept
+/// (issue #4): words anywhere are `TEXT`, `from:` `FROM` and so on, `is:unread` `UNSEEN`, a
+/// leading `-` `NOT`. What IMAP can't ask (attachments, importance) is left to the list; `None`
+/// when nothing is left to ask.
+pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
+    use mailcraft_model::search::{Field, Query, Term};
+    let q = Query::parse(query);
+    let mut out = Vec::new();
+    let atom = |s: &str| SearchArg::Atom(s.to_string());
+    for c in q.clauses.iter().take(16) {
+        let not = |out: &mut Vec<SearchArg>| {
+            if c.negated {
+                out.push(atom("NOT"));
+            }
+        };
+        let key = |f: &Field| match f {
+            Field::Any => "TEXT",
+            Field::From => "FROM",
+            Field::To => "TO",
+            Field::Subject => "SUBJECT",
+            Field::Body => "BODY",
+        };
+        match &c.term {
+            Term::Words(f, words) => {
+                for w in words.iter().filter(|w| !w.is_empty()).take(8) {
+                    not(&mut out);
+                    out.extend([atom(key(f)), SearchArg::Str(w.chars().take(200).collect())]);
+                }
+            }
+            Term::Phrase(f, p) if !p.is_empty() => {
+                not(&mut out);
+                out.extend([atom(key(f)), SearchArg::Str(p.chars().take(200).collect())]);
+            }
+            Term::Unread(on) => out.push(atom(if *on != c.negated { "UNSEEN" } else { "SEEN" })),
+            Term::Flagged(on) => out.push(atom(if *on != c.negated { "FLAGGED" } else { "UNFLAGGED" })),
+            Term::Keyword(k)
+                if !k.is_empty() && k.len() < 100 && k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '$' | '_' | '-' | '.')) =>
+            {
+                not(&mut out);
+                out.extend([atom("KEYWORD"), atom(k)]);
+            }
+            _ => {}
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+/// The messages of `folder` the server finds for `criteria`, the newest `cap` of them: those not
+/// kept yet come into its list (issue #4). Their keys, and how many came in. A folder never
+/// synced (or whose UIDVALIDITY changed) is left to its sync.
+pub fn find_on_server<S: Read + Write>(
+    c: &mut Client<S>,
+    store: &Store,
+    account: &str,
+    folder: &str,
+    criteria: &[SearchArg],
+    cap: usize,
+) -> Result<(Vec<mailcraft_model::MessageKey>, usize)> {
+    let info = c.select(folder, true)?;
+    let mut st = store.load_folder(account, folder)?;
+    if st.validity == 0 || st.validity != info.validity {
+        return Ok((Vec::new(), 0));
+    }
+    let mut uids = c.uid_search_args(criteria)?;
+    let uids = uids.split_off(uids.len().saturating_sub(cap));
+    let missing: Vec<u32> = uids.iter().filter(|u| st.find(**u).is_none()).copied().collect();
+    let mut report = SyncReport::default();
+    fetch_headers(c, &mut st, account, folder, &missing, &mut report)?;
+    if report.new > 0 {
+        sort_newest_first(&mut st.messages);
+        store.save_folder(account, folder, &st)?;
+    }
+    Ok((uids.iter().filter_map(|u| st.find(*u).map(|m| m.key.clone())).collect(), report.new))
 }
 
 /// Headers for every message at or above the cached UIDNEXT.

@@ -155,6 +155,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 tl!("All caught up: nothing in this folder.")
             };
             ui.label(RichText::new(msg).color(t.dim));
+            ui.add_space(10.0);
+            footer(s, &t, ui, acts);
         });
         st.list_rows = Some(cached);
         return;
@@ -169,8 +171,10 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     };
     let sent_view = matches!(s.view_role(), Some(FolderRole::Sent | FolderRole::Drafts)) || s.view == mailcraft_engine::View::Outbox;
 
+    // After the last message: more on the server, or searching it (issue #4).
+    let has_footer = s.more_on_server().is_some() || s.search.is_some();
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("list").show_viewport(ui, |ui, viewport| {
-        ui.set_height(total);
+        ui.set_height(total + if has_footer { FOOTER_H } else { 0.0 });
         let origin = ui.min_rect().min;
         let width = ui.available_width();
         if let Some(ri) = scroll_to
@@ -202,8 +206,58 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 }
             }
         }
+        if has_footer && total < viewport.max.y {
+            let r = Rect::from_min_size(origin + vec2(0.0, total), vec2(width, FOOTER_H));
+            ui.scope_builder(egui::UiBuilder::new().max_rect(r.shrink2(vec2(14.0, 8.0))), |ui| {
+                ui.vertical_centered(|ui| footer(s, &t, ui, acts));
+            });
+        }
     });
     st.list_rows = Some(cached);
+}
+
+/// The list's footer's height.
+const FOOTER_H: f32 = 76.0;
+
+/// What's past the list (issue #4): a folder's older mail on its server, to show more of; a
+/// search's, to ask the servers for.
+fn footer(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    if let Some((account, folder, n)) = s.more_on_server() {
+        ui.label(RichText::new(tf!("{n} more on the server", n = n)).color(t.dim).small());
+        if s.showing_more.as_ref().is_some_and(|(a, f)| *a == account && *f == folder) {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(RichText::new(tl!("Getting them from the server…")).color(t.dim).small());
+            });
+        } else if ui.button(tl!("Show more")).clicked() {
+            acts.push(Action::Run("folder.more", json!({"account": account, "folder": folder})));
+        }
+        return;
+    }
+    if s.search.is_none() || s.accounts.iter().all(|a| a.is_local() || a.config.pop.is_some()) {
+        return;
+    }
+    match &s.server_search {
+        Some(ss) if Some(&ss.query) == s.search.as_ref().map(|(q, _)| q) => {
+            if ss.pending > 0 {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(RichText::new(tl!("Searching the server…")).color(t.dim).small());
+                });
+            } else {
+                ui.label(RichText::new(tf!("The server found {n}", n = ss.found.len())).color(t.dim).small());
+            }
+            for e in ss.errors.iter().take(3) {
+                ui.add(egui::Label::new(RichText::new(e).color(t.warn).small()).wrap());
+            }
+        }
+        _ => {
+            ui.label(RichText::new(tl!("Mail older than what's kept here is only on the server.")).color(t.dim).small());
+            if ui.button(tl!("Search the server")).clicked() {
+                acts.push(Action::Run("search.server", json!({})));
+            }
+        }
+    }
 }
 
 /// Arrange the list by…, as a menu (the list's own and the View tab's).

@@ -407,6 +407,19 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
         Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
+        // Mail past what's kept (issue #4) is asked of IMAP servers, not yet of JMAP ones.
+        Job::SearchServer { query, .. } => emit(
+            sh,
+            Event::ServerSearched {
+                account: id.to_string(),
+                query,
+                keys: Vec::new(),
+                error: Some("searching the server is for IMAP accounts for now".into()),
+            },
+        ),
+        Job::MoreMail { .. } => {
+            emit(sh, Event::Notice { account: id.to_string(), message: "showing more from the server isn't in the browser yet".into() })
+        }
         Job::Start { .. }
         | Job::SmtpPassword { .. }
         | Job::CheckUpdates

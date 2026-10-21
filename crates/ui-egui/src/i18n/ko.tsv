@@ -896,5 +896,19 @@ month	May	5월
 	Online only: {email}	온라인 전용: {email}
 	New message	새 메시지
 	Open MailCraft to read it.	MailCraft를 열어 읽으세요.
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	메일은 서버에서 읽어 MailCraft가 실행되는 동안 메모리에만 보관되며, 이 컴퓨터에는 아무것도 기록되지 않습니다. 각 메시지는 열 때 다운로드됩니다. 보내기를 기다리는 메일, 오프라인 중 변경 내용, MailCraft에만 보관된 일정 항목·연락처·메모는 닫으면 사라집니다.
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	포터블: 모든 것이 MailCraft 옆의 MailCraftData에 보관되며, 암호는 닫을 때까지만 보관됩니다.
+	Close MailCraft?	MailCraft를 닫으시겠습니까?
+	Close anyway	그래도 닫기
+	Edit notes	메모 편집
+	Getting them from the server…	서버에서 가져오는 중…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	메일은 서버에 남아 있고 MailCraft가 실행되는 동안 메모리에만 보관됩니다. 이 컴퓨터에는 아무것도 기록되지 않으며 각 메시지는 열 때 다운로드됩니다. 보내는 메일은 바로 서버로 갑니다. 아직 보낼 수 없는 메일(오프라인 중)만 대기하며, MailCraft가 먼저 닫히면 오프라인 중 변경 내용과 함께 사라집니다(확인을 요청합니다). 서버에 있는 일정·연락처·메모는 그대로 남고, MailCraft에만 보관된 것은 닫으면 사라집니다.
+	Mail older than what's kept here is only on the server.	여기에 보관된 것보다 오래된 메일은 서버에만 있습니다.
+	Search the server	서버 검색
+	Searching the server…	서버를 검색하는 중…
+	Show more	더 보기
+	The account list (no passwords), the window's settings and the log	계정 목록(암호 제외), 창 설정 및 로그
+	The server found {n}	서버에서 {n}개를 찾았습니다
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	계정이 온라인 전용이라 메모리에만 보관되어 있으며, 지금 MailCraft를 닫으면 사라집니다: {what}. 먼저 연결해서 보내거나(보내기/받기), 그래도 닫으세요.
+	{n} more on the server	서버에 {n}개 더
+	Changes not yet on the server: {n}	아직 서버에 반영되지 않은 변경: {n}
+	Messages waiting to be sent: {n}	보내기 대기 중인 메시지: {n}

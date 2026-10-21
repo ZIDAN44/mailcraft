@@ -893,5 +893,19 @@ month	May	5月
 	Online only: {email}	オンラインのみ: {email}
 	New message	新しいメッセージ
 	Open MailCraft to read it.	MailCraft を開いて読んでください。
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	メールはサーバーから読み込まれ、MailCraft の実行中はメモリにのみ保持されます。このコンピューターには何も書き込まれません。各メッセージは開いたときにダウンロードされます。送信待ちのメール、オフライン中の変更、MailCraft にのみ保存されている予定・連絡先・メモは、閉じると失われます。
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	ポータブル: すべて MailCraft の横の MailCraftData に保存され、パスワードは閉じるまでだけ保持されます。
+	Close MailCraft?	MailCraft を閉じますか?
+	Close anyway	閉じる
+	Edit notes	メモを編集
+	Getting them from the server…	サーバーから取得しています…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	メールはサーバーに残り、MailCraft の実行中はメモリにのみ保持されます。このコンピューターには何も書き込まれず、各メッセージは開いたときにダウンロードされます。送信したメールはそのままサーバーに送られます。まだ送信できないメール (オフライン時) だけが待機し、先に MailCraft を閉じるとオフライン中の変更とともに失われます (確認されます)。サーバー上の予定表・連絡先・メモはそのまま残ります。MailCraft にのみ保存されているものは閉じると失われます。
+	Mail older than what's kept here is only on the server.	ここに保存されているより古いメールはサーバーにのみあります。
+	Search the server	サーバーを検索
+	Searching the server…	サーバーを検索しています…
+	Show more	さらに表示
+	The account list (no passwords), the window's settings and the log	アカウントの一覧 (パスワードなし)、ウィンドウの設定、ログ
+	The server found {n}	サーバーで {n} 件見つかりました
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	これらはアカウントがオンラインのみのためメモリにのみ保持されており、今 MailCraft を閉じると失われます: {what}。先に接続して送信する (送受信) か、このまま閉じてください。
+	{n} more on the server	サーバーにさらに {n} 件
+	Changes not yet on the server: {n}	サーバーに未反映の変更: {n}
+	Messages waiting to be sent: {n}	送信待ちのメッセージ: {n}

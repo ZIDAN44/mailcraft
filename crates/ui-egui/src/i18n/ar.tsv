@@ -892,5 +892,19 @@ month	May	مايو
 	Online only: {email}	عبر الإنترنت فقط: {email}
 	New message	رسالة جديدة
 	Open MailCraft to read it.	افتح MailCraft لقراءتها.
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	يُقرأ بريده من الخادم ويُحتفظ به في الذاكرة أثناء تشغيل MailCraft، ولا يُكتب منه شيء على هذا الكمبيوتر. تُنزَّل كل رسالة عند فتحها. تضيع عند إغلاقه الرسائل التي تنتظر الإرسال، والتغييرات التي أُجريت دون اتصال، وعناصر التقويم وجهات الاتصال والملاحظات المحفوظة في MailCraft فقط.
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	محمول: يُحفظ كل شيء في MailCraftData بجانب MailCraft، وكلمات المرور حتى إغلاقه فقط.
+	Close MailCraft?	إغلاق MailCraft؟
+	Close anyway	إغلاق على أي حال
+	Edit notes	تحرير الملاحظات
+	Getting them from the server…	جارٍ جلبها من الخادم…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	يبقى بريده على الخادم ويُحتفظ به في الذاكرة فقط أثناء تشغيل MailCraft: لا يُكتب منه شيء على هذا الكمبيوتر، وتُنزَّل كل رسالة عند فتحها. يذهب البريد الذي ترسله إلى الخادم مباشرة؛ ولا ينتظر إلا البريد الذي لا يمكن إرساله بعد (دون اتصال)، ويضيع مع التغييرات التي أُجريت دون اتصال إذا أُغلق MailCraft قبل ذلك (وستُسأل). تبقى التقويمات وجهات الاتصال والملاحظات الموجودة على خادم هناك؛ أما المحفوظة في MailCraft فقط فتضيع عند إغلاقه.
+	Mail older than what's kept here is only on the server.	البريد الأقدم مما يُحتفظ به هنا موجود على الخادم فقط.
+	Search the server	البحث في الخادم
+	Searching the server…	جارٍ البحث في الخادم…
+	Show more	عرض المزيد
+	The account list (no passwords), the window's settings and the log	قائمة الحسابات (دون كلمات مرور) وإعدادات النافذة والسجل
+	The server found {n}	عثر الخادم على {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	هذه محفوظة في الذاكرة فقط لأن حساباتها عبر الإنترنت فقط، وستضيع إذا أُغلق MailCraft الآن: {what}. اتصل وأرسلها أولاً (إرسال / تلقي)، أو أغلق على أي حال.
+	{n} more on the server	{n} أخرى على الخادم
+	Changes not yet on the server: {n}	تغييرات لم تصل إلى الخادم بعد: {n}
+	Messages waiting to be sent: {n}	رسائل بانتظار الإرسال: {n}

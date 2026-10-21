@@ -142,32 +142,23 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             }
         }
         ui.add_space(8.0);
-        for (at, a) in s.accounts.iter().enumerate() {
+        // Accounts, and the shared mailboxes they open, each a mailbox of its own in the order
+        // the user put them (issue #1).
+        let sections = s.pane_sections();
+        for (at, sec) in sections.iter().enumerate() {
+            let Some(a) = s.account(&sec.account) else { continue };
+            if let Some(top) = sec.mailbox.as_ref().and_then(|p| a.folders.iter().find(|f| &f.path == p)) {
+                shared_section(s, t, ui, acts, a, top, &sections, at);
+                continue;
+            }
             let key = format!("account:{}", a.config.id);
             let open = !s.prefs.collapsed.contains(&key);
-            // Dragged onto another account, it takes its place (above or below it).
+            // Dragged onto another mailbox, it takes its place (above or below it).
             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
             if resp.hovered() || resp.dragged() {
                 ui.painter().rect_filled(rect, 6.0, t.hover_row);
             }
-            if resp.drag_started() {
-                resp.dnd_set_drag_payload(DragAccount(a.config.id.clone()));
-            }
-            let below = ui.ctx().pointer_interact_pos().is_some_and(|p| p.y > rect.center().y);
-            if resp.dnd_hover_payload::<DragAccount>().is_some_and(|d| d.0 != a.config.id) {
-                let y = if below { rect.bottom() } else { rect.top() };
-                ui.painter().line_segment([egui::pos2(rect.left() + 4.0, y), egui::pos2(rect.right() - 4.0, y)], egui::Stroke::new(2.0, t.accent));
-            }
-            if let Some(dragged) = resp.dnd_release_payload::<DragAccount>()
-                && let Some(from) = s.accounts.iter().position(|x| x.config.id == dragged.0)
-                && dragged.0 != a.config.id
-            {
-                let before = if below { at + 1 } else { at };
-                let to = if from < before { before - 1 } else { before };
-                if to != from {
-                    acts.push(Action::Run("account.move", json!({"account": dragged.0, "by": to as i64 - from as i64})));
-                }
-            }
+            section_drag(ui, t, &resp, rect, &sections, at, acts);
             let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);
             ui.painter().circle_filled(rect.min + vec2(26.0, 15.0), 4.0, theme::account_color(a.config.color));
@@ -225,19 +216,8 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Dialog(Dialog::new_folder(&config.id, here)));
                     ui.close();
                 }
-                // Its place among the accounts, as Outlook moves a mailbox up or down.
-                if s.accounts.len() > 1 {
-                    let at = s.accounts.iter().position(|x| x.config.id == config.id).unwrap_or(0);
-                    ui.separator();
-                    if ui.add_enabled(at > 0, egui::Button::new(tl!("Move up"))).clicked() {
-                        acts.push(Action::Run("account.move", json!({"account": config.id, "by": -1})));
-                        ui.close();
-                    }
-                    if ui.add_enabled(at + 1 < s.accounts.len(), egui::Button::new(tl!("Move down"))).clicked() {
-                        acts.push(Action::Run("account.move", json!({"account": config.id, "by": 1})));
-                        ui.close();
-                    }
-                }
+                // Its place among the mailboxes, as Outlook moves a mailbox up or down.
+                move_items(ui, &sections, at, acts);
                 ui.separator();
                 if ui.button(RichText::new(tl!("Remove account…")).color(t.danger)).clicked() {
                     acts.push(Action::Dialog(Dialog::RemoveAccount { account: config.id.clone(), email: config.email.clone() }));
@@ -260,34 +240,107 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 }
                 ui.add_space(6.0);
             }
-            // The shared mailboxes it opens, each a mailbox of its own under its name: its top
-            // folder is its heading, and its folders are under it as an account's are.
-            for top in a.folders.iter().filter(|f| f.mailbox.is_some() && f.depth() == 0) {
-                let key = folder_key(&a.config.id, &top.path);
-                let open = !s.prefs.collapsed.contains(&key);
-                if shared_header(t, ui, acts, a, top, open) {
-                    acts.push(Action::Run("view.collapse", json!({"key": key})));
-                }
-                if !open {
-                    continue;
-                }
-                for f in a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.depth() > 0) {
-                    if hidden(f) {
-                        continue;
-                    }
-                    let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
-                    folder_row(s, t, ui, acts, f, f.depth(), false, collapse);
-                }
-                ui.add_space(6.0);
-            }
         }
     });
 }
 
+/// A shared mailbox an account opens, as a mailbox of its own (issue #1): its top folder `top`
+/// is its heading, its folders are under it as an account's are, and it moves among the
+/// mailboxes as an account does.
+#[allow(clippy::too_many_arguments)]
+fn shared_section(
+    s: &Session,
+    t: &Tokens,
+    ui: &mut Ui,
+    acts: &mut Vec<Action>,
+    a: &mailcraft_engine::AccountState,
+    top: &Folder,
+    sections: &[mailcraft_engine::PaneSection],
+    at: usize,
+) {
+    let key = folder_key(&a.config.id, &top.path);
+    let open = !s.prefs.collapsed.contains(&key);
+    if shared_header(t, ui, acts, a, top, open, sections, at) {
+        acts.push(Action::Run("view.collapse", json!({"key": key})));
+    }
+    if !open {
+        return;
+    }
+    let parents: std::collections::HashSet<String> = a.folders.iter().flat_map(ancestors).collect();
+    let hidden = |f: &Folder| ancestors(f).iter().any(|up| s.prefs.collapsed.contains(&folder_key(&f.account, up)));
+    for f in a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.depth() > 0) {
+        if hidden(f) {
+            continue;
+        }
+        let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
+        folder_row(s, t, ui, acts, f, f.depth(), false, collapse);
+    }
+    ui.add_space(6.0);
+}
+
+/// A mailbox's heading dragged onto another's: it takes its place (above or below it).
+fn section_drag(
+    ui: &Ui,
+    t: &Tokens,
+    resp: &egui::Response,
+    rect: egui::Rect,
+    sections: &[mailcraft_engine::PaneSection],
+    at: usize,
+    acts: &mut Vec<Action>,
+) {
+    let Some(me) = sections.get(at) else { return };
+    if resp.drag_started() {
+        resp.dnd_set_drag_payload(DragAccount(me.key.clone()));
+    }
+    let below = ui.ctx().pointer_interact_pos().is_some_and(|p| p.y > rect.center().y);
+    if resp.dnd_hover_payload::<DragAccount>().is_some_and(|d| d.0 != me.key) {
+        let y = if below { rect.bottom() } else { rect.top() };
+        ui.painter().line_segment([egui::pos2(rect.left() + 4.0, y), egui::pos2(rect.right() - 4.0, y)], egui::Stroke::new(2.0, t.accent));
+    }
+    if let Some(dragged) = resp.dnd_release_payload::<DragAccount>()
+        && let Some(from) = sections.iter().position(|x| x.key == dragged.0)
+        && dragged.0 != me.key
+    {
+        let before = if below { at + 1 } else { at };
+        let to = if from < before { before - 1 } else { before };
+        if to != from {
+            acts.push(Action::Run("folderPane.move", json!({"key": dragged.0, "by": to as i64 - from as i64})));
+        }
+    }
+}
+
+/// Move up and Move down in a mailbox's menu.
+fn move_items(ui: &mut Ui, sections: &[mailcraft_engine::PaneSection], at: usize, acts: &mut Vec<Action>) {
+    let Some(me) = sections.get(at) else { return };
+    if sections.len() < 2 {
+        return;
+    }
+    ui.separator();
+    if ui.add_enabled(at > 0, egui::Button::new(tl!("Move up"))).clicked() {
+        acts.push(Action::Run("folderPane.move", json!({"key": me.key, "by": -1})));
+        ui.close();
+    }
+    if ui.add_enabled(at + 1 < sections.len(), egui::Button::new(tl!("Move down"))).clicked() {
+        acts.push(Action::Run("folderPane.move", json!({"key": me.key, "by": 1})));
+        ui.close();
+    }
+}
+
 /// A shared mailbox's heading (its top folder `top`): its name, an arrow that collapses it, and
 /// a menu. Whether it was clicked.
-fn shared_header(t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, a: &mailcraft_engine::AccountState, top: &Folder, open: bool) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+#[allow(clippy::too_many_arguments)]
+fn shared_header(
+    t: &Tokens,
+    ui: &mut Ui,
+    acts: &mut Vec<Action>,
+    a: &mailcraft_engine::AccountState,
+    top: &Folder,
+    open: bool,
+    sections: &[mailcraft_engine::PaneSection],
+    at: usize,
+) -> bool {
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+    section_drag(ui, t, &resp, rect, sections, at, acts);
     let dropping = resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some();
     if resp.hovered() || dropping {
         ui.painter().rect_filled(rect, 6.0, if dropping { t.accent.gamma_multiply(0.3) } else { t.hover_row });
@@ -356,6 +409,7 @@ fn shared_header(t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, a: &mailcraft_
             acts.push(Action::Dialog(Dialog::AddSharedMailbox { account: account.clone(), address: String::new(), error: None }));
             ui.close();
         }
+        move_items(ui, sections, at, acts);
     });
     resp.clicked()
 }

@@ -227,6 +227,8 @@ pub enum RibbonTab {
 /// Something a pane asks for; run after drawing so panes only borrow what they read.
 pub enum Action {
     Run(&'static str, Value),
+    /// Close MailCraft though online-only accounts hold unsent mail or changes (issue #4).
+    CloseAnyway,
     Open(MessageKey),
     Dialog(Dialog),
     OpenAttachment(usize),
@@ -441,6 +443,10 @@ fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
 pub struct UiState {
     /// Where the main window, the last message window and the last compose window were.
     pub places: std::collections::BTreeMap<String, WindowPlace>,
+    /// Closing was confirmed though it loses online-only accounts' unsent mail (issue #4); and
+    /// the window is to close on the next frame.
+    pub closing_anyway: bool,
+    pub close_now: bool,
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
@@ -577,6 +583,8 @@ impl MailApp {
             services,
             ui: UiState {
                 tokens: Tokens::light(),
+                closing_anyway: false,
+                close_now: false,
                 has_files,
                 data_folder,
                 pending_move,
@@ -753,6 +761,17 @@ impl MailApp {
         self.apply_language(&ctx);
         self.pump();
         self.announce(&ctx);
+        // Closing with online-only accounts' unsent mail or changes held in memory: ask first.
+        if self.ui.close_now {
+            self.ui.close_now = false;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        } else if ctx.input(|i| i.viewport().close_requested()) && !self.ui.closing_anyway {
+            let (unsent, changes) = self.session.lost_on_close();
+            if unsent + changes > 0 {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.ui.dialog = Some(Dialog::LostOnClose { unsent, changes });
+            }
+        }
         // A search started by a command or agent shows its query in the box.
         if let Some((q, _)) = &self.session.search
             && self.ui.search_text.is_empty()
@@ -1111,6 +1130,14 @@ impl MailApp {
 
     /// New mail: a desktop notification and the unread count in the window title.
     fn announce(&mut self, ctx: &egui::Context) {
+        // An account with no password kept (a portable copy's, at each start) asks for it, one
+        // at a time, when nothing else is open (issue #4).
+        if self.ui.dialog.is_none() && self.ui.backstage.is_none() && !self.session.ask_password.is_empty() {
+            let id = self.session.ask_password.remove(0);
+            if let Some(a) = self.session.account(&id).filter(|a| matches!(a.status, mailcraft_engine::model::SyncStatus::NeedsPassword { .. })) {
+                self.ui.dialog = Some(Dialog::password(&a.config));
+            }
+        }
         let news = self.session.take_new_mail();
         if !news.is_empty() {
             // Issue #4: the system keeps its notifications (Windows, in its history): one for an
@@ -1170,6 +1197,10 @@ impl MailApp {
 
     fn act(&mut self, a: Action) {
         match a {
+            Action::CloseAnyway => {
+                self.ui.closing_anyway = true;
+                self.ui.close_now = true;
+            }
             Action::Run("attachment.preview", p) => match self.session.run("attachment.preview", &p) {
                 Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
                 Err(e) => self.session.notice(e.to_string(), true),

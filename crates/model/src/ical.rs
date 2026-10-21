@@ -120,6 +120,133 @@ pub fn links_in(text: &str) -> Vec<String> {
     out
 }
 
+/// A piece of an event's notes as they're shown ([`note_lines`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NotePart {
+    Text(String),
+    /// A link to open: its words, or its address when it has none (`label == url`).
+    Link {
+        label: String,
+        url: String,
+    },
+}
+
+/// The most of an event's notes shown as lines with links (the rest as it is).
+const NOTE_MAX: usize = 200_000;
+
+/// An event's notes as lines of text and links, the way an invitation reads (issue #1). Made
+/// text from HTML by Exchange (`BodyType Text`), each link is written after its words in angle
+/// brackets, `Join with Google Meet<https://meet.google.com/…>`: the words become the link and
+/// the address goes, as in the HTML. Of the text before, the link's words are those after the
+/// last `. `, `: `, `) ` or `– ` on the line (`(US) +1 555-0100<tel:…>` links `+1 555-0100`);
+/// an address in brackets with no words before it on its line, or one written out, is a link of
+/// its own. Web and `mailto:` links open; a `tel:` one stays its words.
+pub fn note_lines(text: &str) -> Vec<Vec<NotePart>> {
+    let cut = text.char_indices().nth(NOTE_MAX).map_or(text.len(), |(i, _)| i);
+    let mut lines: Vec<Vec<NotePart>> = text.get(..cut).unwrap_or(text).lines().map(note_line).collect();
+    // A few words on a line, then (past blank lines) an address alone on one: the words are its
+    // link, as a Google invitation's Yes, No, Maybe and More options are.
+    let mut i = 0;
+    while i < lines.len() {
+        let url = match lines.get(i).map(Vec::as_slice) {
+            Some([NotePart::Link { label, url }]) if label == url => url.clone(),
+            _ => {
+                i += 1;
+                continue;
+            }
+        };
+        let words = (0..i).rev().find(|j| !lines.get(*j).is_some_and(|l| l.iter().all(|p| matches!(p, NotePart::Text(t) if t.trim().is_empty()))));
+        let short = words.and_then(|j| match lines.get(j).map(Vec::as_slice) {
+            Some([NotePart::Text(t)]) if (1..=24).contains(&t.trim().chars().count()) && !t.trim_end().ends_with(':') => {
+                Some((j, t.trim().to_string()))
+            }
+            _ => None,
+        });
+        match short {
+            Some((j, label)) => {
+                if let Some(l) = lines.get_mut(j) {
+                    *l = vec![NotePart::Link { label, url }];
+                }
+                lines.drain(j + 1..=i.min(lines.len().saturating_sub(1)));
+                i = j + 1;
+            }
+            None => i += 1,
+        }
+    }
+    lines
+}
+
+fn note_line(line: &str) -> Vec<NotePart> {
+    let mut out = Vec::new();
+    let mut rest = line;
+    while let Some((before, url, after)) = bracketed_link(rest) {
+        let (text, label) = split_label(before);
+        bare_links(text, &mut out);
+        let tel = url.get(..4).is_some_and(|s| s.eq_ignore_ascii_case("tel:"));
+        match (label.is_empty(), tel) {
+            (true, true) => {}
+            (false, true) => push_text(&mut out, label),
+            (true, false) => out.push(NotePart::Link { label: url.to_string(), url: url.to_string() }),
+            (false, false) => out.push(NotePart::Link { label: label.to_string(), url: url.to_string() }),
+        }
+        rest = after;
+    }
+    bare_links(rest, &mut out);
+    out
+}
+
+/// The first `<scheme:…>` in a line: the text before it, the address, the text after.
+fn bracketed_link(line: &str) -> Option<(&str, &str, &str)> {
+    let mut from = 0;
+    loop {
+        let open = from + line.get(from..)?.find('<')?;
+        let inner = line.get(open + 1..)?;
+        let close = inner.find('>');
+        let url = close.and_then(|c| inner.get(..c)).unwrap_or("");
+        let lower = url.to_ascii_lowercase();
+        let scheme = ["https://", "http://", "mailto:", "tel:"].iter().any(|s| lower.starts_with(s));
+        if let Some(c) = close
+            && scheme
+            && url.len() > 7
+            && !url.contains(char::is_whitespace)
+        {
+            return Some((line.get(..open)?, url, inner.get(c + 1..)?));
+        }
+        from = open + 1;
+    }
+}
+
+/// Text before a link: what stays text, and the link's own words.
+fn split_label(before: &str) -> (&str, &str) {
+    let at = [". ", ": ", ") ", "– ", "\t"].iter().filter_map(|d| before.rfind(d).map(|i| i + d.len())).max().unwrap_or(0);
+    let (text, label) = before.split_at(at.min(before.len()));
+    let trimmed = label.trim_start();
+    (before.get(..text.len() + (label.len() - trimmed.len())).unwrap_or(text), trimmed.trim_end())
+}
+
+fn push_text(out: &mut Vec<NotePart>, s: &str) {
+    if s.is_empty() {
+        return;
+    }
+    if let Some(NotePart::Text(t)) = out.last_mut() {
+        t.push_str(s);
+    } else {
+        out.push(NotePart::Text(s.to_string()));
+    }
+}
+
+/// Text, its written-out web addresses links of their own.
+fn bare_links(text: &str, out: &mut Vec<NotePart>) {
+    let mut rest = text;
+    for link in links_in(text) {
+        let Some(at) = rest.find(&link) else { continue };
+        push_text(out, rest.get(..at).unwrap_or(""));
+        out.push(NotePart::Link { label: link.clone(), url: link.clone() });
+        rest = rest.get(at + link.len()..).unwrap_or("");
+    }
+    push_text(out, rest);
+}
+
 /// Whether a web address joins an online meeting: Microsoft Teams, Zoom, Google Meet, Webex,
 /// GoTo Meeting, Jitsi, Whereby, Skype.
 pub fn is_meeting_link(url: &str) -> bool {
@@ -977,6 +1104,77 @@ pub fn occurrences(events: &[CalEvent], from: i64, to: i64) -> Vec<Occurrence> {
 
 #[cfg(test)]
 mod tests {
+    /// Issue #1: a Google invitation as Exchange makes it text reads as it does in Outlook: each
+    /// `words<address>` is a link named by its words, an address alone on its line is a link of
+    /// its own, phone links stay text, and nothing else changes.
+    #[test]
+    fn an_invitations_notes_read_with_their_links() {
+        use super::{NotePart, note_lines};
+        let t = |s: &str| NotePart::Text(s.into());
+        let l = |label: &str, url: &str| NotePart::Link { label: label.into(), url: url.into() };
+        let notes = "Join with Google Meet – You have been invited by ana@studio.example.\n\
+                     <https://meet.google.com/abc-defg-hij>\n\
+                     meet.google.com/abc-defg-hij<https://meet.google.com/abc-defg-hij?hs=224>\n\
+                     (US) +1 555-0100<tel:+1-555-0100%3B618%23>\n\
+                     More phone numbers<https://tel.meet/abc?pin=618&hs=1>\n\
+                     Ana <mailto:ana@studio.example>\n\
+                     modify your RSVP. Learn more<https://support.google.com/calendar/answer/37135#forwarding>\n\
+                     See https://example.org/agenda, and a < b > c.\n\
+                     \n\
+                     Two<https://a.example/1> and three<https://b.example/2>";
+        let lines = note_lines(notes);
+        assert_eq!(lines.len(), 10);
+        assert_eq!(lines[0], [t("Join with Google Meet – You have been invited by ana@studio.example.")]);
+        assert_eq!(lines[1], [l("https://meet.google.com/abc-defg-hij", "https://meet.google.com/abc-defg-hij")]);
+        assert_eq!(lines[2], [l("meet.google.com/abc-defg-hij", "https://meet.google.com/abc-defg-hij?hs=224")]);
+        assert_eq!(lines[3], [t("(US) +1 555-0100")]);
+        assert_eq!(lines[4], [l("More phone numbers", "https://tel.meet/abc?pin=618&hs=1")]);
+        assert_eq!(lines[5], [l("Ana", "mailto:ana@studio.example")]);
+        assert_eq!(lines[6], [t("modify your RSVP. "), l("Learn more", "https://support.google.com/calendar/answer/37135#forwarding")]);
+        assert_eq!(lines[7], [t("See "), l("https://example.org/agenda", "https://example.org/agenda"), t(", and a < b > c.")]);
+        assert!(lines[8].is_empty());
+        // Two on a line: the words after the first link are the second's (which of them are
+        // its own isn't in the text).
+        assert_eq!(lines[9], [l("Two", "https://a.example/1"), t(" "), l("and three", "https://b.example/2")]);
+        // Words on a line, then the address alone below (Google's Yes / No / More options): one
+        // link; not after a heading ending in a colon, nor after a long line.
+        let answers = note_lines(
+            "Reply for riley
+Yes
+
+<https://x.example/yes>
+No
+<https://x.example/no>
+Links:
+<https://x.example/a>",
+        );
+        assert_eq!(
+            answers,
+            [
+                vec![t("Reply for riley")],
+                vec![l("Yes", "https://x.example/yes")],
+                vec![l("No", "https://x.example/no")],
+                vec![t("Links:")],
+                vec![l("https://x.example/a", "https://x.example/a")]
+            ]
+        );
+        // Odd or huge text doesn't run away, and keeps its words.
+        let odd = "<<<https://x.example/a>>> <mailto:> <tel:> <javascript:alert(1)> é<https://é.example>";
+        let words: String = note_lines(odd)
+            .concat()
+            .iter()
+            .map(|p| match p {
+                NotePart::Text(s) | NotePart::Link { label: s, .. } => s.clone(),
+            })
+            .collect();
+        assert!(
+            words.contains("javascript:alert(1)")
+                && !note_lines(odd).concat().iter().any(|p| matches!(p, NotePart::Link { url, .. } if url.starts_with("javascript")))
+        );
+        let _ = note_lines(&"a<https://x.example/>".repeat(100_000));
+        let _ = note_lines(&"<".repeat(100_000));
+    }
+
     /// Web addresses in an event's notes: written out or as footnotes, once each, without the
     /// sentence's punctuation; and which one joins the meeting.
     #[test]

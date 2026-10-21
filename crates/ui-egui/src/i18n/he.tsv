@@ -892,5 +892,19 @@ month	May	מאי
 	Online only: {email}	מקוון בלבד: {email}
 	New message	הודעה חדשה
 	Open MailCraft to read it.	פתח את MailCraft כדי לקרוא.
-	Its mail is read from the server and held in memory while MailCraft runs; nothing of it is written to this computer. Each message downloads when you open it. Mail waiting to be sent, changes made while offline, and calendar items, contacts and notes kept only in MailCraft are lost when it closes.	הדואר שלו נקרא מהשרת ונשמר בזיכרון בזמן ש-MailCraft פועל; דבר ממנו אינו נכתב למחשב הזה. כל הודעה מורדת כשפותחים אותה. דואר שממתין לשליחה, שינויים שנעשו במצב לא מקוון, ופריטי לוח שנה, אנשי קשר והערות שנשמרים רק ב-MailCraft יאבדו כשהוא נסגר.
 	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	נייד: הכול נשמר ב-MailCraftData לצד MailCraft, והסיסמאות רק עד שהוא נסגר.
+	Close MailCraft?	לסגור את MailCraft?
+	Close anyway	לסגור בכל זאת
+	Edit notes	עריכת הערות
+	Getting them from the server…	מביא אותן מהשרת…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	הדואר שלו נשאר בשרת ונשמר בזיכרון בלבד בזמן ש-MailCraft פועל: דבר ממנו אינו נכתב למחשב הזה, וכל הודעה מורדת כשפותחים אותה. דואר שאתה שולח הולך ישר לשרת; רק דואר שעדיין אי אפשר לשלוח (במצב לא מקוון) ממתין, והוא אובד יחד עם שינויים שנעשו במצב לא מקוון אם MailCraft נסגר קודם (תישאל). לוחות שנה, אנשי קשר והערות בשרת נשארים שם; אלה שנשמרים רק ב-MailCraft אובדים כשהוא נסגר.
+	Mail older than what's kept here is only on the server.	דואר ישן יותר ממה שנשמר כאן נמצא רק בשרת.
+	Search the server	חיפוש בשרת
+	Searching the server…	מחפש בשרת…
+	Show more	הצג עוד
+	The account list (no passwords), the window's settings and the log	רשימת החשבונות (ללא סיסמאות), הגדרות החלון והיומן
+	The server found {n}	השרת מצא {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	אלה נשמרים בזיכרון בלבד, כי החשבונות שלהם מקוונים בלבד, ויאבדו אם MailCraft ייסגר עכשיו: {what}. התחבר ושלח אותם קודם (שליחה / קבלה), או סגור בכל זאת.
+	{n} more on the server	{n} נוספות בשרת
+	Changes not yet on the server: {n}	שינויים שעדיין לא בשרת: {n}
+	Messages waiting to be sent: {n}	הודעות שממתינות לשליחה: {n}

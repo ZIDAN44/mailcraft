@@ -163,6 +163,13 @@ pub enum Job {
     SyncAll { account: String },
     /// Refresh one folder (new mail, flag changes, deletions).
     SyncFolder { account: String, folder: String },
+    /// Keep `more` of a folder's older messages than it keeps now, fetched from the server
+    /// (issue #4: mail past what's kept on this computer, shown when asked for).
+    MoreMail { account: String, folder: String, more: u32 },
+    /// Search these folders on the server for `query` (the search box's words), for mail past
+    /// what's kept here; the messages found come into their folders' lists, answered by
+    /// [`Event::ServerSearched`].
+    SearchServer { account: String, folders: Vec<String>, query: String },
     /// Download a message's full source.
     FetchBody { key: MessageKey },
     /// Apply a mailbox change on the server.
@@ -210,6 +217,8 @@ impl Job {
             Job::Remove { account }
             | Job::SyncAll { account }
             | Job::SyncFolder { account, .. }
+            | Job::MoreMail { account, .. }
+            | Job::SearchServer { account, .. }
             | Job::Apply { account, .. }
             | Job::Send { account, .. }
             | Job::SaveDraft { account, .. }
@@ -372,6 +381,14 @@ pub enum Event {
     Notice {
         account: String,
         message: String,
+    },
+    /// What the server found for a [`Job::SearchServer`]: the messages, now in their folders'
+    /// lists, or why it couldn't search.
+    ServerSearched {
+        account: String,
+        query: String,
+        keys: Vec<MessageKey>,
+        error: Option<String>,
     },
 }
 

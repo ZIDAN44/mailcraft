@@ -2684,3 +2684,137 @@ fn an_account_can_be_kept_online_only() {
     assert!(!again.store.as_ref().unwrap().is_online_only("sample"));
     done(s);
 }
+
+/// Issue #1: a shared mailbox an account opens is a mailbox of its own in the folder pane,
+/// after its account at first, and moves among the mailboxes as an account does (the accounts'
+/// own order follows); the order is kept with the settings.
+#[test]
+fn shared_mailboxes_are_mailboxes_of_their_own_in_the_pane() {
+    use mailcraft_model::Folder;
+    let mut s = sample_session("pane-order");
+    let a = s
+        .run("account.add", &json!({"email": "riley@contoso.example", "password": "pw", "ews": "http://127.0.0.1:1/EWS/Exchange.asmx"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let folder = |path: &str, mailbox: Option<&str>| Folder {
+        account: a.clone(),
+        path: path.into(),
+        mailbox: mailbox.map(str::to_string),
+        ..Default::default()
+    };
+    s.apply(Event::Folders {
+        account: a.clone(),
+        folders: vec![folder("INBOX", None), folder("Sales", Some("Sales@contoso.example")), folder("Sales/Inbox", Some("Sales@contoso.example"))],
+    });
+    let keys = |s: &Session| s.pane_sections().into_iter().map(|x| x.key).collect::<Vec<_>>();
+    let sales = format!("{a}|sales@contoso.example");
+    assert_eq!(keys(&s), ["sample".to_string(), a.clone(), sales.clone()]);
+    assert_eq!(s.pane_sections()[2].mailbox.as_deref(), Some("Sales"));
+    // The shared mailbox to the top, then the sample mailbox below Riley's account.
+    s.run("folderPane.move", &json!({"key": sales, "by": -2})).unwrap();
+    assert_eq!(keys(&s), [sales.clone(), "sample".to_string(), a.clone()]);
+    s.run("account.move", &json!({"account": "sample", "by": 1})).unwrap();
+    assert_eq!(keys(&s), [sales.clone(), a.clone(), "sample".to_string()]);
+    assert_eq!(s.accounts.iter().map(|x| x.config.id.clone()).collect::<Vec<_>>(), [a.clone(), "sample".to_string()], "the accounts follow");
+    assert_eq!(s.prefs.pane_order, keys(&s), "kept with the settings");
+    assert!(s.run("folderPane.move", &json!({"key": "nobody", "by": 1})).is_err());
+    // A mailbox gone from the server leaves the order; a new one comes after its account.
+    s.apply(Event::Folders { account: a.clone(), folders: vec![folder("INBOX", None), folder("Team", Some("team@contoso.example"))] });
+    assert_eq!(keys(&s), [a.clone(), format!("{a}|team@contoso.example"), "sample".to_string()]);
+    done(s);
+}
+
+/// Issue #4: mail past what is kept. A folder with more on its server says how many and shows
+/// more when asked; a search asks the servers, and what they find is in the results whether or
+/// not its words are in what is downloaded here.
+#[test]
+fn more_on_the_server_and_searching_it() {
+    use mailcraft_model::{Folder, FolderRole, MessageKey, Summary};
+    let mut s = sample_session("server-search");
+    let a = s
+        .run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org", "smtpHost": "mail.example.org"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.take_jobs();
+    s.apply(Event::Folders {
+        account: a.clone(),
+        folders: vec![Folder { account: a.clone(), path: "INBOX".into(), role: FolderRole::Inbox, total: 50, ..Default::default() }],
+    });
+    let store = s.store.clone().unwrap();
+    let key = |uid| MessageKey { account: a.clone(), folder: "INBOX".into(), validity: 1, uid };
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    st.validity = 1;
+    st.messages = (41..=50).map(|n| Summary { key: key(n), subject: format!("Message {n}"), ..Default::default() }).collect();
+    store.save_folder(&a, "INBOX", &st).unwrap();
+    s.view = crate::View::Folder { account: a.clone(), folder: "INBOX".into() };
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    assert_eq!(s.more_on_server(), Some((a.clone(), "INBOX".to_string(), 40)));
+    s.run("folder.more", &json!({})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::MoreMail { account, folder, more: 1000 } if *account == a && folder == "INBOX")));
+    assert_eq!(s.showing_more, Some((a.clone(), "INBOX".to_string())));
+    s.apply(Event::Status { account: a.clone(), status: SyncStatus::Online { at: 0 } });
+    assert_eq!(s.showing_more, None, "settled, it can be asked again");
+    assert_eq!(s.more_on_server().map(|m| m.2), Some(40));
+
+    // Searching: nothing here has "needle"; the server finds an old message.
+    assert!(s.run("search.server", &json!({})).is_err(), "search for something first");
+    s.run("search.run", &json!({"query": "needle", "scope": "all"})).unwrap();
+    assert!(s.list.is_empty());
+    s.run("search.server", &json!({})).unwrap();
+    let jobs = s.take_jobs();
+    assert!(
+        jobs.iter().any(
+            |j| matches!(j, Job::SearchServer { account, query, folders } if *account == a && query == "needle" && folders == &["INBOX".to_string()])
+        ),
+        "{jobs:?}"
+    );
+    assert!(!jobs.iter().any(|j| matches!(j, Job::SearchServer { account, .. } if account == "sample")), "the sample mailbox has no server");
+    assert_eq!(s.server_search.as_ref().map(|x| x.pending), Some(1));
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    st.messages.push(Summary { key: key(7), subject: "Old one".into(), ..Default::default() });
+    store.save_folder(&a, "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    s.apply(Event::ServerSearched { account: a.clone(), query: "needle".into(), keys: vec![key(7)], error: None });
+    assert_eq!(s.list.iter().map(|m| m.subject.as_str()).collect::<Vec<_>>(), ["Old one"]);
+    assert_eq!(s.server_search.as_ref().map(|x| (x.pending, x.found.len())), Some((0, 1)));
+    // An answer for another query is not this search's; a new query starts again.
+    s.apply(Event::ServerSearched { account: a.clone(), query: "other".into(), keys: vec![key(41)], error: None });
+    assert_eq!(s.list.len(), 1);
+    s.run("search.run", &json!({"query": "something else", "scope": "all"})).unwrap();
+    assert!(s.server_search.is_none());
+    done(s);
+}
+
+/// Issue #4: closing loses what online-only accounts hold in memory only (unsent mail, changes
+/// not on the server yet): counted, to ask first. A start without a kept password asks for it,
+/// once while MailCraft runs.
+#[test]
+fn closing_counts_whats_lost_and_a_missing_password_is_asked_for() {
+    let mut s = sample_session("lost-on-close");
+    let a = s
+        .run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org", "smtpHost": "mail.example.org", "onlineOnly": true}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(s.lost_on_close(), (0, 0));
+    let store = s.store.clone().unwrap();
+    store.save_ops(&a, &[mailcraft_model::Op::Expunge { keys: Vec::new() }]).unwrap();
+    s.outbox.push((a.clone(), mailcraft_store::OutboxItem { id: 3, ..Default::default() }));
+    s.outbox.push(("sample".into(), mailcraft_store::OutboxItem { id: 4, ..Default::default() }));
+    assert_eq!(s.lost_on_close(), (1, 1), "only the online-only account's");
+    s.run("account.onlineOnly", &json!({"account": a, "on": false})).unwrap();
+    assert_eq!(s.lost_on_close(), (0, 0), "kept on this computer: nothing lost");
+
+    let needs = |s: &mut Session| s.apply(Event::Status { account: a.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
+    needs(&mut s);
+    assert_eq!(s.ask_password, std::slice::from_ref(&a));
+    s.ask_password.clear();
+    needs(&mut s);
+    assert!(s.ask_password.is_empty(), "once while MailCraft runs");
+    done(s);
+}
