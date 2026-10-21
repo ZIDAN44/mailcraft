@@ -17,6 +17,9 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{EmailAddress, Summary};
 
+mod advanced;
+pub use advanced::Advanced;
+
 /// Lower-cased words of a text (UAX #29 word boundaries).
 pub fn words(text: &str) -> impl Iterator<Item = String> + '_ {
     text.unicode_words().map(str::to_lowercase)
