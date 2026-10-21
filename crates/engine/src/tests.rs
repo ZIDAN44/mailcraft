@@ -3184,3 +3184,61 @@ fn quick_steps_mark_then_move_the_selection() {
     let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!(back.quick_steps, s.prefs.quick_steps);
 }
+
+/// Several messages written at once, as Outlook keeps every New Email window: starting another
+/// sets the one being written aside (in a window of its own), never drops it; an empty one goes.
+#[test]
+fn new_mail_keeps_the_message_being_written() {
+    let mut s = sample_session("several-composes");
+    let first = s.run("mail.new", &json!({})).unwrap()["compose"].as_u64().unwrap();
+    // Nothing typed yet: a second New mail replaces it.
+    let second = s.run("mail.new", &json!({})).unwrap()["compose"].as_u64().unwrap();
+    assert!(s.composes.is_empty(), "an empty message isn't kept");
+    assert_ne!(first, second);
+    s.run("compose.update", &json!({"to": "ana@soundlab.example", "subject": "One"})).unwrap();
+    let third = s.run("mail.new", &json!({})).unwrap()["compose"].as_u64().unwrap();
+    s.run("compose.update", &json!({"subject": "Two", "body": "Second text"})).unwrap();
+    // A reply too: both written ones stay.
+    let k = key_of(&s, "Sound mix, version 3");
+    s.run("list.open", &k).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    let list = s.run("compose.list", &json!({})).unwrap();
+    let subjects: Vec<String> = list.as_array().unwrap().iter().map(|c| c["subject"].as_str().unwrap().to_string()).collect();
+    assert_eq!(subjects.len(), 3, "{subjects:?}");
+    assert!(subjects.contains(&"One".into()) && subjects.contains(&"Two".into()));
+    assert!(s.composes.iter().all(|c| c.window), "set aside in windows of their own");
+    // Back to the first: edits go to it; the reply is set aside in turn.
+    s.run("compose.activate", &json!({"id": second})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().subject, "One");
+    s.run("compose.update", &json!({"subject": "One, changed"})).unwrap();
+    assert!(s.composes.iter().any(|c| c.id == third && c.subject == "Two"));
+    // Closed (kept in Drafts): the others stay.
+    s.run("compose.close", &json!({})).unwrap();
+    assert_eq!(s.all_composes().count(), 2);
+    assert!(s.run("compose.activate", &json!({"id": second})).is_err(), "closed");
+    assert!(s.run("compose.activate", &json!({})).is_err());
+    assert!(s.activate_compose(third));
+    assert_eq!(s.compose.as_ref().unwrap().subject, "Two");
+}
+
+/// Closing with messages written: each one with something in it is kept as a draft (on this
+/// computer at once; a server account's goes to Drafts at the next connection).
+#[test]
+fn closing_keeps_every_message_being_written() {
+    let mut s = sample_session("keep-on-close");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"subject": "Kept one"})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"subject": "Kept two"})).unwrap();
+    s.run("mail.new", &json!({})).unwrap(); // nothing written in this one
+    assert_eq!(s.run("compose.keepAll", &json!({})).unwrap()["kept"], 2);
+    let drafts = s.account("sample").and_then(|a| a.folder(FolderRole::Drafts)).map(|f| f.path.clone()).unwrap();
+    let subjects: Vec<String> = s.folder_state("sample", &drafts).messages.iter().map(|m| m.subject.clone()).collect();
+    assert!(subjects.contains(&"Kept one".into()) && subjects.contains(&"Kept two".into()), "{subjects:?}");
+    // A server account's: handed to the network side, kept before MailCraft goes.
+    s.accounts[0].config.imap.host = "imap.studio.example".into();
+    s.take_jobs();
+    s.activate_compose(s.composes[0].id);
+    s.keep_drafts();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, mailcraft_model::Job::KeepDraft { .. })));
+}

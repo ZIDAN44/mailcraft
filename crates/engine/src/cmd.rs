@@ -349,6 +349,19 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"account"?: string, "folder"?: string (default: the folder on view), "more"?: number (default: as many as Options keeps)}"#),
         // Compose
+        CommandSpec::new("compose.list", "Messages being written", "Message", |s, _| {
+            let active = s.compose.as_ref().map(|c| c.id);
+            Ok(json!(s.all_composes().map(|c| json!({"id": c.id, "subject": c.subject, "to": c.to, "active": Some(c.id) == active})).collect::<Vec<_>>()))
+        }),
+        CommandSpec::new("compose.activate", "Switch to a message being written", "Message", |s, v| {
+            let id = p::u64(v, "id").ok_or_else(|| CmdError::Params("`id` is required (from compose.list)".into()))?;
+            if s.activate_compose(id) { Ok(json!({"active": id})) } else { Err(CmdError::Params(format!("no message {id} is being written"))) }
+        })
+        .params(r#"{"id": number (from compose.list)}"#),
+        CommandSpec::new("compose.keepAll", "Keep the messages being written", "Closing MailCraft", |s, _| {
+            let kept = s.keep_drafts();
+            Ok(json!({ "kept": kept }))
+        }),
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
             .when(has_compose),

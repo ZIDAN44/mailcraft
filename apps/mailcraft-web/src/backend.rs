@@ -411,7 +411,8 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
                 Err(e) => emit(sh, Event::SendFailed { account: id.to_string(), id: msg, error: e.to_string() }),
             }
         }
-        Job::SaveDraft { raw, folder, replaces, .. } => {
+        // The browser has no closing to keep a draft through: it's filed as any other.
+        Job::SaveDraft { raw, folder, replaces, .. } | Job::KeepDraft { raw, folder, replaces, .. } => {
             let Some(c) = client(sh, id) else { return notice(sh, id, "the draft wasn't saved on the server: the account is offline".into()) };
             let st = state(sh, id);
             let r = async {

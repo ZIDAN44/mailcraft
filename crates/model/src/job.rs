@@ -188,6 +188,9 @@ pub enum Job {
     Send { account: String, id: u64, raw: Vec<u8>, from: String, recipients: Vec<String>, sent_folder: Option<String> },
     /// Store a draft (`APPEND` with `\Draft`), replacing an earlier copy.
     SaveDraft { account: String, raw: Vec<u8>, folder: String, replaces: Option<MessageKey> },
+    /// A draft kept on this computer at once, filed in Drafts on the server at the next
+    /// connection: MailCraft is closing with the message being written.
+    KeepDraft { account: String, raw: Vec<u8>, folder: String, replaces: Option<MessageKey> },
     /// Try to send what waits in the Outbox now.
     FlushOutbox { account: String },
     /// Download a picture a message links to (only after the user asked to see pictures).
@@ -231,6 +234,7 @@ impl Job {
             | Job::Apply { account, .. }
             | Job::Send { account, .. }
             | Job::SaveDraft { account, .. }
+            | Job::KeepDraft { account, .. }
             | Job::FlushOutbox { account }
             | Job::GetVacation { account }
             | Job::SetVacation { account, .. }

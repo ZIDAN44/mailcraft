@@ -440,6 +440,13 @@ impl Pool {
             // Working offline: nothing connects, by choice.
             Job::SyncAll { account } | Job::SyncFolder { account, .. } | Job::FlushOutbox { account }
                 if self.offline && !self.workers.contains_key(&account) => {}
+            // Closing with a message written: on disk before the app goes (the worker may be busy
+            // or about to stop); filed on the server at the next connection, as offline drafts.
+            Job::KeepDraft { account, raw, folder, replaces } => {
+                if let Err(e) = keep_draft(&self.store, &account, &folder, replaces, raw) {
+                    log::warn!("{account}: the draft couldn't be kept: {e}");
+                }
+            }
             Job::SaveDraft { account, raw, folder, replaces } if !self.workers.contains_key(&account) => {
                 match keep_draft(&self.store, &account, &folder, replaces, raw) {
                     Ok(()) => self.sink.emit(Event::Notice {
@@ -1493,6 +1500,12 @@ impl Worker {
                 }
             }
             Job::Send { id, raw, from, recipients, sent_folder, .. } => self.send(id, &raw, &from, &recipients, sent_folder),
+            // The pool keeps these itself; one reaching a worker is kept the same way.
+            Job::KeepDraft { raw, folder, replaces, .. } => {
+                if let Err(e) = keep_draft(&self.store, &self.acc.id, &folder, replaces, raw) {
+                    log::warn!("{}: the draft couldn't be kept: {e}", self.acc.id);
+                }
+            }
             Job::SaveDraft { raw, folder, replaces, .. } => {
                 let (raw_kept, replaces_kept) = (raw.clone(), replaces.clone());
                 let r = (|| -> Result<()> {

@@ -675,7 +675,12 @@ pub struct Session {
     pub reading: Option<Reading>,
     /// Messages opened in their own windows (double-click), oldest first.
     pub windows: Vec<Reading>,
+    /// The message being written that commands act on (`compose.*`).
     pub compose: Option<Compose>,
+    /// Other messages being written, each in a window of its own (Outlook keeps every one
+    /// open): starting another sets the current one aside here rather than losing it.
+    /// [`Session::activate_compose`] brings one back to act on.
+    pub composes: Vec<Compose>,
     pub prefs: Prefs,
     pub clock: Clock,
     pub notices: Vec<Notice>,
@@ -780,6 +785,7 @@ impl Session {
             reading: None,
             windows: Vec::new(),
             compose: None,
+            composes: Vec::new(),
             prefs: Prefs::default(),
             clock,
             notices: Vec::new(),
@@ -1141,7 +1147,11 @@ impl Session {
     /// Whether anything was written in the message being written (more than its signature):
     /// closing it then asks whether to keep it.
     pub fn compose_written(&self) -> bool {
-        let Some(c) = &self.compose else { return false };
+        self.compose.as_ref().is_some_and(|c| self.written(c))
+    }
+
+    /// Whether anything was written in `c` (beyond its signature).
+    pub fn written(&self, c: &Compose) -> bool {
         let signature = self.signature(&c.account).trim().to_string();
         let body = c.body.trim();
         !(c.to.trim().is_empty()
@@ -2463,6 +2473,37 @@ impl Session {
         }
     }
 
+    /// Start writing `c`: the message being written, if any, is set aside in a window of its
+    /// own ([`Session::composes`]), never lost; one that's empty (nothing typed) goes.
+    pub fn open_compose(&mut self, c: Compose) {
+        if let Some(mut old) = self.compose.take()
+            && (self.written(&old) || old.sending)
+        {
+            old.window = true;
+            self.composes.push(old);
+        }
+        self.compose = Some(c);
+    }
+
+    /// Act on message `id` (one set aside comes back; the current one is set aside in turn).
+    /// False when there's no such message.
+    pub fn activate_compose(&mut self, id: u64) -> bool {
+        if self.compose.as_ref().is_some_and(|c| c.id == id) {
+            return true;
+        }
+        let Some(at) = self.composes.iter().position(|c| c.id == id) else { return false };
+        let c = self.composes.remove(at);
+        if let Some(old) = self.compose.replace(c) {
+            self.composes.insert(at, old);
+        }
+        true
+    }
+
+    /// Every message being written: the current one, then those set aside.
+    pub fn all_composes(&self) -> impl Iterator<Item = &Compose> {
+        self.compose.iter().chain(self.composes.iter())
+    }
+
     pub fn new_compose(&mut self, account: Option<&str>) -> Result<&mut Compose, CmdError> {
         let account = match account {
             Some(a) => self.account(a).map(|a| a.config.id.clone()),
@@ -2475,7 +2516,7 @@ impl Session {
         let window = self.prefs.new_mail_window;
         let signature = if sig.trim().is_empty() { String::new() } else { signature_block(&sig) };
         let styles = mime::rich::Styles::plain(&body);
-        self.compose = Some(Compose { id, account, body, styles, window, signature, ..Default::default() });
+        self.open_compose(Compose { id, account, body, styles, window, signature, ..Default::default() });
         self.style_signature();
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
@@ -2497,7 +2538,7 @@ impl Session {
                 }
             }
         }
-        self.compose = Some(Compose {
+        self.open_compose(Compose {
             id,
             account,
             signature: if sig.trim().is_empty() { String::new() } else { signature_block(&sig) },
@@ -2645,12 +2686,55 @@ impl Session {
         if self.compose.as_ref().is_some_and(|x| x.id == c.id) {
             self.compose = None;
         }
+        self.composes.retain(|x| x.id != c.id);
         self.notice("Message sent", false);
     }
 
     /// Save the message being written to Drafts.
     pub fn save_draft(&mut self) -> CmdResult {
         let c = self.compose.clone().ok_or_else(|| CmdError::Disabled("nothing to save".into()))?;
+        let (raw, folder) = self.draft_bytes(&c)?;
+        if self.account(&c.account).is_none_or(AccountState::is_local) {
+            if let Some(old) = &c.draft {
+                self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
+            }
+            let key = self.file_locally(&c.account, &folder, &raw, false);
+            if let Some(cm) = self.compose.as_mut() {
+                cm.draft = key;
+            }
+        } else {
+            self.jobs.push(Job::SaveDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() });
+            if let Some(cm) = self.compose.as_mut() {
+                // The server assigns the new copy's UID; the old one is replaced by the worker.
+                cm.draft = None;
+            }
+        }
+        self.notice("Draft saved", false);
+        Ok(serde_json::json!({ "saved": c.id }))
+    }
+
+    /// Every message being written with something in it, kept as a draft as MailCraft closes:
+    /// on this computer at once, and in Drafts on the server at the next connection. How many.
+    pub fn keep_drafts(&mut self) -> usize {
+        let written: Vec<Compose> = self.all_composes().filter(|c| self.written(c) && !c.sending).cloned().collect();
+        let mut kept = 0;
+        for c in written {
+            let Ok((raw, folder)) = self.draft_bytes(&c) else { continue };
+            if self.account(&c.account).is_none_or(AccountState::is_local) {
+                if let Some(old) = &c.draft {
+                    self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
+                }
+                self.file_locally(&c.account, &folder, &raw, false);
+            } else {
+                self.jobs.push(Job::KeepDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() });
+            }
+            kept += 1;
+        }
+        kept
+    }
+
+    /// A message as a draft's source, and the Drafts folder it goes in.
+    fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String), CmdError> {
         // Drafts may hold unfinished addresses: keep only the valid ones.
         let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
         let (body, html, inline) = c.bodies();
@@ -2674,24 +2758,8 @@ impl Session {
             .and_then(|a| a.folder(FolderRole::Drafts))
             .map(|f| f.path.clone())
             .ok_or_else(|| CmdError::Failed("this account has no Drafts folder".into()))?;
-        let (raw, _) = self.compose_bytes(&c, &d)?;
-        if self.account(&c.account).is_none_or(AccountState::is_local) {
-            if let Some(old) = &c.draft {
-                self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
-            }
-            let key = self.file_locally(&c.account, &folder, &raw, false);
-            if let Some(cm) = self.compose.as_mut() {
-                cm.draft = key;
-            }
-        } else {
-            self.jobs.push(Job::SaveDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() });
-            if let Some(cm) = self.compose.as_mut() {
-                // The server assigns the new copy's UID; the old one is replaced by the worker.
-                cm.draft = None;
-            }
-        }
-        self.notice("Draft saved", false);
-        Ok(serde_json::json!({ "saved": c.id }))
+        let (raw, _) = self.compose_bytes(c, &d)?;
+        Ok((raw, folder))
     }
 
     /// File a message in a local account's folder; returns its key.
@@ -2848,7 +2916,7 @@ impl Session {
         let shown: Vec<String> = p.to.iter().chain(&p.cc).map(|a| a.email.to_ascii_lowercase()).collect();
         let bcc: Vec<String> = item.recipients.iter().filter(|r| !shown.contains(&r.to_ascii_lowercase())).cloned().collect();
         let id = self.fresh_id();
-        self.compose = Some(Compose {
+        self.open_compose(Compose {
             id,
             account: account.clone(),
             to: addr::format_field(&p.to),
@@ -3143,6 +3211,7 @@ impl Session {
         if self.compose.as_ref().is_some_and(|c| c.account == id) {
             self.compose = None;
         }
+        self.composes.retain(|c| c.account != id);
         let view = self.default_view();
         self.open_view(view);
         Ok(serde_json::json!({ "removed": id, "dataFile": kept.map(|f| f.display().to_string()) }))
