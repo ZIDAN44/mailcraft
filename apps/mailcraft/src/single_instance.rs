@@ -254,10 +254,31 @@ fn answer(stream: &UnixStream, server: &Server) -> std::io::Result<()> {
 mod tests {
     use super::*;
 
+    /// Where a test's socket goes, in a folder of its own, its name kept short: a socket's whole
+    /// path must fit its address (103 bytes on macOS, whose temporary folder alone takes about 50).
+    fn socket_at(test: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("mci-{:x}-{test}", std::process::id())).join(socket_name(Path::new("C:/data"), ""))
+    }
+
+    /// That socket's folder, emptied.
     fn socket(test: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mailcraft-instance-{}-{test}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        dir.join(socket_name(Path::new("C:/data"), ""))
+        let path = socket_at(test);
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        path
+    }
+
+    /// Every socket fits a Unix socket's address (`sun_path`: 104 bytes on macOS, 108 elsewhere,
+    /// the NUL included). One that doesn't can't be listened at, and every launch opened a window
+    /// of its own: the tests' did on the macOS CI runner, with a five-digit process id.
+    #[test]
+    fn socket_paths_fit_a_socket_address() {
+        let app = socket_path(Path::new("/home/zoe/.local/share/mailcraft")).unwrap_or_default();
+        for p in [app, socket_at("together"), socket_at("stale"), socket_at("silent"), socket_at("show")] {
+            let len = p.as_os_str().len();
+            assert!(len < 104, "{len} bytes: {}", p.display());
+        }
     }
 
     /// One data folder, one name; another folder (`--data`, `--sample`, a portable copy) or
