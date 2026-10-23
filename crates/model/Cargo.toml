@@ -15,3 +15,7 @@ serde_json = { workspace = true }
 unicode-segmentation = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
+
+[dev-dependencies]
+# Property tests of the round trips (tests/properties.rs).
+proptest = "1"

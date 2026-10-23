@@ -61,7 +61,9 @@ impl Advanced {
                     _ => false,
                 },
                 Some(_) => false,
-                None if !tok.starts_with('-') => {
+                // A word with an unclosed quote stays in the rest (which goes last): written
+                // before the fields, it would quote them into itself.
+                None if !tok.starts_with('-') && tok.matches('"').count() % 2 == 0 => {
                     words.push(tok.clone());
                     true
                 }
@@ -153,5 +155,17 @@ mod tests {
         assert_eq!(parsed.clauses.first().map(|c| &c.term), Some(&Term::Phrase(Field::From, "ana park".into())));
         assert_eq!(Advanced::default().to_query(), "");
         assert_eq!(Advanced::from_query(""), Advanced::default());
+    }
+
+    /// An unclosed quote stays where it was (found by tests/properties.rs): moved ahead of the
+    /// rest, it swallowed it and the form changed on every trip.
+    #[test]
+    fn an_unclosed_quote_stays_in_the_rest() {
+        let a = Advanced::from_query(r#"": """ ""#);
+        assert_eq!(a.words, "");
+        assert_eq!(a.rest, r#"": """ ""#);
+        assert_eq!(Advanced::from_query(&a.to_query()), a);
+        let b = Advanced::from_query(r#"plan "q3 from:ana"#);
+        assert_eq!((b.words.as_str(), b.rest.as_str()), ("plan", r#""q3 from:ana"#));
     }
 }
