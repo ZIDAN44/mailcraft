@@ -44,5 +44,55 @@
   <false/>
   <key>NSHumanReadableCopyright</key>
   <string>Copyright © the MailCraft authors. MIT OR Apache-2.0.</string>
+
+  <!-- Documents MailCraft can be asked to open. Rank Alternate: it shows up in Open With and
+       can be picked as the default in Get Info, but never takes a type over by itself. A saved
+       message opens for reading; events and contacts are imported. macOS delivers them through
+       an Apple event that apps/mailcraft/src/apple_events.rs reads.
+
+       There is deliberately no CFBundleURLTypes entry for mailto. Links arrive as a different
+       Apple event that MailCraft has no safe way to receive yet, so registering the scheme would
+       start the app and drop the address. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MailCraft saved message</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.email-message</string>
+        <string>com.apple.mail.email</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MailCraft iCalendar file</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.calendar-event</string>
+        <string>com.apple.ical.ics</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MailCraft vCard file</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.vcard</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+    </dict>
+  </array>
 </dict>
 </plist>

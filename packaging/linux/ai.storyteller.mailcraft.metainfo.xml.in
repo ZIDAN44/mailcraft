@@ -55,8 +55,14 @@
     <control>keyboard</control>
     <control>pointing</control>
   </supports>
+  <!-- What MailCraft opens, as in the desktop entry's MimeType=. -->
   <provides>
     <binary>mailcraft</binary>
+    <mediatype>x-scheme-handler/mailto</mediatype>
+    <mediatype>message/rfc822</mediatype>
+    <mediatype>text/calendar</mediatype>
+    <mediatype>text/vcard</mediatype>
+    <mediatype>text/x-vcard</mediatype>
   </provides>
   <content_rating type="oars-1.1">
     <content_attribute id="social-chat">intense</content_attribute>
