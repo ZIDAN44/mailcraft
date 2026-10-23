@@ -245,11 +245,12 @@ mod tests {
         assert_eq!(second.deleted.len(), 1);
         assert_eq!(second.pushed_events.len(), 2);
         let new = second.pushed_events.iter().find(|e| e.event.uid == "b@x").unwrap();
-        assert!(new.href.ends_with("/b-x.ics") && !new.etag.is_empty(), "{new:?}");
+        let name = new.href.rsplit('/').next().unwrap_or_default().to_string();
+        assert!(name.starts_with("b-x~") && name.ends_with(".ics") && !new.etag.is_empty(), "{new:?}");
         {
             let d = data.lock().unwrap();
             assert!(d.items.get(&format!("{CAL}a.ics")).is_some_and(|(_, ics)| ics.contains("Review (moved)")));
-            assert!(d.items.contains_key(&format!("{CAL}b-x.ics")));
+            assert!(d.items.contains_key(&format!("{CAL}{name}")));
             assert!(!d.items.keys().any(|k| k.starts_with(BOOK)), "the card was deleted");
             assert!(!d.items.values().any(|(_, v)| v.contains("Only here")), "a local event stays local");
         }
@@ -271,5 +272,41 @@ mod tests {
         let fourth = sync(&dav, USER, "imap.example", &settled, 400).unwrap();
         assert_eq!(fourth.unchanged_calendars, vec![cal_id]);
         assert!(fourth.events.is_empty());
+    }
+
+    /// Two new events whose long uids differ only after the part a file name keeps each get an
+    /// item of their own; an event already on the server keeps its address.
+    #[test]
+    fn long_uids_get_items_of_their_own() {
+        let server = serve();
+        let data = server.data.clone();
+        let dav = Dav::new(USER, PASSWORD);
+        let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
+        let cal_id = format!("{}{CAL}", server.base);
+        let mut pim = Pim { caldav_home: Some(home), carddav_home: Some(String::new()), ..Default::default() };
+        pim.ensure_defaults();
+        let long = "x".repeat(125);
+        let old_href = format!("{cal_id}{}.ics", "y".repeat(120));
+        let etag = data
+            .lock()
+            .unwrap()
+            .put(&format!("{CAL}{}.ics", "y".repeat(120)), &ical::write(&[event(&format!("{long}-old"), "Old", 1_800_000_000)], None, 0));
+        let new = |uid: &str| StoredEvent { calendar: cal_id.clone(), event: event(uid, uid, 1_800_000_000), dirty: true, ..Default::default() };
+        pim.events = vec![
+            new(&format!("{long}-one")),
+            new(&format!("{long}-two")),
+            StoredEvent { href: old_href.clone(), etag, ..new(&format!("{long}-old")) },
+        ];
+        let out = sync(&dav, USER, "imap.example", &pim, 100).unwrap();
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        let hrefs: Vec<&str> = out.pushed_events.iter().map(|e| e.href.as_str()).collect();
+        assert_eq!(hrefs.len(), 3);
+        assert_ne!(hrefs[0], hrefs[1], "{hrefs:?}");
+        assert!(hrefs.contains(&old_href.as_str()), "an item already stored keeps its address: {hrefs:?}");
+        let d = data.lock().unwrap();
+        for uid in ["one", "two"] {
+            let on_server = d.items.values().any(|(_, v)| ical::parse(v, 0).events.iter().any(|e| e.uid == format!("{long}-{uid}")));
+            assert!(on_server, "{uid} is on the server");
+        }
     }
 }

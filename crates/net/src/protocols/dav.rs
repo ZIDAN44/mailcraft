@@ -440,10 +440,20 @@ fn path_of(url: &str) -> String {
     Url::parse(url).map(|u| u.path).unwrap_or_else(|_| url.to_string())
 }
 
-/// A file name for a new item.
+/// The longest uid used as a file name as it is.
+const NAME_KEEP: usize = 100;
+
+/// A file name for a new item (one already on the server keeps the address it has). A short
+/// uid of plain characters is the name; any other keeps its readable start and adds `~` and a
+/// hash of the whole uid, so two uids alike in what's kept still get names of their own (a plain
+/// name never has a `~`).
 fn resource_name(uid: &str, ext: &str) -> String {
-    let safe: String = uid.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') { c } else { '-' }).take(120).collect();
-    format!("{}.{ext}", if safe.is_empty() { "item".into() } else { safe })
+    let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.');
+    if !uid.is_empty() && uid.len() <= NAME_KEEP && uid.chars().all(plain) {
+        return format!("{uid}.{ext}");
+    }
+    let safe: String = uid.chars().map(|c| if plain(c) { c } else { '-' }).take(NAME_KEEP).collect();
+    format!("{safe}~{:016x}.{ext}", mailcraft_store::fnv64(uid))
 }
 
 /// Sync an account's calendars and address books with its server. `pim` is what the engine
@@ -630,7 +640,25 @@ END:VCALENDAR]]></c:calendar-data></d:prop>
         ] {
             let _ = multistatus(junk);
         }
-        assert_eq!(resource_name("a/b c@x", "ics"), "a-b-c-x.ics");
         assert_eq!(absolute("https://h.example/dav/cal/", "/dav/cal/1.ics").unwrap(), "https://h.example/dav/cal/1.ics");
+    }
+
+    /// Item names are one per uid, short, and safe in an address.
+    #[test]
+    fn item_names_dont_collide() {
+        assert_eq!(resource_name("plain-uid_1.2", "ics"), "plain-uid_1.2.ics", "a plain uid is its own name");
+        let odd = resource_name("a/b c@x", "ics");
+        assert!(odd.starts_with("a-b-c-x~") && odd.ends_with(".ics"), "{odd}");
+        assert_ne!(resource_name("a/b", "ics"), resource_name("a b", "ics"), "changed characters don't collide");
+        assert_ne!(resource_name("a-b", "ics"), resource_name("a b", "ics"));
+        let long = "z".repeat(200);
+        let (one, two) = (resource_name(&format!("{long}1"), "ics"), resource_name(&format!("{long}2"), "ics"));
+        assert_ne!(one, two, "long uids alike at the start don't collide");
+        assert_ne!(resource_name(&"y".repeat(101), "ics"), resource_name(&"y".repeat(102), "ics"));
+        assert_eq!(one, resource_name(&format!("{long}1"), "ics"), "stable");
+        for uid in ["", "é", "../..", "a\r\nb", &"€".repeat(500), &long] {
+            let n = resource_name(uid, "vcf");
+            assert!(n.len() <= NAME_KEEP + 21 && n.chars().all(|c| c.is_ascii_alphanumeric() || "-_.~".contains(c)), "{uid:?}: {n}");
+        }
     }
 }
