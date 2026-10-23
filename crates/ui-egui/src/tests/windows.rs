@@ -249,3 +249,30 @@ fn a_damaged_system_font_doesnt_stop_the_window() {
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Ctrl+Q is Mark as read (Outlook's): it marked the message read and then closed MailCraft,
+/// egui's own quit shortcut being Ctrl+Q too. Now the window stays (a Mac keeps Cmd+Q to quit).
+#[test]
+fn ctrl_q_marks_read_and_keeps_the_window() {
+    let (mut a, dir) = app("ctrl-q");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.iter().find(|m| !m.flags.seen).map(|m| m.key.clone()).unwrap();
+    a.run("list.select", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    let input = RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+        events: vec![key(Key::Q, Modifiers::COMMAND)],
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let closes = out.viewport_output.values().flat_map(|v| v.commands.iter()).any(|c| matches!(c, egui::ViewportCommand::Close));
+    assert!(a.session.summary(&k).is_some_and(|m| m.flags.seen), "marked read");
+    if cfg!(target_os = "macos") {
+        assert!(closes, "Cmd+Q quits on a Mac");
+    } else {
+        assert!(!closes, "the window stays");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
