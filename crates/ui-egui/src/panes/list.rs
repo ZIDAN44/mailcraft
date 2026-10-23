@@ -323,8 +323,18 @@ fn message_row(
     // Sender (or recipients in Sent) and time.
     let time = crate::i18n::date(&dates::list_time(m.date, &s.clock));
     let time_g = p.layout_no_wrap(time, if unread { theme::bold(12.0) } else { theme::regular(12.0) }, if unread { t.accent } else { t.dim });
-    let tw = time_g.size().x;
+    let mut tw = time_g.size().x;
     p.galley(egui::pos2(right - tw, line1 + 1.0), time_g, t.dim);
+    // A search over several folders: each result says where it is, before its time.
+    let several =
+        s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
+    if let Some(f) = s.folder(&m.key.account, &m.key.folder).filter(|_| several) {
+        let name: String = crate::i18n::folder(f).chars().take(24).collect();
+        let fg = p.layout_no_wrap(name, theme::regular(11.5), t.faint);
+        let fw = fg.size().x;
+        p.galley(egui::pos2(right - tw - 10.0 - fw, line1 + 2.0), fg, t.faint);
+        tw += fw + 10.0;
+    }
     let who = if sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
     let who = if count > 1 { format!("{who}  ({count})") } else { who };
     let (who, who_rtl) = crate::bidi::shown(&who);
@@ -389,8 +399,8 @@ fn message_row(
     if hovered {
         let mut bx = right - 22.0;
         let actions: [(Icon, &str, &'static str, serde_json::Value); 3] = [
-            (Icon::Delete, "Delete", "mail.delete", json!({})),
-            (Icon::Flag, if m.flags.flagged { "Unflag" } else { "Flag" }, "mail.flag", json!({})),
+            (Icon::Delete, tl!("Delete"), "mail.delete", json!({})),
+            (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag", json!({})),
             (
                 if m.flags.seen { Icon::Unread } else { Icon::Read },
                 tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }),

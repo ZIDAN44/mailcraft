@@ -269,3 +269,46 @@ fn closing_with_messages_written_asks_and_keeps_them() {
     assert!(subjects.contains(&"Half done".into()) && subjects.contains(&"Also half done".into()), "{subjects:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A file dragged from the desktop onto a message being written is attached to it.
+#[test]
+fn files_dropped_on_a_message_are_attached() {
+    use std::path::{Path, PathBuf};
+    /// What the desktop hands over for one file let go over the window.
+    #[derive(Debug)]
+    struct LetGo {
+        from: PathBuf,
+    }
+    impl egui::DroppedFile for LetGo {
+        fn bytes(&self) -> Result<Vec<u8>, String> {
+            let read = std::fs::read(&self.from);
+            read.map_err(|why| format!("{}: {why}", self.from.display()))
+        }
+
+        fn path(&self) -> &Path {
+            self.from.as_path()
+        }
+    }
+    let (mut a, dir) = app("drop-attach");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let file = dir.join("dropped notes.txt");
+    std::fs::write(&file, b"hello").unwrap();
+    let dropped: Vec<egui::DroppedFileHandle> =
+        vec![std::sync::Arc::new(LetGo { from: file }), std::sync::Arc::new(LetGo { from: "relative.txt".into() })];
+    let input = RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+        dropped_files: dropped,
+        ..Default::default()
+    };
+    // The message is in a window of its own, or in the main one where there are none: either
+    // way the drop reaches it.
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    frame(&ctx, &mut a, vec![]);
+    let names: Vec<String> = a.session.all_composes().flat_map(|c| c.attachments.iter().map(|x| x.name.clone())).collect();
+    assert_eq!(names, ["dropped notes.txt"], "the file with no path to read is left");
+    let _ = std::fs::remove_dir_all(dir);
+}
