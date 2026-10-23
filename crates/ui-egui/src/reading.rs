@@ -5,7 +5,7 @@ use egui::{Align, Color32, Margin, Rect, RichText, Sense, Ui, vec2};
 use mailcraft_engine::mime::{self, AttachmentKind};
 use mailcraft_engine::model::contacts::Contact;
 use mailcraft_engine::model::{MessageKey, addr, dates};
-use mailcraft_engine::{Session, model::EmailAddress};
+use mailcraft_engine::{InviteProblem, Session, model::EmailAddress};
 use serde_json::json;
 
 use crate::icons::{self, Icon};
@@ -413,6 +413,16 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
             });
         });
         ui.add_space(6.0);
+        // One that can't be taken in says why, and offers nothing to do.
+        if let Some(why) = inv.problem {
+            let text = match why {
+                InviteProblem::NotFromOrganizer => tl!("This update wasn't sent by the meeting's organizer, so it can't change your calendar."),
+                InviteProblem::NotFromGuest => tl!("This answer wasn't sent by the guest it's from, so it can't be recorded."),
+                InviteProblem::OutOfDate => tl!("This invitation is out of date: your calendar has a newer version."),
+            };
+            ui.label(RichText::new(text).color(t.danger));
+            return;
+        }
         match inv.method.as_str() {
             "REQUEST" => {
                 ui.horizontal_wrapped(|ui| {

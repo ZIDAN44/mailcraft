@@ -25,7 +25,7 @@ pub use mailcraft_store as store;
 pub use session::{
     ARRANGE_HEADINGS, AccountState, Arrange, Compose, FolderRef, ListFilter, MoveTarget, NotesOrder, Notice, PaneSection, Picture, Prefs, ReadInPane,
     Reading, ReadingPane, Row, SearchScope, ServerSearch, Session, UpdateCheck, VacationState, View,
-    invite::Invite,
+    invite::{Invite, InviteProblem},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
     pim::{ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, Module, NoteRef, Person, parse_local},
