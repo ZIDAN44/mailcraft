@@ -100,3 +100,19 @@ fn errors_and_hostile_input() {
     let mut c = Client::from_stream(Script::new(b"* OK hi\n* SEARCH 3 1 2\nM1 OK done\n")).unwrap();
     assert_eq!(c.uid_search("ALL").unwrap(), vec![1, 2, 3]);
 }
+
+/// A response code followed straight by a non-ASCII character (found by `fuzz/`): imap-proto
+/// sliced inside the character and panicked, so a server could crash the client.
+#[test]
+fn a_code_right_before_non_ascii_text_never_panics() {
+    let c = Client::from_stream(Script::new(b"* OK [CAPABILITY IMAP4rev1]\xd7\n")).unwrap();
+    assert!(c.has("IMAP4REV1"));
+    let mut c = Client::from_stream(Script::new("* OK hi\r\nM1 NO [ALERT]é quota full\r\n".as_bytes())).unwrap();
+    assert!(matches!(c.noop(), Err(NetError::No(m)) if m.contains("é quota full")), "the text is kept whole");
+    let mut c = Client::from_stream(Script::new("* OK hi\r\n+ [X]ü\r\nM1 OK [APPENDUID 7 9]ö\r\n".as_bytes())).unwrap();
+    assert_eq!(c.append("Drafts", "", b"x").unwrap(), Some(9));
+    let mut c = Client::from_stream(Script::new(b"* OK hi\r\n+[UIDNEXT 9]\xff\nM1 OK done\r\n")).unwrap();
+    assert!(c.append("Drafts", "", b"x").is_ok(), "a continuation without its space");
+    // Inside a quoted string the bracket isn't a code: left as it was.
+    assert_eq!(super::conn::space_after_code(b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n".to_vec()), b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n");
+}

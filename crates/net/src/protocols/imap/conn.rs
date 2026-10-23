@@ -30,8 +30,9 @@ impl Default for Limits {
     }
 }
 
-fn too_much() -> NetError {
-    NetError::Protocol("the server sent too much in answer to one command".into())
+/// The error for a command whose responses ran past its byte or count budget.
+fn over_budget() -> NetError {
+    NetError::Protocol("one command's responses went over MailCraft's size budget".into())
 }
 
 /// Buffered protocol connection.
@@ -53,11 +54,12 @@ impl<S: Read + Write> Conn<S> {
         Conn { s, buf: Vec::with_capacity(16 << 10), pos: 0, tag: 0, limits: Limits::default(), used_bytes: 0, used_count: 0, deadline: None }
     }
 
-    /// Change the per-command limits (tests use small ones).
-    pub fn set_limits(&mut self, limits: Limits) {
-        self.limits = limits;
+    /// Replace the per-command budget (the hostile-server tests shrink it).
+    pub fn set_limits(&mut self, budget: Limits) {
+        self.limits = budget;
     }
 
+    /// Give back the underlying stream (STARTTLS wraps it; tests read what was written).
     pub fn into_inner(self) -> S {
         self.s
     }
@@ -111,7 +113,7 @@ impl<S: Read + Write> Conn<S> {
             match literal_len(line) {
                 Some(n) if n > MAX_LITERAL => return Err(NetError::Protocol(format!("literal of {n} bytes is too large"))),
                 // Refuse before buffering it: the literal would take the command past its byte cap.
-                Some(n) if i.saturating_add(n) > self.room() => return Err(too_much()),
+                Some(n) if i.saturating_add(n) > self.room() => return Err(over_budget()),
                 Some(n) => {
                     if data.len() < i + n {
                         return Ok(None);
@@ -147,7 +149,7 @@ impl<S: Read + Write> Conn<S> {
                 self.used_bytes = self.used_bytes.saturating_add(n);
                 self.used_count = self.used_count.saturating_add(1);
                 if self.used_bytes > self.limits.bytes || self.used_count > self.limits.responses {
-                    return Err(too_much());
+                    return Err(over_budget());
                 }
                 let out = self.buf.get(self.pos..self.pos + n).map(<[u8]>::to_vec).unwrap_or_default();
                 self.pos += n;
@@ -161,7 +163,8 @@ impl<S: Read + Write> Conn<S> {
     pub fn read(&mut self) -> Result<std::result::Result<Response<'static>, Vec<u8>>> {
         let raw = self.read_raw()?;
         // imap-proto wants CRLF line ends; tolerate servers that send bare LF.
-        let fixed = if raw.ends_with(b"\r\n") { raw } else { normalize_eol(&raw) };
+        let fixed = if raw.ends_with(b"\r\n") { raw } else { crlf_line_ends(&raw) };
+        let fixed = space_after_code(fixed);
         Ok(match Response::parse(&fixed) {
             Ok((_, r)) => Ok(r.into_owned()),
             Err(_) => Err(fixed),
@@ -235,17 +238,51 @@ impl<S: Read + Write> Conn<S> {
     }
 }
 
-fn normalize_eol(raw: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(raw.len() + 8);
-    let mut prev = 0u8;
-    for &b in raw {
-        if b == b'\n' && prev != b'\r' {
-            out.push(b'\r');
+/// A space between a status response's `[code]` and a non-ASCII character after it. imap-proto
+/// 0.17 drops the byte after the `]` (meant to be the space) by slicing the text at 1, which
+/// panics inside a multi-byte character: `* OK [ALERT]é` from a server would crash the client.
+pub(super) fn space_after_code(mut raw: Vec<u8>) -> Vec<u8> {
+    let line = raw.get(..raw.iter().position(|&b| b == b'\n').unwrap_or(raw.len())).unwrap_or_default();
+    // A continuation's space is optional to imap-proto (some servers leave it out).
+    let text = if let Some(rest) = line.strip_prefix(b"+") {
+        rest.strip_prefix(b" ").unwrap_or(rest)
+    } else {
+        // `tag status text`: skip the tag, then the status word; the text is what follows.
+        let after_tag = line.iter().position(|&b| b == b' ').and_then(|sp| line.get(sp + 1..)).unwrap_or_default();
+        let (status, text) = match after_tag.iter().position(|&b| b == b' ') {
+            Some(sp) => (after_tag.get(..sp).unwrap_or_default(), after_tag.get(sp + 1..).unwrap_or_default()),
+            None => (after_tag, &[][..]),
+        };
+        let status = String::from_utf8_lossy(status).to_ascii_uppercase();
+        if !["OK", "NO", "BAD", "PREAUTH", "BYE"].contains(&status.as_str()) {
+            return raw;
         }
-        out.push(b);
-        prev = b;
+        text
+    };
+    if text.first() != Some(&b'[') {
+        return raw;
     }
-    out
+    let Some(close) = text.iter().position(|&b| b == b']') else { return raw };
+    if text.get(close + 1).is_some_and(|b| !b.is_ascii()) {
+        let at = line.len() - text.len() + close + 1;
+        raw.insert(at, b' ');
+    }
+    raw
+}
+
+/// `raw` with each line feed that lacks its carriage return given one (so `\n` becomes `\r\n`).
+fn crlf_line_ends(raw: &[u8]) -> Vec<u8> {
+    let mut fixed = Vec::with_capacity(raw.len().saturating_add(raw.len() / 16));
+    for (i, piece) in raw.split(|&b| b == b'\n').enumerate() {
+        if i > 0 {
+            if fixed.last() != Some(&b'\r') {
+                fixed.push(b'\r');
+            }
+            fixed.push(b'\n');
+        }
+        fixed.extend_from_slice(piece);
+    }
+    fixed
 }
 
 /// A response `imap-proto` couldn't parse: harmless if untagged; for our tag, read the status
@@ -266,14 +303,21 @@ pub(super) fn check_unknown(tag: &str, raw: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// `{123}` or `{123+}` at the end of a line.
+/// The size a line announces for the literal after it: `{123}`, or the non-synchronising
+/// `{123+}` (RFC 7888), as the line's last bytes. At most twelve digits, so it can't overflow.
 pub(super) fn literal_len(line: &[u8]) -> Option<usize> {
-    let body = line.strip_suffix(b"}")?;
-    let open = body.iter().rposition(|&b| b == b'{')?;
-    let digits = body.get(open + 1..)?;
-    let digits = digits.strip_suffix(b"+").unwrap_or(digits);
-    if digits.is_empty() || digits.len() > 12 || !digits.iter().all(u8::is_ascii_digit) {
+    let inside = match line.split_last() {
+        Some((&b'}', head)) => head,
+        _ => return None,
+    };
+    let inside = match inside.split_last() {
+        Some((&b'+', head)) => head,
+        _ => inside,
+    };
+    let count = inside.iter().rev().take_while(|b| b.is_ascii_digit()).count();
+    let brace = inside.len().checked_sub(count)?.checked_sub(1)?;
+    if count == 0 || count > 12 || inside.get(brace) != Some(&b'{') {
         return None;
     }
-    std::str::from_utf8(digits).ok()?.parse().ok()
+    inside.get(brace + 1..)?.iter().try_fold(0usize, |n, &d| n.checked_mul(10)?.checked_add(usize::from(d - b'0')))
 }
