@@ -106,6 +106,11 @@ impl Client {
         Ok(c)
     }
 
+    /// Carry a new access token from now on (the old one ran out).
+    pub fn set_token(&mut self, token: &str) {
+        self.auth = format!("Bearer {token}");
+    }
+
     fn request(&self, mut r: Request) -> Result<Value> {
         for (name, value) in [("Authorization", self.auth.as_str()), ("Accept", "application/json"), ("Prefer", PREFER)] {
             r = r.header(name, value);

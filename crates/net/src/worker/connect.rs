@@ -11,13 +11,18 @@ impl Worker {
         let mut auth = self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some(id) = self.acc.oauth.clone() else { return Ok(auth.secret.clone()) };
         if let Some(t) = &auth.access
-            && t.expires_at > Instant::now()
+            && !t.expired()
         {
             return Ok(t.access.clone());
         }
         let p = crate::oauth::provider_for_account(&self.acc)
             .ok_or_else(|| NetError::Auth(format!("signing in with {id} isn't set up in this copy of MailCraft")))?;
-        let t = crate::oauth::refresh(&p, &auth.secret)?;
+        let t = crate::oauth::refresh(&p, &auth.secret).inspect_err(|e| {
+            // The refresh token itself refused: only signing in again helps.
+            if matches!(e, NetError::Auth(_)) {
+                self.token_retried = true;
+            }
+        })?;
         // Some providers hand out a new refresh token each time: keep the newest.
         if let Some(r) = t.refresh.clone().filter(|r| *r != auth.secret) {
             auth.secret = r.clone();
@@ -31,6 +36,34 @@ impl Worker {
         let access = t.access.clone();
         auth.access = Some(t);
         Ok(access)
+    }
+
+    /// Before each job: an OAuth account's Graph or JMAP connection carries the current access
+    /// token, refreshed when it ran out by the wall clock (or by the account's other connection).
+    pub(super) fn fresh_token(&mut self) {
+        if self.acc.oauth.is_none() || !matches!(self.conn, Some(Conn::Graph(_) | Conn::Jmap(_))) {
+            return;
+        }
+        match self.secret() {
+            Ok(t) => self.use_token(&t),
+            Err(e) => self.failed(e),
+        }
+    }
+
+    /// Drop the access token the server refused and fetch a new one with the refresh token.
+    pub(super) fn renew_token(&mut self) -> Result<String> {
+        self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).access = None;
+        let t = self.secret()?;
+        self.use_token(&t);
+        Ok(t)
+    }
+
+    fn use_token(&mut self, token: &str) {
+        match self.conn.as_mut() {
+            Some(Conn::Graph(c)) => c.set_token(token),
+            Some(Conn::Jmap(c)) => c.set_bearer(token),
+            _ => {}
+        }
     }
 
     /// What Microsoft's sign-in granted (its scopes), when known.
@@ -55,6 +88,22 @@ impl Worker {
                 self.conn = None;
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: format!("{MICROSOFT_NO_PASSWORDS} ({m})") });
+            }
+            // An OAuth token refused (expired early, revoked by a password change elsewhere, or
+            // taken before the computer slept): a fresh one from the refresh token, then the
+            // connection again, once. Only a refused refresh, or a fresh token refused too,
+            // means signing in again.
+            NetError::Auth(m) if self.acc.oauth.is_some() && !self.token_retried => {
+                log::info!("{}: token refused ({m}); refreshing it", self.acc.id);
+                self.token_retried = true;
+                match self.renew_token() {
+                    Ok(_) => {
+                        self.conn = None;
+                        self.next_attempt = Instant::now();
+                        self.status(SyncStatus::Connecting);
+                    }
+                    Err(e) => self.failed(e),
+                }
             }
             NetError::Auth(m) => {
                 self.conn = None;

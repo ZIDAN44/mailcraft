@@ -64,6 +64,11 @@ impl Client {
         Ok(Client(block_on(mailcraft_jmap::Client::connect(Blocking, url, user, secret, bearer))?))
     }
 
+    /// Carry a new OAuth access token from now on.
+    pub fn set_bearer(&mut self, token: &str) {
+        self.0.set_bearer(token);
+    }
+
     /// Listen for changes (`state` events, with `ping`s to keep the line open); `None` when the
     /// server doesn't push.
     pub fn events(&self) -> Result<Option<http::EventStream<crate::stream::Stream>>> {

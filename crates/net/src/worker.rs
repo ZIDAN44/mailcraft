@@ -654,6 +654,8 @@ struct Worker {
     /// Not connecting again until asked (Send / Receive, a new start): the sign-in was refused,
     /// or the server said no to the account itself.
     auth_failed: bool,
+    /// An OAuth refusal was answered with a fresh token once; another means signing in again.
+    token_retried: bool,
     closed: bool,
     /// Where a rotated OAuth refresh token is saved.
     creds: Option<Arc<dyn Credentials>>,
@@ -702,6 +704,7 @@ impl Worker {
             next_attempt: Instant::now(),
             last_full: None,
             auth_failed: false,
+            token_retried: false,
             closed: false,
             creds: None,
             sieve_port: crate::sieve::PORT,
@@ -753,6 +756,7 @@ impl Worker {
             if self.closed {
                 break;
             }
+            self.fresh_token();
             if let Some(job) = self.queue.pop_front() {
                 self.handle(job);
                 continue;

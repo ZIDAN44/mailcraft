@@ -16,6 +16,7 @@ impl Worker {
                 }
                 Err(RecvTimeoutError::Disconnected) => break,
             };
+            self.fresh_token();
             match job {
                 Job::Send { account, id, raw, from, recipients, sent_folder } => {
                     self.send_quick(Job::Send { account, id, raw, from, recipients, sent_folder });
@@ -109,7 +110,20 @@ impl Worker {
 
     /// Hand a message to the server: SMTP, or for JMAP accounts a submission (which also files
     /// the copy in Sent).
+    /// An OAuth token the server refuses (SMTP's XOAUTH2, Graph's 401) is renewed from the
+    /// refresh token and the message tried once more.
     pub(super) fn deliver(&mut self, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<&str>) -> Result<()> {
+        match self.deliver_once(raw, from, recipients, sent_folder) {
+            Err(NetError::Auth(m)) if self.acc.oauth.is_some() => {
+                log::info!("{}: sending: token refused ({m}); refreshing it", self.acc.id);
+                self.renew_token()?;
+                self.deliver_once(raw, from, recipients, sent_folder)
+            }
+            r => r,
+        }
+    }
+
+    fn deliver_once(&mut self, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<&str>) -> Result<()> {
         if self.acc.graph.is_some() {
             if self.conn.is_none() {
                 self.connect()?;

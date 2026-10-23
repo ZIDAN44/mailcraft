@@ -15,7 +15,7 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ring::rand::SecureRandom;
 use serde_json::Value;
@@ -61,8 +61,22 @@ pub fn provider(id: &str) -> Option<Provider> {
             client_id: setting("MAILCRAFT_MICROSOFT_CLIENT_ID", option_env!("MAILCRAFT_MICROSOFT_CLIENT_ID"))?,
             client_secret: None,
         }),
-        _ => None,
+        other => test_provider(other),
     }
+}
+
+#[cfg(not(test))]
+fn test_provider(_id: &str) -> Option<Provider> {
+    None
+}
+
+/// Providers the tests register, with local token endpoints.
+#[cfg(test)]
+pub(crate) static TEST_PROVIDERS: std::sync::Mutex<Vec<Provider>> = std::sync::Mutex::new(Vec::new());
+
+#[cfg(test)]
+fn test_provider(id: &str) -> Option<Provider> {
+    TEST_PROVIDERS.lock().ok()?.iter().find(|p| p.id == id).cloned()
 }
 
 pub use mailcraft_model::oauth_provider_for as provider_for_host;
@@ -107,7 +121,10 @@ pub fn pkce() -> Result<(String, String)> {
 pub struct Tokens {
     pub access: String,
     pub refresh: Option<String>,
-    pub expires_at: Instant,
+    /// When the access token runs out, in Unix seconds: wall-clock time, which goes on while
+    /// the computer sleeps (an `Instant` doesn't on Linux and macOS, so a token taken before a
+    /// night's sleep still looked fresh in the morning).
+    pub expires_at: i64,
     /// The permissions the provider says it granted (Microsoft lists them; empty when not said).
     pub granted: String,
     /// Who signed in, from the ID token (its `email`, else `preferred_username`): only after a
@@ -175,8 +192,20 @@ fn token_request(p: &Provider, mut fields: Vec<(&str, String)>, extra_scope: &st
         granted: v.get("scope").and_then(Value::as_str).unwrap_or_default().to_string(),
         user: v.get("id_token").and_then(Value::as_str).and_then(id_token_user),
         // A minute early, so a token never runs out mid-command.
-        expires_at: Instant::now() + Duration::from_secs(expires - 60),
+        expires_at: now_unix().saturating_add(i64::try_from(expires - 60).unwrap_or(0)),
     })
+}
+
+/// The wall-clock time in Unix seconds.
+pub fn now_unix() -> i64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+}
+
+impl Tokens {
+    /// Whether the access token has run out (or is about to: see `expires_at`).
+    pub fn expired(&self) -> bool {
+        now_unix() >= self.expires_at
+    }
 }
 
 /// A fresh access token from a refresh token.
@@ -364,6 +393,9 @@ pub(crate) mod tests {
         assert_eq!((t.access.as_str(), t.refresh.as_deref()), ("good-token", Some("r1")));
         assert!(opened.contains("code_challenge_method=S256") && opened.contains("login_hint=zoe%40x.example"), "{opened}");
         let t = refresh(&p, "r1").unwrap();
+        // Expiry is wall-clock time (it goes on while the computer sleeps), a minute early.
+        assert!((now_unix() + 3500..=now_unix() + 3540).contains(&t.expires_at), "{}", t.expires_at);
+        assert!(!t.expired() && Tokens { expires_at: now_unix() - 1, ..t.clone() }.expired());
         assert_eq!((t.access.as_str(), t.refresh), ("fresh", None));
         assert!(matches!(refresh(&p, "revoked"), Err(NetError::Auth(m)) if m.contains("invalid_grant")));
         let seen = seen.join().unwrap();

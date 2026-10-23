@@ -230,6 +230,11 @@ impl<H: Http> Client<H> {
         &self.auth
     }
 
+    /// Carry a new OAuth access token from now on (the old one ran out).
+    pub fn set_bearer(&mut self, token: &str) {
+        self.auth = format!("Bearer {token}");
+    }
+
     /// The push address (RFC 8620 §7.3) for every type of change, when the server pushes.
     pub fn events_url(&self) -> Option<String> {
         self.events.as_ref().map(|t| expand(t, &[("types", "*"), ("closeafter", "no"), ("ping", "30")]))

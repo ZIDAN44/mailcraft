@@ -8,6 +8,7 @@ impl Worker {
             Job::SyncAll { .. } => {
                 if self.conn.is_none() {
                     self.auth_failed = false;
+                    self.token_retried = false;
                     self.next_attempt = Instant::now();
                     self.connect_and_sync();
                 }

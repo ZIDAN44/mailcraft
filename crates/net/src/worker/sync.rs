@@ -352,6 +352,8 @@ impl Worker {
         };
         match result {
             Ok(mut r) => {
+                // The token worked: a later refusal gets a fresh one again.
+                self.token_retried = false;
                 // The listing predates any queued edits: replay them locally (RFC 4549).
                 if self.reapply_waiting(path) {
                     r.changed += 1;
