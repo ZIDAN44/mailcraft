@@ -709,7 +709,7 @@ pub(crate) fn tests_store(name: &str) -> Store {
     store(name)
 }
 
-fn store(name: &str) -> Store {
+pub(crate) fn store(name: &str) -> Store {
     let dir = std::env::temp_dir().join(format!("mailcraft-fake-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     Store::open(dir).unwrap()
