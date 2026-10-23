@@ -379,6 +379,24 @@ fn html_colours_and_hidden_parts() {
     assert!(find("preheader").is_none(), "display:none stays hidden");
 }
 
+/// A style sheet that stops inside an attribute selector (found by `fuzz/`): html2text panicked
+/// inside its fence and the message lost its formatting; now it reads, and the rules before it
+/// still apply.
+#[test]
+fn a_style_sheet_cut_off_in_a_selector_still_reads() {
+    for html in
+        ["<style>[s=", "<style>.w{color:#cc0000}[s=</style><p class=w>styled</p>", "<style>.w{color:#cc0000}\n[s= </style><p class=w>styled</p>"]
+    {
+        assert!(
+            std::panic::catch_unwind(|| html2text::config::rich().use_doc_css().lines_from_read(close_css_rules(html).as_bytes(), 80)).is_ok(),
+            "{html}"
+        );
+    }
+    let rich = html_to_rich("<style>.w{color:#cc0000}[s=</style><p class=w>styled</p>");
+    let styled = rich.iter().flatten().find(|s| s.text.contains("styled"));
+    assert_eq!(styled.and_then(|s| s.color), Some([0xcc, 0, 0]), "{rich:?}");
+}
+
 #[test]
 fn helpers() {
     assert_eq!(sanitize_filename("..\\..\\a:b?.txt"), "a_b_.txt");

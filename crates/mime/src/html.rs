@@ -265,15 +265,19 @@ pub fn picture_attachment(p: &Parsed, src: &str) -> Option<usize> {
 }
 
 /// End every CSS declaration block in `<style>` elements with a `;` (the last declaration may
-/// lack one, which html2text's parser would otherwise skip with the whole rule).
+/// lack one, which html2text's parser would otherwise skip with the whole rule), and every
+/// `<style>` with an empty rule: html2text 0.17 panics on a style sheet that stops inside an
+/// attribute selector (`[s=`), which a cut-off or hostile message can end with.
 pub(super) fn close_css_rules(html: &str) -> String {
     let lower = html.to_ascii_lowercase();
     let mut out = String::with_capacity(html.len() + 64);
     let mut at = 0;
     while let Some(start) = lower.get(at..).and_then(|r| r.find("<style")).map(|i| i + at) {
-        let Some(end) = lower.get(start..).and_then(|r| r.find("</style")).map(|i| i + start) else { break };
+        // An unclosed `<style>` runs to the end of the document.
+        let end = lower.get(start..).and_then(|r| r.find("</style")).map_or(html.len(), |i| i + start);
         out.push_str(html.get(at..start).unwrap_or(""));
         out.push_str(&html.get(start..end).unwrap_or("").replace('}', ";}"));
+        out.push_str("\n*{}");
         at = end;
     }
     out.push_str(html.get(at..).unwrap_or(""));
