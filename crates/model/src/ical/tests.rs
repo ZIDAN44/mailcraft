@@ -120,6 +120,8 @@ fn an_events_links_and_the_one_that_joins_it() {
 
 use super::*;
 
+mod zones;
+
 fn at(y: i64, m: u32, d: u32, h: i64, mi: i64) -> i64 {
     days_from_civil(y, m, d) * 86_400 + h * 3600 + mi * 60
 }
@@ -244,7 +246,7 @@ fn writes_what_it_reads() {
     let cal = parse(INVITE, 0);
     let text = write(&cal.events, Some("REPLY"), at(2026, 10, 2, 9, 0));
     assert!(text.lines().all(|l| l.len() <= 76), "folded:\n{text}");
-    assert!(text.contains("DTSTART:20261015T120000Z\r\n"));
+    assert!(text.contains("DTSTART;TZID=Europe/Berlin:20261015T140000\r\n"), "in its zone:\n{text}");
     assert!(text.contains("SUMMARY:Storyboard review\\, scenes 4–7"));
     let back = parse(&text, 0);
     assert_eq!(back.method.as_deref(), Some("REPLY"));
@@ -330,7 +332,7 @@ fn nth_weekdays() {
 /// stored event keeps it when written again, an invitation is stamped when it's sent.
 #[test]
 fn the_stamp_of_an_invitation_is_kept() {
-    let text = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:s1\r\nDTSTAMP:20261020T080000Z\r\nSEQUENCE:3\r\n\
+    let text = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nPRODID:-//MailCraft tests//EN\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:s1\r\nDTSTAMP:20261020T080000Z\r\nSEQUENCE:3\r\n\
                 DTSTART:20261021T100000Z\r\nDTEND:20261021T110000Z\r\nX-OTHER:kept\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
     let e = parse(text, 0).events.remove(0);
     assert_eq!((e.sequence, e.dtstamp), (3, days_from_civil(2026, 10, 20) * 86_400 + 8 * 3600));

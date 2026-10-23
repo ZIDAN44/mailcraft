@@ -1,25 +1,61 @@
 //! Calendar arithmetic for the message list: date groups (Today, Yesterday, Last week…) and the
-//! short and long times shown for a message. Pure integer maths on Unix seconds plus the local UTC
-//! offset, so it works the same everywhere, wasm included.
+//! short and long times shown for a message. Pure integer maths on Unix seconds plus the local
+//! time zone (its offset on the date shown), so it works the same everywhere, wasm included.
 
 use serde::{Deserialize, Serialize};
+
+use crate::zone::Zone;
 
 /// "Now" and the local time zone, as the app reports them each frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Clock {
     /// Unix seconds, UTC.
     pub now: i64,
-    /// Local offset from UTC in seconds (east positive).
+    /// Local offset from UTC in seconds (east positive), now.
     pub offset: i32,
+    /// The local time zone, when known: then each time is shown with the offset in force on its
+    /// own date (summer or winter), not today's.
+    #[serde(skip)]
+    pub zone: Option<Zone>,
 }
 
 impl Clock {
     pub fn new(now: i64, offset: i32) -> Clock {
-        Clock { now, offset: offset.clamp(-14 * 3600, 14 * 3600) }
+        Clock { now, offset: offset.clamp(-14 * 3600, 14 * 3600), zone: None }
+    }
+
+    /// The same clock in a time zone.
+    pub fn in_zone(self, zone: Option<Zone>) -> Clock {
+        Clock { zone, ..self }
+    }
+
+    /// The local zone: the one known, else today's offset all year.
+    pub fn local_zone(&self) -> Zone {
+        self.zone.unwrap_or(Zone::Fixed(self.offset))
+    }
+
+    /// The local offset (seconds east of UTC) at the instant `t`.
+    pub fn offset_at(&self, t: i64) -> i64 {
+        self.local_zone().offset_at(t)
+    }
+
+    /// The local wall-clock time of the instant `t` (seconds since the epoch, as if UTC).
+    pub fn local(&self, t: i64) -> i64 {
+        t.saturating_add(self.offset_at(t))
+    }
+
+    /// The instant of a local wall-clock time.
+    pub fn utc(&self, local: i64) -> i64 {
+        self.local_zone().to_utc(local)
+    }
+
+    /// The instant a local day (days since the epoch) starts.
+    pub fn midnight(&self, day: i64) -> i64 {
+        self.utc(day.saturating_mul(86_400))
     }
 
     fn local_day(&self, t: i64) -> i64 {
-        t.saturating_add(i64::from(self.offset)).div_euclid(86_400)
+        self.local(t).div_euclid(86_400)
     }
 }
 
@@ -62,7 +98,7 @@ pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 
 /// Split a time into local calendar parts.
 pub fn civil(t: i64, clock: &Clock) -> Civil {
-    let local = t.saturating_add(i64::from(clock.offset));
+    let local = clock.local(t);
     let days = local.div_euclid(86_400);
     let secs = local.rem_euclid(86_400);
     let (year, month, day) = civil_from_days(days);
@@ -294,6 +330,24 @@ mod tests {
         let t = NOW - 12 * 3600 - 1800;
         assert_eq!(DateGroup::of(t, &Clock::new(NOW, 0)), DateGroup::Yesterday);
         assert_eq!(DateGroup::of(t, &Clock::new(NOW, 7200)), DateGroup::Today);
+    }
+
+    /// In a zone, each time is shown with the offset of its own date: a meeting at 09:00 in New
+    /// York reads 09:00 in January and in July, whichever season it is now.
+    #[test]
+    fn times_in_the_viewers_zone() {
+        let ny = Zone::named("America/New_York");
+        let clock = Clock::new(NOW, -4 * 3600).in_zone(ny);
+        let jan = days_from_civil(2026, 1, 5) * 86_400 + 14 * 3600;
+        let jul = days_from_civil(2026, 7, 6) * 86_400 + 13 * 3600;
+        assert_eq!((civil(jan, &clock).hour, civil(jul, &clock).hour), (9, 9));
+        assert_eq!(full_time(jan, &clock), "Mon 2026-01-05 09:00");
+        assert_eq!(clock.midnight(days_from_civil(2026, 1, 5)), days_from_civil(2026, 1, 5) * 86_400 + 5 * 3600);
+        assert_eq!(clock.midnight(days_from_civil(2026, 7, 6)), days_from_civil(2026, 7, 6) * 86_400 + 4 * 3600);
+        // Without a zone, today's offset all year (as before).
+        let fixed = Clock::new(NOW, -4 * 3600);
+        assert_eq!((civil(jan, &fixed).hour, civil(jul, &fixed).hour), (10, 9));
+        assert_eq!(fixed.local_zone(), Zone::Fixed(-4 * 3600));
     }
 
     #[test]

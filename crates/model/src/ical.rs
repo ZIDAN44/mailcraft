@@ -1,26 +1,33 @@
 //! iCalendar (RFC 5545) events: reading, writing and expanding recurrences.
 //!
 //! Reading is lenient (mail and servers produce all sorts): lines are unfolded, unknown
-//! properties are kept verbatim so an edited event loses nothing, and times in a named zone are
-//! converted with the file's own `VTIMEZONE` rules (standard and daylight offsets with yearly
-//! transition rules), else read as local ("floating") time. Writing uses UTC for timed events and
-//! `VALUE=DATE` for all-day ones, folding lines at 75 octets.
+//! properties are kept verbatim so an edited event loses nothing. A time in a named zone is read
+//! in it (the IANA database's when it knows the name, Windows' names included, else the file's
+//! own `VTIMEZONE`), and the event keeps its zone (`TZID`, and the definition when only the file
+//! had one); floating times are the viewer's. Writing puts a timed event in its zone, with the
+//! zone's `VTIMEZONE`, else in UTC, and `VALUE=DATE` for all-day ones, folding lines at 75 octets.
 //!
 //! Recurrence (`RRULE`) covers what calendars use day to day: daily, weekly, monthly and yearly
 //! with `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` (with ordinals for monthly and yearly rules),
-//! `BYMONTHDAY` and `BYMONTH`; `EXDATE` removes occurrences and `RECURRENCE-ID` instances replace
-//! them. Expansion is capped.
+//! `BYMONTHDAY`, `BYMONTH` and `BYSETPOS`. A series repeats at its wall-clock time in its zone
+//! (each occurrence turned into UTC on its own date, so summer time doesn't move it), on that
+//! zone's days; `EXDATE` removes occurrences and `RECURRENCE-ID` instances replace them, both
+//! matched as instants. Expansion is capped.
 
 use serde::{Deserialize, Serialize};
 
 use crate::dates::{civil_from_days, days_from_civil};
 
+mod alarms;
 mod notes;
 mod recurrence;
+mod zones;
+pub use alarms::*;
 use notes::*;
 pub use notes::*;
 use recurrence::*;
 pub use recurrence::*;
+use zones::*;
 
 /// The most occurrences produced for one event in one expansion.
 const MAX_OCCURRENCES: usize = 2000;
@@ -59,6 +66,13 @@ pub struct CalEvent {
     pub end: i64,
     #[serde(default)]
     pub all_day: bool,
+    /// The time zone its times were written in (`TZID`, as written; empty: UTC, or an all-day
+    /// event). A recurring event repeats at the same wall-clock time there, summer or winter.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub tzid: String,
+    /// That zone as the file defined it (its `VTIMEZONE` lines), written back with the event.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vtimezone: Vec<String>,
     /// The recurrence rule, as written (`FREQ=WEEKLY;BYDAY=MO,WE`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rrule: Option<String>,
@@ -258,90 +272,6 @@ pub fn escape(v: &str) -> String {
     v.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace("\r\n", "\\n").replace(['\n', '\r'], "\\n")
 }
 
-/// A time zone from a `VTIMEZONE`: its standard and daylight offsets and when each starts.
-#[derive(Clone, Debug, Default)]
-struct Zone {
-    id: String,
-    /// (offset seconds, yearly rule start month, BYDAY ordinal/weekday, local seconds into day, fixed start)
-    parts: Vec<ZonePart>,
-}
-
-#[derive(Clone, Debug)]
-struct ZonePart {
-    offset: i64,
-    /// `None`: a one-off transition at `since` (local); `Some`: every year in this month, on this
-    /// nth weekday (`-1` last), at `time` local seconds.
-    yearly: Option<(u32, i32, u32)>,
-    time: i64,
-    since: i64,
-}
-
-impl Zone {
-    /// The offset in force at a local time.
-    fn offset_at(&self, local: i64) -> i64 {
-        // The latest transition at or before `local` (comparing in local time is close enough).
-        let mut best: Option<(i64, i64)> = None;
-        for p in &self.parts {
-            let candidates: Vec<i64> = match p.yearly {
-                Some((month, nth, wd)) => {
-                    let (y, _, _) = civil_from_days(local.div_euclid(86_400));
-                    [y - 1, y]
-                        .iter()
-                        .filter_map(|&yy| nth_weekday(yy, month, nth, wd).map(|d| d * 86_400 + p.time))
-                        .filter(|t| *t >= p.since)
-                        .collect()
-                }
-                None => vec![p.since],
-            };
-            for t in candidates.into_iter().filter(|t| *t <= local) {
-                if best.is_none_or(|(bt, _)| t > bt) {
-                    best = Some((t, p.offset));
-                }
-            }
-        }
-        best.map(|(_, o)| o).or_else(|| self.parts.first().map(|p| p.offset)).unwrap_or(0)
-    }
-}
-
-/// Days since the epoch of the `nth` (1-based; negative from the end) `weekday` (0 Monday) of a
-/// month.
-fn nth_weekday(year: i64, month: u32, nth: i32, weekday: u32) -> Option<i64> {
-    if !(1..=12).contains(&month) || nth == 0 {
-        return None;
-    }
-    let first = days_from_civil(year, month, 1);
-    let next = if month == 12 { days_from_civil(year + 1, 1, 1) } else { days_from_civil(year, month + 1, 1) };
-    let wd = |d: i64| (d + 3).rem_euclid(7) as u32;
-    if nth > 0 {
-        let offset = (i64::from(weekday) - i64::from(wd(first))).rem_euclid(7);
-        let d = first + offset + 7 * i64::from(nth - 1);
-        (d < next).then_some(d)
-    } else {
-        let last = next - 1;
-        let offset = (i64::from(wd(last)) - i64::from(weekday)).rem_euclid(7);
-        let d = last - offset - 7 * i64::from(-nth - 1);
-        (d >= first).then_some(d)
-    }
-}
-
-fn weekday_code(s: &str) -> Option<u32> {
-    ["MO", "TU", "WE", "TH", "FR", "SA", "SU"].iter().position(|w| s.eq_ignore_ascii_case(w)).and_then(|p| u32::try_from(p).ok())
-}
-
-/// `+0100`, `-0530` → seconds.
-fn utc_offset(s: &str) -> Option<i64> {
-    let s = s.trim();
-    let sign = match s.get(..1)? {
-        "+" => 1,
-        "-" => -1,
-        _ => return None,
-    };
-    let h: i64 = s.get(1..3)?.parse().ok()?;
-    let m: i64 = s.get(3..5)?.parse().ok()?;
-    let sec: i64 = s.get(5..7).and_then(|x| x.parse().ok()).unwrap_or(0);
-    (h <= 18 && m < 60).then_some(sign * (h * 3600 + m * 60 + sec))
-}
-
 /// `YYYYMMDD` → days since the epoch.
 fn date_days(s: &str) -> Option<i64> {
     let y: i64 = s.get(0..4)?.parse().ok()?;
@@ -397,80 +327,6 @@ pub fn duration(v: &str) -> Option<i64> {
     num.is_empty().then_some(sign * total)
 }
 
-/// The longest reminder taken (four weeks before), as Outlook's own list goes.
-pub const REMINDER_MAX_MINUTES: i64 = 4 * 7 * 24 * 60;
-
-/// An event's reminder, in minutes before it starts, from its first alarm (`VALARM`) with a
-/// trigger relative to the start (`TRIGGER:-PT15M`, `TRIGGER;RELATED=START:-P1D`) or at a set
-/// time (`TRIGGER;VALUE=DATE-TIME:…Z`). `None`: no reminder. A trigger after the start counts as
-/// "at the start".
-pub fn reminder_minutes(e: &CalEvent) -> Option<i64> {
-    let mut in_alarm = false;
-    for raw in e.extra.iter().take(400) {
-        let line = raw.trim();
-        let upper = line.to_ascii_uppercase();
-        if upper == "BEGIN:VALARM" {
-            in_alarm = true;
-            continue;
-        }
-        if upper == "END:VALARM" {
-            in_alarm = false;
-            continue;
-        }
-        if !in_alarm || !upper.starts_with("TRIGGER") {
-            continue;
-        }
-        let Some((params, value)) = line.split_once(':') else { continue };
-        let params = params.to_ascii_uppercase();
-        if params.contains("RELATED=END") {
-            continue;
-        }
-        // One that can't be read is passed over for the next.
-        let before = if params.contains("VALUE=DATE-TIME") {
-            let Some((t, _, _)) = date_time(value) else { continue };
-            e.start.saturating_sub(t)
-        } else {
-            let Some(d) = duration(value) else { continue };
-            d.saturating_neg()
-        };
-        return Some((before / 60).clamp(0, REMINDER_MAX_MINUTES));
-    }
-    None
-}
-
-/// Give an event one display alarm `minutes` before it starts, in place of any it had, or none
-/// (`None`).
-pub fn set_reminder(e: &mut CalEvent, minutes: Option<i64>) {
-    // Every alarm goes, nested lines included.
-    let mut kept = Vec::with_capacity(e.extra.len());
-    let mut depth = 0usize;
-    for raw in std::mem::take(&mut e.extra) {
-        let upper = raw.trim().to_ascii_uppercase();
-        if upper == "BEGIN:VALARM" {
-            depth += 1;
-            continue;
-        }
-        if depth > 0 {
-            if upper == "END:VALARM" {
-                depth -= 1;
-            }
-            continue;
-        }
-        kept.push(raw);
-    }
-    e.extra = kept;
-    if let Some(m) = minutes {
-        let m = m.clamp(0, REMINDER_MAX_MINUTES);
-        e.extra.extend([
-            "BEGIN:VALARM".to_string(),
-            "ACTION:DISPLAY".to_string(),
-            "DESCRIPTION:Reminder".to_string(),
-            format!("TRIGGER:-PT{m}M"),
-            "END:VALARM".to_string(),
-        ]);
-    }
-}
-
 /// Read a mailbox (`mailto:a@b`) and its name.
 fn person(l: &Line) -> Attendee {
     let v = l.value.trim();
@@ -483,86 +339,23 @@ fn person(l: &Line) -> Attendee {
     }
 }
 
-/// Read a calendar file. `local_offset` (seconds east of UTC) places floating times.
+/// Read a calendar file. `local_offset` (seconds east of UTC) places floating times; better,
+/// [`parse_in`] the viewer's zone.
 pub fn parse(text: &str, local_offset: i64) -> ICalendar {
+    let off = i32::try_from(local_offset.clamp(-14 * 3600, 14 * 3600)).unwrap_or(0);
+    parse_in(text, crate::zone::Zone::Fixed(off))
+}
+
+/// Read a calendar file. Times in a named zone are read in it (the IANA database's when it knows
+/// the name, else the file's `VTIMEZONE`), and the event keeps the zone; floating times, and
+/// zones nobody defines, are in `local` (the viewer's).
+pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
     let all = lines(text);
     let mut cal = ICalendar::default();
     // Zones first: events can come before the zones they use.
-    let mut zones: Vec<Zone> = Vec::new();
-    let mut stack: Vec<String> = Vec::new();
-    let mut zone: Option<Zone> = None;
-    let mut part: Option<ZonePart> = None;
-    for l in &all {
-        match (l.name.as_str(), stack.last().map(String::as_str)) {
-            ("BEGIN", _) => {
-                let what = l.value.trim().to_ascii_uppercase();
-                if what == "VTIMEZONE" {
-                    zone = Some(Zone::default());
-                } else if (what == "STANDARD" || what == "DAYLIGHT") && zone.is_some() {
-                    part = Some(ZonePart { offset: 0, yearly: None, time: 0, since: i64::MIN });
-                }
-                stack.push(what);
-                if stack.len() > 16 {
-                    return cal;
-                }
-            }
-            ("END", _) => {
-                let what = stack.pop().unwrap_or_default();
-                if what == "VTIMEZONE" {
-                    zones.extend(zone.take());
-                } else if (what == "STANDARD" || what == "DAYLIGHT")
-                    && let (Some(p), Some(z)) = (part.take(), zone.as_mut())
-                {
-                    z.parts.push(p);
-                }
-            }
-            ("TZID", Some("VTIMEZONE")) => {
-                if let Some(z) = zone.as_mut() {
-                    z.id = l.value.trim().to_string();
-                }
-            }
-            ("TZOFFSETTO", Some("STANDARD" | "DAYLIGHT")) => {
-                if let (Some(p), Some(o)) = (part.as_mut(), utc_offset(&l.value)) {
-                    p.offset = o;
-                }
-            }
-            ("DTSTART", Some("STANDARD" | "DAYLIGHT")) => {
-                if let (Some(p), Some((t, _, _))) = (part.as_mut(), date_time(&l.value)) {
-                    p.since = t;
-                    p.time = t.rem_euclid(86_400);
-                }
-            }
-            ("RRULE", Some("STANDARD" | "DAYLIGHT")) => {
-                if let Some(p) = part.as_mut() {
-                    let r = Rule::parse(&l.value);
-                    if let (Some(m), Some((nth, wd))) = (r.by_month.first(), r.by_day.first()) {
-                        p.yearly = Some((*m, if *nth == 0 { 1 } else { *nth }, *wd));
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    let to_utc = |l: &Line| -> Option<(i64, bool)> {
-        let (t, all_day, utc) = date_time(&l.value)?;
-        if all_day || l.param("VALUE").is_some_and(|v| v.eq_ignore_ascii_case("DATE")) {
-            return Some((t - t.rem_euclid(86_400), true));
-        }
-        if utc {
-            return Some((t, false));
-        }
-        let off = match l.param("TZID").map(|z| z.trim_matches('"')) {
-            Some(id) => match zones.iter().find(|z| z.id == id) {
-                Some(z) => z.offset_at(t),
-                // A zone named but not given (common for UTC and Olson names).
-                None if id.eq_ignore_ascii_case("UTC") || id.eq_ignore_ascii_case("Etc/UTC") || id.eq_ignore_ascii_case("GMT") => 0,
-                None => local_offset,
-            },
-            None => local_offset,
-        };
-        Some((t - off, false))
-    };
-
+    let zones = FileZones::read(&all, local);
+    // An exception's times wait for the event's zone (DTSTART may come after them).
+    let mut pending: Vec<&Line> = Vec::new();
     let mut ev: Option<(CalEvent, Option<i64>)> = None;
     let mut depth_in_event = 0usize;
     for l in &all {
@@ -572,6 +365,7 @@ pub fn parse(text: &str, local_offset: i64) -> ICalendar {
             if what == "VEVENT" && ev.is_none() {
                 ev = Some((CalEvent::default(), None));
                 depth_in_event = 0;
+                pending.clear();
                 continue;
             }
             if ev.is_some() {
@@ -594,6 +388,20 @@ pub fn parse(text: &str, local_offset: i64) -> ICalendar {
             if l.value.trim().eq_ignore_ascii_case("VEVENT")
                 && let Some((mut e, dur)) = ev.take()
             {
+                for x in pending.drain(..) {
+                    if x.name == "RECURRENCE-ID" {
+                        e.recurrence_id = zones.time(x, &e.tzid).map(|(t, _, _)| t);
+                        continue;
+                    }
+                    for v in x.value.split(',') {
+                        let one = Line { value: v.to_string(), ..x.clone() };
+                        if let Some((t, _, _)) = zones.time(&one, &e.tzid)
+                            && e.exdates.len() < 1000
+                        {
+                            e.exdates.push(t);
+                        }
+                    }
+                }
                 if e.end <= e.start {
                     e.end = match dur {
                         Some(d) => e.start.saturating_add(d.max(0)),
@@ -632,36 +440,32 @@ pub fn parse(text: &str, local_offset: i64) -> ICalendar {
             "STATUS" => e.status = l.value.trim().to_ascii_uppercase(),
             "SEQUENCE" => e.sequence = l.value.trim().parse().unwrap_or(0),
             "DTSTART" => {
-                if let Some((t, all_day)) = to_utc(l) {
+                if let Some((t, all_day, tzid)) = zones.time(l, "") {
                     e.start = t;
                     e.all_day = all_day;
+                    e.vtimezone = zones.definition(&tzid);
+                    e.tzid = tzid;
                 }
             }
             "DTEND" => {
-                if let Some((t, _)) = to_utc(l) {
+                if let Some((t, _, _)) = zones.time(l, "") {
                     e.end = t;
                 }
             }
             "DURATION" => *dur = duration(&l.value),
             "RRULE" => e.rrule = Some(l.value.trim().to_string()),
-            "EXDATE" => {
-                for v in l.value.split(',') {
-                    let one = Line { value: v.to_string(), ..l.clone() };
-                    if let Some((t, _)) = to_utc(&one)
-                        && e.exdates.len() < 1000
-                    {
-                        e.exdates.push(t);
-                    }
+            "EXDATE" | "RECURRENCE-ID" => {
+                if pending.len() < 1000 {
+                    pending.push(l);
                 }
             }
-            "RECURRENCE-ID" => e.recurrence_id = to_utc(l).map(|(t, _)| t),
             "ORGANIZER" => e.organizer = Some(person(l)),
             "ATTENDEE" => {
                 if e.attendees.len() < 500 {
                     e.attendees.push(person(l));
                 }
             }
-            "DTSTAMP" => e.dtstamp = to_utc(l).map_or(0, |(t, _)| t),
+            "DTSTAMP" => e.dtstamp = zones.time(l, "").map_or(0, |(t, _, _)| t),
             "CREATED" | "LAST-MODIFIED" => {}
             _ => {
                 if e.extra.len() < 200 {
@@ -719,21 +523,27 @@ fn mailbox(prop: &str, a: &Attendee) -> String {
 /// One `VEVENT`, folded; `now` is its `DTSTAMP`.
 pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
     let mut lines: Vec<String> = vec!["BEGIN:VEVENT".into(), format!("UID:{}", e.uid.replace(['\r', '\n'], "")), format!("DTSTAMP:{}", stamp(now))];
+    // Timed events in a zone are written in it (repeating at its wall-clock time); others in UTC.
+    let zone = zone_of(e);
+    let when = |prop: &str, t: i64| match &zone {
+        Some(z) => format!("{prop};TZID={}:{}", tzid_param(&e.tzid), local_stamp(z.local(t))),
+        None => format!("{prop}:{}", stamp(t)),
+    };
     if e.all_day {
         lines.push(format!("DTSTART;VALUE=DATE:{}", day(e.start)));
         lines.push(format!("DTEND;VALUE=DATE:{}", day(e.end.max(e.start + 86_400))));
     } else {
-        lines.push(format!("DTSTART:{}", stamp(e.start)));
-        lines.push(format!("DTEND:{}", stamp(e.end.max(e.start))));
+        lines.push(when("DTSTART", e.start));
+        lines.push(when("DTEND", e.end.max(e.start)));
     }
     if let Some(r) = e.recurrence_id {
-        lines.push(if e.all_day { format!("RECURRENCE-ID;VALUE=DATE:{}", day(r)) } else { format!("RECURRENCE-ID:{}", stamp(r)) });
+        lines.push(if e.all_day { format!("RECURRENCE-ID;VALUE=DATE:{}", day(r)) } else { when("RECURRENCE-ID", r) });
     }
     if let Some(r) = &e.rrule {
         lines.push(format!("RRULE:{}", r.replace(['\r', '\n'], "")));
     }
     for x in &e.exdates {
-        lines.push(if e.all_day { format!("EXDATE;VALUE=DATE:{}", day(*x)) } else { format!("EXDATE:{}", stamp(*x)) });
+        lines.push(if e.all_day { format!("EXDATE;VALUE=DATE:{}", day(*x)) } else { when("EXDATE", *x) });
     }
     if !e.summary.is_empty() {
         lines.push(format!("SUMMARY:{}", escape(&e.summary)));
@@ -776,6 +586,26 @@ pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
     }
     if let Some(m) = method {
         fold(&format!("METHOD:{}", m.replace(|c: char| !c.is_ascii_alphabetic(), "")), &mut out);
+    }
+    // Each zone the events are in, once: as the file that brought it defined it, else as the
+    // database has it in the year of its first event.
+    let mut written: Vec<&str> = Vec::new();
+    for e in events {
+        if written.contains(&e.tzid.as_str()) || written.len() >= 50 {
+            continue;
+        }
+        let definition = match zone_of(e) {
+            Some(EventZone::Db(z)) if e.vtimezone.is_empty() => {
+                let first = events.iter().filter(|x| x.tzid == e.tzid).map(|x| x.start).min().unwrap_or(e.start);
+                zone_definition(&e.tzid, z, civil_from_days(first.div_euclid(86_400)).0)
+            }
+            Some(_) => e.vtimezone.clone(),
+            None => continue,
+        };
+        written.push(&e.tzid);
+        for l in definition {
+            fold(&l.replace(['\r', '\n'], ""), &mut out);
+        }
     }
     for e in events {
         let stamp = if method.is_none() && e.dtstamp > 0 { e.dtstamp } else { now };

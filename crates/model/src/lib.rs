@@ -18,6 +18,7 @@ pub mod search;
 pub mod thread;
 pub mod utf7;
 pub mod vcard;
+pub mod zone;
 
 use serde::{Deserialize, Serialize};
 

@@ -184,9 +184,8 @@ impl SnoozeUntil {
 
     /// When, in Unix seconds, for a user at `clock` (local time).
     pub fn at(self, clock: &Clock) -> i64 {
-        let local = clock.now + i64::from(clock.offset);
-        let day = local.div_euclid(86_400);
-        let morning = |d: i64| d * 86_400 + 8 * 3600 - i64::from(clock.offset);
+        let day = clock.local(clock.now).div_euclid(86_400);
+        let morning = |d: i64| clock.utc(d * 86_400 + 8 * 3600);
         // 1970-01-01 was a Thursday: 0 = Monday … 6 = Sunday.
         let weekday = (day + 3).rem_euclid(7);
         match self {
