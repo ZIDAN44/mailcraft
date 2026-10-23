@@ -12,6 +12,7 @@ pub mod contacts;
 pub mod dates;
 pub mod ical;
 pub mod job;
+pub mod mailto;
 pub mod organize;
 pub mod pim;
 pub mod search;
