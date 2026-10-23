@@ -79,9 +79,10 @@ impl NetError {
         matches!(self, NetError::Io(_) | NetError::Tls(_) | NetError::Closed(_) | NetError::Protocol(_))
     }
 
-    /// Whether sending may work later (keep the message in the Outbox rather than give up).
+    /// Whether sending may work later (keep the message in the Outbox rather than give up): a
+    /// refused sign-in is the account's problem, not the message's, and clears once signed in.
     pub fn is_retryable(&self) -> bool {
-        self.is_fatal() || matches!(self, NetError::Later(_))
+        self.is_fatal() || matches!(self, NetError::Later(_) | NetError::Auth(_))
     }
 }
 

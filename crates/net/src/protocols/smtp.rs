@@ -44,8 +44,8 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
     transport.send_raw(&envelope, raw).map_err(|e| {
         let msg = e.to_string();
         if e.is_permanent() {
-            // 5xx: refused for good (a bad recipient, a message too large, a wrong password).
-            if msg.contains("535") || msg.to_ascii_lowercase().contains("auth") { NetError::Auth(msg) } else { NetError::Smtp(msg) }
+            let code = e.status().and_then(|c| c.to_string().parse::<u16>().ok()).unwrap_or(550);
+            refusal(code, &msg, recipients)
         } else if e.is_transient() {
             // 4xx: the server asks to try again later.
             NetError::Later(msg)
@@ -55,6 +55,25 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
         }
     })?;
     Ok(())
+}
+
+/// What a 5xx reply means, by its code (RFC 4954 §6, RFC 3463), never by words in its text
+/// ("553 5.7.1 sender not owned by authenticated user" is a refusal of the message):
+/// - 530 / 534 / 535 / 538, or the enhanced codes 5.7.8 (bad credentials) and 5.7.9 (mechanism
+///   too weak): the sign-in was refused. Not the message's fault: it waits for a new sign-in.
+/// - anything else (550/551/552/553/554 on MAIL, RCPT or DATA): this message is refused for good,
+///   naming the recipients the server's text names.
+fn refusal(code: u16, msg: &str, recipients: &[String]) -> NetError {
+    // Enhanced status codes stand alone in the text, maybe wrapped in `( )` or followed by `:`.
+    let says = |status: &str| msg.split(|c: char| c.is_whitespace() || ":()".contains(c)).any(|token| token == status);
+    let sign_in_code = matches!(code, 530 | 534 | 535 | 538);
+    if sign_in_code || says("5.7.8") || says("5.7.9") {
+        return NetError::Auth(msg.to_string());
+    }
+    let lower = msg.to_ascii_lowercase();
+    let named: Vec<String> =
+        recipients.iter().map(|r| r.trim().to_ascii_lowercase()).filter(|r| !r.is_empty() && lower.contains(r.as_str())).collect();
+    if named.is_empty() { NetError::Smtp(msg.to_string()) } else { NetError::Smtp(format!("{} refused: {msg}", named.join(", "))) }
 }
 
 #[cfg(test)]
@@ -118,6 +137,75 @@ pub(crate) mod tests {
         assert!(log.contains("MAIL FROM:<z@x.example>"), "{log}");
         assert!(log.contains("RCPT TO:<a@y.example>") && log.contains("RCPT TO:<b@y.example>"));
         assert!(log.contains("Subject: hi"));
+    }
+
+    /// A refusal is classified by its reply code, not by the word "auth" in its text.
+    #[test]
+    fn refusals_are_classified_by_code() {
+        let to = ["bob@y.example".to_string(), "ann@y.example".to_string()];
+        let class = |code: u16, text: &str| refusal(code, text, &to);
+        // Sign-in refusals: kept for after signing in again, not refused for good.
+        for (code, text) in [
+            (535, "5.7.8 Username and Password not accepted"),
+            (534, "5.7.9 Please log in with your web browser"),
+            (530, "5.7.0 Authentication required"),
+            (550, "5.7.8 authentication credentials invalid"),
+        ] {
+            let e = class(code, text);
+            assert!(matches!(e, NetError::Auth(_)), "{code} {text}: {e:?}");
+            assert!(e.is_retryable(), "{code}: kept in the Outbox");
+        }
+        // The message refused for good.
+        for (code, text) in [
+            (553, "5.7.1 sender not owned by authenticated user"),
+            (554, "5.7.1 relay access denied: authentication needed for relaying elsewhere"),
+            (552, "5.3.4 message too big"),
+        ] {
+            let e = class(code, text);
+            assert!(matches!(e, NetError::Smtp(_)), "{code} {text}: {e:?}");
+            assert!(!e.is_retryable());
+        }
+        // The refused recipient is named when the server says which.
+        let e = class(550, "5.1.1 <Ann@y.example>: Recipient address rejected: User unknown");
+        assert!(matches!(&e, NetError::Smtp(m) if m.contains("ann@y.example") && !m.contains("bob@")), "{e:?}");
+    }
+
+    /// Plays a scripted SMTP server for one connection on a free local port: greets, then answers
+    /// each command line (upper-cased, line end removed) with what `script` returns, until QUIT.
+    fn scripted(script: fn(&str) -> &'static str) -> u16 {
+        let socket = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = socket.local_addr().unwrap();
+        let play = move || {
+            let Ok((sock, _)) = socket.accept() else { return };
+            let mut out = sock.try_clone().unwrap();
+            let _ = out.write_all(b"220 scripted.test ready\r\n");
+            for command in BufReader::new(sock).lines().map_while(std::result::Result::ok) {
+                let command = command.to_ascii_uppercase();
+                let _ = out.write_all(script(&command).as_bytes());
+                if command == "QUIT" {
+                    break;
+                }
+            }
+        };
+        std::thread::spawn(play);
+        address.port()
+    }
+
+    /// End to end: the server turns the sender away at MAIL FROM with a 553, which refuses this
+    /// message; it isn't taken for a failed sign-in.
+    #[test]
+    fn a_refused_sender_is_not_a_sign_in_failure() {
+        let port = scripted(|command| match command.split(' ').next().unwrap_or_default() {
+            "EHLO" => "250-scripted.test\r\n250 AUTH PLAIN\r\n",
+            "AUTH" => "235 2.7.0 welcome\r\n",
+            "MAIL" => "553 5.7.1 <z@x.example>: the authenticated account may not send as this address\r\n",
+            "QUIT" => "221 2.0.0 closing\r\n",
+            _ => "250 2.0.0 fine\r\n",
+        });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        let message = b"Subject: refused\r\n\r\nnot delivered\r\n";
+        let e = send(&server, "z@x.example", "pw", "z@x.example", &["a@y.example".into()], message).unwrap_err();
+        assert!(matches!(e, NetError::Smtp(_)), "{e:?}");
     }
 
     #[test]
