@@ -325,3 +325,20 @@ fn nth_weekdays() {
     assert_eq!(nth_weekday(2026, 2, 5, 0), None, "no fifth Monday in February 2026");
     assert_eq!(month_day(2026, 2, -1), Some(days_from_civil(2026, 2, 28)));
 }
+
+/// An invitation's `DTSTAMP` is read (it tells two versions with the same `SEQUENCE` apart); a
+/// stored event keeps it when written again, an invitation is stamped when it's sent.
+#[test]
+fn the_stamp_of_an_invitation_is_kept() {
+    let text = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:s1\r\nDTSTAMP:20261020T080000Z\r\nSEQUENCE:3\r\n\
+                DTSTART:20261021T100000Z\r\nDTEND:20261021T110000Z\r\nX-OTHER:kept\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let e = parse(text, 0).events.remove(0);
+    assert_eq!((e.sequence, e.dtstamp), (3, days_from_civil(2026, 10, 20) * 86_400 + 8 * 3600));
+    assert_eq!(e.extra, ["X-OTHER:kept"], "unknown properties still round-trip; DTSTAMP is read");
+    let stored = write(std::slice::from_ref(&e), None, 1_900_000_000);
+    assert_eq!(parse(&stored, 0).events[0], e, "a stored event keeps its stamp");
+    let sent = write(std::slice::from_ref(&e), Some("REQUEST"), 1_900_000_000);
+    assert_eq!(parse(&sent, 0).events[0].dtstamp, 1_900_000_000, "an invitation is stamped when sent");
+    let fresh = CalEvent { dtstamp: 0, ..e };
+    assert_eq!(parse(&write(&[fresh], None, 1_900_000_000), 0).events[0].dtstamp, 1_900_000_000);
+}

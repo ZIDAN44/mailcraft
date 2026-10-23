@@ -76,6 +76,10 @@ pub struct CalEvent {
     pub status: String,
     #[serde(default)]
     pub sequence: u32,
+    /// When the organizer wrote this version (`DTSTAMP`, Unix seconds; 0: not known): of two
+    /// invitations with the same `sequence`, the later one counts.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub dtstamp: i64,
     /// Its categories (`CATEGORIES`), which colour it in the calendar as Outlook colours them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
@@ -86,6 +90,10 @@ pub struct CalEvent {
     /// Graph's `onlineMeeting.joinUrl`); otherwise found in its notes ([`CalEvent::join_link`]).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub join_url: String,
+}
+
+fn is_zero(n: &i64) -> bool {
+    *n == 0
 }
 
 impl CalEvent {
@@ -653,7 +661,8 @@ pub fn parse(text: &str, local_offset: i64) -> ICalendar {
                     e.attendees.push(person(l));
                 }
             }
-            "DTSTAMP" | "CREATED" | "LAST-MODIFIED" => {}
+            "DTSTAMP" => e.dtstamp = to_utc(l).map_or(0, |(t, _)| t),
+            "CREATED" | "LAST-MODIFIED" => {}
             _ => {
                 if e.extra.len() < 200 {
                     e.extra.push(l.raw.clone());
@@ -707,7 +716,7 @@ fn mailbox(prop: &str, a: &Attendee) -> String {
     s
 }
 
-/// One `VEVENT`, folded.
+/// One `VEVENT`, folded; `now` is its `DTSTAMP`.
 pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
     let mut lines: Vec<String> = vec!["BEGIN:VEVENT".into(), format!("UID:{}", e.uid.replace(['\r', '\n'], "")), format!("DTSTAMP:{}", stamp(now))];
     if e.all_day {
@@ -758,6 +767,8 @@ pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
 }
 
 /// A calendar file with these events (`method` for invitations: `REQUEST`, `REPLY`, `CANCEL`).
+/// An invitation is stamped `now`; a stored event keeps the stamp it came with, so the copy on a
+/// server still tells which invitation it was.
 pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
     let mut out = String::new();
     for l in ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MailCraft//MailCraft//EN", "CALSCALE:GREGORIAN"] {
@@ -767,7 +778,8 @@ pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
         fold(&format!("METHOD:{}", m.replace(|c: char| !c.is_ascii_alphabetic(), "")), &mut out);
     }
     for e in events {
-        write_event(e, now, &mut out);
+        let stamp = if method.is_none() && e.dtstamp > 0 { e.dtstamp } else { now };
+        write_event(e, stamp, &mut out);
     }
     fold("END:VCALENDAR", &mut out);
     out
