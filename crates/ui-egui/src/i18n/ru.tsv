@@ -1016,3 +1016,9 @@ month	May	Май
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	Это обновление отправил не организатор встречи, поэтому оно не может изменить ваш календарь.
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	Этот ответ отправил не тот гость, от имени которого он написан, поэтому его нельзя учесть.
 	This invitation is out of date: your calendar has a newer version.	Это приглашение устарело: в вашем календаре есть более новая версия.
+	Left out because they couldn't be read: {n}	Пропущено, так как не удалось прочитать: {n}
+	Added to your calendar from {file}: {n}	Добавлено в календарь из {file}: {n}
+	Added to your contacts from {file}: {n}	Добавлено в контакты из {file}: {n}
+	Add an account first: a new message needs an account to send from.	Сначала добавьте учётную запись: новому письму нужна учётная запись для отправки.
+	Add an account first: events and people are kept with an account.	Сначала добавьте учётную запись: события и люди хранятся в учётной записи.
+	Couldn't open {file}: {error}	Не удалось открыть {file}: {error}

@@ -463,6 +463,47 @@ impl MailApp {
         }
     }
 
+    /// A `mailto:` link or a mail file the system handed MailCraft (as its mail app, or through
+    /// Open with): a new message to write, the message shown, or the events or people added and
+    /// shown. Nothing is sent and nothing is attached.
+    pub fn open_handed(&mut self, what: &str) {
+        use mailcraft_engine::CmdError;
+        let mailto = mailcraft_engine::model::mailto::is_mailto(what);
+        let r = if mailto { self.session.run("mail.mailto", &json!({"url": what})) } else { self.session.run("file.open", &json!({"path": what})) };
+        let name = what.rsplit(['/', '\\']).next().unwrap_or(what).to_string();
+        // How many the answer says were added or left out (none when it doesn't say).
+        let tally = |answer: &Value, field: &str| answer[field].as_u64().unwrap_or(0);
+        match r {
+            Ok(_) if mailto => self.ui.backstage = None,
+            Ok(v) => {
+                self.ui.backstage = None;
+                let left_out = tally(&v, "skipped");
+                let left_out =
+                    if left_out > 0 { format!(" {}", tf!("Left out because they couldn't be read: {n}", n = left_out)) } else { String::new() };
+                match v.get("kind").and_then(Value::as_str) {
+                    Some("calendar") => {
+                        self.run("view.calendar", json!({}));
+                        let added = tf!("Added to your calendar from {file}: {n}", file = name, n = tally(&v, "added"));
+                        self.session.notice(format!("{added}{left_out}"), false);
+                    }
+                    Some("contacts") => {
+                        self.run("view.people", json!({}));
+                        let added = tf!("Added to your contacts from {file}: {n}", file = name, n = tally(&v, "added"));
+                        self.session.notice(format!("{added}{left_out}"), false);
+                    }
+                    _ => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
+                }
+            }
+            Err(CmdError::Disabled(_)) if mailto => {
+                self.session.notice(tl!("Add an account first: a new message needs an account to send from.").to_string(), true)
+            }
+            Err(CmdError::Disabled(_)) => {
+                self.session.notice(tl!("Add an account first: events and people are kept with an account.").to_string(), true)
+            }
+            Err(e) => self.session.notice(tf!("Couldn't open {file}: {error}", file = name, error = e.to_string()), true),
+        }
+    }
+
     fn pump(&mut self) {
         let (now, offset) = self.services.clock();
         let before = self.session.clock.offset;

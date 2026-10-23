@@ -1016,3 +1016,9 @@ month	May	5월
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	이 업데이트는 모임 주최자가 보낸 것이 아니므로 일정을 변경할 수 없습니다.
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	이 회신은 해당 참석자가 보낸 것이 아니므로 기록할 수 없습니다.
 	This invitation is out of date: your calendar has a newer version.	이 초대는 오래되었습니다. 일정에 더 새로운 버전이 있습니다.
+	Left out because they couldn't be read: {n}	읽을 수 없어 제외됨: {n}
+	Added to your calendar from {file}: {n}	{file}에서 일정에 추가됨: {n}
+	Added to your contacts from {file}: {n}	{file}에서 연락처에 추가됨: {n}
+	Add an account first: a new message needs an account to send from.	먼저 계정을 추가하세요. 새 메시지를 보내려면 계정이 필요합니다.
+	Add an account first: events and people are kept with an account.	먼저 계정을 추가하세요. 일정과 사람은 계정에 저장됩니다.
+	Couldn't open {file}: {error}	{file}을(를) 열 수 없습니다: {error}

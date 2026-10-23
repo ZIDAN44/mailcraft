@@ -1012,3 +1012,9 @@ month	May	mei
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	Deze update is niet door de organisator van de vergadering verstuurd en kan je agenda daarom niet wijzigen.
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	Dit antwoord is niet verstuurd door de gast van wie het afkomstig zou zijn en kan daarom niet worden vastgelegd.
 	This invitation is out of date: your calendar has a newer version.	Deze uitnodiging is verouderd: je agenda heeft een nieuwere versie.
+	Left out because they couldn't be read: {n}	Weggelaten omdat ze niet gelezen konden worden: {n}
+	Added to your calendar from {file}: {n}	Aan je agenda toegevoegd uit {file}: {n}
+	Added to your contacts from {file}: {n}	Aan je contactpersonen toegevoegd uit {file}: {n}
+	Add an account first: a new message needs an account to send from.	Voeg eerst een account toe: een nieuw bericht heeft een account nodig om vanaf te verzenden.
+	Add an account first: events and people are kept with an account.	Voeg eerst een account toe: afspraken en personen worden bij een account bewaard.
+	Couldn't open {file}: {error}	{file} kon niet worden geopend: {error}

@@ -1017,3 +1017,9 @@ month	May	mayo
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	Esta actualización no la envió el organizador de la reunión, así que no puede cambiar tu calendario.
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	Esta respuesta no la envió el invitado al que corresponde, así que no se puede anotar.
 	This invitation is out of date: your calendar has a newer version.	Esta invitación está desactualizada: tu calendario tiene una versión más reciente.
+	Left out because they couldn't be read: {n}	Omitidos porque no se pudieron leer: {n}
+	Added to your calendar from {file}: {n}	Añadidos a tu calendario desde {file}: {n}
+	Added to your contacts from {file}: {n}	Añadidos a tus contactos desde {file}: {n}
+	Add an account first: a new message needs an account to send from.	Añade primero una cuenta: un mensaje nuevo necesita una cuenta desde la que enviarse.
+	Add an account first: events and people are kept with an account.	Añade primero una cuenta: los eventos y las personas se guardan en una cuenta.
+	Couldn't open {file}: {error}	No se pudo abrir {file}: {error}

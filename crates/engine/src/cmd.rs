@@ -39,6 +39,7 @@ fn can_connect(s: &Session) -> Option<&'static str> {
 
 mod accounts;
 mod compose;
+mod files;
 mod home;
 mod navigation;
 mod pim;
@@ -52,6 +53,7 @@ pub fn registry() -> Registry {
     all.extend(compose::commands());
     all.extend(view::commands());
     all.extend(pim::commands());
+    all.extend(files::commands());
     all.extend(accounts::commands());
     Registry::new(all)
 }
@@ -78,12 +80,11 @@ fn read_capped(path: &str, max: u64) -> Result<Vec<u8>, CmdError> {
     use std::io::Read;
     // Only a plain file: a device (`/dev/zero`) reads forever and a pipe blocks on opening,
     // whatever size they report.
-    let meta = std::fs::metadata(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
-    if !meta.is_file() {
-        return Err(CmdError::Params(format!("{path} isn't a file")));
-    }
-    if meta.len() > max {
-        return Err(CmdError::Params(format!("{path} is too big")));
+    match std::fs::metadata(path) {
+        Err(e) => return Err(CmdError::Failed(format!("{path}: {e}"))),
+        Ok(m) if !m.is_file() => return Err(CmdError::Params(format!("{path} isn't a file"))),
+        Ok(m) if m.len() > max => return Err(CmdError::Params(format!("{path} is too big"))),
+        Ok(_) => {}
     }
     let f = std::fs::File::open(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     let mut bytes = Vec::new();

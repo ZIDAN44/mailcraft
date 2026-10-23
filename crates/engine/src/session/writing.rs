@@ -36,6 +36,25 @@ impl Session {
         }
     }
 
+    /// A new message from a `mailto:` link (MailCraft as the system's mail app): its addresses,
+    /// subject and first words, above the signature. Nothing is attached and nothing is sent.
+    pub fn mailto_compose(&mut self, m: &mailcraft_model::mailto::Mailto) -> CmdResult {
+        let c = self.new_compose(None)?;
+        let cap = |x: &str| x.chars().take(1 << 20).collect::<String>();
+        c.to = cap(&m.to);
+        c.cc = cap(&m.cc);
+        c.bcc = cap(&m.bcc);
+        c.show_cc |= !c.bcc.is_empty();
+        c.subject = cap(&m.subject);
+        if !m.body.is_empty() {
+            let text = format!("{}{}", cap(&m.body), c.body);
+            c.set_text(text);
+        }
+        let id = c.id;
+        self.style_signature();
+        Ok(serde_json::json!({"compose": id}))
+    }
+
     /// Start writing `c`: the message being written, if any, is set aside in a window of its
     /// own ([`Session::composes`]), never lost; one that's empty (nothing typed) goes.
     pub fn open_compose(&mut self, c: Compose) {

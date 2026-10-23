@@ -1013,3 +1013,9 @@ month	May	5月
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	この更新は会議の開催者から送られたものではないため、予定表を変更できません。
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	この回答は本人の出席者から送られたものではないため、反映できません。
 	This invitation is out of date: your calendar has a newer version.	この招待は古くなっています。予定表にはより新しい版があります。
+	Left out because they couldn't be read: {n}	読み取れなかったため除外: {n}
+	Added to your calendar from {file}: {n}	{file} から予定表に追加: {n}
+	Added to your contacts from {file}: {n}	{file} から連絡先に追加: {n}
+	Add an account first: a new message needs an account to send from.	先にアカウントを追加してください。新しいメッセージの送信にはアカウントが必要です。
+	Add an account first: events and people are kept with an account.	先にアカウントを追加してください。予定と連絡先はアカウントに保存されます。
+	Couldn't open {file}: {error}	{file} を開けませんでした: {error}

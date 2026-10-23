@@ -1012,3 +1012,9 @@ month	May	מאי
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	העדכון הזה לא נשלח על ידי מארגן הפגישה, ולכן אינו יכול לשנות את לוח השנה שלך.
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	התשובה הזו לא נשלחה על ידי המוזמן שבשמו היא נכתבה, ולכן לא ניתן לרשום אותה.
 	This invitation is out of date: your calendar has a newer version.	ההזמנה הזו אינה עדכנית: בלוח השנה שלך יש גרסה חדשה יותר.
+	Left out because they couldn't be read: {n}	הושמטו כי לא ניתן היה לקרוא אותם: {n}
+	Added to your calendar from {file}: {n}	נוספו ללוח השנה מתוך {file}: {n}
+	Added to your contacts from {file}: {n}	נוספו לאנשי הקשר מתוך {file}: {n}
+	Add an account first: a new message needs an account to send from.	יש להוסיף חשבון קודם: הודעה חדשה צריכה חשבון לשליחה.
+	Add an account first: events and people are kept with an account.	יש להוסיף חשבון קודם: אירועים ואנשים נשמרים בחשבון.
+	Couldn't open {file}: {error}	לא ניתן לפתוח את {file}: {error}

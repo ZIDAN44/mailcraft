@@ -1012,3 +1012,9 @@ month	May	مايو
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	لم يُرسل هذا التحديث منظّم الاجتماع، لذا لا يمكنه تغيير تقويمك.
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	لم يُرسل هذا الرد الضيف الذي يُنسب إليه، لذا لا يمكن تسجيله.
 	This invitation is out of date: your calendar has a newer version.	هذه الدعوة قديمة: في تقويمك نسخة أحدث.
+	Left out because they couldn't be read: {n}	تم تخطيها لتعذّر قراءتها: {n}
+	Added to your calendar from {file}: {n}	أُضيفت إلى التقويم من {file}: {n}
+	Added to your contacts from {file}: {n}	أُضيفت إلى جهات الاتصال من {file}: {n}
+	Add an account first: a new message needs an account to send from.	أضف حسابًا أولًا: تحتاج الرسالة الجديدة إلى حساب لإرسالها منه.
+	Add an account first: events and people are kept with an account.	أضف حسابًا أولًا: تُحفظ الأحداث والأشخاص في حساب.
+	Couldn't open {file}: {error}	تعذّر فتح {file}: {error}

@@ -1013,3 +1013,9 @@ month	May	5月
 	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	此更新并非会议组织者发送，因此不能更改你的日历。
 	This answer wasn't sent by the guest it's from, so it can't be recorded.	此答复并非由对应的来宾发送，因此无法记录。
 	This invitation is out of date: your calendar has a newer version.	此邀请已过时：你的日历中有更新的版本。
+	Left out because they couldn't be read: {n}	因无法读取而略过：{n}
+	Added to your calendar from {file}: {n}	已从 {file} 添加到日历：{n}
+	Added to your contacts from {file}: {n}	已从 {file} 添加到联系人：{n}
+	Add an account first: a new message needs an account to send from.	请先添加帐户：新邮件需要一个用于发送的帐户。
+	Add an account first: events and people are kept with an account.	请先添加帐户：事件和联系人保存在帐户中。
+	Couldn't open {file}: {error}	无法打开 {file}：{error}
