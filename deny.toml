@@ -1,0 +1,67 @@
+# cargo-deny policy for MailCraft (cargo-deny 0.18 or newer). `.github/workflows/deny.yml` runs
+# `cargo deny check` when the dependencies change and once a week. It looks at the main workspace
+# as built for every platform we ship, plus the browser.
+
+[graph]
+all-features = false
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-pc-windows-msvc",
+    "wasm32-unknown-unknown",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-freebsd",
+    "x86_64-unknown-linux-gnu",
+]
+
+# Where crates may come from: crates.io, which is cargo-deny's one allowed registry unless told
+# otherwise, and nowhere else. Git dependencies and other registries are refused; the vendored
+# crates under vendor/ count as paths.
+[sources]
+unknown-git = "deny"
+unknown-registry = "deny"
+
+# Security notices from the RustSec database. Vulnerable, unsound or yanked crates always fail.
+# Unmaintained ones fail only when one of our crates uses them directly: those deeper in the UI
+# stack wait for that stack to move on. Each accepted notice is listed with why, and is dropped
+# once the crate that brings it in is gone.
+[advisories]
+version = 2
+unsound = "all"
+yanked = "deny"
+unmaintained = "workspace"
+ignore = [
+    # gtk 0.18 brings in glib 0.18 for the `drag` crate (dragging mail out to other Linux apps).
+    # The flagged `VariantStrIter` is never called here, and no `drag` release has moved on yet.
+    { id = "RUSTSEC-2024-0429", reason = "glib via drag's gtk 0.18; VariantStrIter unused" },
+    # mailcraft-print reads the installed fonts it embeds in PDFs with ttf-parser. Moving to its
+    # successor, skrifa, is a rewrite of that code, so the notice stands until it is done.
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser in mailcraft-print; no maintained drop-in" },
+]
+
+# Licences (see CLAUDE.md, clean room): only the permissive ones below pass. Copyleft licences
+# (GPL, LGPL, AGPL) are refused simply by being absent; a crate that offers one of them as an
+# alternative to a listed licence, such as `r-efi` or `self_cell`, still passes.
+[licenses]
+version = 2
+confidence-threshold = 0.9
+private.ignore = true
+allow = [
+    "0BSD", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "MIT-0", # short notice-only licences
+    "Apache-2.0 WITH LLVM-exception", "Apache-2.0", "BSL-1.0", "Zlib", # longer permissive ones
+    "CC0-1.0", "Unlicense", # public-domain dedications
+    "CDLA-Permissive-2.0", "Unicode-3.0", # data (Mozilla's root certificates, Unicode tables)
+]
+exceptions = [
+    # The fonts egui ships with: open font licences, nothing proprietary.
+    { crate = "epaint_default_fonts", allow = ["OFL-1.1", "Ubuntu-font-1.0"] },
+    # A tiny unmodified helper pulled in by `dirs`; MPL applies file by file, unlike the GPL.
+    { crate = "option-ext", allow = ["MPL-2.0"] },
+]
+
+[bans]
+# A few crates arrive in more than one version through the UI stack; that alone is no failure.
+multiple-versions = "allow"
+# Our own crates depend on each other by path without a version. Wildcards from anywhere else
+# could not be published to crates.io in the first place.
+wildcards = "allow"
