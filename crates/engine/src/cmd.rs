@@ -76,6 +76,15 @@ fn key_param(s: &Session, v: &Value) -> Result<mailcraft_model::MessageKey, CmdE
 /// A file's bytes, refused when it's bigger than `max` (read no further than that).
 fn read_capped(path: &str, max: u64) -> Result<Vec<u8>, CmdError> {
     use std::io::Read;
+    // Only a plain file: a device (`/dev/zero`) reads forever and a pipe blocks on opening,
+    // whatever size they report.
+    let meta = std::fs::metadata(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    if !meta.is_file() {
+        return Err(CmdError::Params(format!("{path} isn't a file")));
+    }
+    if meta.len() > max {
+        return Err(CmdError::Params(format!("{path} is too big")));
+    }
     let f = std::fs::File::open(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     let mut bytes = Vec::new();
     f.take(max.saturating_add(1)).read_to_end(&mut bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;

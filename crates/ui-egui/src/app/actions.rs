@@ -228,7 +228,7 @@ impl MailApp {
             }
             Action::DragOut(i) => {
                 if self.services.can_drag_out() {
-                    self.ui.drag_out = self.attachment_to_temp(i);
+                    self.ui.drag_out = self.attachment_to_temp(i, false);
                 }
             }
             Action::Submit(id, p) => match self.session.run(id, &p) {
@@ -254,7 +254,7 @@ impl MailApp {
             Action::SignInAgain(id) => self.sign_in_again(&id),
             Action::OpenInCraft(i, cmd) => {
                 let Some(app) = self.ui.craft_apps.iter().find(|(c, _)| *c == cmd).map(|(_, p)| p.clone()) else { return };
-                if let Some(path) = self.attachment_to_temp(i)
+                if let Some(path) = self.attachment_to_temp(i, true)
                     && let Err(e) = self.services.open_with(&app, &path)
                 {
                     self.session.notice(tf!("{app} couldn't open it: {error}", app = app.display(), error = e), true);
@@ -373,7 +373,7 @@ impl MailApp {
             }
             Action::OpenAttachment(i) => {
                 let name = self.attachment_name(i);
-                if let Some(path) = self.attachment_to_temp(i)
+                if let Some(path) = self.attachment_to_temp(i, true)
                     && let Err(e) = self.services.open_path(&path)
                 {
                     self.session.notice(tf!("{name} could not be opened: {error}", name = name, error = e), true);
@@ -445,8 +445,9 @@ impl MailApp {
         name.chars().take(80).collect()
     }
 
-    /// Write an attachment to a temporary file to hand to another app.
-    pub(crate) fn attachment_to_temp(&mut self, i: usize) -> Option<PathBuf> {
+    /// Write an attachment to a temporary file to hand to another app: dragged out (a copy, as
+    /// saving), or to be opened (never a program, script or shortcut: the engine refuses).
+    pub(crate) fn attachment_to_temp(&mut self, i: usize, open: bool) -> Option<PathBuf> {
         if !self.ui.has_files {
             return None;
         }
@@ -456,7 +457,7 @@ impl MailApp {
             return None;
         };
         let path = dir.join(mailcraft_engine::mime::sanitize_filename(&name));
-        match self.session.run("attachment.save", &json!({"index": i, "path": path.to_string_lossy()})) {
+        match self.session.run("attachment.save", &json!({"index": i, "path": path.to_string_lossy(), "open": open})) {
             Ok(_) => Some(path),
             Err(e) => {
                 self.session.notice(e.to_string(), true);

@@ -40,6 +40,21 @@ fn open_marks_read_and_shows_text_and_attachments() {
     let out = s.store.as_ref().unwrap().root().join("saved.png");
     s.run("attachment.save", &json!({"index": 0, "path": out.to_string_lossy()})).unwrap();
     assert_eq!(&std::fs::read(&out).unwrap()[..4], b"\x89PNG");
+    // Marked as from the internet on Windows, so SmartScreen and Protected View apply.
+    if cfg!(windows) {
+        let zone = std::fs::read_to_string(format!("{}:Zone.Identifier", out.display())).unwrap();
+        assert!(zone.contains("ZoneId=3"), "{zone}");
+    }
+    // Saved to be opened by another app: never something that runs code.
+    let exe = s.store.as_ref().unwrap().root().join("colour-key.png.exe");
+    let refused = s.run("attachment.save", &json!({"index": 0, "path": exe.to_string_lossy(), "open": true}));
+    assert!(matches!(refused, Err(CmdError::Disabled(_))), "{refused:?}");
+    assert!(!exe.exists(), "not written");
+    let png = s.store.as_ref().unwrap().root().join("to-open.png");
+    s.run("attachment.save", &json!({"index": 0, "path": png.to_string_lossy(), "open": true})).unwrap();
+    // Saved on purpose, any name is the user's call.
+    s.run("attachment.save", &json!({"index": 0, "path": exe.to_string_lossy()})).unwrap();
+    assert!(exe.exists());
     done(s);
 }
 

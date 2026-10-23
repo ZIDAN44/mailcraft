@@ -64,7 +64,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"query": string, "limit"?: number}"#),
         // Attachments
-        CommandSpec::new("attachment.save", "Save attachment", "Reading pane", save_attachment).params(r#"{"index": number, "path": string}"#).when(has_reading),
+        CommandSpec::new("attachment.save", "Save attachment", "Reading pane", save_attachment)
+            .params(r#"{"index": number, "path": string, "open"?: bool (saved to be opened by another app: never a file that runs code)}"#)
+            .when(has_reading),
         CommandSpec::new("attachment.saveAll", "Save all attachments", "Reading pane", save_all_attachments).params(r#"{"dir": string, "indices"?: [number] (only these attachments)}"#).when(has_reading),
         CommandSpec::new("attachment.preview", "Preview attachment", "Reading pane", preview_attachment).params(r#"{"index": number}"#).when(has_reading),
     ]
@@ -129,11 +131,10 @@ pub(super) const ATTACH_MAX: usize = 25 << 20;
 pub(super) fn file_param(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
     let (name, data) = if let Some(path) = p::str(v, "path") {
         let pb = std::path::PathBuf::from(path);
-        let meta = std::fs::metadata(&pb).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
-        if meta.len() > ATTACH_MAX as u64 {
-            return Err(CmdError::Failed(format!("{path} is larger than 25 MB")));
-        }
-        let data = std::fs::read(&pb).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+        let data = read_capped(path, ATTACH_MAX as u64).map_err(|e| match e {
+            CmdError::Params(m) if m.ends_with("too big") => CmdError::Failed(format!("{path} is larger than 25 MB")),
+            other => other,
+        })?;
         (pb.file_name().and_then(|n| n.to_str()).unwrap_or("attachment").to_string(), data)
     } else {
         let name = p::req_str(v, "name")?.to_string();
@@ -324,9 +325,34 @@ impl Session {
 pub(super) fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
     let path = p::req_str(v, "path")?;
+    // Opened from a message, a program, script or shortcut would run: never handed on.
+    if p::bool(v, "open").unwrap_or(false) {
+        let leaf = std::path::Path::new(path).file_name().unwrap_or_default();
+        let name = leaf.to_string_lossy().into_owned();
+        if mailcraft_mime::runs_code(&name) {
+            return Err(CmdError::Disabled(format!("{name} could run a program, so it isn't opened from here; save it and check it first")));
+        }
+    }
     let data = s.attachment_bytes(index)?;
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    mark_from_internet(std::path::Path::new(path));
     Ok(json!({"saved": path, "bytes": data.len()}))
+}
+
+/// Windows' mark that a file came from the internet (its `Zone.Identifier` stream, zone 3), as
+/// browsers and mail programs add: SmartScreen checks a program before it runs, and Office opens
+/// the file in Protected View. Best effort; nothing elsewhere.
+fn mark_from_internet(path: &std::path::Path) {
+    if cfg!(windows) {
+        let mut stream = path.as_os_str().to_owned();
+        stream.push(":Zone.Identifier");
+        let _ = std::fs::write(
+            stream,
+            "[ZoneTransfer]
+ZoneId=3
+",
+        );
+    }
 }
 
 /// Save every attachment (not the pictures inside the text) into a folder; names that are
@@ -353,6 +379,7 @@ pub(super) fn save_all_attachments(s: &mut Session, v: &Value) -> CmdResult {
             n += 1;
         }
         std::fs::write(&path, &data).map_err(|e| CmdError::Failed(format!("{}: {e}", path.display())))?;
+        mark_from_internet(&path);
         saved.push(path.to_string_lossy().to_string());
     }
     Ok(json!({"saved": saved}))

@@ -377,3 +377,28 @@ fn helpers() {
     assert_eq!(preview("a\n\n  b   c\n> q\n-- \nsig"), "a b c");
     assert_eq!(preview(&"x".repeat(500)).chars().count(), PREVIEW_CHARS + 1);
 }
+
+/// A hostile Message-ID with a bare CR inside its brackets: the reply's In-Reply-To and
+/// References carry the id without it, and nothing is written outside a line ending.
+#[test]
+fn a_message_id_cannot_break_a_replys_headers() {
+    let raw = b"From: Ana <ana@studio.example>\r\nTo: ann@studio.example\r\nSubject: hi\r\nMessage-ID: <abc\rBcc: x@evil.example@host>\r\nReferences: <r1\r@host> <r2@host>\r\n\r\nbody\r\n";
+    let p = parse(raw).unwrap();
+    assert!(!p.message_id.contains(['\r', '\n', ' ']), "{:?}", p.message_id);
+    let clock = Clock::new(1_792_000_000, 0);
+    let r = reply(&p, ReplyMode::Reply, &["ann@studio.example".to_string()], &clock, "");
+    let out = build(&r, &EmailAddress::new("Ann", "ann@studio.example"), 1_792_000_000, "n@studio.example").unwrap();
+    let text = String::from_utf8_lossy(&out);
+    let head = text.split("\r\n\r\n").next().unwrap_or_default();
+    for (i, w) in head.as_bytes().windows(2).enumerate() {
+        assert!(w[0] != b'\r' || w[1] == b'\n', "a bare CR at {i}: {head:?}");
+    }
+    assert!(!head.lines().any(|l| l.starts_with("Bcc:")), "no header smuggled in: {head}");
+    // A draft's ids, from anywhere, are cleaned as they're written too.
+    let mut d = r.clone();
+    d.in_reply_to = "<x\r\nBcc: y@evil.example>".into();
+    d.references = vec!["<\r\n>".into(), "<ok@host>".into()];
+    let out = build(&d, &EmailAddress::new("Ann", "ann@studio.example"), 1_792_000_000, "n2@studio.example").unwrap();
+    let text = String::from_utf8_lossy(&out);
+    assert!(!text.split("\r\n\r\n").next().unwrap_or_default().lines().any(|l| l.starts_with("Bcc:")), "{text}");
+}

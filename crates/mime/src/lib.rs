@@ -28,7 +28,9 @@ use mailcraft_model::thread::norm_id;
 use mailcraft_model::{EmailAddress, Flags, MessageKey, Summary};
 use serde::{Deserialize, Serialize};
 
+mod files;
 mod html;
+pub use files::{runs_code, sanitize_filename};
 use html::*;
 pub use html::*;
 
@@ -450,15 +452,6 @@ pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     m.attachments().nth(index).map(|p| p.contents().to_vec())
 }
 
-/// A file name safe to write: no directories, no reserved characters, not empty.
-pub fn sanitize_filename(name: &str) -> String {
-    let leaf = name.rsplit(['/', '\\']).next().unwrap_or(name);
-    let cleaned: String = leaf.chars().map(|c| if c.is_control() || "<>:\"|?*".contains(c) { '_' } else { c }).collect();
-    let cleaned = cleaned.trim().trim_matches('.').to_string();
-    let cleaned: String = cleaned.chars().take(180).collect();
-    if cleaned.is_empty() { "attachment".to_string() } else { cleaned }
-}
-
 fn ext_for_mime(mime: &str) -> &'static str {
     match mime {
         "image/png" => ".png",
@@ -617,11 +610,14 @@ pub fn build(d: &Draft, from: &EmailAddress, date: i64, message_id: &str) -> Res
     if !d.reply_to.is_empty() {
         b = b.reply_to(b_list(&d.reply_to));
     }
-    if !d.in_reply_to.is_empty() {
-        b = b.in_reply_to(d.in_reply_to.clone());
+    // Ids written as they're kept (a draft's could come from anywhere): no line breaks.
+    let in_reply_to = mailcraft_model::thread::norm_id(&d.in_reply_to);
+    if !in_reply_to.is_empty() {
+        b = b.in_reply_to(in_reply_to);
     }
-    if !d.references.is_empty() {
-        b = b.references(d.references.clone());
+    let references: Vec<String> = d.references.iter().map(|r| mailcraft_model::thread::norm_id(r)).filter(|r| !r.is_empty()).collect();
+    if !references.is_empty() {
+        b = b.references(references);
     }
     b = b.header("X-Mailer", mail_builder::headers::raw::Raw::new(format!("MailCraft {}", env!("CARGO_PKG_VERSION"))));
     // Importance as RFC 2156 says, and as X-Priority, which most mail programs read.
