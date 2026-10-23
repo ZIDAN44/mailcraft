@@ -561,7 +561,7 @@ impl Store {
     /// Open (creating if needed) a cache rooted at `root`.
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
-        fs::create_dir_all(&root).map_err(io_err(&root))?;
+        private_dir(&root)?;
         Ok(Store { files: Routed::new(&root, Files::Disk), root, changes: Arc::default() })
     }
 
@@ -571,7 +571,7 @@ impl Store {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn open_packed(root: impl Into<PathBuf>, files: impl AsRef<Path>) -> Result<Store> {
         let root = root.into();
-        fs::create_dir_all(&root).map_err(io_err(&root))?;
+        private_dir(&root)?;
         let packs = packed::Packs::open(&root, files.as_ref())?;
         Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default() })
     }
@@ -776,24 +776,11 @@ pub fn clear_scratch() {
     }
 }
 
-/// Write `bytes` to `path` via a temporary file and a rename.
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(io_err(parent))?;
-    }
-    // Unique per call, so concurrent writers to one target can't clobber each other's scratch.
-    static WRITES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let seq = WRITES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let base = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = path.with_file_name(format!(".{base}.{}.{seq}.part", std::process::id()));
-    fs::write(&tmp, bytes).map_err(io_err(&tmp))?;
-    fs::rename(&tmp, path).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        io_err(path)(e)
-    })
-}
+use atomic::private_dir;
+pub use atomic::write_atomic;
 
 mod accounts;
+mod atomic;
 mod bodies;
 mod folders;
 
