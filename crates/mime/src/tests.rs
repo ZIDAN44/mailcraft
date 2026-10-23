@@ -168,6 +168,18 @@ fn garbage_never_panics() {
     let _ = html_to_text("<table><tr><td><table><tr><td>x</td></tr></table></td></tr></table><<<>>>&#xFFFFFFFF;");
 }
 
+/// A message inside a message inside a multipart, ended by the outer boundary (found by
+/// `fuzz/`): mail-parser trips its own `debug_assert!`, a panic in every debug build until the
+/// workspace's profiles turned its debug assertions off (Cargo.toml).
+#[test]
+fn nested_messages_ended_by_the_outer_boundary_never_panic() {
+    let raw = b"Content-Type:multipart;boundary=b1\n\n--b1Content-Type:message/rfc822\n\nContent-Type:message/rfc822\n\n\n--b1--";
+    let _ = parse(raw);
+    let _ = summary_from_full(raw, key(), Flags::default(), 0, 0);
+    let _ = search_text(raw);
+    let _ = attachment_data(raw, 0);
+}
+
 #[test]
 fn rich_html_keeps_formatting_links_and_pictures() {
     let r = html_to_rich(
