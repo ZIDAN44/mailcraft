@@ -121,7 +121,12 @@ pub fn log_errors(device: &wgpu::Device) {
     device.on_uncaptured_error(std::sync::Arc::new(|e: wgpu::Error| log::error!("graphics: {e}")));
 }
 
-/// DirectX 12 alone (unless `backends` overrides it), shaders compiled with `compiler` or FXC,
+/// Whether this is a 32-bit build (the Windows x86 release).
+fn thirty_two_bit() -> bool {
+    cfg!(target_pointer_width = "32")
+}
+
+/// DirectX 12 alone (unless `backends` overrides it; OpenGL for a 32-bit build), shaders compiled with `compiler` or FXC,
 /// and the adapter chosen by [`choose`].
 fn windows_setup(options: &mut eframe::NativeOptions, backends: Option<wgpu::Backends>, compiler: Option<wgpu::Dx12Compiler>, software: bool) {
     let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup else { return };
@@ -129,6 +134,13 @@ fn windows_setup(options: &mut eframe::NativeOptions, backends: Option<wgpu::Bac
     if let Some(b) = backends {
         log::info!("graphics: WGPU_BACKEND asks for {b:?}; wgpu picks the adapter");
         setup.instance_descriptor.backends = b;
+        return;
+    }
+    // A 32-bit MailCraft: DirectX 12 can't make its pipelines in a 32-bit process ("The
+    // parameter is incorrect", the window never opened), so OpenGL draws it, wgpu picking.
+    if thirty_two_bit() {
+        log::info!("graphics: a 32-bit process draws with OpenGL");
+        setup.instance_descriptor.backends = wgpu::Backends::GL;
         return;
     }
     setup.instance_descriptor.backends = wgpu::Backends::DX12;
@@ -248,6 +260,10 @@ mod tests {
         let mut o = eframe::NativeOptions::default();
         windows_setup(&mut o, None, None, false);
         let s = setup_of(o).unwrap();
+        if thirty_two_bit() {
+            assert_eq!(s.instance_descriptor.backends, wgpu::Backends::GL, "a 32-bit build never asks DirectX 12");
+            return;
+        }
         assert_eq!(s.instance_descriptor.backends, wgpu::Backends::DX12);
         assert!(matches!(s.instance_descriptor.backend_options.dx12.shader_compiler, wgpu::Dx12Compiler::Fxc));
         assert!(s.native_adapter_selector.is_some());
