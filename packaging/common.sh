@@ -4,7 +4,8 @@
 #
 # Exports:
 #   ROOT                    workspace root
-#   VERSION                 [workspace.package] version from Cargo.toml (override: MAILCRAFT_VERSION)
+#   VERSION                 [workspace.package] version from Cargo.toml (override: MAILCRAFT_VERSION,
+#                           or the VERSION the shared release workflow sets for a run's override)
 #   DIST                    output directory for release artifacts (default: $ROOT/dist/release)
 #   MAILCRAFT_BUILD_SHA     git commit shown by `mailcraft --version` (default: BUILD_SHA, then git)
 #   MAILCRAFT_BUILD_DATE    UTC build date, YYYY-MM-DD (default: BUILD_DATE, then today)
@@ -22,7 +23,7 @@ workspace_version() {
   ' "$ROOT/Cargo.toml"
 }
 
-VERSION="${MAILCRAFT_VERSION:-$(workspace_version)}"
+VERSION="${MAILCRAFT_VERSION:-${VERSION:-$(workspace_version)}}"
 if [ -z "$VERSION" ]; then
   echo "error: could not read [workspace.package] version from $ROOT/Cargo.toml" >&2
   exit 1

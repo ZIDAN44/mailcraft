@@ -30,7 +30,7 @@ description: |-
 overrides:
   deb:
     depends:
-      - libc6 (>= 2.35)
+      - libc6 (>= ${GLIBC_FLOOR})
       - libgcc-s1
       - libxkbcommon0
       - libvulkan1 | libegl1

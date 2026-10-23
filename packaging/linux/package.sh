@@ -89,6 +89,9 @@ if has deb || has rpm; then
   command -v nfpm >/dev/null || { echo "error: nfpm not found (https://nfpm.goreleaser.com/install/)" >&2; exit 1; }
   export VERSION
   export NFPM_ARCH="$DEB_ARCH"
+  # The oldest glibc the binaries run on: the build host's (craft-common-actions sets 2.39 for
+  # riscv64, built on Ubuntu 24.04), 2.35 for builds on Ubuntu 22.04.
+  export GLIBC_FLOOR="${GLIBC_FLOOR:-2.35}"
   # nfpm expands env vars in fields like `version` and `arch`, but not in `contents[].src`.
   sed "s|\${STAGE}|$STAGE|g" "$HERE/nfpm.yaml" >"$WORK/nfpm.yaml"
   for fmt in deb rpm; do

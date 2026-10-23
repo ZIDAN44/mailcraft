@@ -102,6 +102,22 @@ notarize() {
   fi
 }
 
+# Staples the notarization ticket: Apple's servers drop the connection now and then
+# ("Could not validate ticket"). Usage: stapler_retry <path>; five tries with growing pauses.
+stapler_retry() {
+  local tries=0 pause
+  until xcrun stapler staple "$1" && xcrun stapler validate "$1"; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 5 ]; then
+      echo "error: Apple's ticket for $1 couldn't be stapled in $tries tries" >&2
+      return 1
+    fi
+    pause=$((tries * 15))
+    echo "the ticket for $1 didn't staple (try $tries); again in ${pause}s" >&2
+    sleep "$pause"
+  done
+}
+
 # ---- MailCraft.app ----------------------------------------------------------------------------
 echo "==> assembling $APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -128,8 +144,7 @@ codesign --verify --strict --deep --verbose=2 "$APP"
 if [ "$NOTARIZE" = 1 ]; then
   ditto -c -k --keepParent "$APP" "$WORK/MailCraft-notarize.zip"
   notarize "$WORK/MailCraft-notarize.zip"
-  xcrun stapler staple "$APP"
-  xcrun stapler validate "$APP"
+  stapler_retry "$APP"
   spctl --assess --type execute -vvv "$APP"
 fi
 
@@ -183,8 +198,7 @@ sign "$DMG"
 codesign --verify --strict --verbose=2 "$DMG"
 if [ "$NOTARIZE" = 1 ]; then
   notarize "$DMG"
-  xcrun stapler staple "$DMG"
-  xcrun stapler validate "$DMG"
+  stapler_retry "$DMG"
   spctl --assess --type open --context context:primary-signature -vvv "$DMG"
 fi
 
