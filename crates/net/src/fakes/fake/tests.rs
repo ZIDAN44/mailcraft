@@ -500,6 +500,7 @@ y"
     let _ = std::fs::remove_dir_all(store.root());
 }
 
+mod hostile;
 mod searching;
 
 /// Issue #4: an account kept online only syncs its folders and opens its mail as any other,

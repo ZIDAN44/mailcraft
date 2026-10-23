@@ -41,6 +41,10 @@ pub struct State {
     pub refuse_passwords: Option<String>,
     /// How long a text `SEARCH` takes (a server reading every message rather than an index).
     pub search_delay: std::time::Duration,
+    /// A hostile server: after the next `NOOP`, this is sent over and over, forever.
+    pub flood: Option<Vec<u8>>,
+    /// How long each read of the connection waits (a server trickling its answer).
+    pub trickle: std::time::Duration,
 }
 
 impl State {
@@ -58,6 +62,8 @@ impl State {
             not_connected: Vec::new(),
             refuse_passwords: None,
             search_delay: std::time::Duration::ZERO,
+            flood: None,
+            trickle: std::time::Duration::ZERO,
         }))
     }
 
@@ -122,6 +128,8 @@ pub struct Fake {
     sasl: Option<(String, bool)>,
     /// Signed in, but every command is refused (see `State::not_connected`).
     refused: bool,
+    /// Sent forever once the output runs dry (see `State::flood`).
+    flood: Option<Vec<u8>>,
 }
 
 /// The only access token the fake accepts.
@@ -129,7 +137,8 @@ pub const GOOD_TOKEN: &str = "good-token";
 
 impl Fake {
     pub fn connect(st: &Arc<Mutex<State>>) -> Fake {
-        let mut f = Fake { st: st.clone(), selected: None, inbuf: Vec::new(), out: VecDeque::new(), literal: None, sasl: None, refused: false };
+        let mut f =
+            Fake { st: st.clone(), selected: None, inbuf: Vec::new(), out: VecDeque::new(), literal: None, sasl: None, refused: false, flood: None };
         f.say("* OK fake ready");
         f
     }
@@ -219,6 +228,12 @@ impl Fake {
         st.log.push(rest.to_string());
         let upper = rest.to_ascii_uppercase();
         let ok = |s: &mut Fake, extra: &str| s.say(&format!("{tag} OK {extra}done"));
+        if upper == "NOOP"
+            && let Some(flood) = st.flood.clone()
+        {
+            self.flood = Some(flood);
+            return;
+        }
         if upper == "CAPABILITY" {
             self.say(&format!("* CAPABILITY {}", st.caps));
             ok(self, "");
@@ -592,6 +607,15 @@ fn in_set(uid: u32, set: &str, max: u32) -> bool {
 
 impl Read for Fake {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let trickle = self.st.lock().map(|s| s.trickle).unwrap_or_default();
+        if !trickle.is_zero() {
+            std::thread::sleep(trickle);
+        }
+        if self.out.is_empty()
+            && let Some(f) = &self.flood
+        {
+            self.out.extend(f.iter());
+        }
         let n = buf.len().min(self.out.len()).min(11);
         for b in buf.iter_mut().take(n) {
             *b = self.out.pop_front().unwrap_or(0);

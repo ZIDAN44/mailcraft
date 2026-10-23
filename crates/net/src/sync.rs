@@ -449,12 +449,17 @@ fn fetch_headers<S: Read + Write>(
 }
 
 fn prefetch<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, folder: &str, st: &mut FolderState, opts: &SyncOptions) -> Result<()> {
-    let wanted: Vec<u32> =
-        st.messages.iter().take(opts.prefetch).filter(|m| m.size <= opts.prefetch_max_bytes && !store.has_body(&m.key)).map(|m| m.key.uid).collect();
+    let wanted: Vec<(u32, u32)> = st
+        .messages
+        .iter()
+        .take(opts.prefetch)
+        .filter(|m| m.size <= opts.prefetch_max_bytes && !store.has_body(&m.key))
+        .map(|m| (m.key.uid, m.size))
+        .collect();
     if wanted.is_empty() {
         return Ok(());
     }
-    for chunk in uid_chunks(&wanted, 10) {
+    for chunk in body_chunks(&wanted) {
         for f in c.uid_fetch(&uid_set(&chunk), "UID BODY.PEEK[]", "")? {
             let Some(raw) = &f.body else { continue };
             let Some(m) = st.find_mut(f.uid) else { continue };
@@ -464,6 +469,27 @@ fn prefetch<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, fo
         store.save_folder(account, folder, st)?;
     }
     Ok(())
+}
+
+/// Prefetch chunks: ten messages at most, and no more than one literal's worth of sources
+/// together, keeping each `UID FETCH` well inside the per-command cap ([`crate::imap::Limits`]).
+fn body_chunks(wanted: &[(u32, u32)]) -> Vec<Vec<u32>> {
+    let mut out: Vec<Vec<u32>> = Vec::new();
+    let mut bytes = 0usize;
+    for &(uid, size) in wanted {
+        let size = usize::try_from(size).unwrap_or(usize::MAX);
+        match out.last_mut() {
+            Some(last) if last.len() < 10 && bytes.saturating_add(size) <= crate::imap::MAX_LITERAL => {
+                last.push(uid);
+                bytes = bytes.saturating_add(size);
+            }
+            _ => {
+                out.push(vec![uid]);
+                bytes = size;
+            }
+        }
+    }
+    out
 }
 
 /// Download one message's source (and cache it), updating its summary.
@@ -509,5 +535,16 @@ mod tests {
         assert!(f.failed("m3", NetError::Closed("HTTP 500".into())).is_ok());
         assert!(f.failed("m4", NetError::Closed("HTTP 500".into())).is_err(), "three running");
         assert!(AheadFailures::new().failed("m", NetError::Auth("expired".into())).is_err());
+    }
+
+    /// Prefetch chunks stay small enough for the per-command cap, whatever the sizes.
+    #[test]
+    fn prefetch_chunks_fit_the_command_cap() {
+        let small: Vec<(u32, u32)> = (1..=25).map(|u| (u, 1000)).collect();
+        assert_eq!(body_chunks(&small).iter().map(Vec::len).collect::<Vec<_>>(), vec![10, 10, 5]);
+        let big: Vec<(u32, u32)> = (1..=5).map(|u| (u, 40 << 20)).collect();
+        assert_eq!(body_chunks(&big).len(), 5);
+        assert_eq!(body_chunks(&[(1, u32::MAX), (2, 1)]), vec![vec![1], vec![2]]);
+        assert!(body_chunks(&[]).is_empty());
     }
 }

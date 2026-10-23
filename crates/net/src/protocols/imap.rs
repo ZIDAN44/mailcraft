@@ -15,10 +15,14 @@ use mailcraft_model::{Folder, FolderRole, ServerConfig};
 use crate::stream::{self, IO_TIMEOUT, Stream, Timeouts};
 use crate::{NetError, Result};
 
+mod conn;
+use conn::check_unknown;
+#[cfg(test)]
+use conn::literal_len;
+pub use conn::{Conn, Limits};
+
 /// Largest literal accepted (a message source).
 pub const MAX_LITERAL: usize = 64 << 20;
-/// Longest line accepted outside literals.
-const MAX_LINE: usize = 1 << 20;
 
 /// A piece of a command: plain text, or a literal sent after the server's `+` go-ahead.
 pub enum Part<'a> {
@@ -155,209 +159,6 @@ pub struct SelectInfo {
 /// What a QRESYNC `SELECT` reports: the usual data, the UID ranges expunged since the cached
 /// state, and the messages whose flags changed.
 pub type Resync = (SelectInfo, Vec<std::ops::RangeInclusive<u32>>, Vec<Fetched>);
-
-/// Buffered protocol connection.
-pub struct Conn<S> {
-    s: S,
-    buf: Vec<u8>,
-    pos: usize,
-    tag: u32,
-}
-
-impl<S: Read + Write> Conn<S> {
-    pub fn new(s: S) -> Self {
-        Conn { s, buf: Vec::with_capacity(16 << 10), pos: 0, tag: 0 }
-    }
-
-    pub fn into_inner(self) -> S {
-        self.s
-    }
-
-    pub fn get_mut(&mut self) -> &mut S {
-        &mut self.s
-    }
-
-    fn next_tag(&mut self) -> String {
-        self.tag = self.tag.wrapping_add(1);
-        format!("M{}", self.tag)
-    }
-
-    /// The length of the complete response at the front of the buffer, if there is one.
-    fn complete_len(&self) -> Result<Option<usize>> {
-        let data = self.buf.get(self.pos..).unwrap_or_default();
-        let mut i = 0usize;
-        loop {
-            let rest = data.get(i..).unwrap_or_default();
-            let Some(nl) = rest.iter().position(|&b| b == b'\n') else {
-                if rest.len() > MAX_LINE {
-                    return Err(NetError::Protocol("response line too long".into()));
-                }
-                return Ok(None);
-            };
-            if nl > MAX_LINE {
-                return Err(NetError::Protocol("response line too long".into()));
-            }
-            let line = rest.get(..nl).unwrap_or_default();
-            let line = line.strip_suffix(b"\r").unwrap_or(line);
-            i += nl + 1;
-            match literal_len(line) {
-                Some(n) if n > MAX_LITERAL => return Err(NetError::Protocol(format!("literal of {n} bytes is too large"))),
-                Some(n) => {
-                    if data.len() < i + n {
-                        return Ok(None);
-                    }
-                    i += n;
-                }
-                None => return Ok(Some(i)),
-            }
-        }
-    }
-
-    fn fill(&mut self) -> Result<()> {
-        if self.pos > 0 && (self.pos == self.buf.len() || self.pos > (1 << 20)) {
-            self.buf.drain(..self.pos);
-            self.pos = 0;
-        }
-        let mut tmp = [0u8; 32 << 10];
-        let n = self.s.read(&mut tmp)?;
-        if n == 0 {
-            return Err(NetError::Closed("connection closed".into()));
-        }
-        self.buf.extend_from_slice(tmp.get(..n).unwrap_or_default());
-        Ok(())
-    }
-
-    /// The next complete response's bytes.
-    pub fn read_raw(&mut self) -> Result<Vec<u8>> {
-        loop {
-            if let Some(n) = self.complete_len()? {
-                let out = self.buf.get(self.pos..self.pos + n).map(<[u8]>::to_vec).unwrap_or_default();
-                self.pos += n;
-                return Ok(out);
-            }
-            self.fill()?;
-        }
-    }
-
-    /// The next response, parsed. `Err(raw)` when `imap-proto` doesn't understand it.
-    pub fn read(&mut self) -> Result<std::result::Result<Response<'static>, Vec<u8>>> {
-        let raw = self.read_raw()?;
-        // imap-proto wants CRLF line ends; tolerate servers that send bare LF.
-        let fixed = if raw.ends_with(b"\r\n") { raw } else { normalize_eol(&raw) };
-        Ok(match Response::parse(&fixed) {
-            Ok((_, r)) => Ok(r.into_owned()),
-            Err(_) => Err(fixed),
-        })
-    }
-
-    pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
-        self.s.write_all(bytes)?;
-        self.s.flush()?;
-        Ok(())
-    }
-
-    /// Run a command; returns the untagged responses followed by the tagged completion.
-    pub fn run(&mut self, parts: &[Part<'_>]) -> Result<Vec<Response<'static>>> {
-        let tag = self.next_tag();
-        let mut collected = Vec::new();
-        let mut line: Vec<u8> = format!("{tag} ").into_bytes();
-        for p in parts {
-            match p {
-                Part::Text(t) => line.extend_from_slice(t.as_bytes()),
-                Part::Literal(bytes) => {
-                    line.extend_from_slice(format!("{{{}}}\r\n", bytes.len()).as_bytes());
-                    self.send(&line)?;
-                    line.clear();
-                    self.wait_continue(&tag, &mut collected)?;
-                    line.extend_from_slice(bytes);
-                }
-            }
-        }
-        line.extend_from_slice(b"\r\n");
-        self.send(&line)?;
-        self.finish(&tag, collected)
-    }
-
-    fn wait_continue(&mut self, tag: &str, collected: &mut Vec<Response<'static>>) -> Result<()> {
-        loop {
-            match self.read()? {
-                Ok(Response::Continue(_)) => return Ok(()),
-                Ok(Response::Done { tag: t, status, outcome }) if t.0 == tag => {
-                    return Err(match status {
-                        Status::Bad => NetError::Bad(info(&outcome)),
-                        _ => NetError::No(info(&outcome)),
-                    });
-                }
-                Ok(Response::Data { status: Status::Bye, outcome }) => return Err(NetError::Closed(info(&outcome))),
-                Ok(other) => collected.push(other),
-                Err(raw) => check_unknown(tag, &raw)?,
-            }
-        }
-    }
-
-    fn finish(&mut self, tag: &str, mut collected: Vec<Response<'static>>) -> Result<Vec<Response<'static>>> {
-        loop {
-            match self.read()? {
-                Ok(Response::Done { tag: t, status, outcome }) if t.0 == tag => {
-                    return match status {
-                        Status::Ok => {
-                            collected.push(Response::Done { tag: t, status, outcome });
-                            Ok(collected)
-                        }
-                        Status::Bad => Err(NetError::Bad(info(&outcome))),
-                        _ => Err(NetError::No(info(&outcome))),
-                    };
-                }
-                Ok(Response::Data { status: Status::Bye, outcome }) => return Err(NetError::Closed(info(&outcome))),
-                Ok(other) => collected.push(other),
-                Err(raw) => check_unknown(tag, &raw)?,
-            }
-        }
-    }
-}
-
-fn normalize_eol(raw: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(raw.len() + 8);
-    let mut prev = 0u8;
-    for &b in raw {
-        if b == b'\n' && prev != b'\r' {
-            out.push(b'\r');
-        }
-        out.push(b);
-        prev = b;
-    }
-    out
-}
-
-/// A response `imap-proto` couldn't parse: harmless if untagged; for our tag, read the status
-/// by hand so an odd completion line doesn't hang the command.
-fn check_unknown(tag: &str, raw: &[u8]) -> Result<()> {
-    let text = String::from_utf8_lossy(raw);
-    let mut words = text.split_whitespace();
-    if words.next() == Some(tag) {
-        let status = words.next().unwrap_or("").to_ascii_uppercase();
-        let rest: Vec<&str> = words.collect();
-        return match status.as_str() {
-            "OK" => Err(NetError::Protocol(format!("unparsed completion: {}", text.trim()))),
-            "BAD" => Err(NetError::Bad(rest.join(" "))),
-            _ => Err(NetError::No(rest.join(" "))),
-        };
-    }
-    log::debug!("ignoring unparsed response: {}", text.trim());
-    Ok(())
-}
-
-/// `{123}` or `{123+}` at the end of a line.
-fn literal_len(line: &[u8]) -> Option<usize> {
-    let body = line.strip_suffix(b"}")?;
-    let open = body.iter().rposition(|&b| b == b'{')?;
-    let digits = body.get(open + 1..)?;
-    let digits = digits.strip_suffix(b"+").unwrap_or(digits);
-    if digits.is_empty() || digits.len() > 12 || !digits.iter().all(u8::is_ascii_digit) {
-        return None;
-    }
-    std::str::from_utf8(digits).ok()?.parse().ok()
-}
 
 /// An authenticated or not-yet-authenticated IMAP session.
 pub struct Client<S> {
@@ -894,10 +695,13 @@ impl<S: Read + Write + Timeouts> Client<S> {
     /// second. Returns whether the server reported a change (new, expunged or changed mail).
     pub fn idle(&mut self, max: Duration, mut stop: impl FnMut() -> bool) -> Result<bool> {
         let tag = self.conn.next_tag();
+        self.conn.begin();
         self.conn.send(format!("{tag} IDLE\r\n").as_bytes())?;
         let mut ignored = Vec::new();
         self.conn.wait_continue(&tag, &mut ignored)?;
         let mut changed = ignored.iter().any(is_change);
+        drop(ignored);
+        self.conn.waiting();
         let start = Instant::now();
         self.conn.get_mut().set_read_timeout(Some(Duration::from_millis(500)))?;
         let mut err = None;
@@ -922,6 +726,7 @@ impl<S: Read + Write + Timeouts> Client<S> {
         if let Some(e) = err {
             return Err(e);
         }
+        self.conn.begin();
         self.conn.send(b"DONE\r\n")?;
         let rs = self.conn.finish(&tag, Vec::new())?;
         Ok(changed || rs.iter().any(is_change))
