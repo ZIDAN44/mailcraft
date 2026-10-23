@@ -1,6 +1,6 @@
 //! MailCraft desktop app.
 //!
-//! Usage: `mailcraft [--version] [--sample] [--data <folder>] [--light | --dark] [--cmd <id>[=<json>]]…`
+//! Usage: `mailcraft [--version] [--sample] [--data <folder>] [--light | --dark] [--cmd <id>[=<json>]]… [mailto:… | file]…`
 //!
 //! `--sample` opens a separate, local-only sample mailbox (no server needed). `--data` (or the
 //! `MAILCRAFT_DATA` environment variable) chooses where mail is cached. `--cmd` runs engine
@@ -25,6 +25,9 @@ use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 /// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
 struct Keychain;
 
+#[cfg(target_os = "macos")]
+mod apple_events;
+mod args;
 mod display;
 mod graphics;
 mod logfile;
@@ -410,32 +413,6 @@ fn app_icon() -> egui::IconData {
     }
 }
 
-/// `--version`: the version, plus the commit and date of release builds (packaging/common.sh).
-/// What `--help` prints.
-const USAGE: &str = "MailCraft: mail, calendar, contacts and notes.
-
-Usage: mailcraft [options]
-
-  --sample          open the sample mailbox (its own data, nothing of yours)
-  --data DIR        keep everything in DIR instead of the usual folders
-  --light, --dark   start in the light or dark theme
-  --cmd ID[=JSON]   run a command once the window opens (repeatable), e.g.
-                    --cmd 'list.open={\"key\":\"sample:1:1:INBOX\"}' --cmd mail.reply
-  --log             also write the log to the terminal
-  --version, -V     print the version
-  --help, -h        print this
-
-A portable copy keeps its data beside the app when portable.txt is there.
-The command-line client is mailcraft-cli (mailcraft-cli --help).";
-
-fn version_line() -> String {
-    let v = format!("mailcraft {}", env!("CARGO_PKG_VERSION"));
-    match (option_env!("MAILCRAFT_BUILD_SHA"), option_env!("MAILCRAFT_BUILD_DATE")) {
-        (Some(sha), Some(date)) if !sha.is_empty() => format!("{v} ({}, {date})", sha.get(..9).unwrap_or(sha)),
-        _ => v,
-    }
-}
-
 /// Hand a file to the system's drag and drop (Windows and macOS; elsewhere egui has no way to).
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 fn drag_out(frame: &eframe::Frame, path: PathBuf) {
@@ -486,6 +463,9 @@ struct App {
     frames: u32,
     /// Answering later launches on the same data folder (`single_instance.rs`).
     instance: Option<single_instance::Server>,
+    /// Documents macOS sent over since the last frame (`apple_events.rs`).
+    #[cfg(target_os = "macos")]
+    finder: fmv_macos_events::Inbox,
     native_wayland: bool,
     /// Installs a downloaded update as MailCraft closes.
     updater: Option<self_update::Updater>,
@@ -524,11 +504,16 @@ impl App {
 
 impl eframe::App for App {
     // Every frame, the window minimized or hidden too (when eframe runs no `ui`): started again,
-    // this window comes forward instead of a second one.
+    // this window comes forward instead of a second one, and opens what that launch handed over.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.instance.as_ref().is_some_and(single_instance::Server::take_show) {
+        if let Some(handed) = self.instance.as_ref().and_then(single_instance::Server::take) {
             single_instance::show(ctx, self.native_wayland);
+            for h in &handed {
+                self.app.open_handed(h);
+            }
         }
+        #[cfg(target_os = "macos")]
+        apple_events::deliver(&self.finder, &mut self.app, ctx);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frames = self.frames.saturating_add(1);
@@ -576,15 +561,17 @@ fn main() -> eframe::Result {
     // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
     let args: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        say_out(&version_line());
+        say_out(&args::version_line());
         return Ok(());
     }
     // Asking how to start it prints that, and no window opens.
     if args.iter().any(|a| matches!(a.as_str(), "--help" | "-h" | "/?")) {
-        say_out(USAGE);
+        say_out(args::USAGE);
         return Ok(());
     }
     let cmd_args = args.clone();
+    // `mailto:` links and mail files: MailCraft as the system's mail app, or Open with (`args.rs`).
+    let handed = args::handed(&args);
     let sample = args.iter().any(|a| a == "--sample");
     // Text pasted from Outlook, Word or a web page keeps its look.
     mailcraft_ui_egui::set_clipboard_html(|| read_clipboard(|c| c.get().html().ok()).filter(|h| !h.trim().is_empty()));
@@ -606,9 +593,11 @@ fn main() -> eframe::Result {
     let root = data.map(|d| if sample { d.join("sample") } else { d });
     // One MailCraft per data folder: started again, it brings the running one forward and leaves,
     // before it moves, logs or opens anything there (`single_instance.rs`).
-    let instance = match root.as_deref().map(single_instance::claim) {
+    let instance = match root.as_deref().map(|r| single_instance::claim(r, &handed)) {
         Some(single_instance::Claim::Shown) => {
-            say(if args.iter().any(|a| a == "--cmd") {
+            say(if !handed.is_empty() {
+                "MailCraft is already running: what it was started with opens there"
+            } else if args.iter().any(|a| a == "--cmd") {
                 "MailCraft is already running: its window is brought forward (--cmd is run only by the first)"
             } else {
                 "MailCraft is already running: its window is brought forward"
@@ -630,7 +619,7 @@ fn main() -> eframe::Result {
     // Diagnostics go to `mailcraft.log` in the data folder.
     let echo = cfg!(debug_assertions) || args.iter().any(|a| a == "--log");
     if let Some(path) = logfile::start(root.as_deref(), echo) {
-        log::info!("{} started; log at {}", version_line(), path.display());
+        log::info!("{} started; log at {}", args::version_line(), path.display());
     }
     if let Some(dir) = &portable.dir {
         log::info!("portable: everything is kept in {}", dir.display());
@@ -707,7 +696,7 @@ fn main() -> eframe::Result {
     // A window that can't open says why, rather than the app leaving without a word (or
     // staying in the background); a panic on the way is caught for that too.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run(options, sample, store, session, desktop_data, base, moved, state_path, cmd_args, instance, updater)
+        run(options, sample, store, session, desktop_data, base, moved, state_path, (cmd_args, handed), instance, updater)
     }));
     let failed = match ran {
         Ok(Ok(())) => return Ok(()),
@@ -791,10 +780,13 @@ fn run(
     base: Option<PathBuf>,
     moved: Option<Result<PathBuf, String>>,
     state_path: Option<PathBuf>,
-    cmd_args: Vec<String>,
+    (cmd_args, handed): (Vec<String>, Vec<String>),
     instance: Option<single_instance::Server>,
     updater: Option<self_update::Updater>,
 ) -> eframe::Result {
+    // The guard stays here, outside the closure, so the handlers live as long as the loop.
+    #[cfg(target_os = "macos")]
+    let (_finder_guard, finder) = apple_events::listen();
     eframe::run_native(
         "MailCraft",
         options,
@@ -870,6 +862,9 @@ fn run(
                     },
                 }
             }
+            for h in &handed {
+                app.open_handed(h);
+            }
             let gpu = cc.wgpu_render_state.as_ref().map(|rs| rs.device.clone());
             if let Some(server) = &instance {
                 server.connect(&cc.egui_ctx);
@@ -884,6 +879,11 @@ fn run(
                 gpu,
                 frames: 0,
                 instance,
+                #[cfg(target_os = "macos")]
+                finder: {
+                    apple_events::repaint_on_arrival(&finder, &cc.egui_ctx);
+                    finder
+                },
                 native_wayland,
                 updater,
                 saved: Vec::new(),

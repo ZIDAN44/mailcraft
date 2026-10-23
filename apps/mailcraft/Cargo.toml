@@ -52,6 +52,11 @@ uds_windows = "1.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["apple-native"] }
+# Finder hands documents to an app through an `odoc` Apple event; winit 0.30 never sees it
+# (see `src/apple_events.rs`). Hooking it takes Objective-C, so `unsafe`, which we forbid, and
+# this small crate hides that behind a safe queue. WordCraft, PdfCraft, GridCraft and DeckCraft
+# depend on it too. The `=` pin is deliberate: read what changed upstream before moving it.
+fmv-macos-events = "=0.1.0"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["async-secret-service", "async-io", "crypto-rust"] }

@@ -109,6 +109,12 @@ fn random(n: usize) -> Result<Vec<u8>> {
     Ok(v)
 }
 
+/// 32 bytes from the system's secure random source, base64url: a key nobody can guess (the
+/// app's single-instance socket asks it of every request).
+pub fn secret_token() -> Result<String> {
+    Ok(b64url(&random(32)?))
+}
+
 /// A PKCE verifier and its S256 challenge.
 pub fn pkce() -> Result<(String, String)> {
     let verifier = b64url(&random(32)?);
