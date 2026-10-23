@@ -1,0 +1,75 @@
+name: fuzz
+
+# Once a week, every fuzz target (fuzz/README.md) gets FUZZ_SECONDS on Linux, starting from
+# the corpus the previous run left behind plus our seeds. When a target crashes the run goes red
+# and keeps the inputs that did it as a downloadable artifact.
+on:
+  schedule:
+    - cron: "41 3 * * 6"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds per target
+        default: "240"
+
+concurrency:
+  group: fuzz
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  FUZZ_SECONDS: ${{ github.event.inputs.seconds || '240' }}
+
+jobs:
+  targets:
+    name: Fuzz the parsers
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: nightly
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-fuzz
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: fuzz
+          key: fuzz
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: fuzz/corpus
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: fuzz-corpus-
+      - name: Compile every target
+        working-directory: fuzz
+        run: cargo +nightly fuzz build -O
+      - name: Run the targets one after another
+        working-directory: fuzz
+        shell: bash
+        run: |
+          crashed=()
+          for target in $(cargo +nightly fuzz list); do
+            echo "::group::fuzzing $target"
+            mkdir -p "corpus/$target"
+            if ! cargo +nightly fuzz run -O "$target" "corpus/$target" "seeds/$target" -- \
+              -dict="dicts/$target.dict" -max_len=65536 -rss_limit_mb=2048 -timeout=10 \
+              -max_total_time="$FUZZ_SECONDS" -print_final_stats=1; then
+              crashed+=("$target")
+            fi
+            echo "::endgroup::"
+          done
+          if (( ${#crashed[@]} )); then
+            echo "::error::targets that crashed: ${crashed[*]}"
+            exit 1
+          fi
+      - name: Keep the inputs that crashed
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ failure() }}
+        with:
+          path: fuzz/artifacts
+          name: crashing-inputs

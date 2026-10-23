@@ -2,8 +2,8 @@
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
 # Patched copies of upstream crates (vendor/README.md): not workspace members, so its lints and
-# tests stay theirs.
-exclude = ["vendor"]
+# tests stay theirs. `fuzz` is its own workspace (nightly, libFuzzer).
+exclude = ["vendor", "fuzz"]
 
 [workspace.package]
 version = "0.22.0"

@@ -1,0 +1,5 @@
+<html><head><style>.c{color:#333;font-size:14px} td{padding:4px}</style></head>
+<body><table width="600" style="width:600px"><tr><td colspan="2" class="c"><h1>Title</h1></td></tr>
+<tr><td style="width:50%"><img src="https://x.example/a.png" width="100"><a href="https://x.example/">link</a></td>
+<td><ul><li>one</li><li><b>two</b></li></ul><blockquote>q &amp; a &#233;</blockquote></td></tr></table>
+<p style="text-align:right;color:red">Right <i>italic</i><br>next</p></body></html>

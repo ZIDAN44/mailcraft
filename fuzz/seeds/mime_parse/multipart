@@ -1,0 +1,50 @@
+MIME-Version: 1.0
+From: "Quinn Ortega" <quinn@studio.example>
+To: pat@studio.example, =?utf-8?B?TcOkcnRh?= <marta@studio.example>
+Cc: rosa@studio.example
+Subject: =?iso-8859-1?Q?Jard=EDn?= rota
+Date: Fri, 14 Mar 2025 08:30:00 -0300
+Message-ID: <rota-2@studio.example>
+In-Reply-To: <rota-1@studio.example>
+References: <start@studio.example> <rota-1@studio.example>
+List-Unsubscribe: <mailto:leave@lists.studio.example>
+Content-Type: multipart/mixed; boundary="outer-77"
+
+--outer-77
+Content-Type: multipart/alternative; boundary="alt-77"
+
+--alt-77
+Content-Type: text/plain; format=flowed; charset="UTF-8"
+Content-Transfer-Encoding: Quoted-Printable
+
+Water the beds =E2=80=94 twice.
+> last week's note
+--alt-77
+Content-Type: multipart/related; boundary="rel-77"
+
+--rel-77
+Content-Type: text/html; charset="UTF-8"
+
+<div><h3>Rota</h3><ul><li>Mon <i>Quinn</i></li><li>Tue <img src="cid:leaf@studio"></li></ul><table><tr><th>bed</th><th>who</th></tr><tr><td>3</td><td>Rosa</td></tr></table></div>
+--rel-77
+Content-Type: image/gif
+Content-ID: <leaf@studio>
+Content-Transfer-Encoding: base64
+
+R0lGODlhAQABAAAAACw=
+--rel-77--
+--alt-77--
+--outer-77
+Content-Type: text/csv; name="beds.csv"
+Content-Disposition: attachment; filename="beds.csv"
+Content-Transfer-Encoding: base64
+
+YmVkLHdobwozLFJvc2EK
+--outer-77
+Content-Type: message/rfc822
+
+From: rosa@studio.example
+Subject: forwarded
+
+the old rota
+--outer-77--

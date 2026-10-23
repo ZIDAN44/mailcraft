@@ -26,7 +26,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   recursion.
 - **Last-resort guard:** `Session::run` turns an escaped panic into an error.
 - **Prove it:** every crash fix lands with a regression test; `engine/src/tests.rs::every_command_survives_junk_params`
-  runs every command with junk params — keep it green.
+  runs every command with junk params — keep it green. A new parser of server or file input gets a
+  target in `fuzz/` (cargo-fuzz, run weekly; `fuzz/README.md`); round trips get a proptest.
 
 ## Privacy and security
 - Passwords never touch MailCraft's files or logs: the `Credentials` trait (system keychain in the
@@ -50,7 +51,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   CONDSTORE/QRESYNC 7162, IDLE 2177, MOVE 6851, UIDPLUS 4315, SPECIAL-USE 6154, disconnected
   clients 4549, message format 5322/2045–2049, submission 6409/8314, threading 5256, JMAP
   8620/8621, OAuth for native apps 8252 + PKCE 7636, SRV discovery 6186.
-- Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, Stalwart server…). Permissive crates only.
+- Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, Stalwart server…). Permissive crates only;
+  `deny.toml` (cargo-deny, `.github/workflows/deny.yml`) checks licences, advisories and sources.
 
 ## Architecture
 | Layer | Crate | Job |

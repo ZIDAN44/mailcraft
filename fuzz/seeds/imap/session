@@ -1,0 +1,55 @@
+* OK [CAPABILITY IMAP4rev1 UIDPLUS MOVE QRESYNC CONDSTORE ESEARCH QUOTA SPECIAL-USE] ready
+* CAPABILITY IMAP4rev1 UIDPLUS MOVE QRESYNC CONDSTORE ESEARCH QUOTA SPECIAL-USE IDLE
+M1 OK done
+M2 OK [CAPABILITY IMAP4rev1 UIDPLUS MOVE QRESYNC CONDSTORE] logged in
+* LIST (\HasNoChildren) "/" INBOX
+* LIST (\HasNoChildren \Sent) "/" Sent
+* LIST (\HasChildren) "/" "Entw&APw-rfe"
+* LIST (\Noselect) "/" Archive/2024
+M3 OK done
+* 3 EXISTS
+* 0 RECENT
+* OK [UIDVALIDITY 7] ok
+* OK [UIDNEXT 4] ok
+* OK [HIGHESTMODSEQ 9] ok
+* FLAGS (\Seen \Flagged \Deleted)
+M4 OK [READ-WRITE] selected
+* SEARCH 1 2 3
+M5 OK done
+* 1 FETCH (UID 1 FLAGS (\Seen) RFC822.SIZE 60 INTERNALDATE "01-Jan-2024 10:00:00 +0100" MODSEQ (5) BODY[HEADER] {44}
+From: a@b
+Subject: one
+Date: Mon, 1 Jan 2024
+
+)
+* 2 FETCH (UID 2 FLAGS () RFC822.SIZE 70 BODY[HEADER] {23}
+From: c@d
+Subject: two
+)
+M6 OK done
+* 1 FETCH (UID 1 BODY[] {30}
+From: a@b
+Subject: one
+
+hi
+)
+M7 OK done
+M8 OK done
+M9 OK done
+* VANISHED (EARLIER) 1:2
+* 3 FETCH (UID 3 FLAGS (\Seen) MODSEQ (12))
+M10 OK [READ-WRITE] selected
+* STATUS Sent (MESSAGES 3 UNSEEN 1)
+M11 OK done
+* ESEARCH (TAG "M12") UID ALL 1:3
+M12 OK done
+* QUOTAROOT INBOX ""
+* QUOTA "" (STORAGE 10 100)
+M13 OK done
++ ready
+M14 OK [APPENDUID 7 9] appended
+* OK [COPYUID 7 1:3 4:6] moved
+* 1 EXPUNGE
+M15 OK done
+* 4 EXISTS
+M16 OK done

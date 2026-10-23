@@ -1,0 +1,36 @@
+# Fuzzing MailCraft's readers of hostile input (network replies, message sources, cache and
+# data files) with `cargo fuzz` on nightly, Linux or macOS: `cargo +nightly fuzz run -O mime_parse`.
+# A workspace of its own, so the main build never needs nightly or libFuzzer. The targets are
+# listed in `fuzz/README.md`.
+package = { name = "mailcraft-fuzz", version = "0.0.0", edition = "2024", license = "MIT OR Apache-2.0", publish = false, metadata = { cargo-fuzz = true } }
+
+workspace = { members = ["."] }
+
+# One binary per target, each kept out of `cargo test`, `cargo doc` and `cargo bench`.
+bin = [
+    { name = "html", bench = false, test = false, doc = false, path = "fuzz_targets/html.rs" }, # received HTML bodies and our own markup
+    { name = "ical", bench = false, test = false, doc = false, path = "fuzz_targets/ical.rs" }, # calendar files and WebDAV replies
+    { name = "imap", bench = false, test = false, doc = false, path = "fuzz_targets/imap.rs" }, # a whole IMAP session from the server side
+    { name = "jmap", bench = false, test = false, doc = false, path = "fuzz_targets/jmap.rs" }, # JMAP replies, push events and URLs
+    { name = "mime_parse", bench = false, test = false, doc = false, path = "fuzz_targets/mime_parse.rs" }, # raw message sources
+    { name = "pst", bench = false, test = false, doc = false, path = "fuzz_targets/pst.rs" }, # Outlook data file import
+    { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
+    { name = "vcard", bench = false, test = false, doc = false, path = "fuzz_targets/vcard.rs" }, # contact cards
+]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+# The MailCraft crates under test, straight from this checkout.
+mailcraft-jmap.path = "../crates/jmap" # the JMAP client
+mailcraft-mime.path = "../crates/mime" # MIME, HTML and markup
+mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
+mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
+mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to
+
+# `cargo fuzz ... -O` builds with this profile. MailCraft's own code keeps its debug assertions and
+# overflow checks; mail-parser runs without debug assertions, as the main workspace sets it.
+[profile.release]
+debug = 1
+debug-assertions = true
+overflow-checks = true
+package.mail-parser.debug-assertions = false

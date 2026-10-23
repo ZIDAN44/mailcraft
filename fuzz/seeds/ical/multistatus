@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<w:multistatus xmlns:w="DAV:" xmlns:k="urn:ietf:params:xml:ns:caldav" xmlns:x="http://calendarserver.org/ns/"><w:response><w:href>/dav/pat/home/</w:href><w:propstat><w:prop><w:displayname>Home and garden</w:displayname><w:resourcetype><w:collection/><k:calendar/></w:resourcetype><x:getctag>ct-42</x:getctag></w:prop><w:status>HTTP/1.1 200 OK</w:status></w:propstat></w:response>
+<w:response><w:href>/dav/pat/home/sowing.ics</w:href><w:propstat><w:prop><w:getetag>"etag-sowing-3"</w:getetag><k:calendar-data>BEGIN:VCALENDAR&#13;
+VERSION:2.0&#13;
+BEGIN:VEVENT&#13;
+UID:sowing@studio.example&#13;
+SUMMARY:Sow the tomatoes&#13;
+DTSTART;VALUE=DATE:20250401&#13;
+END:VEVENT&#13;
+END:VCALENDAR&#13;
+</k:calendar-data></w:prop><w:status>HTTP/1.1 200 OK</w:status></w:propstat><w:propstat><w:prop><w:getcontenttype/></w:prop><w:status>HTTP/1.1 404 Not Found</w:status></w:propstat></w:response>
+</w:multistatus>

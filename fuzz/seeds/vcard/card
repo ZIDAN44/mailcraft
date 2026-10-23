@@ -1,0 +1,21 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:c1
+FN:Ana Lima
+N:Lima;Ana;;;
+EMAIL;TYPE=work:ana@example.com
+TEL;TYPE=cell:+49 30 1234
+ORG:Studio\, Inc.
+TITLE:Producer
+NOTE:Line one\nline two that is long enough to be folded over more than one physical line in t
+ he file
+ADR;TYPE=home:;;Main St 1\nFlat 2;Berlin;BE;10115;Germany
+BDAY:--0401
+X-CUSTOM;PARAM=1:kept
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Jun
+EMAIL;TYPE=INTERNET:jun@example.com
+BDAY:1990-04-01
+END:VCARD
