@@ -45,6 +45,9 @@ pub struct State {
     pub flood: Option<Vec<u8>>,
     /// How long each read of the connection waits (a server trickling its answer).
     pub trickle: std::time::Duration,
+    /// Mail delivered to the Inbox (this subject) when a command containing this text first
+    /// comes: mail arriving at a set point of a sync.
+    pub deliver_on: Option<(String, String)>,
 }
 
 impl State {
@@ -64,6 +67,7 @@ impl State {
             search_delay: std::time::Duration::ZERO,
             flood: None,
             trickle: std::time::Duration::ZERO,
+            deliver_on: None,
         }))
     }
 
@@ -130,6 +134,8 @@ pub struct Fake {
     refused: bool,
     /// Sent forever once the output runs dry (see `State::flood`).
     flood: Option<Vec<u8>>,
+    /// In IDLE (this tag) until `DONE`.
+    idling: Option<String>,
 }
 
 /// The only access token the fake accepts.
@@ -137,8 +143,17 @@ pub const GOOD_TOKEN: &str = "good-token";
 
 impl Fake {
     pub fn connect(st: &Arc<Mutex<State>>) -> Fake {
-        let mut f =
-            Fake { st: st.clone(), selected: None, inbuf: Vec::new(), out: VecDeque::new(), literal: None, sasl: None, refused: false, flood: None };
+        let mut f = Fake {
+            st: st.clone(),
+            selected: None,
+            inbuf: Vec::new(),
+            out: VecDeque::new(),
+            literal: None,
+            sasl: None,
+            refused: false,
+            flood: None,
+            idling: None,
+        };
         f.say("* OK fake ready");
         f
     }
@@ -172,6 +187,14 @@ impl Fake {
             {
                 self.literal = Some((line[..open].to_string(), n));
                 self.say("+ go ahead");
+                continue;
+            }
+            if let Some(tag) = self.idling.take() {
+                if line.trim().eq_ignore_ascii_case("DONE") {
+                    self.say(&format!("{tag} OK idle done"));
+                } else {
+                    self.idling = Some(tag);
+                }
                 continue;
             }
             if let Some((tag, token_next)) = self.sasl.take() {
@@ -228,6 +251,18 @@ impl Fake {
         st.log.push(rest.to_string());
         let upper = rest.to_ascii_uppercase();
         let ok = |s: &mut Fake, extra: &str| s.say(&format!("{tag} OK {extra}done"));
+        if let Some((on, subject)) = st.deliver_on.clone()
+            && rest.contains(on.as_str())
+        {
+            st.deliver_on = None;
+            st.add("INBOX", &subject, &[]);
+        }
+        if upper == "IDLE" {
+            // RFC 2177, without pushing anything: what came before IDLE isn't said again.
+            self.idling = Some(tag.to_string());
+            self.say("+ idling");
+            return;
+        }
         if upper == "NOOP"
             && let Some(flood) = st.flood.clone()
         {
@@ -381,7 +416,10 @@ impl Fake {
                 let max = b.msgs.last().map_or(0, |m| m.uid);
                 let words: Vec<&str> = rest.split_whitespace().collect();
                 let verb = words.get(1).map(|s| s.to_ascii_uppercase()).unwrap_or_default();
-                if upper == "NOOP" || upper == "LOGOUT" {
+                if upper == "NOOP" {
+                    // What a real server says to a NOOP: the folder's size, now.
+                    lines.push(format!("* {} EXISTS", b.msgs.len()).into_bytes());
+                } else if upper == "LOGOUT" {
                 } else if verb == "SEARCH" {
                     // The keys after `SEARCH`, a literal last (as MailCraft sends a UTF-8 word).
                     let after = rest.splitn(3, ' ').nth(2).unwrap_or("");

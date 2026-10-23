@@ -167,6 +167,13 @@ pub struct Client<S> {
     selected: Option<String>,
     /// QRESYNC is enabled on this connection (RFC 7162 §3.2.3).
     qresync: bool,
+    /// What the last `SELECT` of each folder reported on this connection.
+    seen: std::collections::HashMap<String, SelectInfo>,
+    /// The selected folder's message count, as the server last said.
+    exists: u32,
+    /// The server said the selected folder grew (an untagged `EXISTS` with a new count) during a
+    /// command since it was selected: new mail no command has looked at yet.
+    news: bool,
 }
 
 fn caps_from(list: &[Capability<'_>]) -> HashSet<String> {
@@ -202,7 +209,15 @@ impl Client<Stream> {
                 let Stream::Plain(sock) = c.conn.into_inner() else {
                     return Err(NetError::Tls("connection already encrypted".into()));
                 };
-                let mut c = Client { conn: Conn::new(stream::tls(sock, &cfg.host)?), caps: HashSet::new(), selected: None, qresync: false };
+                let mut c = Client {
+                    conn: Conn::new(stream::tls(sock, &cfg.host)?),
+                    caps: HashSet::new(),
+                    selected: None,
+                    qresync: false,
+                    seen: Default::default(),
+                    exists: 0,
+                    news: false,
+                };
                 // Capabilities learned before TLS must be discarded (RFC 3501 §6.2.1).
                 c.capability()?;
                 Ok(c)
@@ -214,7 +229,8 @@ impl Client<Stream> {
 impl<S: Read + Write> Client<S> {
     /// Wrap a connected stream and read the server greeting.
     pub fn from_stream(s: S) -> Result<Client<S>> {
-        let mut c = Client { conn: Conn::new(s), caps: HashSet::new(), selected: None, qresync: false };
+        let mut c =
+            Client { conn: Conn::new(s), caps: HashSet::new(), selected: None, qresync: false, seen: Default::default(), exists: 0, news: false };
         match c.conn.read()? {
             Ok(Response::Data { status: Status::Ok | Status::PreAuth, outcome }) => {
                 if let Some(ResponseCode::Capabilities(list)) = &outcome.code {
@@ -237,7 +253,7 @@ impl<S: Read + Write> Client<S> {
     }
 
     pub fn capability(&mut self) -> Result<()> {
-        let rs = self.conn.run(&[Part::Text("CAPABILITY")])?;
+        let rs = self.cmd(&[Part::Text("CAPABILITY")])?;
         for r in rs {
             if let Response::Capabilities(list) = r {
                 self.caps = caps_from(&list);
@@ -256,7 +272,7 @@ impl<S: Read + Write> Client<S> {
         };
         let res = if self.has("AUTH=PLAIN") && self.has("SASL-IR") {
             let token = base64(format!("\0{user}\0{pass}").as_bytes());
-            self.conn.run(&[Part::Text("AUTHENTICATE PLAIN "), Part::Text(&token)])
+            self.cmd(&[Part::Text("AUTHENTICATE PLAIN "), Part::Text(&token)])
         } else if self.has("LOGINDISABLED") {
             return Err(NetError::Auth("the server does not allow sign-in on this connection (use TLS)".into()));
         } else {
@@ -271,7 +287,7 @@ impl<S: Read + Write> Client<S> {
                 Some(q) => parts.push(Part::Text(q)),
                 None => parts.push(Part::Literal(pass.as_bytes())),
             }
-            self.conn.run(&parts)
+            self.cmd(&parts)
         };
         let rs = res.map_err(as_auth)?;
         self.after_login(&rs)
@@ -326,13 +342,13 @@ impl<S: Read + Write> Client<S> {
         }
         if self.has("ENABLE") && self.has("QRESYNC") {
             // QRESYNC implies CONDSTORE. Only an ENABLED reply naming it turns it on.
-            if let Ok(rs) = self.conn.run(&[Part::Text("ENABLE QRESYNC")]) {
+            if let Ok(rs) = self.cmd(&[Part::Text("ENABLE QRESYNC")]) {
                 self.qresync = rs.iter().any(|r| {
                     matches!(r, Response::Capabilities(list) if list.iter().any(|c| matches!(c, Capability::Atom(a) if a.eq_ignore_ascii_case("QRESYNC"))))
                 });
             }
         } else if self.has("ENABLE") && self.has("CONDSTORE") {
-            let _ = self.conn.run(&[Part::Text("ENABLE CONDSTORE")]);
+            let _ = self.cmd(&[Part::Text("ENABLE CONDSTORE")]);
         }
         Ok(())
     }
@@ -345,7 +361,7 @@ impl<S: Read + Write> Client<S> {
     /// All folders, with special-use roles.
     pub fn list(&mut self, account: &str) -> Result<Vec<Folder>> {
         let cmd = if self.has("SPECIAL-USE") && self.has("LIST-EXTENDED") { "LIST \"\" \"*\" RETURN (SPECIAL-USE)" } else { "LIST \"\" \"*\"" };
-        let rs = self.conn.run(&[Part::Text(cmd)])?;
+        let rs = self.cmd(&[Part::Text(cmd)])?;
         let mut out: Vec<Folder> = Vec::new();
         for r in rs {
             let Response::MailboxData(MailboxDatum::List(l)) = r else { continue };
@@ -390,7 +406,7 @@ impl<S: Read + Write> Client<S> {
         let arg = mailbox_arg(folder);
         let condstore = if self.has("CONDSTORE") || self.qresync { " (CONDSTORE)" } else { "" };
         let cmd = format!("{verb}{arg}{condstore}");
-        let rs = self.conn.run(&[Part::Text(&cmd)])?;
+        let rs = self.cmd(&[Part::Text(&cmd)])?;
         let (info, _, _) = self.selected_from(folder, rs);
         Ok(info)
     }
@@ -402,7 +418,7 @@ impl<S: Read + Write> Client<S> {
     pub fn select_qresync(&mut self, folder: &str, validity: u32, modseq: u64, known: &str) -> Result<Resync> {
         let known = if known.is_empty() { String::new() } else { format!(" {known}") };
         let cmd = format!("SELECT {} (QRESYNC ({validity} {modseq}{known}))", mailbox_arg(folder));
-        let rs = self.conn.run(&[Part::Text(&cmd)])?;
+        let rs = self.cmd(&[Part::Text(&cmd)])?;
         Ok(self.selected_from(folder, rs))
     }
 
@@ -431,7 +447,40 @@ impl<S: Read + Write> Client<S> {
             }
         }
         self.selected = Some(folder.to_string());
+        self.exists = info.exists;
+        self.news = false;
+        self.seen.insert(folder.to_string(), info.clone());
         (info, vanished, changed)
+    }
+
+    /// What the last `SELECT` of `folder` on this connection reported (a sync's, say).
+    pub fn seen(&self, folder: &str) -> Option<&SelectInfo> {
+        self.seen.get(folder)
+    }
+
+    /// Whether the selected folder grew during a command since it was selected (and since the
+    /// last time this was asked).
+    pub fn take_news(&mut self) -> bool {
+        std::mem::take(&mut self.news)
+    }
+
+    /// Run a command, noting what it says about the selected folder's size (RFC 3501 §7.3.1:
+    /// any command's answer may carry `EXISTS` for mail that just arrived).
+    fn cmd(&mut self, parts: &[Part<'_>]) -> Result<Vec<Response<'static>>> {
+        let rs = self.conn.run(parts)?;
+        if self.selected.is_some() {
+            for r in &rs {
+                match r {
+                    Response::MailboxData(MailboxDatum::Exists(n)) => {
+                        self.news |= *n > self.exists;
+                        self.exists = *n;
+                    }
+                    Response::Expunge(_) => self.exists = self.exists.saturating_sub(1),
+                    _ => {}
+                }
+            }
+        }
+        Ok(rs)
     }
 
     pub fn selected(&self) -> Option<&str> {
@@ -441,7 +490,7 @@ impl<S: Read + Write> Client<S> {
     /// `STATUS` counts for a folder that isn't selected: (messages, unseen).
     pub fn status(&mut self, folder: &str) -> Result<(u32, u32)> {
         let cmd = format!("STATUS {} (MESSAGES UNSEEN)", mailbox_arg(folder));
-        let rs = self.conn.run(&[Part::Text(&cmd)])?;
+        let rs = self.cmd(&[Part::Text(&cmd)])?;
         let (mut total, mut unseen) = (0, 0);
         for r in rs {
             if let Response::MailboxData(MailboxDatum::Status { status, .. }) = r {
@@ -492,7 +541,7 @@ impl<S: Read + Write> Client<S> {
                 parts.push(Part::Literal(l));
             }
         }
-        let rs = self.conn.run(&parts)?;
+        let rs = self.cmd(&parts)?;
         let mut out = Vec::new();
         for r in rs {
             if let Response::MailboxData(MailboxDatum::Search(v)) = r {
@@ -506,7 +555,7 @@ impl<S: Read + Write> Client<S> {
 
     pub fn uid_search(&mut self, criteria: &str) -> Result<Vec<u32>> {
         let cmd = format!("UID SEARCH {criteria}");
-        let rs = self.conn.run(&[Part::Text(&cmd)])?;
+        let rs = self.cmd(&[Part::Text(&cmd)])?;
         let mut out = Vec::new();
         for r in rs {
             if let Response::MailboxData(MailboxDatum::Search(v)) = r {
@@ -524,7 +573,7 @@ impl<S: Read + Write> Client<S> {
             return Ok(Vec::new());
         }
         let cmd = if modifier.is_empty() { format!("UID FETCH {set} ({items})") } else { format!("UID FETCH {set} ({items}) {modifier}") };
-        let rs = self.conn.run(&[Part::Text(&cmd)])?;
+        let rs = self.cmd(&[Part::Text(&cmd)])?;
         let mut out: Vec<Fetched> = Vec::new();
         for r in rs {
             let Response::Fetch(_, attrs) = r else { continue };
@@ -553,7 +602,7 @@ impl<S: Read + Write> Client<S> {
             return Ok(());
         }
         let cmd = format!("UID STORE {set} {}FLAGS.SILENT ({flags})", if add { "+" } else { "-" });
-        self.conn.run(&[Part::Text(&cmd)]).map(|_| ())
+        self.cmd(&[Part::Text(&cmd)]).map(|_| ())
     }
 
     /// Move messages: `UID MOVE` (RFC 6851) or COPY + `\Deleted` + expunge.
@@ -570,10 +619,10 @@ impl<S: Read + Write> Client<S> {
         let dest = mailbox_arg(dest);
         if self.has("MOVE") {
             let cmd = format!("UID MOVE {set} {dest}");
-            return self.conn.run(&[Part::Text(&cmd)]).map(|rs| copied_uids(&rs));
+            return self.cmd(&[Part::Text(&cmd)]).map(|rs| copied_uids(&rs));
         }
         let cmd = format!("UID COPY {set} {dest}");
-        let uids = copied_uids(&self.conn.run(&[Part::Text(&cmd)])?);
+        let uids = copied_uids(&self.cmd(&[Part::Text(&cmd)])?);
         self.uid_store(set, true, "\\Deleted")?;
         self.expunge(set)?;
         Ok(uids)
@@ -582,7 +631,7 @@ impl<S: Read + Write> Client<S> {
     /// Expunge exactly `set` (UIDPLUS), or everything marked `\Deleted` without it.
     pub fn expunge(&mut self, set: &str) -> Result<()> {
         let cmd = if self.has("UIDPLUS") { format!("UID EXPUNGE {set}") } else { "EXPUNGE".to_string() };
-        self.conn.run(&[Part::Text(&cmd)]).map(|_| ())
+        self.cmd(&[Part::Text(&cmd)]).map(|_| ())
     }
 
     /// Space used on the server and its limit, in bytes (`GETQUOTAROOT`, RFC 9208); `None` when the
@@ -591,7 +640,7 @@ impl<S: Read + Write> Client<S> {
         if !self.has("QUOTA") && !self.caps.iter().any(|c| c.starts_with("QUOTA=")) {
             return Ok(None);
         }
-        let rs = self.conn.run(&[Part::Text("GETQUOTAROOT INBOX")])?;
+        let rs = self.cmd(&[Part::Text("GETQUOTAROOT INBOX")])?;
         for r in rs {
             if let Response::Quota(q) = r
                 && let Some(res) = q.resources.iter().find(|r| r.name == imap_proto::rfc2087::QuotaResourceName::Storage)
@@ -610,13 +659,13 @@ impl<S: Read + Write> Client<S> {
             return Ok(());
         }
         self.uid_store("1:*", true, "\\Deleted")?;
-        self.conn.run(&[Part::Text("EXPUNGE")]).map(|_| ())
+        self.cmd(&[Part::Text("EXPUNGE")]).map(|_| ())
     }
 
     /// Store a message in a folder; returns its UID when the server says (UIDPLUS `APPENDUID`).
     pub fn append(&mut self, folder: &str, flags: &str, raw: &[u8]) -> Result<Option<u32>> {
         let head = format!("APPEND {} ({flags}) ", mailbox_arg(folder));
-        let rs = self.conn.run(&[Part::Text(&head), Part::Literal(raw)])?;
+        let rs = self.cmd(&[Part::Text(&head), Part::Literal(raw)])?;
         for r in rs {
             if let Response::Done { outcome, .. } = r
                 && let Some(ResponseCode::AppendUid(_, uids)) = outcome.code
@@ -634,12 +683,12 @@ impl<S: Read + Write> Client<S> {
     /// that already exists counts as created.
     pub fn create(&mut self, folder: &str) -> Result<()> {
         let cmd = format!("CREATE {}", mailbox_arg(folder));
-        match self.conn.run(&[Part::Text(&cmd)]) {
+        match self.cmd(&[Part::Text(&cmd)]) {
             Ok(_) => {}
             Err(NetError::No(m)) if m.to_ascii_uppercase().contains("ALREADYEXISTS") || m.to_ascii_lowercase().contains("exists") => {}
             Err(e) => return Err(e),
         }
-        let _ = self.conn.run(&[Part::Text(&format!("SUBSCRIBE {}", mailbox_arg(folder)))]);
+        let _ = self.cmd(&[Part::Text(&format!("SUBSCRIBE {}", mailbox_arg(folder)))]);
         Ok(())
     }
 
@@ -651,9 +700,9 @@ impl<S: Read + Write> Client<S> {
             self.unselect();
         }
         let cmd = format!("RENAME {} {}", mailbox_arg(from), mailbox_arg(to));
-        self.conn.run(&[Part::Text(&cmd)])?;
-        let _ = self.conn.run(&[Part::Text(&format!("UNSUBSCRIBE {}", mailbox_arg(from)))]);
-        let _ = self.conn.run(&[Part::Text(&format!("SUBSCRIBE {}", mailbox_arg(to)))]);
+        self.cmd(&[Part::Text(&cmd)])?;
+        let _ = self.cmd(&[Part::Text(&format!("UNSUBSCRIBE {}", mailbox_arg(from)))]);
+        let _ = self.cmd(&[Part::Text(&format!("SUBSCRIBE {}", mailbox_arg(to)))]);
         Ok(())
     }
 
@@ -662,8 +711,8 @@ impl<S: Read + Write> Client<S> {
         if self.selected.as_deref().is_some_and(|s| s.starts_with(folder)) {
             self.unselect();
         }
-        let _ = self.conn.run(&[Part::Text(&format!("UNSUBSCRIBE {}", mailbox_arg(folder)))]);
-        match self.conn.run(&[Part::Text(&format!("DELETE {}", mailbox_arg(folder)))]) {
+        let _ = self.cmd(&[Part::Text(&format!("UNSUBSCRIBE {}", mailbox_arg(folder)))]);
+        match self.cmd(&[Part::Text(&format!("DELETE {}", mailbox_arg(folder)))]) {
             Ok(_) => Ok(()),
             Err(NetError::No(m)) if m.to_ascii_uppercase().contains("NONEXISTENT") => Ok(()),
             Err(e) => Err(e),
@@ -673,20 +722,20 @@ impl<S: Read + Write> Client<S> {
     /// Leave the selected folder (`UNSELECT` when offered; `CLOSE` would expunge).
     fn unselect(&mut self) {
         if self.has("UNSELECT") {
-            let _ = self.conn.run(&[Part::Text("UNSELECT")]);
+            let _ = self.cmd(&[Part::Text("UNSELECT")]);
         } else if self.selected.is_some() {
             // A failed EXAMINE leaves the selected state without expunging (RFC 3501 §6.3.1).
-            let _ = self.conn.run(&[Part::Text("EXAMINE \"MailCraft no such folder\"")]);
+            let _ = self.cmd(&[Part::Text("EXAMINE \"MailCraft no such folder\"")]);
         }
         self.selected = None;
     }
 
     pub fn noop(&mut self) -> Result<Vec<Response<'static>>> {
-        self.conn.run(&[Part::Text("NOOP")])
+        self.cmd(&[Part::Text("NOOP")])
     }
 
     pub fn logout(&mut self) {
-        let _ = self.conn.run(&[Part::Text("LOGOUT")]);
+        let _ = self.cmd(&[Part::Text("LOGOUT")]);
     }
 }
 

@@ -37,8 +37,17 @@ impl Worker {
         let Some(inbox) = inbox else { return };
         let result = (|| -> Result<bool> {
             let Some(Conn::Imap(c)) = self.conn.as_mut() else { return Err(NetError::Closed("not connected".into())) };
+            // Mail that came after the Inbox was synced and before IDLE starts is never pushed
+            // during IDLE: the server already said it (or will only say it to a command). Look
+            // now: the Inbox grew since the sync's SELECT, or a command's answer said it did.
             if c.selected() != Some(inbox.as_str()) {
-                c.select(&inbox, false)?;
+                let synced = c.seen(&inbox).cloned();
+                let now = c.select(&inbox, false)?;
+                if synced.is_some_and(|s| (s.validity, s.uid_next, s.exists) != (now.validity, now.uid_next, now.exists)) {
+                    return Ok(true);
+                }
+            } else if c.take_news() {
+                return Ok(true);
             }
             let queue = &mut self.queue;
             let closed = &mut self.closed;
