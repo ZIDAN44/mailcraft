@@ -108,6 +108,57 @@ fn attempt_order(addrs: Vec<SocketAddr>, prefer_v4: bool) -> Vec<SocketAddr> {
 
 /// Open a TCP connection, trying each resolved address in turn.
 pub fn tcp(host: &str, port: u16) -> Result<TcpStream> {
+    connect(host, port, false)
+}
+
+/// [`tcp`] to the internet only: never this computer, its network, or a link-local address,
+/// whatever the name resolves to. For what a message makes MailCraft fetch (its pictures): a
+/// picture address must not reach a router's or printer's web page, or a service on this
+/// computer. Checked on the addresses connected to, so a name that resolves to one is refused.
+pub fn tcp_public(host: &str, port: u16) -> Result<TcpStream> {
+    connect(host, port, true)
+}
+
+/// Whether an address is on the public internet: not loopback, private (RFC 1918, IPv6 unique
+/// local), link-local, shared (100.64/10), unspecified, multicast or broadcast; an IPv4 address
+/// written as IPv6 is judged as itself.
+pub fn is_public(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            let [first, second, third, _] = v4.octets();
+            // What the standard library already knows how to recognise…
+            let named = [
+                v4.is_unspecified(),
+                v4.is_loopback(),
+                v4.is_private(),
+                v4.is_link_local(),
+                v4.is_broadcast(),
+                v4.is_documentation(),
+                v4.is_multicast(),
+            ];
+            // …and the blocks it doesn't: 0/8, shared 100.64/10, IETF 192.0.0/24, reserved 240/4.
+            let shared = first == 100 && (second & 0xc0) == 0x40;
+            let ietf = (first, second, third) == (192, 0, 0);
+            !(named.contains(&true) || first == 0 || shared || ietf || first >= 240)
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_public(IpAddr::V4(v4));
+            }
+            let first = v6.segments()[0];
+            !(v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_multicast()
+                || (first & 0xfe00) == 0xfc00
+                || (first & 0xffc0) == 0xfe80
+                || (first & 0xffc0) == 0xfec0
+                || first == 0x2001 && v6.segments()[1] == 0x0db8)
+        }
+    }
+}
+
+fn connect(host: &str, port: u16, public_only: bool) -> Result<TcpStream> {
     // A name that doesn't resolve is almost always a mistyped or guessed server name.
     let addrs = (host, port).to_socket_addrs().map_err(|e| {
         NetError::Io(io::Error::new(
@@ -116,7 +167,12 @@ pub fn tcp(host: &str, port: u16) -> Result<TcpStream> {
         ))
     })?;
     let mut last = io::Error::new(io::ErrorKind::NotFound, format!("{host}: no address"));
-    let candidates = attempt_order(addrs.take(64).collect(), V4_LEADS.load(Ordering::Relaxed));
+    let found: Vec<SocketAddr> = addrs.take(64).collect();
+    let reachable: Vec<SocketAddr> = if public_only { found.iter().copied().filter(|a| is_public(a.ip())).collect() } else { found.clone() };
+    if reachable.is_empty() && !found.is_empty() {
+        return Err(NetError::Protocol(format!("{host} is on this computer or its network: only addresses on the internet are fetched")));
+    }
+    let candidates = attempt_order(reachable, V4_LEADS.load(Ordering::Relaxed));
     let mut v6_missed = false;
     let mut left = candidates.len();
     for a in &candidates {
@@ -155,6 +211,52 @@ pub fn tls(sock: TcpStream, host: &str) -> Result<Stream> {
 
 #[cfg(test)]
 mod tests {
+    /// What a message's pictures may reach: the internet, never this computer or its network.
+    #[test]
+    fn only_internet_addresses_are_public() {
+        for ip in ["93.184.216.34", "8.8.8.8", "2606:4700::1111", "1.1.1.1"] {
+            assert!(super::is_public(ip.parse().unwrap()), "{ip}");
+        }
+        for ip in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "0.0.0.0",
+            "100.64.0.1",
+            "224.0.0.1",
+            "255.255.255.255",
+            "::1",
+            "::",
+            "fe80::1",
+            "fd00::1",
+            "::ffff:192.168.1.1",
+            "::ffff:127.0.0.1",
+            "192.0.0.8",
+            "240.0.0.1",
+        ] {
+            assert!(!super::is_public(ip.parse().unwrap()), "{ip}");
+        }
+    }
+
+    /// A picture address on this computer is refused, even with a server listening there.
+    #[test]
+    fn a_picture_on_this_computer_is_not_fetched() {
+        let local = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = local.local_addr().unwrap();
+        let port = address.port();
+        let why = |host: &str| match super::tcp_public(host, port) {
+            Ok(_) => String::from("connected"),
+            Err(e) => e.to_string(),
+        };
+        let by_address = why("127.0.0.1");
+        assert!(by_address.contains("only addresses on the internet"), "{by_address}");
+        let by_name = why("localhost");
+        assert!(by_name.contains("only addresses on the internet"), "a name resolving to it too: {by_name}");
+        assert!(super::tcp("127.0.0.1", port).is_ok(), "the account's own servers may be anywhere");
+    }
+
     #[test]
     fn a_server_name_that_does_not_exist_says_what_to_check() {
         // `.invalid` never resolves (RFC 2606).

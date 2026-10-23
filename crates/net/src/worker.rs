@@ -250,7 +250,8 @@ impl Pool {
             let sink = self.sink.clone();
             let spawned = std::thread::Builder::new().name("mail-pictures".into()).spawn(move || {
                 for url in rx {
-                    let r = crate::http::get(&url, MAX_PICTURE);
+                    // A message's picture: from the internet only, never this computer's network.
+                    let r = crate::http::get_public(&url, MAX_PICTURE);
                     let e = match r {
                         Ok(resp) if resp.ok() => Event::Fetched { url, data: Some(resp.body), error: None },
                         Ok(resp) => Event::Fetched { url, data: None, error: Some(format!("HTTP {}", resp.status)) },

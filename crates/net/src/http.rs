@@ -152,9 +152,19 @@ impl Request {
 
 /// Send a request; GET and HEAD follow redirects.
 pub fn send(req: &Request) -> Result<Response> {
+    send_to(req, false)
+}
+
+/// GET from the internet only ([`stream::tcp_public`]), every redirect included: what a message
+/// asks for (its pictures) never reaches this computer or its network.
+pub fn get_public(url: &str, max: usize) -> Result<Response> {
+    send_to(&Request::get(url, max), true)
+}
+
+fn send_to(req: &Request, public_only: bool) -> Result<Response> {
     let mut url = Url::parse(&req.url)?;
     for _ in 0..=MAX_REDIRECTS {
-        let resp = once(req, &url)?;
+        let resp = once(req, &url, public_only)?;
         let follow = matches!(resp.status, 301 | 302 | 303 | 307 | 308) && (req.method == "GET" || req.method == "HEAD");
         match resp.header("Location").filter(|_| follow) {
             Some(loc) => {
@@ -175,8 +185,8 @@ pub fn get(url: &str, max: usize) -> Result<Response> {
     send(&Request::get(url, max))
 }
 
-fn once(req: &Request, url: &Url) -> Result<Response> {
-    let sock = stream::tcp(&url.host, url.port)?;
+fn once(req: &Request, url: &Url, public_only: bool) -> Result<Response> {
+    let sock = if public_only { stream::tcp_public(&url.host, url.port)? } else { stream::tcp(&url.host, url.port)? };
     let mut s = if url.https { stream::tls(sock, &url.host)? } else { Stream::Plain(sock) };
     exchange(&mut s, req, url)
 }
