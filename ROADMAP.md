@@ -340,3 +340,11 @@ local-first, media-aware v1); the fuller request is
   leaving the folder stops it between two ranges. The search box gains Outlook's scope menu
   (Current Folder, Subfolders, Current Mailbox, All Mailboxes), its recent searches and Advanced
   search. Also found on the way: two doc comments the file split had left on the wrong item.
+- **2026-10-23** — **v0.22**, a hardening review, area by area, with the Craft family's apps
+  and shared repositories as the yardstick for what the apps share; each problem reproduced first
+  and fixed with tests: an
+  attachment that runs code is never opened, pictures reach the internet only, IMAP answers are
+  capped, a one-occurrence invitation reply no longer deletes the series, only the organizer
+  changes a meeting, OAuth tokens renew themselves, mail before IDLE isn't late, Ctrl+Q stays,
+  the 32-bit build opens, files are written whole and private. Checked on Dovecot and GreenMail
+  in Docker too.

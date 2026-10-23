@@ -728,6 +728,39 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   the build before the fix first: Show more sent `SELECT … (QRESYNC …)` and nothing else, the
   list still 25; now it fetches the next 25 (`UID FETCH 2951:2975`), 50 shown. Search the server
   for "needle" asked `UID SEARCH 2501:3000`, `1501:2500`, `1:1500` and showed its 30.
+- **Audited against the sibling MailCraft apps and the Craft family (2026-10-23):** MonkeySaint's
+  and UCS-Care-Group's MailCraft (both MIT/Apache, read only) and WordCraft, PdfCraft, GridCraft,
+  DeckCraft, craft-libs, craft-i18n and craft-common-actions, by area. What they had fixed that
+  MailCraft had too, each reproduced here first and fixed with a test:
+  - *Safety:* an attachment that runs code (`.exe`, `.hta`, `.lnk`, `.iso`…) was handed to the
+    system to open; it no longer is, and saved attachments carry Windows' internet-zone mark.
+    File names lost right-to-left overrides, zero-width marks and device names (`CON`). A
+    message's pictures reach the internet only, never this computer or its network. A bare CR in
+    a hostile Message-ID no longer reaches a reply's headers. One IMAP command's answer is capped
+    (256 MB, a million responses, 15 minutes); a hostile server could grow memory without end.
+  - *Data:* answering an update to one occurrence of a series deleted the whole series, here and
+    on the server; an invitation's update or cancellation is applied only when it comes from the
+    meeting's organizer, and never over a newer copy; long event uids no longer share a CalDAV
+    item name. The cache's files reach the disk before they replace the old ones, and are
+    private to their owner on Unix.
+  - *Sync:* an OAuth token that ran out made the account ask to sign in again; it's renewed once
+    first. Mail that arrived between the Inbox's sync and IDLE waited up to ten minutes. An SMTP
+    refusal whose text said "authenticated" stranded the message as refused for good.
+  - *Everyday use:* Ctrl+Q (Mark as read) also closed MailCraft. Files dropped from the desktop
+    onto a message are attached. Results of a search over several folders say which folder.
+  - *Platform:* the 32-bit Windows build never opened its window (DirectX 12 can't make its
+    pipelines in a 32-bit process; it draws with OpenGL now). `--help` prints the options. A
+    manual release with a version override names its files right; riscv64 packages declare the
+    glibc they need; notarization stapling is retried.
+  - Checked against real servers in Docker as well (`fakes/real_servers.rs`, run by hand): on
+    Dovecot, Show more, the server search in ranges, a 41 MB message whole under the new caps,
+    and mail from another client noticed in under a second; on GreenMail, sending.
+- Left from the audit, larger: time zones for calendar events (recurrences are expanded in UTC,
+  so they drift an hour across daylight saving), Microsoft Graph and JMAP incremental sync,
+  fuzzing and dependency scanning, screen-reader names on the custom widgets, HTML mail's box
+  styles (padding, borders), being the system's mail app (mailto:, `.eml`/`.ics`/`.vcf`), the
+  Linux AppImage's libraries, Linux's dark-mode setting, and Cmd+Q on a Mac asking about unsaved
+  messages.
 - Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
   (needs a dictionary MailCraft can ship). IMAP METADATA (RFC 5464, suggested on issue #4) is
   for annotations on mailboxes, not for searching; a server's own text index (Dovecot's FTS) is
