@@ -81,7 +81,9 @@ impl Args {
 
 fn clock() -> Clock {
     let now = chrono::Local::now();
+    let zone = iana_time_zone::get_timezone().ok().and_then(|z| mailcraft_engine::model::zone::Zone::named(&z));
     Clock::new(now.timestamp(), now.offset().local_minus_utc())
+        .in_zone(zone.filter(|z| z.offset_at(now.timestamp()) == i64::from(now.offset().local_minus_utc())))
 }
 
 fn password(prompt_for: &str) -> Result<String, String> {

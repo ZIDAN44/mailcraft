@@ -398,11 +398,7 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
             ui.vertical(|ui| {
                 ui.label(RichText::new(&e.summary).font(theme::bold(15.0)).color(t.text));
                 let when = if e.all_day {
-                    crate::i18n::date(&dates::full_time(e.start - i64::from(s.clock.offset), &s.clock))
-                        .split(' ')
-                        .take(2)
-                        .collect::<Vec<_>>()
-                        .join(" ")
+                    crate::i18n::date(&dates::full_time(s.clock.utc(e.start), &s.clock)).split(' ').take(2).collect::<Vec<_>>().join(" ")
                 } else {
                     format!("{} – {}", crate::i18n::date(&dates::full_time(e.start, &s.clock)), crate::calendar::hm(e.end, s))
                 };

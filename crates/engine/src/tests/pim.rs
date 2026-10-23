@@ -63,6 +63,34 @@ fn calendar_events_on_this_computer() {
     done(s);
 }
 
+/// In New York, a weekly 09:00 meeting made in October is still at 09:00 in December, after the
+/// clocks went back: it's made in the user's zone, and shown with the offset of its own date.
+#[test]
+fn the_calendar_keeps_local_times_across_summer_time() {
+    let mut s = sample_session("calendar-zone");
+    s.set_clock(NOW, -4 * 3600);
+    s.set_zone(Some("America/New_York"));
+    assert!(s.clock.zone.is_some());
+    let made =
+        s.run("event.create", &json!({"summary": "Dailies", "start": "2026-10-19T09:00", "end": "2026-10-19T10:00", "repeat": "weekly"})).unwrap();
+    let uid = made["uid"].as_str().unwrap().to_string();
+    assert_eq!(s.find_event(&uid).unwrap().1.event.tzid, "America/New_York");
+    let at = |s: &mut Session, day: &str| {
+        let list = s.run("calendar.events", &json!({"from": day, "to": day})).unwrap();
+        list.as_array().unwrap().iter().find(|e| e["uid"] == uid.as_str()).unwrap()["start"].as_i64().unwrap()
+    };
+    let (oct, dec) = (at(&mut s, "2026-10-19"), at(&mut s, "2026-12-07"));
+    let day = |year, month, date| 86_400 * mailcraft_model::dates::days_from_civil(year, month, date);
+    assert_eq!((oct, dec), (day(2026, 10, 19) + 13 * 3600, day(2026, 12, 7) + 14 * 3600));
+    assert_eq!((mailcraft_model::dates::civil(oct, &s.clock).hour, mailcraft_model::dates::civil(dec, &s.clock).hour), (9, 9));
+    assert_eq!(s.local_midnight(day(2026, 12, 7) / 86_400), day(2026, 12, 7) + 5 * 3600, "December's days start at EST midnight");
+    // A zone it doesn't know, or one that doesn't fit the clock: today's offset.
+    s.set_zone(Some("Mars/Olympus"));
+    assert!(s.clock.zone.is_none());
+    s.set_zone(Some("Europe/Berlin"));
+    assert!(s.clock.zone.is_none());
+}
+
 #[test]
 fn people_in_the_address_book() {
     let mut s = sample_session("people");

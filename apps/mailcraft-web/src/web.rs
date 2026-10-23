@@ -137,6 +137,12 @@ fn clock() -> (i64, i32) {
     (now, offset)
 }
 
+/// The browser's time zone (`Europe/Berlin`), from `Intl`.
+fn zone() -> Option<String> {
+    let options = js_sys::Intl::DateTimeFormat::new(&js_sys::Array::new(), &js_sys::Object::new()).resolved_options();
+    js_sys::Reflect::get(&options, &"timeZone".into()).ok()?.as_string()
+}
+
 struct WebShell {
     app: MailApp,
     store: Store,
@@ -203,6 +209,9 @@ struct WebServices {
 impl Services for WebServices {
     fn clock(&self) -> (i64, i32) {
         clock()
+    }
+    fn zone(&self) -> Option<String> {
+        zone()
     }
     fn pick_files(&mut self) -> Vec<PathBuf> {
         Vec::new()

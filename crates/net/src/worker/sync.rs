@@ -408,7 +408,7 @@ impl Worker {
         let password = self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone();
         let dav = crate::dav::Dav::new(&user, &password);
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
-        match crate::dav::sync(&dav, &self.acc.email, host, &pim, now()) {
+        match crate::dav::sync(&dav, &self.acc.email, host, &pim, now(), system_zone()) {
             Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
             Err(e) => {
                 log::info!("{}: calendars and contacts: {e}", self.acc.id);
@@ -467,4 +467,9 @@ impl Worker {
             }
         }
     }
+}
+
+/// The system's time zone, for calendar times written without one (`UTC` when it can't say).
+fn system_zone() -> mailcraft_model::zone::Zone {
+    iana_time_zone::get_timezone().ok().and_then(|z| mailcraft_model::zone::Zone::named(&z)).unwrap_or_default()
 }

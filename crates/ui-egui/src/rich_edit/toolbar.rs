@@ -186,7 +186,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
 /// time alone.
 pub(crate) fn date_choices(clock: &Clock) -> Vec<String> {
     let now = mailcraft_engine::model::dates::civil(clock.now, clock);
-    let day = clock.now.saturating_add(i64::from(clock.offset)).div_euclid(86_400);
+    let day = mailcraft_engine::model::dates::today(clock);
     let iso = format!("{:04}-{:02}-{:02}", now.year, now.month, now.day);
     let time = format!("{:02}:{:02}", now.hour, now.minute);
     vec![crate::calendar::long_date(day), iso.clone(), format!("{iso} {time}"), time]

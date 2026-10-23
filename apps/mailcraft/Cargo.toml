@@ -23,6 +23,7 @@ serde_json = { workspace = true }
 log = { workspace = true }
 # The local UTC offset for message times.
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+iana-time-zone = "0.1"
 # Native file dialogs (attach, save as).
 rfd = "0.17"
 # Open attachments with the system's default app.

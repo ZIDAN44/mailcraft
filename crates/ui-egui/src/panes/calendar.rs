@@ -30,7 +30,7 @@ pub fn color(i: u8, t: &Tokens) -> Color32 {
 }
 
 fn today(s: &Session) -> i64 {
-    s.clock.now.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400)
+    dates::today(&s.clock)
 }
 
 /// `HH:MM`, local.
@@ -41,7 +41,7 @@ pub fn hm(t: i64, s: &Session) -> String {
 
 /// The local day a time falls on.
 fn day_of(t: i64, s: &Session) -> i64 {
-    t.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400)
+    s.clock.local(t).div_euclid(86_400)
 }
 
 /// `October 2026`, `12 – 18 October 2026`, `Monday, 12 October 2026`.

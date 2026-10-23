@@ -13,6 +13,8 @@ workspace = true
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-store = { workspace = true }
+# the system's time zone, for calendar times written without one
+iana-time-zone = "0.1"
 mailcraft-jmap = { workspace = true }
 imap-proto = { workspace = true }
 lettre = { workspace = true }

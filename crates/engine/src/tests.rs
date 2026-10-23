@@ -50,7 +50,7 @@ fn sent_calendar(s: &Session, folder: &str, subject: &str) -> (String, String) {
 
 /// The start of 2026-10-16, local, as the sample's clock has it.
 fn mailcraft_engine_day(s: &Session) -> i64 {
-    crate::parse_local("2026-10-16", i64::from(s.clock.offset)).map(|(t, _)| t).unwrap()
+    crate::parse_local("2026-10-16", &s.clock).map(|(t, _)| t).unwrap()
 }
 
 mod accounts;

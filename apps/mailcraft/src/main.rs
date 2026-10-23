@@ -110,6 +110,9 @@ impl Services for Desktop {
         let now = chrono::Local::now();
         (now.timestamp(), now.offset().local_minus_utc())
     }
+    fn zone(&self) -> Option<String> {
+        iana_time_zone::get_timezone().ok()
+    }
     fn pick_files(&mut self) -> Vec<PathBuf> {
         rfd::FileDialog::new().set_title("Attach files").pick_files().unwrap_or_default()
     }

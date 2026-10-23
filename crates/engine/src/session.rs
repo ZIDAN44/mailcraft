@@ -840,7 +840,15 @@ impl Session {
     }
 
     pub fn set_clock(&mut self, now: i64, offset: i32) {
-        self.clock = Clock::new(now, offset);
+        self.clock = Clock::new(now, offset).in_zone(self.clock.zone);
+    }
+
+    /// The local time zone, by the name the system gives (`Europe/Berlin`): times then show
+    /// with the offset of their own date. One it doesn't know, or that doesn't fit the clock's
+    /// offset now, leaves today's offset for all dates.
+    pub fn set_zone(&mut self, name: Option<&str>) {
+        let (now, offset) = (self.clock.now, i64::from(self.clock.offset));
+        self.clock.zone = name.and_then(mailcraft_model::zone::Zone::named).filter(|z| z.offset_at(now) == offset);
     }
 
     pub fn notice(&mut self, text: impl Into<String>, error: bool) {

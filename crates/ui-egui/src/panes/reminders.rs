@@ -81,9 +81,8 @@ pub fn showing(st: &State) -> bool {
 
 /// When an occurrence is, for the list: `Today 09:00`, `Tomorrow`, `Mon 2026-10-26 14:00`.
 fn when(r: &DueReminder, s: &Session) -> String {
-    let off = i64::from(s.clock.offset);
-    let day = (r.start + off).div_euclid(86_400);
-    let today = (s.clock.now + off).div_euclid(86_400);
+    let day = s.clock.local(r.start).div_euclid(86_400);
+    let today = dates::today(&s.clock);
     let date = match day - today {
         0 => tl!("Today").to_string(),
         1 => tl!("Tomorrow").to_string(),

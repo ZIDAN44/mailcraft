@@ -26,6 +26,10 @@ impl Backend for NullBackend {
 pub trait Services {
     /// Unix seconds and the local UTC offset in seconds.
     fn clock(&self) -> (i64, i32);
+    /// The local time zone's IANA name (`Europe/Berlin`), when the system says.
+    fn zone(&self) -> Option<String> {
+        None
+    }
     /// Files to attach (an empty list when cancelled).
     fn pick_files(&mut self) -> Vec<PathBuf>;
     /// Where to save a file (`None` when cancelled).

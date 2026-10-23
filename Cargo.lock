@@ -2809,6 +2809,7 @@ dependencies = [
  "drag",
  "eframe",
  "egui",
+ "iana-time-zone",
  "image",
  "keyring",
  "log",
@@ -2832,6 +2833,7 @@ name = "mailcraft-cli"
 version = "0.22.0"
 dependencies = [
  "chrono",
+ "iana-time-zone",
  "mailcraft-engine",
  "mailcraft-net",
  "serde_json",
@@ -2893,6 +2895,7 @@ name = "mailcraft-net"
 version = "0.22.0"
 dependencies = [
  "hmac 0.13.0",
+ "iana-time-zone",
  "imap-proto",
  "ipconfig",
  "lettre",

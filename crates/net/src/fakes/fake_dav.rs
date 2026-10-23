@@ -185,6 +185,7 @@ mod tests {
     use mailcraft_model::ical::{self, CalEvent};
     use mailcraft_model::pim::{LOCAL, Pim, StoredEvent};
     use mailcraft_model::vcard::{self, Card, Typed};
+    use mailcraft_model::zone::Zone;
 
     use super::*;
     use crate::dav::{Dav, Kind, sync};
@@ -223,7 +224,7 @@ mod tests {
         // A first sync reads everything.
         let mut pim = Pim { caldav_home: Some(home), carddav_home: Some(book_home), ..Default::default() };
         pim.ensure_defaults();
-        let first = sync(&dav, USER, "imap.example", &pim, 100).unwrap();
+        let first = sync(&dav, USER, "imap.example", &pim, 100, Zone::UTC).unwrap();
         let cal_id = format!("{}{CAL}", server.base);
         assert_eq!(first.calendars.as_ref().map(|c| (c.len(), c[0].name.as_str(), c[0].id.as_str())), Some((1, "Work", cal_id.as_str())));
         assert_eq!(first.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Review"]);
@@ -240,7 +241,7 @@ mod tests {
         pim.events.push(StoredEvent { calendar: cal_id.clone(), event: event("b@x", "New / one", 1_800_100_000), dirty: true, ..Default::default() });
         pim.events.push(StoredEvent { calendar: LOCAL.into(), event: event("l", "Only here", 1_800_000_000), dirty: false, ..Default::default() });
         pim.deleted.push(mailcraft_model::pim::Tombstone { href: pim.cards[0].href.clone(), etag: pim.cards[0].etag.clone(), ..Default::default() });
-        let second = sync(&dav, USER, "imap.example", &pim, 200).unwrap();
+        let second = sync(&dav, USER, "imap.example", &pim, 200, Zone::UTC).unwrap();
         assert!(second.errors.is_empty(), "{:?}", second.errors);
         assert_eq!(second.deleted.len(), 1);
         assert_eq!(second.pushed_events.len(), 2);
@@ -260,7 +261,7 @@ mod tests {
         let mut stale = pim.clone();
         stale.deleted.clear();
         stale.events = vec![StoredEvent { event: CalEvent { summary: "Old edit".into(), ..review.event.clone() }, dirty: true, ..review }];
-        let third = sync(&dav, USER, "imap.example", &stale, 300).unwrap();
+        let third = sync(&dav, USER, "imap.example", &stale, 300, Zone::UTC).unwrap();
         assert_eq!(third.errors.len(), 1, "{:?}", third.errors);
         assert!(!data.lock().unwrap().items.values().any(|(_, v)| v.contains("Old edit")));
         // Nothing changed since: the calendar isn't read again.
@@ -269,7 +270,7 @@ mod tests {
         settled.calendars = third.calendars.clone().unwrap();
         settled.events.iter_mut().for_each(|e| e.dirty = false);
         settled.cards.clear();
-        let fourth = sync(&dav, USER, "imap.example", &settled, 400).unwrap();
+        let fourth = sync(&dav, USER, "imap.example", &settled, 400, Zone::UTC).unwrap();
         assert_eq!(fourth.unchanged_calendars, vec![cal_id]);
         assert!(fourth.events.is_empty());
     }
@@ -297,7 +298,7 @@ mod tests {
             new(&format!("{long}-two")),
             StoredEvent { href: old_href.clone(), etag, ..new(&format!("{long}-old")) },
         ];
-        let out = sync(&dav, USER, "imap.example", &pim, 100).unwrap();
+        let out = sync(&dav, USER, "imap.example", &pim, 100, Zone::UTC).unwrap();
         assert!(out.errors.is_empty(), "{:?}", out.errors);
         let hrefs: Vec<&str> = out.pushed_events.iter().map(|e| e.href.as_str()).collect();
         assert_eq!(hrefs.len(), 3);

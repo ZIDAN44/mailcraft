@@ -728,10 +728,10 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   the build before the fix first: Show more sent `SELECT … (QRESYNC …)` and nothing else, the
   list still 25; now it fetches the next 25 (`UID FETCH 2951:2975`), 50 shown. Search the server
   for "needle" asked `UID SEARCH 2501:3000`, `1501:2500`, `1:1500` and showed its 30.
-- **Audited against the sibling MailCraft apps and the Craft family (2026-10-23):** MonkeySaint's
-  and UCS-Care-Group's MailCraft (both MIT/Apache, read only) and WordCraft, PdfCraft, GridCraft,
-  DeckCraft, craft-libs, craft-i18n and craft-common-actions, by area. What they had fixed that
-  MailCraft had too, each reproduced here first and fixed with a test:
+- **A hardening review, area by area (2026-10-23):** sync and protocols, the mail window,
+  calendar and contacts, security, and the platform, with the Craft family's practice (WordCraft,
+  PdfCraft, GridCraft, DeckCraft, craft-libs, craft-i18n, craft-common-actions) as the yardstick
+  for what the apps share. Each problem was reproduced here first and fixed with a test:
   - *Safety:* an attachment that runs code (`.exe`, `.hta`, `.lnk`, `.iso`…) was handed to the
     system to open; it no longer is, and saved attachments carry Windows' internet-zone mark.
     File names lost right-to-left overrides, zero-width marks and device names (`CON`). A
@@ -755,8 +755,13 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   - Checked against real servers in Docker as well (`fakes/real_servers.rs`, run by hand): on
     Dovecot, Show more, the server search in ranges, a 41 MB message whole under the new caps,
     and mail from another client noticed in under a second; on GreenMail, sending.
-- Left from the audit, larger: time zones for calendar events (recurrences are expanded in UTC,
-  so they drift an hour across daylight saving), Microsoft Graph and JMAP incremental sync,
+  - *Calendar time zones:* an event keeps its zone (`TZID`: the IANA database's, Windows' names,
+    or the file's own `VTIMEZONE`, written back with it) and repeats at its wall-clock time there
+    across summer time, on that zone's days; deleted and moved occurrences match in it, a
+    date-only `UNTIL` is that zone's day, and times show in the viewer's zone with the offset of
+    their own date. Rules: `BYSETPOS` picks among a period's days ("the last weekday"), `BYDAY`
+    limits a daily rule, and `BYMONTHDAY` with `BYDAY` means both (Friday the 13th).
+- Left from the review, larger: Microsoft Graph and JMAP incremental sync,
   fuzzing and dependency scanning, screen-reader names on the custom widgets, HTML mail's box
   styles (padding, borders), being the system's mail app (mailto:, `.eml`/`.ics`/`.vcf`), the
   Linux AppImage's libraries, Linux's dark-mode setting, and Cmd+Q on a Mac asking about unsaved

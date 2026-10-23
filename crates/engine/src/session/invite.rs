@@ -64,16 +64,21 @@ pub fn partstat(answer: &str) -> Option<&'static str> {
 }
 
 /// Two addresses are the same person's (`mailto:` and case aside).
-fn same_address(a: &str, b: &str) -> bool {
-    fn bare(s: &str) -> &str {
-        let s = s.trim();
-        match s.get(..7) {
-            Some(p) if p.eq_ignore_ascii_case("mailto:") => s.get(7..).unwrap_or_default().trim(),
-            _ => s,
-        }
+fn same_address(one: &str, other: &str) -> bool {
+    let one = without_mailto(one);
+    if one.is_empty() {
+        return false;
     }
-    let (a, b) = (bare(a), bare(b));
-    !a.is_empty() && a.eq_ignore_ascii_case(b)
+    one.eq_ignore_ascii_case(without_mailto(other))
+}
+
+/// An attendee or organizer value as a plain address: trimmed, any `mailto:` (in any case) taken
+/// off the front.
+fn without_mailto(value: &str) -> &str {
+    const SCHEME: &str = "mailto:";
+    let value = value.trim();
+    let has_scheme = value.get(..SCHEME.len()).is_some_and(|start| start.eq_ignore_ascii_case(SCHEME));
+    if has_scheme { value.get(SCHEME.len()..).unwrap_or_default().trim() } else { value }
 }
 
 /// The message's version is older than the stored one.
@@ -105,7 +110,7 @@ impl Session {
             .iter()
             .find(|a| a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))?;
         let data = mime::attachment_data(&raw, att.index)?;
-        let cal = ical::parse(&String::from_utf8_lossy(&data), i64::from(self.clock.offset));
+        let cal = ical::parse_in(&String::from_utf8_lossy(&data), self.clock.local_zone());
         (!cal.events.is_empty()).then_some((cal, parsed.from.email))
     }
 

@@ -134,7 +134,7 @@ impl Session {
 
     /// The local day (days since the epoch) the calendar shows.
     pub fn cal_day(&self) -> i64 {
-        self.cal_day.unwrap_or_else(|| self.clock.now.saturating_add(i64::from(self.clock.offset)).div_euclid(86_400))
+        self.cal_day.unwrap_or_else(|| mailcraft_model::dates::today(&self.clock))
     }
 
     /// The local days on screen: a day, the work week (Monday to Friday), the week (Monday first)
@@ -156,16 +156,16 @@ impl Session {
 
     /// The Unix time a local day starts.
     pub fn local_midnight(&self, day: i64) -> i64 {
-        day.saturating_mul(86_400) - i64::from(self.clock.offset)
+        self.clock.midnight(day)
     }
 
     /// Move the calendar: to a date, today, or by `step` days, weeks or months (its mode).
     pub fn cal_goto(&mut self, date: Option<&str>, step: i64) -> CmdResult {
         let mut d = self.cal_day();
         match date.map(str::trim) {
-            Some("today") | Some("") => d = self.clock.now.saturating_add(i64::from(self.clock.offset)).div_euclid(86_400),
+            Some("today") | Some("") => d = mailcraft_model::dates::today(&self.clock),
             Some(s) => {
-                d = parse_local(s, 0)
+                d = parse_local(s, &Clock::default())
                     .map(|(t, _)| t.div_euclid(86_400))
                     .ok_or_else(|| CmdError::Params(format!("`{s}` is not a date (YYYY-MM-DD)")))?;
             }
@@ -218,7 +218,6 @@ impl Session {
     /// The occurrences overlapping `[from, to)`, by start, from every calendar that's shown.
     /// (Each with its calendar's colour: [`Session::calendar_color`].)
     pub fn agenda(&self, from: i64, to: i64) -> Vec<AgendaItem> {
-        let off = i64::from(self.clock.offset);
         let mine: Vec<String> =
             self.accounts.iter().flat_map(|a| [a.config.email.to_ascii_lowercase(), a.config.username.to_ascii_lowercase()]).collect();
         let mut out = Vec::new();
@@ -230,7 +229,7 @@ impl Session {
                 // All-day events are dates, not times: widen the window by a day each way.
                 for o in ical::occurrences(&events, from - 86_400, to + 86_400) {
                     let Some(e) = events.get(o.event) else { continue };
-                    let (start, end) = if e.all_day { (o.start - off, o.end - off) } else { (o.start, o.end) };
+                    let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
                     if start >= to || end.max(start + 1) <= from {
                         continue;
                     }
@@ -262,7 +261,6 @@ impl Session {
     /// (shown or hidden; not others' shared with them) whose reminder time has passed, that
     /// haven't ended a day ago, weren't dismissed, and aren't snoozed past `now`.
     pub fn due_reminders(&self, now: i64) -> Vec<DueReminder> {
-        let off = i64::from(self.clock.offset);
         let ahead = ical::REMINDER_MAX_MINUTES * 60;
         let mut out = Vec::new();
         for (account, p) in &self.pim {
@@ -288,7 +286,7 @@ impl Session {
                     if e.status.eq_ignore_ascii_case("CANCELLED") {
                         continue;
                     }
-                    let (start, end) = if e.all_day { (o.start - off, o.end - off) } else { (o.start, o.end) };
+                    let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
                     let occurrence = e.recurrence_id.unwrap_or(o.start);
                     let key = format!("{account}|{}|{occurrence}", e.uid);
                     let due = match self.prefs.reminders.get(&key) {
@@ -818,7 +816,7 @@ fn check_card(c: &Card) -> Result<(), CmdError> {
 /// A local date (`YYYY-MM-DD`, all day) or date and time (`YYYY-MM-DDTHH:MM`, or with a space),
 /// or Unix seconds, as (Unix seconds, all day). `offset` is the local UTC offset; all-day dates
 /// come back at UTC midnight (as events keep them).
-pub fn parse_local(s: &str, offset: i64) -> Option<(i64, bool)> {
+pub fn parse_local(s: &str, clock: &Clock) -> Option<(i64, bool)> {
     let s = s.trim();
     if let Ok(n) = s.parse::<i64>() {
         return (n.abs() < 400_000_000_000).then_some((n, false));
@@ -839,7 +837,7 @@ pub fn parse_local(s: &str, offset: i64) -> Option<(i64, bool)> {
     if h > 23 || mi > 59 || s.get(13..14) != Some(":") {
         return None;
     }
-    Some((day * 86_400 + h * 3600 + mi * 60 - offset, false))
+    Some((clock.utc(day * 86_400 + h * 3600 + mi * 60), false))
 }
 
 /// The time to judge old answers by: `t` when it's a real time.

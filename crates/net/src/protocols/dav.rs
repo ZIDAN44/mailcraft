@@ -458,7 +458,7 @@ fn resource_name(uid: &str, ext: &str) -> String {
 
 /// Sync an account's calendars and address books with its server. `pim` is what the engine
 /// last saved; nothing is written here: the result is for the engine to merge.
-pub fn sync(dav: &Dav, email: &str, imap_host: &str, pim: &Pim, now: i64) -> Result<DavSync> {
+pub fn sync(dav: &Dav, email: &str, imap_host: &str, pim: &Pim, now: i64, local: mailcraft_model::zone::Zone) -> Result<DavSync> {
     let mut out = DavSync::default();
     // Where the collections live (looked up once; again a day after finding none).
     let retry = pim.dav_checked.is_none_or(|t| now - t > 86_400);
@@ -542,7 +542,7 @@ pub fn sync(dav: &Dav, email: &str, imap_host: &str, pim: &Pim, now: i64) -> Res
                 // Unchanged: the engine keeps what it has.
                 out.kept.extend(listed.iter().filter(|(h, _)| !fetch.contains(h)).map(|(h, _)| h.clone()));
                 for (href, etag, data) in dav.multiget(Kind::Calendars, &c.href, &fetch)? {
-                    for event in ical::parse(&data, 0).events {
+                    for event in ical::parse_in(&data, local).events {
                         out.events.push(StoredEvent { calendar: c.href.clone(), href: href.clone(), etag: etag.clone(), event, dirty: false });
                     }
                 }

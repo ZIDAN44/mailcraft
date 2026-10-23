@@ -9,7 +9,7 @@ pub(super) const CHIP_H: f32 = 42.0;
 /// own, or at once again.
 pub(super) fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, clock: &dates::Clock) {
     let today = dates::today(clock);
-    let at = |day: i64, minutes: i64| day.saturating_mul(86_400) - i64::from(clock.offset) + minutes * 60;
+    let at = |day: i64, minutes: i64| clock.utc(day.saturating_mul(86_400).saturating_add(minutes * 60));
     let weekday = (today + 3).rem_euclid(7);
     let presets = [
         ("In 1 hour", (clock.now + 3600) / 60 * 60),
@@ -600,8 +600,9 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
 /// Attach File reads them); while they're held over it, its edge says it takes them. In the
 /// browser a dropped file has no path to read from, and nothing is attached.
 fn attach_dropped(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
-    let (hovering, dropped) = ui.ctx().input(|i| (!i.raw.hovered_files.is_empty(), i.raw.dropped_files.clone()));
-    if hovering {
+    let held_over = ui.ctx().input(|state| !state.raw.hovered_files.is_empty());
+    let dropped = ui.ctx().input(|state| state.raw.dropped_files.clone());
+    if held_over {
         ui.painter().rect_stroke(ui.max_rect().shrink(2.0), 6.0, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
     }
     for f in dropped.iter().take(100).filter(|f| f.path().is_absolute()) {

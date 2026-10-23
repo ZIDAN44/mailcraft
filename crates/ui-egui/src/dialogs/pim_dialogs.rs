@@ -147,12 +147,7 @@ impl EventForm {
         let calendars = writable_calendars(s);
         let read_only = s.pim.get(account).is_some_and(|p| p.calendars.iter().any(|c| c.id == stored.calendar && c.read_only));
         // A recurring event is edited as a series: its first occurrence's dates.
-        let (start, end) = if e.all_day {
-            let off = i64::from(s.clock.offset);
-            (e.start - off, e.end - off - 86_400)
-        } else {
-            (e.start, e.end)
-        };
+        let (start, end) = if e.all_day { (s.clock.utc(e.start), s.clock.utc(e.end - 86_400)) } else { (e.start, e.end) };
         let mine: Vec<String> = s.accounts.iter().map(|a| a.config.email.to_ascii_lowercase()).collect();
         Some(EventForm {
             uid: Some(uid.to_string()),
