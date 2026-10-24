@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.22, 2026-10-22._
+_Status: v0.23, 2026-10-24._
 
 ## Open
 
@@ -728,6 +728,38 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   the build before the fix first: Show more sent `SELECT … (QRESYNC …)` and nothing else, the
   list still 25; now it fetches the next 25 (`UID FETCH 2951:2975`), 50 shown. Search the server
   for "needle" asked `UID SEARCH 2501:3000`, `1501:2500`, `1:1500` and showed its 30.
+- Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
+  (needs a dictionary MailCraft can ship). IMAP METADATA (RFC 5464, suggested on issue #4) is
+  for annotations on mailboxes, not for searching; a server's own text index (Dovecot's FTS) is
+  used by the same `SEARCH` without MailCraft asking anything else, and a fuzzy search (RFC 6203)
+  is left for when a server that offers it can be tested.
+
+### v0.23 — Mail that can't fool you, and a hardening review
+- **Photos without where they were taken:** a phone writes the place into every photo; it's
+  taken out of JPEG and PNG attachments as a message is sent (the EXIF GPS block zeroed where it
+  lies, an XMP position left out, PNG's `eXIf` too), the picture, orientation and date untouched.
+  The message being written says so under its attachments; File › Options › Safety can keep it.
+- **Senders passing for someone else:** a red bar when a sender's domain imitates one the user
+  deals with (their own, and the people they write to or keep as contacts): look-alike letters
+  (Cyrillic, Greek, accents, `0` for `o`, `rn` for `m`), punycode, one letter added, dropped,
+  changed or swapped, or the real domain worn inside another (`paypal.com.account-check.example`);
+  and when the sender's name shows an address that isn't the one it came from. In the reading
+  pane, a message's window, and a message opened from a file or attached to another.
+- **Check before sending:** a message to a recipient whose domain looks like one the user
+  writes to, or showing eight or more people who may not know each other each other's
+  addresses (each organisation counted once, each address at a big mail service on its own), is
+  held with Check before sending: Send anyway, or Put everyone in Bcc.
+- **Trackers:** a message says how many tracking pictures and click-reporting links it carries;
+  tracking pictures are never fetched, even after Show pictures; a link opens out of redirect
+  wrappers that carry the real address (Safe Links, Google, Proofpoint, Amazon SES and others)
+  and without the tags that only identify the reader (`utm_*`, `fbclid`, `mc_eid`…). File ›
+  Options › Safety can open links as they are.
+- **Hidden text:** HTML mail hiding 25 words or more (zero size, no height, `display:none`,
+  `opacity:0`, `hidden`) says so, with why it matters (spam filters, and instructions for the
+  tools and assistants that read mail for someone) and the text to read.
+- **Waiting for a reply:** `is:awaiting` finds mail you sent two to thirty days ago that nobody
+  has answered (no message from anyone else names it as the one it answers or follows); a
+  Search Folder preset and a Search tab toggle offer it.
 - **A hardening review, area by area (2026-10-23):** sync and protocols, the mail window,
   calendar and contacts, security, and the platform, with the Craft family's practice (WordCraft,
   PdfCraft, GridCraft, DeckCraft, craft-libs, craft-i18n, craft-common-actions) as the yardstick
@@ -761,13 +793,14 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
     date-only `UNTIL` is that zone's day, and times show in the viewer's zone with the offset of
     their own date. Rules: `BYSETPOS` picks among a period's days ("the last weekday"), `BYDAY`
     limits a daily rule, and `BYMONTHDAY` with `BYDAY` means both (Friday the 13th).
-- Left from the review, larger: Microsoft Graph and JMAP incremental sync,
-  fuzzing and dependency scanning, screen-reader names on the custom widgets, HTML mail's box
-  styles (padding, borders), being the system's mail app (mailto:, `.eml`/`.ics`/`.vcf`), the
-  Linux AppImage's libraries, Linux's dark-mode setting, and Cmd+Q on a Mac asking about unsaved
-  messages.
-- Not done: Contact groups (distribution lists), Copy Folder, Read Aloud, and spell checking
-  (needs a dictionary MailCraft can ship). IMAP METADATA (RFC 5464, suggested on issue #4) is
-  for annotations on mailboxes, not for searching; a server's own text index (Dovecot's FTS) is
-  used by the same `SEARCH` without MailCraft asking anything else, and a fuzzy search (RFC 6203)
-  is left for when a server that offers it can be tested.
+- **Fuzzing and dependency checks:** `fuzz/` holds a cargo-fuzz target for every parser of
+  server and file input (messages, HTML, iCalendar, vCard, IMAP, JMAP, the search box, `.pst`,
+  photos), run weekly; the first runs found three crashes, fixed. cargo-deny checks licences,
+  advisories and sources (`deny.toml`).
+- **The system's mail app:** `mailto:` links start a message (RFC 6068: To, Cc, Bcc, subject,
+  body), and `.eml`, `.ics` and `.vcf` files open (a message shown, events and people added),
+  from the command line or Open with, handed to a MailCraft already running. The installers
+  offer MailCraft as the mail app and for those files.
+- Left from the review, larger: Microsoft Graph and JMAP incremental sync, screen-reader names
+  on the custom widgets, HTML mail's box styles (padding, borders), the Linux AppImage's
+  libraries, Linux's dark-mode setting, and Cmd+Q on a Mac asking about unsaved messages.

@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.22 — Outlook's everyday tools, and test builds that update themselves (2026-10-22). Each milestone below is a version: v0.1 was
+**Stage:** v0.23 — Mail that can't fool you, and a hardening review (2026-10-24). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 141 (`mailcraft-cli commands`) |
-| Tests | 369 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 190 (`mailcraft-cli commands`) |
+| Tests | 521 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -118,7 +118,17 @@ local-first, media-aware v1); the fuller request is
    SHA-256 against the release, and installs it when MailCraft closes (or at once with Restart
    to update), the way that copy was installed: `.msi`, portable `.zip`, `.dmg` or
    `.AppImage`. Signed releases are unaffected.
-23. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+23. **v0.23 — Mail that can't fool you, and a hardening review** ✅ Mail that keeps its
+   reader safe: photos sent without where they were taken, a sender passing for someone the
+   user deals with (a lookalike domain, or another address in the name) said plainly, a check
+   before a message goes to a lookalike address or shows strangers each other's addresses,
+   tracking pictures never loaded and links opened without their trackers, text a message hides
+   brought out, and `is:awaiting` for mail still waiting for a reply. Before them, a hardening
+   review area by area, each problem reproduced first: attachments that run code, pictures kept
+   off the local network, IMAP answers capped, invitations changed only by their organizer,
+   OAuth renewed, files written whole; calendar time zones; fuzzing and dependency checks;
+   MailCraft as the system's mail app.
+24. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -340,7 +350,7 @@ local-first, media-aware v1); the fuller request is
   leaving the folder stops it between two ranges. The search box gains Outlook's scope menu
   (Current Folder, Subfolders, Current Mailbox, All Mailboxes), its recent searches and Advanced
   search. Also found on the way: two doc comments the file split had left on the wrong item.
-- **2026-10-23** — **v0.22**, a hardening review, area by area, with the Craft family's apps
+- **2026-10-23** — **v0.23**, a hardening review, area by area, with the Craft family's apps
   and shared repositories as the yardstick for what the apps share; each problem reproduced first
   and fixed with tests: an
   attachment that runs code is never opened, pictures reach the internet only, IMAP answers are
@@ -348,3 +358,10 @@ local-first, media-aware v1); the fuller request is
   changes a meeting, OAuth tokens renew themselves, mail before IDLE isn't late, Ctrl+Q stays,
   the 32-bit build opens, files are written whole and private. Checked on Dovecot and GreenMail
   in Docker too.
+- **2026-10-24** — **v0.23**, mail that can't fool you, each piece tested in the engine and
+  looked at in the app on the sample mailbox: photos leave without their GPS data; senders imitating a domain
+  the user deals with, or showing another address in their name, get a red bar; Send holds a
+  message to a lookalike address or one showing many strangers each other (Put everyone in
+  Bcc); tracking pictures are counted and never loaded, links open out of redirect wrappers and
+  without reader tags; hidden text in HTML mail is brought out; `is:awaiting` finds sent mail no
+  one has answered. A fuzz target for photos, and the html and search targets cover the rest.
