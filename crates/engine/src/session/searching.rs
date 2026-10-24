@@ -4,6 +4,10 @@ use super::*;
 
 /// How many searches the search box remembers.
 pub const RECENT_SEARCHES: usize = 10;
+/// Sent at least this long ago with nothing back, a message is waiting for a reply
+/// (`is:awaiting`); sent longer ago than [`AWAITING_WITHIN_DAYS`], it no longer is.
+pub const AWAITING_AFTER_DAYS: i64 = 2;
+pub const AWAITING_WITHIN_DAYS: i64 = 30;
 
 impl Session {
     /// The folders a search looks in: the one on view, it and the folders inside it, its
@@ -107,6 +111,7 @@ impl Session {
         if query.is_empty() {
             return Vec::new();
         }
+        let awaiting = if query.clauses.iter().any(|c| asks_awaiting(&c.term)) { self.awaiting_replies() } else { HashSet::new() };
         self.ensure_index(scope);
         let Some(ix) = self.index.take() else { return Vec::new() };
         let mut out = Vec::new();
@@ -126,12 +131,49 @@ impl Session {
             let Some(m) = self.folder_state(&key.account, &key.folder).messages.get(at).filter(|m| m.key.uid == key.uid).cloned() else { continue };
             // The body read again only when the index can't settle the query.
             let body = if needs_body && ix.has_body.get(doc as usize) == Some(&true) { self.words_of(key) } else { None };
-            if query.matches(&Doc { summary: &m, body: body.as_deref(), indexed: true }) {
+            if query.matches(&Doc { summary: &m, body: body.as_deref(), indexed: true, awaiting: awaiting.contains(&m.key) }) {
                 out.push(m);
             }
         }
         self.index = Some(ix);
         out
+    }
+
+    /// The user's messages still waiting for a reply: in a Sent folder, sent between
+    /// [`AWAITING_AFTER_DAYS`] and [`AWAITING_WITHIN_DAYS`] ago to someone else (not in bulk),
+    /// and named by no message from anyone else, in any folder, as the one it answers
+    /// (`In-Reply-To`) or follows (`References`).
+    pub fn awaiting_replies(&mut self) -> HashSet<MessageKey> {
+        const DAY: i64 = 86_400;
+        let mine: HashSet<String> = self
+            .accounts
+            .iter()
+            .flat_map(|a| [a.config.email.trim().to_lowercase(), a.config.username.trim().to_lowercase()])
+            .filter(|e| e.contains('@'))
+            .collect();
+        let folders: Vec<(String, String, bool)> = self
+            .accounts
+            .iter()
+            .flat_map(|a| a.folders.iter().filter(|f| f.selectable).map(|f| (a.config.id.clone(), f.path.clone(), f.role == FolderRole::Sent)))
+            .collect();
+        let (newest, oldest) = (self.clock.now.saturating_sub(AWAITING_AFTER_DAYS * DAY), self.clock.now.saturating_sub(AWAITING_WITHIN_DAYS * DAY));
+        let mut answered: HashSet<String> = HashSet::new();
+        let mut sent: Vec<(MessageKey, String)> = Vec::new();
+        for (account, folder, is_sent) in folders {
+            for m in &self.folder_state(&account, &folder).messages {
+                if !mine.contains(&m.from.email.trim().to_lowercase()) {
+                    answered.extend(std::iter::once(&m.in_reply_to).chain(&m.references).filter(|id| !id.is_empty()).cloned());
+                } else if is_sent
+                    && !m.bulk
+                    && !m.message_id.is_empty()
+                    && (oldest..=newest).contains(&m.date)
+                    && m.to.iter().chain(&m.cc).any(|r| !mine.contains(&r.email.trim().to_lowercase()))
+                {
+                    sent.push((m.key.clone(), m.message_id.clone()));
+                }
+            }
+        }
+        sent.into_iter().filter(|(_, id)| !answered.contains(id)).map(|(k, _)| k).collect()
     }
 
     /// The servers' search is no longer wanted (the search box cleared or changed, issue #4):
@@ -200,5 +242,21 @@ impl Session {
         self.reading = None;
         self.refresh_list();
         self.list.len()
+    }
+}
+
+/// Whether a search asks for mail waiting for a reply (`Some(true)`), or for mail that isn't
+/// (`Some(false)`, `-is:awaiting`), as one of the terms that must all match.
+pub(super) fn awaiting_wanted(q: &str) -> Option<bool> {
+    Query::parse(q).clauses.iter().find(|c| c.term == mailcraft_model::search::Term::Awaiting).map(|c| !c.negated)
+}
+
+/// Whether a search term asks for mail waiting for a reply (on its own or among others).
+fn asks_awaiting(t: &mailcraft_model::search::Term) -> bool {
+    use mailcraft_model::search::Term;
+    match t {
+        Term::Awaiting => true,
+        Term::AnyOf(any) => any.iter().any(asks_awaiting),
+        _ => false,
     }
 }

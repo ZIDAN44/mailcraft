@@ -343,6 +343,7 @@ impl MailApp {
                             (Icon::Tag, "Categorized", "is:categorized"),
                             (Icon::Flag, "Flagged", "is:flagged"),
                             (Icon::Warning, "Important", "is:important"),
+                            (Icon::Send, "Awaiting reply", "is:awaiting"),
                         ] {
                             let words: Vec<&str> = query.split_whitespace().collect();
                             let on = words.iter().any(|w| w.eq_ignore_ascii_case(term));

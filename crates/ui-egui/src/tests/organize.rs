@@ -64,7 +64,7 @@ fn search_folders_are_made_from_the_dialog_and_open() {
     let mut f = crate::dialogs::SearchFolderForm::new();
     assert_eq!(f.final_query(), "is:unread");
     let before = f.preset;
-    f.preset = 7;
+    f.preset = 8;
     f.apply_preset(before);
     assert_eq!(f.name, "Mail from specific people", "the name follows the kind until one is typed");
     f.people = "zoe@studio.example; Ana Lima, , \"x".into();
@@ -86,7 +86,7 @@ fn search_folders_are_made_from_the_dialog_and_open() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::SearchFolder(f)) if f.error.is_some()));
     // Edited: a preset's search shows as that kind, anything else as Custom.
     let edit = crate::dialogs::SearchFolderForm::edit(&a.session.prefs.search_folders[0]);
-    assert_eq!((edit.preset, edit.query.as_str()), (8, "from:zoe@studio.example,\"Ana Lima\",x"));
+    assert_eq!((edit.preset, edit.query.as_str()), (9, "from:zoe@studio.example,\"Ana Lima\",x"));
     a.ui.dialog = Some(Dialog::SearchFolder(Box::new(edit)));
     frame(&ctx, &mut a, vec![]);
     // Many, with long names, draw.

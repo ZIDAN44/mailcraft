@@ -428,7 +428,7 @@ impl RuleDo {
 
 /// The Search Folders offered, as Outlook's New Search Folder lists them: a name and what it
 /// searches for. "Mail from specific people" asks for them; "Custom" for the search.
-pub const SEARCH_PRESETS: [(&str, &str); 9] = [
+pub const SEARCH_PRESETS: [(&str, &str); 10] = [
     ("Unread mail", "is:unread"),
     ("Mail flagged for follow up", "is:flagged"),
     ("Important mail", "is:important"),
@@ -436,13 +436,15 @@ pub const SEARCH_PRESETS: [(&str, &str); 9] = [
     ("Mail with attachments", "has:attachment"),
     ("Large mail (over 100 KB)", "larger:100KB"),
     ("Pinned mail", "is:pinned"),
+    // Not one of Outlook's: what you sent that nobody has answered (two to thirty days old).
+    ("Sent mail waiting for a reply", "is:awaiting"),
     ("Mail from specific people", "from:"),
     ("Custom", ""),
 ];
 
-pub(super) const PRESET_PEOPLE: usize = 7;
+pub(super) const PRESET_PEOPLE: usize = 8;
 
-pub(super) const PRESET_CUSTOM: usize = 8;
+pub(super) const PRESET_CUSTOM: usize = 9;
 
 #[derive(Clone, Debug, Default)]
 pub struct SearchFolderForm {

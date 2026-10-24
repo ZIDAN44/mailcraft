@@ -155,3 +155,66 @@ fn text_a_message_hides_is_brought_out() {
     assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().hidden_words, 0);
     done(s);
 }
+
+#[test]
+fn sent_mail_without_an_answer_waits_for_a_reply() {
+    let mut s = sample_session("awaiting");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ana@soundlab.example", "subject": "Budget for the mix?"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    let mine = s.list.iter().find(|m| m.subject == "Budget for the mix?").unwrap().clone();
+    let waiting = |s: &mut Session| {
+        s.run("search.run", &json!({"query": "is:awaiting", "scope": "all"})).unwrap();
+        s.list.iter().any(|m| m.key == mine.key)
+    };
+    assert!(!waiting(&mut s), "just sent: not waiting yet");
+    s.clock.now += 3 * 86_400;
+    assert!(waiting(&mut s), "three days and no answer");
+    s.run("search.run", &json!({"query": "-is:awaiting subject:budget", "scope": "all"})).unwrap();
+    assert!(s.list.iter().all(|m| m.key != mine.key), "and leaving it out works too");
+
+    // Ana answers: it isn't waiting any more.
+    let d = mailcraft_mime::Draft {
+        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
+        subject: "Re: Budget for the mix?".into(),
+        body: "Same as last time.".into(),
+        in_reply_to: mine.message_id.clone(),
+        references: vec![mine.message_id.clone()],
+        ..Default::default()
+    };
+    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Ana Lima", "ana@soundlab.example"), s.clock.now, "<answer@x>").unwrap();
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9200 };
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key, mailcraft_model::Flags::default(), 0, s.clock.now));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    assert!(!waiting(&mut s), "answered");
+
+    // A month on, it's no longer waited for either way.
+    s.clock.now += 40 * 86_400;
+    s.run("search.run", &json!({"query": "is:awaiting", "scope": "all"})).unwrap();
+    assert!(s.list.iter().all(|m| m.date >= s.clock.now - 30 * 86_400));
+    done(s);
+}
+
+#[test]
+fn server_results_are_checked_for_waiting_too() {
+    let mut s = sample_session("awaiting-server");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ana@soundlab.example", "subject": "Mix notes?"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    s.clock.now += 3 * 86_400;
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    let waiting = s.list.iter().find(|m| m.subject == "Mix notes?").unwrap().key.clone();
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let other = s.list.first().unwrap().key.clone();
+    // A server answers with both: only the one waiting stays.
+    s.run("search.run", &json!({"query": "is:awaiting", "scope": "all"})).unwrap();
+    s.server_search = Some(crate::ServerSearch { query: "is:awaiting".into(), found: [waiting.clone(), other.clone()].into(), ..Default::default() });
+    s.refresh_list();
+    assert!(s.list.iter().any(|m| m.key == waiting));
+    assert!(s.list.iter().all(|m| m.key != other));
+    done(s);
+}

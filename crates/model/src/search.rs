@@ -3,8 +3,9 @@
 //! The syntax follows the familiar mail-client form: bare words match anywhere (as word
 //! prefixes, so `proj` finds "project"), `"quoted phrases"` match as written, and keywords narrow
 //! the field: `from:`, `to:` (also `cc:`), `subject:`, `body:`, `has:attachment` /
-//! `hasattachments:yes`, `is:unread` / `is:read`, `is:flagged`, `larger:` / `smaller:` (a size:
-//! `100KB`, `2MB`, bytes alone). A leading `-` negates a term. `from:` and `to:` take a list,
+//! `hasattachments:yes`, `is:unread` / `is:read`, `is:flagged`, `is:awaiting` (sent and not
+//! answered yet), `larger:` / `smaller:` (a size: `100KB`, `2MB`, bytes alone). A leading `-`
+//! negates a term. `from:` and `to:` take a list,
 //! `from:ana,jun`, matching any of them (terms otherwise must all match).
 //!
 //! [`Index`] maps every word of every message to the messages containing it (a `BTreeMap`, so a
@@ -55,6 +56,9 @@ pub enum Term {
     Size(bool, u64),
     /// Any one of these (`from:ana,jun`).
     AnyOf(Vec<Term>),
+    /// Mail the user sent that nobody has answered yet (`is:awaiting`): the caller works out
+    /// which, from every conversation ([`Doc::awaiting`]).
+    Awaiting,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,6 +80,8 @@ pub struct Doc<'a> {
     /// to be there, without its body (reading a big mailbox's bodies again for every search was
     /// most of its time).
     pub indexed: bool,
+    /// The user sent it a while ago and no answer has come ([`Term::Awaiting`]).
+    pub awaiting: bool,
 }
 
 fn split_tokens(input: &str) -> Vec<String> {
@@ -223,6 +229,7 @@ impl Query {
                         "pinned" => Some(Term::Keyword(crate::PINNED.to_string())),
                         "important" => Some(Term::Important),
                         "categorized" | "categorised" => Some(Term::Categorized(Vec::new())),
+                        "awaiting" | "awaitingreply" | "unanswered" => Some(Term::Awaiting),
                         _ => text_term(Field::Any, &tok),
                     },
                     "isread" => yes_no(v).map(|b| Term::Unread(!b)),
@@ -315,6 +322,7 @@ fn clause_matches(term: &Term, doc: &Doc<'_>) -> bool {
         Term::Flagged(b) => m.flags.flagged == *b,
         Term::Keyword(k) => m.flags.has(k) || m.flags.has(&crate::keyword_for(k)),
         Term::Important => m.importance > 0,
+        Term::Awaiting => doc.awaiting,
         Term::Categorized(ks) if ks.is_empty() => m.flags.keywords.iter().any(|k| !k.starts_with('$')),
         Term::Categorized(ks) => ks.iter().any(|k| m.flags.has(k)),
         Term::Size(true, b) => u64::from(m.size) > *b,
@@ -436,7 +444,7 @@ mod tests {
     }
 
     fn q(s: &str, m: &Summary) -> bool {
-        Query::parse(s).matches(&Doc { summary: m, body: None, indexed: false })
+        Query::parse(s).matches(&Doc { summary: m, body: None, indexed: false, awaiting: false })
     }
 
     /// Whitespace between `field:` and its value is tolerated.
@@ -502,8 +510,8 @@ mod tests {
         m2.flags.keywords = vec!["$Pinned".into(), "work".into()];
         assert!(q("is:important is:categorized", &m2));
         let label = Query { clauses: vec![Clause { term: Term::Categorized(vec!["$label1".into()]), negated: false }] };
-        assert!(!label.matches(&Doc { summary: &m2, body: None, indexed: false }));
-        assert!(Query::parse("").matches(&Doc { summary: &m, body: None, indexed: false }));
+        assert!(!label.matches(&Doc { summary: &m2, body: None, indexed: false, awaiting: false }));
+        assert!(Query::parse("").matches(&Doc { summary: &m, body: None, indexed: false, awaiting: false }));
     }
 
     #[test]
@@ -537,8 +545,8 @@ mod tests {
         assert_eq!(ix.candidates(&q).into_iter().collect::<Vec<_>>(), [5]);
         assert!(!q.needs_body());
         let m = Summary { subject: "Weekly".into(), ..Default::default() };
-        assert!(q.matches(&Doc { summary: &m, body: None, indexed: true }), "the index found both words");
-        assert!(!q.matches(&Doc { summary: &m, body: None, indexed: false }), "without it, the words aren't in the summary");
+        assert!(q.matches(&Doc { summary: &m, body: None, indexed: true, awaiting: false }), "the index found both words");
+        assert!(!q.matches(&Doc { summary: &m, body: None, indexed: false, awaiting: false }), "without it, the words aren't in the summary");
         for needs in ["\"storyboard review\"", "-budget storyboard", "body:storyboard", "zoe@studio.example"] {
             assert!(Query::parse(needs).needs_body(), "{needs}");
         }
