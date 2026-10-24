@@ -132,6 +132,24 @@ fn openssl_encryption_decrypts() {
     assert_eq!(decrypt(&data("enc-not-mine.der"), &id, &mut rng()), Err(Error::Decrypt));
 }
 
+/// OpenSSL's mail to Zoe's EC key: its default SHA-1 key derivation, SHA-256, and one sent to an
+/// RSA and an EC recipient at once (AES-GCM).
+#[test]
+fn openssl_mail_to_an_ec_key_decrypts() {
+    let zoe = read_p12(&data("zoe-aes.p12"), "secret").unwrap();
+    for name in ["enc-ec-sha1.der", "enc-ec-sha256.der", "enc-mixed.der"] {
+        assert_eq!(decrypt(&data(name), &zoe, &mut rng()).unwrap_or_else(|e| panic!("{name}: {e}")).0, BODY, "{name}");
+    }
+    assert_eq!(decrypt(&data("enc-mixed.der"), &riley(), &mut rng()).unwrap().0, BODY, "and the RSA recipient");
+    // Every byte changed in turn: an error or (CBC) other bytes, never a panic.
+    let m = data("enc-ec-sha256.der");
+    for at in 0..m.len() {
+        let mut b = m.clone();
+        b[at] ^= 0x41;
+        let _ = decrypt(&b, &zoe, &mut rng());
+    }
+}
+
 #[test]
 fn changed_encrypted_mail_fails_closed() {
     let id = riley();
@@ -183,8 +201,16 @@ fn what_mailcraft_encrypts_decrypts_for_each_recipient() {
         // Encrypted again, it isn't the same bytes (a fresh key and IV each time).
         assert_ne!(sealed, encrypt(BODY, &[riley.chain[0].clone()], cipher, &mut rng()).unwrap());
     }
-    // An EC certificate can't be encrypted to (yet): said, not a wrong message.
-    assert!(matches!(encrypt(BODY, &[pem("zoe.pem")], Cipher::Aes256Cbc, &mut rng()), Err(Error::Unsupported(_))));
+    // EC and RSA recipients together: each reads it.
+    let zoe = read_p12(&data("zoe-aes.p12"), "secret").unwrap();
+    for cipher in [Cipher::Aes256Cbc, Cipher::Aes256Gcm] {
+        let sealed = encrypt(BODY, &[riley.chain[0].clone(), zoe.chain[0].clone()], cipher, &mut rng()).unwrap();
+        assert_eq!(decrypt(&sealed, &zoe, &mut rng()).unwrap().0, BODY, "Zoe (EC)");
+        assert_eq!(decrypt(&sealed, &riley, &mut rng()).unwrap().0, BODY, "Riley (RSA)");
+    }
+    // Ana can't read what wasn't for her (an EC copy for Zoe is no copy for Ana).
+    let for_zoe = encrypt(BODY, &[zoe.chain[0].clone()], Cipher::Aes256Cbc, &mut rng()).unwrap();
+    assert_eq!(decrypt(&for_zoe, &riley, &mut rng()), Err(Error::Decrypt));
     assert!(encrypt(BODY, &[], Cipher::Aes256Cbc, &mut rng()).is_err());
 }
 
@@ -217,4 +243,10 @@ fn write_for_openssl() {
     std::fs::write(dir.join("mc-sig-ec.der"), sign(BODY, &zoe, NOW, &mut rng()).unwrap()).unwrap();
     std::fs::write(dir.join("mc-enc-cbc.der"), encrypt(BODY, &[riley.chain[0].clone()], Cipher::Aes256Cbc, &mut rng()).unwrap()).unwrap();
     std::fs::write(dir.join("mc-enc-gcm.der"), encrypt(BODY, &[riley.chain[0].clone()], Cipher::Aes256Gcm, &mut rng()).unwrap()).unwrap();
+    std::fs::write(dir.join("mc-enc-ec.der"), encrypt(BODY, &[zoe.chain[0].clone()], Cipher::Aes256Cbc, &mut rng()).unwrap()).unwrap();
+    std::fs::write(
+        dir.join("mc-enc-ec-gcm.der"),
+        encrypt(BODY, &[zoe.chain[0].clone(), riley.chain[0].clone()], Cipher::Aes256Gcm, &mut rng()).unwrap(),
+    )
+    .unwrap();
 }

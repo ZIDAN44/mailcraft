@@ -70,8 +70,13 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], cipher: Cipher, rng: &mut
     for r in recipients {
         let c = cert::parse(r)?;
         let spki = &c.tbs_certificate.subject_public_key_info;
+        // An EC key: the content key wrapped with one agreed by ECDH (RFC 5753).
+        if spki.algorithm.oid == oids::EC_PUBLIC_KEY {
+            let _ = infos.insert(RecipientInfo::Kari(crate::kari::recipient(&c, &key, rng)?));
+            continue;
+        }
         if spki.algorithm.oid != oids::RSA_ENCRYPTION {
-            return Err(Error::Unsupported(format!("encrypting to {}'s kind of key (only RSA)", cert::info(r).map(|i| i.name).unwrap_or_default())));
+            return Err(Error::Unsupported(format!("encrypting to {}'s kind of key", cert::info(r).map(|i| i.name).unwrap_or_default())));
         }
         let public = cert::public_rsa(spki).ok_or(Error::Malformed("a recipient's key can't be read"))?;
         let wrapped = public.encrypt(rng, rsa::Pkcs1v15Encrypt, &key).map_err(|_| Error::Malformed("the key can't be encrypted"))?;
@@ -87,6 +92,8 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], cipher: Cipher, rng: &mut
         // Two recipients with the same certificate are one.
         let _ = infos.insert(RecipientInfo::Ktri(ktri));
     }
+    // Version 0 when every recipient is RSA by issuer and serial, else 2 (RFC 5652 §6.1).
+    let version = if infos.iter().all(|r| matches!(r, RecipientInfo::Ktri(_))) { CmsVersion::V0 } else { CmsVersion::V2 };
     let (content_type, body) = match cipher {
         Cipher::Aes256Cbc => {
             use aes::cipher::{BlockEncryptMut as _, KeyIvInit as _, block_padding::Pkcs7};
@@ -101,13 +108,8 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], cipher: Cipher, rng: &mut
                 },
                 encrypted_content: Some(written(OctetString::new(sealed))?),
             };
-            let ed = EnvelopedData {
-                version: CmsVersion::V0,
-                originator_info: None,
-                recip_infos: RecipientInfos(infos),
-                encrypted_content: eci,
-                unprotected_attrs: None,
-            };
+            let ed =
+                EnvelopedData { version, originator_info: None, recip_infos: RecipientInfos(infos), encrypted_content: eci, unprotected_attrs: None };
             (oids::ENVELOPED_DATA, written(Any::encode_from(&ed))?)
         }
         Cipher::Aes256Gcm => {
@@ -166,6 +168,17 @@ pub fn decrypt(cms: &[u8], id: &Identity, rng: &mut impl rand_core::CryptoRngCor
 /// The content key from the recipient info that names `me`.
 fn content_key(infos: &RecipientInfos, me: &Certificate, id: &Identity, rng: &mut impl rand_core::CryptoRngCore) -> Result<Vec<u8>, Error> {
     use pkcs8::DecodePrivateKey as _;
+    // An EC key: the copy wrapped for it by key agreement.
+    if me.tbs_certificate.subject_public_key_info.algorithm.oid == oids::EC_PUBLIC_KEY {
+        for r in infos.0.iter() {
+            if let RecipientInfo::Kari(k) = r
+                && let Some(Ok(key)) = crate::kari::content_key(k, me, &id.key)
+            {
+                return Ok(key);
+            }
+        }
+        return Err(Error::Decrypt);
+    }
     let mine: Vec<&KeyTransRecipientInfo> = infos
         .0
         .iter()
@@ -181,12 +194,7 @@ fn content_key(infos: &RecipientInfos, me: &Certificate, id: &Identity, rng: &mu
         })
         .collect();
     if mine.is_empty() {
-        let key_agreement = infos.0.iter().any(|r| matches!(r, RecipientInfo::Kari(_)));
-        return Err(if key_agreement && me.tbs_certificate.subject_public_key_info.algorithm.oid == oids::EC_PUBLIC_KEY {
-            Error::Unsupported("mail encrypted to an EC key".into())
-        } else {
-            Error::Decrypt
-        });
+        return Err(Error::Decrypt);
     }
     let private = rsa::RsaPrivateKey::from_pkcs8_der(&id.key).map_err(|_| Error::Decrypt)?;
     for k in mine {

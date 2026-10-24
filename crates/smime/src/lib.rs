@@ -21,6 +21,7 @@
 pub mod ber;
 pub mod cert;
 mod envelope;
+mod kari;
 pub mod oids;
 #[cfg(not(target_arch = "wasm32"))]
 mod p12;

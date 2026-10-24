@@ -20,11 +20,13 @@ rsa = { version = "0.9", default-features = false, features = ["std", "sha2"] }
 sha1 = { version = "0.10", features = ["oid"] }
 sha2 = { version = "0.10", features = ["oid"] }
 aes = "0.8"
+# AES key wrap (RFC 3394), for EC recipients' keys.
+aes-kw = "0.2"
 cbc = { version = "0.1", features = ["alloc"] }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
 des = "0.8"
-p256 = { version = "0.13", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
-p384 = { version = "0.13", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "std"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "std"] }
 pkcs8 = { version = "0.10", features = ["alloc"] }
 thiserror = { workspace = true }
 signature = "2"
