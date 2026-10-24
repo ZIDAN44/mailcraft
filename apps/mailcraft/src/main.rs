@@ -16,14 +16,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mailcraft_engine::Session;
+#[cfg(test)]
+use mailcraft_engine::model::AccountConfig;
 use mailcraft_engine::model::dates::Clock;
-use mailcraft_engine::model::{AccountConfig, Event, Job};
+use mailcraft_engine::model::{Event, Job};
 use mailcraft_engine::store::{Store, location};
 use mailcraft_net::worker::{Credentials, Pool};
 use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
-
-/// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
-struct Keychain;
+use secrets::Keychain;
+#[cfg(test)]
+use secrets::SERVICE;
 
 #[cfg(target_os = "macos")]
 mod apple_events;
@@ -42,41 +44,6 @@ mod video;
 mod windows_manifest;
 #[cfg(all(unix, not(target_os = "macos")))]
 mod xdnd;
-
-const SERVICE: &str = "MailCraft";
-
-/// The keychain entry an account's password or sign-in is kept under.
-fn entry(a: &AccountConfig) -> String {
-    format!("{}|{}|{}", a.id, a.username, a.imap.host)
-}
-
-/// The outgoing server's own password, for an account whose SMTP sign-in is its own.
-fn smtp_entry(a: &AccountConfig) -> String {
-    format!("{}|smtp", a.id)
-}
-
-// Kept whatever their length (`secrets.rs`): a Microsoft 365 sign-in is longer than one Windows
-// Credential Manager entry holds (issue #5).
-impl Credentials for Keychain {
-    fn get(&self, account: &AccountConfig) -> Option<String> {
-        secrets::load(SERVICE, &entry(account))
-    }
-    fn set(&self, account: &AccountConfig, password: &str) -> Result<(), String> {
-        secrets::store(SERVICE, &entry(account), password)
-    }
-    fn delete(&self, account: &AccountConfig) {
-        secrets::remove(SERVICE, &entry(account));
-    }
-    fn get_smtp(&self, account: &AccountConfig) -> Option<String> {
-        secrets::load(SERVICE, &smtp_entry(account))
-    }
-    fn set_smtp(&self, account: &AccountConfig, password: &str) -> Result<(), String> {
-        secrets::store(SERVICE, &smtp_entry(account), password)
-    }
-    fn delete_smtp(&self, account: &AccountConfig) {
-        secrets::remove(SERVICE, &smtp_entry(account));
-    }
-}
 
 struct PoolBackend(Pool);
 
@@ -292,6 +259,13 @@ impl Services for Desktop {
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {
         rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
+    }
+    fn pick_certificate(&mut self) -> Option<PathBuf> {
+        rfd::FileDialog::new()
+            .set_title("Import certificate")
+            .add_filter("Certificate with its key", &["p12", "pfx"])
+            .add_filter("All files", &["*"])
+            .pick_file()
     }
     fn pick_rules_file(&mut self) -> Option<PathBuf> {
         rfd::FileDialog::new().set_title("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file()
@@ -656,6 +630,8 @@ fn main() -> eframe::Result {
     let mut session = Session::open(store.clone(), Clock::new(now, offset));
     let desktop_data = store.as_ref().and_then(Store::data_files_dir);
     session.oauth_available = mailcraft_net::oauth::available();
+    // S/MIME signers are trusted through the roots this computer trusts.
+    session.set_trust_roots(mailcraft_net::trust_roots());
     session.portable = portable.dir.is_some();
     // A release build's commit, so File › About can tell its test build from a later one.
     session.build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);

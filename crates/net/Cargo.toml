@@ -12,6 +12,11 @@ workspace = true
 [dependencies]
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
+mailcraft-smime = { workspace = true }
+# The system's randomness, for S/MIME's keys and signatures.
+rand_core = { version = "0.6", features = ["getrandom"] }
+# The roots the system trusts (Windows' and macOS' stores, Linux's bundle), for S/MIME signers.
+rustls-native-certs = "0.8"
 mailcraft-store = { workspace = true }
 # the system's time zone, for calendar times written without one
 iana-time-zone = "0.1"
@@ -40,3 +45,7 @@ thiserror = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 # The system's DNS resolvers (account autoconfiguration).
 ipconfig = "0.3"
+
+[dev-dependencies]
+# The S/MIME round trip reads the test certificates (PEM).
+der = { version = "0.7", features = ["pem"] }

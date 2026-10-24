@@ -173,6 +173,11 @@ impl Worker {
             | Job::SignIn { .. }
             | Job::ImportPst { .. }
             | Job::ExportPst { .. }
+            | Job::ImportIdentity { .. }
+            | Job::ForgetIdentity { .. }
+            | Job::Protect { .. }
+            | Job::Decrypt { .. }
+            | Job::SealDraft { .. }
             | Job::CheckUpdates
             | Job::StopSearch => {}
             Job::Start { .. } | Job::SmtpPassword { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}

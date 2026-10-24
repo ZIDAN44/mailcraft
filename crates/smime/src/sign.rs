@@ -230,6 +230,18 @@ pub fn verify(cms: &[u8], detached: Option<&[u8]>) -> Result<(Signed, Vec<u8>), 
     Err(Error::BadSignature)
 }
 
+/// The content a signature carries (`smime-type=signed-data`), whether or not the signature holds:
+/// a message whose signature is broken is still shown, saying so.
+pub fn carried(cms: &[u8]) -> Result<Vec<u8>, Error> {
+    let der_bytes = der_of(cms)?;
+    let ci = ContentInfo::from_der(&der_bytes).map_err(|_| Error::Malformed("not a signature"))?;
+    if ci.content_type != oids::SIGNED_DATA {
+        return Err(Error::Malformed("not a signature"));
+    }
+    let sd: SignedData = ci.content.decode_as().map_err(|_| Error::Malformed("the signature can't be read"))?;
+    sd.encap_content_info.econtent.map(|c| c.value().to_vec()).ok_or(Error::Malformed("the signed content is missing"))
+}
+
 /// Whether `sid` names `c` (by issuer and serial number, or by subject key identifier).
 pub(crate) fn identifies(sid: &SignerIdentifier, c: &Certificate) -> bool {
     match sid {

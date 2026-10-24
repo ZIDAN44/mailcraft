@@ -76,7 +76,8 @@ impl Session {
 
     /// Start writing `c`: the message being written, if any, is set aside in a window of its
     /// own ([`Session::composes`]), never lost; one that's empty (nothing typed) goes.
-    pub fn open_compose(&mut self, c: Compose) {
+    pub fn open_compose(&mut self, mut c: Compose) {
+        self.smime_defaults(&mut c);
         if let Some(mut old) = self.compose.take()
             && (self.written(&old) || old.sending)
         {
@@ -124,6 +125,7 @@ impl Session {
 
     pub fn reply_compose(&mut self, mode: ReplyMode) -> CmdResult {
         let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        let encrypted = r.security.as_ref().is_some_and(|s| matches!(s.lock, Some(Lock::Open { .. }))) && self.identity(&r.key.account).is_some();
         let parsed = r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
         let account = r.key.account.clone();
         let sig = self.signature(&account);
@@ -131,7 +133,7 @@ impl Session {
         let id = self.fresh_id();
         let mut attachments = Vec::new();
         if mode == ReplyMode::Forward
-            && let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(&r.key))
+            && let Some(raw) = self.readable_raw(&r.key)
         {
             for a in parsed.attachments.iter().filter(|a| !a.inline) {
                 if let Some(data) = mime::attachment_data(&raw, a.index) {
@@ -153,6 +155,9 @@ impl Session {
             attachments,
             mode: Some(mode),
             source: Some(r.key),
+            // An answer to encrypted mail quotes it: encrypted too, and signed, when it can be.
+            sign: encrypted,
+            encrypt: encrypted,
             ..Default::default()
         });
         self.style_signature();
@@ -281,25 +286,39 @@ impl Session {
                 return Ok(serde_json::json!({ "check": found }));
             }
         }
+        // Signed or encrypted (S/MIME): its parts must reach the reader byte for byte.
+        if c.sign || c.encrypt {
+            d.seven_bit = true;
+        }
         let (raw, from) = self.compose_bytes(&c, &d)?;
+        let recipients = d.recipients();
+        if let Some(job) = self.protect_job(&c, &raw, &recipients, &from)? {
+            self.jobs.push(job);
+            self.mark_sending(c.id);
+            return Ok(serde_json::json!({ "protecting": c.id }));
+        }
+        self.deliver(&c, raw, from, recipients)
+    }
+
+    fn mark_sending(&mut self, id: u64) {
+        for cm in self.compose.iter_mut().chain(self.composes.iter_mut()).filter(|x| x.id == id) {
+            cm.sending = true;
+            cm.error = None;
+        }
+    }
+
+    /// `c` as `raw` (signed or encrypted already, if it's to be), on its way: into the Outbox for
+    /// later, filed in Sent on an account with no server, or handed to the network layer.
+    pub(super) fn deliver(&mut self, c: &Compose, raw: Vec<u8>, from: String, recipients: Vec<String>) -> CmdResult {
         let local = self.account(&c.account).is_none_or(AccountState::is_local);
         let sent_folder = self.account(&c.account).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone());
         // Delay Delivery: into the Outbox, sent once it's time (the app has to be running then).
         if let Some(at) = c.send_after.filter(|at| *at > self.clock.now && !local) {
-            let item = OutboxItem {
-                id: c.id,
-                from,
-                recipients: d.recipients(),
-                sent_folder,
-                queued: self.clock.now,
-                attempts: 0,
-                error: None,
-                not_before: at,
-            };
+            let item = OutboxItem { id: c.id, from, recipients, sent_folder, queued: self.clock.now, attempts: 0, error: None, not_before: at };
             let store = self.store.as_ref().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
             store.outbox_add(&c.account, &item, &raw).map_err(|e| CmdError::Failed(format!("the Outbox couldn't keep it: {e}")))?;
             self.after_outbox_change();
-            self.finish_sent(&c, false);
+            self.finish_sent(c, false);
             // finish_sent says "sent"; it isn't yet.
             self.notices.pop();
             self.notice(format!("It will be sent {}", mailcraft_model::dates::full_time(at, &self.clock)), false);
@@ -309,14 +328,11 @@ impl Session {
             if let Some(folder) = &sent_folder {
                 self.file_locally(&c.account, folder, &raw, true);
             }
-            self.finish_sent(&c, true);
+            self.finish_sent(c, true);
             return Ok(serde_json::json!({ "sent": c.id, "local": true }));
         }
-        self.jobs.push(Job::Send { account: c.account.clone(), id: c.id, raw, from, recipients: d.recipients(), sent_folder });
-        if let Some(cm) = self.compose.as_mut() {
-            cm.sending = true;
-            cm.error = None;
-        }
+        self.jobs.push(Job::Send { account: c.account.clone(), id: c.id, raw, from, recipients, sent_folder });
+        self.mark_sending(c.id);
         Ok(serde_json::json!({ "sending": c.id }))
     }
 
@@ -365,7 +381,7 @@ impl Session {
                 cm.draft = key;
             }
         } else {
-            self.jobs.push(Job::SaveDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() });
+            self.jobs.push(self.draft_job(&c, raw, folder, false));
             if let Some(cm) = self.compose.as_mut() {
                 // The server assigns the new copy's UID; the old one is replaced by the worker.
                 cm.draft = None;
@@ -388,11 +404,26 @@ impl Session {
                 }
                 self.file_locally(&c.account, &folder, &raw, false);
             } else {
-                self.jobs.push(Job::KeepDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() });
+                let job = self.draft_job(&c, raw, folder, true);
+                self.jobs.push(job);
             }
             kept += 1;
         }
         kept
+    }
+
+    /// The job filing `c`'s draft `raw` in `folder` on the server (`keep`: kept on this computer
+    /// first, as MailCraft closes): encrypted to the account's own certificate first when the
+    /// message is to be encrypted.
+    fn draft_job(&self, c: &Compose, raw: Vec<u8>, folder: String, keep: bool) -> Job {
+        let config = self.account(&c.account).map(|a| a.config.clone());
+        match config {
+            Some(account) if c.encrypt && self.identity(&c.account).is_some() => {
+                Job::SealDraft { account, raw: mailcraft_model::Private(raw), folder, replaces: c.draft.clone(), keep }
+            }
+            _ if keep => Job::KeepDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() },
+            _ => Job::SaveDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() },
+        }
     }
 
     /// A message as a draft's source, and the Drafts folder it goes in.

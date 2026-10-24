@@ -142,6 +142,56 @@ fn parts_kept(service: &str, user: &str) -> usize {
     keyring::Entry::new(service, user).ok().and_then(|e| e.get_secret().ok()).and_then(|b| header(&b).map(|(n, _)| n)).unwrap_or(1)
 }
 
+use mailcraft_engine::model::AccountConfig;
+use mailcraft_net::worker::Credentials;
+
+/// Passwords in the system keychain (Windows Credential Manager, macOS Keychain, Secret Service).
+pub struct Keychain;
+
+pub const SERVICE: &str = "MailCraft";
+
+/// The keychain entry an account's password or sign-in is kept under.
+fn entry(a: &AccountConfig) -> String {
+    format!("{}|{}|{}", a.id, a.username, a.imap.host)
+}
+
+/// The outgoing server's own password, for an account whose SMTP sign-in is its own.
+fn smtp_entry(a: &AccountConfig) -> String {
+    format!("{}|smtp", a.id)
+}
+
+// Kept whatever their length (`secrets.rs`): a Microsoft 365 sign-in is longer than one Windows
+// Credential Manager entry holds (issue #5).
+impl Credentials for Keychain {
+    fn get(&self, account: &AccountConfig) -> Option<String> {
+        load(SERVICE, &entry(account))
+    }
+    fn set(&self, account: &AccountConfig, password: &str) -> Result<(), String> {
+        store(SERVICE, &entry(account), password)
+    }
+    fn delete(&self, account: &AccountConfig) {
+        remove(SERVICE, &entry(account));
+    }
+    fn get_smtp(&self, account: &AccountConfig) -> Option<String> {
+        load(SERVICE, &smtp_entry(account))
+    }
+    fn set_smtp(&self, account: &AccountConfig, password: &str) -> Result<(), String> {
+        store(SERVICE, &smtp_entry(account), password)
+    }
+    fn delete_smtp(&self, account: &AccountConfig) {
+        remove(SERVICE, &smtp_entry(account));
+    }
+    fn get_secret(&self, account: &AccountConfig, what: &str) -> Option<String> {
+        load(SERVICE, &format!("{}|{what}", account.id))
+    }
+    fn set_secret(&self, account: &AccountConfig, what: &str, secret: &str) -> Result<(), String> {
+        store(SERVICE, &format!("{}|{what}", account.id), secret)
+    }
+    fn delete_secret(&self, account: &AccountConfig, what: &str) {
+        remove(SERVICE, &format!("{}|{what}", account.id));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -103,7 +103,7 @@ impl Session {
 
     /// The calendar in a message, and the address it's from.
     fn message_invitation(&self, key: &MessageKey) -> Option<(ICalendar, String)> {
-        let raw = self.store.as_ref()?.read_body(key)?;
+        let raw = self.readable_raw(key)?;
         let parsed = mime::parse(&raw)?;
         let att = parsed
             .attachments

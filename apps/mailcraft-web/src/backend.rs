@@ -362,6 +362,9 @@ fn sent_folder(sh: &Rcs, id: &str, given: Option<String>) -> Option<String> {
     given.or_else(|| sh.borrow().accounts.get(id).and_then(|a| a.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone())))
 }
 
+/// Why signed and encrypted mail can't be made or opened here.
+const BROWSER_SMIME: &str = "S/MIME certificates are used by the MailCraft desktop app, not in the browser";
+
 async fn job(sh: &Rcs, id: &str, j: Job) {
     let store = store(sh);
     match j {
@@ -472,6 +475,13 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
             }
             sync_one(sh, id, &folder).await;
         }
+        // S/MIME's keys live in the desktop app's keychain: the browser has none to use.
+        Job::ImportIdentity { .. } => {
+            emit(sh, Event::Identity { account: id.to_string(), chain: Vec::new(), error: Some(BROWSER_SMIME.into()) });
+        }
+        Job::Protect { id: msg, .. } => emit(sh, Event::Protected { account: id.to_string(), id: msg, raw: None, error: Some(BROWSER_SMIME.into()) }),
+        Job::Decrypt { key, .. } => emit(sh, Event::Decrypted { key, content: None, authenticated: false, error: Some(BROWSER_SMIME.into()) }),
+        Job::ForgetIdentity { .. } | Job::SealDraft { .. } => {}
         Job::Start { .. }
         | Job::SmtpPassword { .. }
         | Job::CheckUpdates

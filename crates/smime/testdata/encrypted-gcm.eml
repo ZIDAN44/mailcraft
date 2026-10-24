@@ -1,0 +1,23 @@
+From: Ana <ana@posteo.example>
+To: riley@studio.example
+Subject: Encrypted GCM
+Date: Sat, 24 Oct 2026 09:00:00 +0000
+Message-ID: <e2@posteo.example>
+MIME-Version: 1.0
+Content-Disposition: attachment; filename="smime.p7m"
+Content-Type: application/pkcs7-mime; smime-type=authEnveloped-data; name="smime.p7m"
+Content-Transfer-Encoding: base64
+
+MIICKwYLKoZIhvcNAQkQARegggIaMIICFgIBADGCAVAwggFMAgEAMDQwHDEaMBgG
+A1UEAwwRTWFpbENyYWZ0IFRlc3QgQ0ECFC3xb/AIDzyC0FCdntVRcNeR0QLOMA0G
+CSqGSIb3DQEBAQUABIIBAOihFK2HdYggSPfwW8QjIL8a+uHOqLJjz14jMkhVmK92
+wPDTrAsR0SYaEyxpofZtcAKDyekBne18aXxXtxbMhFuG7x5fFH9DAqmoaI6jWjkU
+DcGYfRpQ+o5w4bGVw6aXyMvywHvSPAyV+y1gGn19D2nycuvUkPVo92QZHeduHwce
+S70NE1Pmfs8lFP1mwjepuOPGy0FYRR0twDuaAjsMmIOzomtStbFKiTZqffzE1QiX
+Otw7bCtFwX58HyQV5OBpzTWzZTVvPkCjmOri/tN1eKn7LEWzltCVI7kkbiY2QNa9
+q2rl7xFMQ2WoawzSSpm2Az3oKwS5C7tKxDm3yhpOEDAwgaoGCSqGSIb3DQEHATAe
+BglghkgBZQMEAS4wEQQMY4HW9XMGlRBhb0neAgEQgH2KESsO/e1OY0r9v8AdlyGI
+CVKFaMFsTSC7ce+HroVrMMft8EOBQvs5PA/cpXqHGOAhQjj3PPtYqcFh4qyduXMI
+yWjh9NXoLokPATIXkdI997EZIFLp9kSgJxlb+auwPb57RYX+zFALe59CzGE0GojK
+uGgS4T82Rc5awdBSOQQQT4ppV4qS41BugbGGNsBbAQ==
+

@@ -30,7 +30,7 @@ pub use cert::{CertInfo, Problem};
 pub use envelope::{Cipher, decrypt, encrypt};
 #[cfg(not(target_arch = "wasm32"))]
 pub use p12::read_p12;
-pub use sign::{Signed, sign, verify};
+pub use sign::{Signed, carried, sign, verify};
 
 /// Larger CMS than this isn't read (a message's size limit is far below it).
 pub const CMS_MAX: usize = 64 << 20;

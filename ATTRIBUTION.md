@@ -28,5 +28,12 @@ are rendered by `cargo xtask icons` from MailCraft's own drawing in `xtask/src/i
 | `assets/app-icon/mailcraft-1024.png` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |
 | `fuzz/seeds/photo/geotagged.jpg` | MailCraft contributors | Written byte by byte as a fuzzing seed (a few header bytes, no picture) | MIT OR Apache-2.0 |
 | `fuzz/seeds/photo/geotagged.png` | MailCraft contributors | Written byte by byte as a fuzzing seed (a few header bytes, no picture) | MIT OR Apache-2.0 |
+| `crates/smime/testdata/encrypted-cbc.eml` | MailCraft contributors | Made with `openssl cms` from MailCraft's own test certificates (S/MIME tests) | MIT OR Apache-2.0 |
+| `crates/smime/testdata/encrypted-gcm.eml` | MailCraft contributors | Made with `openssl cms` from MailCraft's own test certificates (S/MIME tests) | MIT OR Apache-2.0 |
+| `crates/smime/testdata/signed-clear.eml` | MailCraft contributors | Made with `openssl cms` from MailCraft's own test certificates (S/MIME tests) | MIT OR Apache-2.0 |
+| `crates/smime/testdata/signed-ec.eml` | MailCraft contributors | Made with `openssl cms` from MailCraft's own test certificates (S/MIME tests) | MIT OR Apache-2.0 |
+| `crates/smime/testdata/signed-encrypted.eml` | MailCraft contributors | Made with `openssl cms` from MailCraft's own test certificates (S/MIME tests) | MIT OR Apache-2.0 |
+| `crates/smime/testdata/signed-opaque.eml` | MailCraft contributors | Made with `openssl cms` from MailCraft's own test certificates (S/MIME tests) | MIT OR Apache-2.0 |
+| `crates/smime/testdata/signed-tampered.eml` | MailCraft contributors | Made with `openssl cms` from MailCraft's own test certificates (S/MIME tests) | MIT OR Apache-2.0 |
 | `assets/app-icon/mailcraft.icns` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |
 | `assets/app-icon/mailcraft.ico` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |

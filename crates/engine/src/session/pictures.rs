@@ -5,6 +5,11 @@ use super::*;
 impl Session {
     /// Web pictures of the open message (none for plain-text mail).
     pub fn remote_pictures(&self) -> Vec<String> {
+        // Encrypted mail never reaches the web: a picture address could carry what it says out
+        // (EFAIL).
+        if self.reading_encrypted() {
+            return Vec::new();
+        }
         self.reading
             .as_ref()
             .and_then(|r| r.parsed.as_ref())

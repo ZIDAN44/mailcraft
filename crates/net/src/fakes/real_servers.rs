@@ -165,3 +165,93 @@ fn real_smtp_server() {
         assert_eq!(found.len(), copies);
     }
 }
+
+/// S/MIME through a real server (`MAILCRAFT_REAL_SMIME="127.0.0.1:3025 127.0.0.1:3143"`:
+/// GreenMail's SMTP and IMAP, any password), with the smime crate's test certificates: Ana's
+/// encrypted mail (from OpenSSL) delivered to Riley and decrypted by the pool with the key it
+/// keeps; Riley's reply signed and encrypted by the pool, sent, fetched back over IMAP as the
+/// server delivered it, decrypted and its signature checked. That copy is written to
+/// `$MAILCRAFT_SMIME_OUT/mc-delivered.eml` too, for OpenSSL to verify and decrypt.
+#[test]
+#[ignore]
+fn real_smime_round_trip() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_SMIME") else {
+        eprintln!("MAILCRAFT_REAL_SMIME isn't set: skipped");
+        return;
+    };
+    let mut parts = v.split_whitespace();
+    let cfg = |a: Option<&str>| {
+        let (host, port) = a.and_then(|a| a.rsplit_once(':')).unwrap();
+        ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None }
+    };
+    let (smtp, imap) = (cfg(parts.next()), cfg(parts.next()));
+    let data = |n: &str| std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../smime/testdata").join(n)).unwrap();
+    let pem = |n: &str| der::pem::decode_vec(&data(n)).unwrap().1;
+    let riley = "riley@studio.example";
+    let store = crate::fake::store("real-smime");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let account =
+        AccountConfig { id: "r1".into(), email: riley.into(), username: riley.into(), imap: imap.clone(), smtp: smtp.clone(), ..Default::default() };
+    // The certificate, imported: its key into the keychain (here, memory).
+    pool.submit(Job::ImportIdentity { account: account.clone(), data: data("riley-legacy.p12"), password: Secret("secret".into()) });
+    let seen = until(&pool, 30, "the certificate", |e| matches!(e, Event::Identity { .. }));
+    assert!(matches!(seen.last(), Some(Event::Identity { error: None, chain, .. }) if chain.len() == 2), "{seen:?}");
+    // Ana's encrypted mail, as OpenSSL wrote it, delivered to Riley.
+    let tag = std::process::id();
+    let from_ana = String::from_utf8(data("encrypted-cbc.eml")).unwrap().replace("Subject: Encrypted CBC", &format!("Subject: From Ana {tag}"));
+    crate::smtp::send(&smtp, "ana@posteo.example", "pw", "ana@posteo.example", &[riley.to_string()], from_ana.as_bytes()).unwrap();
+    // Riley's reply, signed and encrypted to Ana and to Riley (the Sent copy).
+    let reply = format!(
+        "From: Riley <{riley}>\r\nTo: ana@posteo.example, {riley}\r\nSubject: Reply {tag}\r\nDate: Sat, 24 Oct 2026 10:00:00 +0000\r\nMessage-ID: <r{tag}@studio.example>\r\n\
+MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nApproved =E2=9C=93, thanks.\r\n"
+    );
+    pool.submit(Job::Protect {
+        account: account.clone(),
+        id: 2,
+        raw: mailcraft_model::Private(reply.into_bytes()),
+        sign: true,
+        encrypt_to: vec![pem("ana.pem"), pem("riley.pem")],
+        gcm: false,
+    });
+    let seen = until(&pool, 30, "the protected reply", |e| matches!(e, Event::Protected { .. }));
+    let Some(Event::Protected { raw: Some(sealed), error: None, .. }) = seen.last() else { panic!("{seen:?}") };
+    crate::smtp::send(&smtp, riley, "pw", riley, &["ana@posteo.example".to_string(), riley.to_string()], &sealed.0).unwrap();
+    // Both, as the server delivered them to Riley.
+    let mut c = crate::imap::Client::connect(&imap).unwrap();
+    c.login(riley, "pw").unwrap();
+    c.select("INBOX", true).unwrap();
+    let mut raw_of = |subject: &str| -> Vec<u8> {
+        let uids = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap();
+        let uid = uids.last().copied().unwrap_or_else(|| panic!("{subject} wasn't delivered"));
+        c.uid_fetch(&uid.to_string(), "BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap()
+    };
+    let key = |uid: u32| mailcraft_model::MessageKey { account: "r1".into(), folder: "INBOX".into(), validity: 1, uid };
+    for (n, subject) in [(1, format!("From Ana {tag}")), (2, format!("Reply {tag}"))] {
+        let raw = raw_of(&subject);
+        let mailcraft_mime::smime::Protection::Encrypted(cms) = mailcraft_mime::smime::protection(&raw) else { panic!("{subject}: not encrypted") };
+        pool.submit(Job::Decrypt { account: account.clone(), key: key(n), cms });
+        let seen = until(&pool, 30, "decrypted", |e| matches!(e, Event::Decrypted { key: k, .. } if k.uid == n));
+        let Some(Event::Decrypted { content: Some(entity), error: None, .. }) = seen.last() else { panic!("{subject}: {seen:?}") };
+        let inner = mailcraft_mime::smime::with_entity(&raw, &entity.0);
+        let text = match mailcraft_mime::smime::protection(&inner) {
+            mailcraft_mime::smime::Protection::Signed { content, signature } => {
+                let (signed, _) = mailcraft_smime::verify(&signature, Some(&content)).unwrap_or_else(|e| panic!("{subject}: {e}"));
+                assert_eq!(
+                    mailcraft_smime::cert::check(&signed.signer, &signed.certs, &[pem("ca.pem")], 1_792_900_000, riley).unwrap(),
+                    vec![],
+                    "{subject}"
+                );
+                mailcraft_mime::parse(&mailcraft_mime::smime::with_entity(&inner, &content)).unwrap().text
+            }
+            _ => mailcraft_mime::parse(&inner).unwrap().text,
+        };
+        eprintln!("{subject}: {}", text.trim());
+        assert!(text.contains(if n == 1 { "the proof is approved" } else { "Approved \u{2713}, thanks." }), "{subject}: {text}");
+        if n == 2
+            && let Some(dir) = std::env::var_os("MAILCRAFT_SMIME_OUT")
+        {
+            std::fs::write(std::path::Path::new(&dir).join("mc-delivered.eml"), &raw).unwrap();
+        }
+    }
+    let _ = std::fs::remove_dir_all(store.root());
+}

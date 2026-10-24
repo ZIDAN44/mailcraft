@@ -276,6 +276,11 @@ fn header(b: &[u8]) -> Option<(usize, usize)> {
     Some((len, 2 + n))
 }
 
+/// Whether a certificate (DER) is a root: issued by itself.
+pub fn self_signed(cert: &[u8]) -> bool {
+    parse(cert).is_ok_and(|c| same_name(&c.tbs_certificate.subject, &c.tbs_certificate.issuer))
+}
+
 /// Whether `issuer` signed `cert` (both DER).
 fn issued(cert: &[u8], c: &Certificate, issuer: &Certificate) -> bool {
     let Some(tbs) = signed_part(cert) else { return false };

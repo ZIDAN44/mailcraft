@@ -19,6 +19,18 @@ impl fmt::Debug for Secret {
     }
 }
 
+/// What a protected message says in clear (a message about to be signed or encrypted, a decrypted
+/// one), in transit between the engine and the network layer. Its `Debug` form gives only its
+/// size, so it never reaches a log.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Private(pub Vec<u8>);
+
+impl fmt::Debug for Private {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Private(<{} bytes>)", self.0.len())
+    }
+}
+
 /// A change to the mailbox the user makes, applied to the local cache at once and replayed on
 /// the server when it can be reached (RFC 4549's "pending actions").
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -222,6 +234,23 @@ pub enum Job {
     ImportPst { account: String, path: String },
     /// Write the account's mail to an Outlook data file, which opens as `name`.
     ExportPst { account: String, path: String, name: String },
+    /// Keep the certificate and private key in a `.p12` / `.pfx` file (opened with `password`)
+    /// for signing and decrypting the account's mail (S/MIME): the key goes to the system's
+    /// keychain only. Answered by [`Event::Identity`].
+    ImportIdentity { account: AccountConfig, data: Vec<u8>, password: Secret },
+    /// Forget the account's certificate and key (the keychain's copy goes).
+    ForgetIdentity { account: AccountConfig },
+    /// Sign (`sign`) and/or encrypt (to `encrypt_to`, certificates as DER, the account's own
+    /// among them; empty: not encrypted) a message about to be sent, with the account's key;
+    /// `gcm`: AES-GCM, every recipient reads it. Answered by [`Event::Protected`].
+    Protect { account: AccountConfig, id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, gcm: bool },
+    /// Decrypt an encrypted message (its `smime.p7m`, `cms`) with the account's key. Answered by
+    /// [`Event::Decrypted`].
+    Decrypt { account: AccountConfig, key: MessageKey, cms: Vec<u8> },
+    /// A draft of a message to be encrypted: encrypted to the account's own certificate first, so
+    /// the copy in Drafts is no more readable than what will be sent, then saved as
+    /// [`Job::SaveDraft`] (or kept as [`Job::KeepDraft`], `keep`).
+    SealDraft { account: AccountConfig, raw: Private, folder: String, replaces: Option<MessageKey>, keep: bool },
 }
 
 impl Job {
@@ -245,7 +274,12 @@ impl Job {
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
             Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } | Job::CheckUpdates | Job::StopSearch => "",
-            Job::SignIn { account } => &account.id,
+            Job::SignIn { account }
+            | Job::ImportIdentity { account, .. }
+            | Job::ForgetIdentity { account }
+            | Job::Protect { account, .. }
+            | Job::SealDraft { account, .. }
+            | Job::Decrypt { account, .. } => &account.id,
         }
     }
 }
@@ -407,6 +441,27 @@ pub enum Event {
         error: Option<String>,
         done: bool,
     },
+    /// What [`Job::ImportIdentity`] kept: the certificate and its issuers (DER), or why not.
+    Identity {
+        account: String,
+        chain: Vec<Vec<u8>>,
+        error: Option<String>,
+    },
+    /// A message [`Job::Protect`] signed and/or encrypted, ready to send, or why it couldn't be.
+    Protected {
+        account: String,
+        id: u64,
+        raw: Option<Private>,
+        error: Option<String>,
+    },
+    /// What [`Job::Decrypt`] found inside (a MIME entity); `authenticated`: it was encrypted with
+    /// AES-GCM, so it can't have been changed on the way.
+    Decrypted {
+        key: MessageKey,
+        content: Option<Private>,
+        authenticated: bool,
+        error: Option<String>,
+    },
 }
 
 #[cfg(test)]
@@ -417,6 +472,8 @@ mod tests {
     fn secrets_never_print() {
         let j = Job::Start { account: AccountConfig::default(), password: Some(Secret("hunter2".into())) };
         assert!(!format!("{j:?}").contains("hunter2"));
+        let e = Event::Decrypted { key: MessageKey::default(), content: Some(Private(b"the plan".to_vec())), authenticated: true, error: None };
+        assert!(!format!("{e:?}").contains("the plan"), "what decrypted mail says never prints");
     }
 
     #[test]

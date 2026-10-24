@@ -1,0 +1,23 @@
+From: Ana <ana@posteo.example>
+To: riley@studio.example
+Subject: Encrypted CBC
+Date: Sat, 24 Oct 2026 09:00:00 +0000
+Message-ID: <e1@posteo.example>
+MIME-Version: 1.0
+Content-Disposition: attachment; filename="smime.p7m"
+Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name="smime.p7m"
+Content-Transfer-Encoding: base64
+
+MIICGgYJKoZIhvcNAQcDoIICCzCCAgcCAQAxggFQMIIBTAIBADA0MBwxGjAYBgNV
+BAMMEU1haWxDcmFmdCBUZXN0IENBAhQt8W/wCA88gtBQnZ7VUXDXkdECzjANBgkq
+hkiG9w0BAQEFAASCAQAO/3d/rj14JEds23iS8wO2yCSXkFuDRaXYoZrRWi4aFyDX
+FvXmoKgQ4ZxU0MonZ9C1BdtvhzwTig+9rv8Sh+tQDDvzJkYh3FoY8CwR9GpNwZoI
+uiftGG0STCJMy5wXNu8BO7O6EMMfJet/jzpgDvTIr/Ml5nZtiSfPQCAiHjpQONRl
+BoPudn/bMAueJzS6IWn8s/rlcl7BXPegU8ZKGd7dt0hZbAQw8ZJ7lUAqYHG9l9Mi
+3VVKBfxAkE5culY+z5qPuo6DzeKDLXjDJDW7Ej4FE6m45di7PXH+7yFCc3T9WzI8
+A7rcdHV5wfKt5vbi7pGqZFTNEF5Ou59/+JAk1qNVMIGtBgkqhkiG9w0BBwEwHQYJ
+YIZIAWUDBAEqBBBu2XP1vg0SXJDKRrG6JOrugIGAkO2Xt5z4fJd/jX41sWod8RKy
+7hV8n3kL1pzMnu13sconScV+JSr/l3hng01aszy4KFQxNDIb9i0tS04EpJYE2DH5
+Oopsh88cPj/PSiq72Tc4gqxLZQREEIO2++1mfD4NTfCwea/c3+r8CZQkW49zn190
+AsTfCwFKvAQGycW27XA=
+

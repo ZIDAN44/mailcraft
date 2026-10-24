@@ -62,6 +62,7 @@ fn openssl_signatures_verify() {
     // The content carried in the signature comes out.
     let (signed, content) = verify(&data("opaque-ber.der"), None).unwrap();
     assert_eq!(content, BODY);
+    assert_eq!(carried(&data("opaque-ber.der")).unwrap(), BODY);
     assert_eq!(cert::info(&signed.signer).unwrap().name, "ana");
 }
 

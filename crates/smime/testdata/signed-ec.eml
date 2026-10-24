@@ -1,0 +1,48 @@
+From: Zoe <zoe@posteo.example>
+To: riley@studio.example
+Subject: Signed EC
+Date: Sat, 24 Oct 2026 09:00:00 +0000
+Message-ID: <ec1@posteo.example>
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg="sha-256"; boundary="----6028BE0268C02DDB037FBC154463BC6D"
+
+This is an S/MIME signed message
+
+------6028BE0268C02DDB037FBC154463BC6D
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Hello Riley, the proof is approved.
+
+------6028BE0268C02DDB037FBC154463BC6D
+Content-Type: application/pkcs7-signature; name="smime.p7s"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7s"
+
+MIIEaAYJKoZIhvcNAQcCoIIEWTCCBFUCAQExDTALBglghkgBZQMEAgEwCwYJKoZI
+hvcNAQcBoIICpzCCAqMwggGLoAMCAQICFC3xb/AIDzyC0FCdntVRcNeR0QLPMA0G
+CSqGSIb3DQEBCwUAMBwxGjAYBgNVBAMMEU1haWxDcmFmdCBUZXN0IENBMB4XDTI2
+MTAyNDEyMTEzNloXDTI5MDEyNjEyMTEzNlowMTEMMAoGA1UEAwwDem9lMSEwHwYJ
+KoZIhvcNAQkBFhJ6b2VAcG9zdGVvLmV4YW1wbGUwWTATBgcqhkjOPQIBBggqhkjO
+PQMBBwNCAASKjy979fqmT9svjH4R36TCzxOhoaSva5QNpqyteD7D1uSvu+TFOvfn
+ny01Wl/ziwsV4Sj8Ix87NRKvCYnxROIVo4GSMIGPMAkGA1UdEwQCMAAwDgYDVR0P
+AQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMEMB0GA1UdEQQWMBSBEnpvZUBw
+b3N0ZW8uZXhhbXBsZTAdBgNVHQ4EFgQUqHk+OUms0vxr5b+ZvjO3+PfStDQwHwYD
+VR0jBBgwFoAUuW3u7u9Mi9Nvwjv4rDJuB4lDZXkwDQYJKoZIhvcNAQELBQADggEB
+AHLRue306yen2X8fNItdV7QdRFMBEy98cGS2eFO+K4eiNQzM3Q9t+kkgDVEbC1va
+EQilEaRuGujQg3HgNxR61SUH6j2LcXArNG6DJ3+S2OFcqceNz/o2ubnfaxBRQdQo
+JBRlj1QKDxnAUf8/PpEQlkeVj9KK2VhpaWazTF1kXfjzbAzPqg2nkvLr6XIuX1ko
+auwW+7XwwU1dLNajmjjSiXfRqwppAnxxXiY0f5i2YiLTYmlqp1gdw/jBOJ26s4of
+42cHtkDeDYZ/uiJQ+faDPdXe/acX206XdtHJT4217TgQttBGJnthcA6FnHlxLVkj
+C5UXAg+g77SB9nDyoZPMZSIxggGHMIIBgwIBATA0MBwxGjAYBgNVBAMMEU1haWxD
+cmFmdCBUZXN0IENBAhQt8W/wCA88gtBQnZ7VUXDXkdECzzALBglghkgBZQMEAgGg
+geQwGAYJKoZIhvcNAQkDMQsGCSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMjYx
+MDI0MTIxMTM2WjAvBgkqhkiG9w0BCQQxIgQgghNmLA2KLQWAetQzUl9buayys3VC
+kU0wVqJLQ+xxOAIweQYJKoZIhvcNAQkPMWwwajALBglghkgBZQMEASowCwYJYIZI
+AWUDBAEWMAsGCWCGSAFlAwQBAjAKBggqhkiG9w0DBzAOBggqhkiG9w0DAgICAIAw
+DQYIKoZIhvcNAwICAUAwBwYFKw4DAgcwDQYIKoZIhvcNAwICASgwCgYIKoZIzj0E
+AwIESDBGAiEAwnRoHHT/hycc0gch1jEjp1dMhZh4Hoh7O9ozYL+jVnsCIQDO6vld
+URPdJLl/kutS26ki0g6n/2zyMnimc+3qKXgt+g==
+
+------6028BE0268C02DDB037FBC154463BC6D--
+

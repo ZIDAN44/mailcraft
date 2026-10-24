@@ -12,9 +12,15 @@ workspace = true
 [dependencies]
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
+mailcraft-smime = { workspace = true }
 mailcraft-store = { workspace = true }
 mailcraft-print = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+# S/MIME tests read PEM and play the network layer's decrypting.
+der = { version = "0.7", features = ["pem"] }
+rand_core = { version = "0.6", features = ["getrandom"] }

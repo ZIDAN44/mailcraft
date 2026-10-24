@@ -25,7 +25,7 @@ pub mod zone;
 use serde::{Deserialize, Serialize};
 
 pub use addr::EmailAddress;
-pub use job::{Event, Job, Op, SyncStatus};
+pub use job::{Event, Job, Op, Private, Secret, SyncStatus};
 
 /// How a connection to a server is secured.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
