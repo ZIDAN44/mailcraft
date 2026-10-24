@@ -364,6 +364,59 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
         assert_eq!(parsed.attachments.len(), 1);
     }
 
+    /// The list can tell signed and encrypted mail from its header alone.
+    #[test]
+    fn the_header_says_what_protects_it() {
+        use mailcraft_model::Smime;
+        let summary = |raw: &str| crate::summary_from_header(raw.as_bytes(), Default::default(), Default::default(), 0, 0).smime;
+        assert_eq!(summary(SIGNED), Smime::Signed);
+        assert_eq!(
+            summary(
+                "From: a@b.example
+Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m
+
+"
+            ),
+            Smime::Encrypted
+        );
+        assert_eq!(
+            summary(
+                "From: a@b.example
+Content-Type: application/pkcs7-mime; smime-type=signed-data
+
+"
+            ),
+            Smime::Signed
+        );
+        assert_eq!(
+            summary(
+                "From: a@b.example
+Content-Type: application/octet-stream; name=\"smime.p7m\"
+
+"
+            ),
+            Smime::Encrypted
+        );
+        assert_eq!(
+            summary(
+                "From: a@b.example
+Content-Type: multipart/signed; protocol=\"application/pgp-signature\"; boundary=x
+
+"
+            ),
+            Smime::None
+        );
+        assert_eq!(
+            summary(
+                "From: a@b.example
+Content-Type: text/plain
+
+hi"
+            ),
+            Smime::None
+        );
+    }
+
     #[test]
     fn base64_is_standard() {
         assert_eq!(base64_lines(b""), b"");

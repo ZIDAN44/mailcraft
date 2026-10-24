@@ -144,6 +144,15 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         preview: preview(&text),
         modseq: 0,
         bulk: is_bulk(m),
+        smime: m.root_part().content_type().map_or(mailcraft_model::Smime::None, |c| {
+            mailcraft_model::Smime::from_content_type(
+                c.ctype(),
+                c.subtype().unwrap_or_default(),
+                c.attribute("protocol"),
+                c.attribute("smime-type"),
+                c.attribute("name"),
+            )
+        }),
         importance: importance(m),
     }
 }

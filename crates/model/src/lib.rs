@@ -718,6 +718,44 @@ pub struct Summary {
     /// How important the sender marked it: 1 high, -1 low, 0 normal (`Importance`, `X-Priority`).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub importance: i8,
+    /// Signed or encrypted with S/MIME, as its header says (a claim until the message is opened
+    /// and checked; an encrypted one may be signed inside too).
+    #[serde(default, skip_serializing_if = "Smime::is_none")]
+    pub smime: Smime,
+}
+
+/// What a message's header says protects it (S/MIME, RFC 8551 §3.2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Smime {
+    #[default]
+    None,
+    Signed,
+    Encrypted,
+}
+
+impl Smime {
+    pub fn is_none(&self) -> bool {
+        *self == Smime::None
+    }
+
+    /// From a message's top-level `Content-Type`: its type and subtype, and its `protocol`,
+    /// `smime-type` and `name` parameters.
+    pub fn from_content_type(kind: &str, subtype: &str, protocol: Option<&str>, smime_type: Option<&str>, name: Option<&str>) -> Smime {
+        let (kind, subtype) = (kind.to_ascii_lowercase(), subtype.to_ascii_lowercase());
+        let lower = |v: Option<&str>| v.map(|s| s.trim().to_ascii_lowercase()).unwrap_or_default();
+        if kind == "multipart" && subtype == "signed" {
+            return match lower(protocol).as_str() {
+                "application/pkcs7-signature" | "application/x-pkcs7-signature" => Smime::Signed,
+                _ => Smime::None,
+            };
+        }
+        let p7m = lower(name).ends_with(".p7m");
+        if kind == "application" && (subtype == "pkcs7-mime" || subtype == "x-pkcs7-mime" || (subtype == "octet-stream" && p7m)) {
+            return if lower(smime_type) == "signed-data" { Smime::Signed } else { Smime::Encrypted };
+        }
+        Smime::None
+    }
 }
 
 fn is_zero(n: &i8) -> bool {

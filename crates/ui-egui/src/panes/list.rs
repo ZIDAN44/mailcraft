@@ -361,6 +361,12 @@ fn message_row(
         if m.has_attachments {
             marker(Icon::Attach, t.dim, &mut icons_w);
         }
+        // S/MIME, as the header says (checked once it's opened).
+        match m.smime {
+            mailcraft_engine::model::Smime::Encrypted => marker(Icon::Lock, t.dim, &mut icons_w),
+            mailcraft_engine::model::Smime::Signed => marker(Icon::Seal, t.dim, &mut icons_w),
+            mailcraft_engine::model::Smime::None => {}
+        }
         // Importance the sender set: a red ! for high, a ↓ for low.
         if m.importance != 0 {
             icons_w += 12.0;
