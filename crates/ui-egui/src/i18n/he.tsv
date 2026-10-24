@@ -1110,3 +1110,16 @@ month	May	מאי
 	the OCSP answer is from the future	תשובת ה־OCSP מתוארכת לעתיד
 	the OCSP answer is out of date	תשובת ה־OCSP אינה עדכנית
 	the OCSP responder doesn't know the certificate	שירות ה־OCSP אינו מכיר את התעודה
+	Use a smart card	שימוש בכרטיס חכם
+	Use a smart card…	שימוש בכרטיס חכם…
+	Find certificates	חיפוש תעודות
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	ייבא את קובץ ה־‎.p12 או ה־‎.pfx שבו הגיעה התעודה שלך, או השתמש בתעודה שעל כרטיס חכם.
+	Look in the Keychain	חיפוש במחזיק המפתחות
+	Looking…	מחפשים…
+	The card's PIN	קוד ה־PIN של הכרטיס
+	The key stays on the card; its PIN is kept in the system's keychain.	המפתח נשאר על הכרטיס; קוד ה־PIN נשמר במחזיק המפתחות של המערכת.
+	The module your card came with (OpenSC's reads most cards):	המודול שהגיע עם הכרטיס (המודול של OpenSC קורא את רוב הכרטיסים):
+	Use	שימוש
+	no certificate with its key was found	לא נמצאה תעודה עם המפתח שלה
+	the PIN is wrong, or the card is locked	קוד ה־PIN שגוי, או שהכרטיס נעול
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	מחזיק המפתחות של מערכת זו אינו יכול לחתום עבור MailCraft: השתמש במודול של כרטיס חכם, או ייבא קובץ ‎.p12

@@ -92,6 +92,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
+        Dialog::SmartCard { account, module, pin } => smart_card(ui, s, t, acts, account, module, pin),
         Dialog::OpenSharedCalendar { email, error } => {
             ui.set_width(420.0);
             title(ui, t, "Open a shared calendar");
@@ -124,4 +125,61 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         // Every other kind is shown by its own group (`body`).
         _ => true,
     }
+}
+
+/// A certificate on a smart card: the card's module and PIN, the certificates it has, one chosen.
+fn smart_card(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, account: &str, module: &mut String, pin: &mut String) -> bool {
+    ui.set_width(460.0);
+    title(ui, t, "Use a smart card");
+    ui.add(egui::Label::new(RichText::new(tl!("The module your card came with (OpenSC's reads most cards):")).color(t.dim)).wrap());
+    ui.add_space(4.0);
+    ui.add(egui::TextEdit::singleline(module).hint_text("opensc-pkcs11").desired_width(f32::INFINITY));
+    ui.add_space(8.0);
+    ui.label(RichText::new(tl!("The card's PIN")).color(t.dim));
+    let r = ui.add(egui::TextEdit::singleline(pin).password(true).desired_width(f32::INFINITY));
+    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    ui.add_space(8.0);
+    let search = s.card_search();
+    ui.horizontal(|ui| {
+        let ready = !module.trim().is_empty() && !search.searching;
+        if ui.add_enabled(ready, egui::Button::new(tl!("Find certificates"))).clicked() || (enter && ready) {
+            acts.push(Action::Run("security.findKeys", json!({"module": module.trim(), "pin": pin})));
+        }
+        if cfg!(target_os = "macos") && ui.add_enabled(!search.searching, egui::Button::new(tl!("Look in the Keychain"))).clicked() {
+            acts.push(Action::Run("security.findKeys", json!({"keychain": true})));
+        }
+    });
+    if search.searching {
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!("Looking…")).color(t.faint).small());
+    }
+    if let Some(e) = &search.error {
+        ui.add_space(6.0);
+        ui.add(egui::Label::new(RichText::new(tl!(e)).color(t.danger).small()).wrap());
+    }
+    let mut chosen = false;
+    for (i, k) in search.keys.iter().enumerate() {
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            let info = mailcraft_engine::smime::cert::info(&k.cert).ok();
+            ui.vertical(|ui| {
+                ui.label(RichText::new(&k.label).color(t.text));
+                if let Some(info) = &info {
+                    let who = info.emails.first().cloned().unwrap_or_else(|| info.name.clone());
+                    ui.label(RichText::new(format!("{who} · {} · {}", info.issuer, info.key)).color(t.faint).small());
+                }
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(tl!("Use")).clicked() {
+                    acts.push(Action::Run("security.useKey", json!({"account": account, "index": i})));
+                    chosen = true;
+                }
+            });
+        });
+    }
+    ui.add_space(4.0);
+    ui.add(
+        egui::Label::new(RichText::new(tl!("The key stays on the card; its PIN is kept in the system's keychain.")).color(t.faint).small()).wrap(),
+    );
+    !chosen && close_row(ui)
 }

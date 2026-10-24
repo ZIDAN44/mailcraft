@@ -1111,3 +1111,16 @@ month	May	5月
 	the OCSP answer is from the future	OCSP 应答的日期在未来
 	the OCSP answer is out of date	OCSP 应答已过期
 	the OCSP responder doesn't know the certificate	OCSP 服务不认识该证书
+	Use a smart card	使用智能卡
+	Use a smart card…	使用智能卡…
+	Find certificates	查找证书
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	导入证书附带的 .p12 或 .pfx 文件，或使用智能卡上的证书。
+	Look in the Keychain	在钥匙串中查找
+	Looking…	正在查找…
+	The card's PIN	卡的 PIN 码
+	The key stays on the card; its PIN is kept in the system's keychain.	密钥留在卡上；PIN 码保存在系统钥匙串中。
+	The module your card came with (OpenSC's reads most cards):	卡附带的模块（OpenSC 的模块能读取大多数卡）：
+	Use	使用
+	no certificate with its key was found	未找到带有密钥的证书
+	the PIN is wrong, or the card is locked	PIN 码错误，或卡已被锁定
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	此系统的钥匙串无法为 MailCraft 签名：请使用智能卡的模块，或导入 .p12 文件

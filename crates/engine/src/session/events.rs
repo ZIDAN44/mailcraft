@@ -6,7 +6,9 @@ impl Session {
     /// Apply an event from the network layer.
     pub fn apply(&mut self, e: Event) {
         match e {
-            e @ (Event::Identity { .. } | Event::Protected { .. } | Event::Decrypted { .. } | Event::Revocation { .. }) => self.apply_smime(e),
+            e @ (Event::Identity { .. } | Event::Protected { .. } | Event::Decrypted { .. } | Event::Revocation { .. } | Event::HeldKeys { .. }) => {
+                self.apply_smime(e)
+            }
             Event::Status { account, status } => {
                 // Show more ended (with nothing new, or failing): its footer can be asked again.
                 if !matches!(status, SyncStatus::Syncing { .. } | SyncStatus::Connecting)

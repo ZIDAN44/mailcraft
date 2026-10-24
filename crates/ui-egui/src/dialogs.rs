@@ -98,6 +98,12 @@ pub enum Dialog {
         path: String,
         password: String,
     },
+    /// A certificate on a smart card (its PKCS #11 module and PIN), or in the system's keychain.
+    SmartCard {
+        account: String,
+        module: String,
+        pin: String,
+    },
     /// Word count of the message being written (or its selection: the `bool`).
     WordCount(crate::rich_edit::Counts, bool),
     /// A folder's Properties: where it is, how many messages, how much is on this computer.
@@ -454,6 +460,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         | Dialog::Preview { .. }
         | Dialog::OpenSharedCalendar { .. }
         | Dialog::Certificate { .. }
+        | Dialog::SmartCard { .. }
         | Dialog::Event(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, t, acts),
     }

@@ -1110,3 +1110,16 @@ month	May	مايو
 	the OCSP answer is from the future	رد OCSP مؤرّخ في المستقبل
 	the OCSP answer is out of date	رد OCSP قديم
 	the OCSP responder doesn't know the certificate	لا يعرف خادم OCSP هذه الشهادة
+	Use a smart card	استخدام بطاقة ذكية
+	Use a smart card…	استخدام بطاقة ذكية…
+	Find certificates	البحث عن الشهادات
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	استورد ملف ‎.p12 أو ‎.pfx الذي جاءت فيه شهادتك، أو استخدم شهادة على بطاقة ذكية.
+	Look in the Keychain	البحث في سلسلة المفاتيح
+	Looking…	جارٍ البحث…
+	The card's PIN	رقم PIN الخاص بالبطاقة
+	The key stays on the card; its PIN is kept in the system's keychain.	يبقى المفتاح على البطاقة، ويُحفظ رقم PIN في سلسلة مفاتيح النظام.
+	The module your card came with (OpenSC's reads most cards):	الوحدة التي جاءت مع بطاقتك (وحدة OpenSC تقرأ معظم البطاقات):
+	Use	استخدام
+	no certificate with its key was found	لم يُعثر على شهادة معها مفتاحها
+	the PIN is wrong, or the card is locked	رقم PIN خاطئ، أو البطاقة مقفلة
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	لا تستطيع سلسلة مفاتيح هذا النظام التوقيع لـ MailCraft: استخدم وحدة بطاقة ذكية، أو استورد ملف ‎.p12

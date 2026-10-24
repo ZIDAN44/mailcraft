@@ -1114,3 +1114,16 @@ month	May	Май
 	the OCSP answer is from the future	ответ OCSP датирован будущим
 	the OCSP answer is out of date	ответ OCSP устарел
 	the OCSP responder doesn't know the certificate	служба OCSP не знает этот сертификат
+	Use a smart card	Использовать смарт-карту
+	Use a smart card…	Использовать смарт-карту…
+	Find certificates	Найти сертификаты
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Импортируйте файл .p12 или .pfx, в котором пришёл сертификат, или используйте сертификат со смарт-карты.
+	Look in the Keychain	Искать в связке ключей
+	Looking…	Поиск…
+	The card's PIN	PIN-код карты
+	The key stays on the card; its PIN is kept in the system's keychain.	Ключ остаётся на карте; PIN-код хранится в связке ключей системы.
+	The module your card came with (OpenSC's reads most cards):	Модуль, который прилагается к карте (модуль OpenSC читает большинство карт):
+	Use	Использовать
+	no certificate with its key was found	сертификат с ключом не найден
+	the PIN is wrong, or the card is locked	неверный PIN-код или карта заблокирована
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	связка ключей этой системы не может подписывать для MailCraft: используйте модуль смарт-карты или импортируйте файл .p12

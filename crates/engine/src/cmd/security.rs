@@ -11,6 +11,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.import_identity(&account, &path, &password)
         })
         .params(r#"{"path": string (a .p12 or .pfx file), "password"?: string, "account"?: string}"#),
+        CommandSpec::new("security.findKeys", "Use a smart card", "File › Info › Security", |s, v| {
+            let module = if p::bool(v, "keychain") == Some(true) { None } else { Some(p::req_str(v, "module")?.to_string()) };
+            s.find_held_keys(module, p::str(v, "pin").map(str::to_string))
+        })
+        .params(r#"{"module"?: string (the card's PKCS #11 module: a .dll, .so or .dylib), "keychain"?: bool (the system's keychain instead: macOS), "pin"?: string}"#),
+        CommandSpec::new("security.useKey", "Use this certificate", "File › Info › Security", |s, v| {
+            let account = account_param(s, v)?;
+            let index = p::u64(v, "index").ok_or_else(|| CmdError::Params("`index`: which certificate security.findKeys found".into()))?;
+            s.use_held_key(&account, usize::try_from(index).unwrap_or(usize::MAX))
+        })
+        .params(r#"{"index": number (of what security.findKeys found), "account"?: string}"#),
         CommandSpec::new("security.forget", "Remove certificate", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             s.forget_identity(&account)

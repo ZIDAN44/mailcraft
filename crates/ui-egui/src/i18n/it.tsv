@@ -1114,3 +1114,16 @@ month	May	maggio
 	the OCSP answer is from the future	la risposta OCSP ha una data futura
 	the OCSP answer is out of date	la risposta OCSP non è aggiornata
 	the OCSP responder doesn't know the certificate	il servizio OCSP non conosce il certificato
+	Use a smart card	Usa una smart card
+	Use a smart card…	Usa una smart card…
+	Find certificates	Cerca certificati
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importa il file .p12 o .pfx in cui è arrivato il certificato, oppure usane uno su una smart card.
+	Look in the Keychain	Cerca nel Portachiavi
+	Looking…	Ricerca…
+	The card's PIN	Il PIN della carta
+	The key stays on the card; its PIN is kept in the system's keychain.	La chiave resta sulla carta; il PIN è conservato nel portachiavi del sistema.
+	The module your card came with (OpenSC's reads most cards):	Il modulo fornito con la carta (quello di OpenSC legge la maggior parte delle carte):
+	Use	Usa
+	no certificate with its key was found	non è stato trovato nessun certificato con la sua chiave
+	the PIN is wrong, or the card is locked	il PIN è sbagliato, oppure la carta è bloccata
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	il portachiavi di questo sistema non può firmare per MailCraft: usa il modulo di una smart card, oppure importa un file .p12

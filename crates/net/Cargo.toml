@@ -13,6 +13,7 @@ workspace = true
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-smime = { workspace = true }
+mailcraft-keys = { workspace = true }
 # The system's randomness, for S/MIME's keys and signatures.
 rand_core = { version = "0.6", features = ["getrandom"] }
 # The roots the system trusts (Windows' and macOS' stores, Linux's bundle), for S/MIME signers.

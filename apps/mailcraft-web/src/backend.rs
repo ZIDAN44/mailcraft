@@ -488,6 +488,8 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
                 status: mailcraft_engine::model::Revocation::Unknown { why: BROWSER_SMIME.into() },
             },
         ),
+        Job::FindHeldKeys { .. } => emit(sh, Event::HeldKeys { keys: Vec::new(), error: Some(BROWSER_SMIME.into()) }),
+        Job::UseHeldKey { .. } => emit(sh, Event::Identity { account: id.to_string(), chain: Vec::new(), error: Some(BROWSER_SMIME.into()) }),
         Job::ForgetIdentity { .. } | Job::SealDraft { .. } => {}
         Job::Start { .. }
         | Job::SmtpPassword { .. }

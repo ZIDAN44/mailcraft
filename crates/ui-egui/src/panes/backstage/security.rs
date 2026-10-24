@@ -13,8 +13,11 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                 t,
                 true,
                 name(t, tl!("No certificate")),
-                Some(note(t, tl!("Import the .p12 or .pfx file your certificate came in."))),
+                Some(note(t, tl!("Import the .p12 or .pfx file your certificate came in, or use one on a smart card."))),
                 |ui| {
+                    if ui.button(tl!("Use a smart card…")).clicked() {
+                        acts.push(Action::UseSmartCard(id.clone()));
+                    }
                     if ui.button(tl!("Import certificate…")).clicked() {
                         acts.push(Action::ImportCertificate(id.clone()));
                     }
@@ -42,6 +45,9 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
             }
             if ui.button(tl!("Replace…")).clicked() {
                 acts.push(Action::ImportCertificate(id.clone()));
+            }
+            if ui.button(tl!("Use a smart card…")).clicked() {
+                acts.push(Action::UseSmartCard(id.clone()));
             }
         });
         let settings = s.smime_settings(&id);

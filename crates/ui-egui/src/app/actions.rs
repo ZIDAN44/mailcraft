@@ -189,6 +189,10 @@ impl MailApp {
                     self.ui.dialog = Some(Dialog::Certificate { account, path: path.to_string_lossy().into_owned(), password: String::new() });
                 }
             }
+            Action::UseSmartCard(account) => {
+                let module = self.session.card_search().modules.first().cloned().unwrap_or_default();
+                self.ui.dialog = Some(Dialog::SmartCard { account, module, pin: String::new() });
+            }
             Action::ImportRules => {
                 if let Some(path) = self.services.pick_rules_file() {
                     match self.session.run("rules.import", &json!({"path": path.to_string_lossy()})) {

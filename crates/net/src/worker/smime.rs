@@ -1,7 +1,10 @@
 //! The pool: S/MIME's work with an account's private key (issue #6), each job on a thread of
 //! its own so it never waits behind a sync. The key and its chain live in the system's keychain
 //! only (`Credentials::set_secret`, under `smime`); the engine sees the certificate, never the key.
+//! A key on a smart card or in the macOS Keychain stays there: what's kept is where it is (and
+//! the card's PIN), and signing and decrypting happen there ([`mailcraft_keys`]).
 
+use mailcraft_keys::KeyRef;
 use mailcraft_model::{Private, Revocation};
 use mailcraft_smime as smime;
 use serde::{Deserialize, Serialize};
@@ -12,11 +15,95 @@ use super::*;
 /// The keychain entry, next to the account's password.
 const SECRET: &str = "smime";
 
-/// What the keychain keeps: the key (PKCS #8) and the chain, as hex.
+/// What the keychain keeps: the key (PKCS #8) and the chain, as hex; or, for a key held
+/// elsewhere, where it is and the card's PIN.
 #[derive(Serialize, Deserialize)]
 struct Kept {
+    #[serde(default)]
     key: String,
     chain: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    held: Option<KeyRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pin: Option<String>,
+}
+
+/// An account's own certificate and its private key.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct Me {
+    /// The certificate first, then the ones that issued it (DER).
+    pub(crate) chain: Vec<Vec<u8>>,
+    key: MyKey,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+enum MyKey {
+    /// PKCS #8, from a `.p12` file.
+    Software(Vec<u8>),
+    /// On a smart card, or in the system's keychain.
+    Held { at: KeyRef, pin: Option<String> },
+}
+
+impl std::fmt::Debug for Me {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Me").field("chain", &self.chain.len()).finish_non_exhaustive()
+    }
+}
+
+impl From<smime::Identity> for Me {
+    fn from(id: smime::Identity) -> Me {
+        Me { chain: id.chain, key: MyKey::Software(id.key) }
+    }
+}
+
+impl Me {
+    pub(crate) fn certificate(&self) -> &[u8] {
+        self.chain.first().map(Vec::as_slice).unwrap_or_default()
+    }
+
+    /// `f` done with the private key, wherever it is.
+    fn with_key<T>(&self, f: impl FnOnce(&mut dyn smime::PrivateKey) -> std::result::Result<T, smime::Error>) -> std::result::Result<T, String> {
+        match &self.key {
+            MyKey::Software(key) => f(&mut smime::key::Software { key, rng: &mut rand_core::OsRng }).map_err(|e| e.to_string()),
+            MyKey::Held { at, pin } => with_held(at, pin.as_deref(), f),
+        }
+    }
+}
+
+fn with_held<T>(
+    at: &KeyRef,
+    pin: Option<&str>,
+    f: impl FnOnce(&mut dyn smime::PrivateKey) -> std::result::Result<T, smime::Error>,
+) -> std::result::Result<T, String> {
+    match at {
+        KeyRef::Card { .. } => {
+            let mut k = mailcraft_keys::pkcs11::open(at, pin).map_err(|e| e.to_string())?;
+            f(&mut k).map_err(|e| e.to_string())
+        }
+        #[cfg(target_os = "macos")]
+        KeyRef::Keychain { .. } => {
+            let mut k = mailcraft_keys::macos::open(at).map_err(|e| e.to_string())?;
+            f(&mut k).map_err(|e| e.to_string())
+        }
+        #[cfg(not(target_os = "macos"))]
+        KeyRef::Keychain { .. } => Err("the certificate is in another computer's keychain".into()),
+    }
+}
+
+/// The certificates whose keys are held elsewhere: on the cards `module` sees, or in the
+/// system's keychain.
+fn find_held(module: Option<&str>, pin: Option<&str>) -> std::result::Result<Vec<mailcraft_model::HeldKey>, String> {
+    let found = match module {
+        Some(m) => mailcraft_keys::pkcs11::certificates(m, pin).map_err(|e| e.to_string())?,
+        #[cfg(target_os = "macos")]
+        None => mailcraft_keys::macos::certificates().map_err(|e| e.to_string())?,
+        #[cfg(not(target_os = "macos"))]
+        None => return Err("this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file".into()),
+    };
+    Ok(found
+        .into_iter()
+        .filter_map(|f| Some(mailcraft_model::HeldKey { label: f.label, cert: f.cert, at: serde_json::to_string(&f.key).ok()? }))
+        .collect())
 }
 
 fn hex(b: &[u8]) -> String {
@@ -30,19 +117,26 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
     (0..s.len()).step_by(2).map(|i| s.get(i..i + 2).and_then(|p| u8::from_str_radix(p, 16).ok())).collect()
 }
 
-fn keep(creds: &dyn Credentials, account: &AccountConfig, id: &smime::Identity) -> std::result::Result<(), String> {
-    let kept = Kept { key: hex(&id.key), chain: id.chain.iter().map(|c| hex(c)).collect() };
+fn keep(creds: &dyn Credentials, account: &AccountConfig, me: &Me) -> std::result::Result<(), String> {
+    let chain = me.chain.iter().map(|c| hex(c)).collect();
+    let kept = match &me.key {
+        MyKey::Software(key) => Kept { key: hex(key), chain, held: None, pin: None },
+        MyKey::Held { at, pin } => Kept { key: String::new(), chain, held: Some(at.clone()), pin: pin.clone() },
+    };
     let json = serde_json::to_string(&kept).map_err(|e| e.to_string())?;
     creds.set_secret(account, SECRET, &json)
 }
 
-fn kept(creds: &dyn Credentials, account: &AccountConfig) -> std::result::Result<smime::Identity, String> {
+fn kept(creds: &dyn Credentials, account: &AccountConfig) -> std::result::Result<Me, String> {
     let gone = || "the certificate's key isn't in the keychain: import the certificate again (File › Info › Security)".to_string();
     let json = creds.get_secret(account, SECRET).ok_or_else(gone)?;
     let k: Kept = serde_json::from_str(&json).map_err(|_| gone())?;
-    let key = unhex(&k.key).ok_or_else(gone)?;
     let chain = k.chain.iter().map(|c| unhex(c)).collect::<Option<Vec<_>>>().ok_or_else(gone)?;
-    Ok(smime::Identity { key, chain })
+    let key = match k.held {
+        Some(at) => MyKey::Held { at, pin: k.pin },
+        None => MyKey::Software(unhex(&k.key).ok_or_else(gone)?),
+    };
+    Ok(Me { chain, key })
 }
 
 fn now() -> i64 {
@@ -52,7 +146,7 @@ fn now() -> i64 {
 /// `raw` signed and/or encrypted with `id`, as it will be sent.
 pub(crate) fn protect(
     raw: &[u8],
-    id: &smime::Identity,
+    id: &Me,
     sign: bool,
     encrypt_to: &[Vec<u8>],
     gcm: bool,
@@ -68,7 +162,7 @@ pub(crate) fn protect(
         if !mailcraft_mime::smime::safe_to_sign(&entity) {
             return Err("a part of it couldn't be sent byte for byte, so its signature wouldn't hold".into());
         }
-        let signature = smime::sign(&entity, id, now(), &mut rng).map_err(|e| e.to_string())?;
+        let signature = id.with_key(|k| smime::sign_with(&entity, &id.chain, k, now()))?;
         let boundary = format!("=_mcs{:016x}", rng.next_u64());
         message = mailcraft_mime::smime::signed_message(&outer, &entity, &signature, &boundary);
         entity = mailcraft_mime::smime::entity_of(&message).1;
@@ -107,8 +201,9 @@ impl Pool {
         let spawned = std::thread::Builder::new().name("mail-smime".into()).spawn(move || match job {
             Job::ImportIdentity { account, data, password } => {
                 let done = smime::read_p12(&data, &password.0).map_err(|e| e.to_string()).and_then(|id| {
-                    keep(creds.as_ref(), &account, &id)?;
-                    Ok(id.chain)
+                    let me = Me::from(id);
+                    keep(creds.as_ref(), &account, &me)?;
+                    Ok(me.chain)
                 });
                 let (chain, error) = match done {
                     Ok(chain) => (chain, None),
@@ -126,12 +221,33 @@ impl Pool {
                 sink.emit(Event::Protected { account: account.id, id, raw, error });
             }
             Job::Decrypt { account, key, cms } => {
-                let done = kept(creds.as_ref(), &account).and_then(|me| smime::decrypt(&cms, &me, &mut rand_core::OsRng).map_err(|e| e.to_string()));
+                let done = kept(creds.as_ref(), &account).and_then(|me| me.with_key(|k| smime::decrypt_with(&cms, me.certificate(), k)));
                 let event = match done {
                     Ok((content, authenticated)) => Event::Decrypted { key, content: Some(Private(content)), authenticated, error: None },
                     Err(e) => Event::Decrypted { key, content: None, authenticated: false, error: Some(e) },
                 };
                 sink.emit(event);
+            }
+            Job::FindHeldKeys { module, pin } => {
+                let (keys, error) = match find_held(module.as_deref(), pin.as_ref().map(|p| p.0.as_str())) {
+                    Ok(k) => (k, None),
+                    Err(e) => (Vec::new(), Some(e)),
+                };
+                sink.emit(Event::HeldKeys { keys, error });
+            }
+            Job::UseHeldKey { account, at, cert, pin } => {
+                let done = serde_json::from_str::<KeyRef>(&at).map_err(|_| "the key can't be found again".to_string()).and_then(|at| {
+                    let me = Me { chain: vec![cert], key: MyKey::Held { at, pin: pin.map(|p| p.0) } };
+                    // It's used once here, so a wrong PIN or a card taken out says so now.
+                    me.with_key(|k| smime::sign_with(b"MailCraft", &me.chain, k, now()))?;
+                    keep(creds.as_ref(), &account, &me)?;
+                    Ok(me.chain)
+                });
+                let (chain, error) = match done {
+                    Ok(chain) => (chain, None),
+                    Err(e) => (Vec::new(), Some(e)),
+                };
+                sink.emit(Event::Identity { account: account.id, chain, error });
             }
             Job::CheckRevocation { chain } => {
                 let status = revocation(&chain, now(), &|r| crate::http::send_public(r).ok().filter(|a| a.ok()).map(|a| a.body));
@@ -246,7 +362,7 @@ mod tests {
         let raw = b"From: Riley <riley@studio.example>\r\nTo: riley@studio.example\r\nSubject: Plan\r\nDate: Sat, 24 Oct 2026 09:00:00 +0000\r\n\
 MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nThe plan =E2=9C=93\r\n";
         for gcm in [false, true] {
-            let sent = protect(raw, &riley, true, &[riley.chain[0].clone()], gcm, true).unwrap();
+            let sent = protect(raw, &Me::from(riley.clone()), true, &[riley.chain[0].clone()], gcm, true).unwrap();
             let text = String::from_utf8_lossy(&sent);
             assert!(
                 text.contains("Subject: [...]") && !text.contains("Subject: Plan") && !text.contains("The plan"),
@@ -266,7 +382,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
             assert_eq!(read.subject, "Plan", "the real subject, from inside");
         }
         // Signed only: readable by anyone, the signature over its text.
-        let signed = protect(raw, &riley, true, &[], false, true).unwrap();
+        let signed = protect(raw, &Me::from(riley.clone()), true, &[], false, true).unwrap();
         assert!(matches!(mailcraft_mime::smime::protection(&signed), mailcraft_mime::smime::Protection::Signed { .. }));
     }
 
@@ -276,8 +392,16 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
         let account = AccountConfig { id: "a1".into(), ..Default::default() };
         assert!(kept(&creds, &account).is_err());
         let riley = smime::read_p12(&testdata("riley-aes.p12"), "secret").unwrap();
-        keep(&creds, &account, &riley).unwrap();
-        assert_eq!(kept(&creds, &account).unwrap(), riley);
+        keep(&creds, &account, &Me::from(riley.clone())).unwrap();
+        assert!(kept(&creds, &account).unwrap() == Me::from(riley.clone()));
+        // A card's key: only where it is, and its PIN.
+        let card = Me {
+            chain: riley.chain.clone(),
+            key: MyKey::Held { at: KeyRef::Card { module: "m.so".into(), token: "1".into(), id: "01".into() }, pin: Some("1234".into()) },
+        };
+        keep(&creds, &account, &card).unwrap();
+        assert!(kept(&creds, &account).unwrap() == card);
+        assert!(!creds.get_secret(&account, SECRET).unwrap().contains(&hex(&riley.key)));
         creds.delete_secret(&account, SECRET);
         assert!(kept(&creds, &account).is_err());
         assert_eq!(unhex("0aFf"), Some(vec![0x0a, 0xff]));

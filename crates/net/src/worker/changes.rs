@@ -179,6 +179,8 @@ impl Worker {
             | Job::Decrypt { .. }
             | Job::SealDraft { .. }
             | Job::CheckRevocation { .. }
+            | Job::FindHeldKeys { .. }
+            | Job::UseHeldKey { .. }
             | Job::CheckUpdates
             | Job::StopSearch => {}
             Job::Start { .. } | Job::SmtpPassword { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}

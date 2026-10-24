@@ -632,6 +632,7 @@ fn main() -> eframe::Result {
     session.oauth_available = mailcraft_net::oauth::available();
     // S/MIME signers are trusted through the roots this computer trusts.
     session.set_trust_roots(mailcraft_net::trust_roots());
+    session.set_card_modules(mailcraft_net::card_modules());
     session.portable = portable.dir.is_some();
     // A release build's commit, so File › About can tell its test build from a later one.
     session.build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);

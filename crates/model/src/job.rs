@@ -258,6 +258,14 @@ pub enum Job {
     /// Options › Safety's switch on: the authority learns whose mail is read. Answered by
     /// [`Event::Revocation`].
     CheckRevocation { chain: Vec<Vec<u8>> },
+    /// The certificates whose private keys are held where MailCraft can't read them: on the smart
+    /// cards the PKCS #11 module at `module` sees (logging in with `pin`), or with no module in
+    /// the system's keychain (macOS). Answered by [`Event::HeldKeys`].
+    FindHeldKeys { module: Option<String>, pin: Option<Secret> },
+    /// Sign and decrypt the account's mail with a key [`Job::FindHeldKeys`] found (`at`, its
+    /// [`HeldKey::at`]; `pin` kept in the system's keychain for it). Answered by
+    /// [`Event::Identity`].
+    UseHeldKey { account: AccountConfig, at: String, cert: Vec<u8>, pin: Option<Secret> },
 }
 
 impl Job {
@@ -286,12 +294,14 @@ impl Job {
             | Job::SetSync { .. }
             | Job::CheckUpdates
             | Job::StopSearch
-            | Job::CheckRevocation { .. } => "",
+            | Job::CheckRevocation { .. }
+            | Job::FindHeldKeys { .. } => "",
             Job::SignIn { account }
             | Job::ImportIdentity { account, .. }
             | Job::ForgetIdentity { account }
             | Job::Protect { account, .. }
             | Job::SealDraft { account, .. }
+            | Job::UseHeldKey { account, .. }
             | Job::Decrypt { account, .. } => &account.id,
         }
     }
@@ -475,11 +485,28 @@ pub enum Event {
         authenticated: bool,
         error: Option<String>,
     },
+    /// What [`Job::FindHeldKeys`] found, or why it couldn't look.
+    HeldKeys {
+        keys: Vec<HeldKey>,
+        error: Option<String>,
+    },
     /// What [`Job::CheckRevocation`] heard about `cert` (DER, the chain's first).
     Revocation {
         cert: Vec<u8>,
         status: Revocation,
     },
+}
+
+/// A certificate with its private key held where MailCraft can't read it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeldKey {
+    /// What it's called there (the card's label, the keychain's name).
+    pub label: String,
+    /// The certificate (DER).
+    pub cert: Vec<u8>,
+    /// Where the key is, for the network layer to find it again (opaque here).
+    pub at: String,
 }
 
 /// Whether a certificate's authority withdrew it.

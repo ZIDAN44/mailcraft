@@ -1114,3 +1114,16 @@ month	May	5월
 	the OCSP answer is from the future	OCSP 응답의 날짜가 미래입니다
 	the OCSP answer is out of date	OCSP 응답이 오래되었습니다
 	the OCSP responder doesn't know the certificate	OCSP 서비스가 이 인증서를 모릅니다
+	Use a smart card	스마트 카드 사용
+	Use a smart card…	스마트 카드 사용…
+	Find certificates	인증서 찾기
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	인증서가 들어 있던 .p12 또는 .pfx 파일을 가져오거나, 스마트 카드의 인증서를 사용하세요.
+	Look in the Keychain	키체인에서 찾기
+	Looking…	찾는 중…
+	The card's PIN	카드 PIN
+	The key stays on the card; its PIN is kept in the system's keychain.	키는 카드에 남고, PIN은 시스템 키체인에 보관됩니다.
+	The module your card came with (OpenSC's reads most cards):	카드와 함께 제공된 모듈 (OpenSC 모듈은 대부분의 카드를 읽습니다):
+	Use	사용
+	no certificate with its key was found	키가 있는 인증서를 찾지 못했습니다
+	the PIN is wrong, or the card is locked	PIN이 틀렸거나 카드가 잠겨 있습니다
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	이 시스템의 키체인은 MailCraft를 위해 서명할 수 없습니다: 스마트 카드 모듈을 사용하거나 .p12 파일을 가져오세요

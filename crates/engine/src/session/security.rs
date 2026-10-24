@@ -13,7 +13,9 @@ use mailcraft_smime as smime;
 
 use super::*;
 
+mod cards;
 mod revocation;
+pub use cards::CardSearch;
 pub use revocation::RevocationCheck;
 pub(crate) use revocation::Revocations;
 
@@ -473,6 +475,7 @@ impl Session {
                 self.show_again(&key);
             }
             Event::Revocation { cert, status } => self.heard_revocation(cert, status),
+            Event::HeldKeys { keys, error } => self.heard_held_keys(keys, error),
             _ => {}
         }
     }

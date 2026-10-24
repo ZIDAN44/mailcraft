@@ -1111,3 +1111,16 @@ month	May	5月
 	the OCSP answer is from the future	OCSP の応答の日付が未来になっています
 	the OCSP answer is out of date	OCSP の応答が古くなっています
 	the OCSP responder doesn't know the certificate	OCSP サービスはこの証明書を知りません
+	Use a smart card	スマートカードを使う
+	Use a smart card…	スマートカードを使う…
+	Find certificates	証明書を探す
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	証明書が入っていた .p12 または .pfx ファイルをインポートするか、スマートカード上の証明書を使います。
+	Look in the Keychain	キーチェーンを探す
+	Looking…	探しています…
+	The card's PIN	カードの PIN
+	The key stays on the card; its PIN is kept in the system's keychain.	鍵はカードに残り、PIN はシステムのキーチェーンに保管されます。
+	The module your card came with (OpenSC's reads most cards):	カードに付属のモジュール (OpenSC のものはほとんどのカードを読めます):
+	Use	使う
+	no certificate with its key was found	鍵付きの証明書が見つかりませんでした
+	the PIN is wrong, or the card is locked	PIN が違うか、カードがロックされています
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	このシステムのキーチェーンは MailCraft のために署名できません。スマートカードのモジュールを使うか、.p12 ファイルをインポートしてください

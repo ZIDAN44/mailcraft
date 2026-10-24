@@ -34,7 +34,7 @@ mod prefs;
 mod searching;
 mod security;
 mod writing;
-pub use security::{KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
+pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::SendCheck;
 // Organizing mail's own parts, named here as before.
 pub use organize::{junk, quick_steps, search_folders};
@@ -636,6 +636,7 @@ pub struct Session {
     decrypt_errors: HashMap<MessageKey, String>,
     protecting: HashMap<u64, security::Protecting>,
     revocation: security::Revocations,
+    cards: security::CardSearch,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
     /// New mail to announce (desktop notifications), oldest first.
@@ -741,6 +742,7 @@ impl Session {
             decrypt_errors: HashMap::new(),
             protecting: HashMap::new(),
             revocation: Default::default(),
+            cards: Default::default(),
             seen_uid: HashMap::new(),
             new_mail: Vec::new(),
             rules: Vec::new(),

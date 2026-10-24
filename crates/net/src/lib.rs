@@ -88,6 +88,11 @@ impl NetError {
 
 pub type Result<T> = std::result::Result<T, NetError>;
 
+/// The smart cards' PKCS #11 modules installed here, the likeliest first (S/MIME with a card).
+pub fn card_modules() -> Vec<String> {
+    mailcraft_keys::pkcs11::known_modules()
+}
+
 /// The root certificates this computer trusts (DER): what a signed message's chain must reach
 /// to be trusted (S/MIME). The system's own store, as the user and their organisation keep it:
 /// Windows' and macOS' stores, Linux's and the BSDs' bundle. None found, none: signatures still

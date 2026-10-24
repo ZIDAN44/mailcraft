@@ -294,3 +294,32 @@ fn a_withdrawn_certificate_is_said_only_when_asked_for() {
     assert!(matches!(security(&s).signed.unwrap().seal, Seal::Untrusted(p) if p.contains(&smime::Problem::Revoked(LATER - 60))));
     done(s);
 }
+
+#[test]
+fn a_certificate_on_a_smart_card_becomes_the_accounts() {
+    let mut s = sample_session("smime-card");
+    s.set_card_modules(vec!["/usr/lib/opensc-pkcs11.so".into()]);
+    assert!(s.run("security.findKeys", &json!({"module": "  "})).is_err(), "which module?");
+    s.run("security.findKeys", &json!({"module": "/usr/lib/opensc-pkcs11.so", "pin": "123456"})).unwrap();
+    assert!(s.card_search().searching);
+    let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::FindHeldKeys { .. })).unwrap();
+    assert!(matches!(&job, Job::FindHeldKeys { module: Some(m), pin: Some(p) } if m == "/usr/lib/opensc-pkcs11.so" && p.0 == "123456"));
+    // Nothing used before anything's found.
+    assert!(s.run("security.useKey", &json!({"index": 0})).is_err());
+    let card = mailcraft_model::HeldKey { label: "riley (PIV)".into(), cert: riley().chain[0].clone(), at: "{\"kind\":\"card\"}".into() };
+    s.apply(Event::HeldKeys { keys: vec![card.clone()], error: None });
+    assert_eq!((s.card_search().searching, s.card_search().keys.len()), (false, 1));
+    assert_eq!(s.card_search().modules, ["/usr/lib/opensc-pkcs11.so"], "kept across searches");
+    s.run("security.useKey", &json!({"index": 0})).unwrap();
+    let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::UseHeldKey { .. })).unwrap();
+    assert!(matches!(&job, Job::UseHeldKey { at, cert, pin: Some(p), .. } if *at == card.at && *cert == card.cert && p.0 == "123456"));
+    // The network layer's answer: the certificate is the account's, as an imported one is.
+    s.apply(Event::Identity { account: "sample".into(), chain: vec![card.cert.clone()], error: None });
+    assert_eq!(s.identity("sample").unwrap().emails, ["riley@studio.example"]);
+    // Nothing found says so.
+    s.run("security.findKeys", &json!({"keychain": true})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FindHeldKeys { module: None, pin: None })));
+    s.apply(Event::HeldKeys { keys: Vec::new(), error: None });
+    assert!(s.card_search().error.is_some());
+    done(s);
+}

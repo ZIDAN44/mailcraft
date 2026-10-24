@@ -131,6 +131,8 @@ pub enum Action {
     ImportRules,
     /// Pick a `.p12` / `.pfx` file for an account's certificate, then ask its password.
     ImportCertificate(String),
+    /// Choose a certificate on a smart card (or in the system's keychain) for an account.
+    UseSmartCard(String),
     /// Sign an account in again: the browser for OAuth accounts, else the password dialog.
     SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).
