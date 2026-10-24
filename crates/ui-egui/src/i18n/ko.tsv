@@ -1035,3 +1035,10 @@ month	May	5월
 	{n} people who may not know each other will all see each other's addresses.	서로 모를 수도 있는 {n}명이 모두 서로의 주소를 보게 됩니다.
 	Put everyone in Bcc	모두 숨은 참조에 넣기
 	Each of them gets the message without seeing who else did; you're in To	각자 다른 받는 사람을 보지 못한 채 메시지를 받습니다. 받는 사람에는 내가 들어갑니다
+	Open links without their tracking	추적 없이 링크 열기
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	링크는 실제 목적지로 열립니다. 실제 주소를 담은 리디렉션을 벗기고, 누가 클릭했는지 알리는 태그를 뺍니다
+	Links open as they are (File › Options › Safety)	링크가 그대로 열립니다 (파일 › 옵션 › 안전)
+	Links open without their tracking tags, and out of redirects that carry the real address	링크는 추적 태그 없이, 실제 주소를 담은 리디렉션을 벗겨서 열립니다
+	Links that report clicks: {links}	클릭을 알리는 링크: {links}
+	Tracking pictures, never loaded: {pictures}	추적 그림, 불러오지 않음: {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	추적 그림, 불러오지 않음: {pictures} · 클릭을 알리는 링크: {links}

@@ -106,6 +106,9 @@ pub struct Prefs {
     /// first: it's taken out of every JPEG and PNG attached as the message is sent.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub keep_photo_location: bool,
+    /// Links from a message open where they really go: out of redirect wrappers, without the
+    /// tags that say who clicked ([`mime::clean_link`]). On at first.
+    pub clean_links: bool,
 }
 
 impl Default for Prefs {
@@ -147,6 +150,7 @@ impl Default for Prefs {
             search_scope: SearchScope::Mailbox,
             recent_searches: Vec::new(),
             keep_photo_location: false,
+            clean_links: true,
             quick_steps: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),

@@ -1035,3 +1035,10 @@ month	May	Май
 	{n} people who may not know each other will all see each other's addresses.	{n} человек, возможно незнакомых друг с другом, увидят адреса всех остальных.
 	Put everyone in Bcc	Поместить всех в скрытую копию
 	Each of them gets the message without seeing who else did; you're in To	Каждый получит письмо, не видя остальных получателей; вы будете в поле «Кому»
+	Open links without their tracking	Открывать ссылки без отслеживания
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	Ссылка открывается там, куда она на самом деле ведёт: без переадресаций, содержащих настоящий адрес, и без меток, сообщающих, кто нажал
+	Links open as they are (File › Options › Safety)	Ссылки открываются как есть (Файл › Параметры › Безопасность)
+	Links open without their tracking tags, and out of redirects that carry the real address	Ссылки открываются без меток отслеживания и без переадресаций, содержащих настоящий адрес
+	Links that report clicks: {links}	Ссылки, сообщающие о нажатиях: {links}
+	Tracking pictures, never loaded: {pictures}	Следящие изображения, не загружаются: {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Следящие изображения, не загружаются: {pictures} · Ссылки, сообщающие о нажатиях: {links}

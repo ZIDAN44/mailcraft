@@ -123,3 +123,19 @@ fn sending_holds_for_a_lookalike_address_or_many_strangers() {
     assert!(send(&mut s, json!({})).get("check").is_none());
     done(s);
 }
+
+#[test]
+fn tracking_pictures_stay_unloaded_when_pictures_are_shown() {
+    let mut s = sample_session("trackers");
+    let html = r#"<p>New prints are in. <a href="https://shop.example/prints?utm_source=news&amp;fbclid=x">See them</a>
+        <img src="https://shop.example/banner.png" width="600" alt="Prints">
+        <img src="https://shop.example/o.gif?u=riley" width="1" height="1"></p>"#;
+    deliver(&mut s, 6, ("Shop", "news@shop.example"), "New prints", Some(html));
+    let p = s.reading.as_ref().unwrap().parsed.clone().unwrap();
+    assert_eq!(p.trackers.pictures, ["https://shop.example/o.gif?u=riley"]);
+    assert_eq!(p.trackers.links, 1);
+    s.run("message.showPictures", &json!({})).unwrap();
+    let asked: Vec<String> = s.take_jobs().into_iter().filter_map(|j| if let Job::FetchUrl { url } = j { Some(url) } else { None }).collect();
+    assert_eq!(asked, ["https://shop.example/banner.png"], "the tracking picture is never asked for");
+    done(s);
+}

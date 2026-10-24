@@ -372,7 +372,7 @@ fn mails() -> Vec<Mail> {
                  <span style=\"background-color:#fff176\">(no late entries)</span></p>\
                  </td></tr></table></td></tr>\
                  <tr><td align=\"center\">\
-                 <p>Read the <a href=\"https://gallery.example/open-call\">full guidelines</a> on our website.</p>\
+                 <p>Read the <a href=\"https://gallery.example/open-call?utm_source=newsletter&amp;utm_campaign=winter\">full guidelines</a> on our website.</p>\
                  <p>See you at the opening!</p></td></tr></table>\
                  <img src=\"https://gallery.example/track/open.gif\" width=\"1\" height=\"1\" alt=\"\">",
             ),

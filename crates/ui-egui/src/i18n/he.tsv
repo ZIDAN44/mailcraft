@@ -1031,3 +1031,10 @@ month	May	מאי
 	{n} people who may not know each other will all see each other's addresses.	{n} אנשים שאולי אינם מכירים זה את זה יראו כולם את הכתובות של כולם.
 	Put everyone in Bcc	להעביר את כולם ל־Bcc
 	Each of them gets the message without seeing who else did; you're in To	כל אחד מקבל את ההודעה בלי לראות מי עוד קיבל; אתם בשדה אל
+	Open links without their tracking	לפתוח קישורים בלי המעקב שלהם
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	קישור נפתח במקום שאליו הוא באמת מוביל: מחוץ להפניות שמכילות את הכתובת האמיתית, בלי התגים שמגלים מי לחץ
+	Links open as they are (File › Options › Safety)	קישורים נפתחים כפי שהם (קובץ › אפשרויות › בטיחות)
+	Links open without their tracking tags, and out of redirects that carry the real address	קישורים נפתחים בלי תגי המעקב, ומחוץ להפניות שמכילות את הכתובת האמיתית
+	Links that report clicks: {links}	קישורים שמדווחים על לחיצות: {links}
+	Tracking pictures, never loaded: {pictures}	תמונות מעקב, לעולם לא נטענות: {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	תמונות מעקב, לעולם לא נטענות: {pictures} · קישורים שמדווחים על לחיצות: {links}

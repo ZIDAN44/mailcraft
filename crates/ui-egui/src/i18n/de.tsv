@@ -1036,3 +1036,10 @@ month	May	Mai
 	{n} people who may not know each other will all see each other's addresses.	{n} Personen, die sich vielleicht nicht kennen, sehen alle gegenseitig ihre Adressen.
 	Put everyone in Bcc	Alle in Bcc setzen
 	Each of them gets the message without seeing who else did; you're in To	Jeder erhält die Nachricht, ohne zu sehen, wer sonst; Sie stehen in An
+	Open links without their tracking	Links ohne Tracking öffnen
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	Ein Link öffnet dort, wohin er wirklich führt: ohne Weiterleitungen, die die echte Adresse enthalten, und ohne die Kennungen, die verraten, wer geklickt hat
+	Links open as they are (File › Options › Safety)	Links öffnen unverändert (Datei › Optionen › Sicherheit)
+	Links open without their tracking tags, and out of redirects that carry the real address	Links öffnen ohne ihre Tracking-Kennungen und ohne Weiterleitungen, die die echte Adresse enthalten
+	Links that report clicks: {links}	Links, die Klicks melden: {links}
+	Tracking pictures, never loaded: {pictures}	Tracking-Bilder, nie geladen: {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Tracking-Bilder, nie geladen: {pictures} · Links, die Klicks melden: {links}

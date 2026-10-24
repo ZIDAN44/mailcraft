@@ -277,6 +277,15 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 switch(ui, s.prefs.keep_photo_location, tl!("Send where photos were taken"), "view.photoLocation", acts);
             },
         );
+        setting(
+            ui,
+            false,
+            tl!("Open links without their tracking"),
+            Some(tl!("A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked")),
+            &mut |ui| {
+                switch(ui, s.prefs.clean_links, tl!("Open links without their tracking"), "view.cleanLinks", acts);
+            },
+        );
     });
 
     group(ui, tl!("Privacy"), Some(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")), &mut |ui| {

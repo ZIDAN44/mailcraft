@@ -188,11 +188,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "on": s.prefs.animations }))
         })
         .params(r#"{"on"?: bool (none: switch)}"#),
-        CommandSpec::new("view.photoLocation", "Send where photos were taken", "File › Options › Privacy", |s, v| {
+        CommandSpec::new("view.photoLocation", "Send where photos were taken", "File › Options › Safety", |s, v| {
             s.prefs.keep_photo_location = p::bool(v, "on").unwrap_or(!s.prefs.keep_photo_location);
             Ok(json!({ "on": s.prefs.keep_photo_location }))
         })
         .params(r#"{"on"?: bool (none: switch; off, the place is taken out of attached photos as they're sent)}"#),
+        CommandSpec::new("view.cleanLinks", "Open links without their tracking", "File › Options › Safety", |s, v| {
+            s.prefs.clean_links = p::bool(v, "on").unwrap_or(!s.prefs.clean_links);
+            Ok(json!({ "on": s.prefs.clean_links }))
+        })
+        .params(r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
         CommandSpec::new("view.trustSender", "Show pictures from a sender", "File › Options › Privacy", |s, v| {
             let who = p::req_str(v, "address")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&who) {

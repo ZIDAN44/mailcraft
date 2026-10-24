@@ -26,6 +26,27 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, p: &mime::Parsed, a
         );
         ui.add_space(6.0);
     }
+    // What reports back to the sender: never-loaded pictures, links that count clicks.
+    let tr = &p.trackers;
+    if !tr.is_empty() {
+        let line = match (tr.pictures.len(), tr.links) {
+            (0, links) => tf!("Links that report clicks: {links}", links = links),
+            (pictures, 0) => tf!("Tracking pictures, never loaded: {pictures}", pictures = pictures),
+            (pictures, links) => {
+                tf!("Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}", pictures = pictures, links = links)
+            }
+        };
+        let about = if s.prefs.clean_links {
+            tl!("Links open without their tracking tags, and out of redirects that carry the real address")
+        } else {
+            tl!("Links open as they are (File › Options › Safety)")
+        };
+        ui.horizontal_wrapped(|ui| {
+            let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+            icons::paint(ui.painter(), ir, Icon::Info, t.faint);
+            ui.label(RichText::new(line).color(t.faint).small()).on_hover_text(about);
+        });
+    }
     ui.horizontal(|ui| {
         if formatted {
             if ui.link(RichText::new(tl!("Show as plain text")).small()).clicked() {
@@ -198,7 +219,9 @@ impl Body<'_> {
         }
         match &sp.link {
             Some(link) => {
-                let r = ui.add(egui::Link::new(rt.color(fg))).on_hover_text(link);
+                // Hovered, a link says where it will open (cleaned, when links are).
+                let shown = if self.s.prefs.clean_links { mime::clean_link(link) } else { link.clone() };
+                let r = ui.add(egui::Link::new(rt.color(fg))).on_hover_text(shown);
                 if r.clicked() {
                     self.acts.push(Action::OpenUrl(link.clone()));
                 }

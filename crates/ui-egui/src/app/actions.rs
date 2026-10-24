@@ -423,7 +423,9 @@ impl MailApp {
     /// Follow a link from a message: only web pages and mail addresses, never local files or
     /// other schemes.
     pub(crate) fn open_link(&mut self, url: &str) {
-        let u = url.trim();
+        // Where it really goes, without what says who clicked (File › Options › Safety).
+        let cleaned = if self.session.prefs.clean_links { mailcraft_engine::mime::clean_link(url) } else { url.to_string() };
+        let u = cleaned.trim();
         let lower = u.to_ascii_lowercase();
         if let Some(rest) = u.get(7..).filter(|_| lower.starts_with("mailto:")) {
             let to = rest.split('?').next().unwrap_or("").replace("%40", "@");

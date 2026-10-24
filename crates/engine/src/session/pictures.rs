@@ -8,7 +8,15 @@ impl Session {
         self.reading
             .as_ref()
             .and_then(|r| r.parsed.as_ref())
-            .map(|p| p.images.iter().filter(|u| u.starts_with("https://") || u.starts_with("http://")).take(MAX_PICTURES).cloned().collect())
+            .map(|p| {
+                // Tracking pictures stay unloaded even when the others are shown.
+                p.images
+                    .iter()
+                    .filter(|u| (u.starts_with("https://") || u.starts_with("http://")) && !p.trackers.pictures.contains(u))
+                    .take(MAX_PICTURES)
+                    .cloned()
+                    .collect()
+            })
             .unwrap_or_default()
     }
 

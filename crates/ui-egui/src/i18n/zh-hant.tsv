@@ -1035,3 +1035,10 @@ month	May	5月
 	{n} people who may not know each other will all see each other's addresses.	{n} 位可能互不相識的人都會看到彼此的地址。
 	Put everyone in Bcc	把所有人放進密件副本
 	Each of them gets the message without seeing who else did; you're in To	每個人收到郵件時都看不到其他收件人；你在收件者欄
+	Open links without their tracking	開啟連結時移除追蹤
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	連結會開啟真正的目標：移除包含真實地址的轉址，並移除表明誰點擊的標記
+	Links open as they are (File › Options › Safety)	連結依原樣開啟（檔案 › 選項 › 安全）
+	Links open without their tracking tags, and out of redirects that carry the real address	連結開啟時會移除追蹤標記，並移除包含真實地址的轉址
+	Links that report clicks: {links}	會回報點擊的連結：{links}
+	Tracking pictures, never loaded: {pictures}	追蹤圖片，從不載入：{pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	追蹤圖片，從不載入：{pictures} · 會回報點擊的連結：{links}

@@ -1032,3 +1032,10 @@ month	May	5月
 	{n} people who may not know each other will all see each other's addresses.	互いに知らないかもしれない {n} 人全員に、ほかの人のアドレスが見えます。
 	Put everyone in Bcc	全員を BCC に入れる
 	Each of them gets the message without seeing who else did; you're in To	各自がほかに誰が受け取ったかを見ずにメッセージを受け取ります。あなたは宛先に入ります
+	Open links without their tracking	追跡を外してリンクを開く
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	リンクは本当の行き先で開きます。本当のアドレスを含むリダイレクトを外し、誰がクリックしたかを示すタグを取り除きます
+	Links open as they are (File › Options › Safety)	リンクはそのまま開きます (ファイル › オプション › 安全)
+	Links open without their tracking tags, and out of redirects that carry the real address	リンクは追跡タグを外し、本当のアドレスを含むリダイレクトを外して開きます
+	Links that report clicks: {links}	クリックを報告するリンク: {links}
+	Tracking pictures, never loaded: {pictures}	追跡画像 (読み込みません): {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	追跡画像 (読み込みません): {pictures} · クリックを報告するリンク: {links}

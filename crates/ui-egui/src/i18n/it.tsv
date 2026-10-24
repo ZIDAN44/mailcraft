@@ -1035,3 +1035,10 @@ month	May	maggio
 	{n} people who may not know each other will all see each other's addresses.	{n} persone che forse non si conoscono vedranno tutte gli indirizzi degli altri.
 	Put everyone in Bcc	Metti tutti in Ccn
 	Each of them gets the message without seeing who else did; you're in To	Ognuno riceve il messaggio senza vedere chi altro l'ha ricevuto; tu sei in A
+	Open links without their tracking	Apri i collegamenti senza il tracciamento
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	Un collegamento si apre dove porta davvero: fuori dai reindirizzamenti che contengono l'indirizzo reale, senza i tag che dicono chi ha fatto clic
+	Links open as they are (File › Options › Safety)	I collegamenti si aprono così come sono (File › Opzioni › Sicurezza)
+	Links open without their tracking tags, and out of redirects that carry the real address	I collegamenti si aprono senza i tag di tracciamento e fuori dai reindirizzamenti che contengono l'indirizzo reale
+	Links that report clicks: {links}	Collegamenti che segnalano i clic: {links}
+	Tracking pictures, never loaded: {pictures}	Immagini di tracciamento, mai caricate: {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Immagini di tracciamento, mai caricate: {pictures} · Collegamenti che segnalano i clic: {links}

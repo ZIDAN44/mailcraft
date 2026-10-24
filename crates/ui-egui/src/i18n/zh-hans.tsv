@@ -1032,3 +1032,10 @@ month	May	5月
 	{n} people who may not know each other will all see each other's addresses.	{n} 个可能互不相识的人都会看到彼此的地址。
 	Put everyone in Bcc	把所有人放进密送
 	Each of them gets the message without seeing who else did; you're in To	每个人收到邮件时都看不到其他收件人；你在收件人栏
+	Open links without their tracking	打开链接时去掉跟踪
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	链接会打开真正的目标：去掉包含真实地址的跳转，并去掉表明谁点击了的标记
+	Links open as they are (File › Options › Safety)	链接按原样打开（文件 › 选项 › 安全）
+	Links open without their tracking tags, and out of redirects that carry the real address	链接打开时会去掉跟踪标记，并去掉包含真实地址的跳转
+	Links that report clicks: {links}	会报告点击的链接：{links}
+	Tracking pictures, never loaded: {pictures}	跟踪图片，从不加载：{pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	跟踪图片，从不加载：{pictures} · 会报告点击的链接：{links}

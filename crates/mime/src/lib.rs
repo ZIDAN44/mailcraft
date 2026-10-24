@@ -31,10 +31,12 @@ use serde::{Deserialize, Serialize};
 mod files;
 mod html;
 mod photos;
+mod trackers;
 pub use files::{runs_code, sanitize_filename};
 use html::*;
 pub use html::*;
 pub use photos::without_location;
+pub use trackers::{Trackers, clean_link, trackers, tracks_click};
 
 /// Longest preview kept in a summary, in characters.
 pub const PREVIEW_CHARS: usize = 200;
@@ -298,6 +300,9 @@ pub struct Parsed {
     #[serde(default)]
     pub images: Vec<String>,
     pub attachments: Vec<AttachmentInfo>,
+    /// Tracking pictures and links that report clicks, in the HTML body.
+    #[serde(default, skip_serializing_if = "Trackers::is_empty")]
+    pub trackers: Trackers,
     /// `List-Unsubscribe` target, when the sender offers one.
     pub unsubscribe: Option<String>,
 }
@@ -344,6 +349,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     let m = MessageParser::default().parse(raw)?;
     // mail-parser lists text parts among the HTML bodies too (converted); only real HTML counts.
     let real_html = m.html_bodies().any(|p| p.is_text_html());
+    let tracking = m.body_html(0).filter(|_| real_html).map(|h| trackers(&h)).unwrap_or_default();
     let (rich, images, layout) = match m.body_html(0).filter(|_| real_html) {
         Some(h) => {
             // Style sheet rules as inline styles, so cells keep their colours and titles their size.
@@ -410,6 +416,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         layout,
         images,
         attachments,
+        trackers: tracking,
         unsubscribe,
     })
 }

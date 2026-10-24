@@ -1,5 +1,6 @@
 //! An HTML body: converted to text, to formatted lines and to columns, and searched for its
-//! pictures and links; plus the plain-text markup MailCraft writes itself.
+//! pictures and links (and the trackers among them, links cleaned); plus the plain-text markup
+//! MailCraft writes itself.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -13,6 +14,11 @@ fuzz_target!(|input: &[u8]| {
     let _ = mime::html_to_text(&page);
     let _ = mime::html_links(&page);
     let _ = mime::html_images(&page);
+    for link in mime::html_links(&page) {
+        let _ = mime::clean_link(&link);
+    }
+    let _ = mime::trackers(&page);
+    let _ = mime::clean_link(&page);
     let _ = mime::layout::inline_css(&page);
     let _ = mime::layout::html_layout(&page);
     // Pasting it into a draft, and the round trip back out.
