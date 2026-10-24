@@ -1022,3 +1022,8 @@ month	May	5월
 	Add an account first: a new message needs an account to send from.	먼저 계정을 추가하세요. 새 메시지를 보내려면 계정이 필요합니다.
 	Add an account first: events and people are kept with an account.	먼저 계정을 추가하세요. 일정과 사람은 계정에 저장됩니다.
 	Couldn't open {file}: {error}	{file}을(를) 열 수 없습니다: {error}
+	Safety	안전
+	Send where photos were taken	사진을 찍은 장소도 보내기
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	끄면 휴대폰이 사진에 기록한 장소가 JPEG 및 PNG 파일을 보낼 때 제거됩니다
+	These photos say where they were taken, and go that way (File › Options › Safety)	이 사진에는 찍은 장소가 들어 있으며 그대로 보내집니다 (파일 › 옵션 › 안전)
+	Where these photos were taken is left out as they're sent	이 사진을 찍은 장소는 보낼 때 빠집니다

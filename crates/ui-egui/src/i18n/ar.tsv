@@ -1018,3 +1018,8 @@ month	May	مايو
 	Add an account first: a new message needs an account to send from.	أضف حسابًا أولًا: تحتاج الرسالة الجديدة إلى حساب لإرسالها منه.
 	Add an account first: events and people are kept with an account.	أضف حسابًا أولًا: تُحفظ الأحداث والأشخاص في حساب.
 	Couldn't open {file}: {error}	تعذّر فتح {file}: {error}
+	Safety	الأمان
+	Send where photos were taken	إرسال مكان التقاط الصور
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	عند الإيقاف، يُزال المكان الذي يكتبه الهاتف في الصورة من ملفات JPEG وPNG عند إرسالها
+	These photos say where they were taken, and go that way (File › Options › Safety)	تذكر هذه الصور مكان التقاطها، وتُرسل كذلك (ملف › الخيارات › الأمان)
+	Where these photos were taken is left out as they're sent	يُحذف مكان التقاط هذه الصور عند إرسالها

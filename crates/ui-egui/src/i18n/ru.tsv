@@ -1022,3 +1022,8 @@ month	May	Май
 	Add an account first: a new message needs an account to send from.	Сначала добавьте учётную запись: новому письму нужна учётная запись для отправки.
 	Add an account first: events and people are kept with an account.	Сначала добавьте учётную запись: события и люди хранятся в учётной записи.
 	Couldn't open {file}: {error}	Не удалось открыть {file}: {error}
+	Safety	Безопасность
+	Send where photos were taken	Отправлять место съёмки фотографий
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Если выключено, место, которое телефон записывает в снимок, удаляется из файлов JPEG и PNG при отправке
+	These photos say where they were taken, and go that way (File › Options › Safety)	В этих фотографиях указано место съёмки, и они уйдут с ним (Файл › Параметры › Безопасность)
+	Where these photos were taken is left out as they're sent	Место съёмки этих фотографий при отправке убирается

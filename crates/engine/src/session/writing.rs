@@ -194,12 +194,20 @@ impl Session {
         if c.sending {
             return Err(CmdError::Disabled("already sending".into()));
         }
-        let d = self.compose_draft(&c)?;
+        let mut d = self.compose_draft(&c)?;
         if d.recipients().is_empty() {
             return Err(CmdError::Params("add at least one recipient".into()));
         }
         if d.subject.is_empty() && !allow_empty_subject {
             return Err(CmdError::Params("the subject is empty (send with {\"allowEmptySubject\": true} to send anyway)".into()));
+        }
+        // Where the photos were taken stays with the sender (the draft keeps them as attached).
+        if !self.prefs.keep_photo_location {
+            for a in &mut d.attachments {
+                if let Some(clean) = mime::without_location(&a.data) {
+                    a.data = clean;
+                }
+            }
         }
         let (raw, from) = self.compose_bytes(&c, &d)?;
         let local = self.account(&c.account).is_none_or(AccountState::is_local);

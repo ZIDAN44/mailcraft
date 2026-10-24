@@ -26,5 +26,7 @@ are rendered by `cargo xtask icons` from MailCraft's own drawing in `xtask/src/i
 | `assets/app-icon/hicolor/64x64/apps/ai.storyteller.mailcraft.png` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |
 | `assets/app-icon/hicolor/scalable/apps/ai.storyteller.mailcraft.svg` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |
 | `assets/app-icon/mailcraft-1024.png` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |
+| `fuzz/seeds/photo/geotagged.jpg` | MailCraft contributors | Written byte by byte as a fuzzing seed (a few header bytes, no picture) | MIT OR Apache-2.0 |
+| `fuzz/seeds/photo/geotagged.png` | MailCraft contributors | Written byte by byte as a fuzzing seed (a few header bytes, no picture) | MIT OR Apache-2.0 |
 | `assets/app-icon/mailcraft.icns` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |
 | `assets/app-icon/mailcraft.ico` | MailCraft contributors | Rendered by `cargo xtask icons` (`xtask/src/icons.rs`) | MIT OR Apache-2.0 |

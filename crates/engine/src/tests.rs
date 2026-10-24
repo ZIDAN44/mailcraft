@@ -59,4 +59,5 @@ mod invites;
 mod mail;
 mod organize;
 mod pim;
+mod safety;
 mod writing;

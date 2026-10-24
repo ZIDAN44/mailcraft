@@ -13,6 +13,7 @@ bin = [
     { name = "imap", bench = false, test = false, doc = false, path = "fuzz_targets/imap.rs" }, # a whole IMAP session from the server side
     { name = "jmap", bench = false, test = false, doc = false, path = "fuzz_targets/jmap.rs" }, # JMAP replies, push events and URLs
     { name = "mime_parse", bench = false, test = false, doc = false, path = "fuzz_targets/mime_parse.rs" }, # raw message sources
+    { name = "photo", bench = false, test = false, doc = false, path = "fuzz_targets/photo.rs" }, # photos' EXIF and XMP blocks as they're sent
     { name = "pst", bench = false, test = false, doc = false, path = "fuzz_targets/pst.rs" }, # Outlook data file import
     { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
     { name = "vcard", bench = false, test = false, doc = false, path = "fuzz_targets/vcard.rs" }, # contact cards

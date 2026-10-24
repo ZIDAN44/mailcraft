@@ -1018,3 +1018,8 @@ month	May	מאי
 	Add an account first: a new message needs an account to send from.	יש להוסיף חשבון קודם: הודעה חדשה צריכה חשבון לשליחה.
 	Add an account first: events and people are kept with an account.	יש להוסיף חשבון קודם: אירועים ואנשים נשמרים בחשבון.
 	Couldn't open {file}: {error}	לא ניתן לפתוח את {file}: {error}
+	Safety	בטיחות
+	Send where photos were taken	לשלוח את המקום שבו צולמו התמונות
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	כשכבוי, המקום שהטלפון כותב בתמונה מוסר מקובצי JPEG ו־PNG בעת שליחתם
+	These photos say where they were taken, and go that way (File › Options › Safety)	התמונות האלה מציינות היכן צולמו, וכך הן יישלחו (קובץ › אפשרויות › בטיחות)
+	Where these photos were taken is left out as they're sent	המקום שבו צולמו התמונות האלה יושמט בשליחה

@@ -1019,3 +1019,8 @@ month	May	5月
 	Add an account first: a new message needs an account to send from.	请先添加帐户：新邮件需要一个用于发送的帐户。
 	Add an account first: events and people are kept with an account.	请先添加帐户：事件和联系人保存在帐户中。
 	Couldn't open {file}: {error}	无法打开 {file}：{error}
+	Safety	安全
+	Send where photos were taken	发送照片的拍摄地点
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	关闭时，手机写入照片的地点会在发送 JPEG 和 PNG 文件时去掉
+	These photos say where they were taken, and go that way (File › Options › Safety)	这些照片带有拍摄地点，并会照此发送（文件 › 选项 › 安全）
+	Where these photos were taken is left out as they're sent	发送时会去掉这些照片的拍摄地点

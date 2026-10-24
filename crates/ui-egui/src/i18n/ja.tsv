@@ -1019,3 +1019,8 @@ month	May	5月
 	Add an account first: a new message needs an account to send from.	先にアカウントを追加してください。新しいメッセージの送信にはアカウントが必要です。
 	Add an account first: events and people are kept with an account.	先にアカウントを追加してください。予定と連絡先はアカウントに保存されます。
 	Couldn't open {file}: {error}	{file} を開けませんでした: {error}
+	Safety	安全
+	Send where photos were taken	写真の撮影場所も送信する
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	オフにすると、スマートフォンが写真に書き込む場所は、送信時に JPEG と PNG ファイルから取り除かれます
+	These photos say where they were taken, and go that way (File › Options › Safety)	これらの写真には撮影場所が含まれ、そのまま送信されます (ファイル › オプション › 安全)
+	Where these photos were taken is left out as they're sent	これらの写真の撮影場所は送信時に取り除かれます

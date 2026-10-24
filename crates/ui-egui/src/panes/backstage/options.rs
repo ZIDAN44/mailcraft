@@ -267,6 +267,18 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         });
     }
 
+    group(ui, tl!("Safety"), None, &mut |ui| {
+        setting(
+            ui,
+            true,
+            tl!("Send where photos were taken"),
+            Some(tl!("Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent")),
+            &mut |ui| {
+                switch(ui, s.prefs.keep_photo_location, tl!("Send where photos were taken"), "view.photoLocation", acts);
+            },
+        );
+    });
+
     group(ui, tl!("Privacy"), Some(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")), &mut |ui| {
         if s.prefs.trusted_senders.is_empty() {
             ui.add_space(4.0);

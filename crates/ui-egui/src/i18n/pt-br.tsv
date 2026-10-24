@@ -1023,3 +1023,8 @@ month	May	maio
 	Add an account first: a new message needs an account to send from.	Adicione uma conta primeiro: uma nova mensagem precisa de uma conta para ser enviada.
 	Add an account first: events and people are kept with an account.	Adicione uma conta primeiro: eventos e pessoas ficam guardados em uma conta.
 	Couldn't open {file}: {error}	Não foi possível abrir {file}: {error}
+	Safety	Segurança
+	Send where photos were taken	Enviar onde as fotos foram tiradas
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Desativado, o local que o celular grava na foto é retirado dos arquivos JPEG e PNG ao enviar
+	These photos say where they were taken, and go that way (File › Options › Safety)	Estas fotos dizem onde foram tiradas e vão assim (Arquivo › Opções › Segurança)
+	Where these photos were taken is left out as they're sent	O local onde estas fotos foram tiradas é retirado ao enviar

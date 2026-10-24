@@ -30,9 +30,11 @@ use serde::{Deserialize, Serialize};
 
 mod files;
 mod html;
+mod photos;
 pub use files::{runs_code, sanitize_filename};
 use html::*;
 pub use html::*;
+pub use photos::without_location;
 
 /// Longest preview kept in a summary, in characters.
 pub const PREVIEW_CHARS: usize = 200;

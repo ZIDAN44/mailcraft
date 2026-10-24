@@ -568,6 +568,22 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                                 remove = Some(i);
                             }
                         });
+                        // A photo that says where it was taken (looked at once per set of files).
+                        let size: usize = c.attachments.iter().map(|a| a.data.len()).sum();
+                        let id = egui::Id::unique(("photo-place", c.id, n, size));
+                        let placed = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or_else(|| {
+                            let v = c.attachments.iter().any(|a| mime::without_location(&a.data).is_some());
+                            ui.data_mut(|d| d.insert_temp(id, v));
+                            v
+                        });
+                        if placed {
+                            let note = if s.prefs.keep_photo_location {
+                                tl!("These photos say where they were taken, and go that way (File › Options › Safety)")
+                            } else {
+                                tl!("Where these photos were taken is left out as they're sent")
+                            };
+                            ui.label(RichText::new(note).color(t.faint).small());
+                        }
                     });
                     if let Some(i) = remove {
                         acts.push(Action::Run("compose.removeAttachment", json!({"index": i})));

@@ -1022,3 +1022,8 @@ month	May	5月
 	Add an account first: a new message needs an account to send from.	請先新增帳戶：新郵件需要一個用來傳送的帳戶。
 	Add an account first: events and people are kept with an account.	請先新增帳戶：活動和連絡人會儲存在帳戶中。
 	Couldn't open {file}: {error}	無法開啟 {file}：{error}
+	Safety	安全
+	Send where photos were taken	傳送相片的拍攝地點
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	關閉時，手機寫入相片的地點會在傳送 JPEG 和 PNG 檔案時移除
+	These photos say where they were taken, and go that way (File › Options › Safety)	這些相片帶有拍攝地點，並會照此傳送（檔案 › 選項 › 安全）
+	Where these photos were taken is left out as they're sent	傳送時會移除這些相片的拍攝地點
