@@ -195,6 +195,7 @@ impl Session {
             inline,
             importance: c.importance,
             read_receipt: c.read_receipt,
+            seven_bit: false,
         })
     }
 
@@ -413,6 +414,7 @@ impl Session {
             inline,
             importance: c.importance,
             read_receipt: c.read_receipt,
+            seven_bit: false,
         };
         let folder = self
             .account(&c.account)
