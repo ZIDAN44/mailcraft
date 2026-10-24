@@ -36,13 +36,14 @@ const LAYERS: &[(&str, u8)] = &[
     ("mailcraft-print", 1),
     ("mailcraft-smime", 1),
     ("mailcraft-jmap", 2),
+    ("mailcraft-keys", 2),
     ("mailcraft-net", 3),
     ("mailcraft-engine", 4),
     ("mailcraft-ui-egui", 6),
 ];
 
 /// Crates that never build for the web (sockets, threads, TLS).
-const NATIVE_ONLY: &[&str] = &["mailcraft-net"];
+const NATIVE_ONLY: &[&str] = &["mailcraft-keys", "mailcraft-net"];
 
 /// External crates that belong to one layer only.
 const RESTRICTED: &[(&str, &[&str])] = &[

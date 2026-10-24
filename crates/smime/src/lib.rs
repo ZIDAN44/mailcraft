@@ -9,6 +9,8 @@
 //! * [`encrypt`] makes `EnvelopedData` (AES-256-CBC, what every mail program reads) or
 //!   `AuthEnvelopedData` (AES-256-GCM, authenticated: for recipients who said they read it), to
 //!   RSA certificates; [`decrypt`] opens both, with AES-CBC/GCM or 3DES, PKCS #1 v1.5 or OAEP.
+//! * A key MailCraft can't read (a smart card's, the system keychain's) signs and decrypts through
+//!   [`PrivateKey`] ([`sign_with`], [`decrypt_with`]).
 //! * [`cert::info`] says what a certificate is, and [`cert::check`] whether to trust it for a
 //!   sender (chain to a root, in date, for email, for that address).
 //!
@@ -22,6 +24,7 @@ pub mod ber;
 pub mod cert;
 mod envelope;
 mod kari;
+pub mod key;
 pub mod oids;
 #[cfg(not(target_arch = "wasm32"))]
 mod p12;
@@ -29,10 +32,11 @@ pub mod revocation;
 mod sign;
 
 pub use cert::{CertInfo, Problem};
-pub use envelope::{Cipher, decrypt, encrypt};
+pub use envelope::{Cipher, decrypt, decrypt_with, encrypt};
+pub use key::PrivateKey;
 #[cfg(not(target_arch = "wasm32"))]
 pub use p12::read_p12;
-pub use sign::{Signed, carried, sign, verify};
+pub use sign::{Signed, carried, sign, sign_with, verify};
 
 /// Larger CMS than this isn't read (a message's size limit is far below it).
 pub const CMS_MAX: usize = 64 << 20;

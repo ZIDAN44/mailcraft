@@ -157,9 +157,9 @@ pub(crate) fn recipient(cert: &Certificate, cek: &[u8], rng: &mut impl rand_core
     })
 }
 
-/// The content key from a recipient info addressed to `me`, with `key` (PKCS #8 of an EC key).
-/// `None` when it isn't addressed to `me`.
-pub(crate) fn content_key(info: &KeyAgreeRecipientInfo, me: &Certificate, key: &[u8]) -> Option<Result<Vec<u8>, Error>> {
+/// The content key from a recipient info addressed to `me`, with `key` (an EC key's). `None` when
+/// it isn't addressed to `me`.
+pub(crate) fn content_key(info: &KeyAgreeRecipientInfo, me: &Certificate, key: &mut dyn crate::PrivateKey) -> Option<Result<Vec<u8>, Error>> {
     let mine = info.recipient_enc_keys.iter().find(|r| match &r.rid {
         KeyAgreeRecipientIdentifier::IssuerAndSerialNumber(i) => {
             i.issuer == me.tbs_certificate.issuer && i.serial_number == me.tbs_certificate.serial_number
@@ -169,8 +169,7 @@ pub(crate) fn content_key(info: &KeyAgreeRecipientInfo, me: &Certificate, key: &
     Some(open(info, mine, key))
 }
 
-fn open(info: &KeyAgreeRecipientInfo, mine: &RecipientEncryptedKey, key: &[u8]) -> Result<Vec<u8>, Error> {
-    use pkcs8::DecodePrivateKey as _;
+fn open(info: &KeyAgreeRecipientInfo, mine: &RecipientEncryptedKey, key: &mut dyn crate::PrivateKey) -> Result<Vec<u8>, Error> {
     let OriginatorIdentifierOrKey::OriginatorKey(theirs) = &info.originator else {
         return Err(Error::Unsupported("mail encrypted with the sender's own static key".into()));
     };
@@ -178,15 +177,7 @@ fn open(info: &KeyAgreeRecipientInfo, mine: &RecipientEncryptedKey, key: &[u8]) 
     let wrap_alg: AlgorithmIdentifierOwned = info.key_enc_alg.parameters.as_ref().and_then(|p| p.decode_as().ok()).ok_or(Error::Decrypt)?;
     let len = wrap_len(&wrap_alg.oid).ok_or_else(|| Error::Unsupported(format!("key wrap {}", wrap_alg.oid)))?;
     let point = theirs.public_key.raw_bytes();
-    let z = if let Ok(k) = p256::SecretKey::from_pkcs8_der(key) {
-        let them = p256::PublicKey::from_sec1_bytes(point).map_err(|_| Error::Decrypt)?;
-        p256::ecdh::diffie_hellman(k.to_nonzero_scalar(), them.as_affine()).raw_secret_bytes().to_vec()
-    } else if let Ok(k) = p384::SecretKey::from_pkcs8_der(key) {
-        let them = p384::PublicKey::from_sec1_bytes(point).map_err(|_| Error::Decrypt)?;
-        p384::ecdh::diffie_hellman(k.to_nonzero_scalar(), them.as_affine()).raw_secret_bytes().to_vec()
-    } else {
-        return Err(Error::Decrypt);
-    };
+    let z = key.ecdh(point).map_err(|_| Error::Decrypt)?;
     // The shared info names the wrap algorithm: with its parameters absent, as RFC 5753 says, or
     // NULL, as Outlook and NSS write them. AES key wrap's check tells which one the sender used.
     let wrapped = mine.enc_key.as_bytes();

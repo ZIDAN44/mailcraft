@@ -145,12 +145,18 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], cipher: Cipher, rng: &mut
 /// decrypted with `id`. The second value says whether it was authenticated (GCM): content
 /// encrypted with CBC can have been changed by someone without the key, so it's shown with care.
 pub fn decrypt(cms: &[u8], id: &Identity, rng: &mut impl rand_core::CryptoRngCore) -> Result<(Vec<u8>, bool), Error> {
+    decrypt_with(cms, id.certificate(), &mut crate::key::Software { key: &id.key, rng })
+}
+
+/// [`decrypt`] with a key held elsewhere (a smart card, the system's keychain), whose certificate
+/// is `cert` (DER).
+pub fn decrypt_with(cms: &[u8], cert: &[u8], id: &mut dyn crate::PrivateKey) -> Result<(Vec<u8>, bool), Error> {
     let der_bytes = der_of(cms)?;
     let ci = ContentInfo::from_der(&der_bytes).map_err(|_| Error::Malformed("not encrypted mail"))?;
-    let me = cert::parse(id.certificate())?;
+    let me = cert::parse(cert)?;
     if ci.content_type == oids::ENVELOPED_DATA {
         let ed: EnvelopedData = ci.content.decode_as().map_err(|_| Error::Malformed("the encrypted mail can't be read"))?;
-        let key = content_key(&ed.recip_infos, &me, id, rng)?;
+        let key = content_key(&ed.recip_infos, &me, id)?;
         return open(&ed.encrypted_content, &key, None).map(|c| (c, false));
     }
     if ci.content_type == oids::AUTH_ENVELOPED_DATA {
@@ -159,20 +165,19 @@ pub fn decrypt(cms: &[u8], id: &Identity, rng: &mut impl rand_core::CryptoRngCor
         if aed.auth_attrs.is_some() {
             return Err(Error::Unsupported("authenticated attributes".into()));
         }
-        let key = content_key(&aed.recip_infos, &me, id, rng)?;
+        let key = content_key(&aed.recip_infos, &me, id)?;
         return open(&aed.auth_encrypted_content, &key, Some(aed.mac.as_bytes())).map(|c| (c, true));
     }
     Err(Error::Malformed("not encrypted mail"))
 }
 
 /// The content key from the recipient info that names `me`.
-fn content_key(infos: &RecipientInfos, me: &Certificate, id: &Identity, rng: &mut impl rand_core::CryptoRngCore) -> Result<Vec<u8>, Error> {
-    use pkcs8::DecodePrivateKey as _;
+fn content_key(infos: &RecipientInfos, me: &Certificate, id: &mut dyn crate::PrivateKey) -> Result<Vec<u8>, Error> {
     // An EC key: the copy wrapped for it by key agreement.
     if me.tbs_certificate.subject_public_key_info.algorithm.oid == oids::EC_PUBLIC_KEY {
         for r in infos.0.iter() {
             if let RecipientInfo::Kari(k) = r
-                && let Some(Ok(key)) = crate::kari::content_key(k, me, &id.key)
+                && let Some(Ok(key)) = crate::kari::content_key(k, me, id)
             {
                 return Ok(key);
             }
@@ -196,18 +201,12 @@ fn content_key(infos: &RecipientInfos, me: &Certificate, id: &Identity, rng: &mu
     if mine.is_empty() {
         return Err(Error::Decrypt);
     }
-    let private = rsa::RsaPrivateKey::from_pkcs8_der(&id.key).map_err(|_| Error::Decrypt)?;
     for k in mine {
         let wrapped = k.enc_key.as_bytes();
         let key = if k.key_enc_alg.oid == oids::RSA_ENCRYPTION {
-            private.decrypt_blinded(rng, rsa::Pkcs1v15Encrypt, wrapped)
+            id.rsa_decrypt(wrapped, None)
         } else if k.key_enc_alg.oid == oids::RSAES_OAEP {
-            match oaep_hash(&k.key_enc_alg) {
-                Some(cert::Hash::Sha1) | None => private.decrypt_blinded(rng, rsa::Oaep::new::<sha1::Sha1>(), wrapped),
-                Some(cert::Hash::Sha256) => private.decrypt_blinded(rng, rsa::Oaep::new::<sha2::Sha256>(), wrapped),
-                Some(cert::Hash::Sha384) => private.decrypt_blinded(rng, rsa::Oaep::new::<sha2::Sha384>(), wrapped),
-                Some(cert::Hash::Sha512) => private.decrypt_blinded(rng, rsa::Oaep::new::<sha2::Sha512>(), wrapped),
-            }
+            id.rsa_decrypt(wrapped, Some(oaep_hash(&k.key_enc_alg).unwrap_or(cert::Hash::Sha1)))
         } else {
             continue;
         };

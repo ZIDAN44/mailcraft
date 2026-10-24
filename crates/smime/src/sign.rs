@@ -77,7 +77,13 @@ fn signing_time(unix: i64) -> Result<Any, Error> {
 /// exactly as it will be sent) by `id`, signed at `now`. The chain goes with it, its root left
 /// out, so a reader can check it and later encrypt to the signer.
 pub fn sign(content: &[u8], id: &Identity, now: i64, rng: &mut impl rand_core::CryptoRngCore) -> Result<Vec<u8>, Error> {
-    let leaf = cert::parse(id.certificate())?;
+    sign_with(content, &id.chain, &mut crate::key::Software { key: &id.key, rng }, now)
+}
+
+/// [`sign`] with a key held elsewhere (a smart card, the system's keychain): `chain` is its
+/// certificate first, then the ones that issued it.
+pub fn sign_with(content: &[u8], chain: &[Vec<u8>], key: &mut dyn crate::PrivateKey, now: i64) -> Result<Vec<u8>, Error> {
+    let leaf = cert::parse(chain.first().map(Vec::as_slice).unwrap_or_default())?;
     let digest = Hash::Sha256.digest(content);
     let mut attrs = SetOfVec::new();
     let put = |set: &mut SetOfVec<Attribute>, a: Attribute| set.insert(a).map_err(|_| Error::Malformed("can't be written"));
@@ -87,7 +93,16 @@ pub fn sign(content: &[u8], id: &Identity, now: i64, rng: &mut impl rand_core::C
     put(&mut attrs, attribute(oids::SMIME_CAPABILITIES, any(&capabilities())?)?)?;
     let signed_bytes = attrs.to_der().map_err(|_| Error::Malformed("can't be written"))?;
     let to_sign = Hash::Sha256.digest(&signed_bytes);
-    let (signature_alg, signature) = sign_digest(&id.key, &to_sign, rng)?;
+    let kind = leaf.tbs_certificate.subject_public_key_info.algorithm.oid;
+    let signature_alg = if kind == oids::RSA_ENCRYPTION {
+        // `rsaEncryption` with NULL parameters: what every reader expects in CMS.
+        AlgorithmIdentifierOwned { oid: oids::RSA_ENCRYPTION, parameters: Some(Any::null()) }
+    } else if kind == oids::EC_PUBLIC_KEY {
+        algorithm(oids::ECDSA_WITH_SHA256)
+    } else {
+        return Err(Error::Unsupported("signing with this kind of key".into()));
+    };
+    let signature = key.sign_sha256(&to_sign)?;
     let signer = SignerInfo {
         version: CmsVersion::V1,
         sid: SignerIdentifier::IssuerAndSerialNumber(IssuerAndSerialNumber {
@@ -103,10 +118,10 @@ pub fn sign(content: &[u8], id: &Identity, now: i64, rng: &mut impl rand_core::C
     let mut digests = SetOfVec::new();
     digests.insert(algorithm(oids::SHA256)).map_err(|_| Error::Malformed("can't be written"))?;
     let mut certs = SetOfVec::new();
-    for d in &id.chain {
+    for d in chain {
         let c = Certificate::from_der(d).map_err(|_| Error::Malformed("a certificate can't be read"))?;
         // The root is the reader's to have; sending it proves nothing.
-        if c.tbs_certificate.subject == c.tbs_certificate.issuer && id.chain.len() > 1 {
+        if c.tbs_certificate.subject == c.tbs_certificate.issuer && chain.len() > 1 {
             continue;
         }
         certs.insert(CertificateChoices::Certificate(c)).map_err(|_| Error::Malformed("can't be written"))?;
@@ -123,36 +138,6 @@ pub fn sign(content: &[u8], id: &Identity, now: i64, rng: &mut impl rand_core::C
     };
     let ci = ContentInfo { content_type: oids::SIGNED_DATA, content: any(&sd)? };
     ci.to_der().map_err(|_| Error::Malformed("can't be written"))
-}
-
-/// The signature over a SHA-256 `digest` with `key` (PKCS #8), and the algorithm to name it by.
-fn sign_digest(key: &[u8], digest: &[u8], rng: &mut impl rand_core::CryptoRngCore) -> Result<(AlgorithmIdentifierOwned, Vec<u8>), Error> {
-    use pkcs8::DecodePrivateKey as _;
-    let bad = || Error::Malformed("the private key can't be read");
-    let info = pkcs8::PrivateKeyInfo::from_der(key).map_err(|_| bad())?;
-    if info.algorithm.oid == oids::RSA_ENCRYPTION {
-        let k = rsa::RsaPrivateKey::from_pkcs8_der(key).map_err(|_| bad())?;
-        // Blinded: the time it takes says nothing about the key.
-        let sig = k.sign_with_rng(rng, rsa::Pkcs1v15Sign::new::<sha2::Sha256>(), digest).map_err(|_| Error::Malformed("can't be signed"))?;
-        // `rsaEncryption` with NULL parameters: what every reader expects in CMS.
-        let alg = AlgorithmIdentifierOwned { oid: oids::RSA_ENCRYPTION, parameters: Some(Any::null()) };
-        return Ok((alg, sig));
-    }
-    if info.algorithm.oid == oids::EC_PUBLIC_KEY {
-        use signature::hazmat::RandomizedPrehashSigner as _;
-        let alg = algorithm(oids::ECDSA_WITH_SHA256);
-        if let Ok(k) = p256::SecretKey::from_pkcs8_der(key) {
-            let s: p256::ecdsa::Signature =
-                p256::ecdsa::SigningKey::from(k).sign_prehash_with_rng(rng, digest).map_err(|_| Error::Malformed("can't be signed"))?;
-            return Ok((alg, s.to_der().as_bytes().to_vec()));
-        }
-        if let Ok(k) = p384::SecretKey::from_pkcs8_der(key) {
-            let s: p384::ecdsa::Signature =
-                p384::ecdsa::SigningKey::from(k).sign_prehash_with_rng(rng, digest).map_err(|_| Error::Malformed("can't be signed"))?;
-            return Ok((alg, s.to_der().as_bytes().to_vec()));
-        }
-    }
-    Err(Error::Unsupported("signing with this kind of key".into()))
 }
 
 /// The value of the attribute `oid` among `attrs`, when it has exactly one.

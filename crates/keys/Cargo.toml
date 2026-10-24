@@ -1,0 +1,25 @@
+[package]
+name = "mailcraft-keys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "MailCraft's private keys held where it can't read them: smart cards and tokens (PKCS #11) and the macOS Keychain, signing and decrypting S/MIME mail there (native only)"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-smime = { workspace = true }
+thiserror = { workspace = true }
+# PKCS #11 (Apache-2.0): loads the card's own module, as every mail program does.
+cryptoki = "0.12.1"
+serde = { workspace = true }
+
+# The macOS Keychain (MIT OR Apache-2.0), already what the TLS roots come from there.
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7.0"
+sha1 = "0.10"
+
+[dev-dependencies]
+rand_core = { version = "0.6", features = ["getrandom"] }

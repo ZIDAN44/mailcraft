@@ -150,7 +150,7 @@ pub(crate) fn public_rsa(spki: &spki::SubjectPublicKeyInfoOwned) -> Option<rsa::
 
 /// The digests signatures are made over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Hash {
+pub enum Hash {
     Sha1,
     Sha256,
     Sha384,
