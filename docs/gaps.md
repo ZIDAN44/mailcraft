@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.23, 2026-10-24._
+_Status: v0.24, 2026-10-24._
 
 ## Open
 
@@ -18,6 +18,7 @@ _Status: v0.23, 2026-10-24._
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
+| 7 | **S/MIME: what isn't done yet** | Signing and encryption with RSA certificates work, and EC certificates sign and verify; mail can't yet be encrypted to an EC certificate or decrypted with one (it takes ECDH key agreement). Revocation isn't checked (no CRL or OCSP lookups). Subjects stay readable on the way (header protection, RFC 9788, isn't written yet). Certificates from a smart card or from Windows' certificate store aren't used, only `.p12`/`.pfx` files. The browser version has no keychain to keep a key in, so it neither signs nor decrypts. The message list doesn't yet mark signed or encrypted mail with an icon. |
 
 ## Done
 
@@ -804,3 +805,28 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
 - Left from the review, larger: Microsoft Graph and JMAP incremental sync, screen-reader names
   on the custom widgets, HTML mail's box styles (padding, borders), the Linux AppImage's
   libraries, Linux's dark-mode setting, and Cmd+Q on a Mac asking about unsaved messages.
+
+### v0.24 — Signed and encrypted mail (S/MIME)
+- **Certificates:** File › Info › Security imports a `.p12` or `.pfx` file (PBES2 with AES, and the
+  older SHA-1 3DES and RC2-40 ones Windows and older programs write), shows whose it is, who
+  issued it and until when, and replaces or removes it. Its private key is kept in the system's
+  keychain only; MailCraft's files hold the certificate. Sign and Encrypt new messages are
+  switches there and on each message being written.
+- **Reading:** a signed message says who signed it and whether to trust that: the signature over
+  what was signed, a chain to a root the system trusts (or the root that came with one's own
+  certificate), its dates, that it's for email, and that it's the sender's address; otherwise
+  which of those failed, or that the message changed after it was signed. Detached and opaque
+  signatures, RSA PKCS #1 v1.5 and PSS, ECDSA. Encrypted mail (AES-CBC, AES-GCM, 3DES; PKCS #1
+  v1.5 and OAEP) is decrypted in memory only and shown with what it held: attachments, previews,
+  invitations. Following EFAIL, only a message protected as a whole counts, nothing from the web
+  loads in decrypted mail, and CBC without a signature says it could have been changed.
+- **Sending:** signed (SHA-256 with the attributes RFC 8551 asks for, the chain without its
+  root) and/or encrypted to every recipient and to oneself: AES-GCM when they all said they read
+  it, else AES-256-CBC, which every program reads. People's certificates come from their signed
+  mail; a recipient without one, or one's own certificate out of date, is said before anything
+  goes. Replies to encrypted mail are encrypted; drafts of encrypted mail are encrypted to oneself.
+- Checked with OpenSSL 3 in Docker both ways (MailCraft reads OpenSSL's signatures and encryption
+  of every kind above; OpenSSL verifies and decrypts MailCraft's), and end to end against GreenMail
+  (`fakes/real_servers.rs`), and in the app with the system keychain. Found on the way and fixed:
+  the GCM tag length must be written out, and a chain that carries its own root is still trusted.
+  A fuzz target (`smime`) reads BER, signatures, encrypted mail, certificates and `.p12` files.

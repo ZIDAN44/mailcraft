@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.23 — Mail that can't fool you, and a hardening review (2026-10-24). Each milestone below is a version: v0.1 was
+**Stage:** v0.24 — Signed and encrypted mail (S/MIME) (2026-10-24). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 190 (`mailcraft-cli commands`) |
-| Tests | 521 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 194 (`mailcraft-cli commands`) |
+| Tests | 547 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -128,7 +128,12 @@ local-first, media-aware v1); the fuller request is
    off the local network, IMAP answers capped, invitations changed only by their organizer,
    OAuth renewed, files written whole; calendar time zones; fuzzing and dependency checks;
    MailCraft as the system's mail app.
-24. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+24. **v0.24 — Signed and encrypted mail (S/MIME)** ✅ From issue #6: a certificate imported
+   from a `.p12` or `.pfx` file (its private key kept in the system's keychain), mail signed and
+   encrypted as it's sent and read signed or encrypted as it comes, with who signed it and whether
+   to trust that said above it; certificates learnt from signed mail to encrypt to; drafts of
+   encrypted mail encrypted too. Checked against OpenSSL both ways and through a real server.
+25. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -365,3 +370,11 @@ local-first, media-aware v1); the fuller request is
   Bcc); tracking pictures are counted and never loaded, links open out of redirect wrappers and
   without reader tags; hidden text in HTML mail is brought out; `is:awaiting` finds sent mail no
   one has answered. A fuzz target for photos, and the html and search targets cover the rest.
+- **2026-10-24** — **v0.24**, S/MIME (issue #6), on RustCrypto in a crate of its own
+  (`mailcraft-smime`): `.p12`/`.pfx` files of every kind (PBES2 with AES, SHA-1 3DES, RC2-40), the
+  key in the keychain; signatures made (SHA-256, RSA or ECDSA, RFC 8551's attributes) and checked
+  (detached and opaque, PSS, ECDSA, a chain to the system's roots or one's own, dates, email use,
+  the sender's address); mail encrypted AES-256-CBC, or AES-GCM for recipients who read it, and
+  decrypted (CBC, GCM, 3DES, PKCS #1 v1.5 and OAEP) in memory only, never loading anything from the
+  web. Tested with OpenSSL 3 both ways in Docker, and end to end against GreenMail (a legacy `.p12`,
+  OpenSSL's mail decrypted, MailCraft's sent, fetched back and read by OpenSSL as its recipient).
