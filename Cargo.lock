@@ -3264,13 +3264,18 @@ dependencies = [
 name = "mailcraft-keys"
 version = "0.24.0"
 dependencies = [
+ "core-foundation 0.10.1",
  "cryptoki",
  "mailcraft-smime",
  "rand_core 0.6.4",
+ "rustls-cng",
  "security-framework 3.7.0",
+ "security-framework-sys",
  "serde",
  "sha1",
+ "sha2",
  "thiserror 2.0.21",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5254,6 +5259,17 @@ dependencies = [
  "rustls-webpki",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rustls-cng"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3eeed9c3e96253f36d1cfdd593388ecca775b532b6ff0c649a3010f6af60fe70"
+dependencies = [
+ "bitflags 2.13.2",
+ "rustls",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

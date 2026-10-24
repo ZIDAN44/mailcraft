@@ -6,6 +6,11 @@
 //!   leaves the card; the card asks for its PIN.
 //! * [`macos`]: an identity in the macOS Keychain (one imported there, or a card macOS reads
 //!   itself), signing and decrypting through the Security framework.
+//! * [`windows`]: an identity in the Windows certificate store, its key in CNG.
+//!
+//! The Keychain's and CNG's decrypting have no safe binding: `macos/sec.rs` and `windows/cng.rs`
+//! are the only files that allow `unsafe` (the crate denies it; every other crate forbids it),
+//! each block with its `SAFETY:` reasoning, as PhotoCraft's tablet crate does.
 //!
 //! What a key is, is said by [`KeyRef`], which MailCraft keeps instead of the key: where to find
 //! it again. Native only (they load the system's code).
@@ -16,6 +21,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(target_os = "macos")]
 pub mod macos;
 pub mod pkcs11;
+#[cfg(windows)]
+pub mod windows;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum Error {
@@ -43,6 +50,10 @@ pub enum KeyRef {
     /// In the macOS Keychain: the certificate's SHA-1 (hex), what the Keychain finds it by.
     #[serde(rename_all = "camelCase")]
     Keychain { sha1: String },
+    /// In the Windows certificate store (Current User › Personal): the certificate's SHA-256
+    /// (hex). The key stays in CNG.
+    #[serde(rename_all = "camelCase")]
+    WindowsStore { sha256: String },
 }
 
 /// A certificate found with a private key beside it.

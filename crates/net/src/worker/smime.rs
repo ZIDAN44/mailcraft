@@ -87,17 +87,26 @@ fn with_held<T>(
         }
         #[cfg(not(target_os = "macos"))]
         KeyRef::Keychain { .. } => Err("the certificate is in another computer's keychain".into()),
+        #[cfg(windows)]
+        KeyRef::WindowsStore { .. } => {
+            let mut k = mailcraft_keys::windows::open(at).map_err(|e| e.to_string())?;
+            f(&mut k).map_err(|e| e.to_string())
+        }
+        #[cfg(not(windows))]
+        KeyRef::WindowsStore { .. } => Err("the certificate is in another computer's certificate store".into()),
     }
 }
 
 /// The certificates whose keys are held elsewhere: on the cards `module` sees, or in the
-/// system's keychain.
+/// system's own store (the macOS Keychain, the Windows certificate store).
 fn find_held(module: Option<&str>, pin: Option<&str>) -> std::result::Result<Vec<mailcraft_model::HeldKey>, String> {
     let found = match module {
         Some(m) => mailcraft_keys::pkcs11::certificates(m, pin).map_err(|e| e.to_string())?,
         #[cfg(target_os = "macos")]
         None => mailcraft_keys::macos::certificates().map_err(|e| e.to_string())?,
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(windows)]
+        None => mailcraft_keys::windows::certificates().map_err(|e| e.to_string())?,
+        #[cfg(not(any(target_os = "macos", windows)))]
         None => return Err("this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file".into()),
     };
     Ok(found
@@ -224,7 +233,11 @@ impl Pool {
             }
             Job::UseHeldKey { account, at, cert, pin } => {
                 let done = serde_json::from_str::<KeyRef>(&at).map_err(|_| "the key can't be found again".to_string()).and_then(|at| {
-                    let me = Me { chain: vec![cert], key: MyKey::Held { at, pin: pin.map(|p| p.0) } };
+                    let mut chain = vec![cert];
+                    // The issuers Windows knows go with it, as a .p12's do, so readers can check it.
+                    #[cfg(windows)]
+                    chain.extend(mailcraft_keys::windows::issuers(&at));
+                    let me = Me { chain, key: MyKey::Held { at, pin: pin.map(|p| p.0) } };
                     // It's used once here, so a wrong PIN or a card taken out says so now.
                     me.with_key(|k| smime::sign_with(b"MailCraft", &me.chain, k, now()))?;
                     keep(creds.as_ref(), &account, &me)?;
@@ -371,6 +384,44 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
         // Signed only: readable by anyone, the signature over its text.
         let signed = protect(raw, &Me::from(riley.clone()), true, &[], false, true).unwrap();
         assert!(matches!(mailcraft_mime::smime::protection(&signed), mailcraft_mime::smime::Protection::Signed { .. }));
+    }
+
+    /// The app's whole path with a certificate in the Windows store (the test identities imported
+    /// by hand, as `mailcraft-keys`' store test says): found, kept as a reference only, then a
+    /// message signed and encrypted to it and decrypted, all in the store.
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "needs the test identities imported into Current User › Personal"]
+    fn a_windows_store_certificate_signs_encrypts_and_decrypts() {
+        let found = find_held(None, None).unwrap();
+        let account = AccountConfig { id: "store".into(), ..Default::default() };
+        for who in ["riley@studio.example", "zoe@posteo.example"] {
+            let held = found.iter().find(|h| h.label.contains(who)).unwrap_or_else(|| panic!("{who}: {found:?}"));
+            let at: KeyRef = serde_json::from_str(&held.at).unwrap();
+            let creds = MemoryCredentials::default();
+            keep(&creds, &account, &Me { chain: vec![held.cert.clone()], key: MyKey::Held { at, pin: None } }).unwrap();
+            let me = kept(&creds, &account).unwrap();
+            assert!(!creds.get_secret(&account, SECRET).unwrap().contains("PRIVATE"), "only where the key is");
+            let raw = format!(
+                "From: <{who}>
+To: <{who}>
+Subject: Store
+Date: Sat, 24 Oct 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Signed and sealed by Windows.
+"
+            );
+            for gcm in [false, true] {
+                let sent = protect(raw.as_bytes(), &me, true, std::slice::from_ref(&held.cert), gcm, true).unwrap_or_else(|e| panic!("{who}: {e}"));
+                let mailcraft_mime::smime::Protection::Encrypted(cms) = mailcraft_mime::smime::protection(&sent) else { panic!("{who}") };
+                let (entity, _) = me.with_key(|k| smime::decrypt_with(&cms, me.certificate(), k)).unwrap_or_else(|e| panic!("{who}: {e}"));
+                let inner = mailcraft_mime::smime::with_entity(&sent, &entity);
+                let mailcraft_mime::smime::Protection::Signed { content, signature } = mailcraft_mime::smime::protection(&inner) else { panic!() };
+                assert_eq!(smime::verify(&signature, Some(&content)).unwrap().0.signer, held.cert, "{who}");
+            }
+        }
     }
 
     #[test]

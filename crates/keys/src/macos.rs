@@ -4,8 +4,9 @@
 //! `SecKeyCreateDecryptedData` (PKCS #1 v1.5 or OAEP). macOS asks the user before a key is used,
 //! as it does for every program.
 //!
-//! An EC key decrypts nothing here: its Diffie-Hellman would need the sender's one-time key made
-//! into a `SecKey`, which the framework's safe bindings don't offer. It signs.
+//! An EC key's Diffie-Hellman (`SecKey::key_exchange`, standard, no KDF) needs the sender's
+//! one-time key as a `SecKey`, which only an unsafe call makes: that's [`sec`], the one file here
+//! that allows it.
 
 use mailcraft_smime::PrivateKey;
 use mailcraft_smime::cert::Hash;
@@ -15,6 +16,8 @@ use security_framework::item::{ItemClass, ItemSearchOptions, Limit, Reference, S
 use security_framework::key::{Algorithm, SecKey};
 
 use crate::{Error, Found, KeyRef, hex};
+
+mod sec;
 
 fn identities() -> Result<Vec<SecIdentity>, Error> {
     let results = ItemSearchOptions::new().class(ItemClass::identity()).load_refs(true).limit(Limit::All).search();
@@ -101,7 +104,21 @@ impl PrivateKey for KeychainKey {
         self.key.decrypt_data(alg, wrapped).map_err(|_| mailcraft_smime::Error::Decrypt)
     }
 
-    fn ecdh(&mut self, _point: &[u8]) -> Result<Vec<u8>, mailcraft_smime::Error> {
-        Err(mailcraft_smime::Error::Unsupported("decrypting with an EC key from the macOS Keychain".into()))
+    fn ecdh(&mut self, point: &[u8]) -> Result<Vec<u8>, mailcraft_smime::Error> {
+        if !self.ec {
+            return Err(mailcraft_smime::Error::Decrypt);
+        }
+        // The secret is the curve's size: P-256's 32 bytes, P-384's 48.
+        let size = match point.len() {
+            65 => 32,
+            97 => 48,
+            _ => return Err(mailcraft_smime::Error::Decrypt),
+        };
+        let theirs = sec::public_ec_key(point).map_err(|_| mailcraft_smime::Error::Decrypt)?;
+        let z = self.key.key_exchange(Algorithm::ECDHKeyExchangeStandard, &theirs, size, None).map_err(|_| mailcraft_smime::Error::Decrypt)?;
+        if z.len() != size {
+            return Err(mailcraft_smime::Error::Decrypt);
+        }
+        Ok(z)
     }
 }

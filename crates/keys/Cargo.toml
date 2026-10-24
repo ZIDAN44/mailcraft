@@ -6,8 +6,18 @@ rust-version.workspace = true
 license.workspace = true
 description = "MailCraft's private keys held where it can't read them: smart cards and tokens (PKCS #11) and the macOS Keychain, signing and decrypting S/MIME mail there (native only)"
 
-[lints]
-workspace = true
+# The workspace's lints, but `unsafe` denied rather than forbidden: the macOS Keychain's and
+# Windows CNG's decrypting have no safe binding, so `src/macos/sec.rs` and `src/windows/cng.rs`
+# (and only they) allow it, each block with its SAFETY: reasoning. Every other crate keeps
+# `unsafe_code = "forbid"`. As PhotoCraft's tablet crate does (craftrules never-crash).
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+too_many_arguments = "allow"
+type_complexity = "allow"
 
 [dependencies]
 mailcraft-smime = { workspace = true }
@@ -19,7 +29,18 @@ serde = { workspace = true }
 # The macOS Keychain (MIT OR Apache-2.0), already what the TLS roots come from there.
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3.7.0"
+# The two the Keychain's EC decrypting needs below security-framework (the versions it uses).
+security-framework-sys = "2.17"
+core-foundation = "0.10"
 sha1 = "0.10"
+
+# The Windows certificate store and CNG: rustls-cng's safe wrappers (MIT OR Apache-2.0), as
+# PdfCraft signs with them, and windows-sys (the version rustls-cng uses) for what they don't
+# wrap. Pinned exactly: review the diff before bumping.
+[target.'cfg(windows)'.dependencies]
+rustls-cng = { version = "=0.7.1", default-features = false }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Cryptography"] }
+sha2 = "0.10"
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["getrandom"] }
