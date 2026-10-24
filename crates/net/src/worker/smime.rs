@@ -258,10 +258,11 @@ impl Pool {
             }
             Job::UseHeldKey { account, at, cert, pin } => {
                 let done = serde_json::from_str::<KeyRef>(&at).map_err(|_| "the key can't be found again".to_string()).and_then(|at| {
-                    let mut chain = vec![cert];
                     // The issuers Windows knows go with it, as a .p12's do, so readers can check it.
                     #[cfg(windows)]
-                    chain.extend(mailcraft_keys::windows::issuers(&at));
+                    let chain = [vec![cert], mailcraft_keys::windows::issuers(&at)].concat();
+                    #[cfg(not(windows))]
+                    let chain = vec![cert];
                     let me = Me { chain, key: MyKey::Held { at, pin: pin.map(|p| p.0) } };
                     // It's used once here, so a wrong PIN or a card taken out says so now (the PIN
                     // was just typed: the user's to try).

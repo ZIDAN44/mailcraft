@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mailcraft_engine::Session;
-#[cfg(test)]
+#[cfg(all(test, windows))]
 use mailcraft_engine::model::AccountConfig;
 use mailcraft_engine::model::dates::Clock;
 use mailcraft_engine::model::{Event, Job};
@@ -24,7 +24,7 @@ use mailcraft_engine::store::{Store, location};
 use mailcraft_net::worker::{Credentials, Pool};
 use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
 use secrets::Keychain;
-#[cfg(test)]
+#[cfg(all(test, windows))]
 use secrets::SERVICE;
 
 #[cfg(target_os = "macos")]
