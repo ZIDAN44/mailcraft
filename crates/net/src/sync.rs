@@ -364,6 +364,9 @@ pub fn find_on_server<S: Read + Write>(
         let mut args = vec![SearchArg::Atom(format!("{lo}:{hi}"))];
         args.extend(criteria.iter().cloned());
         let mut uids = c.uid_search_args(&args)?;
+        // How long the server took to answer: what the next range's size follows (not the
+        // headers fetched after, nor what the caller does with the finds).
+        let took = began.elapsed();
         uids.sort_unstable();
         let uids = uids.split_off(uids.len().saturating_sub(cap - total));
         total += uids.len();
@@ -379,7 +382,6 @@ pub fn find_on_server<S: Read + Write>(
             break;
         }
         hi = lo - 1;
-        let took = began.elapsed();
         step = if took < std::time::Duration::from_secs(1) {
             step.saturating_mul(2).min(SEARCH_STEP_MAX)
         } else if took > std::time::Duration::from_secs(4) {
