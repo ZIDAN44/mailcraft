@@ -1142,7 +1142,16 @@ month	May	5月
 	Use a certificate from the Keychain	キーチェーンの証明書を使う
 	Use one from Windows…	Windows のものを使う…
 	Use one from the Keychain…	キーチェーンのものを使う…
-	the Windows certificate store keeps this EC key for signing only	Windows 証明書ストアはこの EC 鍵を署名専用として保管しています
 	the certificate is in another computer's certificate store	証明書は別のコンピューターの証明書ストアにあります
 	Or use one this computer has	またはこのコンピューターにあるものを使う
 	On a smart card, or kept by the system: the key stays where it is.	スマートカード上、またはシステムが保管しているもの。鍵はその場所に残ります。
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows はこの EC 鍵で鍵を合意できません (プロバイダーが署名専用にしている可能性があります)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	カードの PIN の残り回数が少ないため、MailCraft は試しません。PIN をもう一度入力してください (ファイル › 情報 › セキュリティ › スマートカードを使う…)
+	the list holds only what changed since another one	この一覧には別の一覧以降の変更分しか含まれていません
+	the list covers only some certificates or reasons	この一覧は一部の証明書または理由しか対象にしていません
+	the list is for other certificates	この一覧は別の証明書のものです
+	the list has a part MailCraft can't read	この一覧には MailCraft が読めない部分があります
+	the list's entry for the certificate can't be read	一覧のこの証明書の項目を読み取れません
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	証明書にパスワードがないため、ブラウザーはページを閉じるまで使い、保管しません
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	カードには PIN が必要です (ファイル › 情報 › セキュリティ › スマートカードを使う…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	カードが PIN を拒否したため、MailCraft は PIN を消去しました。もう一度試すとカードがロックされます (ファイル › 情報 › セキュリティ › スマートカードを使う…)

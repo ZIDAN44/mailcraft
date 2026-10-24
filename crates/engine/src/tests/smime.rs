@@ -339,3 +339,24 @@ fn a_certificate_comes_from_its_bytes_or_the_one_kept() {
     assert!(s.run("security.import", &json!({"data": "not bytes", "path": ""})).is_err());
     done(s);
 }
+
+#[test]
+fn a_withdrawn_answer_outlives_a_full_cache() {
+    let mut s = sample_session("smime-revocation-full");
+    s.clock.now = LATER;
+    s.set_trust_roots(vec![ca()]);
+    s.run("view.checkRevocation", &json!({"on": true})).unwrap();
+    open_raw(&mut s, 9361, &testdata("signed-clear.eml"));
+    let chain = s.take_jobs().into_iter().find_map(|j| if let Job::CheckRevocation { chain } = j { Some(chain) } else { None }).unwrap();
+    let ana = chain[0].clone();
+    s.apply(Event::Revocation { cert: ana.clone(), status: mailcraft_model::Revocation::Revoked { at: LATER - 60 } });
+    // Three hundred other signers' answers: more than are kept.
+    for i in 0..300u32 {
+        s.apply(Event::Revocation { cert: i.to_be_bytes().to_vec(), status: mailcraft_model::Revocation::Good { until: None } });
+    }
+    // Ana's is still withdrawn: not asked again, and said.
+    open_raw(&mut s, 9362, &testdata("signed-clear.eml"));
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
+    assert_eq!(security(&s).signed.unwrap().seal, Seal::Untrusted(vec![smime::Problem::Revoked(LATER - 60)]));
+    done(s);
+}

@@ -1141,7 +1141,16 @@ month	May	מאי
 	Use a certificate from the Keychain	שימוש בתעודה ממחזיק המפתחות
 	Use one from Windows…	שימוש בתעודה מ־Windows…
 	Use one from the Keychain…	שימוש בתעודה ממחזיק המפתחות…
-	the Windows certificate store keeps this EC key for signing only	מאגר התעודות של Windows שומר את מפתח ה־EC הזה לחתימה בלבד
 	the certificate is in another computer's certificate store	התעודה נמצאת במאגר התעודות של מחשב אחר
 	Or use one this computer has	או שימוש בתעודה שיש במחשב הזה
 	On a smart card, or kept by the system: the key stays where it is.	על כרטיס חכם, או שמור במערכת: המפתח נשאר במקומו.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows אינו יכול להסכים על מפתח עם מפתח ה־EC הזה (ייתכן שהספק שלו שומר אותו לחתימה בלבד)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	נותרו לכרטיס מעט ניסיונות PIN, ולכן MailCraft לא ינסה: הזן שוב את ה־PIN (קובץ › מידע › אבטחה › שימוש בכרטיס חכם…)
+	the list holds only what changed since another one	הרשימה מכילה רק את מה שהשתנה מאז רשימה אחרת
+	the list covers only some certificates or reasons	הרשימה מכסה רק חלק מהתעודות או מהסיבות
+	the list is for other certificates	הרשימה מיועדת לתעודות אחרות
+	the list has a part MailCraft can't read	ברשימה יש חלק ש־MailCraft אינו יכול לקרוא
+	the list's entry for the certificate can't be read	לא ניתן לקרוא את רשומת הרשימה עבור התעודה
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	לתעודה אין סיסמה, ולכן הדפדפן משתמש בה עד שהדף ייסגר ואינו שומר אותה
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	הכרטיס צריך את ה־PIN שלו (הזן אותו בקובץ › מידע › אבטחה › שימוש בכרטיס חכם…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	הכרטיס דחה את ה־PIN, ולכן MailCraft שכח אותו: הכרטיס היה ננעל אילו נוסה שוב (הזן אותו שוב בקובץ › מידע › אבטחה › שימוש בכרטיס חכם…)

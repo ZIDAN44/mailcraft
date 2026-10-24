@@ -45,7 +45,11 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
             };
             let (chain, error) = match done {
                 Ok(me) => {
-                    if !kept && let Err(e) = store(sh).save_account_doc(id, P12_DOC, &p12) {
+                    // A file without a password is the key itself, readable by anyone with the
+                    // browser's storage: used for this page, never kept.
+                    if !kept && password.0.is_empty() {
+                        notice(sh, id, "the certificate has no password, so the browser uses it until the page is closed and doesn't keep it".into());
+                    } else if !kept && let Err(e) = store(sh).save_account_doc(id, P12_DOC, &p12) {
                         notice(sh, id, format!("the certificate is used now, but couldn't be kept for next time: {e}"));
                     }
                     let chain = me.chain.clone();

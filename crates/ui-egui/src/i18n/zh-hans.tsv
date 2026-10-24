@@ -1142,7 +1142,16 @@ month	May	5月
 	Use a certificate from the Keychain	使用钥匙串中的证书
 	Use one from Windows…	使用 Windows 中的…
 	Use one from the Keychain…	使用钥匙串中的…
-	the Windows certificate store keeps this EC key for signing only	Windows 证书存储将此 EC 密钥仅用于签名
 	the certificate is in another computer's certificate store	该证书在另一台电脑的证书存储中
 	Or use one this computer has	或使用这台电脑上已有的证书
 	On a smart card, or kept by the system: the key stays where it is.	在智能卡上，或由系统保管：密钥保留在原处。
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows 无法用此 EC 密钥协商密钥（其提供程序可能仅将其用于签名）
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	这张卡剩余的 PIN 尝试次数不多，所以 MailCraft 不会尝试：请再次输入 PIN（文件 › 信息 › 安全 › 使用智能卡…）
+	the list holds only what changed since another one	该列表只包含自另一列表以来的更改
+	the list covers only some certificates or reasons	该列表只涵盖部分证书或原因
+	the list is for other certificates	该列表针对的是其他证书
+	the list has a part MailCraft can't read	该列表中有 MailCraft 无法读取的部分
+	the list's entry for the certificate can't be read	无法读取列表中该证书的条目
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	该证书没有密码，所以浏览器只在关闭页面前使用它，不会保存
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	这张卡需要 PIN（文件 › 信息 › 安全 › 使用智能卡…）
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	这张卡拒绝了 PIN，所以 MailCraft 已将其忘记：再次尝试会锁定卡（文件 › 信息 › 安全 › 使用智能卡…）

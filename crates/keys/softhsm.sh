@@ -37,6 +37,11 @@ mkdir "$W/src" && tar -C /src --exclude=./target --exclude=./.git -cf - . | tar 
 MAILCRAFT_PKCS11_MODULE=$M MAILCRAFT_PKCS11_CA="$W/ca.pem" MAILCRAFT_PKCS11_OUT="$W/out" CARGO_TARGET_DIR="$W/target" \
   cargo test -q -p mailcraft-keys -- --include-ignored
 
+# A second card in, with a PIN of its own: one card's PIN isn't tried on the other.
+softhsm2-util --init-token --free --label other --pin 654321 --so-pin 87654321 >/dev/null
+MAILCRAFT_PKCS11_MODULE=$M MAILCRAFT_PKCS11_SECOND=1 CARGO_TARGET_DIR="$W/target" \
+  cargo test -q -p mailcraft-keys two_cards -- --include-ignored
+
 printf 'Content-Type: text/plain\r\n\r\nSigned on the card.\r\n' > "$W/content"
 for kind in rsa ec; do
   openssl cms -verify -binary -inform DER -in "$W/out/$kind.sig.der" -content "$W/content" -CAfile "$W/ca.pem" -purpose any -out /dev/null

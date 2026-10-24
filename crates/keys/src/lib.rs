@@ -32,6 +32,12 @@ pub enum Error {
     /// The PIN was wrong (or the card is locked).
     #[error("the PIN is wrong, or the card is locked")]
     Pin,
+    /// The card has few PIN tries left, so a kept PIN isn't tried: the user gives it.
+    #[error("the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)")]
+    PinAtRisk,
+    /// The card's key shows only after its PIN, and there's none to give.
+    #[error("the card needs its PIN (give it in File › Info › Security › Use a smart card…)")]
+    NeedPin,
     /// The certificate (or its key) isn't there any more.
     #[error("the certificate isn't on the card or in the keychain any more")]
     Missing,

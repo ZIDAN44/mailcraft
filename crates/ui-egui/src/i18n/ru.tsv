@@ -1145,7 +1145,16 @@ month	May	Май
 	Use a certificate from the Keychain	Использовать сертификат из связки ключей
 	Use one from Windows…	Взять из Windows…
 	Use one from the Keychain…	Взять из связки ключей…
-	the Windows certificate store keeps this EC key for signing only	хранилище сертификатов Windows держит этот EC-ключ только для подписи
 	the certificate is in another computer's certificate store	сертификат находится в хранилище сертификатов другого компьютера
 	Or use one this computer has	Или взять тот, что есть на этом компьютере
 	On a smart card, or kept by the system: the key stays where it is.	На смарт-карте или в хранилище системы: ключ остаётся на месте.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows не может согласовать ключ с этим EC-ключом (возможно, поставщик держит его только для подписи)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	у карты осталось мало попыток ввода PIN-кода, поэтому MailCraft не будет пробовать: введите PIN-код снова (Файл › Сведения › Безопасность › Использовать смарт-карту…)
+	the list holds only what changed since another one	в списке только изменения с момента другого списка
+	the list covers only some certificates or reasons	список охватывает лишь часть сертификатов или причин
+	the list is for other certificates	список относится к другим сертификатам
+	the list has a part MailCraft can't read	в списке есть часть, которую MailCraft не может прочитать
+	the list's entry for the certificate can't be read	запись списка об этом сертификате не читается
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	у сертификата нет пароля, поэтому браузер использует его, пока страница открыта, и не сохраняет
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	карте нужен PIN-код (введите его в Файл › Сведения › Безопасность › Использовать смарт-карту…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	карта отклонила PIN-код, поэтому MailCraft забыл его: при повторной попытке карта заблокируется (введите его снова в Файл › Сведения › Безопасность › Использовать смарт-карту…)

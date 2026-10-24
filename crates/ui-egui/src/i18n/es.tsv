@@ -1146,7 +1146,16 @@ month	May	mayo
 	Use a certificate from the Keychain	Usar un certificado del Llavero
 	Use one from Windows…	Usar uno de Windows…
 	Use one from the Keychain…	Usar uno del Llavero…
-	the Windows certificate store keeps this EC key for signing only	el almacén de certificados de Windows guarda esta clave EC solo para firmar
 	the certificate is in another computer's certificate store	el certificado está en el almacén de certificados de otro equipo
 	Or use one this computer has	O usar uno que ya tenga este equipo
 	On a smart card, or kept by the system: the key stays where it is.	En una tarjeta inteligente, o guardado por el sistema: la clave se queda donde está.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows no puede acordar una clave con esta clave EC (su proveedor puede guardarla solo para firmar)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	a la tarjeta le quedan pocos intentos de PIN, así que MailCraft no lo probará: vuelve a dar su PIN (Archivo › Información › Seguridad › Usar una tarjeta inteligente…)
+	the list holds only what changed since another one	la lista solo contiene lo que cambió desde otra
+	the list covers only some certificates or reasons	la lista solo cubre algunos certificados o motivos
+	the list is for other certificates	la lista es para otros certificados
+	the list has a part MailCraft can't read	la lista tiene una parte que MailCraft no puede leer
+	the list's entry for the certificate can't be read	no se puede leer la entrada de la lista para el certificado
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	el certificado no tiene contraseña, así que el navegador lo usa hasta que se cierre la página y no lo guarda
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	la tarjeta necesita su PIN (dalo en Archivo › Información › Seguridad › Usar una tarjeta inteligente…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	la tarjeta rechazó su PIN, así que MailCraft lo olvidó: la tarjeta se bloquearía si se probara otra vez (vuelve a darlo en Archivo › Información › Seguridad › Usar una tarjeta inteligente…)

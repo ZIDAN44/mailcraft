@@ -42,13 +42,20 @@ fn base64_decode(s: &str) -> Option<Vec<u8>> {
 #[test]
 #[ignore = "needs SoftHSM 2 (crates/keys/softhsm.sh)"]
 fn a_card_signs_and_decrypts_what_openssl_and_mailcraft_read() {
+    if std::env::var_os("MAILCRAFT_PKCS11_SECOND").is_some() {
+        return;
+    }
     let found = certificates(&module(), Some(PIN)).unwrap();
     assert_eq!(found.len(), 2, "{found:?}");
+    // One card in: a wrong PIN is refused. The card now counts its tries down: a kept PIN isn't
+    // tried while it does, a typed one is, and a good login sets it right again.
     assert!(matches!(certificates(&module(), Some("000000")), Err(Error::Pin)));
+    assert!(matches!(open(&found[0].key, Some(PIN), PinFrom::Kept), Err(Error::PinAtRisk)), "a kept PIN waits");
+    assert!(open(&found[0].key, Some(PIN), PinFrom::Typed).is_ok(), "a typed one may try");
     let now = 1_792_900_000;
     let mut rng = rand_core::OsRng;
     for f in &found {
-        let mut k = open(&f.key, Some(PIN)).unwrap();
+        let mut k = open(&f.key, Some(PIN), PinFrom::Kept).unwrap();
         // Signed on the card, checked as any reader would.
         let content = b"Content-Type: text/plain\r\n\r\nSigned on the card.\r\n";
         let sig = mailcraft_smime::sign_with(content, &chain(&f.cert), &mut k, now).unwrap_or_else(|e| panic!("{}: {e}", f.label));
@@ -66,9 +73,17 @@ fn a_card_signs_and_decrypts_what_openssl_and_mailcraft_read() {
             std::fs::write(format!("{dir}/{name}.sig.der"), &sig).unwrap();
         }
     }
+    // A wrong PIN is refused; after it, a kept one waits; with none, the card says it needs one
+    // (its keys show only once logged in); a good typed login sets it right again.
+    let first = &found[0].key;
+    assert!(matches!(open(first, Some("000000"), PinFrom::Kept), Err(Error::Pin)));
+    assert!(matches!(open(first, Some("000000"), PinFrom::Kept), Err(Error::PinAtRisk)), "never a second wrong try");
+    assert!(matches!(open(first, None, PinFrom::Kept), Err(Error::NeedPin)));
+    assert!(open(first, Some(PIN), PinFrom::Typed).is_ok());
+    assert!(open(first, Some(PIN), PinFrom::Kept).is_ok());
     // A key that isn't there.
     let gone = KeyRef::Card { module: module(), token: "no such token".into(), id: "01".into() };
-    assert!(matches!(open(&gone, Some(PIN)), Err(Error::Missing)));
+    assert!(matches!(open(&gone, Some(PIN), PinFrom::Kept), Err(Error::Missing)));
 }
 
 #[test]
@@ -78,5 +93,19 @@ fn modules_that_arent_there_arent_offered_and_dont_load() {
     }
     assert!(matches!(certificates("/no/such/module.so", None), Err(Error::Card(_))));
     let r = KeyRef::Card { module: "/no/such/module.so".into(), token: "t".into(), id: "zz".into() };
-    assert!(open(&r, None).is_err());
+    assert!(open(&r, None, PinFrom::Kept).is_err());
+}
+
+/// Two cards in (`softhsm.sh` adds the second): a PIN typed for the list isn't tried on either,
+/// so a wrong one can't use up the other card's tries; the certificates are still listed, and
+/// the card chosen opens with its own PIN.
+#[test]
+#[ignore = "needs SoftHSM 2 with two tokens (crates/keys/softhsm.sh)"]
+fn two_cards_dont_share_a_pin() {
+    if std::env::var_os("MAILCRAFT_PKCS11_SECOND").is_none() {
+        return;
+    }
+    let found = certificates(&module(), Some("000000")).unwrap();
+    assert_eq!(found.len(), 2, "listed without logging in: {found:?}");
+    assert!(open(&found[0].key, Some(PIN), PinFrom::Typed).is_ok());
 }

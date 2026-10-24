@@ -206,7 +206,9 @@ fn content_key(infos: &RecipientInfos, me: &Certificate, id: &mut dyn crate::Pri
         let key = if k.key_enc_alg.oid == oids::RSA_ENCRYPTION {
             id.rsa_decrypt(wrapped, None)
         } else if k.key_enc_alg.oid == oids::RSAES_OAEP {
-            id.rsa_decrypt(wrapped, Some(oaep_hash(&k.key_enc_alg).unwrap_or(cert::Hash::Sha1)))
+            // A hash that isn't known isn't guessed at.
+            let Some(hash) = oaep_hash(&k.key_enc_alg) else { continue };
+            id.rsa_decrypt(wrapped, Some(hash))
         } else {
             continue;
         };

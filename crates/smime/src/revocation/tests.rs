@@ -76,3 +76,42 @@ fn the_request_names_the_certificate_as_openssl_does() {
     assert_eq!(req, data("rev-lee-req.der"), "same CertID (SHA-1), no nonce");
     assert!(ocsp_request(b"junk", &pem("ca.pem")).is_err());
 }
+
+/// Lists the CA really signed that don't cover the certificate as a whole: not listing it there
+/// means nothing (a man in the middle on the CRL's plain-HTTP address could serve one in place of
+/// the whole list). A list scoped to the certificate's own distribution point still counts.
+#[test]
+fn a_partial_list_says_nothing() {
+    let (ca, kim, lee) = (pem("ca.pem"), pem("rev-kim.pem"), pem("rev-lee.pem"));
+    for name in ["rev-crl-delta.der", "rev-crl-partition.der", "rev-crl-elsewhere.der", "rev-crl-unknown.der"] {
+        for cert in [&kim, &lee] {
+            assert!(matches!(crl_status(&data(name), cert, &ca, NOW), Status::Unknown(_)), "{name}");
+        }
+    }
+    let scoped = data("rev-crl-scoped.der");
+    assert!(matches!(crl_status(&scoped, &kim, &ca, NOW), Status::Good { .. }));
+    assert_eq!(crl_status(&scoped, &lee, &ca, NOW), Status::Revoked { at: LEE_REVOKED });
+}
+
+/// A responder the CA gave an OCSP-signing certificate answers for it, while that certificate is
+/// in date; an expired one's answers (its key may have leaked since) count for nothing.
+#[test]
+fn a_delegated_responder_counts_only_in_date() {
+    let (ca, kim, lee) = (pem("ca.pem"), pem("rev-kim.pem"), pem("rev-lee.pem"));
+    assert!(matches!(ocsp_status(&data("rev-kim-ocsp-live.der"), &kim, &ca, NOW), Status::Good { .. }));
+    assert_eq!(ocsp_status(&data("rev-lee-ocsp-live.der"), &lee, &ca, NOW), Status::Revoked { at: LEE_REVOKED });
+    for (answer, cert) in [("rev-kim-ocsp-dead.der", &kim), ("rev-lee-ocsp-dead.der", &lee)] {
+        assert!(matches!(ocsp_status(&data(answer), cert, &ca, NOW), Status::Unknown(_)), "{answer}");
+    }
+}
+
+/// The "issuer" has to be the one that signed the certificate, whatever its name says.
+#[test]
+fn only_the_certificates_own_authority_answers() {
+    let (ca, kim, lee) = (pem("ca.pem"), pem("rev-kim.pem"), pem("rev-lee.pem"));
+    // Kim's certificate passed off as Lee's issuer: not the one that signed it.
+    assert!(matches!(crl_status(&data("rev-ca-crl.der"), &lee, &kim, NOW), Status::Unknown(_)));
+    assert!(matches!(ocsp_status(&data("rev-lee-ocsp.der"), &lee, &kim, NOW), Status::Unknown(_)));
+    // And the real one still answers.
+    assert_eq!(crl_status(&data("rev-ca-crl.der"), &lee, &ca, NOW), Status::Revoked { at: LEE_REVOKED });
+}

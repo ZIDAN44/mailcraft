@@ -23,12 +23,17 @@ const CRL_POINTS: Oid = Oid::new_unwrap("2.5.29.31");
 const AUTHORITY_INFO: Oid = Oid::new_unwrap("1.3.6.1.5.5.7.1.1");
 const OCSP_METHOD: Oid = Oid::new_unwrap("1.3.6.1.5.5.7.48.1");
 const OCSP_BASIC: Oid = Oid::new_unwrap("1.3.6.1.5.5.7.48.1.1");
+// CRL extensions (RFC 5280 §5.2): the ones understood, and the two that narrow what a list covers.
+const CRL_NUMBER: Oid = Oid::new_unwrap("2.5.29.20");
+const DELTA_CRL: Oid = Oid::new_unwrap("2.5.29.27");
+const ISSUING_POINT: Oid = Oid::new_unwrap("2.5.29.28");
+const AUTHORITY_KEY_ID: Oid = Oid::new_unwrap("2.5.29.35");
 const OCSP_SIGNING: Oid = Oid::new_unwrap("1.3.6.1.5.5.7.3.9");
 
 /// Clocks differ: an answer this far in the future still counts as now.
 const SKEW: i64 = 300;
-/// An OCSP answer without a next update counts this long.
-const OCSP_FRESH: i64 = 7 * 86_400;
+/// An OCSP answer without a next update counts this long (it may have been replayed).
+const OCSP_FRESH: i64 = 86_400;
 
 /// What an authority says about a certificate.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,6 +79,9 @@ fn secs(t: &x509_cert::time::Time) -> i64 {
 /// What the CRL `crl` (DER) says about `cert`, issued by `issuer` (both DER), at `now`.
 pub fn crl_status(crl: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) -> Status {
     let (Ok(c), Ok(issuer)) = (cert::parse(cert_der), cert::parse(issuer_der)) else { return Status::Unknown("a certificate can't be read".into()) };
+    if !cert::issued_by(cert_der, issuer_der) {
+        return Status::Unknown("the list isn't from the certificate's authority".into());
+    }
     let Ok(list) = CertificateList::from_der(crl) else { return Status::Unknown("the list of withdrawn certificates can't be read".into()) };
     let tbs = &list.tbs_cert_list;
     if tbs.issuer != issuer.tbs_certificate.subject || tbs.issuer != c.tbs_certificate.issuer {
@@ -95,11 +103,55 @@ pub fn crl_status(crl: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) -> S
     if until.is_some_and(|u| u < now) {
         return Status::Unknown("the list is out of date".into());
     }
+    if let Err(why) = whole_list(tbs, cert_der) {
+        return Status::Unknown(why.into());
+    }
     let revoked = tbs.revoked_certificates.iter().flatten().find(|r| r.serial_number == c.tbs_certificate.serial_number);
+    // An entry with a critical extension (an indirect list's other issuer) can't be read for sure.
+    if revoked.is_some_and(|r| r.crl_entry_extensions.iter().flatten().any(|e| e.critical)) {
+        return Status::Unknown("the list's entry for the certificate can't be read".into());
+    }
     match revoked {
         Some(r) => Status::Revoked { at: secs(&r.revocation_date) },
         None => Status::Good { until },
     }
+}
+
+/// Whether `tbs` is the whole list for `cert_der`, so that its not listing it means not withdrawn:
+/// not a delta (only what changed since another list), not a partition (some reasons, only CA
+/// or attribute certificates, another issuer's too), for one of the certificate's own
+/// distribution points, and with no critical extension that isn't understood (RFC 5280 §5.2).
+fn whole_list(tbs: &x509_cert::crl::TbsCertList, cert_der: &[u8]) -> Result<(), &'static str> {
+    use x509_cert::ext::pkix::crl::dp::IssuingDistributionPoint;
+    for e in tbs.crl_extensions.iter().flatten() {
+        if e.extn_id == DELTA_CRL {
+            return Err("the list holds only what changed since another one");
+        }
+        if e.extn_id == ISSUING_POINT {
+            let p = IssuingDistributionPoint::from_der(e.extn_value.as_bytes()).map_err(|_| "the list can't be read")?;
+            if p.only_some_reasons.is_some() || p.only_contains_ca_certs || p.only_contains_attribute_certs || p.indirect_crl {
+                return Err("the list covers only some certificates or reasons");
+            }
+            if let Some(DistributionPointName::FullName(names)) = &p.distribution_point {
+                let (mine, _) = points(cert_der);
+                let theirs: Vec<String> = names
+                    .iter()
+                    .filter_map(|n| match n {
+                        GeneralName::UniformResourceIdentifier(u) => Some(u.as_str().trim().to_string()),
+                        _ => None,
+                    })
+                    .collect();
+                if !theirs.iter().any(|t| mine.contains(t)) {
+                    return Err("the list is for other certificates");
+                }
+            }
+            continue;
+        }
+        if e.critical && e.extn_id != CRL_NUMBER && e.extn_id != AUTHORITY_KEY_ID {
+            return Err("the list has a part MailCraft can't read");
+        }
+    }
+    Ok(())
 }
 
 /// An OCSP request (DER) for `cert`, issued by `issuer`.
@@ -130,6 +182,9 @@ fn same_cert(id: &CertId, cert: &Certificate, issuer: &Certificate) -> bool {
 /// by the authority itself, or by a responder it gave a certificate for OCSP signing.
 pub fn ocsp_status(answer: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) -> Status {
     let (Ok(c), Ok(issuer)) = (cert::parse(cert_der), cert::parse(issuer_der)) else { return Status::Unknown("a certificate can't be read".into()) };
+    if !cert::issued_by(cert_der, issuer_der) {
+        return Status::Unknown("the OCSP answer isn't signed by the certificate's authority".into());
+    }
     let Ok(resp) = OcspResponse::from_der(answer) else { return Status::Unknown("the OCSP answer can't be read".into()) };
     if resp.response_status != OcspResponseStatus::Successful {
         return Status::Unknown("the OCSP responder didn't answer".into());
@@ -151,7 +206,8 @@ pub fn ocsp_status(answer: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) 
             .and_then(|e| e.iter().find(|x| x.extn_id == oids::EXT_KEY_USAGE))
             .and_then(|x| ExtendedKeyUsage::from_der(x.extn_value.as_bytes()).ok())
             .is_some_and(|ExtendedKeyUsage(u)| u.contains(&OCSP_SIGNING));
-        for_ocsp && cert::issued_by(&r_der, issuer_der) && by(&r.tbs_certificate.subject_public_key_info)
+        // A delegated responder: for OCSP signing, issued by the same authority, and in date.
+        for_ocsp && cert::in_date(r, now).is_ok() && cert::issued_by(&r_der, issuer_der) && by(&r.tbs_certificate.subject_public_key_info)
     });
     if !by(&issuer.tbs_certificate.subject_public_key_info) && !delegated {
         return Status::Unknown("the OCSP answer isn't signed by the certificate's authority".into());

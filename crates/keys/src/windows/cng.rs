@@ -1,7 +1,8 @@
 //! The CNG calls `rustls-cng` has no safe wrapper for: decrypting an RSA recipient's content key
 //! (`NCryptDecrypt`, PKCS #1 v1.5 or OAEP) and an EC recipient's Diffie-Hellman secret (the
 //! sender's one-time public key imported beside the private key, `NCryptSecretAgreement`, and
-//! the raw secret read with `NCryptDeriveKey`'s `TRUNCATE`, the X9.63 derivation done in Rust).
+//! the raw secret read with `NCryptDeriveKey` and `BCRYPT_KDF_RAW_SECRET` (named `TRUNCATE` in
+//! CNG; it comes little-endian), the X9.63 derivation done in Rust).
 //!
 //! The one place in MailCraft outside vendored code that allows `unsafe`: every block says why
 //! it holds, every handle is freed by [`Object`] whatever happens, and every size is checked

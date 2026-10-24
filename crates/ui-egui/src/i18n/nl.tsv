@@ -1141,7 +1141,16 @@ month	May	mei
 	Use a certificate from the Keychain	Een certificaat uit de sleutelhanger gebruiken
 	Use one from Windows…	Een uit Windows gebruiken…
 	Use one from the Keychain…	Een uit de sleutelhanger gebruiken…
-	the Windows certificate store keeps this EC key for signing only	het Windows-certificaatarchief houdt deze EC-sleutel alleen voor ondertekenen
 	the certificate is in another computer's certificate store	het certificaat staat in het certificaatarchief van een andere computer
 	Or use one this computer has	Of een gebruiken die deze computer heeft
 	On a smart card, or kept by the system: the key stays where it is.	Op een smartcard, of door het systeem bewaard: de sleutel blijft waar hij is.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows kan met deze EC-sleutel geen sleutel afspreken (de provider houdt hem misschien alleen voor ondertekenen)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	de kaart heeft nog maar weinig pinpogingen, dus MailCraft probeert het niet: geef de pincode opnieuw (Bestand › Info › Beveiliging › Een smartcard gebruiken…)
+	the list holds only what changed since another one	de lijst bevat alleen wat sinds een andere is veranderd
+	the list covers only some certificates or reasons	de lijst dekt maar een deel van de certificaten of redenen
+	the list is for other certificates	de lijst is voor andere certificaten
+	the list has a part MailCraft can't read	de lijst heeft een deel dat MailCraft niet kan lezen
+	the list's entry for the certificate can't be read	de vermelding van het certificaat in de lijst is niet te lezen
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	het certificaat heeft geen wachtwoord, dus de browser gebruikt het tot de pagina wordt gesloten en bewaart het niet
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	de kaart heeft de pincode nodig (geef die in Bestand › Info › Beveiliging › Een smartcard gebruiken…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	de kaart weigerde de pincode, dus MailCraft is die vergeten: de kaart zou blokkeren als hij opnieuw werd geprobeerd (geef hem opnieuw in Bestand › Info › Beveiliging › Een smartcard gebruiken…)

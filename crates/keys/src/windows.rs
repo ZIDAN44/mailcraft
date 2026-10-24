@@ -132,7 +132,7 @@ impl PrivateKey for StoreKey {
         let k = self.key()?;
         cng::agree(k.inner(), point).map_err(|code| {
             if code == NTE_NOT_SUPPORTED as i32 || code == NTE_BAD_KEY_STATE as i32 {
-                mailcraft_smime::Error::Unsupported("the Windows certificate store keeps this EC key for signing only".into())
+                mailcraft_smime::Error::Unsupported("Windows can't agree a key with this EC key (its provider may keep it for signing only)".into())
             } else {
                 mailcraft_smime::Error::Decrypt
             }

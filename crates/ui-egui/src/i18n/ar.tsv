@@ -1141,7 +1141,16 @@ month	May	مايو
 	Use a certificate from the Keychain	استخدام شهادة من سلسلة المفاتيح
 	Use one from Windows…	استخدام واحدة من Windows…
 	Use one from the Keychain…	استخدام واحدة من سلسلة المفاتيح…
-	the Windows certificate store keeps this EC key for signing only	يحتفظ مخزن شهادات Windows بمفتاح EC هذا للتوقيع فقط
 	the certificate is in another computer's certificate store	الشهادة في مخزن شهادات كمبيوتر آخر
 	Or use one this computer has	أو استخدم شهادة موجودة على هذا الكمبيوتر
 	On a smart card, or kept by the system: the key stays where it is.	على بطاقة ذكية، أو يحتفظ بها النظام: يبقى المفتاح حيث هو.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	لا يستطيع Windows الاتفاق على مفتاح باستخدام مفتاح EC هذا (قد يحتفظ به موفّره للتوقيع فقط)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	تبقّت محاولات قليلة لرقم PIN على البطاقة، لذا لن يجرّبه MailCraft: أدخل رقم PIN مرة أخرى (ملف › معلومات › الأمان › استخدام بطاقة ذكية…)
+	the list holds only what changed since another one	تحتوي القائمة فقط على ما تغيّر منذ قائمة أخرى
+	the list covers only some certificates or reasons	تغطي القائمة بعض الشهادات أو الأسباب فقط
+	the list is for other certificates	القائمة لشهادات أخرى
+	the list has a part MailCraft can't read	في القائمة جزء لا يستطيع MailCraft قراءته
+	the list's entry for the certificate can't be read	تتعذّر قراءة مدخل القائمة الخاص بالشهادة
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	ليست للشهادة كلمة مرور، لذا يستخدمها المتصفح حتى تُغلق الصفحة ولا يحتفظ بها
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	تحتاج البطاقة إلى رقم PIN الخاص بها (أدخله في ملف › معلومات › الأمان › استخدام بطاقة ذكية…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	رفضت البطاقة رقم PIN، لذا نسيه MailCraft: كانت البطاقة ستُقفل لو جُرّب مرة أخرى (أدخله مرة أخرى في ملف › معلومات › الأمان › استخدام بطاقة ذكية…)

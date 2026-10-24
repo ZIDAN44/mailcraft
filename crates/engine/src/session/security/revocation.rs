@@ -7,8 +7,10 @@ use mailcraft_model::Revocation;
 
 use super::*;
 
-/// The most certificates whose answers are kept.
+/// The most certificates whose answers are kept, and the most withdrawn ones beyond them (each a
+/// real authority's signed answer, so a ceiling against memory, not one ever met).
 const KEPT_MAX: usize = 256;
+const REVOKED_MAX: usize = 4096;
 /// A "not withdrawn" answer is asked again after this long, or when it says it runs out.
 const GOOD_FOR: i64 = 86_400;
 /// No answer: asked again after this long.
@@ -67,13 +69,24 @@ impl Session {
     /// An authority's answer: kept, and the messages waiting for it shown again.
     pub(super) fn heard_revocation(&mut self, cert: Vec<u8>, status: Revocation) {
         self.revocation.asking.remove(&cert);
-        if self.revocation.heard.len() >= KEPT_MAX {
-            self.revocation.heard.clear();
-        }
         // Withdrawn stays withdrawn, whatever a later answer (or the lack of one) says.
-        if !matches!(self.revocation.heard.get(&cert), Some((Revocation::Revoked { .. }, _))) {
-            self.revocation.heard.insert(cert, (status, self.clock.now));
+        if matches!(self.revocation.heard.get(&cert), Some((Revocation::Revoked { .. }, _))) {
+            return self.show_waiting();
         }
+        // Full: the answers that would be asked again anyway go, never a withdrawn one (else a
+        // flood of other signers, then a blocked request, would turn "withdrawn" into "unknown").
+        if self.revocation.heard.len() >= KEPT_MAX {
+            self.revocation.heard.retain(|_, (s, _)| matches!(s, Revocation::Revoked { .. }));
+            if self.revocation.heard.len() >= REVOKED_MAX {
+                self.revocation.heard.clear();
+            }
+        }
+        self.revocation.heard.insert(cert, (status, self.clock.now));
+        self.show_waiting();
+    }
+
+    /// The messages waiting for an authority's answer, shown again.
+    fn show_waiting(&mut self) {
         let waiting =
             |r: &Reading| r.security.as_ref().and_then(|s| s.signed.as_ref()).is_some_and(|s| s.revocation == Some(RevocationCheck::Asking));
         let mut keys: Vec<MessageKey> = self.reading.iter().chain(self.windows.iter()).filter(|r| waiting(r)).map(|r| r.key.clone()).collect();

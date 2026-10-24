@@ -65,7 +65,7 @@ impl Me {
     fn with_key<T>(&self, f: impl FnOnce(&mut dyn smime::PrivateKey) -> std::result::Result<T, smime::Error>) -> std::result::Result<T, String> {
         match &self.key {
             MyKey::Software(key) => f(&mut smime::key::Software { key, rng: &mut rand_core::OsRng }).map_err(|e| e.to_string()),
-            MyKey::Held { at, pin } => with_held(at, pin.as_deref(), f),
+            MyKey::Held { at, pin } => with_held(at, pin.as_deref(), mailcraft_keys::pkcs11::PinFrom::Kept, f),
         }
     }
 }
@@ -73,11 +73,16 @@ impl Me {
 fn with_held<T>(
     at: &KeyRef,
     pin: Option<&str>,
+    from: mailcraft_keys::pkcs11::PinFrom,
     f: impl FnOnce(&mut dyn smime::PrivateKey) -> std::result::Result<T, smime::Error>,
 ) -> std::result::Result<T, String> {
     match at {
         KeyRef::Card { .. } => {
-            let mut k = mailcraft_keys::pkcs11::open(at, pin).map_err(|e| e.to_string())?;
+            let mut k = mailcraft_keys::pkcs11::open(at, pin, from).map_err(|e| match e {
+                // The kept PIN is wrong: said so, and the pool forgets it (`forget_wrong_pin`).
+                mailcraft_keys::Error::Pin if pin.is_some() && from == mailcraft_keys::pkcs11::PinFrom::Kept => PIN_WRONG.to_string(),
+                e => e.to_string(),
+            })?;
             f(&mut k).map_err(|e| e.to_string())
         }
         #[cfg(target_os = "macos")]
@@ -94,6 +99,23 @@ fn with_held<T>(
         }
         #[cfg(not(windows))]
         KeyRef::WindowsStore { .. } => Err("the certificate is in another computer's certificate store".into()),
+    }
+}
+
+/// What a kept card PIN that the card refused says. It's forgotten at once, so it's never tried
+/// again: a card locks after a few wrong ones.
+const PIN_WRONG: &str = "the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)";
+
+/// After `error`, a kept PIN the card refused is forgotten (the reference to the key stays).
+fn forget_wrong_pin<T>(creds: &dyn Credentials, account: &AccountConfig, done: &std::result::Result<T, String>) {
+    if !matches!(done, Err(e) if e.contains(PIN_WRONG)) {
+        return;
+    }
+    let Some(json) = creds.get_secret(account, SECRET) else { return };
+    let Ok(mut k) = serde_json::from_str::<Kept>(&json) else { return };
+    k.pin = None;
+    if let Ok(json) = serde_json::to_string(&k) {
+        let _ = creds.set_secret(account, SECRET, &json);
     }
 }
 
@@ -179,6 +201,7 @@ impl Pool {
             let own = me.chain.first().cloned().ok_or_else(|| "the certificate is missing".to_string())?;
             protect(&raw, &me, false, &[own], true, false)
         });
+        forget_wrong_pin(self.creds.as_ref(), account, &sealed);
         match sealed {
             Ok(s) => s,
             Err(e) => {
@@ -210,6 +233,7 @@ impl Pool {
             Job::ForgetIdentity { account } => creds.delete_secret(&account, SECRET),
             Job::Protect { account, id, raw, sign, encrypt_to, gcm, hide_subject } => {
                 let done = kept(creds.as_ref(), &account).and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
+                forget_wrong_pin(creds.as_ref(), &account, &done);
                 let (raw, error) = match done {
                     Ok(r) => (Some(Private(r)), None),
                     Err(e) => (None, Some(e)),
@@ -218,6 +242,7 @@ impl Pool {
             }
             Job::Decrypt { account, key, cms } => {
                 let done = kept(creds.as_ref(), &account).and_then(|me| me.with_key(|k| smime::decrypt_with(&cms, me.certificate(), k)));
+                forget_wrong_pin(creds.as_ref(), &account, &done);
                 let event = match done {
                     Ok((content, authenticated)) => Event::Decrypted { key, content: Some(Private(content)), authenticated, error: None },
                     Err(e) => Event::Decrypted { key, content: None, authenticated: false, error: Some(e) },
@@ -238,8 +263,10 @@ impl Pool {
                     #[cfg(windows)]
                     chain.extend(mailcraft_keys::windows::issuers(&at));
                     let me = Me { chain, key: MyKey::Held { at, pin: pin.map(|p| p.0) } };
-                    // It's used once here, so a wrong PIN or a card taken out says so now.
-                    me.with_key(|k| smime::sign_with(b"MailCraft", &me.chain, k, now()))?;
+                    // It's used once here, so a wrong PIN or a card taken out says so now (the PIN
+                    // was just typed: the user's to try).
+                    let MyKey::Held { at, pin } = &me.key else { return Err("the key can't be found again".to_string()) };
+                    with_held(at, pin.as_deref(), mailcraft_keys::pkcs11::PinFrom::Typed, |k| smime::sign_with(b"MailCraft", &me.chain, k, now()))?;
                     keep(creds.as_ref(), &account, &me)?;
                     Ok(me.chain)
                 });
@@ -440,6 +467,13 @@ Signed and sealed by Windows.
         keep(&creds, &account, &card).unwrap();
         assert!(kept(&creds, &account).unwrap() == card);
         assert!(!creds.get_secret(&account, SECRET).unwrap().contains(&hex(&riley.key)));
+        // A kept PIN the card refused is forgotten at once, the key's reference kept; any other
+        // failure leaves it.
+        forget_wrong_pin(&creds, &account, &Err::<(), _>("the card's module can't be loaded".to_string()));
+        assert!(kept(&creds, &account).unwrap() == card);
+        forget_wrong_pin(&creds, &account, &Err::<(), _>(PIN_WRONG.to_string()));
+        let left = kept(&creds, &account).unwrap();
+        assert!(matches!(&left.key, MyKey::Held { pin: None, .. }) && left.chain == card.chain);
         creds.delete_secret(&account, SECRET);
         assert!(kept(&creds, &account).is_err());
         assert_eq!(unhex("0aFf"), Some(vec![0x0a, 0xff]));

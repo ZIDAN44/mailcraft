@@ -68,8 +68,25 @@ fn load(module: &str) -> Result<Pkcs11, Error> {
     }
 }
 
-fn login(session: &Session, pin: Option<&str>) -> Result<(), Error> {
+/// Whose PIN is given: one the user just typed, or one kept from before (which, if the card
+/// changed it, would fail every time).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PinFrom {
+    Typed,
+    Kept,
+}
+
+/// Log in with `pin` (none: not at all). A locked card isn't tried, and a kept PIN isn't tried on
+/// a card down to its last tries: one that fails there can lock it for good (a PIV card or a
+/// YubiKey, until its PUK). A PIN just typed is the user's to try.
+fn login(session: &Session, token: &cryptoki::slot::TokenInfo, pin: Option<&str>, from: PinFrom) -> Result<(), Error> {
     let Some(pin) = pin else { return Ok(()) };
+    if token.user_pin_locked() {
+        return Err(Error::Pin);
+    }
+    if from == PinFrom::Kept && (token.user_pin_final_try() || token.user_pin_count_low()) {
+        return Err(Error::PinAtRisk);
+    }
     match session.login(UserType::User, Some(&AuthPin::from(pin.to_string()))) {
         Ok(()) | Err(cryptoki::error::Error::Pkcs11(RvError::UserAlreadyLoggedIn, _)) => Ok(()),
         Err(e) => Err(card(e)),
@@ -85,14 +102,23 @@ fn value(session: &Session, object: ObjectHandle, kind: AttributeType) -> Option
 
 /// The certificates on every card the module at `module` sees that have their private key with
 /// them, each with where to find it again. `pin` logs in first (some cards show their
-/// certificates only then).
+/// certificates only then), but only with one card in: a PIN is one card's, and trying it on
+/// another uses up that card's tries. With several, they're listed without it, and the PIN is
+/// given to the one chosen.
 pub fn certificates(module: &str, pin: Option<&str>) -> Result<Vec<Found>, Error> {
     let p = load(module)?;
     let mut found = Vec::new();
-    for slot in p.get_slots_with_token().map_err(card)? {
-        let Ok(token) = p.get_token_info(slot) else { continue };
+    // The cards in: a reader's empty, never-initialised token holds nothing to count.
+    let slots: Vec<_> = p
+        .get_slots_with_token()
+        .map_err(card)?
+        .into_iter()
+        .filter_map(|slot| p.get_token_info(slot).ok().filter(|t| t.token_initialized()).map(|t| (slot, t)))
+        .collect();
+    let pin = if slots.len() == 1 { pin } else { None };
+    for (slot, token) in slots {
         let Ok(session) = p.open_ro_session(slot) else { continue };
-        login(&session, pin)?;
+        login(&session, &token, pin, PinFrom::Typed)?;
         let certs = session.find_objects(&[Attribute::Class(ObjectClass::CERTIFICATE)]).map_err(card)?;
         for c in certs.into_iter().take(OBJECTS_MAX) {
             let (Some(der), Some(id)) = (value(&session, c, AttributeType::Value), value(&session, c, AttributeType::Id)) else { continue };
@@ -120,7 +146,7 @@ pub struct CardKey {
 }
 
 /// Open the key `key` refers to (a [`KeyRef::Card`]), logging in with `pin`.
-pub fn open(key: &KeyRef, pin: Option<&str>) -> Result<CardKey, Error> {
+pub fn open(key: &KeyRef, pin: Option<&str>, from: PinFrom) -> Result<CardKey, Error> {
     let KeyRef::Card { module, token, id } = key else { return Err(Error::Missing) };
     let id = unhex(id).ok_or(Error::Missing)?;
     let p = load(module)?;
@@ -130,9 +156,10 @@ pub fn open(key: &KeyRef, pin: Option<&str>) -> Result<CardKey, Error> {
             continue;
         }
         let session = p.open_ro_session(slot).map_err(card)?;
-        login(&session, pin)?;
+        login(&session, &info, pin, from)?;
         let keys = session.find_objects(&[Attribute::Class(ObjectClass::PRIVATE_KEY), Attribute::Id(id.clone())]).map_err(card)?;
-        let key = keys.first().copied().ok_or(Error::Missing)?;
+        // A card's private keys often show only once logged in.
+        let key = keys.first().copied().ok_or(if pin.is_none() { Error::NeedPin } else { Error::Missing })?;
         return Ok(CardKey { session, key });
     }
     Err(Error::Missing)

@@ -306,7 +306,7 @@ fn is_ca(c: &Certificate) -> bool {
     extension::<BasicConstraints>(c, oids::BASIC_CONSTRAINTS).is_some_and(|b| b.ca)
 }
 
-fn in_date(c: &Certificate, now: i64) -> Result<(), Problem> {
+pub(crate) fn in_date(c: &Certificate, now: i64) -> Result<(), Problem> {
     let v = &c.tbs_certificate.validity;
     let secs = |t: &x509_cert::time::Time| i64::try_from(t.to_unix_duration().as_secs()).unwrap_or(i64::MAX);
     if now < secs(&v.not_before) {
