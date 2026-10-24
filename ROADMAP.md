@@ -132,7 +132,10 @@ local-first, media-aware v1); the fuller request is
    from a `.p12` or `.pfx` file (its private key kept in the system's keychain), mail signed and
    encrypted as it's sent and read signed or encrypted as it comes, with who signed it and whether
    to trust that said above it; certificates learnt from signed mail to encrypt to; drafts of
-   encrypted mail encrypted too. Checked against OpenSSL both ways and through a real server.
+   encrypted mail encrypted too; header protection (RFC 9788); EC certificates for encryption
+   (ECDH); revocation checks, opt-in; certificates on smart cards (PKCS #11) and in the macOS
+   Keychain; S/MIME in the browser, its `.p12` kept locked with its password. Checked against
+   OpenSSL both ways, through a real server, and against SoftHSM 2.
 25. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -378,3 +381,9 @@ local-first, media-aware v1); the fuller request is
   decrypted (CBC, GCM, 3DES, PKCS #1 v1.5 and OAEP) in memory only, never loading anything from the
   web. Tested with OpenSSL 3 both ways in Docker, and end to end against GreenMail (a legacy `.p12`,
   OpenSSL's mail decrypted, MailCraft's sent, fetched back and read by OpenSSL as its recipient).
+  Then the rest of it: a seal and a padlock in the list; header protection (RFC 9788); ECDH for
+  EC recipients (RFC 5753); revocation by OCSP and CRL, opt-in, against OpenSSL's own CA,
+  responder and list; keys that stay where they are (`mailcraft-keys`: PKCS #11 smart cards,
+  tested on SoftHSM 2, and the macOS Keychain); and the browser, which keeps the `.p12` locked
+  with its password and signs, encrypts and decrypts with the same code. Left: Windows'
+  certificate store (no safe binding to CNG).

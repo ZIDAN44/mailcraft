@@ -18,7 +18,7 @@ _Status: v0.24, 2026-10-24._
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
-| 7 | **S/MIME: what isn't done yet** | Signing and encryption with RSA certificates work, and EC certificates sign and verify; mail can't yet be encrypted to an EC certificate or decrypted with one (it takes ECDH key agreement). Revocation isn't checked (no CRL or OCSP lookups). Subjects stay readable on the way (header protection, RFC 9788, isn't written yet). Certificates from a smart card or from Windows' certificate store aren't used, only `.p12`/`.pfx` files. The browser version has no keychain to keep a key in, so it neither signs nor decrypts. The message list doesn't yet mark signed or encrypted mail with an icon. |
+| 7 | **S/MIME: what isn't done yet** | Certificates in Windows' own certificate store aren't used (only `.p12`/`.pfx` files, smart cards through their PKCS #11 module, and on macOS the Keychain): Windows' CNG has no safe Rust binding, and MailCraft's code has no `unsafe`. An EC key in the macOS Keychain signs but doesn't decrypt (its Diffie-Hellman needs a `SecKey` made from the sender's one-time key, which the safe bindings don't offer). The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards; after a reload its certificate stays locked until its password is given again. |
 
 ## Done
 
@@ -830,3 +830,21 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   (`fakes/real_servers.rs`), and in the app with the system keychain. Found on the way and fixed:
   the GCM tag length must be written out, and a chain that carries its own root is still trusted.
   A fuzz target (`smime`) reads BER, signatures, encrypted mail, certificates and `.p12` files.
+- **The message list** marks signed mail with a seal and encrypted mail with a padlock.
+- **Header protection (RFC 9788):** the subject, sender and recipients go inside the signature
+  and the encryption too; encrypted mail's subject reads `[...]` on the way (File › Info ›
+  Security can keep it visible), and a protected message's own header fields are the ones shown.
+- **EC certificates encrypt and decrypt** (ECDH, RFC 5753): SHA-384 derivation and AES-256 wrap
+  sent, SHA-1 to SHA-512 and every AES wrap read. Checked with OpenSSL both ways.
+- **Revocation, opt-in** (File › Options › Safety): a signer's certificate is asked about where
+  it says, OCSP first, then its CRL, each answer counting only when its authority signed it, it's
+  about that certificate and it's current. Withdrawn says so in red; no answer is said as such,
+  never taken for withdrawn. Off at first, since asking tells the authority whose mail is read.
+- **Smart cards (PKCS #11) and the macOS Keychain:** File › Info › Security › Use a smart card…
+  loads the card's module (OpenSC's reads most cards), finds the certificates with their keys and
+  uses one; the key never leaves the card, which signs, decrypts and agrees EC secrets itself. On
+  macOS the Keychain's identities are offered too. Tested against SoftHSM 2 (`crates/keys/softhsm.sh`),
+  OpenSSL checking the card's signatures.
+- **In the browser:** the `.p12` itself is kept (it's encrypted with its password, which isn't),
+  and opened with its password for the page; signing, encrypting and decrypting are the desktop's
+  code. After a reload, Unlock… gives the password again.
