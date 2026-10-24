@@ -1091,3 +1091,27 @@ month	May	maio
 	Hide the subject of encrypted mail	Ocultar o assunto de e-mails criptografados
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	No caminho aparece [...]; o verdadeiro vai dentro, para os destinatários (proteção de cabeçalhos).
 	Its subject and addresses were protected inside it too.	O assunto e os endereços também estavam protegidos dentro dela.
+	Check whether certificates were withdrawn	Verificar se certificados foram revogados
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	Ao mostrar um e-mail assinado, a autoridade do certificado é consultada se o revogou. Assim, ela fica sabendo de quem é o e-mail que você está lendo
+	Asking its authority whether the certificate was withdrawn…	Consultando a autoridade se o certificado foi revogado…
+	Its authority says the certificate wasn't withdrawn.	A autoridade diz que o certificado não foi revogado.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	Não foi possível verificar se o certificado foi revogado: {why}.
+	its authority withdrew its certificate on {date}	a autoridade revogou o certificado em {date}
+	its certificate doesn't say where to ask	o certificado não diz onde consultar
+	its authority's responder didn't answer	o serviço da autoridade não respondeu
+	its authority's list of withdrawn certificates couldn't be had	não foi possível obter a lista de certificados revogados da autoridade
+	the certificate's authority isn't known	a autoridade do certificado não é conhecida
+	the list of withdrawn certificates can't be read	não é possível ler a lista de certificados revogados
+	the list isn't from the certificate's authority	a lista não é da autoridade do certificado
+	the list's signature doesn't hold	a assinatura da lista não é válida
+	the list is from the future	a lista tem data futura
+	the list is out of date	a lista está desatualizada
+	a certificate can't be read	não é possível ler um certificado
+	the OCSP answer can't be read	não é possível ler a resposta OCSP
+	the OCSP responder didn't answer	o serviço OCSP não respondeu
+	the OCSP answer is of another kind	a resposta OCSP é de outro tipo
+	the OCSP answer isn't signed by the certificate's authority	a resposta OCSP não foi assinada pela autoridade do certificado
+	the OCSP answer is about another certificate	a resposta OCSP é sobre outro certificado
+	the OCSP answer is from the future	a resposta OCSP tem data futura
+	the OCSP answer is out of date	a resposta OCSP está desatualizada
+	the OCSP responder doesn't know the certificate	o serviço OCSP não conhece o certificado

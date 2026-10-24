@@ -286,6 +286,17 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 switch(ui, s.prefs.clean_links, tl!("Open links without their tracking"), "view.cleanLinks", acts);
             },
         );
+        setting(
+            ui,
+            false,
+            tl!("Check whether certificates were withdrawn"),
+            Some(tl!(
+                "As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading"
+            )),
+            &mut |ui| {
+                switch(ui, s.prefs.check_revocation, tl!("Check whether certificates were withdrawn"), "view.checkRevocation", acts);
+            },
+        );
     });
 
     group(ui, tl!("Privacy"), Some(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")), &mut |ui| {

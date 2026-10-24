@@ -1086,3 +1086,27 @@ month	May	مايو
 	Hide the subject of encrypted mail	إخفاء موضوع البريد المشفّر
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	في الطريق يظهر [...]؛ والموضوع الحقيقي في الداخل لمستلميه (حماية الترويسة).
 	Its subject and addresses were protected inside it too.	كان موضوعها وعناوينها محميّة في داخلها أيضًا.
+	Check whether certificates were withdrawn	التحقق مما إذا كانت الشهادات قد سُحبت
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	عند عرض بريد موقّع، تُسأل جهة إصدار شهادته إن كانت قد سحبتها. وبذلك تعرف تلك الجهة بريدَ مَن تقرأ
+	Asking its authority whether the certificate was withdrawn…	جارٍ سؤال الجهة المصدرة إن كانت الشهادة قد سُحبت…
+	Its authority says the certificate wasn't withdrawn.	تقول الجهة المصدرة إن الشهادة لم تُسحب.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	تعذّر التحقق مما إذا كانت الشهادة قد سُحبت: {why}.
+	its authority withdrew its certificate on {date}	سحبت الجهة المصدرة شهادته في {date}
+	its certificate doesn't say where to ask	لا تذكر شهادته أين يُسأل
+	its authority's responder didn't answer	لم يُجب خادم الجهة المصدرة
+	its authority's list of withdrawn certificates couldn't be had	تعذّر الحصول على قائمة الشهادات المسحوبة من الجهة المصدرة
+	the certificate's authority isn't known	الجهة المصدرة للشهادة غير معروفة
+	the list of withdrawn certificates can't be read	تتعذّر قراءة قائمة الشهادات المسحوبة
+	the list isn't from the certificate's authority	القائمة ليست من الجهة المصدرة للشهادة
+	the list's signature doesn't hold	توقيع القائمة غير صالح
+	the list is from the future	القائمة مؤرّخة في المستقبل
+	the list is out of date	القائمة قديمة
+	a certificate can't be read	تتعذّر قراءة شهادة
+	the OCSP answer can't be read	تتعذّر قراءة رد OCSP
+	the OCSP responder didn't answer	لم يُجب خادم OCSP
+	the OCSP answer is of another kind	رد OCSP من نوع آخر
+	the OCSP answer isn't signed by the certificate's authority	رد OCSP غير موقّع من الجهة المصدرة للشهادة
+	the OCSP answer is about another certificate	رد OCSP يخص شهادة أخرى
+	the OCSP answer is from the future	رد OCSP مؤرّخ في المستقبل
+	the OCSP answer is out of date	رد OCSP قديم
+	the OCSP responder doesn't know the certificate	لا يعرف خادم OCSP هذه الشهادة

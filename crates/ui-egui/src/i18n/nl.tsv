@@ -1086,3 +1086,27 @@ month	May	mei
 	Hide the subject of encrypted mail	Het onderwerp van versleutelde mail verbergen
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	Onderweg staat er [...]; het echte staat binnenin, voor de ontvangers (headerbescherming).
 	Its subject and addresses were protected inside it too.	Het onderwerp en de adressen waren er ook binnenin beschermd.
+	Check whether certificates were withdrawn	Controleren of certificaten zijn ingetrokken
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	Als ondertekende mail wordt getoond, wordt de uitgever van het certificaat gevraagd of die het heeft ingetrokken. De uitgever weet dan wiens mail u leest
+	Asking its authority whether the certificate was withdrawn…	De uitgever wordt gevraagd of het certificaat is ingetrokken…
+	Its authority says the certificate wasn't withdrawn.	Volgens de uitgever is het certificaat niet ingetrokken.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	Of het certificaat is ingetrokken, kon niet worden gecontroleerd: {why}.
+	its authority withdrew its certificate on {date}	de uitgever heeft het certificaat op {date} ingetrokken
+	its certificate doesn't say where to ask	het certificaat zegt niet waar het te vragen
+	its authority's responder didn't answer	de dienst van de uitgever gaf geen antwoord
+	its authority's list of withdrawn certificates couldn't be had	de lijst met ingetrokken certificaten van de uitgever was niet te krijgen
+	the certificate's authority isn't known	de uitgever van het certificaat is onbekend
+	the list of withdrawn certificates can't be read	de lijst met ingetrokken certificaten is niet te lezen
+	the list isn't from the certificate's authority	de lijst komt niet van de uitgever van het certificaat
+	the list's signature doesn't hold	de handtekening van de lijst klopt niet
+	the list is from the future	de lijst is in de toekomst gedateerd
+	the list is out of date	de lijst is verouderd
+	a certificate can't be read	een certificaat is niet te lezen
+	the OCSP answer can't be read	het OCSP-antwoord is niet te lezen
+	the OCSP responder didn't answer	de OCSP-dienst gaf geen antwoord
+	the OCSP answer is of another kind	het OCSP-antwoord is van een andere soort
+	the OCSP answer isn't signed by the certificate's authority	het OCSP-antwoord is niet door de uitgever van het certificaat ondertekend
+	the OCSP answer is about another certificate	het OCSP-antwoord gaat over een ander certificaat
+	the OCSP answer is from the future	het OCSP-antwoord is in de toekomst gedateerd
+	the OCSP answer is out of date	het OCSP-antwoord is verouderd
+	the OCSP responder doesn't know the certificate	de OCSP-dienst kent het certificaat niet

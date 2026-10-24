@@ -109,6 +109,10 @@ pub struct Prefs {
     /// Links from a message open where they really go: out of redirect wrappers, without the
     /// tags that say who clicked ([`mime::clean_link`]). On at first.
     pub clean_links: bool,
+    /// Ask a signer's certificate's authority whether it was withdrawn (OCSP or its CRL), as
+    /// signed mail is shown. Off at first: the authority learns whose mail is being read.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub check_revocation: bool,
 }
 
 impl Default for Prefs {
@@ -151,6 +155,7 @@ impl Default for Prefs {
             recent_searches: Vec::new(),
             keep_photo_location: false,
             clean_links: true,
+            check_revocation: false,
             quick_steps: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),

@@ -198,6 +198,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "on": s.prefs.clean_links }))
         })
         .params(r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
+        CommandSpec::new("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", |s, v| {
+            s.prefs.check_revocation = p::bool(v, "on").unwrap_or(!s.prefs.check_revocation);
+            Ok(json!({ "on": s.prefs.check_revocation }))
+        })
+        .params(r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#),
         CommandSpec::new("view.trustSender", "Show pictures from a sender", "File › Options › Privacy", |s, v| {
             let who = p::req_str(v, "address")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&who) {

@@ -247,3 +247,50 @@ Message-ID: <hp1@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/plai
     assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().subject, "The real subject");
     done(s);
 }
+
+#[test]
+fn a_withdrawn_certificate_is_said_only_when_asked_for() {
+    let mut s = sample_session("smime-revocation");
+    s.clock.now = LATER;
+    s.set_trust_roots(vec![ca()]);
+    // Off at first: no authority is asked.
+    open_raw(&mut s, 9351, &testdata("signed-clear.eml"));
+    assert_eq!(security(&s).signed.unwrap().revocation, None);
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
+    s.run("view.checkRevocation", &json!({"on": true})).unwrap();
+    open_raw(&mut s, 9352, &testdata("signed-clear.eml"));
+    let signed = security(&s).signed.unwrap();
+    assert_eq!((signed.seal, signed.revocation), (Seal::Trusted, Some(crate::RevocationCheck::Asking)));
+    let chain = s.take_jobs().into_iter().find_map(|j| if let Job::CheckRevocation { chain } = j { Some(chain) } else { None }).unwrap();
+    assert_eq!(chain.len(), 2, "Ana's certificate and the CA's");
+    assert_eq!(chain.last(), Some(&ca()));
+    // Shown again while asking: not asked twice.
+    open_raw(&mut s, 9353, &testdata("signed-clear.eml"));
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
+    // The authority's answer shows at once, and is kept until it runs out.
+    let cert = chain[0].clone();
+    let good = mailcraft_model::Revocation::Good { until: Some(s.clock.now + 600) };
+    s.apply(Event::Revocation { cert: cert.clone(), status: good });
+    assert_eq!(security(&s).signed.unwrap().revocation, Some(crate::RevocationCheck::Good));
+    open_raw(&mut s, 9354, &testdata("signed-clear.eml"));
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
+    // An answer that couldn't be had is said, and asked again later; never "withdrawn".
+    s.clock.now += 700;
+    open_raw(&mut s, 9355, &testdata("signed-clear.eml"));
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })), "the answer ran out");
+    s.apply(Event::Revocation { cert: cert.clone(), status: mailcraft_model::Revocation::Unknown { why: "no answer".into() } });
+    let signed = security(&s).signed.unwrap();
+    assert_eq!((signed.seal, signed.revocation), (Seal::Trusted, Some(crate::RevocationCheck::Unknown("no answer".into()))));
+    s.clock.now += 7_200;
+    open_raw(&mut s, 9356, &testdata("signed-clear.eml"));
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
+    // Withdrawn: said in place of trusted, and it stays so.
+    s.apply(Event::Revocation { cert: cert.clone(), status: mailcraft_model::Revocation::Revoked { at: LATER - 60 } });
+    assert_eq!(security(&s).signed.unwrap().seal, Seal::Untrusted(vec![smime::Problem::Revoked(LATER - 60)]));
+    s.apply(Event::Revocation { cert, status: mailcraft_model::Revocation::Good { until: None } });
+    s.clock.now += 30 * 86_400;
+    open_raw(&mut s, 9357, &testdata("signed-clear.eml"));
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
+    assert!(matches!(security(&s).signed.unwrap().seal, Seal::Untrusted(p) if p.contains(&smime::Problem::Revoked(LATER - 60))));
+    done(s);
+}

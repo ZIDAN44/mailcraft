@@ -481,6 +481,13 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         Job::Protect { id: msg, .. } => emit(sh, Event::Protected { account: id.to_string(), id: msg, raw: None, error: Some(BROWSER_SMIME.into()) }),
         Job::Decrypt { key, .. } => emit(sh, Event::Decrypted { key, content: None, authenticated: false, error: Some(BROWSER_SMIME.into()) }),
+        Job::CheckRevocation { chain } => emit(
+            sh,
+            Event::Revocation {
+                cert: chain.into_iter().next().unwrap_or_default(),
+                status: mailcraft_engine::model::Revocation::Unknown { why: BROWSER_SMIME.into() },
+            },
+        ),
         Job::ForgetIdentity { .. } | Job::SealDraft { .. } => {}
         Job::Start { .. }
         | Job::SmtpPassword { .. }

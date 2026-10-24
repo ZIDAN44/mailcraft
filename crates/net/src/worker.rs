@@ -273,7 +273,11 @@ impl Pool {
                 }
             }
             Job::ImportPst { account, path } => self.import_pst(account, path),
-            j @ (Job::ImportIdentity { .. } | Job::ForgetIdentity { .. } | Job::Protect { .. } | Job::Decrypt { .. }) => self.smime(j),
+            j @ (Job::ImportIdentity { .. }
+            | Job::ForgetIdentity { .. }
+            | Job::Protect { .. }
+            | Job::Decrypt { .. }
+            | Job::CheckRevocation { .. }) => self.smime(j),
             Job::SealDraft { account, raw, folder, replaces, keep } => {
                 let raw = self.seal(&account, raw.0);
                 let account = account.id;

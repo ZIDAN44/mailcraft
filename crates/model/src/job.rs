@@ -253,6 +253,11 @@ pub enum Job {
     /// the copy in Drafts is no more readable than what will be sent, then saved as
     /// [`Job::SaveDraft`] (or kept as [`Job::KeepDraft`], `keep`).
     SealDraft { account: AccountConfig, raw: Private, folder: String, replaces: Option<MessageKey>, keep: bool },
+    /// Ask a signer's certificate's authority whether it withdrew it (OCSP, else its CRL, where
+    /// the certificate says): `chain` is the certificate first, then each issuer. Only with File ›
+    /// Options › Safety's switch on: the authority learns whose mail is read. Answered by
+    /// [`Event::Revocation`].
+    CheckRevocation { chain: Vec<Vec<u8>> },
 }
 
 impl Job {
@@ -275,7 +280,13 @@ impl Job {
             | Job::SyncDav { account }
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
-            Job::FetchUrl { .. } | Job::Discover { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } | Job::CheckUpdates | Job::StopSearch => "",
+            Job::FetchUrl { .. }
+            | Job::Discover { .. }
+            | Job::WorkOffline { .. }
+            | Job::SetSync { .. }
+            | Job::CheckUpdates
+            | Job::StopSearch
+            | Job::CheckRevocation { .. } => "",
             Job::SignIn { account }
             | Job::ImportIdentity { account, .. }
             | Job::ForgetIdentity { account }
@@ -464,6 +475,23 @@ pub enum Event {
         authenticated: bool,
         error: Option<String>,
     },
+    /// What [`Job::CheckRevocation`] heard about `cert` (DER, the chain's first).
+    Revocation {
+        cert: Vec<u8>,
+        status: Revocation,
+    },
+}
+
+/// Whether a certificate's authority withdrew it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum Revocation {
+    /// Not withdrawn; the answer holds until `until` (Unix seconds), when it says.
+    Good { until: Option<i64> },
+    /// Withdrawn at `at` (Unix seconds).
+    Revoked { at: i64 },
+    /// No answer to go by (none given, or none to trust), and why.
+    Unknown { why: String },
 }
 
 #[cfg(test)]

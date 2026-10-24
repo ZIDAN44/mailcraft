@@ -1090,3 +1090,27 @@ month	May	5月
 	Hide the subject of encrypted mail	隱藏加密郵件的主旨
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	途中顯示為 [...]；真正的主旨在裡面，只給收件人看（標頭保護）。
 	Its subject and addresses were protected inside it too.	它的主旨和地址也在裡面受到了保護。
+	Check whether certificates were withdrawn	檢查憑證是否已被撤銷
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	顯示簽署郵件時，會詢問憑證的發行機構是否已撤銷該憑證。發行機構因此會知道你在讀誰的郵件
+	Asking its authority whether the certificate was withdrawn…	正在詢問發行機構憑證是否已被撤銷…
+	Its authority says the certificate wasn't withdrawn.	發行機構表示該憑證未被撤銷。
+	Whether the certificate was withdrawn couldn't be checked: {why}.	無法檢查憑證是否已被撤銷：{why}。
+	its authority withdrew its certificate on {date}	發行機構已於 {date} 撤銷其憑證
+	its certificate doesn't say where to ask	憑證未註明向何處查詢
+	its authority's responder didn't answer	發行機構的回應服務沒有回應
+	its authority's list of withdrawn certificates couldn't be had	無法取得發行機構的撤銷憑證清單
+	the certificate's authority isn't known	憑證的發行機構未知
+	the list of withdrawn certificates can't be read	無法讀取撤銷憑證清單
+	the list isn't from the certificate's authority	該清單不是憑證發行機構發布的
+	the list's signature doesn't hold	清單的簽章無效
+	the list is from the future	清單的日期在未來
+	the list is out of date	清單已過期
+	a certificate can't be read	無法讀取憑證
+	the OCSP answer can't be read	無法讀取 OCSP 回應
+	the OCSP responder didn't answer	OCSP 服務沒有回應
+	the OCSP answer is of another kind	OCSP 回應屬於其他類型
+	the OCSP answer isn't signed by the certificate's authority	OCSP 回應不是憑證發行機構簽署的
+	the OCSP answer is about another certificate	OCSP 回應針對的是另一張憑證
+	the OCSP answer is from the future	OCSP 回應的日期在未來
+	the OCSP answer is out of date	OCSP 回應已過期
+	the OCSP responder doesn't know the certificate	OCSP 服務不認識該憑證

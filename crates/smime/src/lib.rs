@@ -25,6 +25,7 @@ mod kari;
 pub mod oids;
 #[cfg(not(target_arch = "wasm32"))]
 mod p12;
+pub mod revocation;
 mod sign;
 
 pub use cert::{CertInfo, Problem};

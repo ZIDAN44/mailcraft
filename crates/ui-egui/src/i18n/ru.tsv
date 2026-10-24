@@ -1090,3 +1090,27 @@ month	May	Май
 	Hide the subject of encrypted mail	Скрывать тему зашифрованных писем
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	В пути видно [...]; настоящая тема внутри, для получателей (защита заголовков).
 	Its subject and addresses were protected inside it too.	Тема и адреса тоже были защищены внутри.
+	Check whether certificates were withdrawn	Проверять, не отозваны ли сертификаты
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	При показе подписанного письма у центра, выдавшего сертификат, спрашивается, не отозвал ли он его. Так центр узнаёт, чью почту вы читаете
+	Asking its authority whether the certificate was withdrawn…	Центр сертификации проверяет, не отозван ли сертификат…
+	Its authority says the certificate wasn't withdrawn.	Центр сертификации сообщает, что сертификат не отозван.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	Не удалось проверить, отозван ли сертификат: {why}.
+	its authority withdrew its certificate on {date}	центр сертификации отозвал сертификат {date}
+	its certificate doesn't say where to ask	в сертификате не указано, где спросить
+	its authority's responder didn't answer	служба центра сертификации не ответила
+	its authority's list of withdrawn certificates couldn't be had	не удалось получить список отозванных сертификатов центра
+	the certificate's authority isn't known	центр, выдавший сертификат, неизвестен
+	the list of withdrawn certificates can't be read	список отозванных сертификатов не читается
+	the list isn't from the certificate's authority	список не от центра, выдавшего сертификат
+	the list's signature doesn't hold	подпись списка недействительна
+	the list is from the future	список датирован будущим
+	the list is out of date	список устарел
+	a certificate can't be read	сертификат не читается
+	the OCSP answer can't be read	ответ OCSP не читается
+	the OCSP responder didn't answer	служба OCSP не ответила
+	the OCSP answer is of another kind	ответ OCSP другого вида
+	the OCSP answer isn't signed by the certificate's authority	ответ OCSP не подписан центром, выдавшим сертификат
+	the OCSP answer is about another certificate	ответ OCSP относится к другому сертификату
+	the OCSP answer is from the future	ответ OCSP датирован будущим
+	the OCSP answer is out of date	ответ OCSP устарел
+	the OCSP responder doesn't know the certificate	служба OCSP не знает этот сертификат

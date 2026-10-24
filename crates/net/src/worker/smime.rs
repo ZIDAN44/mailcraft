@@ -2,9 +2,10 @@
 //! its own so it never waits behind a sync. The key and its chain live in the system's keychain
 //! only (`Credentials::set_secret`, under `smime`); the engine sees the certificate, never the key.
 
-use mailcraft_model::Private;
+use mailcraft_model::{Private, Revocation};
 use mailcraft_smime as smime;
 use serde::{Deserialize, Serialize};
+use smime::revocation::{self as rev, Status};
 
 use super::*;
 
@@ -132,6 +133,10 @@ impl Pool {
                 };
                 sink.emit(event);
             }
+            Job::CheckRevocation { chain } => {
+                let status = revocation(&chain, now(), &|r| crate::http::send_public(r).ok().filter(|a| a.ok()).map(|a| a.body));
+                sink.emit(Event::Revocation { cert: chain.first().cloned().unwrap_or_default(), status });
+            }
             _ => {}
         });
         if let Err(e) = spawned {
@@ -140,9 +145,94 @@ impl Pool {
     }
 }
 
+/// The largest list of withdrawn certificates fetched (a big authority's runs to megabytes).
+const CRL_MAX: usize = 16 << 20;
+const OCSP_MAX: usize = 64 << 10;
+/// Certificates of a chain asked about (the signer's and its issuers', not the root's).
+const ASKED_MAX: usize = 4;
+
+/// Whether a chain's certificates were withdrawn: each one's authority asked by OCSP, else by its
+/// CRL. The signer's answer is the chain's, unless one of its issuers was withdrawn. `fetch` makes
+/// the request (on the internet only) and gives back a successful answer's body.
+fn revocation(chain: &[Vec<u8>], now: i64, fetch: &dyn Fn(&crate::http::Request) -> Option<Vec<u8>>) -> Revocation {
+    let mut signer = None;
+    for pair in chain.windows(2).take(ASKED_MAX) {
+        let [cert, issuer] = pair else { continue };
+        match status_of(cert, issuer, now, fetch) {
+            Status::Revoked { at } => return Revocation::Revoked { at },
+            s if signer.is_none() => signer = Some(s),
+            _ => {}
+        }
+    }
+    match signer {
+        Some(Status::Good { until }) => Revocation::Good { until },
+        Some(Status::Unknown(why)) => Revocation::Unknown { why },
+        _ => Revocation::Unknown { why: "the certificate's authority isn't known".into() },
+    }
+}
+
+fn status_of(cert: &[u8], issuer: &[u8], now: i64, fetch: &dyn Fn(&crate::http::Request) -> Option<Vec<u8>>) -> Status {
+    let (crls, responders) = rev::points(cert);
+    let mut last = Status::Unknown("its certificate doesn't say where to ask".into());
+    if let Ok(req) = rev::ocsp_request(cert, issuer) {
+        for url in responders.iter().take(2) {
+            let r = crate::http::Request::post(url, "application/ocsp-request", req.clone(), OCSP_MAX).header("Accept", "application/ocsp-response");
+            last = match fetch(&r) {
+                Some(answer) => rev::ocsp_status(&answer, cert, issuer, now),
+                None => Status::Unknown("its authority's responder didn't answer".into()),
+            };
+            if !matches!(last, Status::Unknown(_)) {
+                return last;
+            }
+        }
+    }
+    for url in crls.iter().take(2) {
+        last = match fetch(&crate::http::Request::get(url, CRL_MAX)) {
+            Some(list) => rev::crl_status(&list, cert, issuer, now),
+            None => Status::Unknown("its authority's list of withdrawn certificates couldn't be had".into()),
+        };
+        if !matches!(last, Status::Unknown(_)) {
+            return last;
+        }
+    }
+    last
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn pem(name: &str) -> Vec<u8> {
+        der::pem::decode_vec(&testdata(name)).unwrap().1
+    }
+
+    /// The authority's answers as OpenSSL made them, served by a stand-in for the web.
+    #[test]
+    fn revocation_asks_the_responder_then_the_list() {
+        const NOW: i64 = 1_792_900_000;
+        let (ca, kim, lee) = (pem("ca.pem"), pem("rev-kim.pem"), pem("rev-lee.pem"));
+        let answers = |ocsp: bool, crl: bool| {
+            move |r: &crate::http::Request| -> Option<Vec<u8>> {
+                if r.url.starts_with("http://ocsp.") && ocsp {
+                    let lee_req = rev::ocsp_request(&pem("rev-lee.pem"), &pem("ca.pem")).unwrap();
+                    return Some(testdata(if r.body == lee_req { "rev-lee-ocsp.der" } else { "rev-kim-ocsp.der" }));
+                }
+                (r.url.starts_with("http://crl.") && crl).then(|| testdata("rev-ca-crl.der"))
+            }
+        };
+        for (ocsp, crl) in [(true, false), (false, true), (true, true)] {
+            let f = answers(ocsp, crl);
+            assert_eq!(revocation(&[lee.clone(), ca.clone()], NOW, &f), Revocation::Revoked { at: 1_792_850_401 }, "{ocsp} {crl}");
+            assert!(matches!(revocation(&[kim.clone(), ca.clone()], NOW, &f), Revocation::Good { .. }), "{ocsp} {crl}");
+        }
+        // Nothing answers: unknown, never withdrawn; a chain of one asks no one.
+        let none = answers(false, false);
+        assert!(matches!(revocation(&[lee.clone(), ca.clone()], NOW, &none), Revocation::Unknown { .. }));
+        assert!(matches!(revocation(std::slice::from_ref(&lee), NOW, &none), Revocation::Unknown { .. }));
+        // Kim's answer for anyone who asks: Lee's request gets "good" for Kim, which doesn't count.
+        let replay = |r: &crate::http::Request| r.url.starts_with("http://ocsp.").then(|| testdata("rev-kim-ocsp.der"));
+        assert!(matches!(revocation(&[lee, ca], NOW, &replay), Revocation::Unknown { .. }));
+    }
 
     fn testdata(name: &str) -> Vec<u8> {
         std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../smime/testdata").join(name)).unwrap()

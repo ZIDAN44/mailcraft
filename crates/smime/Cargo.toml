@@ -22,6 +22,8 @@ sha2 = { version = "0.10", features = ["oid"] }
 aes = "0.8"
 # AES key wrap (RFC 3394), for EC recipients' keys.
 aes-kw = "0.2"
+# OCSP requests and answers (RFC 6960), for revocation checks.
+x509-ocsp = { version = "0.2.1", features = ["builder"] }
 cbc = { version = "0.1", features = ["alloc"] }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
 des = "0.8"

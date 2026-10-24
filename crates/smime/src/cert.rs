@@ -44,6 +44,8 @@ pub enum Problem {
     OtherAddress(Vec<String>),
     /// Its key may not be used for signing mail (key usage or extended key usage).
     NotForEmail,
+    /// Its authority withdrew it, at this time ([`crate::revocation`]).
+    Revoked(i64),
 }
 
 pub(crate) fn parse(der_bytes: &[u8]) -> Result<Certificate, Error> {
@@ -252,7 +254,7 @@ fn pss_hash(alg: &spki::AlgorithmIdentifierOwned) -> Option<Hash> {
 }
 
 /// Bytes of the `tbsCertificate` exactly as the issuer signed them (not re-encoded).
-fn signed_part(cert: &[u8]) -> Option<&[u8]> {
+pub(crate) fn signed_part(cert: &[u8]) -> Option<&[u8]> {
     let (_, outer) = header(cert)?;
     let inner = cert.get(outer..)?;
     let (len, head) = header(inner)?;
@@ -279,6 +281,14 @@ fn header(b: &[u8]) -> Option<(usize, usize)> {
 /// Whether a certificate (DER) is a root: issued by itself.
 pub fn self_signed(cert: &[u8]) -> bool {
     parse(cert).is_ok_and(|c| same_name(&c.tbs_certificate.subject, &c.tbs_certificate.issuer))
+}
+
+/// Whether the certificate `issuer` (DER) signed `cert` (DER).
+pub(crate) fn issued_by(cert: &[u8], issuer: &[u8]) -> bool {
+    match (parse(cert), parse(issuer)) {
+        (Ok(c), Ok(i)) => same_name(&i.tbs_certificate.subject, &c.tbs_certificate.issuer) && issued(cert, &c, &i),
+        _ => false,
+    }
 }
 
 /// Whether `issuer` signed `cert` (both DER).
@@ -315,7 +325,14 @@ const CHAIN_MAX: usize = 8;
 /// `roots` through `others` (the certificates the message carried), every certificate on it in
 /// date and the ones above it authorities, made for email, and for that address. Empty: trusted.
 pub fn check(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now: i64, from: &str) -> Result<Vec<Problem>, Error> {
+    check_with_path(signer, others, roots, now, from).map(|(p, _)| p)
+}
+
+/// [`check`], and the chain it found: the signer first, each certificate's issuer after it, up to
+/// the trusted root when there is one (what revocation is checked along).
+pub fn check_with_path(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now: i64, from: &str) -> Result<(Vec<Problem>, Vec<Vec<u8>>), Error> {
     let leaf = parse(signer)?;
+    let mut path = vec![signer.to_vec()];
     let mut problems = Vec::new();
     // For this sender's mail.
     let from = from.trim().to_lowercase();
@@ -363,10 +380,11 @@ pub fn check(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now: i64, fro
             problems.push(p);
         }
         trusted = root;
+        path.push((*d).clone());
         current = ((*d).clone(), cand.clone());
     }
     if !trusted {
         problems.push(Problem::UnknownIssuer);
     }
-    Ok(problems)
+    Ok((problems, path))
 }

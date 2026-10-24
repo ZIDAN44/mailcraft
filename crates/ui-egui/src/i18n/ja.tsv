@@ -1087,3 +1087,27 @@ month	May	5月
 	Hide the subject of encrypted mail	暗号化メールの件名を隠す
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	途中では [...] と表示され、本当の件名は受信者向けに中に入っています (ヘッダー保護)。
 	Its subject and addresses were protected inside it too.	件名とアドレスも中で保護されていました。
+	Check whether certificates were withdrawn	証明書が取り消されたかどうかを確認する
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	署名付きメールを表示するとき、証明書の発行機関に取り消したかどうかを問い合わせます。発行機関には、だれのメールを読んでいるかが伝わります
+	Asking its authority whether the certificate was withdrawn…	証明書が取り消されたかどうかを発行機関に問い合わせています…
+	Its authority says the certificate wasn't withdrawn.	発行機関によると、証明書は取り消されていません。
+	Whether the certificate was withdrawn couldn't be checked: {why}.	証明書が取り消されたかどうかを確認できませんでした: {why}。
+	its authority withdrew its certificate on {date}	発行機関が {date} に証明書を取り消しました
+	its certificate doesn't say where to ask	証明書に問い合わせ先が書かれていません
+	its authority's responder didn't answer	発行機関の応答サービスが応答しませんでした
+	its authority's list of withdrawn certificates couldn't be had	発行機関の取り消し済み証明書の一覧を取得できませんでした
+	the certificate's authority isn't known	証明書の発行機関がわかりません
+	the list of withdrawn certificates can't be read	取り消し済み証明書の一覧を読み取れません
+	the list isn't from the certificate's authority	一覧が証明書の発行機関のものではありません
+	the list's signature doesn't hold	一覧の署名が正しくありません
+	the list is from the future	一覧の日付が未来になっています
+	the list is out of date	一覧が古くなっています
+	a certificate can't be read	証明書を読み取れません
+	the OCSP answer can't be read	OCSP の応答を読み取れません
+	the OCSP responder didn't answer	OCSP サービスが応答しませんでした
+	the OCSP answer is of another kind	OCSP の応答が別の種類です
+	the OCSP answer isn't signed by the certificate's authority	OCSP の応答が証明書の発行機関によって署名されていません
+	the OCSP answer is about another certificate	OCSP の応答は別の証明書についてのものです
+	the OCSP answer is from the future	OCSP の応答の日付が未来になっています
+	the OCSP answer is out of date	OCSP の応答が古くなっています
+	the OCSP responder doesn't know the certificate	OCSP サービスはこの証明書を知りません

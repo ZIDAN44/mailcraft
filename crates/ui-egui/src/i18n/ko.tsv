@@ -1090,3 +1090,27 @@ month	May	5월
 	Hide the subject of encrypted mail	암호화된 메일의 제목 숨기기
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	전송 중에는 [...]로 보이고, 실제 제목은 받는 사람을 위해 안에 들어 있습니다 (헤더 보호).
 	Its subject and addresses were protected inside it too.	제목과 주소도 안에서 보호되었습니다.
+	Check whether certificates were withdrawn	인증서가 철회되었는지 확인
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	서명된 메일을 표시할 때 인증서 발급 기관에 철회 여부를 묻습니다. 그러면 발급 기관은 누구의 메일을 읽고 있는지 알게 됩니다
+	Asking its authority whether the certificate was withdrawn…	인증서가 철회되었는지 발급 기관에 묻는 중…
+	Its authority says the certificate wasn't withdrawn.	발급 기관에 따르면 인증서는 철회되지 않았습니다.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	인증서 철회 여부를 확인할 수 없습니다: {why}.
+	its authority withdrew its certificate on {date}	발급 기관이 {date}에 인증서를 철회했습니다
+	its certificate doesn't say where to ask	인증서에 문의할 곳이 나와 있지 않습니다
+	its authority's responder didn't answer	발급 기관의 응답 서비스가 응답하지 않았습니다
+	its authority's list of withdrawn certificates couldn't be had	발급 기관의 철회된 인증서 목록을 받을 수 없습니다
+	the certificate's authority isn't known	인증서 발급 기관을 알 수 없습니다
+	the list of withdrawn certificates can't be read	철회된 인증서 목록을 읽을 수 없습니다
+	the list isn't from the certificate's authority	목록이 인증서 발급 기관의 것이 아닙니다
+	the list's signature doesn't hold	목록의 서명이 올바르지 않습니다
+	the list is from the future	목록의 날짜가 미래입니다
+	the list is out of date	목록이 오래되었습니다
+	a certificate can't be read	인증서를 읽을 수 없습니다
+	the OCSP answer can't be read	OCSP 응답을 읽을 수 없습니다
+	the OCSP responder didn't answer	OCSP 서비스가 응답하지 않았습니다
+	the OCSP answer is of another kind	OCSP 응답이 다른 종류입니다
+	the OCSP answer isn't signed by the certificate's authority	OCSP 응답이 인증서 발급 기관의 서명이 아닙니다
+	the OCSP answer is about another certificate	OCSP 응답이 다른 인증서에 대한 것입니다
+	the OCSP answer is from the future	OCSP 응답의 날짜가 미래입니다
+	the OCSP answer is out of date	OCSP 응답이 오래되었습니다
+	the OCSP responder doesn't know the certificate	OCSP 서비스가 이 인증서를 모릅니다

@@ -1,7 +1,7 @@
 //! The reading pane: how a message was protected (S/MIME), said above it in MailCraft's own
 //! colours, outside anything the message itself draws, so a message can't pass for signed.
 
-use mailcraft_engine::{Lock, Seal, Security, smime};
+use mailcraft_engine::{Lock, RevocationCheck, Seal, Security, smime};
 
 use super::*;
 
@@ -27,6 +27,7 @@ fn problem(s: &Session, p: &smime::Problem) -> String {
             )
         }
         smime::Problem::NotForEmail => tl!("its certificate isn't for signing email").to_string(),
+        smime::Problem::Revoked(at) => tf!("its authority withdrew its certificate on {date}", date = when(s, *at)),
     }
 }
 
@@ -90,7 +91,17 @@ pub(super) fn security_bar(s: &Session, t: &Tokens, ui: &mut Ui, sec: &Security)
         }
         h
     });
+    let checked = match &signed.revocation {
+        Some(RevocationCheck::Asking) => Some(tl!("Asking its authority whether the certificate was withdrawn…").to_string()),
+        Some(RevocationCheck::Good) => Some(tl!("Its authority says the certificate wasn't withdrawn.").to_string()),
+        Some(RevocationCheck::Unknown(why)) => Some(tf!("Whether the certificate was withdrawn couldn't be checked: {why}.", why = tl!(why))),
+        None => None,
+    };
     let weak = signed.weak.then(|| tl!("Signed with SHA-1, which no longer proves much.").to_string());
+    let weak = match (weak, checked) {
+        (Some(w), Some(c)) => Some(format!("{w}\n{c}")),
+        (w, c) => w.or(c),
+    };
     match &signed.seal {
         Seal::Trusted => {
             let issuer = signed.cert.as_ref().map(|c| c.issuer.clone()).unwrap_or_default();
@@ -106,11 +117,12 @@ pub(super) fn security_bar(s: &Session, t: &Tokens, ui: &mut Ui, sec: &Security)
         }
         Seal::Untrusted(problems) => {
             let why: Vec<String> = problems.iter().map(|p| problem(s, p)).collect();
+            let revoked = problems.iter().any(|p| matches!(p, smime::Problem::Revoked(_)));
             line(
                 ui,
                 t,
                 Icon::Seal,
-                t.warn,
+                if revoked { t.danger } else { t.warn },
                 tf!("Signed by {signer}, but {why}.", signer = who.unwrap_or_default(), why = why.join("; ")),
                 weak,
                 hover,

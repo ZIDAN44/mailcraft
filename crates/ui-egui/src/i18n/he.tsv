@@ -1086,3 +1086,27 @@ month	May	מאי
 	Hide the subject of encrypted mail	להסתיר את הנושא של דואר מוצפן
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	בדרך כתוב [...]; הנושא האמיתי נמצא בפנים, לנמענים (הגנת כותרות).
 	Its subject and addresses were protected inside it too.	גם הנושא והכתובות שלה היו מוגנים בתוכה.
+	Check whether certificates were withdrawn	לבדוק אם תעודות נשללו
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	כשמוצג דואר חתום, נשאלת הרשות שהנפיקה את התעודה אם שללה אותה. כך הרשות יודעת של מי הדואר שאתה קורא
+	Asking its authority whether the certificate was withdrawn…	שואלים את הרשות אם התעודה נשללה…
+	Its authority says the certificate wasn't withdrawn.	הרשות אומרת שהתעודה לא נשללה.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	לא ניתן היה לבדוק אם התעודה נשללה: {why}.
+	its authority withdrew its certificate on {date}	הרשות שללה את התעודה שלו ב־{date}
+	its certificate doesn't say where to ask	התעודה לא מציינת איפה לשאול
+	its authority's responder didn't answer	שירות הרשות לא ענה
+	its authority's list of withdrawn certificates couldn't be had	לא ניתן היה לקבל את רשימת התעודות שנשללו מהרשות
+	the certificate's authority isn't known	הרשות של התעודה אינה ידועה
+	the list of withdrawn certificates can't be read	לא ניתן לקרוא את רשימת התעודות שנשללו
+	the list isn't from the certificate's authority	הרשימה אינה מהרשות של התעודה
+	the list's signature doesn't hold	החתימה של הרשימה אינה תקפה
+	the list is from the future	הרשימה מתוארכת לעתיד
+	the list is out of date	הרשימה אינה עדכנית
+	a certificate can't be read	לא ניתן לקרוא תעודה
+	the OCSP answer can't be read	לא ניתן לקרוא את תשובת ה־OCSP
+	the OCSP responder didn't answer	שירות ה־OCSP לא ענה
+	the OCSP answer is of another kind	תשובת ה־OCSP מסוג אחר
+	the OCSP answer isn't signed by the certificate's authority	תשובת ה־OCSP אינה חתומה על ידי הרשות של התעודה
+	the OCSP answer is about another certificate	תשובת ה־OCSP עוסקת בתעודה אחרת
+	the OCSP answer is from the future	תשובת ה־OCSP מתוארכת לעתיד
+	the OCSP answer is out of date	תשובת ה־OCSP אינה עדכנית
+	the OCSP responder doesn't know the certificate	שירות ה־OCSP אינו מכיר את התעודה

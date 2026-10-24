@@ -161,6 +161,12 @@ pub fn get_public(url: &str, max: usize) -> Result<Response> {
     send_to(&Request::get(url, max), true)
 }
 
+/// Send a request to the internet only, as [`get_public`]: an address a message or a certificate
+/// names never reaches this computer or its network.
+pub fn send_public(req: &Request) -> Result<Response> {
+    send_to(req, true)
+}
+
 fn send_to(req: &Request, public_only: bool) -> Result<Response> {
     let mut url = Url::parse(&req.url)?;
     for _ in 0..=MAX_REDIRECTS {

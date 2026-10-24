@@ -13,6 +13,10 @@ use mailcraft_smime as smime;
 
 use super::*;
 
+mod revocation;
+pub use revocation::RevocationCheck;
+pub(crate) use revocation::Revocations;
+
 /// An account's S/MIME settings (the account document `smime.json`).
 pub const SMIME_DOC: &str = "smime.json";
 
@@ -87,6 +91,8 @@ pub struct SignedBy {
     pub at: Option<i64>,
     /// Made with SHA-1.
     pub weak: bool,
+    /// Whether its authority withdrew its certificate, when asked (File › Options › Safety).
+    pub revocation: Option<RevocationCheck>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -305,8 +311,9 @@ impl Session {
         match smime::verify(cms, content) {
             Ok((signed, _)) => {
                 let roots = self.anchors();
-                let problems = smime::cert::check(&signed.signer, &signed.certs, &roots, self.clock.now, from)
-                    .unwrap_or_else(|_| vec![smime::Problem::UnknownIssuer]);
+                let (mut problems, path) = smime::cert::check_with_path(&signed.signer, &signed.certs, &roots, self.clock.now, from)
+                    .unwrap_or_else(|_| (vec![smime::Problem::UnknownIssuer], Vec::new()));
+                let revocation = self.revocation_of(&path, &mut problems);
                 let for_sender = !problems.iter().any(|p| matches!(p, smime::Problem::OtherAddress(_) | smime::Problem::NotForEmail));
                 if for_sender && !from.is_empty() {
                     self.remember_cert(account, from, &signed);
@@ -316,6 +323,7 @@ impl Session {
                     cert: smime::cert::info(&signed.signer).ok(),
                     at: signed.signed_at,
                     weak: signed.weak,
+                    revocation,
                 }
             }
             Err(e) => SignedBy {
@@ -326,6 +334,7 @@ impl Session {
                 cert: None,
                 at: None,
                 weak: false,
+                revocation: None,
             },
         }
     }
@@ -461,15 +470,22 @@ impl Session {
                     }
                 }
                 // Shown again, now with what was inside.
-                let shown = self.reading.as_ref().is_some_and(|r| r.key == key) || self.windows.iter().any(|w| w.key == key);
-                if shown && let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(&key)) {
-                    for w in self.windows.iter_mut().filter(|w| w.key == key) {
-                        w.parsed = None;
-                    }
-                    self.show_body(&key, &raw);
-                }
+                self.show_again(&key);
             }
+            Event::Revocation { cert, status } => self.heard_revocation(cert, status),
             _ => {}
+        }
+    }
+
+    /// A message shown (in the reading pane or a window of its own) shown again, its protection
+    /// taken off and checked anew.
+    fn show_again(&mut self, key: &MessageKey) {
+        let shown = self.reading.as_ref().is_some_and(|r| r.key == *key) || self.windows.iter().any(|w| w.key == *key);
+        if shown && let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(key)) {
+            for w in self.windows.iter_mut().filter(|w| w.key == *key) {
+                w.parsed = None;
+            }
+            self.show_body(key, &raw);
         }
     }
 

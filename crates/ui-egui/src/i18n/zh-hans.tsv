@@ -1087,3 +1087,27 @@ month	May	5月
 	Hide the subject of encrypted mail	隐藏加密邮件的主题
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	途中显示为 [...]；真正的主题在里面，只给收件人看（标头保护）。
 	Its subject and addresses were protected inside it too.	它的主题和地址也在里面受到了保护。
+	Check whether certificates were withdrawn	检查证书是否已被吊销
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	显示签名邮件时，会询问证书的颁发机构是否已吊销该证书。颁发机构因此会知道你在读谁的邮件
+	Asking its authority whether the certificate was withdrawn…	正在询问颁发机构证书是否已被吊销…
+	Its authority says the certificate wasn't withdrawn.	颁发机构表示该证书未被吊销。
+	Whether the certificate was withdrawn couldn't be checked: {why}.	无法检查证书是否已被吊销：{why}。
+	its authority withdrew its certificate on {date}	颁发机构已于 {date} 吊销其证书
+	its certificate doesn't say where to ask	证书未注明向何处查询
+	its authority's responder didn't answer	颁发机构的应答服务没有回应
+	its authority's list of withdrawn certificates couldn't be had	无法获取颁发机构的吊销证书列表
+	the certificate's authority isn't known	证书的颁发机构未知
+	the list of withdrawn certificates can't be read	无法读取吊销证书列表
+	the list isn't from the certificate's authority	该列表不是证书颁发机构发布的
+	the list's signature doesn't hold	列表的签名无效
+	the list is from the future	列表的日期在未来
+	the list is out of date	列表已过期
+	a certificate can't be read	无法读取证书
+	the OCSP answer can't be read	无法读取 OCSP 应答
+	the OCSP responder didn't answer	OCSP 服务没有回应
+	the OCSP answer is of another kind	OCSP 应答属于其他类型
+	the OCSP answer isn't signed by the certificate's authority	OCSP 应答不是证书颁发机构签名的
+	the OCSP answer is about another certificate	OCSP 应答针对的是另一张证书
+	the OCSP answer is from the future	OCSP 应答的日期在未来
+	the OCSP answer is out of date	OCSP 应答已过期
+	the OCSP responder doesn't know the certificate	OCSP 服务不认识该证书

@@ -1091,3 +1091,27 @@ month	May	Mai
 	Hide the subject of encrypted mail	Betreff verschlüsselter Mails verbergen
 	On the way it reads [...]; the real one is inside, for its recipients (header protection).	Unterwegs steht dort [...]; der echte steht innen, für die Empfänger (Header-Schutz).
 	Its subject and addresses were protected inside it too.	Betreff und Adressen waren darin ebenfalls geschützt.
+	Check whether certificates were withdrawn	Prüfen, ob Zertifikate zurückgezogen wurden
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	Wird signierte Mail angezeigt, wird die Stelle, die das Zertifikat ausgestellt hat, gefragt, ob sie es zurückgezogen hat. Diese Stelle erfährt so, wessen Mail Sie lesen
+	Asking its authority whether the certificate was withdrawn…	Die ausstellende Stelle wird gefragt, ob das Zertifikat zurückgezogen wurde…
+	Its authority says the certificate wasn't withdrawn.	Laut der ausstellenden Stelle wurde das Zertifikat nicht zurückgezogen.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	Ob das Zertifikat zurückgezogen wurde, konnte nicht geprüft werden: {why}.
+	its authority withdrew its certificate on {date}	die ausstellende Stelle hat das Zertifikat am {date} zurückgezogen
+	its certificate doesn't say where to ask	das Zertifikat nennt keine Stelle zum Nachfragen
+	its authority's responder didn't answer	der Dienst der ausstellenden Stelle hat nicht geantwortet
+	its authority's list of withdrawn certificates couldn't be had	die Liste zurückgezogener Zertifikate der ausstellenden Stelle war nicht zu bekommen
+	the certificate's authority isn't known	die ausstellende Stelle des Zertifikats ist unbekannt
+	the list of withdrawn certificates can't be read	die Liste zurückgezogener Zertifikate ist nicht lesbar
+	the list isn't from the certificate's authority	die Liste stammt nicht von der ausstellenden Stelle
+	the list's signature doesn't hold	die Signatur der Liste ist ungültig
+	the list is from the future	die Liste ist in die Zukunft datiert
+	the list is out of date	die Liste ist veraltet
+	a certificate can't be read	ein Zertifikat ist nicht lesbar
+	the OCSP answer can't be read	die OCSP-Antwort ist nicht lesbar
+	the OCSP responder didn't answer	der OCSP-Dienst hat nicht geantwortet
+	the OCSP answer is of another kind	die OCSP-Antwort ist von anderer Art
+	the OCSP answer isn't signed by the certificate's authority	die OCSP-Antwort ist nicht von der ausstellenden Stelle signiert
+	the OCSP answer is about another certificate	die OCSP-Antwort betrifft ein anderes Zertifikat
+	the OCSP answer is from the future	die OCSP-Antwort ist in die Zukunft datiert
+	the OCSP answer is out of date	die OCSP-Antwort ist veraltet
+	the OCSP responder doesn't know the certificate	der OCSP-Dienst kennt das Zertifikat nicht
