@@ -1084,3 +1084,6 @@ month	May	5月
 	this account has no certificate to decrypt it with (File › Info › Security)	このアカウントには復号に使う証明書がありません (ファイル › 情報 › セキュリティ)
 	it can't be decrypted with your certificate	あなたの証明書では復号できません
 	its account is gone	そのアカウントはもうありません
+	Hide the subject of encrypted mail	暗号化メールの件名を隠す
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	途中では [...] と表示され、本当の件名は受信者向けに中に入っています (ヘッダー保護)。
+	Its subject and addresses were protected inside it too.	件名とアドレスも中で保護されていました。

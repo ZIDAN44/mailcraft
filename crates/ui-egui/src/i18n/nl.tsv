@@ -1083,3 +1083,6 @@ month	May	mei
 	this account has no certificate to decrypt it with (File › Info › Security)	dit account heeft geen certificaat om het te ontsleutelen (Bestand › Info › Beveiliging)
 	it can't be decrypted with your certificate	het kan niet met uw certificaat worden ontsleuteld
 	its account is gone	het account bestaat niet meer
+	Hide the subject of encrypted mail	Het onderwerp van versleutelde mail verbergen
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	Onderweg staat er [...]; het echte staat binnenin, voor de ontvangers (headerbescherming).
+	Its subject and addresses were protected inside it too.	Het onderwerp en de adressen waren er ook binnenin beschermd.

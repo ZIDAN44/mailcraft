@@ -1084,3 +1084,6 @@ month	May	5月
 	this account has no certificate to decrypt it with (File › Info › Security)	此帐户没有可用于解密的证书（文件 › 信息 › 安全）
 	it can't be decrypted with your certificate	无法用你的证书解密
 	its account is gone	其帐户已不存在
+	Hide the subject of encrypted mail	隐藏加密邮件的主题
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	途中显示为 [...]；真正的主题在里面，只给收件人看（标头保护）。
+	Its subject and addresses were protected inside it too.	它的主题和地址也在里面受到了保护。

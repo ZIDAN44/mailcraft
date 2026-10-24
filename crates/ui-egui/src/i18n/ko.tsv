@@ -1087,3 +1087,6 @@ month	May	5월
 	this account has no certificate to decrypt it with (File › Info › Security)	이 계정에는 해독할 인증서가 없습니다 (파일 › 정보 › 보안)
 	it can't be decrypted with your certificate	내 인증서로는 해독할 수 없습니다
 	its account is gone	해당 계정이 더 이상 없습니다
+	Hide the subject of encrypted mail	암호화된 메일의 제목 숨기기
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	전송 중에는 [...]로 보이고, 실제 제목은 받는 사람을 위해 안에 들어 있습니다 (헤더 보호).
+	Its subject and addresses were protected inside it too.	제목과 주소도 안에서 보호되었습니다.

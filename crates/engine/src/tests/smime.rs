@@ -225,3 +225,25 @@ fn the_root_that_came_with_ones_own_certificate_is_trusted() {
     assert!(!enc.has_attachments);
     done(s);
 }
+
+/// A message whose header fields are protected inside its signature (RFC 9788): the subject and
+/// sender shown are the ones inside, and it says so.
+#[test]
+fn protected_headers_are_the_ones_shown() {
+    let mut s = with_certificate("smime-hp");
+    let raw =
+        b"From: Riley <riley@studio.example>\r\nTo: riley@studio.example\r\nSubject: The real subject\r\nDate: Sat, 24 Oct 2026 09:00:00 +0000\r\n\
+Message-ID: <hp1@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nInside.\r\n";
+    let (outer, entity) = mailcraft_mime::smime::entity_of(raw);
+    let (_, protected) = mailcraft_mime::smime::protect_headers(&outer, &entity, false, false);
+    let signature = smime::sign(&protected, &riley(), LATER, &mut rand_core::OsRng).unwrap();
+    // On the way, someone changed the subject outside the signature.
+    let changed = String::from_utf8_lossy(&outer).replace("The real subject", "Changed on the way").into_bytes();
+    let sent = mailcraft_mime::smime::signed_message(&changed, &protected, &signature, "=_t1");
+    open_raw(&mut s, 9351, &sent);
+    let sec = security(&s);
+    assert!(sec.headers);
+    assert_eq!(sec.signed.unwrap().seal, Seal::Trusted);
+    assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().subject, "The real subject");
+    done(s);
+}

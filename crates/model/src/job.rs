@@ -242,8 +242,10 @@ pub enum Job {
     ForgetIdentity { account: AccountConfig },
     /// Sign (`sign`) and/or encrypt (to `encrypt_to`, certificates as DER, the account's own
     /// among them; empty: not encrypted) a message about to be sent, with the account's key;
-    /// `gcm`: AES-GCM, every recipient reads it. Answered by [`Event::Protected`].
-    Protect { account: AccountConfig, id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, gcm: bool },
+    /// `gcm`: AES-GCM, every recipient reads it. Its header fields go inside too (RFC 9788);
+    /// encrypted with `hide_subject`, the Subject outside is `[...]`. Answered by
+    /// [`Event::Protected`].
+    Protect { account: AccountConfig, id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, gcm: bool, hide_subject: bool },
     /// Decrypt an encrypted message (its `smime.p7m`, `cms`) with the account's key. Answered by
     /// [`Event::Decrypted`].
     Decrypt { account: AccountConfig, key: MessageKey, cms: Vec<u8> },

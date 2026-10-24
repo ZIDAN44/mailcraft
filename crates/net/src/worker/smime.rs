@@ -49,10 +49,19 @@ fn now() -> i64 {
 }
 
 /// `raw` signed and/or encrypted with `id`, as it will be sent.
-pub(crate) fn protect(raw: &[u8], id: &smime::Identity, sign: bool, encrypt_to: &[Vec<u8>], gcm: bool) -> std::result::Result<Vec<u8>, String> {
+pub(crate) fn protect(
+    raw: &[u8],
+    id: &smime::Identity,
+    sign: bool,
+    encrypt_to: &[Vec<u8>],
+    gcm: bool,
+    hide_subject: bool,
+) -> std::result::Result<Vec<u8>, String> {
     use rand_core::RngCore as _;
     let mut rng = rand_core::OsRng;
-    let (outer, mut entity) = mailcraft_mime::smime::entity_of(raw);
+    let (outer, entity) = mailcraft_mime::smime::entity_of(raw);
+    // The header fields inside as well, where nothing on the way can change them (RFC 9788).
+    let (outer, mut entity) = mailcraft_mime::smime::protect_headers(&outer, &entity, !encrypt_to.is_empty(), hide_subject);
     let mut message = mailcraft_mime::smime::with_entity(raw, &entity);
     if sign {
         if !mailcraft_mime::smime::safe_to_sign(&entity) {
@@ -77,7 +86,7 @@ impl Pool {
     pub(super) fn seal(&self, account: &AccountConfig, raw: Vec<u8>) -> Vec<u8> {
         let sealed = kept(self.creds.as_ref(), account).and_then(|me| {
             let own = me.chain.first().cloned().ok_or_else(|| "the certificate is missing".to_string())?;
-            protect(&raw, &me, false, &[own], true)
+            protect(&raw, &me, false, &[own], true, false)
         });
         match sealed {
             Ok(s) => s,
@@ -107,8 +116,8 @@ impl Pool {
                 sink.emit(Event::Identity { account: account.id, chain, error });
             }
             Job::ForgetIdentity { account } => creds.delete_secret(&account, SECRET),
-            Job::Protect { account, id, raw, sign, encrypt_to, gcm } => {
-                let done = kept(creds.as_ref(), &account).and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm));
+            Job::Protect { account, id, raw, sign, encrypt_to, gcm, hide_subject } => {
+                let done = kept(creds.as_ref(), &account).and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
                 let (raw, error) = match done {
                     Ok(r) => (Some(Private(r)), None),
                     Err(e) => (None, Some(e)),
@@ -147,20 +156,27 @@ mod tests {
         let raw = b"From: Riley <riley@studio.example>\r\nTo: riley@studio.example\r\nSubject: Plan\r\nDate: Sat, 24 Oct 2026 09:00:00 +0000\r\n\
 MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nThe plan =E2=9C=93\r\n";
         for gcm in [false, true] {
-            let sent = protect(raw, &riley, true, &[riley.chain[0].clone()], gcm).unwrap();
+            let sent = protect(raw, &riley, true, &[riley.chain[0].clone()], gcm, true).unwrap();
             let text = String::from_utf8_lossy(&sent);
-            assert!(text.contains("Subject: Plan") && !text.contains("The plan"), "the subject shows, the text doesn't");
+            assert!(
+                text.contains("Subject: [...]") && !text.contains("Subject: Plan") && !text.contains("The plan"),
+                "neither the subject nor the text shows"
+            );
             let mailcraft_mime::smime::Protection::Encrypted(cms) = mailcraft_mime::smime::protection(&sent) else { panic!("{text}") };
             let (entity, authenticated) = smime::decrypt(&cms, &riley, &mut rand_core::OsRng).unwrap();
             assert_eq!(authenticated, gcm);
             let inner = mailcraft_mime::smime::with_entity(&sent, &entity);
             let mailcraft_mime::smime::Protection::Signed { content, signature } = mailcraft_mime::smime::protection(&inner) else { panic!() };
             let (signed, _) = smime::verify(&signature, Some(&content)).unwrap();
+            // The subject is inside the signed part, protected (RFC 9788's cryptographic payload).
+            assert!(mailcraft_mime::smime::with_entity_protected(&inner, &content).1);
             assert_eq!(signed.signer, riley.chain[0]);
-            assert!(mailcraft_mime::parse(&mailcraft_mime::smime::with_entity(&inner, &content)).unwrap().text.contains("The plan \u{2713}"));
+            let read = mailcraft_mime::parse(&mailcraft_mime::smime::with_entity(&inner, &content)).unwrap();
+            assert!(read.text.contains("The plan \u{2713}"), "{}", read.text);
+            assert_eq!(read.subject, "Plan", "the real subject, from inside");
         }
         // Signed only: readable by anyone, the signature over its text.
-        let signed = protect(raw, &riley, true, &[], false).unwrap();
+        let signed = protect(raw, &riley, true, &[], false, true).unwrap();
         assert!(matches!(mailcraft_mime::smime::protection(&signed), mailcraft_mime::smime::Protection::Signed { .. }));
     }
 

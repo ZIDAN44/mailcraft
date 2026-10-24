@@ -169,12 +169,106 @@ pub fn outer_headers(raw: &[u8]) -> Vec<u8> {
 /// `raw` with its content replaced by `entity` (a MIME entity: its own `Content-*` headers, a
 /// blank line, its body), as a reader shows what a signature or encryption held.
 pub fn with_entity(raw: &[u8], entity: &[u8]) -> Vec<u8> {
-    let mut out = outer_headers(raw);
-    out.extend_from_slice(b"MIME-Version: 1.0\r\n");
+    with_entity_protected(raw, entity).0
+}
+
+/// An entity's header block and body (an entity without headers starts with its blank line).
+fn entity_parts(entity: &[u8]) -> (&[u8], &[u8]) {
+    if let Some(body) = entity.strip_prefix(b"\r\n") {
+        return (&[], body);
+    }
+    split(entity)
+}
+
+/// The value of parameter `name` in a header field (`Content-Type: text/plain; hp="cipher"`),
+/// lower-case, quotes taken off.
+fn parameter(field: &[u8], name: &str) -> Option<String> {
+    let text = String::from_utf8_lossy(field).replace("\r\n", " ");
+    text.split(';').skip(1).find_map(|p| {
+        let (k, v) = p.split_once('=')?;
+        k.trim().eq_ignore_ascii_case(name).then(|| v.trim().trim_matches('"').to_ascii_lowercase())
+    })
+}
+
+/// [`with_entity`], and whether `entity` carried its message's header fields (header protection,
+/// RFC 9788: `hp=` on its `Content-Type`). Those then replace the outer ones, which a server or
+/// anyone on the way could have changed (or, for encrypted mail, were left `[...]`); `HP-Outer`
+/// fields, and the Legacy Display part written for programs that don't read it, aren't shown.
+/// Without `hp=`, header fields inside other than `Content-*` are ignored.
+pub fn with_entity_protected(raw: &[u8], entity: &[u8]) -> (Vec<u8>, bool) {
     let entity = crlf(entity);
-    // An entity without headers starts with its blank line already.
-    out.extend_from_slice(&entity);
-    out
+    let (head, body) = entity_parts(&entity);
+    let inner = fields(head);
+    let content_type = inner.iter().find(|(n, _)| n == "content-type").map(|(_, f)| f.as_slice()).unwrap_or_default();
+    let protected = parameter(content_type, "hp").is_some_and(|v| v == "clear" || v == "cipher");
+    let names: Vec<&str> =
+        inner.iter().map(|(n, _)| n.as_str()).filter(|n| !n.starts_with("content-") && *n != "hp-outer" && *n != "mime-version").collect();
+    let mut out = Vec::new();
+    let raw = crlf(raw);
+    for (name, f) in fields(split(&raw).0) {
+        if name.starts_with("content-") || name == "mime-version" || (protected && names.contains(&name.as_str())) {
+            continue;
+        }
+        out.extend_from_slice(&f);
+        out.extend_from_slice(b"\r\n");
+    }
+    if protected {
+        for (_, f) in inner.iter().filter(|(n, _)| !n.starts_with("content-") && n != "hp-outer" && n != "mime-version") {
+            out.extend_from_slice(f);
+            out.extend_from_slice(b"\r\n");
+        }
+    }
+    out.extend_from_slice(b"MIME-Version: 1.0\r\n");
+    for (_, f) in inner.iter().filter(|(n, _)| n.starts_with("content-")) {
+        out.extend_from_slice(f);
+        out.extend_from_slice(b"\r\n");
+    }
+    if inner.iter().all(|(n, _)| !n.starts_with("content-")) {
+        out.extend_from_slice(b"Content-Type: text/plain; charset=us-ascii\r\n");
+    }
+    out.extend_from_slice(b"\r\n");
+    let body = if protected { without_legacy_display(content_type, body) } else { body.to_vec() };
+    out.extend_from_slice(&body);
+    (out, protected)
+}
+
+/// A multipart body without its Legacy Display part (the first part, marked
+/// `hp-legacy-display="1"`: the protected subject repeated for programs that don't read header
+/// protection, RFC 9788 §4.5.3).
+fn without_legacy_display(content_type: &[u8], body: &[u8]) -> Vec<u8> {
+    let Some(boundary) =
+        parameter(content_type, "boundary").filter(|_| String::from_utf8_lossy(content_type).to_ascii_lowercase().contains("multipart/"))
+    else {
+        return body.to_vec();
+    };
+    // The boundary as written (parameter() lower-cases it).
+    let ct = String::from_utf8_lossy(content_type).to_string();
+    let written = ct
+        .split(';')
+        .find_map(|p| {
+            p.split_once('=').filter(|(k, _)| k.trim().eq_ignore_ascii_case("boundary")).map(|(_, v)| v.trim().trim_matches('"').to_string())
+        })
+        .unwrap_or(boundary);
+    let d = format!("--{written}");
+    let starts: Vec<usize> = {
+        let mut v = Vec::new();
+        let mut from = 0;
+        while let Some(i) = find(body, d.as_bytes(), from) {
+            if i == 0 || body.get(i.saturating_sub(2)..i) == Some(b"\r\n") {
+                v.push(i);
+            }
+            from = i + d.len();
+        }
+        v
+    };
+    let (Some(&first), Some(&second)) = (starts.first(), starts.get(1)) else { return body.to_vec() };
+    let part = body.get(first..second).unwrap_or_default();
+    let (part_head, _) = split(part.get(d.len()..).map(|p| p.strip_prefix(b"\r\n").unwrap_or(p)).unwrap_or_default());
+    let marked = fields(part_head).iter().any(|(n, f)| n == "content-type" && parameter(f, "hp-legacy-display").as_deref() == Some("1"));
+    if !marked {
+        return body.to_vec();
+    }
+    [body.get(..first).unwrap_or_default(), body.get(second..).unwrap_or_default()].concat()
 }
 
 /// A message (as `crate::build` makes it) split for protecting: its describing header fields,
@@ -195,6 +289,116 @@ pub fn entity_of(raw: &[u8]) -> (Vec<u8>, Vec<u8>) {
     entity.extend_from_slice(b"\r\n");
     entity.extend_from_slice(body);
     (outer_headers(&raw), entity)
+}
+
+/// A header field's value, decoded (`=?utf-8?…?=` words as text).
+fn field_value(field: &[u8]) -> String {
+    let mut m = field.to_vec();
+    m.extend_from_slice(b"\r\n\r\n");
+    crate::parse(&m).map(|p| p.subject).unwrap_or_default()
+}
+
+/// Quoted-printable for a short text (RFC 2045 §6.7): 7-bit, lines under 76.
+fn quoted_printable(text: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    for line in text.split('\n') {
+        let mut len = 0;
+        let bytes = line.trim_end_matches('\r').as_bytes();
+        for (i, &b) in bytes.iter().enumerate() {
+            let last = i + 1 == bytes.len();
+            let plain = (b' '..=b'~').contains(&b) && b != b'=' && !(last && b == b' ');
+            let piece = if plain { vec![b] } else { format!("={b:02X}").into_bytes() };
+            if len + piece.len() > 75 {
+                out.extend_from_slice(b"=\r\n");
+                len = 0;
+            }
+            len += piece.len();
+            out.extend(piece);
+        }
+        out.extend_from_slice(b"\r\n");
+    }
+    out
+}
+
+/// Header protection (RFC 9788) for a message about to be signed (`hp="clear"`) or encrypted
+/// (`hp="cipher"`): `outer` (its describing header fields) written into `entity` too, where the
+/// signature or encryption covers them. Encrypted with `hide_subject` (the RFC's default policy,
+/// `hcp_baseline`), the Subject outside becomes `[...]` and Comments and Keywords go; `HP-Outer`
+/// fields inside say what was left outside, and a Legacy Display part repeats the subject for
+/// programs that don't read header protection. Returns the outer fields and the entity to protect.
+pub fn protect_headers(outer: &[u8], entity: &[u8], encrypted: bool, hide_subject: bool) -> (Vec<u8>, Vec<u8>) {
+    let entity = crlf(entity);
+    let (head, body) = entity_parts(&entity);
+    let content: Vec<(String, Vec<u8>)> = fields(head).into_iter().filter(|(n, _)| n.starts_with("content-")).collect();
+    let given = fields(&crlf(outer));
+    let mut new_outer = Vec::new();
+    let mut hp_outer = Vec::new();
+    let mut hidden_subject = None;
+    for (name, f) in &given {
+        let shown: Vec<u8> = match name.as_str() {
+            "subject" if encrypted && hide_subject => {
+                hidden_subject = Some(field_value(f));
+                b"Subject: [...]".to_vec()
+            }
+            "comments" | "keywords" if encrypted && hide_subject => continue,
+            _ => f.clone(),
+        };
+        new_outer.extend_from_slice(&shown);
+        new_outer.extend_from_slice(b"\r\n");
+        if encrypted {
+            hp_outer.push([b"HP-Outer: ".as_slice(), &shown].concat());
+        }
+    }
+    let hp = if encrypted { "cipher" } else { "clear" };
+    let mut out = Vec::new();
+    for (_, f) in &given {
+        out.extend_from_slice(f);
+        out.extend_from_slice(b"\r\n");
+    }
+    for f in &hp_outer {
+        out.extend_from_slice(f);
+        out.extend_from_slice(b"\r\n");
+    }
+    match hidden_subject.filter(|s| !s.trim().is_empty()) {
+        // The content becomes the second part of a multipart/mixed, after the Legacy Display part.
+        Some(subject) => {
+            let seed: u64 = entity.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3));
+            let boundary = format!("=_hp{seed:016x}");
+            out.extend_from_slice(format!("Content-Type: multipart/mixed; boundary=\"{boundary}\"; hp=\"{hp}\"\r\n\r\n").as_bytes());
+            out.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            out.extend_from_slice(
+                b"Content-Type: text/plain; charset=utf-8; hp-legacy-display=\"1\"\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n",
+            );
+            out.extend(quoted_printable(&format!("Subject: {subject}\n")));
+            out.extend_from_slice(format!("\r\n--{boundary}\r\n").as_bytes());
+            for (_, f) in &content {
+                out.extend_from_slice(f);
+                out.extend_from_slice(b"\r\n");
+            }
+            out.extend_from_slice(b"\r\n");
+            out.extend_from_slice(body);
+            out.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        }
+        None => {
+            let mut has_type = false;
+            for (name, f) in &content {
+                if name == "content-type" {
+                    has_type = true;
+                    out.extend_from_slice(f);
+                    out.extend_from_slice(format!("; hp=\"{hp}\"").as_bytes());
+                } else {
+                    out.extend_from_slice(f);
+                }
+                out.extend_from_slice(b"\r\n");
+            }
+            if !has_type {
+                out.extend_from_slice(format!("Content-Type: text/plain; charset=us-ascii; hp=\"{hp}\"\r\n").as_bytes());
+            }
+            out.extend_from_slice(b"\r\n");
+            out.extend_from_slice(body);
+        }
+    }
+    (new_outer, out)
 }
 
 /// Whether `entity` goes through any mail server unchanged: 7-bit, no line over 998 bytes, no
@@ -415,6 +619,43 @@ hi"
             ),
             Smime::None
         );
+    }
+
+    /// Header protection (RFC 9788) round trip: what's written protected reads back as the
+    /// message's own, the Legacy Display part unseen, and a stray header inside without `hp=`
+    /// changes nothing.
+    #[test]
+    fn protected_headers_read_back_as_the_messages() {
+        let raw = "From: Riley <riley@studio.example>\r\nTo: ana@posteo.example\r\nSubject: =?utf-8?q?Caf=C3=A9_plans?=\r\nKeywords: secret\r\n\
+MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe plan.\r\n";
+        let (outer, entity) = entity_of(raw.as_bytes());
+        // Encrypted, the subject hidden outside.
+        let (out_outer, protected) = protect_headers(&outer, &entity, true, true);
+        let out_outer = String::from_utf8_lossy(&out_outer).to_string();
+        assert!(out_outer.contains("Subject: [...]") && !out_outer.contains("Keywords") && out_outer.contains("From: Riley"), "{out_outer}");
+        let inside = String::from_utf8_lossy(&protected).to_string();
+        assert!(
+            inside.contains("HP-Outer: Subject: [...]") && inside.contains("hp=\"cipher\"") && inside.contains("hp-legacy-display=\"1\""),
+            "{inside}"
+        );
+        assert!(safe_to_sign(&protected), "it can be signed as it is");
+        // What a reader sees once it's decrypted: the real subject, the text alone.
+        let sent = encrypted_message(out_outer.as_bytes(), &[1, 2, 3], false);
+        let (back, was) = with_entity_protected(&sent, &protected);
+        assert!(was);
+        let p = crate::parse(&back).unwrap_or_default();
+        assert_eq!(p.subject, "Caf\u{e9} plans");
+        assert_eq!(p.text.trim(), "The plan.", "the Legacy Display part isn't shown");
+        // Signed only: everything stays outside as it was, and inside too.
+        let (o2, e2) = protect_headers(&outer, &entity, false, true);
+        assert!(String::from_utf8_lossy(&o2).contains("=?utf-8?q?Caf=C3=A9_plans?="));
+        assert!(String::from_utf8_lossy(&e2).contains("hp=\"clear\""));
+        // Someone's header fields inside an entity without hp= are no one's.
+        let forged = b"From: Boss <boss@posteo.example>\r\nContent-Type: text/plain\r\n\r\nPay me.\r\n";
+        let (back, was) = with_entity_protected(raw.as_bytes(), forged);
+        assert!(!was);
+        assert_eq!(crate::parse(&back).unwrap_or_default().from.email, "riley@studio.example");
+        assert!(String::from_utf8_lossy(&quoted_printable("a\u{e9}= ")).contains("a=C3=A9=3D=20"));
     }
 
     #[test]

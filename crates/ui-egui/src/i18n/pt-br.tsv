@@ -1088,3 +1088,6 @@ month	May	maio
 	this account has no certificate to decrypt it with (File › Info › Security)	esta conta não tem certificado para descriptografá-la (Arquivo › Informações › Segurança)
 	it can't be decrypted with your certificate	não dá para descriptografá-la com seu certificado
 	its account is gone	a conta dela não existe mais
+	Hide the subject of encrypted mail	Ocultar o assunto de e-mails criptografados
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	No caminho aparece [...]; o verdadeiro vai dentro, para os destinatários (proteção de cabeçalhos).
+	Its subject and addresses were protected inside it too.	O assunto e os endereços também estavam protegidos dentro dela.

@@ -64,6 +64,19 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                 }
             },
         );
+        setting_row(
+            ui,
+            t,
+            false,
+            name(t, tl!("Hide the subject of encrypted mail")),
+            Some(note(t, tl!("On the way it reads [...]; the real one is inside, for its recipients (header protection)."))),
+            |ui| {
+                let mut on = !settings.keep_subject;
+                if widgets::switch(ui, t, &mut on, tl!("Hide the subject of encrypted mail")).changed() {
+                    acts.push(Action::Run("security.defaults", json!({"account": id, "keepSubject": !on})));
+                }
+            },
+        );
         let known = settings.known.len();
         if known > 0 {
             setting_row(ui, t, false, name(t, &tf!("Certificates from signed mail: {n}", n = known)), None, |_| {});

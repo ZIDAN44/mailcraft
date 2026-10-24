@@ -73,6 +73,10 @@ pub(super) fn security_bar(s: &Session, t: &Tokens, ui: &mut Ui, sec: &Security)
         }
         None => {}
     }
+    if sec.headers {
+        ui.label(RichText::new(tl!("Its subject and addresses were protected inside it too.")).color(t.faint).small());
+        ui.add_space(4.0);
+    }
     let Some(signed) = &sec.signed else { return };
     let who = signed.cert.as_ref().map(|c| match c.emails.first() {
         Some(e) if !c.name.eq_ignore_ascii_case(e) => format!("{} <{e}>", c.name),

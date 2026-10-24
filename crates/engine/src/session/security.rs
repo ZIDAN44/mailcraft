@@ -30,6 +30,9 @@ pub struct SmimeSettings {
     pub sign: bool,
     /// Encrypt new messages (when every recipient's certificate is known).
     pub encrypt: bool,
+    /// Encrypted mail shows its subject on the way (header protection's `[...]` left out).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub keep_subject: bool,
     /// Certificates of people who sent signed mail, by lower-case address.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub known: BTreeMap<String, KnownCert>,
@@ -51,6 +54,8 @@ pub struct KnownCert {
 pub struct Security {
     pub lock: Option<Lock>,
     pub signed: Option<SignedBy>,
+    /// Its subject and addresses came from inside, where they were protected (RFC 9788).
+    pub headers: bool,
 }
 
 impl Security {
@@ -174,7 +179,7 @@ impl Session {
     }
 
     /// Whether new messages from `account` are signed or encrypted.
-    pub fn set_smime_defaults(&mut self, account: &str, sign: Option<bool>, encrypt: Option<bool>) -> CmdResult {
+    pub fn set_smime_defaults(&mut self, account: &str, sign: Option<bool>, encrypt: Option<bool>, keep_subject: Option<bool>) -> CmdResult {
         if self.account(account).is_none() {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
@@ -189,7 +194,10 @@ impl Session {
         if let Some(v) = encrypt {
             s.encrypt = v;
         }
-        let out = serde_json::json!({ "sign": s.sign, "encrypt": s.encrypt });
+        if let Some(v) = keep_subject {
+            s.keep_subject = v;
+        }
+        let out = serde_json::json!({ "sign": s.sign, "encrypt": s.encrypt, "keepSubject": s.keep_subject });
         self.save_smime(account);
         Ok(out)
     }
@@ -218,7 +226,9 @@ impl Session {
                     if sec.signed.is_none() {
                         sec.signed = Some(self.check_signature(&key.account, &signature, Some(&content), &sender(&cur)));
                     }
-                    cur = mime::smime::with_entity(&cur, &content);
+                    let (next, headers) = mime::smime::with_entity_protected(&cur, &content);
+                    sec.headers |= headers;
+                    cur = next;
                 }
                 mime::smime::Protection::Opaque(cms) => {
                     any = true;
@@ -226,7 +236,11 @@ impl Session {
                         sec.signed = Some(self.check_signature(&key.account, &cms, None, &sender(&cur)));
                     }
                     match smime::carried(&cms) {
-                        Ok(content) => cur = mime::smime::with_entity(&cur, &content),
+                        Ok(content) => {
+                            let (next, headers) = mime::smime::with_entity_protected(&cur, &content);
+                            sec.headers |= headers;
+                            cur = next;
+                        }
                         Err(_) => break,
                     }
                 }
@@ -238,7 +252,9 @@ impl Session {
                     }
                     if let Some((entity, authenticated)) = self.opened.get(key) {
                         sec.lock = Some(Lock::Open { authenticated: *authenticated });
-                        cur = mime::smime::with_entity(&cur, entity);
+                        let (next, headers) = mime::smime::with_entity_protected(&cur, entity);
+                        sec.headers |= headers;
+                        cur = next;
                         continue;
                     }
                     sec.lock = Some(match self.decrypt_errors.get(key) {
@@ -391,7 +407,15 @@ impl Session {
             // The Sent copy reads too.
             encrypt_to.push(own);
         }
-        let job = Job::Protect { account: config, id: c.id, raw: Private(raw.to_vec()), sign: c.sign, encrypt_to, gcm: gcm && c.encrypt };
+        let job = Job::Protect {
+            account: config,
+            id: c.id,
+            raw: Private(raw.to_vec()),
+            sign: c.sign,
+            encrypt_to,
+            gcm: gcm && c.encrypt,
+            hide_subject: !s.keep_subject,
+        };
         self.protecting.insert(c.id, Protecting { compose: c.clone(), from: from.to_string(), recipients: recipients.to_vec() });
         Ok(Some(job))
     }

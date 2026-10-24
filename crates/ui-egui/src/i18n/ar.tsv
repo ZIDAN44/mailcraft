@@ -1083,3 +1083,6 @@ month	May	مايو
 	this account has no certificate to decrypt it with (File › Info › Security)	ليس لهذا الحساب شهادة لفك تشفيرها (ملف › معلومات › الأمان)
 	it can't be decrypted with your certificate	تعذّر فك تشفيرها بشهادتك
 	its account is gone	حسابها لم يعد موجودًا
+	Hide the subject of encrypted mail	إخفاء موضوع البريد المشفّر
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	في الطريق يظهر [...]؛ والموضوع الحقيقي في الداخل لمستلميه (حماية الترويسة).
+	Its subject and addresses were protected inside it too.	كان موضوعها وعناوينها محميّة في داخلها أيضًا.

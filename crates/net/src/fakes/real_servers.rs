@@ -212,6 +212,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
         sign: true,
         encrypt_to: vec![pem("ana.pem"), pem("riley.pem")],
         gcm: false,
+        hide_subject: false,
     });
     let seen = until(&pool, 30, "the protected reply", |e| matches!(e, Event::Protected { .. }));
     let Some(Event::Protected { raw: Some(sealed), error: None, .. }) = seen.last() else { panic!("{seen:?}") };

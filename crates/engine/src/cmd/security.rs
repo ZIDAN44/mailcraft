@@ -18,9 +18,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account"?: string}"#),
         CommandSpec::new("security.defaults", "Sign or encrypt new messages", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
-            s.set_smime_defaults(&account, p::bool(v, "sign"), p::bool(v, "encrypt"))
+            s.set_smime_defaults(&account, p::bool(v, "sign"), p::bool(v, "encrypt"), p::bool(v, "keepSubject"))
         })
-        .params(r#"{"sign"?: bool, "encrypt"?: bool, "account"?: string}"#),
+        .params(r#"{"sign"?: bool, "encrypt"?: bool, "keepSubject"?: bool (encrypted mail shows its subject on the way, not "[...]"), "account"?: string}"#),
         CommandSpec::new("compose.security", "Sign and Encrypt", "Message › Options", |s, v| {
             let c = s.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
             let wants = p::bool(v, "sign") == Some(true) || p::bool(v, "encrypt") == Some(true);

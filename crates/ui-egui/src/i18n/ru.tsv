@@ -1087,3 +1087,6 @@ month	May	Май
 	this account has no certificate to decrypt it with (File › Info › Security)	у этой учётной записи нет сертификата для расшифровки (Файл › Сведения › Безопасность)
 	it can't be decrypted with your certificate	его не удаётся расшифровать вашим сертификатом
 	its account is gone	его учётной записи больше нет
+	Hide the subject of encrypted mail	Скрывать тему зашифрованных писем
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	В пути видно [...]; настоящая тема внутри, для получателей (защита заголовков).
+	Its subject and addresses were protected inside it too.	Тема и адреса тоже были защищены внутри.

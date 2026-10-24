@@ -1083,3 +1083,6 @@ month	May	מאי
 	this account has no certificate to decrypt it with (File › Info › Security)	לחשבון הזה אין תעודה לפענוח (קובץ › מידע › אבטחה)
 	it can't be decrypted with your certificate	לא ניתן לפענח אותה בתעודה שלכם
 	its account is gone	החשבון שלה כבר לא קיים
+	Hide the subject of encrypted mail	להסתיר את הנושא של דואר מוצפן
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	בדרך כתוב [...]; הנושא האמיתי נמצא בפנים, לנמענים (הגנת כותרות).
+	Its subject and addresses were protected inside it too.	גם הנושא והכתובות שלה היו מוגנים בתוכה.
