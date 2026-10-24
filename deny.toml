@@ -31,9 +31,10 @@ unsound = "all"
 yanked = "deny"
 unmaintained = "workspace"
 ignore = [
-    # gtk 0.18 brings in glib 0.18 for the `drag` crate (dragging mail out to other Linux apps).
-    # The flagged `VariantStrIter` is never called here, and no `drag` release has moved on yet.
-    { id = "RUSTSEC-2024-0429", reason = "glib via drag's gtk 0.18; VariantStrIter unused" },
+    # glib 0.18 is in Cargo.lock only: `drag` (dragging attachments out, Windows and macOS only
+    # here) lists gtk for Linux and the BSDs, where MailCraft uses its own `xdnd.rs` instead, so
+    # no build of MailCraft compiles glib (`cargo tree -i glib --target <any>` prints nothing).
+    { id = "RUSTSEC-2024-0429", reason = "glib only in the lockfile, through drag's Linux deps; never built" },
     # mailcraft-print reads the installed fonts it embeds in PDFs with ttf-parser. Moving to its
     # successor, skrifa, is a rewrite of that code, so the notice stands until it is done.
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser in mailcraft-print; no maintained drop-in" },
