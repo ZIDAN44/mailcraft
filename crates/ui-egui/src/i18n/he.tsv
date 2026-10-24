@@ -1023,3 +1023,6 @@ month	May	מאי
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	כשכבוי, המקום שהטלפון כותב בתמונה מוסר מקובצי JPEG ו־PNG בעת שליחתם
 	These photos say where they were taken, and go that way (File › Options › Safety)	התמונות האלה מציינות היכן צולמו, וכך הן יישלחו (קובץ › אפשרויות › בטיחות)
 	Where these photos were taken is left out as they're sent	המקום שבו צולמו התמונות האלה יושמט בשליחה
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	זהירות: ההודעה הגיעה מ־{domain}, שנראה כמו {like} אבל אינו הוא.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	זהירות: שם השולח מציג {shown}, אבל ההודעה הגיעה מ־{real}.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	אל תפתחו את הקישורים או הקבצים המצורפים ואל תשיבו, אלא אם אתם בטוחים מי שלח.

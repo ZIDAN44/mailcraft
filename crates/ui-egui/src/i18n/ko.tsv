@@ -1027,3 +1027,6 @@ month	May	5월
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	끄면 휴대폰이 사진에 기록한 장소가 JPEG 및 PNG 파일을 보낼 때 제거됩니다
 	These photos say where they were taken, and go that way (File › Options › Safety)	이 사진에는 찍은 장소가 들어 있으며 그대로 보내집니다 (파일 › 옵션 › 안전)
 	Where these photos were taken is left out as they're sent	이 사진을 찍은 장소는 보낼 때 빠집니다
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	주의: 이 메일은 {domain}에서 왔습니다. {like}와 비슷해 보이지만 다른 곳입니다.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	주의: 보낸 사람 이름에는 {shown}이(가) 보이지만 실제로는 {real}에서 왔습니다.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	보낸 사람을 확신할 수 없다면 링크나 첨부 파일을 열거나 답장하지 마세요.

@@ -1024,3 +1024,6 @@ month	May	5月
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	关闭时，手机写入照片的地点会在发送 JPEG 和 PNG 文件时去掉
 	These photos say where they were taken, and go that way (File › Options › Safety)	这些照片带有拍摄地点，并会照此发送（文件 › 选项 › 安全）
 	Where these photos were taken is left out as they're sent	发送时会去掉这些照片的拍摄地点
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	当心：这封邮件来自 {domain}，它看起来像 {like}，但并不是。
+	Careful: the sender's name shows {shown}, but this comes from {real}.	当心：发件人姓名显示为 {shown}，但这封邮件来自 {real}。
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	除非确定发件人是谁，否则不要打开其中的链接或附件，也不要回复。

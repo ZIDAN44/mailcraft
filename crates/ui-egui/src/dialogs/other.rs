@@ -43,10 +43,13 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             })
             .inner
         }
-        Dialog::Preview { title: name, header, text } => {
+        Dialog::Preview { title: name, header, text, warning } => {
             let w = (ui.ctx().content_rect().width() * 0.7).clamp(360.0, 900.0);
             ui.set_width(w);
             title(ui, t, name);
+            if let Some(warning) = warning {
+                crate::reading::sender_warning(t, ui, warning);
+            }
             for (k, v) in header.iter() {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(k.as_str()).color(t.dim).small());

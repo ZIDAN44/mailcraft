@@ -145,6 +145,8 @@ pub enum Dialog {
         title: String,
         header: Vec<(String, String)>,
         text: String,
+        /// An email whose sender doesn't add up.
+        warning: Option<mailcraft_engine::model::lookalike::SenderWarning>,
     },
 }
 
@@ -343,7 +345,8 @@ impl Dialog {
             text.push_str("\n… (the rest isn't shown: open the file to see it all)");
         }
         let title = if get("kind") == "message" && !get("subject").is_empty() { get("subject") } else { get("name") };
-        Dialog::Preview { title, header, text }
+        let warning = v.get("warning").and_then(|w| serde_json::from_value(w.clone()).ok());
+        Dialog::Preview { title, header, text, warning }
     }
 
     pub fn new_folder(account: &str, parent: Option<&str>) -> Dialog {

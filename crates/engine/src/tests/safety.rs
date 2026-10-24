@@ -44,3 +44,48 @@ fn photos_are_sent_without_where_they_were_taken() {
     }
     done(s);
 }
+
+/// Put a message in the sample Inbox and open it.
+fn deliver(s: &mut Session, n: u32, from: (&str, &str), subject: &str, html: Option<&str>) -> mailcraft_model::MessageKey {
+    let d = mailcraft_mime::Draft {
+        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
+        subject: subject.into(),
+        body: "Please look at this.".into(),
+        html: html.map(str::to_string),
+        ..Default::default()
+    };
+    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(from.0, from.1), NOW, &format!("<s{n}@x>")).unwrap();
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9100 + n };
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, &raw).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    key
+}
+
+#[test]
+fn senders_passing_for_someone_else_are_pointed_out() {
+    use mailcraft_model::lookalike::SenderWarning;
+    let mut s = sample_session("lookalike");
+    let warning = |s: &Session| s.reading.as_ref().and_then(|r| r.warning.clone());
+    // The sample mailbox writes to the print shop: a lookalike of its domain is caught.
+    deliver(&mut s, 1, ("Print Shop", "orders@printsh0p.example"), "Your invoice", None);
+    assert_eq!(warning(&s), Some(SenderWarning::Lookalike { domain: "printsh0p.example".into(), like: "printshop.example".into() }));
+    // So is the shop's address in the name of someone else's.
+    deliver(&mut s, 2, ("orders@printshop.example", "billing@invoices-now.example"), "Your invoice", None);
+    assert!(matches!(warning(&s), Some(SenderWarning::NameShowsOther { shown, .. }) if shown == "orders@printshop.example"));
+    // The shop itself, and people the mailbox has never dealt with, are fine.
+    deliver(&mut s, 3, ("Print Shop", "orders@printshop.example"), "Your proof", None);
+    assert_eq!(warning(&s), None);
+    deliver(&mut s, 4, ("Someone", "hello@orchestra.example"), "Hello", None);
+    assert_eq!(warning(&s), None);
+    // A message in its own window says the same.
+    let k = deliver(&mut s, 5, ("Print Shop", "orders@printsh0p.example"), "Again", None);
+    s.run("message.popOut", &json!({"key": k.to_id()})).unwrap();
+    assert!(s.windows.iter().any(|w| w.key == k && w.warning.is_some()));
+    done(s);
+}

@@ -1023,3 +1023,6 @@ month	May	mei
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Uit: de plaats die een telefoon in een foto schrijft, wordt bij het verzenden uit JPEG- en PNG-bestanden gehaald
 	These photos say where they were taken, and go that way (File › Options › Safety)	Deze foto's zeggen waar ze zijn genomen en gaan zo mee (Bestand › Opties › Veiligheid)
 	Where these photos were taken is left out as they're sent	Waar deze foto's zijn genomen, wordt bij het verzenden weggelaten
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	Let op: dit komt van {domain}, dat op {like} lijkt maar het niet is.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	Let op: de naam van de afzender toont {shown}, maar dit komt van {real}.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Open de koppelingen en bijlagen niet en antwoord niet, tenzij u zeker weet wie het heeft gestuurd.

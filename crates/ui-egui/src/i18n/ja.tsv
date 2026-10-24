@@ -1024,3 +1024,6 @@ month	May	5月
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	オフにすると、スマートフォンが写真に書き込む場所は、送信時に JPEG と PNG ファイルから取り除かれます
 	These photos say where they were taken, and go that way (File › Options › Safety)	これらの写真には撮影場所が含まれ、そのまま送信されます (ファイル › オプション › 安全)
 	Where these photos were taken is left out as they're sent	これらの写真の撮影場所は送信時に取り除かれます
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	注意: これは {domain} から届いています。{like} に似ていますが、別のものです。
+	Careful: the sender's name shows {shown}, but this comes from {real}.	注意: 差出人の名前には {shown} と表示されていますが、実際は {real} から届いています。
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	送信者が確かでない限り、リンクや添付ファイルを開いたり、返信したりしないでください。

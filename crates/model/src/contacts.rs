@@ -96,6 +96,12 @@ impl ContactBook {
         }
     }
 
+    /// The domains of the people the user writes to (or saved in an address book): the ones a
+    /// lookalike sender would imitate ([`crate::lookalike`]).
+    pub fn written_domains(&self) -> impl Iterator<Item = String> + '_ {
+        self.by_email.values().filter(|c| c.sent > 0).map(|c| crate::lookalike::domain_of(&c.address.email)).filter(|d| !d.is_empty())
+    }
+
     /// Up to `limit` contacts matching `query` (the start of the address, of the name, or of any
     /// word of the name; case-insensitive), best first.
     pub fn suggest(&self, query: &str, limit: usize, now: i64) -> Vec<Contact> {

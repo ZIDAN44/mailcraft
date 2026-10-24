@@ -1028,3 +1028,6 @@ month	May	Mai
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Aus: Der Ort, den ein Telefon in ein Foto schreibt, wird beim Senden aus JPEG- und PNG-Dateien entfernt
 	These photos say where they were taken, and go that way (File › Options › Safety)	Diese Fotos enthalten ihren Aufnahmeort und werden so gesendet (Datei › Optionen › Sicherheit)
 	Where these photos were taken is left out as they're sent	Der Aufnahmeort dieser Fotos wird beim Senden weggelassen
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	Vorsicht: Dies kommt von {domain}, das wie {like} aussieht, aber nicht dasselbe ist.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	Vorsicht: Der Name des Absenders zeigt {shown}, aber dies kommt von {real}.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Öffnen Sie ihre Links und Anlagen nicht und antworten Sie nicht, solange Sie nicht sicher sind, wer sie gesendet hat.

@@ -142,6 +142,10 @@ pub(crate) fn tour() {
                 text: "line one
 line two"
                     .into(),
+                warning: Some(mailcraft_engine::model::lookalike::SenderWarning::Lookalike {
+                    domain: "printsh0p.example".into(),
+                    like: "printshop.example".into(),
+                }),
             },
         ] {
             a.ui.dialog = Some(d);

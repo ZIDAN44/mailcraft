@@ -396,9 +396,12 @@ pub(super) fn preview_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Failed("the attachment can't be read".into()))?;
     if kind == "message" {
         let m = mailcraft_mime::parse(&data).ok_or_else(|| CmdError::Failed("the attached message can't be read".into()))?;
-        return Ok(
-            json!({"kind": "message", "name": a.name, "subject": m.subject, "from": m.from.to_string(), "to": mailcraft_model::addr::format_list(&m.to), "date": m.date, "text": m.text}),
-        );
+        let name = a.name.clone();
+        let warning = s.sender_warning(&m.from);
+        return Ok(json!({
+            "kind": "message", "name": name, "subject": m.subject, "from": m.from.to_string(), "to": mailcraft_model::addr::format_list(&m.to),
+            "date": m.date, "text": m.text, "warning": warning,
+        }));
     }
     // At most 512 KB, cut on a character boundary.
     const MAX: usize = 512 << 10;

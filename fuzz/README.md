@@ -12,7 +12,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `vcard` | a vCard file, each card written back and read again |
 | `imap` | everything an IMAP server sends through a session (greeting to MOVE, with a folder sync) |
 | `jmap` | a JMAP server's answers (split at form feeds) through sign-in, folder list and folder sync; push events; URLs |
-| `search` | the search box: the query language, the Advanced form, JMAP filters, modified UTF-7 |
+| `search` | the search box: the query language, the Advanced form, JMAP filters, modified UTF-7; lookalike senders |
 | `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
 | `pst` | an Outlook data file: a good exported file with the input as byte patches, or a whole file |
 

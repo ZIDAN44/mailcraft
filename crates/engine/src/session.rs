@@ -436,6 +436,9 @@ pub struct Reading {
     pub error: Option<String>,
     /// The other messages of its conversation in this list, oldest first.
     pub thread: Vec<MessageKey>,
+    /// Who it says it's from doesn't add up: a lookalike of a domain the user deals with, or
+    /// another address shown in the sender's name.
+    pub warning: Option<mailcraft_model::lookalike::SenderWarning>,
 }
 
 /// A message being written.
@@ -610,6 +613,9 @@ pub struct Session {
     pub(crate) cache_limit: usize,
     /// Built on first use from the cached mail; dropped when mail arrives.
     contacts: Option<ContactBook>,
+    /// The domains the user deals with ([`Session::known_domains`]) and when they were counted:
+    /// kept a while, since the address book is counted again after every sync.
+    known_domains: Option<(i64, BTreeSet<String>)>,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
     /// New mail to announce (desktop notifications), oldest first.
@@ -707,6 +713,7 @@ impl Session {
             pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,
             contacts: None,
+            known_domains: None,
             seen_uid: HashMap::new(),
             new_mail: Vec::new(),
             rules: Vec::new(),

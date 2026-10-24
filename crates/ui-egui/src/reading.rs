@@ -230,6 +230,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     });
                     ui.add_space(6.0);
                 }
+                if let Some(w) = &r.warning {
+                    sender_warning(&t, ui, w);
+                }
                 if let Some((_, item)) = s.outbox_entry(&r.key) {
                     egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
                         let why = match item.error.as_deref() {
@@ -379,6 +382,33 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             }
         });
     });
+}
+
+/// Who the message says it's from doesn't add up: said plainly, above everything it asks for.
+pub(crate) fn sender_warning(t: &Tokens, ui: &mut Ui, w: &mailcraft_engine::model::lookalike::SenderWarning) {
+    use mailcraft_engine::model::lookalike::SenderWarning;
+    let what = match w {
+        SenderWarning::Lookalike { domain, like } => {
+            tf!("Careful: this comes from {domain}, which looks like {like} but isn't it.", domain = domain, like = like)
+        }
+        SenderWarning::NameShowsOther { shown, real } => {
+            tf!("Careful: the sender's name shows {shown}, but this comes from {real}.", shown = shown, real = real)
+        }
+    };
+    egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+            icons::paint(ui.painter(), r, Icon::Warning, t.danger);
+            ui.vertical(|ui| {
+                ui.label(RichText::new(what).color(t.text));
+                ui.label(
+                    RichText::new(tl!("Don't open its links or attachments, or answer it, unless you're sure who sent it.")).color(t.dim).small(),
+                );
+            });
+        });
+    });
+    ui.add_space(8.0);
 }
 
 /// A meeting invitation (or an answer to one, or a cancellation) carried by the message.

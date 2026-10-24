@@ -1027,3 +1027,6 @@ month	May	5月
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	關閉時，手機寫入相片的地點會在傳送 JPEG 和 PNG 檔案時移除
 	These photos say where they were taken, and go that way (File › Options › Safety)	這些相片帶有拍攝地點，並會照此傳送（檔案 › 選項 › 安全）
 	Where these photos were taken is left out as they're sent	傳送時會移除這些相片的拍攝地點
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	小心：這封郵件來自 {domain}，看起來像 {like}，但並不是。
+	Careful: the sender's name shows {shown}, but this comes from {real}.	小心：寄件者名稱顯示為 {shown}，但這封郵件來自 {real}。
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	除非確定寄件者是誰，否則不要開啟其中的連結或附件，也不要回覆。

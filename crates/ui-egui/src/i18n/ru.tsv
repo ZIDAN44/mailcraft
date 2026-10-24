@@ -1027,3 +1027,6 @@ month	May	Май
 	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Если выключено, место, которое телефон записывает в снимок, удаляется из файлов JPEG и PNG при отправке
 	These photos say where they were taken, and go that way (File › Options › Safety)	В этих фотографиях указано место съёмки, и они уйдут с ним (Файл › Параметры › Безопасность)
 	Where these photos were taken is left out as they're sent	Место съёмки этих фотографий при отправке убирается
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	Осторожно: это пришло с {domain}, который похож на {like}, но им не является.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	Осторожно: в имени отправителя указано {shown}, но письмо пришло с {real}.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Не открывайте ссылки и вложения и не отвечайте, если не уверены, кто это прислал.
