@@ -544,11 +544,17 @@ fn an_online_only_account_syncs_and_reads_with_nothing_on_disk() {
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.submit(Job::Start { account: a1, password: Some(Secret("pw".into())) });
     pool.submit(Job::Start { account: a2, password: Some(Secret("pw".into())) });
-    let end = Instant::now() + Duration::from_secs(20);
+    // A slow machine (FreeBSD's test VM) gets time; a timeout says what was still missing, and
+    // what the accounts reported meanwhile.
+    let end = Instant::now() + Duration::from_secs(60);
     let synced = |a: &str| store.load_folder(a, "INBOX").is_ok_and(|f| f.messages.len() == 3);
-    while !(synced("a1") && synced("a2") && store.load_folder("a2", "INBOX").unwrap().messages.iter().all(|m| store.has_body(&m.key))) {
-        assert!(Instant::now() < end, "never synced");
-        let _ = pool.wait(Duration::from_millis(100));
+    let downloaded = || store.load_folder("a2", "INBOX").map(|f| f.messages.iter().filter(|m| store.has_body(&m.key)).count()).unwrap_or(0);
+    let mut seen = Vec::new();
+    while !(synced("a1") && synced("a2") && downloaded() == 3) {
+        assert!(Instant::now() < end, "never synced: a1 {}, a2 {}, a2's bodies {}/3; events: {seen:?}", synced("a1"), synced("a2"), downloaded());
+        if let Some(e) = pool.wait(Duration::from_millis(100)) {
+            seen.push(e);
+        }
     }
     let inbox = store.load_folder("a1", "INBOX").unwrap();
     assert!(inbox.messages.iter().any(|m| m.subject == "ONLINE-SUBJECT-2"));
