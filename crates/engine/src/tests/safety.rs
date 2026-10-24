@@ -89,3 +89,37 @@ fn senders_passing_for_someone_else_are_pointed_out() {
     assert!(s.windows.iter().any(|w| w.key == k && w.warning.is_some()));
     done(s);
 }
+
+#[test]
+fn sending_holds_for_a_lookalike_address_or_many_strangers() {
+    let mut s = sample_session("send-checks");
+    let send = |s: &mut Session, p: Value| s.run("compose.send", &p).unwrap();
+    // A typo of the print shop's domain (the sample mailbox writes to it): held, and said why.
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "orders@printsh0p.example", "subject": "Proof approved"})).unwrap();
+    let held = send(&mut s, json!({}));
+    assert_eq!(held["check"], json!([{"kind": "lookalike", "address": "orders@printsh0p.example", "like": "printshop.example"}]));
+    assert!(s.compose.as_ref().is_some_and(|c| !c.sending), "nothing went");
+    // Sent anyway once looked at.
+    assert!(send(&mut s, json!({"checked": true})).get("check").is_none());
+    assert!(s.compose.is_none());
+
+    // Nine friends at a mail service, and people at two firms: each sees the others' addresses.
+    let friends: Vec<String> = (1..=9).map(|i| format!("friend{i}@gmail.com")).collect();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": friends.join("; "), "cc": "a@firm-one.example; b@firm-one.example", "subject": "Party"})).unwrap();
+    assert_eq!(send(&mut s, json!({}))["check"], json!([{"kind": "exposed", "count": 10}]));
+    // Everyone in Bcc, the sender in To: nothing to ask.
+    s.run("compose.hideRecipients", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!(c.to, "Riley Moreno <riley@studio.example>; ");
+    assert!(c.cc.is_empty() && c.bcc.contains("friend9@gmail.com") && c.bcc.contains("b@firm-one.example"), "{c:?}");
+    assert!(send(&mut s, json!({})).get("check").is_none());
+
+    // Colleagues and someone known: nothing held.
+    s.run("mail.new", &json!({})).unwrap();
+    let team: Vec<String> = (1..=12).map(|i| format!("p{i}@studio.example")).collect();
+    s.run("compose.update", &json!({"to": format!("{}; orders@printshop.example", team.join("; ")), "subject": "Wrap"})).unwrap();
+    assert!(send(&mut s, json!({})).get("check").is_none());
+    done(s);
+}

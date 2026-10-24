@@ -1030,3 +1030,8 @@ month	May	Май
 	Careful: this comes from {domain}, which looks like {like} but isn't it.	Осторожно: это пришло с {domain}, который похож на {like}, но им не является.
 	Careful: the sender's name shows {shown}, but this comes from {real}.	Осторожно: в имени отправителя указано {shown}, но письмо пришло с {real}.
 	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Не открывайте ссылки и вложения и не отвечайте, если не уверены, кто это прислал.
+	Check before sending	Проверьте перед отправкой
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address} похож на адрес в {like}, но им не является. Это правильный адрес?
+	{n} people who may not know each other will all see each other's addresses.	{n} человек, возможно незнакомых друг с другом, увидят адреса всех остальных.
+	Put everyone in Bcc	Поместить всех в скрытую копию
+	Each of them gets the message without seeing who else did; you're in To	Каждый получит письмо, не видя остальных получателей; вы будете в поле «Кому»

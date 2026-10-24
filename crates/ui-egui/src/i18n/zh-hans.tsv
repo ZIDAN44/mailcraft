@@ -1027,3 +1027,8 @@ month	May	5月
 	Careful: this comes from {domain}, which looks like {like} but isn't it.	当心：这封邮件来自 {domain}，它看起来像 {like}，但并不是。
 	Careful: the sender's name shows {shown}, but this comes from {real}.	当心：发件人姓名显示为 {shown}，但这封邮件来自 {real}。
 	Don't open its links or attachments, or answer it, unless you're sure who sent it.	除非确定发件人是谁，否则不要打开其中的链接或附件，也不要回复。
+	Check before sending	发送前检查
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address} 看起来像 {like} 的地址，但其实不是。地址正确吗？
+	{n} people who may not know each other will all see each other's addresses.	{n} 个可能互不相识的人都会看到彼此的地址。
+	Put everyone in Bcc	把所有人放进密送
+	Each of them gets the message without seeing who else did; you're in To	每个人收到邮件时都看不到其他收件人；你在收件人栏

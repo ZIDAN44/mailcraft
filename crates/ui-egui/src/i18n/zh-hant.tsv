@@ -1030,3 +1030,8 @@ month	May	5月
 	Careful: this comes from {domain}, which looks like {like} but isn't it.	小心：這封郵件來自 {domain}，看起來像 {like}，但並不是。
 	Careful: the sender's name shows {shown}, but this comes from {real}.	小心：寄件者名稱顯示為 {shown}，但這封郵件來自 {real}。
 	Don't open its links or attachments, or answer it, unless you're sure who sent it.	除非確定寄件者是誰，否則不要開啟其中的連結或附件，也不要回覆。
+	Check before sending	傳送前檢查
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address} 看起來像 {like} 的地址，但其實不是。地址正確嗎？
+	{n} people who may not know each other will all see each other's addresses.	{n} 位可能互不相識的人都會看到彼此的地址。
+	Put everyone in Bcc	把所有人放進密件副本
+	Each of them gets the message without seeing who else did; you're in To	每個人收到郵件時都看不到其他收件人；你在收件者欄

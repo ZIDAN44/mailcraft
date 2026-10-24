@@ -54,6 +54,9 @@ pub enum Dialog {
         filter: String,
     },
     EmptySubject,
+    /// What `compose.send` held the message for (a lookalike recipient, many people seeing each
+    /// other's addresses).
+    SendCheck(Vec<mailcraft_engine::SendCheck>),
     RemoveAccount {
         account: String,
         email: String,
@@ -169,7 +172,7 @@ impl Dialog {
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
     pub fn for_compose(&self) -> bool {
-        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::WordCount(..))
+        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::SendCheck(_) | Dialog::WordCount(..))
             || matches!(self, Dialog::Signature(f) if f.insert)
     }
 
@@ -437,7 +440,9 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         Dialog::NewCategory { .. } | Dialog::Rules | Dialog::EditRule(..) | Dialog::SearchFolder(..) | Dialog::QuickStep(..) => {
             organize::draw(ui, d, s, t, acts)
         }
-        Dialog::SelectNames(..) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::WordCount(..) => writing::draw(ui, d, s, t, acts),
+        Dialog::SelectNames(..) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::SendCheck(_) | Dialog::WordCount(..) => {
+            writing::draw(ui, d, s, t, acts)
+        }
         Dialog::ConfirmDeleteContact { .. }
         | Dialog::PicturePreview { .. }
         | Dialog::Preview { .. }

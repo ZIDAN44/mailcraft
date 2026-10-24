@@ -37,6 +37,46 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             }
             !cancel
         }
+        Dialog::SendCheck(found) => {
+            use mailcraft_engine::SendCheck;
+            ui.set_width(440.0);
+            title(ui, t, "Check before sending");
+            let mut exposed = false;
+            for f in found.iter() {
+                let line = match f {
+                    SendCheck::Lookalike { address, like } => {
+                        tf!("{address} looks like an address at {like}, but isn't one. Is it the right one?", address = address, like = like)
+                    }
+                    SendCheck::Exposed { count } => {
+                        exposed = true;
+                        tf!("{n} people who may not know each other will all see each other's addresses.", n = count)
+                    }
+                };
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::hover());
+                    crate::icons::paint(ui.painter(), r, crate::icons::Icon::Warning, t.warn);
+                    ui.add(egui::Label::new(RichText::new(line).color(t.text)).wrap());
+                });
+                ui.add_space(4.0);
+            }
+            if exposed {
+                ui.add_space(4.0);
+                if ui
+                    .button(tl!("Put everyone in Bcc"))
+                    .on_hover_text(tl!("Each of them gets the message without seeing who else did; you're in To"))
+                    .clicked()
+                {
+                    acts.push(Action::Run("compose.hideRecipients", json!({})));
+                    return false;
+                }
+            }
+            let (ok, cancel) = buttons(ui, t, "Send anyway", true);
+            if ok {
+                acts.push(Action::Run("compose.send", json!({"allowEmptySubject": true, "checked": true})));
+                return false;
+            }
+            !cancel
+        }
         Dialog::WordCount(n, selection) => {
             ui.set_width(320.0);
             title(ui, t, "Word count");

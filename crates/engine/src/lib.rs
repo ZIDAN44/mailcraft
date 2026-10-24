@@ -24,7 +24,7 @@ pub use mailcraft_model as model;
 pub use mailcraft_store as store;
 pub use session::{
     ARRANGE_HEADINGS, AccountState, Arrange, Compose, FolderRef, ListFilter, MoveTarget, NotesOrder, Notice, PaneSection, Picture, Prefs, ReadInPane,
-    Reading, ReadingPane, Row, SearchScope, ServerSearch, Session, UpdateCheck, VacationState, View,
+    Reading, ReadingPane, Row, SearchScope, SendCheck, ServerSearch, Session, UpdateCheck, VacationState, View,
     invite::{Invite, InviteProblem},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,

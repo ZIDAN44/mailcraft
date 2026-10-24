@@ -1,6 +1,25 @@
 //! The session: messages being written, drafts and sending.
 
+use mailcraft_model::lookalike;
+
 use super::*;
+
+/// From this many people (counted as [`SendCheck::Exposed`] says), sending to all of them in To
+/// and Cc asks first.
+const EXPOSED_FROM: usize = 8;
+
+/// Something to look at before a message goes (`compose.send` holds it and says what).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SendCheck {
+    /// A recipient's domain looks like `like`, one the user deals with, but isn't it: a typo,
+    /// or a reply going to someone passing for a colleague.
+    Lookalike { address: String, like: String },
+    /// Everyone in To and Cc sees everyone else's address: `count` people who may not know each
+    /// other (each organisation outside the sender's own counted once, each address at a big mail
+    /// service on its own).
+    Exposed { count: usize },
+}
 
 impl Session {
     pub(super) fn me(&self, account: &str) -> Vec<String> {
@@ -189,7 +208,53 @@ impl Session {
         Ok((raw, email))
     }
 
-    pub fn send_compose(&mut self, allow_empty_subject: bool) -> CmdResult {
+    /// What to look at before `c` goes ([`SendCheck`]).
+    pub fn send_checks(&mut self, c: &Compose, d: &mime::Draft) -> Vec<SendCheck> {
+        let mut found = Vec::new();
+        let known = self.known_domains();
+        for a in d.to.iter().chain(&d.cc).chain(&d.bcc) {
+            if let Some(like) = lookalike::imitates(&lookalike::domain_of(&a.email), &known)
+                && found.len() < 20
+            {
+                found.push(SendCheck::Lookalike { address: a.email.trim().to_string(), like: like.to_string() });
+            }
+        }
+        let mine = self.account(&c.account).map(|a| lookalike::domain_of(&a.config.email)).unwrap_or_default();
+        let mut people = BTreeSet::new();
+        for a in d.to.iter().chain(&d.cc) {
+            let domain = lookalike::domain_of(&a.email);
+            if domain.is_empty() || domain == mine {
+                continue;
+            }
+            people.insert(if lookalike::is_mail_service(&domain) { a.email.trim().to_lowercase() } else { domain });
+        }
+        if people.len() >= EXPOSED_FROM {
+            found.push(SendCheck::Exposed { count: people.len() });
+        }
+        found
+    }
+
+    /// Everyone in To and Cc moved to Bcc, with the sender in To: each gets the message without
+    /// seeing who else did.
+    pub fn hide_recipients(&mut self) -> CmdResult {
+        let c = self.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+        let me = self.account(&c.account).map(|a| EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string()).unwrap_or_default();
+        let c = self.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+        let moved: Vec<&str> = [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()]
+            .into_iter()
+            .map(|f| f.trim().trim_end_matches(';').trim())
+            .filter(|f| !f.is_empty())
+            .collect();
+        c.bcc = moved.join("; ");
+        c.to = if me.is_empty() { String::new() } else { format!("{me}; ") };
+        c.cc.clear();
+        c.show_cc = true;
+        Ok(serde_json::json!({ "bcc": c.bcc }))
+    }
+
+    /// Send the message being written. Unless `checked`, it's held when [`Session::send_checks`]
+    /// finds anything, and the answer says what (`{"check": [...]}`).
+    pub fn send_compose(&mut self, allow_empty_subject: bool, checked: bool) -> CmdResult {
         let c = self.compose.clone().ok_or_else(|| CmdError::Disabled("nothing to send".into()))?;
         if c.sending {
             return Err(CmdError::Disabled("already sending".into()));
@@ -207,6 +272,12 @@ impl Session {
                 if let Some(clean) = mime::without_location(&a.data) {
                     a.data = clean;
                 }
+            }
+        }
+        if !checked {
+            let found = self.send_checks(&c, &d);
+            if !found.is_empty() {
+                return Ok(serde_json::json!({ "check": found }));
             }
         }
         let (raw, from) = self.compose_bytes(&c, &d)?;

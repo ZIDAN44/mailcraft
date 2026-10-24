@@ -1031,3 +1031,8 @@ month	May	maio
 	Careful: this comes from {domain}, which looks like {like} but isn't it.	Cuidado: isto vem de {domain}, que parece {like}, mas não é.
 	Careful: the sender's name shows {shown}, but this comes from {real}.	Cuidado: o nome do remetente mostra {shown}, mas isto vem de {real}.
 	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Não abra os links ou anexos nem responda, a menos que tenha certeza de quem enviou.
+	Check before sending	Verificar antes de enviar
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address} parece um endereço de {like}, mas não é. É o endereço certo?
+	{n} people who may not know each other will all see each other's addresses.	{n} pessoas que talvez não se conheçam verão o endereço umas das outras.
+	Put everyone in Bcc	Colocar todos em Cco
+	Each of them gets the message without seeing who else did; you're in To	Cada um recebe a mensagem sem ver quem mais recebeu; você fica em Para

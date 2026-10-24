@@ -33,6 +33,7 @@ mod pictures;
 mod prefs;
 mod searching;
 mod writing;
+pub use writing::SendCheck;
 // Organizing mail's own parts, named here as before.
 pub use organize::{junk, quick_steps, search_folders};
 pub use prefs::Prefs;

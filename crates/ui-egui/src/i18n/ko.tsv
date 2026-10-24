@@ -1030,3 +1030,8 @@ month	May	5월
 	Careful: this comes from {domain}, which looks like {like} but isn't it.	주의: 이 메일은 {domain}에서 왔습니다. {like}와 비슷해 보이지만 다른 곳입니다.
 	Careful: the sender's name shows {shown}, but this comes from {real}.	주의: 보낸 사람 이름에는 {shown}이(가) 보이지만 실제로는 {real}에서 왔습니다.
 	Don't open its links or attachments, or answer it, unless you're sure who sent it.	보낸 사람을 확신할 수 없다면 링크나 첨부 파일을 열거나 답장하지 마세요.
+	Check before sending	보내기 전에 확인
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address}은(는) {like}의 주소처럼 보이지만 아닙니다. 맞는 주소인가요?
+	{n} people who may not know each other will all see each other's addresses.	서로 모를 수도 있는 {n}명이 모두 서로의 주소를 보게 됩니다.
+	Put everyone in Bcc	모두 숨은 참조에 넣기
+	Each of them gets the message without seeing who else did; you're in To	각자 다른 받는 사람을 보지 못한 채 메시지를 받습니다. 받는 사람에는 내가 들어갑니다

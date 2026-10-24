@@ -78,6 +78,10 @@ pub(crate) fn tour() {
             Dialog::ConfirmDelete { count: 2 },
             Dialog::ConfirmDeleteContact { uid: "zoe".into(), name: "Zoe Park".into() },
             Dialog::EmptySubject,
+            Dialog::SendCheck(vec![
+                mailcraft_engine::SendCheck::Lookalike { address: "orders@printsh0p.example".into(), like: "printshop.example".into() },
+                mailcraft_engine::SendCheck::Exposed { count: 12 },
+            ]),
             Dialog::edit_account(&a.session.accounts[0].config),
             Dialog::vacation(
                 "sample",

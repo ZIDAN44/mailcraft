@@ -451,6 +451,12 @@ impl MailApp {
     pub fn run(&mut self, id: &str, params: Value) {
         use mailcraft_engine::CmdError;
         match self.session.run(id, &params) {
+            // Held to be looked at first: said in the message's window when it has one.
+            Ok(v) if id == "compose.send" && v.get("check").is_some() => {
+                let found = serde_json::from_value(v["check"].clone()).unwrap_or_default();
+                self.ui.dialog_for = self.session.compose.as_ref().filter(|c| c.window).map(|c| c.id);
+                self.ui.dialog = Some(Dialog::SendCheck(found));
+            }
             Ok(_) => {}
             Err(CmdError::Disabled(_)) => {}
             // What went wrong with the message being written is said over it, in its own

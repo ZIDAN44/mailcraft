@@ -64,6 +64,12 @@ const MAIL_SERVICES: &[&str] = &[
     "zoho.com",
 ];
 
+/// Whether `domain` is one of the big mail services, where everyone has an address of their own
+/// (so two people there needn't know each other).
+pub fn is_mail_service(domain: &str) -> bool {
+    MAIL_SERVICES.contains(&domain.trim().to_lowercase().as_str())
+}
+
 /// Shorter than this, two domains one letter apart are as likely to be two real ones.
 const SHORTEST_COMPARED: usize = 6;
 
