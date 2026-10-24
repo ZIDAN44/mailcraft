@@ -1049,3 +1049,42 @@ month	May	maio
 	Hide it again	Ocultar de novo
 	Sent mail waiting for a reply	E-mails enviados aguardando resposta
 	Awaiting reply	Aguardando resposta
+	its certificate isn't from an authority this computer trusts	o certificado não é de uma autoridade em que este computador confia
+	its certificate ran out on {date}	o certificado expirou em {date}
+	its certificate isn't valid until {date}	o certificado só vale a partir de {date}
+	its certificate is for {addresses}, not for the sender	o certificado é para {addresses}, não para o remetente
+	its certificate isn't for signing email	o certificado não serve para assinar e-mails
+	Encrypted. Decrypting it…	Criptografada. Descriptografando…
+	This message is encrypted, and it couldn't be decrypted: {error}	Esta mensagem está criptografada e não foi possível descriptografá-la: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	Não está assinada, então pode ter sido alterada no caminho: cuidado com o que ela pede.
+	Encrypted: only you and its other recipients can read it.	Criptografada: só você e os outros destinatários podem lê-la.
+	Issued by {issuer}, valid until {date}	Emitido por {issuer}, válido até {date}
+	Signed {date}	Assinada: {date}
+	Signed with SHA-1, which no longer proves much.	Assinada com SHA-1, que já não prova muita coisa.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	Assinada por {signer}: a assinatura é válida (certificado de {issuer}).
+	Signed by {signer}, but {why}.	Assinada por {signer}, mas {why}.
+	The signature doesn't hold: {why}.	A assinatura não é válida: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Assine suas mensagens para que saibam que são suas, e leia e envie e-mails criptografados, com um certificado (S/MIME).
+	Security	Segurança
+	No certificate	Nenhum certificado
+	Import the .p12 or .pfx file your certificate came in.	Importe o arquivo .p12 ou .pfx em que seu certificado veio.
+	Import certificate…	Importar certificado…
+	It ran out on {date}: messages can't be signed with it any more.	Expirou em {date}: não dá mais para assinar mensagens com ele.
+	Forget this certificate: its key goes from the keychain too	Esquecer este certificado: a chave também sai do chaveiro
+	Replace…	Substituir…
+	Sign new messages	Assinar mensagens novas
+	Encrypt new messages	Criptografar mensagens novas
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Cada destinatário precisa ter enviado antes uma mensagem assinada; respostas a e-mails criptografados são sempre criptografadas.
+	Certificates from signed mail: {n}	Certificados de e-mails assinados: {n}
+	Import certificate	Importar certificado
+	The password {file} was saved with:	A senha com que {file} foi salvo:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	A chave privada fica no chaveiro do sistema, não nos arquivos do MailCraft.
+	Import	Importar
+	Sign	Assinar
+	Encrypt	Criptografar
+	Signed with your certificate: the recipients can tell it's from you and unchanged	Assinada com seu certificado: os destinatários sabem que é sua e que não mudou
+	Only the recipients can read it: each needs to have sent you a signed message	Só os destinatários podem lê-la: cada um precisa ter enviado uma mensagem assinada
+	the message was changed after it was signed, or the signature isn't the sender's	a mensagem foi alterada depois de assinada, ou a assinatura não é do remetente
+	this account has no certificate to decrypt it with (File › Info › Security)	esta conta não tem certificado para descriptografá-la (Arquivo › Informações › Segurança)
+	it can't be decrypted with your certificate	não dá para descriptografá-la com seu certificado
+	its account is gone	a conta dela não existe mais

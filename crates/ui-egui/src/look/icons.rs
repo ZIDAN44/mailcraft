@@ -70,6 +70,10 @@ pub enum Icon {
     Note,
     /// Two chevrons running ahead (Quick Steps: several things in one go).
     Steps,
+    /// A padlock (encrypted mail).
+    Lock,
+    /// A rosette with a tick (signed mail).
+    Seal,
 }
 
 struct Pen<'a> {
@@ -344,6 +348,24 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(7.0, 2.5), (2.5, 2.5), (2.5, 13.5), (13.5, 13.5), (13.5, 9.0)]);
             pen.line(&[(7.5, 8.5), (13.5, 2.5)]);
             pen.line(&[(9.5, 2.5), (13.5, 2.5), (13.5, 6.5)]);
+        }
+        Icon::Lock => {
+            // The shackle, then the body.
+            pen.line(&[(5.0, 7.0), (5.0, 4.8), (5.6, 3.0), (8.0, 1.8), (10.4, 3.0), (11.0, 4.8), (11.0, 7.0)]);
+            pen.closed(&[(3.0, 7.0), (13.0, 7.0), (13.0, 14.5), (3.0, 14.5)]);
+            pen.line(&[(8.0, 9.8), (8.0, 11.8)]);
+        }
+        Icon::Seal => {
+            // A rosette (a circle with notches round it) and a tick inside.
+            let pts: Vec<(f32, f32)> = (0..24)
+                .map(|i| {
+                    let a = i as f32 * PI / 12.0;
+                    let r = if i % 2 == 0 { 6.8 } else { 5.8 };
+                    (8.0 + r * a.cos(), 8.0 + r * a.sin())
+                })
+                .collect();
+            pen.closed(&pts);
+            pen.line(&[(5.4, 8.2), (7.2, 10.0), (10.8, 6.2)]);
         }
         Icon::Steps => {
             pen.line(&[(3.0, 4.0), (7.0, 8.0), (3.0, 12.0)]);

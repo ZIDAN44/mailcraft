@@ -184,6 +184,11 @@ impl MailApp {
                     }
                 }
             }
+            Action::ImportCertificate(account) => {
+                if let Some(path) = self.services.pick_certificate() {
+                    self.ui.dialog = Some(Dialog::Certificate { account, path: path.to_string_lossy().into_owned(), password: String::new() });
+                }
+            }
             Action::ImportRules => {
                 if let Some(path) = self.services.pick_rules_file() {
                     match self.session.run("rules.import", &json!({"path": path.to_string_lossy()})) {

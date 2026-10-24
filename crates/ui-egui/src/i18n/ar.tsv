@@ -1044,3 +1044,42 @@ month	May	مايو
 	Hide it again	إخفاؤه مجددًا
 	Sent mail waiting for a reply	بريد مُرسَل ينتظر ردًا
 	Awaiting reply	بانتظار الرد
+	its certificate isn't from an authority this computer trusts	شهادته ليست من جهة يثق بها هذا الحاسوب
+	its certificate ran out on {date}	انتهت صلاحية شهادته في {date}
+	its certificate isn't valid until {date}	شهادته غير صالحة حتى {date}
+	its certificate is for {addresses}, not for the sender	شهادته مخصصة لـ {addresses}، وليست للمرسل
+	its certificate isn't for signing email	شهادته ليست مخصصة لتوقيع البريد
+	Encrypted. Decrypting it…	مشفّرة. جارٍ فك تشفيرها…
+	This message is encrypted, and it couldn't be decrypted: {error}	هذه الرسالة مشفّرة، وتعذّر فك تشفيرها: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	إنها غير موقّعة، لذا ربما تغيّرت في الطريق: كن حذرًا مما تطلبه.
+	Encrypted: only you and its other recipients can read it.	مشفّرة: لا يقرؤها سواك وسوى بقية مستلميها.
+	Issued by {issuer}, valid until {date}	صادرة عن {issuer}، صالحة حتى {date}
+	Signed {date}	وُقّعت {date}
+	Signed with SHA-1, which no longer proves much.	موقّعة بـ SHA-1، الذي لم يعد يثبت الكثير.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	موقّعة من {signer}: التوقيع صحيح (الشهادة من {issuer}).
+	Signed by {signer}, but {why}.	موقّعة من {signer}، لكن {why}.
+	The signature doesn't hold: {why}.	التوقيع غير صحيح: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	وقّع رسائلك ليعرف الناس أنها منك، واقرأ البريد المشفّر وأرسله، باستخدام شهادة (S/MIME).
+	Security	الأمان
+	No certificate	لا شهادة
+	Import the .p12 or .pfx file your certificate came in.	استورد ملف ‎.p12 أو ‎.pfx الذي جاءت فيه شهادتك.
+	Import certificate…	استيراد شهادة…
+	It ran out on {date}: messages can't be signed with it any more.	انتهت صلاحيتها في {date}: لم يعد ممكنًا توقيع الرسائل بها.
+	Forget this certificate: its key goes from the keychain too	انسَ هذه الشهادة: يُحذف مفتاحها من سلسلة المفاتيح أيضًا
+	Replace…	استبدال…
+	Sign new messages	توقيع الرسائل الجديدة
+	Encrypt new messages	تشفير الرسائل الجديدة
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	يجب أن يكون كل مستلم قد أرسل إليك رسالة موقّعة أولًا؛ والردود على البريد المشفّر تُشفّر دائمًا.
+	Certificates from signed mail: {n}	شهادات من البريد الموقّع: {n}
+	Import certificate	استيراد شهادة
+	The password {file} was saved with:	كلمة المرور التي حُفظ بها {file}:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	يُحفظ مفتاحها الخاص في سلسلة مفاتيح النظام، وليس في ملفات MailCraft.
+	Import	استيراد
+	Sign	توقيع
+	Encrypt	تشفير
+	Signed with your certificate: the recipients can tell it's from you and unchanged	موقّعة بشهادتك: يعرف المستلمون أنها منك ولم تتغير
+	Only the recipients can read it: each needs to have sent you a signed message	لا يقرؤها سوى المستلمين: يجب أن يكون كل منهم قد أرسل إليك رسالة موقّعة
+	the message was changed after it was signed, or the signature isn't the sender's	تغيّرت الرسالة بعد توقيعها، أو أن التوقيع ليس للمرسل
+	this account has no certificate to decrypt it with (File › Info › Security)	ليس لهذا الحساب شهادة لفك تشفيرها (ملف › معلومات › الأمان)
+	it can't be decrypted with your certificate	تعذّر فك تشفيرها بشهادتك
+	its account is gone	حسابها لم يعد موجودًا

@@ -1045,3 +1045,42 @@ month	May	5月
 	Hide it again	もう一度隠す
 	Sent mail waiting for a reply	返信待ちの送信済みメール
 	Awaiting reply	返信待ち
+	its certificate isn't from an authority this computer trusts	証明書がこのコンピューターの信頼する発行元のものではありません
+	its certificate ran out on {date}	証明書は {date} に期限切れになりました
+	its certificate isn't valid until {date}	証明書は {date} まで有効になりません
+	its certificate is for {addresses}, not for the sender	証明書は {addresses} のもので、差出人のものではありません
+	its certificate isn't for signing email	証明書はメールの署名用ではありません
+	Encrypted. Decrypting it…	暗号化されています。復号しています…
+	This message is encrypted, and it couldn't be decrypted: {error}	このメッセージは暗号化されており、復号できませんでした: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	署名されていないため、途中で変更された可能性があります。求められている内容に注意してください。
+	Encrypted: only you and its other recipients can read it.	暗号化: あなたとほかの受信者だけが読めます。
+	Issued by {issuer}, valid until {date}	発行元 {issuer}、{date} まで有効
+	Signed {date}	署名日時: {date}
+	Signed with SHA-1, which no longer proves much.	SHA-1 で署名されており、今ではあまり証明になりません。
+	Signed by {signer}: the signature holds (certificate from {issuer}).	{signer} による署名: 署名は有効です (証明書の発行元 {issuer})。
+	Signed by {signer}, but {why}.	{signer} による署名ですが、{why}。
+	The signature doesn't hold: {why}.	署名が有効ではありません: {why}。
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	証明書 (S/MIME) を使って、メッセージに署名してあなたからだとわかるようにしたり、暗号化メールを読み書きしたりします。
+	Security	セキュリティ
+	No certificate	証明書なし
+	Import the .p12 or .pfx file your certificate came in.	証明書が入っている .p12 または .pfx ファイルを取り込みます。
+	Import certificate…	証明書を取り込む…
+	It ran out on {date}: messages can't be signed with it any more.	{date} に期限切れになりました。これ以上メッセージに署名できません。
+	Forget this certificate: its key goes from the keychain too	この証明書を削除します。キーもキーチェーンから削除されます
+	Replace…	置き換える…
+	Sign new messages	新しいメッセージに署名する
+	Encrypt new messages	新しいメッセージを暗号化する
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	各受信者から先に署名付きメッセージを受け取っている必要があります。暗号化メールへの返信は常に暗号化されます。
+	Certificates from signed mail: {n}	署名付きメールの証明書: {n}
+	Import certificate	証明書の取り込み
+	The password {file} was saved with:	{file} の保存時のパスワード:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	秘密鍵は MailCraft のファイルではなく、システムのキーチェーンに保管されます。
+	Import	取り込む
+	Sign	署名
+	Encrypt	暗号化
+	Signed with your certificate: the recipients can tell it's from you and unchanged	あなたの証明書で署名します。受信者はあなたからのもので変更されていないとわかります
+	Only the recipients can read it: each needs to have sent you a signed message	受信者だけが読めます。各受信者から署名付きメッセージを受け取っている必要があります
+	the message was changed after it was signed, or the signature isn't the sender's	署名後にメッセージが変更されたか、署名が差出人のものではありません
+	this account has no certificate to decrypt it with (File › Info › Security)	このアカウントには復号に使う証明書がありません (ファイル › 情報 › セキュリティ)
+	it can't be decrypted with your certificate	あなたの証明書では復号できません
+	its account is gone	そのアカウントはもうありません

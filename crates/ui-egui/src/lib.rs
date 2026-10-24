@@ -129,6 +129,8 @@ pub enum Action {
     /// The rules to a file, or rules from one (Outlook's Export and Import Rules).
     ExportRules,
     ImportRules,
+    /// Pick a `.p12` / `.pfx` file for an account's certificate, then ask its password.
+    ImportCertificate(String),
     /// Sign an account in again: the browser for OAuth accounts, else the password dialog.
     SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).

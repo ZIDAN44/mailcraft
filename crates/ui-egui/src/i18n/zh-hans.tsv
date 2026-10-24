@@ -1045,3 +1045,42 @@ month	May	5月
 	Hide it again	再次隐藏
 	Sent mail waiting for a reply	等待回复的已发送邮件
 	Awaiting reply	等待回复
+	its certificate isn't from an authority this computer trusts	其证书不是由这台电脑信任的机构颁发的
+	its certificate ran out on {date}	其证书已于 {date} 过期
+	its certificate isn't valid until {date}	其证书要到 {date} 才生效
+	its certificate is for {addresses}, not for the sender	其证书属于 {addresses}，而不是发件人
+	its certificate isn't for signing email	其证书不能用于签名邮件
+	Encrypted. Decrypting it…	已加密。正在解密…
+	This message is encrypted, and it couldn't be decrypted: {error}	这封邮件已加密，无法解密：{error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	它没有签名，可能在途中被改动过：请谨慎对待其中的要求。
+	Encrypted: only you and its other recipients can read it.	已加密：只有你和其他收件人能读。
+	Issued by {issuer}, valid until {date}	由 {issuer} 颁发，有效期至 {date}
+	Signed {date}	签名时间：{date}
+	Signed with SHA-1, which no longer proves much.	使用 SHA-1 签名，已不太可靠。
+	Signed by {signer}: the signature holds (certificate from {issuer}).	由 {signer} 签名：签名有效（证书来自 {issuer}）。
+	Signed by {signer}, but {why}.	由 {signer} 签名，但{why}。
+	The signature doesn't hold: {why}.	签名无效：{why}。
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	用证书（S/MIME）为邮件签名，让别人知道是你发的，并读写加密邮件。
+	Security	安全
+	No certificate	没有证书
+	Import the .p12 or .pfx file your certificate came in.	导入证书所在的 .p12 或 .pfx 文件。
+	Import certificate…	导入证书…
+	It ran out on {date}: messages can't be signed with it any more.	已于 {date} 过期：不能再用它签名邮件。
+	Forget this certificate: its key goes from the keychain too	忘记此证书：其密钥也会从钥匙串中删除
+	Replace…	替换…
+	Sign new messages	为新邮件签名
+	Encrypt new messages	加密新邮件
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	每个收件人都需要先给你发过一封签名邮件；对加密邮件的回复总是加密。
+	Certificates from signed mail: {n}	来自签名邮件的证书：{n}
+	Import certificate	导入证书
+	The password {file} was saved with:	保存 {file} 时使用的密码：
+	Its private key is kept in the system's keychain, not in MailCraft's files.	其私钥保存在系统钥匙串中，而不在 MailCraft 的文件里。
+	Import	导入
+	Sign	签名
+	Encrypt	加密
+	Signed with your certificate: the recipients can tell it's from you and unchanged	用你的证书签名：收件人能确认是你发的且未被改动
+	Only the recipients can read it: each needs to have sent you a signed message	只有收件人能读：每个人都需要给你发过签名邮件
+	the message was changed after it was signed, or the signature isn't the sender's	邮件在签名后被改动过，或签名不是发件人的
+	this account has no certificate to decrypt it with (File › Info › Security)	此帐户没有可用于解密的证书（文件 › 信息 › 安全）
+	it can't be decrypted with your certificate	无法用你的证书解密
+	its account is gone	其帐户已不存在

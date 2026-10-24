@@ -67,6 +67,31 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(6.0);
             close_row(ui)
         }
+        Dialog::Certificate { account, path, password } => {
+            ui.set_width(420.0);
+            title(ui, t, "Import certificate");
+            let file = path.rsplit(['/', '\\']).next().unwrap_or(path.as_str()).to_string();
+            ui.add(egui::Label::new(RichText::new(tf!("The password {file} was saved with:", file = file)).color(t.dim)).wrap());
+            ui.add_space(8.0);
+            let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            ui.add_space(4.0);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tl!("Its private key is kept in the system's keychain, not in MailCraft's files.")).color(t.faint).small(),
+                )
+                .wrap(),
+            );
+            let (ok, cancel) = buttons(ui, t, "Import", true);
+            if ok || enter {
+                acts.push(Action::Run("security.import", json!({"account": account, "path": path, "password": password})));
+                return false;
+            }
+            !cancel
+        }
         Dialog::OpenSharedCalendar { email, error } => {
             ui.set_width(420.0);
             title(ui, t, "Open a shared calendar");

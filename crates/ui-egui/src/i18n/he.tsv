@@ -1044,3 +1044,42 @@ month	May	מאי
 	Hide it again	להסתיר שוב
 	Sent mail waiting for a reply	דואר שנשלח וממתין לתשובה
 	Awaiting reply	ממתין לתשובה
+	its certificate isn't from an authority this computer trusts	התעודה שלו אינה מרשות שהמחשב הזה סומך עליה
+	its certificate ran out on {date}	תוקף התעודה שלו פג ב־{date}
+	its certificate isn't valid until {date}	התעודה שלו אינה בתוקף עד {date}
+	its certificate is for {addresses}, not for the sender	התעודה שלו מיועדת ל־{addresses}, לא לשולח
+	its certificate isn't for signing email	התעודה שלו אינה מיועדת לחתימת דואר
+	Encrypted. Decrypting it…	מוצפנת. מפענחים אותה…
+	This message is encrypted, and it couldn't be decrypted: {error}	ההודעה הזו מוצפנת, ולא ניתן היה לפענח אותה: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	היא אינה חתומה, ולכן ייתכן ששונתה בדרך: היזהרו במה שהיא מבקשת.
+	Encrypted: only you and its other recipients can read it.	מוצפנת: רק אתם ושאר הנמענים יכולים לקרוא אותה.
+	Issued by {issuer}, valid until {date}	הונפקה על ידי {issuer}, בתוקף עד {date}
+	Signed {date}	נחתמה: {date}
+	Signed with SHA-1, which no longer proves much.	נחתמה ב־SHA-1, שכבר אינו מוכיח הרבה.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	נחתמה על ידי {signer}: החתימה תקפה (תעודה מ־{issuer}).
+	Signed by {signer}, but {why}.	נחתמה על ידי {signer}, אבל {why}.
+	The signature doesn't hold: {why}.	החתימה אינה תקפה: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	חתמו על ההודעות כדי שידעו שהן מכם, וקראו ושלחו דואר מוצפן, בעזרת תעודה (S/MIME).
+	Security	אבטחה
+	No certificate	אין תעודה
+	Import the .p12 or .pfx file your certificate came in.	ייבאו את קובץ ה־‎.p12 או ה־‎.pfx שבו הגיעה התעודה.
+	Import certificate…	ייבוא תעודה…
+	It ran out on {date}: messages can't be signed with it any more.	תוקפה פג ב־{date}: אי אפשר עוד לחתום בה על הודעות.
+	Forget this certificate: its key goes from the keychain too	לשכוח את התעודה הזו: גם המפתח שלה יימחק ממחזיק המפתחות
+	Replace…	החלפה…
+	Sign new messages	לחתום על הודעות חדשות
+	Encrypt new messages	להצפין הודעות חדשות
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	כל נמען צריך לשלוח לכם קודם הודעה חתומה; תשובות לדואר מוצפן תמיד מוצפנות.
+	Certificates from signed mail: {n}	תעודות מדואר חתום: {n}
+	Import certificate	ייבוא תעודה
+	The password {file} was saved with:	הסיסמה שבה נשמר {file}:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	המפתח הפרטי שלה נשמר במחזיק המפתחות של המערכת, לא בקבצים של MailCraft.
+	Import	ייבוא
+	Sign	חתימה
+	Encrypt	הצפנה
+	Signed with your certificate: the recipients can tell it's from you and unchanged	חתומה בתעודה שלכם: הנמענים יידעו שהיא מכם ושלא שונתה
+	Only the recipients can read it: each needs to have sent you a signed message	רק הנמענים יכולים לקרוא אותה: כל אחד צריך לשלוח לכם הודעה חתומה
+	the message was changed after it was signed, or the signature isn't the sender's	ההודעה שונתה אחרי שנחתמה, או שהחתימה אינה של השולח
+	this account has no certificate to decrypt it with (File › Info › Security)	לחשבון הזה אין תעודה לפענוח (קובץ › מידע › אבטחה)
+	it can't be decrypted with your certificate	לא ניתן לפענח אותה בתעודה שלכם
+	its account is gone	החשבון שלה כבר לא קיים

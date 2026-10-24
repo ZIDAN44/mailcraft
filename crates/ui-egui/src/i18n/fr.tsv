@@ -1049,3 +1049,42 @@ month	May	mai
 	Hide it again	Le masquer à nouveau
 	Sent mail waiting for a reply	Courrier envoyé en attente de réponse
 	Awaiting reply	En attente de réponse
+	its certificate isn't from an authority this computer trusts	son certificat ne vient pas d'une autorité à laquelle cet ordinateur fait confiance
+	its certificate ran out on {date}	son certificat a expiré le {date}
+	its certificate isn't valid until {date}	son certificat n'est valable qu'à partir du {date}
+	its certificate is for {addresses}, not for the sender	son certificat est pour {addresses}, pas pour l'expéditeur
+	its certificate isn't for signing email	son certificat n'est pas fait pour signer des courriels
+	Encrypted. Decrypting it…	Chiffré. Déchiffrement en cours…
+	This message is encrypted, and it couldn't be decrypted: {error}	Ce message est chiffré et n'a pas pu être déchiffré : {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	Il n'est pas signé et a pu être modifié en route : méfiez-vous de ce qu'il demande.
+	Encrypted: only you and its other recipients can read it.	Chiffré : seuls vous et ses autres destinataires pouvez le lire.
+	Issued by {issuer}, valid until {date}	Délivré par {issuer}, valable jusqu'au {date}
+	Signed {date}	Signé : {date}
+	Signed with SHA-1, which no longer proves much.	Signé avec SHA-1, qui ne prouve plus grand-chose.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	Signé par {signer} : la signature est valable (certificat délivré par {issuer}).
+	Signed by {signer}, but {why}.	Signé par {signer}, mais {why}.
+	The signature doesn't hold: {why}.	La signature n'est pas valable : {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Signez vos messages pour qu'on sache qu'ils viennent de vous, et lisez et envoyez du courrier chiffré, avec un certificat (S/MIME).
+	Security	Sécurité
+	No certificate	Aucun certificat
+	Import the .p12 or .pfx file your certificate came in.	Importez le fichier .p12 ou .pfx dans lequel votre certificat vous a été remis.
+	Import certificate…	Importer un certificat…
+	It ran out on {date}: messages can't be signed with it any more.	Il a expiré le {date} : il ne permet plus de signer des messages.
+	Forget this certificate: its key goes from the keychain too	Oublier ce certificat : sa clé est aussi retirée du trousseau
+	Replace…	Remplacer…
+	Sign new messages	Signer les nouveaux messages
+	Encrypt new messages	Chiffrer les nouveaux messages
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Chaque destinataire doit d'abord vous avoir envoyé un message signé ; les réponses à un courrier chiffré sont toujours chiffrées.
+	Certificates from signed mail: {n}	Certificats reçus avec du courrier signé : {n}
+	Import certificate	Importer un certificat
+	The password {file} was saved with:	Le mot de passe avec lequel {file} a été enregistré :
+	Its private key is kept in the system's keychain, not in MailCraft's files.	Sa clé privée est conservée dans le trousseau du système, pas dans les fichiers de MailCraft.
+	Import	Importer
+	Sign	Signer
+	Encrypt	Chiffrer
+	Signed with your certificate: the recipients can tell it's from you and unchanged	Signé avec votre certificat : les destinataires savent qu'il vient de vous et n'a pas changé
+	Only the recipients can read it: each needs to have sent you a signed message	Seuls les destinataires peuvent le lire : chacun doit vous avoir envoyé un message signé
+	the message was changed after it was signed, or the signature isn't the sender's	le message a été modifié après sa signature, ou la signature n'est pas celle de l'expéditeur
+	this account has no certificate to decrypt it with (File › Info › Security)	ce compte n'a pas de certificat pour le déchiffrer (Fichier › Informations › Sécurité)
+	it can't be decrypted with your certificate	il ne peut pas être déchiffré avec votre certificat
+	its account is gone	son compte n'existe plus

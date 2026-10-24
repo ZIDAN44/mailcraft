@@ -17,6 +17,7 @@ mod attachments;
 mod body;
 mod compose;
 mod people;
+mod security;
 use attachments::*;
 pub(crate) use attachments::{big_picture, decode};
 use body::*;
@@ -233,6 +234,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 if let Some(w) = &r.warning {
                     sender_warning(&t, ui, w);
                 }
+                if let Some(sec) = &r.security {
+                    security::security_bar(s, &t, ui, sec);
+                }
                 if let Some((_, item)) = s.outbox_entry(&r.key) {
                     egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
                         let why = match item.error.as_deref() {
@@ -306,6 +310,11 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 if !in_window {
                     invite_card(s, st, ui, &r.key, acts);
                 }
+            }
+
+            // An encrypted message not decrypted: nothing of it (its smime.p7m) is shown.
+            if r.security.as_ref().is_some_and(security::still_locked) {
+                return;
             }
 
             // Attachments.

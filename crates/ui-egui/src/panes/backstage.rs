@@ -15,6 +15,7 @@ use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, widgets};
 
 mod options;
+mod security;
 use options::options;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -326,6 +327,10 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             }
         });
     });
+    // S/MIME, for accounts that send mail.
+    if !a.is_data_file() {
+        security::security(s, t, ui, a, acts);
+    }
 
     // Automatic replies: on or off, and a button to change them where the server has them.
     let (color, status) = match &a.vacation {

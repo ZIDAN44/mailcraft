@@ -1044,3 +1044,42 @@ month	May	mei
 	Hide it again	Weer verbergen
 	Sent mail waiting for a reply	Verzonden mail die op antwoord wacht
 	Awaiting reply	Wacht op antwoord
+	its certificate isn't from an authority this computer trusts	het certificaat komt niet van een instantie die deze computer vertrouwt
+	its certificate ran out on {date}	het certificaat is verlopen op {date}
+	its certificate isn't valid until {date}	het certificaat is pas geldig vanaf {date}
+	its certificate is for {addresses}, not for the sender	het certificaat is voor {addresses}, niet voor de afzender
+	its certificate isn't for signing email	het certificaat is niet bedoeld om e-mail te ondertekenen
+	Encrypted. Decrypting it…	Versleuteld. Wordt ontsleuteld…
+	This message is encrypted, and it couldn't be decrypted: {error}	Dit bericht is versleuteld en kon niet worden ontsleuteld: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	Het is niet ondertekend en kan onderweg zijn gewijzigd: wees voorzichtig met wat het vraagt.
+	Encrypted: only you and its other recipients can read it.	Versleuteld: alleen u en de andere ontvangers kunnen het lezen.
+	Issued by {issuer}, valid until {date}	Uitgegeven door {issuer}, geldig tot {date}
+	Signed {date}	Ondertekend: {date}
+	Signed with SHA-1, which no longer proves much.	Ondertekend met SHA-1, wat niet veel meer bewijst.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	Ondertekend door {signer}: de handtekening klopt (certificaat van {issuer}).
+	Signed by {signer}, but {why}.	Ondertekend door {signer}, maar {why}.
+	The signature doesn't hold: {why}.	De handtekening klopt niet: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Onderteken uw berichten zodat men ziet dat ze van u zijn, en lees en verstuur versleutelde mail, met een certificaat (S/MIME).
+	Security	Beveiliging
+	No certificate	Geen certificaat
+	Import the .p12 or .pfx file your certificate came in.	Importeer het .p12- of .pfx-bestand waarin uw certificaat kwam.
+	Import certificate…	Certificaat importeren…
+	It ran out on {date}: messages can't be signed with it any more.	Het is verlopen op {date}: er kunnen geen berichten meer mee worden ondertekend.
+	Forget this certificate: its key goes from the keychain too	Dit certificaat vergeten: de sleutel verdwijnt ook uit de sleutelhanger
+	Replace…	Vervangen…
+	Sign new messages	Nieuwe berichten ondertekenen
+	Encrypt new messages	Nieuwe berichten versleutelen
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Elke ontvanger moet u eerst een ondertekend bericht hebben gestuurd; antwoorden op versleutelde mail worden altijd versleuteld.
+	Certificates from signed mail: {n}	Certificaten uit ondertekende mail: {n}
+	Import certificate	Certificaat importeren
+	The password {file} was saved with:	Het wachtwoord waarmee {file} is opgeslagen:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	De privésleutel wordt in de sleutelhanger van het systeem bewaard, niet in de bestanden van MailCraft.
+	Import	Importeren
+	Sign	Ondertekenen
+	Encrypt	Versleutelen
+	Signed with your certificate: the recipients can tell it's from you and unchanged	Ondertekend met uw certificaat: de ontvangers zien dat het van u is en ongewijzigd
+	Only the recipients can read it: each needs to have sent you a signed message	Alleen de ontvangers kunnen het lezen: ieder moet u een ondertekend bericht hebben gestuurd
+	the message was changed after it was signed, or the signature isn't the sender's	het bericht is na het ondertekenen gewijzigd, of de handtekening is niet van de afzender
+	this account has no certificate to decrypt it with (File › Info › Security)	dit account heeft geen certificaat om het te ontsleutelen (Bestand › Info › Beveiliging)
+	it can't be decrypted with your certificate	het kan niet met uw certificaat worden ontsleuteld
+	its account is gone	het account bestaat niet meer

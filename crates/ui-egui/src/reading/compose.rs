@@ -327,6 +327,8 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     let clock = s.clock;
     // Delay Delivery holds mail in the Outbox, which only a server account's sends from.
     let can_delay = s.compose.as_ref().and_then(|c| s.account(&c.account)).is_some_and(|a| !a.is_local());
+    // S/MIME's switches, for an account with a certificate.
+    let has_cert = s.compose.as_ref().is_some_and(|c| s.identity(&c.account).is_some());
     let signature = s.compose.as_ref().and_then(|c| s.account(&c.account)).map(|a| a.config.signature.clone()).unwrap_or_default();
     let Some(c) = s.compose.as_mut() else { return };
     // The editor's state belongs to one message.
@@ -441,6 +443,28 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                     .changed()
                 {
                     c.read_receipt = receipt;
+                }
+                if has_cert {
+                    let toggle = |ui: &mut Ui, on: &mut bool, icon: Icon, label: &str, about: &str| {
+                        let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                        icons::paint(ui.painter(), r, icon, if *on { t.accent } else { t.dim });
+                        ui.checkbox(on, RichText::new(tl!(label)).small()).on_hover_text(tl!(about)).changed()
+                    };
+                    let mut sign = c.sign;
+                    if toggle(ui, &mut sign, Icon::Seal, "Sign", "Signed with your certificate: the recipients can tell it's from you and unchanged")
+                    {
+                        c.sign = sign;
+                    }
+                    let mut encrypt = c.encrypt;
+                    if toggle(
+                        ui,
+                        &mut encrypt,
+                        Icon::Lock,
+                        "Encrypt",
+                        "Only the recipients can read it: each needs to have sent you a signed message",
+                    ) {
+                        c.encrypt = encrypt;
+                    }
                 }
                 // Outlook's Delay Delivery and Direct Replies To.
                 if can_delay {

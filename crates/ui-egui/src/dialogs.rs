@@ -92,6 +92,12 @@ pub enum Dialog {
         address: String,
         error: Option<String>,
     },
+    /// The password of a certificate file being imported (S/MIME).
+    Certificate {
+        account: String,
+        path: String,
+        password: String,
+    },
     /// Word count of the message being written (or its selection: the `bool`).
     WordCount(crate::rich_edit::Counts, bool),
     /// A folder's Properties: where it is, how many messages, how much is on this computer.
@@ -447,6 +453,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         | Dialog::PicturePreview { .. }
         | Dialog::Preview { .. }
         | Dialog::OpenSharedCalendar { .. }
+        | Dialog::Certificate { .. }
         | Dialog::Event(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, t, acts),
     }

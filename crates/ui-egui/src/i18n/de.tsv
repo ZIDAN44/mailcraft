@@ -1049,3 +1049,42 @@ month	May	Mai
 	Hide it again	Wieder ausblenden
 	Sent mail waiting for a reply	Gesendete Mails, die auf Antwort warten
 	Awaiting reply	Wartet auf Antwort
+	its certificate isn't from an authority this computer trusts	sein Zertifikat stammt von keiner Stelle, der dieser Computer vertraut
+	its certificate ran out on {date}	sein Zertifikat ist am {date} abgelaufen
+	its certificate isn't valid until {date}	sein Zertifikat gilt erst ab {date}
+	its certificate is for {addresses}, not for the sender	sein Zertifikat gilt für {addresses}, nicht für den Absender
+	its certificate isn't for signing email	sein Zertifikat ist nicht zum Signieren von E-Mails
+	Encrypted. Decrypting it…	Verschlüsselt. Wird entschlüsselt…
+	This message is encrypted, and it couldn't be decrypted: {error}	Diese Nachricht ist verschlüsselt und konnte nicht entschlüsselt werden: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	Sie ist nicht signiert und könnte unterwegs verändert worden sein: Seien Sie vorsichtig mit dem, was sie verlangt.
+	Encrypted: only you and its other recipients can read it.	Verschlüsselt: Nur Sie und die anderen Empfänger können sie lesen.
+	Issued by {issuer}, valid until {date}	Ausgestellt von {issuer}, gültig bis {date}
+	Signed {date}	Signiert: {date}
+	Signed with SHA-1, which no longer proves much.	Mit SHA-1 signiert, was nicht mehr viel beweist.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	Signiert von {signer}: Die Signatur ist gültig (Zertifikat von {issuer}).
+	Signed by {signer}, but {why}.	Signiert von {signer}, aber {why}.
+	The signature doesn't hold: {why}.	Die Signatur ist ungültig: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Signieren Sie Ihre Nachrichten, damit man sieht, dass sie von Ihnen sind, und lesen und senden Sie verschlüsselte Mails, mit einem Zertifikat (S/MIME).
+	Security	Sicherheit
+	No certificate	Kein Zertifikat
+	Import the .p12 or .pfx file your certificate came in.	Importieren Sie die .p12- oder .pfx-Datei, in der Ihr Zertifikat kam.
+	Import certificate…	Zertifikat importieren…
+	It ran out on {date}: messages can't be signed with it any more.	Es ist am {date} abgelaufen: Nachrichten können damit nicht mehr signiert werden.
+	Forget this certificate: its key goes from the keychain too	Dieses Zertifikat vergessen: Sein Schlüssel wird auch aus dem Schlüsselbund entfernt
+	Replace…	Ersetzen…
+	Sign new messages	Neue Nachrichten signieren
+	Encrypt new messages	Neue Nachrichten verschlüsseln
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Jeder Empfänger muss Ihnen zuerst eine signierte Nachricht geschickt haben; Antworten auf verschlüsselte Mails werden immer verschlüsselt.
+	Certificates from signed mail: {n}	Zertifikate aus signierten Mails: {n}
+	Import certificate	Zertifikat importieren
+	The password {file} was saved with:	Das Kennwort, mit dem {file} gespeichert wurde:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	Der private Schlüssel wird im Schlüsselbund des Systems gespeichert, nicht in den Dateien von MailCraft.
+	Import	Importieren
+	Sign	Signieren
+	Encrypt	Verschlüsseln
+	Signed with your certificate: the recipients can tell it's from you and unchanged	Mit Ihrem Zertifikat signiert: Die Empfänger sehen, dass sie von Ihnen und unverändert ist
+	Only the recipients can read it: each needs to have sent you a signed message	Nur die Empfänger können sie lesen: Jeder muss Ihnen eine signierte Nachricht geschickt haben
+	the message was changed after it was signed, or the signature isn't the sender's	die Nachricht wurde nach dem Signieren verändert, oder die Signatur stammt nicht vom Absender
+	this account has no certificate to decrypt it with (File › Info › Security)	dieses Konto hat kein Zertifikat zum Entschlüsseln (Datei › Informationen › Sicherheit)
+	it can't be decrypted with your certificate	sie lässt sich mit Ihrem Zertifikat nicht entschlüsseln
+	its account is gone	sein Konto gibt es nicht mehr

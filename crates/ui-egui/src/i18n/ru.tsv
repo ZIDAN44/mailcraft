@@ -1048,3 +1048,42 @@ month	May	Май
 	Hide it again	Снова скрыть
 	Sent mail waiting for a reply	Отправленные письма, ждущие ответа
 	Awaiting reply	Ждёт ответа
+	its certificate isn't from an authority this computer trusts	его сертификат выдан не тем центром, которому доверяет этот компьютер
+	its certificate ran out on {date}	срок действия его сертификата истёк {date}
+	its certificate isn't valid until {date}	его сертификат действует только с {date}
+	its certificate is for {addresses}, not for the sender	его сертификат выдан для {addresses}, а не для отправителя
+	its certificate isn't for signing email	его сертификат не предназначен для подписи писем
+	Encrypted. Decrypting it…	Зашифровано. Расшифровка…
+	This message is encrypted, and it couldn't be decrypted: {error}	Это письмо зашифровано, и его не удалось расшифровать: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	Оно не подписано, поэтому могло быть изменено по пути: будьте осторожны с тем, о чём оно просит.
+	Encrypted: only you and its other recipients can read it.	Зашифровано: прочитать его можете только вы и другие получатели.
+	Issued by {issuer}, valid until {date}	Выдан: {issuer}, действует до {date}
+	Signed {date}	Подписано: {date}
+	Signed with SHA-1, which no longer proves much.	Подписано с SHA-1, который уже мало что доказывает.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	Подписано: {signer}. Подпись верна (сертификат выдан: {issuer}).
+	Signed by {signer}, but {why}.	Подписано: {signer}, но {why}.
+	The signature doesn't hold: {why}.	Подпись неверна: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Подписывайте письма, чтобы было видно, что они от вас, и читайте и отправляйте зашифрованную почту с помощью сертификата (S/MIME).
+	Security	Безопасность
+	No certificate	Сертификата нет
+	Import the .p12 or .pfx file your certificate came in.	Импортируйте файл .p12 или .pfx, в котором пришёл ваш сертификат.
+	Import certificate…	Импортировать сертификат…
+	It ran out on {date}: messages can't be signed with it any more.	Срок действия истёк {date}: подписывать им письма больше нельзя.
+	Forget this certificate: its key goes from the keychain too	Забыть этот сертификат: его ключ тоже удаляется из связки ключей
+	Replace…	Заменить…
+	Sign new messages	Подписывать новые письма
+	Encrypt new messages	Шифровать новые письма
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Каждый получатель должен сначала прислать вам подписанное письмо; ответы на зашифрованные письма всегда шифруются.
+	Certificates from signed mail: {n}	Сертификаты из подписанных писем: {n}
+	Import certificate	Импорт сертификата
+	The password {file} was saved with:	Пароль, с которым сохранён {file}:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	Закрытый ключ хранится в системной связке ключей, а не в файлах MailCraft.
+	Import	Импортировать
+	Sign	Подписать
+	Encrypt	Зашифровать
+	Signed with your certificate: the recipients can tell it's from you and unchanged	Подписывается вашим сертификатом: получатели увидят, что письмо от вас и не изменено
+	Only the recipients can read it: each needs to have sent you a signed message	Прочитать смогут только получатели: каждый должен был прислать вам подписанное письмо
+	the message was changed after it was signed, or the signature isn't the sender's	письмо изменено после подписи, или подпись не принадлежит отправителю
+	this account has no certificate to decrypt it with (File › Info › Security)	у этой учётной записи нет сертификата для расшифровки (Файл › Сведения › Безопасность)
+	it can't be decrypted with your certificate	его не удаётся расшифровать вашим сертификатом
+	its account is gone	его учётной записи больше нет
