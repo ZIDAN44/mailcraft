@@ -1128,3 +1128,13 @@ month	May	mai
 	no certificate with its key was found	aucun certificat avec sa clé n'a été trouvé
 	the PIN is wrong, or the card is locked	le code PIN est faux, ou la carte est bloquée
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	le trousseau de ce système ne peut pas signer pour MailCraft : utilisez le module d'une carte à puce, ou importez un fichier .p12
+	Unlock	Déverrouiller
+	Unlock…	Déverrouiller…
+	Unlock certificate	Déverrouiller le certificat
+	Your certificate's password, to use it in this browser until the page is closed:	Le mot de passe de votre certificat, pour l'utiliser dans ce navigateur jusqu'à la fermeture de la page :
+	The browser keeps the file, locked with its password; the password itself isn't kept.	Le navigateur garde le fichier, verrouillé par son mot de passe ; le mot de passe lui-même n'est pas gardé.
+	Give its password again to sign and decrypt in this page	Redonnez son mot de passe pour signer et déchiffrer dans cette page
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	votre certificat est verrouillé dans ce navigateur : déverrouillez-le avec son mot de passe (Fichier › Informations › Sécurité)
+	there's no certificate kept in this browser: import its .p12 file	aucun certificat n'est gardé dans ce navigateur : importez son fichier .p12
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	les cartes à puce et le trousseau du système servent dans l'application de bureau MailCraft, pas dans le navigateur
+	the browser can't ask a certificate's authority	le navigateur ne peut pas interroger l'autorité d'un certificat

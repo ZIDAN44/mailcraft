@@ -1127,3 +1127,13 @@ month	May	Май
 	no certificate with its key was found	сертификат с ключом не найден
 	the PIN is wrong, or the card is locked	неверный PIN-код или карта заблокирована
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	связка ключей этой системы не может подписывать для MailCraft: используйте модуль смарт-карты или импортируйте файл .p12
+	Unlock	Разблокировать
+	Unlock…	Разблокировать…
+	Unlock certificate	Разблокировать сертификат
+	Your certificate's password, to use it in this browser until the page is closed:	Пароль сертификата, чтобы пользоваться им в этом браузере, пока страница открыта:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	Браузер хранит файл, закрытый паролем; сам пароль не хранится.
+	Give its password again to sign and decrypt in this page	Введите пароль снова, чтобы подписывать и расшифровывать на этой странице
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	сертификат заблокирован в этом браузере: разблокируйте его паролем (Файл › Сведения › Безопасность)
+	there's no certificate kept in this browser: import its .p12 file	в этом браузере нет сохранённого сертификата: импортируйте его файл .p12
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	смарт-карты и связка ключей системы используются в настольном приложении MailCraft, а не в браузере
+	the browser can't ask a certificate's authority	браузер не может обратиться к центру сертификации

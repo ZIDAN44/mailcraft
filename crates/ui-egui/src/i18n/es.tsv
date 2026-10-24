@@ -1128,3 +1128,13 @@ month	May	mayo
 	no certificate with its key was found	no se encontró ningún certificado con su clave
 	the PIN is wrong, or the card is locked	el PIN es incorrecto, o la tarjeta está bloqueada
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	el llavero de este sistema no puede firmar para MailCraft: usa el módulo de una tarjeta inteligente o importa un archivo .p12
+	Unlock	Desbloquear
+	Unlock…	Desbloquear…
+	Unlock certificate	Desbloquear el certificado
+	Your certificate's password, to use it in this browser until the page is closed:	La contraseña de tu certificado, para usarlo en este navegador hasta que se cierre la página:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	El navegador guarda el archivo, cerrado con su contraseña; la contraseña no se guarda.
+	Give its password again to sign and decrypt in this page	Vuelve a dar su contraseña para firmar y descifrar en esta página
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	tu certificado está bloqueado en este navegador: desbloquéalo con su contraseña (Archivo › Información › Seguridad)
+	there's no certificate kept in this browser: import its .p12 file	no hay ningún certificado guardado en este navegador: importa su archivo .p12
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	las tarjetas inteligentes y el llavero del sistema los usa la aplicación de escritorio de MailCraft, no el navegador
+	the browser can't ask a certificate's authority	el navegador no puede preguntar a la autoridad de un certificado

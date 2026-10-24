@@ -34,15 +34,15 @@ thiserror = { workspace = true }
 signature = "2"
 rand_core = "0.6"
 
-# .p12 / .pfx files: PBES2 (PBKDF2, AES) and the older 3DES and RC2-40 ones. Opened on the
-# desktop only (where the keychain is); its random numbers don't build for the browser.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# .p12 / .pfx files: PBES2 (PBKDF2, AES) and the older 3DES and RC2-40 ones.
 p12-keystore = "0.1.5"
 
 # rand_core asks the system for randomness through getrandom (the caller's generator is what's
 # used here); in the browser that's `crypto.getRandomValues`.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
+# p12-keystore's (through rand 0.9): the browser's too.
+getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["getrandom"] }

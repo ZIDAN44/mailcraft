@@ -168,8 +168,17 @@ impl Session {
 
     /// Keep the certificate and key in the `.p12` file at `path` for `account`.
     pub fn import_identity(&mut self, account: &str, path: &str, password: &str) -> CmdResult {
-        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
         let data = crate::cmd::read_capped(path, 1 << 20)?;
+        self.import_identity_data(account, data, password)
+    }
+
+    /// [`Session::import_identity`] from the file's bytes (the browser's picker gives no path).
+    /// Empty: the one the browser kept, unlocked with `password`.
+    pub fn import_identity_data(&mut self, account: &str, data: Vec<u8>, password: &str) -> CmdResult {
+        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if data.len() > 1 << 20 {
+            return Err(CmdError::Params("that file is too big for a certificate".into()));
+        }
         self.jobs.push(Job::ImportIdentity { account: config, data, password: mailcraft_model::Secret(password.to_string()) });
         Ok(serde_json::json!({ "importing": account }))
     }

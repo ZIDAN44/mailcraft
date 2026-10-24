@@ -1,7 +1,7 @@
 //! MailCraft S/MIME (RFC 8551): the cryptography under signed and encrypted mail, with the MIME
 //! around it left to `mailcraft-mime`.
 //!
-//! * `read_p12` (desktop only) opens a `.p12` / `.pfx` file (PBES2 with AES, and the older 3DES and RC2-40
+//! * [`read_p12`] opens a `.p12` / `.pfx` file (PBES2 with AES, and the older 3DES and RC2-40
 //!   ones Windows and Firefox still write) into an [`Identity`]: the private key and its chain.
 //! * [`sign`] makes a detached `SignedData` (SHA-256; RSA PKCS #1 v1.5 or ECDSA) with the
 //!   attributes RFC 8551 §2.5 asks for; [`verify`] checks one, detached or with its content, and
@@ -26,7 +26,6 @@ mod envelope;
 mod kari;
 pub mod key;
 pub mod oids;
-#[cfg(not(target_arch = "wasm32"))]
 mod p12;
 pub mod revocation;
 mod sign;
@@ -34,7 +33,6 @@ mod sign;
 pub use cert::{CertInfo, Problem};
 pub use envelope::{Cipher, decrypt, decrypt_with, encrypt};
 pub use key::PrivateKey;
-#[cfg(not(target_arch = "wasm32"))]
 pub use p12::read_p12;
 pub use sign::{Signed, carried, sign, sign_with, verify};
 

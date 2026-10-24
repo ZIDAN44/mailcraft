@@ -323,3 +323,19 @@ fn a_certificate_on_a_smart_card_becomes_the_accounts() {
     assert!(s.card_search().error.is_some());
     done(s);
 }
+
+#[test]
+fn a_certificate_comes_from_its_bytes_or_the_one_kept() {
+    let mut s = sample_session("smime-bytes");
+    // The browser's picker gives the file itself.
+    let p12 = testdata("riley-aes.p12");
+    s.run("security.import", &json!({"data": p12, "password": "secret"})).unwrap();
+    let jobs = s.take_jobs();
+    assert!(jobs.iter().any(|j| matches!(j, Job::ImportIdentity { data, .. } if *data == p12)));
+    // Unlocking the one kept: no file at all.
+    s.run("security.import", &json!({"kept": true, "password": "secret"})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::ImportIdentity { data, password, .. } if data.is_empty() && password.0 == "secret")));
+    assert!(s.run("security.import", &json!({"data": vec![0u8; (1 << 20) + 1]})).is_err(), "too big");
+    assert!(s.run("security.import", &json!({"data": "not bytes", "path": ""})).is_err());
+    done(s);
+}

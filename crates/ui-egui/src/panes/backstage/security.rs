@@ -13,9 +13,16 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                 t,
                 true,
                 name(t, tl!("No certificate")),
-                Some(note(t, tl!("Import the .p12 or .pfx file your certificate came in, or use one on a smart card."))),
+                Some(note(
+                    t,
+                    if cfg!(target_arch = "wasm32") {
+                        tl!("Import the .p12 or .pfx file your certificate came in.")
+                    } else {
+                        tl!("Import the .p12 or .pfx file your certificate came in, or use one on a smart card.")
+                    },
+                )),
                 |ui| {
-                    if ui.button(tl!("Use a smart card…")).clicked() {
+                    if !cfg!(target_arch = "wasm32") && ui.button(tl!("Use a smart card…")).clicked() {
                         acts.push(Action::UseSmartCard(id.clone()));
                     }
                     if ui.button(tl!("Import certificate…")).clicked() {
@@ -46,7 +53,11 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
             if ui.button(tl!("Replace…")).clicked() {
                 acts.push(Action::ImportCertificate(id.clone()));
             }
-            if ui.button(tl!("Use a smart card…")).clicked() {
+            if cfg!(target_arch = "wasm32") {
+                if ui.button(tl!("Unlock…")).on_hover_text(tl!("Give its password again to sign and decrypt in this page")).clicked() {
+                    acts.push(Action::UnlockCertificate(id.clone()));
+                }
+            } else if ui.button(tl!("Use a smart card…")).clicked() {
                 acts.push(Action::UseSmartCard(id.clone()));
             }
         });

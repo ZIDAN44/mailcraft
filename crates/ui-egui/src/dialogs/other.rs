@@ -67,11 +67,17 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(6.0);
             close_row(ui)
         }
-        Dialog::Certificate { account, path, password } => {
+        Dialog::Certificate { account, path, data, password } => {
             ui.set_width(420.0);
-            title(ui, t, "Import certificate");
+            let unlock = path.is_empty() && data.is_none();
+            title(ui, t, if unlock { "Unlock certificate" } else { "Import certificate" });
             let file = path.rsplit(['/', '\\']).next().unwrap_or(path.as_str()).to_string();
-            ui.add(egui::Label::new(RichText::new(tf!("The password {file} was saved with:", file = file)).color(t.dim)).wrap());
+            let ask = if unlock {
+                tl!("Your certificate's password, to use it in this browser until the page is closed:").to_string()
+            } else {
+                tf!("The password {file} was saved with:", file = file)
+            };
+            ui.add(egui::Label::new(RichText::new(ask).color(t.dim)).wrap());
             ui.add_space(8.0);
             let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -81,13 +87,24 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(4.0);
             ui.add(
                 egui::Label::new(
-                    RichText::new(tl!("Its private key is kept in the system's keychain, not in MailCraft's files.")).color(t.faint).small(),
+                    RichText::new(if cfg!(target_arch = "wasm32") {
+                        tl!("The browser keeps the file, locked with its password; the password itself isn't kept.")
+                    } else {
+                        tl!("Its private key is kept in the system's keychain, not in MailCraft's files.")
+                    })
+                    .color(t.faint)
+                    .small(),
                 )
                 .wrap(),
             );
-            let (ok, cancel) = buttons(ui, t, "Import", true);
+            let (ok, cancel) = buttons(ui, t, if unlock { "Unlock" } else { "Import" }, true);
             if ok || enter {
-                acts.push(Action::Run("security.import", json!({"account": account, "path": path, "password": password})));
+                let params = match data {
+                    Some(d) => json!({"account": account, "data": d, "password": password}),
+                    None if unlock => json!({"account": account, "kept": true, "password": password}),
+                    None => json!({"account": account, "path": path, "password": password}),
+                };
+                acts.push(Action::Run("security.import", params));
                 return false;
             }
             !cancel

@@ -1127,3 +1127,13 @@ month	May	5月
 	no certificate with its key was found	找不到帶有金鑰的憑證
 	the PIN is wrong, or the card is locked	PIN 碼錯誤，或卡片已被鎖定
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	此系統的鑰匙圈無法為 MailCraft 簽署：請使用智慧卡的模組，或匯入 .p12 檔案
+	Unlock	解鎖
+	Unlock…	解鎖…
+	Unlock certificate	解鎖憑證
+	Your certificate's password, to use it in this browser until the page is closed:	憑證的密碼，用於在關閉頁面之前在此瀏覽器中使用：
+	The browser keeps the file, locked with its password; the password itself isn't kept.	瀏覽器會保存該檔案（以其密碼鎖定）；密碼本身不會保存。
+	Give its password again to sign and decrypt in this page	再次輸入密碼，以便在此頁面中簽署和解密
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	你的憑證在此瀏覽器中已鎖定：請以其密碼解鎖（檔案 › 資訊 › 安全性）
+	there's no certificate kept in this browser: import its .p12 file	此瀏覽器中沒有保存憑證：請匯入其 .p12 檔案
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	智慧卡和系統鑰匙圈由 MailCraft 桌面應用程式使用，瀏覽器中無法使用
+	the browser can't ask a certificate's authority	瀏覽器無法詢問憑證的發行機構

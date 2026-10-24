@@ -24,7 +24,9 @@ serde_json = { workspace = true }
 # `wgpu` pulls egui-wgpu's defaults: WebGPU plus the WebGL2 fallback; `persistence` keeps
 # settings in the page's localStorage.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "persistence"] }
-# The browser's file picker (attach, insert pictures).
+# Random numbers for S/MIME, from the browser's `crypto.getRandomValues`.
+rand_core = { version = "0.6", features = ["getrandom"] }
+# The browser's file picker (attach, insert pictures, certificates).
 rfd = "0.17"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

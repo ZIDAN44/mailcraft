@@ -1123,3 +1123,13 @@ month	May	מאי
 	no certificate with its key was found	לא נמצאה תעודה עם המפתח שלה
 	the PIN is wrong, or the card is locked	קוד ה־PIN שגוי, או שהכרטיס נעול
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	מחזיק המפתחות של מערכת זו אינו יכול לחתום עבור MailCraft: השתמש במודול של כרטיס חכם, או ייבא קובץ ‎.p12
+	Unlock	ביטול נעילה
+	Unlock…	ביטול נעילה…
+	Unlock certificate	ביטול נעילת התעודה
+	Your certificate's password, to use it in this browser until the page is closed:	הסיסמה של התעודה שלך, כדי להשתמש בה בדפדפן הזה עד שהדף ייסגר:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	הדפדפן שומר את הקובץ, נעול בסיסמה שלו; הסיסמה עצמה לא נשמרת.
+	Give its password again to sign and decrypt in this page	הזן שוב את הסיסמה כדי לחתום ולפענח בדף הזה
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	התעודה שלך נעולה בדפדפן הזה: בטל את הנעילה עם הסיסמה שלה (קובץ › מידע › אבטחה)
+	there's no certificate kept in this browser: import its .p12 file	אין תעודה שמורה בדפדפן הזה: ייבא את קובץ ה־‎.p12 שלה
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	כרטיסים חכמים ומחזיק המפתחות של המערכת משמשים באפליקציית MailCraft לשולחן העבודה, לא בדפדפן
+	the browser can't ask a certificate's authority	הדפדפן אינו יכול לשאול את הרשות של תעודה

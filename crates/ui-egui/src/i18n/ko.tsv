@@ -1127,3 +1127,13 @@ month	May	5월
 	no certificate with its key was found	키가 있는 인증서를 찾지 못했습니다
 	the PIN is wrong, or the card is locked	PIN이 틀렸거나 카드가 잠겨 있습니다
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	이 시스템의 키체인은 MailCraft를 위해 서명할 수 없습니다: 스마트 카드 모듈을 사용하거나 .p12 파일을 가져오세요
+	Unlock	잠금 해제
+	Unlock…	잠금 해제…
+	Unlock certificate	인증서 잠금 해제
+	Your certificate's password, to use it in this browser until the page is closed:	페이지를 닫을 때까지 이 브라우저에서 사용할 인증서 암호:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	브라우저는 암호로 잠긴 파일을 보관하며, 암호 자체는 보관하지 않습니다.
+	Give its password again to sign and decrypt in this page	이 페이지에서 서명하고 복호화하려면 암호를 다시 입력하세요
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	이 브라우저에서 인증서가 잠겨 있습니다: 암호로 잠금을 해제하세요 (파일 › 정보 › 보안)
+	there's no certificate kept in this browser: import its .p12 file	이 브라우저에 보관된 인증서가 없습니다: .p12 파일을 가져오세요
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	스마트 카드와 시스템 키체인은 브라우저가 아닌 MailCraft 데스크톱 앱에서 사용됩니다
+	the browser can't ask a certificate's authority	브라우저는 인증서 발급 기관에 문의할 수 없습니다

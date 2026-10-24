@@ -184,10 +184,16 @@ impl MailApp {
                     }
                 }
             }
+            // The browser's picker answers later (with the file's bytes).
+            Action::ImportCertificate(account) if self.services.pick_later(&format!("certificate:{account}")) => {}
             Action::ImportCertificate(account) => {
                 if let Some(path) = self.services.pick_certificate() {
-                    self.ui.dialog = Some(Dialog::Certificate { account, path: path.to_string_lossy().into_owned(), password: String::new() });
+                    self.ui.dialog =
+                        Some(Dialog::Certificate { account, path: path.to_string_lossy().into_owned(), data: None, password: String::new() });
                 }
+            }
+            Action::UnlockCertificate(account) => {
+                self.ui.dialog = Some(Dialog::Certificate { account, path: String::new(), data: None, password: String::new() });
             }
             Action::UseSmartCard(account) => {
                 let module = self.session.card_search().modules.first().cloned().unwrap_or_default();

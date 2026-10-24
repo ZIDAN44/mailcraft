@@ -92,10 +92,12 @@ pub enum Dialog {
         address: String,
         error: Option<String>,
     },
-    /// The password of a certificate file being imported (S/MIME).
+    /// The password of a certificate file being imported (S/MIME): from `path`, or `data` as the
+    /// browser's picker gives it; neither, the one the browser keeps, unlocked.
     Certificate {
         account: String,
         path: String,
+        data: Option<Vec<u8>>,
         password: String,
     },
     /// A certificate on a smart card (its PKCS #11 module and PIN), or in the system's keychain.

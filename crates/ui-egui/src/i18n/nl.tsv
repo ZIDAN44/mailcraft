@@ -1123,3 +1123,13 @@ month	May	mei
 	no certificate with its key was found	er is geen certificaat met zijn sleutel gevonden
 	the PIN is wrong, or the card is locked	de pincode is onjuist, of de kaart is geblokkeerd
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	de sleutelhanger van dit systeem kan niet voor MailCraft ondertekenen: gebruik de module van een smartcard, of importeer een .p12-bestand
+	Unlock	Ontgrendelen
+	Unlock…	Ontgrendelen…
+	Unlock certificate	Certificaat ontgrendelen
+	Your certificate's password, to use it in this browser until the page is closed:	Het wachtwoord van uw certificaat, om het in deze browser te gebruiken tot de pagina wordt gesloten:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	De browser bewaart het bestand, vergrendeld met het wachtwoord; het wachtwoord zelf wordt niet bewaard.
+	Give its password again to sign and decrypt in this page	Geef het wachtwoord opnieuw om in deze pagina te ondertekenen en te ontsleutelen
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	uw certificaat is in deze browser vergrendeld: ontgrendel het met het wachtwoord (Bestand › Info › Beveiliging)
+	there's no certificate kept in this browser: import its .p12 file	er is geen certificaat in deze browser bewaard: importeer het .p12-bestand
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	smartcards en de sleutelhanger van het systeem worden door de MailCraft-desktopapp gebruikt, niet in de browser
+	the browser can't ask a certificate's authority	de browser kan de uitgever van een certificaat niets vragen

@@ -1124,3 +1124,13 @@ month	May	5月
 	no certificate with its key was found	鍵付きの証明書が見つかりませんでした
 	the PIN is wrong, or the card is locked	PIN が違うか、カードがロックされています
 	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	このシステムのキーチェーンは MailCraft のために署名できません。スマートカードのモジュールを使うか、.p12 ファイルをインポートしてください
+	Unlock	ロック解除
+	Unlock…	ロック解除…
+	Unlock certificate	証明書のロックを解除
+	Your certificate's password, to use it in this browser until the page is closed:	ページを閉じるまでこのブラウザーで使うための、証明書のパスワード:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	ブラウザーはパスワードでロックされたファイルを保管します。パスワード自体は保管されません。
+	Give its password again to sign and decrypt in this page	このページで署名と復号をするには、パスワードをもう一度入力します
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	このブラウザーでは証明書がロックされています。パスワードでロックを解除してください (ファイル › 情報 › セキュリティ)
+	there's no certificate kept in this browser: import its .p12 file	このブラウザーには証明書が保管されていません。.p12 ファイルをインポートしてください
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	スマートカードとシステムのキーチェーンは、ブラウザーではなく MailCraft デスクトップ アプリで使います
+	the browser can't ask a certificate's authority	ブラウザーは証明書の発行機関に問い合わせできません

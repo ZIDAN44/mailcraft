@@ -256,6 +256,8 @@ impl Services for WebServices {
         let (picked, ctx, purpose) = (self.picked.clone(), self.ctx.clone(), purpose.to_string());
         let dialog = if purpose == "picture" {
             rfd::AsyncFileDialog::new().add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
+        } else if purpose.starts_with("certificate:") {
+            rfd::AsyncFileDialog::new().add_filter("Certificate with its key", &["p12", "pfx"])
         } else {
             rfd::AsyncFileDialog::new()
         };

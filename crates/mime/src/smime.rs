@@ -473,6 +473,39 @@ pub fn is_smime_part(mime: &str, name: &str) -> bool {
     m.contains("pkcs7-signature") || m.contains("pkcs7-mime") || n == "smime.p7s" || n == "smime.p7m"
 }
 
+/// What signs and what encrypts a message for [`protect`]: each takes the MIME entity and gives
+/// the CMS (a detached signature; `EnvelopedData` or, with `gcm`, `AuthEnvelopedData`).
+pub type Crypto<'a> = &'a mut dyn FnMut(&[u8]) -> Result<Vec<u8>, String>;
+
+/// `raw` signed (with `sign`) and/or encrypted (with `encrypt`, AES-GCM when `gcm`), as it will
+/// be sent: its header fields inside too (RFC 9788), the subject outside `[...]` when it's
+/// encrypted with `hide_subject`. `boundary` separates a signed message's parts.
+pub fn protect(
+    raw: &[u8],
+    sign: Option<Crypto<'_>>,
+    encrypt: Option<Crypto<'_>>,
+    gcm: bool,
+    hide_subject: bool,
+    boundary: &str,
+) -> Result<Vec<u8>, String> {
+    let (outer, entity) = entity_of(raw);
+    let (outer, mut entity) = protect_headers(&outer, &entity, encrypt.is_some(), hide_subject);
+    let mut message = with_entity(raw, &entity);
+    if let Some(sign) = sign {
+        if !safe_to_sign(&entity) {
+            return Err("a part of it couldn't be sent byte for byte, so its signature wouldn't hold".into());
+        }
+        let signature = sign(&entity)?;
+        message = signed_message(&outer, &entity, &signature, boundary);
+        entity = entity_of(&message).1;
+    }
+    if let Some(encrypt) = encrypt {
+        let cms = encrypt(&entity)?;
+        message = encrypted_message(&outer, &cms, gcm);
+    }
+    Ok(message)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

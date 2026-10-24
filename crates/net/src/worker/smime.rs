@@ -153,26 +153,13 @@ pub(crate) fn protect(
     hide_subject: bool,
 ) -> std::result::Result<Vec<u8>, String> {
     use rand_core::RngCore as _;
-    let mut rng = rand_core::OsRng;
-    let (outer, entity) = mailcraft_mime::smime::entity_of(raw);
-    // The header fields inside as well, where nothing on the way can change them (RFC 9788).
-    let (outer, mut entity) = mailcraft_mime::smime::protect_headers(&outer, &entity, !encrypt_to.is_empty(), hide_subject);
-    let mut message = mailcraft_mime::smime::with_entity(raw, &entity);
-    if sign {
-        if !mailcraft_mime::smime::safe_to_sign(&entity) {
-            return Err("a part of it couldn't be sent byte for byte, so its signature wouldn't hold".into());
-        }
-        let signature = id.with_key(|k| smime::sign_with(&entity, &id.chain, k, now()))?;
-        let boundary = format!("=_mcs{:016x}", rng.next_u64());
-        message = mailcraft_mime::smime::signed_message(&outer, &entity, &signature, &boundary);
-        entity = mailcraft_mime::smime::entity_of(&message).1;
-    }
-    if !encrypt_to.is_empty() {
-        let cipher = if gcm { smime::Cipher::Aes256Gcm } else { smime::Cipher::Aes256Cbc };
-        let cms = smime::encrypt(&entity, encrypt_to, cipher, &mut rng).map_err(|e| e.to_string())?;
-        message = mailcraft_mime::smime::encrypted_message(&outer, &cms, gcm);
-    }
-    Ok(message)
+    let boundary = format!("=_mcs{:016x}", rand_core::OsRng.next_u64());
+    let mut sign_with = |entity: &[u8]| id.with_key(|k| smime::sign_with(entity, &id.chain, k, now()));
+    let cipher = if gcm { smime::Cipher::Aes256Gcm } else { smime::Cipher::Aes256Cbc };
+    let mut encrypt_with = |entity: &[u8]| smime::encrypt(entity, encrypt_to, cipher, &mut rand_core::OsRng).map_err(|e| e.to_string());
+    let signer: Option<mailcraft_mime::smime::Crypto<'_>> = if sign { Some(&mut sign_with) } else { None };
+    let encrypter: Option<mailcraft_mime::smime::Crypto<'_>> = if encrypt_to.is_empty() { None } else { Some(&mut encrypt_with) };
+    mailcraft_mime::smime::protect(raw, signer, encrypter, gcm, hide_subject, &boundary)
 }
 
 impl Pool {
