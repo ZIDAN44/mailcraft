@@ -352,6 +352,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 attachment_preview(s, st, ui, &r.key, a, acts);
                 return;
             }
+            if p.hidden_words > 0 {
+                hidden_bar(&t, ui, &r.key, p);
+            }
             if p.had_html {
                 html_bar(s, &t, ui, p, acts);
             }

@@ -1042,3 +1042,7 @@ month	May	5월
 	Links that report clicks: {links}	클릭을 알리는 링크: {links}
 	Tracking pictures, never loaded: {pictures}	추적 그림, 불러오지 않음: {pictures}
 	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	추적 그림, 불러오지 않음: {pictures} · 클릭을 알리는 링크: {links}
+	This message hides text from you ({n} words).	이 메시지는 숨겨진 텍스트를 담고 있습니다 ({n}단어).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	숨겨진 텍스트는 스팸 필터를 피하거나, 나 대신 메일을 읽는 도구와 도우미에게 지시를 내리는 데 쓰입니다.
+	Show the hidden text	숨겨진 텍스트 보기
+	Hide it again	다시 숨기기

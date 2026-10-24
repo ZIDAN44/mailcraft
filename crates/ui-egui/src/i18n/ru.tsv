@@ -1042,3 +1042,7 @@ month	May	Май
 	Links that report clicks: {links}	Ссылки, сообщающие о нажатиях: {links}
 	Tracking pictures, never loaded: {pictures}	Следящие изображения, не загружаются: {pictures}
 	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Следящие изображения, не загружаются: {pictures} · Ссылки, сообщающие о нажатиях: {links}
+	This message hides text from you ({n} words).	Это письмо скрывает от вас текст (слов: {n}).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	Скрытый текст помогает обойти спам-фильтры или дать указания инструментам и помощникам, которые читают почту за вас.
+	Show the hidden text	Показать скрытый текст
+	Hide it again	Снова скрыть

@@ -1043,3 +1043,7 @@ month	May	mai
 	Links that report clicks: {links}	Liens qui signalent les clics : {links}
 	Tracking pictures, never loaded: {pictures}	Images de pistage, jamais chargées : {pictures}
 	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Images de pistage, jamais chargées : {pictures} · Liens qui signalent les clics : {links}
+	This message hides text from you ({n} words).	Ce message vous cache du texte ({n} mots).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	Le texte caché sert à déjouer les filtres antispam, ou à donner des instructions aux outils et assistants qui lisent le courrier pour vous.
+	Show the hidden text	Afficher le texte caché
+	Hide it again	Le masquer à nouveau

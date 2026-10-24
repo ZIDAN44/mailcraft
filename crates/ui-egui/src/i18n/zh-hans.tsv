@@ -1039,3 +1039,7 @@ month	May	5月
 	Links that report clicks: {links}	会报告点击的链接：{links}
 	Tracking pictures, never loaded: {pictures}	跟踪图片，从不加载：{pictures}
 	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	跟踪图片，从不加载：{pictures} · 会报告点击的链接：{links}
+	This message hides text from you ({n} words).	这封邮件向你隐藏了文字（{n} 个词）。
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	隐藏文字可用来绕过垃圾邮件过滤，或向替你读邮件的工具和助手下达指令。
+	Show the hidden text	显示隐藏的文字
+	Hide it again	再次隐藏

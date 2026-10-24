@@ -1043,3 +1043,7 @@ month	May	mayo
 	Links that report clicks: {links}	Vínculos que informan de los clics: {links}
 	Tracking pictures, never loaded: {pictures}	Imágenes de seguimiento, nunca se cargan: {pictures}
 	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Imágenes de seguimiento, nunca se cargan: {pictures} · Vínculos que informan de los clics: {links}
+	This message hides text from you ({n} words).	Este mensaje te oculta texto ({n} palabras).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	El texto oculto sirve para burlar los filtros de correo no deseado o para dar instrucciones a las herramientas y asistentes que leen el correo por ti.
+	Show the hidden text	Mostrar el texto oculto
+	Hide it again	Ocultarlo de nuevo

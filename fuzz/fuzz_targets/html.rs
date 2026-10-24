@@ -1,5 +1,5 @@
 //! An HTML body: converted to text, to formatted lines and to columns, and searched for its
-//! pictures and links (and the trackers among them, links cleaned); plus the plain-text markup
+//! pictures and links (and the trackers among them, links cleaned, text it hides); plus the plain-text markup
 //! MailCraft writes itself.
 #![no_main]
 
@@ -18,6 +18,7 @@ fuzz_target!(|input: &[u8]| {
         let _ = mime::clean_link(&link);
     }
     let _ = mime::trackers(&page);
+    let _ = mime::hidden_text(&page);
     let _ = mime::clean_link(&page);
     let _ = mime::layout::inline_css(&page);
     let _ = mime::layout::html_layout(&page);

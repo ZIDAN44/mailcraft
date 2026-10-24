@@ -1038,3 +1038,7 @@ month	May	مايو
 	Links that report clicks: {links}	روابط تُبلغ عن النقرات: {links}
 	Tracking pictures, never loaded: {pictures}	صور تتبّع، لا تُحمَّل أبدًا: {pictures}
 	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	صور تتبّع، لا تُحمَّل أبدًا: {pictures} · روابط تُبلغ عن النقرات: {links}
+	This message hides text from you ({n} words).	تُخفي هذه الرسالة نصًا عنك ({n} كلمة).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	النص المخفي طريقة لتجاوز مرشحات البريد العشوائي، أو لإعطاء تعليمات للأدوات والمساعدين الذين يقرؤون البريد نيابةً عنك.
+	Show the hidden text	إظهار النص المخفي
+	Hide it again	إخفاؤه مجددًا
