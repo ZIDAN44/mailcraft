@@ -133,9 +133,10 @@ local-first, media-aware v1); the fuller request is
    encrypted as it's sent and read signed or encrypted as it comes, with who signed it and whether
    to trust that said above it; certificates learnt from signed mail to encrypt to; drafts of
    encrypted mail encrypted too; header protection (RFC 9788); EC certificates for encryption
-   (ECDH); revocation checks, opt-in; certificates on smart cards (PKCS #11) and in the macOS
-   Keychain; S/MIME in the browser, its `.p12` kept locked with its password. Checked against
-   OpenSSL both ways, through a real server, and against SoftHSM 2.
+   (ECDH); revocation checks, opt-in; certificates on smart cards (PKCS #11), in the macOS
+   Keychain and in the Windows certificate store, their keys staying there; S/MIME in the
+   browser, its `.p12` kept locked with its password. Checked against OpenSSL both ways, through
+   a real server, against SoftHSM 2 and against Windows' CNG.
 25. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -385,5 +386,7 @@ local-first, media-aware v1); the fuller request is
   EC recipients (RFC 5753); revocation by OCSP and CRL, opt-in, against OpenSSL's own CA,
   responder and list; keys that stay where they are (`mailcraft-keys`: PKCS #11 smart cards,
   tested on SoftHSM 2, and the macOS Keychain); and the browser, which keeps the `.p12` locked
-  with its password and signs, encrypts and decrypts with the same code. Left: Windows'
-  certificate store (no safe binding to CNG).
+  with its password and signs, encrypts and decrypts with the same code. Then the Windows
+  certificate store (`rustls-cng` for listing and signing, as PdfCraft does, and one isolated
+  `unsafe` file for CNG's decrypting and EC agreement, as PhotoCraft's tablet crate is), and the
+  macOS Keychain's EC decrypting the same way; tested in CNG and in the real store.

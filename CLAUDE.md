@@ -18,6 +18,12 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - **No panics in non-test code:** no `unwrap()`, `expect()`, `panic!`, `unreachable!`, `todo!`,
   `unimplemented!`; no `unsafe` (`unsafe_code = "forbid"`). Crate roots carry the `#![deny(clippy::…)]`
   line; new crates start with it.
+- **The one `unsafe` exception** (signed off by the owner, as PhotoCraft's tablet crate):
+  `crates/keys`, where the Windows CNG and macOS Security calls that have no safe wrapper live.
+  The crate sets `unsafe_code = "deny"`; only `src/windows/cng.rs` and `src/macos/sec.rs` allow it,
+  every block has a `SAFETY:` comment, and both are tested against the real system (the Windows
+  one in CI on Windows). Use a maintained safe wrapper first (`rustls-cng`, `security-framework`);
+  don't add `unsafe` anywhere else.
 - **Errors are `Result`** (`CmdError`, `NetError`, `StoreError`) through `?`.
 - **Everything from the network or disk is hostile:** IMAP responses (line and literal sizes are
   capped in `net/src/protocols/imap.rs`), message sources, attachment pictures (decode limits in

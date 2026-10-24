@@ -18,7 +18,7 @@ _Status: v0.24, 2026-10-24._
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
-| 7 | **S/MIME: what isn't done yet** | Certificates in Windows' own certificate store aren't used (only `.p12`/`.pfx` files, smart cards through their PKCS #11 module, and on macOS the Keychain): Windows' CNG has no safe Rust binding, and MailCraft's code has no `unsafe`. An EC key in the macOS Keychain signs but doesn't decrypt (its Diffie-Hellman needs a `SecKey` made from the sender's one-time key, which the safe bindings don't offer). The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards; after a reload its certificate stays locked until its password is given again. |
+| 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificate stays locked until its password is given again. |
 
 ## Done
 
@@ -845,6 +845,15 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   uses one; the key never leaves the card, which signs, decrypts and agrees EC secrets itself. On
   macOS the Keychain's identities are offered too. Tested against SoftHSM 2 (`crates/keys/softhsm.sh`),
   OpenSSL checking the card's signatures.
+- **The Windows certificate store:** Use one from Windows… lists Current User › Personal's
+  certificates for email that have a key (a `.pfx` double-clicked into Windows, one IT deployed, a
+  smart card Windows reads itself), the key staying in CNG, non-exportable ones included. Listing
+  and signing go through `rustls-cng`, as PdfCraft signs; RSA decrypting and EC key agreement go
+  through `crates/keys/src/windows/cng.rs`, the one isolated `unsafe` file (with `macos/sec.rs`,
+  which lets an EC key in the Keychain decrypt too). Tested against CNG itself: OpenSSL's RSA mail
+  (CBC, GCM, 3DES, OAEP) and EC mail (ECDH) decrypted in Windows, signatures OpenSSL verifies,
+  malformed keys and points refused, and the test identities in the real store with keys that
+  can't be exported, then removed.
 - **In the browser:** the `.p12` itself is kept (it's encrypted with its password, which isn't),
   and opened with its password for the page; signing, encrypting and decrypting are the desktop's
   code. After a reload, Unlock… gives the password again.
