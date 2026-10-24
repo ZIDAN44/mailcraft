@@ -1133,3 +1133,15 @@ month	May	مايو
 	there's no certificate kept in this browser: import its .p12 file	لا توجد شهادة محفوظة في هذا المتصفح: استورد ملف ‎.p12 الخاص بها
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	تُستخدم البطاقات الذكية وسلسلة مفاتيح النظام في تطبيق MailCraft لسطح المكتب، لا في المتصفح
 	the browser can't ask a certificate's authority	لا يستطيع المتصفح سؤال الجهة المصدرة للشهادة
+	A certificate this computer already has, its key staying where it is	شهادة موجودة على هذا الكمبيوتر، ويبقى مفتاحها حيث هو
+	Look in Windows	البحث في Windows
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	شهادات البريد في سلسلة مفاتيحك. يبقى المفتاح هناك، وقد يسأل macOS قبل استخدامه.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	شهادات البريد في مخزن شهادات Windows لديك (الشخصي). يبقى المفتاح في Windows، وقد يسأل قبل استخدامه.
+	Use a certificate from Windows	استخدام شهادة من Windows
+	Use a certificate from the Keychain	استخدام شهادة من سلسلة المفاتيح
+	Use one from Windows…	استخدام واحدة من Windows…
+	Use one from the Keychain…	استخدام واحدة من سلسلة المفاتيح…
+	the Windows certificate store keeps this EC key for signing only	يحتفظ مخزن شهادات Windows بمفتاح EC هذا للتوقيع فقط
+	the certificate is in another computer's certificate store	الشهادة في مخزن شهادات كمبيوتر آخر
+	Or use one this computer has	أو استخدم شهادة موجودة على هذا الكمبيوتر
+	On a smart card, or kept by the system: the key stays where it is.	على بطاقة ذكية، أو يحتفظ بها النظام: يبقى المفتاح حيث هو.

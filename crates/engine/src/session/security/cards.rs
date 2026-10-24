@@ -27,7 +27,16 @@ impl Session {
     pub fn card_search(&self) -> &CardSearch {
         &self.cards
     }
+}
 
+impl CardSearch {
+    /// The search logged in to a card with a PIN.
+    pub fn pin_given(&self) -> bool {
+        self.pin.is_some()
+    }
+}
+
+impl Session {
     /// Look for certificates with their keys: on the cards `module` sees (`pin` logs in), or
     /// with none, in the system's keychain.
     pub fn find_held_keys(&mut self, module: Option<String>, pin: Option<String>) -> CmdResult {

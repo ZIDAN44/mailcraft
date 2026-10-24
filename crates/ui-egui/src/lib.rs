@@ -135,6 +135,8 @@ pub enum Action {
     UnlockCertificate(String),
     /// Choose a certificate on a smart card (or in the system's keychain) for an account.
     UseSmartCard(String),
+    /// Choose one of the system's own certificates (Windows' store, the macOS Keychain).
+    UseSystemCertificate(String),
     /// Sign an account in again: the browser for OAuth accounts, else the password dialog.
     SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).

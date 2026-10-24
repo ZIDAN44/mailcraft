@@ -100,11 +100,13 @@ pub enum Dialog {
         data: Option<Vec<u8>>,
         password: String,
     },
-    /// A certificate on a smart card (its PKCS #11 module and PIN), or in the system's keychain.
+    /// A certificate on a smart card (its PKCS #11 module and PIN), or (`system`) in the system's
+    /// own store.
     SmartCard {
         account: String,
         module: String,
         pin: String,
+        system: bool,
     },
     /// Word count of the message being written (or its selection: the `bool`).
     WordCount(crate::rich_edit::Counts, bool),

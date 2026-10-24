@@ -1133,3 +1133,15 @@ month	May	מאי
 	there's no certificate kept in this browser: import its .p12 file	אין תעודה שמורה בדפדפן הזה: ייבא את קובץ ה־‎.p12 שלה
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	כרטיסים חכמים ומחזיק המפתחות של המערכת משמשים באפליקציית MailCraft לשולחן העבודה, לא בדפדפן
 	the browser can't ask a certificate's authority	הדפדפן אינו יכול לשאול את הרשות של תעודה
+	A certificate this computer already has, its key staying where it is	תעודה שכבר יש במחשב הזה; המפתח שלה נשאר במקומו
+	Look in Windows	חיפוש ב־Windows
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	התעודות לדואר במחזיק המפתחות שלך. המפתח נשאר שם; ‏macOS עשויה לשאול לפני השימוש בו.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	התעודות לדואר במאגר התעודות של Windows שלך (אישי). המפתח נשאר ב־Windows; ייתכן שתופיע שאלה לפני השימוש בו.
+	Use a certificate from Windows	שימוש בתעודה מ־Windows
+	Use a certificate from the Keychain	שימוש בתעודה ממחזיק המפתחות
+	Use one from Windows…	שימוש בתעודה מ־Windows…
+	Use one from the Keychain…	שימוש בתעודה ממחזיק המפתחות…
+	the Windows certificate store keeps this EC key for signing only	מאגר התעודות של Windows שומר את מפתח ה־EC הזה לחתימה בלבד
+	the certificate is in another computer's certificate store	התעודה נמצאת במאגר התעודות של מחשב אחר
+	Or use one this computer has	או שימוש בתעודה שיש במחשב הזה
+	On a smart card, or kept by the system: the key stays where it is.	על כרטיס חכם, או שמור במערכת: המפתח נשאר במקומו.

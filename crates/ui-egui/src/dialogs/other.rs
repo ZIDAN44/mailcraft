@@ -109,7 +109,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::SmartCard { account, module, pin } => smart_card(ui, s, t, acts, account, module, pin),
+        Dialog::SmartCard { account, module, pin, system } => smart_card(ui, s, t, acts, account, module, pin, *system),
         Dialog::OpenSharedCalendar { email, error } => {
             ui.set_width(420.0);
             title(ui, t, "Open a shared calendar");
@@ -145,8 +145,32 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
 }
 
 /// A certificate on a smart card: the card's module and PIN, the certificates it has, one chosen.
-fn smart_card(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, account: &str, module: &mut String, pin: &mut String) -> bool {
+fn smart_card(
+    ui: &mut Ui,
+    s: &Session,
+    t: &Tokens,
+    acts: &mut Vec<Action>,
+    account: &str,
+    module: &mut String,
+    pin: &mut String,
+    system: bool,
+) -> bool {
     ui.set_width(460.0);
+    if system {
+        title(ui, t, if cfg!(windows) { "Use a certificate from Windows" } else { "Use a certificate from the Keychain" });
+        ui.add(
+            egui::Label::new(
+                RichText::new(if cfg!(windows) {
+                    tl!("The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.")
+                } else {
+                    tl!("The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.")
+                })
+                .color(t.dim),
+            )
+            .wrap(),
+        );
+        return held_keys(ui, s, t, acts, account);
+    }
     title(ui, t, "Use a smart card");
     ui.add(egui::Label::new(RichText::new(tl!("The module your card came with (OpenSC's reads most cards):")).color(t.dim)).wrap());
     ui.add_space(4.0);
@@ -165,7 +189,16 @@ fn smart_card(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, acco
         if cfg!(target_os = "macos") && ui.add_enabled(!search.searching, egui::Button::new(tl!("Look in the Keychain"))).clicked() {
             acts.push(Action::Run("security.findKeys", json!({"keychain": true})));
         }
+        if cfg!(windows) && ui.add_enabled(!search.searching, egui::Button::new(tl!("Look in Windows"))).clicked() {
+            acts.push(Action::Run("security.findKeys", json!({"keychain": true})));
+        }
     });
+    held_keys(ui, s, t, acts, account)
+}
+
+/// What the last look found, each with Use; and where the key stays.
+fn held_keys(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, account: &str) -> bool {
+    let search = s.card_search();
     if search.searching {
         ui.add_space(6.0);
         ui.label(RichText::new(tl!("Looking…")).color(t.faint).small());
@@ -195,8 +228,11 @@ fn smart_card(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, acco
         });
     }
     ui.add_space(4.0);
-    ui.add(
-        egui::Label::new(RichText::new(tl!("The key stays on the card; its PIN is kept in the system's keychain.")).color(t.faint).small()).wrap(),
-    );
+    if search.pin_given() {
+        ui.add(
+            egui::Label::new(RichText::new(tl!("The key stays on the card; its PIN is kept in the system's keychain.")).color(t.faint).small())
+                .wrap(),
+        );
+    }
     !chosen && close_row(ui)
 }

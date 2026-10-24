@@ -1133,3 +1133,15 @@ month	May	mei
 	there's no certificate kept in this browser: import its .p12 file	er is geen certificaat in deze browser bewaard: importeer het .p12-bestand
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	smartcards en de sleutelhanger van het systeem worden door de MailCraft-desktopapp gebruikt, niet in de browser
 	the browser can't ask a certificate's authority	de browser kan de uitgever van een certificaat niets vragen
+	A certificate this computer already has, its key staying where it is	Een certificaat dat deze computer al heeft; de sleutel blijft waar hij is
+	Look in Windows	In Windows zoeken
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	De certificaten voor e-mail in uw sleutelhanger. De sleutel blijft daar; macOS kan vragen voordat hij wordt gebruikt.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	De certificaten voor e-mail in uw Windows-certificaatarchief (Persoonlijk). De sleutel blijft in Windows; het kan vragen voordat hij wordt gebruikt.
+	Use a certificate from Windows	Een certificaat uit Windows gebruiken
+	Use a certificate from the Keychain	Een certificaat uit de sleutelhanger gebruiken
+	Use one from Windows…	Een uit Windows gebruiken…
+	Use one from the Keychain…	Een uit de sleutelhanger gebruiken…
+	the Windows certificate store keeps this EC key for signing only	het Windows-certificaatarchief houdt deze EC-sleutel alleen voor ondertekenen
+	the certificate is in another computer's certificate store	het certificaat staat in het certificaatarchief van een andere computer
+	Or use one this computer has	Of een gebruiken die deze computer heeft
+	On a smart card, or kept by the system: the key stays where it is.	Op een smartcard, of door het systeem bewaard: de sleutel blijft waar hij is.

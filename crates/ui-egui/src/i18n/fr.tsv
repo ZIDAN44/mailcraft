@@ -1138,3 +1138,15 @@ month	May	mai
 	there's no certificate kept in this browser: import its .p12 file	aucun certificat n'est gardé dans ce navigateur : importez son fichier .p12
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	les cartes à puce et le trousseau du système servent dans l'application de bureau MailCraft, pas dans le navigateur
 	the browser can't ask a certificate's authority	le navigateur ne peut pas interroger l'autorité d'un certificat
+	A certificate this computer already has, its key staying where it is	Un certificat que cet ordinateur a déjà ; sa clé reste où elle est
+	Look in Windows	Chercher dans Windows
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	Les certificats de messagerie de votre trousseau. La clé y reste ; macOS peut demander avant qu'elle serve.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Les certificats de messagerie de votre magasin de certificats Windows (Personnel). La clé reste dans Windows ; il peut demander avant qu'elle serve.
+	Use a certificate from Windows	Utiliser un certificat de Windows
+	Use a certificate from the Keychain	Utiliser un certificat du trousseau
+	Use one from Windows…	En utiliser un de Windows…
+	Use one from the Keychain…	En utiliser un du trousseau…
+	the Windows certificate store keeps this EC key for signing only	le magasin de certificats Windows garde cette clé EC pour signer seulement
+	the certificate is in another computer's certificate store	le certificat est dans le magasin de certificats d'un autre ordinateur
+	Or use one this computer has	Ou en utiliser un que cet ordinateur a
+	On a smart card, or kept by the system: the key stays where it is.	Sur une carte à puce, ou gardé par le système : la clé reste où elle est.

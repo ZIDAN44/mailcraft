@@ -1137,3 +1137,15 @@ month	May	5월
 	there's no certificate kept in this browser: import its .p12 file	이 브라우저에 보관된 인증서가 없습니다: .p12 파일을 가져오세요
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	스마트 카드와 시스템 키체인은 브라우저가 아닌 MailCraft 데스크톱 앱에서 사용됩니다
 	the browser can't ask a certificate's authority	브라우저는 인증서 발급 기관에 문의할 수 없습니다
+	A certificate this computer already has, its key staying where it is	이 컴퓨터에 이미 있는 인증서이며, 키는 그 자리에 남습니다
+	Look in Windows	Windows에서 찾기
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	키체인에 있는 메일용 인증서입니다. 키는 그곳에 남으며, 사용하기 전에 macOS가 물을 수 있습니다.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Windows 인증서 저장소(개인)에 있는 메일용 인증서입니다. 키는 Windows에 남으며, 사용하기 전에 물을 수 있습니다.
+	Use a certificate from Windows	Windows의 인증서 사용
+	Use a certificate from the Keychain	키체인의 인증서 사용
+	Use one from Windows…	Windows의 것 사용…
+	Use one from the Keychain…	키체인의 것 사용…
+	the Windows certificate store keeps this EC key for signing only	Windows 인증서 저장소는 이 EC 키를 서명 전용으로 보관합니다
+	the certificate is in another computer's certificate store	인증서가 다른 컴퓨터의 인증서 저장소에 있습니다
+	Or use one this computer has	또는 이 컴퓨터에 있는 인증서 사용
+	On a smart card, or kept by the system: the key stays where it is.	스마트 카드에 있거나 시스템이 보관하는 것: 키는 그 자리에 남습니다.

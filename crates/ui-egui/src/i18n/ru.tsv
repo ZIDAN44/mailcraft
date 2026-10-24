@@ -1137,3 +1137,15 @@ month	May	Май
 	there's no certificate kept in this browser: import its .p12 file	в этом браузере нет сохранённого сертификата: импортируйте его файл .p12
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	смарт-карты и связка ключей системы используются в настольном приложении MailCraft, а не в браузере
 	the browser can't ask a certificate's authority	браузер не может обратиться к центру сертификации
+	A certificate this computer already has, its key staying where it is	Сертификат, который уже есть на этом компьютере; ключ остаётся на месте
+	Look in Windows	Искать в Windows
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	Сертификаты для почты в вашей связке ключей. Ключ остаётся там; macOS может спросить перед его использованием.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Сертификаты для почты в вашем хранилище сертификатов Windows (Личное). Ключ остаётся в Windows; перед использованием может появиться запрос.
+	Use a certificate from Windows	Использовать сертификат из Windows
+	Use a certificate from the Keychain	Использовать сертификат из связки ключей
+	Use one from Windows…	Взять из Windows…
+	Use one from the Keychain…	Взять из связки ключей…
+	the Windows certificate store keeps this EC key for signing only	хранилище сертификатов Windows держит этот EC-ключ только для подписи
+	the certificate is in another computer's certificate store	сертификат находится в хранилище сертификатов другого компьютера
+	Or use one this computer has	Или взять тот, что есть на этом компьютере
+	On a smart card, or kept by the system: the key stays where it is.	На смарт-карте или в хранилище системы: ключ остаётся на месте.

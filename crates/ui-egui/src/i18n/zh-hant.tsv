@@ -1137,3 +1137,15 @@ month	May	5月
 	there's no certificate kept in this browser: import its .p12 file	此瀏覽器中沒有保存憑證：請匯入其 .p12 檔案
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	智慧卡和系統鑰匙圈由 MailCraft 桌面應用程式使用，瀏覽器中無法使用
 	the browser can't ask a certificate's authority	瀏覽器無法詢問憑證的發行機構
+	A certificate this computer already has, its key staying where it is	這台電腦上已有的憑證，其金鑰保留在原處
+	Look in Windows	在 Windows 中尋找
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	你鑰匙圈中的電子郵件憑證。金鑰保留在那裡；使用前 macOS 可能會詢問。
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	你的 Windows 憑證存放區（個人）中的電子郵件憑證。金鑰保留在 Windows 中；使用前可能會詢問。
+	Use a certificate from Windows	使用 Windows 中的憑證
+	Use a certificate from the Keychain	使用鑰匙圈中的憑證
+	Use one from Windows…	使用 Windows 中的…
+	Use one from the Keychain…	使用鑰匙圈中的…
+	the Windows certificate store keeps this EC key for signing only	Windows 憑證存放區將此 EC 金鑰僅用於簽署
+	the certificate is in another computer's certificate store	該憑證在另一台電腦的憑證存放區中
+	Or use one this computer has	或使用這台電腦上已有的憑證
+	On a smart card, or kept by the system: the key stays where it is.	在智慧卡上，或由系統保管：金鑰保留在原處。

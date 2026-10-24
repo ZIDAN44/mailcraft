@@ -1134,3 +1134,15 @@ month	May	5月
 	there's no certificate kept in this browser: import its .p12 file	このブラウザーには証明書が保管されていません。.p12 ファイルをインポートしてください
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	スマートカードとシステムのキーチェーンは、ブラウザーではなく MailCraft デスクトップ アプリで使います
 	the browser can't ask a certificate's authority	ブラウザーは証明書の発行機関に問い合わせできません
+	A certificate this computer already has, its key staying where it is	このコンピューターにすでにある証明書。鍵はその場所に残ります
+	Look in Windows	Windows を探す
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	キーチェーン内のメール用証明書です。鍵はそこに残り、使う前に macOS が確認することがあります。
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Windows 証明書ストア (個人) 内のメール用証明書です。鍵は Windows に残り、使う前に確認されることがあります。
+	Use a certificate from Windows	Windows の証明書を使う
+	Use a certificate from the Keychain	キーチェーンの証明書を使う
+	Use one from Windows…	Windows のものを使う…
+	Use one from the Keychain…	キーチェーンのものを使う…
+	the Windows certificate store keeps this EC key for signing only	Windows 証明書ストアはこの EC 鍵を署名専用として保管しています
+	the certificate is in another computer's certificate store	証明書は別のコンピューターの証明書ストアにあります
+	Or use one this computer has	またはこのコンピューターにあるものを使う
+	On a smart card, or kept by the system: the key stays where it is.	スマートカード上、またはシステムが保管しているもの。鍵はその場所に残ります。

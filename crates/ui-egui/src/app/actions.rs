@@ -197,7 +197,11 @@ impl MailApp {
             }
             Action::UseSmartCard(account) => {
                 let module = self.session.card_search().modules.first().cloned().unwrap_or_default();
-                self.ui.dialog = Some(Dialog::SmartCard { account, module, pin: String::new() });
+                self.ui.dialog = Some(Dialog::SmartCard { account, module, pin: String::new(), system: false });
+            }
+            Action::UseSystemCertificate(account) => {
+                self.run("security.findKeys", json!({"keychain": true}));
+                self.ui.dialog = Some(Dialog::SmartCard { account, module: String::new(), pin: String::new(), system: true });
             }
             Action::ImportRules => {
                 if let Some(path) = self.services.pick_rules_file() {
