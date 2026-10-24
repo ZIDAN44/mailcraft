@@ -257,9 +257,13 @@ impl Packs {
         name
     }
 
-    /// An account's open data file; `create` makes it when there's none.
+    /// An account's open data file; `create` makes it when there's none. Looked up, named and
+    /// opened under one lock: an account's connections start together, and two threads opening
+    /// the file at once had the second refused by the first's lock on it ("open in another copy
+    /// of MailCraft") on Unix, or naming a second file beside it.
     fn db(&self, account: &str, create: bool) -> io::Result<Option<Arc<Database>>> {
-        if let Some(db) = Packs::lock(&self.open).get(account) {
+        let mut open = Packs::lock(&self.open);
+        if let Some(db) = open.get(account) {
             return Ok(Some(db.clone()));
         }
         let known = Packs::lock(&self.names).contains_key(account);
@@ -286,7 +290,7 @@ impl Packs {
             }
         };
         let db = Arc::new(db);
-        Packs::lock(&self.open).insert(account.to_string(), db.clone());
+        open.insert(account.to_string(), db.clone());
         Ok(Some(db))
     }
 

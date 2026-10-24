@@ -384,3 +384,33 @@ fn an_online_only_account_leaves_nothing_on_disk() {
     assert!(!on_disk(&t, b"BACK-ON-DISK"));
     let _ = std::fs::remove_dir_all(t);
 }
+
+/// An account's data file reached from several threads at once, before anything has opened
+/// it (its connections starting together): each of them gets it, none is told it's open in
+/// another copy of MailCraft.
+#[test]
+fn threads_opening_a_data_file_together_all_get_it() {
+    for round in 0..20 {
+        let t = temp(&format!("together-{round}"));
+        let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+        s.save_accounts(&[account("a2", "a2@studio.example")]).unwrap();
+        let start = std::sync::Arc::new(std::sync::Barrier::new(8));
+        let threads: Vec<_> = (0..8)
+            .map(|i| {
+                let (s, start) = (s.clone(), start.clone());
+                std::thread::spawn(move || {
+                    start.wait();
+                    let folder = format!("F{i}");
+                    let mut st = s.load_folder("a2", &folder).unwrap_or_default();
+                    st.validity = 1;
+                    s.save_folder("a2", &folder, &st).map_err(|e| e.to_string())
+                })
+            })
+            .collect();
+        for h in threads {
+            assert_eq!(h.join().unwrap(), Ok(()), "round {round}");
+        }
+        drop(s);
+        let _ = std::fs::remove_dir_all(&t);
+    }
+}
