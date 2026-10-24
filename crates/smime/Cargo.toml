@@ -1,0 +1,44 @@
+[package]
+name = "mailcraft-smime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "MailCraft S/MIME (RFC 8551): certificates from .p12 files, signatures made and checked, mail encrypted and decrypted (pure Rust, wasm-safe)"
+
+[lints]
+workspace = true
+
+# RustCrypto, all MIT OR Apache-2.0, one generation (der 0.7, digest 0.10) so each is built once.
+[dependencies]
+der = { version = "0.7", features = ["alloc", "derive", "oid", "pem"] }
+spki = { version = "0.7", features = ["alloc"] }
+x509-cert = { version = "0.2", default-features = false, features = ["pem"] }
+cms = { version = "0.2.3", features = ["builder"] }
+const-oid = { version = "0.9", features = ["db"] }
+rsa = { version = "0.9", default-features = false, features = ["std", "sha2"] }
+sha1 = { version = "0.10", features = ["oid"] }
+sha2 = { version = "0.10", features = ["oid"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+des = "0.8"
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
+pkcs8 = { version = "0.10", features = ["alloc"] }
+thiserror = { workspace = true }
+signature = "2"
+rand_core = "0.6"
+
+# .p12 / .pfx files: PBES2 (PBKDF2, AES) and the older 3DES and RC2-40 ones. Opened on the
+# desktop only (where the keychain is); its random numbers don't build for the browser.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+p12-keystore = "0.1.5"
+
+# rand_core asks the system for randomness through getrandom (the caller's generator is what's
+# used here); in the browser that's `crypto.getRandomValues`.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+rand_core = { version = "0.6", features = ["getrandom"] }

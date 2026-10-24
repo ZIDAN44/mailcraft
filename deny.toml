@@ -35,6 +35,13 @@ ignore = [
     # here) lists gtk for Linux and the BSDs, where MailCraft uses its own `xdnd.rs` instead, so
     # no build of MailCraft compiles glib (`cargo tree -i glib --target <any>` prints nothing).
     { id = "RUSTSEC-2024-0429", reason = "glib only in the lockfile, through drag's Linux deps; never built" },
+    # S/MIME (mailcraft-smime): timing side channels in RSA (Marvin) and in the big-integer code
+    # under P-256/P-384. Both need an attacker who can time the private key at work, many times
+    # over; MailCraft uses it only on this computer, when the user signs or opens their own mail,
+    # never as a service and never answering automatically, and every decryption failure is one
+    # error. Fixed only in release candidates (rsa 0.10, crypto-bigint 0.7) so far.
+    { id = "RUSTSEC-2023-0071", reason = "rsa: local signing and decrypting only, no oracle (mailcraft-smime)" },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint under p256/p384: local use only (mailcraft-smime)" },
     # mailcraft-print reads the installed fonts it embeds in PDFs with ttf-parser. Moving to its
     # successor, skrifa, is a rewrite of that code, so the notice stands until it is done.
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser in mailcraft-print; no maintained drop-in" },

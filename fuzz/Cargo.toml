@@ -16,6 +16,7 @@ bin = [
     { name = "photo", bench = false, test = false, doc = false, path = "fuzz_targets/photo.rs" }, # photos' EXIF and XMP blocks as they're sent
     { name = "pst", bench = false, test = false, doc = false, path = "fuzz_targets/pst.rs" }, # Outlook data file import
     { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
+    { name = "smime", bench = false, test = false, doc = false, path = "fuzz_targets/smime.rs" }, # signatures, encrypted mail, certificates, .p12
     { name = "vcard", bench = false, test = false, doc = false, path = "fuzz_targets/vcard.rs" }, # contact cards
 ]
 
@@ -26,6 +27,8 @@ mailcraft-jmap.path = "../crates/jmap" # the JMAP client
 mailcraft-mime.path = "../crates/mime" # MIME, HTML and markup
 mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
 mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
+mailcraft-smime.path = "../crates/smime" # S/MIME
+rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
 mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to
 
 # `cargo fuzz ... -O` builds with this profile. MailCraft's own code keeps its debug assertions and
