@@ -82,16 +82,20 @@ impl MailApp {
                 }
             }
             Action::CloseAnyway => {
-                self.ui.closing_anyway = true;
-                // What becomes of an update is still said before MailCraft goes.
+                // What becomes of an update is still said before MailCraft goes; its answer closes
+                // (and Cancel there leaves the next close asking everything again).
                 if self.ask_about_update() {
                     self.ask_update_on_close();
                 } else {
+                    self.ui.closing_anyway = true;
                     self.ui.close_now = true;
                 }
             }
+            // Committed only once nothing stops the close (`frame.rs`): a message being written can
+            // still be kept, and Cancel there leaves MailCraft as it was.
             Action::RestartToUpdate => {
-                if self.services.restart_to_update() {
+                if self.ui.update.ready().is_some() {
+                    self.ui.restart_wanted = true;
                     self.ui.update_answered = true;
                     self.ui.close_now = true;
                 }

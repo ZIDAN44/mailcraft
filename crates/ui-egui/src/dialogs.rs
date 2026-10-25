@@ -190,6 +190,11 @@ impl Dialog {
     }
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
+    /// A question asked as MailCraft closes.
+    pub fn about_closing(&self) -> bool {
+        matches!(self, Dialog::SaveOnClose(_) | Dialog::LostOnClose { .. } | Dialog::UpdateOnClose(_))
+    }
+
     pub fn for_compose(&self) -> bool {
         matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::SendCheck(_) | Dialog::WordCount(..))
             || matches!(self, Dialog::Signature(f) if f.insert)

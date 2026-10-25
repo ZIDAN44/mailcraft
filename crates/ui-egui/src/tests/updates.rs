@@ -116,9 +116,46 @@ fn a_ready_update_is_said_once() {
     frame(&ctx, &mut a, vec![]);
     assert!(a.update_bar_wanted());
     assert_eq!(asked.borrow().notified.len(), 1, "in front: the bar says it");
-    // Restart now: closing asks nothing more.
+    // Restart now: closing asks nothing more, and the restart holds once the window closes.
     a.act(Action::RestartToUpdate);
-    assert!(asked.borrow().restart && a.ui.close_now && a.ui.update_answered);
+    assert!(a.ui.close_now && a.ui.update_answered && !asked.borrow().restart, "not before the close goes ahead");
+    frame(&ctx, &mut a, vec![]);
+    close(&ctx, &mut a);
+    assert!(a.ui.dialog.is_none() && asked.borrow().restart);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Restart now with a message being written: the save question comes first, and Cancel there
+/// leaves MailCraft as it was (no restart, and the next close asks about the update again).
+#[test]
+fn restart_now_can_still_be_called_off() {
+    let (mut a, dir) = app("update-restart-cancel");
+    let asked = updating(&mut a);
+    asked.borrow_mut().state = ready(false);
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "Half done"}));
+    a.act(Action::RestartToUpdate);
+    frame(&ctx, &mut a, vec![]);
+    close(&ctx, &mut a);
+    assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))), "{:?}", a.ui.dialog);
+    // Cancel.
+    a.ui.dialog = None;
+    frame(&ctx, &mut a, vec![]);
+    assert!(!a.ui.restart_wanted && !a.ui.update_answered && !asked.borrow().restart);
+    // Close again, and Save there (as its button does): the update is asked about again, and
+    // nothing restarts.
+    close(&ctx, &mut a);
+    assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))), "{:?}", a.ui.dialog);
+    a.ui.dialog = None;
+    a.act(Action::Run("compose.keepAll", json!({})));
+    a.act(Action::CloseAnyway);
+    assert!(matches!(a.ui.dialog, Some(Dialog::UpdateOnClose(_))), "{:?}", a.ui.dialog);
+    a.act(Action::UpdateOnClose(true));
+    frame(&ctx, &mut a, vec![]);
+    close(&ctx, &mut a);
+    assert!(!asked.borrow().restart, "installed as it closes, not reopened");
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -156,6 +193,11 @@ fn closing_says_what_becomes_of_the_update() {
     // Close anyway (online-only accounts' warning) still says what becomes of the update.
     a.act(Action::CloseAnyway);
     assert!(matches!(&a.ui.dialog, Some(Dialog::UpdateOnClose(_))) && !a.ui.close_now);
+    // Cancel there: the next close asks everything again (online-only mail isn't dropped).
+    a.ui.dialog = None;
+    assert!(!a.ui.closing_anyway, "cancelled, nothing is closing");
+    close(&ctx, &mut a);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::UpdateOnClose(_))), "asked again");
     a.act(Action::UpdateOnClose(true));
     assert!(!asked.borrow().later && a.ui.close_now && a.ui.update_answered);
     let _ = std::fs::remove_dir_all(dir);

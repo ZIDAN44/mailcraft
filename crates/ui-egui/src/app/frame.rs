@@ -31,25 +31,37 @@ impl MailApp {
         self.settle_composes(&ctx);
         self.announce(&ctx);
         self.follow_update(&ctx);
+        self.forget_cancelled_close();
         // Closing with online-only accounts' unsent mail or changes held in memory: ask first.
         if self.ui.close_now {
             self.ui.close_now = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        } else if ctx.input(|i| i.viewport().close_requested()) && !self.ui.closing_anyway {
+        } else if ctx.input(|i| i.viewport().close_requested()) {
             // Messages being written: kept as drafts if wanted, as Outlook asks; never lost.
             let written = self.session.all_composes().filter(|c| self.session.written(c) && !c.sending).count();
             let (unsent, changes) = self.session.lost_on_close();
-            if written > 0 {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            let asked = if self.ui.closing_anyway {
+                false
+            } else if written > 0 {
                 self.ui.dialog = Some(Dialog::SaveOnClose(written));
                 self.ui.dialog_for = None;
+                true
             } else if unsent + changes > 0 {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.ui.dialog = Some(Dialog::LostOnClose { unsent, changes });
+                true
             } else if self.ask_about_update() {
                 // An update about to be installed, or still downloading: said first.
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.ask_update_on_close();
+                true
+            } else {
+                false
+            };
+            if asked {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.ui.close_asked = true;
+            } else if self.ui.restart_wanted {
+                // Restart now, and nothing stopped the close: the new version opens once installed.
+                self.services.restart_to_update();
             }
         }
         // A search started by a command or agent shows its query in the box.

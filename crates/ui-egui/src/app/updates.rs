@@ -41,6 +41,18 @@ impl MailApp {
     pub(crate) fn ask_update_on_close(&mut self) {
         self.ui.dialog = Some(Dialog::UpdateOnClose(self.ui.update.clone()));
         self.ui.dialog_for = None;
+        self.ui.close_asked = true;
+    }
+
+    /// A question about closing put away without closing (Cancel, Escape): Restart now, and what
+    /// was answered about the update, go with it, so a later close asks again.
+    pub(crate) fn forget_cancelled_close(&mut self) {
+        let asking = self.ui.dialog.as_ref().is_some_and(Dialog::about_closing);
+        if self.ui.close_asked && !asking && !self.ui.close_now && !self.ui.closing_anyway {
+            self.ui.close_asked = false;
+            self.ui.restart_wanted = false;
+            self.ui.update_answered = false;
+        }
     }
 
     /// Whether the bar above the panes has something to say.

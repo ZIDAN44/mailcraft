@@ -196,6 +196,10 @@ pub struct UiState {
     pub(crate) update_told: Option<String>,
     /// What to do with the update as MailCraft closes was answered: closing asks no more.
     pub(crate) update_answered: bool,
+    /// Restart now was chosen: the new version opens once installed, if the close goes ahead.
+    pub(crate) restart_wanted: bool,
+    /// A question about closing is (or was) on screen; put away, the close is off.
+    pub(crate) close_asked: bool,
     /// Calendar reminders come due ([`reminders`]).
     pub reminders: reminders::State,
     pub tokens: Tokens,
@@ -350,6 +354,8 @@ impl MailApp {
                 update_later: None,
                 update_told: None,
                 update_answered: false,
+                restart_wanted: false,
+                close_asked: false,
                 reminders: reminders::State::default(),
                 has_files,
                 data_folder,
