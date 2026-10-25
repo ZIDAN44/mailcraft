@@ -10,6 +10,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `html` | an HTML body: text, formatted lines, columns, CSS, links and pictures, trackers and cleaned links, hidden text; MailCraft's markup |
 | `ical` | an iCalendar file, written back and read again; a WebDAV `multistatus` answer |
 | `vcard` | a vCard file, each card written back and read again |
+| `http` | an HTTP answer read whole and streamed to a file (lengths, chunks, to the end), a download's `Content-Range`; GitHub's release list, `SHA256SUMS.txt`, its quota header and tags |
 | `imap` | everything an IMAP server sends through a session (greeting to MOVE, with a folder sync) |
 | `jmap` | a JMAP server's answers (split at form feeds) through sign-in, folder list and folder sync; push events; URLs |
 | `search` | the search box: the query language, the Advanced form, JMAP filters, modified UTF-7; lookalike senders |

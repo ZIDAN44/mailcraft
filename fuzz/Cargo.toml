@@ -10,6 +10,7 @@ workspace = { members = ["."] }
 bin = [
     { name = "html", bench = false, test = false, doc = false, path = "fuzz_targets/html.rs" }, # received HTML bodies and our own markup
     { name = "ical", bench = false, test = false, doc = false, path = "fuzz_targets/ical.rs" }, # calendar files and WebDAV replies
+    { name = "http", bench = false, test = false, doc = false, path = "fuzz_targets/http.rs" }, # HTTP answers, downloads' ranges, GitHub's release list
     { name = "imap", bench = false, test = false, doc = false, path = "fuzz_targets/imap.rs" }, # a whole IMAP session from the server side
     { name = "jmap", bench = false, test = false, doc = false, path = "fuzz_targets/jmap.rs" }, # JMAP replies, push events and URLs
     { name = "mime_parse", bench = false, test = false, doc = false, path = "fuzz_targets/mime_parse.rs" }, # raw message sources

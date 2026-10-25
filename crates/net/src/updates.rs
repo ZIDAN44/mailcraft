@@ -16,7 +16,7 @@ use crate::http::{Request, send};
 use crate::{NetError, Result};
 
 mod download;
-pub use download::{Progress, download_installer, file_name, part_path, sha256_file};
+pub use download::{Progress, content_range, download_installer, file_name, part_path, sha256_file};
 
 /// Where MailCraft is published.
 pub const REPO: &str = "ZIDAN44/mailcraft";

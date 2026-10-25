@@ -11,30 +11,51 @@ use super::*;
 /// a body cut short is an error, after what came of it was written.
 pub fn get_into<W: Write>(req: &Request, open: impl FnOnce(&Response) -> Result<Option<W>>) -> Result<Response> {
     let mut url = Url::parse(&req.url)?;
+    let mut open = Some(open);
     for _ in 0..=MAX_REDIRECTS {
         let sock = stream::tcp(&url.host, url.port)?;
         let mut s = if url.https { stream::tls(sock, &url.host)? } else { Stream::Plain(sock) };
-        write_request(&mut s, req, &url, false)?;
-        let (status, headers, rest) = read_head(&mut s)?;
-        let head = Response { status, headers, body: Vec::new() };
-        if matches!(status, 301 | 302 | 303 | 307 | 308)
-            && let Some(loc) = head.header("Location")
-        {
-            let next = url.join(loc)?;
-            if url.https && !next.https {
-                return Err(NetError::Tls("redirected from https to http".into()));
+        let head = exchange_into(&mut s, req, &url, |head| open.take().map_or(Ok(None), |open| open(head)))?;
+        match redirect(&head) {
+            Some(loc) => {
+                let next = url.join(loc)?;
+                if url.https && !next.https {
+                    return Err(NetError::Tls("redirected from https to http".into()));
+                }
+                url = next;
             }
-            url = next;
-            continue;
+            None => return Ok(head),
         }
-        if let Some(mut out) = open(&head)? {
-            let mut body = Ahead { s: &mut s, buf: rest, pos: 0 };
-            copy_body(&mut body, &head, u64::try_from(req.max).unwrap_or(u64::MAX), &mut out)?;
-            out.flush()?;
-        }
-        return Ok(head);
     }
     Err(NetError::Protocol("too many redirects".into()))
+}
+
+/// Write the request on an open connection and read the answer's head; its body goes to the
+/// writer `open` gives, as [`get_into`] says. A redirect's body is left unread (`open` isn't
+/// asked): the caller follows it on a connection of its own.
+pub fn exchange_into<S: Read + Write, W: Write>(
+    s: &mut S,
+    req: &Request,
+    url: &Url,
+    open: impl FnOnce(&Response) -> Result<Option<W>>,
+) -> Result<Response> {
+    write_request(s, req, url, false)?;
+    let (status, headers, rest) = read_head(s)?;
+    let head = Response { status, headers, body: Vec::new() };
+    if redirect(&head).is_some() {
+        return Ok(head);
+    }
+    if let Some(mut out) = open(&head)? {
+        let mut body = Ahead { s, buf: rest, pos: 0 };
+        copy_body(&mut body, &head, u64::try_from(req.max).unwrap_or(u64::MAX), &mut out)?;
+        out.flush()?;
+    }
+    Ok(head)
+}
+
+/// Where a redirect sends a GET, if `head` is one.
+fn redirect(head: &Response) -> Option<&str> {
+    head.header("Location").filter(|_| matches!(head.status, 301 | 302 | 303 | 307 | 308))
 }
 
 /// The body of `head`'s answer, at most `max` bytes, into `out`: by its length, its chunks, or

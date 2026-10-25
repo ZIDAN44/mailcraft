@@ -233,7 +233,7 @@ fn attempt(url: &str, part: &Path, have: u64, size: u64, progress: &Progress, st
 }
 
 /// `bytes 100-199/1000` (or `/*`): where the part starts, and the whole size when given.
-fn content_range(v: &str) -> Option<(u64, Option<u64>)> {
+pub fn content_range(v: &str) -> Option<(u64, Option<u64>)> {
     let rest = v.trim().strip_prefix("bytes")?.trim_start();
     let (range, total) = rest.split_once('/')?;
     let (start, end) = range.split_once('-')?;
