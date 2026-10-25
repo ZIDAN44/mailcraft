@@ -31,7 +31,7 @@ pub mod revocation;
 mod sign;
 
 pub use cert::{CertInfo, Problem};
-pub use envelope::{Cipher, decrypt, decrypt_with, encrypt};
+pub use envelope::{Cipher, addressed_to, decrypt, decrypt_with, encrypt};
 pub use key::PrivateKey;
 pub use p12::read_p12;
 pub use sign::{Signed, carried, sign, sign_with, verify};

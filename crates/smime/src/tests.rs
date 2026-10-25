@@ -214,6 +214,28 @@ fn what_mailcraft_encrypts_decrypts_for_each_recipient() {
     assert!(encrypt(BODY, &[], Cipher::Aes256Cbc, &mut rng()).is_err());
 }
 
+/// Which of several certificates a message is for, read from its recipient infos (RSA's and
+/// EC's, OpenSSL's and MailCraft's, BER too), without a key.
+#[test]
+fn which_certificate_mail_is_for() {
+    let (riley, zoe, ana) = (pem("riley.pem"), pem("zoe.pem"), pem("ana.pem"));
+    for name in ["enc-cbc.der", "enc-cbc-ber.der", "enc-gcm.der", "enc-oaep.der", "enc-3des.der"] {
+        assert!(addressed_to(&data(name), &riley), "{name}");
+        assert!(!addressed_to(&data(name), &zoe), "{name}");
+    }
+    assert!(!addressed_to(&data("enc-not-mine.der"), &riley));
+    assert!(addressed_to(&data("enc-ec-sha256.der"), &zoe) && !addressed_to(&data("enc-ec-sha256.der"), &riley));
+    assert!(addressed_to(&data("enc-mixed.der"), &zoe) && addressed_to(&data("enc-mixed.der"), &riley));
+    for cipher in [Cipher::Aes256Cbc, Cipher::Aes256Gcm] {
+        let sealed = encrypt(BODY, &[zoe.clone(), ana.clone()], cipher, &mut rng()).unwrap();
+        assert!(addressed_to(&sealed, &zoe) && addressed_to(&sealed, &ana) && !addressed_to(&sealed, &riley));
+    }
+    // Junk, a signature, a certificate that isn't one: for no one.
+    assert!(!addressed_to(b"junk", &riley));
+    assert!(!addressed_to(&data("sig-rsa.der"), &riley));
+    assert!(!addressed_to(&data("enc-cbc.der"), b"not a certificate"));
+}
+
 #[test]
 fn junk_never_panics() {
     let id = riley();
@@ -223,6 +245,7 @@ fn junk_never_panics() {
         let _ = verify(&junk, Some(BODY));
         let _ = verify(&junk, None);
         let _ = decrypt(&junk, &id, &mut rng());
+        let _ = addressed_to(&junk, &id.chain[0]);
         let _ = cert::info(&junk);
         let _ = read_p12(&junk, "secret");
     }

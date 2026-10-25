@@ -171,6 +171,37 @@ pub fn decrypt_with(cms: &[u8], cert: &[u8], id: &mut dyn crate::PrivateKey) -> 
     Err(Error::Malformed("not encrypted mail"))
 }
 
+/// Whether `cms` (encrypted mail) is addressed to the certificate `cert` (DER): one of its
+/// recipient infos names it. Tells which of several keys to decrypt with without trying each
+/// (a card's key would ask for its PIN for nothing).
+pub fn addressed_to(cms: &[u8], cert: &[u8]) -> bool {
+    let (Ok(der_bytes), Ok(me)) = (der_of(cms), cert::parse(cert)) else { return false };
+    let Ok(ci) = ContentInfo::from_der(&der_bytes) else { return false };
+    let infos = if ci.content_type == oids::ENVELOPED_DATA {
+        ci.content.decode_as::<EnvelopedData>().map(|e| e.recip_infos)
+    } else if ci.content_type == oids::AUTH_ENVELOPED_DATA {
+        ci.content.decode_as::<AuthEnvelopedData>().map(|e| e.recip_infos)
+    } else {
+        return false;
+    };
+    let Ok(infos) = infos else { return false };
+    let names = |issuer: &x509_cert::name::Name, serial: &x509_cert::serial_number::SerialNumber| {
+        *issuer == me.tbs_certificate.issuer && *serial == me.tbs_certificate.serial_number
+    };
+    let key_id = |k: &[u8]| sign::key_id(&me).is_some_and(|id| id == k);
+    infos.0.iter().any(|r| match r {
+        RecipientInfo::Ktri(k) => match &k.rid {
+            RecipientIdentifier::IssuerAndSerialNumber(i) => names(&i.issuer, &i.serial_number),
+            RecipientIdentifier::SubjectKeyIdentifier(s) => key_id(s.0.as_bytes()),
+        },
+        RecipientInfo::Kari(k) => k.recipient_enc_keys.iter().any(|e| match &e.rid {
+            cms::enveloped_data::KeyAgreeRecipientIdentifier::IssuerAndSerialNumber(i) => names(&i.issuer, &i.serial_number),
+            cms::enveloped_data::KeyAgreeRecipientIdentifier::RKeyId(k) => key_id(k.subject_key_identifier.0.as_bytes()),
+        }),
+        _ => false,
+    })
+}
+
 /// The content key from the recipient info that names `me`.
 fn content_key(infos: &RecipientInfos, me: &Certificate, id: &mut dyn crate::PrivateKey) -> Result<Vec<u8>, Error> {
     // An EC key: the copy wrapped for it by key agreement.
