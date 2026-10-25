@@ -49,19 +49,32 @@ pub(super) fn portable_step(zip: &Path, dir: &Path) -> String {
     )
 }
 
-/// The shell step copying `MailCraft.app` out of the DMG in place of `bundle`.
+/// The shell step copying `MailCraft.app` out of the DMG in place of `bundle`. Only a whole copy
+/// takes its place (a failed or partial one, or one left by an earlier try, never does), and if
+/// the new one can't be moved in, the old one goes back.
 pub(super) fn mac_step(dmg: &Path, bundle: &Path) -> String {
     let (b, d) = (sh_quote(bundle), sh_quote(dmg));
     format!(
-        "m=$(mktemp -d) && hdiutil attach -nobrowse -readonly -mountpoint \"$m\" {d} >/dev/null && \
-         rm -rf {b}.new && ditto \"$m/MailCraft.app\" {b}.new; hdiutil detach \"$m\" >/dev/null 2>&1; \
-         if [ -d {b}.new ]; then rm -rf {b}.old && mv {b} {b}.old && mv {b}.new {b} && rm -rf {b}.old; fi; rm -f {d}"
+        "rm -rf {b}.new; m=$(mktemp -d) && hdiutil attach -nobrowse -readonly -mountpoint \"$m\" {d} >/dev/null && \
+         {{ ditto \"$m/MailCraft.app\" {b}.new; ok=$?; hdiutil detach \"$m\" >/dev/null 2>&1; \
+         [ $ok -eq 0 ] && rm -rf {b}.old && mv {b} {b}.old && {{ mv {b}.new {b} || mv {b}.old {b}; }}; }}; \
+         rm -rf {b}.new {b}.old; rm -f {d}"
     )
 }
 
-/// A PowerShell single-quoted string.
+/// A PowerShell single-quoted string. PowerShell ends one at a typographic quote too (‘ ’ ‚ ‛),
+/// so those are doubled as `'` is (a folder named `Zoë’s` is common).
 pub(super) fn ps_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "''"))
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for c in s.chars() {
+        if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}') {
+            out.push(c);
+        }
+        out.push(c);
+    }
+    out.push('\'');
+    out
 }
 
 /// A POSIX shell single-quoted word.

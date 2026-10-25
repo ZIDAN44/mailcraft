@@ -65,9 +65,14 @@ fn helper_scripts_quote_their_paths() {
     assert!(msi.contains(r#"'"C:\Users\O''Brien\My Apps\mailcraft-0.21.0-windows-x64.msi"'"#), "{msi}");
     let zip = portable_step(Path::new(r"C:\Tools\MailCraft\x.zip"), Path::new(r"C:\Tools\Mail'Craft"));
     assert!(zip.contains(r"-Destination 'C:\Tools\Mail''Craft'"), "{zip}");
+    // PowerShell ends a quoted string at a typographic quote as well: doubled too.
+    assert_eq!(ps_quote("D:\\Zoë’s ‘mail’ ‚x‛"), "'D:\\Zoë’’s ‘‘mail’’ ‚‚x‛‛'");
     assert_eq!(sh_quote("/Applications/Mail'Craft.app"), r"'/Applications/Mail'\''Craft.app'");
     let mac = mac_step(Path::new("/tmp/m.dmg"), Path::new("/Applications/MailCraft.app"));
     assert!(mac.contains("ditto \"$m/MailCraft.app\" '/Applications/MailCraft.app'.new"), "{mac}");
+    // Only a whole copy takes the app's place, and a failed move puts the old one back.
+    assert!(mac.starts_with("rm -rf '/Applications/MailCraft.app'.new;"), "a copy left by an earlier try goes first");
+    assert!(mac.contains("[ $ok -eq 0 ] &&") && mac.contains("|| mv '/Applications/MailCraft.app'.old '/Applications/MailCraft.app'"), "{mac}");
 }
 
 /// The kind of copy is told from where the exe is (Windows: beside a portable marker, or in
