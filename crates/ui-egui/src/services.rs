@@ -22,6 +22,28 @@ impl Backend for NullBackend {
     }
 }
 
+/// Where a build that updates itself is with the next version (`apps/mailcraft/src/self_update.rs`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum UpdateState {
+    #[default]
+    None,
+    /// Being downloaded: the version (`0.25.0`), the bytes so far and the size (0 if unknown).
+    Downloading { version: String, done: u64, total: u64 },
+    /// Downloaded and checked: installed as MailCraft closes. `admin`: Windows asks for an
+    /// administrator (the MSI installs for everyone).
+    Ready { version: String, admin: bool },
+}
+
+impl UpdateState {
+    /// The version waiting to be installed.
+    pub fn ready(&self) -> Option<&str> {
+        match self {
+            UpdateState::Ready { version, .. } => Some(version),
+            _ => None,
+        }
+    }
+}
+
 /// Platform services the UI needs.
 pub trait Services {
     /// Unix seconds and the local UTC offset in seconds.
@@ -36,15 +58,16 @@ pub trait Services {
     fn save_path(&mut self, suggested: &str) -> Option<PathBuf>;
     /// Open a file with the system's default app.
     fn open_path(&mut self, path: &std::path::Path) -> Result<(), String>;
-    /// A newer MailCraft downloaded and waiting to be installed (its tag), in a build that
-    /// updates itself. The default: none.
-    fn pending_update(&mut self) -> Option<String> {
-        None
+    /// Where a build that updates itself is with the next version. The default: nowhere.
+    fn update_state(&mut self) -> UpdateState {
+        UpdateState::None
     }
     /// Install the waiting version as MailCraft closes, then open it. False when there's none.
     fn restart_to_update(&mut self) -> bool {
         false
     }
+    /// Leave the waiting version for later: not installed as MailCraft closes this time.
+    fn keep_update_for_later(&mut self) {}
     /// Show a desktop notification (new mail). The default does nothing.
     fn notify(&mut self, _title: &str, _body: &str) {}
     /// Where an installed Craft app is (`pdfcraft`, `wordcraft`…), if it is.

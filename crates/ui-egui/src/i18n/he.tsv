@@ -1154,3 +1154,21 @@ month	May	מאי
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	לתעודה אין סיסמה, ולכן הדפדפן משתמש בה עד שהדף ייסגר ואינו שומר אותה
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	הכרטיס צריך את ה־PIN שלו (הזן אותו בקובץ › מידע › אבטחה › שימוש בכרטיס חכם…)
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	הכרטיס דחה את ה־PIN, ולכן MailCraft שכח אותו: הכרטיס היה ננעל אילו נוסה שוב (הזן אותו שוב בקובץ › מידע › אבטחה › שימוש בכרטיס חכם…)
+	Close without updating	לסגור בלי לעדכן
+	Downloading MailCraft {version}…	מוריד את MailCraft {version}…
+	Downloading MailCraft {version}… {percent}%	מוריד את MailCraft {version}… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	אם תסגור את MailCraft עכשיו, ההורדה תושהה ותמשיך מהמקום שבו נעצרה בפעם הבאה שתפתח את MailCraft.
+	Install MailCraft {version} as it closes?	להתקין את MailCraft {version} בזמן הסגירה?
+	It installs the next time you close MailCraft.	הוא יותקן בפעם הבאה שתסגור את MailCraft.
+	It installs when you close MailCraft.	הוא יותקן כשתסגור את MailCraft.
+	Keep MailCraft open	להשאיר את MailCraft פתוח
+	MailCraft {version} is downloading.	MailCraft {version} מורד.
+	MailCraft {version} is ready	MailCraft {version} מוכן
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} מוכן. הפעל מחדש עכשיו כדי להתקין אותו, או שהוא יותקן כשתסגור את MailCraft.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	הפעל מחדש את MailCraft כדי להתקין אותו עכשיו, או שהוא יותקן כשתסגור את MailCraft.
+	Restart now	להפעיל מחדש עכשיו
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	העדכון הורד ונבדק. הוא מותקן עכשיו, בזמן ש-MailCraft נסגר, וזה לוקח רגע; פתח את MailCraft שוב כשזה יסתיים.
+	Update and close	לעדכן ולסגור
+	Windows asks for an administrator's permission.	Windows יבקש אישור של מנהל מערכת.
+	An update is still downloading	עדכון עדיין בהורדה
+	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} מורד ({done} מתוך {total}).

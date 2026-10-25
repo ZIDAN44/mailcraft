@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
-use crate::{Action, Dialog, UiState, widgets};
+use crate::{Action, Dialog, UiState, UpdateState, widgets};
 
 mod options;
 mod security;
@@ -121,7 +121,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, &mut b, acts),
                     Page::Options => options(s, st, ui, acts),
-                    Page::About => about(s, &t, st.pending_update.as_deref(), ui, acts),
+                    Page::About => about(s, &t, &st.update, ui, acts),
                 }
             });
         });
@@ -572,7 +572,7 @@ fn updates(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
 }
 
-fn about(s: &Session, t: &Tokens, pending: Option<&str>, ui: &mut Ui, acts: &mut Vec<Action>) {
+fn about(s: &Session, t: &Tokens, update: &UpdateState, ui: &mut Ui, acts: &mut Vec<Action>) {
     heading(ui, t, "About MailCraft");
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
@@ -586,16 +586,25 @@ fn about(s: &Session, t: &Tokens, pending: Option<&str>, ui: &mut Ui, acts: &mut
     });
     ui.add_space(10.0);
     updates(s, t, ui, acts);
-    // A test build that updates itself, with the next one downloaded.
-    if let Some(tag) = pending {
-        ui.add_space(6.0);
-        ui.horizontal_wrapped(|ui| {
-            let version = tag.trim_start_matches('v');
-            ui.label(RichText::new(tf!("MailCraft {version} is downloaded. It installs when you close MailCraft.", version = version)).color(t.text));
-            if widgets::accent_button(ui, Icon::Sync, "Restart to update", t, true).clicked() {
-                acts.push(Action::RestartToUpdate);
-            }
-        });
+    // A test build that updates itself: its next version on the way, or downloaded.
+    match update {
+        UpdateState::Ready { version, .. } => {
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(
+                    RichText::new(tf!("MailCraft {version} is downloaded. It installs when you close MailCraft.", version = version)).color(t.text),
+                );
+                if widgets::accent_button(ui, Icon::Sync, "Restart to update", t, true).clicked() {
+                    acts.push(Action::RestartToUpdate);
+                }
+            });
+        }
+        UpdateState::Downloading { version, done, total } => {
+            ui.add_space(6.0);
+            let percent = if *total > 0 { (done.saturating_mul(100) / total).min(100) } else { 0 };
+            ui.label(RichText::new(tf!("Downloading MailCraft {version}… {percent}%", version = version, percent = percent)).color(t.dim));
+        }
+        UpdateState::None => {}
     }
     ui.add_space(14.0);
     for line in [

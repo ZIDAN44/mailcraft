@@ -92,14 +92,8 @@ impl MailApp {
             if s.prefs.work_offline {
                 ui.label(RichText::new(tl!("Working offline")).color(t.warn).small());
             }
-            // A test build downloaded: installed as MailCraft closes, or now.
-            if let Some(tag) = &self.ui.pending_update {
-                let version = tag.trim_start_matches('v');
-                let hint = tf!("MailCraft {version} is downloaded. It installs when you close MailCraft.", version = version);
-                if ui.link(RichText::new(tl!("Restart to update")).color(t.accent).small()).on_hover_text(hint).clicked() {
-                    restart = true;
-                }
-            }
+            // A test build's next version: how far it's downloaded, then restart into it.
+            restart = self.update_status(ui);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let dot = |ui: &mut Ui, color: egui::Color32| {
                     let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
@@ -156,8 +150,8 @@ impl MailApp {
         if let Some(id) = again {
             self.sign_in_again(&id);
         }
-        if restart && self.services.restart_to_update() {
-            self.ui.close_now = true;
+        if restart {
+            self.act(Action::RestartToUpdate);
         }
     }
 

@@ -6,6 +6,7 @@ mod frame;
 mod keys;
 mod ribbon;
 mod search_box;
+mod updates;
 mod windows;
 
 pub(crate) use ribbon::junk_menu;

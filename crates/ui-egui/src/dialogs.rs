@@ -11,6 +11,7 @@ use crate::theme::{self, Tokens};
 use crate::{Action, Icon, widgets};
 
 mod accounts;
+mod closing;
 mod folders;
 mod mailbox;
 mod organize;
@@ -45,6 +46,8 @@ pub enum Dialog {
         unsent: usize,
         changes: usize,
     },
+    /// Closing with an update about to be installed, or still downloading: what becomes of it.
+    UpdateOnClose(crate::UpdateState),
     /// Confirmation before `contact.delete`, which can't be undone.
     ConfirmDeleteContact {
         uid: String,
@@ -437,10 +440,9 @@ pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: 
 fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     // Each kind is drawn by its group; listing them all here keeps the match exhaustive.
     match d {
+        Dialog::LostOnClose { .. } | Dialog::SaveOnClose(..) | Dialog::UpdateOnClose(..) => closing::draw(ui, d, s, t, acts),
         Dialog::AddAccount(..)
         | Dialog::Password { .. }
-        | Dialog::LostOnClose { .. }
-        | Dialog::SaveOnClose(..)
         | Dialog::RemoveAccount { .. }
         | Dialog::MailboxClosed { .. }
         | Dialog::EditAccount(..)

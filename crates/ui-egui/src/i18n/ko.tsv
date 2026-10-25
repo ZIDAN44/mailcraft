@@ -1158,3 +1158,21 @@ month	May	5월
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	인증서에 암호가 없어 브라우저는 페이지를 닫을 때까지만 사용하고 보관하지 않습니다
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	카드에 PIN이 필요합니다 (파일 › 정보 › 보안 › 스마트 카드 사용…)
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	카드가 PIN을 거부하여 MailCraft가 PIN을 잊었습니다: 다시 시도하면 카드가 잠깁니다 (파일 › 정보 › 보안 › 스마트 카드 사용…)
+	Close without updating	업데이트하지 않고 닫기
+	Downloading MailCraft {version}…	MailCraft {version} 다운로드 중…
+	Downloading MailCraft {version}… {percent}%	MailCraft {version} 다운로드 중… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	지금 MailCraft를 닫으면 다운로드가 일시 중지되고, 다음에 MailCraft를 열 때 멈춘 곳부터 이어집니다.
+	Install MailCraft {version} as it closes?	닫을 때 MailCraft {version}을(를) 설치할까요?
+	It installs the next time you close MailCraft.	다음에 MailCraft를 닫을 때 설치됩니다.
+	It installs when you close MailCraft.	MailCraft를 닫으면 설치됩니다.
+	Keep MailCraft open	MailCraft 열어 두기
+	MailCraft {version} is downloading.	MailCraft {version}을(를) 다운로드하고 있습니다.
+	MailCraft {version} is ready	MailCraft {version} 준비 완료
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} 준비가 되었습니다. 지금 다시 시작하여 설치하거나, MailCraft를 닫으면 설치됩니다.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	지금 설치하려면 MailCraft를 다시 시작하세요. 그렇지 않으면 MailCraft를 닫을 때 설치됩니다.
+	Restart now	지금 다시 시작
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	업데이트를 다운로드하고 확인했습니다. MailCraft가 닫히는 지금 설치되며 잠시 걸립니다. 끝나면 MailCraft를 다시 여세요.
+	Update and close	업데이트하고 닫기
+	Windows asks for an administrator's permission.	Windows에서 관리자 권한을 요청합니다.
+	An update is still downloading	업데이트를 아직 다운로드하고 있습니다
+	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version}을(를) 다운로드하고 있습니다({done} / {total}).

@@ -393,7 +393,7 @@ jobs:
 
           Check a download against \`SHA256SUMS.txt\`.
 
-          Installed from the \`.msi\`, the portable \`.zip\`, the \`.dmg\` or the \`.AppImage\`, a test build updates itself: it downloads the next one in the background, checks it against its SHA-256, and installs it when MailCraft closes (or at once with *Restart to update*). \`MAILCRAFT_NO_AUTO_UPDATE=1\` turns that off.
+          Installed from the \`.msi\`, the portable \`.zip\`, the \`.dmg\` or the \`.AppImage\`, a test build updates itself: it downloads the next one in the background (a download cut off carries on next time), checks it against its SHA-256, says when it's ready, and installs it at once with *Restart now* or as MailCraft closes (you're asked). \`MAILCRAFT_NO_AUTO_UPDATE=1\` turns that off.
           EOF
           gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
             --title "MailCraft $VERSION (unsigned test build ${{ github.run_number }})" \

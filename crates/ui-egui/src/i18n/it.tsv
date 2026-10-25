@@ -1158,3 +1158,21 @@ month	May	maggio
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	il certificato non ha password, quindi il browser lo usa finché la pagina non viene chiusa e non lo conserva
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	la carta ha bisogno del PIN (inseriscilo in File › Informazioni › Sicurezza › Usa una smart card…)
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	la carta ha rifiutato il PIN, quindi MailCraft l'ha dimenticato: la carta si bloccherebbe se venisse riprovato (inseriscilo di nuovo in File › Informazioni › Sicurezza › Usa una smart card…)
+	Close without updating	Chiudi senza aggiornare
+	Downloading MailCraft {version}…	Download di MailCraft {version}…
+	Downloading MailCraft {version}… {percent}%	Download di MailCraft {version}… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	Se chiudi MailCraft ora, il download si mette in pausa e riprende da dove si era fermato la prossima volta che apri MailCraft.
+	Install MailCraft {version} as it closes?	Installare MailCraft {version} alla chiusura?
+	It installs the next time you close MailCraft.	Verrà installato la prossima volta che chiudi MailCraft.
+	It installs when you close MailCraft.	Verrà installato alla chiusura di MailCraft.
+	Keep MailCraft open	Tieni aperto MailCraft
+	MailCraft {version} is downloading.	Download di MailCraft {version} in corso.
+	MailCraft {version} is ready	MailCraft {version} è pronto
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} è pronto. Riavvia ora per installarlo, oppure verrà installato alla chiusura di MailCraft.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	Riavvia MailCraft per installarlo ora, oppure verrà installato alla chiusura di MailCraft.
+	Restart now	Riavvia ora
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	L'aggiornamento è scaricato e verificato. Viene installato ora, alla chiusura di MailCraft, e richiede un momento; riapri MailCraft quando ha finito.
+	Update and close	Aggiorna e chiudi
+	Windows asks for an administrator's permission.	Windows chiede l'autorizzazione di un amministratore.
+	An update is still downloading	Un aggiornamento è ancora in download
+	MailCraft {version} is downloading ({done} of {total}).	Download di MailCraft {version} in corso ({done} di {total}).

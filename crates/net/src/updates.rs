@@ -108,27 +108,6 @@ pub fn expected_sum(release: &Release) -> Result<String> {
     sum_for(&String::from_utf8_lossy(&resp.body), file).ok_or_else(|| NetError::No(format!("{}'s checksums don't list {file}", release.tag)))
 }
 
-/// Download `release`'s installer and check it against `expected` (lowercase hex SHA-256) and the
-/// size the release gives: the bytes, or why they were refused.
-pub fn fetch_installer(release: &Release, expected: &str) -> Result<Vec<u8>> {
-    if ours(&release.download).is_none() {
-        return Err(NetError::No("the release has no installer on MailCraft's releases page".into()));
-    }
-    let cap = usize::try_from(release.size).ok().filter(|n| *n > 0).map_or(MAX_INSTALLER, |n| n.min(MAX_INSTALLER));
-    let resp = send(&Request::get(&release.download, cap).header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION"))))?;
-    if !resp.ok() {
-        return Err(NetError::Protocol(format!("the download answered HTTP {}", resp.status)));
-    }
-    if release.size > 0 && resp.body.len() as u64 != release.size {
-        return Err(NetError::Protocol(format!("the download is {} bytes, the release says {}", resp.body.len(), release.size)));
-    }
-    let got = sha256_hex(&resp.body);
-    if got != expected {
-        return Err(NetError::Protocol(format!("the download's checksum is {got}, the release says {expected}")));
-    }
-    Ok(resp.body)
-}
-
 /// What to say when GitHub's quota ran out: `reset` is its `x-ratelimit-reset` header (the Unix
 /// time it refills), `now` the time now.
 pub fn rate_limited(reset: Option<&str>, now: u64) -> String {
@@ -299,8 +278,6 @@ mod tests {
         // Nothing to check against: refused before anything is fetched.
         let bare = Release { download: msi.download.clone(), ..Default::default() };
         assert!(expected_sum(&bare).is_err());
-        let elsewhere = Release { download: "https://evil.example/mailcraft.msi".into(), ..Default::default() };
-        assert!(fetch_installer(&elsewhere, &msi.sha256).is_err());
     }
 
     #[test]

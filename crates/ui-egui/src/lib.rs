@@ -50,7 +50,7 @@ pub(crate) use app::{SearchDrop, junk_menu, scope_label};
 pub use app::{WindowPlace, after_open};
 pub use dialogs::Dialog;
 use icons::Icon;
-pub use services::{Backend, NullBackend, NullServices, Services};
+pub use services::{Backend, NullBackend, NullServices, Services, UpdateState};
 use theme::Tokens;
 
 /// Whether the message being written shows in the reading pane: when it isn't popped out, or
@@ -101,6 +101,9 @@ pub enum Action {
     CloseAnyway,
     /// Close, install the downloaded version, and open it.
     RestartToUpdate,
+    /// Closing, with the update asked about: installed as MailCraft closes (true), or kept for
+    /// later (false).
+    UpdateOnClose(bool),
     Open(MessageKey),
     Dialog(Dialog),
     /// An action from one message's window: done to that message (several can be written at
@@ -186,8 +189,13 @@ pub struct UiState {
     /// the window is to close on the next frame.
     pub closing_anyway: bool,
     pub close_now: bool,
-    /// A newer MailCraft downloaded and waiting (its tag), from [`Services::pending_update`].
-    pub pending_update: Option<String>,
+    /// Where the updater is, from [`Services::update_state`].
+    pub update: UpdateState,
+    /// The ready version whose bar was put away (Later), and the one the system was told of.
+    pub(crate) update_later: Option<String>,
+    pub(crate) update_told: Option<String>,
+    /// What to do with the update as MailCraft closes was answered: closing asks no more.
+    pub(crate) update_answered: bool,
     /// Calendar reminders come due ([`reminders`]).
     pub reminders: reminders::State,
     pub tokens: Tokens,
@@ -338,7 +346,10 @@ impl MailApp {
                 tokens: Tokens::light(),
                 closing_anyway: false,
                 close_now: false,
-                pending_update: None,
+                update: UpdateState::None,
+                update_later: None,
+                update_told: None,
+                update_answered: false,
                 reminders: reminders::State::default(),
                 has_files,
                 data_folder,

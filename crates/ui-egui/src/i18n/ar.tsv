@@ -1154,3 +1154,21 @@ month	May	مايو
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	ليست للشهادة كلمة مرور، لذا يستخدمها المتصفح حتى تُغلق الصفحة ولا يحتفظ بها
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	تحتاج البطاقة إلى رقم PIN الخاص بها (أدخله في ملف › معلومات › الأمان › استخدام بطاقة ذكية…)
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	رفضت البطاقة رقم PIN، لذا نسيه MailCraft: كانت البطاقة ستُقفل لو جُرّب مرة أخرى (أدخله مرة أخرى في ملف › معلومات › الأمان › استخدام بطاقة ذكية…)
+	Close without updating	إغلاق دون تحديث
+	Downloading MailCraft {version}…	جارٍ تنزيل MailCraft {version}…
+	Downloading MailCraft {version}… {percent}%	جارٍ تنزيل MailCraft {version}… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	إذا أغلقت MailCraft الآن، يتوقف التنزيل مؤقتًا ويُستأنف من حيث توقف في المرة التالية التي تفتح فيها MailCraft.
+	Install MailCraft {version} as it closes?	هل تريد تثبيت MailCraft {version} عند إغلاقه؟
+	It installs the next time you close MailCraft.	سيُثبَّت في المرة التالية التي تغلق فيها MailCraft.
+	It installs when you close MailCraft.	سيُثبَّت عند إغلاق MailCraft.
+	Keep MailCraft open	إبقاء MailCraft مفتوحًا
+	MailCraft {version} is downloading.	جارٍ تنزيل MailCraft {version}.
+	MailCraft {version} is ready	MailCraft {version} جاهز
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} جاهز. أعد التشغيل الآن لتثبيته، أو سيُثبَّت عند إغلاق MailCraft.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	أعد تشغيل MailCraft لتثبيته الآن، أو سيُثبَّت عند إغلاق MailCraft.
+	Restart now	إعادة التشغيل الآن
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	تم تنزيل التحديث والتحقق منه. يُثبَّت الآن أثناء إغلاق MailCraft، وهذا يستغرق لحظة؛ افتح MailCraft مجددًا عند انتهائه.
+	Update and close	تحديث وإغلاق
+	Windows asks for an administrator's permission.	سيطلب Windows إذن المسؤول.
+	An update is still downloading	لا يزال التحديث قيد التنزيل
+	MailCraft {version} is downloading ({done} of {total}).	جارٍ تنزيل MailCraft {version} ({done} من {total}).

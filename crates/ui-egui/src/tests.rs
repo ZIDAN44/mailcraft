@@ -70,6 +70,7 @@ pub(crate) fn tour() {
         a.run("message.closeWindow", json!({"key": k.to_id()}));
         backstage_tour(&mut a, &ctx);
         pim_tour(&mut a, &ctx);
+        updates::tour(&mut a, &ctx);
         let projects = a.session.folder("sample", "Projects").cloned().unwrap();
         a.session.oauth_available = vec!["google".into()];
         for d in [
@@ -393,5 +394,6 @@ mod accounts;
 mod organize;
 mod pim;
 mod reading;
+mod updates;
 mod windows;
 mod writing;

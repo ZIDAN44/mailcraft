@@ -1155,3 +1155,21 @@ month	May	5月
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	该证书没有密码，所以浏览器只在关闭页面前使用它，不会保存
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	这张卡需要 PIN（文件 › 信息 › 安全 › 使用智能卡…）
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	这张卡拒绝了 PIN，所以 MailCraft 已将其忘记：再次尝试会锁定卡（文件 › 信息 › 安全 › 使用智能卡…）
+	Close without updating	关闭但不更新
+	Downloading MailCraft {version}…	正在下载 MailCraft {version}…
+	Downloading MailCraft {version}… {percent}%	正在下载 MailCraft {version}… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	如果现在关闭 MailCraft，下载会暂停，并在你下次打开 MailCraft 时从中断处继续。
+	Install MailCraft {version} as it closes?	关闭时安装 MailCraft {version}？
+	It installs the next time you close MailCraft.	将在你下次关闭 MailCraft 时安装。
+	It installs when you close MailCraft.	关闭 MailCraft 时将安装。
+	Keep MailCraft open	保持 MailCraft 打开
+	MailCraft {version} is downloading.	正在下载 MailCraft {version}。
+	MailCraft {version} is ready	MailCraft {version} 已准备就绪
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} 已准备就绪。立即重新启动以安装，或在关闭 MailCraft 时安装。
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	重新启动 MailCraft 即可立即安装，否则将在关闭 MailCraft 时安装。
+	Restart now	立即重新启动
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	更新已下载并通过校验。它现在会在 MailCraft 关闭时安装，需要片刻；完成后请再次打开 MailCraft。
+	Update and close	更新并关闭
+	Windows asks for an administrator's permission.	Windows 会请求管理员许可。
+	An update is still downloading	更新仍在下载
+	MailCraft {version} is downloading ({done} of {total}).	正在下载 MailCraft {version}（{done}/{total}）。

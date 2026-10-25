@@ -1158,3 +1158,21 @@ month	May	Май
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	у сертификата нет пароля, поэтому браузер использует его, пока страница открыта, и не сохраняет
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	карте нужен PIN-код (введите его в Файл › Сведения › Безопасность › Использовать смарт-карту…)
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	карта отклонила PIN-код, поэтому MailCraft забыл его: при повторной попытке карта заблокируется (введите его снова в Файл › Сведения › Безопасность › Использовать смарт-карту…)
+	Close without updating	Закрыть без обновления
+	Downloading MailCraft {version}…	Загрузка MailCraft {version}…
+	Downloading MailCraft {version}… {percent}%	Загрузка MailCraft {version}… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	Если закрыть MailCraft сейчас, загрузка приостановится и продолжится с того же места при следующем открытии MailCraft.
+	Install MailCraft {version} as it closes?	Установить MailCraft {version} при закрытии?
+	It installs the next time you close MailCraft.	Он установится при следующем закрытии MailCraft.
+	It installs when you close MailCraft.	Он установится при закрытии MailCraft.
+	Keep MailCraft open	Оставить MailCraft открытым
+	MailCraft {version} is downloading.	MailCraft {version} загружается.
+	MailCraft {version} is ready	MailCraft {version} готов
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} готов. Перезапустите сейчас, чтобы установить его, или он установится при закрытии MailCraft.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	Перезапустите MailCraft, чтобы установить его сейчас, или он установится при закрытии MailCraft.
+	Restart now	Перезапустить сейчас
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Обновление загружено и проверено. Оно устанавливается сейчас, при закрытии MailCraft, это займёт немного времени; затем откройте MailCraft снова.
+	Update and close	Обновить и закрыть
+	Windows asks for an administrator's permission.	Windows запросит разрешение администратора.
+	An update is still downloading	Обновление ещё загружается
+	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} загружается ({done} из {total}).

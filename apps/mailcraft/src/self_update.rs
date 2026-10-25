@@ -5,51 +5,70 @@
 //! installed, and a developer's build never changes itself. `MAILCRAFT_NO_AUTO_UPDATE=1` turns
 //! it off for a run.
 //!
-//! The steps, in the spirit of Office's own updates (fetch quietly, install when the app is
-//! closed, or now when asked):
+//! The steps, the way browsers and code editors update themselves (fetch quietly, say when it's
+//! ready, install on restart or as the app closes):
 //!
-//! 1. **Check** a minute after start and then about hourly (with jitter), asking GitHub with the
-//!    last `ETag` so an unchanged list costs nothing against its anonymous quota.
+//! 1. **Check** a minute after start (ten seconds when a download was left part way) and then
+//!    about hourly while MailCraft stays open, with jitter; asking GitHub with the last `ETag`
+//!    so an unchanged list costs nothing against its anonymous quota. A check that fails is
+//!    tried again sooner: 5 minutes, doubling up to the hour.
 //! 2. **Pick** the newest test build newer than this one ([`newer_release`]: never an older or
 //!    the same one), and its installer of the kind this copy was installed from ([`Kind`]).
-//! 3. **Download** it into `<data>/updates`, refusing it unless its SHA-256 matches GitHub's record
-//!    of the file (or the release's `SHA256SUMS.txt`) and its size matches.
-//! 4. **Install** when MailCraft closes, or at once with Restart to update: a small detached
-//!    helper waits for this process to end, puts the new version in place the way this copy was
-//!    installed, and (when restarting) opens it.
+//! 3. **Download** it into `<data>/updates`, resumably (`mailcraft_net::updates::download`): the
+//!    bytes go to a partial file as they come, a download cut off carries on from there with a
+//!    range request (in this run, or the next one when MailCraft was closed first), and the file
+//!    is kept only if its SHA-256 matches GitHub's record of it (or the release's
+//!    `SHA256SUMS.txt`) and its size the release's.
+//! 4. **Say so**: the window shows a bar with Restart now, and the system a notification when
+//!    MailCraft isn't in front (`crates/ui-egui/src/app/updates.rs`). Closing asks first what
+//!    becomes of it (installed as MailCraft closes, or kept for the next time), and says when a
+//!    download is still going (it carries on next time).
+//! 5. **Install** as MailCraft closes, or at once with Restart now: a small detached helper waits
+//!    for this process to end, puts the new version in place the way this copy was installed,
+//!    and (when restarting) opens it (`self_update/install.rs`).
 //!
 //! A marker remembers the version just installed for a day, so a release whose binary reports
 //! something else can't make it install itself over and over.
 //!
 //! To try it against the newest test build, run a test build with
-//! `MAILCRAFT_UPDATE_PRETEND_VERSION=0.20.0` (it counts as that version, for this run only) and
-//! `MAILCRAFT_UPDATE_FIRST_CHECK=5` (seconds before the first check).
+//! `MAILCRAFT_UPDATE_PRETEND_VERSION=0.20.0` (it counts as that version, for this run only, and
+//! the sample mailbox's run updates too) and `MAILCRAFT_UPDATE_FIRST_CHECK=5` (seconds before
+//! the first check).
 //!
 //! | Installed from | Installed by the helper |
 //! |---|---|
 //! | Windows `.msi` (Program Files) | `msiexec /i … /passive` (Windows asks for an administrator) |
 //! | Windows portable `.zip` | unzipped over the app's folder; `MailCraftData` stays |
-//! | macOS `.dmg` | `MailCraft.app` copied out of it in place of this one |
+//! | macOS `.dmg` | `MailCraft.app` copied out of it in place of this one, where this user may write (`/Applications` for an administrator's account, `~/Applications`) |
 //! | Linux `.AppImage` | the new file renamed over this one |
 //!
-//! Anything else (a `.deb`, `.rpm`, Flatpak, FreeBSD) keeps File › About's Download link.
+//! Anything else (a `.deb`, `.rpm`, Flatpak, FreeBSD, an app macOS runs from a read-only
+//! translocated copy) keeps File › About's Download link.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
 use mailcraft_engine::model::job::Release;
 use mailcraft_engine::newer_release;
-use mailcraft_net::updates::{self, Listing};
+use mailcraft_net::updates::{self, Listing, Progress};
+use mailcraft_ui_egui::UpdateState;
+
+mod install;
+#[cfg(test)]
+mod tests;
 
 /// Set at compile time by the test-build workflow.
 const CHANNEL: Option<&str> = option_env!("MAILCRAFT_UPDATE_CHANNEL");
-/// The first check, after start.
+/// The first check, after start; sooner when a download waits to be carried on.
 const FIRST_CHECK: Duration = Duration::from_secs(60);
+const FIRST_RESUME: Duration = Duration::from_secs(10);
 /// Between checks (give or take [`JITTER_SECS`]).
 const EVERY: Duration = Duration::from_secs(60 * 60);
 const JITTER_SECS: u64 = 10 * 60;
+/// After a check fails: this, doubling each time, up to [`EVERY`].
+const RETRY: Duration = Duration::from_secs(5 * 60);
 /// How long the version just installed isn't offered again.
 const JUST_INSTALLED_FOR: u64 = 24 * 3600;
 /// The marker recording it, in the data folder.
@@ -60,6 +79,12 @@ const DOWNLOADS: &str = "updates";
 /// Whether this build updates itself.
 pub fn enabled() -> bool {
     CHANNEL == Some("test") && std::env::var_os("MAILCRAFT_NO_AUTO_UPDATE").is_none_or(|v| v.is_empty() || v == "0")
+}
+
+/// Whether this run tries the updater out (`MAILCRAFT_UPDATE_PRETEND_VERSION`): the sample
+/// mailbox's run then updates too.
+pub fn trying_out() -> bool {
+    std::env::var_os("MAILCRAFT_UPDATE_PRETEND_VERSION").is_some_and(|v| !v.is_empty())
 }
 
 /// How this copy was installed, among the kinds the updater can replace.
@@ -128,6 +153,11 @@ fn detect_at(exe: &Path, env: &dyn Fn(&str) -> Option<PathBuf>) -> Option<Kind> 
     }
     if cfg!(target_os = "macos") {
         let bundle = exe.ancestors().find(|p| p.extension().is_some_and(|e| e == "app"))?;
+        // Run from where it was downloaded, macOS runs a read-only copy of it elsewhere.
+        if bundle.to_string_lossy().contains("/AppTranslocation/") {
+            log::info!("updates: macOS runs this MailCraft from a read-only copy; moved to Applications, it updates itself");
+            return None;
+        }
         // Replacing the bundle needs its folder to be ours to write.
         let parent = bundle.parent()?;
         return writable(parent).then(|| Kind::MacApp(bundle.to_path_buf()));
@@ -151,20 +181,42 @@ fn writable(dir: &Path) -> bool {
 pub enum Status {
     #[default]
     Waiting,
+    /// A newer version is downloading: its tag.
+    Downloading { tag: String },
     /// A newer version is downloaded and checked: its tag and file.
     Ready { tag: String, file: PathBuf },
 }
+
+/// What the window and the updater's thread share.
+#[derive(Default)]
+struct Shared {
+    status: Mutex<Status>,
+    progress: Progress,
+    /// The helper has been started (once per run).
+    started: AtomicBool,
+    /// Restart now was chosen: the new version opens once installed.
+    restart: AtomicBool,
+    /// Close without updating was chosen: not installed as MailCraft closes this time.
+    later: AtomicBool,
+    /// MailCraft is closing: a download stops between reads (what came is kept).
+    stop: AtomicBool,
+    /// Wakes the thread from its wait between checks as MailCraft closes.
+    asleep: Mutex<()>,
+    wake: Condvar,
+    /// Wakes the window when where the updater is changes: an idle window draws no frames, and a
+    /// minimized one only looks (`eframe::App::logic`) when woken.
+    waker: Mutex<Option<Waker>>,
+}
+
+/// What wakes the window.
+pub type Waker = Arc<dyn Fn() + Send + Sync>;
 
 /// The updater, shared by the window (to show and start it) and its own thread.
 #[derive(Clone)]
 pub struct Updater {
     kind: Kind,
     data: PathBuf,
-    status: Arc<Mutex<Status>>,
-    /// The helper has been started (once per run).
-    started: Arc<AtomicBool>,
-    /// Restart to update was chosen: the new version opens once installed.
-    restart: Arc<AtomicBool>,
+    shared: Arc<Shared>,
 }
 
 impl Updater {
@@ -178,7 +230,7 @@ impl Updater {
             log::info!("updates: this copy wasn't installed in a way MailCraft can update by itself");
             return None;
         };
-        let u = Updater { kind, data, status: Arc::default(), started: Arc::default(), restart: Arc::default() };
+        let u = Updater { kind, data, shared: Arc::default() };
         let worker = u.clone();
         let spawned = std::thread::Builder::new().name("updates".into()).spawn(move || worker.run(build_sha.as_deref()));
         if let Err(e) = spawned {
@@ -188,108 +240,182 @@ impl Updater {
         Some(u)
     }
 
-    /// The version waiting to be installed (its tag, as `v0.21.0-test.19`).
-    pub fn ready(&self) -> Option<String> {
-        match &*self.status.lock().unwrap_or_else(std::sync::PoisonError::into_inner) {
-            Status::Ready { tag, .. } => Some(tag.clone()),
-            Status::Waiting => None,
+    fn status(&self) -> Status {
+        self.shared.status.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    fn set_status(&self, status: Status) {
+        *self.shared.status.lock().unwrap_or_else(PoisonError::into_inner) = status;
+        let waker = self.shared.waker.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        if let Some(wake) = waker {
+            wake();
         }
     }
 
-    /// Restart to update: the waiting version is installed as MailCraft closes and then opened.
-    /// False when nothing is waiting.
+    /// What wakes the window when the update starts downloading, is ready, or goes.
+    pub fn set_waker(&self, waker: Waker) {
+        *self.shared.waker.lock().unwrap_or_else(PoisonError::into_inner) = Some(waker);
+    }
+
+    /// Where it is, for the window.
+    pub fn state(&self) -> UpdateState {
+        let version = |tag: &str| tag.trim_start_matches('v').to_string();
+        match self.status() {
+            Status::Waiting => UpdateState::None,
+            Status::Downloading { tag } => {
+                let (done, total) = self.shared.progress.get();
+                UpdateState::Downloading { version: version(&tag), done, total }
+            }
+            // The MSI installs for everyone: Windows asks for an administrator.
+            Status::Ready { tag, .. } => UpdateState::Ready { version: version(&tag), admin: matches!(self.kind, Kind::Msi(_)) },
+        }
+    }
+
+    /// Restart now: the waiting version is installed as MailCraft closes and then opened. False
+    /// when nothing is waiting.
     pub fn restart_after_close(&self) -> bool {
-        let ready = self.ready().is_some();
+        let ready = matches!(self.status(), Status::Ready { .. });
         if ready {
-            self.restart.store(true, Ordering::SeqCst);
+            self.shared.later.store(false, Ordering::SeqCst);
+            self.shared.restart.store(true, Ordering::SeqCst);
         }
         ready
     }
 
-    /// Whether the new version is to open after installing.
-    pub fn restart_wanted(&self) -> bool {
-        self.restart.load(Ordering::SeqCst)
+    /// Close without updating: not installed as MailCraft closes this time (the next time is
+    /// asked again).
+    pub fn keep_for_later(&self) {
+        self.shared.later.store(true, Ordering::SeqCst);
     }
 
-    fn run(&self, build_sha: Option<&str>) {
-        let first = std::env::var("MAILCRAFT_UPDATE_FIRST_CHECK").ok().and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
-        std::thread::sleep(first.unwrap_or(FIRST_CHECK));
-        let mut etag: Option<String> = None;
-        loop {
-            match self.check(build_sha, &mut etag) {
-                Ok(Some(status)) => {
-                    if let Status::Ready { tag, .. } = &status {
-                        log::info!("updates: {tag} is downloaded and checked; it installs when MailCraft closes");
-                    }
-                    *self.status.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = status;
-                }
-                Ok(None) => {}
-                Err(e) => log::info!("updates: {e}"),
-            }
-            std::thread::sleep(next_wait(seed()));
+    /// MailCraft is closing: install what's waiting (unless kept for later), and stop a download
+    /// (what came of it is carried on from next time).
+    pub fn closing(&self) {
+        self.shared.stop.store(true, Ordering::SeqCst);
+        self.shared.wake.notify_all();
+        if self.shared.later.load(Ordering::SeqCst) {
+            log::info!("updates: the update waits for the next time MailCraft closes");
+            return;
+        }
+        if let Err(e) = self.install(self.shared.restart.load(Ordering::SeqCst)) {
+            log::warn!("updates: {e}");
         }
     }
 
-    /// One look at the releases: the status to show when there's a newer one to install.
-    fn check(&self, build_sha: Option<&str>, etag: &mut Option<String>) -> Result<Option<Status>, String> {
+    fn run(&self, build_sha: Option<&str>) {
+        let dir = self.data.join(DOWNLOADS);
+        let first = std::env::var("MAILCRAFT_UPDATE_FIRST_CHECK").ok().and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
+        let first = first.unwrap_or(if has_part(&dir) { FIRST_RESUME } else { FIRST_CHECK });
+        if !self.sleep(first) {
+            return;
+        }
+        let mut etag: Option<String> = None;
+        let mut failed = 0u32;
+        loop {
+            match self.check(build_sha, &mut etag) {
+                Ok(()) => failed = 0,
+                Err(e) => {
+                    log::info!("updates: {e}");
+                    failed = failed.saturating_add(1);
+                }
+            }
+            let wait = if failed > 0 { retry_wait(failed) } else { next_wait(seed()) };
+            if !self.sleep(wait) {
+                return;
+            }
+        }
+    }
+
+    /// Wait `d`: false when MailCraft is closing.
+    fn sleep(&self, d: Duration) -> bool {
+        let deadline = std::time::Instant::now() + d;
+        let mut asleep = self.shared.asleep.lock().unwrap_or_else(PoisonError::into_inner);
+        loop {
+            if self.shared.stop.load(Ordering::SeqCst) {
+                return false;
+            }
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return true;
+            }
+            asleep = match self.shared.wake.wait_timeout(asleep, deadline - now) {
+                Ok((g, _)) => g,
+                Err(e) => e.into_inner().0,
+            };
+        }
+    }
+
+    /// One look at the releases, and the download of a newer one.
+    fn check(&self, build_sha: Option<&str>, etag: &mut Option<String>) -> Result<(), String> {
         let releases = match updates::releases_since(Some(&self.kind.suffix()), etag.as_deref()).map_err(|e| e.to_string())? {
-            Listing::Unchanged => return Ok(None),
+            Listing::Unchanged => return Ok(()),
             Listing::Changed(list, tag) => {
                 *etag = tag;
                 list
             }
         };
-        let Some(release) = newer_release(&current_version(), build_sha, &releases) else { return Ok(None) };
+        let Some(release) = newer_release(&current_version(), build_sha, &releases) else { return Ok(()) };
         if release.download.is_empty() {
             return Err(format!("{} has no {} to update with", release.tag, self.kind.suffix().trim_start_matches('-')));
         }
         if just_installed(&self.data, &release.tag, now()) {
-            return Ok(None);
+            return Ok(());
         }
-        if let Some(tag) = self.ready()
+        if let Status::Ready { tag, .. } = self.status()
             && tag == release.tag
         {
-            return Ok(None);
+            return Ok(());
         }
-        self.download(release).map(Some)
+        self.download(release)
     }
 
-    /// Fetch and check `release`'s installer into the downloads folder.
-    fn download(&self, release: &Release) -> Result<Status, String> {
-        let name = file_name(&release.download).ok_or("the installer has no usable file name")?;
+    /// Fetch and check `release`'s installer into the downloads folder, carrying on from what an
+    /// earlier try left there.
+    fn download(&self, release: &Release) -> Result<(), String> {
         let dir = self.data.join(DOWNLOADS);
-        std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        let file = dir.join(name);
         let expected = updates::expected_sum(release).map_err(|e| e.to_string())?;
-        // Already here from an earlier run, and still the right file.
-        let have = std::fs::read(&file).ok().is_some_and(|b| updates::sha256_hex(&b) == expected);
-        if !have {
-            let bytes = updates::fetch_installer(release, &expected).map_err(|e| e.to_string())?;
-            mailcraft_engine::store::write_atomic(&file, &bytes).map_err(|e| e.to_string())?;
+        // An older version ready to install stays so while a newer one downloads.
+        let ready = self.status();
+        if !matches!(ready, Status::Ready { .. }) {
+            self.set_status(Status::Downloading { tag: release.tag.clone() });
         }
-        // Anything older waiting there goes.
-        if let Ok(list) = std::fs::read_dir(&dir) {
-            for e in list.flatten().filter(|e| e.path() != file) {
-                let _ = std::fs::remove_file(e.path());
+        let fetched = updates::download_installer(release, &expected, &dir, &self.shared.progress, &self.shared.stop);
+        match fetched {
+            Ok(Some(file)) => {
+                // Anything older waiting there goes.
+                if let Ok(list) = std::fs::read_dir(&dir) {
+                    for e in list.flatten().filter(|e| e.path() != file) {
+                        let _ = std::fs::remove_file(e.path());
+                    }
+                }
+                log::info!("updates: {} is downloaded and checked; it installs when MailCraft closes", release.tag);
+                self.set_status(Status::Ready { tag: release.tag.clone(), file });
+                Ok(())
+            }
+            // MailCraft is closing: carried on from next time.
+            Ok(None) => Ok(()),
+            Err(e) => {
+                // Whatever was ready before still is.
+                self.set_status(if matches!(ready, Status::Ready { .. }) { ready } else { Status::Waiting });
+                Err(e.to_string())
             }
         }
-        Ok(Status::Ready { tag: release.tag.clone(), file })
     }
 
     /// Install what's waiting once this process has ended; `restart` opens the new version then.
     /// Nothing waiting, or started already: nothing to do.
     pub fn install(&self, restart: bool) -> Result<bool, String> {
-        let Status::Ready { tag, file } = self.status.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone() else { return Ok(false) };
-        if self.started.swap(true, Ordering::SeqCst) {
+        let Status::Ready { tag, file } = self.status() else { return Ok(false) };
+        if self.shared.started.swap(true, Ordering::SeqCst) {
             return Ok(false);
         }
         if let Err(e) = mailcraft_engine::store::write_atomic(&self.data.join(MARKER), format!("{tag}\n{}\n", now()).as_bytes()) {
             log::warn!("updates: couldn't note the update: {e}");
         }
         let log = self.data.join(DOWNLOADS).join("install.log");
-        let result = helper(&self.kind, &file, std::process::id(), restart, &log);
+        let result = install::helper(&self.kind, &file, std::process::id(), restart, &log);
         if result.is_err() {
-            self.started.store(false, Ordering::SeqCst);
+            self.shared.started.store(false, Ordering::SeqCst);
         }
         result.map(|()| {
             log::info!("updates: installing {tag}{}", if restart { " and restarting" } else { " as MailCraft closes" });
@@ -308,14 +434,9 @@ fn current_version() -> String {
         .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
 }
 
-/// The last part of a download address, if it's a plain file name.
-fn file_name(url: &str) -> Option<&str> {
-    let name = url.rsplit('/').next()?;
-    (!name.is_empty()
-        && name.len() < 200
-        && !name.starts_with('.')
-        && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')))
-    .then_some(name)
+/// Whether a download was left part way in `dir`.
+fn has_part(dir: &Path) -> bool {
+    std::fs::read_dir(dir).is_ok_and(|l| l.flatten().any(|e| e.file_name().to_string_lossy().ends_with(".part")))
 }
 
 /// Whether `tag` was installed by the updater within [`JUST_INSTALLED_FOR`] of `now`.
@@ -342,208 +463,7 @@ fn next_wait(seed: u64) -> Duration {
     Duration::from_secs((EVERY.as_secs() + spread).saturating_sub(JITTER_SECS))
 }
 
-/// Start the helper that puts `file` in place for `kind` once process `pid` has ended; what it
-/// does is written to `log`.
-fn helper(kind: &Kind, file: &Path, pid: u32, restart: bool, log: &Path) -> Result<(), String> {
-    match kind {
-        Kind::Msi(exe) => windows_helper(pid, &msi_step(file), exe, restart, log),
-        Kind::Portable(exe) => {
-            let dir = exe.parent().ok_or("the app isn't in a folder")?;
-            windows_helper(pid, &portable_step(file, dir), exe, restart, log)
-        }
-        Kind::MacApp(bundle) => unix_helper(pid, &mac_step(file, bundle), restart.then(|| format!("open {}", sh_quote(bundle))).as_deref(), log),
-        Kind::AppImage(path) => {
-            // A running AppImage keeps its mounted (now unlinked) file: replace it at once.
-            replace_appimage(file, path)?;
-            let _ = std::fs::remove_file(file);
-            if restart { unix_helper(pid, "", Some(&sh_quote(path)), log) } else { Ok(()) }
-        }
-    }
-}
-
-/// The PowerShell step installing an MSI (Windows asks for an administrator: it's per machine).
-fn msi_step(file: &Path) -> String {
-    format!(
-        "$p = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\\msiexec.exe') -ArgumentList '/i',{},'/passive','/norestart' -Wait -PassThru; \
-         if ($p.ExitCode -eq 0) {{ Remove-Item -LiteralPath {} -ErrorAction SilentlyContinue }}",
-        ps_quote(&format!("\"{}\"", file.display())),
-        ps_quote(&file.display().to_string()),
-    )
-}
-
-/// The PowerShell step unzipping the portable zip over `dir` (its one top folder's contents).
-fn portable_step(zip: &Path, dir: &Path) -> String {
-    let tmp = dir.join(".mailcraft-update");
-    format!(
-        "$t = {t}; Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue; \
-         Expand-Archive -LiteralPath {z} -DestinationPath $t -Force; \
-         $top = Get-ChildItem -LiteralPath $t -Directory | Select-Object -First 1; \
-         if ($top) {{ Copy-Item -Path (Join-Path $top.FullName '*') -Destination {d} -Recurse -Force }}; \
-         Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath {z} -ErrorAction SilentlyContinue",
-        t = ps_quote(&tmp.display().to_string()),
-        z = ps_quote(&zip.display().to_string()),
-        d = ps_quote(&dir.display().to_string()),
-    )
-}
-
-/// The shell step copying `MailCraft.app` out of the DMG in place of `bundle`.
-fn mac_step(dmg: &Path, bundle: &Path) -> String {
-    let (b, d) = (sh_quote(bundle), sh_quote(dmg));
-    format!(
-        "m=$(mktemp -d) && hdiutil attach -nobrowse -readonly -mountpoint \"$m\" {d} >/dev/null && \
-         rm -rf {b}.new && ditto \"$m/MailCraft.app\" {b}.new; hdiutil detach \"$m\" >/dev/null 2>&1; \
-         if [ -d {b}.new ]; then rm -rf {b}.old && mv {b} {b}.old && mv {b}.new {b} && rm -rf {b}.old; fi; rm -f {d}"
-    )
-}
-
-/// A PowerShell single-quoted string.
-fn ps_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "''"))
-}
-
-/// A POSIX shell single-quoted word.
-fn sh_quote(p: impl AsRef<std::ffi::OsStr>) -> String {
-    format!("'{}'", p.as_ref().to_string_lossy().replace('\'', "'\\''"))
-}
-
-/// A hidden PowerShell that waits for `pid`, runs `step`, and (when restarting) starts `exe`,
-/// writing a transcript to `log`.
-fn windows_helper(pid: u32, step: &str, exe: &Path, restart: bool, log: &Path) -> Result<(), String> {
-    let start = if restart { format!("; Start-Process -FilePath {}", ps_quote(&exe.display().to_string())) } else { String::new() };
-    let script = format!(
-        "Start-Transcript -LiteralPath {} -Force | Out-Null; Wait-Process -Id {pid} -Timeout 120 -ErrorAction SilentlyContinue; {step}{start}; Stop-Transcript | Out-Null",
-        ps_quote(&log.display().to_string())
-    );
-    let mut cmd = std::process::Command::new("powershell.exe");
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &script]);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: a console of its own, never shown. (Without any console, as with
-        // DETACHED_PROCESS, PowerShell can end before running anything.)
-        cmd.creation_flags(0x0800_0000);
-    }
-    spawn(cmd)
-}
-
-/// `sh` waiting for `pid` to end, then running `step` and `then` (each may be empty), its output
-/// going to `log`.
-fn unix_helper(pid: u32, step: &str, then: Option<&str>, log: &Path) -> Result<(), String> {
-    let mut script =
-        format!("exec >{} 2>&1; i=0; while kill -0 {pid} 2>/dev/null && [ $i -lt 1200 ]; do sleep 0.1; i=$((i+1)); done; ", sh_quote(log));
-    if !step.is_empty() {
-        script.push_str(step);
-        script.push_str("; ");
-    }
-    if let Some(t) = then {
-        script.push_str("exec ");
-        script.push_str(t);
-    }
-    let mut cmd = std::process::Command::new("/bin/sh");
-    cmd.args(["-c", &script]);
-    spawn(cmd)
-}
-
-fn spawn(mut cmd: std::process::Command) -> Result<(), String> {
-    // The new version reports itself as it is: the trying-out settings were for this run.
-    cmd.env_remove("MAILCRAFT_UPDATE_PRETEND_VERSION").env_remove("MAILCRAFT_UPDATE_FIRST_CHECK");
-    cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-    cmd.spawn().map(|_| ()).map_err(|e| format!("couldn't start the installer ({e})"))
-}
-
-/// Put the new AppImage in place of `path`: copied beside it, made runnable, renamed over it.
-fn replace_appimage(new: &Path, path: &Path) -> Result<(), String> {
-    let dir = path.parent().ok_or("the AppImage isn't in a folder")?;
-    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let staged = dir.join(format!(".{name}.new"));
-    std::fs::copy(new, &staged).map_err(|e| format!("couldn't write beside {} ({e})", path.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
-    }
-    std::fs::rename(&staged, path).map_err(|e| {
-        let _ = std::fs::remove_file(&staged);
-        format!("couldn't replace {} ({e})", path.display())
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn verbatim_paths_are_made_plain() {
-        assert_eq!(plain(PathBuf::from(r"\\?\C:\Tools\MailCraft\mailcraft.exe")), PathBuf::from(r"C:\Tools\MailCraft\mailcraft.exe"));
-        assert_eq!(plain(PathBuf::from(r"\\?\UNC\server\share\m.exe")), PathBuf::from(r"\\server\share\m.exe"));
-        assert_eq!(plain(PathBuf::from("/Applications/MailCraft.app")), PathBuf::from("/Applications/MailCraft.app"));
-    }
-
-    #[test]
-    fn checks_spread_around_the_hour() {
-        let waits: Vec<u64> = [0, 1, 599, 600, 1200, u64::MAX].iter().map(|s| next_wait(*s).as_secs()).collect();
-        assert!(waits.iter().all(|w| (50 * 60..=70 * 60).contains(w)), "{waits:?}");
-        assert_ne!(waits[0], waits[2]);
-    }
-
-    #[test]
-    fn the_version_just_installed_isnt_offered_again_for_a_day() {
-        let dir = std::env::temp_dir().join(format!("mailcraft-update-marker-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        assert!(!just_installed(&dir, "v0.21.0-test.19", 1_000_000));
-        std::fs::write(dir.join(MARKER), "v0.21.0-test.19\n1000000\n").unwrap();
-        assert!(just_installed(&dir, "v0.21.0-test.19", 1_000_000 + 3600));
-        assert!(!just_installed(&dir, "v0.21.0-test.20", 1_000_000 + 3600), "another version is offered");
-        assert!(!just_installed(&dir, "v0.21.0-test.19", 1_000_000 + JUST_INSTALLED_FOR), "a day later it may be again");
-        assert!(!just_installed(&dir, "v0.21.0-test.19", 999_000), "a clock gone back proves nothing");
-        std::fs::write(dir.join(MARKER), "junk").unwrap();
-        assert!(!just_installed(&dir, "junk", 1_000_000));
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn only_plain_file_names_are_downloaded_to() {
-        let base = "https://github.com/ZIDAN44/mailcraft/releases/download/v0.21.0-test.19/";
-        assert_eq!(file_name(&format!("{base}mailcraft-0.21.0-windows-x64.msi")), Some("mailcraft-0.21.0-windows-x64.msi"));
-        for bad in ["", "..", ".hidden.msi", "a%2F..%2Fb.msi", "x?y=1", "spaces in.msi"] {
-            assert_eq!(file_name(&format!("{base}{bad}")), None, "{bad}");
-        }
-    }
-
-    /// Paths with quotes and spaces stay one word in the helper's scripts.
-    #[test]
-    fn helper_scripts_quote_their_paths() {
-        let odd = Path::new(r"C:\Users\O'Brien\My Apps\mailcraft-0.21.0-windows-x64.msi");
-        let msi = msi_step(odd);
-        assert!(msi.contains(r#"'"C:\Users\O''Brien\My Apps\mailcraft-0.21.0-windows-x64.msi"'"#), "{msi}");
-        let zip = portable_step(Path::new(r"C:\Tools\MailCraft\x.zip"), Path::new(r"C:\Tools\Mail'Craft"));
-        assert!(zip.contains(r"-Destination 'C:\Tools\Mail''Craft'"), "{zip}");
-        assert_eq!(sh_quote("/Applications/Mail'Craft.app"), r"'/Applications/Mail'\''Craft.app'");
-        let mac = mac_step(Path::new("/tmp/m.dmg"), Path::new("/Applications/MailCraft.app"));
-        assert!(mac.contains("ditto \"$m/MailCraft.app\" '/Applications/MailCraft.app'.new"), "{mac}");
-    }
-
-    /// The kind of copy is told from where the exe is (Windows: beside a portable marker, or in
-    /// Program Files\MailCraft); the names pick the matching file of a release.
-    #[test]
-    fn the_install_kind_follows_where_mailcraft_is() {
-        if cfg!(windows) {
-            let dir = std::env::temp_dir().join(format!("mailcraft-update-kind-{}", std::process::id()));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(dir.join("MailCraft")).unwrap();
-            let exe = dir.join("MailCraft").join("mailcraft.exe");
-            let pf = dir.clone();
-            let env = move |k: &str| (k == "ProgramFiles").then(|| pf.clone());
-            assert_eq!(detect_at(&exe, &env), Some(Kind::Msi(exe.clone())));
-            std::fs::write(dir.join("MailCraft").join("portable.txt"), "").unwrap();
-            assert_eq!(detect_at(&exe, &env), Some(Kind::Portable(exe.clone())), "the marker wins");
-            let elsewhere = dir.join("Downloads").join("mailcraft.exe");
-            assert_eq!(detect_at(&elsewhere, &env), None, "a copy run from elsewhere isn't replaced");
-            let _ = std::fs::remove_dir_all(&dir);
-            assert!(Kind::Msi(exe.clone()).suffix().ends_with(".msi") && Kind::Portable(exe).suffix().ends_with("-portable.zip"));
-        }
-        assert_eq!(Kind::MacApp(PathBuf::from("/Applications/MailCraft.app")).suffix(), "-macos-universal.dmg");
-        assert!(Kind::AppImage(PathBuf::from("/x")).suffix().ends_with(".AppImage"));
-    }
+/// The wait after `failed` checks in a row failed: [`RETRY`], doubling, at most [`EVERY`].
+fn retry_wait(failed: u32) -> Duration {
+    RETRY.saturating_mul(1 << failed.saturating_sub(1).min(6)).min(EVERY)
 }

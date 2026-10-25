@@ -181,6 +181,8 @@ impl eframe::App for App {
         }
         #[cfg(target_os = "macos")]
         apple_events::deliver(&self.finder, &mut self.app, ctx);
+        // An update ready while the window is minimized or behind others: the system says so.
+        self.app.follow_update(ctx);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frames = self.frames.saturating_add(1);
@@ -199,11 +201,10 @@ impl eframe::App for App {
         if let Some(server) = &self.instance {
             server.close();
         }
-        // A test build downloaded and checked: installed now that MailCraft closes.
-        if let Some(u) = &self.updater
-            && let Err(e) = u.install(u.restart_wanted())
-        {
-            log::warn!("updates: {e}");
+        // A test build downloaded and checked: installed now that MailCraft closes (unless it was
+        // kept for later); a download still going stops, to carry on next time.
+        if let Some(u) = &self.updater {
+            u.closing();
         }
         self.keep_state(None, true);
         // Issue #4: attachments handed to other apps, and pictures made of them, go with
@@ -330,8 +331,10 @@ fn main() -> eframe::Result {
     // A release build's commit, so File › About can tell its test build from a later one.
     session.build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
-    // Test builds update themselves (`self_update.rs`); not the sample mailbox's run.
-    let updater = root.clone().filter(|_| !sample).and_then(|r| self_update::Updater::start(r, session.build_sha.clone()));
+    // Test builds update themselves (`self_update.rs`); not the sample mailbox's run, unless it's
+    // trying the updater out.
+    let updater =
+        root.clone().filter(|_| !sample || self_update::trying_out()).and_then(|r| self_update::Updater::start(r, session.build_sha.clone()));
 
     // The main window opens where it was, at the size it was, maximized if it was.
     let main_place: Option<mailcraft_ui_egui::WindowPlace> = state_path
@@ -475,6 +478,11 @@ fn run(
                 }
                 None => Box::new(mailcraft_ui_egui::NullBackend),
             };
+            // The updater wakes the window as the update downloads and is ready.
+            if let Some(u) = &updater {
+                let ctx = cc.egui_ctx.clone();
+                u.set_waker(Arc::new(move || ctx.request_repaint()));
+            }
             let mut app = MailApp::new(
                 session,
                 backend,

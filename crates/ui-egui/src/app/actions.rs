@@ -83,12 +83,26 @@ impl MailApp {
             }
             Action::CloseAnyway => {
                 self.ui.closing_anyway = true;
-                self.ui.close_now = true;
+                // What becomes of an update is still said before MailCraft goes.
+                if self.ask_about_update() {
+                    self.ask_update_on_close();
+                } else {
+                    self.ui.close_now = true;
+                }
             }
             Action::RestartToUpdate => {
                 if self.services.restart_to_update() {
+                    self.ui.update_answered = true;
                     self.ui.close_now = true;
                 }
+            }
+            Action::UpdateOnClose(install) => {
+                if !install {
+                    self.services.keep_update_for_later();
+                }
+                self.ui.update_answered = true;
+                self.ui.closing_anyway = true;
+                self.ui.close_now = true;
             }
             Action::Run("attachment.preview", p) => match self.session.run("attachment.preview", &p) {
                 Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),

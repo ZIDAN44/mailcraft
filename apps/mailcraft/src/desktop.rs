@@ -67,11 +67,16 @@ impl Services for Desktop {
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         shell_open(path.as_os_str())
     }
-    fn pending_update(&mut self) -> Option<String> {
-        self.updater.as_ref().and_then(self_update::Updater::ready)
+    fn update_state(&mut self) -> mailcraft_ui_egui::UpdateState {
+        self.updater.as_ref().map(self_update::Updater::state).unwrap_or_default()
     }
     fn restart_to_update(&mut self) -> bool {
         self.updater.as_ref().is_some_and(self_update::Updater::restart_after_close)
+    }
+    fn keep_update_for_later(&mut self) {
+        if let Some(u) = &self.updater {
+            u.keep_for_later();
+        }
     }
     fn data_folder(&self) -> Option<(PathBuf, bool)> {
         self.data.clone().map(|d| (d, self.base.is_some()))

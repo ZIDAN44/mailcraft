@@ -1154,3 +1154,21 @@ month	May	mei
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	het certificaat heeft geen wachtwoord, dus de browser gebruikt het tot de pagina wordt gesloten en bewaart het niet
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	de kaart heeft de pincode nodig (geef die in Bestand › Info › Beveiliging › Een smartcard gebruiken…)
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	de kaart weigerde de pincode, dus MailCraft is die vergeten: de kaart zou blokkeren als hij opnieuw werd geprobeerd (geef hem opnieuw in Bestand › Info › Beveiliging › Een smartcard gebruiken…)
+	Close without updating	Sluiten zonder bij te werken
+	Downloading MailCraft {version}…	MailCraft {version} downloaden…
+	Downloading MailCraft {version}… {percent}%	MailCraft {version} downloaden… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	Als u MailCraft nu sluit, wordt de download gepauzeerd en gaat hij de volgende keer dat u MailCraft opent verder waar hij was gebleven.
+	Install MailCraft {version} as it closes?	MailCraft {version} installeren bij het sluiten?
+	It installs the next time you close MailCraft.	Het wordt geïnstalleerd wanneer u MailCraft de volgende keer sluit.
+	It installs when you close MailCraft.	Het wordt geïnstalleerd wanneer u MailCraft sluit.
+	Keep MailCraft open	MailCraft open houden
+	MailCraft {version} is downloading.	MailCraft {version} wordt gedownload.
+	MailCraft {version} is ready	MailCraft {version} is klaar
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} is klaar. Start nu opnieuw om het te installeren, of het wordt geïnstalleerd wanneer u MailCraft sluit.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	Start MailCraft opnieuw om het nu te installeren, of het wordt geïnstalleerd wanneer u MailCraft sluit.
+	Restart now	Nu opnieuw starten
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	De update is gedownload en gecontroleerd. Hij wordt nu geïnstalleerd, terwijl MailCraft sluit, wat even duurt; open MailCraft daarna opnieuw.
+	Update and close	Bijwerken en sluiten
+	Windows asks for an administrator's permission.	Windows vraagt toestemming van een beheerder.
+	An update is still downloading	Er wordt nog een update gedownload
+	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} wordt gedownload ({done} van {total}).

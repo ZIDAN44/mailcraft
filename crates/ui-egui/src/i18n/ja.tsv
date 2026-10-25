@@ -1155,3 +1155,21 @@ month	May	5月
 	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	証明書にパスワードがないため、ブラウザーはページを閉じるまで使い、保管しません
 	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	カードには PIN が必要です (ファイル › 情報 › セキュリティ › スマートカードを使う…)
 	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	カードが PIN を拒否したため、MailCraft は PIN を消去しました。もう一度試すとカードがロックされます (ファイル › 情報 › セキュリティ › スマートカードを使う…)
+	Close without updating	更新せずに閉じる
+	Downloading MailCraft {version}…	MailCraft {version} をダウンロードしています…
+	Downloading MailCraft {version}… {percent}%	MailCraft {version} をダウンロードしています… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	今 MailCraft を閉じるとダウンロードは一時停止し、次に MailCraft を開いたときに中断したところから再開します。
+	Install MailCraft {version} as it closes?	閉じるときに MailCraft {version} をインストールしますか?
+	It installs the next time you close MailCraft.	次に MailCraft を閉じたときにインストールされます。
+	It installs when you close MailCraft.	MailCraft を閉じるとインストールされます。
+	Keep MailCraft open	MailCraft を開いたままにする
+	MailCraft {version} is downloading.	MailCraft {version} をダウンロードしています。
+	MailCraft {version} is ready	MailCraft {version} の準備ができました
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} の準備ができました。今すぐ再起動してインストールするか、MailCraft を閉じたときにインストールされます。
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	MailCraft を再起動すると今すぐインストールされます。再起動しない場合は MailCraft を閉じたときにインストールされます。
+	Restart now	今すぐ再起動
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	更新はダウンロードされ、確認済みです。MailCraft を閉じる今インストールされ、少し時間がかかります。終わったら MailCraft をもう一度開いてください。
+	Update and close	更新して閉じる
+	Windows asks for an administrator's permission.	Windows が管理者の許可を求めます。
+	An update is still downloading	更新をまだダウンロードしています
+	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} をダウンロードしています ({done} / {total})。
