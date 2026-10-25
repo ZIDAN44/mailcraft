@@ -252,6 +252,11 @@ impl Dav {
     fn request(&self, method: &str, url: &str, depth: Option<&str>, body: &str, extra: &[(&str, &str)]) -> Result<(Response, String)> {
         let mut url = url.to_string();
         for _ in 0..6 {
+            // Plain http only to this computer (a test server): the password never crosses the
+            // network in the clear, wherever a redirect or a server's href points.
+            if Url::parse(&url).is_ok_and(|u| !u.https && !local_host(&u.host)) {
+                return Err(NetError::Tls(format!("{url} isn't https: MailCraft won't send the calendar password there")));
+            }
             let mut req = if body.is_empty() {
                 Request { method: method.into(), url: url.clone(), max: MAX_BODY, ..Default::default() }
             } else {
@@ -341,21 +346,36 @@ impl Dav {
         {
             tries.push(format!("{}{}", u.origin(), kind.well_known()));
         }
+        // A server that answers but has nothing there says `No`; anything else (no connection, a
+        // timeout, a certificate refused) is said as it is, and tried again at the next sync.
+        let mut failed = None;
         for t in &tries {
             match self.home_from(kind, t) {
                 Ok(Some(h)) => return Ok(h),
                 Err(e @ NetError::Auth(_)) => return Err(e),
-                _ => {}
+                Ok(None) | Err(NetError::No(_)) => {}
+                Err(e) => failed = Some(e),
             }
         }
         // The address is a home, or a collection in one.
-        if self.collections(kind, &start).is_ok_and(|c| !c.is_empty()) {
+        let mut holds = |url: &str| match self.collections(kind, url) {
+            Ok(c) => !c.is_empty(),
+            Err(NetError::No(_)) => false,
+            Err(e) => {
+                failed.get_or_insert(e);
+                false
+            }
+        };
+        if holds(&start) {
             return Ok(start);
         }
         if let Some(parent) = parent_of(&start)
-            && self.collections(kind, &parent).is_ok_and(|c| !c.is_empty())
+            && holds(&parent)
         {
             return Ok(parent);
+        }
+        if let Some(e) = failed {
+            return Err(e);
         }
         let what = if kind == Kind::Calendars { "calendars" } else { "address books" };
         Err(NetError::No(format!("no {what} were found at {start}")))
@@ -506,11 +526,15 @@ pub fn given_url(given: &str) -> Option<String> {
     let lower = g.to_ascii_lowercase();
     let full = if lower.starts_with("https://") || lower.starts_with("http://") { g.to_string() } else { format!("https://{g}") };
     let u = Url::parse(&full).ok()?;
-    let local = matches!(u.host.as_str(), "localhost" | "127.0.0.1" | "[::1]" | "::1");
-    if !u.https && !local {
+    if !u.https && !local_host(&u.host) {
         return None;
     }
     Some(format!("{}{}", u.origin(), if u.path.is_empty() { "/" } else { &u.path }))
+}
+
+/// This computer, by name or address.
+fn local_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1")
 }
 
 /// The collection an address is in (`…/calendars/me/default` → `…/calendars/me/`); none above a
@@ -557,11 +581,11 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         match given.filter(|g| !g.trim().is_empty()) {
             Some(g) => match dav.home_given(kind, g) {
                 Ok(h) => Ok(Some(h)),
-                Err(e @ NetError::Auth(_)) => Err(e),
-                Err(e) => {
-                    errors.push(e.to_string());
+                Err(NetError::No(e)) => {
+                    errors.push(e);
                     Ok(None)
                 }
+                Err(e) => Err(e),
             },
             None => dav.discover(kind, at.email, at.imap_host),
         }
@@ -578,8 +602,15 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     };
     out.checked = now;
 
+    // Only the server the homes are on is written to: an item from another one (the calendar
+    // server changed, its old items not yet moved out of the way) isn't sent there with this
+    // server's password.
+    let origins: Vec<String> =
+        [&out.caldav_home, &out.carddav_home].into_iter().flatten().filter_map(|h| Url::parse(h).ok()).map(|u| u.origin()).collect();
+    let ours = |url: &str| Url::parse(url).is_ok_and(|u| origins.contains(&u.origin()));
+
     // 1. Deletions made here.
-    for t in &pim.deleted {
+    for t in pim.deleted.iter().filter(|t| ours(&t.href)) {
         match dav.delete(&t.href, &t.etag) {
             Ok(()) => out.deleted.push(t.href.clone()),
             Err(e @ NetError::Auth(_)) => return Err(e),
@@ -599,6 +630,9 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         } else {
             master.href.clone()
         };
+        if !ours(&url) {
+            continue;
+        }
         let events: Vec<CalEvent> = parts.iter().map(|e| e.event.clone()).collect();
         let data = ical::write(&events, None, now);
         let etag = (!master.href.is_empty()).then_some(master.etag.as_str());
@@ -614,6 +648,9 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     }
     for c in pim.cards.iter().filter(|c| c.dirty && c.book != LOCAL) {
         let url = if c.href.is_empty() { format!("{}/{}", c.book.trim_end_matches('/'), resource_name(&c.card.uid, "vcf")) } else { c.href.clone() };
+        if !ours(&url) {
+            continue;
+        }
         let etag = (!c.href.is_empty()).then_some(c.etag.as_str());
         match dav.put(&url, "text/vcard; charset=utf-8", &vcard::write(&c.card), etag) {
             Ok(new) => out.pushed_cards.push(StoredCard { href: url, etag: new, dirty: false, ..c.clone() }),

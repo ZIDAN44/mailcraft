@@ -14,8 +14,9 @@ pub struct DavForm {
     pub own: bool,
     pub username: String,
     pub password: String,
-    /// A password is kept for the user name already: none needs typing again.
-    pub kept: bool,
+    /// A password is kept for this user name already (the one it had when opened): none needs
+    /// typing again while the user name stays.
+    pub kept: Option<String>,
     pub error: Option<String>,
 }
 
@@ -29,7 +30,7 @@ impl DavForm {
             own: d.username.is_some(),
             username: d.username.clone().unwrap_or_else(|| c.email.clone()),
             password: String::new(),
-            kept: d.username.is_some(),
+            kept: d.username.clone(),
             error: None,
         }
     }
@@ -66,7 +67,8 @@ pub(super) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
     ui.checkbox(&mut f.own, tl!("The calendar server has its own user name and password"));
     if f.own {
         ui.add(egui::TextEdit::singleline(&mut f.username).hint_text(tl!("User name")).desired_width(w));
-        let hint = if f.kept { tl!("Password (kept: type to change it)") } else { tl!("Password") };
+        let kept = f.kept.as_deref().is_some_and(|k| k == f.username.trim());
+        let hint = if kept { tl!("Password (kept: type to change it)") } else { tl!("Password") };
         ui.add(egui::TextEdit::singleline(&mut f.password).password(true).hint_text(hint).desired_width(w));
         ui.label(
             RichText::new(tl!("Some providers want an app password for calendars: make one in your account's settings there."))
@@ -78,7 +80,8 @@ pub(super) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
         ui.add_space(4.0);
         ui.label(RichText::new(e.as_str()).color(t.danger).small());
     }
-    let ready = !f.own || (!f.username.trim().is_empty() && (f.kept || !f.password.is_empty()));
+    let kept = f.kept.as_deref().is_some_and(|k| k == f.username.trim());
+    let ready = !f.own || (!f.username.trim().is_empty() && (kept || !f.password.is_empty()));
     let (ok, cancel) = buttons(ui, t, "Save", ready);
     if ok && ready {
         acts.push(Action::Submit("account.dav", f.params()));

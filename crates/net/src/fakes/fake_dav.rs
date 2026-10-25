@@ -354,4 +354,38 @@ mod tests {
         assert!(out.caldav_home.is_none() && out.errors.iter().any(|e| e.contains("no calendars")), "{:?}", out.errors);
         assert!(matches!(sync(&Dav::new(USER, "nope"), &at, &pim, 100, Zone::UTC), Err(crate::NetError::Auth(_))));
     }
+
+    /// From the review: nothing goes to a server other than the one the homes are on (items
+    /// left from an old calendar server aren't sent there with this one's password); a server
+    /// that can't be reached isn't taken for one with nothing there; plain http goes nowhere but
+    /// this computer, whatever points there.
+    #[test]
+    fn only_the_found_server_is_written_to() {
+        let server = serve();
+        let dav = Dav::new(USER, PASSWORD);
+        let home = format!("{}/dav/cal/", server.base);
+        let mut pim = Pim { caldav_home: Some(home.clone()), carddav_home: Some(String::new()), ..Default::default() };
+        pim.ensure_defaults();
+        let elsewhere = "http://127.0.0.2:9/cal/work/";
+        pim.events.push(StoredEvent {
+            calendar: elsewhere.into(),
+            href: format!("{elsewhere}x.ics"),
+            etag: "\"1\"".into(),
+            event: event("x", "Old server", 1_800_000_000),
+            dirty: true,
+        });
+        pim.deleted.push(mailcraft_model::pim::Tombstone { href: format!("{elsewhere}gone.ics"), ..Default::default() });
+        let out = sync(&dav, &AT, &pim, 100, Zone::UTC).unwrap();
+        assert!(out.errors.is_empty() && out.pushed_events.is_empty() && out.deleted.is_empty(), "{:?}", out.errors);
+        assert!(!server.data.lock().unwrap().log.iter().any(|l| l.contains("x.ics") || l.contains("gone")));
+
+        // Nothing listening: said as it is (and tried again), not "no calendars".
+        let closed = "http://127.0.0.1:9/cal/";
+        let e = dav.home_given(Kind::Calendars, closed).unwrap_err();
+        assert!(!matches!(e, crate::NetError::No(_)), "{e:?}");
+        assert!(sync(&dav, &Where { caldav: Some(closed), ..AT }, &Pim::default(), 100, Zone::UTC).is_err());
+
+        // Plain http to another computer: refused before anything is sent.
+        assert!(matches!(dav.home_from(Kind::Calendars, "http://calendar.example/dav/"), Err(crate::NetError::Tls(_))));
+    }
 }

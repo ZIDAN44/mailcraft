@@ -209,6 +209,56 @@ impl Pim {
         }
     }
 
+    /// The calendar server changed (issue #7): what came from the old one goes, except what was
+    /// changed here and not yet sent, which is kept in the calendar and contacts on this computer
+    /// (it would otherwise be sent to the old server with the new one's password, or lost).
+    /// Where the homes are is looked for again.
+    pub fn leave_server(&mut self) {
+        let mut kept_any = false;
+        self.events.retain_mut(|e| {
+            if e.calendar == LOCAL || e.calendar.starts_with("shared:") {
+                return true;
+            }
+            if !e.dirty {
+                return false;
+            }
+            e.calendar = LOCAL.into();
+            e.href.clear();
+            e.etag.clear();
+            e.dirty = false;
+            kept_any = true;
+            true
+        });
+        self.cards.retain_mut(|c| {
+            if c.book == LOCAL {
+                return true;
+            }
+            if !c.dirty {
+                return false;
+            }
+            c.book = LOCAL.into();
+            c.href.clear();
+            c.etag.clear();
+            c.dirty = false;
+            kept_any = true;
+            true
+        });
+        self.deleted.clear();
+        self.calendars.retain(|c| c.id == LOCAL || c.id.starts_with("shared:"));
+        self.books.retain(|b| b.id == LOCAL);
+        if kept_any || self.calendars.is_empty() {
+            if !self.calendars.iter().any(|c| c.id == LOCAL) {
+                self.calendars.insert(0, CalendarInfo { id: LOCAL.into(), name: "Calendar".into(), color: 0, read_only: false, ctag: String::new() });
+            }
+            if !self.books.iter().any(|b| b.id == LOCAL) {
+                self.books.insert(0, BookInfo { id: LOCAL.into(), name: "Contacts".into(), read_only: false, ctag: String::new() });
+            }
+        }
+        self.caldav_home = None;
+        self.carddav_home = None;
+        self.dav_checked = None;
+    }
+
     /// The first calendar events can be added to.
     pub fn default_calendar(&self) -> Option<&CalendarInfo> {
         self.calendars.iter().find(|c| !c.read_only)

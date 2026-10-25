@@ -464,24 +464,35 @@ impl Session {
         let carddav = dav_address(carddav)?;
         let username = username.map(str::trim).filter(|u| !u.is_empty()).map(|u| u.chars().take(320).collect::<String>());
         let password = password.filter(|p| !p.is_empty());
-        let had_own = config.dav.as_ref().is_some_and(|d| d.username.is_some());
-        if username.is_some() && password.is_none() && !had_own {
+        // A password kept is the user name's it was kept for: another user name needs its own.
+        let before = config.dav.clone().unwrap_or_default();
+        if username.is_some() && password.is_none() && before.username != username {
             return Err(CmdError::Params("the calendar server's password is required".into()));
         }
         let dav = mailcraft_model::DavSettings { caldav, carddav, username };
         let changed = config.dav.clone().unwrap_or_default() != dav || password.is_some();
         config.dav = (dav != mailcraft_model::DavSettings::default()).then_some(dav);
-        if let (Some(pw), Some(_)) = (password, config.dav.as_ref().and_then(|d| d.username.as_ref())) {
+        let own = config.dav.as_ref().and_then(|d| d.username.as_ref()).is_some();
+        if let (Some(pw), true) = (password, own) {
             self.jobs.push(Job::DavPassword { account: config.clone(), password: Secret(pw.to_string()) });
+        } else if before.username.is_some() && !own {
+            // Back to the mail server's sign-in: the calendar server's own password goes.
+            self.jobs.push(Job::DavPassword { account: config.clone(), password: Secret(String::new()) });
         }
         let password_only = self.account(account).is_some_and(|a| a.config.dav == config.dav) && changed;
         self.update_account(config.clone(), None)?;
         if changed {
-            // Looked for again: what was found (or not) before is forgotten.
             let p = self.pim_mut(account);
-            p.caldav_home = None;
-            p.carddav_home = None;
-            p.dav_checked = None;
+            if password_only {
+                // The same server: looked for again with the new password.
+                p.caldav_home = None;
+                p.carddav_home = None;
+                p.dav_checked = None;
+            } else {
+                // Another server, or another user on it: the old one's items move out of the way
+                // (those changed here kept on this computer), and the homes are looked for again.
+                p.leave_server();
+            }
             self.save_pim(account);
             // A new password alone doesn't reconnect: the next sync of calendars takes it.
             if password_only {

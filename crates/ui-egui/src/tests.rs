@@ -124,7 +124,7 @@ pub(crate) fn tour() {
                 caldav: "https://dav.example.com/calendars/riley/default".into(),
                 own: true,
                 username: "riley@studio.example".into(),
-                kept: true,
+                kept: Some("riley@studio.example".into()),
                 error: Some("no calendars were found".into()),
                 ..Default::default()
             }),

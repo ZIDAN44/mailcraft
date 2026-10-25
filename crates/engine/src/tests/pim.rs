@@ -729,10 +729,40 @@ fn a_calendar_server_given_by_hand() {
     // Nothing changed: nothing to do.
     s.run("account.dav", &json!({"account": id})).unwrap();
     assert!(s.take_jobs().is_empty());
-    // Cleared: found from the address again, with the mail's sign-in.
+    // Another user name needs its own password: the one kept was the other user's.
+    assert!(s.run("account.dav", &json!({"account": id, "username": "other@posteo.example"})).unwrap_err().to_string().contains("password"));
+    // Another server: what came from the old one goes, except what was changed here and not yet
+    // sent, which stays on this computer instead of going to the old server with this password.
+    {
+        let p = s.pim_mut(&id);
+        let old = "https://caldav.posteo.example/cal/work/".to_string();
+        p.calendars.push(mailcraft_model::pim::CalendarInfo { id: old.clone(), name: "Work".into(), ..Default::default() });
+        for (uid, dirty) in [("synced", false), ("edited", true)] {
+            p.events.push(mailcraft_model::pim::StoredEvent {
+                calendar: old.clone(),
+                href: format!("{old}{uid}.ics"),
+                etag: "\"1\"".into(),
+                event: mailcraft_model::ical::CalEvent {
+                    uid: uid.into(),
+                    summary: uid.into(),
+                    start: 1_800_000_000,
+                    end: 1_800_003_600,
+                    ..Default::default()
+                },
+                dirty,
+            });
+        }
+        p.deleted.push(mailcraft_model::pim::Tombstone { href: format!("{old}gone.ics"), ..Default::default() });
+    }
+    s.run("account.dav", &json!({"account": id, "caldav": "https://dav.other.example/"})).unwrap();
+    let p = &s.pim[&id];
+    assert!(p.deleted.is_empty() && p.calendars.iter().all(|c| c.id == mailcraft_model::pim::LOCAL));
+    assert_eq!(p.events.iter().map(|e| (e.event.uid.as_str(), e.calendar.as_str(), e.href.as_str())).collect::<Vec<_>>(), [("edited", "local", "")]);
+    s.take_jobs();
+    // Cleared: found from the address again, with the mail's sign-in; its own password goes.
     s.run("account.dav", &json!({"account": id, "caldav": "", "username": null})).unwrap();
     assert!(s.account(&id).unwrap().config.dav.is_none());
-    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }]));
+    assert!(matches!(s.take_jobs().as_slice(), [Job::DavPassword { password, .. }, Job::Start { .. }] if password.0.is_empty()));
     // Refused: http across the network, junk, and the sample (its calendar is its own).
     for bad in ["http://posteo.example/", "ftp://posteo.example/", "https://", "a b"] {
         assert!(s.run("account.dav", &json!({"account": id, "caldav": bad})).is_err(), "{bad}");

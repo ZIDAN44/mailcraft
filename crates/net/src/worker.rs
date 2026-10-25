@@ -329,6 +329,8 @@ impl Pool {
                 self.configs.insert(account.id.clone(), account);
             }
             Job::Start { account, password } => self.start(account, password),
+            // An empty one: the calendar server signs in as the mail server again.
+            Job::DavPassword { account, password } if password.0.is_empty() => self.creds.delete_secret(&account, DAV_SECRET),
             Job::DavPassword { account, password } => {
                 if let Err(e) = self.creds.set_secret(&account, DAV_SECRET, &password.0) {
                     self.sink.emit(Event::Notice {
