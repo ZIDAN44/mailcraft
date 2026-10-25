@@ -238,16 +238,23 @@ pub enum Job {
     /// for signing and decrypting the account's mail (S/MIME): the key goes to the system's
     /// keychain only. Answered by [`Event::Identity`].
     ImportIdentity { account: AccountConfig, data: Vec<u8>, password: Secret },
-    /// Forget the account's certificate and key (the keychain's copy goes).
+    /// Forget the account's certificate and key (the keychain's copy goes). Older ones kept for
+    /// reading stay.
     ForgetIdentity { account: AccountConfig },
+    /// Forget an older certificate kept to read mail encrypted to it (`fingerprint`, its
+    /// SHA-256 as `AB:CD:…` hex pairs), and its key.
+    ForgetOlderIdentity { account: AccountConfig, fingerprint: String },
+    /// Sign and encrypt with an older certificate again (`fingerprint`): the one used until now is
+    /// kept for reading. Answered by [`Event::Identity`].
+    UseOlderIdentity { account: AccountConfig, fingerprint: String },
     /// Sign (`sign`) and/or encrypt (to `encrypt_to`, certificates as DER, the account's own
     /// among them; empty: not encrypted) a message about to be sent, with the account's key;
     /// `gcm`: AES-GCM, every recipient reads it. Its header fields go inside too (RFC 9788);
     /// encrypted with `hide_subject`, the Subject outside is `[...]`. Answered by
     /// [`Event::Protected`].
     Protect { account: AccountConfig, id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, gcm: bool, hide_subject: bool },
-    /// Decrypt an encrypted message (its `smime.p7m`, `cms`) with the account's key. Answered by
-    /// [`Event::Decrypted`].
+    /// Decrypt an encrypted message (its `smime.p7m`, `cms`) with the account's key, or the older
+    /// one it was encrypted to. Answered by [`Event::Decrypted`].
     Decrypt { account: AccountConfig, key: MessageKey, cms: Vec<u8> },
     /// A draft of a message to be encrypted: encrypted to the account's own certificate first, so
     /// the copy in Drafts is no more readable than what will be sent, then saved as
@@ -299,6 +306,8 @@ impl Job {
             Job::SignIn { account }
             | Job::ImportIdentity { account, .. }
             | Job::ForgetIdentity { account }
+            | Job::ForgetOlderIdentity { account, .. }
+            | Job::UseOlderIdentity { account, .. }
             | Job::Protect { account, .. }
             | Job::SealDraft { account, .. }
             | Job::UseHeldKey { account, .. }
@@ -464,10 +473,13 @@ pub enum Event {
         error: Option<String>,
         done: bool,
     },
-    /// What [`Job::ImportIdentity`] kept: the certificate and its issuers (DER), or why not.
+    /// What [`Job::ImportIdentity`] kept: the certificate that signs and encrypts and its issuers
+    /// (DER), and the older ones kept only to read mail encrypted to them (each one's certificate);
+    /// or why not. A certificate older than the one in use is kept for reading only.
     Identity {
         account: String,
         chain: Vec<Vec<u8>>,
+        older: Vec<Vec<u8>>,
         error: Option<String>,
     },
     /// A message [`Job::Protect`] signed and/or encrypted, ready to send, or why it couldn't be.

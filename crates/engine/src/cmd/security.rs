@@ -33,7 +33,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"index": number (of what security.findKeys found), "account"?: string}"#),
         CommandSpec::new("security.forget", "Remove certificate", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
-            s.forget_identity(&account)
+            match p::str(v, "older") {
+                Some(fingerprint) => s.forget_older_identity(&account, fingerprint),
+                None => s.forget_identity(&account),
+            }
+        })
+        .params(r#"{"older"?: string (an older certificate's SHA-256, AB:CD:…, from security.certificates; else the one in use), "account"?: string}"#),
+        CommandSpec::new("security.useOlder", "Use for sending", "File › Info › Security", |s, v| {
+            let account = account_param(s, v)?;
+            s.use_older_identity(&account, p::req_str(v, "older")?)
+        })
+        .params(r#"{"older": string (an older certificate's SHA-256, from security.certificates), "account"?: string}"#),
+        CommandSpec::new("security.certificates", "Certificates", "File › Info › Security", |s, v| {
+            let account = account_param(s, v)?;
+            let show = |i: mailcraft_smime::CertInfo| {
+                json!({ "name": i.name, "emails": i.emails, "issuer": i.issuer, "notBefore": i.not_before, "notAfter": i.not_after, "fingerprint": i.fingerprint })
+            };
+            Ok(json!({ "inUse": s.identity(&account).map(show), "older": s.older_identities(&account).into_iter().map(show).collect::<Vec<_>>() }))
         })
         .params(r#"{"account"?: string}"#),
         CommandSpec::new("security.defaults", "Sign or encrypt new messages", "File › Info › Security", |s, v| {

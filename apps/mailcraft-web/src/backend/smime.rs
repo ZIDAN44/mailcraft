@@ -58,7 +58,7 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
                 }
                 Err(e) => (Vec::new(), Some(e)),
             };
-            emit(sh, Event::Identity { account: id.to_string(), chain, error });
+            emit(sh, Event::Identity { account: id.to_string(), chain, older: Vec::new(), error });
         }
         Job::ForgetIdentity { .. } => {
             sh.borrow_mut().smime.remove(id);

@@ -275,6 +275,8 @@ impl Pool {
             Job::ImportPst { account, path } => self.import_pst(account, path),
             j @ (Job::ImportIdentity { .. }
             | Job::ForgetIdentity { .. }
+            | Job::ForgetOlderIdentity { .. }
+            | Job::UseOlderIdentity { .. }
             | Job::Protect { .. }
             | Job::Decrypt { .. }
             | Job::CheckRevocation { .. }
@@ -340,6 +342,8 @@ impl Pool {
                 if let Some(c) = self.configs.remove(&account) {
                     self.creds.delete(&c);
                     self.creds.delete_smtp(&c);
+                    // Its certificates' keys go with it.
+                    smime::forget_all(self.creds.as_ref(), &c);
                 }
             }
             Job::FetchBody { key } if !self.workers.contains_key(&key.account) => {

@@ -12,21 +12,11 @@ use smime::revocation::{self as rev, Status};
 
 use super::*;
 
-/// The keychain entry, next to the account's password.
-const SECRET: &str = "smime";
-
-/// What the keychain keeps: the key (PKCS #8) and the chain, as hex; or, for a key held
-/// elsewhere, where it is and the card's PIN.
-#[derive(Serialize, Deserialize)]
-struct Kept {
-    #[serde(default)]
-    key: String,
-    chain: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    held: Option<KeyRef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pin: Option<String>,
-}
+mod kept;
+pub(crate) use kept::forget_all;
+#[cfg(test)]
+use kept::keep;
+use kept::{SECRET, forget_wrong_pin, kept};
 
 /// An account's own certificate and its private key.
 #[derive(Clone, PartialEq, Eq)]
@@ -106,19 +96,6 @@ fn with_held<T>(
 /// again: a card locks after a few wrong ones.
 const PIN_WRONG: &str = "the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)";
 
-/// After `error`, a kept PIN the card refused is forgotten (the reference to the key stays).
-fn forget_wrong_pin<T>(creds: &dyn Credentials, account: &AccountConfig, done: &std::result::Result<T, String>) {
-    if !matches!(done, Err(e) if e.contains(PIN_WRONG)) {
-        return;
-    }
-    let Some(json) = creds.get_secret(account, SECRET) else { return };
-    let Ok(mut k) = serde_json::from_str::<Kept>(&json) else { return };
-    k.pin = None;
-    if let Ok(json) = serde_json::to_string(&k) {
-        let _ = creds.set_secret(account, SECRET, &json);
-    }
-}
-
 /// The certificates whose keys are held elsewhere: on the cards `module` sees, or in the
 /// system's own store (the macOS Keychain, the Windows certificate store).
 fn find_held(module: Option<&str>, pin: Option<&str>) -> std::result::Result<Vec<mailcraft_model::HeldKey>, String> {
@@ -135,39 +112,6 @@ fn find_held(module: Option<&str>, pin: Option<&str>) -> std::result::Result<Vec
         .into_iter()
         .filter_map(|f| Some(mailcraft_model::HeldKey { label: f.label, cert: f.cert, at: serde_json::to_string(&f.key).ok()? }))
         .collect())
-}
-
-fn hex(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
-}
-
-fn unhex(s: &str) -> Option<Vec<u8>> {
-    if !s.len().is_multiple_of(2) {
-        return None;
-    }
-    (0..s.len()).step_by(2).map(|i| s.get(i..i + 2).and_then(|p| u8::from_str_radix(p, 16).ok())).collect()
-}
-
-fn keep(creds: &dyn Credentials, account: &AccountConfig, me: &Me) -> std::result::Result<(), String> {
-    let chain = me.chain.iter().map(|c| hex(c)).collect();
-    let kept = match &me.key {
-        MyKey::Software(key) => Kept { key: hex(key), chain, held: None, pin: None },
-        MyKey::Held { at, pin } => Kept { key: String::new(), chain, held: Some(at.clone()), pin: pin.clone() },
-    };
-    let json = serde_json::to_string(&kept).map_err(|e| e.to_string())?;
-    creds.set_secret(account, SECRET, &json)
-}
-
-fn kept(creds: &dyn Credentials, account: &AccountConfig) -> std::result::Result<Me, String> {
-    let gone = || "the certificate's key isn't in the keychain: import the certificate again (File › Info › Security)".to_string();
-    let json = creds.get_secret(account, SECRET).ok_or_else(gone)?;
-    let k: Kept = serde_json::from_str(&json).map_err(|_| gone())?;
-    let chain = k.chain.iter().map(|c| unhex(c)).collect::<Option<Vec<_>>>().ok_or_else(gone)?;
-    let key = match k.held {
-        Some(at) => MyKey::Held { at, pin: k.pin },
-        None => MyKey::Software(unhex(&k.key).ok_or_else(gone)?),
-    };
-    Ok(Me { chain, key })
 }
 
 fn now() -> i64 {
@@ -193,6 +137,14 @@ pub(crate) fn protect(
     mailcraft_mime::smime::protect(raw, signer, encrypter, gcm, hide_subject, &boundary)
 }
 
+/// What the account has now, or why a certificate couldn't be kept.
+fn identity(account: String, done: std::result::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>), String>) -> Event {
+    match done {
+        Ok((chain, older)) => Event::Identity { account, chain, older, error: None },
+        Err(e) => Event::Identity { account, chain: Vec::new(), older: Vec::new(), error: Some(e) },
+    }
+}
+
 impl Pool {
     /// A draft encrypted to the account's own certificate, at once (it may be the last thing
     /// before MailCraft closes). Without the key it stays as it is, and the user is told.
@@ -201,7 +153,7 @@ impl Pool {
             let own = me.chain.first().cloned().ok_or_else(|| "the certificate is missing".to_string())?;
             protect(&raw, &me, false, &[own], true, false)
         });
-        forget_wrong_pin(self.creds.as_ref(), account, &sealed);
+        forget_wrong_pin(self.creds.as_ref(), account, None, &sealed);
         match sealed {
             Ok(s) => s,
             Err(e) => {
@@ -219,21 +171,19 @@ impl Pool {
         let sink = self.sink.clone();
         let spawned = std::thread::Builder::new().name("mail-smime".into()).spawn(move || match job {
             Job::ImportIdentity { account, data, password } => {
-                let done = smime::read_p12(&data, &password.0).map_err(|e| e.to_string()).and_then(|id| {
-                    let me = Me::from(id);
-                    keep(creds.as_ref(), &account, &me)?;
-                    Ok(me.chain)
-                });
-                let (chain, error) = match done {
-                    Ok(chain) => (chain, None),
-                    Err(e) => (Vec::new(), Some(e)),
-                };
-                sink.emit(Event::Identity { account: account.id, chain, error });
+                let done = smime::read_p12(&data, &password.0)
+                    .map_err(|e| e.to_string())
+                    .and_then(|id| kept::take(creds.as_ref(), &account, &Me::from(id), now()));
+                sink.emit(identity(account.id, done));
             }
             Job::ForgetIdentity { account } => creds.delete_secret(&account, SECRET),
+            Job::ForgetOlderIdentity { account, fingerprint } => kept::forget_older(creds.as_ref(), &account, &fingerprint),
+            Job::UseOlderIdentity { account, fingerprint } => {
+                sink.emit(identity(account.id.clone(), kept::use_older(creds.as_ref(), &account, &fingerprint)))
+            }
             Job::Protect { account, id, raw, sign, encrypt_to, gcm, hide_subject } => {
                 let done = kept(creds.as_ref(), &account).and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
-                forget_wrong_pin(creds.as_ref(), &account, &done);
+                forget_wrong_pin(creds.as_ref(), &account, None, &done);
                 let (raw, error) = match done {
                     Ok(r) => (Some(Private(r)), None),
                     Err(e) => (None, Some(e)),
@@ -241,8 +191,7 @@ impl Pool {
                 sink.emit(Event::Protected { account: account.id, id, raw, error });
             }
             Job::Decrypt { account, key, cms } => {
-                let done = kept(creds.as_ref(), &account).and_then(|me| me.with_key(|k| smime::decrypt_with(&cms, me.certificate(), k)));
-                forget_wrong_pin(creds.as_ref(), &account, &done);
+                let done = kept::decrypt(creds.as_ref(), &account, &cms);
                 let event = match done {
                     Ok((content, authenticated)) => Event::Decrypted { key, content: Some(Private(content)), authenticated, error: None },
                     Err(e) => Event::Decrypted { key, content: None, authenticated: false, error: Some(e) },
@@ -268,14 +217,9 @@ impl Pool {
                     // was just typed: the user's to try).
                     let MyKey::Held { at, pin } = &me.key else { return Err("the key can't be found again".to_string()) };
                     with_held(at, pin.as_deref(), mailcraft_keys::pkcs11::PinFrom::Typed, |k| smime::sign_with(b"MailCraft", &me.chain, k, now()))?;
-                    keep(creds.as_ref(), &account, &me)?;
-                    Ok(me.chain)
+                    kept::take(creds.as_ref(), &account, &me, now())
                 });
-                let (chain, error) = match done {
-                    Ok(chain) => (chain, None),
-                    Err(e) => (Vec::new(), Some(e)),
-                };
-                sink.emit(Event::Identity { account: account.id, chain, error });
+                sink.emit(identity(account.id, done));
             }
             Job::CheckRevocation { chain } => {
                 let status = revocation(&chain, now(), &|r| crate::http::send_public(r).ok().filter(|a| a.ok()).map(|a| a.body));
@@ -450,35 +394,5 @@ Signed and sealed by Windows.
                 assert_eq!(smime::verify(&signature, Some(&content)).unwrap().0.signer, held.cert, "{who}");
             }
         }
-    }
-
-    #[test]
-    fn the_key_is_kept_in_the_keychain_and_comes_back() {
-        let creds = MemoryCredentials::default();
-        let account = AccountConfig { id: "a1".into(), ..Default::default() };
-        assert!(kept(&creds, &account).is_err());
-        let riley = smime::read_p12(&testdata("riley-aes.p12"), "secret").unwrap();
-        keep(&creds, &account, &Me::from(riley.clone())).unwrap();
-        assert!(kept(&creds, &account).unwrap() == Me::from(riley.clone()));
-        // A card's key: only where it is, and its PIN.
-        let card = Me {
-            chain: riley.chain.clone(),
-            key: MyKey::Held { at: KeyRef::Card { module: "m.so".into(), token: "1".into(), id: "01".into() }, pin: Some("1234".into()) },
-        };
-        keep(&creds, &account, &card).unwrap();
-        assert!(kept(&creds, &account).unwrap() == card);
-        assert!(!creds.get_secret(&account, SECRET).unwrap().contains(&hex(&riley.key)));
-        // A kept PIN the card refused is forgotten at once, the key's reference kept; any other
-        // failure leaves it.
-        forget_wrong_pin(&creds, &account, &Err::<(), _>("the card's module can't be loaded".to_string()));
-        assert!(kept(&creds, &account).unwrap() == card);
-        forget_wrong_pin(&creds, &account, &Err::<(), _>(PIN_WRONG.to_string()));
-        let left = kept(&creds, &account).unwrap();
-        assert!(matches!(&left.key, MyKey::Held { pin: None, .. }) && left.chain == card.chain);
-        creds.delete_secret(&account, SECRET);
-        assert!(kept(&creds, &account).is_err());
-        assert_eq!(unhex("0aFf"), Some(vec![0x0a, 0xff]));
-        assert_eq!(unhex("0"), None);
-        assert_eq!(unhex("zz"), None);
     }
 }

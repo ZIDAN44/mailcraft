@@ -380,6 +380,8 @@ fn sent_folder(sh: &Rcs, id: &str, given: Option<String>) -> Option<String> {
 const BROWSER_SMIME: &str = "smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser";
 /// Revocation servers don't let a web page ask them.
 const BROWSER_REVOCATION: &str = "the browser can't ask a certificate's authority";
+/// The browser keeps one certificate an account (its .p12, under its password).
+const BROWSER_OLDER: &str = "the browser keeps one certificate an account: older ones are kept by the MailCraft desktop app";
 
 async fn job(sh: &Rcs, id: &str, j: Job) {
     let store = store(sh);
@@ -502,7 +504,14 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
             },
         ),
         Job::FindHeldKeys { .. } => emit(sh, Event::HeldKeys { keys: Vec::new(), error: Some(BROWSER_SMIME.into()) }),
-        Job::UseHeldKey { .. } => emit(sh, Event::Identity { account: id.to_string(), chain: Vec::new(), error: Some(BROWSER_SMIME.into()) }),
+        // The browser keeps one certificate an account: there are no older ones to use or forget.
+        Job::UseOlderIdentity { .. } => {
+            emit(sh, Event::Identity { account: id.to_string(), chain: Vec::new(), older: Vec::new(), error: Some(BROWSER_OLDER.into()) })
+        }
+        Job::ForgetOlderIdentity { .. } => {}
+        Job::UseHeldKey { .. } => {
+            emit(sh, Event::Identity { account: id.to_string(), chain: Vec::new(), older: Vec::new(), error: Some(BROWSER_SMIME.into()) })
+        }
         Job::Start { .. }
         | Job::SmtpPassword { .. }
         | Job::CheckUpdates

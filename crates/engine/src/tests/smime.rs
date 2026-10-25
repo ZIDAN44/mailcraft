@@ -47,7 +47,7 @@ fn with_certificate(name: &str) -> Session {
     s.run("security.import", &json!({"path": path("riley-aes.p12"), "password": "secret"})).unwrap();
     let jobs = s.take_jobs();
     assert!(jobs.iter().any(|j| matches!(j, Job::ImportIdentity { data, password, .. } if !data.is_empty() && password.0 == "secret")));
-    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, error: None });
+    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: Vec::new(), error: None });
     assert_eq!(s.identity("sample").unwrap().emails, ["riley@studio.example"]);
     assert!(s.smime_settings("sample").sign, "imported to be used: new messages are signed");
     s
@@ -205,8 +205,67 @@ fn the_certificate_can_be_forgotten() {
     s.run("mail.new", &json!({})).unwrap();
     assert!(!s.compose.as_ref().unwrap().sign);
     // A wrong password is said.
-    s.apply(Event::Identity { account: "sample".into(), chain: Vec::new(), error: Some("the password is wrong".into()) });
+    s.apply(Event::Identity { account: "sample".into(), chain: Vec::new(), older: Vec::new(), error: Some("the password is wrong".into()) });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("the password is wrong")));
+    done(s);
+}
+
+/// Issue #6: a renewed certificate. The older one comes back from the network layer as kept for
+/// reading: it's said so, listed, and mail that couldn't be read is tried again; it can be used
+/// for sending again or forgotten, and with only it left, encrypted mail is still sent to be read.
+#[test]
+fn an_older_certificate_is_kept_for_reading() {
+    let mut s = with_certificate("smime-older");
+    let old = smime::read_p12(&testdata("riley-2025.p12"), "secret").unwrap();
+    let old_info = smime::cert::info(&old.chain[0]).unwrap();
+    s.run("security.defaults", &json!({"sign": false})).unwrap();
+    // Mail sent to the old certificate, before it was imported: it fails for want of a key.
+    let sealed = smime::encrypt(
+        b"Content-Type: text/plain\r\n\r\nFrom last year.\r\n",
+        std::slice::from_ref(&old.chain[0]),
+        smime::Cipher::Aes256Gcm,
+        &mut rand_core::OsRng,
+    )
+    .unwrap();
+    let outer = b"From: Ana <ana@posteo.example>\r\nTo: riley@studio.example\r\nSubject: Old\r\nDate: Sat, 24 Oct 2026 09:00:00 +0000\r\nMessage-ID: <old@posteo.example>\r\n";
+    let raw = mailcraft_mime::smime::encrypted_message(outer, &sealed, true);
+    let key = open_raw(&mut s, 9100, &raw);
+    let asked = s.take_jobs();
+    assert!(asked.iter().any(|j| matches!(j, Job::Decrypt { .. })));
+    s.apply(Event::Decrypted {
+        key: key.clone(),
+        content: None,
+        authenticated: false,
+        error: Some("it was encrypted to a certificate MailCraft doesn't have".into()),
+    });
+    assert!(matches!(security(&s).lock, Some(Lock::Failed(_))));
+
+    // The older one imported: kept for reading, said so; sending settings untouched.
+    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: vec![old.chain[0].clone()], error: None });
+    assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("older than the one in use")), "{:?}", s.notices.last());
+    assert!(!s.smime_settings("sample").sign, "an older one doesn't switch signing on");
+    assert_eq!(s.older_identities("sample"), vec![old_info.clone()]);
+    assert_eq!(s.identity("sample").unwrap().fingerprint, smime::cert::info(&riley().chain[0]).unwrap().fingerprint);
+    // The message shown is asked for again.
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Decrypt { key: k, .. } if *k == key)));
+    let listed = s.run("security.certificates", &json!({})).unwrap();
+    assert_eq!(listed["older"][0]["fingerprint"], old_info.fingerprint);
+
+    // Used for sending again; then forgotten, by its SHA-256 in any case.
+    s.run("security.useOlder", &json!({"older": old_info.fingerprint.to_lowercase()})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::UseOlderIdentity { fingerprint, .. } if *fingerprint == old_info.fingerprint)));
+    assert!(s.run("security.useOlder", &json!({"older": "00:11"})).is_err());
+    s.run("security.forget", &json!({"older": old_info.fingerprint.to_lowercase()})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::ForgetOlderIdentity { .. })));
+    assert!(s.older_identities("sample").is_empty() && s.smime_settings("sample").older.is_empty());
+    assert!(s.run("security.forget", &json!({"older": old_info.fingerprint})).is_err(), "already gone");
+
+    // Only an older one left (the one in use removed): encrypted mail is still asked to be read.
+    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: vec![old.chain[0].clone()], error: None });
+    s.run("security.forget", &json!({})).unwrap();
+    s.take_jobs();
+    let key = open_raw(&mut s, 9101, &raw);
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Decrypt { key: k, .. } if *k == key)), "the older key may read it");
     done(s);
 }
 
@@ -314,7 +373,7 @@ fn a_certificate_on_a_smart_card_becomes_the_accounts() {
     let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::UseHeldKey { .. })).unwrap();
     assert!(matches!(&job, Job::UseHeldKey { at, cert, pin: Some(p), .. } if *at == card.at && *cert == card.cert && p.0 == "123456"));
     // The network layer's answer: the certificate is the account's, as an imported one is.
-    s.apply(Event::Identity { account: "sample".into(), chain: vec![card.cert.clone()], error: None });
+    s.apply(Event::Identity { account: "sample".into(), chain: vec![card.cert.clone()], older: Vec::new(), error: None });
     assert_eq!(s.identity("sample").unwrap().emails, ["riley@studio.example"]);
     // Nothing found says so.
     s.run("security.findKeys", &json!({"keychain": true})).unwrap();

@@ -32,6 +32,10 @@ pub struct SmimeSettings {
     /// The account's certificate and the ones that issued it (DER); its key is in the keychain.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub chain: Vec<Vec<u8>>,
+    /// Older certificates (DER), kept to read mail encrypted to them after a renewal; their keys
+    /// are in the keychain too. Newest first.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub older: Vec<Vec<u8>>,
     /// Sign new messages.
     pub sign: bool,
     /// Encrypt new messages (when every recipient's certificate is known).
@@ -146,6 +150,36 @@ impl Session {
         self.smime.get(account).and_then(|s| s.chain.first()).and_then(|c| smime::cert::info(c).ok())
     }
 
+    /// The account's older certificates, kept to read mail encrypted to them, newest first.
+    pub fn older_identities(&self, account: &str) -> Vec<smime::CertInfo> {
+        self.smime.get(account).map(|s| s.older.iter().filter_map(|c| smime::cert::info(c).ok()).collect()).unwrap_or_default()
+    }
+
+    /// Forget an older certificate (`fingerprint`, its [`smime::CertInfo::fingerprint`]) and its
+    /// key: mail encrypted to it can't be read any more.
+    pub fn forget_older_identity(&mut self, account: &str, fingerprint: &str) -> CmdResult {
+        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let s = self.smime.entry(account.to_string()).or_default();
+        let before = s.older.len();
+        s.older.retain(|c| smime::cert::info(c).map(|i| !i.fingerprint.eq_ignore_ascii_case(fingerprint.trim())).unwrap_or(true));
+        if s.older.len() == before {
+            return Err(CmdError::Params(format!("no older certificate `{fingerprint}`")));
+        }
+        self.jobs.push(Job::ForgetOlderIdentity { account: config, fingerprint: fingerprint.trim().to_uppercase() });
+        self.save_smime(account);
+        Ok(serde_json::json!({ "forgotten": fingerprint }))
+    }
+
+    /// Sign and encrypt with an older certificate again; the one in use is kept for reading.
+    pub fn use_older_identity(&mut self, account: &str, fingerprint: &str) -> CmdResult {
+        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if !self.older_identities(account).iter().any(|i| i.fingerprint.eq_ignore_ascii_case(fingerprint.trim())) {
+            return Err(CmdError::Params(format!("no older certificate `{fingerprint}`")));
+        }
+        self.jobs.push(Job::UseOlderIdentity { account: config, fingerprint: fingerprint.trim().to_uppercase() });
+        Ok(serde_json::json!({ "using": fingerprint }))
+    }
+
     /// The roots this computer trusts for email (the system's, from the app).
     pub fn set_trust_roots(&mut self, roots: Vec<Vec<u8>>) {
         self.trust_roots = roots;
@@ -183,7 +217,7 @@ impl Session {
         Ok(serde_json::json!({ "importing": account }))
     }
 
-    /// Forget the account's certificate (and the keychain's key).
+    /// Forget the account's certificate (and the keychain's key); older ones kept for reading stay.
     pub fn forget_identity(&mut self, account: &str) -> CmdResult {
         let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
         self.jobs.push(Job::ForgetIdentity { account: config });
@@ -307,7 +341,7 @@ impl Session {
 
     fn ask_decrypt(&mut self, key: &MessageKey, cms: Vec<u8>) -> Lock {
         let Some(config) = self.account(&key.account).map(|a| a.config.clone()) else { return Lock::Failed("its account is gone".into()) };
-        if self.identity(&key.account).is_none() {
+        if self.identity(&key.account).is_none() && self.smime.get(&key.account).is_none_or(|s| s.older.is_empty()) {
             return Lock::Failed("this account has no certificate to decrypt it with (File › Info › Security)".into());
         }
         if self.opening.insert(key.clone()) {
@@ -442,16 +476,44 @@ impl Session {
 
     pub(super) fn apply_smime(&mut self, e: Event) {
         match e {
-            Event::Identity { account, chain, error } => match error {
+            Event::Identity { account, chain, older, error } => match error {
                 Some(e) => self.notice(format!("The certificate couldn't be kept: {e}"), true),
                 None => {
                     let s = self.smime.entry(account.clone()).or_default();
-                    s.chain = chain;
-                    // A certificate is imported to be used: new messages are signed from now on.
-                    s.sign = true;
+                    // One kept for reading only that wasn't before: the one just imported is older
+                    // than the one in use.
+                    let added = older.iter().find(|c| !s.older.contains(c) && s.chain.first() != Some(*c)).cloned();
+                    s.older = older;
+                    if !chain.is_empty() {
+                        s.chain = chain;
+                    }
+                    if added.is_none() {
+                        // A certificate is imported to be used: new messages are signed from now on.
+                        s.sign = true;
+                    }
                     self.save_smime(&account);
-                    let who = self.identity(&account).map(|i| i.emails.first().cloned().unwrap_or(i.name)).unwrap_or_default();
-                    self.notice(format!("Your certificate for {who} is ready: new messages are signed"), false);
+                    // Mail that couldn't be read for want of a key is tried again (the one shown at once).
+                    let failed: Vec<MessageKey> = self.decrypt_errors.drain().map(|(k, _)| k).collect();
+                    for k in failed {
+                        self.show_again(&k);
+                    }
+                    let who = |i: smime::CertInfo| i.emails.first().cloned().unwrap_or(i.name);
+                    match added.and_then(|c| smime::cert::info(&c).ok()) {
+                        Some(old) => {
+                            let until = mailcraft_model::dates::full_time(old.not_after, &self.clock);
+                            self.notice(
+                                format!(
+                                    "The certificate for {} (valid until {until}) is older than the one in use, so it's kept to read mail encrypted to it",
+                                    who(old)
+                                ),
+                                false,
+                            );
+                        }
+                        None => {
+                            let who = self.identity(&account).map(who).unwrap_or_default();
+                            self.notice(format!("Your certificate for {who} is ready: new messages are signed"), false);
+                        }
+                    }
                 }
             },
             Event::Protected { account: _, id, raw, error } => {
