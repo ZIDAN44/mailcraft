@@ -13,10 +13,11 @@ use smime::revocation::{self as rev, Status};
 use super::*;
 
 mod kept;
-#[cfg(test)]
+// The Windows store's test only.
+#[cfg(all(test, windows))]
 use kept::SECRET;
 pub(crate) use kept::forget_all;
-#[cfg(test)]
+#[cfg(all(test, windows))]
 use kept::keep;
 use kept::{forget_wrong_pin, kept};
 
