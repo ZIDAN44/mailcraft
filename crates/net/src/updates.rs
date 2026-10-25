@@ -1,6 +1,6 @@
 //! File › About › Check for updates: MailCraft's releases, as GitHub lists them; and, for the
-//! test builds' updater (`apps/mailcraft/src/self_update.rs`), fetching an installer and proving
-//! it is the one the release lists.
+//! test builds' updater (`apps/mailcraft/src/self_update.rs`), fetching an installer (resumably,
+//! [`download`]) and proving it is the one the release lists.
 //!
 //! MailCraft's releases are pre-releases (`v0.19.0-test.15`), which GitHub's "latest release"
 //! leaves out, so the recent ones are listed and the engine picks (`Session::check_updates`).
@@ -14,6 +14,9 @@ use serde_json::Value;
 
 use crate::http::{Request, send};
 use crate::{NetError, Result};
+
+mod download;
+pub use download::{Progress, download_installer, file_name, part_path, sha256_file};
 
 /// Where MailCraft is published.
 pub const REPO: &str = "ZIDAN44/mailcraft";
