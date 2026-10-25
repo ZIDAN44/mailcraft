@@ -90,6 +90,19 @@ fn the_install_kind_follows_where_mailcraft_is() {
     }
     assert_eq!(Kind::MacApp(PathBuf::from("/Applications/MailCraft.app")).suffix(), "-macos-universal.dmg");
     assert!(Kind::AppImage(PathBuf::from("/x")).suffix().ends_with(".AppImage"));
+    // An AppImage is replaced only where this user may write beside it (/proc: nobody may, not
+    // even root, as in CI's containers).
+    if cfg!(target_os = "linux") {
+        let dir = scratch("appimage");
+        let image = dir.join("MailCraft-x86_64.AppImage");
+        std::fs::write(&image, b"").unwrap();
+        let found = image.clone();
+        let env = move |k: &str| (k == "APPIMAGE").then(|| found.clone());
+        assert_eq!(detect_at(Path::new("/tmp/.mount_x/usr/bin/mailcraft"), &env), Some(Kind::AppImage(image)));
+        let env = |k: &str| (k == "APPIMAGE").then(|| PathBuf::from("/proc/version"));
+        assert_eq!(detect_at(Path::new("/tmp/.mount_x/usr/bin/mailcraft"), &env), None, "a folder it can't write");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 /// The window's view of it: what's said, and that Close without updating keeps it for later.

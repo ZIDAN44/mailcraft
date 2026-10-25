@@ -40,7 +40,7 @@
 //! | Windows `.msi` (Program Files) | `msiexec /i … /passive` (Windows asks for an administrator) |
 //! | Windows portable `.zip` | unzipped over the app's folder; `MailCraftData` stays |
 //! | macOS `.dmg` | `MailCraft.app` copied out of it in place of this one, where this user may write (`/Applications` for an administrator's account, `~/Applications`) |
-//! | Linux `.AppImage` | the new file renamed over this one |
+//! | Linux `.AppImage` | the new file renamed over this one, where this user may write |
 //!
 //! Anything else (a `.deb`, `.rpm`, Flatpak, FreeBSD, an app macOS runs from a read-only
 //! translocated copy) keeps File › About's Download link.
@@ -163,7 +163,14 @@ fn detect_at(exe: &Path, env: &dyn Fn(&str) -> Option<PathBuf>) -> Option<Kind> 
         return writable(parent).then(|| Kind::MacApp(bundle.to_path_buf()));
     }
     if cfg!(target_os = "linux") {
-        return env("APPIMAGE").filter(|p| p.is_file()).map(Kind::AppImage);
+        // Replaced by a rename beside it: its folder must be ours to write (an AppImage kept in
+        // /opt by root keeps File › About's Download link).
+        let image = env("APPIMAGE").filter(|p| p.is_file())?;
+        if !image.parent().is_some_and(writable) {
+            log::info!("updates: {} is in a folder this user can't write, so it isn't replaced", image.display());
+            return None;
+        }
+        return Some(Kind::AppImage(image));
     }
     None
 }

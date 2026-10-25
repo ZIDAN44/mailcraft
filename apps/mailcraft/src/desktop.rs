@@ -130,6 +130,10 @@ impl Services for Desktop {
             }
         } else if cfg!(target_os = "macos") {
             places.push(PathBuf::from(format!("/Applications/{title}.app")));
+            // Installed for one user (an account that can't write /Applications).
+            if let Some(home) = std::env::var_os("HOME") {
+                places.push(PathBuf::from(home).join("Applications").join(format!("{title}.app")));
+            }
         } else {
             places.push(PathBuf::from(format!("/opt/{command}/bin/{command}")));
         }
