@@ -414,7 +414,8 @@ local-first, media-aware v1); the fuller request is
   the close question and Restart now, and resumed a 54 MB download from 20 MB.
 - **2026-10-25** — **v0.26**, issues #6, #7 and #8. S/MIME keeps older certificates for reading
   (`addressed_to` picks the key a message names; each older key its own keychain entry; imports
-  take turns); removing an account now removes its certificates' keys too. Calendars: a TXT
+  take turns; the browser keeps the older `.p12` files the same way, `smime::own`); removing an
+  account now removes its certificates' keys too. Calendars: a TXT
   lookup in `net/src/dns.rs` and the search from the SRV record's path, then its well-known
   address and root; `account.dav` for an address given by hand (followed from the server, a home
   or one calendar) with its own password as `dav` in the keychain. The classic ribbon is drawn by

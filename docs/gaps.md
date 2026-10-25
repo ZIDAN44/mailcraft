@@ -18,7 +18,7 @@ _Status: v0.26, 2026-10-25._
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
-| 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificate stays locked until its password is given again. It keeps one certificate per account: a renewed one replaces the old there, where the desktop app keeps the old one for reading. |
+| 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificates stay locked until a password is given again (one password opens every certificate it's the password of; one with another password asks again). |
 | 8 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 
 ## Done
@@ -891,7 +891,10 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   to decrypt mail that was sent to it, in either order of import. File › Info › Security lists
   each older one with *Use for sending* and *Remove*. A message is decrypted with the key it
   names, so mail for a certificate MailCraft doesn't have says so instead of trying every key (a
-  smart card would ask for its PIN). At most 16 older ones; the browser keeps one.
+  smart card would ask for its PIN). At most 16 older ones. The browser does the same with
+  the `.p12` files it keeps (each still under its own password), as Thunderbird's certificate
+  store, the system stores Outlook uses and Proton's older keys all keep old keys for reading;
+  Unlock… opens every one its password fits.
 - **Keys go with the account:** removing an account now removes its certificates' keys and its
   calendar password from the system keychain; before, the S/MIME key stayed behind.
 - **Calendars anywhere (issue #7):** discovery follows RFC 6764 fully: the path in the TXT record
@@ -919,3 +922,12 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   "Use for sending". A new calendar user name reused the old one's password. A timeout read as
   "no calendars here". A local http address could redirect elsewhere in the clear. Re-importing an
   older certificate gave the wrong notice. The 16-certificate cap blocked swaps.
+- **Against a real provider's setup:** docker-mailserver (Postfix and Dovecot) with Radicale. The
+  whole renewal ran in the app over it: signed mail each way, Zoe encrypting to Riley's 2025
+  certificate, Riley renewing, the old mail still opening, Zoe switching to the new certificate
+  once Riley signed with it (checked in the CMS with OpenSSL). The real-server tests ran there
+  too: 3000 messages, a 43 MB one, new mail noticed in half a second, the S/MIME round trip, a
+  hand-given calendar. This found one bug: Postfix strips `X-Mailer` for privacy from every MIME
+  part, so a clear signature over a protected copy of it broke. What sent a message is no longer
+  copied inside the signed part. In the browser, both certificates were imported and kept across a
+  reload, unlocked with one password and swapped.
