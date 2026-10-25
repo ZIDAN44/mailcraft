@@ -46,6 +46,8 @@ pub struct Data {
     pub vacation: Value,
     /// Open event streams (push).
     pub listeners: Vec<std::sync::mpsc::Sender<String>>,
+    /// The next so many `Mailbox/get` calls fail (a server that didn't answer).
+    pub fail_mailbox_get: u32,
     next: u32,
 }
 
@@ -165,6 +167,10 @@ impl Data {
             args.get("ids")?.as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
         };
         match name {
+            "Mailbox/get" if self.fail_mailbox_get > 0 => {
+                self.fail_mailbox_get -= 1;
+                ("error".into(), json!({"type": "serverUnavailable"}))
+            }
             "Mailbox/get" => {
                 let want = ids(args);
                 let list: Vec<Value> =
@@ -543,6 +549,45 @@ mod tests {
     fn mail(subject: &str, id: &str) -> Vec<u8> {
         format!("From: Zoe Park <zoe@studio.example>\r\nTo: {USER}\r\nSubject: {subject}\r\nMessage-ID: <{id}@x>\r\n\r\nHello about {subject}.\r\n")
             .into_bytes()
+    }
+
+    /// A rename, then a change naming the folder by its new name, with the folder listing in
+    /// between failing once (a busy server): the change waits for a fresh listing and is made,
+    /// not dropped as refused for want of the folder's id. (Seen once in CI: "never: deleted".)
+    #[test]
+    fn a_change_after_a_rename_outlives_a_failed_listing() {
+        let mut d = Data::default();
+        d.mailbox("Inbox", None, Some("inbox"));
+        d.mailbox("Sent", None, Some("sent"));
+        d.mailbox("Old name", None, None);
+        let server = serve(d);
+        let data = server.data.clone();
+        let dir = std::env::temp_dir().join(format!("mailcraft-jmap-relist-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+        let account =
+            AccountConfig { id: "a1".into(), email: USER.into(), username: USER.into(), jmap: Some(server.base.clone()), ..Default::default() };
+        pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        // Both queued before the worker gets to them, the listing after the rename failing.
+        data.lock().unwrap().fail_mailbox_get = 1;
+        store.add_op("a1", Op::RenameFolder { from: "Old name".into(), to: "Clients".into() }).unwrap();
+        pool.submit(Job::Apply { account: "a1".into(), op: Op::DeleteFolder { path: "Clients".into() } });
+        eventually("renamed, then deleted", || {
+            let d = data.lock().unwrap();
+            d.by_name("Old name").is_none() && d.by_name("Clients").is_none()
+        });
+        assert_eq!(data.lock().unwrap().fail_mailbox_get, 0, "the listing did fail once");
+        let mut failed = Vec::new();
+        while let Some(e) = pool.wait(Duration::from_millis(200)) {
+            if let Event::OpFailed { op, error, .. } = e {
+                failed.push(format!("{op:?}: {error}"));
+            }
+        }
+        assert!(failed.is_empty(), "{failed:?}");
+        pool.submit(Job::Remove { account: "a1".into() });
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

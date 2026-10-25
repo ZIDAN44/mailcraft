@@ -282,6 +282,8 @@ impl Worker {
         let mut destinations: Vec<String> = Vec::new();
         let mut relist = false;
         let trash = self.folders.iter().find(|f| f.role == FolderRole::Trash).map(|f| f.path.clone());
+        // A change refused once is tried again after the folders are listed anew (see below).
+        let mut retried = false;
         // Cap the loop in case removal keeps failing.
         for _ in 0..100_000 {
             let Some(op) = self.store.load_ops(&self.acc.id).unwrap_or_default().into_iter().next() else { break };
@@ -296,6 +298,7 @@ impl Worker {
             };
             match r {
                 Ok(()) => {
+                    retried = false;
                     match &op {
                         Op::Move { to, .. } => destinations.push(to.clone()),
                         Op::RenameFolder { to, .. } => {
@@ -320,7 +323,12 @@ impl Worker {
                     self.failed(e);
                     return;
                 }
+                // A folder the change names may be one the last listing missed (one just renamed
+                // or made, after a listing that failed): listed again, the change is tried once
+                // more before it counts as refused, rather than dropped for want of its id.
+                Err(_) if !retried && op_names_folder(&op) && self.relist() => retried = true,
                 Err(e) => {
+                    retried = false;
                     // The server refused: drop the change and resync so the cache matches the
                     // server again (forcing a full flag check).
                     if let Err(e) = self.store.remove_op(&self.acc.id, &op) {
@@ -353,4 +361,9 @@ impl Worker {
             }
         }
     }
+}
+
+/// Whether a change names a folder by its path (one a listing may not know yet).
+fn op_names_folder(op: &Op) -> bool {
+    op.is_folder_op() || matches!(op, Op::Move { .. } | Op::EmptyFolder { .. })
 }
