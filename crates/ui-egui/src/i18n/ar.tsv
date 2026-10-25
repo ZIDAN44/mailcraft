@@ -1172,3 +1172,9 @@ month	May	مايو
 	Windows asks for an administrator's permission.	سيطلب Windows إذن المسؤول.
 	An update is still downloading	لا يزال التحديث قيد التنزيل
 	MailCraft {version} is downloading ({done} of {total}).	جارٍ تنزيل MailCraft {version} ({done} من {total}).
+	Add another…	إضافة شهادة أخرى…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	تتولى الشهادة المجدَّدة التوقيع والتشفير، وتُحفظ القديمة لقراءة البريد السابق
+	Older certificate, valid until {date}: kept to read mail encrypted to it	شهادة سابقة، صالحة حتى {date}: محفوظة لقراءة البريد المشفّر لها
+	Use for sending	استخدامها للإرسال
+	Sign and encrypt with this one again; the one in use is kept for reading	التوقيع والتشفير بهذه الشهادة مجددًا؛ وتُحفظ المستخدمة حاليًا للقراءة
+	Forget this certificate: mail encrypted to it can't be read any more	نسيان هذه الشهادة: لن يمكن قراءة البريد المشفّر لها بعد الآن

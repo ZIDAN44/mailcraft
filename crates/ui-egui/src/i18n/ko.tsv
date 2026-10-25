@@ -1176,3 +1176,9 @@ month	May	5월
 	Windows asks for an administrator's permission.	Windows에서 관리자 권한을 요청합니다.
 	An update is still downloading	업데이트를 아직 다운로드하고 있습니다
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version}을(를) 다운로드하고 있습니다({done} / {total}).
+	Add another…	다른 인증서 추가…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	갱신된 인증서가 서명과 암호화를 맡고, 이전 인증서는 지난 메일을 읽기 위해 보관됩니다
+	Older certificate, valid until {date}: kept to read mail encrypted to it	이전 인증서, {date}까지 유효: 이 인증서로 암호화된 메일을 읽기 위해 보관
+	Use for sending	보내기에 사용
+	Sign and encrypt with this one again; the one in use is kept for reading	이 인증서로 다시 서명하고 암호화합니다. 사용 중인 인증서는 읽기용으로 보관됩니다
+	Forget this certificate: mail encrypted to it can't be read any more	이 인증서 삭제: 이 인증서로 암호화된 메일을 더 이상 읽을 수 없습니다

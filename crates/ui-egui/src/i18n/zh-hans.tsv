@@ -1173,3 +1173,9 @@ month	May	5月
 	Windows asks for an administrator's permission.	Windows 会请求管理员许可。
 	An update is still downloading	更新仍在下载
 	MailCraft {version} is downloading ({done} of {total}).	正在下载 MailCraft {version}（{done}/{total}）。
+	Add another…	添加另一个…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	续期后的证书接管签名和加密；旧证书保留，用于阅读以前的邮件
+	Older certificate, valid until {date}: kept to read mail encrypted to it	旧证书，有效期至 {date}：保留用于阅读加密给它的邮件
+	Use for sending	用于发送
+	Sign and encrypt with this one again; the one in use is kept for reading	重新用此证书签名和加密；正在使用的证书保留用于阅读
+	Forget this certificate: mail encrypted to it can't be read any more	删除此证书：加密给它的邮件将无法再阅读

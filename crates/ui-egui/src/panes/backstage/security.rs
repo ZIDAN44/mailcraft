@@ -40,6 +40,37 @@ fn other_sources(ui: &mut Ui, t: &Tokens, id: &str, acts: &mut Vec<Action>) {
     );
 }
 
+/// The day a certificate runs out, as the interface writes dates.
+fn until(s: &Session, not_after: i64) -> String {
+    crate::i18n::date(&mailcraft_engine::model::dates::day_label(not_after.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400)))
+}
+
+/// The older certificates kept to read mail encrypted to them (after a renewal), each with
+/// buttons to sign and encrypt with it again or to forget it.
+fn older(s: &Session, t: &Tokens, ui: &mut Ui, id: &str, acts: &mut Vec<Action>) {
+    for cert in s.older_identities(id) {
+        let who = cert.emails.first().cloned().unwrap_or_else(|| cert.name.clone());
+        let about = tf!("Older certificate, valid until {date}: kept to read mail encrypted to it", date = until(s, cert.not_after));
+        setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
+            if ui
+                .button(RichText::new(tl!("Remove")).color(t.danger))
+                .on_hover_text(tl!("Forget this certificate: mail encrypted to it can't be read any more"))
+                .clicked()
+            {
+                acts.push(Action::Run("security.forget", json!({"account": id, "older": cert.fingerprint})));
+            }
+            if cert.not_after >= s.clock.now
+                && ui
+                    .button(tl!("Use for sending"))
+                    .on_hover_text(tl!("Sign and encrypt with this one again; the one in use is kept for reading"))
+                    .clicked()
+            {
+                acts.push(Action::Run("security.useOlder", json!({"account": id, "older": cert.fingerprint})));
+            }
+        });
+    }
+}
+
 pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut Vec<Action>) {
     let id = a.config.id.clone();
     let about = tl!("Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).");
@@ -57,12 +88,11 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                     }
                 },
             );
+            older(s, t, ui, &id, acts);
             other_sources(ui, t, &id, acts);
             return;
         };
-        let until = crate::i18n::date(&mailcraft_engine::model::dates::day_label(
-            cert.not_after.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400),
-        ));
+        let until = until(s, cert.not_after);
         let who = cert.emails.first().cloned().unwrap_or_else(|| cert.name.clone());
         let line = tf!("Issued by {issuer}, valid until {date}", issuer = cert.issuer, date = until);
         let expired = cert.not_after < s.clock.now;
@@ -78,7 +108,14 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
             {
                 acts.push(Action::Run("security.forget", json!({"account": id})));
             }
-            if ui.button(tl!("Replace…")).clicked() {
+            // The browser keeps one certificate an account; the app keeps older ones for reading.
+            let another = if cfg!(target_arch = "wasm32") {
+                ui.button(tl!("Replace…"))
+            } else {
+                ui.button(tl!("Add another…"))
+                    .on_hover_text(tl!("A renewed certificate takes over signing and encrypting; an older one is kept to read old mail"))
+            };
+            if another.clicked() {
                 acts.push(Action::ImportCertificate(id.clone()));
             }
             if cfg!(target_arch = "wasm32")
@@ -87,6 +124,7 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                 acts.push(Action::UnlockCertificate(id.clone()));
             }
         });
+        older(s, t, ui, &id, acts);
         other_sources(ui, t, &id, acts);
         let settings = s.smime_settings(&id);
         setting_row(ui, t, false, name(t, tl!("Sign new messages")), None, |ui| {

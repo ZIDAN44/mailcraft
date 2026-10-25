@@ -1172,3 +1172,9 @@ month	May	מאי
 	Windows asks for an administrator's permission.	Windows יבקש אישור של מנהל מערכת.
 	An update is still downloading	עדכון עדיין בהורדה
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} מורד ({done} מתוך {total}).
+	Add another…	הוספת אישור נוסף…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	אישור מחודש מקבל את החתימה וההצפנה; הישן נשמר לקריאת דואר קודם
+	Older certificate, valid until {date}: kept to read mail encrypted to it	אישור קודם, בתוקף עד {date}: נשמר לקריאת דואר שהוצפן עבורו
+	Use for sending	שימוש לשליחה
+	Sign and encrypt with this one again; the one in use is kept for reading	לחתום ולהצפין שוב עם אישור זה; האישור שבשימוש נשמר לקריאה
+	Forget this certificate: mail encrypted to it can't be read any more	שכחת אישור זה: לא ניתן יהיה עוד לקרוא דואר שהוצפן עבורו

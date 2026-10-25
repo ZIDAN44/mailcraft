@@ -1177,3 +1177,9 @@ month	May	maio
 	Windows asks for an administrator's permission.	O Windows pede a permissão de um administrador.
 	An update is still downloading	Uma atualização ainda está sendo baixada
 	MailCraft {version} is downloading ({done} of {total}).	O MailCraft {version} está sendo baixado ({done} de {total}).
+	Add another…	Adicionar outro…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	Um certificado renovado passa a assinar e criptografar; o anterior fica guardado para ler e-mails antigos
+	Older certificate, valid until {date}: kept to read mail encrypted to it	Certificado anterior, válido até {date}: guardado para ler e-mails criptografados para ele
+	Use for sending	Usar para enviar
+	Sign and encrypt with this one again; the one in use is kept for reading	Voltar a assinar e criptografar com este; o que está em uso fica guardado para leitura
+	Forget this certificate: mail encrypted to it can't be read any more	Esquecer este certificado: e-mails criptografados para ele não poderão mais ser lidos

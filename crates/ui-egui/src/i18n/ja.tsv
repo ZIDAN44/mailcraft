@@ -1173,3 +1173,9 @@ month	May	5月
 	Windows asks for an administrator's permission.	Windows が管理者の許可を求めます。
 	An update is still downloading	更新をまだダウンロードしています
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} をダウンロードしています ({done} / {total})。
+	Add another…	別の証明書を追加…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	更新した証明書が署名と暗号化を引き継ぎ、古い証明書は過去のメールを読むために残ります
+	Older certificate, valid until {date}: kept to read mail encrypted to it	以前の証明書（{date} まで有効）: この証明書宛てに暗号化されたメールを読むために保持
+	Use for sending	送信に使う
+	Sign and encrypt with this one again; the one in use is kept for reading	この証明書で再び署名・暗号化します。使用中の証明書は読むために残ります
+	Forget this certificate: mail encrypted to it can't be read any more	この証明書を削除: この証明書宛てに暗号化されたメールは読めなくなります

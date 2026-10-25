@@ -1172,3 +1172,9 @@ month	May	mei
 	Windows asks for an administrator's permission.	Windows vraagt toestemming van een beheerder.
 	An update is still downloading	Er wordt nog een update gedownload
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} wordt gedownload ({done} van {total}).
+	Add another…	Nog een toevoegen…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	Een vernieuwd certificaat neemt ondertekenen en versleutelen over; een ouder certificaat blijft om oude e-mail te lezen
+	Older certificate, valid until {date}: kept to read mail encrypted to it	Ouder certificaat, geldig tot {date}: blijft om e-mail te lezen die ervoor versleuteld is
+	Use for sending	Gebruiken voor verzenden
+	Sign and encrypt with this one again; the one in use is kept for reading	Weer met dit certificaat ondertekenen en versleutelen; het huidige blijft om te lezen
+	Forget this certificate: mail encrypted to it can't be read any more	Dit certificaat vergeten: e-mail die ervoor versleuteld is, kan niet meer gelezen worden

@@ -1176,3 +1176,9 @@ month	May	Май
 	Windows asks for an administrator's permission.	Windows запросит разрешение администратора.
 	An update is still downloading	Обновление ещё загружается
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} загружается ({done} из {total}).
+	Add another…	Добавить ещё…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	Обновлённый сертификат берёт на себя подпись и шифрование; старый остаётся, чтобы читать прежние письма
+	Older certificate, valid until {date}: kept to read mail encrypted to it	Прежний сертификат, действует до {date}: хранится, чтобы читать письма, зашифрованные для него
+	Use for sending	Использовать для отправки
+	Sign and encrypt with this one again; the one in use is kept for reading	Снова подписывать и шифровать этим; текущий останется для чтения
+	Forget this certificate: mail encrypted to it can't be read any more	Забыть этот сертификат: письма, зашифрованные для него, больше не прочитать
