@@ -43,10 +43,10 @@ impl Tokens {
             bg: Color32::from_rgb(0xF3, 0xF4, 0xF6),
             surface: Color32::WHITE,
             chrome: Color32::from_rgb(0xF7, 0xF8, 0xFA),
-            border: Color32::from_rgb(0xE1, 0xE4, 0xE8),
+            border: Color32::from_rgb(0xD5, 0xD9, 0xDF),
             text: Color32::from_rgb(0x1F, 0x23, 0x28),
             dim: Color32::from_rgb(0x5B, 0x63, 0x6E),
-            faint: Color32::from_rgb(0x8C, 0x93, 0x9D),
+            faint: Color32::from_rgb(0x84, 0x8B, 0x95),
             accent: APP_COLOR,
             on_accent: Color32::WHITE,
             accent_soft: Color32::from_rgb(0xD2, 0xEB, 0xEE),
@@ -62,17 +62,19 @@ impl Tokens {
     pub fn dark() -> Tokens {
         Tokens {
             dark: true,
-            bg: Color32::from_rgb(0x17, 0x18, 0x1B),
-            surface: Color32::from_rgb(0x22, 0x24, 0x28),
-            chrome: Color32::from_rgb(0x1C, 0x1E, 0x21),
-            border: Color32::from_rgb(0x34, 0x37, 0x3C),
+            // Panes, chrome and the lines between them told apart (issue #8): the panes a step
+            // lighter than the folder pane and ribbon, the borders plain to see.
+            bg: Color32::from_rgb(0x12, 0x13, 0x16),
+            surface: Color32::from_rgb(0x25, 0x28, 0x2C),
+            chrome: Color32::from_rgb(0x19, 0x1A, 0x1D),
+            border: Color32::from_rgb(0x4A, 0x4F, 0x57),
             text: Color32::from_rgb(0xE8, 0xEA, 0xED),
             dim: Color32::from_rgb(0xA9, 0xAF, 0xB7),
             faint: Color32::from_rgb(0x7C, 0x83, 0x8C),
             accent: Color32::from_rgb(0x3F, 0xB8, 0xC4),
             on_accent: Color32::from_rgb(0x0B, 0x1E, 0x21),
             accent_soft: Color32::from_rgb(0x1D, 0x3B, 0x40),
-            hover: Color32::from_rgb(0x31, 0x35, 0x3B),
+            hover: Color32::from_rgb(0x36, 0x3A, 0x41),
             hover_row: Color32::from_rgb(0x27, 0x33, 0x36),
             danger: Color32::from_rgb(0xF0, 0x6A, 0x5C),
             flag: Color32::from_rgb(0xF0, 0x6A, 0x5C),
@@ -164,7 +166,7 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.widgets.inactive.bg_fill = if t.dark { Color32::from_rgb(0x2C, 0x2F, 0x34) } else { Color32::from_rgb(0xF1, 0xF3, 0xF5) };
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.text);
     // A hairline so text boxes and drop-downs read as fields on any background.
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, if t.dark { Color32::from_rgb(0x3E, 0x42, 0x48) } else { Color32::from_rgb(0xCF, 0xD4, 0xDA) });
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, if t.dark { Color32::from_rgb(0x55, 0x5A, 0x63) } else { Color32::from_rgb(0xC6, 0xCC, 0xD3) });
     v.widgets.hovered.weak_bg_fill = t.hover;
     v.widgets.hovered.bg_fill = t.hover;
     v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.border);
@@ -326,4 +328,29 @@ pub fn bold(size: f32) -> egui::FontId {
 
 pub fn regular(size: f32) -> egui::FontId {
     egui::FontId::proportional(size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Issue #8: the panes, the chrome around them and the lines between them told apart, in both
+    /// themes, and text that reads on every pane (WCAG: 4.5 for text, 3 for the faintest notes).
+    #[test]
+    fn panes_borders_and_text_stand_apart() {
+        for t in [Tokens::light(), Tokens::dark()] {
+            let c = |a: Color32, b: Color32| contrast(rgb(a), rgb(b));
+            let which = if t.dark { "dark" } else { "light" };
+            assert!(c(t.border, t.surface) >= 1.4, "{which}: border on a pane {}", c(t.border, t.surface));
+            assert!(c(t.border, t.chrome) >= 1.3, "{which}: border on the chrome {}", c(t.border, t.chrome));
+            if t.dark {
+                assert!(c(t.surface, t.chrome) >= 1.15, "dark: a pane against the folder pane {}", c(t.surface, t.chrome));
+            }
+            for under in [t.surface, t.chrome, t.bg] {
+                assert!(c(t.text, under) >= 7.0, "{which}: text {}", c(t.text, under));
+                assert!(c(t.dim, under) >= 4.5, "{which}: dim text {}", c(t.dim, under));
+                assert!(c(t.faint, under) >= 3.0, "{which}: faint text {}", c(t.faint, under));
+            }
+        }
+    }
 }

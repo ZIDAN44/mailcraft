@@ -127,12 +127,12 @@ impl MailApp {
                     .show(ui, |ui| self.update_bar(ui, &mut acts));
             }
         }
-        egui::Panel::bottom("status").exact_size(26.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3))).show(
-            ui,
-            |ui| {
+        egui::Panel::bottom("status")
+            .exact_size(26.0)
+            .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3)).stroke(egui::Stroke::new(1.0, t.border)))
+            .show(ui, |ui| {
                 self.status_bar(ui);
-            },
-        );
+            });
 
         if self.ui.backstage.is_some() {
             backstage::show(&self.session, &mut self.ui, ui, &mut acts);
