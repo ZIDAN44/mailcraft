@@ -130,3 +130,25 @@ fn older_certificates_are_capped_and_a_damaged_list_is_none() {
 fn testdata_pem(name: &str) -> Vec<u8> {
     der::pem::decode_vec(&testdata(name)).unwrap().1
 }
+
+/// Two certificates imported at once, on threads of their own as the pool runs them: neither is
+/// lost, the newer signs and encrypts.
+#[test]
+fn imports_at_once_lose_nothing() {
+    for _ in 0..20 {
+        let creds = std::sync::Arc::new(MemoryCredentials::default());
+        let a = account();
+        let threads: Vec<_> = ["riley-2025.p12", "riley-aes.p12", "zoe-aes.p12"]
+            .into_iter()
+            .map(|name| {
+                let (creds, a, me) = (creds.clone(), a.clone(), p12(name));
+                std::thread::spawn(move || take(creds.as_ref(), &a, &me, NOW).unwrap())
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap();
+        }
+        assert_eq!(older_list(creds.as_ref(), &a).len(), 2);
+        assert_eq!(kept(creds.as_ref(), &a).unwrap().certificate(), p12("riley-aes.p12").certificate());
+    }
+}

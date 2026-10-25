@@ -13,6 +13,14 @@ const OLDER: &str = "smime.older";
 /// The most older certificates kept: a renewal a year for a long time.
 pub(super) const OLDER_MAX: usize = 16;
 
+/// Held while the entries change: each S/MIME job runs on a thread of its own, and two imports
+/// at once would each read what the other was about to replace.
+static CHANGING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn changing() -> std::sync::MutexGuard<'static, ()> {
+    CHANGING.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn older_entry(fingerprint: &str) -> String {
     format!("{OLDER}.{}", fingerprint.replace(':', "").to_lowercase())
 }
@@ -116,6 +124,11 @@ fn keep_older(creds: &dyn Credentials, account: &AccountConfig, me: &Me) -> std:
 
 /// Forget an older certificate and its key.
 pub(super) fn forget_older(creds: &dyn Credentials, account: &AccountConfig, fingerprint: &str) {
+    let _changing = changing();
+    forget_older_entry(creds, account, fingerprint);
+}
+
+fn forget_older_entry(creds: &dyn Credentials, account: &AccountConfig, fingerprint: &str) {
     creds.delete_secret(account, &older_entry(fingerprint));
     let mut list = older_list(creds, account);
     list.retain(|f| f != fingerprint);
@@ -124,6 +137,7 @@ pub(super) fn forget_older(creds: &dyn Credentials, account: &AccountConfig, fin
 
 /// Every certificate of the account's and its key, as the account goes.
 pub(crate) fn forget_all(creds: &dyn Credentials, account: &AccountConfig) {
+    let _changing = changing();
     for fp in older_list(creds, account) {
         creds.delete_secret(account, &older_entry(&fp));
     }
@@ -147,6 +161,7 @@ fn newer(a: &[u8], b: &[u8], now: i64) -> bool {
 /// it and the one in use signs and encrypts, the other is kept for reading. Gives back what the
 /// account now has: the chain in use, and the older certificates.
 pub(super) fn take(creds: &dyn Credentials, account: &AccountConfig, me: &Me, now: i64) -> std::result::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>), String> {
+    let _changing = changing();
     let fp = fingerprint(me.certificate());
     match kept(creds, account) {
         // The same one again (a new PIN, a key that moved): kept as it is now.
@@ -156,11 +171,11 @@ pub(super) fn take(creds: &dyn Credentials, account: &AccountConfig, me: &Me, no
             keep_older(creds, account, &cur)?;
             keep(creds, account, me)?;
             // One kept for reading that now signs and encrypts isn't kept twice.
-            forget_older(creds, account, &fp);
+            forget_older_entry(creds, account, &fp);
         }
         Err(_) => {
             keep(creds, account, me)?;
-            forget_older(creds, account, &fp);
+            forget_older_entry(creds, account, &fp);
         }
     }
     Ok((kept(creds, account).map(|m| m.chain).unwrap_or_default(), older_certs(creds, account)))
@@ -173,12 +188,13 @@ pub(super) fn use_older(
     account: &AccountConfig,
     fingerprint: &str,
 ) -> std::result::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>), String> {
+    let _changing = changing();
     let older = kept_older(creds, account, fingerprint)?;
     if let Ok(cur) = kept(creds, account) {
         keep_older(creds, account, &cur)?;
     }
     keep(creds, account, &older)?;
-    forget_older(creds, account, fingerprint);
+    forget_older_entry(creds, account, fingerprint);
     Ok((older.chain, older_certs(creds, account)))
 }
 
@@ -188,6 +204,7 @@ pub(super) fn forget_wrong_pin<T>(creds: &dyn Credentials, account: &AccountConf
     if !matches!(done, Err(e) if e.contains(PIN_WRONG)) {
         return;
     }
+    let _changing = changing();
     let entry = older.map(older_entry).unwrap_or_else(|| SECRET.to_string());
     let Some(json) = creds.get_secret(account, &entry) else { return };
     let Ok(mut k) = serde_json::from_str::<Kept>(&json) else { return };
