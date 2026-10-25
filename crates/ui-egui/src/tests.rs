@@ -406,3 +406,46 @@ mod reading;
 mod updates;
 mod windows;
 mod writing;
+
+/// Issue #8: the classic ribbon on every tab and module, light and dark, in a wide window and
+/// a narrow one (it scrolls rather than dropping labels): drawn without trouble and taller than
+/// the simplified one; switched off, the simplified ribbon comes back.
+#[test]
+fn the_classic_ribbon_draws_every_tab() {
+    let (mut a, dir) = app("classic-ribbon");
+    let ctx = egui::Context::default();
+    let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+    };
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let simplified = a.ui.ribbon_rect.expect("the ribbon is drawn").height();
+    a.run("view.classicRibbon", json!({"on": true}));
+    assert!(a.session.prefs.classic_ribbon);
+    for dark in [Some(false), Some(true)] {
+        a.ui.dark = dark;
+        for w in [1280.0, 520.0] {
+            for module in ["mail", "calendar", "people", "notes"] {
+                a.run("view.module", json!({"name": module}));
+                for tab in [crate::RibbonTab::Home, crate::RibbonTab::SendReceive, crate::RibbonTab::View] {
+                    a.ui.tab = tab;
+                    for _ in 0..3 {
+                        sized(&ctx, &mut a, w);
+                    }
+                }
+            }
+            a.run("view.module", json!({"name": "mail"}));
+            a.ui.tab = crate::RibbonTab::Home;
+            sized(&ctx, &mut a, w);
+            assert!(a.ui.ribbon_rect.unwrap().height() > simplified + 30.0, "{} vs {simplified}", a.ui.ribbon_rect.unwrap().height());
+        }
+    }
+    a.run("view.classicRibbon", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    assert!((a.ui.ribbon_rect.unwrap().height() - simplified).abs() < 1.0);
+    let _ = std::fs::remove_dir_all(dir);
+}

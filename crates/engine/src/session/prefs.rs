@@ -36,6 +36,9 @@ pub struct Prefs {
     pub show_preview: bool,
     /// Tighter rows.
     pub compact: bool,
+    /// The classic ribbon (issue #8): big icons over their labels, in named groups, instead of
+    /// one row of small ones.
+    pub classic_ribbon: bool,
     /// Ask before deleting permanently.
     pub confirm_permanent_delete: bool,
     /// Desktop notifications for new mail in an Inbox.
@@ -132,6 +135,7 @@ impl Default for Prefs {
             read_after_secs: 0,
             show_preview: true,
             compact: false,
+            classic_ribbon: false,
             confirm_permanent_delete: true,
             favorites: None,
             notify: true,

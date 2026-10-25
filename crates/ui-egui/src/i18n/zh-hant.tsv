@@ -1195,3 +1195,16 @@ month	May	5月
 	Some providers want an app password for calendars: make one in your account's settings there.	部分服務商要求行事曆使用應用程式密碼：請在其帳戶設定中建立。
 	The calendar server has its own user name and password	行事曆伺服器有自己的使用者名稱與密碼
 	Your provider's calendar server wasn't found: give its address	找不到服務商的行事曆伺服器：請填寫其位址
+	Classic ribbon	傳統功能區
+	Big buttons with their names under them, in named groups	依具名群組排列、名稱顯示在下方的大按鈕
+	New	新增
+	Respond	回應
+	Tags	標記
+	Find	尋找
+	Send & Receive	傳送和接收
+	Preferences	喜好設定
+	Scope	範圍
+	Refine	縮小範圍
+	Layout	版面配置
+	Arrangement	排列
+	Appearance	外觀

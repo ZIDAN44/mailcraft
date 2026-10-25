@@ -2,7 +2,7 @@
 
 use crate::*;
 
-use super::ribbon::{RIBBON_H, module_switch, module_switch_vertical};
+use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_vertical};
 
 impl MailApp {
     /// The whole window.
@@ -106,10 +106,16 @@ impl MailApp {
                     // Too wide for the window: its last buttons lose their labels, as few as it
                     // takes (worked out from this frame for the next).
                     // One height on every tab: switching tabs doesn't nudge the window below.
-                    ui.set_min_height(RIBBON_H);
+                    let classic = self.session.prefs.classic_ribbon;
+                    ui.set_min_height(if classic { RIBBON_H_CLASSIC } else { RIBBON_H });
                     let id = widgets::ribbon_fit_id();
-                    let start =
-                        widgets::RibbonFit { active: true, icons_from: self.ui.ribbon_icons_from, right: ui.max_rect().left(), ..Default::default() };
+                    let start = widgets::RibbonFit {
+                        active: true,
+                        classic,
+                        icons_from: self.ui.ribbon_icons_from,
+                        right: ui.max_rect().left(),
+                        ..Default::default()
+                    };
                     ui.ctx().data_mut(|d| d.insert_temp(id, start));
                     self.ribbon(ui, &mut acts);
                     let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));

@@ -122,6 +122,9 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, false, tl!("Compact list"), None, &mut |ui| {
             switch(ui, s.prefs.compact, tl!("Compact list"), "view.compact", acts);
         });
+        setting(ui, false, tl!("Classic ribbon"), Some(tl!("Big buttons with their names under them, in named groups")), &mut |ui| {
+            switch(ui, s.prefs.classic_ribbon, tl!("Classic ribbon"), "view.classicRibbon", acts);
+        });
         // When the reading pane marks mail read, as Outlook's Reading Pane options: when shown
         // (after a wait), once another message is chosen, or not at all (only a message opened
         // in its own window is then).

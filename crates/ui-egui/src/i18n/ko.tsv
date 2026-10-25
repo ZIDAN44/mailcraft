@@ -1195,3 +1195,16 @@ month	May	5월
 	Some providers want an app password for calendars: make one in your account's settings there.	일부 제공업체는 일정에 앱 암호를 요구합니다: 그곳 계정 설정에서 만드세요.
 	The calendar server has its own user name and password	일정 서버에 별도의 사용자 이름과 암호가 있음
 	Your provider's calendar server wasn't found: give its address	제공업체의 일정 서버를 찾지 못했습니다: 주소를 입력하세요
+	Classic ribbon	클래식 리본
+	Big buttons with their names under them, in named groups	이름 있는 그룹에 이름이 아래에 표시되는 큰 단추
+	New	새로 만들기
+	Respond	응답
+	Tags	태그
+	Find	찾기
+	Send & Receive	보내기/받기
+	Preferences	기본 설정
+	Scope	범위
+	Refine	구체화
+	Layout	레이아웃
+	Arrangement	정렬
+	Appearance	모양

@@ -12,6 +12,11 @@ use crate::{Action, Dialog};
 #[derive(Clone, Debug, Default)]
 pub struct RibbonFit {
     pub active: bool,
+    /// The classic ribbon: big icons over their labels, every label shown (it scrolls when it
+    /// doesn't fit), groups named underneath.
+    pub classic: bool,
+    /// Where the group being drawn started (classic: its name is centred under it).
+    pub group_from: f32,
     pub icons_from: usize,
     pub count: usize,
     pub labels: Vec<f32>,
@@ -48,8 +53,60 @@ fn ribbon_button(ui: &Ui, label_width: f32) -> bool {
         let i = f.count;
         f.count += 1;
         f.labels.push(label_width + 4.0);
-        i >= f.icons_from
+        !f.classic && i >= f.icons_from
     })
+}
+
+/// Whether the ribbon being drawn is the classic one.
+fn classic(ui: &Ui) -> bool {
+    ui.ctx().data_mut(|d| d.get_temp::<RibbonFit>(ribbon_fit_id()).is_some_and(|f| f.active && f.classic))
+}
+
+/// The classic ribbon's buttons: this tall, the group names under them.
+pub const CLASSIC_BUTTON_H: f32 = 60.0;
+pub const CLASSIC_CAPTION_H: f32 = 22.0;
+
+/// A classic ribbon button: a big icon over its label, as wide as the label needs (a short one
+/// still a comfortable target). `fill`: the filled New button.
+fn big_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool, fill: bool) -> Response {
+    let font = if fill { theme::bold(12.5) } else { theme::regular(12.5) };
+    let text = if fill {
+        t.on_accent
+    } else if enabled {
+        t.text
+    } else {
+        t.faint
+    };
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, text);
+    let size = vec2((galley.size().x + 16.0).max(54.0), CLASSIC_BUTTON_H);
+    let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    reached(ui, rect);
+    if fill {
+        let c = if !enabled {
+            t.faint
+        } else if resp.hovered() {
+            t.accent.gamma_multiply(0.88)
+        } else {
+            t.accent
+        };
+        ui.painter().rect_filled(rect, 6.0, c);
+    } else if on {
+        ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.5)), egui::StrokeKind::Inside);
+    } else {
+        hover_fill(ui, &resp, rect, t, enabled);
+    }
+    let icon_color = if fill {
+        t.on_accent
+    } else if enabled {
+        t.accent
+    } else {
+        t.faint
+    };
+    let ir = egui::Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + 19.0), vec2(26.0, 26.0));
+    icons::paint(ui.painter(), ir, icon, icon_color);
+    let at = egui::pos2(rect.center().x - galley.size().x / 2.0, rect.bottom() - 6.0 - galley.size().y);
+    ui.painter().galley_with_override_text_color(at, galley, text);
+    resp
 }
 
 fn reached(ui: &Ui, rect: egui::Rect) {
@@ -88,6 +145,10 @@ fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, 
 
 pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
+    if classic(ui) {
+        ribbon_button(ui, 0.0);
+        return big_button(ui, icon, label, t, enabled, false, false);
+    }
     let font = theme::regular(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     if ribbon_button(ui, galley.size().x) {
@@ -107,6 +168,10 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
 /// A ribbon button that stays lit while it's on (a search term in the box, say).
 pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -> Response {
     let label = tl!(label);
+    if classic(ui) {
+        ribbon_button(ui, 0.0);
+        return big_button(ui, icon, label, t, true, on, false);
+    }
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
     if ribbon_button(ui, galley.size().x) {
         return icon_button(ui, icon, label, t, true, on);
@@ -146,6 +211,9 @@ pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
 /// The filled "New mail" button.
 pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
+    if classic(ui) {
+        return big_button(ui, icon, label, t, enabled, false, true);
+    }
     let font = theme::bold(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.on_accent);
     let size = vec2(galley.size().x + 40.0, 30.0);
@@ -194,6 +262,15 @@ pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
 
 /// A small icon button inside panes.
 pub fn tiny_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
+    // On the classic ribbon, a button's drop-down arrow is as tall as the button, beside it.
+    if classic(ui) {
+        let (rect, resp) = ui.allocate_exact_size(vec2(18.0, CLASSIC_BUTTON_H), Sense::click());
+        reached(ui, rect);
+        hover_fill(ui, &resp, rect, t, true);
+        let ir = egui::Rect::from_center_size(egui::pos2(rect.center().x, rect.bottom() - 14.0), vec2(12.0, 12.0));
+        icons::paint(ui.painter(), ir, icon, if resp.hovered() { t.text } else { t.dim });
+        return resp.on_hover_text(tl!(tip));
+    }
     let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
@@ -325,9 +402,37 @@ pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: 
 
 pub fn group_sep(ui: &mut Ui, t: &Tokens) {
     ui.add_space(4.0);
-    let (r, _) = ui.allocate_exact_size(vec2(1.0, 26.0), Sense::hover());
+    let h = if classic(ui) { CLASSIC_BUTTON_H + CLASSIC_CAPTION_H } else { 26.0 };
+    let (r, _) = ui.allocate_exact_size(vec2(1.0, h), Sense::hover());
     ui.painter().rect_filled(r, 0.0, t.border);
     ui.add_space(4.0);
+    start_group(ui);
+}
+
+/// A ribbon group ends: on the classic ribbon its name (translated) is written under it; then
+/// the line before the next one, unless it's the `last`.
+pub fn group(ui: &mut Ui, t: &Tokens, name: &str, last: bool) {
+    if classic(ui) {
+        let from = ui.ctx().data_mut(|d| d.get_temp::<RibbonFit>(ribbon_fit_id()).map_or(0.0, |f| f.group_from));
+        let to = ui.cursor().left();
+        let y = ui.max_rect().top() + CLASSIC_BUTTON_H + CLASSIC_CAPTION_H / 2.0 + 4.0;
+        let mid = if from > 0.0 && from < to { (from + to) / 2.0 } else { to };
+        ui.painter().text(egui::pos2(mid, y), egui::Align2::CENTER_CENTER, tl!(name), theme::regular(11.5), t.faint);
+    }
+    if !last {
+        group_sep(ui, t);
+    }
+}
+
+/// Where the next group starts (the classic ribbon centres its name under it).
+pub fn start_group(ui: &Ui) {
+    let x = ui.cursor().left();
+    ui.ctx().data_mut(|d| {
+        if let Some(mut f) = d.get_temp::<RibbonFit>(ribbon_fit_id()).filter(|f| f.active) {
+            f.group_from = x;
+            d.insert_temp(ribbon_fit_id(), f);
+        }
+    });
 }
 
 /// A round avatar with initials.

@@ -24,6 +24,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"on": s.prefs.compact}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.classicRibbon", "Classic ribbon", "View › Layout", |s, v| {
+            s.prefs.classic_ribbon = p::bool(v, "on").unwrap_or(!s.prefs.classic_ribbon);
+            Ok(json!({"on": s.prefs.classic_ribbon}))
+        })
+        .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.arrange", "Arrange by", "View › Arrangement", |s, v| {
             let by = p::req_str(v, "by")?;
             s.prefs.arrange =

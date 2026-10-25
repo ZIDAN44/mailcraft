@@ -156,6 +156,7 @@ impl MailApp {
         egui::ScrollArea::horizontal().id_salt("ribbon").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
+                widgets::start_group(ui);
                 match ust.tab {
                     RibbonTab::Home => {
                         if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled("mail.new"))
@@ -180,7 +181,7 @@ impl MailApp {
                                 ui.close();
                             }
                         });
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "New", false);
                         if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
                             if confirm_delete {
                                 acts.push(Action::Dialog(Dialog::ConfirmDelete { count: s.selection.len() }));
@@ -227,7 +228,7 @@ impl MailApp {
                         // The Junk drop-down: the sender's lists, as Outlook's.
                         let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Junk options", &t);
                         egui::Popup::menu(&r).show(|ui| junk_menu(ui, s, acts));
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Delete", false);
                         if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled("mail.move"))
                             .on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)"))
                             .clicked()
@@ -237,7 +238,7 @@ impl MailApp {
                         // Quick Steps: each done to the selection in one click (Ctrl+Shift+1…9).
                         let r = widgets::tool_button(ui, Icon::Steps, "Quick steps", &t, true);
                         egui::Popup::menu(&r).show(|ui| quick_steps_menu(ui, s, acts));
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Move", false);
                         for (id, icon, label, tip) in [
                             ("mail.reply", Icon::Reply, "Reply", "Reply (Ctrl+R)"),
                             ("mail.replyAll", Icon::ReplyAll, "Reply all", "Reply all (Ctrl+Shift+R)"),
@@ -247,7 +248,7 @@ impl MailApp {
                                 acts.push(Action::Run(id, json!({})));
                             }
                         }
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Respond", false);
                         let first_unread = s.selected().first().is_some_and(|m| !m.flags.seen);
                         let (ricon, rlabel) = if first_unread { (Icon::Read, "Mark read") } else { (Icon::Unread, "Mark unread") };
                         if widgets::tool_button(ui, ricon, rlabel, &t, enabled("mail.toggleRead"))
@@ -274,6 +275,7 @@ impl MailApp {
                         }
                         let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
                         egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
+                        widgets::group(ui, &t, "Tags", false);
                         // Show only some mail, as Outlook's Filter Email.
                         let r = widgets::tool_button(ui, Icon::Funnel, "Filter", &t, true);
                         egui::Popup::menu(&r).show(|ui| {
@@ -284,6 +286,7 @@ impl MailApp {
                                 }
                             }
                         });
+                        widgets::group(ui, &t, "Find", true);
                     }
                     RibbonTab::SendReceive => {
                         if widgets::tool_button(ui, Icon::Sync, "Send / Receive all folders", &t, enabled("mail.sync")).on_hover_text("F9").clicked()
@@ -299,9 +302,9 @@ impl MailApp {
                         {
                             acts.push(Action::Run("outbox.send", json!({})));
                         }
+                        widgets::group(ui, &t, "Send & Receive", !ust.has_files);
                         // Working offline: no connections; mail you send waits in the Outbox.
                         if ust.has_files {
-                            widgets::group_sep(ui, &t);
                             let off = s.prefs.work_offline;
                             if ui
                                 .selectable_label(off, tl!("Work offline"))
@@ -310,6 +313,7 @@ impl MailApp {
                             {
                                 acts.push(Action::Run("mail.workOffline", json!({"on": !off})));
                             }
+                            widgets::group(ui, &t, "Preferences", true);
                         }
                     }
                     RibbonTab::Search => {
@@ -321,7 +325,7 @@ impl MailApp {
                                 acts.push(Action::Run("search.run", json!({"query": query, "scope": scope.code()})));
                             }
                         }
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Scope", false);
                         // Terms to type a name after: put in the box, ready for it.
                         for (icon, label, term) in
                             [(Icon::Person, "From", "from:"), (Icon::Send, "Sent To", "to:"), (Icon::Read, "Subject", "subject:")]
@@ -363,12 +367,13 @@ impl MailApp {
                                 }
                             }
                         }
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Refine", false);
                         if widgets::tool_button(ui, Icon::Close, "Close Search", &t, true).clicked() {
                             acts.push(Action::Run("search.clear", json!({})));
                             ust.search_text.clear();
                             ust.tab = RibbonTab::Home;
                         }
+                        widgets::group(ui, &t, "Close", true);
                     }
                     RibbonTab::View => {
                         ui.label(RichText::new(tl!("Reading pane")).color(t.dim));
@@ -377,7 +382,7 @@ impl MailApp {
                                 acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
                             }
                         }
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Reading pane", false);
                         if ui
                             .selectable_label(s.prefs.focused_inbox, tl!("Focused Inbox"))
                             .on_hover_text(tl!("Put newsletters and automatic mail in Other"))
@@ -401,19 +406,29 @@ impl MailApp {
                         if ui.selectable_label(!s.prefs.folder_pane_minimized, tl!("Folder pane")).clicked() {
                             acts.push(Action::Run("view.folderPane", json!({})));
                         }
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Layout", false);
                         let r = ui.button(tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label())));
                         egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
                         if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
                             acts.push(Action::Run("view.reverseSort", json!({})));
                         }
-                        widgets::group_sep(ui, &t);
+                        widgets::group(ui, &t, "Arrangement", false);
                         ui.label(RichText::new(tl!("Theme")).color(t.dim));
                         for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
                             if ui.selectable_label(ust.dark == v, tl!(label)).clicked() {
                                 acts.push(Action::SetDark(v));
                             }
                         }
+                        // Big icons over their labels, in named groups (Outlook's classic
+                        // ribbon), or one row of small ones.
+                        if ui
+                            .selectable_label(s.prefs.classic_ribbon, tl!("Classic ribbon"))
+                            .on_hover_text(tl!("Big buttons with their names under them, in named groups"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("view.classicRibbon", json!({})));
+                        }
+                        widgets::group(ui, &t, "Appearance", true);
                     }
                 }
             });
@@ -423,6 +438,8 @@ impl MailApp {
 
 /// The ribbon's height (its tabs and its row of buttons), the same whichever tab is shown.
 pub(crate) const RIBBON_H: f32 = 65.0;
+/// The classic ribbon's: its tabs, then big buttons with the groups' names under them.
+pub(crate) const RIBBON_H_CLASSIC: f32 = RIBBON_H - 30.0 + widgets::CLASSIC_BUTTON_H + widgets::CLASSIC_CAPTION_H;
 
 /// Mail, Calendar and People, at the bottom of the side pane.
 pub(crate) fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>) {

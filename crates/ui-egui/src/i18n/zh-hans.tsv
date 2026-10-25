@@ -1192,3 +1192,16 @@ month	May	5月
 	Some providers want an app password for calendars: make one in your account's settings there.	部分服务商要求日历使用应用专用密码：请在其账户设置中创建。
 	The calendar server has its own user name and password	日历服务器有自己的用户名和密码
 	Your provider's calendar server wasn't found: give its address	没有找到服务商的日历服务器：请填写其地址
+	Classic ribbon	经典功能区
+	Big buttons with their names under them, in named groups	按命名分组排列、名称显示在下方的大按钮
+	New	新建
+	Respond	响应
+	Tags	标记
+	Find	查找
+	Send & Receive	发送和接收
+	Preferences	首选项
+	Scope	范围
+	Refine	优化
+	Layout	布局
+	Arrangement	排列
+	Appearance	外观

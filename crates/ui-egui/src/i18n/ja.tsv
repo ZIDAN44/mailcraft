@@ -1192,3 +1192,16 @@ month	May	5月
 	Some providers want an app password for calendars: make one in your account's settings there.	予定表にアプリ パスワードが必要なプロバイダーもあります: プロバイダーのアカウント設定で作成してください。
 	The calendar server has its own user name and password	予定表サーバーに専用のユーザー名とパスワードがある
 	Your provider's calendar server wasn't found: give its address	プロバイダーの予定表サーバーが見つかりません: アドレスを入力してください
+	Classic ribbon	クラシック リボン
+	Big buttons with their names under them, in named groups	名前付きのグループに、名前を下に表示した大きなボタン
+	New	新規
+	Respond	返信
+	Tags	タグ
+	Find	検索
+	Send & Receive	送受信
+	Preferences	設定
+	Scope	範囲
+	Refine	絞り込み
+	Layout	レイアウト
+	Arrangement	並べ替え
+	Appearance	外観
