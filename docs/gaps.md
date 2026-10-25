@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.24, 2026-10-24._
+_Status: v0.25, 2026-10-25._
 
 ## Open
 
@@ -19,6 +19,7 @@ _Status: v0.24, 2026-10-24._
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
 | 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificate stays locked until its password is given again. |
+| 8 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 
 ## Done
 
@@ -857,3 +858,24 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
 - **In the browser:** the `.p12` itself is kept (it's encrypted with its password, which isn't),
   and opened with its password for the page; signing, encrypting and decrypting are the desktop's
   code. After a reload, Unlock… gives the password again.
+
+### v0.25 — Updates that finish
+- **Said when it's ready:** a test build's downloaded and checked update brings a bar above the
+  panes (*Restart now*, *Later*), and the system's notification when MailCraft isn't in front;
+  the status bar shows the download's progress. Before, it waited silently for MailCraft to
+  close, so someone who never closed it never got it.
+- **Closing asks:** *Install MailCraft 0.25.0 as it closes?* (Update and close, Close without
+  updating, Cancel); with a download still going, that it pauses and carries on next time. If it
+  finishes while asked, the question becomes the one about installing.
+- **Downloads that carry on:** the installer goes to a partial file as it comes, and one cut off
+  (the connection, or MailCraft closed early on a slow connection) carries on with an HTTP range
+  request, in this run or the next, before its SHA-256 and size are checked. Checks go on hourly
+  while MailCraft is open, after a failure from 5 minutes, doubling.
+- **Windows, macOS and Linux:** the MSI still installs for everyone, and the bar and the close
+  question say Windows asks for an administrator. An AppImage in a folder this user can't write is
+  left alone; macOS finds Craft apps in `~/Applications` too. What each platform does:
+  [docs/updates.md](updates.md).
+- **Checked:** unit tests for the streamed download, range resumes, wrong files, back-off, the
+  install kinds and the helper scripts; headless UI tests for the bar, the notification and every
+  close question. By hand: a test build updated a portable copy to `v0.24.0-test.21` from GitHub
+  through the bar, the close question and Restart now, and resumed a 54 MB download from 20 MB.

@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.24 — Signed and encrypted mail (S/MIME) (2026-10-24). Each milestone below is a version: v0.1 was
+**Stage:** v0.25 — Updates that finish (2026-10-25). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 194 (`mailcraft-cli commands`) |
-| Tests | 547 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 556 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -137,7 +137,14 @@ local-first, media-aware v1); the fuller request is
    Keychain and in the Windows certificate store, their keys staying there; S/MIME in the
    browser, its `.p12` kept locked with its password. Checked against OpenSSL both ways, through
    a real server, against SoftHSM 2 and against Windows' CNG.
-25. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+25. **v0.25 — Updates that finish** ✅ A test build's update no
+   longer waits in silence for MailCraft to close: once it's downloaded and checked, a bar offers
+   Restart now (and the system's notification says so when MailCraft isn't in front); closing
+   asks whether to install it, and says when a download is still going. The download carries on
+   where it stopped, in the same run or the next, and checks go on hourly while MailCraft stays
+   open, sooner after a failure ([docs/updates.md](docs/updates.md)). On macOS and Linux an app
+   in a folder the user can write updates itself, without a password.
+26. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -390,3 +397,11 @@ local-first, media-aware v1); the fuller request is
   certificate store (`rustls-cng` for listing and signing, as PdfCraft does, and one isolated
   `unsafe` file for CNG's decrypting and EC agreement, as PhotoCraft's tablet crate is), and the
   macOS Keychain's EC decrypting the same way; tested in CNG and in the real store.
+- **2026-10-25** — **v0.25**, updates that finish (`apps/mailcraft/src/self_update.rs`,
+  [docs/updates.md](docs/updates.md)): the installer downloaded to a partial file and carried on
+  with HTTP range requests (`mailcraft_net::updates::download`, a streamed GET in
+  `http/streamed.rs`), as ArtCraft Launcher fetches the Craft apps; a bar and a notification when
+  it's ready, a question on closing (install, keep for next time, or a download that carries on
+  next time); checks hourly while open, backing off from 5 minutes after a failure. Tried for
+  real: a test build updated a portable copy to `v0.24.0-test.21` from GitHub through the bar,
+  the close question and Restart now, and resumed a 54 MB download from 20 MB.
