@@ -877,5 +877,10 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   [docs/updates.md](updates.md).
 - **Checked:** unit tests for the streamed download, range resumes, wrong files, back-off, the
   install kinds and the helper scripts; headless UI tests for the bar, the notification and every
-  close question. By hand: a test build updated a portable copy to `v0.24.0-test.21` from GitHub
+  close question (Restart now and Cancel included); a fuzz target, `http`, for HTTP answers read
+  whole and streamed, a download's `Content-Range` and what the updater reads from GitHub (2.4
+  million runs clean). An independent review of the whole change found six problems, each fixed
+  with a test where one fits: a failed download not tried again in the same run, Restart now
+  outliving a cancelled close, a macOS swap that could put a partial copy in place, paths with a
+  typographic apostrophe, a server answering with a part from the start, and a race at closing. By hand: a test build updated a portable copy to `v0.24.0-test.21` from GitHub
   through the bar, the close question and Restart now, and resumed a 54 MB download from 20 MB.
