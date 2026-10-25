@@ -326,7 +326,12 @@ fn quoted_printable(text: &str) -> Vec<u8> {
 /// `hcp_baseline`), the Subject outside becomes `[...]` and Comments and Keywords go; `HP-Outer`
 /// fields inside say what was left outside, and a Legacy Display part repeats the subject for
 /// programs that don't read header protection. Returns the outer fields and the entity to protect.
+///
+/// What sent the message (`X-Mailer`, `User-Agent`) isn't copied inside: it says nothing to the
+/// reader, and servers strip it for privacy (docker-mailserver's Postfix does, and Postfix applies
+/// such rules to every MIME part's header too), which would break a clear signature over a copy.
 pub fn protect_headers(outer: &[u8], entity: &[u8], encrypted: bool, hide_subject: bool) -> (Vec<u8>, Vec<u8>) {
+    const NOT_PROTECTED: [&str; 2] = ["x-mailer", "user-agent"];
     let entity = crlf(entity);
     let (head, body) = entity_parts(&entity);
     let content: Vec<(String, Vec<u8>)> = fields(head).into_iter().filter(|(n, _)| n.starts_with("content-")).collect();
@@ -345,13 +350,13 @@ pub fn protect_headers(outer: &[u8], entity: &[u8], encrypted: bool, hide_subjec
         };
         new_outer.extend_from_slice(&shown);
         new_outer.extend_from_slice(b"\r\n");
-        if encrypted {
+        if encrypted && !NOT_PROTECTED.contains(&name.as_str()) {
             hp_outer.push([b"HP-Outer: ".as_slice(), &shown].concat());
         }
     }
     let hp = if encrypted { "cipher" } else { "clear" };
     let mut out = Vec::new();
-    for (_, f) in &given {
+    for (_, f) in given.iter().filter(|(n, _)| !NOT_PROTECTED.contains(&n.as_str())) {
         out.extend_from_slice(f);
         out.extend_from_slice(b"\r\n");
     }

@@ -221,9 +221,17 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
     let mut c = crate::imap::Client::connect(&imap).unwrap();
     c.login(riley, "pw").unwrap();
     c.select("INBOX", true).unwrap();
+    // A real server delivers a moment after it accepts (Postfix to Dovecot); GreenMail at once.
     let mut raw_of = |subject: &str| -> Vec<u8> {
-        let uids = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap();
-        let uid = uids.last().copied().unwrap_or_else(|| panic!("{subject} wasn't delivered"));
+        let end = Instant::now() + Duration::from_secs(30);
+        let uid = loop {
+            c.select("INBOX", true).unwrap();
+            if let Some(u) = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap().last().copied() {
+                break u;
+            }
+            assert!(Instant::now() < end, "{subject} wasn't delivered");
+            std::thread::sleep(Duration::from_millis(300));
+        };
         c.uid_fetch(&uid.to_string(), "BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap()
     };
     let key = |uid: u32| mailcraft_model::MessageKey { account: "r1".into(), folder: "INBOX".into(), validity: 1, uid };
