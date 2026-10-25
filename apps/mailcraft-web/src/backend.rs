@@ -514,6 +514,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         Job::Start { .. }
         | Job::SmtpPassword { .. }
+        | Job::DavPassword { .. }
         | Job::CheckUpdates
         | Job::StopSearch
         | Job::Remove { .. }

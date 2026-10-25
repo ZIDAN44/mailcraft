@@ -329,6 +329,14 @@ impl Pool {
                 self.configs.insert(account.id.clone(), account);
             }
             Job::Start { account, password } => self.start(account, password),
+            Job::DavPassword { account, password } => {
+                if let Err(e) = self.creds.set_secret(&account, DAV_SECRET, &password.0) {
+                    self.sink.emit(Event::Notice {
+                        account: account.id.clone(),
+                        message: format!("the calendar server's password could not be saved in the keychain: {e}"),
+                    });
+                }
+            }
             Job::SmtpPassword { account, password } => {
                 if let Err(e) = self.creds.set_smtp(&account, &password.0) {
                     self.sink.emit(Event::Notice {
@@ -342,8 +350,9 @@ impl Pool {
                 if let Some(c) = self.configs.remove(&account) {
                     self.creds.delete(&c);
                     self.creds.delete_smtp(&c);
-                    // Its certificates' keys go with it.
+                    // Its certificates' keys and its calendar server's password go with it.
                     smime::forget_all(self.creds.as_ref(), &c);
+                    self.creds.delete_secret(&c, DAV_SECRET);
                 }
             }
             Job::FetchBody { key } if !self.workers.contains_key(&key.account) => {
@@ -530,6 +539,9 @@ mod connect;
 mod remote;
 mod send;
 mod smime;
+
+/// The keychain entry of an account's calendar and contacts server's own password.
+pub(crate) const DAV_SECRET: &str = "dav";
 mod sync;
 mod threads;
 

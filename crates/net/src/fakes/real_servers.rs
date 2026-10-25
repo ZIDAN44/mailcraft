@@ -256,3 +256,72 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
     }
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Issues #6 and #7 through a real mail server and a real calendar server
+/// (`MAILCRAFT_REAL_DAV="127.0.0.1:3143 http://127.0.0.1:5232/zoe@posteo.example/work/ zoe@posteo.example app-pw"`:
+/// GreenMail's IMAP, any password; Radicale, its own password; a calendar "Work" with "Posteo
+/// planning" in it and an address book with Ana Lima). The calendar address is given by hand as a
+/// Posteo user copies it (one calendar's), the contacts address as the server's root, the
+/// password the calendar server's own: both are found and read. A wrong one is said. Then a
+/// renewed certificate: the old one, imported after, is kept for reading, and mail sent to it
+/// opens with its key.
+#[test]
+#[ignore]
+fn real_calendar_by_hand_and_a_renewed_certificate() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_DAV") else {
+        eprintln!("MAILCRAFT_REAL_DAV isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [imap, calendar, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_DAV: imap calendar user password") };
+    let (host, port) = imap.rsplit_once(':').unwrap();
+    let imap = ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None };
+    let root = calendar.split("/zoe").next().unwrap().to_string() + "/";
+    let store = crate::fake::store("real-dav");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let account = |id: &str| AccountConfig {
+        id: id.into(),
+        email: (*user).into(),
+        username: (*user).into(),
+        imap: imap.clone(),
+        smtp: imap.clone(),
+        dav: Some(mailcraft_model::DavSettings { caldav: (*calendar).into(), carddav: root.clone(), username: Some((*user).into()) }),
+        ..Default::default()
+    };
+    let a = account("d1");
+    pool.submit(Job::DavPassword { account: a.clone(), password: Secret((*password).into()) });
+    pool.submit(Job::Start { account: a.clone(), password: Some(Secret("mail-pw".into())) });
+    let seen = until(&pool, 60, "calendars and contacts", |e| matches!(e, Event::DavSynced { account, .. } if account == "d1"));
+    let Some(Event::DavSynced { sync, .. }) = seen.last() else { panic!() };
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
+    assert_eq!(sync.caldav_home.as_deref().map(|h| h.replace("%40", "@")), Some(home), "one calendar's address leads to its home");
+    assert!(sync.calendars.as_ref().is_some_and(|c| c.iter().any(|c| c.name == "Work")), "{:?}", sync.calendars);
+    assert!(sync.events.iter().any(|e| e.event.summary == "Posteo planning"), "{:?}", sync.events);
+    assert!(sync.cards.iter().any(|c| c.card.display() == "Ana Lima"), "{:?}", sync.cards);
+    // The wrong password for the calendar server: said, not taken for "none here".
+    let b = account("d2");
+    pool.submit(Job::DavPassword { account: b.clone(), password: Secret("wrong".into()) });
+    pool.submit(Job::Start { account: b, password: Some(Secret("mail-pw".into())) });
+    let seen =
+        until(&pool, 60, "the refusal", |e| matches!(e, Event::Notice { account, message } if account == "d2" && message.contains("calendar")));
+    eprintln!("{:?}", seen.last());
+
+    // A renewed certificate: the new one first, then last year's, kept for reading.
+    let data = |n: &str| std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../smime/testdata").join(n)).unwrap();
+    for name in ["riley-aes.p12", "riley-2025.p12"] {
+        pool.submit(Job::ImportIdentity { account: a.clone(), data: data(name), password: Secret("secret".into()) });
+        let seen = until(&pool, 30, "the certificate", |e| matches!(e, Event::Identity { .. }));
+        let Some(Event::Identity { error: None, older, .. }) = seen.last() else { panic!("{seen:?}") };
+        assert_eq!(older.len(), usize::from(name == "riley-2025.p12"), "{name}");
+    }
+    let old = mailcraft_smime::read_p12(&data("riley-2025.p12"), "secret").unwrap();
+    let body = b"Content-Type: text/plain\r\n\r\nSent before the renewal.\r\n";
+    let cms = mailcraft_smime::encrypt(body, std::slice::from_ref(&old.chain[0]), mailcraft_smime::Cipher::Aes256Gcm, &mut rand_core::OsRng).unwrap();
+    let key = mailcraft_model::MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 9 };
+    pool.submit(Job::Decrypt { account: a, key, cms });
+    let seen = until(&pool, 30, "decrypted", |e| matches!(e, Event::Decrypted { .. }));
+    let Some(Event::Decrypted { content: Some(c), error: None, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert_eq!(c.0, body);
+    let _ = std::fs::remove_dir_all(store.root());
+}

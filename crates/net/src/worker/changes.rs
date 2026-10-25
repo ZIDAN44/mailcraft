@@ -185,7 +185,12 @@ impl Worker {
             | Job::UseHeldKey { .. }
             | Job::CheckUpdates
             | Job::StopSearch => {}
-            Job::Start { .. } | Job::SmtpPassword { .. } | Job::Remove { .. } | Job::WorkOffline { .. } | Job::SetSync { .. } => {}
+            Job::Start { .. }
+            | Job::SmtpPassword { .. }
+            | Job::DavPassword { .. }
+            | Job::Remove { .. }
+            | Job::WorkOffline { .. }
+            | Job::SetSync { .. } => {}
         }
     }
 

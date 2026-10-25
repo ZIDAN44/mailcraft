@@ -1,6 +1,7 @@
 //! Calendars and address books on the account's server: CalDAV (RFC 4791) and CardDAV
-//! (RFC 6352) over WebDAV (RFC 4918), found as RFC 6764 describes (an SRV record, then the
-//! domain's `/.well-known/` addresses), signed in with the account's password.
+//! (RFC 6352) over WebDAV (RFC 4918), found as RFC 6764 describes (an SRV record and the path
+//! its TXT record gives, then the `/.well-known/` addresses), or at an address the user gave
+//! (issue #7); signed in with the account's password, or one of its own.
 //!
 //! A sync first sends what changed here (deletions, then edits and new items, each guarded by
 //! the item's etag so a newer copy on the server is never overwritten), then reads every
@@ -199,6 +200,16 @@ fn end_tag(
     }
 }
 
+/// Where an account's calendars and contacts are looked for: from its address and mail server,
+/// or at the addresses the user gave.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Where<'a> {
+    pub email: &'a str,
+    pub imap_host: &'a str,
+    pub caldav: Option<&'a str>,
+    pub carddav: Option<&'a str>,
+}
+
 /// What a collection holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -293,12 +304,13 @@ impl Dav {
     /// The home of the user's calendars or address books, found from the account's domain.
     pub fn discover(&self, kind: Kind, email: &str, imap_host: &str) -> Result<Option<String>> {
         let domain = email.rsplit_once('@').map(|(_, d)| d.trim().to_ascii_lowercase()).unwrap_or_default();
-        let mut starts: Vec<String> = Vec::new();
-        if !domain.is_empty()
-            && let Some((host, port)) = crate::dns::srv(&format!("{}.{domain}", kind.srv()))
-        {
-            starts.push(format!("https://{host}:{port}{}", kind.well_known()));
-        }
+        let srv = if domain.is_empty() {
+            None
+        } else {
+            let name = format!("{}.{domain}", kind.srv());
+            crate::dns::srv(&name).map(|(host, port)| (host, port, crate::dns::txt_path(&name)))
+        };
+        let mut starts = srv_starts(kind, srv);
         let service = if kind == Kind::Calendars { "caldav" } else { "carddav" };
         for host in [domain.clone(), format!("{service}.{domain}"), imap_host.replacen("imap.", &format!("{service}."), 1), imap_host.to_string()] {
             if !host.is_empty() && !host.contains(['/', ' ']) {
@@ -315,6 +327,38 @@ impl Dav {
             }
         }
         Ok(None)
+    }
+
+    /// The home at an address the user gave: the server's own address (its principal found from
+    /// there or its `/.well-known/` one), the home itself, or one calendar or address book in it
+    /// (Posteo's settings give `https://posteo.de:8443/calendars/<user>/default`), whose parent is
+    /// the home. A refused sign-in is said; an address that holds none says so too.
+    pub fn home_given(&self, kind: Kind, given: &str) -> Result<String> {
+        let start = given_url(given).ok_or_else(|| NetError::No(format!("`{}` isn't an https:// address", given.trim())))?;
+        let mut tries = vec![start.clone()];
+        if let Ok(u) = Url::parse(&start)
+            && (u.path.is_empty() || u.path == "/")
+        {
+            tries.push(format!("{}{}", u.origin(), kind.well_known()));
+        }
+        for t in &tries {
+            match self.home_from(kind, t) {
+                Ok(Some(h)) => return Ok(h),
+                Err(e @ NetError::Auth(_)) => return Err(e),
+                _ => {}
+            }
+        }
+        // The address is a home, or a collection in one.
+        if self.collections(kind, &start).is_ok_and(|c| !c.is_empty()) {
+            return Ok(start);
+        }
+        if let Some(parent) = parent_of(&start)
+            && self.collections(kind, &parent).is_ok_and(|c| !c.is_empty())
+        {
+            return Ok(parent);
+        }
+        let what = if kind == Kind::Calendars { "calendars" } else { "address books" };
+        Err(NetError::No(format!("no {what} were found at {start}")))
     }
 
     /// From a starting address: the principal, then its home.
@@ -435,6 +479,50 @@ fn absolute(base: &str, href: &str) -> Result<String> {
     Ok(format!("{}{}", u.origin(), u.path))
 }
 
+/// Where to look first for a service its SRV record names (`host`, `port`, and its TXT record's
+/// path): that path, its `/.well-known/` address, then the server's own root (Posteo publishes
+/// `path=/` on port 8443, where `/.well-known/caldav` isn't found).
+fn srv_starts(kind: Kind, srv: Option<(String, u16, Option<String>)>) -> Vec<String> {
+    let Some((host, port, path)) = srv else { return Vec::new() };
+    let base = if port == 443 { format!("https://{host}") } else { format!("https://{host}:{port}") };
+    let mut starts: Vec<String> = Vec::new();
+    for p in [path.as_deref(), Some(kind.well_known()), Some("/")].into_iter().flatten() {
+        let u = format!("{base}{p}");
+        if !starts.contains(&u) {
+            starts.push(u);
+        }
+    }
+    starts
+}
+
+/// An address the user typed, as one to ask: `posteo.de:8443` and `https://posteo.de:8443/` both
+/// read as https; plain http only to this computer (a test server), never a password in the clear
+/// across the network.
+pub fn given_url(given: &str) -> Option<String> {
+    let g = given.trim();
+    if g.is_empty() || g.len() > 2048 || g.contains(char::is_whitespace) {
+        return None;
+    }
+    let lower = g.to_ascii_lowercase();
+    let full = if lower.starts_with("https://") || lower.starts_with("http://") { g.to_string() } else { format!("https://{g}") };
+    let u = Url::parse(&full).ok()?;
+    let local = matches!(u.host.as_str(), "localhost" | "127.0.0.1" | "[::1]" | "::1");
+    if !u.https && !local {
+        return None;
+    }
+    Some(format!("{}{}", u.origin(), if u.path.is_empty() { "/" } else { &u.path }))
+}
+
+/// The collection an address is in (`…/calendars/me/default` → `…/calendars/me/`); none above a
+/// server's root.
+fn parent_of(url: &str) -> Option<String> {
+    let u = Url::parse(url).ok()?;
+    let trimmed = u.path.trim_end_matches('/');
+    let cut = trimmed.rfind('/')?;
+    let parent = trimmed.get(..=cut)?;
+    (!parent.is_empty() && parent != u.path).then(|| format!("{}{parent}", u.origin()))
+}
+
 /// The path of an absolute address (multiget names items by path).
 fn path_of(url: &str) -> String {
     Url::parse(url).map(|u| u.path).unwrap_or_else(|_| url.to_string())
@@ -458,18 +546,34 @@ fn resource_name(uid: &str, ext: &str) -> String {
 
 /// Sync an account's calendars and address books with its server. `pim` is what the engine
 /// last saved; nothing is written here: the result is for the engine to merge.
-pub fn sync(dav: &Dav, email: &str, imap_host: &str, pim: &Pim, now: i64, local: mailcraft_model::zone::Zone) -> Result<DavSync> {
+pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::zone::Zone) -> Result<DavSync> {
     let mut out = DavSync::default();
-    // Where the collections live (looked up once; again a day after finding none).
+    // Where the collections live (looked up once; again a day after finding none). An address
+    // the user gave is followed instead of looking, and what's wrong with it is said.
     let retry = pim.dav_checked.is_none_or(|t| now - t > 86_400);
+    // A given address that holds nothing is said once and remembered as none, as one that wasn't
+    // found is (looked at again a day on, or when it's changed); a refused sign-in stops the sync.
+    let find = |kind: Kind, given: Option<&str>, errors: &mut Vec<String>| -> Result<Option<String>> {
+        match given.filter(|g| !g.trim().is_empty()) {
+            Some(g) => match dav.home_given(kind, g) {
+                Ok(h) => Ok(Some(h)),
+                Err(e @ NetError::Auth(_)) => Err(e),
+                Err(e) => {
+                    errors.push(e.to_string());
+                    Ok(None)
+                }
+            },
+            None => dav.discover(kind, at.email, at.imap_host),
+        }
+    };
     out.caldav_home = match &pim.caldav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry => dav.discover(Kind::Calendars, email, imap_host)?,
+        _ if retry => find(Kind::Calendars, at.caldav, &mut out.errors)?,
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry => dav.discover(Kind::Contacts, email, imap_host)?,
+        _ if retry => find(Kind::Contacts, at.carddav, &mut out.errors)?,
         _ => None,
     };
     out.checked = now;
@@ -586,79 +690,4 @@ pub fn sync(dav: &Dav, email: &str, imap_host: &str, pim: &Pim, now: i64, local:
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reads_multistatus() {
-        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">
-  <d:response>
-    <d:href>/dav/calendars/me/work/</d:href>
-    <d:propstat>
-      <d:prop>
-        <d:displayname>Work &amp; studio</d:displayname>
-        <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>
-        <cs:getctag>"42"</cs:getctag>
-        <c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/></c:supported-calendar-component-set>
-        <d:current-user-privilege-set><d:privilege><d:read/></d:privilege><d:privilege><d:write/></d:privilege></d:current-user-privilege-set>
-      </d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-    <d:propstat>
-      <d:prop><d:getetag/></d:prop>
-      <d:status>HTTP/1.1 404 Not Found</d:status>
-    </d:propstat>
-  </d:response>
-  <d:response>
-    <d:href>/dav/principals/me/</d:href>
-    <d:propstat><d:prop><d:current-user-principal><d:href>/dav/principals/me/</d:href></d:current-user-principal>
-    <c:calendar-data><![CDATA[BEGIN:VCALENDAR
-END:VCALENDAR]]></c:calendar-data></d:prop>
-    <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
-  </d:response>
-</d:multistatus>"#;
-        let items = multistatus(xml);
-        assert_eq!(items.len(), 2);
-        let w = &items[0];
-        assert_eq!(w.href, "/dav/calendars/me/work/");
-        assert_eq!(w.props.get("displayname").map(String::as_str), Some("Work & studio"));
-        assert_eq!(w.props.get("getctag").map(String::as_str), Some("\"42\""));
-        assert!(w.kinds.contains(&"calendar".to_string()) && w.kinds.contains(&"collection".to_string()));
-        assert_eq!(w.comps, vec!["VEVENT", "VTODO"]);
-        assert_eq!(w.writable, Some(true));
-        assert!(!w.props.contains_key("getetag"), "404 properties are left out");
-        assert_eq!(items[1].hrefs.get("current-user-principal"), Some(&vec!["/dav/principals/me/".to_string()]));
-        assert!(items[1].props.get("calendar-data").is_some_and(|d| d.starts_with("BEGIN:VCALENDAR")));
-        for junk in [
-            "",
-            "<",
-            "<d:multistatus>",
-            "<a><b><c>",
-            &"<x>".repeat(1000),
-            "<?xml?><!DOCTYPE x [<!ENTITY e \"boom\">]><d:multistatus>&e;</d:multistatus>",
-        ] {
-            let _ = multistatus(junk);
-        }
-        assert_eq!(absolute("https://h.example/dav/cal/", "/dav/cal/1.ics").unwrap(), "https://h.example/dav/cal/1.ics");
-    }
-
-    /// Item names are one per uid, short, and safe in an address.
-    #[test]
-    fn item_names_dont_collide() {
-        assert_eq!(resource_name("plain-uid_1.2", "ics"), "plain-uid_1.2.ics", "a plain uid is its own name");
-        let odd = resource_name("a/b c@x", "ics");
-        assert!(odd.starts_with("a-b-c-x~") && odd.ends_with(".ics"), "{odd}");
-        assert_ne!(resource_name("a/b", "ics"), resource_name("a b", "ics"), "changed characters don't collide");
-        assert_ne!(resource_name("a-b", "ics"), resource_name("a b", "ics"));
-        let long = "z".repeat(200);
-        let (one, two) = (resource_name(&format!("{long}1"), "ics"), resource_name(&format!("{long}2"), "ics"));
-        assert_ne!(one, two, "long uids alike at the start don't collide");
-        assert_ne!(resource_name(&"y".repeat(101), "ics"), resource_name(&"y".repeat(102), "ics"));
-        assert_eq!(one, resource_name(&format!("{long}1"), "ics"), "stable");
-        for uid in ["", "é", "../..", "a\r\nb", &"€".repeat(500), &long] {
-            let n = resource_name(uid, "vcf");
-            assert!(n.len() <= NAME_KEEP + 21 && n.chars().all(|c| c.is_ascii_alphanumeric() || "-_.~".contains(c)), "{uid:?}: {n}");
-        }
-    }
-}
+mod tests;

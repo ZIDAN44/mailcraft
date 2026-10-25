@@ -188,7 +188,10 @@ mod tests {
     use mailcraft_model::zone::Zone;
 
     use super::*;
-    use crate::dav::{Dav, Kind, sync};
+    use crate::dav::{Dav, Kind, Where, sync};
+
+    /// Found from the address, as an account with nothing given by hand.
+    const AT: Where<'static> = Where { email: USER, imap_host: "imap.example", caldav: None, carddav: None };
 
     fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
         CalEvent { uid: uid.into(), summary: summary.into(), start, end: start + 3600, ..Default::default() }
@@ -224,7 +227,7 @@ mod tests {
         // A first sync reads everything.
         let mut pim = Pim { caldav_home: Some(home), carddav_home: Some(book_home), ..Default::default() };
         pim.ensure_defaults();
-        let first = sync(&dav, USER, "imap.example", &pim, 100, Zone::UTC).unwrap();
+        let first = sync(&dav, &AT, &pim, 100, Zone::UTC).unwrap();
         let cal_id = format!("{}{CAL}", server.base);
         assert_eq!(first.calendars.as_ref().map(|c| (c.len(), c[0].name.as_str(), c[0].id.as_str())), Some((1, "Work", cal_id.as_str())));
         assert_eq!(first.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Review"]);
@@ -241,7 +244,7 @@ mod tests {
         pim.events.push(StoredEvent { calendar: cal_id.clone(), event: event("b@x", "New / one", 1_800_100_000), dirty: true, ..Default::default() });
         pim.events.push(StoredEvent { calendar: LOCAL.into(), event: event("l", "Only here", 1_800_000_000), dirty: false, ..Default::default() });
         pim.deleted.push(mailcraft_model::pim::Tombstone { href: pim.cards[0].href.clone(), etag: pim.cards[0].etag.clone(), ..Default::default() });
-        let second = sync(&dav, USER, "imap.example", &pim, 200, Zone::UTC).unwrap();
+        let second = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
         assert!(second.errors.is_empty(), "{:?}", second.errors);
         assert_eq!(second.deleted.len(), 1);
         assert_eq!(second.pushed_events.len(), 2);
@@ -261,7 +264,7 @@ mod tests {
         let mut stale = pim.clone();
         stale.deleted.clear();
         stale.events = vec![StoredEvent { event: CalEvent { summary: "Old edit".into(), ..review.event.clone() }, dirty: true, ..review }];
-        let third = sync(&dav, USER, "imap.example", &stale, 300, Zone::UTC).unwrap();
+        let third = sync(&dav, &AT, &stale, 300, Zone::UTC).unwrap();
         assert_eq!(third.errors.len(), 1, "{:?}", third.errors);
         assert!(!data.lock().unwrap().items.values().any(|(_, v)| v.contains("Old edit")));
         // Nothing changed since: the calendar isn't read again.
@@ -270,7 +273,7 @@ mod tests {
         settled.calendars = third.calendars.clone().unwrap();
         settled.events.iter_mut().for_each(|e| e.dirty = false);
         settled.cards.clear();
-        let fourth = sync(&dav, USER, "imap.example", &settled, 400, Zone::UTC).unwrap();
+        let fourth = sync(&dav, &AT, &settled, 400, Zone::UTC).unwrap();
         assert_eq!(fourth.unchanged_calendars, vec![cal_id]);
         assert!(fourth.events.is_empty());
     }
@@ -298,7 +301,7 @@ mod tests {
             new(&format!("{long}-two")),
             StoredEvent { href: old_href.clone(), etag, ..new(&format!("{long}-old")) },
         ];
-        let out = sync(&dav, USER, "imap.example", &pim, 100, Zone::UTC).unwrap();
+        let out = sync(&dav, &AT, &pim, 100, Zone::UTC).unwrap();
         assert!(out.errors.is_empty(), "{:?}", out.errors);
         let hrefs: Vec<&str> = out.pushed_events.iter().map(|e| e.href.as_str()).collect();
         assert_eq!(hrefs.len(), 3);
@@ -309,5 +312,46 @@ mod tests {
             let on_server = d.items.values().any(|(_, v)| ical::parse(v, 0).events.iter().any(|e| e.uid == format!("{long}-{uid}")));
             assert!(on_server, "{uid} is on the server");
         }
+    }
+
+    /// Issue #7: an address given by hand, as a user copies it from the provider's help: the
+    /// server's own address, the home, or one calendar in it (whose parent is the home); one with
+    /// no calendars, or not https across the network, is said; a wrong password is refused.
+    #[test]
+    fn an_address_given_by_hand_finds_the_home() {
+        let server = serve();
+        let dav = Dav::new(USER, PASSWORD);
+        let cal_home = format!("{}/dav/cal/", server.base);
+        let book_home = format!("{}/dav/card/", server.base);
+        for given in [
+            server.base.clone(),
+            format!("{}/", server.base),
+            cal_home.clone(),
+            format!("{}{CAL}", server.base),
+            format!("{}/dav/cal/work", server.base),
+        ] {
+            assert_eq!(dav.home_given(Kind::Calendars, &given).unwrap(), cal_home, "{given}");
+        }
+        assert_eq!(dav.home_given(Kind::Contacts, &format!("{}{BOOK}", server.base)).unwrap(), book_home);
+        let none = dav.home_given(Kind::Calendars, &format!("{}/nothing/here", server.base)).unwrap_err();
+        assert!(none.to_string().contains("no calendars were found"), "{none}");
+        assert!(matches!(Dav::new(USER, "nope").home_given(Kind::Calendars, &cal_home), Err(crate::NetError::Auth(_))));
+        assert!(dav.home_given(Kind::Calendars, "http://calendar.example/dav/").unwrap_err().to_string().contains("https"));
+        assert!(dav.home_given(Kind::Calendars, "").is_err());
+
+        // In a sync: the given calendar's home is found, its events read; contacts still looked
+        // for from the address (none here). A given address that holds nothing is said once and
+        // remembered as none, not an error that stops the sync.
+        let at = Where { caldav: Some(&format!("{}{CAL}", server.base)), ..AT };
+        let mut pim = Pim::default();
+        pim.ensure_defaults();
+        server.data.lock().unwrap().put(&format!("{CAL}a.ics"), &ical::write(&[event("a", "Planning", 1_800_000_000)], None, 0));
+        let out = sync(&dav, &at, &pim, 100, Zone::UTC).unwrap();
+        assert_eq!(out.caldav_home.as_deref(), Some(cal_home.as_str()));
+        assert_eq!(out.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Planning"]);
+        let wrong = format!("{}/nothing/", server.base);
+        let out = sync(&dav, &Where { caldav: Some(&wrong), ..AT }, &pim, 100, Zone::UTC).unwrap();
+        assert!(out.caldav_home.is_none() && out.errors.iter().any(|e| e.contains("no calendars")), "{:?}", out.errors);
+        assert!(matches!(sync(&Dav::new(USER, "nope"), &at, &pim, 100, Zone::UTC), Err(crate::NetError::Auth(_))));
     }
 }

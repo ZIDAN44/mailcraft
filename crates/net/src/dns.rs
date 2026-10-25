@@ -1,5 +1,6 @@
-//! Just enough DNS (RFC 1035) for account setup: MX records (who handles a domain's mail) and
-//! SRV records (RFC 6186: `_imaps._tcp`, `_submission._tcp`…), asked over UDP of the system's
+//! Just enough DNS (RFC 1035) for account setup: MX records (who handles a domain's mail), SRV
+//! records (RFC 6186: `_imaps._tcp`, `_submission._tcp`…) and the TXT records beside CalDAV's and
+//! CardDAV's (RFC 6764 §4: `path=` where the service starts), asked over UDP of the system's
 //! own resolvers. Answers are hostile input: every length and pointer is checked, compression
 //! loops are cut off.
 
@@ -8,12 +9,23 @@ use std::time::Duration;
 
 pub const MX: u16 = 15;
 pub const SRV: u16 = 33;
+pub const TXT: u16 = 16;
 
 /// An answer record we understand.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Record {
-    Mx { preference: u16, host: String },
-    Srv { priority: u16, weight: u16, port: u16, target: String },
+    Mx {
+        preference: u16,
+        host: String,
+    },
+    Srv {
+        priority: u16,
+        weight: u16,
+        port: u16,
+        target: String,
+    },
+    /// A TXT record's strings, each as it is (RFC 1035 §3.3.14).
+    Txt(Vec<String>),
 }
 
 /// A query for `name` of type `qtype`, with transaction id `id`.
@@ -97,6 +109,16 @@ pub fn parse(m: &[u8], id: u16) -> Option<Vec<Record>> {
                 port: u16_at(m, rdata + 4)?,
                 target: name_at(m, rdata + 6)?.0,
             }),
+            TXT => {
+                let mut strings = Vec::new();
+                let mut at = rdata;
+                while at < rdata + rdlen {
+                    let len = usize::from(*m.get(at)?);
+                    strings.push(String::from_utf8_lossy(m.get(at + 1..at + 1 + len).filter(|_| at + 1 + len <= rdata + rdlen)?).into_owned());
+                    at += 1 + len;
+                }
+                out.push(Record::Txt(strings));
+            }
             _ => {}
         }
         pos = rdata + rdlen;
@@ -159,7 +181,7 @@ pub fn mx(domain: &str) -> Vec<String> {
         .into_iter()
         .filter_map(|r| match r {
             Record::Mx { preference, host } => Some((preference, host)),
-            Record::Srv { .. } => None,
+            Record::Srv { .. } | Record::Txt(_) => None,
         })
         .collect();
     r.sort();
@@ -173,11 +195,33 @@ pub fn srv(name: &str) -> Option<(String, u16)> {
         .into_iter()
         .filter_map(|r| match r {
             Record::Srv { priority, weight, port, target } => Some((priority, u16::MAX - weight, port, target)),
-            Record::Mx { .. } => None,
+            Record::Mx { .. } | Record::Txt(_) => None,
         })
         .collect();
     r.sort();
     r.into_iter().find(|(_, _, port, t)| !t.is_empty() && *port != 0).map(|(_, _, port, t)| (t, port))
+}
+
+/// The path a CalDAV or CardDAV service starts at, from the TXT record beside its SRV one
+/// (`_caldavs._tcp.example.com`: `path=/dav/`, RFC 6764 §4). Only an absolute path counts.
+pub fn txt_path(name: &str) -> Option<String> {
+    lookup(name, TXT).into_iter().find_map(|r| match r {
+        Record::Txt(strings) => path_of(&strings),
+        _ => None,
+    })
+}
+
+fn path_of(strings: &[String]) -> Option<String> {
+    strings.iter().find_map(|s| {
+        let (k, v) = s.split_once('=')?;
+        let v = v.trim();
+        (k.trim().eq_ignore_ascii_case("path")
+            && v.starts_with('/')
+            && !v.starts_with("//")
+            && v.len() <= 512
+            && !v.contains(['\r', '\n', ' ', '#', '?']))
+        .then(|| v.to_string())
+    })
 }
 
 #[cfg(test)]
@@ -233,5 +277,41 @@ mod tests {
             s
         };
         assert_eq!(parse(&srv, 1).unwrap(), vec![Record::Srv { priority: 0, weight: 5, port: 993, target: "imap.example.org".into() }]);
+    }
+
+    /// A TXT answer (Posteo's `_caldavs._tcp.posteo.de`: `path=/`): its strings, and the path
+    /// RFC 6764 reads from them. Cut or overlong strings never panic.
+    #[test]
+    fn txt_records_give_the_service_path() {
+        let mut m = vec![0, 2, 0x81, 0x80, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 16, 0, 1, 0, 0, 0, 60];
+        let rd = b"\x07txtvers\x06path=/";
+        m.extend_from_slice(&u16::try_from(rd.len()).unwrap().to_be_bytes());
+        m.extend_from_slice(rd);
+        let r = parse(&m, 2).unwrap();
+        assert_eq!(r, vec![Record::Txt(vec!["txtvers".into(), "path=/".into()])]);
+        let Record::Txt(strings) = &r[0] else { panic!() };
+        assert_eq!(path_of(strings).as_deref(), Some("/"));
+        for cut in 0..m.len() {
+            let _ = parse(&m[..cut], 2);
+        }
+        // A string longer than its record is refused.
+        let mut long = m.clone();
+        let n = long.len();
+        long[n - 7] = 0xFF;
+        assert!(parse(&long, 2).is_none());
+        let p = |s: &[&str]| path_of(&s.iter().map(|x| x.to_string()).collect::<Vec<_>>());
+        assert_eq!(p(&["PATH=/dav/principals/"]).as_deref(), Some("/dav/principals/"));
+        assert_eq!(p(&["txtvers=1", "path = /cal/"]).as_deref(), Some("/cal/"));
+        for bad in ["path=relative", "path=//evil.example/", "path=/a b", "path=/x?y", "nopath", "path="] {
+            assert_eq!(p(&[bad]), None, "{bad}");
+        }
+    }
+
+    /// Posteo's published CalDAV service, from the system's resolvers: run by hand with the internet.
+    #[test]
+    #[ignore = "needs the internet"]
+    fn posteo_publishes_its_caldav_path() {
+        assert_eq!(srv("_caldavs._tcp.posteo.de"), Some(("posteo.de".into(), 8443)));
+        assert_eq!(txt_path("_caldavs._tcp.posteo.de").as_deref(), Some("/"));
     }
 }

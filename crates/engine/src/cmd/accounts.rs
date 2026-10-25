@@ -95,6 +95,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature)
             .params(r#"{"account": string, "signature": string, "html"?: string (its look: bold, colours, links; the text then comes from it)}"#),
+        CommandSpec::new("account.dav", "Calendars and contacts", "File › Info › Account settings", set_dav).params(
+            r#"{"account": string, "caldav"?: string (the calendar server's address: its own, the home, or one calendar; empty: found from the account's address), "carddav"?: string (the same for contacts), "username"?: string|null (its own sign-in; null: as the mail server), "password"?: string}"#,
+        ),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
         // Asks where MailCraft is published; File › About shows the answer (`Session::update`).
         CommandSpec::new("app.checkUpdates", "Check for updates", "File › About", |s, _| {
@@ -234,6 +237,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         oauth_user: None,
         shared_mailboxes: Vec::new(),
         online_only: p::bool(v, "onlineOnly").unwrap_or(false),
+        dav: None,
     };
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)
@@ -353,6 +357,20 @@ pub(super) fn smtp_sign_in(v: &Value, c: &mut AccountConfig, adding: bool) -> Re
     }
     c.smtp_username = Some(user);
     Ok(password)
+}
+
+/// `account.dav`: where the account's calendars and contacts are, given by hand.
+pub(super) fn set_dav(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_str(v, "account")?;
+    let current = s.account(id).and_then(|a| a.config.dav.clone()).unwrap_or_default();
+    let caldav = p::str(v, "caldav").map_or(current.caldav.clone(), str::to_string);
+    let carddav = p::str(v, "carddav").map_or(current.carddav.clone(), str::to_string);
+    let username = match v.get("username") {
+        None => current.username.clone(),
+        Some(Value::Null) => None,
+        Some(u) => u.as_str().map(str::to_string),
+    };
+    s.set_dav(id, &caldav, &carddav, username.as_deref(), p::str(v, "password"))
 }
 
 pub(super) fn set_signature(s: &mut Session, v: &Value) -> CmdResult {

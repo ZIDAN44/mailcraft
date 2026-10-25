@@ -429,6 +429,7 @@ impl Session {
             || a.config.smtp_username != config.smtp_username
             || a.config.shared_mailboxes != config.shared_mailboxes
             || a.config.online_only != config.online_only
+            || a.config.dav != config.dav
             || password.is_some();
         if config.online_only && !config.can_be_online_only() {
             return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));
@@ -447,6 +448,47 @@ impl Session {
             self.jobs.push(Job::Start { account: config, password: password.map(Secret) });
         }
         Ok(serde_json::json!({ "updated": id }))
+    }
+
+    /// Where an account's calendars and contacts are, given by hand (issue #7): CalDAV and CardDAV
+    /// addresses (empty: found from the account's address), and a user name of their own with its
+    /// password (an app password), or `None` to sign in as the mail server does. A new user name
+    /// needs its password; one already kept keeps it when none is given. They're looked for again
+    /// at once.
+    pub fn set_dav(&mut self, account: &str, caldav: &str, carddav: &str, username: Option<&str>, password: Option<&str>) -> CmdResult {
+        let mut config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if config.is_local() || config.graph.is_some() || config.ews.is_some() {
+            return Err(CmdError::Params("this account's calendars and contacts come with it: there's no address to give".into()));
+        }
+        let caldav = dav_address(caldav)?;
+        let carddav = dav_address(carddav)?;
+        let username = username.map(str::trim).filter(|u| !u.is_empty()).map(|u| u.chars().take(320).collect::<String>());
+        let password = password.filter(|p| !p.is_empty());
+        let had_own = config.dav.as_ref().is_some_and(|d| d.username.is_some());
+        if username.is_some() && password.is_none() && !had_own {
+            return Err(CmdError::Params("the calendar server's password is required".into()));
+        }
+        let dav = mailcraft_model::DavSettings { caldav, carddav, username };
+        let changed = config.dav.clone().unwrap_or_default() != dav || password.is_some();
+        config.dav = (dav != mailcraft_model::DavSettings::default()).then_some(dav);
+        if let (Some(pw), Some(_)) = (password, config.dav.as_ref().and_then(|d| d.username.as_ref())) {
+            self.jobs.push(Job::DavPassword { account: config.clone(), password: Secret(pw.to_string()) });
+        }
+        let password_only = self.account(account).is_some_and(|a| a.config.dav == config.dav) && changed;
+        self.update_account(config.clone(), None)?;
+        if changed {
+            // Looked for again: what was found (or not) before is forgotten.
+            let p = self.pim_mut(account);
+            p.caldav_home = None;
+            p.carddav_home = None;
+            p.dav_checked = None;
+            self.save_pim(account);
+            // A new password alone doesn't reconnect: the next sync of calendars takes it.
+            if password_only {
+                self.jobs.push(Job::SyncDav { account: account.to_string() });
+            }
+        }
+        Ok(serde_json::json!({ "account": account, "dav": config.dav }))
     }
 
     pub(super) fn save_accounts(&mut self) {
@@ -491,4 +533,37 @@ impl Session {
         }
         ids.len()
     }
+}
+
+/// A calendar or contacts address as typed: empty, or https (`posteo.de:8443` reads as
+/// `https://posteo.de:8443`); plain http only to this computer, so no password crosses the network
+/// in the clear.
+fn dav_address(given: &str) -> Result<String, CmdError> {
+    let g = given.trim();
+    if g.is_empty() {
+        return Ok(String::new());
+    }
+    let bad = || CmdError::Params(format!("`{g}` isn't an https:// address"));
+    if g.len() > 2048 || g.contains(char::is_whitespace) {
+        return Err(bad());
+    }
+    let lower = g.to_ascii_lowercase();
+    let rest = if let Some(r) = lower.strip_prefix("https://") {
+        r
+    } else if let Some(r) = lower.strip_prefix("http://") {
+        let host = r.split(['/', '?', '#']).next().unwrap_or_default();
+        let host = host.rsplit_once(':').filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit())).map_or(host, |(h, _)| h);
+        if !matches!(host, "localhost" | "127.0.0.1" | "[::1]") {
+            return Err(CmdError::Params(format!("`{g}` isn't https: the password would cross the network unprotected")));
+        }
+        r
+    } else if lower.contains("://") {
+        return Err(bad());
+    } else {
+        return Ok(format!("https://{g}"));
+    };
+    if rest.split(['/', '?', '#']).next().is_none_or(str::is_empty) {
+        return Err(bad());
+    }
+    Ok(g.to_string())
 }

@@ -399,16 +399,29 @@ impl Worker {
             }
             return;
         }
-        // OAuth tokens are for mail only.
-        if self.acc.oauth.is_some() || self.acc.ews.is_some() {
+        // Calendars and contacts given by hand (issue #7), with their own sign-in or the mail's.
+        let given = self.acc.dav.clone().unwrap_or_default();
+        // OAuth tokens are for mail only: such an account's calendars need a sign-in of their own.
+        if (self.acc.oauth.is_some() || self.acc.ews.is_some()) && given.username.is_none() {
             return;
         }
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
-        let password = self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone();
+        let (user, password) = match &given.username {
+            Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
+            None => (
+                if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() },
+                self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
+            ),
+        };
         let dav = crate::dav::Dav::new(&user, &password);
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
-        match crate::dav::sync(&dav, &self.acc.email, host, &pim, now(), system_zone()) {
+        let at = crate::dav::Where {
+            email: &self.acc.email,
+            imap_host: host,
+            caldav: Some(given.caldav.as_str()).filter(|c| !c.trim().is_empty()),
+            carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),
+        };
+        match crate::dav::sync(&dav, &at, &pim, now(), system_zone()) {
             Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
             Err(e) => {
                 log::info!("{}: calendars and contacts: {e}", self.acc.id);

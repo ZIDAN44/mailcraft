@@ -138,6 +138,25 @@ pub struct AccountConfig {
     /// home, nor an account with no server ([`AccountConfig::keeps_online`]).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub online_only: bool,
+    /// Calendars and contacts given by hand (issue #7), for a server MailCraft can't find from the
+    /// address on its own, or one that wants a password of its own (an app password).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dav: Option<DavSettings>,
+}
+
+/// Where an account's calendars and contacts are, given by hand: CalDAV and CardDAV addresses
+/// (any of the server's, its own address, a home or one calendar: each is followed to the user's
+/// home), and their own user name, whose password is kept apart in the keychain.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavSettings {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub caldav: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub carddav: String,
+    /// Signs in as this user with its own password (`None`: as the mail server does).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
 }
 
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
@@ -225,6 +244,7 @@ impl AccountConfig {
             oauth_user: None,
             shared_mailboxes: Vec::new(),
             online_only: false,
+            dav: None,
         }
     }
 

@@ -686,3 +686,58 @@ fn the_work_week_is_monday_to_friday() {
     assert!(events.as_array().is_some());
     assert!(s.run("calendar.view", &json!({"mode": "fortnight"})).is_err());
 }
+
+/// Issue #7: a calendar server given by hand (Posteo's, which isn't found from the address), with
+/// a password of its own. Kept with the account (the password apart, in the keychain), it
+/// reconnects so the calendars are looked for again, what was found before forgotten; a new
+/// password alone just syncs; plain http across the network and accounts whose calendars come
+/// with them are refused.
+#[test]
+fn a_calendar_server_given_by_hand() {
+    let mut s = sample_session("dav-given");
+    let id = s
+        .run(
+            "account.add",
+            &json!({"email": "zoe@posteo.example", "password": "mail-pw", "imapHost": "posteo.example", "smtpHost": "posteo.example"}),
+        )
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.take_jobs();
+    s.pim_mut(&id).caldav_home = Some(String::new());
+    s.pim_mut(&id).dav_checked = Some(100);
+    let given = json!({"account": id, "caldav": "posteo.example:8443/calendars/zoe/default", "username": "zoe@posteo.example"});
+    assert!(s.run("account.dav", &given).unwrap_err().to_string().contains("password is required"));
+    let mut given = given;
+    given["password"] = json!("app-pw");
+    s.run("account.dav", &given).unwrap();
+    let dav = s.account(&id).unwrap().config.dav.clone().unwrap();
+    assert_eq!(dav.caldav, "https://posteo.example:8443/calendars/zoe/default", "typed without https, read as https");
+    assert_eq!((dav.carddav.as_str(), dav.username.as_deref()), ("", Some("zoe@posteo.example")));
+    let jobs = s.take_jobs();
+    assert!(
+        matches!(jobs.as_slice(), [Job::DavPassword { password, .. }, Job::Start { account, .. }] if password.0 == "app-pw" && account.dav.is_some()),
+        "{jobs:?}"
+    );
+    assert!(s.pim[&id].caldav_home.is_none() && s.pim[&id].dav_checked.is_none(), "looked for again");
+    let saved = std::fs::read_to_string(s.store.as_ref().unwrap().root().join("accounts.json")).unwrap();
+    assert!(saved.contains("calendars/zoe/default") && !saved.contains("app-pw"), "the password stays out of MailCraft's files");
+    // A new password alone: kept, and the calendars synced with it, no reconnecting.
+    s.run("account.dav", &json!({"account": id, "password": "app-pw-2"})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::DavPassword { password, .. }, Job::SyncDav { .. }] if password.0 == "app-pw-2"));
+    // Nothing changed: nothing to do.
+    s.run("account.dav", &json!({"account": id})).unwrap();
+    assert!(s.take_jobs().is_empty());
+    // Cleared: found from the address again, with the mail's sign-in.
+    s.run("account.dav", &json!({"account": id, "caldav": "", "username": null})).unwrap();
+    assert!(s.account(&id).unwrap().config.dav.is_none());
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }]));
+    // Refused: http across the network, junk, and the sample (its calendar is its own).
+    for bad in ["http://posteo.example/", "ftp://posteo.example/", "https://", "a b"] {
+        assert!(s.run("account.dav", &json!({"account": id, "caldav": bad})).is_err(), "{bad}");
+    }
+    s.run("account.dav", &json!({"account": id, "carddav": "http://localhost:5232/zoe/"})).unwrap();
+    assert!(s.run("account.dav", &json!({"account": "sample", "caldav": "https://dav.example/"})).is_err());
+    done(s);
+}

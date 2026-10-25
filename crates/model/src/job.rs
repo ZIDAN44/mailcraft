@@ -178,6 +178,9 @@ pub enum Job {
     /// Keep the outgoing server's own password (an account whose SMTP sign-in isn't the incoming
     /// server's: `smtp_username`), in the system keychain apart from the account's password.
     SmtpPassword { account: AccountConfig, password: Secret },
+    /// Keep the password of an account's calendar and contacts server (its [`crate::DavSettings`]'s
+    /// own user name) in the keychain.
+    DavPassword { account: AccountConfig, password: Secret },
     /// Stop the worker and forget the stored password.
     Remove { account: String },
     /// Refresh the folder list and every folder.
@@ -278,7 +281,7 @@ pub enum Job {
 impl Job {
     pub fn account(&self) -> &str {
         match self {
-            Job::Start { account, .. } | Job::SmtpPassword { account, .. } => &account.id,
+            Job::Start { account, .. } | Job::SmtpPassword { account, .. } | Job::DavPassword { account, .. } => &account.id,
             Job::FetchBody { key } => &key.account,
             Job::Remove { account }
             | Job::SyncAll { account }
