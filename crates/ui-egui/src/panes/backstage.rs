@@ -316,8 +316,9 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                 }
             });
         }
-        // Calendars and contacts: where they were found, or the addresses given by hand.
-        if !a.is_local() && a.config.graph.is_none() && a.config.ews.is_none() {
+        // Calendars and contacts: where they were found, or the addresses given by hand (the
+        // desktop app's: the browser doesn't sync calendars).
+        if !cfg!(target_arch = "wasm32") && !a.is_local() && a.config.graph.is_none() && a.config.ews.is_none() {
             let pim = s.pim.get(&id);
             let found = pim.and_then(|p| p.caldav_home.clone());
             let about = match found {
