@@ -1129,7 +1129,7 @@ month	May	5月
 	Unlock certificate	証明書のロックを解除
 	Your certificate's password, to use it in this browser until the page is closed:	ページを閉じるまでこのブラウザーで使うための、証明書のパスワード:
 	The browser keeps the file, locked with its password; the password itself isn't kept.	ブラウザーはパスワードでロックされたファイルを保管します。パスワード自体は保管されません。
-	Give its password again to sign and decrypt in this page	このページで署名と復号をするには、パスワードをもう一度入力します
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	このページで署名と復号をするには、パスワードをもう一度入力します（このパスワードのすべての証明書が開きます）
 	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	このブラウザーでは証明書がロックされています。パスワードでロックを解除してください (ファイル › 情報 › セキュリティ)
 	there's no certificate kept in this browser: import its .p12 file	このブラウザーには証明書が保管されていません。.p12 ファイルをインポートしてください
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	スマートカードとシステムのキーチェーンは、ブラウザーではなく MailCraft デスクトップ アプリで使います

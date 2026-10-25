@@ -26,6 +26,7 @@ mod envelope;
 mod kari;
 pub mod key;
 pub mod oids;
+pub mod own;
 mod p12;
 pub mod revocation;
 mod sign;

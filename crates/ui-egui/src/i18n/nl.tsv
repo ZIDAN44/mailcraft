@@ -1128,7 +1128,7 @@ month	May	mei
 	Unlock certificate	Certificaat ontgrendelen
 	Your certificate's password, to use it in this browser until the page is closed:	Het wachtwoord van uw certificaat, om het in deze browser te gebruiken tot de pagina wordt gesloten:
 	The browser keeps the file, locked with its password; the password itself isn't kept.	De browser bewaart het bestand, vergrendeld met het wachtwoord; het wachtwoord zelf wordt niet bewaard.
-	Give its password again to sign and decrypt in this page	Geef het wachtwoord opnieuw om in deze pagina te ondertekenen en te ontsleutelen
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	Geef het wachtwoord opnieuw om in deze pagina te ondertekenen en te ontsleutelen (het opent elk certificaat waarvan het het wachtwoord is)
 	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	uw certificaat is in deze browser vergrendeld: ontgrendel het met het wachtwoord (Bestand › Info › Beveiliging)
 	there's no certificate kept in this browser: import its .p12 file	er is geen certificaat in deze browser bewaard: importeer het .p12-bestand
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	smartcards en de sleutelhanger van het systeem worden door de MailCraft-desktopapp gebruikt, niet in de browser

@@ -1133,7 +1133,7 @@ month	May	maio
 	Unlock certificate	Desbloquear o certificado
 	Your certificate's password, to use it in this browser until the page is closed:	A senha do seu certificado, para usá-lo neste navegador até a página ser fechada:
 	The browser keeps the file, locked with its password; the password itself isn't kept.	O navegador guarda o arquivo, trancado com a senha; a senha em si não é guardada.
-	Give its password again to sign and decrypt in this page	Informe a senha de novo para assinar e descriptografar nesta página
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	Informe a senha de novo para assinar e descriptografar nesta página (ela abre todos os certificados dos quais é a senha)
 	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	seu certificado está bloqueado neste navegador: desbloqueie-o com a senha (Arquivo › Informações › Segurança)
 	there's no certificate kept in this browser: import its .p12 file	não há certificado guardado neste navegador: importe o arquivo .p12
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	cartões inteligentes e o chaveiro do sistema são usados pelo aplicativo MailCraft para desktop, não no navegador

@@ -1129,7 +1129,7 @@ month	May	5月
 	Unlock certificate	解锁证书
 	Your certificate's password, to use it in this browser until the page is closed:	证书的密码，用于在关闭页面之前在此浏览器中使用：
 	The browser keeps the file, locked with its password; the password itself isn't kept.	浏览器会保存该文件（用其密码锁定）；密码本身不会保存。
-	Give its password again to sign and decrypt in this page	再次输入密码，以便在此页面中签名和解密
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	再次输入密码，以便在此页面中签名和解密（会打开使用此密码的所有证书）
 	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	你的证书在此浏览器中已锁定：请用其密码解锁（文件 › 信息 › 安全）
 	there's no certificate kept in this browser: import its .p12 file	此浏览器中没有保存证书：请导入其 .p12 文件
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	智能卡和系统钥匙串由 MailCraft 桌面应用使用，浏览器中不可用

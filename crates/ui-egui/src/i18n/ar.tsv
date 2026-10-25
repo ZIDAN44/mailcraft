@@ -1128,7 +1128,7 @@ month	May	مايو
 	Unlock certificate	فتح قفل الشهادة
 	Your certificate's password, to use it in this browser until the page is closed:	كلمة مرور شهادتك، لاستخدامها في هذا المتصفح حتى تُغلق الصفحة:
 	The browser keeps the file, locked with its password; the password itself isn't kept.	يحتفظ المتصفح بالملف مقفلًا بكلمة مروره، ولا تُحفظ كلمة المرور نفسها.
-	Give its password again to sign and decrypt in this page	أدخل كلمة مرورها مرة أخرى للتوقيع وفك التشفير في هذه الصفحة
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	أدخل كلمة مرورها مرة أخرى للتوقيع وفك التشفير في هذه الصفحة (تفتح كل شهادة تكون هذه كلمة مرورها)
 	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	شهادتك مقفلة في هذا المتصفح: افتح قفلها بكلمة مرورها (ملف › معلومات › الأمان)
 	there's no certificate kept in this browser: import its .p12 file	لا توجد شهادة محفوظة في هذا المتصفح: استورد ملف ‎.p12 الخاص بها
 	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	تُستخدم البطاقات الذكية وسلسلة مفاتيح النظام في تطبيق MailCraft لسطح المكتب، لا في المتصفح

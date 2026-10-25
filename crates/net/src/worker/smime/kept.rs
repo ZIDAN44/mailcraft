@@ -159,13 +159,6 @@ pub(super) fn older_certs(creds: &dyn Credentials, account: &AccountConfig) -> V
     older_list(creds, account).iter().filter_map(|fp| kept_older(creds, account, fp).ok()).map(|m| m.certificate().to_vec()).collect()
 }
 
-/// Which of two certificates is the one to sign and encrypt with: one in date before one that
-/// isn't, then the one issued later (a renewal), then the one that runs longer.
-fn newer(a: &[u8], b: &[u8], now: i64) -> bool {
-    let rank = |c: &[u8]| smime::cert::info(c).ok().map(|i| (i.not_before <= now && now <= i.not_after, i.not_before, i.not_after));
-    rank(a) > rank(b)
-}
-
 /// What an account has once a certificate is kept: the chain in use, the older certificates, and
 /// whether the one just kept went with them, for reading only.
 #[derive(Debug)]
@@ -184,7 +177,7 @@ pub(super) fn take(creds: &dyn Credentials, account: &AccountConfig, me: &Me, no
     match kept(creds, account) {
         // The same one again (a new PIN, a key that moved): kept as it is now.
         Ok(cur) if fingerprint(cur.certificate()) == fp => keep(creds, account, me)?,
-        Ok(cur) if !newer(me.certificate(), cur.certificate(), now) => {
+        Ok(cur) if !smime::cert::newer(me.certificate(), cur.certificate(), now) => {
             keep_older(creds, account, me, None)?;
             for_reading = true;
         }

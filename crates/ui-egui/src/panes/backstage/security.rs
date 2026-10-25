@@ -86,6 +86,18 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                     if ui.button(tl!("Import certificate…")).clicked() {
                         acts.push(Action::ImportCertificate(id.clone()));
                     }
+                    // Older ones kept in the browser open with their password, to read old mail.
+                    if cfg!(target_arch = "wasm32")
+                        && !s.older_identities(&id).is_empty()
+                        && ui
+                            .button(tl!("Unlock…"))
+                            .on_hover_text(tl!(
+                                "Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)"
+                            ))
+                            .clicked()
+                    {
+                        acts.push(Action::UnlockCertificate(id.clone()));
+                    }
                 },
             );
             older(s, t, ui, &id, acts);
@@ -108,18 +120,18 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
             {
                 acts.push(Action::Run("security.forget", json!({"account": id})));
             }
-            // The browser keeps one certificate an account; the app keeps older ones for reading.
-            let another = if cfg!(target_arch = "wasm32") {
-                ui.button(tl!("Replace…"))
-            } else {
-                ui.button(tl!("Add another…"))
-                    .on_hover_text(tl!("A renewed certificate takes over signing and encrypting; an older one is kept to read old mail"))
-            };
-            if another.clicked() {
+            if ui
+                .button(tl!("Add another…"))
+                .on_hover_text(tl!("A renewed certificate takes over signing and encrypting; an older one is kept to read old mail"))
+                .clicked()
+            {
                 acts.push(Action::ImportCertificate(id.clone()));
             }
             if cfg!(target_arch = "wasm32")
-                && ui.button(tl!("Unlock…")).on_hover_text(tl!("Give its password again to sign and decrypt in this page")).clicked()
+                && ui
+                    .button(tl!("Unlock…"))
+                    .on_hover_text(tl!("Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)"))
+                    .clicked()
             {
                 acts.push(Action::UnlockCertificate(id.clone()));
             }

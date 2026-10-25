@@ -278,6 +278,14 @@ fn header(b: &[u8]) -> Option<(usize, usize)> {
     Some((len, 2 + n))
 }
 
+/// Which of two of one's own certificates (DER) signs and encrypts: one in date before one that
+/// isn't, then the one issued later (a renewal), then the one that runs longer. The other is kept
+/// to read mail sent to it.
+pub fn newer(a: &[u8], b: &[u8], now: i64) -> bool {
+    let rank = |c: &[u8]| info(c).ok().map(|i| (i.not_before <= now && now <= i.not_after, i.not_before, i.not_after));
+    rank(a) > rank(b)
+}
+
 /// Whether a certificate (DER) is a root: issued by itself.
 pub fn self_signed(cert: &[u8]) -> bool {
     parse(cert).is_ok_and(|c| same_name(&c.tbs_certificate.subject, &c.tbs_certificate.issuer))
