@@ -146,7 +146,9 @@ fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, 
 pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
     if classic(ui) {
-        ribbon_button(ui, 0.0);
+        // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
+        let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
+        ribbon_button(ui, width);
         return big_button(ui, icon, label, t, enabled, false, false);
     }
     let font = theme::regular(13.0);
@@ -169,7 +171,9 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
 pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -> Response {
     let label = tl!(label);
     if classic(ui) {
-        ribbon_button(ui, 0.0);
+        // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
+        let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
+        ribbon_button(ui, width);
         return big_button(ui, icon, label, t, true, on, false);
     }
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
