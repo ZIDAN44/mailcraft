@@ -483,6 +483,8 @@ pub enum Event {
         account: String,
         chain: Vec<Vec<u8>>,
         older: Vec<Vec<u8>>,
+        /// The certificate just kept went among the older ones (it's older than the one in use).
+        for_reading: bool,
         error: Option<String>,
     },
     /// A message [`Job::Protect`] signed and/or encrypted, ready to send, or why it couldn't be.

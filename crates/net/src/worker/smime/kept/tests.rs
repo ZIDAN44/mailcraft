@@ -56,15 +56,18 @@ fn a_renewed_certificate_keeps_the_old_one_for_reading() {
     for order in [[&old, &new], [&new, &old]] {
         let creds = MemoryCredentials::default();
         let a = account();
-        let (chain, older) = take(&creds, &a, order[0], NOW).unwrap();
-        assert_eq!(chain.first(), Some(&order[0].certificate().to_vec()));
-        assert!(older.is_empty());
-        let (chain, older) = take(&creds, &a, order[1], NOW).unwrap();
-        assert_eq!(chain.first(), Some(&new_cert), "the newer signs and encrypts");
-        assert_eq!(older, vec![old_cert.clone()], "the older is kept for reading");
-        // The same one again changes nothing.
+        let first = take(&creds, &a, order[0], NOW).unwrap();
+        assert_eq!(first.chain.first(), Some(&order[0].certificate().to_vec()));
+        assert!(first.older.is_empty() && !first.for_reading);
+        let second = take(&creds, &a, order[1], NOW).unwrap();
+        assert_eq!(second.chain.first(), Some(&new_cert), "the newer signs and encrypts");
+        assert_eq!(second.older, vec![old_cert.clone()], "the older is kept for reading");
+        assert_eq!(second.for_reading, order[1].certificate() == old_cert.as_slice(), "said only when the one just kept is the older");
+        // Either again: the one in use stays, the older stays older (and is said to be).
         let again = take(&creds, &a, order[1], NOW).unwrap();
-        assert_eq!((again.0.first(), again.1.len()), (Some(&new_cert), 1));
+        assert_eq!((again.chain.first(), again.older.len()), (Some(&new_cert), 1));
+        let old_again = take(&creds, &a, &old, NOW).unwrap();
+        assert!(old_again.for_reading && old_again.chain.first() == Some(&new_cert));
 
         let mut rng = rand_core::OsRng;
         let body = b"Content-Type: text/plain\r\n\r\nSent before the renewal.\r\n";
@@ -76,8 +79,8 @@ fn a_renewed_certificate_keeps_the_old_one_for_reading() {
         assert!(decrypt(&creds, &a, &to_ana).unwrap_err().contains("doesn't have"));
 
         // The older one made the one in use again: the newer is kept for reading; both still open.
-        let (chain, older) = use_older(&creds, &a, &fingerprint(&old_cert)).unwrap();
-        assert_eq!((chain.first(), older), (Some(&old_cert), vec![new_cert.clone()]));
+        let swapped = use_older(&creds, &a, &fingerprint(&old_cert)).unwrap();
+        assert_eq!((swapped.chain.first(), swapped.older), (Some(&old_cert), vec![new_cert.clone()]));
         assert!(decrypt(&creds, &a, &to_new).is_ok() && decrypt(&creds, &a, &to_old).is_ok());
         assert!(use_older(&creds, &a, "00:11").is_err(), "one that isn't kept");
         // Forgetting the one in use leaves the older readable; forgetting that one too, nothing is.
@@ -120,6 +123,17 @@ fn older_certificates_are_capped_and_a_damaged_list_is_none() {
     take(&creds, &a, &p12("riley-aes.p12"), NOW).unwrap();
     assert!(take(&creds, &a, &p12("riley-2025.p12"), NOW).unwrap_err().contains("at most"));
     assert_eq!(kept(&creds, &a).unwrap().certificate(), p12("riley-aes.p12").certificate(), "the one in use stays");
+    // Full, a swap still works: the one made current leaves its place to the one it replaces.
+    let full: Vec<String> = (0..OLDER_MAX - 1).map(|i| format!("{i:02X}")).collect();
+    creds.set_secret(&a, OLDER, &serde_json::to_string(&full).unwrap()).unwrap();
+    take(&creds, &a, &p12("riley-2025.p12"), NOW).unwrap();
+    assert_eq!(older_list(&creds, &a).len(), OLDER_MAX);
+    let old_fp = fingerprint(p12("riley-2025.p12").certificate());
+    let swapped = use_older(&creds, &a, &old_fp).unwrap();
+    assert_eq!(swapped.chain.first().map(Vec::as_slice), Some(p12("riley-2025.p12").certificate()));
+    assert_eq!(older_list(&creds, &a).len(), OLDER_MAX);
+    // And a renewal on top of a full list: the one it replaces takes the renewal's old place.
+    use_older(&creds, &a, &fingerprint(p12("riley-aes.p12").certificate())).unwrap();
     creds.set_secret(&a, OLDER, "not json").unwrap();
     assert!(older_list(&creds, &a).is_empty() && older_certs(&creds, &a).is_empty());
     let too_many: Vec<String> = (0..OLDER_MAX * 3).map(|i| format!("{i:02X}")).collect();
@@ -131,8 +145,8 @@ fn testdata_pem(name: &str) -> Vec<u8> {
     der::pem::decode_vec(&testdata(name)).unwrap().1
 }
 
-/// Two certificates imported at once, on threads of their own as the pool runs them: neither is
-/// lost, the newer signs and encrypts.
+/// Three certificates imported at once, on threads of their own as the pool runs them: none is
+/// lost, and last year's doesn't end up signing.
 #[test]
 fn imports_at_once_lose_nothing() {
     for _ in 0..20 {
@@ -149,6 +163,8 @@ fn imports_at_once_lose_nothing() {
             t.join().unwrap();
         }
         assert_eq!(older_list(creds.as_ref(), &a).len(), 2);
-        assert_eq!(kept(creds.as_ref(), &a).unwrap().certificate(), p12("riley-aes.p12").certificate());
+        // Riley's and Zoe's test certificates were issued in the same second: either may win the
+        // tie, never last year's.
+        assert_ne!(kept(creds.as_ref(), &a).unwrap().certificate(), p12("riley-2025.p12").certificate());
     }
 }

@@ -476,21 +476,23 @@ impl Session {
 
     pub(super) fn apply_smime(&mut self, e: Event) {
         match e {
-            Event::Identity { account, chain, older, error } => match error {
+            Event::Identity { account, chain, older, for_reading, error } => match error {
                 Some(e) => self.notice(format!("The certificate couldn't be kept: {e}"), true),
                 None => {
                     let s = self.smime.entry(account.clone()).or_default();
-                    // One kept for reading only that wasn't before: the one just imported is older
-                    // than the one in use.
-                    let added = older.iter().find(|c| !s.older.contains(c) && s.chain.first() != Some(*c)).cloned();
+                    // The one just kept for reading is put first among the older ones.
+                    let reading = older.first().filter(|_| for_reading).cloned();
+                    let had = !s.chain.is_empty();
                     s.older = older;
                     if !chain.is_empty() {
                         s.chain = chain;
                     }
-                    if added.is_none() {
-                        // A certificate is imported to be used: new messages are signed from now on.
+                    // A first certificate is imported to be used: new messages are signed from
+                    // now on. A renewal or a swap keeps what the user chose.
+                    if !had && reading.is_none() {
                         s.sign = true;
                     }
+                    let signing = s.sign;
                     self.save_smime(&account);
                     // Mail that couldn't be read for want of a key is tried again (the one shown at once).
                     let failed: Vec<MessageKey> = self.decrypt_errors.drain().map(|(k, _)| k).collect();
@@ -498,7 +500,7 @@ impl Session {
                         self.show_again(&k);
                     }
                     let who = |i: smime::CertInfo| i.emails.first().cloned().unwrap_or(i.name);
-                    match added.and_then(|c| smime::cert::info(&c).ok()) {
+                    match reading.and_then(|c| smime::cert::info(&c).ok()) {
                         Some(old) => {
                             let until = mailcraft_model::dates::full_time(old.not_after, &self.clock);
                             self.notice(
@@ -511,7 +513,8 @@ impl Session {
                         }
                         None => {
                             let who = self.identity(&account).map(who).unwrap_or_default();
-                            self.notice(format!("Your certificate for {who} is ready: new messages are signed"), false);
+                            let then = if signing { "new messages are signed" } else { "it signs and encrypts from now on" };
+                            self.notice(format!("Your certificate for {who} is ready: {then}"), false);
                         }
                     }
                 }

@@ -47,7 +47,7 @@ fn with_certificate(name: &str) -> Session {
     s.run("security.import", &json!({"path": path("riley-aes.p12"), "password": "secret"})).unwrap();
     let jobs = s.take_jobs();
     assert!(jobs.iter().any(|j| matches!(j, Job::ImportIdentity { data, password, .. } if !data.is_empty() && password.0 == "secret")));
-    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: Vec::new(), error: None });
+    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: Vec::new(), for_reading: false, error: None });
     assert_eq!(s.identity("sample").unwrap().emails, ["riley@studio.example"]);
     assert!(s.smime_settings("sample").sign, "imported to be used: new messages are signed");
     s
@@ -205,7 +205,13 @@ fn the_certificate_can_be_forgotten() {
     s.run("mail.new", &json!({})).unwrap();
     assert!(!s.compose.as_ref().unwrap().sign);
     // A wrong password is said.
-    s.apply(Event::Identity { account: "sample".into(), chain: Vec::new(), older: Vec::new(), error: Some("the password is wrong".into()) });
+    s.apply(Event::Identity {
+        account: "sample".into(),
+        chain: Vec::new(),
+        older: Vec::new(),
+        for_reading: false,
+        error: Some("the password is wrong".into()),
+    });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("the password is wrong")));
     done(s);
 }
@@ -241,7 +247,7 @@ fn an_older_certificate_is_kept_for_reading() {
     assert!(matches!(security(&s).lock, Some(Lock::Failed(_))));
 
     // The older one imported: kept for reading, said so; sending settings untouched.
-    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: vec![old.chain[0].clone()], error: None });
+    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: vec![old.chain[0].clone()], for_reading: true, error: None });
     assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("older than the one in use")), "{:?}", s.notices.last());
     assert!(!s.smime_settings("sample").sign, "an older one doesn't switch signing on");
     assert_eq!(s.older_identities("sample"), vec![old_info.clone()]);
@@ -261,7 +267,7 @@ fn an_older_certificate_is_kept_for_reading() {
     assert!(s.run("security.forget", &json!({"older": old_info.fingerprint})).is_err(), "already gone");
 
     // Only an older one left (the one in use removed): encrypted mail is still asked to be read.
-    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: vec![old.chain[0].clone()], error: None });
+    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: vec![old.chain[0].clone()], for_reading: true, error: None });
     s.run("security.forget", &json!({})).unwrap();
     s.take_jobs();
     let key = open_raw(&mut s, 9101, &raw);
@@ -373,7 +379,7 @@ fn a_certificate_on_a_smart_card_becomes_the_accounts() {
     let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::UseHeldKey { .. })).unwrap();
     assert!(matches!(&job, Job::UseHeldKey { at, cert, pin: Some(p), .. } if *at == card.at && *cert == card.cert && p.0 == "123456"));
     // The network layer's answer: the certificate is the account's, as an imported one is.
-    s.apply(Event::Identity { account: "sample".into(), chain: vec![card.cert.clone()], older: Vec::new(), error: None });
+    s.apply(Event::Identity { account: "sample".into(), chain: vec![card.cert.clone()], older: Vec::new(), for_reading: false, error: None });
     assert_eq!(s.identity("sample").unwrap().emails, ["riley@studio.example"]);
     // Nothing found says so.
     s.run("security.findKeys", &json!({"keychain": true})).unwrap();

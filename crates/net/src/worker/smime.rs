@@ -13,10 +13,12 @@ use smime::revocation::{self as rev, Status};
 use super::*;
 
 mod kept;
+#[cfg(test)]
+use kept::SECRET;
 pub(crate) use kept::forget_all;
 #[cfg(test)]
 use kept::keep;
-use kept::{SECRET, forget_wrong_pin, kept};
+use kept::{forget_wrong_pin, kept};
 
 /// An account's own certificate and its private key.
 #[derive(Clone, PartialEq, Eq)]
@@ -138,10 +140,10 @@ pub(crate) fn protect(
 }
 
 /// What the account has now, or why a certificate couldn't be kept.
-fn identity(account: String, done: std::result::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>), String>) -> Event {
+fn identity(account: String, done: std::result::Result<kept::Has, String>) -> Event {
     match done {
-        Ok((chain, older)) => Event::Identity { account, chain, older, error: None },
-        Err(e) => Event::Identity { account, chain: Vec::new(), older: Vec::new(), error: Some(e) },
+        Ok(k) => Event::Identity { account, chain: k.chain, older: k.older, for_reading: k.for_reading, error: None },
+        Err(e) => Event::Identity { account, chain: Vec::new(), older: Vec::new(), for_reading: false, error: Some(e) },
     }
 }
 
@@ -176,7 +178,7 @@ impl Pool {
                     .and_then(|id| kept::take(creds.as_ref(), &account, &Me::from(id), now()));
                 sink.emit(identity(account.id, done));
             }
-            Job::ForgetIdentity { account } => creds.delete_secret(&account, SECRET),
+            Job::ForgetIdentity { account } => kept::forget_current(creds.as_ref(), &account),
             Job::ForgetOlderIdentity { account, fingerprint } => kept::forget_older(creds.as_ref(), &account, &fingerprint),
             Job::UseOlderIdentity { account, fingerprint } => {
                 sink.emit(identity(account.id.clone(), kept::use_older(creds.as_ref(), &account, &fingerprint)))

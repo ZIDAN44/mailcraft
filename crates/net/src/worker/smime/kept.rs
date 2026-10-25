@@ -106,14 +106,17 @@ pub(super) fn kept_older(creds: &dyn Credentials, account: &AccountConfig, finge
     read(creds, account, &older_entry(fingerprint))
 }
 
-/// Keep `me` for reading only. At most [`OLDER_MAX`]: there's no room for more.
-fn keep_older(creds: &dyn Credentials, account: &AccountConfig, me: &Me) -> std::result::Result<(), String> {
+/// Keep `me` for reading only. At most [`OLDER_MAX`]: there's no room for more, not counting
+/// `leaving`, an older one about to go (the one a swap makes the one in use).
+fn keep_older(creds: &dyn Credentials, account: &AccountConfig, me: &Me, leaving: Option<&str>) -> std::result::Result<(), String> {
     let fp = fingerprint(me.certificate());
     if fp.is_empty() {
         return Err("the certificate can't be read".into());
     }
     let mut list = older_list(creds, account);
-    list.retain(|f| *f != fp);
+    // The one leaving goes from the list here (its entry right after), so the list never holds
+    // more than it may for a moment.
+    list.retain(|f| *f != fp && Some(f.as_str()) != leaving);
     if list.len() >= OLDER_MAX {
         return Err(format!("MailCraft keeps at most {OLDER_MAX} older certificates: remove one first (File › Info › Security)"));
     }
@@ -133,6 +136,12 @@ fn forget_older_entry(creds: &dyn Credentials, account: &AccountConfig, fingerpr
     let mut list = older_list(creds, account);
     list.retain(|f| f != fingerprint);
     let _ = set_older_list(creds, account, &list);
+}
+
+/// Forget the certificate in use and its key (older ones stay), in turn with the other changes.
+pub(super) fn forget_current(creds: &dyn Credentials, account: &AccountConfig) {
+    let _changing = changing();
+    creds.delete_secret(account, SECRET);
 }
 
 /// Every certificate of the account's and its key, as the account goes.
@@ -157,18 +166,30 @@ fn newer(a: &[u8], b: &[u8], now: i64) -> bool {
     rank(a) > rank(b)
 }
 
+/// What an account has once a certificate is kept: the chain in use, the older certificates, and
+/// whether the one just kept went with them, for reading only.
+#[derive(Debug)]
+pub(super) struct Has {
+    pub chain: Vec<Vec<u8>>,
+    pub older: Vec<Vec<u8>>,
+    pub for_reading: bool,
+}
+
 /// Keep a certificate just imported (or found on a card or in the system's store): the newer of
-/// it and the one in use signs and encrypts, the other is kept for reading. Gives back what the
-/// account now has: the chain in use, and the older certificates.
-pub(super) fn take(creds: &dyn Credentials, account: &AccountConfig, me: &Me, now: i64) -> std::result::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>), String> {
+/// it and the one in use signs and encrypts, the other is kept for reading.
+pub(super) fn take(creds: &dyn Credentials, account: &AccountConfig, me: &Me, now: i64) -> std::result::Result<Has, String> {
     let _changing = changing();
     let fp = fingerprint(me.certificate());
+    let mut for_reading = false;
     match kept(creds, account) {
         // The same one again (a new PIN, a key that moved): kept as it is now.
         Ok(cur) if fingerprint(cur.certificate()) == fp => keep(creds, account, me)?,
-        Ok(cur) if !newer(me.certificate(), cur.certificate(), now) => keep_older(creds, account, me)?,
+        Ok(cur) if !newer(me.certificate(), cur.certificate(), now) => {
+            keep_older(creds, account, me, None)?;
+            for_reading = true;
+        }
         Ok(cur) => {
-            keep_older(creds, account, &cur)?;
+            keep_older(creds, account, &cur, Some(&fp))?;
             keep(creds, account, me)?;
             // One kept for reading that now signs and encrypts isn't kept twice.
             forget_older_entry(creds, account, &fp);
@@ -178,24 +199,20 @@ pub(super) fn take(creds: &dyn Credentials, account: &AccountConfig, me: &Me, no
             forget_older_entry(creds, account, &fp);
         }
     }
-    Ok((kept(creds, account).map(|m| m.chain).unwrap_or_default(), older_certs(creds, account)))
+    Ok(Has { chain: kept(creds, account).map(|m| m.chain).unwrap_or_default(), older: older_certs(creds, account), for_reading })
 }
 
 /// An older certificate made the one that signs and encrypts again; the one in use until now is
 /// kept for reading.
-pub(super) fn use_older(
-    creds: &dyn Credentials,
-    account: &AccountConfig,
-    fingerprint: &str,
-) -> std::result::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>), String> {
+pub(super) fn use_older(creds: &dyn Credentials, account: &AccountConfig, fingerprint: &str) -> std::result::Result<Has, String> {
     let _changing = changing();
     let older = kept_older(creds, account, fingerprint)?;
     if let Ok(cur) = kept(creds, account) {
-        keep_older(creds, account, &cur)?;
+        keep_older(creds, account, &cur, Some(fingerprint))?;
     }
     keep(creds, account, &older)?;
     forget_older_entry(creds, account, fingerprint);
-    Ok((older.chain, older_certs(creds, account)))
+    Ok(Has { chain: older.chain, older: older_certs(creds, account), for_reading: false })
 }
 
 /// After `done`, a kept PIN the card refused is forgotten (the reference to the key stays), in

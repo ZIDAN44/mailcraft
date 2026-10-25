@@ -505,13 +505,15 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         ),
         Job::FindHeldKeys { .. } => emit(sh, Event::HeldKeys { keys: Vec::new(), error: Some(BROWSER_SMIME.into()) }),
         // The browser keeps one certificate an account: there are no older ones to use or forget.
-        Job::UseOlderIdentity { .. } => {
-            emit(sh, Event::Identity { account: id.to_string(), chain: Vec::new(), older: Vec::new(), error: Some(BROWSER_OLDER.into()) })
-        }
+        Job::UseOlderIdentity { .. } => emit(
+            sh,
+            Event::Identity { account: id.to_string(), chain: Vec::new(), older: Vec::new(), for_reading: false, error: Some(BROWSER_OLDER.into()) },
+        ),
         Job::ForgetOlderIdentity { .. } => {}
-        Job::UseHeldKey { .. } => {
-            emit(sh, Event::Identity { account: id.to_string(), chain: Vec::new(), older: Vec::new(), error: Some(BROWSER_SMIME.into()) })
-        }
+        Job::UseHeldKey { .. } => emit(
+            sh,
+            Event::Identity { account: id.to_string(), chain: Vec::new(), older: Vec::new(), for_reading: false, error: Some(BROWSER_SMIME.into()) },
+        ),
         Job::Start { .. }
         | Job::SmtpPassword { .. }
         | Job::DavPassword { .. }
