@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.25 — Updates that finish (2026-10-25). Each milestone below is a version: v0.1 was
+**Stage:** v0.26 — Renewed certificates, calendars anywhere, the classic ribbon (2026-10-25). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -144,7 +144,14 @@ local-first, media-aware v1); the fuller request is
    where it stopped, in the same run or the next, and checks go on hourly while MailCraft stays
    open, sooner after a failure ([docs/updates.md](docs/updates.md)). On macOS and Linux an app
    in a folder the user can write updates itself, without a password.
-26. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+26. **v0.26 — Renewed certificates, calendars anywhere, the classic ribbon** ✅ What issues
+   #6, #7 and #8 asked for. A renewed S/MIME certificate keeps the old one, so mail encrypted to
+   it still opens: the newer signs and encrypts, the older is kept for reading, and either can be
+   made the one in use. Calendars and contacts are found as RFC 6764 says (the SRV record's TXT
+   path, which Posteo's needs), or at an address given by hand with a password of its own (an app
+   password). A classic ribbon (big buttons in named groups) is a View setting, and dark mode tells
+   its panes and borders apart.
+27. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -405,3 +412,13 @@ local-first, media-aware v1); the fuller request is
   next time); checks hourly while open, backing off from 5 minutes after a failure. Tried for
   real: a test build updated a portable copy to `v0.24.0-test.21` from GitHub through the bar,
   the close question and Restart now, and resumed a 54 MB download from 20 MB.
+- **2026-10-25** — **v0.26**, issues #6, #7 and #8. S/MIME keeps older certificates for reading
+  (`addressed_to` picks the key a message names; each older key its own keychain entry; imports
+  take turns); removing an account now removes its certificates' keys too. Calendars: a TXT
+  lookup in `net/src/dns.rs` and the search from the SRV record's path, then its well-known
+  address and root; `account.dav` for an address given by hand (followed from the server, a home
+  or one calendar) with its own password as `dav` in the keychain. The classic ribbon is drawn by
+  the same buttons (`widgets::RibbonFit::classic`), and dark mode's tokens were raised, held by a
+  contrast test. Tried for real: Radicale and GreenMail in Docker through the pool (a calendar
+  address as Posteo writes it, its own password, a wrong one; mail to last year's certificate),
+  Posteo's DNS records, and the app's File › Info with both certificates and the calendar.

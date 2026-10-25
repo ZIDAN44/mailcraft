@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.25, 2026-10-25._
+_Status: v0.26, 2026-10-25._
 
 ## Open
 
@@ -18,7 +18,7 @@ _Status: v0.25, 2026-10-25._
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
-| 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificate stays locked until its password is given again. |
+| 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificate stays locked until its password is given again. It keeps one certificate per account: a renewed one replaces the old there, where the desktop app keeps the old one for reading. |
 | 8 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 
 ## Done
@@ -884,3 +884,38 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   outliving a cancelled close, a macOS swap that could put a partial copy in place, paths with a
   typographic apostrophe, a server answering with a part from the start, and a race at closing. By hand: a test build updated a portable copy to `v0.24.0-test.21` from GitHub
   through the bar, the close question and Restart now, and resumed a 54 MB download from 20 MB.
+
+### v0.26 — Renewed certificates, calendars anywhere, the classic ribbon
+- **Renewed certificates (issue #6):** importing a renewed certificate no longer drops the old
+  one. The newer (in date, then issued later) signs and encrypts; the older is kept with its key
+  to decrypt mail that was sent to it, in either order of import. File › Info › Security lists
+  each older one with *Use for sending* and *Remove*. A message is decrypted with the key it
+  names, so mail for a certificate MailCraft doesn't have says so instead of trying every key (a
+  smart card would ask for its PIN). At most 16 older ones; the browser keeps one.
+- **Keys go with the account:** removing an account now removes its certificates' keys and its
+  calendar password from the system keychain; before, the S/MIME key stayed behind.
+- **Calendars anywhere (issue #7):** discovery follows RFC 6764 fully: the path in the TXT record
+  beside the SRV one, then the well-known address, then the server's root, on the SRV record's
+  port. Posteo publishes `path=/` on port 8443, where `/.well-known/caldav` answers 404, so its
+  calendar was never found before. For a server that still isn't found, or one that wants an app
+  password, File › Info › Account settings › *Calendar server…* takes CalDAV and CardDAV
+  addresses (the server's, a home, or one calendar as a provider's help page gives it) and a user
+  name and password of their own. Plain http is allowed only to this computer.
+- **The classic ribbon (issue #8):** View › Classic ribbon (or File › Options) draws big icons
+  with their names underneath, in named groups (New, Delete, Move, Respond, Tags, Find…), and
+  scrolls rather than dropping labels in a narrow window.
+- **Dark mode told apart (issue #8):** panes a step lighter than the folder pane and ribbon,
+  borders 1.8:1 against a pane (they were 1.3:1), clearer fields, a line above the status bar;
+  light mode's faintest text now passes 3:1. A test holds both themes to these contrasts.
+- **Checked:** unit tests for which certificate a message is for (OpenSSL's and MailCraft's
+  mail, RSA and EC), renewals in either order, use-older, forgetting, the cap, imports at once on
+  threads; the TXT parser (cut and overlong records); discovery and hand-given addresses against
+  the fake DAV server; `account.dav`'s validation; a headless test of the classic ribbon on every
+  tab. Against real servers: Radicale (its own password) and GreenMail in Docker through the
+  network pool, and Posteo's published DNS records; in the app, File › Info with two certificates
+  and a hand-given calendar, and an account removed taking every keychain entry it had. An
+  independent review found seven problems, each fixed with a test. After the calendar server
+  changed, edits could still go to the old server with the new password. Remove could race
+  "Use for sending". A new calendar user name reused the old one's password. A timeout read as
+  "no calendars here". A local http address could redirect elsewhere in the clear. Re-importing an
+  older certificate gave the wrong notice. The 16-certificate cap blocked swaps.
