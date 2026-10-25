@@ -56,7 +56,8 @@ configuration: IMAP + SMTP (`imap`, `smtp`), JMAP (`jmap`, a session address), M
 (`graph`, Exchange Online) or Exchange Web Services (`ews`, on-premises Exchange). JMAP, Graph and
 EWS number their string message ids the same way
 (`jmap::State`), so the engine and cache only ever see IMAP-style keys. Calendars and address
-books sync over CalDAV / CardDAV for password accounts, and automatic replies over ManageSieve on
+books sync over CalDAV / CardDAV for password accounts (or at addresses given by hand, with a
+password of their own), and automatic replies over ManageSieve on
 IMAP hosts. An account with none of these (the sample mailbox, an opened Outlook data file) lives
 on this computer only: the pool applies its changes to the cache directly. A POP account
 (`pop`) is the same after its mail is downloaded: only the Inbox talks to the server.

@@ -65,7 +65,7 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 |---|---|---|
 | L0 | `model` | data model, jobs/events, threading, search, dates (pure, wasm) |
 | L1 | `mime`, `store`, `print`, `smime` | MIME parse/build; the cache (on disk, or in memory for the browser); PDF export; S/MIME |
-| L2 | `jmap`, `keys` | the JMAP transport, async over any HTTP client (portable, wasm); smart-card and macOS Keychain keys (native only) |
+| L2 | `jmap`, `keys` | the JMAP transport, async over any HTTP client (portable, wasm); keys on smart cards, in the macOS Keychain and the Windows certificate store (native only) |
 | L3 | `net` | IMAP client + sync, SMTP, JMAP push, Microsoft Graph, CalDAV/CardDAV, ManageSieve, `.pst` import, HTTP/DNS/OAuth, worker pool (native only) |
 | L4 | `engine` | sans-I/O `Session` + command registry |
 | L6 | `ui-egui` | egui front end |

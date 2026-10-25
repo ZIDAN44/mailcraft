@@ -18,7 +18,7 @@ A web page can't open IMAP or SMTP connections, so the browser version syncs **J
 (RFC 8620/8621: Fastmail, Stalwart, Cyrus, Apache James…) over `fetch`, with the same code as the
 desktop app. Everything else in the window works as on the desktop: the list, conversations,
 reading, writing with attachments, folders, rules, categories, search, the calendar and people
-kept with the account, and every language.
+kept with the account, signed and encrypted mail (S/MIME), and every language.
 
 - **The mail server must allow the page.** The browser only lets the page talk to a JMAP server
   that answers with CORS headers for the page's origin (`Access-Control-Allow-Origin`, and
@@ -28,6 +28,11 @@ kept with the account, and every language.
 - **Passwords are never kept.** They stay in the tab's memory; after a reload MailCraft asks
   again. The account list, folder lists and settings are kept in the page's `localStorage`
   (no mail, no passwords). Mail is cached in memory and synced again on each visit.
+- **Certificates stay locked with their passwords.** An S/MIME certificate's `.p12` file is kept
+  in the page's storage as it came, encrypted with its password, which isn't kept; after a reload
+  Unlock… opens every certificate that password fits. A renewed certificate keeps the old one, to
+  read mail sent to it. Smart cards, the system's certificate store and revocation checks are the
+  desktop app's.
 - **Desktop only:** IMAP/SMTP, Google and Microsoft sign-in, Exchange (Microsoft Graph), opening
   Outlook data files, CalDAV/CardDAV sync, desktop notifications, dragging attachments out.
 - **Files are downloads.** Save attachment, Save as and Save as PDF download the file; Print

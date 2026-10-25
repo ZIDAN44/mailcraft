@@ -188,9 +188,14 @@ servers that don't offer IMAP. Every call is SOAP over HTTPS.
 ## Calendars and address books (`crates/net/src/protocols/dav.rs`)
 
 Password accounts sync calendars over CalDAV (RFC 4791) and address books over CardDAV
-(RFC 6352). The homes are found as RFC 6764 describes: an SRV record, then the `/.well-known/`
-addresses on the mail domain, its `caldav.`/`carddav.` hosts and the IMAP host, through the
-user's principal; a server with none is asked again a day later. A sync first sends what changed
+(RFC 6352). The homes are found as RFC 6764 describes: an SRV record and the path its TXT
+record gives (Posteo's `path=/` on port 8443), that server's `/.well-known/` address and root,
+then the `/.well-known/` addresses on the mail domain, its `caldav.`/`carddav.` hosts and the IMAP
+host, through the user's principal; a server with none is asked again a day later. An address
+given by hand (`account.dav`: the server's own, a home, or one calendar or address book) is
+followed to its home instead, signed in with its own user name and password when it has one (the
+password in the keychain as `dav`); changing it moves the old server's items out of the way, and
+a sync writes only to the server its homes are on. A sync first sends what changed
 here (deletions with `If-Match`, edits guarded by the item's etag so a newer copy on the server is
 never overwritten, new items with `If-None-Match: *`), then reads each collection whose `getctag`
 moved: the etags by `PROPFIND`, and the new or changed items by `calendar-multiget` /
