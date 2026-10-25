@@ -1178,3 +1178,16 @@ month	May	mei
 	Use for sending	Gebruiken voor verzenden
 	Sign and encrypt with this one again; the one in use is kept for reading	Weer met dit certificaat ondertekenen en versleutelen; het huidige blijft om te lezen
 	Forget this certificate: mail encrypted to it can't be read any more	Dit certificaat vergeten: e-mail die ervoor versleuteld is, kan niet meer gelezen worden
+	Calendars and contacts	Agenda's en contactpersonen
+	Calendar server…	Agendaserver…
+	Calendar server (CalDAV)	Agendaserver (CalDAV)
+	Contacts server (CardDAV)	Contactenserver (CardDAV)
+	Calendars at {url}	Agenda's op {url}
+	Calendars come from a server of their own: give its address and sign-in	De agenda's staan op een eigen server: geef het adres en de aanmelding op
+	Looked for when the account syncs	Wordt gezocht als het account synchroniseert
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft zoekt uw agenda's en contactpersonen op de server van uw e-mailprovider. Als ze niet gevonden worden, geef dan de adressen uit de helppagina's van uw provider op; laat er een leeg om ernaar te blijven zoeken.
+	No calendars were found at the address given: check it, and its sign-in	Op het opgegeven adres zijn geen agenda's gevonden: controleer het, en de aanmelding
+	Password (kept: type to change it)	Wachtwoord (bewaard: typ om te wijzigen)
+	Some providers want an app password for calendars: make one in your account's settings there.	Sommige providers vragen een app-wachtwoord voor agenda's: maak er een aan in uw accountinstellingen daar.
+	The calendar server has its own user name and password	De agendaserver heeft een eigen gebruikersnaam en wachtwoord
+	Your provider's calendar server wasn't found: give its address	De agendaserver van uw provider is niet gevonden: geef het adres op

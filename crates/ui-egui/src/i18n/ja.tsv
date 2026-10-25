@@ -1179,3 +1179,16 @@ month	May	5月
 	Use for sending	送信に使う
 	Sign and encrypt with this one again; the one in use is kept for reading	この証明書で再び署名・暗号化します。使用中の証明書は読むために残ります
 	Forget this certificate: mail encrypted to it can't be read any more	この証明書を削除: この証明書宛てに暗号化されたメールは読めなくなります
+	Calendars and contacts	予定表と連絡先
+	Calendar server…	予定表サーバー…
+	Calendar server (CalDAV)	予定表サーバー (CalDAV)
+	Contacts server (CardDAV)	連絡先サーバー (CardDAV)
+	Calendars at {url}	予定表: {url}
+	Calendars come from a server of their own: give its address and sign-in	予定表は別のサーバーにあります: アドレスとサインイン情報を入力してください
+	Looked for when the account syncs	アカウントの同期時に検索します
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft はメール プロバイダーのサーバーで予定表と連絡先を探します。見つからない場合は、プロバイダーのヘルプに載っているアドレスを入力してください。空欄にした項目は引き続き自動で探します。
+	No calendars were found at the address given: check it, and its sign-in	入力したアドレスに予定表が見つかりません: アドレスとサインイン情報を確認してください
+	Password (kept: type to change it)	パスワード (保存済み: 変更するには入力)
+	Some providers want an app password for calendars: make one in your account's settings there.	予定表にアプリ パスワードが必要なプロバイダーもあります: プロバイダーのアカウント設定で作成してください。
+	The calendar server has its own user name and password	予定表サーバーに専用のユーザー名とパスワードがある
+	Your provider's calendar server wasn't found: give its address	プロバイダーの予定表サーバーが見つかりません: アドレスを入力してください

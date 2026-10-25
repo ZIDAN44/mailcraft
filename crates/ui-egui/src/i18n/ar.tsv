@@ -1178,3 +1178,16 @@ month	May	مايو
 	Use for sending	استخدامها للإرسال
 	Sign and encrypt with this one again; the one in use is kept for reading	التوقيع والتشفير بهذه الشهادة مجددًا؛ وتُحفظ المستخدمة حاليًا للقراءة
 	Forget this certificate: mail encrypted to it can't be read any more	نسيان هذه الشهادة: لن يمكن قراءة البريد المشفّر لها بعد الآن
+	Calendars and contacts	التقويمات وجهات الاتصال
+	Calendar server…	خادم التقويم…
+	Calendar server (CalDAV)	خادم التقويم (CalDAV)
+	Contacts server (CardDAV)	خادم جهات الاتصال (CardDAV)
+	Calendars at {url}	التقويمات على {url}
+	Calendars come from a server of their own: give its address and sign-in	التقويمات على خادم خاص بها: أدخل عنوانه وبيانات تسجيل الدخول
+	Looked for when the account syncs	يُبحث عنها عند مزامنة الحساب
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	يبحث MailCraft عن تقويماتك وجهات اتصالك على خادم مزوّد بريدك. إن لم يجدها، فأدخل العناوين الواردة في صفحات المساعدة لدى مزوّدك؛ واترك أحدها فارغًا ليواصل البحث عنه.
+	No calendars were found at the address given: check it, and its sign-in	لم يُعثر على تقويمات في العنوان المُدخل: تحقّق منه ومن بيانات تسجيل الدخول
+	Password (kept: type to change it)	كلمة المرور (محفوظة: اكتب لتغييرها)
+	Some providers want an app password for calendars: make one in your account's settings there.	يطلب بعض المزوّدين كلمة مرور للتطبيق من أجل التقويمات: أنشئ واحدة في إعدادات حسابك لديهم.
+	The calendar server has its own user name and password	لخادم التقويم اسم مستخدم وكلمة مرور خاصان به
+	Your provider's calendar server wasn't found: give its address	لم يُعثر على خادم التقويم لدى مزوّدك: أدخل عنوانه

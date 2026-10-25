@@ -316,6 +316,27 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                 }
             });
         }
+        // Calendars and contacts: where they were found, or the addresses given by hand.
+        if !a.is_local() && a.config.graph.is_none() && a.config.ews.is_none() {
+            let pim = s.pim.get(&id);
+            let found = pim.and_then(|p| p.caldav_home.clone());
+            let about = match found {
+                Some(h) if !h.is_empty() => tf!("Calendars at {url}", url = readable_url(&h)),
+                Some(_) if a.config.dav.as_ref().is_some_and(|d| !d.caldav.is_empty()) => {
+                    tl!("No calendars were found at the address given: check it, and its sign-in").to_string()
+                }
+                Some(_) => tl!("Your provider's calendar server wasn't found: give its address").to_string(),
+                None if a.config.oauth.is_some() && a.config.dav.is_none() => {
+                    tl!("Calendars come from a server of their own: give its address and sign-in").to_string()
+                }
+                None => tl!("Looked for when the account syncs").to_string(),
+            };
+            setting_row(ui, t, false, name(t, tl!("Calendars and contacts")), Some(note(t, &about)), |ui| {
+                if ui.button(tl!("Calendar server…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::Dav(crate::dialogs::DavForm::of(&a.config))));
+                }
+            });
+        }
         setting_row(ui, t, false, name(t, tl!("Signature")), None, |ui| {
             if ui.button(tl!("Signature…")).clicked() {
                 acts.push(Action::EditSignature { account: id.clone(), insert: false });
@@ -633,4 +654,36 @@ fn about(s: &Session, t: &Tokens, update: &UpdateState, ui: &mut Ui, acts: &mut 
                 });
         }
     }
+}
+
+/// An address as people read it: `%40` and the like written as what they stand for (a server
+/// writes `zoe%40posteo.de`); one that isn't valid UTF-8 once decoded stays as it is.
+fn readable_url(url: &str) -> String {
+    let b = url.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = |c: u8| (c as char).to_digit(16);
+        match (b.get(i), b.get(i + 1).copied().and_then(hex), b.get(i + 2).copied().and_then(hex)) {
+            (Some(b'%'), Some(h), Some(l)) => {
+                out.push(u8::try_from(h * 16 + l).unwrap_or(b'?'));
+                i += 3;
+            }
+            (Some(c), _, _) => {
+                out.push(*c);
+                i += 1;
+            }
+            (None, _, _) => break,
+        }
+    }
+    String::from_utf8(out).unwrap_or_else(|_| url.to_string())
+}
+
+#[cfg(test)]
+#[test]
+fn addresses_read_as_written() {
+    assert_eq!(readable_url("https://p.example:8443/zoe%40posteo.example/"), "https://p.example:8443/zoe@posteo.example/");
+    assert_eq!(readable_url("https://p.example/caf%C3%A9/"), "https://p.example/café/");
+    assert_eq!(readable_url("https://p.example/%FF%"), "https://p.example/%FF%", "not UTF-8 once decoded");
+    assert_eq!(readable_url("%4"), "%4");
 }

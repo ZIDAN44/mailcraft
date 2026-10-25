@@ -1182,3 +1182,16 @@ month	May	maggio
 	Use for sending	Usa per inviare
 	Sign and encrypt with this one again; the one in use is kept for reading	Firma e cifra di nuovo con questo; quello in uso resta per la lettura
 	Forget this certificate: mail encrypted to it can't be read any more	Dimentica questo certificato: la posta cifrata per esso non si potrà più leggere
+	Calendars and contacts	Calendari e contatti
+	Calendar server…	Server del calendario…
+	Calendar server (CalDAV)	Server del calendario (CalDAV)
+	Contacts server (CardDAV)	Server dei contatti (CardDAV)
+	Calendars at {url}	Calendari su {url}
+	Calendars come from a server of their own: give its address and sign-in	I calendari sono su un server a parte: indica il suo indirizzo e l’accesso
+	Looked for when the account syncs	Cercato quando l’account si sincronizza
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft cerca calendari e contatti sul server del tuo provider di posta. Se non li trova, indica gli indirizzi presenti nelle pagine di aiuto del provider; lascia un campo vuoto per continuare a cercarlo.
+	No calendars were found at the address given: check it, and its sign-in	Nessun calendario trovato all’indirizzo indicato: controllalo, e anche l’accesso
+	Password (kept: type to change it)	Password (salvata: digita per cambiarla)
+	Some providers want an app password for calendars: make one in your account's settings there.	Alcuni provider chiedono una password per le app per i calendari: creane una nelle impostazioni del tuo account presso di loro.
+	The calendar server has its own user name and password	Il server del calendario ha nome utente e password propri
+	Your provider's calendar server wasn't found: give its address	Il server del calendario del tuo provider non è stato trovato: indica il suo indirizzo

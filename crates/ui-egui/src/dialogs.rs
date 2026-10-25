@@ -12,6 +12,7 @@ use crate::{Action, Icon, widgets};
 
 mod accounts;
 mod closing;
+mod dav;
 mod folders;
 mod mailbox;
 mod organize;
@@ -20,6 +21,7 @@ pub(crate) mod pim_dialogs;
 mod writing;
 
 pub use accounts::*;
+pub use dav::DavForm;
 pub use mailbox::*;
 pub use organize::*;
 pub use writing::*;
@@ -95,6 +97,8 @@ pub enum Dialog {
         address: String,
         error: Option<String>,
     },
+    /// Where an account's calendars and contacts are, given by hand (issue #7).
+    Dav(dav::DavForm),
     /// The password of a certificate file being imported (S/MIME): from `path`, or `data` as the
     /// browser's picker gives it; neither, the one the browser keeps, unlocked.
     Certificate {
@@ -335,6 +339,7 @@ impl Dialog {
             Dialog::Event(f) => f.error = Some(e),
             Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
+            Dialog::Dav(f) => f.error = Some(e),
             Dialog::OpenSharedCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => *error = Some(e),
             _ => {}
         }
@@ -453,6 +458,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         | Dialog::EditAccount(..)
         | Dialog::AddSharedMailbox { .. } => accounts::draw(ui, d, s, t, acts),
         Dialog::Signature(..) | Dialog::Vacation(..) => mailbox::draw(ui, d, s, t, acts),
+        Dialog::Dav(f) => dav::draw(ui, f, t, acts),
         Dialog::ConfirmDelete { .. }
         | Dialog::MoveTo { .. }
         | Dialog::FolderName { .. }

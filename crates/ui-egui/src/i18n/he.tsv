@@ -1178,3 +1178,16 @@ month	May	מאי
 	Use for sending	שימוש לשליחה
 	Sign and encrypt with this one again; the one in use is kept for reading	לחתום ולהצפין שוב עם אישור זה; האישור שבשימוש נשמר לקריאה
 	Forget this certificate: mail encrypted to it can't be read any more	שכחת אישור זה: לא ניתן יהיה עוד לקרוא דואר שהוצפן עבורו
+	Calendars and contacts	לוחות שנה ואנשי קשר
+	Calendar server…	שרת לוח שנה…
+	Calendar server (CalDAV)	שרת לוח שנה (CalDAV)
+	Contacts server (CardDAV)	שרת אנשי קשר (CardDAV)
+	Calendars at {url}	לוחות שנה בכתובת {url}
+	Calendars come from a server of their own: give its address and sign-in	לוחות השנה נמצאים בשרת נפרד: יש להזין את כתובתו ואת פרטי הכניסה
+	Looked for when the account syncs	יחופש כשהחשבון מסתנכרן
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft מחפש את לוחות השנה ואנשי הקשר שלך בשרת של ספק הדואר. אם הם לא נמצאים, יש להזין את הכתובות מדפי העזרה של הספק; שדה שיישאר ריק ימשיך להיות מחופש.
+	No calendars were found at the address given: check it, and its sign-in	לא נמצאו לוחות שנה בכתובת שהוזנה: יש לבדוק אותה ואת פרטי הכניסה
+	Password (kept: type to change it)	סיסמה (שמורה: יש להקליד כדי לשנות)
+	Some providers want an app password for calendars: make one in your account's settings there.	יש ספקים שדורשים סיסמת אפליקציה ללוחות שנה: אפשר ליצור אחת בהגדרות החשבון אצלם.
+	The calendar server has its own user name and password	לשרת לוח השנה יש שם משתמש וסיסמה משלו
+	Your provider's calendar server wasn't found: give its address	שרת לוח השנה של הספק לא נמצא: יש להזין את כתובתו

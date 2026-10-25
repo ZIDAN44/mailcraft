@@ -1179,3 +1179,16 @@ month	May	5月
 	Use for sending	用于发送
 	Sign and encrypt with this one again; the one in use is kept for reading	重新用此证书签名和加密；正在使用的证书保留用于阅读
 	Forget this certificate: mail encrypted to it can't be read any more	删除此证书：加密给它的邮件将无法再阅读
+	Calendars and contacts	日历和联系人
+	Calendar server…	日历服务器…
+	Calendar server (CalDAV)	日历服务器 (CalDAV)
+	Contacts server (CardDAV)	联系人服务器 (CardDAV)
+	Calendars at {url}	日历位于 {url}
+	Calendars come from a server of their own: give its address and sign-in	日历位于单独的服务器上：请填写其地址和登录信息
+	Looked for when the account syncs	账户同步时查找
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft 会在邮件服务商的服务器上查找你的日历和联系人。如果找不到，请填写服务商帮助页面中的地址；留空的项目会继续自动查找。
+	No calendars were found at the address given: check it, and its sign-in	在填写的地址上没有找到日历：请检查地址和登录信息
+	Password (kept: type to change it)	密码（已保存：输入以更改）
+	Some providers want an app password for calendars: make one in your account's settings there.	部分服务商要求日历使用应用专用密码：请在其账户设置中创建。
+	The calendar server has its own user name and password	日历服务器有自己的用户名和密码
+	Your provider's calendar server wasn't found: give its address	没有找到服务商的日历服务器：请填写其地址

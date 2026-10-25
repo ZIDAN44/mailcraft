@@ -119,6 +119,15 @@ pub(crate) fn tour() {
             },
             Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) },
             Dialog::AddSharedMailbox { account: "sample".into(), address: "sales@contoso.example".into(), error: Some("already open".into()) },
+            Dialog::Dav(crate::dialogs::DavForm {
+                account: "sample".into(),
+                caldav: "https://dav.example.com/calendars/riley/default".into(),
+                own: true,
+                username: "riley@studio.example".into(),
+                kept: true,
+                error: Some("no calendars were found".into()),
+                ..Default::default()
+            }),
             Dialog::RemoveAccount { account: "sample".into(), email: "x".into() },
             Dialog::MailboxClosed {
                 account: "sample".into(),

@@ -1183,3 +1183,16 @@ month	May	mai
 	Use for sending	Utiliser pour l’envoi
 	Sign and encrypt with this one again; the one in use is kept for reading	Signer et chiffrer de nouveau avec celui-ci ; celui en service est conservé pour la lecture
 	Forget this certificate: mail encrypted to it can't be read any more	Oublier ce certificat : les messages chiffrés pour lui ne pourront plus être lus
+	Calendars and contacts	Calendriers et contacts
+	Calendar server…	Serveur de calendrier…
+	Calendar server (CalDAV)	Serveur de calendrier (CalDAV)
+	Contacts server (CardDAV)	Serveur de contacts (CardDAV)
+	Calendars at {url}	Calendriers sur {url}
+	Calendars come from a server of their own: give its address and sign-in	Les calendriers sont sur un serveur à part : indiquez son adresse et l’identification
+	Looked for when the account syncs	Recherché lors de la synchronisation du compte
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft cherche vos calendriers et contacts sur le serveur de votre fournisseur de messagerie. S’il ne les trouve pas, indiquez les adresses données dans l’aide de votre fournisseur ; laissez un champ vide pour qu’il continue à les chercher.
+	No calendars were found at the address given: check it, and its sign-in	Aucun calendrier trouvé à l’adresse indiquée : vérifiez-la, ainsi que l’identification
+	Password (kept: type to change it)	Mot de passe (conservé : saisissez-le pour le changer)
+	Some providers want an app password for calendars: make one in your account's settings there.	Certains fournisseurs demandent un mot de passe d’application pour les calendriers : créez-en un dans les paramètres de votre compte chez eux.
+	The calendar server has its own user name and password	Le serveur de calendrier a son propre nom d’utilisateur et mot de passe
+	Your provider's calendar server wasn't found: give its address	Le serveur de calendrier de votre fournisseur est introuvable : indiquez son adresse

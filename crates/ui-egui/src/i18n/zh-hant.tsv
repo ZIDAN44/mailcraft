@@ -1182,3 +1182,16 @@ month	May	5月
 	Use for sending	用於傳送
 	Sign and encrypt with this one again; the one in use is kept for reading	重新以此憑證簽署與加密；使用中的憑證保留用於閱讀
 	Forget this certificate: mail encrypted to it can't be read any more	刪除此憑證：加密給它的郵件將無法再閱讀
+	Calendars and contacts	行事曆與連絡人
+	Calendar server…	行事曆伺服器…
+	Calendar server (CalDAV)	行事曆伺服器 (CalDAV)
+	Contacts server (CardDAV)	連絡人伺服器 (CardDAV)
+	Calendars at {url}	行事曆位於 {url}
+	Calendars come from a server of their own: give its address and sign-in	行事曆位於另一個伺服器：請填寫其位址與登入資訊
+	Looked for when the account syncs	帳戶同步時尋找
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft 會在郵件服務商的伺服器上尋找你的行事曆與連絡人。如果找不到，請填寫服務商說明頁面中的位址；留白的項目會繼續自動尋找。
+	No calendars were found at the address given: check it, and its sign-in	在填寫的位址上找不到行事曆：請檢查位址與登入資訊
+	Password (kept: type to change it)	密碼（已儲存：輸入以變更）
+	Some providers want an app password for calendars: make one in your account's settings there.	部分服務商要求行事曆使用應用程式密碼：請在其帳戶設定中建立。
+	The calendar server has its own user name and password	行事曆伺服器有自己的使用者名稱與密碼
+	Your provider's calendar server wasn't found: give its address	找不到服務商的行事曆伺服器：請填寫其位址
