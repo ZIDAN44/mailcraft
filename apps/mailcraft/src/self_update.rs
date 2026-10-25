@@ -253,6 +253,10 @@ impl Updater {
 
     fn set_status(&self, status: Status) {
         *self.shared.status.lock().unwrap_or_else(PoisonError::into_inner) = status;
+        self.wake_window();
+    }
+
+    fn wake_window(&self) {
         let waker = self.shared.waker.lock().unwrap_or_else(PoisonError::into_inner).clone();
         if let Some(wake) = waker {
             wake();
@@ -324,6 +328,9 @@ impl Updater {
                 Err(e) => {
                     log::info!("updates: {e}");
                     failed = failed.saturating_add(1);
+                    // The list is asked for whole again: its ETag would say "unchanged" and the
+                    // download that failed would never be tried again in this run.
+                    etag = None;
                 }
             }
             let wait = if failed > 0 { retry_wait(failed) } else { next_wait(seed()) };
@@ -389,6 +396,13 @@ impl Updater {
         let fetched = updates::download_installer(release, &expected, &dir, &self.shared.progress, &self.shared.stop);
         match fetched {
             Ok(Some(file)) => {
+                // Under the status's lock, so that closing (which reads it) either finds the older
+                // version still ready with its file, or this one: never an older one whose file is
+                // gone. Once MailCraft is closing, what's ready stays as it is.
+                let mut status = self.shared.status.lock().unwrap_or_else(PoisonError::into_inner);
+                if self.shared.stop.load(Ordering::SeqCst) {
+                    return Ok(());
+                }
                 // Anything older waiting there goes.
                 if let Ok(list) = std::fs::read_dir(&dir) {
                     for e in list.flatten().filter(|e| e.path() != file) {
@@ -396,7 +410,9 @@ impl Updater {
                     }
                 }
                 log::info!("updates: {} is downloaded and checked; it installs when MailCraft closes", release.tag);
-                self.set_status(Status::Ready { tag: release.tag.clone(), file });
+                *status = Status::Ready { tag: release.tag.clone(), file };
+                drop(status);
+                self.wake_window();
                 Ok(())
             }
             // MailCraft is closing: carried on from next time.

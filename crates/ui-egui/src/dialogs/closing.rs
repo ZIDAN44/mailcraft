@@ -113,7 +113,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
                         keep = false;
                     }
                     if widgets::accent_button(ui, Icon::Close, "Close", t, true).clicked() {
-                        acts.push(Action::UpdateOnClose(true));
+                        // Kept for later: should it finish as MailCraft closes, it isn't installed
+                        // without its own question.
+                        acts.push(Action::UpdateOnClose(false));
                         keep = false;
                     }
                 });
