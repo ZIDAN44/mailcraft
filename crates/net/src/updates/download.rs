@@ -204,7 +204,7 @@ fn attempt(url: &str, part: &Path, have: u64, size: u64, progress: &Progress, st
             return Ok(None);
         }
         let file = if head.status == 206 && start == have {
-            std::fs::OpenOptions::new().append(true).open(part)
+            std::fs::OpenOptions::new().create(true).append(true).open(part)
         } else if head.status == 206 {
             // Another part than asked for: start again from the beginning.
             let _ = std::fs::remove_file(part);
@@ -344,6 +344,21 @@ mod tests {
         stop.store(true, Ordering::Relaxed);
         assert_eq!(fetch_to("http://127.0.0.1:1/o.msi", &dest, 20, &expected, &progress, &stop, Duration::ZERO).unwrap(), None);
         assert_eq!(std::fs::read(part_path(&dest, 20)).unwrap(), b"0123");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Some servers answer a plain GET with 206 and the whole file as its one part: taken, with no
+    /// partial file there yet to carry on.
+    #[test]
+    fn a_part_from_the_start_is_taken_without_a_partial_file() {
+        let body = b"0123456789".to_vec();
+        let dir = scratch("from-start");
+        let (base, h) = serve(vec![b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 0-9/10\r\nContent-Length: 10\r\n\r\n0123456789".to_vec()]);
+        let dest = dir.join("c.msi");
+        let (progress, stop) = (Progress::default(), AtomicBool::new(false));
+        assert!(fetch_to(&format!("{base}/c.msi"), &dest, 10, &sum(&body), &progress, &stop, Duration::ZERO).unwrap().is_some());
+        assert_eq!(std::fs::read(&dest).unwrap(), body);
+        h.join().unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }
 
