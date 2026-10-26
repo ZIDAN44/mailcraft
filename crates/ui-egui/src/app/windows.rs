@@ -308,7 +308,7 @@ impl WindowPlace {
         match self.usable() {
             // On Windows, winit 0.30.13 showed a window created maximized at once, though eframe
             // keeps it hidden until its first frame: it appeared, vanished and appeared again. The
-            // vendored winit (vendor/README.md) maximizes a hidden window only as it's shown.
+            // patched winit (storytold/winit) maximizes a hidden window only as it's shown.
             Some(p) => b.with_position([p.x, p.y]).with_inner_size([p.w, p.h]).with_maximized(p.maximized),
             None => b,
         }

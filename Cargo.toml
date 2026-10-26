@@ -1,9 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
-# Patched copies of upstream crates (vendor/README.md): not workspace members, so its lints and
-# tests stay theirs. `fuzz` is its own workspace (nightly, libFuzzer).
-exclude = ["vendor", "fuzz"]
+# `fuzz` is its own workspace (nightly, libFuzzer).
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.26.0"
@@ -69,6 +68,7 @@ debug-assertions = false
 opt-level = 3
 lto = "thin"
 
-# winit 0.30.13 with the upstream fixes no 0.30 release has (vendor/README.md), as PdfCraft carries.
+# winit 0.30.13 with the fixes no 0.30 release has: storytold's fork, which the Craft apps share,
+# pinned by revision. Each fix in it is listed in the fork's PATCHES.md.
 [patch.crates-io]
-winit = { path = "vendor/winit" }
+winit = { git = "https://github.com/storytold/winit.git", rev = "5506b1a95e38bf31368ca4886bb8d0ecdfa51cc8" }

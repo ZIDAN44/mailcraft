@@ -15,11 +15,14 @@ targets = [
 ]
 
 # Where crates may come from: crates.io, which is cargo-deny's one allowed registry unless told
-# otherwise, and nowhere else. Git dependencies and other registries are refused; the vendored
-# crates under vendor/ count as paths.
+# otherwise, and the winit fork the Craft apps share (0.30.13, pinned to an immutable revision
+# in Cargo.toml's [patch.crates-io]). Nothing else.
 [sources]
 unknown-git = "deny"
 unknown-registry = "deny"
+allow-git = [
+    "https://github.com/storytold/winit",
+]
 
 # Security notices from the RustSec database. Vulnerable, unsound or yanked crates always fail.
 # Unmaintained ones fail only when one of our crates uses them directly: those deeper in the UI

@@ -490,7 +490,7 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
     a wgpu error is logged rather than ending the app; Intel Macs leave out wgpu's indirect-call
     validation, which Metal's Intel compiler aborts on; Linux draws on the desktop's GPU;
   - on Windows a window saved maximized no longer appears, vanishes and appears again at
-    start-up (measured 6 times in 6; now shown once, maximized, through the vendored winit);
+    start-up (measured 6 times in 6; now shown once, maximized, through the patched winit);
   - on Linux the window opens through XWayland when there is one, so attachments drag in and
     out on Wayland desktops (a stale `DISPLAY` opens on Wayland), and clipboard reads give up
     after two seconds instead of freezing the window while another app hangs;
@@ -500,9 +500,9 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
 - **WordCraft, PdfCraft, DeckCraft and GridCraft, every change to their desktop glue:** the
   four closest siblings' 367 commits to their desktop apps, packaging and build tools were read
   one by one (not by keyword), and these adopted:
-  - winit 0.30.13 as PdfCraft carries it (`vendor/README.md`): a window dragged to a monitor
-    with another scale on Windows 11, input methods on Windows (Korean), X11, Wayland and macOS,
-    and windows created maximized;
+  - winit 0.30.13 as PdfCraft carries it (now storytold/winit, the fork the apps share): a
+    window dragged to a monitor with another scale on Windows 11, input methods on Windows
+    (Korean), X11, Wayland and macOS, and windows created maximized;
   - windows come back on screen when their monitor went, and fit a screen smaller than they were;
   - an argument that isn't Unicode no longer ends the app or the CLI before they start, messages
     on start-up can't panic on a broken standard error, and quitting on macOS no longer crashes;
