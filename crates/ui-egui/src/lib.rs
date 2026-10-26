@@ -189,6 +189,9 @@ pub struct UiState {
     /// the window is to close on the next frame.
     pub closing_anyway: bool,
     pub close_now: bool,
+    /// When the close was last decided (the input's time): [`MailApp::logic`] decides it, and
+    /// `ui` in the same pass doesn't again.
+    pub(crate) close_checked: Option<f64>,
     /// Where the updater is, from [`Services::update_state`].
     pub update: UpdateState,
     /// The ready version whose bar was put away (Later), and the one the system was told of.
@@ -350,6 +353,7 @@ impl MailApp {
                 tokens: Tokens::light(),
                 closing_anyway: false,
                 close_now: false,
+                close_checked: None,
                 update: UpdateState::None,
                 update_later: None,
                 update_told: None,

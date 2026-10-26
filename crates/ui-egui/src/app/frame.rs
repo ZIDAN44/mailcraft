@@ -5,32 +5,19 @@ use crate::*;
 use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_vertical};
 
 impl MailApp {
-    /// The whole window.
-    pub fn ui(&mut self, ui: &mut Ui) {
-        let ctx = ui.ctx().clone();
-        let mut main = self.ui.places.get("main").copied();
-        after_open(ui, main);
-        WindowPlace::note(&mut main, ui);
-        if let Some(p) = main {
-            self.ui.places.insert("main".into(), p);
-        }
-        if !self.ui.fonts_ready {
-            // Fonts take effect from the next frame; drawing now would miss the bold family.
-            self.install_fonts(&ctx, None, None);
-            ctx.request_repaint();
-            return;
-        }
-        self.apply_language(&ctx);
-        motion::set_enabled(&ctx, self.session.prefs.animations);
-        // Ctrl+Q is Mark as read, as Outlook's: egui's own Ctrl+Q closed the window too. On a
-        // Mac, Cmd+Q quits, as every Mac app does.
-        if !cfg!(target_os = "macos") && ctx.options(|o| !o.quit_shortcuts.is_empty()) {
-            ctx.options_mut(|o| o.quit_shortcuts.clear());
-        }
-        self.pump();
-        self.settle_composes(&ctx);
-        self.announce(&ctx);
-        self.follow_update(&ctx);
+    /// Every frame, the window minimized or hidden too: eframe runs only `logic` then, and closes
+    /// the window unless `logic` cancels, so the close is decided here, not in `ui` alone (craft-libs'
+    /// quit crate found this: a close from the taskbar lost the messages being written).
+    pub fn logic(&mut self, ctx: &egui::Context) {
+        // In a pass that draws, `ui` then leaves it be (egui gives `logic` alone the last pass's
+        // input time, so a minimized window's close is always decided).
+        self.ui.close_checked = Some(ctx.input(|i| i.time));
+        self.decide_close(ctx);
+    }
+
+    /// Closing with messages being written, online-only accounts' unsent mail or changes held in
+    /// memory, or an update waiting: ask first.
+    fn decide_close(&mut self, ctx: &egui::Context) {
         self.forget_cancelled_close();
         // Closing with online-only accounts' unsent mail or changes held in memory: ask first.
         if self.ui.close_now {
@@ -59,10 +46,47 @@ impl MailApp {
             if asked {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.ui.close_asked = true;
+                // Closed from the taskbar or the Dock while minimized: the window comes back to ask.
+                if ctx.input(|i| i.viewport().minimized == Some(true)) {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                }
             } else if self.ui.restart_wanted {
                 // Restart now, and nothing stopped the close: the new version opens once installed.
                 self.services.restart_to_update();
             }
+        }
+    }
+
+    /// The whole window.
+    pub fn ui(&mut self, ui: &mut Ui) {
+        let ctx = ui.ctx().clone();
+        let mut main = self.ui.places.get("main").copied();
+        after_open(ui, main);
+        WindowPlace::note(&mut main, ui);
+        if let Some(p) = main {
+            self.ui.places.insert("main".into(), p);
+        }
+        if !self.ui.fonts_ready {
+            // Fonts take effect from the next frame; drawing now would miss the bold family.
+            self.install_fonts(&ctx, None, None);
+            ctx.request_repaint();
+            return;
+        }
+        self.apply_language(&ctx);
+        motion::set_enabled(&ctx, self.session.prefs.animations);
+        // Ctrl+Q is Mark as read, as Outlook's: egui's own Ctrl+Q closed the window too. On a
+        // Mac, Cmd+Q quits, as every Mac app does.
+        if !cfg!(target_os = "macos") && ctx.options(|o| !o.quit_shortcuts.is_empty()) {
+            ctx.options_mut(|o| o.quit_shortcuts.clear());
+        }
+        self.pump();
+        self.settle_composes(&ctx);
+        self.announce(&ctx);
+        self.follow_update(&ctx);
+        // Decided in `logic` already when the app runs it (the desktop app; not the tests or the browser).
+        if self.ui.close_checked != Some(ctx.input(|i| i.time)) {
+            self.decide_close(&ctx);
         }
         // A search started by a command or agent shows its query in the box.
         if let Some((q, _)) = &self.session.search

@@ -270,6 +270,32 @@ fn closing_with_messages_written_asks_and_keeps_them() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Closed from the taskbar while minimized, when eframe runs `logic` alone and no `ui`: the close
+/// still waits for the question, and the window comes back to ask it (craft-libs' quit crate:
+/// eframe closed the window, and the messages being written were lost).
+#[test]
+fn closing_while_minimized_still_asks() {
+    let (mut a, dir) = app("save-on-close-minimized");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "Written while minimized"}));
+    frame(&ctx, &mut a, vec![]);
+    let viewport = egui::ViewportInfo { minimized: Some(true), events: vec![egui::ViewportEvent::Close], ..Default::default() };
+    let close = RawInput { time: Some(99.0), viewports: std::iter::once((egui::ViewportId::ROOT, viewport)).collect(), ..Default::default() };
+    let mut out = ctx.run_logic(&close, |ctx| a.logic(ctx));
+    let commands = out.viewport_commands.remove(&egui::ViewportId::ROOT).unwrap_or_default();
+    assert!(commands.contains(&egui::ViewportCommand::CancelClose), "the close waits: {commands:?}");
+    assert!(commands.contains(&egui::ViewportCommand::Minimized(false)), "the window comes back: {commands:?}");
+    assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))), "asked");
+    // The window back, the same close comes in again with the next pass (eframe keeps the
+    // input logic alone saw): asked once, still.
+    let mut out = ctx.run_ui(close, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// A file dragged from the desktop onto a message being written is attached to it.
 #[test]
 fn files_dropped_on_a_message_are_attached() {

@@ -183,6 +183,8 @@ impl eframe::App for App {
         apple_events::deliver(&self.finder, &mut self.app, ctx);
         // An update ready while the window is minimized or behind others: the system says so.
         self.app.follow_update(ctx);
+        // A close from the taskbar or the Dock while minimized: asked about here, as `ui` doesn't run.
+        self.app.logic(ctx);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frames = self.frames.saturating_add(1);
