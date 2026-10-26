@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 206 (`mailcraft-cli commands`) |
-| Tests | 637 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 207 (`mailcraft-cli commands`) |
+| Tests | 641 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -464,4 +464,9 @@ local-first, media-aware v1); the fuller request is
   rest of the real-server suite. Gap 7 closed: Exchange Online searches `/users` (then
   `/me/people`) with a token of its own, from a sign-in asking for `User.ReadBasic.All` and
   `People.Read` alone (`oauth::DIRECTORY_SCOPE`, `Job::AllowDirectory`), its refresh token kept as
-  `directory` in the keychain; the mail's sign-in and refreshes ask for what they did.
+  `directory` in the keychain; the mail's sign-in and refreshes ask for what they did. Gap 5 closed
+  (Kerberos for EWS: `exchange/kerberos.rs` on sspi, the KDC over our own TCP, found by DNS SRV;
+  tried against Samba's AD DC and mod_auth_gssapi in Docker), gap 2 narrowed (right-to-left mail
+  selects; Simplified Chinese fetched in the browser when wanted), gap 7 narrowed (certificates kept
+  unlocked in the browser, sealed by WebCrypto, tried against Stalwart and OpenSSL); JMAP accounts
+  without an identity get one.
