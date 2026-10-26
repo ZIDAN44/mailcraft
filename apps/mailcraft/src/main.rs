@@ -186,6 +186,10 @@ impl eframe::App for App {
         self.app.follow_update(ctx);
         // A close from the taskbar or the Dock while minimized: asked about here, as `ui` doesn't run.
         self.app.logic(ctx);
+        // On a Mac a close nothing held open quits through AppKit (`apple_events::quit`); last, so
+        // it sees whether a question held the window.
+        #[cfg(target_os = "macos")]
+        MailApp::quit_instead_of_close(ctx, apple_events::quit);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frames = self.frames.saturating_add(1);
@@ -570,6 +574,11 @@ fn run(
                 #[cfg(target_os = "macos")]
                 finder: {
                     apple_events::repaint_on_arrival(&finder, &cc.egui_ctx);
+                    // ⌘Q asks before what's being written is lost; without the menu it still
+                    // runs, quitting as winit's does.
+                    if let Err(e) = apple_events::install_menu(&cc.egui_ctx) {
+                        log::warn!("the app menu wasn't put in place, so Quit won't ask first: {e}");
+                    }
                     finder
                 },
                 native_wayland,

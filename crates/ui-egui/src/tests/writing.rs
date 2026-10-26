@@ -296,6 +296,47 @@ fn closing_while_minimized_still_asks() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// macOS quits through `terminate:` rather than closing the window: a close nothing holds open
+/// is taken over (once, the window kept for the quit), one a question holds open isn't, and a
+/// frame with no close leaves the quit alone. Elsewhere `quit` says no and eframe closes.
+#[test]
+fn a_close_becomes_the_platform_quit_unless_something_asks() {
+    let close = || RawInput {
+        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
+            .collect(),
+        ..Default::default()
+    };
+    let ctx = egui::Context::default();
+    // Nothing being written: the quit runs, and the window waits for it.
+    let (mut a, dir) = app("quit-takes-over");
+    let quits = std::cell::Cell::new(0);
+    let mut out = ctx.run_logic(&close(), |ctx| {
+        a.logic(ctx);
+        assert!(MailApp::quit_instead_of_close(ctx, || {
+            quits.set(quits.get() + 1);
+            true
+        }));
+    });
+    assert_eq!(quits.get(), 1);
+    assert!(out.viewport_commands.remove(&egui::ViewportId::ROOT).unwrap_or_default().contains(&egui::ViewportCommand::CancelClose));
+    // A platform without a quit of its own: nothing taken over, eframe closes.
+    let out = ctx.run_logic(&close(), |ctx| assert!(!MailApp::quit_instead_of_close(ctx, || false)));
+    assert!(out.viewport_commands.get(&egui::ViewportId::ROOT).is_none_or(|c| !c.contains(&egui::ViewportCommand::CancelClose)));
+    // No close asked for: no quit.
+    let _ = ctx.run_logic(&RawInput::default(), |ctx| assert!(!MailApp::quit_instead_of_close(ctx, || panic!("no close, no quit"))));
+    // A message being written: the question holds the window, and the quit waits for the answer.
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "Not lost to Cmd+Q"}));
+    frame(&ctx, &mut a, vec![]);
+    let _ = ctx.run_logic(&RawInput { time: Some(50.0), ..close() }, |ctx| {
+        a.logic(ctx);
+        assert!(!MailApp::quit_instead_of_close(ctx, || panic!("asked first")));
+    });
+    assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// A file dragged from the desktop onto a message being written is attached to it.
 #[test]
 fn files_dropped_on_a_message_are_attached() {
