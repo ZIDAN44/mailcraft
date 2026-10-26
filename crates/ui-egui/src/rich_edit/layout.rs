@@ -37,6 +37,9 @@ pub(super) fn picture_format() -> TextFormat {
 pub(super) fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, shift: &[f32]) -> LayoutJob {
     let mut job = LayoutJob::default();
     job.wrap.max_width = wrap;
+    // Where a paragraph goes is decided here (`layout_aligned`), against the editor's width;
+    // egui would put a right-to-left one against the widest line instead.
+    job.halign_min_is_start = false;
     let plain_fmt = TextFormat { font_id: theme::regular(14.5), color: t.text, ..Default::default() };
     let mut i = 0usize;
     for (n, line) in text.split('\n').enumerate() {
@@ -123,7 +126,12 @@ pub(super) fn layout_aligned(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &
     let align_of = |n: usize, a: Align| {
         if a == Align::Left && lines.get(n).is_some_and(|l| crate::bidi::has_rtl(l) && crate::bidi::paragraph_rtl(l)) { Align::Right } else { a }
     };
-    if plain || st.paras.iter().enumerate().all(|(n, p)| align_of(n, p.align) == Align::Left) {
+    let rtl_of = |n: usize| lines.get(n).is_some_and(|l| crate::bidi::has_rtl(l) && crate::bidi::paragraph_rtl(l));
+    if plain {
+        // Plain text has no alignment of its own: right-to-left paragraphs still start on the right.
+        return rtl_rows_right(first, rtl_of, wrap, 1);
+    }
+    if st.paras.iter().enumerate().all(|(n, p)| align_of(n, p.align) == Align::Left) {
         return first;
     }
     let mut shift = vec![0.0; st.paras.len()];
@@ -148,5 +156,44 @@ pub(super) fn layout_aligned(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &
             }
         }
     }
-    ui.painter().layout_job(job(text, st, plain, t, wrap, &shift))
+    let shifted = ui.painter().layout_job(job(text, st, plain, t, wrap, &shift));
+    // A right-to-left paragraph left as it was and wrapped: each of its rows against the right edge.
+    rtl_rows_right(shifted, |n| st.para(n).align == Align::Left && rtl_of(n), wrap, 2)
+}
+
+/// The rows of the paragraphs `rtl` names that take at least `min_rows` rows, moved against the
+/// right edge (`wrap`), where right-to-left text starts.
+fn rtl_rows_right(g: Arc<Galley>, rtl: impl Fn(usize) -> bool, wrap: f32, min_rows: usize) -> Arc<Galley> {
+    if !wrap.is_finite() {
+        return g;
+    }
+    // Each row's paragraph, and how many rows each paragraph takes.
+    let mut para_of = Vec::with_capacity(g.rows.len());
+    let mut counts: Vec<usize> = vec![0];
+    for r in &g.rows {
+        para_of.push(counts.len() - 1);
+        if let Some(c) = counts.last_mut() {
+            *c += 1;
+        }
+        if r.ends_with_newline {
+            counts.push(0);
+        }
+    }
+    let moves: Vec<(usize, f32)> = g
+        .rows
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| para_of.get(*i).is_some_and(|&n| rtl(n) && counts.get(n).is_some_and(|&c| c >= min_rows)))
+        .map(|(i, r)| (i, (wrap - r.rect().width()).max(0.0)))
+        .collect();
+    if moves.is_empty() {
+        return g;
+    }
+    let mut out = (*g).clone();
+    for (i, x) in moves {
+        if let Some(r) = out.rows.get_mut(i) {
+            r.pos.x = x;
+        }
+    }
+    Arc::new(out)
 }

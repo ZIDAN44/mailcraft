@@ -665,4 +665,43 @@ mod tests {
         assert!(f.email && f.editing && !f.multi);
         assert_eq!((f.to.as_str(), f.subject.as_str(), f.text.as_str()), ("ann@x.example", "Hi there", "write"));
     }
+
+    /// Right-to-left paragraphs in a message start against the editor's right edge, a short one
+    /// and every row of a wrapped one, in rich and plain text; a left-to-right one stays left. (egui
+    /// put them against the widest line, so a short Hebrew line sat in the middle.)
+    #[test]
+    fn right_to_left_paragraphs_start_on_the_right() {
+        let text = "שלום עולם
+English stays left.
+זוהי פסקה ארוכה מאוד בעברית שתיכנס לכמה שורות כשהעורך צר, וכל שורה שלה צריכה להתחיל בצד ימין של העורך.";
+        let wrap = 300.0;
+        let ctx = egui::Context::default();
+        let t = Tokens::light();
+        for plain in [false, true] {
+            let mut rows = Vec::new();
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let g = layout::layout(ui, text, &Styles::plain(text), plain, &t, wrap);
+                rows = g
+                    .rows
+                    .iter()
+                    .map(|r| {
+                        // Where its letters are (a row's rect takes in its leading space).
+                        let ink =
+                            |f: fn(f32, f32) -> f32, init: f32| r.row.glyphs.iter().filter(|g| !g.chr.is_whitespace()).map(|g| g.pos.x).fold(init, f);
+                        let right = r.row.glyphs.iter().map(|g| g.max_x()).fold(0.0, f32::max);
+                        (r.pos.x + ink(f32::min, f32::INFINITY), r.pos.x + right, r.ends_with_newline)
+                    })
+                    .collect();
+            });
+            out.textures_delta.clear();
+            assert!(rows.len() > 3, "the long paragraph wraps: {rows:?}");
+            // Row 0: the short Hebrew line; row 1: English; then the wrapped Hebrew paragraph.
+            let (min0, max0, _) = rows[0];
+            assert!((wrap - max0).abs() < 2.0 && min0 > 100.0, "plain={plain}: the short line against the right edge: {rows:?}");
+            assert!(rows[1].0 < 2.0, "plain={plain}: English on the left: {rows:?}");
+            for r in &rows[2..] {
+                assert!((wrap - r.1).abs() < 2.0, "plain={plain}: each wrapped row against the right edge: {rows:?}");
+            }
+        }
+    }
 }
