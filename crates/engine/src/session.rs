@@ -561,6 +561,11 @@ const CACHE_MESSAGES: usize = 300_000;
 /// Body words kept for search at most (bytes): enough for the messages a search looks at again.
 const BODY_WORDS_BYTES: usize = 48 << 20;
 
+/// How many command panics [`Session::run`] has caught in this process: none is the only right
+/// number, so tests that drive the whole window check it (a caught panic is otherwise only a
+/// line in the log).
+pub static PANICS_CAUGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 pub struct Session {
     pub store: Option<Store>,
     pub accounts: Vec<AccountState>,
@@ -861,6 +866,7 @@ impl Session {
             Ok(r) => r,
             Err(_) => {
                 log::error!("command {id} panicked");
+                PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 self.refresh_list();
                 Err(CmdError::Failed(format!("{id} failed unexpectedly")))
             }

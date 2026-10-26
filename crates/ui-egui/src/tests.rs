@@ -405,6 +405,7 @@ mod organize;
 mod pim;
 mod reading;
 mod rtl;
+mod soak;
 mod updates;
 mod windows;
 mod writing;
