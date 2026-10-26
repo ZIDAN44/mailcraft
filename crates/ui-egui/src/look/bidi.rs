@@ -66,10 +66,26 @@ pub fn label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: egui::Col
 /// A label for a laid-out job, wrapped at the width there is. One whose first paragraph reads
 /// right to left goes against the right edge, where it starts; egui then puts each of its
 /// right-to-left rows there too.
-pub fn add_label(ui: &mut egui::Ui, mut job: egui::text::LayoutJob) -> egui::Response {
+pub fn add_label(ui: &mut egui::Ui, job: egui::text::LayoutJob) -> egui::Response {
+    add_label_with(ui, job, false)
+}
+
+/// [`add_label`] whose text can be selected with the pointer and copied: a message's text. The
+/// Craft apps' egui counts right-to-left letters right (stock egui 0.37 didn't, and a selection
+/// there copied nothing), so Arabic and Hebrew select as they read.
+pub fn add_selectable_label(ui: &mut egui::Ui, job: egui::text::LayoutJob) -> egui::Response {
+    add_label_with(ui, job, true)
+}
+
+/// [`add_selectable_label`] for a plain string in one font and colour.
+pub fn selectable_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: egui::Color32) -> egui::Response {
+    add_selectable_label(ui, egui::text::LayoutJob::simple(text.to_string(), font, color, ui.available_width()))
+}
+
+fn add_label_with(ui: &mut egui::Ui, mut job: egui::text::LayoutJob, selectable: bool) -> egui::Response {
     job.wrap.max_width = ui.available_width();
     let rtl = has_rtl(&job.text) && paragraph_rtl(&job.text);
-    let label = egui::Label::new(job).selectable(false);
+    let label = egui::Label::new(job).selectable(selectable);
     if rtl { ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| ui.add(label)).inner } else { ui.add(label) }
 }
 

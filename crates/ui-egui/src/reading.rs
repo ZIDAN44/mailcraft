@@ -381,13 +381,15 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             let sep = ui.available_rect_before_wrap();
             ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
             ui.add_space(12.0);
+            if han_missing(ui, &p.text) {
+                st.han_missing = true;
+            }
             if s.prefs.show_html && !p.rich.is_empty() {
                 rich_body(s, st, ui, &r.key, p, acts);
             } else if crate::bidi::has_rtl(&p.text) {
-                // Right-to-left text, laid out line by line. egui can't select it (its text layout
-                // miscounts right-to-left letters, so a selection copies nothing): right-click
-                // copies it as written instead.
-                let r = crate::bidi::label(ui, &p.text, theme::regular(14.5), t.text);
+                // Right-to-left text, against the right edge where it starts; selected with the
+                // pointer as it reads, and right-click copies it as written too.
+                let r = crate::bidi::selectable_label(ui, &p.text, theme::regular(14.5), t.text);
                 rtl_copy_menu(&r, None, &p.text);
             } else {
                 let mut text = p.text.as_str();
@@ -578,4 +580,25 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
             }
         },
     );
+}
+
+/// Whether `text` has Chinese characters (or kana, hangul) that no font installed now can draw:
+/// in the browser, which brings only some fonts, the Simplified Chinese one is then fetched. The
+/// first few thousand letters are looked at, each distinct character once.
+pub(crate) fn han_missing(ui: &Ui, text: &str) -> bool {
+    let cjk = |c: char| matches!(u32::from(c), 0x3040..=0x30FF | 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xAC00..=0xD7AF | 0xF900..=0xFAFF);
+    let mut seen: Vec<char> = Vec::new();
+    for c in text.chars().take(4000).filter(|c| cjk(*c)) {
+        if seen.len() >= 64 {
+            break;
+        }
+        if !seen.contains(&c) {
+            seen.push(c);
+        }
+    }
+    if seen.is_empty() {
+        return false;
+    }
+    let font = egui::FontId::proportional(14.5);
+    ui.fonts_mut(|f| seen.iter().any(|c| !f.has_glyph(&font, *c)))
 }

@@ -159,3 +159,44 @@ fn a_narrow_right_to_left_ribbon_scrolls() {
     crate::i18n::set_current(crate::i18n::Lang::EN);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Gap 2: a message's Hebrew and Arabic text is selected with the pointer, as it reads, and copied
+/// whole (with stock egui 0.37's count, a selection there copied nothing, so it couldn't be
+/// selected at all), Latin names, times and dates inside it included. Dragged from the start of
+/// the line on the right to its end on the left. (A line ending in a number or Latin word reads it
+/// left to right at the far left, so its left edge is that run's start, as in any bidi layout.)
+#[test]
+fn right_to_left_text_is_selected_and_copied() {
+    for text in ["שלום עולם, מה שלומך?", "مرحبا بكم في البريد", "שלום Riley, הפגישה ב-14:30 ביום שלישי"]
+    {
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 200.0));
+        let rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let run = |events: Vec<Event>| {
+            let mut out = ctx.run_ui(RawInput { screen_rect: Some(screen), events, ..Default::default() }, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    rect.set(crate::bidi::selectable_label(ui, text, egui::FontId::proportional(16.0), egui::Color32::BLACK).rect);
+                });
+            });
+            out.textures_delta.clear();
+            out.platform_output.commands
+        };
+        run(vec![]);
+        run(vec![]);
+        let rect = rect.get();
+        let (start, end) = (egui::pos2(rect.right() - 1.0, rect.center().y), egui::pos2(rect.left() + 1.0, rect.center().y));
+        let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        run(vec![Event::PointerMoved(start), button(start, true)]);
+        run(vec![Event::PointerMoved(rect.center())]);
+        run(vec![Event::PointerMoved(end)]);
+        run(vec![button(end, false)]);
+        let copied: Vec<String> = run(vec![Event::Copy])
+            .into_iter()
+            .filter_map(|c| match c {
+                egui::OutputCommand::CopyText(t) => Some(t),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(copied, [text.to_string()], "dragged across {text:?}");
+    }
+}

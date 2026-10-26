@@ -33,6 +33,22 @@ WORK="$CARGO_TARGET_DIR/web-package"
 rm -rf "$WORK"
 mkdir -p "$WORK/$NAME"
 cp -R "$SITE/." "$WORK/$NAME/"
+# Simplified Chinese: Noto Sans CJK SC is too large to build into the page (16 MB), so it goes
+# beside it and the page fetches it only when it's wanted (the interface in Simplified Chinese,
+# or mail with characters no other font has). Checked against craft-fonts' manifest first.
+if [ -n "${CRAFT_FONTS_DIR:-}" ]; then
+  row=$(grep '^Noto Sans CJK SC | Regular |' "$CRAFT_FONTS_DIR/fonts/manifest.txt" || true)
+  if [ -n "$row" ]; then
+    file=$(echo "$row" | awk -F' [|] ' '{print $3}')
+    licence=$(echo "$row" | awk -F' [|] ' '{print $6}')
+    want=$(echo "$row" | awk -F' [|] ' '{print $7}')
+    got=$(sha256sum "$CRAFT_FONTS_DIR/$file" | cut -d' ' -f1)
+    [ "$got" = "$want" ] || { echo "error: $file: SHA-256 $got, the manifest says $want" >&2; exit 1; }
+    mkdir -p "$WORK/$NAME/fonts"
+    cp "$CRAFT_FONTS_DIR/$file" "$WORK/$NAME/fonts/noto-sans-cjk-sc.otf"
+    cp "$CRAFT_FONTS_DIR/$licence" "$WORK/$NAME/fonts/noto-sans-cjk-sc-OFL.txt"
+  fi
+fi
 # Sample server configs (MIME type, caching, compression); harmless where unused.
 cp "$HERE/_headers" "$HERE/.htaccess" "$WORK/$NAME/"
 cp "$HERE/README.md" "$WORK/$NAME/HOSTING.md"

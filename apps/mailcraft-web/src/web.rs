@@ -21,6 +21,11 @@ const FILES_KEY: &str = "mailcraft.files";
 const UI_KEY: &str = "mailcraft.ui";
 /// Most bytes kept in local storage (browsers allow about 5 MB a site).
 const MAX_KEPT: usize = 3 << 20;
+/// Where the Simplified Chinese font is, beside the page (packaging/web/package.sh puts it there
+/// from craft-fonts): too large to build into the page, so fetched only when it's wanted.
+const CJK_FONT: &str = "fonts/noto-sans-cjk-sc.otf";
+/// Largest font accepted.
+const MAX_FONT: usize = 40 << 20;
 
 pub fn start() {
     eframe::WebLogger::init(log::LevelFilter::Info).ok();
@@ -92,7 +97,7 @@ pub fn start() {
                     let mut session = Session::open(Some(store.clone()), Clock::new(now, offset));
                     session.jmap_only = true;
                     let backend = WebBackend::new(store.clone(), cc.egui_ctx.clone());
-                    let services = WebServices { picked: Rc::default(), ctx: cc.egui_ctx.clone() };
+                    let services = WebServices { picked: Rc::default(), ctx: cc.egui_ctx.clone(), font: Rc::default() };
                     let mut app = MailApp::new(session, Box::new(backend), Box::new(services));
                     if sample {
                         app.ui.title_base = "MailCraft – Sample mailbox".into();
@@ -204,6 +209,18 @@ type Picked = Rc<RefCell<Vec<(String, String, Vec<u8>)>>>;
 struct WebServices {
     picked: Picked,
     ctx: egui::Context,
+    font: Rc<RefCell<FontFetch>>,
+}
+
+/// The Simplified Chinese font, fetched once when wanted.
+#[derive(Default)]
+enum FontFetch {
+    #[default]
+    NotWanted,
+    Fetching,
+    Here(Vec<u8>),
+    /// Not beside the page (a build without craft-fonts), or the fetch failed: not asked again.
+    Missing,
 }
 
 impl Services for WebServices {
@@ -273,6 +290,40 @@ impl Services for WebServices {
     }
     fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {
         std::mem::take(&mut self.picked.borrow_mut())
+    }
+    fn cjk_font(&mut self, lang: &str) -> Option<(Vec<u8>, u32)> {
+        match &*self.font.borrow() {
+            FontFetch::Here(bytes) if lang == "zh-hans" => Some((bytes.clone(), 0)),
+            _ => None,
+        }
+    }
+    fn want_font(&mut self, lang: &str) {
+        if lang != "zh-hans" || !matches!(*self.font.borrow(), FontFetch::NotWanted) {
+            return;
+        }
+        *self.font.borrow_mut() = FontFetch::Fetching;
+        let (font, ctx) = (self.font.clone(), self.ctx.clone());
+        wasm_bindgen_futures::spawn_local(async move {
+            use mailcraft_jmap::Http as _;
+            let got = crate::fetch::Fetch.send(mailcraft_jmap::Request::get(CJK_FONT, MAX_FONT)).await;
+            *font.borrow_mut() = match got {
+                // A font file starts with its version tag (OpenType's 'OTTO' or TrueType's 0x00010000);
+                // a page served in its place (a host's "not found" page) isn't one.
+                Ok(r) if r.status == 200 && (r.body.starts_with(b"OTTO") || r.body.starts_with(&[0, 1, 0, 0])) => FontFetch::Here(r.body),
+                Ok(r) => {
+                    log::warn!("{CJK_FONT}: HTTP {}, or not a font: Simplified Chinese can't be drawn", r.status);
+                    FontFetch::Missing
+                }
+                Err(e) => {
+                    log::warn!("{CJK_FONT}: {e}");
+                    FontFetch::Missing
+                }
+            };
+            ctx.request_repaint();
+        });
+    }
+    fn font_pending(&self) -> bool {
+        matches!(*self.font.borrow(), FontFetch::Fetching)
     }
 }
 

@@ -9,5 +9,10 @@
 /*.js
   Cache-Control: public, max-age=31536000, immutable
 
+# The Simplified Chinese font, fetched only when it's wanted: kept once it's come.
+/fonts/*.otf
+  Content-Type: font/otf
+  Cache-Control: public, max-age=31536000, immutable
+
 /index.html
   Cache-Control: no-cache

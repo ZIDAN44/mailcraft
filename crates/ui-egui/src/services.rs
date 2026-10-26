@@ -96,6 +96,13 @@ pub trait Services {
     fn cjk_font(&mut self, _lang: &str) -> Option<(Vec<u8>, u32)> {
         None
     }
+    /// A Chinese, Japanese or Korean font is wanted now (the interface is in that language, or
+    /// shown text has characters no font has): where fonts are downloaded (the browser), fetch it.
+    fn want_font(&mut self, _lang: &str) {}
+    /// A font asked for is still on its way ([`Services::cjk_font`] has it later).
+    fn font_pending(&self) -> bool {
+        false
+    }
     /// An installed font with Arabic and Hebrew, for when the main font hasn't them.
     fn rtl_font(&mut self) -> Option<Vec<u8>> {
         None

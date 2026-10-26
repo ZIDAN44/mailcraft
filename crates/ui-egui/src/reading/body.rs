@@ -192,7 +192,7 @@ impl Body<'_> {
                 let r = ui
                     .scope(|ui| {
                         ui.set_max_width(width);
-                        crate::bidi::add_label(ui, job)
+                        crate::bidi::add_selectable_label(ui, job)
                     })
                     .inner;
                 let written: String = line.iter().map(|sp| sp.text.as_str()).collect();
@@ -519,8 +519,8 @@ pub(super) fn natural_width(ui: &Ui, blocks: &[mime::layout::Block]) -> Option<f
     Some(widest)
 }
 
-/// Right-click on right-to-left text (which can't be selected): copy the line, or the whole
-/// message, as written.
+/// Right-click on right-to-left text (selectable too): copy the line, or the whole message, as
+/// written.
 pub(super) fn rtl_copy_menu(r: &egui::Response, line: Option<&str>, whole: &str) {
     r.interact(Sense::click()).context_menu(|ui| {
         if let Some(line) = line
