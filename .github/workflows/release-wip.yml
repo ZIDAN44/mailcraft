@@ -30,8 +30,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
-  # storytold/craft-fonts, as release.yml pins it (keep them the same: release.yml, freebsd.yml,
-  # packaging/web/package.sh).
+  # storytold/craft-fonts, as release.yml pins it (keep them the same: release.yml, freebsd.yml).
   CRAFT_FONTS_REF: b076417b5880bd4154bd22f00695b1d28c6bea83
   # Unsigned on purpose: the packaging scripts note it rather than warn.
   UNSIGNED_BUILD: "1"
@@ -328,6 +327,9 @@ jobs:
       BUILD_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ env.CRAFT_FONTS_REF }}
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
@@ -341,8 +343,10 @@ jobs:
       - name: Apply version override
         if: inputs.version != ''
         run: cargo xtask version set "$VERSION"
-      # packaging/web/package.sh fetches craft-fonts at CRAFT_FONTS_REF itself on CI.
       - name: Build and zip
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
         run: packaging/web/package.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

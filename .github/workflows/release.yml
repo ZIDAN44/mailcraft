@@ -34,11 +34,12 @@ jobs:
       app-name: mailcraft
       app-title: MailCraft
       version: ${{ inputs.version }}
-      # storytold/craft-fonts, pinned (bump deliberately; the same commit as release-wip.yml,
-      # freebsd.yml and packaging/web/package.sh): Arabic, Hebrew, Japanese, Chinese, Korean, Thai
-      # and other fallback fonts, built in through CRAFT_FONTS_DIR (crates/ui-egui/build.rs). The
-      # web job fetches the same commit itself (CRAFT_FONTS_REF in packaging/web/package.sh).
+      # storytold/craft-fonts, pinned (bump deliberately; the same commit as release-wip.yml
+      # and freebsd.yml): Arabic, Hebrew, Japanese, Chinese, Korean, Thai
+      # and other fallback fonts, built in through CRAFT_FONTS_DIR (crates/ui-egui/build.rs).
       craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      # The web job checks the same commit out too; build.rs picks the faces the browser gets.
+      web-craft-fonts: true
       # The browser app (apps/mailcraft-web, JMAP over fetch): packaging/web/package.sh.
       has-web: true
     secrets:
