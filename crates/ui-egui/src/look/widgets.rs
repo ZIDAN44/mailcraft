@@ -127,10 +127,11 @@ fn reached(ui: &Ui, rect: egui::Rect) {
 /// a press shows at once.
 fn hover_fill(ui: &Ui, resp: &Response, rect: egui::Rect, t: &Tokens, enabled: bool) {
     let k = crate::motion::toward(ui.ctx(), resp.id.with("hover"), enabled && resp.hovered(), crate::motion::FAST);
+    // Filled with an edge, as Outlook's buttons are under the pointer (issue #8).
     if enabled && resp.is_pointer_button_down_on() {
-        ui.painter().rect_filled(rect, 6.0, t.accent_soft);
+        ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.6)), egui::StrokeKind::Inside);
     } else if k > 0.0 {
-        ui.painter().rect_filled(rect, 6.0, t.hover.gamma_multiply(k));
+        ui.painter().rect(rect, 6.0, t.hover.gamma_multiply(k), Stroke::new(1.0, t.border.gamma_multiply(k)), egui::StrokeKind::Inside);
     }
 }
 
@@ -290,13 +291,15 @@ pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Re
 }
 
 /// An icon button on the coloured title bar.
-pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
+pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
-        ui.painter().rect_filled(rect, 6.0, Color32::from_white_alpha(40));
+        // A lighter wash on the coloured bar; the pane's hover on a plain one.
+        let wash = if t.on_bar == Color32::WHITE { Color32::from_white_alpha(40) } else { t.hover };
+        ui.painter().rect_filled(rect, 6.0, wash);
     }
-    icons::paint(ui.painter(), icons::centered(rect, 17.0), icon, Color32::WHITE);
+    icons::paint(ui.painter(), icons::centered(rect, 17.0), icon, t.on_bar);
     resp.on_hover_text(tl!(tip))
 }
 

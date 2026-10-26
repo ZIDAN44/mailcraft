@@ -38,7 +38,7 @@ pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal
 pub use writing::SendCheck;
 // Organizing mail's own parts, named here as before.
 pub use organize::{junk, quick_steps, search_folders};
-pub use prefs::Prefs;
+pub use prefs::{ACCENTS, Prefs, accent_code, accent_rgb};
 pub mod pim;
 
 /// One account and what the session knows about it.

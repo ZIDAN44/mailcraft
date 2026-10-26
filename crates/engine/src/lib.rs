@@ -24,9 +24,9 @@ pub use mailcraft_model as model;
 pub use mailcraft_smime as smime;
 pub use mailcraft_store as store;
 pub use session::{
-    ARRANGE_HEADINGS, AccountState, Arrange, CardSearch, Compose, FolderRef, KnownCert, ListFilter, Lock, MoveTarget, NotesOrder, Notice,
+    ACCENTS, ARRANGE_HEADINGS, AccountState, Arrange, CardSearch, Compose, FolderRef, KnownCert, ListFilter, Lock, MoveTarget, NotesOrder, Notice,
     PANICS_CAUGHT, PaneSection, Picture, Prefs, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, SMIME_DOC, Seal, SearchScope, Security,
-    SendCheck, ServerSearch, Session, SignedBy, SmimeSettings, UpdateCheck, VacationState, View,
+    SendCheck, ServerSearch, Session, SignedBy, SmimeSettings, UpdateCheck, VacationState, View, accent_code, accent_rgb,
     invite::{Invite, InviteProblem},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,

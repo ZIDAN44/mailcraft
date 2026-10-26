@@ -29,6 +29,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"on": s.prefs.classic_ribbon}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.accent", "Accent colour", "File › Options › Personalize", |s, v| {
+            let given = p::req_str(v, "color")?;
+            s.prefs.accent = crate::session::accent_code(given)
+                .ok_or_else(|| CmdError::Params(format!("`{given}` isn't one of the accent colours or a colour as #rrggbb")))?;
+            Ok(json!({"color": s.prefs.accent}))
+        })
+        .params(r##"{"color": "teal"|"blue"|"indigo"|"violet"|"rose"|"red"|"orange"|"green"|"#rrggbb" ("" or "teal": MailCraft's own)}"##),
+        CommandSpec::new("view.plainTopBar", "Plain top bar", "File › Options › Personalize", |s, v| {
+            s.prefs.plain_top_bar = p::bool(v, "on").unwrap_or(!s.prefs.plain_top_bar);
+            Ok(json!({"on": s.prefs.plain_top_bar}))
+        })
+        .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.arrange", "Arrange by", "View › Arrangement", |s, v| {
             let by = p::req_str(v, "by")?;
             s.prefs.arrange =

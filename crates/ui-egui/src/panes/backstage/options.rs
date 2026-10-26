@@ -29,6 +29,14 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 acts.push(Action::SetDark(*v));
             }
         });
+        // Issue #8: an accent colour of one's own (a named one, or any colour), made to read in
+        // either theme, and the top bar in it or plain.
+        setting(ui, false, tl!("Accent colour"), Some(tl!("Buttons, links, the selection and the top bar")), &mut |ui| {
+            accent_choice(ui, &t, &s.prefs.accent, acts);
+        });
+        setting(ui, false, tl!("Plain top bar"), Some(tl!("The top bar in the panes' colours instead of the accent colour")), &mut |ui| {
+            switch(ui, s.prefs.plain_top_bar, tl!("Plain top bar"), "view.plainTopBar", acts);
+        });
         setting(ui, false, tl!("Language"), None, &mut |ui| {
             let language = st.language.as_str();
             let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());
@@ -314,6 +322,62 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                     acts.push(Action::Run("view.trustSender", json!({"address": who, "on": false})));
                 }
             });
+        }
+    });
+}
+
+/// The accent colours as swatches (MailCraft's teal first), then any colour with a picker.
+fn accent_choice(ui: &mut Ui, t: &Tokens, current: &str, acts: &mut Vec<Action>) {
+    let names = [
+        ("teal", tl!("Teal")),
+        ("blue", tl!("Blue")),
+        ("indigo", tl!("Indigo")),
+        ("violet", tl!("Violet")),
+        ("rose", tl!("Rose")),
+        ("red", tl!("Red")),
+        ("orange", tl!("Orange")),
+        ("green", tl!("Green")),
+    ];
+    // The row is laid out from its end: the swatches go in the other way round, so teal reads
+    // first (and the picker last).
+    let from_end = ui.layout().prefer_right_to_left() != crate::i18n::current().rtl();
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let picker = |ui: &mut Ui, acts: &mut Vec<Action>| {
+            // Any colour: what's chosen now, or the accent in use, to start from.
+            let mut rgb = mailcraft_engine::accent_rgb(current).unwrap_or([0x0E, 0x7C, 0x86]);
+            let r = egui::widgets::color_picker::color_edit_button_srgb(ui, &mut rgb).on_hover_text(tl!("Any colour"));
+            if current.starts_with('#') {
+                ui.painter().rect_stroke(r.rect.expand(2.0), 4.0, egui::Stroke::new(2.0, t.text), egui::StrokeKind::Outside);
+            }
+            if r.changed() {
+                acts.push(Action::Run("view.accent", json!({"color": format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2])})));
+            }
+        };
+        if from_end {
+            picker(ui, acts);
+            ui.add_space(8.0);
+        }
+        let ordered: Vec<(&str, &str)> = if from_end { names.iter().rev().copied().collect() } else { names.to_vec() };
+        for (code, label) in ordered {
+            let rgb = mailcraft_engine::accent_rgb(code).unwrap_or([0x0E, 0x7C, 0x86]);
+            let on = current == code || (code == "teal" && current.is_empty());
+            let (rect, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
+            widgets::named(ui, &resp, label, true, Some(on));
+            let fill = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+            if on {
+                ui.painter().circle_stroke(rect.center(), 11.5, egui::Stroke::new(2.0, t.text));
+            } else if resp.hovered() {
+                ui.painter().circle_stroke(rect.center(), 11.5, egui::Stroke::new(1.0, t.border));
+            }
+            ui.painter().circle_filled(rect.center(), 8.5, fill);
+            if resp.on_hover_text(label).clicked() && !on {
+                acts.push(Action::Run("view.accent", json!({"color": code})));
+            }
+        }
+        if !from_end {
+            ui.add_space(8.0);
+            picker(ui, acts);
         }
     });
 }

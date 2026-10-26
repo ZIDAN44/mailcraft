@@ -7,26 +7,33 @@ impl MailApp {
         let t = self.ui.tokens;
         // From the right in a right-to-left interface: the name first, the settings last.
         ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
+            // The mark: white on the coloured bar, the accent colour on a plain one.
             let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
-            ui.painter().rect_filled(r, 5.0, Color32::WHITE);
-            icons::paint(ui.painter(), icons::centered(r, 15.0), Icon::Unread, t.accent);
-            ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(Color32::WHITE));
+            let (tile, mark) = if t.on_bar == Color32::WHITE { (Color32::WHITE, t.bar) } else { (t.accent, t.on_accent) };
+            ui.painter().rect_filled(r, 5.0, tile);
+            icons::paint(ui.painter(), icons::centered(r, 15.0), Icon::Unread, mark);
+            ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(t.on_bar));
             ui.add_space(6.0);
             // Quick access, as Outlook's title bar: Send / Receive all folders, and Undo the last
             // move, delete, flag or category (Ctrl+Z).
             let can_sync = self.session.registry().get("mail.sync").is_some_and(|c| (c.enabled)(&self.session).is_none());
-            if can_sync && widgets::bar_icon_button(ui, Icon::Sync, tl!("Send / Receive all folders (F9)")).clicked() {
+            if can_sync && widgets::bar_icon_button(ui, Icon::Sync, tl!("Send / Receive all folders (F9)"), &t).clicked() {
                 acts.push(Action::Run("mail.sync", json!({})));
             }
-            if !self.session.undo.is_empty() && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)")).clicked() {
+            if !self.session.undo.is_empty() && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)"), &t).clicked() {
                 acts.push(Action::Run("edit.undo", json!({})));
             }
             ui.add_space(10.0);
             let avail = ui.available_width();
             let search_w = (avail * 0.5).clamp(300.0, 720.0);
             ui.add_space(((avail - search_w) / 2.0 - 160.0).max(0.0));
-            let frame =
-                egui::Frame::new().fill(if t.dark { t.surface } else { Color32::WHITE }).corner_radius(6).inner_margin(Margin::symmetric(8, 3));
+            // On a plain bar the box needs its own edge to stand out.
+            let edge = if t.bar == t.chrome { egui::Stroke::new(1.0, t.border) } else { egui::Stroke::NONE };
+            let frame = egui::Frame::new()
+                .fill(if t.dark { t.surface } else { Color32::WHITE })
+                .stroke(edge)
+                .corner_radius(6)
+                .inner_margin(Margin::symmetric(8, 3));
             frame.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
@@ -61,10 +68,10 @@ impl MailApp {
             ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
                 let dark = t.dark;
                 let (icon, tip) = if dark { (Icon::Sun, tl!("Switch to light mode")) } else { (Icon::Moon, tl!("Switch to dark mode")) };
-                if widgets::bar_icon_button(ui, icon, tip).clicked() {
+                if widgets::bar_icon_button(ui, icon, tip, &t).clicked() {
                     acts.push(Action::SetDark(Some(!dark)));
                 }
-                if widgets::bar_icon_button(ui, Icon::Gear, "Accounts and settings").clicked() {
+                if widgets::bar_icon_button(ui, Icon::Gear, "Accounts and settings", &t).clicked() {
                     acts.push(Action::Backstage(backstage::Page::Info));
                 }
             });

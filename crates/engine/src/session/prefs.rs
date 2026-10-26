@@ -39,6 +39,12 @@ pub struct Prefs {
     /// The classic ribbon (issue #8): big icons over their labels, in named groups, instead of
     /// one row of small ones.
     pub classic_ribbon: bool,
+    /// The accent colour (issue #8): empty for MailCraft's teal, a named one ([`ACCENTS`]), or
+    /// any colour as `#rrggbb`. The window adjusts it to read well in light and dark.
+    pub accent: String,
+    /// The top bar in plain pane colours instead of the accent colour (issue #8, as Office's
+    /// white theme).
+    pub plain_top_bar: bool,
     /// Ask before deleting permanently.
     pub confirm_permanent_delete: bool,
     /// Desktop notifications for new mail in an Inbox.
@@ -136,6 +142,8 @@ impl Default for Prefs {
             show_preview: true,
             compact: false,
             classic_ribbon: false,
+            accent: String::new(),
+            plain_top_bar: false,
             confirm_permanent_delete: true,
             favorites: None,
             notify: true,
@@ -166,4 +174,39 @@ impl Default for Prefs {
             pane_order: Vec::new(),
         }
     }
+}
+
+/// The accent colours offered by name (issue #8), each `(name, #rrggbb)`: MailCraft's teal
+/// first. Any other colour can be given as `#rrggbb`.
+pub const ACCENTS: [(&str, &str); 8] = [
+    ("teal", "#0e7c86"),
+    ("blue", "#2563c9"),
+    ("indigo", "#4f52b8"),
+    ("violet", "#7a4cc2"),
+    ("rose", "#b8326a"),
+    ("red", "#b83a2c"),
+    ("orange", "#b35a14"),
+    ("green", "#2a7d3a"),
+];
+
+/// An accent as it's kept: a name from [`ACCENTS`] or `#rrggbb` (lower case); `""` for
+/// MailCraft's own. `None` when it's neither.
+pub fn accent_code(given: &str) -> Option<String> {
+    let g = given.trim().to_ascii_lowercase();
+    if g.is_empty() || g == "teal" || g == "default" {
+        return Some(String::new());
+    }
+    if ACCENTS.iter().any(|(n, _)| *n == g) {
+        return Some(g);
+    }
+    let hex = g.strip_prefix('#').unwrap_or(&g);
+    (hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit())).then(|| format!("#{hex}"))
+}
+
+/// The colour an accent code stands for (`None`: MailCraft's own).
+pub fn accent_rgb(code: &str) -> Option<[u8; 3]> {
+    let hex = ACCENTS.iter().find(|(n, _)| *n == code).map_or(code, |(_, h)| h);
+    let hex = hex.strip_prefix('#')?;
+    let byte = |i: usize| hex.get(i..i + 2).and_then(|h| u8::from_str_radix(h, 16).ok());
+    Some([byte(0)?, byte(2)?, byte(4)?])
 }

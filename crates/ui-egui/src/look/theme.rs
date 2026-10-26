@@ -7,7 +7,7 @@ use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, Stroke,
 /// MailCraft's app colour: a deep teal, distinct from the other Craft apps.
 pub const APP_COLOR: Color32 = Color32::from_rgb(0x0E, 0x7C, 0x86);
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tokens {
     pub dark: bool,
     /// Window background (behind the panes).
@@ -34,6 +34,10 @@ pub struct Tokens {
     pub flag: Color32,
     pub ok: Color32,
     pub warn: Color32,
+    /// The top bar (search, sync, settings) and what's drawn on it (issue #8): a deep shade of
+    /// the accent colour with white, or the chrome's colours when it's plain.
+    pub bar: Color32,
+    pub on_bar: Color32,
 }
 
 impl Tokens {
@@ -56,6 +60,8 @@ impl Tokens {
             flag: Color32::from_rgb(0xC5, 0x3B, 0x2F),
             ok: Color32::from_rgb(0x1E, 0x8E, 0x3E),
             warn: Color32::from_rgb(0xB2, 0x6B, 0x00),
+            bar: APP_COLOR,
+            on_bar: Color32::WHITE,
         }
     }
 
@@ -80,12 +86,85 @@ impl Tokens {
             flag: Color32::from_rgb(0xF0, 0x6A, 0x5C),
             ok: Color32::from_rgb(0x5C, 0xC9, 0x7B),
             warn: Color32::from_rgb(0xE8, 0xA8, 0x3C),
+            // The light accent with white on it read 2.3:1 (issue #8): a deep teal instead.
+            bar: Color32::from_rgb(0x0B, 0x5F, 0x67),
+            on_bar: Color32::WHITE,
         }
     }
 
     pub fn for_dark(dark: bool) -> Tokens {
         if dark { Tokens::dark() } else { Tokens::light() }
     }
+
+    /// The tokens for a theme with an accent colour of the user's (issue #8: `None` for
+    /// MailCraft's teal) and the top bar coloured or plain. Any colour is made to read: the
+    /// accent is darkened (light) or lightened (dark) until text in it reads on the panes, and
+    /// the selection and hover tints are made from it light enough for text on them.
+    pub fn themed(dark: bool, accent: Option<[u8; 3]>, plain_bar: bool) -> Tokens {
+        let mut t = Tokens::for_dark(dark);
+        if let Some(base) = accent {
+            let panes = [rgb(t.surface), rgb(t.chrome), rgb(t.bg)];
+            let towards = if dark { [255, 255, 255] } else { [0, 0, 0] };
+            let mut a = base;
+            for _ in 0..40 {
+                if panes.iter().all(|p| contrast(a, *p) >= 4.6) {
+                    break;
+                }
+                a = mix(a, towards, 0.06);
+            }
+            t.accent = color(a);
+            // White on it, or a dark shade of it where white doesn't read (a light accent).
+            let dark_text = mix(a, [0, 0, 0], 0.86);
+            t.on_accent = if contrast([255, 255, 255], a) >= 4.5 { Color32::WHITE } else { color(dark_text) };
+            if contrast(rgb(t.on_accent), a) < 4.5 {
+                t.on_accent = if contrast([0, 0, 0], a) > contrast([255, 255, 255], a) { Color32::BLACK } else { Color32::WHITE };
+            }
+            // The tints: as much of the accent as still leaves text, dim text and the accent
+            // itself reading on them.
+            let surface = rgb(t.surface);
+            let tint = |start: f32, step: f32| {
+                let mut share = start;
+                loop {
+                    let c = mix(surface, a, share);
+                    let ok = contrast(rgb(t.text), c) >= 7.2 && contrast(rgb(t.dim), c) >= 4.6 && contrast(a, c) >= 3.1;
+                    if ok || share <= 0.02 {
+                        return color(c);
+                    }
+                    share -= step;
+                }
+            };
+            t.accent_soft = tint(if dark { 0.24 } else { 0.18 }, 0.02);
+            t.hover_row = tint(if dark { 0.10 } else { 0.08 }, 0.01);
+            // The bar: the accent made deep enough for white.
+            let mut b = base;
+            for _ in 0..40 {
+                if contrast([255, 255, 255], b) >= 5.0 {
+                    break;
+                }
+                b = mix(b, [0, 0, 0], 0.06);
+            }
+            if dark {
+                b = mix(b, [0, 0, 0], 0.2);
+            }
+            t.bar = color(b);
+        }
+        if plain_bar {
+            t.bar = t.chrome;
+            t.on_bar = t.text;
+        }
+        t
+    }
+}
+
+/// `a` moved `share` (0…1) of the way to `b`.
+fn mix(a: [u8; 3], b: [u8; 3], share: f32) -> [u8; 3] {
+    let s = share.clamp(0.0, 1.0);
+    let m = |x: u8, y: u8| (f32::from(x) + (f32::from(y) - f32::from(x)) * s).round().clamp(0.0, 255.0) as u8;
+    [m(a[0], b[0]), m(a[1], b[1]), m(a[2], b[2])]
+}
+
+fn color(c: [u8; 3]) -> Color32 {
+    Color32::from_rgb(c[0], c[1], c[2])
 }
 
 /// Avatar colours, picked by a hash of the address so a sender always gets the same one.
@@ -149,7 +228,11 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     // Text boxes: a touch darker than the pane, so fields read as fields.
     v.extreme_bg_color = if t.dark { Color32::from_rgb(0x1A, 0x1C, 0x1F) } else { Color32::WHITE };
     v.faint_bg_color = t.chrome;
-    v.window_stroke = Stroke::new(1.0, t.border);
+    // Windows, menus and lists that open over the window: a firm edge and a soft shadow, so
+    // they stand off what's under them (issue #8).
+    v.window_stroke = Stroke::new(1.0, if t.dark { Color32::from_rgb(0x5A, 0x60, 0x69) } else { Color32::from_rgb(0xBF, 0xC5, 0xCD) });
+    v.popup_shadow = egui::epaint::Shadow { offset: [0, 4], blur: 14, spread: 0, color: Color32::from_black_alpha(if t.dark { 110 } else { 38 }) };
+    v.window_shadow = egui::epaint::Shadow { offset: [0, 8], blur: 24, spread: 0, color: Color32::from_black_alpha(if t.dark { 120 } else { 45 }) };
     v.selection.bg_fill = t.accent.gamma_multiply(if t.dark { 0.55 } else { 0.35 });
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent;
@@ -334,13 +417,44 @@ pub fn regular(size: f32) -> egui::FontId {
 mod tests {
     use super::*;
 
+    /// Every theme a user can pick (issue #8): light and dark, MailCraft's teal, each named
+    /// accent and colours chosen freely (the hardest: white, black, yellow, pure green, grey),
+    /// with the top bar coloured and plain.
+    fn every_theme() -> Vec<(String, Tokens)> {
+        let mut accents: Vec<(String, Option<[u8; 3]>)> = vec![("teal".into(), None)];
+        accents.extend(mailcraft_engine::ACCENTS.iter().map(|(n, _)| (n.to_string(), mailcraft_engine::accent_rgb(n))));
+        for hex in ["#ffffff", "#000000", "#ffff00", "#00ff00", "#808080", "#ff00ff", "#0000ff", "#7fffd4"] {
+            accents.push((hex.into(), mailcraft_engine::accent_rgb(hex)));
+        }
+        let mut out = Vec::new();
+        for dark in [false, true] {
+            for (name, a) in &accents {
+                for plain in [false, true] {
+                    let which = format!("{} {name}{}", if dark { "dark" } else { "light" }, if plain { " plain bar" } else { "" });
+                    out.push((which, Tokens::themed(dark, *a, plain)));
+                }
+            }
+        }
+        out
+    }
+
+    /// MailCraft's own teal is the theme it always had, and its dark top bar is now deep enough
+    /// for white on it.
+    #[test]
+    fn the_default_accent_is_the_theme_as_it_was() {
+        for dark in [false, true] {
+            let (t, was) = (Tokens::themed(dark, None, false), Tokens::for_dark(dark));
+            assert_eq!(t, was);
+            assert!(contrast(rgb(t.on_bar), rgb(t.bar)) >= 4.5, "{dark}: {}", contrast(rgb(t.on_bar), rgb(t.bar)));
+        }
+    }
+
     /// Issue #8: the panes, the chrome around them and the lines between them told apart, in both
     /// themes, and text that reads on every pane (WCAG: 4.5 for text, 3 for the faintest notes).
     #[test]
     fn panes_borders_and_text_stand_apart() {
-        for t in [Tokens::light(), Tokens::dark()] {
+        for (which, t) in every_theme() {
             let c = |a: Color32, b: Color32| contrast(rgb(a), rgb(b));
-            let which = if t.dark { "dark" } else { "light" };
             assert!(c(t.border, t.surface) >= 1.4, "{which}: border on a pane {}", c(t.border, t.surface));
             assert!(c(t.border, t.chrome) >= 1.3, "{which}: border on the chrome {}", c(t.border, t.chrome));
             if t.dark {
@@ -360,9 +474,8 @@ mod tests {
     /// marks stand out (3).
     #[test]
     fn accent_and_status_colours_stand_out() {
-        for t in [Tokens::light(), Tokens::dark()] {
+        for (which, t) in every_theme() {
             let c = |a: Color32, b: Color32| contrast(rgb(a), rgb(b));
-            let which = if t.dark { "dark" } else { "light" };
             let mut short = Vec::new();
             let mut need = |what: &str, a: Color32, b: Color32, min: f32| {
                 if c(a, b) < min {
@@ -370,6 +483,7 @@ mod tests {
                 }
             };
             need("on_accent on accent", t.on_accent, t.accent, 4.5);
+            need("on_bar on bar", t.on_bar, t.bar, 4.5);
             for (name, under) in [("surface", t.surface), ("chrome", t.chrome), ("bg", t.bg)] {
                 // Text in the app colour is drawn on the panes, not on the window behind them.
                 if name != "bg" {

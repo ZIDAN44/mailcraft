@@ -44,7 +44,13 @@ impl MailApp {
                 }
             }
         });
-        ui.add_space(2.0);
+        ui.add_space(3.0);
+        // The buttons sit on a card with an edge, as Outlook's (issue #8): its place is kept here
+        // and drawn under them once they're laid out (`card_under_ribbon`).
+        let slot = ui.painter().add(egui::Shape::Noop);
+        let top = ui.cursor().top();
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(RIBBON_CARD), Some((slot, top))));
+        ui.add_space(3.0);
         let enabled = |id: &str| s.registry().get(id).is_some_and(|c| (c.enabled)(s).is_none());
         if s.module != Module::Mail {
             ui.horizontal(|ui| {
@@ -441,6 +447,23 @@ impl MailApp {
 }
 
 /// The ribbon's height (its tabs and its row of buttons), the same whichever tab is shown.
+/// Where the ribbon's card is drawn: its shape's place and its top (see `card_under_ribbon`).
+const RIBBON_CARD: &str = "ribbon-card";
+
+/// Draw the card under the ribbon's buttons, from where the tabs end to the bottom of what was
+/// laid out, across the ribbon.
+pub(crate) fn card_under_ribbon(ui: &Ui, t: &Tokens, room: egui::Rect) {
+    let kept = ui.ctx().data_mut(|d| d.remove_temp::<Option<(egui::layers::ShapeIdx, f32)>>(egui::Id::unique(RIBBON_CARD)));
+    let Some((slot, top)) = kept.flatten() else { return };
+    let bottom = ui.min_rect().bottom() + 3.0;
+    if bottom <= top {
+        return;
+    }
+    let rect = egui::Rect::from_min_max(egui::pos2(room.left() - 5.0, top), egui::pos2(room.right() + 5.0, bottom));
+    let fill = if t.dark { t.surface } else { egui::Color32::WHITE };
+    ui.painter().set(slot, egui::epaint::RectShape::new(rect, 8.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside));
+}
+
 pub(crate) const RIBBON_H: f32 = 65.0;
 /// The classic ribbon's: its tabs, then big buttons with the groups' names under them.
 pub(crate) const RIBBON_H_CLASSIC: f32 = RIBBON_H - 30.0 + widgets::CLASSIC_BUTTON_H + widgets::CLASSIC_CAPTION_H;

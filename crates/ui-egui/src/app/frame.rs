@@ -121,8 +121,10 @@ impl MailApp {
             Some(theme) => theme == egui::Theme::Dark,
             None => self.services.system_dark().unwrap_or(false),
         });
-        if dark != self.ui.tokens.dark || ctx.global_style().visuals.panel_fill != self.ui.tokens.surface {
-            self.ui.tokens = Tokens::for_dark(dark);
+        // The theme: light or dark, with the accent colour and top bar chosen (issue #8).
+        let want = Tokens::themed(dark, mailcraft_engine::accent_rgb(&self.session.prefs.accent), self.session.prefs.plain_top_bar);
+        if want != self.ui.tokens || ctx.global_style().visuals.panel_fill != self.ui.tokens.surface {
+            self.ui.tokens = want;
             theme::apply(&ctx, &self.ui.tokens);
         }
         self.shortcuts(&ctx);
@@ -144,12 +146,17 @@ impl MailApp {
             self.flush_jobs();
             return;
         }
-        egui::Panel::top("topbar").exact_size(46.0).frame(egui::Frame::new().fill(t.accent).inner_margin(Margin::symmetric(12, 6))).show(ui, |ui| {
+        egui::Panel::top("topbar").exact_size(46.0).frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(12, 6))).show(ui, |ui| {
             self.top_bar(ui, &mut acts);
         });
         if self.ui.backstage.is_none() {
             egui::Panel::top("ribbon")
-                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 4)).stroke(egui::Stroke::new(1.0, t.border)))
+                .frame(
+                    egui::Frame::new()
+                        .fill(t.chrome)
+                        .inner_margin(Margin { left: 8, right: 8, top: 4, bottom: 6 })
+                        .stroke(egui::Stroke::new(1.0, t.border)),
+                )
                 .show(ui, |ui| {
                     // Too wide for the window: its last buttons lose their labels, as few as it
                     // takes (worked out from this frame for the next).
@@ -171,6 +178,7 @@ impl MailApp {
                     let rtl = i18n::current().rtl();
                     let room = ui.max_rect();
                     ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| self.ribbon(ui, &mut acts));
+                    super::ribbon::card_under_ribbon(ui, &t, room);
                     let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
                     self.ui.ribbon_rect = Some(ui.min_rect());
                     let from = fit.fit(room, rtl);
