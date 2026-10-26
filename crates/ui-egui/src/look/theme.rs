@@ -353,4 +353,38 @@ mod tests {
             }
         }
     }
+
+    /// The app colour and the status colours where they're drawn (gridcraft's contrast test
+    /// taught this: its dark danger red and a selected heading fell short). Text on the New
+    /// mail button and in links, unread times and selected rows reads (4.5); icons, flags and
+    /// marks stand out (3).
+    #[test]
+    fn accent_and_status_colours_stand_out() {
+        for t in [Tokens::light(), Tokens::dark()] {
+            let c = |a: Color32, b: Color32| contrast(rgb(a), rgb(b));
+            let which = if t.dark { "dark" } else { "light" };
+            let mut short = Vec::new();
+            let mut need = |what: &str, a: Color32, b: Color32, min: f32| {
+                if c(a, b) < min {
+                    short.push(format!("{what} {:.2} < {min}", c(a, b)));
+                }
+            };
+            need("on_accent on accent", t.on_accent, t.accent, 4.5);
+            for (name, under) in [("surface", t.surface), ("chrome", t.chrome), ("bg", t.bg)] {
+                // Text in the app colour is drawn on the panes, not on the window behind them.
+                if name != "bg" {
+                    need(&format!("accent text on {name}"), t.accent, under, 4.5);
+                }
+                for (s, col) in [("danger", t.danger), ("flag", t.flag), ("ok", t.ok), ("warn", t.warn)] {
+                    need(&format!("{s} on {name}"), col, under, 3.0);
+                }
+            }
+            for (name, under) in [("accent_soft", t.accent_soft), ("hover", t.hover), ("hover_row", t.hover_row)] {
+                need(&format!("text on {name}"), t.text, under, 7.0);
+                need(&format!("dim on {name}"), t.dim, under, 4.5);
+                need(&format!("accent on {name}"), t.accent, under, 3.0);
+            }
+            assert!(short.is_empty(), "{which}: {}", short.join("; "));
+        }
+    }
 }
