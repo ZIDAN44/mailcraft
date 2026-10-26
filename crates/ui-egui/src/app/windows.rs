@@ -55,7 +55,7 @@ impl MailApp {
         let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
         let id = egui::ViewportId::from_hash_of(("compose-window", c.id));
         let builder = egui::ViewportBuilder::default()
-            .with_title(i18n::as_written(|| tf!("{subject} – Message", subject = subject)))
+            .with_title(tf!("{subject} – Message", subject = subject))
             .with_inner_size([900.0, 720.0])
             .with_min_inner_size([520.0, 420.0]);
         // Where the last one was, and its size; each further one a step down and right.
@@ -132,7 +132,7 @@ impl MailApp {
         };
         let subject =
             w.parsed.as_ref().map(|p| p.subject.clone()).filter(|s| !s.trim().is_empty()).unwrap_or_else(|| tl!("(no subject)").to_string());
-        let title = i18n::as_written(|| tf!("{subject} – Message", subject = subject));
+        let title = tf!("{subject} – Message", subject = subject);
         if title != self.ui.title_shown {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.ui.title_shown = title;
@@ -162,7 +162,7 @@ impl MailApp {
                 w.parsed.as_ref().map(|p| p.subject.clone()).filter(|s| !s.trim().is_empty()).unwrap_or_else(|| tl!("(no subject)").to_string());
             let id = egui::ViewportId::from_hash_of(("message-window", key.to_id()));
             let builder = egui::ViewportBuilder::default()
-                .with_title(i18n::as_written(|| tf!("{subject} – Message", subject = subject)))
+                .with_title(tf!("{subject} – Message", subject = subject))
                 .with_inner_size([940.0, 740.0])
                 .with_min_inner_size([480.0, 360.0]);
             // Where the last one was, and its size.

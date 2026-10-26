@@ -213,22 +213,6 @@ pub fn system_lang() -> Lang {
 
 thread_local! {
     static CURRENT: Cell<Lang> = const { Cell::new(Lang::EN) };
-    /// Text is wanted as written, not as egui draws it (for the system: window titles).
-    static AS_WRITTEN: Cell<bool> = const { Cell::new(false) };
-}
-
-/// Run `f` with translations as written (the system lays out right-to-left text itself: window
-/// titles, notifications).
-pub fn as_written<R>(f: impl FnOnce() -> R) -> R {
-    let before = AS_WRITTEN.replace(true);
-    let r = f();
-    AS_WRITTEN.set(before);
-    r
-}
-
-/// Whether drawn text of the current language goes through [`crate::bidi`].
-fn reorder() -> bool {
-    current().rtl() && !AS_WRITTEN.get()
 }
 
 /// Set the language the interface is drawn in (each frame, from the setting).
@@ -240,37 +224,15 @@ pub fn current() -> Lang {
     CURRENT.get()
 }
 
-/// `s` in the current language, ready to draw.
+/// `s` in the current language (as written: egui orders right-to-left text when it draws it).
 pub fn t(s: &str) -> &str {
-    shown(tr(current(), s))
+    tr(current(), s)
 }
 
 /// A template in the current language with its `{name}` values filled in, ready to draw (see
 /// `tf!`).
 pub fn tfmt(template: &str, args: &[(&str, &str)]) -> String {
-    let filled = fmt(tr(current(), template), args);
-    if reorder() { crate::bidi::line(&filled, None) } else { filled }
-}
-
-/// Interface text of a right-to-left language in the order egui draws right ([`crate::bidi`]);
-/// kept for the session, as catalogs are.
-fn shown(s: &str) -> &str {
-    if !reorder() || !crate::bidi::has_rtl(s) {
-        return s;
-    }
-    thread_local! {
-        static SHOWN: std::cell::RefCell<HashMap<String, &'static str>> = std::cell::RefCell::new(HashMap::new());
-    }
-    SHOWN.with(|m| {
-        if let Some(v) = m.borrow().get(s) {
-            return *v;
-        }
-        // The direction comes from the first letter: a line that starts with a name or an
-        // address reads left to right, as people write it.
-        let v: &'static str = Box::leak(crate::bidi::line(s, None).into_boxed_str());
-        m.borrow_mut().insert(s.to_string(), v);
-        v
-    })
+    fmt(tr(current(), template), args)
 }
 
 /// Separates a context from the English in catalog keys.
@@ -283,7 +245,7 @@ pub fn tc<'a>(ctx: &str, s: &'a str) -> &'a str {
     if pseudo::on() {
         return pseudo::mark(s);
     }
-    current().0.catalog().get(&format!("{ctx}{CTX}{s}")).map_or_else(|| t(s), |v| shown(v))
+    current().0.catalog().get(&format!("{ctx}{CTX}{s}")).map_or_else(|| t(s), String::as_str)
 }
 
 /// A folder's name as shown: the name its server gives a special folder as it is (Exchange
@@ -362,8 +324,7 @@ pub fn date(s: &str) -> String {
     if current() == Lang::EN {
         return s.to_string();
     }
-    let out = s.split(' ').map(|w| if NAMES.contains(&w) { tr(current(), w) } else { w }).collect::<Vec<_>>().join(" ");
-    if reorder() { crate::bidi::line(&out, None) } else { out }
+    s.split(' ').map(|w| if NAMES.contains(&w) { tr(current(), w) } else { w }).collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]

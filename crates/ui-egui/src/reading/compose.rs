@@ -129,9 +129,7 @@ pub(super) fn send_button(ui: &mut Ui, t: &Tokens, height: f32, sending: bool) -
 pub(super) fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, check_addresses: bool, focus: bool) {
     ui.horizontal(|ui| {
         ui.add_sized(vec2(LABEL_W, ROW_H), egui::Label::new(RichText::new(tl!(label)).color(t.dim)));
-        let id = ui.make_persistent_id(("field", label));
-        widgets::cursor_within(ui.ctx(), id, value);
-        let r = underlined(ui, t, egui::TextEdit::singleline(value).id(id).hint_text(tl!(hint)));
+        let r = underlined(ui, t, egui::TextEdit::singleline(value).hint_text(tl!(hint)));
         if focus {
             r.request_focus();
         }
@@ -187,7 +185,6 @@ pub(super) fn recipient_field(
         state.store(ui.ctx(), edit_id);
         st.suggest_dismissed = Some(value.clone());
     }
-    widgets::cursor_within(ui.ctx(), edit_id, value);
     let (pressed, r) = ui
         .horizontal(|ui| {
             // The field's button opens the address book (the caller's to show).

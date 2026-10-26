@@ -15,12 +15,13 @@ targets = [
 ]
 
 # Where crates may come from: crates.io, which is cargo-deny's one allowed registry unless told
-# otherwise, and the winit fork the Craft apps share (0.30.13, pinned to an immutable revision
-# in Cargo.toml's [patch.crates-io]). Nothing else.
+# otherwise, and the two forks the Craft apps share (egui 0.37 and winit 0.30.13, pinned to
+# immutable revisions in Cargo.toml's [patch.crates-io]). Nothing else.
 [sources]
 unknown-git = "deny"
 unknown-registry = "deny"
 allow-git = [
+    "https://github.com/storytold/egui",
     "https://github.com/storytold/winit",
 ]
 

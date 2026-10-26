@@ -172,7 +172,8 @@ impl Body<'_> {
                 ui.add_space(9.0);
                 continue;
             }
-            // A line with right-to-left text is laid out whole, in order (its links show, but as text).
+            // A line with right-to-left text is laid out whole, egui putting it in order (its links
+            // show, but as text).
             if line.iter().any(|sp| crate::bidi::has_rtl(&sp.text)) && line.iter().all(|sp| sp.image.is_none()) {
                 let mut job = egui::text::LayoutJob::default();
                 for sp in line {
@@ -188,9 +189,12 @@ impl Body<'_> {
                     };
                     job.append(&sp.text, 0.0, format);
                 }
-                job.wrap.max_width = width;
-                let job = ui.fonts_mut(|f| crate::bidi::job(f, job));
-                let r = ui.add(egui::Label::new(job).selectable(false));
+                let r = ui
+                    .scope(|ui| {
+                        ui.set_max_width(width);
+                        crate::bidi::add_label(ui, job)
+                    })
+                    .inner;
                 let written: String = line.iter().map(|sp| sp.text.as_str()).collect();
                 rtl_copy_menu(&r, Some(&written), &self.p.text);
                 continue;

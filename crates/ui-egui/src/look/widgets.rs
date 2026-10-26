@@ -311,23 +311,6 @@ pub fn tiny_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Respo
     resp.on_hover_text(tl!(tip))
 }
 
-/// Before a text box `id` is drawn over `text`: a cursor it kept that's past the end of the text
-/// is put at the end. egui 0.37 puts one there after Arabic text ("مرحبا", five letters, ends at
-/// nine), then trusts it: Ctrl+Backspace or Alt+Left ran a count under zero (a panic in debug
-/// builds, too much deleted in release ones). The window's soak test found it; the Craft apps'
-/// egui fork fixes it in egui.
-pub(crate) fn cursor_within(ctx: &egui::Context, id: egui::Id, text: &str) {
-    let Some(mut state) = egui::TextEdit::load_state(ctx, id) else { return };
-    let Some(range) = state.cursor.char_range() else { return };
-    let n = text.chars().count();
-    if range.primary.index.0 <= n && range.secondary.index.0 <= n {
-        return;
-    }
-    let fit = |c: egui::text::CCursor| egui::text::CCursor { index: egui::text::CharIndex(c.index.0.min(n)), ..c };
-    state.cursor.set_char_range(Some(egui::text::CCursorRange { primary: fit(range.primary), secondary: fit(range.secondary), h_pos: None }));
-    state.store(ctx, id);
-}
-
 /// Same-height chips in columns that share the width and wrap onto more rows, as Outlook lays out
 /// attachments; past `max_rows` rows they scroll. `chip(ui, i, width)` draws chip `i`.
 pub fn chip_grid(ui: &mut Ui, id: egui::Id, n: usize, min_w: f32, max_w: f32, h: f32, max_rows: usize, mut chip: impl FnMut(&mut Ui, usize, f32)) {

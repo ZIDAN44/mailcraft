@@ -45,10 +45,7 @@ impl MailApp {
         // The words get what's left: the box keeps one width whatever the menu says, and room for
         // its two buttons (Clear's kept when it isn't shown).
         let button = 22.0 + ui.spacing().item_spacing.x;
-        let id = ui.make_persistent_id("search-box");
-        widgets::cursor_within(ui.ctx(), id, &self.ui.search_text);
         let te = egui::TextEdit::singleline(&mut self.ui.search_text)
-            .id(id)
             .hint_text(tl!("Search mail (from:, subject:, has:attachment…)"))
             .frame(egui::Frame::NONE)
             .desired_width((width - ui.min_rect().width() - 2.0 * button - ui.spacing().item_spacing.x).max(80.0))

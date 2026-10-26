@@ -81,11 +81,7 @@ fn action(d: &mut Dice, size: egui::Vec2) -> Vec<Event> {
             vec![key(k, modifiers)]
         }
         7 => {
-            // No Hebrew or Arabic: egui 0.37 lays a right-to-left run out with more places than
-            // letters (emilk/egui#8576), and Ctrl+Backspace or Alt+Left there panics in debug
-            // builds, inside egui. `widgets::cursor_within` keeps it out of the search box and the
-            // message's boxes (`tests/rtl.rs`); the Craft apps' egui fork fixes it in egui.
-            let words = ["hello", "ana@x.example", " ", "is:unread", "日本語", "👋", "\u{202E}gpj.exe", "a\nb"];
+            let words = ["hello", "ana@x.example", " ", "is:unread", "שלום", "مرحبا", "日本語", "👋", "\u{202E}gpj.exe", "a\nb"];
             vec![Event::Text(words[d.below(words.len() as u64) as usize].to_string())]
         }
         8 => vec![

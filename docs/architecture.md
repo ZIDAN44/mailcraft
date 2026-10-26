@@ -115,14 +115,14 @@ their licences on the About page. It is an optional build input, never a Cargo d
 `CRAFT_FONTS_DIR=<checkout>` makes `crates/ui-egui/build.rs` embed what its manifest lists;
 unset, the table is empty and nothing changes.
 
-egui shapes each run of text in its script's direction but lays runs out left to right, with no
-bidirectional algorithm. `ui-egui/src/look/bidi.rs` orders right-to-left text itself: each line goes
-through the Unicode Bidirectional Algorithm (`unicode-bidi`), is cut where egui will cut it into
-runs (the main font's coverage, read with `skrifa`), and runs egui will turn around are handed
-over turned around; Arabic that egui won't shape gets its joined forms. Wrapped text (mail bodies,
-subjects) is broken into lines by MailCraft first (`bidi::job`). Translations of Arabic and
-Hebrew go through it in `tl!`/`tf!`; text for the system (window titles, notifications) is taken
-as written (`i18n::as_written`).
+egui and winit are the Craft apps' forks (storytold/egui, storytold/winit), pinned by revision
+in the root `Cargo.toml`'s `[patch.crates-io]` to the same revisions the other apps use; each fix
+they carry is in the fork's PATCHES.md. That egui draws right-to-left text itself: the Unicode
+Bidirectional Algorithm orders each line, Arabic is joined by the shaper, right-to-left paragraphs
+start on the right, and a text box's caret and selection follow. MailCraft hands it text as
+written, translations and mail alike; `ui-egui/src/look/bidi.rs` only says whether a paragraph
+reads right to left (where a line painted by hand belongs) and whether the interface font has the
+scripts (the main font's coverage, read with `skrifa`).
 
 ## Search
 

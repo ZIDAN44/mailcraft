@@ -18,8 +18,7 @@ impl MailApp {
             // Issue #4: the system keeps its notifications (Windows, in its history): one for an
             // account kept online only names neither sender nor subject.
             let private = news.iter().any(|m| self.session.account(&m.key.account).is_some_and(|a| a.config.keeps_online()));
-            // A system notification: text as written.
-            let (title, body) = i18n::as_written(|| match news.as_slice() {
+            let (title, body) = match news.as_slice() {
                 _ if private => (
                     if news.len() == 1 { tl!("New message").to_string() } else { tf!("{n} new messages", n = news.len()) },
                     tl!("Open MailCraft to read it.").to_string(),
@@ -41,22 +40,19 @@ impl MailApp {
                     };
                     (tf!("{n} new messages", n = many.len()), tf!("From {names}", names = names))
                 }
-            });
+            };
             // Only the system notification and the title's unread count announce mail. No
             // RequestUserAttention: Windows keeps that highlight on the taskbar until focus returns.
             self.services.notify(&title, &body);
         }
         let unread = self.session.inbox_unread();
-        // The system lays out the title (right-to-left text too): as written.
-        let (view, base) = i18n::as_written(|| {
-            let view = match self.session.module {
-                Module::Mail => view_title(&self.session),
-                Module::Calendar => tl!("Calendar").to_string(),
-                Module::People => tl!("People").to_string(),
-                Module::Notes => tl!("Notes").to_string(),
-            };
-            (view, tl!(&self.ui.title_base).to_string())
-        });
+        let view = match self.session.module {
+            Module::Mail => view_title(&self.session),
+            Module::Calendar => tl!("Calendar").to_string(),
+            Module::People => tl!("People").to_string(),
+            Module::Notes => tl!("Notes").to_string(),
+        };
+        let base = tl!(&self.ui.title_base).to_string();
         let title = if self.session.view == mailcraft_engine::View::Empty {
             base.to_string()
         } else if unread > 0 {

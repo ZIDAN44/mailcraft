@@ -1,6 +1,7 @@
 //! Typing right-to-left text into MailCraft's boxes: egui 0.37 lays a Hebrew or Arabic run out
-//! with more places than it has letters ("שלום", four letters, ends at seven: emilk/egui#8576),
-//! and Ctrl+Backspace or Alt+Left from there ran a count under zero.
+//! with more places than it has letters ("שלום", four letters, ended at seven: emilk/egui#8576),
+//! and Ctrl+Backspace or Alt+Left from there ran a count under zero. The Craft apps' egui fork
+//! counts right (the fix of emilk/egui#8698).
 
 use super::*;
 

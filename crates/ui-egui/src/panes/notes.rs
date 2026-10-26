@@ -131,7 +131,6 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
         let mut text = st.note_edit.as_ref().map(|(_, x)| x.clone()).unwrap_or_default();
         // In a child of its own over the paper, so the row of notes doesn't move.
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(text_rect));
-        crate::widgets::cursor_within(ui.ctx(), id.with("text"), &text);
         let edit = child.add(
             egui::TextEdit::multiline(&mut text)
                 .id(id.with("text"))
