@@ -46,15 +46,21 @@ overrides:
       - gnome-keyring | kwalletmanager | keepassxc
       - xdg-utils
   rpm:
+    # Library sonames rather than package names, so the same requirements resolve on Fedora/RHEL
+    # and openSUSE (which has no libxkbcommon, vulkan-loader or libglvnd-egl package, so zypper
+    # refused the package). Every rpm built is 64-bit (x86_64, aarch64, riscv64). The glibc floor
+    # is the deb's: a symbol version libc.so.6 provides from that glibc on.
     depends:
-      - libxkbcommon
-      - (vulkan-loader or libglvnd-egl)
+      - libc.so.6(GLIBC_${GLIBC_FLOOR})(64bit)
+      - libgcc_s.so.1()(64bit)
+      - libxkbcommon.so.0()(64bit)
+      - (libvulkan.so.1()(64bit) or libEGL.so.1()(64bit))
     recommends:
-      - libwayland-client
-      - libX11
-      - libXcursor
-      - libXi
-      - libXrandr
+      - libwayland-client.so.0()(64bit)
+      - libX11.so.6()(64bit)
+      - libXcursor.so.1()(64bit)
+      - libXi.so.6()(64bit)
+      - libXrandr.so.2()(64bit)
       - mesa-vulkan-drivers
       - xdg-desktop-portal
       - xdg-utils
