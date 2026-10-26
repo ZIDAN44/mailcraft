@@ -494,4 +494,12 @@ fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
         })
         .collect();
     assert!(wording.len() < 40, "{wording:?}");
+    // Short labels too (the filter above passes "To:" and "Sent To", looked up by a variable):
+    // what was drawn and is written as a literal in the interface's code is wording, and must
+    // be in the catalogs.
+    let sources = ui_sources().concat();
+    let catalog = Lang::from_code("de").unwrap_or(Lang::EN).0.catalog();
+    let literal: Vec<&String> =
+        unknown.iter().filter(|s| !s.is_empty() && !catalog.contains_key(*s) && sources.contains(&format!("\"{s}\""))).collect();
+    assert!(literal.is_empty(), "drawn, written in the code, but not in the catalogs: {literal:?}");
 }
