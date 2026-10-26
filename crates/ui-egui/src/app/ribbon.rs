@@ -155,8 +155,10 @@ impl MailApp {
         // A narrow window scrolls the ribbon sideways rather than cutting buttons off; each tab
         // keeps its own place (one shared place opened View scrolled as far as Home was, which
         // gridcraft's ribbon found).
-        egui::ScrollArea::horizontal().id_salt(("ribbon", format!("{:?}", ust.tab))).show(ui, |ui| {
-            ui.horizontal(|ui| {
+        // Right to left it starts scrolled to the right, where the row starts.
+        let rtl = i18n::current().rtl();
+        egui::ScrollArea::horizontal().id_salt(("ribbon", format!("{:?}", ust.tab))).stick_to_right(rtl).show(ui, |ui| {
+            widgets::scrolled_row(ui, |ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 widgets::start_group(ui);
                 match ust.tab {

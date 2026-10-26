@@ -56,9 +56,16 @@ fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
     }
-    let chev = egui::Rect::from_min_size(egui::pos2(rect.min.x + 2.0, rect.center().y - 6.0), vec2(12.0, 12.0));
-    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.faint);
-    ui.painter().text(egui::pos2(rect.min.x + 18.0, rect.center().y), egui::Align2::LEFT_CENTER, tl!(label), theme::bold(12.0), t.faint);
+    let m = crate::bidi::Mirror::new(rect);
+    let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 2.0, rect.center().y - 6.0), vec2(12.0, 12.0)));
+    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.faint);
+    ui.painter().text(
+        m.pos(egui::pos2(rect.min.x + 18.0, rect.center().y)),
+        m.align(egui::Align2::LEFT_CENTER),
+        tl!(label),
+        theme::bold(12.0),
+        t.faint,
+    );
     resp.clicked()
 }
 
@@ -86,23 +93,28 @@ fn row(
     let hover = crate::motion::toward(&ctx, resp.id.with("hover"), resp.hovered(), crate::motion::FAST);
     let fill = if hovering_drop { t.accent.gamma_multiply(0.3) } else { crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel) };
     ui.painter().rect_filled(rect, 6.0, fill);
+    // Right to left: the icon on the right, the count on the left.
+    let m = crate::bidi::Mirror::new(rect);
     if sel > 0.0 {
         let full = h - 14.0;
-        let bar = egui::Rect::from_center_size(egui::pos2(rect.min.x + 1.5, rect.center().y), vec2(3.0, full * sel));
+        let bar = egui::Rect::from_center_size(m.pos(egui::pos2(rect.min.x + 1.5, rect.center().y)), vec2(3.0, full * sel));
         ui.painter().rect_filled(bar, 2.0, t.accent);
     }
     let x = rect.min.x + 10.0 + depth as f32 * 14.0;
-    let ir = egui::Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), vec2(16.0, 16.0));
+    let ir = m.rect(egui::Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
     let font = if unread > 0 || selected { theme::bold(13.5) } else { theme::regular(13.5) };
     let text_right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
-    let galley = ui.painter().layout(label.to_string(), font, t.text, (text_right - x - 24.0).max(10.0));
+    // One line, cut to "…" in a narrow pane (it wrapped, two or three lines in a row of one), the
+    // whole name on hover.
+    let galley = crate::widgets::one_line(ui, label, font, t.text, text_right - x - 24.0);
+    let resp = if galley.elided { resp.on_hover_text(label) } else { resp };
     let gy = rect.center().y - galley.size().y / 2.0;
-    ui.painter().with_clip_rect(egui::Rect::from_x_y_ranges(x..=text_right, rect.y_range())).galley(egui::pos2(x + 24.0, gy), galley, t.text);
+    ui.painter().galley(egui::pos2(m.start(x + 24.0, galley.size().x), gy), galley, t.text);
     if unread > 0 {
         ui.painter().text(
-            egui::pos2(rect.max.x - 10.0, rect.center().y),
-            egui::Align2::RIGHT_CENTER,
+            m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)),
+            m.align(egui::Align2::RIGHT_CENTER),
             unread.to_string(),
             theme::bold(12.5),
             t.accent,
@@ -159,9 +171,10 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 ui.painter().rect_filled(rect, 6.0, t.hover_row);
             }
             section_drag(ui, t, &resp, rect, &sections, at, acts);
-            let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
-            icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);
-            ui.painter().circle_filled(rect.min + vec2(26.0, 15.0), 4.0, theme::account_color(a.config.color));
+            let m = crate::bidi::Mirror::new(rect);
+            let chev = m.rect(egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0)));
+            icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
+            ui.painter().circle_filled(m.pos(rect.min + vec2(26.0, 15.0)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_data_file() {
                 a.config.email.clone()
             } else if a.is_local() {
@@ -170,7 +183,9 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 a.config.email.clone()
             };
             crate::widgets::named(ui, &resp, &label, true, Some(open));
-            ui.painter().with_clip_rect(rect).text(rect.min + vec2(36.0, 15.0), egui::Align2::LEFT_CENTER, label, theme::bold(13.0), t.text);
+            let g = crate::widgets::one_line(ui, &label, theme::bold(13.0), t.text, rect.width() - 44.0);
+            let resp = if g.elided { resp.on_hover_text(&label) } else { resp };
+            ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
             if resp.clicked() {
                 acts.push(Action::Run("view.collapse", json!({"key": key})));
             }
@@ -265,9 +280,11 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
     }
-    let chev = egui::Rect::from_min_size(egui::pos2(rect.min.x + 2.0, rect.center().y - 6.0), vec2(12.0, 12.0));
-    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.faint);
-    ui.painter().text(egui::pos2(rect.min.x + 18.0, rect.center().y), egui::Align2::LEFT_CENTER, tl!("Search Folders"), theme::bold(12.0), t.faint);
+    let m = crate::bidi::Mirror::new(rect);
+    let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 2.0, rect.center().y - 6.0), vec2(12.0, 12.0)));
+    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.faint);
+    let at = m.pos(egui::pos2(rect.min.x + 18.0, rect.center().y));
+    ui.painter().text(at, m.align(egui::Align2::LEFT_CENTER), tl!("Search Folders"), theme::bold(12.0), t.faint);
     if resp.clicked() {
         acts.push(Action::Run("view.collapse", json!({"key": "searchFolders"})));
     }
@@ -405,9 +422,10 @@ fn shared_header(
     if resp.hovered() || dropping {
         ui.painter().rect_filled(rect, 6.0, if dropping { t.accent.gamma_multiply(0.3) } else { t.hover_row });
     }
-    let chev = egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0));
-    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.dim);
-    let ir = egui::Rect::from_min_size(rect.min + vec2(20.0, 8.0), vec2(14.0, 14.0));
+    let m = crate::bidi::Mirror::new(rect);
+    let chev = m.rect(egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0)));
+    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
+    let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(20.0, 8.0), vec2(14.0, 14.0)));
     icons::paint(ui.painter(), ir, Icon::People, t.dim);
     let name = crate::i18n::folder(top);
     crate::widgets::named(ui, &resp, &name, true, Some(open));
@@ -415,17 +433,12 @@ fn shared_header(
     let unread: u32 =
         if open { 0 } else { a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.mailbox_role == FolderRole::Inbox).map(|f| f.unread).sum() };
     let right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
-    ui.painter().with_clip_rect(egui::Rect::from_x_y_ranges(rect.min.x..=right, rect.y_range())).text(
-        rect.min + vec2(40.0, 15.0),
-        egui::Align2::LEFT_CENTER,
-        &name,
-        theme::bold(13.0),
-        t.text,
-    );
+    let g = crate::widgets::one_line(ui, &name, theme::bold(13.0), t.text, right - rect.min.x - 40.0);
+    ui.painter().galley(egui::pos2(m.start(rect.min.x + 40.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
     if unread > 0 {
         ui.painter().text(
-            egui::pos2(rect.max.x - 10.0, rect.center().y),
-            egui::Align2::RIGHT_CENTER,
+            m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)),
+            m.align(egui::Align2::RIGHT_CENTER),
             unread.to_string(),
             theme::bold(12.5),
             t.accent,
@@ -498,10 +511,11 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     let resp = row(ui, t, role_icon(f.look()), &name, unread, depth, selected, f.selectable, user_folder && !favorite);
     if let Some(collapsed) = collapse {
         let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
-        let chev = egui::Rect::from_min_size(egui::pos2(x, resp.rect.center().y - 6.0), vec2(12.0, 12.0));
+        let m = crate::bidi::Mirror::new(resp.rect);
+        let chev = m.rect(egui::Rect::from_min_size(egui::pos2(x, resp.rect.center().y - 6.0), vec2(12.0, 12.0)));
         let c = ui.interact(chev.expand(4.0), resp.id.with("collapse"), Sense::click());
         crate::widgets::named(ui, &c, &format!("{name}: {}", tl!(if collapsed { "Expand" } else { "Collapse" })), true, None);
-        icons::paint(ui.painter(), chev, if collapsed { Icon::ChevronRight } else { Icon::ChevronDown }, if c.hovered() { t.text } else { t.dim });
+        icons::paint(ui.painter(), chev, if collapsed { m.closed() } else { Icon::ChevronDown }, if c.hovered() { t.text } else { t.dim });
         if c.clicked() {
             acts.push(Action::Run("view.collapse", json!({"key": folder_key(&f.account, &f.path)})));
         }

@@ -38,95 +38,104 @@ fn row_height(s: &Session) -> f32 {
 pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     egui::Frame::new().inner_margin(egui::Margin { left: 14, right: 10, top: 10, bottom: 6 }).show(ui, |ui| {
+        // Against the right in a right-to-left interface (egui runs its rows from there too).
+        ui.with_layout(crate::bidi::column(), |ui| list_head(s, &t, ui, acts));
+    });
+    list_body(s, st, ui, acts);
+}
+
+/// The list's name, its Focused and Other tabs, its filters and how it's arranged.
+fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(crate::view_title(s)).font(theme::bold(18.0)).color(t.text));
+    });
+    ui.add_space(4.0);
+    if s.focus_split() {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(crate::view_title(s)).font(theme::bold(18.0)).color(t.text));
-        });
-        ui.add_space(4.0);
-        if s.focus_split() {
-            ui.horizontal(|ui| {
-                for (other, label) in [(false, "Focused"), (true, "Other")] {
-                    let on = s.focus_other == other;
-                    let text = RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on {
-                        theme::bold(14.0)
-                    } else {
-                        theme::regular(14.0)
-                    });
-                    let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
-                    if on {
-                        ui.painter().line_segment(
-                            [pos2(r.rect.left() + 2.0, r.rect.bottom() + 1.0), pos2(r.rect.right() - 2.0, r.rect.bottom() + 1.0)],
-                            egui::Stroke::new(2.0, t.accent),
-                        );
-                    }
-                    if r.clicked() && !on {
-                        acts.push(Action::Run("list.focusTab", json!({"value": if other { "other" } else { "focused" }})));
-                    }
+            for (other, label) in [(false, "Focused"), (true, "Other")] {
+                let on = s.focus_other == other;
+                let text =
+                    RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on { theme::bold(14.0) } else { theme::regular(14.0) });
+                let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
+                if on {
+                    ui.painter().line_segment(
+                        [pos2(r.rect.left() + 2.0, r.rect.bottom() + 1.0), pos2(r.rect.right() - 2.0, r.rect.bottom() + 1.0)],
+                        egui::Stroke::new(2.0, t.accent),
+                    );
                 }
-            });
-            ui.add_space(2.0);
-        }
-        ui.horizontal(|ui| {
-            // How the list is arranged, kept at the right (as Outlook's "By Date" above its list):
-            // the tabs wrap in what's left, so long words (Dutch, German…) never run into it.
-            let arrange = tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()));
-            let right = if s.search.is_none() {
-                ui.painter().layout_no_wrap(arrange.clone(), egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + 54.0
-            } else {
-                0.0
-            };
-            let left_w = (ui.available_width() - right).max(120.0);
-            ui.allocate_ui_with_layout(vec2(left_w, 22.0), egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true), |ui| {
-                // The tabs, and a filter chosen from the Home tab's Filter menu when it's another.
-                let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
-                for f in shown {
-                    let on = s.filter == f;
-                    let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(if on {
-                        theme::bold(12.5)
-                    } else {
-                        theme::regular(12.5)
-                    });
-                    let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
-                    if on {
-                        ui.painter().line_segment(
-                            [pos2(r.rect.left() + 4.0, r.rect.bottom()), pos2(r.rect.right() - 4.0, r.rect.bottom())],
-                            egui::Stroke::new(2.0, t.accent),
-                        );
-                    }
-                    if r.clicked() {
-                        acts.push(Action::Run("list.filter", json!({"value": f.code()})));
-                    }
+                if r.clicked() && !on {
+                    acts.push(Action::Run("list.focusTab", json!({"value": if other { "other" } else { "focused" }})));
                 }
-                // A Search Folder always looks everywhere: no scope to pick.
-                if let Some((q, current)) = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none()) {
-                    ui.add_space(8.0);
-                    ui.menu_button(RichText::new(format!("{} ▾", crate::scope_label(*current))).small(), |ui| {
-                        for scope in SearchScope::ALL {
-                            if ui.selectable_label(scope == *current, crate::scope_label(scope)).clicked() {
-                                acts.push(Action::Run("search.run", json!({"query": q, "scope": scope.code()})));
-                                ui.close();
-                            }
-                        }
-                    })
-                    .response
-                    .on_hover_text(tl!("Look in"));
-                }
-            });
-            if s.search.is_none() {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let rev = s.prefs.reverse_sort;
-                    if ui
-                        .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame_when_inactive(false))
-                        .on_hover_text(tl!("Reverse sort"))
-                        .clicked()
-                    {
-                        acts.push(Action::Run("view.reverseSort", json!({})));
-                    }
-                    let r = ui.add(egui::Button::new(RichText::new(arrange).color(t.dim).small()).frame_when_inactive(false));
-                    egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
-                });
             }
         });
+        ui.add_space(2.0);
+    }
+    ui.horizontal(|ui| {
+        // How the list is arranged, kept at the right (as Outlook's "By Date" above its list):
+        // the tabs wrap in what's left, so long words (Dutch, German…) never run into it.
+        let arrange = tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()));
+        let right = if s.search.is_none() {
+            ui.painter().layout_no_wrap(arrange.clone(), egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + 54.0
+        } else {
+            0.0
+        };
+        let left_w = (ui.available_width() - right).max(120.0);
+        ui.allocate_ui_with_layout(vec2(left_w, 22.0), crate::bidi::row_from_start(egui::Align::Center).with_main_wrap(true), |ui| {
+            // The tabs, and a filter chosen from the Home tab's Filter menu when it's another.
+            let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
+            for f in shown {
+                let on = s.filter == f;
+                let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(if on {
+                    theme::bold(12.5)
+                } else {
+                    theme::regular(12.5)
+                });
+                let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
+                if on {
+                    ui.painter().line_segment(
+                        [pos2(r.rect.left() + 4.0, r.rect.bottom()), pos2(r.rect.right() - 4.0, r.rect.bottom())],
+                        egui::Stroke::new(2.0, t.accent),
+                    );
+                }
+                if r.clicked() {
+                    acts.push(Action::Run("list.filter", json!({"value": f.code()})));
+                }
+            }
+            // A Search Folder always looks everywhere: no scope to pick.
+            if let Some((q, current)) = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none()) {
+                ui.add_space(8.0);
+                ui.menu_button(RichText::new(format!("{} ▾", crate::scope_label(*current))).small(), |ui| {
+                    for scope in SearchScope::ALL {
+                        if ui.selectable_label(scope == *current, crate::scope_label(scope)).clicked() {
+                            acts.push(Action::Run("search.run", json!({"query": q, "scope": scope.code()})));
+                            ui.close();
+                        }
+                    }
+                })
+                .response
+                .on_hover_text(tl!("Look in"));
+            }
+        });
+        if s.search.is_none() {
+            ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
+                let rev = s.prefs.reverse_sort;
+                if ui
+                    .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame_when_inactive(false))
+                    .on_hover_text(tl!("Reverse sort"))
+                    .clicked()
+                {
+                    acts.push(Action::Run("view.reverseSort", json!({})));
+                }
+                let r = ui.add(egui::Button::new(RichText::new(arrange).color(t.dim).small()).frame_when_inactive(false));
+                egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
+            });
+        }
     });
+}
+
+/// The list's rows, under its head.
+fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let t = st.tokens;
     let sep = ui.available_rect_before_wrap();
     ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
 
@@ -198,12 +207,26 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             match row {
                 Row::Header(label) => {
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
-                    ui.painter().text(r.left_bottom() + vec2(14.0, -8.0), egui::Align2::LEFT_BOTTOM, tl!(label), theme::bold(12.5), t.dim);
+                    let m = crate::bidi::Mirror::new(r);
+                    ui.painter().text(
+                        m.pos(r.left_bottom() + vec2(14.0, -8.0)),
+                        m.align(egui::Align2::LEFT_BOTTOM),
+                        tl!(label),
+                        theme::bold(12.5),
+                        t.dim,
+                    );
                 }
                 Row::Group(name) => {
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
                     let (name, _) = crate::bidi::shown(name);
-                    ui.painter().text(r.left_bottom() + vec2(14.0, -8.0), egui::Align2::LEFT_BOTTOM, name.as_ref(), theme::bold(12.5), t.dim);
+                    let m = crate::bidi::Mirror::new(r);
+                    ui.painter().text(
+                        m.pos(r.left_bottom() + vec2(14.0, -8.0)),
+                        m.align(egui::Align2::LEFT_BOTTOM),
+                        name.as_ref(),
+                        theme::bold(12.5),
+                        t.dim,
+                    );
                 }
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };
@@ -318,16 +341,20 @@ fn message_row(
     let hover = crate::motion::toward(ui.ctx(), id.with("hover"), hovered, crate::motion::FAST);
     let fill = crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel);
     p.rect_filled(r.shrink2(vec2(4.0, 1.0)), 6.0, fill);
+    // Laid out left to right, mirrored for a right-to-left interface: the avatar on the right,
+    // the time and markers on the left.
+    let mr = crate::bidi::Mirror::new(r);
     if unread {
-        p.rect_filled(Rect::from_min_size(r.min + vec2(4.0, 8.0), vec2(3.0, r.height() - 16.0)), 2.0, t.accent);
+        p.rect_filled(mr.rect(Rect::from_min_size(r.min + vec2(4.0, 8.0), vec2(3.0, r.height() - 16.0))), 2.0, t.accent);
     }
-    p.line_segment([r.left_bottom() + vec2(14.0, 0.0), r.right_bottom() - vec2(8.0, 0.0)], egui::Stroke::new(1.0, t.border.gamma_multiply(0.6)));
+    let rule = [mr.pos(r.left_bottom() + vec2(14.0, 0.0)), mr.pos(r.right_bottom() - vec2(8.0, 0.0))];
+    p.line_segment(rule, egui::Stroke::new(1.0, t.border.gamma_multiply(0.6)));
 
     let compact = s.prefs.compact;
     let mut x = r.min.x + 14.0;
     let who_addr = if sent_view { m.to.first().cloned().unwrap_or_default() } else { m.from.clone() };
     if !compact {
-        let c = egui::pos2(x + 17.0, r.min.y + 26.0);
+        let c = mr.pos(egui::pos2(x + 17.0, r.min.y + 26.0));
         widgets::avatar(ui, c, 17.0, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
         x += 44.0;
     }
@@ -337,7 +364,7 @@ fn message_row(
     let time = crate::i18n::date(&dates::list_time(m.date, &s.clock));
     let time_g = p.layout_no_wrap(time, if unread { theme::bold(12.0) } else { theme::regular(12.0) }, if unread { t.accent } else { t.dim });
     let mut tw = time_g.size().x;
-    p.galley(egui::pos2(right - tw, line1 + 1.0), time_g, t.dim);
+    p.galley(egui::pos2(mr.start(right - tw, tw), line1 + 1.0), time_g, t.dim);
     // A search over several folders: each result says where it is, before its time.
     let several =
         s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
@@ -345,23 +372,25 @@ fn message_row(
         let name: String = crate::i18n::folder(f).chars().take(24).collect();
         let fg = p.layout_no_wrap(name, theme::regular(11.5), t.faint);
         let fw = fg.size().x;
-        p.galley(egui::pos2(right - tw - 10.0 - fw, line1 + 2.0), fg, t.faint);
+        p.galley(egui::pos2(mr.start(right - tw - 10.0 - fw, fw), line1 + 2.0), fg, t.faint);
         tw += fw + 10.0;
     }
     let who = if sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
     let who = if count > 1 { format!("{who}  ({count})") } else { who };
     let (who, who_rtl) = crate::bidi::shown(&who);
-    let who_g = p.layout_no_wrap(who.into_owned(), if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.text);
-    // Right-to-left text starts at the right, so that's where it goes when it doesn't fit.
-    let who_x = if who_rtl { (right - tw - 10.0 - who_g.size().x).max(x) } else { x };
-    p.with_clip_rect(Rect::from_x_y_ranges(x..=right - tw - 8.0, r.y_range())).galley(egui::pos2(who_x, line1), who_g, t.text);
+    let who_right = right - tw - 10.0;
+    let who_g = widgets::one_line(ui, &who, if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.text, who_right - x);
+    // A line between `from` and `to`, at its start: right-to-left text starts at the right, as
+    // everything does in a right-to-left interface. What doesn't fit is cut from its end.
+    let place = |rtl: bool, from: f32, to: f32, w: f32| mr.start(if rtl && !mr.on() { to - w } else { from }, w);
+    p.galley(egui::pos2(place(who_rtl, x, who_right, who_g.size().x), line1), who_g, t.text);
 
     // Subject with markers.
     let line2 = line1 + 19.0;
     let mut icons_w = 0.0;
     let marker = |ic: Icon, color: Color32, w: &mut f32| {
         *w += 18.0;
-        let ir = Rect::from_min_size(egui::pos2(right - *w + 3.0, line2 + 1.0), vec2(14.0, 14.0));
+        let ir = mr.rect(Rect::from_min_size(egui::pos2(right - *w + 3.0, line2 + 1.0), vec2(14.0, 14.0)));
         icons::paint(&p, ir, ic, color);
     };
     if !hovered {
@@ -384,7 +413,7 @@ fn message_row(
         if m.importance != 0 {
             icons_w += 12.0;
             let (mark, color) = if m.importance > 0 { ("!", t.danger) } else { ("↓", t.accent) };
-            p.text(egui::pos2(right - icons_w + 6.0, line2 + 8.0), egui::Align2::CENTER_CENTER, mark, theme::bold(13.0), color);
+            p.text(mr.pos(egui::pos2(right - icons_w + 6.0, line2 + 8.0)), egui::Align2::CENTER_CENTER, mark, theme::bold(13.0), color);
         }
         if m.flags.answered {
             marker(Icon::Reply, t.faint, &mut icons_w);
@@ -396,21 +425,19 @@ fn message_row(
     if !hovered {
         for c in s.categories_of(m).into_iter().rev().take(4) {
             icons_w += 13.0;
-            p.circle_filled(egui::pos2(right - icons_w + 7.0, line2 + 8.0), 5.0, theme::category_color(c.color, t.dark));
+            p.circle_filled(mr.pos(egui::pos2(right - icons_w + 7.0, line2 + 8.0)), 5.0, theme::category_color(c.color, t.dark));
         }
     }
     let subject = if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() };
     let subj_color = if unread { t.accent } else { t.text };
     let (subject, subj_rtl) = crate::bidi::shown(&subject);
-    let subj_g = p.layout_no_wrap(subject.into_owned(), if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color);
     let subj_right = right - icons_w.max(if hovered { 70.0 } else { 0.0 }) - 4.0;
-    let subj_x = if subj_rtl { (subj_right - subj_g.size().x).max(x) } else { x };
-    p.with_clip_rect(Rect::from_x_y_ranges(x..=subj_right, r.y_range())).galley(egui::pos2(subj_x, line2), subj_g, subj_color);
+    let subj_g = widgets::one_line(ui, &subject, if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color, subj_right - x);
+    p.galley(egui::pos2(place(subj_rtl, x, subj_right, subj_g.size().x), line2), subj_g, subj_color);
     if s.prefs.show_preview && !compact && !m.preview.is_empty() {
         let (preview, pv_rtl) = crate::bidi::shown(&m.preview);
-        let pv = p.layout_no_wrap(preview.into_owned(), theme::regular(12.5), t.dim);
-        let pv_x = if pv_rtl { (right - pv.size().x).max(x) } else { x };
-        p.with_clip_rect(Rect::from_x_y_ranges(x..=right, r.y_range())).galley(egui::pos2(pv_x, line2 + 19.0), pv, t.dim);
+        let pv = widgets::one_line(ui, &preview, theme::regular(12.5), t.dim, right - x);
+        p.galley(egui::pos2(place(pv_rtl, x, right, pv.size().x), line2 + 19.0), pv, t.dim);
     }
 
     // Hover actions.
@@ -428,7 +455,7 @@ fn message_row(
             ),
         ];
         for (ic, tip, cmd, params) in actions {
-            let br = Rect::from_min_size(egui::pos2(bx, line2 - 3.0), vec2(22.0, 22.0));
+            let br = mr.rect(Rect::from_min_size(egui::pos2(bx, line2 - 3.0), vec2(22.0, 22.0)));
             let bresp = ui.interact(br, id.with(cmd), Sense::click()).on_hover_text(tip);
             crate::widgets::named(ui, &bresp, tip, true, None);
             if bresp.hovered() {

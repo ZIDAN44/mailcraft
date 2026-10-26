@@ -162,13 +162,18 @@ impl MailApp {
                         classic,
                         icons_from: self.ui.ribbon_icons_from,
                         right: ui.max_rect().left(),
+                        left: ui.max_rect().right(),
                         ..Default::default()
                     };
                     ui.ctx().data_mut(|d| d.insert_temp(id, start));
-                    self.ribbon(ui, &mut acts);
+                    // Right to left: its rows from the right (egui runs a row in a layout aligned
+                    // right from the right), File first.
+                    let rtl = i18n::current().rtl();
+                    let room = ui.max_rect();
+                    ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| self.ribbon(ui, &mut acts));
                     let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
                     self.ui.ribbon_rect = Some(ui.min_rect());
-                    let from = fit.fit(ui.max_rect().right());
+                    let from = fit.fit(room, rtl);
                     if from != self.ui.ribbon_icons_from.min(fit.count) {
                         self.ui.ribbon_icons_from = from;
                         ui.ctx().request_repaint();

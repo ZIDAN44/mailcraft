@@ -363,7 +363,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                 });
             });
             ui.add_space(10.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
                 ui.button(tl!("OK")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter))
             })
             .inner
@@ -401,243 +401,263 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
         }
     }
     egui::Frame::new().inner_margin(Margin { left: 16, right: 16, top: 8, bottom: 12 }).show(ui, |ui| {
-        // The Message ribbon.
-        egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            rich_edit::ribbon(ui, &t, &mut ed, c, &signature, &clock, acts);
-        });
-        ui.add_space(4.0);
-        // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);
-        // Discard and Pop out (or in) kept at the right, as in Outlook.
-        ui.horizontal(|ui| {
-            let (icon, label, id) = if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
-            // Where windows can't open (the browser), messages stay in the reading pane.
-            let can_pop = !ui.ctx().embed_viewports();
-            let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
-            let gap = ui.spacing().item_spacing.x;
-            let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
-            let left_w = (ui.available_width() - right).max(120.0);
-            ui.allocate_ui_with_layout(vec2(left_w, 30.0), egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true), |ui| {
-                if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
-                    acts.push(Action::Run("compose.saveDraft", json!({})));
-                }
-                if widgets::tool_button(ui, Icon::Person, if c.show_cc { "Hide Bcc" } else { "Bcc" }, &t, !c.sending).clicked() {
-                    c.show_cc = !c.show_cc;
-                }
-                let mut plain = c.plain;
-                if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
-                    c.plain = plain;
-                }
-                // Importance and a read receipt, as Outlook's Tags and Options.
-                ui.add_space(6.0);
-                if ui.selectable_label(c.importance > 0, RichText::new("!").strong().color(t.danger)).on_hover_text(tl!("High importance")).clicked()
-                {
-                    c.importance = if c.importance > 0 { 0 } else { 1 };
-                }
-                if ui.selectable_label(c.importance < 0, RichText::new("↓").strong().color(t.accent)).on_hover_text(tl!("Low importance")).clicked()
-                {
-                    c.importance = if c.importance < 0 { 0 } else { -1 };
-                }
-                let mut receipt = c.read_receipt;
-                if ui
-                    .checkbox(&mut receipt, RichText::new(tl!("Read receipt")).small())
-                    .on_hover_text(tl!("Ask the recipients to confirm they've read it (their mail app may not, or may ask them)"))
-                    .changed()
-                {
-                    c.read_receipt = receipt;
-                }
-                if has_cert {
-                    let toggle = |ui: &mut Ui, on: &mut bool, icon: Icon, label: &str, about: &str| {
-                        let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
-                        icons::paint(ui.painter(), r, icon, if *on { t.accent } else { t.dim });
-                        ui.checkbox(on, RichText::new(tl!(label)).small()).on_hover_text(tl!(about)).changed()
-                    };
-                    let mut sign = c.sign;
-                    if toggle(ui, &mut sign, Icon::Seal, "Sign", "Signed with your certificate: the recipients can tell it's from you and unchanged")
-                    {
-                        c.sign = sign;
-                    }
-                    let mut encrypt = c.encrypt;
-                    if toggle(
-                        ui,
-                        &mut encrypt,
-                        Icon::Lock,
-                        "Encrypt",
-                        "Only the recipients can read it: each needs to have sent you a signed message",
-                    ) {
-                        c.encrypt = encrypt;
-                    }
-                }
-                // Outlook's Delay Delivery and Direct Replies To.
-                if can_delay {
-                    let label = match c.send_after {
-                        Some(at) => tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &clock))),
-                        None => tl!("Delay delivery").to_string(),
-                    };
-                    let r = widgets::tool_toggle(ui, Icon::Clock, &label, &t, c.send_after.is_some())
-                        .on_hover_text(tl!("Keep it in the Outbox and send it later (MailCraft has to be running then)"));
-                    egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| delay_menu(ui, &t, c, &clock));
-                }
-                if widgets::tool_toggle(ui, Icon::Reply, "Replies to", &t, c.show_reply_to || !c.reply_to.is_empty())
-                    .on_hover_text(tl!("Have replies sent to another address"))
-                    .clicked()
-                {
-                    c.show_reply_to = !c.show_reply_to;
-                }
+        // From the right in a right-to-left interface, its rows too (the message's own text goes
+        // the way it's written).
+        ui.with_layout(crate::bidi::column(), |ui| {
+            // The Message ribbon.
+            egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                rich_edit::ribbon(ui, &t, &mut ed, c, &signature, &clock, acts);
             });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                if can_pop
-                    && widgets::tool_button(ui, icon, label, &t, true)
-                        .on_hover_text(tl!(if in_window { "Back to the reading pane" } else { "Write it in a window of its own" }))
-                        .clicked()
-                {
-                    acts.push(Action::Run(id, json!({})));
-                }
-                if widgets::tool_button(ui, Icon::Delete, "Discard", &t, true).clicked() {
-                    acts.push(Action::Run("compose.discard", json!({})));
-                }
-            });
-        });
-        if let Some(e) = &c.error {
             ui.add_space(4.0);
-            egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-                ui.label(RichText::new(tf!("Not sent: {error}", error = e)).color(t.danger));
-            });
-        }
-        ui.add_space(6.0);
-        ui.add_enabled_ui(!c.sending, |ui| {
-            ui.spacing_mut().item_spacing.y = 6.0;
-            // Send beside the address rows (From, To, Cc and Bcc when shown).
-            let rows = if c.show_cc { 4.0 } else { 3.0 };
-            let height = rows * ROW_H + (rows - 1.0) * 6.0;
-            ui.horizontal_top(|ui| {
-                if send_button(ui, &t, height, c.sending).clicked() {
-                    send(c, acts);
-                }
-                ui.add_space(10.0);
-                ui.vertical(|ui| {
-                    ui.horizontal(|ui| {
-                        let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
-                        let many = accounts.len() > 1;
-                        let b = label_button_menu(ui, &t, "From", many, many);
-                        if many {
-                            egui::Popup::menu(&b).show(|ui| {
-                                for (id, label) in &accounts {
-                                    ui.selectable_value(&mut c.account, id.clone(), label);
-                                }
-                            });
-                        }
-                        ui.allocate_ui_with_layout(vec2(ui.available_width(), ROW_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.add(egui::Label::new(RichText::new(current).color(t.dim)).truncate());
-                        });
-                    });
-                    // To, Cc and Bcc open the address book, as in Outlook.
-                    for (name, label, hint) in
-                        [("to", "To", "Names <addresses>, separated by ; or ,"), ("cc", "Cc", ""), ("bcc", "Bcc", "Hidden from the other recipients")]
+            // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);
+            // Discard and Pop out (or in) kept at the right, as in Outlook.
+            ui.horizontal(|ui| {
+                let (icon, label, id) =
+                    if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
+                // Where windows can't open (the browser), messages stay in the reading pane.
+                let can_pop = !ui.ctx().embed_viewports();
+                let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
+                let gap = ui.spacing().item_spacing.x;
+                let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
+                let left_w = (ui.available_width() - right).max(120.0);
+                ui.allocate_ui_with_layout(vec2(left_w, 30.0), crate::bidi::row_from_start(egui::Align::Center).with_main_wrap(true), |ui| {
+                    if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
+                        acts.push(Action::Run("compose.saveDraft", json!({})));
+                    }
+                    if widgets::tool_button(ui, Icon::Person, if c.show_cc { "Hide Bcc" } else { "Bcc" }, &t, !c.sending).clicked() {
+                        c.show_cc = !c.show_cc;
+                    }
+                    let mut plain = c.plain;
+                    if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
+                        c.plain = plain;
+                    }
+                    // Importance and a read receipt, as Outlook's Tags and Options.
+                    ui.add_space(6.0);
+                    if ui
+                        .selectable_label(c.importance > 0, RichText::new("!").strong().color(t.danger))
+                        .on_hover_text(tl!("High importance"))
+                        .clicked()
                     {
-                        if name == "bcc" && !c.show_cc {
-                            continue;
-                        }
-                        let value = match name {
-                            "to" => &mut c.to,
-                            "cc" => &mut c.cc,
-                            _ => &mut c.bcc,
+                        c.importance = if c.importance > 0 { 0 } else { 1 };
+                    }
+                    if ui
+                        .selectable_label(c.importance < 0, RichText::new("↓").strong().color(t.accent))
+                        .on_hover_text(tl!("Low importance"))
+                        .clicked()
+                    {
+                        c.importance = if c.importance < 0 { 0 } else { -1 };
+                    }
+                    let mut receipt = c.read_receipt;
+                    if ui
+                        .checkbox(&mut receipt, RichText::new(tl!("Read receipt")).small())
+                        .on_hover_text(tl!("Ask the recipients to confirm they've read it (their mail app may not, or may ask them)"))
+                        .changed()
+                    {
+                        c.read_receipt = receipt;
+                    }
+                    if has_cert {
+                        let toggle = |ui: &mut Ui, on: &mut bool, icon: Icon, label: &str, about: &str| {
+                            let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                            icons::paint(ui.painter(), r, icon, if *on { t.accent } else { t.dim });
+                            ui.checkbox(on, RichText::new(tl!(label)).small()).on_hover_text(tl!(about)).changed()
                         };
-                        if recipient_field(ui, st, name, label, value, hint, name == "to" && focus_to, &suggestions) {
-                            let d = crate::Dialog::select_names(c, name);
-                            acts.push(Action::Dialog(d));
+                        let mut sign = c.sign;
+                        if toggle(
+                            ui,
+                            &mut sign,
+                            Icon::Seal,
+                            "Sign",
+                            "Signed with your certificate: the recipients can tell it's from you and unchanged",
+                        ) {
+                            c.sign = sign;
                         }
+                        let mut encrypt = c.encrypt;
+                        if toggle(
+                            ui,
+                            &mut encrypt,
+                            Icon::Lock,
+                            "Encrypt",
+                            "Only the recipients can read it: each needs to have sent you a signed message",
+                        ) {
+                            c.encrypt = encrypt;
+                        }
+                    }
+                    // Outlook's Delay Delivery and Direct Replies To.
+                    if can_delay {
+                        let label = match c.send_after {
+                            Some(at) => tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &clock))),
+                            None => tl!("Delay delivery").to_string(),
+                        };
+                        let r = widgets::tool_toggle(ui, Icon::Clock, &label, &t, c.send_after.is_some())
+                            .on_hover_text(tl!("Keep it in the Outbox and send it later (MailCraft has to be running then)"));
+                        egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| delay_menu(ui, &t, c, &clock));
+                    }
+                    if widgets::tool_toggle(ui, Icon::Reply, "Replies to", &t, c.show_reply_to || !c.reply_to.is_empty())
+                        .on_hover_text(tl!("Have replies sent to another address"))
+                        .clicked()
+                    {
+                        c.show_reply_to = !c.show_reply_to;
+                    }
+                });
+                ui.with_layout(crate::bidi::row_from_end(egui::Align::Min), |ui| {
+                    if can_pop
+                        && widgets::tool_button(ui, icon, label, &t, true)
+                            .on_hover_text(tl!(if in_window { "Back to the reading pane" } else { "Write it in a window of its own" }))
+                            .clicked()
+                    {
+                        acts.push(Action::Run(id, json!({})));
+                    }
+                    if widgets::tool_button(ui, Icon::Delete, "Discard", &t, true).clicked() {
+                        acts.push(Action::Run("compose.discard", json!({})));
                     }
                 });
             });
-            if c.show_reply_to || !c.reply_to.is_empty() {
+            if let Some(e) = &c.error {
+                ui.add_space(4.0);
+                egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+                    ui.label(RichText::new(tf!("Not sent: {error}", error = e)).color(t.danger));
+                });
+            }
+            ui.add_space(6.0);
+            ui.add_enabled_ui(!c.sending, |ui| {
+                ui.spacing_mut().item_spacing.y = 6.0;
+                // Send beside the address rows (From, To, Cc and Bcc when shown).
+                let rows = if c.show_cc { 4.0 } else { 3.0 };
+                let height = rows * ROW_H + (rows - 1.0) * 6.0;
+                ui.horizontal_top(|ui| {
+                    if send_button(ui, &t, height, c.sending).clicked() {
+                        send(c, acts);
+                    }
+                    ui.add_space(10.0);
+                    crate::bidi::vertical(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
+                            let many = accounts.len() > 1;
+                            let b = label_button_menu(ui, &t, "From", many, many);
+                            if many {
+                                egui::Popup::menu(&b).show(|ui| {
+                                    for (id, label) in &accounts {
+                                        ui.selectable_value(&mut c.account, id.clone(), label);
+                                    }
+                                });
+                            }
+                            ui.allocate_ui_with_layout(vec2(ui.available_width(), ROW_H), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                                ui.add(egui::Label::new(RichText::new(current).color(t.dim)).truncate());
+                            });
+                        });
+                        // To, Cc and Bcc open the address book, as in Outlook.
+                        for (name, label, hint) in [
+                            ("to", "To", "Names <addresses>, separated by ; or ,"),
+                            ("cc", "Cc", ""),
+                            ("bcc", "Bcc", "Hidden from the other recipients"),
+                        ] {
+                            if name == "bcc" && !c.show_cc {
+                                continue;
+                            }
+                            let value = match name {
+                                "to" => &mut c.to,
+                                "cc" => &mut c.cc,
+                                _ => &mut c.bcc,
+                            };
+                            if recipient_field(ui, st, name, label, value, hint, name == "to" && focus_to, &suggestions) {
+                                let d = crate::Dialog::select_names(c, name);
+                                acts.push(Action::Dialog(d));
+                            }
+                        }
+                    });
+                });
+                if c.show_reply_to || !c.reply_to.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(76.0);
+                        crate::bidi::vertical(ui, |ui| {
+                            field(ui, &t, "Replies to", &mut c.reply_to, "Where replies go instead of to you", true, false)
+                        });
+                    });
+                }
                 ui.horizontal(|ui| {
                     ui.add_space(76.0);
-                    ui.vertical(|ui| field(ui, &t, "Replies to", &mut c.reply_to, "Where replies go instead of to you", true, false));
+                    crate::bidi::vertical(ui, |ui| field(ui, &t, "Subject", &mut c.subject, "Add a subject", false, false));
                 });
-            }
-            ui.horizontal(|ui| {
-                ui.add_space(76.0);
-                ui.vertical(|ui| field(ui, &t, "Subject", &mut c.subject, "Add a subject", false, false));
-            });
-            if !c.attachments.is_empty() {
-                ui.horizontal(|ui| {
-                    ui.add_space(76.0 + LABEL_W);
-                    let mut remove = None;
-                    ui.vertical(|ui| {
-                        // Wrapped into rows, scrolling past two, as Outlook's are.
-                        let n = c.attachments.len();
-                        widgets::chip_grid(ui, egui::Id::unique(("compose-attachments", c.id)), n, 220.0, 320.0, 28.0, 2, |ui, i, w| {
-                            let Some(a) = c.attachments.get(i) else { return };
-                            let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::hover());
-                            let x_rect = Rect::from_center_size(egui::pos2(rect.right() - 15.0, rect.center().y), vec2(22.0, 22.0));
-                            let x = ui.interact(x_rect, resp.id.with("remove"), Sense::click()).on_hover_text(tl!("Remove"));
-                            widgets::named(ui, &x, &format!("{}: {}", tl!("Remove"), a.name), true, None);
-                            let p = ui.painter();
-                            p.rect(
-                                rect,
-                                4.0,
-                                if resp.hovered() { t.hover_row } else { t.surface },
-                                egui::Stroke::new(1.0, t.faint.gamma_multiply(0.55)),
-                                egui::StrokeKind::Inside,
-                            );
-                            if x.hovered() {
-                                p.rect_filled(x_rect, 3.0, t.hover);
-                            }
-                            icons::paint(p, icons::centered(x_rect, 11.0), Icon::Close, if x.hovered() { t.text } else { t.dim });
-                            let ir = Rect::from_center_size(egui::pos2(rect.left() + 15.0, rect.center().y), vec2(14.0, 14.0));
-                            icons::paint(p, ir, Icon::Attach, t.dim);
-                            let text = format!("{} ({})", a.name, widgets::human_size(a.data.len()));
-                            let g = widgets::one_line(ui, &text, theme::regular(12.0), t.text, x_rect.left() - 4.0 - (ir.right() + 6.0));
-                            p.galley(egui::pos2(ir.right() + 6.0, rect.center().y - g.size().y / 2.0), g, t.text);
-                            resp.on_hover_text(a.name.clone());
-                            if x.clicked() {
-                                remove = Some(i);
+                if !c.attachments.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(76.0 + LABEL_W);
+                        let mut remove = None;
+                        crate::bidi::vertical(ui, |ui| {
+                            // Wrapped into rows, scrolling past two, as Outlook's are.
+                            let n = c.attachments.len();
+                            widgets::chip_grid(ui, egui::Id::unique(("compose-attachments", c.id)), n, 220.0, 320.0, 28.0, 2, |ui, i, w| {
+                                let Some(a) = c.attachments.get(i) else { return };
+                                let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::hover());
+                                let x_rect = Rect::from_center_size(egui::pos2(rect.right() - 15.0, rect.center().y), vec2(22.0, 22.0));
+                                let x = ui.interact(x_rect, resp.id.with("remove"), Sense::click()).on_hover_text(tl!("Remove"));
+                                widgets::named(ui, &x, &format!("{}: {}", tl!("Remove"), a.name), true, None);
+                                let p = ui.painter();
+                                p.rect(
+                                    rect,
+                                    4.0,
+                                    if resp.hovered() { t.hover_row } else { t.surface },
+                                    egui::Stroke::new(1.0, t.faint.gamma_multiply(0.55)),
+                                    egui::StrokeKind::Inside,
+                                );
+                                if x.hovered() {
+                                    p.rect_filled(x_rect, 3.0, t.hover);
+                                }
+                                icons::paint(p, icons::centered(x_rect, 11.0), Icon::Close, if x.hovered() { t.text } else { t.dim });
+                                let ir = Rect::from_center_size(egui::pos2(rect.left() + 15.0, rect.center().y), vec2(14.0, 14.0));
+                                icons::paint(p, ir, Icon::Attach, t.dim);
+                                let text = format!("{} ({})", a.name, widgets::human_size(a.data.len()));
+                                let g = widgets::one_line(ui, &text, theme::regular(12.0), t.text, x_rect.left() - 4.0 - (ir.right() + 6.0));
+                                p.galley(egui::pos2(ir.right() + 6.0, rect.center().y - g.size().y / 2.0), g, t.text);
+                                resp.on_hover_text(a.name.clone());
+                                if x.clicked() {
+                                    remove = Some(i);
+                                }
+                            });
+                            // A photo that says where it was taken (looked at once per set of files).
+                            let size: usize = c.attachments.iter().map(|a| a.data.len()).sum();
+                            let id = egui::Id::unique(("photo-place", c.id, n, size));
+                            let placed = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or_else(|| {
+                                let v = c.attachments.iter().any(|a| mime::without_location(&a.data).is_some());
+                                ui.data_mut(|d| d.insert_temp(id, v));
+                                v
+                            });
+                            if placed {
+                                let note = if s.prefs.keep_photo_location {
+                                    tl!("These photos say where they were taken, and go that way (File › Options › Safety)")
+                                } else {
+                                    tl!("Where these photos were taken is left out as they're sent")
+                                };
+                                ui.label(RichText::new(note).color(t.faint).small());
                             }
                         });
-                        // A photo that says where it was taken (looked at once per set of files).
-                        let size: usize = c.attachments.iter().map(|a| a.data.len()).sum();
-                        let id = egui::Id::unique(("photo-place", c.id, n, size));
-                        let placed = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or_else(|| {
-                            let v = c.attachments.iter().any(|a| mime::without_location(&a.data).is_some());
-                            ui.data_mut(|d| d.insert_temp(id, v));
-                            v
-                        });
-                        if placed {
-                            let note = if s.prefs.keep_photo_location {
-                                tl!("These photos say where they were taken, and go that way (File › Options › Safety)")
-                            } else {
-                                tl!("Where these photos were taken is left out as they're sent")
-                            };
-                            ui.label(RichText::new(note).color(t.faint).small());
+                        if let Some(i) = remove {
+                            acts.push(Action::Run("compose.removeAttachment", json!({"index": i})));
                         }
                     });
-                    if let Some(i) = remove {
-                        acts.push(Action::Run("compose.removeAttachment", json!({"index": i})));
-                    }
-                });
-            }
-            ui.add_space(4.0);
-            let sep = ui.available_rect_before_wrap();
-            ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
-            ui.add_space(8.0);
-            let body_id = rich_edit::body_id(c);
-            // A picture on the clipboard is pasted as a picture. On the desktop egui takes Ctrl+V as
-            // a paste and never passes the key on: a picture alone on the clipboard comes as
-            // `PasteImage` (so Ctrl+V pasted nothing); in the browser the key itself comes.
-            if ui.memory(|m| m.has_focus(body_id))
-                && ui.input(|i| {
-                    i.events.iter().any(|e| {
-                        matches!(e, egui::Event::PasteImage(_))
-                            || matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command)
+                }
+                ui.add_space(4.0);
+                let sep = ui.available_rect_before_wrap();
+                ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
+                ui.add_space(8.0);
+                let body_id = rich_edit::body_id(c);
+                // A picture on the clipboard is pasted as a picture. On the desktop egui takes Ctrl+V as
+                // a paste and never passes the key on: a picture alone on the clipboard comes as
+                // `PasteImage` (so Ctrl+V pasted nothing); in the browser the key itself comes.
+                if ui.memory(|m| m.has_focus(body_id))
+                    && ui.input(|i| {
+                        i.events.iter().any(|e| {
+                            matches!(e, egui::Event::PasteImage(_))
+                                || matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command)
+                        })
                     })
-                })
-            {
-                acts.push(Action::PastePicture);
-            }
-            egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| {
-                // Replies start above the quoted text.
-                rich_edit::body(ui, &t, &mut ed, c, focus_body.then_some(0), acts);
+                {
+                    acts.push(Action::PastePicture);
+                }
+                egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| {
+                    // Replies start above the quoted text.
+                    rich_edit::body(ui, &t, &mut ed, c, focus_body.then_some(0), acts);
+                });
             });
         });
     });

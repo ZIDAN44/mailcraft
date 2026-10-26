@@ -452,6 +452,11 @@ impl MailApp {
     fn apply_language(&mut self, ctx: &egui::Context) {
         let lang = i18n::Lang::from_pref(&self.ui.language);
         i18n::set_current(lang);
+        // egui's own parts mirrored for Arabic and Hebrew (the Craft apps' egui): submenus open
+        // to the left, scroll bars on the left, closed arrows pointing left.
+        if ctx.global_style().right_to_left != lang.rtl() {
+            ctx.all_styles_mut(|s| s.right_to_left = lang.rtl());
+        }
         let first = if lang.cjk() { lang.code() } else { "zh-hans" };
         if self.ui.cjk_loaded != Some(first) {
             self.ui.cjk_loaded = Some(first);

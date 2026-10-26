@@ -73,6 +73,84 @@ pub fn add_label(ui: &mut egui::Ui, mut job: egui::text::LayoutJob) -> egui::Res
     if rtl { ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| ui.add(label)).inner } else { ui.add(label) }
 }
 
+/// Drawing by hand in a row, mirrored when the interface reads right to left (Arabic, Hebrew):
+/// the icon that sits at the start of a row on the left goes on the right, the count at its end
+/// on the left. Positions are written as for left to right; `x`, `rect` and `start` place them.
+#[derive(Clone, Copy)]
+pub struct Mirror {
+    on: bool,
+    sum: f32,
+}
+
+impl Mirror {
+    /// For drawing in `r`, in the interface's direction.
+    pub fn new(r: egui::Rect) -> Self {
+        Self::with(r, crate::i18n::current().rtl())
+    }
+
+    pub fn with(r: egui::Rect, on: bool) -> Self {
+        Self { on, sum: r.min.x + r.max.x }
+    }
+
+    pub fn on(self) -> bool {
+        self.on
+    }
+
+    pub fn x(self, x: f32) -> f32 {
+        if self.on { self.sum - x } else { x }
+    }
+
+    pub fn pos(self, p: egui::Pos2) -> egui::Pos2 {
+        egui::pos2(self.x(p.x), p.y)
+    }
+
+    pub fn rect(self, r: egui::Rect) -> egui::Rect {
+        if self.on { egui::Rect::from_x_y_ranges(self.x(r.max.x)..=self.x(r.min.x), r.y_range()) } else { r }
+    }
+
+    /// The left edge of something `width` wide that starts at `x` (its right edge, mirrored).
+    pub fn start(self, x: f32, width: f32) -> f32 {
+        if self.on { self.x(x) - width } else { x }
+    }
+
+    pub fn align(self, a: egui::Align2) -> egui::Align2 {
+        let flip = |h: egui::Align| match h {
+            egui::Align::Min => egui::Align::Max,
+            egui::Align::Max => egui::Align::Min,
+            egui::Align::Center => egui::Align::Center,
+        };
+        if self.on { egui::Align2([flip(a.x()), a.y()]) } else { a }
+    }
+
+    /// The arrow of something closed, pointing the way the text goes.
+    pub fn closed(self) -> crate::icons::Icon {
+        if self.on { crate::icons::Icon::ChevronLeft } else { crate::icons::Icon::ChevronRight }
+    }
+}
+
+/// A row from where the interface's text starts: the left, or the right in a right-to-left
+/// interface (Arabic, Hebrew).
+pub fn row_from_start(align: egui::Align) -> egui::Layout {
+    if crate::i18n::current().rtl() { egui::Layout::right_to_left(align) } else { egui::Layout::left_to_right(align) }
+}
+
+/// A row from where the interface's text ends: the right, or the left in a right-to-left one.
+pub fn row_from_end(align: egui::Align) -> egui::Layout {
+    if crate::i18n::current().rtl() { egui::Layout::left_to_right(align) } else { egui::Layout::right_to_left(align) }
+}
+
+/// A column against the side the interface's text starts on; egui runs each `horizontal` row in
+/// it from that side too.
+pub fn column() -> egui::Layout {
+    egui::Layout::top_down(if crate::i18n::current().rtl() { egui::Align::Max } else { egui::Align::Min })
+}
+
+/// `ui.vertical` in the interface's direction (egui's own is always against the left, and its
+/// rows run from there).
+pub fn vertical<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    ui.scope_builder(egui::UiBuilder::new().layout(column()), add)
+}
+
 /// Whether a paragraph reads right to left (its first strong letter is).
 pub fn paragraph_rtl(text: &str) -> bool {
     BidiInfo::new(text, None).paragraphs.first().is_some_and(|p| p.level.is_rtl())

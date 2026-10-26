@@ -8,7 +8,8 @@ use crate::{Action, Dialog};
 
 /// A ribbon button: icon over nothing, label to the right.
 /// The ribbon's buttons as it's drawn: those from `icons_from` on are icons alone, their labels
-/// tooltips (it didn't fit the window); how wide each label is, and how far right they reached.
+/// tooltips (it didn't fit the window); how wide each label is, and how far right (and left, for
+/// a right-to-left ribbon) they reached.
 #[derive(Clone, Debug, Default)]
 pub struct RibbonFit {
     pub active: bool,
@@ -21,14 +22,16 @@ pub struct RibbonFit {
     pub count: usize,
     pub labels: Vec<f32>,
     pub right: f32,
+    pub left: f32,
 }
 
 impl RibbonFit {
-    /// The first button to draw without its label so that the ribbon fits `room_right`: labels
-    /// go from the end, as few as it takes.
-    pub fn fit(&self, room_right: f32) -> usize {
+    /// The first button to draw without its label so that the ribbon fits `room` (laid out from
+    /// its right edge when `rtl`): labels go from the end, as few as it takes.
+    pub fn fit(&self, room: egui::Rect, rtl: bool) -> usize {
         let hidden: f32 = self.labels.iter().skip(self.icons_from).sum();
-        let need = self.right + hidden - room_right;
+        let used = if rtl { room.right() - self.left } else { self.right - room.left() };
+        let need = used + hidden - room.width();
         let mut from = self.labels.len();
         let mut saved = 0.0;
         while need > 0.5 && saved < need && from > 0 {
@@ -114,6 +117,7 @@ fn reached(ui: &Ui, rect: egui::Rect) {
         let f = d.get_temp_mut_or_default::<RibbonFit>(ribbon_fit_id());
         if f.active {
             f.right = f.right.max(rect.right());
+            f.left = f.left.min(rect.left());
         }
     });
 }
@@ -176,9 +180,11 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
     reached(ui, rect);
     let color = if enabled { t.text } else { t.faint };
     hover_fill(ui, &resp, rect, t, enabled);
-    let ir = egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0));
+    let m = crate::bidi::Mirror::new(rect);
+    let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, if enabled { t.accent } else { t.faint });
-    ui.painter().galley_with_override_text_color(rect.min + vec2(30.0, (30.0 - galley.size().y) / 2.0), galley, color);
+    let at = egui::pos2(m.start(rect.min.x + 30.0, galley.size().x), rect.min.y + (30.0 - galley.size().y) / 2.0);
+    ui.painter().galley_with_override_text_color(at, galley, color);
     resp
 }
 
@@ -216,8 +222,10 @@ pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -
     if !on {
         hover_fill(ui, &resp, rect, t, true);
     }
-    icons::paint(ui.painter(), egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0)), icon, t.accent);
-    ui.painter().galley_with_override_text_color(rect.min + vec2(30.0, (30.0 - galley.size().y) / 2.0), galley, t.text);
+    let m = crate::bidi::Mirror::new(rect);
+    icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0))), icon, t.accent);
+    let at = egui::pos2(m.start(rect.min.x + 30.0, galley.size().x), rect.min.y + (30.0 - galley.size().y) / 2.0);
+    ui.painter().galley_with_override_text_color(at, galley, t.text);
     resp
 }
 
@@ -254,9 +262,11 @@ pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: 
         t.accent
     };
     ui.painter().rect_filled(rect, 6.0, fill);
-    let ir = egui::Rect::from_min_size(rect.min + vec2(10.0, 7.0), vec2(16.0, 16.0));
+    let m = crate::bidi::Mirror::new(rect);
+    let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(10.0, 7.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, t.on_accent);
-    ui.painter().galley_with_override_text_color(rect.min + vec2(32.0, (30.0 - galley.size().y) / 2.0), galley, t.on_accent);
+    let at = egui::pos2(m.start(rect.min.x + 32.0, galley.size().x), rect.min.y + (30.0 - galley.size().y) / 2.0);
+    ui.painter().galley_with_override_text_color(at, galley, t.on_accent);
     resp
 }
 
@@ -366,8 +376,10 @@ pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response
     named(ui, &resp, label, true, None);
     let fill = if resp.hovered() { t.hover } else { t.surface };
     ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    icons::paint(ui.painter(), egui::Rect::from_min_size(rect.min + vec2(9.0, 6.0), vec2(16.0, 16.0)), icon, t.accent);
-    ui.painter().galley_with_override_text_color(rect.min + vec2(29.0, (28.0 - galley.size().y) / 2.0), galley, t.text);
+    let m = crate::bidi::Mirror::new(rect);
+    icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(rect.min + vec2(9.0, 6.0), vec2(16.0, 16.0))), icon, t.accent);
+    let at = egui::pos2(m.start(rect.min.x + 29.0, galley.size().x), rect.min.y + (28.0 - galley.size().y) / 2.0);
+    ui.painter().galley_with_override_text_color(at, galley, t.text);
     resp
 }
 
@@ -447,9 +459,9 @@ pub fn group_sep(ui: &mut Ui, t: &Tokens) {
 pub fn group(ui: &mut Ui, t: &Tokens, name: &str, last: bool) {
     if classic(ui) {
         let from = ui.ctx().data_mut(|d| d.get_temp::<RibbonFit>(ribbon_fit_id()).map_or(0.0, |f| f.group_from));
-        let to = ui.cursor().left();
+        let to = cursor_x(ui);
         let y = ui.max_rect().top() + CLASSIC_BUTTON_H + CLASSIC_CAPTION_H / 2.0 + 4.0;
-        let mid = if from > 0.0 && from < to { (from + to) / 2.0 } else { to };
+        let mid = if from > 0.0 && from != to { (from + to) / 2.0 } else { to };
         ui.painter().text(egui::pos2(mid, y), egui::Align2::CENTER_CENTER, tl!(name), theme::regular(11.5), t.faint);
     }
     if !last {
@@ -457,9 +469,38 @@ pub fn group(ui: &mut Ui, t: &Tokens, name: &str, last: bool) {
     }
 }
 
+/// A row in a sideways scroll area: from the left, or in a right-to-left interface from the
+/// right of a strip as wide as the row took (laid out against the scroll area's right edge, what
+/// didn't fit ran off its left, where it can't be scrolled to).
+pub fn scrolled_row(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+    if !crate::i18n::current().rtl() {
+        ui.horizontal(add);
+        return;
+    }
+    let id = ui.scope_id().with("rtl-row-width");
+    let width = ui.ctx().data(|d| d.get_temp::<f32>(id)).unwrap_or(0.0).max(ui.available_width());
+    let height = ui.spacing().interact_size.y;
+    ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+        ui.allocate_ui_with_layout(vec2(width, height), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            add(ui);
+            let used = ui.min_rect().width();
+            let before = ui.ctx().data_mut(|d| std::mem::replace(d.get_temp_mut_or_default::<f32>(id), used));
+            // Laid out again at its new width.
+            if (before - used).abs() > 0.5 {
+                ui.ctx().request_repaint();
+            }
+        });
+    });
+}
+
+/// Where the next thing goes in a row: its left edge, or its right one in a right-to-left row.
+fn cursor_x(ui: &Ui) -> f32 {
+    if ui.layout().main_dir() == egui::Direction::RightToLeft { ui.cursor().right() } else { ui.cursor().left() }
+}
+
 /// Where the next group starts (the classic ribbon centres its name under it).
 pub fn start_group(ui: &Ui) {
-    let x = ui.cursor().left();
+    let x = cursor_x(ui);
     ui.ctx().data_mut(|d| {
         if let Some(mut f) = d.get_temp::<RibbonFit>(ribbon_fit_id()).filter(|f| f.active) {
             f.group_from = x;

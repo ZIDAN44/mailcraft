@@ -5,7 +5,8 @@ use crate::*;
 impl MailApp {
     pub(crate) fn top_bar(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
-        ui.horizontal_centered(|ui| {
+        // From the right in a right-to-left interface: the name first, the settings last.
+        ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
             let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
             ui.painter().rect_filled(r, 5.0, Color32::WHITE);
             icons::paint(ui.painter(), icons::centered(r, 15.0), Icon::Unread, t.accent);
@@ -57,7 +58,7 @@ impl MailApp {
                     self.search_box(ui, search_w, acts);
                 });
             });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
                 let dark = t.dark;
                 let (icon, tip) = if dark { (Icon::Sun, tl!("Switch to light mode")) } else { (Icon::Moon, tl!("Switch to dark mode")) };
                 if widgets::bar_icon_button(ui, icon, tip).clicked() {
@@ -75,7 +76,7 @@ impl MailApp {
         let s = &self.session;
         let mut again: Option<String> = None;
         let mut restart = false;
-        ui.horizontal_centered(|ui| {
+        ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
             // The items of what's shown: the list's mail, or (in People) the contacts.
             if s.module == Module::People {
                 ui.label(RichText::new(tf!("Items: {n}", n = people::shown(s, &self.ui).len())).color(t.dim).small());
@@ -94,7 +95,7 @@ impl MailApp {
             }
             // A test build's next version: how far it's downloaded, then restart into it.
             restart = self.update_status(ui);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
                 let dot = |ui: &mut Ui, color: egui::Color32| {
                     let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                     ui.painter().circle_filled(r.center(), 4.0, color);
