@@ -330,7 +330,7 @@ impl Files {
 
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         match self {
-            Files::Disk => fs::rename(from, to),
+            Files::Disk => atomic::rename(from, to),
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => x.rename(from, to),
             Files::Memory(m, _) => {

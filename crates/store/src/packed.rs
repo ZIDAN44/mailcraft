@@ -406,7 +406,7 @@ impl Packs {
                     Ok(())
                 })
             }
-            (Place::Disk, Place::Disk) => fs::rename(from, to),
+            (Place::Disk, Place::Disk) => crate::atomic::rename(from, to),
             _ => Err(io::Error::new(io::ErrorKind::Unsupported, "can't move between data files")),
         }
     }

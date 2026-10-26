@@ -31,7 +31,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     // the target; either way the scratch file goes.
     let outcome = match filled {
         Err(e) => Err(io_err(&scratch)(e)),
-        Ok(()) => fs::rename(&scratch, path).map_err(io_err(path)),
+        Ok(()) => rename(&scratch, path).map_err(io_err(path)),
     };
     if outcome.is_err() {
         let _ = fs::remove_file(&scratch);
@@ -45,6 +45,38 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         let _ = handle.sync_all();
     }
     Ok(())
+}
+
+/// Renames `from` to `to`. On Windows a file another program has open for a moment (OneDrive
+/// syncing Documents, an antivirus scan, the search indexer) refuses the rename with a sharing
+/// or lock violation, or access denied: it's tried again for up to about a second before that
+/// counts as a failure (craft-libs' atomic writes found this).
+pub(crate) fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    return patiently(|| fs::rename(from, to), |ms| std::thread::sleep(std::time::Duration::from_millis(ms)));
+    #[cfg(not(windows))]
+    fs::rename(from, to)
+}
+
+/// `attempt` until it works, fails for good, or has been held up seven times (waiting 10, 20,
+/// 40… ms between, at most 200).
+#[cfg(any(windows, test))]
+fn patiently(mut attempt: impl FnMut() -> std::io::Result<()>, mut wait: impl FnMut(u64)) -> std::io::Result<()> {
+    const SHARING_VIOLATION: i32 = 32;
+    const LOCK_VIOLATION: i32 = 33;
+    let held =
+        |e: &std::io::Error| e.kind() == std::io::ErrorKind::PermissionDenied || matches!(e.raw_os_error(), Some(SHARING_VIOLATION | LOCK_VIOLATION));
+    let (mut delay, mut left) = (10u64, 7u32);
+    loop {
+        match attempt() {
+            Err(e) if held(&e) && left > 0 => {
+                left -= 1;
+                wait(delay);
+                delay = delay.saturating_mul(2).min(200);
+            }
+            done => return done,
+        }
+    }
 }
 
 /// `.<name>.<process>.<serial>.part`, in the same folder as `path` so the rename stays on one
@@ -115,5 +147,37 @@ mod tests {
             assert_eq!(bits(&root), 0o700, "a folder others could enter is closed");
         }
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// A rename another program holds up a few times goes through; one refused for another
+    /// reason, or held up for good, fails, after waiting a second at most.
+    #[test]
+    fn a_held_rename_is_tried_again() {
+        use std::io::{Error, ErrorKind};
+        let mut waited = Vec::new();
+        let mut tries = 0;
+        let r = patiently(
+            || {
+                tries += 1;
+                if tries < 4 { Err(Error::from_raw_os_error(32)) } else { Ok(()) }
+            },
+            |ms| waited.push(ms),
+        );
+        assert!(r.is_ok());
+        assert_eq!(waited, vec![10, 20, 40]);
+        let mut waited = Vec::new();
+        let r = patiently(|| Err(Error::from(ErrorKind::PermissionDenied)), |ms| waited.push(ms));
+        assert_eq!(r.unwrap_err().kind(), ErrorKind::PermissionDenied);
+        assert_eq!(waited, vec![10, 20, 40, 80, 160, 200, 200]);
+        assert!(waited.iter().sum::<u64>() < 1000);
+        let mut tries = 0;
+        let r = patiently(
+            || {
+                tries += 1;
+                Err(Error::from(ErrorKind::NotFound))
+            },
+            |_| panic!("no wait for a file that isn't there"),
+        );
+        assert!(r.is_err() && tries == 1);
     }
 }
