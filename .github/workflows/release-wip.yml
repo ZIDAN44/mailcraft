@@ -231,8 +231,13 @@ jobs:
   linux-riscv64:
     name: Linux riscv64
     needs: version
+    # Not 22.04 like the other Linux jobs: Ubuntu never built jammy's ncurses security update for
+    # riscv64, so the cross dependencies don't install there.
     runs-on: ubuntu-24.04
     env:
+      # Built on 24.04, the binaries need GLIBC_2.39; nfpm.yaml declares it (as release.yml's
+      # shared workflow sets it).
+      GLIBC_FLOOR: "2.39"
       VERSION: ${{ needs.version.outputs.version }}
       BUILD_DATE: ${{ needs.version.outputs.date }}
       BUILD_SHA: ${{ github.sha }}
