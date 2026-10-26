@@ -16,7 +16,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
 HERE="$ROOT/packaging/web"
 
-CRAFT_FONTS_REF="${CRAFT_FONTS_REF:-3d9ab3a132ed0eff457e424226a435a901da30d3}"
+CRAFT_FONTS_REF="${CRAFT_FONTS_REF:-b076417b5880bd4154bd22f00695b1d28c6bea83}"
 if [ "${1:-}" != "--skip-build" ]; then
   command -v trunk >/dev/null || { echo "error: trunk not found (cargo install trunk --locked)" >&2; exit 1; }
   if [ -z "${CRAFT_FONTS_DIR:-}" ] && [ "${GITHUB_ACTIONS:-}" = "true" ]; then

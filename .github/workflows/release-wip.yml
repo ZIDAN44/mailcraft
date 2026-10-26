@@ -30,9 +30,9 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
-  # storytold/craft-fonts, as release.yml pins it (keep the three the same: release.yml,
+  # storytold/craft-fonts, as release.yml pins it (keep them the same: release.yml, freebsd.yml,
   # packaging/web/package.sh).
-  CRAFT_FONTS_REF: 3d9ab3a132ed0eff457e424226a435a901da30d3
+  CRAFT_FONTS_REF: b076417b5880bd4154bd22f00695b1d28c6bea83
   # Unsigned on purpose: the packaging scripts note it rather than warn.
   UNSIGNED_BUILD: "1"
   # These builds update themselves to the next test build (apps/mailcraft/src/self_update.rs);

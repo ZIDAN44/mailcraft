@@ -29,9 +29,11 @@ permissions:
 jobs:
   freebsd:
     # Intentionally tracked at @main (not SHA-pinned) so org-wide CI improvements, security fixes, and build optimizations propagate without PR churn across all craftapp repos.
-    # No craft-fonts-ref: MailCraft bundles no fonts (it uses the system's at runtime).
     uses: storytold/craft-common-actions/.github/workflows/freebsd.yml@main
     with:
+      # The same craft-fonts commit as release.yml, release-wip.yml and ci.yml, so this builds and
+      # tests with the fonts that ship.
+      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
       # aarch64 runs in a VM emulated on an x86 runner: building and testing the workspace there
       # outlasted the 5-hour limit, so its cache was never saved and every push ran it again. x86_64
       # on every push; aarch64 only when asked for by hand.
