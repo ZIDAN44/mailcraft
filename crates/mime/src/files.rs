@@ -73,9 +73,11 @@ fn reserved_by_windows(name: &str) -> bool {
     if ["AUX", "CON", "CONIN$", "CONOUT$", "NUL", "PRN"].contains(&base.as_str()) {
         return true;
     }
-    // A serial or printer port: COM or LPT and a single digit from 1 to 9.
+    // A serial or printer port: COM or LPT and one digit, 0 to 9, or a superscript ¹ ² ³, which
+    // Windows reserves too (craft-libs' file names found these).
     let port = base.strip_prefix("COM").or_else(|| base.strip_prefix("LPT"));
-    matches!(port.map(str::as_bytes), Some([b'1'..=b'9']))
+    let mut digit = port.unwrap_or_default().chars();
+    port.is_some() && matches!((digit.next(), digit.next()), (Some('0'..='9' | '¹' | '²' | '³'), None))
 }
 
 /// Extensions whose files start code when opened, grouped by where they do it.
@@ -134,7 +136,10 @@ mod tests {
             ("LPT9.dat", "_LPT9.dat"),
             ("conout$", "_conout$"),
             ("Auxiliary.txt", "Auxiliary.txt"),
-            ("LPT0.txt", "LPT0.txt"),
+            ("LPT0.txt", "_LPT0.txt"),
+            ("com¹.txt", "_com¹.txt"),
+            ("LPT³", "_LPT³"),
+            ("COM⁴.txt", "COM⁴.txt"),
             ("COM12", "COM12"),
             ("Ångström – notes 3.md", "Ångström – notes 3.md"),
         ];
