@@ -704,4 +704,30 @@ English stays left.
             }
         }
     }
+
+    /// A picture's room starts where its place in the text does, and is as wide at the start of
+    /// a line as after text (letter spacing put it some 60 points right of its place after text,
+    /// and none at a line's start, squeezing the picture into 36).
+    #[test]
+    fn a_picture_sits_where_it_is_in_the_text() {
+        let ctx = egui::Context::default();
+        let t = Tokens::light();
+        for (body, at) in [("\u{FFFC}", 0), ("ab\u{FFFC}cd", 2), ("x\n\u{FFFC}\u{FFFC}", 2), ("x\n\u{FFFC}\u{FFFC}", 3)] {
+            let mut st = Styles::plain(body);
+            for (i, ch) in body.chars().enumerate() {
+                if ch == PICTURE {
+                    st.restyle(body, i..i + 1, |s| Style { picture: Some("cid".into()), ..s.clone() });
+                }
+            }
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let g = layout::layout(ui, body, &st, false, &t, 600.0);
+                let (a, b) = (g.pos_from_cursor(CCursor::new(at)), g.pos_from_cursor(CCursor::new(at + 1)));
+                let mut glyphs = g.rows.iter().flat_map(|r| r.row.glyphs.iter().map(move |gl| (r.pos.x + gl.pos.x, r.rect().center().y, gl.chr)));
+                let here = glyphs.any(|(x, y, c)| c == PICTURE && (x - a.min.x).abs() < 1.0 && (y - a.center().y).abs() < 40.0);
+                assert!(here, "{body:?}: the picture's character where its room starts");
+                assert!(b.min.x - a.min.x >= PICTURE_PX * 1.2, "{body:?} at {at}: a room {} wide", b.min.x - a.min.x);
+            });
+            out.textures_delta.clear();
+        }
+    }
 }

@@ -28,10 +28,16 @@ pub(super) fn format(s: &Style, t: &Tokens) -> TextFormat {
     }
 }
 
-/// Room for a picture: an invisible, wide character the picture is drawn over.
+/// Room for a picture: an invisible, wide character the picture is drawn over, and
+/// [`PICTURE_GAP`] after it.
 pub(super) fn picture_format() -> TextFormat {
-    TextFormat { font_id: theme::regular(PICTURE_PX), color: Color32::TRANSPARENT, extra_letter_spacing: PICTURE_PX * 0.8, ..Default::default() }
+    TextFormat { font_id: theme::regular(PICTURE_PX), color: Color32::TRANSPARENT, ..Default::default() }
 }
+
+/// Room a picture takes after its character, put before what follows it. (As letter spacing it
+/// went before the character, and not at all at the start of a line: the picture sat some 60
+/// points right of its room, or squeezed into the character's 36 at a line's start.)
+const PICTURE_GAP: f32 = PICTURE_PX * 0.8;
 
 /// The text laid out with its styles; `shift` moves a paragraph right (alignment).
 pub(super) fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, shift: &[f32]) -> LayoutJob {
@@ -61,17 +67,22 @@ pub(super) fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, s
                 let from = chars.get(run_start).map_or(line.len(), |(b, _)| *b);
                 let to = chars.get(k + 1).map_or(line.len(), |(b, _)| *b);
                 let piece = line.get(from..to).unwrap_or("");
+                let picture = !plain && piece.starts_with(PICTURE) && st.style(i + run_start).picture.is_some();
                 let f = if plain {
                     plain_fmt.clone()
-                } else if piece.starts_with(PICTURE) && st.style(i + run_start).picture.is_some() {
+                } else if picture {
                     picture_format()
                 } else {
                     format(&st.style(i + run_start), t)
                 };
                 job.append(piece, lead, f);
-                lead = 0.0;
+                lead = if picture { PICTURE_GAP } else { 0.0 };
                 run_start = k + 1;
             }
+        }
+        // A picture last in its line: its room after it still.
+        if !chars.is_empty() && lead > 0.0 {
+            job.append("", lead, picture_format());
         }
         if chars.is_empty() && lead > 0.0 {
             let f = if plain { plain_fmt.clone() } else { format(&st.style(i), t) };
