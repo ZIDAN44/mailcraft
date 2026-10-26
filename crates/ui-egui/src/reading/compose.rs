@@ -622,10 +622,15 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
             ui.add_space(8.0);
             let body_id = rich_edit::body_id(c);
-            // A picture on the clipboard is pasted as a picture.
+            // A picture on the clipboard is pasted as a picture. On the desktop egui takes Ctrl+V as
+            // a paste and never passes the key on: a picture alone on the clipboard comes as
+            // `PasteImage` (so Ctrl+V pasted nothing); in the browser the key itself comes.
             if ui.memory(|m| m.has_focus(body_id))
                 && ui.input(|i| {
-                    i.events.iter().any(|e| matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command))
+                    i.events.iter().any(|e| {
+                        matches!(e, egui::Event::PasteImage(_))
+                            || matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command)
+                    })
                 })
             {
                 acts.push(Action::PastePicture);
