@@ -18,9 +18,8 @@ _Status: v0.27, 2026-10-27._
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
-| 7 | **Exchange Online's directory** | On-premises Exchange (EWS) searches the organisation's directory, the Global Address List, as names are typed; an Exchange Online account (Microsoft Graph) doesn't yet: Graph's people search needs the `People.Read` or `User.ReadBasic.All` permission, which MailCraft's sign-in doesn't ask for. Its address books are read and refreshed as before. |
-| 8 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificates stay locked until a password is given again (one password opens every certificate it's the password of; one with another password asks again). |
-| 9 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
+| 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificates stay locked until a password is given again (one password opens every certificate it's the password of; one with another password asks again). |
+| 8 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 
 ## Done
 
@@ -991,6 +990,20 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   knows them; Refresh forgets them all and reads the address books again. The calendar and
   contacts are now read apart, so a calendar the server refuses no longer keeps the address books
   as they were.
+- **Exchange Online's directory too:** an Exchange Online account (Microsoft Graph) searches its
+  organisation's directory the same way: the directory itself (`/users`, everyone, someone who
+  joined today included), or where a tenant won't list its users, the people relevant to the user
+  with the directory's (`/me/people`). Its permissions (`User.ReadBasic.All`, `People.Read`) are
+  ones users grant themselves, asked for in a sign-in of their own the first time: Select Names
+  offers *Allow searching the directory…*, and the browser asks. They're never asked for with the
+  mail's: a tenant that lets users consent only to some permissions would otherwise block the mail
+  sign-in, and accounts signed in before couldn't refresh a token naming permissions they never
+  granted. Its lasting sign-in is kept apart in the keychain and goes with the account; the
+  permission taken away is asked for again. Personal Microsoft accounts have no directory.
+  Checked against the fake Graph server over HTTP (each token good for its own permissions only,
+  `$search` refused without `ConsistencyLevel: eventual`, the people only with the directory asked
+  for) and the consent sign-in played through the browser's redirect; not yet against a real
+  Microsoft 365 tenant.
 - **Found on the way:** a user name with a line break or tab in it (a `\r` from JSON) was kept,
   and could never sign in: it's refused now. An answer to Select Names arriving while a person was
   selected could move someone else under the selection: the selection now follows the person. A

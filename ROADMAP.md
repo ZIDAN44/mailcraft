@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 205 (`mailcraft-cli commands`) |
-| Tests | 632 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 206 (`mailcraft-cli commands`) |
+| Tests | 637 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -163,7 +163,7 @@ local-first, media-aware v1); the fuller request is
    and #9: an accent colour of one's own (eight, or any colour, made to read in either theme) and
    a plain top bar, edges on the ribbon, buttons and menus; an Exchange account can name the
    User-Agent its server lets in, and Exchange's directory (the Global Address List) is searched
-   as names are typed, so someone new is found without a restart.
+   as names are typed, on premises and online, so someone new is found without a restart.
 28. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -461,4 +461,7 @@ local-first, media-aware v1); the fuller request is
   server, in front of the fake EWS server: MailCraft's own name refused (the issue's "Exchange
   answered HTTP 403"), Evolution's let in, through the CLI, the worker and the app; someone added
   to the directory 45 seconds in found by the next search. GreenMail and Radicale in Docker for the
-  rest of the real-server suite.
+  rest of the real-server suite. Gap 7 closed: Exchange Online searches `/users` (then
+  `/me/people`) with a token of its own, from a sign-in asking for `User.ReadBasic.All` and
+  `People.Read` alone (`oauth::DIRECTORY_SCOPE`, `Job::AllowDirectory`), its refresh token kept as
+  `directory` in the keychain; the mail's sign-in and refreshes ask for what they did.
