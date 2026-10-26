@@ -1,48 +1,34 @@
 name: ci
 
 # Quality gates for every push to main and every pull request: rustfmt, clippy (-D warnings),
-# tests, asset attribution, crate layering and the wasm32 check — `cargo xtask ci`.
+# tests, asset attribution, crate layering and the wasm32 check — `cargo xtask ci`, through the
+# suite's shared gate workflow in craft-common-actions.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
-env:
-  CARGO_TERM_COLOR: always
+# A newer push to a PR branch cancels its older run; every push to main runs to the end.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  gates:
-    name: gates (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        # All three desktop platforms on every push: the keychain, TLS and file-dialog code
-        # differs per OS (release.yml builds the installers).
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Linux build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev xvfb
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          key: ci-${{ matrix.os }}
-      - name: cargo xtask ci
-        run: cargo xtask ci
+  gate:
+    # Tracks @main so suite-wide CI fixes reach every app without a PR in each repository.
+    uses: storytold/craft-common-actions/.github/workflows/gate.yml@main
+    with:
+      # All three desktop platforms on every push: the keychain, TLS and file-dialog code
+      # differs per OS (release.yml builds the installers).
+      os: '["ubuntu-latest","windows-latest","macos-latest"]'
+      # The same craft-fonts commit as release.yml and freebsd.yml, so the gate tests the fonts that ship.
+      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      packages: >-
+        libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev xvfb
+      # Headroom over the shared 60 minutes for the Windows and macOS legs (the job this replaces
+      # had GitHub's six-hour default).
+      timeout-minutes: 120
