@@ -52,6 +52,10 @@ pub fn deliver(queue: &Inbox, app: &mut mailcraft_ui_egui::MailApp, ctx: &egui::
 /// Objective-C exception (craft-libs' quit crate found it). winit's `applicationWillTerminate:`
 /// still runs eframe's exit, so `on_exit` saves as it does after a close. Always quits: the
 /// caller cancels the close and keeps the window for it. All safe objc2 calls.
+///
+/// The winit fork could turn a termination back into a close request (its W14, switched on by
+/// `with_close_requested_on_terminate(true)` on the event loop builder). MailCraft must leave it
+/// off: the close would come back here and quit again, round and round.
 pub fn quit() -> bool {
     dispatch2::DispatchQueue::main().exec_async(|| {
         // The main queue runs on the main thread, so there's always a marker.
@@ -71,10 +75,11 @@ thread_local! {
 const QUIT_ITEM: &str = "mailcraft.quit";
 
 /// Puts in place of winit's app menu one with the same items, but whose Quit (⌘Q) asks the
-/// window to close: winit's sends `terminate:` straight away, and winit never asks the app
-/// (`applicationShouldTerminate:`), so ⌘Q ended MailCraft with a message half written and no
-/// "save?" question. Now ⌘Q goes the close button's way: the question when something would be
-/// lost, then [`quit`]. Call it once, from the app creator (winit builds its menu before then).
+/// window to close: winit's sends `terminate:` straight away, and winit's
+/// `applicationShouldTerminate:` always answers "now", so ⌘Q ended MailCraft with a message half
+/// written and no "save?" question. Now ⌘Q goes the close button's way: the question when
+/// something would be lost, then [`quit`]. Call it once, from the app creator (winit builds its
+/// menu before then).
 pub fn install_menu(ctx: &egui::Context) -> muda::Result<()> {
     use muda::accelerator::{Accelerator, Code, Modifiers};
     use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};

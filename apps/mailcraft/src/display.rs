@@ -1,8 +1,9 @@
 //! Which windowing system the window opens on, on Linux and the BSDs.
 //!
-//! winit has file drag and drop on X11 only, and MailCraft's attachments drag out to other apps
-//! through X11's (`xdnd.rs`), so on a Wayland desktop the window opens through XWayland when it's
-//! there (as the other Craft apps do); `MAILCRAFT_WAYLAND=1` keeps it on Wayland. A stale `DISPLAY`
+//! MailCraft's attachments drag out to other apps through X11's drag and drop (`xdnd.rs`; the
+//! Craft apps' winit takes files dropped on Wayland too, but has no drag out), so on a Wayland
+//! desktop the window opens through XWayland when it's there (as the other Craft apps do);
+//! `MAILCRAFT_WAYLAND=1` keeps it on Wayland. A stale `DISPLAY`
 //! (an ended `ssh -X` session, or XWayland turned off) made such a start fail with "failed to
 //! open display" while a Wayland compositor was running (DeckCraft found): a local `DISPLAY` whose
 //! X socket isn't there opens on Wayland instead.
