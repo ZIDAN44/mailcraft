@@ -32,9 +32,16 @@ fn craft_fonts(dir: &Path) -> Result<String, String> {
     let manifest = dir.join("fonts/manifest.txt");
     println!("cargo::rerun-if-changed={}", manifest.display());
     let text = std::fs::read_to_string(&manifest).map_err(|e| format!("{}: {e}", manifest.display()))?;
-    // The browser build has a download to keep small: the Japanese interface font and the
-    // small Arabic and Thai ones (the browser has no system fonts to fall back on).
-    const WEB_FONTS: &[(&str, &str)] = &[("BIZ UDPGothic", "Regular"), ("Noto Sans Arabic", "Regular"), ("Noto Sans Thai", "Regular")];
+    // The browser build has a download to keep small: the Japanese and Korean interface fonts and
+    // the small Arabic, Hebrew and Thai ones (the browser has no system fonts to fall back on).
+    // NanumGothic adds about 2 MB to the .wasm (0.4 MB with brotli), Noto Sans Hebrew 66 KB.
+    const WEB_FONTS: &[(&str, &str)] = &[
+        ("BIZ UDPGothic", "Regular"),
+        ("NanumGothic", "Regular"),
+        ("Noto Sans Arabic", "Regular"),
+        ("Noto Sans Hebrew", "Regular"),
+        ("Noto Sans Thai", "Regular"),
+    ];
     let wasm = std::env::var("CARGO_CFG_TARGET_ARCH").is_ok_and(|a| a == "wasm32");
     let mut out = String::new();
     for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
