@@ -450,6 +450,30 @@ fn tags_templates_and_dates() {
     assert_eq!(date("Wed 21:51"), "Wed 21:51");
 }
 
+/// Values filled into a template where right-to-left and left-to-right text meet are isolated,
+/// so each keeps its own order: a server's error in an Arabic sentence was drawn scrambled
+/// ("bob@x.example>: … rejected< 5.1.1 550").
+#[test]
+fn values_in_right_to_left_text_keep_their_order() {
+    let error = "550 5.1.1 <bob@x.example>: Recipient address rejected";
+    let arabic = fmt("لم تُرسل: {error}", &[("error", error)]);
+    assert_eq!(arabic, format!("لم تُرسل: \u{2068}{error}\u{2069}"));
+    assert_eq!(fmt("Not sent: {error}", &[("error", error)]), format!("Not sent: {error}"), "left to right only: as it was");
+    assert_eq!(fmt("Organizer: {name}", &[("name", "דנה")]), "Organizer: \u{2068}דנה\u{2069}");
+    assert_eq!(fmt("לא נשלח: {error}", &[("error", "")]), "לא נשלח: ", "nothing to isolate");
+    // As egui draws it: the error reads as written, left to right, beside the Arabic.
+    let ctx = egui::Context::default();
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let job = egui::text::LayoutJob::simple(arabic.clone(), egui::FontId::proportional(14.0), egui::Color32::WHITE, f32::INFINITY);
+        let g = ui.fonts_mut(|f| f.layout_job(job));
+        let mut glyphs: Vec<(f32, char)> = g.rows.iter().flat_map(|r| r.row.glyphs.iter().map(|x| (x.pos.x, x.chr))).collect();
+        glyphs.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let seen: String = glyphs.iter().map(|(_, c)| *c).filter(|c| !matches!(c, '\u{2068}' | '\u{2069}')).collect();
+        assert!(seen.contains(error), "{seen}");
+    });
+    out.textures_delta.clear();
+}
+
 #[test]
 fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
     let known = interface_strings();

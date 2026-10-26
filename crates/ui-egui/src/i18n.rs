@@ -267,7 +267,13 @@ pub fn tr(lang: Lang, s: &str) -> &str {
 }
 
 /// Fill `{name}` placeholders in one pass (values are never read as templates).
+///
+/// Where right-to-left and left-to-right text meet (a Hebrew or Arabic template, or such a
+/// value), each value is isolated (FSI … PDI, UAX #9): a server's "550 5.1.1 <bob@x.example>"
+/// in an Arabic sentence kept its own order instead of being drawn as "bob@x.example>…< 5.1.1
+/// 550". Text with no right-to-left letters is left as it is.
 pub fn fmt(template: &str, args: &[(&str, &str)]) -> String {
+    let rtl_template = crate::bidi::has_rtl(template);
     let mut out = String::with_capacity(template.len() + 16);
     let mut rest = template;
     while let Some((before, after)) = rest.split_once('{') {
@@ -278,6 +284,11 @@ pub fn fmt(template: &str, args: &[(&str, &str)]) -> String {
             return out;
         };
         match args.iter().find(|(k, _)| *k == name) {
+            Some((_, v)) if !v.is_empty() && (rtl_template || crate::bidi::has_rtl(v)) => {
+                out.push('\u{2068}');
+                out.push_str(v);
+                out.push('\u{2069}');
+            }
             Some((_, v)) => out.push_str(v),
             None => {
                 out.push('{');
