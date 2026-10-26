@@ -29,8 +29,9 @@ pub enum VideoFrame {
 /// The first page of a PDF, at most `max` pixels on its longer side. Text in fonts the PDF
 /// doesn't carry (its "standard" fonts) is drawn with `fonts` (regular, bold), the interface's
 /// system fonts, when given.
+#[cfg(test)]
 pub fn pdf_first_page(data: &[u8], max: u32, fonts: (Option<Vec<u8>>, Option<Vec<u8>>)) -> Option<egui::ColorImage> {
-    pdf_page(data, 0, Fit::Longer(max), fonts).map(|(img, _)| img)
+    pdf_page(data, 0, Fit::Longer(max), u32::MAX, fonts).map(|(img, _)| img)
 }
 
 /// How big a page is drawn: its longer side at most this many pixels, or this wide.
@@ -40,8 +41,10 @@ pub enum Fit {
     Width(u32),
 }
 
-/// Page `n` (from 0) of a PDF, and how many pages it has, for the reading pane's preview.
-pub fn pdf_page(data: &[u8], n: usize, fit: Fit, fonts: (Option<Vec<u8>>, Option<Vec<u8>>)) -> Option<(egui::ColorImage, usize)> {
+/// Page `n` (from 0) of a PDF, and how many pages it has, for the reading pane's preview; never
+/// more than `limit` pixels on a side (the graphics card's largest picture: a till receipt drawn
+/// as wide as the pane was taller than that, and egui and the card refuse it).
+pub fn pdf_page(data: &[u8], n: usize, fit: Fit, limit: u32, fonts: (Option<Vec<u8>>, Option<Vec<u8>>)) -> Option<(egui::ColorImage, usize)> {
     if data.len() > MAX_PDF || !data.windows(5).take(1024).any(|w| w == b"%PDF-") {
         return None;
     }
@@ -69,9 +72,11 @@ pub fn pdf_page(data: &[u8], n: usize, fit: Fit, fonts: (Option<Vec<u8>>, Option
             Fit::Longer(max) => max as f32 / w.max(h),
             Fit::Width(px) => px as f32 / w,
         }
-        // At most 4x, and no page more than about 16 megapixels.
+        // At most 4x, no page more than about 16 megapixels, and no side over the limit (a
+        // pixel short of it, as rounding may add one).
         .min(4.0)
-        .min((16_000_000.0 / (w * h)).sqrt());
+        .min((16_000_000.0 / (w * h)).sqrt())
+        .min((limit.max(2) - 1) as f32 / w.max(h));
         let settings = PixmapSettings { x_scale: scale, y_scale: scale, bg_color: WHITE };
         let pixmap = hayro::render(page, &RenderCache::new(), &interpreter, &RenderSettings::default(), &settings);
         let size = [usize::from(pixmap.width()), usize::from(pixmap.height())];
@@ -121,5 +126,16 @@ mod tests {
         for junk in [&b""[..], b"%PDF-1.7\n garbage", b"not a pdf at all", &[0xffu8; 4096]] {
             assert!(pdf_first_page(junk, 200, (None, None)).is_none());
         }
+    }
+
+    /// A till receipt (8 cm wide, five metres long) drawn as wide as the pane: no taller than
+    /// the graphics card takes (egui's own check panicked on it, the card refused it).
+    #[test]
+    fn a_long_page_fits_the_card() {
+        let receipt = String::from_utf8(tiny_pdf()).unwrap().replace("/MediaBox [0 0 100 50]", "/MediaBox [0 0 227 14173]");
+        let (img, pages) = pdf_page(receipt.as_bytes(), 0, Fit::Width(700), 2048, (None, None)).expect("a page");
+        assert_eq!(pages, 1);
+        assert!(img.size[0] <= 2048 && img.size[1] <= 2048, "{:?}", img.size);
+        assert!(img.size[1] > 2000, "as big as it may be: {:?}", img.size);
     }
 }
