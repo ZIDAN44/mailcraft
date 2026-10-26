@@ -97,6 +97,8 @@ pub struct Data {
     /// Refuse (HTTP 403) every request naming another `User-Agent` (issue #9: a server that lets
     /// in only the clients it knows).
     pub only_agent: Option<String>,
+    /// Signed in by a front in front of it (a Kerberos one): no sign-in asked here.
+    pub open: bool,
     next: u32,
 }
 
@@ -133,6 +135,7 @@ impl Default for Data {
             directory: Vec::new(),
             agents: Vec::new(),
             only_agent: None,
+            open: false,
             next: 0,
         };
         d.folders.push(Fo {
@@ -854,14 +857,17 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
             respond(&mut s, 403, &[], b"Forbidden");
             continue;
         }
-        let basic = shared.lock().unwrap().basic;
-        if basic {
+        let (basic, open) = {
+            let d = shared.lock().unwrap();
+            (d.basic, d.open)
+        };
+        if basic && !open {
             let expected = format!("Basic {}", crate::imap::base64(format!("{DOMAIN}\\{USER}:{PASSWORD}").as_bytes()));
             if auth != expected {
                 respond(&mut s, 401, &[("WWW-Authenticate", "Basic realm=\"x\"".into())], b"");
                 continue;
             }
-        } else if !signed_in {
+        } else if !signed_in && !open {
             match auth.strip_prefix("NTLM ").and_then(unb64) {
                 Some(m) if m.get(8) == Some(&1) => {
                     let c = crate::ntlm::make_challenge([9; 8], &[]);

@@ -509,7 +509,8 @@ fn special_folders_keep_the_names_exchange_gives_them() {
 #[test]
 #[ignore]
 fn serve_ews_for_the_app() {
-    let mut d = Data::default();
+    // `MAILCRAFT_FAKE_OPEN`: signed in by a front in front of it (gap 5's Kerberos one).
+    let mut d = Data { open: std::env::var_os("MAILCRAFT_FAKE_OPEN").is_some(), ..Default::default() };
     let inbox = d.folder("Postvak IN", None, Some("inbox"), "IPF.Note");
     d.folder("Concepten", None, Some("drafts"), "IPF.Note");
     d.folder("Verzonden items", None, Some("sentitems"), "IPF.Note");

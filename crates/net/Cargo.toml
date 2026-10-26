@@ -40,6 +40,9 @@ pst_rw = { package = "outlook-pst-rw", version = "1.2.14" }
 md4 = "0.11"
 md-5 = "0.11"
 hmac = "0.13"
+# Kerberos sign-in for on-premises Exchange (Negotiate, RFC 4559), pure Rust (Devolutions, MIT /
+# Apache-2.0). Without its network client: MailCraft talks to the KDC itself.
+sspi = { version = "0.23", default-features = false }
 log = { workspace = true }
 thiserror = { workspace = true }
 

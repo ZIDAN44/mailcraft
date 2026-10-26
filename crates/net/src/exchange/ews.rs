@@ -287,6 +287,8 @@ enum Scheme {
     Basic,
     /// NTLM, under the name the server offered (`NTLM` or `Negotiate`).
     Ntlm(&'static str),
+    /// Kerberos in `Negotiate` (gap 5), for a server that offers nothing else.
+    Kerberos,
 }
 
 /// An EWS session: the address, who signs in, and the connection (kept open for NTLM).

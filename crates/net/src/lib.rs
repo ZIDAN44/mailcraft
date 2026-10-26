@@ -33,7 +33,7 @@ pub mod worker;
 use data_files::pst_pim;
 pub use data_files::{pst, pst_export};
 use exchange::ews_pim;
-pub use exchange::{ews, graph, graph_pim, ntlm};
+pub use exchange::{ews, graph, graph_pim, kerberos, ntlm};
 #[cfg(test)]
 use fakes::{fake, fake_graph};
 pub use protocols::{dav, imap, jmap, pop, sieve, smtp};

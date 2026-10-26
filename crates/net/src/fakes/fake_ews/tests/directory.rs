@@ -183,3 +183,46 @@ fn through_a_front_end_that_checks_the_user_agent() {
     drop(pool);
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Gap 5 through a real Kerberos front (MIT krb5 and Apache's mod_auth_gssapi in Docker,
+/// `GssapiAllowedMech krb5`, Negotiate only) before the fake server, `MAILCRAFT_FAKE_OPEN`, and
+/// the realm's KDC at `MAILCRAFT_KDC`: signed in with Kerberos and synced through the worker; a
+/// wrong password refused as one; an unknown user too.
+/// Run: `MAILCRAFT_EWS_KERBEROS=http://localhost:8087/EWS/Exchange.asmx MAILCRAFT_KDC=127.0.0.1:88
+/// cargo test -p mailcraft-net through_a_kerberos -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn through_a_kerberos_front() {
+    let Ok(front) = std::env::var("MAILCRAFT_EWS_KERBEROS") else { return };
+    let c = crate::ews::Client::connect(&front, "riley@contoso.test", PASSWORD, "riley@contoso.test").unwrap();
+    println!("signed in with Kerberos: {} folders", c.mailboxes().unwrap().len());
+    // As Exchange users type it, the domain's NetBIOS name before the user: the realm from the
+    // address.
+    let c = crate::ews::Client::connect(&front, "CONTOSO\\riley", PASSWORD, "riley@contoso.test").unwrap();
+    println!("CONTOSO\\riley signed in with Kerberos: {} folders", c.mailboxes().unwrap().len());
+    for (user, password) in [("riley@contoso.test", "wrong"), ("nobody@contoso.test", PASSWORD)] {
+        match crate::ews::Client::connect(&front, user, password, "riley@contoso.test") {
+            Err(crate::NetError::Auth(m)) => println!("{user} / {password}: refused: {m}"),
+            other => panic!("{user} / {password}: {:?}", other.map(|_| ())),
+        }
+    }
+    let dir = std::env::temp_dir().join(format!("mailcraft-ews-kerberos-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+    let account = AccountConfig {
+        id: "krb".into(),
+        email: "riley@contoso.test".into(),
+        username: "riley@contoso.test".into(),
+        ews: Some(front),
+        ..Default::default()
+    };
+    pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let inbox = store.load_folders("krb").unwrap().into_iter().find(|f| f.role == mailcraft_model::FolderRole::Inbox).unwrap();
+    let mail = store.load_folder("krb", &inbox.path).unwrap().messages;
+    println!("synced through Kerberos: {} in {}", mail.len(), inbox.path);
+    assert!(!mail.is_empty());
+    drop(pool);
+    let _ = std::fs::remove_dir_all(store.root());
+}

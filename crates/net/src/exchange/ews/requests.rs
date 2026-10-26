@@ -45,9 +45,21 @@ impl Client {
         } else if let Some(mailbox) = self.anchor.borrow().as_ref() {
             base = base.header("X-AnchorMailbox", mailbox);
         }
-        for attempt in 0..3 {
+        for attempt in 0..4 {
             let scheme = *self.scheme.borrow();
+            let was_signed_in = *self.signed_in.borrow();
             let resp = match scheme {
+                Scheme::Kerberos if !was_signed_in => match self.kerberos(&base) {
+                    Ok(resp) => resp,
+                    // No Kerberos server to be found (or none answering): NTLM inside Negotiate,
+                    // as before, which a server that also takes NTLM accepts.
+                    Err(NetError::No(m) | NetError::Closed(m)) => {
+                        log::info!("Kerberos: {m}; trying NTLM in Negotiate");
+                        *self.scheme.borrow_mut() = Scheme::Ntlm("Negotiate");
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                },
                 Scheme::Basic => {
                     let token = b64(format!("{}:{}", self.user, self.password).as_bytes());
                     self.send_on_conn(&base.clone().header("Authorization", &format!("Basic {token}")))?
@@ -57,11 +69,17 @@ impl Client {
                     if first.status != 401 {
                         first
                     } else {
-                        let token = Client::offered(&first)
-                            .iter()
-                            .find_map(|v| v.strip_prefix(name).map(|t| t.trim().to_string()))
-                            .filter(|t| !t.is_empty())
-                            .ok_or_else(|| NetError::Auth("the server didn't answer the sign-in".into()))?;
+                        let offered = Client::offered(&first);
+                        let token = offered.iter().find_map(|v| v.strip_prefix(name).map(|t| t.trim().to_string())).filter(|t| !t.is_empty());
+                        let Some(token) = token else {
+                            // NTLM named but not done (a front that takes only Kerberos lists it
+                            // anyway): Kerberos, when Negotiate is offered too.
+                            if name == "NTLM" && offered.iter().any(|v| v.eq_ignore_ascii_case("Negotiate")) {
+                                *self.scheme.borrow_mut() = Scheme::Kerberos;
+                                continue;
+                            }
+                            return Err(NetError::Auth("the server didn't answer the sign-in".into()));
+                        };
                         let challenge = crate::ntlm::challenge(&unb64(&token).ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))?)?;
                         let mut client_challenge = [0u8; 8];
                         ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut client_challenge)
@@ -76,7 +94,7 @@ impl Client {
                         resp
                     }
                 }
-                Scheme::Ntlm(_) | Scheme::Unknown => self.send_on_conn(&base)?,
+                Scheme::Ntlm(_) | Scheme::Kerberos | Scheme::Unknown => self.send_on_conn(&base)?,
             };
             if resp.status != 401 {
                 return Ok(resp);
@@ -87,13 +105,21 @@ impl Client {
             let next = if starts("NTLM") {
                 Scheme::Ntlm("NTLM")
             } else if starts("Negotiate") {
-                Scheme::Ntlm("Negotiate")
+                // Negotiate alone: Kerberos first (a server that takes only Kerberos refuses
+                // NTLM in it), NTLM in it when there's no Kerberos server to ask.
+                if matches!(scheme, Scheme::Ntlm("Negotiate")) { scheme } else { Scheme::Kerberos }
             } else if starts("Basic") {
                 Scheme::Basic
             } else {
                 return Err(NetError::Auth("the server offers no sign-in MailCraft knows".into()));
             };
-            if scheme == next || attempt == 2 {
+            // A server that asks again on a connection already signed in (its sign-in held per
+            // request, not per connection): signed in again, once.
+            if scheme == next && was_signed_in && matches!(scheme, Scheme::Kerberos) && attempt < 3 {
+                *self.signed_in.borrow_mut() = false;
+                continue;
+            }
+            if scheme == next || attempt >= 3 {
                 return Err(NetError::Auth("the server refused the user name or password".into()));
             }
             *self.scheme.borrow_mut() = next;
@@ -160,5 +186,41 @@ impl Client {
             check_message(m)?;
         }
         Ok(())
+    }
+}
+
+impl Client {
+    /// Sign the connection in with Kerberos (Negotiate) and send `base` on it: the server's
+    /// answer to the signed request. A token the server sends back (mutual authentication, or a
+    /// step more) is taken; one it can't use doesn't undo the sign-in it accepted.
+    fn kerberos(&self, base: &Request) -> Result<Response> {
+        let host = http::Url::parse(&self.url)?.host;
+        let (mut n, token) = crate::kerberos::Negotiation::start(&self.user, &self.email, &self.password, &host)?;
+        let mut token = token;
+        for _ in 0..3 {
+            let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("Negotiate {}", b64(&token))))?;
+            let back = Client::offered(&resp)
+                .iter()
+                .find_map(|v| v.strip_prefix("Negotiate").map(|t| t.trim().to_string()))
+                .filter(|t| !t.is_empty())
+                .and_then(|t| unb64(&t));
+            if resp.status != 401 {
+                if let Some(b) = back
+                    && let Err(e) = n.step(&b)
+                {
+                    log::info!("Kerberos: the server's last token: {e}");
+                }
+                *self.signed_in.borrow_mut() = true;
+                return Ok(resp);
+            }
+            // Another step, or refused (a 401 with nothing to go on).
+            let Some(b) = back else { return Ok(resp) };
+            let (next, done) = n.step(&b)?;
+            if done && next.is_empty() {
+                return Ok(resp);
+            }
+            token = next;
+        }
+        Err(NetError::Auth("Kerberos: the server didn't finish signing in".into()))
     }
 }
