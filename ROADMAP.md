@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.27 — Arabic and Hebrew mirrored, the Craft apps' egui, nothing lost on closing (2026-10-27). Each milestone below is a version: v0.1 was
+**Stage:** v0.27 — Arabic and Hebrew mirrored, colours of your own, Exchange's directory (2026-10-27). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 194 (`mailcraft-cli commands`) |
-| Tests | 624 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 205 (`mailcraft-cli commands`) |
+| Tests | 632 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -151,7 +151,7 @@ local-first, media-aware v1); the fuller request is
    path, which Posteo's needs), or at an address given by hand with a password of its own (an app
    password). A classic ribbon (big buttons in named groups) is a View setting, and dark mode tells
    its panes and borders apart.
-27. **v0.27 — Arabic and Hebrew mirrored, the Craft apps' egui, nothing lost on closing** ✅ In Arabic and Hebrew the mail window and
+27. **v0.27 — Arabic and Hebrew mirrored, colours of your own, Exchange's directory** ✅ In Arabic and Hebrew the mail window and
    the message being written are mirrored inside the panes too (the ribbon from the right, icons
    and avatars on the right, scroll bars on the left), and egui draws right-to-left text itself:
    MailCraft builds egui and winit from the forks the Craft apps share, which also count
@@ -159,7 +159,11 @@ local-first, media-aware v1); the fuller request is
    written is lost. Screen readers hear what every drawn control is. A whole-window soak test
    plays the app by a random hand, and found two crashes, both fixed. The cache survives a file
    another program holds, file dialogs reopen where they were left, the System theme follows a
-   Linux desktop, and the packages install on openSUSE and ship their licences.
+   Linux desktop, and the packages install on openSUSE and ship their licences. From issues #8
+   and #9: an accent colour of one's own (eight, or any colour, made to read in either theme) and
+   a plain top bar, edges on the ribbon, buttons and menus; an Exchange account can name the
+   User-Agent its server lets in, and Exchange's directory (the Global Address List) is searched
+   as names are typed, so someone new is found without a restart.
 28. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -446,3 +450,15 @@ local-first, media-aware v1); the fuller request is
   appimagetool and signing client, licences in the AppImage and app bundle, macOS `verify.sh`,
   craft-fonts b076417 (Hebrew and Korean in the browser); CI through craft-common-actions'
   `gate.yml`.
+  Issues #8 and #9: `Tokens::themed` makes any accent read (darkened or lightened until text in it
+  passes on the panes; the tints and the top bar worked out from it), held by the contrast tests
+  over every named accent, five hard picks and both bars; the ribbon's buttons on a card; menus
+  with a firmer edge and a shadow. `AccountConfig::user_agent` names every EWS request,
+  Autodiscover's too; `Client::search_directory` (ResolveNames, `SearchScope="ActiveDirectory"`)
+  behind `Job::SearchDirectory`, its answers kept five minutes ("no one" half a minute) and
+  forgotten by Refresh; the EWS calendar and contacts read apart, so one refused doesn't keep the
+  other old. Tried for real: HAProxy in Docker refusing unknown clients with 403, as the tester's
+  server, in front of the fake EWS server: MailCraft's own name refused (the issue's "Exchange
+  answered HTTP 403"), Evolution's let in, through the CLI, the worker and the app; someone added
+  to the directory 45 seconds in found by the next search. GreenMail and Radicale in Docker for the
+  rest of the real-server suite.

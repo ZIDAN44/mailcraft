@@ -18,8 +18,9 @@ _Status: v0.27, 2026-10-27._
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
 | 6 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
-| 7 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificates stay locked until a password is given again (one password opens every certificate it's the password of; one with another password asks again). |
-| 8 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
+| 7 | **Exchange Online's directory** | On-premises Exchange (EWS) searches the organisation's directory, the Global Address List, as names are typed; an Exchange Online account (Microsoft Graph) doesn't yet: Graph's people search needs the `People.Read` or `User.ReadBasic.All` permission, which MailCraft's sign-in doesn't ask for. Its address books are read and refreshed as before. |
+| 8 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store; after a reload its certificates stay locked until a password is given again (one password opens every certificate it's the password of; one with another password asks again). |
+| 9 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 
 ## Done
 
@@ -932,7 +933,7 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   copied inside the signed part. In the browser, both certificates were imported and kept across a
   reload, unlocked with one password and swapped.
 
-### v0.27 — Arabic and Hebrew mirrored, the Craft apps' egui, nothing lost on closing
+### v0.27 — Arabic and Hebrew mirrored, colours of your own, Exchange's directory
 - **Arabic and Hebrew mirrored inside the panes:** rows MailCraft paints (folders, accounts,
   messages, buttons) put icons and avatars on the right and counts and times on the left;
   rows egui lays out (the top bar, the ribbon, the reading pane's header, the message being
@@ -968,3 +969,38 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   and MailCraft.app ship the licences; downloaded packaging tools are pinned and hash-checked; the
   riscv64 packages declare glibc 2.39; macOS packages are verified after packaging; Hebrew and
   Korean are drawn in the browser.
+- **Colours of your own (issue #8):** File › Options › Accent colour offers eight colours
+  (MailCraft's teal first) and a picker for any other. Each is made to read: darkened in light
+  mode, lightened in dark, until text in it passes 4.5:1 on every pane, with the selection and
+  hover tints worked out so text, dim text and the accent still read on them. *Plain top bar*
+  draws the top bar in the panes' colours. In dark mode the top bar is now a deep shade with white
+  on it: the light teal behind white text read 2.3:1.
+- **Edges (issue #8):** the ribbon's buttons sit on a card with an edge, as Outlook's; a button
+  under the pointer has an edge as well as its fill; menus, lists and dialogs that open over the
+  window have a firmer edge and a soft shadow.
+- **A User-Agent of the account's own (issue #9):** a server that lets in only the mail programs
+  it knows answered MailCraft with HTTP 403. File › Info › Account settings (and Add account) take
+  a User-Agent for an Exchange account, sent with every request to its server, Autodiscover's
+  too; left empty, MailCraft names itself. Only visible ASCII, up to 256 characters: nothing
+  that could end the header. Changing it connects again at once.
+- **Exchange's directory (issue #9):** the Global Address List was never searched, so someone
+  who hadn't written to the user, or joined since, wasn't found. Now Select Names has a Global
+  Address List, *All addresses* includes it, and To and Cc suggest from it, asked of the server
+  (EWS ResolveNames) once three letters are typed, or at once with Enter or →. Answers are kept
+  five minutes, "no one" only half a minute, so a new employee turns up soon after the directory
+  knows them; Refresh forgets them all and reads the address books again. The calendar and
+  contacts are now read apart, so a calendar the server refuses no longer keeps the address books
+  as they were.
+- **Found on the way:** a user name with a line break or tab in it (a `\r` from JSON) was kept,
+  and could never sign in: it's refused now. An answer to Select Names arriving while a person was
+  selected could move someone else under the selection: the selection now follows the person. A
+  sample mailbox whose folders were gone (an older build's data file) stayed on "Loading folders…"
+  for good: it's filled again.
+- **Checked:** unit and headless tests for the User-Agent (kept, refused, cleared, sent on every
+  request), the directory (several found, one, none, an Exchange-only address, junk, a 100,000
+  letter search), how long answers are kept, Refresh, Select Names updating with the selection
+  kept, every accent and bar against the contrast tests. For real: HAProxy in Docker answering 403
+  to anything but `Evolution/…`, in front of the fake EWS server signing in with NTLM: refused as
+  MailCraft, synced as Evolution through the CLI, the network worker and the app; Dana Whitfield,
+  added to the directory 45 seconds in, found by the next search. GreenMail and Radicale for the
+  rest of the real-server suite; a soak of 30 seeds of 1,500 actions.
