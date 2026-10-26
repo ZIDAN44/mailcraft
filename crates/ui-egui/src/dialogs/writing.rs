@@ -1,6 +1,7 @@
 //! Dialogs: while writing (Address Book, saving changes, no subject, word count).
 
 use super::*;
+use crate::icons::Icon;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
@@ -119,6 +120,13 @@ pub struct NamesForm {
     pub list: Vec<mailcraft_engine::model::EmailAddress>,
     /// The list must be read again (the search or the book changed).
     pub stale: bool,
+    /// An account has an organisation directory to search (issue #9).
+    pub directory: bool,
+    /// The directory answers the list was read with (the session's `directory.rev`).
+    pub directory_rev: u64,
+    /// A directory is still being asked about the search, and why one couldn't answer.
+    pub searching: bool,
+    pub directory_errors: Vec<String>,
     pub selected: Option<usize>,
     /// The field a double-click adds to (`to`, `cc`, `bcc`).
     pub target: &'static str,
@@ -141,13 +149,30 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     title(ui, t, "Select Names");
     ui.horizontal(|ui| {
         ui.label(RichText::new(tl!("Search")).strong());
-        let r = ui.add(egui::TextEdit::singleline(&mut f.query).desired_width(240.0).hint_text(tl!("Name or address")));
+        let w = if f.directory { 186.0 } else { 240.0 };
+        let r = ui.add(egui::TextEdit::singleline(&mut f.query).desired_width(w).hint_text(tl!("Name or address")));
         if ui.memory(|m| m.focused().is_none()) {
             r.request_focus();
         }
         if r.changed() {
             f.stale = true;
             f.selected = None;
+        }
+        // The directory is asked as the search is typed; Enter or Go asks again now, whatever it
+        // answered before, and for a search of one or two letters too (Outlook's Go).
+        if f.directory {
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let go = ui.add_enabled(!f.query.trim().is_empty(), egui::Button::new("→")).on_hover_text(tl!("Search the directory now"));
+            if (enter || go.clicked()) && !f.query.trim().is_empty() {
+                acts.push(Action::Run("contact.searchDirectory", json!({"query": f.query.trim()})));
+                f.stale = true;
+            }
+            if widgets::tiny_icon_button(ui, Icon::Sync, "Refresh: search the directory again and read the address books from the server", t)
+                .clicked()
+            {
+                acts.push(Action::Run("contact.refreshDirectory", json!({})));
+                f.stale = true;
+            }
         }
         ui.add_space(12.0);
         ui.label(RichText::new(tl!("Address Book")).strong());
@@ -158,6 +183,13 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             ("all".into(), tl!("All addresses").to_string(), tl!("Everyone you've written to or heard from, and your contacts")),
             ("people".into(), tl!("All contacts").to_string(), tl!("Every contact, in every address book")),
         ];
+        if f.directory {
+            choices.push((
+                "directory".into(),
+                tl!("Global Address List").to_string(),
+                tl!("Everyone in your organisation's directory, asked of the server"),
+            ));
+        }
         if f.books.len() > 1 {
             for (source, name, account) in &f.books {
                 let name = if name.is_empty() || name == "Contacts" { tl!("Contacts").to_string() } else { name.clone() };
@@ -199,8 +231,13 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         });
         ui.separator();
         egui::ScrollArea::vertical().max_height(210.0).auto_shrink([false, false]).show(ui, |ui| {
-            if f.list.is_empty() && !f.stale {
-                ui.label(RichText::new(tl!("No one found.")).color(t.faint));
+            if f.list.is_empty() && !f.stale && !f.searching {
+                let hint = if f.directory && f.source == "directory" && f.query.trim().is_empty() {
+                    tl!("Type a name to search your organisation's directory.")
+                } else {
+                    tl!("No one found.")
+                };
+                ui.label(RichText::new(hint).color(t.faint));
             }
             for (i, a) in f.list.iter().enumerate() {
                 let on = f.selected == Some(i);
@@ -241,6 +278,13 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             }
         });
     });
+    // The directory: still being asked, or why it couldn't answer (what's here is shown meanwhile).
+    if f.searching {
+        ui.label(RichText::new(tl!("Searching your organisation's directory…")).color(t.dim).small());
+    }
+    for e in f.directory_errors.iter().take(3) {
+        ui.add(egui::Label::new(RichText::new(tf!("The directory couldn't be searched: {error}", error = e)).color(t.warn).small()).wrap());
+    }
     ui.add_space(8.0);
     for (name, label) in [("to", "To ->"), ("cc", "Cc ->"), ("bcc", "Bcc ->")] {
         ui.horizontal(|ui| {

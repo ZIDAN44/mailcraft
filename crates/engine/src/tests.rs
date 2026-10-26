@@ -54,6 +54,7 @@ fn mailcraft_engine_day(s: &Session) -> i64 {
 }
 
 mod accounts;
+mod directory;
 mod files;
 mod invites;
 mod mail;

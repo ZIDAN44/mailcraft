@@ -142,6 +142,21 @@ pub struct AccountConfig {
     /// address on its own, or one that wants a password of its own (an app password).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dav: Option<DavSettings>,
+    /// The User-Agent its Exchange (EWS) requests name instead of MailCraft's (issue #9), for a
+    /// server that lets in only the clients it knows. Checked by [`user_agent`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+}
+
+/// Longest User-Agent an account can name.
+pub const MAX_USER_AGENT: usize = 256;
+
+/// A User-Agent as an account may name it (RFC 9110 10.1.5: visible ASCII and spaces), trimmed;
+/// `None` when it's empty, too long or has anything else (a line break would end the header).
+pub fn user_agent(s: &str) -> Option<String> {
+    let s = s.trim();
+    let ok = !s.is_empty() && s.len() <= MAX_USER_AGENT && s.bytes().all(|b| b == b' ' || b.is_ascii_graphic());
+    ok.then(|| s.to_string())
 }
 
 /// Where an account's calendars and contacts are, given by hand: CalDAV and CardDAV addresses
@@ -245,6 +260,7 @@ impl AccountConfig {
             shared_mailboxes: Vec::new(),
             online_only: false,
             dav: None,
+            user_agent: None,
         }
     }
 

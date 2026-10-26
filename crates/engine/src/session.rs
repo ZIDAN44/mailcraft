@@ -628,6 +628,8 @@ pub struct Session {
     pub(crate) cache_limit: usize,
     /// Built on first use from the cached mail; dropped when mail arrives.
     contacts: Option<ContactBook>,
+    /// The organisation directory's answers (issue #9).
+    pub directory: pim::Directory,
     /// The domains the user deals with ([`Session::known_domains`]) and when they were counted:
     /// kept a while, since the address book is counted again after every sync.
     known_domains: Option<(i64, BTreeSet<String>)>,
@@ -739,6 +741,7 @@ impl Session {
             pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,
             contacts: None,
+            directory: pim::Directory::default(),
             known_domains: None,
             smime: HashMap::new(),
             trust_roots: Vec::new(),

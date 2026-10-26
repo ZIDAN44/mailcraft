@@ -182,6 +182,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .key("Mod+Shift+B")
         .params(r#"{"query"?: string, "source"?: "all" | "people" | "book:<account>:<book id>" (default: the one it opens with)}"#),
+        CommandSpec::new("contact.searchDirectory", "Search the directory", "Message › Names › Address Book", |s, v| {
+            let q = p::req_str(v, "query")?;
+            s.look_up_directory(q, true);
+            let people = s.directory_people(q);
+            Ok(json!({
+                "people": people.iter().map(|a| json!({"name": a.name, "email": a.email})).collect::<Vec<_>>(),
+                "pending": s.directory_pending(q),
+                "errors": s.directory_errors(q),
+            }))
+        })
+        .when(|s| s.directory_accounts().is_empty().then_some("the organisation directory is searched through an Exchange account"))
+        .params(r#"{"query": string}"#),
+        CommandSpec::new("contact.refreshDirectory", "Refresh address books", "Message › Names › Address Book", |s, _| s.refresh_directory())
+            .when(|s| {
+                (!s.accounts.iter().any(|a| a.config.ews.is_some() || a.config.graph.is_some()))
+                    .then_some("address books are refreshed from an Exchange account")
+            }),
         CommandSpec::new("contact.defaultBook", "Address book to open with", "Message › Names › Address Book", |s, v| {
             let source = p::req_str(v, "source")?.trim().to_string();
             if source != "all" && source != "people" && !s.address_books().iter().any(|(b, _, _)| *b == source) {

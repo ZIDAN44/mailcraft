@@ -176,10 +176,24 @@ impl Session {
         self.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum()
     }
 
-    /// People to suggest for a recipient box, best first.
+    /// People to suggest for a recipient box, best first: those mail was exchanged with and
+    /// contacts, then the organisation directory's (issue #9), asked once the search is three
+    /// letters long.
     pub fn suggest_contacts(&mut self, query: &str, limit: usize) -> Vec<Contact> {
         self.ensure_contacts();
-        self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default()
+        let mut out = self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default();
+        if out.len() < limit {
+            self.look_up_directory(query, false);
+            for a in self.directory_people(query) {
+                if out.len() >= limit {
+                    break;
+                }
+                if !out.iter().any(|c| c.address.email.eq_ignore_ascii_case(&a.email)) {
+                    out.push(Contact { address: a, sent: 0, received: 0, last: 0 });
+                }
+            }
+        }
+        out
     }
 
     /// Whether anything was written in the message being written (more than its signature):
@@ -201,10 +215,16 @@ impl Session {
     }
 
     /// The address book, as Outlook's Select Names dialog lists it: `people` for the people
-    /// saved in Contacts, anything else for everyone known (Contacts and everyone mail was
-    /// exchanged with). Filtered by `query` (name or address), sorted by name.
+    /// saved in Contacts, `directory` for the organisation's directory (Exchange's Global
+    /// Address List, asked of the server: issue #9), anything else for everyone known (Contacts,
+    /// everyone mail was exchanged with, and the directory's matches). Filtered by `query`
+    /// (name or address), sorted by name.
     pub fn address_book(&mut self, source: &str, query: &str) -> Vec<EmailAddress> {
         const MAX: usize = 2000;
+        if source == "directory" {
+            self.look_up_directory(query, false);
+            return self.directory_people(query);
+        }
         let book = source.strip_prefix("book:").and_then(|b| b.split_once(':'));
         if source == "people" || book.is_some() {
             let mut v: Vec<EmailAddress> = self
@@ -217,7 +237,17 @@ impl Session {
             return v;
         }
         self.ensure_contacts();
-        self.contacts.as_ref().map(|b| b.list(query, MAX).into_iter().map(|c| c.address).collect()).unwrap_or_default()
+        let mut list: Vec<EmailAddress> =
+            self.contacts.as_ref().map(|b| b.list(query, MAX).into_iter().map(|c| c.address).collect()).unwrap_or_default();
+        self.look_up_directory(query, false);
+        let more: Vec<EmailAddress> =
+            self.directory_people(query).into_iter().filter(|a| !list.iter().any(|l| l.email.eq_ignore_ascii_case(&a.email))).collect();
+        if !more.is_empty() {
+            list.extend(more);
+            list.sort_by_key(|a| (if a.name.is_empty() { a.email.to_lowercase() } else { a.name.to_lowercase() }, a.email.to_lowercase()));
+            list.truncate(MAX);
+        }
+        list
     }
 
     /// The address books Select Names can show besides everyone (`all`) and every contact

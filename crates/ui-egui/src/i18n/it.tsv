@@ -1217,11 +1217,22 @@ month	May	maggio
 	Accent colour	Colore principale
 	Any colour	Qualsiasi colore
 	Buttons, links, the selection and the top bar	Pulsanti, collegamenti, la selezione e la barra superiore
+	Everyone in your organisation's directory, asked of the server	Tutti nella directory della tua organizzazione, chiesti al server
+	Global Address List	Elenco indirizzi globale
 	Indigo	Indaco
+	Left empty: MailCraft's own	Vuoto: quello di MailCraft
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Solo se il server della tua organizzazione rifiuta MailCraft: il nome di un programma di posta che accetta.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	Solo lettere, cifre, spazi e punteggiatura, fino a 256 caratteri.
 	Orange	Arancione
 	Plain top bar	Barra superiore semplice
 	Red	Rosso
+	Refresh: search the directory again and read the address books from the server	Aggiorna: cerca di nuovo nella directory e rileggi le rubriche dal server
 	Rose	Rosa
+	Search the directory now	Cerca nella directory ora
+	Searching your organisation's directory…	Ricerca nella directory della tua organizzazione…
 	Teal	Verde petrolio
+	The directory couldn't be searched: {error}	Impossibile cercare nella directory: {error}
 	The top bar in the panes' colours instead of the accent colour	La barra superiore nei colori dei riquadri invece che nel colore principale
+	Type a name to search your organisation's directory.	Digita un nome per cercare nella directory della tua organizzazione.
+	User-Agent (optional)	User-Agent (facoltativo)
 	Violet	Viola

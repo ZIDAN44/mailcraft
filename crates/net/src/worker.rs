@@ -147,7 +147,7 @@ fn quick_job(j: &Job, acc: &AccountConfig) -> bool {
 
 /// Jobs a full sync handles between two folders rather than at its end.
 fn between_folders(j: &Job) -> bool {
-    matches!(j, Job::FetchBody { .. } | Job::Apply { .. })
+    matches!(j, Job::FetchBody { .. } | Job::Apply { .. } | Job::SearchDirectory { .. })
 }
 
 /// Runs jobs for every account.
@@ -376,6 +376,9 @@ impl Pool {
             Job::SyncDav { account } if !self.workers.contains_key(&account) => {}
             Job::SearchServer { account, query, .. } if !self.workers.contains_key(&account) => {
                 self.sink.emit(Event::ServerSearched { account, query, keys: Vec::new(), error: Some("the account is offline".into()), done: true });
+            }
+            Job::SearchDirectory { account, query } if !self.workers.contains_key(&account) => {
+                self.sink.emit(Event::Directory { account, query, people: Vec::new(), error: Some("the account is offline".into()) });
             }
             // Working offline: nothing connects, by choice.
             Job::SyncAll { account } | Job::SyncFolder { account, .. } | Job::FlushOutbox { account }

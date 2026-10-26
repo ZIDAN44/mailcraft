@@ -1214,11 +1214,22 @@ month	May	5月
 	Accent colour	アクセントカラー
 	Any colour	任意の色
 	Buttons, links, the selection and the top bar	ボタン、リンク、選択範囲、上部バー
+	Everyone in your organisation's directory, asked of the server	組織のディレクトリにいる全員（サーバーに問い合わせます）
+	Global Address List	グローバル アドレス一覧
 	Indigo	インディゴ
+	Left empty: MailCraft's own	空欄の場合: MailCraft 自身のもの
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	組織のサーバーが MailCraft を拒否する場合のみ: そのサーバーが受け入れるメールソフトの名前。
+	Only letters, digits, spaces and punctuation, up to 256 characters.	英字、数字、スペース、句読点のみ、256 文字まで。
 	Orange	オレンジ
 	Plain top bar	シンプルな上部バー
 	Red	赤
+	Refresh: search the directory again and read the address books from the server	更新: ディレクトリをもう一度検索し、アドレス帳をサーバーから読み直します
 	Rose	ローズ
+	Search the directory now	今すぐディレクトリを検索
+	Searching your organisation's directory…	組織のディレクトリを検索しています…
 	Teal	ティール
+	The directory couldn't be searched: {error}	ディレクトリを検索できませんでした: {error}
 	The top bar in the panes' colours instead of the accent colour	上部バーをアクセントカラーではなくウィンドウの色にします
+	Type a name to search your organisation's directory.	名前を入力すると組織のディレクトリを検索します。
+	User-Agent (optional)	User-Agent (任意)
 	Violet	バイオレット

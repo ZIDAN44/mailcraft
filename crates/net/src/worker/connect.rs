@@ -143,7 +143,7 @@ impl Worker {
             let url = if url == crate::ews::AUTODISCOVER {
                 let kept: String = self.store.load_account_doc(&self.acc.id, "ews.json").unwrap_or_default();
                 if kept.is_empty() {
-                    let found = crate::ews::autodiscover(&self.acc.email, &user, &secret, None)?;
+                    let found = crate::ews::autodiscover_as(&self.acc.email, &user, &secret, None, self.acc.user_agent.as_deref())?;
                     let _ = self.store.save_account_doc(&self.acc.id, "ews.json", &found);
                     found
                 } else {
@@ -152,7 +152,7 @@ impl Worker {
             } else {
                 url.clone()
             };
-            let c = crate::ews::Client::connect(&url, &user, &secret, &self.acc.email)?;
+            let c = crate::ews::Client::connect_as(&url, &user, &secret, &self.acc.email, self.acc.user_agent.as_deref())?;
             c.set_shared(&self.acc.shared_mailboxes);
             self.conn = Some(Conn::Ews(Box::new(c)));
             self.backoff = Duration::from_secs(5);

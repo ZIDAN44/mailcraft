@@ -1218,11 +1218,22 @@ month	May	maio
 	Accent colour	Cor de destaque
 	Any colour	Qualquer cor
 	Buttons, links, the selection and the top bar	Botões, links, a seleção e a barra superior
+	Everyone in your organisation's directory, asked of the server	Todos no diretório da sua organização, consultado no servidor
+	Global Address List	Lista de endereços global
 	Indigo	Índigo
+	Left empty: MailCraft's own	Vazio: o do próprio MailCraft
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Só se o servidor da sua organização recusar o MailCraft: o nome de um programa de e-mail que ele aceita.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	Apenas letras, dígitos, espaços e pontuação, até 256 caracteres.
 	Orange	Laranja
 	Plain top bar	Barra superior simples
 	Red	Vermelho
+	Refresh: search the directory again and read the address books from the server	Atualizar: pesquisar o diretório de novo e ler os catálogos de endereços do servidor outra vez
 	Rose	Rosa
+	Search the directory now	Pesquisar o diretório agora
+	Searching your organisation's directory…	Pesquisando o diretório da sua organização…
 	Teal	Azul-petróleo
+	The directory couldn't be searched: {error}	Não foi possível pesquisar o diretório: {error}
 	The top bar in the panes' colours instead of the accent colour	A barra superior nas cores dos painéis em vez da cor de destaque
+	Type a name to search your organisation's directory.	Digite um nome para pesquisar o diretório da sua organização.
+	User-Agent (optional)	User-Agent (opcional)
 	Violet	Violeta

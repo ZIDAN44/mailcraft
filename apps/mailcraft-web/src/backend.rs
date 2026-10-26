@@ -474,6 +474,11 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
         Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
+        // The browser's accounts are JMAP ones, with no organisation directory (issue #9).
+        Job::SearchDirectory { query, .. } => emit(
+            sh,
+            Event::Directory { account: id.to_string(), query, people: Vec::new(), error: Some("this account has no organisation directory".into()) },
+        ),
         // Mail past what's kept (issue #4).
         Job::SearchServer { folders, query, search, .. } => search_server(sh, id, &folders, query, search).await,
         Job::MoreMail { folder, more, .. } => {

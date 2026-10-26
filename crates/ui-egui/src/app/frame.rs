@@ -309,7 +309,7 @@ impl MailApp {
 
         // The address book reads the session's people.
         if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
-            && f.stale
+            && (f.stale || f.directory_rev != self.session.directory.rev)
         {
             // Opened: with the address book chosen to open with (one gone is everyone).
             if f.source.is_empty() {
@@ -318,7 +318,15 @@ impl MailApp {
                 let known = f.default_source == "people" || f.books.iter().any(|(b, _, _)| *b == f.default_source);
                 f.source = if known { f.default_source.clone() } else { "all".into() };
             }
+            f.directory = !self.session.directory_accounts().is_empty();
+            // The person selected stays selected when answers come in and the list moves.
+            let picked = f.selected.and_then(|i| f.list.get(i)).map(|a| a.email.clone());
             f.list = self.session.address_book(&f.source, &f.query);
+            f.selected = picked.and_then(|e| f.list.iter().position(|a| a.email.eq_ignore_ascii_case(&e)));
+            let asks = f.directory && (f.source == "all" || f.source == "directory");
+            f.searching = asks && self.session.directory_pending(&f.query);
+            f.directory_errors = if asks { self.session.directory_errors(&f.query) } else { Vec::new() };
+            f.directory_rev = self.session.directory.rev;
             f.stale = false;
         }
         // A message window's own dialogs show in that window.

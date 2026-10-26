@@ -172,7 +172,7 @@ impl Client {
         let mut last = NetError::No("Autodiscover didn't answer".into());
         for url in urls {
             let c = match Client::new(&url, &self.user, &self.password, &self.email) {
-                Ok(c) => c,
+                Ok(c) => c.with_agent(self.user_agent.as_deref()),
                 Err(e) => {
                     last = e;
                     continue;

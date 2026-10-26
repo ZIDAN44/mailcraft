@@ -1217,11 +1217,22 @@ month	May	5월
 	Accent colour	강조 색
 	Any colour	원하는 색
 	Buttons, links, the selection and the top bar	버튼, 링크, 선택 영역, 상단 표시줄
+	Everyone in your organisation's directory, asked of the server	조직 디렉터리의 모든 사람(서버에 요청)
+	Global Address List	전체 주소 목록
 	Indigo	인디고
+	Left empty: MailCraft's own	비워 두면: MailCraft 기본값
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	조직 서버가 MailCraft를 거부할 때만: 서버가 허용하는 메일 프로그램 이름.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	문자, 숫자, 공백, 문장 부호만 최대 256자까지.
 	Orange	주황
 	Plain top bar	단순한 상단 표시줄
 	Red	빨강
+	Refresh: search the directory again and read the address books from the server	새로 고침: 디렉터리를 다시 검색하고 서버에서 주소록을 다시 읽습니다
 	Rose	로즈
+	Search the directory now	지금 디렉터리 검색
+	Searching your organisation's directory…	조직 디렉터리를 검색하는 중…
 	Teal	청록
+	The directory couldn't be searched: {error}	디렉터리를 검색할 수 없습니다: {error}
 	The top bar in the panes' colours instead of the accent colour	상단 표시줄을 강조 색 대신 창 색으로 표시
+	Type a name to search your organisation's directory.	이름을 입력하면 조직 디렉터리를 검색합니다.
+	User-Agent (optional)	User-Agent(선택 사항)
 	Violet	보라

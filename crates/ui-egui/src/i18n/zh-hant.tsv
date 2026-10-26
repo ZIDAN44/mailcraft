@@ -1217,11 +1217,22 @@ month	May	5月
 	Accent colour	強調色
 	Any colour	任意顏色
 	Buttons, links, the selection and the top bar	按鈕、連結、選取項目和頂端列
+	Everyone in your organisation's directory, asked of the server	組織目錄中的所有人（向伺服器查詢）
+	Global Address List	全域通訊清單
 	Indigo	靛藍
+	Left empty: MailCraft's own	留空：使用 MailCraft 自己的
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	僅當組織的伺服器拒絕 MailCraft 時填寫：它允許的郵件程式名稱。
+	Only letters, digits, spaces and punctuation, up to 256 characters.	只能包含字母、數字、空格和標點，最多 256 個字元。
 	Orange	橘色
 	Plain top bar	簡潔頂端列
 	Red	紅色
+	Refresh: search the directory again and read the address books from the server	重新整理：重新搜尋目錄，並從伺服器重新讀取通訊錄
 	Rose	玫瑰紅
+	Search the directory now	立即搜尋目錄
+	Searching your organisation's directory…	正在搜尋組織目錄…
 	Teal	藍綠
+	The directory couldn't be searched: {error}	無法搜尋目錄：{error}
 	The top bar in the panes' colours instead of the accent colour	頂端列使用窗格的顏色而非強調色
+	Type a name to search your organisation's directory.	輸入姓名以搜尋組織目錄。
+	User-Agent (optional)	User-Agent（選用）
 	Violet	紫羅蘭

@@ -305,6 +305,7 @@ impl Dialog {
             jmap: a.jmap.is_some(),
             jmap_url: a.jmap.clone().unwrap_or_default(),
             ews: a.ews.clone(),
+            user_agent: a.user_agent.clone().unwrap_or_default(),
             pop: a.pop.as_ref().map(|p| (p.host.clone(), p.port.to_string(), p.security)),
             pop_keep: PopKeep::of(a),
             imap_host: a.imap.host.clone(),

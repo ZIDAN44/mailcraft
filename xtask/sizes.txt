@@ -2,4 +2,3 @@
 # their size now: they may shrink, never grow. `cargo xtask sizes --update` lowers these
 # figures; nothing is ever added here. Split a file by topic: `foo.rs` keeps the shared
 # part and declares `mod bar;`, its pieces go in `foo/bar.rs`.
-crates/net/src/fakes/fake_ews.rs 1976

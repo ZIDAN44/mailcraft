@@ -379,3 +379,71 @@ fn files_dropped_on_a_message_are_attached() {
     assert_eq!(names, ["dropped notes.txt"], "the file with no path to read is left");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #9: with an Exchange account, Select Names offers its Global Address List, the people
+/// the directory finds come into the open list as they're answered, and the person selected
+/// stays selected when they do (the list moving under the selection added someone else).
+#[test]
+fn the_directory_comes_into_select_names() {
+    let (mut a, dir) = app("names-directory");
+    let ctx = egui::Context::default();
+    a.session.prefs.new_mail_window = false;
+    frame(&ctx, &mut a, vec![]);
+    let id = a
+        .session
+        .run(
+            "account.add",
+            &json!({"email": "riley@contoso.example", "password": "pw", "ews": "mail.contoso.example", "userAgent": "Evolution/3.46.4"}),
+        )
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    assert!(f.directory, "an Exchange account has a directory");
+    f.source = "directory".into();
+    f.query = "zo".into();
+    f.stale = true;
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    assert!(f.list.is_empty() && !f.searching, "two letters aren't sent by themselves");
+    f.query = "zoe".into();
+    f.stale = true;
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    assert!(f.searching, "asked of the server");
+    a.session.apply(mailcraft_engine::model::Event::Directory {
+        account: id.clone(),
+        query: "zoe".into(),
+        people: vec![("Zoe Park".into(), "zoe.park@contoso.example".into())],
+        error: None,
+    });
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    assert_eq!(f.list.iter().map(|x| x.email.as_str()).collect::<Vec<_>>(), ["zoe.park@contoso.example"]);
+    assert!(!f.searching);
+    f.selected = Some(0);
+    // Asked again (Go), and answered with someone sorted before her: she stays the one selected.
+    a.run("contact.searchDirectory", json!({"query": "zoe"}));
+    a.session.apply(mailcraft_engine::model::Event::Directory {
+        account: id.clone(),
+        query: "zoe".into(),
+        people: vec![("Zoe Park".into(), "zoe.park@contoso.example".into()), ("Zoe Abbott".into(), "zoe.a@contoso.example".into())],
+        error: None,
+    });
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
+    assert_eq!(f.list.len(), 2);
+    assert_eq!(f.selected.and_then(|i| f.list.get(i)).map(|x| x.email.as_str()), Some("zoe.park@contoso.example"));
+    // Refresh: forgotten, and asked again.
+    a.run("contact.refreshDirectory", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
+    assert!(f.searching);
+    let _ = std::fs::remove_dir_all(dir);
+}

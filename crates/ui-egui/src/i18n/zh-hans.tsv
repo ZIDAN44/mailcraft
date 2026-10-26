@@ -1214,11 +1214,22 @@ month	May	5月
 	Accent colour	强调色
 	Any colour	任意颜色
 	Buttons, links, the selection and the top bar	按钮、链接、选中项和顶部栏
+	Everyone in your organisation's directory, asked of the server	组织目录中的所有人（向服务器查询）
+	Global Address List	全局地址列表
 	Indigo	靛蓝
+	Left empty: MailCraft's own	留空：使用 MailCraft 自己的
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	仅当组织的服务器拒绝 MailCraft 时填写：它允许的邮件程序的名称。
+	Only letters, digits, spaces and punctuation, up to 256 characters.	只能包含字母、数字、空格和标点，最多 256 个字符。
 	Orange	橙色
 	Plain top bar	简洁顶部栏
 	Red	红色
+	Refresh: search the directory again and read the address books from the server	刷新：重新搜索目录，并从服务器重新读取通讯簿
 	Rose	玫红
+	Search the directory now	立即搜索目录
+	Searching your organisation's directory…	正在搜索组织目录…
 	Teal	蓝绿
+	The directory couldn't be searched: {error}	无法搜索目录：{error}
 	The top bar in the panes' colours instead of the accent colour	顶部栏使用窗格的颜色而不是强调色
+	Type a name to search your organisation's directory.	输入姓名以搜索组织目录。
+	User-Agent (optional)	User-Agent（可选）
 	Violet	紫罗兰

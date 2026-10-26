@@ -1213,11 +1213,22 @@ month	May	מאי
 	Accent colour	צבע הדגשה
 	Any colour	כל צבע
 	Buttons, links, the selection and the top bar	לחצנים, קישורים, הבחירה והסרגל העליון
+	Everyone in your organisation's directory, asked of the server	כל מי שבספרייה של הארגון שלך, בשאילתה לשרת
+	Global Address List	רשימת הכתובות הכללית
 	Indigo	אינדיגו
+	Left empty: MailCraft's own	ריק: זה של MailCraft
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	רק אם השרת של הארגון שלך דוחה את MailCraft: שם של תוכנת דואר שהוא מקבל.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	רק אותיות, ספרות, רווחים וסימני פיסוק, עד 256 תווים.
 	Orange	כתום
 	Plain top bar	סרגל עליון פשוט
 	Red	אדום
+	Refresh: search the directory again and read the address books from the server	רענון: חיפוש חוזר בספרייה וקריאה מחדש של פנקסי הכתובות מהשרת
 	Rose	ורוד
+	Search the directory now	חיפוש בספרייה עכשיו
+	Searching your organisation's directory…	מחפש בספרייה של הארגון שלך…
 	Teal	טורקיז
+	The directory couldn't be searched: {error}	לא ניתן היה לחפש בספרייה: {error}
 	The top bar in the panes' colours instead of the accent colour	הסרגל העליון בצבעי החלוניות במקום בצבע ההדגשה
+	Type a name to search your organisation's directory.	הקלד שם כדי לחפש בספרייה של הארגון שלך.
+	User-Agent (optional)	User-Agent (אופציונלי)
 	Violet	סגול

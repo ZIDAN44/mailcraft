@@ -140,6 +140,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         ui.add_space(4.0);
                         label(ui, "User name");
                         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
+                        user_agent_field(ui, t, w, &mut f.user_agent);
                         return;
                     }
                     if f.jmap {
@@ -476,6 +477,8 @@ pub struct AccountForm {
     /// An organisation's own Exchange server through EWS, at this address or server name.
     pub ews: bool,
     pub ews_url: String,
+    /// The User-Agent EWS requests name (issue #9); empty for MailCraft's.
+    pub user_agent: String,
     /// Downloads mail over POP3 into folders on this computer (sends over SMTP).
     pub pop: bool,
     pub pop_host: String,
@@ -636,6 +639,7 @@ impl AccountForm {
                 "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
                 // No server named: Autodiscover finds it.
                 "ews": if self.ews_url.trim().is_empty() { json!(true) } else { json!(self.ews_url.trim()) },
+                "userAgent": self.user_agent.trim(),
             });
         }
         if self.jmap {
@@ -696,6 +700,8 @@ pub struct EditForm {
     pub jmap_url: String,
     /// An Exchange server's EWS address (EWS accounts only).
     pub ews: Option<String>,
+    /// The User-Agent its EWS requests name (issue #9); empty for MailCraft's.
+    pub user_agent: String,
     /// A POP account's POP3 server (host, port, security).
     pub pop: Option<(String, String, Security)>,
     /// POP: when the server's copy of downloaded mail goes.
@@ -725,7 +731,13 @@ impl EditForm {
     pub(super) fn server_params(&self) -> serde_json::Value {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
         if let Some(u) = &self.ews {
-            return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "ews": u.trim()});
+            return json!({
+                "account": self.account,
+                "name": self.name.trim(),
+                "username": self.username.trim(),
+                "ews": u.trim(),
+                "userAgent": self.user_agent.trim(),
+            });
         }
         if self.jmap {
             return json!({"account": self.account, "name": self.name.trim(), "username": self.username.trim(), "jmap": self.jmap_url.trim()});
@@ -784,6 +796,7 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
     if let Some(url) = f.ews.as_mut() {
         label(ui, "Exchange server");
         ui.add_sized([w, 26.0], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
+        user_agent_field(ui, t, w, &mut f.user_agent);
     } else if let Some((host, port, security)) = f.pop.as_mut() {
         label(ui, "Incoming mail (POP)");
         ui.horizontal(|ui| {
@@ -845,6 +858,20 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
         acts.push(Action::Submit("account.update", f.params()));
     }
     !cancel
+}
+
+/// The User-Agent an Exchange account's requests name (issue #9): for a server that lets in only
+/// the clients it knows. Said in place when it can't be used.
+pub(super) fn user_agent_field(ui: &mut Ui, t: &Tokens, w: f32, agent: &mut String) {
+    ui.add_space(4.0);
+    ui.label(RichText::new(tl!("User-Agent (optional)")).strong().small());
+    ui.add_sized([w, 26.0], egui::TextEdit::singleline(agent).hint_text(tl!("Left empty: MailCraft's own")).char_limit(300));
+    let note = if !agent.trim().is_empty() && mailcraft_engine::model::user_agent(agent).is_none() {
+        RichText::new(tl!("Only letters, digits, spaces and punctuation, up to 256 characters.")).color(t.danger)
+    } else {
+        RichText::new(tl!("Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.")).color(t.faint)
+    };
+    ui.add(egui::Label::new(note.small()).wrap());
 }
 
 /// Online only (issue #4), as an account is added or changed: none of its mail on this computer.

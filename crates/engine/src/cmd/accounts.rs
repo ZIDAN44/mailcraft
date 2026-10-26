@@ -18,7 +18,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             s.import_pst(&path)
@@ -116,7 +116,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
-            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool}"#,
+            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool, "ews"?: string, "userAgent"?: string (Exchange: the User-Agent its requests name; "" for MailCraft's)}"#,
         ),
         CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
             let id = account_param(s, v)?;
@@ -205,6 +205,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         None
     };
     let plain = local || jmap.is_some() || graph.is_some() || ews.is_some();
+    let user_agent = if ews.is_some() { user_agent_param(v)?.flatten() } else { None };
     let password = p::str(v, "password").map(str::to_string);
     // Graph signs in with Microsoft, unless given a token to use as it is.
     let oauth = p::str(v, "oauth")
@@ -238,7 +239,13 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         shared_mailboxes: Vec::new(),
         online_only: p::bool(v, "onlineOnly").unwrap_or(false),
         dav: None,
+        user_agent,
     };
+    // A line break or tab pasted in with the user name: no server would ever take it (in an
+    // Exchange `DOMAIN\user`, a `\r` read from JSON became part of it, and sign-in failed).
+    if config.username.chars().any(char::is_control) {
+        return Err(CmdError::Params("the user name has a line break or another invisible character in it".into()));
+    }
     if let Some(o) = &config.oauth
         && !s.oauth_available.contains(o)
     {
@@ -272,6 +279,22 @@ pub(super) fn ews_url(typed: &str) -> String {
     if after_host.contains('/') { with_scheme } else { format!("{with_scheme}/EWS/Exchange.asmx") }
 }
 
+/// `userAgent` (issue #9): `None` when it isn't given, `Some(None)` when it's empty (MailCraft's
+/// own), else the one to name; refused when it can't go in a header.
+fn user_agent_param(v: &Value) -> Result<Option<Option<String>>, CmdError> {
+    match v.get("userAgent") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(s)) if s.trim().is_empty() => Ok(Some(None)),
+        Some(Value::String(s)) => mailcraft_model::user_agent(s).map(|a| Some(Some(a))).ok_or_else(|| {
+            CmdError::Params(format!(
+                "a User-Agent is up to {} letters, digits, spaces and punctuation (no other characters)",
+                mailcraft_model::MAX_USER_AGENT
+            ))
+        }),
+        Some(_) => Err(CmdError::Params("`userAgent` is text".into())),
+    }
+}
+
 pub(super) fn set_password(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_str(v, "account")?;
     let pw = p::req_str(v, "password")?;
@@ -292,6 +315,9 @@ pub(super) fn update_account(s: &mut Session, v: &Value) -> CmdResult {
         c.name = n.trim().chars().take(200).collect();
     }
     if let Some(u) = p::str(v, "username").map(str::trim).filter(|u| !u.is_empty()) {
+        if u.chars().any(char::is_control) {
+            return Err(CmdError::Params("the user name has a line break or another invisible character in it".into()));
+        }
         c.username = u.to_string();
     }
     match v.get("jmap") {
@@ -303,6 +329,11 @@ pub(super) fn update_account(s: &mut Session, v: &Value) -> CmdResult {
         && c.ews.is_some()
     {
         c.ews = Some(ews_url(u));
+    }
+    if let Some(agent) = user_agent_param(v)?
+        && c.ews.is_some()
+    {
+        c.user_agent = agent;
     }
     if let Some(pop) = c.pop.clone() {
         c.pop = Some(server(v, "pop", &pop)?);
@@ -401,6 +432,7 @@ pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "graph": a.config.graph,
             "pop": a.config.pop.as_ref().map(|p| format!("{}:{} ({})", p.host, p.port, p.security.code())),
             "ews": a.config.ews,
+            "userAgent": a.config.user_agent,
             "imap": format!("{}:{} ({})", a.config.imap.host, a.config.imap.port, a.config.imap.security.code()),
             "smtp": format!("{}:{} ({})", a.config.smtp.host, a.config.smtp.port, a.config.smtp.security.code()),
             "status": a.status,

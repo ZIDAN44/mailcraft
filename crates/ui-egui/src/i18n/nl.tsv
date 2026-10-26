@@ -1213,11 +1213,22 @@ month	May	mei
 	Accent colour	Accentkleur
 	Any colour	Elke kleur
 	Buttons, links, the selection and the top bar	Knoppen, koppelingen, de selectie en de bovenbalk
+	Everyone in your organisation's directory, asked of the server	Iedereen in de adreslijst van je organisatie, aan de server gevraagd
+	Global Address List	Algemene adreslijst
 	Indigo	Indigo
+	Left empty: MailCraft's own	Leeg: die van MailCraft zelf
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Alleen als de server van je organisatie MailCraft weigert: de naam van een mailprogramma dat hij wel toelaat.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	Alleen letters, cijfers, spaties en leestekens, hooguit 256 tekens.
 	Orange	Oranje
 	Plain top bar	Eenvoudige bovenbalk
 	Red	Rood
+	Refresh: search the directory again and read the address books from the server	Vernieuwen: opnieuw in de adreslijst zoeken en de adresboeken opnieuw van de server lezen
 	Rose	Roze
+	Search the directory now	Nu in de adreslijst zoeken
+	Searching your organisation's directory…	Zoeken in de adreslijst van je organisatie…
 	Teal	Petrol
+	The directory couldn't be searched: {error}	Er kon niet in de adreslijst worden gezocht: {error}
 	The top bar in the panes' colours instead of the accent colour	De bovenbalk in de kleuren van de deelvensters in plaats van de accentkleur
+	Type a name to search your organisation's directory.	Typ een naam om in de adreslijst van je organisatie te zoeken.
+	User-Agent (optional)	User-Agent (optioneel)
 	Violet	Violet

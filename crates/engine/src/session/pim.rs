@@ -11,6 +11,9 @@ use super::*;
 
 pub use mailcraft_model::pim::PIM_DOC;
 
+pub mod directory;
+pub use directory::Directory;
+
 /// The part of the app on screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

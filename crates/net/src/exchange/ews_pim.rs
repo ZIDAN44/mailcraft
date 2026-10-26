@@ -649,20 +649,29 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             Err(x) => out.errors.push(format!("{}: {x}", k.card.display())),
         }
     }
-    // Then both folders, read again.
-    for it in items(c, "calendar")? {
-        if let Some(event) = event_of(&it) {
-            let (href, etag) = it
-                .child("ItemId")
-                .map(|i| (i.attr("Id").unwrap_or("").to_string(), i.attr("ChangeKey").unwrap_or("").to_string()))
-                .unwrap_or_default();
-            out.events.push(StoredEvent { calendar: CALENDAR.into(), href, etag, event, dirty: false });
+    // Then both folders, read again. One the server refuses keeps what was read of it before,
+    // and doesn't hold up the other (issue #9: the address books stayed as they were whenever
+    // the calendar failed). A server that can't be reached stops the pass, so nothing read
+    // before is dropped for want of an answer.
+    match items(c, "calendar") {
+        Ok(list) => {
+            for it in list {
+                if let Some(event) = event_of(&it) {
+                    let (href, etag) = it
+                        .child("ItemId")
+                        .map(|i| (i.attr("Id").unwrap_or("").to_string(), i.attr("ChangeKey").unwrap_or("").to_string()))
+                        .unwrap_or_default();
+                    out.events.push(StoredEvent { calendar: CALENDAR.into(), href, etag, event, dirty: false });
+                }
+            }
+            out.synced_calendars.push(CALENDAR.into());
         }
+        Err(NetError::No(e)) => log::info!("calendar: {e}"),
+        Err(e) => return Err(e),
     }
     // Named as the server names it, in the mailbox's language ("Agenda"), as Outlook shows it.
     let own = folder_name(c, "calendar").unwrap_or_else(|| "Calendar".into());
     let mut calendars = vec![CalendarInfo { id: CALENDAR.into(), name: own, color: 0, read_only: false, ctag: String::new() }];
-    out.synced_calendars.push(CALENDAR.into());
     // Other people's calendars opened here (Open shared calendar), then the calendars of the
     // shared mailboxes the account opens (Outlook lists a shared mailbox's calendar with its
     // mail): each their mailbox's calendar folder, the delegate permissions they gave deciding
@@ -709,15 +718,21 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         calendars.push(CalendarInfo { id, name, color: u8::try_from((n + 1) % 8).unwrap_or(0), read_only: !can_edit, ctag: String::new() });
     }
     out.calendars = Some(calendars);
-    for it in items(c, "contacts")? {
-        if let Some(card) = card_of(&it) {
-            let etag = it.child("ItemId").and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string();
-            out.cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{}", card.uid), etag, card, dirty: false });
+    match items(c, "contacts") {
+        Ok(list) => {
+            for it in list {
+                if let Some(card) = card_of(&it) {
+                    let etag = it.child("ItemId").and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string();
+                    out.cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{}", card.uid), etag, card, dirty: false });
+                }
+            }
+            out.synced_books.push(CONTACTS.into());
         }
+        Err(NetError::No(e)) => log::info!("contacts: {e}"),
+        Err(e) => return Err(e),
     }
     let own = folder_name(c, "contacts").unwrap_or_else(|| "Contacts".into());
     let mut books = vec![BookInfo { id: CONTACTS.into(), name: own, read_only: false, ctag: String::new() }];
-    out.synced_books.push(CONTACTS.into());
     // The organisation's shared contacts and calendars kept as public folders (on-premises
     // Exchange): read-only, as Outlook shows them under Public Folders. A server without public
     // folders has none.

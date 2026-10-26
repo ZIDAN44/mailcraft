@@ -1217,11 +1217,22 @@ month	May	Май
 	Accent colour	Цвет акцента
 	Any colour	Любой цвет
 	Buttons, links, the selection and the top bar	Кнопки, ссылки, выделение и верхняя панель
+	Everyone in your organisation's directory, asked of the server	Все сотрудники из каталога вашей организации (запрос к серверу)
+	Global Address List	Глобальный список адресов
 	Indigo	Индиго
+	Left empty: MailCraft's own	Пусто — собственный от MailCraft
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Только если сервер вашей организации не пускает MailCraft: название почтовой программы, которую он пропускает.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	Только буквы, цифры, пробелы и знаки препинания, не более 256 символов.
 	Orange	Оранжевый
 	Plain top bar	Простая верхняя панель
 	Red	Красный
+	Refresh: search the directory again and read the address books from the server	Обновить: снова выполнить поиск в каталоге и заново загрузить адресные книги с сервера
 	Rose	Розовый
+	Search the directory now	Искать в каталоге сейчас
+	Searching your organisation's directory…	Поиск в каталоге вашей организации…
 	Teal	Бирюзовый
+	The directory couldn't be searched: {error}	Не удалось выполнить поиск в каталоге: {error}
 	The top bar in the panes' colours instead of the accent colour	Верхняя панель в цветах областей, а не в цвете акцента
+	Type a name to search your organisation's directory.	Введите имя для поиска в каталоге вашей организации.
+	User-Agent (optional)	User-Agent (необязательно)
 	Violet	Фиолетовый

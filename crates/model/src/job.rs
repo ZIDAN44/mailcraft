@@ -230,6 +230,9 @@ pub enum Job {
     /// Sync the account's calendars and address books with its CalDAV / CardDAV server (changes
     /// made here first).
     SyncDav { account: String },
+    /// Look people up in the account's organisation directory (Exchange's Global Address List,
+    /// issue #9), asked of the server each time; answered by [`Event::Directory`].
+    SearchDirectory { account: String, query: String },
     /// Ask where MailCraft is published for its recent releases (File › About › Check for
     /// updates); answered by [`Event::Releases`].
     CheckUpdates,
@@ -296,6 +299,7 @@ impl Job {
             | Job::GetVacation { account }
             | Job::SetVacation { account, .. }
             | Job::SyncDav { account }
+            | Job::SearchDirectory { account, .. }
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
             Job::FetchUrl { .. }
@@ -475,6 +479,14 @@ pub enum Event {
         keys: Vec<MessageKey>,
         error: Option<String>,
         done: bool,
+    },
+    /// Who the directory found for a [`Job::SearchDirectory`]: (name, address) each, or why it
+    /// couldn't look.
+    Directory {
+        account: String,
+        query: String,
+        people: Vec<(String, String)>,
+        error: Option<String>,
     },
     /// What [`Job::ImportIdentity`] kept: the certificate that signs and encrypts and its issuers
     /// (DER), and the older ones kept only to read mail encrypted to them (each one's certificate);

@@ -1213,11 +1213,22 @@ month	May	مايو
 	Accent colour	لون التمييز
 	Any colour	أي لون
 	Buttons, links, the selection and the top bar	الأزرار والروابط والتحديد والشريط العلوي
+	Everyone in your organisation's directory, asked of the server	كل من في دليل مؤسستك، بالاستعلام من الخادم
+	Global Address List	قائمة العناوين العامة
 	Indigo	نيلي
+	Left empty: MailCraft's own	إذا تُرك فارغًا: الخاص بـ MailCraft
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	فقط إذا رفض خادم مؤسستك MailCraft: اسم برنامج بريد يقبله الخادم.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	أحرف وأرقام ومسافات وعلامات ترقيم فقط، حتى 256 حرفًا.
 	Orange	برتقالي
 	Plain top bar	شريط علوي بسيط
 	Red	أحمر
+	Refresh: search the directory again and read the address books from the server	تحديث: البحث في الدليل مجددًا وإعادة قراءة دفاتر العناوين من الخادم
 	Rose	وردي
+	Search the directory now	البحث في الدليل الآن
+	Searching your organisation's directory…	جارٍ البحث في دليل مؤسستك…
 	Teal	أزرق مخضر
+	The directory couldn't be searched: {error}	تعذّر البحث في الدليل: {error}
 	The top bar in the panes' colours instead of the accent colour	الشريط العلوي بألوان الأجزاء بدلًا من لون التمييز
+	Type a name to search your organisation's directory.	اكتب اسمًا للبحث في دليل مؤسستك.
+	User-Agent (optional)	User-Agent (اختياري)
 	Violet	بنفسجي

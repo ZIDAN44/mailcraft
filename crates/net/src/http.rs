@@ -254,13 +254,11 @@ impl Conn {
 
 fn write_request<S: Write>(s: &mut S, req: &Request, url: &Url, keep: bool) -> Result<()> {
     let host = if url.port == default_port(url.https) { url.host.clone() } else { format!("{}:{}", url.host, url.port) };
-    let mut head = format!(
-        "{} {} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: MailCraft/{}\r\nConnection: {}\r\n",
-        req.method,
-        url.path,
-        env!("CARGO_PKG_VERSION"),
-        if keep { "keep-alive" } else { "close" }
-    );
+    let mut head = format!("{} {} HTTP/1.1\r\nHost: {host}\r\nConnection: {}\r\n", req.method, url.path, if keep { "keep-alive" } else { "close" });
+    // MailCraft's own name, unless the request gives another (an account's own User-Agent).
+    if !req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("User-Agent")) {
+        head.push_str(&format!("User-Agent: MailCraft/{}\r\n", env!("CARGO_PKG_VERSION")));
+    }
     if !req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("Accept")) {
         head.push_str("Accept: */*\r\n");
     }
