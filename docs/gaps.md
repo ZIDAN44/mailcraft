@@ -6,14 +6,14 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.26, 2026-10-25._
+_Status: v0.27, 2026-10-27._
 
 ## Open
 
 | # | Gap | Notes |
 |---|---|---|
 | 1 | **Browser version: accounts other than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so IMAP accounts would need a relay server that holds the password and speaks JMAP to the page: a server product of its own, not built. |
-| 2 | **Right-to-left: inside the editor, selecting** | The window mirrors and right-to-left mail and interface text read right to left. In the message editor a line that mixes right-to-left and left-to-right words is shown in the order egui lays it out (reordering it would put the caret in the wrong places); right-to-left mail can't be selected with the pointer (egui 0.37's text layout counts right-to-left letters wrongly, so a selection would copy nothing), but a right-click copies the line or the whole message as written. Release builds draw Arabic, Hebrew, Japanese, Korean and Thai in the browser with fonts from [storytold/craft-fonts](https://github.com/storytold/craft-fonts); its Simplified Chinese font is too large for the page, so Simplified Chinese still needs the system (the desktop app). |
+| 2 | **Right-to-left: inside the editor, selecting** | The mail window mirrors, inside its panes too, and right-to-left mail and interface text read right to left; dialogs, Calendar, People and Notes aren't mirrored inside yet, and egui's menu items stay on the left. In the message editor a line that mixes right-to-left and left-to-right words is shown in the order egui lays it out (reordering it would put the caret in the wrong places); right-to-left mail can't be selected with the pointer (egui 0.37's text layout counts right-to-left letters wrongly, so a selection would copy nothing), but a right-click copies the line or the whole message as written. Release builds draw Arabic, Hebrew, Japanese, Korean and Thai in the browser with fonts from [storytold/craft-fonts](https://github.com/storytold/craft-fonts); its Simplified Chinese font is too large for the page, so Simplified Chinese still needs the system (the desktop app). |
 | 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail, contacts, calendar items, notes and tasks with a due date come in; export writes the mail as `.pst` and the calendar and contacts beside it as `.ics` and `.vcf`. The writer (`outlook-pst-rw`) makes mail items only, marked read, so contacts, appointments and flags can't go inside the `.pst`; the reader (`outlook-pst`) doesn't open the attachments of an attached message; tasks without a due date are left out (MailCraft has no task list). |
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where it would need the compositor's data-device drag from the window's own Wayland connection, which egui's window layer doesn't share (reaching it would take unsafe code). |
 | 5 | **On-premises Exchange: Kerberos-only servers** | EWS signs in with NTLMv2 or Basic and is found with Autodiscover; a server that only takes Kerberos can't be signed in to. ActiveSync is licensed and out of scope. |
@@ -931,3 +931,40 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   part, so a clear signature over a protected copy of it broke. What sent a message is no longer
   copied inside the signed part. In the browser, both certificates were imported and kept across a
   reload, unlocked with one password and swapped.
+
+### v0.27 — Arabic and Hebrew mirrored, the Craft apps' egui, nothing lost on closing
+- **Arabic and Hebrew mirrored inside the panes:** rows MailCraft paints (folders, accounts,
+  messages, buttons) put icons and avatars on the right and counts and times on the left;
+  rows egui lays out (the top bar, the ribbon, the reading pane's header, the message being
+  written, the status bar) run from the right; scroll bars sit on the left and submenus open to
+  the left. A Hebrew or Arabic paragraph being written starts on the right edge. Long names are
+  cut to one line with "…" instead of wrapping (in every language). A value filled into a
+  translated sentence (an address, a server's error) keeps its own order.
+- **The Craft apps' egui and winit:** both now come from storytold's forks, pinned by revision,
+  as the other Craft apps take them. The egui fork counts right-to-left letters right (stock
+  egui 0.37 lost the caret, and deleting a word could empty the box) and draws right-to-left
+  text in order itself, so MailCraft's own reordering, which turned Latin runs inside Hebrew
+  backwards, is gone.
+- **Nothing lost on closing:** closing MailCraft from the taskbar or Dock while minimized now
+  asks before a message being written is lost (eframe ran only the app's logic then, and the
+  window closed). On macOS ⌘Q asks too, and quitting goes through AppKit, so a Touch Bar Mac
+  can't crash on the way out.
+- **Screen readers:** every button, toggle, folder and message row MailCraft draws says what it
+  is and what it's called (336 controls were unnamed); a question that must be answered is an
+  alert dialog.
+- **Crashes found by a random hand:** a seeded soak test plays the whole window (clicks, drags,
+  keys, typing in five scripts, both themes, two widths). It found the message editor crashing on
+  a cursor past the end of the text, and egui's right-to-left count; both are fixed.
+- **Smaller fixes:** the cache rewrites a file OneDrive or an antivirus holds for a moment
+  instead of failing; a relative `APPDATA`, `HOME` or `XDG_DATA_HOME` no longer places the mail;
+  COM0, LPT0 and the superscript ports are saved as device names; a very tall PDF page or picture
+  stays within the graphics card's limit; each ribbon tab keeps its own scroll place; file
+  dialogs open where the last one was left; the System theme follows a Linux or BSD desktop's
+  dark or light; Ctrl+V pastes a picture again; a picture in a message sits where it is in the
+  text; accounts waiting for a password don't cover the status bar's counts; "Sent To", "Has
+  Attachments", "To:" and "Cc:" are translated; on macOS an update retries a disk image the
+  system is still busy with.
+- **Packaging:** the RPM installs on openSUSE and requires the glibc MailCraft needs; the AppImage
+  and MailCraft.app ship the licences; downloaded packaging tools are pinned and hash-checked; the
+  riscv64 packages declare glibc 2.39; macOS packages are verified after packaging; Hebrew and
+  Korean are drawn in the browser.

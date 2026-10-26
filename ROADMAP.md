@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.26 — Renewed certificates, calendars anywhere, the classic ribbon (2026-10-25). Each milestone below is a version: v0.1 was
+**Stage:** v0.27 — Arabic and Hebrew mirrored, the Craft apps' egui, nothing lost on closing (2026-10-27). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 194 (`mailcraft-cli commands`) |
-| Tests | 558 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 624 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -151,7 +151,16 @@ local-first, media-aware v1); the fuller request is
    path, which Posteo's needs), or at an address given by hand with a password of its own (an app
    password). A classic ribbon (big buttons in named groups) is a View setting, and dark mode tells
    its panes and borders apart.
-27. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+27. **v0.27 — Arabic and Hebrew mirrored, the Craft apps' egui, nothing lost on closing** ✅ In Arabic and Hebrew the mail window and
+   the message being written are mirrored inside the panes too (the ribbon from the right, icons
+   and avatars on the right, scroll bars on the left), and egui draws right-to-left text itself:
+   MailCraft builds egui and winit from the forks the Craft apps share, which also count
+   right-to-left letters right. Closing a minimized window and ⌘Q ask before a message being
+   written is lost. Screen readers hear what every drawn control is. A whole-window soak test
+   plays the app by a random hand, and found two crashes, both fixed. The cache survives a file
+   another program holds, file dialogs reopen where they were left, the System theme follows a
+   Linux desktop, and the packages install on openSUSE and ship their licences.
+28. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -423,3 +432,17 @@ local-first, media-aware v1); the fuller request is
   contrast test. Tried for real: Radicale and GreenMail in Docker through the pool (a calendar
   address as Posteo writes it, its own password, a wrong one; mail to last year's certificate),
   Posteo's DNS records, and the app's File › Info with both certificates and the calendar.
+- **2026-10-27** — **v0.27**, after `v0.26.0-test.23`. egui and winit from storytold's forks by
+  revision in `[patch.crates-io]` (vendor/winit gone); `bidi.rs` keeps only a paragraph's
+  direction and font coverage, and mirrors MailCraft's own rows (`bidi::Mirror`,
+  `row_from_start`); values in translated sentences go between isolates. The close is decided in
+  eframe's logic pass, so a minimized window asks; on macOS the app menu is MailCraft's own (muda)
+  and quits through `terminate:`. AccessKit roles and names on every drawn control, held by a
+  test. `tests/soak.rs` (3 seeds of 300 actions with the tests, `MAILCRAFT_SOAK` for more) found the
+  editor's cursor past the end and egui's right-to-left count. Atomic writes retried on Windows
+  sharing violations; relative `APPDATA`/`HOME`/`XDG_DATA_HOME` ignored; COM0/LPT0 and superscript
+  ports reserved; textures within the card's limit; the desktop portal's color-scheme on Linux.
+  Packaging: soname requirements and libm's GLIBC_2.35 in the RPM, pinned and hash-checked
+  appimagetool and signing client, licences in the AppImage and app bundle, macOS `verify.sh`,
+  craft-fonts b076417 (Hebrew and Korean in the browser); CI through craft-common-actions'
+  `gate.yml`.
