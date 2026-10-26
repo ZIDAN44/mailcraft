@@ -5,6 +5,7 @@ use super::*;
 /// A ribbon button: an icon or a letter, lit when its format is on.
 pub(super) fn fmt_button(ui: &mut Ui, t: &Tokens, face: Face<'_>, on: bool, tip: &str) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
+    crate::widgets::named(ui, &resp, tl!(tip), true, Some(on));
     if on || resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, if on { t.accent_soft } else { t.hover });
     }
@@ -34,6 +35,7 @@ pub(super) fn color_button(
     tip: &str,
 ) -> Option<Option<[u8; 3]>> {
     let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());
+    crate::widgets::named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
     }

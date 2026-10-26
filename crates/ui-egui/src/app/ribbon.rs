@@ -453,6 +453,7 @@ pub(crate) fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut 
         ] {
             let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
             let on = m == module;
+            widgets::named(ui, &resp, tl!(label), true, Some(on));
             if on || resp.hovered() {
                 ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
             }
@@ -474,6 +475,7 @@ pub(crate) fn module_switch_vertical(ui: &mut Ui, t: &Tokens, module: Module, ac
     ] {
         let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
         let on = m == module;
+        widgets::named(ui, &resp, tl!(label), true, Some(on));
         if on || resp.hovered() {
             ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
         }

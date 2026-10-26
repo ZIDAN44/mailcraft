@@ -514,6 +514,7 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
             );
             let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
             let resp = ui.interact(x, ui.scope_id().with(("hide-calendar", account, id)), Sense::click());
+            crate::widgets::named(ui, &resp, &format!("{label}: {}", tl!("Close")), true, None);
             if resp.hovered() {
                 ui.painter().rect_filled(x, 3.0, t.hover);
             }

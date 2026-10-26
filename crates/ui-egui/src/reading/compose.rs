@@ -95,6 +95,7 @@ pub(super) fn label_button(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool) 
 /// A label button that opens a menu: its label and a small drawn chevron, centred together.
 pub(super) fn label_button_menu(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool, menu: bool) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(LABEL_W - 8.0, ROW_H - 4.0), if enabled { Sense::click() } else { Sense::hover() });
+    crate::widgets::named(ui, &resp, tl!(label), enabled, None);
     let fill = if resp.hovered() && enabled { t.hover } else { t.surface };
     ui.painter().rect(rect, 3.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let color = if enabled { t.text } else { t.dim };
@@ -115,6 +116,7 @@ pub(super) fn label_button_menu(ui: &mut Ui, t: &Tokens, label: &str, enabled: b
 /// Outlook's tall Send button beside the address rows.
 pub(super) fn send_button(ui: &mut Ui, t: &Tokens, height: f32, sending: bool) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(66.0, height), if sending { Sense::hover() } else { Sense::click() });
+    crate::widgets::named(ui, &resp, if sending { tl!("Sending…") } else { tl!("Send") }, !sending, None);
     let fill = if resp.hovered() && !sending { t.hover } else { t.surface };
     ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let icon = egui::Rect::from_center_size(rect.center() - vec2(0.0, 10.0), vec2(24.0, 24.0));
@@ -570,6 +572,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                             let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::hover());
                             let x_rect = Rect::from_center_size(egui::pos2(rect.right() - 15.0, rect.center().y), vec2(22.0, 22.0));
                             let x = ui.interact(x_rect, resp.id.with("remove"), Sense::click()).on_hover_text(tl!("Remove"));
+                            widgets::named(ui, &x, &format!("{}: {}", tl!("Remove"), a.name), true, None);
                             let p = ui.painter();
                             p.rect(
                                 rect,

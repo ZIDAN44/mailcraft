@@ -194,6 +194,23 @@ impl Dialog {
     }
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
+    /// A question that must be answered before going on, or a warning: read as an alert.
+    pub fn is_alert(&self) -> bool {
+        self.about_closing()
+            || matches!(
+                self,
+                Dialog::ConfirmDelete { .. }
+                    | Dialog::ConfirmDeleteContact { .. }
+                    | Dialog::ConfirmEmpty { .. }
+                    | Dialog::DeleteFolder { .. }
+                    | Dialog::RemoveAccount { .. }
+                    | Dialog::MailboxClosed { .. }
+                    | Dialog::EmptySubject
+                    | Dialog::SaveChanges
+                    | Dialog::SendCheck(_)
+            )
+    }
+
     /// A question asked as MailCraft closes.
     pub fn about_closing(&self) -> bool {
         matches!(self, Dialog::SaveOnClose(_) | Dialog::LostOnClose { .. } | Dialog::UpdateOnClose(_))
@@ -402,8 +419,14 @@ impl Dialog {
 }
 
 fn title(ui: &mut Ui, t: &Tokens, s: &str) {
-    ui.label(RichText::new(tl!(s)).font(theme::bold(18.0)).color(t.text));
+    let r = ui.label(RichText::new(tl!(s)).font(theme::bold(18.0)).color(t.text));
+    // What the dialog is called, to a screen reader ([`show`] names the dialog after it).
+    ui.ctx().data_mut(|d| d.insert_temp(title_id(), Some(r.id)));
     ui.add_space(6.0);
+}
+
+fn title_id() -> egui::Id {
+    egui::Id::unique("dialog-title")
 }
 
 /// A dialog's bottom row, right-aligned and one row tall: a layout given all the room left made
@@ -439,11 +462,32 @@ pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: 
     // Never taller than the window (issue #1: an invitation's notes put the dialog's title and
     // buttons off a 2160-pixel screen): what doesn't fit scrolls.
     let max = (ctx.content_rect().height() - 48.0).max(200.0);
-    let modal = egui::Modal::new(egui::Id::unique(("dialog", std::mem::discriminant(d)))).frame(frame).show(ctx, |ui| {
-        // As tall as it needs, up to the window: only then does it scroll.
-        egui::ScrollArea::vertical().id_salt("dialog-body").max_height(max).min_scrolled_height(max).show(ui, |ui| body(ui, d, s, t, acts)).inner
+    // A screen reader hears the dialog's title as it opens; a question that must be answered
+    // (delete for good? save before closing?) is an alert, as wordcraft's save prompt is.
+    let id = egui::Id::unique(("dialog", std::mem::discriminant(d)));
+    let role = if d.is_alert() { egui::accesskit::Role::AlertDialog } else { egui::accesskit::Role::Dialog };
+    let modal = egui::Modal::new(id).frame(frame).show(ctx, |ui| {
+        ui.scope_builder(egui::UiBuilder::new().accessibility_role(role), |ui| {
+            // As tall as it needs, up to the window: only then does it scroll.
+            let keep = egui::ScrollArea::vertical()
+                .id_salt("dialog-body")
+                .max_height(max)
+                .min_scrolled_height(max)
+                .show(ui, |ui| body(ui, d, s, t, acts))
+                .inner;
+            (keep, ui.unique_id())
+        })
+        .inner
     });
-    let keep = modal.inner;
+    // Named by its title.
+    let (keep, node_id) = modal.inner;
+    let named = ctx.data_mut(|data| data.remove_temp::<Option<egui::Id>>(title_id()).flatten());
+    ctx.accesskit_node_builder(node_id, |node| {
+        node.set_modal();
+        if let Some(title) = named {
+            node.push_labelled_by(title.accesskit_id());
+        }
+    });
     keep && !modal.should_close()
 }
 

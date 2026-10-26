@@ -204,6 +204,7 @@ pub(super) fn attachment_card(
     let (rect, resp) = ui.allocate_exact_size(vec2(w, CHIP_H), Sense::click_and_drag());
     let more_rect = Rect::from_min_max(egui::pos2(rect.right() - 30.0, rect.top()), rect.max).shrink(2.0);
     let more = ui.interact(more_rect, resp.id.with("more"), Sense::click()).on_hover_text(tl!("More options"));
+    crate::widgets::named(ui, &more, tl!("More options"), true, None);
     // egui counts the chip as hovered under the ▾ too (it senses drags); the ▾ wins there.
     let on_more = more.contains_pointer();
     let body_hovered = resp.hovered() && !on_more;

@@ -130,6 +130,16 @@ fn hover_fill(ui: &Ui, resp: &Response, rect: egui::Rect, t: &Tokens, enabled: b
     }
 }
 
+/// What a drawn button is to a screen reader: a button (or a toggle, `on` given) named `label`
+/// (translated), as egui's own buttons say; without it, AccessKit reads an unnamed button.
+pub(crate) fn named(ui: &Ui, resp: &Response, label: &str, enabled: bool, on: Option<bool>) {
+    let enabled = enabled && ui.is_enabled();
+    resp.widget_info(|| match on {
+        Some(on) => egui::WidgetInfo::selected(egui::Role::Button, enabled, on, label),
+        None => egui::WidgetInfo::labeled(egui::Role::Button, enabled, label),
+    });
+}
+
 fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 30.0), if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
@@ -149,15 +159,20 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
         let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
         ribbon_button(ui, width);
-        return big_button(ui, icon, label, t, enabled, false, false);
+        let resp = big_button(ui, icon, label, t, enabled, false, false);
+        named(ui, &resp, label, enabled, None);
+        return resp;
     }
     let font = theme::regular(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     if ribbon_button(ui, galley.size().x) {
-        return icon_button(ui, icon, label, t, enabled, false);
+        let resp = icon_button(ui, icon, label, t, enabled, false);
+        named(ui, &resp, label, enabled, None);
+        return resp;
     }
     let size = vec2(galley.size().x + 36.0, 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    named(ui, &resp, label, enabled, None);
     reached(ui, rect);
     let color = if enabled { t.text } else { t.faint };
     hover_fill(ui, &resp, rect, t, enabled);
@@ -174,13 +189,18 @@ pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
         let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
         ribbon_button(ui, width);
-        return big_button(ui, icon, label, t, true, on, false);
+        let resp = big_button(ui, icon, label, t, true, on, false);
+        named(ui, &resp, label, true, Some(on));
+        return resp;
     }
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
     if ribbon_button(ui, galley.size().x) {
-        return icon_button(ui, icon, label, t, true, on);
+        let resp = icon_button(ui, icon, label, t, true, on);
+        named(ui, &resp, label, true, Some(on));
+        return resp;
     }
     let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 36.0, 30.0), Sense::click());
+    named(ui, &resp, label, true, Some(on));
     reached(ui, rect);
     // Lit or not, easing between the two.
     let lit = crate::motion::toward(ui.ctx(), resp.id.with("on"), on, crate::motion::NORMAL);
@@ -204,6 +224,7 @@ pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -
 /// A "⋯" button in the style of [`pill_button`], for a menu of more actions.
 pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());
+    named(ui, &resp, tl!(tip), true, None);
     let fill = if resp.hovered() { t.hover } else { t.surface };
     ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     for dx in [-6.0, 0.0, 6.0] {
@@ -216,12 +237,15 @@ pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
 pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
     if classic(ui) {
-        return big_button(ui, icon, label, t, enabled, false, true);
+        let resp = big_button(ui, icon, label, t, enabled, false, true);
+        named(ui, &resp, label, enabled, None);
+        return resp;
     }
     let font = theme::bold(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.on_accent);
     let size = vec2(galley.size().x + 40.0, 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    named(ui, &resp, label, enabled, None);
     let fill = if !enabled {
         t.faint
     } else if resp.hovered() {
@@ -242,6 +266,7 @@ pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Re
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::bold(13.0), t.on_accent);
     let size = vec2((galley.size().x + 28.0).max(76.0), 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    named(ui, &resp, label, enabled, None);
     let fill = if !enabled {
         t.faint
     } else if resp.hovered() {
@@ -257,6 +282,7 @@ pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Re
 /// An icon button on the coloured title bar.
 pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+    named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 6.0, Color32::from_white_alpha(40));
     }
@@ -269,6 +295,7 @@ pub fn tiny_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Respo
     // On the classic ribbon, a button's drop-down arrow is as tall as the button, beside it.
     if classic(ui) {
         let (rect, resp) = ui.allocate_exact_size(vec2(18.0, CLASSIC_BUTTON_H), Sense::click());
+        named(ui, &resp, tl!(tip), true, None);
         reached(ui, rect);
         hover_fill(ui, &resp, rect, t, true);
         let ir = egui::Rect::from_center_size(egui::pos2(rect.center().x, rect.bottom() - 14.0), vec2(12.0, 12.0));
@@ -276,6 +303,7 @@ pub fn tiny_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Respo
         return resp.on_hover_text(tl!(tip));
     }
     let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+    named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
     }
@@ -335,6 +363,7 @@ pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
     let size = vec2(galley.size().x + 34.0, 28.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
+    named(ui, &resp, label, true, None);
     let fill = if resp.hovered() { t.hover } else { t.surface };
     ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     icons::paint(ui.painter(), egui::Rect::from_min_size(rect.min + vec2(9.0, 6.0), vec2(16.0, 16.0)), icon, t.accent);

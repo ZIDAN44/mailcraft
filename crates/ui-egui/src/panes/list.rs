@@ -300,6 +300,19 @@ fn message_row(
     let hovered = ui.rect_contains_pointer(r) && !ui.ctx().is_being_dragged(id) || resp.hovered();
     let selected = s.selection.contains(&m.key);
     let unread = if count > 1 { unread_in_thread > 0 } else { !m.flags.seen };
+    // To a screen reader a row is one item of the list: who, the subject, when, and what its
+    // markers show (unread, flagged, attachments).
+    resp.widget_info(|| {
+        let who = if sent_view { m.to.first().map(|a| a.display().to_string()).unwrap_or_default() } else { m.from.display().to_string() };
+        let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+        let mut spoken = vec![who, subject.to_string(), crate::i18n::date(&dates::list_time(m.date, &s.clock))];
+        for (on, word) in [(unread, "Unread"), (m.flags.flagged, "Flagged"), (m.has_attachments, "Has attachments")] {
+            if on {
+                spoken.push(tl!(word).to_string());
+            }
+        }
+        egui::WidgetInfo::selected(egui::Role::ListItem, true, selected, spoken.join(", "))
+    });
     let p = ui.painter_at(r);
     let sel = crate::motion::toward(ui.ctx(), id.with("selected"), selected, crate::motion::NORMAL);
     let hover = crate::motion::toward(ui.ctx(), id.with("hover"), hovered, crate::motion::FAST);
@@ -417,6 +430,7 @@ fn message_row(
         for (ic, tip, cmd, params) in actions {
             let br = Rect::from_min_size(egui::pos2(bx, line2 - 3.0), vec2(22.0, 22.0));
             let bresp = ui.interact(br, id.with(cmd), Sense::click()).on_hover_text(tip);
+            crate::widgets::named(ui, &bresp, tip, true, None);
             if bresp.hovered() {
                 ui.painter().rect_filled(br, 4.0, t.border);
             }

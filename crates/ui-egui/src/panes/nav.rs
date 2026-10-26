@@ -52,6 +52,7 @@ fn ancestors(f: &Folder) -> Vec<String> {
 fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
     ui.add_space(2.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+    crate::widgets::named(ui, &resp, tl!(label), true, Some(open));
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
     }
@@ -76,6 +77,9 @@ fn row(
 ) -> egui::Response {
     let h = 30.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
+    // To a screen reader, a folder is one choice among the folders: its name, and its unread count.
+    let spoken = if unread > 0 { format!("{label}, {}", tf!("Unread: {n}", n = unread)) } else { label.to_string() };
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, ui.is_enabled(), selected, &spoken));
     let hovering_drop = drop_ok && (resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some());
     let ctx = ui.ctx().clone();
     let sel = crate::motion::toward(&ctx, resp.id.with("selected"), selected, crate::motion::NORMAL);
@@ -165,6 +169,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             } else {
                 a.config.email.clone()
             };
+            crate::widgets::named(ui, &resp, &label, true, Some(open));
             ui.painter().with_clip_rect(rect).text(rect.min + vec2(36.0, 15.0), egui::Align2::LEFT_CENTER, label, theme::bold(13.0), t.text);
             if resp.clicked() {
                 acts.push(Action::Run("view.collapse", json!({"key": key})));
@@ -256,6 +261,7 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
         }
     };
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+    crate::widgets::named(ui, &resp, tl!("Search Folders"), true, Some(open));
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
     }
@@ -404,6 +410,7 @@ fn shared_header(
     let ir = egui::Rect::from_min_size(rect.min + vec2(20.0, 8.0), vec2(14.0, 14.0));
     icons::paint(ui.painter(), ir, Icon::People, t.dim);
     let name = crate::i18n::folder(top);
+    crate::widgets::named(ui, &resp, &name, true, Some(open));
     // Its unread mail, as Outlook shows a collapsed mailbox's Inbox.
     let unread: u32 =
         if open { 0 } else { a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.mailbox_role == FolderRole::Inbox).map(|f| f.unread).sum() };
@@ -493,6 +500,7 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
         let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
         let chev = egui::Rect::from_min_size(egui::pos2(x, resp.rect.center().y - 6.0), vec2(12.0, 12.0));
         let c = ui.interact(chev.expand(4.0), resp.id.with("collapse"), Sense::click());
+        crate::widgets::named(ui, &c, &format!("{name}: {}", tl!(if collapsed { "Expand" } else { "Collapse" })), true, None);
         icons::paint(ui.painter(), chev, if collapsed { Icon::ChevronRight } else { Icon::ChevronDown }, if c.hovered() { t.text } else { t.dim });
         if c.clicked() {
             acts.push(Action::Run("view.collapse", json!({"key": folder_key(&f.account, &f.path)})));

@@ -133,6 +133,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
 
 fn rail_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, on: bool) -> egui::Response {
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
+    crate::widgets::named(ui, &resp, tl!(label), true, Some(on));
     if on || resp.hovered() {
         ui.painter().rect_filled(r, 0.0, if on { t.accent_soft } else { t.hover_row });
     }
