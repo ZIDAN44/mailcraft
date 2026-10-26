@@ -34,6 +34,29 @@ pub(crate) struct Desktop {
     pub(crate) updater: Option<self_update::Updater>,
     /// The desktop's light or dark preference where winit doesn't report one (`appearance.rs`).
     pub(crate) dark: appearance::SystemDark,
+    /// The folder of the last file picked or saved: the next file dialog opens there (attaching
+    /// several files from one folder, saving attachments beside each other), as figcraft's do.
+    pub(crate) last_dir: Option<PathBuf>,
+}
+
+impl Desktop {
+    /// A file dialog titled `title`, open at the folder last used when it's still there.
+    fn dialog(&self, title: &str) -> rfd::FileDialog {
+        let d = rfd::FileDialog::new().set_title(title);
+        match self.last_dir.as_ref().filter(|d| d.is_dir()) {
+            Some(dir) => d.set_directory(dir),
+            None => d,
+        }
+    }
+
+    /// Notes where a dialog's answer was (a file's folder, or the folder picked); passes it on.
+    fn used<T: AsRef<Path>>(&mut self, picked: Option<T>, is_folder: bool) -> Option<T> {
+        if let Some(p) = &picked {
+            let p = p.as_ref();
+            self.last_dir = if is_folder { Some(p.to_path_buf()) } else { p.parent().map(Path::to_path_buf) }.or(self.last_dir.take());
+        }
+        picked
+    }
 }
 
 impl Services for Desktop {
@@ -48,10 +71,12 @@ impl Services for Desktop {
         self.dark.get()
     }
     fn pick_files(&mut self) -> Vec<PathBuf> {
-        rfd::FileDialog::new().set_title("Attach files").pick_files().unwrap_or_default()
+        let files = self.dialog("Attach files").pick_files().unwrap_or_default();
+        self.used(files.first(), false);
+        files
     }
     fn save_path(&mut self, suggested: &str) -> Option<PathBuf> {
-        let mut d = rfd::FileDialog::new().set_title("Save as").set_file_name(suggested);
+        let mut d = self.dialog("Save as").set_file_name(suggested);
         // Save as type: the suggested name's kind first, so the system keeps its extension.
         if let Some((_, ext)) = suggested.rsplit_once('.').filter(|(_, e)| !e.is_empty() && e.len() <= 8) {
             let kind = match ext.to_ascii_lowercase().as_str() {
@@ -67,7 +92,8 @@ impl Services for Desktop {
             };
             d = d.add_filter(kind, &[ext]).add_filter("All files", &["*"]);
         }
-        d.save_file()
+        let saved = d.save_file();
+        self.used(saved, false)
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
         shell_open(path.as_os_str())
@@ -231,17 +257,17 @@ impl Services for Desktop {
         VideoFrame::Pending
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {
-        rfd::FileDialog::new().set_title("Save attachments to").pick_folder()
+        let folder = self.dialog("Save attachments to").pick_folder();
+        self.used(folder, true)
     }
     fn pick_certificate(&mut self) -> Option<PathBuf> {
-        rfd::FileDialog::new()
-            .set_title("Import certificate")
-            .add_filter("Certificate with its key", &["p12", "pfx"])
-            .add_filter("All files", &["*"])
-            .pick_file()
+        let file =
+            self.dialog("Import certificate").add_filter("Certificate with its key", &["p12", "pfx"]).add_filter("All files", &["*"]).pick_file();
+        self.used(file, false)
     }
     fn pick_rules_file(&mut self) -> Option<PathBuf> {
-        rfd::FileDialog::new().set_title("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file()
+        let file = self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file();
+        self.used(file, false)
     }
     fn pick_data_file(&mut self) -> Option<PathBuf> {
         let mut d = rfd::FileDialog::new();
@@ -256,11 +282,10 @@ impl Services for Desktop {
             .pick_file()
     }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
-        rfd::FileDialog::new()
-            .set_title("Insert pictures")
-            .add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
-            .pick_files()
-            .unwrap_or_default()
+        let files =
+            self.dialog("Insert pictures").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files().unwrap_or_default();
+        self.used(files.first(), false);
+        files
     }
     fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
         let img = read_clipboard(|c| c.get_image().ok())?;
@@ -324,5 +349,31 @@ pub(crate) fn shell_open(target: &std::ffi::OsStr) -> Result<(), String> {
     #[cfg(not(windows))]
     {
         open::that_detached(target).map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The next dialog opens where the last answer was: a file's folder, or the folder picked;
+    /// a cancelled dialog leaves it, and a folder that's gone isn't offered.
+    #[test]
+    fn dialogs_open_where_the_last_one_was() {
+        let root = std::env::temp_dir().join(format!("mailcraft-dialogs-{}", std::process::id()));
+        let (docs, out) = (root.join("Docs"), root.join("Out"));
+        std::fs::create_dir_all(&docs).unwrap();
+        std::fs::create_dir_all(&out).unwrap();
+        let mut d = Desktop::default();
+        assert_eq!(d.used(Some(docs.join("plan.pdf")), false), Some(docs.join("plan.pdf")));
+        assert_eq!(d.last_dir.as_deref(), Some(docs.as_path()));
+        d.used(None::<PathBuf>, false);
+        assert_eq!(d.last_dir.as_deref(), Some(docs.as_path()), "cancelled: kept");
+        d.used(Some(out.clone()), true);
+        assert_eq!(d.last_dir.as_deref(), Some(out.as_path()));
+        let _ = d.dialog("Attach files");
+        std::fs::remove_dir_all(&root).unwrap();
+        assert!(d.last_dir.as_ref().is_some_and(|p| !p.is_dir()), "gone: the dialog opens where the system says");
+        let _ = d.dialog("Attach files");
     }
 }
