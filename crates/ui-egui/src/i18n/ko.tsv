@@ -1239,3 +1239,7 @@ month	May	5월
 	Allow searching the directory…	디렉터리 검색 허용…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft가 브라우저에서 묻습니다. 메일 로그인은 그대로 유지됩니다
 	Your organisation's directory needs your permission to be searched from MailCraft.	MailCraft에서 조직 디렉터리를 검색하려면 권한을 허용해야 합니다.
+	Keep unlocked in this browser	이 브라우저에서 잠금 해제 상태 유지
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	비밀번호는 이 브라우저가 만들고 절대 내보내지 않는 키로 봉인되어 보관됩니다. 이 브라우저 프로필을 쓰는 사람은 서명하고 암호화된 메일을 읽을 수 있지만, 키를 다른 곳으로 가져갈 수는 없습니다.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	브라우저는 파일을 비밀번호로 잠근 채 보관하고, 비밀번호는 이 브라우저를 떠나지 않는 키로 봉인해 보관합니다.
+	Your certificate's password, to keep it unlocked in this browser:	이 브라우저에서 잠금 해제 상태로 유지할 인증서 비밀번호:

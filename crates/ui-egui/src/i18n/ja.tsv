@@ -1236,3 +1236,7 @@ month	May	5月
 	Allow searching the directory…	ディレクトリの検索を許可…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft がブラウザーで確認します。メールのサインインはそのままです
 	Your organisation's directory needs your permission to be searched from MailCraft.	MailCraft から組織のディレクトリを検索するには、許可が必要です。
+	Keep unlocked in this browser	このブラウザーでロックを解除したままにする
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	パスワードは、このブラウザーが作成し外に出さないキーで封印して保管されます。このブラウザーのプロファイルを使う人は署名や暗号化メールの閲覧ができますが、キーを他へ持ち出すことはできません。
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	ブラウザーはファイルをパスワードでロックしたまま保管し、パスワードはこのブラウザーから出ないキーで封印して保管します。
+	Your certificate's password, to keep it unlocked in this browser:	このブラウザーでロックを解除したままにする証明書のパスワード:

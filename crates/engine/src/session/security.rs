@@ -43,6 +43,10 @@ pub struct SmimeSettings {
     /// Encrypted mail shows its subject on the way (header protection's `[...]` left out).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub keep_subject: bool,
+    /// The browser (gap 7): the certificates stay unlocked between visits, their password
+    /// encrypted with a key the browser won't let out.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub keep_unlocked: bool,
     /// Certificates of people who sent signed mail, by lower-case address.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub known: BTreeMap<String, KnownCert>,
@@ -227,6 +231,19 @@ impl Session {
         s.encrypt = false;
         self.save_smime(account);
         Ok(serde_json::json!({ "forgotten": account }))
+    }
+
+    /// The browser (gap 7): keep `account`'s certificates unlocked between visits, or stop (their
+    /// kept password forgotten). The desktop keeps keys in the system's keychain already.
+    pub fn keep_unlocked(&mut self, account: &str, on: bool) -> CmdResult {
+        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if !self.jmap_only {
+            return Err(CmdError::Disabled("the desktop app keeps certificates in the system's keychain: they stay unlocked".into()));
+        }
+        self.smime.entry(account.to_string()).or_default().keep_unlocked = on;
+        self.save_smime(account);
+        self.jobs.push(Job::KeepUnlocked { account: config, on });
+        Ok(serde_json::json!({ "keepUnlocked": on }))
     }
 
     /// Whether new messages from `account` are signed or encrypted.

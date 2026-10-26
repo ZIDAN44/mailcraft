@@ -1236,3 +1236,7 @@ month	May	5月
 	Allow searching the directory…	允许搜索目录…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft 会在浏览器中询问；邮件的登录保持不变
 	Your organisation's directory needs your permission to be searched from MailCraft.	要从 MailCraft 搜索组织目录，需要你的许可。
+	Keep unlocked in this browser	在此浏览器中保持解锁
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	密码用此浏览器生成且从不外泄的密钥封存：使用此浏览器配置文件的任何人都能签名并阅读你的加密邮件，但没人能把密钥带到别处。
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	浏览器保存该文件（用其密码锁定），并用从不离开此浏览器的密钥封存密码。
+	Your certificate's password, to keep it unlocked in this browser:	证书的密码，用于在此浏览器中保持解锁：

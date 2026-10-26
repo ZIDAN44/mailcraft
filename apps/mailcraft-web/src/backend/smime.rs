@@ -3,8 +3,10 @@
 //! its password (PBES2), which is never kept. As on the desktop, a renewal keeps the old
 //! certificate to read mail sent to it ([`smime::own`]). Keys are opened with their password for
 //! this page only; after a reload the certificates are locked until a password is given again
-//! (File › Info › Security › Unlock…), which opens every one it's the password of. Signing,
-//! encrypting and decrypting are the desktop's own code.
+//! (File › Info › Security › Unlock…), which opens every one it's the password of; or, when the
+//! user asks (Keep unlocked in this browser, gap 7), the passwords that opened them are kept
+//! sealed with a key the browser won't let out ([`crate::vault`]) and open them again on the next
+//! visit. Signing, encrypting and decrypting are the desktop's own code.
 
 use mailcraft_engine::model::{Event, Job, Private};
 use mailcraft_engine::smime::own::{Entry, Own, Taken};
@@ -17,6 +19,10 @@ use super::{Rcs, Task, emit, enqueue, notice, now, store};
 const OWN_DOC: &str = "smime-own.json";
 /// Where an earlier MailCraft kept the one `.p12` file (read until something new is kept).
 const P12_DOC: &str = "smime-p12.json";
+
+/// The passwords that opened the account's certificates, sealed ([`crate::vault`]), when they're
+/// kept unlocked between visits.
+const KEEP_DOC: &str = "smime-keep.bin";
 
 /// Why the key can't be used until its password is given again.
 const LOCKED: &str = "your certificate is locked in this browser: unlock it with its password (File › Info › Security)";
@@ -163,6 +169,7 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
                 emit(sh, failed(id, "the password is wrong for every certificate kept in this browser".into()));
                 return;
             }
+            remember(sh, id, &password.0);
             let locked = own.current.iter().chain(&own.older).filter(|e| !opened.iter().any(|o| o.certificate() == e.cert.as_slice())).count();
             unlock(sh, id, opened);
             if locked > 0 {
@@ -190,6 +197,9 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
             let entry = Entry { cert: me.certificate().to_vec(), p12: if keep { data } else { Vec::new() } };
             match own.take(entry, now()) {
                 Ok(taken) => {
+                    if keep {
+                        remember(sh, id, &password.0);
+                    }
                     unlock(sh, id, vec![me]);
                     save(sh, id, &own);
                     emit(sh, identity(sh, id, &own, taken == Taken::ForReading));
@@ -203,7 +213,17 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
                 lock(sh, id, &[cur.cert]);
             }
             save(sh, id, &own);
+            if own.current.is_none() && own.older.is_empty() {
+                stop_keeping(sh, id);
+            }
         }
+        Job::KeepUnlocked { on: true, .. } => {
+            if sh.borrow().smime_passwords.get(id).is_none_or(Vec::is_empty) {
+                notice(sh, id, "unlock your certificate once with its password (Unlock…) and it's kept unlocked from then on".into());
+            }
+            reseal(sh, id, true);
+        }
+        Job::KeepUnlocked { on: false, .. } => stop_keeping(sh, id),
         Job::ForgetOlderIdentity { fingerprint, .. } => {
             let mut own = load(sh, id);
             let gone: Vec<Vec<u8>> =
@@ -254,4 +274,91 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
         }
         _ => {}
     }
+}
+
+/// Note a password that opened certificates in this page; kept sealed again when the account's
+/// certificates are kept unlocked.
+fn remember(sh: &Rcs, id: &str, password: &str) {
+    if password.is_empty() {
+        return;
+    }
+    {
+        let mut s = sh.borrow_mut();
+        let list = s.smime_passwords.entry(id.to_string()).or_default();
+        if !list.iter().any(|p| p == password) {
+            list.push(password.to_string());
+        }
+    }
+    reseal(sh, id, false);
+}
+
+/// Whether the account's certificates are kept unlocked between visits.
+fn keeping(sh: &Rcs, id: &str) -> bool {
+    store(sh).load_account_doc::<Vec<u8>>(id, KEEP_DOC).is_ok_and(|d| !d.is_empty())
+}
+
+/// Seal the passwords noted for the account and keep them (`start`: whether or not they were kept
+/// before; otherwise only while they are).
+fn reseal(sh: &Rcs, id: &str, start: bool) {
+    if !start && !keeping(sh, id) {
+        return;
+    }
+    let passwords = sh.borrow().smime_passwords.get(id).cloned().unwrap_or_default();
+    let (sh, id) = (sh.clone(), id.to_string());
+    wasm_bindgen_futures::spawn_local(async move {
+        let plain = serde_json::to_vec(&passwords).unwrap_or_default();
+        match crate::vault::seal(&plain).await {
+            Ok(sealed) => {
+                if let Err(e) = store(&sh).save_account_doc(&id, KEEP_DOC, &sealed) {
+                    notice(&sh, &id, format!("the certificate can't be kept unlocked in this browser: {e}"));
+                }
+            }
+            Err(e) => notice(&sh, &id, format!("the certificate can't be kept unlocked in this browser: {e}")),
+        }
+    });
+}
+
+/// Stop keeping the account's certificates unlocked: the sealed passwords go, and the browser's
+/// key too once no account needs it.
+fn stop_keeping(sh: &Rcs, id: &str) {
+    let st = store(sh);
+    let _ = st.save_account_doc(id, KEEP_DOC, &Vec::<u8>::new());
+    let others = sh.borrow().accounts.keys().any(|a| a != id && keeping(sh, a));
+    if !others {
+        wasm_bindgen_futures::spawn_local(async {
+            if let Err(e) = crate::vault::forget().await {
+                log::warn!("the browser's sealing key wasn't forgotten: {e}");
+            }
+        });
+    }
+}
+
+/// On a visit: certificates kept unlocked are opened again with their sealed passwords. One the
+/// browser can no longer open them for (its key gone, another browser) stays locked and says so.
+pub(super) fn restore(sh: &Rcs, id: &str) {
+    if !keeping(sh, id) || sh.borrow().smime.get(id).is_some_and(|i| !i.is_empty()) {
+        return;
+    }
+    let sealed: Vec<u8> = store(sh).load_account_doc(id, KEEP_DOC).unwrap_or_default();
+    let (sh, id) = (sh.clone(), id.to_string());
+    wasm_bindgen_futures::spawn_local(async move {
+        let passwords: Vec<String> = match crate::vault::open(&sealed).await {
+            Ok(plain) => serde_json::from_slice(&plain).unwrap_or_default(),
+            Err(e) => {
+                notice(&sh, &id, format!("your certificate couldn't be unlocked as kept: {e}. Unlock it with its password"));
+                return;
+            }
+        };
+        let own = load(&sh, &id);
+        let mut opened = Vec::new();
+        for p in &passwords {
+            opened.extend(own.unlock(p));
+        }
+        sh.borrow_mut().smime_passwords.insert(id.clone(), passwords);
+        if opened.is_empty() {
+            return;
+        }
+        unlock(&sh, &id, opened);
+        emit(&sh, identity(&sh, &id, &own, false));
+    });
 }

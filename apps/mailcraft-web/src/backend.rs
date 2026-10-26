@@ -66,6 +66,9 @@ struct Shared {
     search: u64,
     /// Each account's certificates unlocked with their password, their keys: this page only.
     smime: HashMap<String, Vec<mailcraft_engine::smime::Identity>>,
+    /// The passwords that opened them, for keeping them unlocked when that's asked (gap 7):
+    /// in memory, and sealed with the browser's key only then.
+    smime_passwords: HashMap<String, Vec<String>>,
 }
 
 type Rcs = Rc<RefCell<Shared>>;
@@ -86,6 +89,7 @@ impl WebBackend {
                 opts,
                 search: 0,
                 smime: HashMap::new(),
+                smime_passwords: HashMap::new(),
             })),
         }
     }
@@ -508,6 +512,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         j @ (Job::ImportIdentity { .. }
         | Job::ForgetIdentity { .. }
         | Job::ForgetOlderIdentity { .. }
+        | Job::KeepUnlocked { .. }
         | Job::UseOlderIdentity { .. }
         | Job::Protect { .. }
         | Job::Decrypt { .. }
@@ -687,6 +692,8 @@ impl Backend for WebBackend {
                     );
                     generation
                 };
+                // Kept unlocked between visits: its certificates opened again.
+                smime::restore(sh, &id);
                 enqueue(sh, &id, Task::Connect);
                 wasm_bindgen_futures::spawn_local(poll(sh.clone(), id.clone(), generation));
                 wasm_bindgen_futures::spawn_local(push(sh.clone(), id, generation));

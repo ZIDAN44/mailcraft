@@ -16,7 +16,7 @@ fn js(e: &JsValue) -> String {
 }
 
 /// A request's result, once it has one.
-async fn done(req: &IdbRequest) -> Result<JsValue, String> {
+pub(crate) async fn done(req: &IdbRequest) -> Result<JsValue, String> {
     let r = req.clone();
     let promise = js_sys::Promise::new(&mut |resolve, reject| {
         let ok_req = r.clone();

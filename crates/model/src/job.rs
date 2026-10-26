@@ -254,6 +254,9 @@ pub enum Job {
     /// Forget an older certificate kept to read mail encrypted to it (`fingerprint`, its
     /// SHA-256 as `AB:CD:…` hex pairs), and its key.
     ForgetOlderIdentity { account: AccountConfig, fingerprint: String },
+    /// The browser only (gap 7): keep the account's certificates unlocked between visits (`on`),
+    /// their password encrypted with a key the browser won't let out, or stop and forget it.
+    KeepUnlocked { account: AccountConfig, on: bool },
     /// Sign and encrypt with an older certificate again (`fingerprint`): the one used until now is
     /// kept for reading. Answered by [`Event::Identity`].
     UseOlderIdentity { account: AccountConfig, fingerprint: String },
@@ -319,6 +322,7 @@ impl Job {
             | Job::ImportIdentity { account, .. }
             | Job::ForgetIdentity { account }
             | Job::ForgetOlderIdentity { account, .. }
+            | Job::KeepUnlocked { account, .. }
             | Job::UseOlderIdentity { account, .. }
             | Job::Protect { account, .. }
             | Job::SealDraft { account, .. }

@@ -39,4 +39,6 @@ web-sys = { version = "0.3", features = [
     "ReadableStream", "ReadableStreamDefaultReader", "AbortController", "AbortSignal",
     "IdbFactory", "IdbOpenDbRequest", "IdbRequest", "IdbDatabase", "IdbTransaction", "IdbTransactionMode", "IdbObjectStore",
     "DomStringList", "Event",
+    # Sealing what's kept between visits (vault.rs): WebCrypto's AES-GCM with a key that stays in.
+    "Crypto", "SubtleCrypto", "CryptoKey", "AesGcmParams", "AesKeyGenParams",
 ] }

@@ -425,3 +425,27 @@ fn a_withdrawn_answer_outlives_a_full_cache() {
     assert_eq!(security(&s).signed.unwrap().seal, Seal::Untrusted(vec![smime::Problem::Revoked(LATER - 60)]));
     done(s);
 }
+
+/// Gap 7: the browser keeps an account's certificates unlocked between visits when asked (the
+/// page seals their password); the desktop, which keeps keys in the system's keychain, has
+/// nothing to keep and says so.
+#[test]
+fn certificates_are_kept_unlocked_in_the_browser_when_asked() {
+    let mut s = sample_session("keep-unlocked");
+    let id = s
+        .run("account.add", &json!({"email": "me@fastmail.example", "password": "pw", "jmap": "https://api.fastmail.example/jmap/session"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.take_jobs();
+    assert!(s.run("security.keepUnlocked", &json!({"account": id, "on": true})).is_err(), "the desktop has nothing to keep");
+    s.jmap_only = true;
+    s.run("security.keepUnlocked", &json!({"account": id, "on": true})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::KeepUnlocked { account, on: true }] if account.id == id));
+    let saved = std::fs::read_to_string(s.store.as_ref().unwrap().root().join(&id).join("smime.json")).unwrap_or_default();
+    assert!(saved.contains("keep_unlocked") || saved.contains("keepUnlocked"), "{saved}");
+    s.run("security.keepUnlocked", &json!({"account": id, "on": false})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::KeepUnlocked { on: false, .. }]));
+    done(s);
+}

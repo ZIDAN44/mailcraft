@@ -1235,3 +1235,7 @@ month	May	مايو
 	Allow searching the directory…	السماح بالبحث في الدليل…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	تسألك Microsoft في المتصفح؛ ويبقى تسجيل دخول بريدك كما هو
 	Your organisation's directory needs your permission to be searched from MailCraft.	يحتاج البحث في دليل مؤسستك من MailCraft إلى إذنك.
+	Keep unlocked in this browser	إبقاء الشهادة مفتوحة في هذا المتصفح
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	تُحفظ كلمة المرور مختومة بمفتاح ينشئه هذا المتصفح ولا يُخرجه أبدًا: يستطيع أي شخص يستخدم ملف تعريف هذا المتصفح التوقيع وقراءة بريدك المشفّر، ولا يستطيع أحد أخذ المفتاح إلى مكان آخر.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	يحتفظ المتصفح بالملف مقفلًا بكلمة مروره، وبكلمة المرور مختومة بمفتاح لا يغادر هذا المتصفح أبدًا.
+	Your certificate's password, to keep it unlocked in this browser:	كلمة مرور شهادتك، لإبقائها مفتوحة في هذا المتصفح:

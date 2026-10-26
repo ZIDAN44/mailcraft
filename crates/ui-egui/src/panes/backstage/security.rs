@@ -171,6 +171,28 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                 }
             },
         );
+        // The browser (gap 7): certificates opened again on the next visit, their password sealed
+        // with a key that never leaves this browser.
+        if s.jmap_only {
+            setting_row(
+                ui,
+                t,
+                false,
+                name(t, tl!("Keep unlocked in this browser")),
+                Some(note(
+                    t,
+                    tl!(
+                        "The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere."
+                    ),
+                )),
+                |ui| {
+                    let mut on = settings.keep_unlocked;
+                    if widgets::switch(ui, t, &mut on, tl!("Keep unlocked in this browser")).changed() {
+                        acts.push(Action::Run("security.keepUnlocked", json!({"account": id, "on": on})));
+                    }
+                },
+            );
+        }
         let known = settings.known.len();
         if known > 0 {
             setting_row(ui, t, false, name(t, &tf!("Certificates from signed mail: {n}", n = known)), None, |_| {});

@@ -1235,3 +1235,7 @@ month	May	מאי
 	Allow searching the directory…	לאפשר חיפוש בספרייה…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft תשאל בדפדפן; הכניסה לדואר שלך נשארת כמו שהיא
 	Your organisation's directory needs your permission to be searched from MailCraft.	כדי לחפש בספרייה של הארגון שלך מ-MailCraft נדרשת ההרשאה שלך.
+	Keep unlocked in this browser	להשאיר פתוח בדפדפן הזה
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	הסיסמה נשמרת חתומה במפתח שהדפדפן הזה יוצר ולעולם אינו מוציא: כל מי שמשתמש בפרופיל הדפדפן הזה יכול לחתום ולקרוא את הדואר המוצפן שלך, ואף אחד לא יכול לקחת את המפתח למקום אחר.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	הדפדפן שומר את הקובץ, נעול בסיסמה שלו, ואת הסיסמה חתומה במפתח שלעולם אינו עוזב את הדפדפן הזה.
+	Your certificate's password, to keep it unlocked in this browser:	הסיסמה של האישור שלך, כדי להשאיר אותו פתוח בדפדפן הזה:

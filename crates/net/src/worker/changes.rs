@@ -178,6 +178,7 @@ impl Worker {
             | Job::ImportIdentity { .. }
             | Job::ForgetIdentity { .. }
             | Job::ForgetOlderIdentity { .. }
+            | Job::KeepUnlocked { .. }
             | Job::UseOlderIdentity { .. }
             | Job::Protect { .. }
             | Job::Decrypt { .. }

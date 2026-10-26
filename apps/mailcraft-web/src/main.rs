@@ -20,6 +20,8 @@ mod fetch;
 #[cfg(target_arch = "wasm32")]
 mod idb;
 #[cfg(target_arch = "wasm32")]
+mod vault;
+#[cfg(target_arch = "wasm32")]
 mod web;
 
 #[cfg(target_arch = "wasm32")]

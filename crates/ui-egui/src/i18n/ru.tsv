@@ -1239,3 +1239,7 @@ month	May	Май
 	Allow searching the directory…	Разрешить поиск в каталоге…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft спросит в браузере; вход в почту останется прежним
 	Your organisation's directory needs your permission to be searched from MailCraft.	Чтобы искать в каталоге вашей организации из MailCraft, нужно ваше разрешение.
+	Keep unlocked in this browser	Не блокировать в этом браузере
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	Пароль хранится зашифрованным ключом, который этот браузер создаёт и никогда не выдаёт: любой, кто пользуется этим профилем браузера, может подписывать и читать вашу зашифрованную почту, но унести ключ никуда нельзя.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	Браузер хранит файл, защищённый паролем, а сам пароль — запечатанным ключом, который никогда не покидает этот браузер.
+	Your certificate's password, to keep it unlocked in this browser:	Пароль вашего сертификата, чтобы не блокировать его в этом браузере:

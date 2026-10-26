@@ -1239,3 +1239,7 @@ month	May	maggio
 	Allow searching the directory…	Consenti la ricerca nella directory…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft lo chiede nel browser; l'accesso alla tua posta resta com'è
 	Your organisation's directory needs your permission to be searched from MailCraft.	Per cercare nella directory della tua organizzazione da MailCraft serve il tuo consenso.
+	Keep unlocked in this browser	Mantieni sbloccato in questo browser
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	La password è conservata sigillata con una chiave che questo browser crea e non lascia mai uscire: chi usa questo profilo del browser può firmare e leggere la tua posta cifrata; nessuno può portare la chiave altrove.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	Il browser conserva il file, bloccato con la sua password, e la password sigillata con una chiave che non lascia mai questo browser.
+	Your certificate's password, to keep it unlocked in this browser:	La password del certificato, per tenerlo sbloccato in questo browser:

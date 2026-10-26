@@ -1235,3 +1235,7 @@ month	May	mei
 	Allow searching the directory…	Zoeken in de adreslijst toestaan…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft vraagt het in je browser; de aanmelding voor je mail blijft zoals hij is
 	Your organisation's directory needs your permission to be searched from MailCraft.	Om vanuit MailCraft in de adreslijst van je organisatie te zoeken is je toestemming nodig.
+	Keep unlocked in this browser	Ontgrendeld houden in deze browser
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	Het wachtwoord wordt verzegeld bewaard met een sleutel die deze browser maakt en nooit vrijgeeft: wie dit browserprofiel gebruikt, kan ondertekenen en je versleutelde mail lezen; niemand kan de sleutel meenemen.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	De browser bewaart het bestand, vergrendeld met het wachtwoord, en het wachtwoord verzegeld met een sleutel die deze browser nooit verlaat.
+	Your certificate's password, to keep it unlocked in this browser:	Het wachtwoord van je certificaat, om het ontgrendeld te houden in deze browser:

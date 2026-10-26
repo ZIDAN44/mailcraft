@@ -274,6 +274,8 @@ impl Pool {
                 }
             }
             Job::ImportPst { account, path } => self.import_pst(account, path),
+            // The desktop keeps keys in the system's keychain: nothing to keep unlocked.
+            Job::KeepUnlocked { .. } => {}
             j @ (Job::ImportIdentity { .. }
             | Job::ForgetIdentity { .. }
             | Job::ForgetOlderIdentity { .. }

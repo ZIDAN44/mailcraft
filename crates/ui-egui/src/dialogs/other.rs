@@ -72,7 +72,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let unlock = path.is_empty() && data.is_none();
             title(ui, t, if unlock { "Unlock certificate" } else { "Import certificate" });
             let file = path.rsplit(['/', '\\']).next().unwrap_or(path.as_str()).to_string();
-            let ask = if unlock {
+            // Kept unlocked between visits (gap 7): the password is kept, sealed, after all.
+            let kept = s.jmap_only && s.smime_settings(account).keep_unlocked;
+            let ask = if unlock && kept {
+                tl!("Your certificate's password, to keep it unlocked in this browser:").to_string()
+            } else if unlock {
                 tl!("Your certificate's password, to use it in this browser until the page is closed:").to_string()
             } else {
                 tf!("The password {file} was saved with:", file = file)
@@ -87,7 +91,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(4.0);
             ui.add(
                 egui::Label::new(
-                    RichText::new(if cfg!(target_arch = "wasm32") {
+                    RichText::new(if cfg!(target_arch = "wasm32") && kept {
+                        tl!(
+                            "The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser."
+                        )
+                    } else if cfg!(target_arch = "wasm32") {
                         tl!("The browser keeps the file, locked with its password; the password itself isn't kept.")
                     } else {
                         tl!("Its private key is kept in the system's keychain, not in MailCraft's files.")

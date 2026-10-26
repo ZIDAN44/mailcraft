@@ -57,6 +57,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.set_smime_defaults(&account, p::bool(v, "sign"), p::bool(v, "encrypt"), p::bool(v, "keepSubject"))
         })
         .params(r#"{"sign"?: bool, "encrypt"?: bool, "keepSubject"?: bool (encrypted mail shows its subject on the way, not "[...]"), "account"?: string}"#),
+        CommandSpec::new("security.keepUnlocked", "Keep unlocked in this browser", "File › Info › Security", |s, v| {
+            let account = account_param(s, v)?;
+            s.keep_unlocked(&account, p::bool(v, "on").unwrap_or(true))
+        })
+        .when(|s| (!s.jmap_only).then_some("the desktop app keeps certificates in the system's keychain"))
+        .params(r#"{"on"?: bool (default true; false forgets the kept password), "account"?: string}"#),
         CommandSpec::new("compose.security", "Sign and Encrypt", "Message › Options", |s, v| {
             let c = s.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
             let wants = p::bool(v, "sign") == Some(true) || p::bool(v, "encrypt") == Some(true);

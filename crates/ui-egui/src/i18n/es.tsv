@@ -1240,3 +1240,7 @@ month	May	mayo
 	Allow searching the directory…	Permitir buscar en el directorio…
 	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft te lo pregunta en el navegador; el inicio de sesión de tu correo no cambia
 	Your organisation's directory needs your permission to be searched from MailCraft.	Para buscar en el directorio de tu organización desde MailCraft hace falta tu permiso.
+	Keep unlocked in this browser	Mantener desbloqueado en este navegador
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	La contraseña se guarda sellada con una clave que este navegador crea y nunca deja salir: quien use este perfil del navegador puede firmar y leer tu correo cifrado; nadie puede llevarse la clave a otro sitio.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	El navegador guarda el archivo, bloqueado con su contraseña, y la contraseña sellada con una clave que nunca sale de este navegador.
+	Your certificate's password, to keep it unlocked in this browser:	La contraseña de tu certificado, para mantenerlo desbloqueado en este navegador:
