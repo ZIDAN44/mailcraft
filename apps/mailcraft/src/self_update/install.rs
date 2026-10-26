@@ -51,11 +51,14 @@ pub(super) fn portable_step(zip: &Path, dir: &Path) -> String {
 
 /// The shell step copying `MailCraft.app` out of the DMG in place of `bundle`. Only a whole copy
 /// takes its place (a failed or partial one, or one left by an earlier try, never does), and if
-/// the new one can't be moved in, the old one goes back.
+/// the new one can't be moved in, the old one goes back. A disk image the system is still busy
+/// with (checking it, indexing it) is attached again for about a minute before the update gives
+/// up (craft-libs' updater found that one refusal threw the download away).
 pub(super) fn mac_step(dmg: &Path, bundle: &Path) -> String {
     let (b, d) = (sh_quote(bundle), sh_quote(dmg));
     format!(
-        "rm -rf {b}.new; m=$(mktemp -d) && hdiutil attach -nobrowse -readonly -mountpoint \"$m\" {d} >/dev/null && \
+        "rm -rf {b}.new; att() {{ for w in 1 2 4 8 16 32 0; do hdiutil attach -nobrowse -readonly -mountpoint \"$1\" {d} >/dev/null && return 0; \
+         [ $w -eq 0 ] && return 1; sleep $w; done; }}; m=$(mktemp -d) && att \"$m\" && \
          {{ ditto \"$m/MailCraft.app\" {b}.new; ok=$?; hdiutil detach \"$m\" >/dev/null 2>&1; \
          [ $ok -eq 0 ] && rm -rf {b}.old && mv {b} {b}.old && {{ mv {b}.new {b} || mv {b}.old {b}; }}; }}; \
          rm -rf {b}.new {b}.old; rm -f {d}"

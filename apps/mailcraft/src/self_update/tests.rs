@@ -75,6 +75,50 @@ fn helper_scripts_quote_their_paths() {
     assert!(mac.contains("[ $ok -eq 0 ] &&") && mac.contains("|| mv '/Applications/MailCraft.app'.old '/Applications/MailCraft.app'"), "{mac}");
 }
 
+/// The Mac step run by a shell, `hdiutil` and `ditto` stood in for: a disk image refused twice
+/// (the system still busy with it) is attached the third time and the app replaced; one refused
+/// every time leaves the app as it was.
+#[cfg(unix)]
+#[test]
+fn a_busy_disk_image_is_attached_again() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = scratch("busy-dmg");
+    let bin = dir.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let tries = dir.join("tries");
+    let tool = |name: &str, body: &str| {
+        let p = bin.join(name);
+        std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+    };
+    // attach: refused while `tries` has no more than $REFUSE lines, then "mounts" the new app.
+    let t = tries.display();
+    tool(
+        "hdiutil",
+        &format!(
+            "[ \"$1\" = attach ] || exit 0; echo x >> '{t}'; [ $(wc -l < '{t}') -gt $REFUSE ] || exit 1; mkdir -p \"$5/MailCraft.app\" && echo new > \"$5/MailCraft.app/v\""
+        ),
+    );
+    tool("ditto", "cp -R \"$1\" \"$2\"");
+    // The waits are cut short.
+    tool("sleep", "exit 0");
+    for (refuse, want) in [("2", "new"), ("99", "old")] {
+        let _ = std::fs::remove_file(&tries);
+        let app = dir.join("MailCraft.app");
+        let _ = std::fs::remove_dir_all(&app);
+        std::fs::create_dir_all(&app).unwrap();
+        std::fs::write(app.join("v"), "old").unwrap();
+        let dmg = dir.join("m.dmg");
+        std::fs::write(&dmg, "").unwrap();
+        let path = format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default());
+        std::process::Command::new("sh").arg("-c").arg(mac_step(&dmg, &app)).env("PATH", path).env("REFUSE", refuse).status().unwrap();
+        assert_eq!(std::fs::read_to_string(app.join("v")).unwrap().trim(), want, "refused {refuse} times");
+        let attempts = std::fs::read_to_string(&tries).unwrap().lines().count();
+        assert_eq!(attempts, if refuse == "2" { 3 } else { 7 }, "refused {refuse} times");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The kind of copy is told from where the exe is (Windows: beside a portable marker, or in
 /// Program Files\MailCraft); the names pick the matching file of a release.
 #[test]
