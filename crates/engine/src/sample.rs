@@ -483,7 +483,10 @@ fn list(v: &[(&str, &str)]) -> Vec<EmailAddress> {
     v.iter().map(|(n, e)| EmailAddress::new(*n, *e)).collect()
 }
 
-/// Fill `store` with the sample account if it holds no accounts yet. Returns whether it did.
+/// Fill `store` with the sample account if it holds no accounts yet, or only the sample account
+/// with none of its folders (its mail lost, or kept where this build doesn't read it, as an
+/// older build's data file: the sample then stayed on "Loading folders…" for good). Returns
+/// whether it did.
 pub fn seed_if_empty(store: &Store, now: i64) -> Result<bool, StoreError> {
     seed_if_empty_at(store, now, 0)
 }
@@ -491,7 +494,9 @@ pub fn seed_if_empty(store: &Store, now: i64) -> Result<bool, StoreError> {
 /// [`seed_if_empty`] with the local UTC offset (seconds), so the sample's events fall in local
 /// working hours.
 pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, StoreError> {
-    if !store.load_accounts()?.is_empty() {
+    let accounts = store.load_accounts()?;
+    let hollow = matches!(accounts.as_slice(), [a] if a.id == SAMPLE_ACCOUNT) && store.load_folders(SAMPLE_ACCOUNT).unwrap_or_default().is_empty();
+    if !accounts.is_empty() && !hollow {
         return Ok(false);
     }
     let account = AccountConfig {

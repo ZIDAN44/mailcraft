@@ -218,3 +218,25 @@ fn server_results_are_checked_for_waiting_too() {
     assert!(s.list.iter().all(|m| m.key != other));
     done(s);
 }
+
+/// A sample folder whose account is listed but whose folders are gone (an older build kept the
+/// sample's mail in a data file this one doesn't read) is filled again, instead of staying on
+/// "Loading folders…"; a store with other accounts is never touched.
+#[test]
+fn a_hollow_sample_mailbox_is_filled_again() {
+    let store = temp("hollow-sample");
+    assert!(sample::seed_if_empty(&store, NOW).unwrap());
+    store.save_folders(sample::SAMPLE_ACCOUNT, &[]).unwrap();
+    assert!(store.load_folders(sample::SAMPLE_ACCOUNT).unwrap().is_empty());
+    assert!(sample::seed_if_empty(&store, NOW).unwrap(), "filled again");
+    assert!(!store.load_folders(sample::SAMPLE_ACCOUNT).unwrap().is_empty());
+    assert!(!sample::seed_if_empty(&store, NOW).unwrap(), "and then left alone");
+
+    let mut other = store.load_accounts().unwrap();
+    other.push(mailcraft_model::AccountConfig { id: "a2".into(), email: "x@mail.example".into(), ..Default::default() });
+    store.save_accounts(&other).unwrap();
+    store.save_folders(sample::SAMPLE_ACCOUNT, &[]).unwrap();
+    assert!(!sample::seed_if_empty(&store, NOW).unwrap(), "another account: nothing replaced");
+    assert_eq!(store.load_accounts().unwrap().len(), 2);
+    let _ = std::fs::remove_dir_all(store.root());
+}
