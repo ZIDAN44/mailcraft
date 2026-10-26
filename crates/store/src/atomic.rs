@@ -180,4 +180,29 @@ mod tests {
         );
         assert!(r.is_err() && tries == 1);
     }
+
+    /// On Windows itself: a file held open by another program (no delete sharing, as OneDrive or
+    /// an antivirus holds one) refuses a plain rename; held for 150 ms, it's written once let go.
+    #[cfg(windows)]
+    #[test]
+    fn a_file_held_for_a_moment_is_still_written() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let d = std::env::temp_dir().join(format!("mailcraft-held-{}", std::process::id()));
+        fs::create_dir_all(&d).unwrap();
+        let target = d.join("accounts.json");
+        fs::write(&target, b"old").unwrap();
+        const SHARE_READ: u32 = 1;
+        let held = fs::OpenOptions::new().read(true).share_mode(SHARE_READ).open(&target).unwrap();
+        let scratch = d.join("scratch.part");
+        fs::write(&scratch, b"new").unwrap();
+        assert!(fs::rename(&scratch, &target).is_err(), "Windows refuses a plain rename over it");
+        let letting_go = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            drop(held);
+        });
+        write_atomic(&target, b"new").unwrap();
+        letting_go.join().unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"new");
+        let _ = fs::remove_dir_all(&d);
+    }
 }
