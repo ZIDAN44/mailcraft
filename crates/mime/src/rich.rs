@@ -177,18 +177,23 @@ impl Styles {
         let mut prefix = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
         let max_suffix = a.len().min(b.len()) - prefix;
         let mut suffix = a.iter().rev().zip(b.iter().rev()).take(max_suffix).take_while(|(x, y)| x == y).count();
-        // An insertion that ends at the cursor.
+        // An insertion that ends at the cursor. The cursor is the editor's, so it's checked: one
+        // past the end of the text (egui 0.37 puts it there after Arabic text) matched as "nothing
+        // on either side" and the lengths below ran under zero (the window's soak test found it,
+        // typing into a message).
         if let Some(c) = cursor
             && b.len() > a.len()
+            && c <= b.len()
             && let Some(start) = c.checked_sub(b.len() - a.len())
+            && start <= a.len()
             && b.get(..start) == a.get(..start)
             && b.get(c..) == a.get(start..)
         {
             prefix = start;
             suffix = a.len() - start;
         }
-        let removed = prefix..a.len() - suffix;
-        let inserted = &b[prefix..b.len() - suffix];
+        let removed = prefix..a.len().saturating_sub(suffix).max(prefix);
+        let inserted = b.get(prefix..b.len().saturating_sub(suffix).max(prefix)).unwrap_or_default();
         let id = self.intern(typing.for_typing());
         let ids = std::iter::repeat_n(id, inserted.len());
         self.chars.splice(removed.clone(), ids);
@@ -664,6 +669,12 @@ mod tests {
         assert_eq!(s.paras.iter().map(|p| p.list).collect::<Vec<_>>(), [List::Bullet, List::Bullet, List::None]);
         s.edit("one\nnew\ntwo", "one two", &Style::default());
         assert_eq!(s.paras.len(), 1);
+        // A cursor past the end of the text (egui's, after Arabic text) is not trusted.
+        for cursor in [9, 40, usize::MAX] {
+            let mut s = Styles::plain("ab");
+            s.edit_at("ab", "abcd", &Style::default(), Some(cursor));
+            assert_eq!(s.chars.len(), 4, "cursor {cursor}");
+        }
         // Junk lengths are fixed rather than trusted.
         let mut j = Styles { chars: vec![9, 9, 9, 9, 9, 9], palette: vec![], paras: vec![] };
         j.fit("ab");
