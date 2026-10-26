@@ -136,12 +136,39 @@ impl MailApp {
                 };
                 ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(&each);
                 dot(ui, color);
-                // Accounts waiting for you: a link each (it signs in again).
-                for a in s.accounts.iter().rev().filter(|a| needs_you(a)) {
-                    ui.add_space(10.0);
+                // Accounts waiting for you: a link each (it signs in again), as many as fit beside
+                // the counts on the left; the rest as "+N", each on hover (a dozen of them ran over
+                // "Items" and "Unread").
+                let waiting: Vec<&mailcraft_engine::AccountState> = s.accounts.iter().rev().filter(|a| needs_you(a)).collect();
+                let mut shown = 0;
+                for a in &waiting {
                     let text = tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1);
+                    let width = ui.painter().layout_no_wrap(text.clone(), egui::TextStyle::Small.resolve(ui.style()), t.danger).size().x;
+                    // Room for this one and a "+N" after it.
+                    if ui.available_width() < width + 70.0 {
+                        break;
+                    }
+                    ui.add_space(10.0);
                     if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(why(a)).clicked() {
                         again = Some(a.config.id.clone());
+                    }
+                    dot(ui, t.danger);
+                    shown += 1;
+                }
+                let rest: Vec<&&mailcraft_engine::AccountState> = waiting.iter().skip(shown).collect();
+                if let Some(first) = rest.first() {
+                    ui.add_space(10.0);
+                    let each: Vec<String> =
+                        rest.iter().map(|a| tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1)).collect();
+                    if ui
+                        .link(RichText::new(format!("+{}", rest.len())).color(t.danger).small())
+                        .on_hover_text(each.join(
+                            "
+",
+                        ))
+                        .clicked()
+                    {
+                        again = Some(first.config.id.clone());
                     }
                     dot(ui, t.danger);
                 }

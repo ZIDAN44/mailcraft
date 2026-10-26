@@ -219,3 +219,40 @@ fn an_account_is_kept_online_only_from_the_forms() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.online_only == Some(false) && f.params().get("onlineOnly").is_none()));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A dozen accounts waiting for their password: the status bar shows as many as fit and "+N"
+/// for the rest, never over "Items" and "Unread" on its left (they ran over them).
+#[test]
+fn many_accounts_waiting_dont_cover_the_counts() {
+    let (mut a, dir) = app("status-many");
+    let ctx = egui::Context::default();
+    for n in 0..12 {
+        let c = mailcraft_engine::model::AccountConfig::guess(&format!("waiting{n}@studio.example"));
+        a.session.add_account(c, None).unwrap();
+    }
+    let ids: Vec<String> = a.session.accounts.iter().filter(|x| x.config.email.starts_with("waiting")).map(|x| x.config.id.clone()).collect();
+    assert_eq!(ids.len(), 12);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 700.0))), ..Default::default() };
+    let mut texts = Vec::new();
+    for _ in 0..3 {
+        for id in &ids {
+            a.session.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
+        }
+        let mut out = ctx.run_ui(input.clone(), |ui| a.ui(ui));
+        out.textures_delta.clear();
+        texts = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) if t.pos.y > 675.0 => Some((t.galley.job.text.clone(), t.pos.x, t.pos.x + t.galley.size().x)),
+                _ => None,
+            })
+            .collect();
+    }
+    let counts_end = texts.iter().filter(|(s, ..)| s.starts_with("Items") || s.starts_with("Unread")).map(|(_, _, r)| *r).fold(0.0, f32::max);
+    let waiting: Vec<_> = texts.iter().filter(|(s, ..)| s.contains("waiting") && s.contains(':') || s.starts_with('+')).collect();
+    assert!(counts_end > 0.0, "{texts:?}");
+    assert!(waiting.iter().any(|(s, ..)| s.starts_with('+')), "the rest as +N: {texts:?}");
+    assert!(waiting.iter().all(|(_, l, _)| *l > counts_end), "nothing over the counts: {texts:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
