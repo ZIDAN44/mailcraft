@@ -404,6 +404,7 @@ mod accounts;
 mod organize;
 mod pim;
 mod reading;
+mod rtl;
 mod updates;
 mod windows;
 mod writing;

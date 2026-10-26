@@ -426,6 +426,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         (true, true) => tl!("Write your signature, or paste it…"),
         (true, false) => tl!("Write your message…"),
     };
+    crate::widgets::cursor_within(ui.ctx(), id, &c.body);
     let out = egui::TextEdit::multiline(&mut c.body)
         .id(id)
         .frame(egui::Frame::NONE)

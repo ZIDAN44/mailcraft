@@ -39,8 +39,11 @@ impl MailApp {
                         } else {
                             (&mut self.ui.notes_query, tl!("Search notes"))
                         };
+                        let id = ui.make_persistent_id("module-search");
+                        widgets::cursor_within(ui.ctx(), id, query);
                         let resp = ui.add(
                             egui::TextEdit::singleline(query)
+                                .id(id)
                                 .hint_text(hint)
                                 .frame(egui::Frame::NONE)
                                 .desired_width(search_w - 60.0)
