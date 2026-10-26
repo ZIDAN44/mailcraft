@@ -152,8 +152,10 @@ impl MailApp {
         }
         let confirm_delete = self.needs_delete_confirm();
         let ust = &mut self.ui;
-        // A narrow window scrolls the ribbon sideways rather than cutting buttons off.
-        egui::ScrollArea::horizontal().id_salt("ribbon").show(ui, |ui| {
+        // A narrow window scrolls the ribbon sideways rather than cutting buttons off; each tab
+        // keeps its own place (one shared place opened View scrolled as far as Home was, which
+        // gridcraft's ribbon found).
+        egui::ScrollArea::horizontal().id_salt(("ribbon", format!("{:?}", ust.tab))).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 widgets::start_group(ui);
