@@ -127,6 +127,8 @@ pub struct NamesForm {
     /// A directory is still being asked about the search, and why one couldn't answer.
     pub searching: bool,
     pub directory_errors: Vec<String>,
+    /// An Exchange Online account needs the user's permission to search its directory (issue #9).
+    pub consent: bool,
     pub selected: Option<usize>,
     /// The field a double-click adds to (`to`, `cc`, `bcc`).
     pub target: &'static str,
@@ -281,6 +283,18 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     // The directory: still being asked, or why it couldn't answer (what's here is shown meanwhile).
     if f.searching {
         ui.label(RichText::new(tl!("Searching your organisation's directory…")).color(t.dim).small());
+    }
+    if f.consent {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(tl!("Your organisation's directory needs your permission to be searched from MailCraft.")).color(t.dim).small());
+            if ui
+                .button(tl!("Allow searching the directory…"))
+                .on_hover_text(tl!("Microsoft asks in your browser; your mail's sign-in stays as it is"))
+                .clicked()
+            {
+                acts.push(Action::Run("contact.allowDirectory", json!({})));
+            }
+        });
     }
     for e in f.directory_errors.iter().take(3) {
         ui.add(egui::Label::new(RichText::new(tf!("The directory couldn't be searched: {error}", error = e)).color(t.warn).small()).wrap());

@@ -91,6 +91,23 @@ pub fn provider_for_account(account: &mailcraft_model::AccountConfig) -> Option<
     Some(p)
 }
 
+/// What searching the organisation's directory asks for (issue #9): the directory's people as a
+/// people picker sees them (name, address, photo) and the people relevant to the user, both
+/// granted by users themselves, no administrator needed. Asked for in a sign-in of its own,
+/// when the user first wants it, never with the mail permissions: a tenant that lets users
+/// consent only to some permissions would otherwise block the mail sign-in itself, and an
+/// account signed in before couldn't refresh a token naming permissions it never granted.
+pub const DIRECTORY_SCOPE: &str = "https://graph.microsoft.com/User.ReadBasic.All https://graph.microsoft.com/People.Read offline_access";
+
+/// The provider an Exchange Online account asks for the directory's permissions with (its own
+/// sign-in, [`DIRECTORY_SCOPE`]).
+pub fn directory_provider(account: &mailcraft_model::AccountConfig) -> Option<Provider> {
+    account.graph.as_ref()?;
+    let mut p = provider(account.oauth.as_deref()?)?;
+    p.scope = DIRECTORY_SCOPE.into();
+    Some(p)
+}
+
 const GRAPH_SCOPE: &str = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Contacts.ReadWrite offline_access";
 
 /// The providers with a registration, so sign-in can be offered.

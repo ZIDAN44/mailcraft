@@ -1236,3 +1236,6 @@ month	May	5월
 	Type a name to search your organisation's directory.	이름을 입력하면 조직 디렉터리를 검색합니다.
 	User-Agent (optional)	User-Agent(선택 사항)
 	Violet	보라
+	Allow searching the directory…	디렉터리 검색 허용…
+	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft가 브라우저에서 묻습니다. 메일 로그인은 그대로 유지됩니다
+	Your organisation's directory needs your permission to be searched from MailCraft.	MailCraft에서 조직 디렉터리를 검색하려면 권한을 허용해야 합니다.

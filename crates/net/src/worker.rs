@@ -258,6 +258,7 @@ impl Pool {
                 }
             }
             Job::SignIn { account } => self.sign_in(account),
+            Job::AllowDirectory { account } => self.allow_directory(account),
             Job::Discover { email } => {
                 let sink = self.sink.clone();
                 let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
@@ -355,6 +356,7 @@ impl Pool {
                     // Its certificates' keys and its calendar server's password go with it.
                     smime::forget_all(self.creds.as_ref(), &c);
                     self.creds.delete_secret(&c, DAV_SECRET);
+                    self.creds.delete_secret(&c, DIRECTORY_SECRET);
                 }
             }
             Job::FetchBody { key } if !self.workers.contains_key(&key.account) => {
@@ -378,7 +380,7 @@ impl Pool {
                 self.sink.emit(Event::ServerSearched { account, query, keys: Vec::new(), error: Some("the account is offline".into()), done: true });
             }
             Job::SearchDirectory { account, query } if !self.workers.contains_key(&account) => {
-                self.sink.emit(Event::Directory { account, query, people: Vec::new(), error: Some("the account is offline".into()) });
+                self.sink.emit(Event::Directory { account, query, people: Vec::new(), error: Some("the account is offline".into()), consent: false });
             }
             // Working offline: nothing connects, by choice.
             Job::SyncAll { account } | Job::SyncFolder { account, .. } | Job::FlushOutbox { account }
@@ -541,12 +543,15 @@ impl Drop for Pool {
 
 mod changes;
 mod connect;
+mod directory;
 mod remote;
 mod send;
 mod smime;
 
 /// The keychain entry of an account's calendar and contacts server's own password.
 pub(crate) const DAV_SECRET: &str = "dav";
+/// Where an Exchange Online account's directory sign-in (its refresh token) is kept (issue #9).
+pub(crate) const DIRECTORY_SECRET: &str = "directory";
 mod sync;
 mod threads;
 
@@ -593,6 +598,8 @@ struct Worker {
     backoff: Duration,
     next_attempt: Instant,
     last_full: Option<Instant>,
+    /// The token for searching the organisation's directory (Exchange Online), while it lasts.
+    directory_token: Option<crate::oauth::Tokens>,
     /// Not connecting again until asked (Send / Receive, a new start): the sign-in was refused,
     /// or the server said no to the account itself.
     auth_failed: bool,
@@ -645,6 +652,7 @@ impl Worker {
             backoff: Duration::from_secs(5),
             next_attempt: Instant::now(),
             last_full: None,
+            directory_token: None,
             auth_failed: false,
             token_retried: false,
             closed: false,

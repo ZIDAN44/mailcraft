@@ -793,6 +793,9 @@ pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
     c.send_mime(&with)
 }
 
+mod directory;
+pub use directory::{needs_consent, search_directory};
+
 #[cfg(test)]
 mod tests {
     use super::*;

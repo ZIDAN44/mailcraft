@@ -153,21 +153,7 @@ impl Worker {
             }
             Job::FlushOutbox { .. } => self.flush_outbox(),
             Job::SyncDav { .. } => self.sync_dav(),
-            Job::SearchDirectory { query, .. } => {
-                let r = match &self.conn {
-                    Some(Conn::Ews(c)) => c.search_directory(&query),
-                    Some(_) => Err(NetError::No("this account has no organisation directory".into())),
-                    None => Err(NetError::Closed("not connected".into())),
-                };
-                let (people, error) = match r {
-                    Ok(p) => (p, None),
-                    Err(e) => {
-                        log::info!("{}: directory: {e}", self.acc.id);
-                        (Vec::new(), Some(e.to_string()))
-                    }
-                };
-                self.sink.emit(Event::Directory { account: self.id(), query, people, error });
-            }
+            Job::SearchDirectory { query, .. } => self.search_directory(query),
             Job::GetVacation { .. } => {
                 let r = self.vacation(None);
                 self.report_vacation(r, None);
@@ -186,6 +172,7 @@ impl Worker {
             Job::FetchUrl { .. }
             | Job::Discover { .. }
             | Job::SignIn { .. }
+            | Job::AllowDirectory { .. }
             | Job::ImportPst { .. }
             | Job::ExportPst { .. }
             | Job::ImportIdentity { .. }

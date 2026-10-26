@@ -1233,3 +1233,6 @@ month	May	5月
 	Type a name to search your organisation's directory.	名前を入力すると組織のディレクトリを検索します。
 	User-Agent (optional)	User-Agent (任意)
 	Violet	バイオレット
+	Allow searching the directory…	ディレクトリの検索を許可…
+	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft がブラウザーで確認します。メールのサインインはそのままです
+	Your organisation's directory needs your permission to be searched from MailCraft.	MailCraft から組織のディレクトリを検索するには、許可が必要です。

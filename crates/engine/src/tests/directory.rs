@@ -16,7 +16,7 @@ fn exchange(s: &mut Session, agent: Option<&str>) -> String {
 
 fn answer(s: &mut Session, account: &str, query: &str, people: &[(&str, &str)]) {
     let people = people.iter().map(|(n, a)| (n.to_string(), a.to_string())).collect();
-    s.apply(Event::Directory { account: account.into(), query: query.into(), people, error: None });
+    s.apply(Event::Directory { account: account.into(), query: query.into(), people, error: None, consent: false });
 }
 
 fn asked(s: &mut Session) -> Vec<String> {
@@ -130,7 +130,13 @@ fn the_directory_is_asked_again_once_its_answer_is_old() {
     assert_eq!(asked(&mut s), ["dana"]);
 
     // A failure says why, and keeps who was found before.
-    s.apply(Event::Directory { account: id.clone(), query: "dana".into(), people: Vec::new(), error: Some("Exchange answered HTTP 403".into()) });
+    s.apply(Event::Directory {
+        account: id.clone(),
+        query: "dana".into(),
+        people: Vec::new(),
+        error: Some("Exchange answered HTTP 403".into()),
+        consent: false,
+    });
     assert_eq!(s.address_book("directory", "dana").len(), 1);
     assert!(s.directory_errors("dana").iter().any(|e| e.contains("riley@contoso.example") && e.contains("403")));
 
@@ -156,5 +162,58 @@ fn the_directory_is_asked_again_once_its_answer_is_old() {
         s.clock.now += 1;
     }
     assert!(s.directory.answers.len() <= 200, "{}", s.directory.answers.len());
+    done(s);
+}
+
+/// Issue #9, online: an Exchange Online account searches its directory too, once the user allows it. An
+/// answer saying it needs permission keeps it waiting (no error shown for it, the dialog asks
+/// instead); allowing it opens the browser for that account, and once allowed its searches are
+/// asked again; a refusal is said.
+#[test]
+fn exchange_online_asks_for_permission_to_search_its_directory() {
+    let mut s = sample_session("directory-graph");
+    s.oauth_available = vec!["microsoft".into()];
+    let id = s.run("account.add", &json!({"email": "me@contoso.example", "graph": true})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    assert!(s.directory_accounts().contains(&id));
+    assert!(s.run("contact.allowDirectory", &json!({})).is_err(), "nobody waiting yet");
+    s.address_book("directory", "ali");
+    assert_eq!(asked(&mut s), ["ali"]);
+    s.apply(Event::Directory {
+        account: id.clone(),
+        query: "ali".into(),
+        people: Vec::new(),
+        error: Some("searching your organisation's directory needs your permission first".into()),
+        consent: true,
+    });
+    assert!(s.directory.consent.contains(&id));
+    assert!(s.directory_errors("ali").is_empty(), "asked for, not shown as an error");
+    s.run("contact.allowDirectory", &json!({})).unwrap();
+    let jobs = s.take_jobs();
+    assert!(matches!(jobs.as_slice(), [Job::AllowDirectory { account }] if account.id == id), "{jobs:?}");
+
+    // Refused in the browser: said, still waiting.
+    s.apply(Event::DirectoryAllowed { account: id.clone(), error: Some("Microsoft sign-in was cancelled (access_denied)".into()) });
+    assert!(s.directory.consent.contains(&id));
+    // Allowed: the account's answers forgotten and asked again.
+    let rev = s.directory.rev;
+    s.apply(Event::DirectoryAllowed { account: id.clone(), error: None });
+    assert!(!s.directory.consent.contains(&id) && s.directory.rev != rev);
+    s.address_book("directory", "ali");
+    assert_eq!(asked(&mut s), ["ali"]);
+    answer(&mut s, &id, "ali", &[("Alicia Keyes", "alicia@contoso.example")]);
+    assert_eq!(s.address_book("directory", "ali").len(), 1);
+
+    // Only an Exchange Online account signed in with Microsoft asks.
+    let imap = s
+        .run("account.add", &json!({"email": "zoe@mail.example", "password": "pw", "imapHost": "mail.example", "smtpHost": "mail.example"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(s.run("contact.allowDirectory", &json!({"account": imap})).is_err());
+    // A personal Microsoft account has no organisation directory to search.
+    let personal = s.run("account.add", &json!({"email": "zoe@outlook.com", "graph": true})).unwrap()["account"].as_str().unwrap().to_string();
+    assert!(!s.directory_accounts().contains(&personal));
     done(s);
 }

@@ -59,6 +59,17 @@ pub struct Data {
     pub throttle: u32,
     /// The one bearer token taken, when not [`TOKEN`] (a test renews it as tokens expire).
     pub token: Option<String>,
+    /// The organisation's directory (issue #9): (name, address), searched through `/users` and
+    /// `/me/people`.
+    pub directory: Vec<(String, String)>,
+    /// The token the directory takes (its own permissions), when the mail's isn't enough; the
+    /// mail's endpoints refuse it, as a token for other permissions is refused.
+    pub directory_token: Option<String>,
+    /// `/users` refuses the search (a guest, a tenant hiding its users): `/me/people` is asked.
+    pub users_forbidden: bool,
+    /// The bearer token and headers of the request being answered.
+    bearer: String,
+    headers: Vec<(String, String)>,
     /// Set per request from its `Prefer` header; without `IdType="ImmutableId"` message ids
     /// are returned in the other (prefixed) form.
     asked_immutable: bool,
@@ -150,6 +161,59 @@ impl Data {
         if self.no_mailbox && matches!(parts.as_slice(), ["me", "mailFolders" | "messages" | "sendMail" | "mailboxSettings", ..]) {
             let e = json!({"error": {"code": "MailboxNotEnabledForRESTAPI", "message": "The mailbox is either inactive, soft-deleted, or is hosted on-premise."}});
             return (404, e.to_string().into_bytes(), "application/json");
+        }
+        let directory = matches!(parts.as_slice(), ["users"] | ["me", "people"]);
+        let forbidden = || {
+            (
+                403,
+                json!({"error": {"code": "Authorization_RequestDenied", "message": "Insufficient privileges to complete the operation."}})
+                    .to_string()
+                    .into_bytes(),
+                "application/json",
+            )
+        };
+        if let Some(dt) = self.directory_token.clone() {
+            // Each token is good for its own permissions only.
+            if directory != (self.bearer == dt) {
+                return forbidden();
+            }
+        }
+        if directory {
+            let header = |k: &str| self.headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(k)).map(|(_, v)| v.clone()).unwrap_or_default();
+            let search = crate::oauth::unpct(&q("$search").unwrap_or_default());
+            // The words searched for: what's inside the quotes, `displayName:`/`mail:` dropped.
+            let words: Vec<String> = search
+                .split('"')
+                .skip(1)
+                .step_by(2)
+                .map(|w| w.rsplit(':').next().unwrap_or("").trim().to_lowercase())
+                .filter(|w| !w.is_empty())
+                .collect();
+            let hit = |n: &str, a: &str| {
+                let (n, a) = (n.to_lowercase(), a.to_lowercase());
+                words.iter().any(|w| a.starts_with(w.as_str()) || n.split(' ').any(|p| p.starts_with(w.as_str())))
+            };
+            let top: usize = q("$top").and_then(|t| t.parse().ok()).unwrap_or(10);
+            let found: Vec<&(String, String)> = self.directory.iter().filter(|(n, a)| hit(n, a)).take(top).collect();
+            if parts == ["users"] {
+                if self.users_forbidden {
+                    return forbidden();
+                }
+                if !search.is_empty() && header("ConsistencyLevel") != "eventual" {
+                    let e = json!({"error": {"code": "Request_UnsupportedQuery", "message": "Request with $search query parameter only works through MSGraph with a special request header: 'ConsistencyLevel: eventual'"}});
+                    return (400, e.to_string().into_bytes(), "application/json");
+                }
+                let value: Vec<Value> = found.iter().map(|(n, a)| json!({"displayName": n, "mail": a, "userPrincipalName": a})).collect();
+                return ok(json!({"@odata.count": value.len(), "value": value}));
+            }
+            // The relevant people: the directory's only when asked for.
+            let with_directory = header("X-PeopleQuery-QuerySources").contains("Directory");
+            let value: Vec<Value> = found
+                .iter()
+                .filter(|_| with_directory)
+                .map(|(n, a)| json!({"displayName": n, "scoredEmailAddresses": [{"address": a, "relevanceScore": 8}], "personType": {"class": "Person", "subclass": "OrganizationUser"}}))
+                .collect();
+            return ok(json!({"value": value}));
         }
         match (method, parts.as_slice()) {
             ("POST", ["$batch"]) => {
@@ -540,7 +604,11 @@ pub fn serve(data: Data) -> Server {
                 continue;
             }
             let (mut len, mut authorized, mut immutable) = (0usize, false, false);
-            let bearer = format!("Bearer {}", shared.lock().unwrap().token.clone().unwrap_or_else(|| TOKEN.into()));
+            let (bearer, directory_bearer) = {
+                let d = shared.lock().unwrap();
+                (format!("Bearer {}", d.token.clone().unwrap_or_else(|| TOKEN.into())), d.directory_token.clone().map(|t| format!("Bearer {t}")))
+            };
+            let (mut used, mut headers) = (String::new(), Vec::new());
             loop {
                 let mut line = String::new();
                 if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
@@ -550,7 +618,14 @@ pub fn serve(data: Data) -> Server {
                 if let Some(v) = lower.strip_prefix("content-length:") {
                     len = v.trim().parse().unwrap_or(0);
                 }
-                authorized |= line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == bearer);
+                if let Some((k, v)) = line.split_once(':') {
+                    let v = v.trim();
+                    if k.eq_ignore_ascii_case("authorization") && (v == bearer || directory_bearer.as_deref() == Some(v)) {
+                        authorized = true;
+                        used = v.trim_start_matches("Bearer ").to_string();
+                    }
+                    headers.push((k.trim().to_string(), v.to_string()));
+                }
                 immutable |= line.starts_with("Prefer: IdType=\"ImmutableId\"");
             }
             let mut body = vec![0u8; len];
@@ -559,7 +634,8 @@ pub fn serve(data: Data) -> Server {
                 respond(&mut s, 401, br#"{"error": {"code": "InvalidAuthenticationToken"}}"#, "application/json");
                 continue;
             }
-            assert!(immutable, "ids are asked for in their immutable form");
+            let directory = first.contains(" /v1.0/users?") || first.contains(" /v1.0/me/people?");
+            assert!(immutable || directory, "ids are asked for in their immutable form");
             let mut words = first.split(' ');
             let (method, target) = (words.next().unwrap_or("GET").to_string(), words.next().unwrap_or("/").to_string());
             let target = target.strip_prefix("/v1.0").unwrap_or(&target).to_string();
@@ -569,7 +645,9 @@ pub fn serve(data: Data) -> Server {
                     d.throttle -= 1;
                     (429, br#"{"error": {"code": "TooManyRequests"}}"#.to_vec(), "application/json")
                 } else {
-                    d.asked_immutable = true;
+                    d.asked_immutable |= !directory;
+                    d.bearer = used;
+                    d.headers = headers;
                     d.route(&method, &target, &body, &b)
                 }
             };

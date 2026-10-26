@@ -39,6 +39,37 @@ impl Pool {
         }
     }
 
+    /// Issue #9, online: ask the user in the browser to let an Exchange Online account search its
+    /// organisation's directory, a sign-in for those permissions alone; its refresh token is kept
+    /// apart from the mail's, which stays as it was whatever the answer.
+    pub(super) fn allow_directory(&mut self, account: AccountConfig) {
+        let Some(p) = crate::oauth::directory_provider(&account) else {
+            let error = "only an Exchange Online account signed in with Microsoft asks for this".to_string();
+            return self.sink.emit(Event::DirectoryAllowed { account: account.id, error: Some(error) });
+        };
+        let (sink, creds) = (self.sink.clone(), self.creds.clone());
+        let spawned = std::thread::Builder::new().name("mail-directory-consent".into()).spawn(move || {
+            let mut open = |url: &str| -> std::result::Result<(), String> {
+                sink.emit(Event::OpenUrl { url: url.to_string() });
+                Ok(())
+            };
+            let error = match crate::oauth::authorize(&p, &account.email, &mut open, Duration::from_secs(5 * 60)) {
+                Ok(t) => match t.refresh {
+                    Some(r) => creds
+                        .set_secret(&account, DIRECTORY_SECRET, &r)
+                        .err()
+                        .map(|e| format!("the permission couldn't be kept in the keychain: {e}")),
+                    None => Some(format!("{} gave no lasting permission; try again", p.name)),
+                },
+                Err(e) => Some(e.to_string()),
+            };
+            sink.emit(Event::DirectoryAllowed { account: account.id, error });
+        });
+        if let Err(e) = spawned {
+            log::warn!("directory consent: {e}");
+        }
+    }
+
     pub(super) fn fetch_url(&mut self, url: String) {
         if self.fetcher.is_none() {
             let (tx, rx) = mpsc::channel::<String>();

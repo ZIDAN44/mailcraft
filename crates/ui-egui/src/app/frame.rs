@@ -326,6 +326,7 @@ impl MailApp {
             let asks = f.directory && (f.source == "all" || f.source == "directory");
             f.searching = asks && self.session.directory_pending(&f.query);
             f.directory_errors = if asks { self.session.directory_errors(&f.query) } else { Vec::new() };
+            f.consent = asks && !self.session.directory.consent.is_empty();
             f.directory_rev = self.session.directory.rev;
             f.stale = false;
         }

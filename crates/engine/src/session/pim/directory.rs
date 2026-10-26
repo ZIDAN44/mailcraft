@@ -31,6 +31,8 @@ pub struct Directory {
     pub answers: HashMap<(String, String), Answer>,
     /// Bumped on every answer and refresh, for what shows the people found.
     pub rev: u64,
+    /// Exchange Online accounts whose directory needs the user's permission first (issue #9).
+    pub consent: BTreeSet<String>,
 }
 
 /// A search as it's kept and sent: trimmed, lower case.
@@ -39,9 +41,17 @@ fn key(query: &str) -> String {
 }
 
 impl Session {
-    /// The accounts with an organisation directory (on-premises Exchange through EWS).
+    /// The accounts with an organisation directory: Exchange, on premises (EWS) or online
+    /// (Graph, issue #9). A personal Microsoft account (Outlook.com, Hotmail) has none.
     pub fn directory_accounts(&self) -> Vec<String> {
-        self.accounts.iter().filter(|a| a.config.ews.is_some()).map(|a| a.config.id.clone()).collect()
+        self.accounts
+            .iter()
+            .filter(|a| {
+                let c = &a.config;
+                c.ews.is_some() || (c.graph.is_some() && !mailcraft_model::microsoft_consumer(c.oauth_user.as_deref().unwrap_or(&c.email)))
+            })
+            .map(|a| a.config.id.clone())
+            .collect()
     }
 
     /// Ask the directories for `query` where their last answer isn't fresh; `force` asks again
@@ -121,7 +131,8 @@ impl Session {
             .directory
             .answers
             .iter()
-            .filter(|((_, s), a)| *s == q && a.at.is_some())
+            // One waiting for permission is asked for it instead ([`Session::allow_directory`]).
+            .filter(|((acc, s), a)| *s == q && a.at.is_some() && !self.directory.consent.contains(acc))
             .filter_map(|((acc, _), a)| {
                 let who = self.account(acc).map_or_else(|| acc.clone(), |x| x.config.email.clone());
                 a.error.as_ref().map(|e| format!("{who}: {e}"))
@@ -132,7 +143,12 @@ impl Session {
     }
 
     /// What a directory answered ([`Event::Directory`]).
-    pub(crate) fn apply_directory(&mut self, account: &str, query: &str, people: &[(String, String)], error: Option<String>) {
+    pub(crate) fn apply_directory(&mut self, account: &str, query: &str, people: &[(String, String)], error: Option<String>, consent: bool) {
+        if consent {
+            self.directory.consent.insert(account.to_string());
+        } else if error.is_none() {
+            self.directory.consent.remove(account);
+        }
         let k = (account.to_string(), key(query));
         // Forgotten since (a refresh): a stale answer isn't kept.
         let Some(a) = self.directory.answers.get_mut(&k) else { return };
@@ -146,6 +162,43 @@ impl Session {
         a.error = error;
         a.at = Some(self.clock.now);
         self.directory.rev = self.directory.rev.wrapping_add(1);
+    }
+
+    /// Ask the user to let Exchange Online accounts search their directory (issue #9): `account`,
+    /// or each one waiting for permission. The browser opens for each.
+    pub fn allow_directory(&mut self, account: Option<&str>) -> CmdResult {
+        let wanted: Vec<String> = match account {
+            Some(a) => vec![a.to_string()],
+            None => self.directory.consent.iter().cloned().collect(),
+        };
+        let mut asked = Vec::new();
+        for id in wanted {
+            let Some(config) = self.account(&id).map(|a| a.config.clone()) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
+            if config.graph.is_none() || config.oauth.is_none() {
+                return Err(CmdError::Params(format!("{}: only an Exchange Online account signed in with Microsoft asks for this", config.email)));
+            }
+            asked.push(id);
+            self.jobs.push(Job::AllowDirectory { account: config });
+        }
+        if asked.is_empty() {
+            return Err(CmdError::Disabled("no account is waiting for permission to search its directory".into()));
+        }
+        Ok(serde_json::json!({"asked": asked}))
+    }
+
+    /// What asking for that permission came to: the account's searches asked again, or why not.
+    pub(crate) fn directory_allowed(&mut self, account: &str, error: Option<String>) {
+        match error {
+            None => {
+                self.directory.consent.remove(account);
+                self.directory.answers.retain(|(a, _), _| a != account);
+                self.directory.rev = self.directory.rev.wrapping_add(1);
+            }
+            Some(e) => {
+                let who = self.account(account).map_or_else(|| account.to_string(), |a| a.config.email.clone());
+                self.notice(format!("{who}: the directory can't be searched: {e}"), true);
+            }
+        }
     }
 
     /// Refresh (issue #9): forget what the directories answered, and read every Exchange

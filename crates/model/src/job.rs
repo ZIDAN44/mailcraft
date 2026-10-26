@@ -233,6 +233,10 @@ pub enum Job {
     /// Look people up in the account's organisation directory (Exchange's Global Address List,
     /// issue #9), asked of the server each time; answered by [`Event::Directory`].
     SearchDirectory { account: String, query: String },
+    /// Ask the user, in the browser, to let an Exchange Online account search its organisation's
+    /// directory (issue #9: a sign-in of its own, for the directory's permissions alone); answered
+    /// by [`Event::DirectoryAllowed`].
+    AllowDirectory { account: AccountConfig },
     /// Ask where MailCraft is published for its recent releases (File › About › Check for
     /// updates); answered by [`Event::Releases`].
     CheckUpdates,
@@ -311,6 +315,7 @@ impl Job {
             | Job::CheckRevocation { .. }
             | Job::FindHeldKeys { .. } => "",
             Job::SignIn { account }
+            | Job::AllowDirectory { account }
             | Job::ImportIdentity { account, .. }
             | Job::ForgetIdentity { account }
             | Job::ForgetOlderIdentity { account, .. }
@@ -481,11 +486,18 @@ pub enum Event {
         done: bool,
     },
     /// Who the directory found for a [`Job::SearchDirectory`]: (name, address) each, or why it
-    /// couldn't look.
+    /// couldn't look. `consent`: the account needs the user's permission first
+    /// ([`Job::AllowDirectory`]).
     Directory {
         account: String,
         query: String,
         people: Vec<(String, String)>,
+        error: Option<String>,
+        consent: bool,
+    },
+    /// What [`Job::AllowDirectory`] came to: allowed, or why not.
+    DirectoryAllowed {
+        account: String,
         error: Option<String>,
     },
     /// What [`Job::ImportIdentity`] kept: the certificate that signs and encrypts and its issuers

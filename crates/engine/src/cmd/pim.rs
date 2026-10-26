@@ -194,6 +194,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .when(|s| s.directory_accounts().is_empty().then_some("the organisation directory is searched through an Exchange account"))
         .params(r#"{"query": string}"#),
+        CommandSpec::new("contact.allowDirectory", "Allow searching the directory", "Message › Names › Address Book", |s, v| {
+            s.allow_directory(p::str(v, "account"))
+        })
+        .params(r#"{"account"?: string (default: each Exchange Online account waiting for permission)}"#),
         CommandSpec::new("contact.refreshDirectory", "Refresh address books", "Message › Names › Address Book", |s, _| s.refresh_directory())
             .when(|s| {
                 (!s.accounts.iter().any(|a| a.config.ews.is_some() || a.config.graph.is_some()))

@@ -422,6 +422,7 @@ fn the_directory_comes_into_select_names() {
         query: "zoe".into(),
         people: vec![("Zoe Park".into(), "zoe.park@contoso.example".into())],
         error: None,
+        consent: false,
     });
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
@@ -435,6 +436,7 @@ fn the_directory_comes_into_select_names() {
         query: "zoe".into(),
         people: vec![("Zoe Park".into(), "zoe.park@contoso.example".into()), ("Zoe Abbott".into(), "zoe.a@contoso.example".into())],
         error: None,
+        consent: false,
     });
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
@@ -445,5 +447,38 @@ fn the_directory_comes_into_select_names() {
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
     assert!(f.searching);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Issue #9, online: with an Exchange Online account still to allow it, Select Names asks for the
+/// permission (Allow searching the directory…) rather than showing an error.
+#[test]
+fn select_names_asks_to_allow_the_directory() {
+    let (mut a, dir) = app("names-consent");
+    let ctx = egui::Context::default();
+    a.session.prefs.new_mail_window = false;
+    a.session.oauth_available = vec!["microsoft".into()];
+    frame(&ctx, &mut a, vec![]);
+    let id = a.session.run("account.add", &json!({"email": "me@contoso.example", "graph": true})).unwrap()["account"].as_str().unwrap().to_string();
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    f.source = "directory".into();
+    f.query = "alice".into();
+    f.stale = true;
+    frame(&ctx, &mut a, vec![]);
+    a.session.apply(mailcraft_engine::model::Event::Directory {
+        account: id,
+        query: "alice".into(),
+        people: Vec::new(),
+        error: Some("searching your organisation's directory needs your permission first".into()),
+        consent: true,
+    });
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
+    assert!(f.consent && f.directory_errors.is_empty(), "{:?}", f.directory_errors);
     let _ = std::fs::remove_dir_all(dir);
 }

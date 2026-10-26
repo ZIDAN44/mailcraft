@@ -83,7 +83,8 @@ impl Session {
                     }
                 }
             }
-            Event::Directory { account, query, people, error } => self.apply_directory(&account, &query, &people, error),
+            Event::Directory { account, query, people, error, consent } => self.apply_directory(&account, &query, &people, error, consent),
+            Event::DirectoryAllowed { account, error } => self.directory_allowed(&account, error),
             Event::ServerSearched { account, query, keys, error, done } => {
                 if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.query == query) {
                     // What's found so far shows at once; the account is done at its last answer.
