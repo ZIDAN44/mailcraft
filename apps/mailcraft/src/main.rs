@@ -28,6 +28,7 @@ use secrets::Keychain;
 #[cfg(all(test, windows))]
 use secrets::SERVICE;
 
+mod appearance;
 #[cfg(target_os = "macos")]
 mod apple_events;
 mod args;
@@ -485,10 +486,17 @@ fn run(
                 let ctx = cc.egui_ctx.clone();
                 u.set_waker(Arc::new(move || ctx.request_repaint()));
             }
+            // Linux and the BSDs: the desktop's dark or light, which winit doesn't report there.
+            let dark = appearance::SystemDark::default();
+            {
+                let ctx = cc.egui_ctx.clone();
+                dark.follow(move || ctx.request_repaint());
+            }
             let mut app = MailApp::new(
                 session,
                 backend,
                 Box::new(Desktop {
+                    dark,
                     data: desktop_data,
                     base,
                     moved,

@@ -168,6 +168,11 @@ pub trait Services {
     fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {
         Vec::new()
     }
+    /// Whether the desktop prefers dark, where the window system doesn't say (Linux and the BSDs
+    /// read it from the desktop portal); `None` when not known.
+    fn system_dark(&self) -> Option<bool> {
+        None
+    }
 }
 
 /// Services for tests: a fixed clock, no dialogs.

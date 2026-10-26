@@ -66,6 +66,9 @@ x11rb = "0.13"
 raw-window-handle = "0.6"
 # Opening the window through XWayland (`display.rs`); the version eframe uses, so it's built once.
 winit = { version = "0.30", default-features = false, features = ["x11"] }
+# The desktop's dark or light preference (the freedesktop portal, `appearance.rs`): winit reports
+# no theme here. zbus comes in through AccessKit already; this only makes it direct.
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dev-dependencies]
 # The drag test plays the user on a virtual X server (Xvfb).

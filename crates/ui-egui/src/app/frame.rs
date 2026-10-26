@@ -96,7 +96,10 @@ impl MailApp {
         {
             self.ui.search_text = q.clone();
         }
-        let dark = self.ui.dark.unwrap_or_else(|| ctx.system_theme() == Some(egui::Theme::Dark));
+        let dark = self.ui.dark.unwrap_or_else(|| match ctx.system_theme() {
+            Some(theme) => theme == egui::Theme::Dark,
+            None => self.services.system_dark().unwrap_or(false),
+        });
         if dark != self.ui.tokens.dark || ctx.global_style().visuals.panel_fill != self.ui.tokens.surface {
             self.ui.tokens = Tokens::for_dark(dark);
             theme::apply(&ctx, &self.ui.tokens);

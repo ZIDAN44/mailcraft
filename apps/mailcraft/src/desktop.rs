@@ -32,6 +32,8 @@ pub(crate) struct Desktop {
     pub(crate) portable: bool,
     /// Test builds' updater (`self_update.rs`), when this one has it.
     pub(crate) updater: Option<self_update::Updater>,
+    /// The desktop's light or dark preference where winit doesn't report one (`appearance.rs`).
+    pub(crate) dark: appearance::SystemDark,
 }
 
 impl Services for Desktop {
@@ -41,6 +43,9 @@ impl Services for Desktop {
     }
     fn zone(&self) -> Option<String> {
         iana_time_zone::get_timezone().ok()
+    }
+    fn system_dark(&self) -> Option<bool> {
+        self.dark.get()
     }
     fn pick_files(&mut self) -> Vec<PathBuf> {
         rfd::FileDialog::new().set_title("Attach files").pick_files().unwrap_or_default()
