@@ -417,13 +417,28 @@ impl<H: Http> Client<H> {
         let using = [CORE, MAIL, SUBMISSION];
         let r = self.call(&using, vec![("Identity/get", json!({"accountId": self.account, "ids": null}))]).await?;
         let identities = list(r.first(), "list");
-        let identity = identities
+        let found = identities
             .iter()
             .find(|i| i.get("email").and_then(Value::as_str).is_some_and(|e| e.eq_ignore_ascii_case(from)))
             .or_else(|| identities.first())
             .and_then(|i| i.get("id"))
             .and_then(Value::as_str)
-            .ok_or_else(|| Error::Send("the JMAP account has no identity to send from".into()))?;
+            .map(str::to_string);
+        // None yet (Stalwart makes none for a new account): one made for the address, as RFC 8621
+        // §6 lets a client; a server that won't says why.
+        let identity = match found {
+            Some(id) => id,
+            None => {
+                let r = self.call(&using, vec![("Identity/set", json!({"accountId": self.account, "create": {"i": {"email": from}}}))]).await?;
+                set_error(r.first(), "notCreated")
+                    .map_err(|e| Error::Send(format!("the JMAP account has no identity to send from, and none could be made: {e}")))?;
+                r.first()
+                    .and_then(|v| v.get("created")?.get("i")?.get("id")?.as_str())
+                    .map(str::to_string)
+                    .ok_or_else(|| Error::Send("the JMAP account has no identity to send from".into()))?
+            }
+        };
+        let identity = identity.as_str();
         let rcpt: Vec<Value> = recipients.iter().map(|r| json!({"email": r})).collect();
         let r = self
             .call(

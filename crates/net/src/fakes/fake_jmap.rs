@@ -48,6 +48,10 @@ pub struct Data {
     pub listeners: Vec<std::sync::mpsc::Sender<String>>,
     /// The next so many `Mailbox/get` calls fail (a server that didn't answer).
     pub fail_mailbox_get: u32,
+    /// The account starts with no identity to send from (Stalwart's new accounts); those made
+    /// with `Identity/set` are listed (their addresses).
+    pub no_identity: bool,
+    pub made_identities: Vec<String>,
     next: u32,
 }
 
@@ -291,7 +295,20 @@ impl Data {
                 self.vacation = patch;
                 (name.into(), json!({"accountId": ACCOUNT, "updated": {"singleton": null}}))
             }
-            "Identity/get" => (name.into(), json!({"accountId": ACCOUNT, "list": [{"id": "I1", "email": USER, "name": "Me"}]})),
+            "Identity/get" => {
+                let mut list: Vec<Value> = if self.no_identity { Vec::new() } else { vec![json!({"id": "I1", "email": USER, "name": "Me"})] };
+                list.extend(self.made_identities.iter().enumerate().map(|(i, e)| json!({"id": format!("M{i}"), "email": e, "name": ""})));
+                (name.into(), json!({"accountId": ACCOUNT, "list": list}))
+            }
+            "Identity/set" => {
+                let mut created = Map::new();
+                for (k, v) in args.get("create").and_then(Value::as_object).cloned().unwrap_or_default() {
+                    let email = v["email"].as_str().unwrap_or_default().to_string();
+                    created.insert(k, json!({"id": format!("M{}", self.made_identities.len())}));
+                    self.made_identities.push(email);
+                }
+                (name.into(), json!({"accountId": ACCOUNT, "created": created}))
+            }
             "EmailSubmission/set" => {
                 let mut created = Map::new();
                 let mut not_created = Map::new();
@@ -750,6 +767,49 @@ mod tests {
         pool.submit(Job::Remove { account: "a1".into() });
         assert_eq!(numbers, Some(key.uid));
         assert!(data.lock().unwrap().calls.iter().any(|c| c == "EmailSubmission/set"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A JMAP account the server made with no identity to send from (Stalwart's new accounts):
+    /// one is made for the address, and the mail goes; the next sends use it.
+    #[test]
+    fn an_account_with_no_identity_gets_one_and_sends() {
+        let mut d = Data { no_identity: true, ..Default::default() };
+        d.mailbox("Inbox", None, Some("inbox"));
+        d.mailbox("Sent", None, Some("sent"));
+        let server = serve(d);
+        let data = server.data.clone();
+        let dir = std::env::temp_dir().join(format!("mailcraft-jmap-identity-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig {
+            id: "a1".into(),
+            name: "Me".into(),
+            email: USER.into(),
+            username: USER.into(),
+            jmap: Some(server.base.clone()),
+            ..Default::default()
+        };
+        pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        let raw = b"From: me@studio.example\r\nTo: zoe@studio.example\r\nSubject: first\r\nMessage-ID: <id1@x>\r\n\r\nhi\r\n".to_vec();
+        for id in [1, 2] {
+            pool.submit(Job::Send {
+                account: "a1".into(),
+                id,
+                raw: raw.clone(),
+                from: USER.into(),
+                recipients: vec!["zoe@studio.example".into()],
+                sent_folder: Some("Sent".into()),
+            });
+            until(&pool, "sent", |e| matches!(e, Event::Sent { id: i, .. } if *i == id));
+        }
+        let d = data.lock().unwrap();
+        assert_eq!(d.made_identities, [USER.to_string()], "made once, then used");
+        assert_eq!(d.submissions.len(), 2);
+        drop(d);
+        drop(pool);
         let _ = std::fs::remove_dir_all(dir);
     }
 
