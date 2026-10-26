@@ -174,6 +174,13 @@ line two"
         a.ui.search_text = "storyboard".into();
         a.run("search.run", json!({"query": "storyboard"}));
         frame(&ctx, &mut a, vec![]);
+        // The Search tab, and the classic ribbon's (their labels are looked up only there).
+        a.ui.tab = crate::RibbonTab::Search;
+        frame(&ctx, &mut a, vec![]);
+        a.run("view.classicRibbon", json!({"on": true}));
+        frame(&ctx, &mut a, vec![]);
+        a.run("view.classicRibbon", json!({"on": false}));
+        a.ui.tab = crate::RibbonTab::Home;
         a.run("search.run", json!({"query": "zzzz-nothing"}));
         frame(&ctx, &mut a, vec![]);
         a.run("search.clear", json!({}));
