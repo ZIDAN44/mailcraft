@@ -6,6 +6,26 @@
 <dict>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
+  <!-- The interface's languages (its catalogs are compiled in, crates/ui-egui/src/i18n/), named
+       for AppKit so its own dialogs (open and save panels, the overwrite question) speak them too;
+       without this they stayed English. Kept in step with the catalogs by a test. -->
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>ar</string>
+    <string>de</string>
+    <string>es</string>
+    <string>fr</string>
+    <string>he</string>
+    <string>it</string>
+    <string>ja</string>
+    <string>ko</string>
+    <string>nl</string>
+    <string>pt-BR</string>
+    <string>ru</string>
+    <string>zh-Hans</string>
+    <string>zh-Hant</string>
+  </array>
   <key>CFBundleDisplayName</key>
   <string>MailCraft</string>
   <key>CFBundleName</key>

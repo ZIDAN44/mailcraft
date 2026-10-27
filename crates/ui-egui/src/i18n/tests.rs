@@ -371,6 +371,19 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     out
 }
 
+/// The macOS app names the interface's languages to AppKit (`CFBundleLocalizations`), so its own
+/// open and save panels speak them: the list is exactly the languages there are catalogs for.
+#[test]
+fn the_mac_app_names_every_interface_language() {
+    let plist = include_str!("../../../../packaging/macos/Info.plist.in");
+    let list = plist.split("<key>CFBundleLocalizations</key>").nth(1).and_then(|s| s.split("</array>").next()).unwrap_or_default();
+    let mut named: Vec<String> = list.split("<string>").skip(1).filter_map(|s| s.split("</string>").next()).map(str::to_ascii_lowercase).collect();
+    let mut ours: Vec<String> = Lang::all().map(|l| l.code().to_string()).collect();
+    named.sort();
+    ours.sort();
+    assert_eq!(named, ours, "Info.plist.in's CFBundleLocalizations and the catalogs differ");
+}
+
 #[test]
 fn catalogs_parse_cleanly() {
     for l in LANGUAGES.iter().skip(1) {
