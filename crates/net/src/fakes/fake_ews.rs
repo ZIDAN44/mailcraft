@@ -92,6 +92,9 @@ pub struct Data {
     pub anchors: Vec<String>,
     /// The organisation's directory (Active Directory): (name, address).
     pub directory: Vec<(String, String)>,
+    /// A server whose directory answers name each mailbox by its alias (the address's user part,
+    /// issue #9): the full name is only in the contact, when one is asked for.
+    pub directory_aliases: bool,
     /// The `User-Agent` of each request.
     pub agents: Vec<String>,
     /// Refuse (HTTP 403) every request naming another `User-Agent` (issue #9: a server that lets
@@ -133,6 +136,7 @@ impl Default for Data {
             shared: Vec::new(),
             anchors: Vec::new(),
             directory: Vec::new(),
+            directory_aliases: false,
             agents: Vec::new(),
             only_agent: None,
             open: false,
@@ -402,38 +406,7 @@ impl Data {
             // The directory: every name or address with a word starting with the search, up to
             // 100, as Exchange's ambiguous name resolution; several are a warning.
             "ResolveNames" if op.attr("SearchScope") == Some("ActiveDirectory") => {
-                let q = op.text_of("UnresolvedEntry").unwrap_or("").trim().to_lowercase();
-                let hit = |n: &str, a: &str| {
-                    let (n, a) = (n.to_lowercase(), a.to_lowercase());
-                    !q.is_empty() && (a.starts_with(&q) || n.starts_with(&q) || n.split(' ').any(|w| w.starts_with(&q)))
-                };
-                let found: Vec<String> = self
-                    .directory
-                    .iter()
-                    .filter(|(n, a)| hit(n, a))
-                    .take(100)
-                    .map(|(n, a)| {
-                        format!(
-                            "<t:Resolution><t:Mailbox><t:Name>{}</t:Name><t:EmailAddress>{}</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType>\
-                             <t:MailboxType>Mailbox</t:MailboxType></t:Mailbox></t:Resolution>",
-                            esc(n),
-                            esc(a)
-                        )
-                    })
-                    .collect();
-                let set = format!(
-                    "<m:ResolutionSet TotalItemsInView=\"{}\" IncludesLastItemInRange=\"true\">{}</m:ResolutionSet>",
-                    found.len(),
-                    found.concat()
-                );
-                out.push(match found.len() {
-                    0 => err("ErrorNameResolutionNoResults"),
-                    1 => ok(set),
-                    _ => format!(
-                        "<m:R ResponseClass=\"Warning\"><m:MessageText>Multiple results were found.</m:MessageText>\
-                         <m:ResponseCode>ErrorNameResolutionMultipleResults</m:ResponseCode>{set}</m:R>"
-                    ),
-                });
+                out.push(self.directory_answer(op));
             }
             "ResolveNames" => {
                 let entry = op.text_of("UnresolvedEntry").unwrap_or("").to_ascii_lowercase();
@@ -985,5 +958,6 @@ fn xml(e: &El) -> String {
     format!("<t:{0}{attrs}>{1}{inner}</t:{0}>", e.name, esc(&e.text))
 }
 
+mod directory;
 #[cfg(test)]
 mod tests;

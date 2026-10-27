@@ -69,6 +69,36 @@ fn the_directory_answers_whoever_matches() {
     assert!(c.search_directory(&"a".repeat(100_000)).unwrap().is_empty());
 }
 
+/// Issue #9 (follow-up): a server that names each mailbox by its alias (`alice.moreno`) gives the
+/// full name in the contact; MailCraft asks for it and shows it, for anyone it has never had mail
+/// from. A contact with only a given name and surname, or none at all, falls back in turn.
+#[test]
+fn people_found_in_the_directory_have_their_full_names() {
+    let mut d = Data { directory_aliases: true, ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    people(&mut d);
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    assert_eq!(
+        c.search_directory("ali").unwrap(),
+        [("Alice Moreno".to_string(), "alice.moreno@contoso.example".to_string()), ("Alicia Keyes".into(), "alicia@contoso.example".into())]
+    );
+    assert_eq!(c.search_directory("ålesund").unwrap(), [("Ålesund Office".to_string(), "alesund@contoso.example".to_string())]);
+
+    let name = |contact: &str| {
+        let doc = crate::ews::parse(&format!(
+            "<Resolution><Mailbox><Name>j.doe</Name><EmailAddress>j.doe@contoso.example</EmailAddress></Mailbox>{contact}</Resolution>"
+        ));
+        let r = doc.find("Resolution").unwrap_or(&doc);
+        crate::ews::directory_name(r)
+    };
+    assert_eq!(name("<Contact><DisplayName> Jane Doe </DisplayName></Contact>"), "Jane Doe");
+    assert_eq!(name("<Contact><DisplayName/><GivenName>Jane</GivenName><Surname>Doe</Surname></Contact>"), "Jane Doe");
+    assert_eq!(name("<Contact><Surname>Doe</Surname></Contact>"), "Doe");
+    assert_eq!(name("<Contact><DisplayName>Ja\u{7}ne</DisplayName></Contact>"), "Jane");
+    assert_eq!(name(""), "j.doe", "no contact: the mailbox's name");
+}
+
 /// Issue #9: someone added to the directory while MailCraft runs is found by the next search,
 /// through the account's worker, with the account's own User-Agent; a search the server can't
 /// answer says why.
@@ -225,4 +255,43 @@ fn through_a_kerberos_front() {
     assert!(!mail.is_empty());
     drop(pool);
     let _ = std::fs::remove_dir_all(store.root());
+}
+
+/// Issue #9 (follow-up) against a real EWS server, grommunio (Docker, `gromox-container`), before
+/// a plain-HTTP front: someone with no display name, only a given name and surname, is named by
+/// them, not by their alias as the server's mailbox name has it; someone with one, by it.
+/// Run: `MAILCRAFT_GROMMUNIO=http://127.0.0.1:18090/EWS/Exchange.asmx MAILCRAFT_GROMMUNIO_USER=riley@studio.test
+/// MAILCRAFT_GROMMUNIO_PASSWORD=… cargo test -p mailcraft-net against_grommunio -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn against_grommunio() {
+    let (Ok(url), Ok(user), Ok(password)) =
+        (std::env::var("MAILCRAFT_GROMMUNIO"), std::env::var("MAILCRAFT_GROMMUNIO_USER"), std::env::var("MAILCRAFT_GROMMUNIO_PASSWORD"))
+    else {
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("mailcraft-grommunio-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut pool = crate::worker::Pool::new(Store::open(&dir).unwrap(), Arc::new(crate::worker::MemoryCredentials::default()));
+    let account = AccountConfig { id: "grom".into(), email: user.clone(), username: user, ews: Some(url), ..Default::default() };
+    pool.submit(Job::Start { account, password: Some(Secret(password)) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let mut search = |q: &str| {
+        pool.submit(Job::SearchDirectory { account: "grom".into(), query: q.into() });
+        let seen = until(&pool, "the directory's answer", |e| matches!(e, Event::Directory { query, .. } if query == q));
+        seen.into_iter()
+            .rev()
+            .find_map(|e| match e {
+                Event::Directory { people, error, .. } => Some((people, error)),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let (dana, error) = search("dana");
+    println!("dana: {dana:?} {error:?}");
+    assert_eq!(dana, [("Dana Whitfield".to_string(), "dana.noname@studio.test".to_string())]);
+    let (john, error) = search("john");
+    println!("john: {john:?} {error:?}");
+    assert_eq!(john, [("John Doe".to_string(), "john.doe@studio.test".to_string())]);
+    let _ = std::fs::remove_dir_all(&dir);
 }

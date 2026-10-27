@@ -919,6 +919,8 @@ pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
 mod directory;
 mod discover;
 pub use directory::DIRECTORY_MAX;
+#[cfg(test)]
+pub(crate) use directory::directory_name;
 mod mailbox;
 mod requests;
 #[cfg(test)]

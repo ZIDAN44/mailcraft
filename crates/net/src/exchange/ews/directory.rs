@@ -18,7 +18,7 @@ impl Client {
             return Ok(Vec::new());
         }
         let doc = self.call(&format!(
-            "<m:ResolveNames ReturnFullContactData=\"false\" SearchScope=\"ActiveDirectory\"><m:UnresolvedEntry>{}</m:UnresolvedEntry></m:ResolveNames>",
+            "<m:ResolveNames ReturnFullContactData=\"true\" SearchScope=\"ActiveDirectory\"><m:UnresolvedEntry>{}</m:UnresolvedEntry></m:ResolveNames>",
             esc(&q)
         ))?;
         let Some(m) = messages(&doc).first().copied() else { return Err(NetError::Protocol("an empty answer".into())) };
@@ -42,12 +42,27 @@ impl Client {
             if out.iter().any(|(_, a)| a.eq_ignore_ascii_case(address)) {
                 continue;
             }
-            let name: String = b.text_of("Name").map(str::trim).unwrap_or("").chars().take(256).collect();
-            out.push((name, address.to_string()));
+            out.push((directory_name(r), address.to_string()));
             if out.len() >= DIRECTORY_MAX {
                 break;
             }
         }
         Ok(out)
     }
+}
+
+/// A person's name as the directory keeps it: the contact's display name, or its given name and
+/// surname, before the mailbox's name, which some servers fill with the alias (`john.doe`, issue
+/// #9). The contact comes with the full data asked for; without one, the mailbox's name.
+pub(crate) fn directory_name(resolution: &El) -> String {
+    let text = |el: Option<&El>, name: &str| el.and_then(|e| e.text_of(name)).map(str::trim).unwrap_or("").to_string();
+    let contact = resolution.child("Contact");
+    let mut name = text(contact, "DisplayName");
+    if name.is_empty() {
+        name = [text(contact, "GivenName"), text(contact, "Surname")].iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join(" ");
+    }
+    if name.is_empty() {
+        name = text(resolution.child("Mailbox"), "Name");
+    }
+    name.chars().filter(|c| !c.is_control()).take(256).collect()
 }

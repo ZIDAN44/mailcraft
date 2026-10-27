@@ -185,10 +185,9 @@ impl Session {
         if out.len() < limit {
             self.look_up_directory(query, false);
             for a in self.directory_people(query) {
-                if out.len() >= limit {
-                    break;
-                }
-                if !out.iter().any(|c| c.address.email.eq_ignore_ascii_case(&a.email)) {
+                if let Some(c) = out.iter_mut().find(|c| c.address.email.eq_ignore_ascii_case(&a.email)) {
+                    fill_name(&mut c.address, &a);
+                } else if out.len() < limit {
                     out.push(Contact { address: a, sent: 0, received: 0, last: 0 });
                 }
             }
@@ -240,8 +239,13 @@ impl Session {
         let mut list: Vec<EmailAddress> =
             self.contacts.as_ref().map(|b| b.list(query, MAX).into_iter().map(|c| c.address).collect()).unwrap_or_default();
         self.look_up_directory(query, false);
-        let more: Vec<EmailAddress> =
-            self.directory_people(query).into_iter().filter(|a| !list.iter().any(|l| l.email.eq_ignore_ascii_case(&a.email))).collect();
+        let mut more = Vec::new();
+        for a in self.directory_people(query) {
+            match list.iter_mut().find(|l| l.email.eq_ignore_ascii_case(&a.email)) {
+                Some(l) => fill_name(l, &a),
+                None => more.push(a),
+            }
+        }
         if !more.is_empty() {
             list.extend(more);
             list.sort_by_key(|a| (if a.name.is_empty() { a.email.to_lowercase() } else { a.name.to_lowercase() }, a.email.to_lowercase()));
@@ -463,5 +467,16 @@ impl Session {
             .find(|t| t.messages.contains(&i))
             .map(|t| t.messages.iter().filter_map(|&j| self.list.get(j).map(|m| m.key.clone())).collect())
             .unwrap_or_default()
+    }
+}
+
+/// A known address with no real name (none, the address itself, or its user part, as some
+/// directories and senders give: issue #9) takes the directory's full name for it.
+fn fill_name(known: &mut EmailAddress, directory: &EmailAddress) {
+    let name = known.name.trim();
+    let user = known.email.split('@').next().unwrap_or("");
+    let bare = name.is_empty() || name.eq_ignore_ascii_case(&known.email) || name.eq_ignore_ascii_case(user);
+    if bare && !directory.name.trim().is_empty() {
+        known.name = directory.name.clone();
     }
 }

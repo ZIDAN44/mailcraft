@@ -165,6 +165,28 @@ fn the_directory_is_asked_again_once_its_answer_is_old() {
     done(s);
 }
 
+/// Issue #9 (follow-up): someone known only by an address, or by its user part, shows with the
+/// directory's full name when writing and in Select Names; a real name already known is kept.
+#[test]
+fn the_directory_names_people_known_only_by_their_address() {
+    let mut s = sample_session("directory-names");
+    let id = exchange(&mut s, None);
+    s.run("contact.create", &json!({"emails": "john.doe@contoso.example"})).unwrap();
+    s.run("contact.create", &json!({"name": "Jo (from the gym)", "emails": "jo@contoso.example"})).unwrap();
+    s.address_book("all", "contoso");
+    s.take_jobs();
+    answer(&mut s, &id, "contoso", &[("John Doe", "John.Doe@contoso.example"), ("Joanna Smith", "jo@contoso.example")]);
+    let name =
+        |list: &[mailcraft_model::EmailAddress], email: &str| list.iter().find(|a| a.email.eq_ignore_ascii_case(email)).map(|a| a.name.clone());
+    let all = s.address_book("all", "contoso");
+    assert_eq!(name(&all, "john.doe@contoso.example").as_deref(), Some("John Doe"), "{all:?}");
+    assert_eq!(name(&all, "jo@contoso.example").as_deref(), Some("Jo (from the gym)"), "a name of one's own is kept");
+    assert_eq!(all.iter().filter(|a| a.email.eq_ignore_ascii_case("john.doe@contoso.example")).count(), 1, "listed once");
+    let suggested: Vec<mailcraft_model::EmailAddress> = s.suggest_contacts("contoso", 8).into_iter().map(|c| c.address).collect();
+    assert_eq!(name(&suggested, "john.doe@contoso.example").as_deref(), Some("John Doe"), "{suggested:?}");
+    done(s);
+}
+
 /// Issue #9, online: an Exchange Online account searches its directory too, once the user allows it. An
 /// answer saying it needs permission keeps it waiting (no error shown for it, the dialog asks
 /// instead); allowing it opens the browser for that account, and once allowed its searches are
