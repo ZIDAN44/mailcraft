@@ -19,8 +19,9 @@ on:
         type: string
         default: ""
 
+# Read-only by default; the one job that drafts the release gets write access below.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -28,6 +29,11 @@ concurrency:
 
 jobs:
   release:
+    # The shared workflow drafts the GitHub Release, which needs write access to contents (a
+    # sibling app that dropped the workflow-wide grant without this one had its release fail at
+    # startup).
+    permissions:
+      contents: write
     # Intentionally tracked at @main (not SHA-pinned) so org-wide CI improvements, security fixes, and build optimizations propagate without PR churn across all craftapp repos.
     uses: storytold/craft-common-actions/.github/workflows/release.yml@main
     with:
