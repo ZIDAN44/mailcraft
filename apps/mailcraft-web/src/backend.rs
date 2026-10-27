@@ -536,6 +536,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::StopSearch
         | Job::Remove { .. }
         | Job::FetchUrl { .. }
+        | Job::FetchCalendar { .. }
         | Job::Discover { .. }
         | Job::SignIn { .. }
         | Job::ImportPst { .. }
@@ -636,11 +637,31 @@ async fn fetch_url(sh: Rcs, url: String) {
     emit(&sh, e);
 }
 
+/// A calendar subscribed to by its link (issue #7), read by the page: only from servers that
+/// let web pages read their calendars (CORS); the desktop app reads any.
+async fn fetch_calendar(sh: Rcs, account: String, calendar: String, url: String) {
+    use mailcraft_jmap::Http as _;
+    let r = Fetch.send(mailcraft_jmap::Request::get(&url, MAX_CALENDAR)).await;
+    let (ics, error) = match r {
+        Ok(resp) if (200..300).contains(&resp.status) => (Some(String::from_utf8_lossy(&resp.body).into_owned()), None),
+        Ok(resp) => (None, Some(format!("the calendar's server answered HTTP {}", resp.status))),
+        Err(_) => (None, Some("the calendar's server doesn't let web pages read it; the desktop app can".to_string())),
+    };
+    let e = Event::CalendarFetched { account, calendar, ics, etag: String::new(), modified: String::new(), unchanged: false, error };
+    emit(&sh, e);
+}
+
+/// Largest calendar read in the browser.
+const MAX_CALENDAR: usize = 20 << 20;
+
 impl Backend for WebBackend {
     fn submit(&mut self, job: Job) {
         let sh = &self.shared;
         match job {
             Job::FetchUrl { url } => wasm_bindgen_futures::spawn_local(fetch_url(sh.clone(), url)),
+            Job::FetchCalendar { account, calendar, url, .. } => {
+                wasm_bindgen_futures::spawn_local(fetch_calendar(sh.clone(), account, calendar, url))
+            }
             // No autoconfiguration in the browser: the user gives the JMAP address.
             Job::Discover { email } => emit(sh, Event::Discovered { email, config: None, source: String::new() }),
             Job::SignIn { account } => {

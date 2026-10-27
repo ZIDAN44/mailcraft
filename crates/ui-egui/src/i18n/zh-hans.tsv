@@ -1240,3 +1240,13 @@ month	May	5月
 	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	密码用此浏览器生成且从不外泄的密钥封存：使用此浏览器配置文件的任何人都能签名并阅读你的加密邮件，但没人能把密钥带到别处。
 	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	浏览器保存该文件（用其密码锁定），并用从不离开此浏览器的密钥封存密码。
 	Your certificate's password, to keep it unlocked in this browser:	证书的密码，用于在此浏览器中保持解锁：
+	Subscribe to a calendar	订阅日历
+	Subscribe to a calendar…	订阅日历…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	粘贴日历链接（iCal 或 webcal://）。它以只读方式显示在你的日历旁边，每隔几小时重新读取一次。
+	Name (optional)	名称（可选）
+	Subscribe	订阅
+	Couldn't be read: {error}	无法读取：{error}
+	Reading it…	正在读取…
+	Read {time}	读取于 {time}
+	couldn't be read	无法读取
+	Refresh	刷新

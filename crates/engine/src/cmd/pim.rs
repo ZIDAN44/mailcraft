@@ -249,6 +249,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .params(r#"{"email": string (whose calendar), "account"?: string (an Exchange account; else the first)}"#),
         CommandSpec::new("calendar.closeShared", "Close shared calendar", "Calendar", |s, v| s.close_shared_calendar(p::req_str(v, "email")?))
             .params(r#"{"email": string}"#),
+        CommandSpec::new("calendar.subscribe", "Subscribe to a calendar", "Calendar", |s, v| {
+            s.subscribe_calendar(p::str(v, "account"), p::req_str(v, "url")?, p::str(v, "name"))
+        })
+        .params(r#"{"url": string (an iCal or webcal:// link), "name"?: string, "account"?: string (else the one on screen)}"#),
+        CommandSpec::new("calendar.unsubscribe", "Remove a subscribed calendar", "Calendar", |s, v| s.unsubscribe_calendar(p::req_str(v, "calendar")?))
+            .params(r#"{"calendar": string (its id, or its link)}"#),
+        CommandSpec::new("calendar.refreshSubscribed", "Refresh subscribed calendars", "Calendar", |s, v| {
+            s.refresh_web_calendars(p::str(v, "calendar"))
+        })
+        .params(r#"{"calendar"?: string (one, by its id; else all)}"#),
         CommandSpec::new("note.list", "Notes", "Notes", |s, v| {
             let list: Vec<Value> = s
                 .notes(p::str(v, "query").unwrap_or(""))

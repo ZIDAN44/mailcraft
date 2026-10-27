@@ -136,11 +136,16 @@ impl CalEvent {
     }
 }
 
-/// A calendar file: what it asks (`METHOD`, for invitations) and its events.
+/// A calendar file: what it asks (`METHOD`, for invitations), its events, and, for a calendar
+/// published to subscribe to, its name and how often to read it again.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ICalendar {
     pub method: Option<String>,
     pub events: Vec<CalEvent>,
+    /// `NAME` (RFC 7986) or `X-WR-CALNAME`.
+    pub name: Option<String>,
+    /// `REFRESH-INTERVAL` (RFC 7986) or `X-PUBLISHED-TTL`, in seconds.
+    pub refresh: Option<i64>,
 }
 
 /// One occurrence of an event: which event (index into the list given) and when.
@@ -416,8 +421,14 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             continue;
         }
         let Some((e, dur)) = ev.as_mut() else {
-            if n == "METHOD" {
-                cal.method = Some(l.value.trim().to_ascii_uppercase());
+            match n {
+                "METHOD" => cal.method = Some(l.value.trim().to_ascii_uppercase()),
+                "NAME" | "X-WR-CALNAME" if cal.name.is_none() => {
+                    let name: String = unescape(&l.value).chars().filter(|c| !c.is_control()).take(200).collect();
+                    cal.name = Some(name.trim().to_string()).filter(|s| !s.is_empty());
+                }
+                "REFRESH-INTERVAL" | "X-PUBLISHED-TTL" if cal.refresh.is_none() => cal.refresh = duration(l.value.trim()).filter(|d| *d > 0),
+                _ => {}
             }
             continue;
         };

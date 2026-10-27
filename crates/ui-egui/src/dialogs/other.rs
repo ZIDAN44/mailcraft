@@ -145,6 +145,39 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
+        Dialog::SubscribeCalendar { url, name, error } => {
+            ui.set_width(440.0);
+            title(ui, t, "Subscribe to a calendar");
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tl!(
+                        "Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours."
+                    ))
+                    .color(t.dim),
+                )
+                .wrap(),
+            );
+            ui.add_space(8.0);
+            let r = ui.add(egui::TextEdit::singleline(url).hint_text("webcal://example.com/calendar.ics").desired_width(f32::INFINITY));
+            // Before the focus request below, which would hide the Enter that ended input.
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            ui.add_space(6.0);
+            ui.label(RichText::new(tl!("Name (optional)")).color(t.dim).small());
+            ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
+            if let Some(e) = error {
+                ui.add_space(4.0);
+                ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger).small()).wrap());
+            }
+            let ready = mailcraft_engine::model::pim::calendar_link(url).is_some();
+            let (ok, cancel) = buttons(ui, t, "Subscribe", ready);
+            if (ok || enter) && ready {
+                acts.push(Action::Submit("calendar.subscribe", json!({"url": url.trim(), "name": name.trim()})));
+            }
+            !cancel
+        }
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
         Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),
         // Every other kind is shown by its own group (`body`).

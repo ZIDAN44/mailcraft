@@ -243,6 +243,7 @@ impl Pool {
         }
         match job {
             Job::FetchUrl { url } => self.fetch_url(url),
+            Job::FetchCalendar { account, calendar, url, etag, modified } => self.fetch_calendar(account, calendar, url, etag, modified),
             Job::StopSearch => self.search.store(0, Ordering::Relaxed),
             Job::CheckUpdates => {
                 let sink = self.sink.clone();

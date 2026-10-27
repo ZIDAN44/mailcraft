@@ -367,7 +367,45 @@ fn run() -> Result<(), String> {
                 None => json!({}),
             };
             print(&s.run(&id, &params).map_err(|e| e.to_string())?);
-            let (queued, other) = keep_changes(&store, s.take_jobs())?;
+            // Calendars subscribed to by their links (issue #7) are read now, needing no account's
+            // sign-in: what came of each is said.
+            let (calendars, jobs): (Vec<Job>, Vec<Job>) = s.take_jobs().into_iter().partition(|j| matches!(j, Job::FetchCalendar { .. }));
+            if !calendars.is_empty() {
+                let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+                let mut waiting: Vec<String> = calendars
+                    .iter()
+                    .filter_map(|j| if let Job::FetchCalendar { calendar, .. } = j { Some(calendar.clone()) } else { None })
+                    .collect();
+                for j in calendars {
+                    pool.submit(j);
+                }
+                let end = Instant::now() + Duration::from_secs(120);
+                while !waiting.is_empty() && Instant::now() < end {
+                    let Some(e) = pool.wait(Duration::from_millis(250)) else { continue };
+                    if let Event::CalendarFetched { account, calendar, error, unchanged, .. } = &e {
+                        waiting.retain(|c| c != calendar);
+                        let (account, calendar) = (account.clone(), calendar.clone());
+                        let (error, unchanged) = (error.clone(), *unchanged);
+                        s.apply(e);
+                        let events = s.pim.get(&account).map_or(0, |p| p.events.iter().filter(|x| x.calendar == calendar).count());
+                        let name = s
+                            .pim
+                            .get(&account)
+                            .and_then(|p| p.calendars.iter().find(|c| c.id == calendar))
+                            .map(|c| c.name.clone())
+                            .unwrap_or_default();
+                        match error {
+                            Some(e) => errln!("{name}: couldn't be read: {e}"),
+                            None if unchanged => errln!("{name}: unchanged, {events} event(s)"),
+                            None => errln!("{name}: read, {events} event(s)"),
+                        }
+                    }
+                }
+                if !waiting.is_empty() {
+                    errln!("{} calendar(s) didn't answer in time", waiting.len());
+                }
+            }
+            let (queued, other) = keep_changes(&store, jobs)?;
             if queued > 0 {
                 errln!("{queued} change(s) queued for the server: `sync` sends them");
             }

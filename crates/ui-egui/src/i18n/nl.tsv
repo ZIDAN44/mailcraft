@@ -1239,3 +1239,13 @@ month	May	mei
 	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	Het wachtwoord wordt verzegeld bewaard met een sleutel die deze browser maakt en nooit vrijgeeft: wie dit browserprofiel gebruikt, kan ondertekenen en je versleutelde mail lezen; niemand kan de sleutel meenemen.
 	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	De browser bewaart het bestand, vergrendeld met het wachtwoord, en het wachtwoord verzegeld met een sleutel die deze browser nooit verlaat.
 	Your certificate's password, to keep it unlocked in this browser:	Het wachtwoord van je certificaat, om het ontgrendeld te houden in deze browser:
+	Subscribe to a calendar	Abonneren op een agenda
+	Subscribe to a calendar…	Abonneren op een agenda…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	Plak de link van de agenda (iCal of webcal://). Hij staat naast de jouwe, alleen-lezen, en wordt om de paar uur opnieuw gelezen.
+	Name (optional)	Naam (optioneel)
+	Subscribe	Abonneren
+	Couldn't be read: {error}	Kon niet worden gelezen: {error}
+	Reading it…	Bezig met lezen…
+	Read {time}	Gelezen {time}
+	couldn't be read	kon niet worden gelezen
+	Refresh	Vernieuwen

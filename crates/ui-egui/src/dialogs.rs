@@ -90,6 +90,12 @@ pub enum Dialog {
         email: String,
         error: Option<String>,
     },
+    /// Subscribe to a calendar by its link (Outlook's Add Calendar › From Internet, issue #7).
+    SubscribeCalendar {
+        url: String,
+        name: String,
+        error: Option<String>,
+    },
     /// Open another mailbox in an Exchange account by its address (Outlook's "Open these
     /// additional mailboxes").
     AddSharedMailbox {
@@ -358,7 +364,9 @@ impl Dialog {
             Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
             Dialog::Dav(f) => f.error = Some(e),
-            Dialog::OpenSharedCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => *error = Some(e),
+            Dialog::OpenSharedCalendar { error, .. } | Dialog::SubscribeCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => {
+                *error = Some(e)
+            }
             _ => {}
         }
     }
@@ -521,6 +529,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         | Dialog::PicturePreview { .. }
         | Dialog::Preview { .. }
         | Dialog::OpenSharedCalendar { .. }
+        | Dialog::SubscribeCalendar { .. }
         | Dialog::Certificate { .. }
         | Dialog::SmartCard { .. }
         | Dialog::Event(..)

@@ -78,6 +78,70 @@ pub fn shared_calendar_owner(id: &str) -> Option<&str> {
     id.strip_prefix("shared:").filter(|e| !e.is_empty())
 }
 
+/// A calendar subscribed to by its link (an iCal or `webcal://` address, issue #7), as Outlook's
+/// Add Calendar › From Internet: read-only, read again from the link now and then.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WebCalendar {
+    /// Its calendar's id ([`web_calendar_id`]).
+    pub id: String,
+    /// The link it's read from (`https://` or `http://`; a `webcal://` one as `https://`).
+    pub url: String,
+    /// Named by the user: the calendar's own name (`X-WR-CALNAME`) doesn't replace it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub named: bool,
+    /// When it was last read, and last tried (Unix seconds; 0: never).
+    #[serde(default)]
+    pub fetched: i64,
+    #[serde(default)]
+    pub tried: i64,
+    /// What the server named this version (`ETag`, `Last-Modified`), so an unchanged calendar
+    /// isn't sent again.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub etag: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub modified: String,
+    /// How often the calendar asks to be read (`REFRESH-INTERVAL`, `X-PUBLISHED-TTL`), seconds.
+    #[serde(default)]
+    pub every: i64,
+    /// Why the last read failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// The id of a calendar subscribed to by its link.
+pub fn web_calendar_id(url: &str) -> String {
+    format!("web:{url}")
+}
+
+/// Whether a calendar is one subscribed to by its link.
+pub fn is_web_calendar(id: &str) -> bool {
+    id.starts_with("web:")
+}
+
+/// Longest calendar link kept.
+pub const MAX_CALENDAR_LINK: usize = 2048;
+
+/// A calendar link as it's read: `webcal://` and `webcals://` (how calendars are published to
+/// subscribe to) as `https://`, `http://` and `https://` as given; anything else (another scheme,
+/// no host, spaces, a user name and password in it), `None`.
+pub fn calendar_link(s: &str) -> Option<String> {
+    let s = s.trim();
+    let lower = s.to_ascii_lowercase();
+    let (scheme, rest) = ["webcals://", "webcal://", "https://", "http://"]
+        .iter()
+        .find(|p| lower.starts_with(*p))
+        .map(|p| (if p.starts_with("http://") { "http://" } else { "https://" }, s.get(p.len()..).unwrap_or("")))?;
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let bad = |c: char| c.is_whitespace() || c.is_control();
+    if host.is_empty() || host.contains('@') || host.starts_with(':') || rest.chars().any(bad) {
+        return None;
+    }
+    // A `#fragment` is the browser's, never sent.
+    let rest = rest.split('#').next().unwrap_or(rest);
+    let link = format!("{scheme}{rest}");
+    (link.len() <= MAX_CALENDAR_LINK).then_some(link)
+}
+
 /// A note, as Outlook's Notes keeps them: text, and a colour.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Note {
@@ -148,6 +212,9 @@ pub struct Pim {
     /// Outlook's Open Calendar › From Address Book: read from Exchange with the rest.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shared: Vec<String>,
+    /// Calendars subscribed to by their links (issue #7), each with its entry in `calendars`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subscribed: Vec<WebCalendar>,
     /// Notes (Outlook's Notes): the server's (Exchange) and those kept here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<StoredNote>,
@@ -321,5 +388,36 @@ mod shared_uid_tests {
         let mut one = vec![ev("cal", 100, None)];
         separate_shared_uids(&mut one);
         assert_eq!(one[0].event.uid, "series-1");
+    }
+}
+
+#[cfg(test)]
+mod web_calendar_tests {
+    use super::*;
+
+    /// Issue #7: the links calendars are published with, and what isn't one.
+    #[test]
+    fn calendar_links_are_read_as_web_addresses() {
+        assert_eq!(calendar_link(" webcal://p01-calendars.example.com/x.ics ").as_deref(), Some("https://p01-calendars.example.com/x.ics"));
+        assert_eq!(calendar_link("WEBCALS://cal.example/a?b=1").as_deref(), Some("https://cal.example/a?b=1"));
+        assert_eq!(calendar_link("http://192.168.1.10:5232/riley/work/").as_deref(), Some("http://192.168.1.10:5232/riley/work/"));
+        assert_eq!(calendar_link("https://[::1]:8443/cal.ics").as_deref(), Some("https://[::1]:8443/cal.ics"));
+        assert_eq!(calendar_link("https://cal.example/a.ics#top").as_deref(), Some("https://cal.example/a.ics"));
+        for bad in [
+            "",
+            "webcal://",
+            "https:///x",
+            "ftp://x.example/a.ics",
+            "file:///etc/passwd",
+            "https://a@b.example/x",
+            "https://x.example/a b",
+            "https://:80/x",
+            "x.example/a.ics",
+        ] {
+            assert_eq!(calendar_link(bad), None, "{bad:?}");
+        }
+        assert_eq!(calendar_link(&format!("https://x.example/{}", "a".repeat(MAX_CALENDAR_LINK))), None);
+        assert!(is_web_calendar(&web_calendar_id("https://x.example/a.ics")));
+        assert!(!is_web_calendar(LOCAL) && !is_web_calendar(&shared_calendar_id("a@b.example")));
     }
 }

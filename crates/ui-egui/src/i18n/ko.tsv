@@ -1243,3 +1243,13 @@ month	May	5월
 	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	비밀번호는 이 브라우저가 만들고 절대 내보내지 않는 키로 봉인되어 보관됩니다. 이 브라우저 프로필을 쓰는 사람은 서명하고 암호화된 메일을 읽을 수 있지만, 키를 다른 곳으로 가져갈 수는 없습니다.
 	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	브라우저는 파일을 비밀번호로 잠근 채 보관하고, 비밀번호는 이 브라우저를 떠나지 않는 키로 봉인해 보관합니다.
 	Your certificate's password, to keep it unlocked in this browser:	이 브라우저에서 잠금 해제 상태로 유지할 인증서 비밀번호:
+	Subscribe to a calendar	캘린더 구독
+	Subscribe to a calendar…	캘린더 구독…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	캘린더 링크(iCal 또는 webcal://)를 붙여 넣으세요. 읽기 전용으로 내 캘린더 옆에 표시되며 몇 시간마다 다시 읽습니다.
+	Name (optional)	이름(선택 사항)
+	Subscribe	구독
+	Couldn't be read: {error}	읽을 수 없음: {error}
+	Reading it…	읽는 중…
+	Read {time}	{time}에 읽음
+	couldn't be read	읽을 수 없음
+	Refresh	새로 고침

@@ -133,6 +133,8 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 // A shared mailbox's calendar comes with the mailbox; only one opened by hand closes.
                 let opened = shared.as_ref().is_some_and(|e| p.shared.iter().any(|x| x.eq_ignore_ascii_case(e)));
                 let shown = s.calendar_shown(&a.config.id, &c.id);
+                // Subscribed to by its link (issue #7): where it's read from, and how that went.
+                let web = p.subscribed.iter().find(|w| w.id == c.id);
                 let row = ui.horizontal(|ui| {
                     if grouped {
                         ui.add_space(10.0);
@@ -157,14 +159,37 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         tf!("Shared mailbox {address}, opened by {email}", address = owner, email = a.config.email)
                     } else if shared.is_some() {
                         tf!("Shared with you, opened from {account}", account = a.config.email)
+                    } else if let Some(w) = web {
+                        let state = match &w.error {
+                            Some(e) => tf!("Couldn't be read: {error}", error = e),
+                            None if w.fetched == 0 => tl!("Reading it…").to_string(),
+                            None => tf!("Read {time}", time = crate::i18n::date(&mailcraft_engine::model::dates::list_time(w.fetched, &s.clock))),
+                        };
+                        format!("{}\n{state}", w.url)
                     } else {
                         a.config.email.clone()
                     };
                     ui.label(RichText::new(name).color(t.text)).on_hover_text(tip);
-                    if c.read_only {
+                    if web.is_some_and(|w| w.error.is_some()) {
+                        ui.label(RichText::new(tl!("couldn't be read")).color(t.danger).small());
+                    } else if c.read_only {
                         ui.label(RichText::new(tl!("read-only")).color(t.faint).small());
                     }
                 });
+                // Subscribed to: right-click reads it again, or removes it.
+                if web.is_some() {
+                    let id = c.id.clone();
+                    row.response.interact(Sense::click()).context_menu(|ui| {
+                        if ui.button(tl!("Refresh")).clicked() {
+                            acts.push(Action::Run("calendar.refreshSubscribed", json!({"calendar": id})));
+                            ui.close();
+                        }
+                        if ui.button(tl!("Remove this calendar")).clicked() {
+                            acts.push(Action::Run("calendar.unsubscribe", json!({"calendar": id})));
+                            ui.close();
+                        }
+                    });
+                }
                 // Someone else's calendar opened by hand: right-click closes it.
                 if let Some(email) = shared.filter(|_| opened) {
                     row.response.interact(Sense::click()).context_menu(|ui| {
@@ -189,6 +214,13 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
             ui.add_space(6.0);
             if ui.link(RichText::new(tl!("Open shared calendar…")).small()).clicked() {
                 acts.push(Action::Dialog(Dialog::OpenSharedCalendar { email: String::new(), error: None }));
+            }
+        }
+        // Outlook's Add Calendar › From Internet (issue #7).
+        if !s.accounts.is_empty() {
+            ui.add_space(4.0);
+            if ui.link(RichText::new(tl!("Subscribe to a calendar…")).small()).clicked() {
+                acts.push(Action::Dialog(Dialog::SubscribeCalendar { url: String::new(), name: String::new(), error: None }));
             }
         }
     });

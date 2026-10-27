@@ -84,6 +84,15 @@ impl Session {
                 }
             }
             Event::Directory { account, query, people, error, consent } => self.apply_directory(&account, &query, &people, error, consent),
+            Event::CalendarFetched { account, calendar, ics, etag, modified, unchanged, error } => {
+                let read = match (ics, error) {
+                    (_, Some(e)) => pim::web::WebRead::Failed(e),
+                    (Some(ics), None) => pim::web::WebRead::Read { ics, etag, modified },
+                    (None, None) if unchanged => pim::web::WebRead::Unchanged,
+                    (None, None) => pim::web::WebRead::Failed("nothing came back".into()),
+                };
+                self.apply_web_calendar(&account, &calendar, read);
+            }
             Event::DirectoryAllowed { account, error } => self.directory_allowed(&account, error),
             Event::ServerSearched { account, query, keys, error, done } => {
                 if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.query == query) {

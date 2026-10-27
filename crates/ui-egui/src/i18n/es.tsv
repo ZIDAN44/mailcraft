@@ -1244,3 +1244,13 @@ month	May	mayo
 	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	La contraseña se guarda sellada con una clave que este navegador crea y nunca deja salir: quien use este perfil del navegador puede firmar y leer tu correo cifrado; nadie puede llevarse la clave a otro sitio.
 	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	El navegador guarda el archivo, bloqueado con su contraseña, y la contraseña sellada con una clave que nunca sale de este navegador.
 	Your certificate's password, to keep it unlocked in this browser:	La contraseña de tu certificado, para mantenerlo desbloqueado en este navegador:
+	Subscribe to a calendar	Suscribirse a un calendario
+	Subscribe to a calendar…	Suscribirse a un calendario…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	Pega el enlace del calendario (iCal o webcal://). Se muestra junto al tuyo, de solo lectura, y se vuelve a leer cada pocas horas.
+	Name (optional)	Nombre (opcional)
+	Subscribe	Suscribirse
+	Couldn't be read: {error}	No se pudo leer: {error}
+	Reading it…	Leyéndolo…
+	Read {time}	Leído {time}
+	couldn't be read	no se pudo leer
+	Refresh	Actualizar

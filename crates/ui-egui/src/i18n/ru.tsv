@@ -1243,3 +1243,13 @@ month	May	Май
 	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	Пароль хранится зашифрованным ключом, который этот браузер создаёт и никогда не выдаёт: любой, кто пользуется этим профилем браузера, может подписывать и читать вашу зашифрованную почту, но унести ключ никуда нельзя.
 	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	Браузер хранит файл, защищённый паролем, а сам пароль — запечатанным ключом, который никогда не покидает этот браузер.
 	Your certificate's password, to keep it unlocked in this browser:	Пароль вашего сертификата, чтобы не блокировать его в этом браузере:
+	Subscribe to a calendar	Подписаться на календарь
+	Subscribe to a calendar…	Подписаться на календарь…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	Вставьте ссылку на календарь (iCal или webcal://). Он появится рядом с вашим, только для чтения, и будет перечитываться каждые несколько часов.
+	Name (optional)	Название (необязательно)
+	Subscribe	Подписаться
+	Couldn't be read: {error}	Не удалось прочитать: {error}
+	Reading it…	Чтение…
+	Read {time}	Прочитан {time}
+	couldn't be read	не удалось прочитать
+	Refresh	Обновить

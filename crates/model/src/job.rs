@@ -213,6 +213,9 @@ pub enum Job {
     FlushOutbox { account: String },
     /// Download a picture a message links to (only after the user asked to see pictures).
     FetchUrl { url: String },
+    /// Read a calendar subscribed to by its link (issue #7), unless it's unchanged since the
+    /// version named by `etag` / `modified`; answered by [`Event::CalendarFetched`].
+    FetchCalendar { account: String, calendar: String, url: String, etag: String, modified: String },
     /// Look up the server settings for an address (autoconfiguration).
     Discover { email: String },
     /// Sign an OAuth account in through the browser; it starts once signed in.
@@ -307,6 +310,7 @@ impl Job {
             | Job::SetVacation { account, .. }
             | Job::SyncDav { account }
             | Job::SearchDirectory { account, .. }
+            | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
             | Job::ExportPst { account, .. } => account,
             Job::FetchUrl { .. }
@@ -420,6 +424,17 @@ pub enum Event {
     Fetched {
         url: String,
         data: Option<Vec<u8>>,
+        error: Option<String>,
+    },
+    /// What [`Job::FetchCalendar`] read: the calendar (`ics`) with the version the server named,
+    /// unchanged since the one asked about, or why it couldn't be read.
+    CalendarFetched {
+        account: String,
+        calendar: String,
+        ics: Option<String>,
+        etag: String,
+        modified: String,
+        unchanged: bool,
         error: Option<String>,
     },
     /// Server settings found for an address (`None`: nothing published; guess instead).

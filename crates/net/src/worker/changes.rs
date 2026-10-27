@@ -170,6 +170,7 @@ impl Worker {
                 }
             }
             Job::FetchUrl { .. }
+            | Job::FetchCalendar { .. }
             | Job::Discover { .. }
             | Job::SignIn { .. }
             | Job::AllowDirectory { .. }

@@ -96,6 +96,44 @@ impl Pool {
         }
     }
 
+    /// Read a calendar subscribed to by its link (issue #7) on a thread of its own: the link the
+    /// user gave (their network's too: a calendar server at home), HTTPS never left for HTTP.
+    pub(super) fn fetch_calendar(&mut self, account: String, calendar: String, url: String, etag: String, modified: String) {
+        let sink = self.sink.clone();
+        let (acc, cal) = (account.clone(), calendar.clone());
+        let spawned = std::thread::Builder::new().name("mail-calendar".into()).spawn(move || {
+            let e = match crate::web_calendar::fetch(&url, &etag, &modified) {
+                Ok(crate::web_calendar::Fetched::Unchanged) => {
+                    Event::CalendarFetched { account, calendar, ics: None, etag, modified, unchanged: true, error: None }
+                }
+                Ok(crate::web_calendar::Fetched::Calendar { ics, etag, modified }) => {
+                    Event::CalendarFetched { account, calendar, ics: Some(ics), etag, modified, unchanged: false, error: None }
+                }
+                Err(e) => Event::CalendarFetched {
+                    account,
+                    calendar,
+                    ics: None,
+                    etag: String::new(),
+                    modified: String::new(),
+                    unchanged: false,
+                    error: Some(e.to_string()),
+                },
+            };
+            sink.emit(e);
+        });
+        if let Err(e) = spawned {
+            self.sink.emit(Event::CalendarFetched {
+                account: acc,
+                calendar: cal,
+                ics: None,
+                etag: String::new(),
+                modified: String::new(),
+                unchanged: false,
+                error: Some(e.to_string()),
+            });
+        }
+    }
+
     /// Export to a data file on a thread of its own.
     pub(super) fn export_pst(&mut self, account: String, path: String, name: String) {
         let sink = self.sink.clone();
