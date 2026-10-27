@@ -2,9 +2,12 @@
 # runner, unsigned here), then install that MSI on a Windows 11 ARM64 runner and run it.
 name: Windows ARM64
 
+# On pushes to `release` (always before a release ships), weekly, on pull requests that change
+# what it packages, and by hand: not on every push to main, which spent the Actions minutes on
+# every batch pushed (the other Craft apps run it nightly and on release).
 on:
   push:
-    branches: [main]
+    branches: [release]
   pull_request:
     paths:
       - Cargo.toml

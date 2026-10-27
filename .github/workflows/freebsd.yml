@@ -2,20 +2,23 @@
 # (GitHub has no FreeBSD runners). GPU tests skip themselves when the VM has no adapter.
 name: FreeBSD
 
+# The VM build is slow, so it runs on pushes to `release` (always before a release ships), weekly
+# on main (a drifted dependency shows up within a week), on pull requests that change this
+# workflow or the FreeBSD packaging, and by hand: not on every push to main, which spent the
+# Actions minutes on every batch pushed (the other Craft apps run it nightly and on release).
 on:
   push:
-    branches: [main]
+    branches: [release]
   pull_request:
     paths:
-      - Cargo.toml
-      - Cargo.lock
-      - "**/Cargo.toml"
       - .github/workflows/freebsd.yml
       - packaging/freebsd/**
+  schedule:
+    - cron: "23 3 * * 1"
   workflow_dispatch:
     inputs:
       aarch64:
-        description: "Also build and test on aarch64 (emulated on an x86 runner: hours, and it may reach the job's time limit)"
+        description: "Also build for aarch64 (cross-compiled in the x86_64 VM: the tests are built, not run)"
         type: boolean
         default: false
 
@@ -34,7 +37,6 @@ jobs:
       # The same craft-fonts commit as release.yml, release-wip.yml and ci.yml, so this builds and
       # tests with the fonts that ship.
       craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
-      # aarch64 runs in a VM emulated on an x86 runner: building and testing the workspace there
-      # outlasted the 5-hour limit, so its cache was never saved and every push ran it again. x86_64
-      # on every push; aarch64 only when asked for by hand.
+      # aarch64 is cross-compiled in the x86_64 VM now (it was emulated, and outlasted the 5-hour
+      # limit), but it's a second VM run: x86_64 always, aarch64 only when asked for by hand.
       architectures: ${{ github.event_name == 'workflow_dispatch' && inputs.aarch64 && '["x86_64","aarch64"]' || '["x86_64"]' }}
