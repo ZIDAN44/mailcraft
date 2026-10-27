@@ -84,6 +84,15 @@ foreach ($check in @(@('mailcraft.exe', 2), @('mailcraft-cli.exe', 3))) {
   if ($h.Subsystem -ne $check[1]) { throw "$($check[0]) has PE subsystem $($h.Subsystem), expected $($check[1])" }
   Write-Output "ok $($check[0]): $Arch, PE subsystem $($h.Subsystem)"
 }
+
+# The Start menu shortcut names no MSI icon, so it shows the one embedded in mailcraft.exe.
+# -SkipBuild takes whatever binary is already there, which may come from a build without
+# MAILCRAFT_REQUIRE_WINRES=1 whose resource compilation failed: refuse an exe with no icon rather
+# than ship a shortcut with a generic one. ExtractIconEx with index -1 counts them.
+Add-Type -Namespace MailCraft -Name Shell -MemberDefinition '[DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern uint ExtractIconEx(string file, int index, IntPtr[] large, IntPtr[] small, uint icons);'
+$Icons = [MailCraft.Shell]::ExtractIconEx((Join-Path $Bin 'mailcraft.exe'), -1, $null, $null, 0)
+if ($Icons -eq 0) { throw 'mailcraft.exe has no embedded icon: rebuild it with MAILCRAFT_REQUIRE_WINRES=1 (omit -SkipBuild)' }
+Write-Output "ok mailcraft.exe: $Icons embedded icon group(s)"
 $Stage = Join-Path $TargetDir "windows-package\$Arch"
 Remove-Item -Recurse -Force $Stage -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null

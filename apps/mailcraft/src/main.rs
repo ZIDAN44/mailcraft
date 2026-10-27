@@ -654,6 +654,24 @@ mod tests {
         assert!(eframe.contains("\"clipboard\""), "eframe without its clipboard feature: {eframe}");
     }
 
+    /// A shortcut that names an MSI `<Icon>` shows a blank icon once an update deletes the
+    /// installer's cached copy, and a taskbar pin (a copy of the shortcut) is never repaired:
+    /// shortcuts take the icon embedded in mailcraft.exe, and package.ps1 refuses an exe without
+    /// one. Only Apps and features (`ARPPRODUCTICON`) uses the MSI `<Icon>`.
+    #[test]
+    fn windows_shortcuts_use_the_icon_embedded_in_the_exe() {
+        let wxs = include_str!("../../../packaging/windows/mailcraft.wxs");
+        let shortcuts: Vec<&str> = wxs.split("<Shortcut ").skip(1).filter_map(|s| s.split('>').next()).collect();
+        assert!(!shortcuts.is_empty(), "mailcraft.wxs has no shortcut");
+        for shortcut in shortcuts {
+            assert!(!shortcut.contains("Icon="), "a shortcut names an MSI <Icon>: {shortcut}");
+            assert!(shortcut.contains("Advertise=\"no\""), "an advertised shortcut shows the MSI's icon: {shortcut}");
+        }
+        assert!(wxs.contains("<Property Id=\"ARPPRODUCTICON\""), "Apps and features keeps its icon");
+        let script = include_str!("../../../packaging/windows/package.ps1");
+        assert!(script.contains("ExtractIconEx") && script.contains("has no embedded icon"), "package.ps1 doesn't refuse an exe without an icon");
+    }
+
     /// A window that can't open says why, in plain sentences (no gaps left from the source).
     #[test]
     fn a_window_that_cant_open_says_why() {
