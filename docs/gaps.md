@@ -1067,6 +1067,22 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   contact saved without a name) takes the directory's name when found. Tried against grommunio
   (Docker), whose directory names a user with no display name by its alias: "Dana Whitfield" now,
   `dana.noname` before.
+- **From the sibling Craft apps** (their fixes ported, their authors credited):
+  - **Windows:** a pinned MailCraft kept a blank icon after an update (the shortcut took its icon
+    from the installer's cache, which each upgrade deletes); the shortcut now points at
+    `mailcraft.exe` and shows the icon built into it. A pin that already lost its icon needs
+    pinning again once.
+  - **macOS:** the system's open and save panels (attaching a file, saving an attachment, the
+    overwrite question) stayed in English; `Info.plist` now names the 14 interface languages, and
+    a test keeps the list matching the catalogs. The signing certificate is decoded in a private
+    folder of its own, so a link planted in the temporary folder can't redirect it.
+  - **Linux:** the deb and rpm recommend `libxkbcommon-x11`, without which the window couldn't
+    open under X11 or XWayland ("Library libxkbcommon-x11.so could not be loaded"); tried on clean
+    Debian 12, Fedora 42 and openSUSE Leap 15.6.
+  - **Release builds:** one made without craft-fonts (the Arabic, Hebrew, Chinese, Japanese,
+    Korean and Thai fallback fonts) fails instead of shipping without them.
+  - **CI:** only the job that drafts a release can write to the repository; FreeBSD and Windows
+    ARM64 build on release pushes, weekly and when their own files change, not on every push.
 - **Found on the way:** an event in a read-only calendar (someone else's, one subscribed to) could
   be deleted: gone until the next read, or a deletion the server then refused. Refused now, as a
   change already was. A subscribed calendar whose last read was "in the future" (the clock set

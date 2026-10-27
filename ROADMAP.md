@@ -170,7 +170,10 @@ local-first, media-aware v1); the fuller request is
    and at once on Refresh; the CLI reads it too. From issue #9: people found in Exchange's
    directory show by their full names where the server names mailboxes by their aliases, and
    someone known only by an address takes the directory's name. An event in a read-only calendar
-   can no longer be deleted.
+   can no longer be deleted. From the sibling Craft apps: a pinned MailCraft keeps its icon after
+   an update on Windows, macOS's open and save panels speak the interface's language, the Linux
+   packages bring `libxkbcommon-x11`, a release build without craft-fonts fails, and CI is
+   leaner and grants write access only where it's needed.
 29. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -482,3 +485,8 @@ local-first, media-aware v1); the fuller request is
   Thunderbird's published holiday calendars) and #9 (full names from the directory: EWS
   `ResolveNames` with the full contact; tried against grommunio in Docker, which names a mailbox
   with no display name by its alias). `session/pim.rs` split: the sync merge in `pim/sync.rs`.
+  Ported from the sibling Craft apps (authors credited in each commit): the Windows pin icon
+  (df0f10a), macOS `CFBundleLocalizations` (7dc8276) and a private folder for the signing
+  certificate (7ce73f5), `libxkbcommon-x11` in the deb and rpm (3c2a9fa), `CRAFT_FONTS_REQUIRED`
+  enforced (6df62e5), job-level release permissions (0619fe9), FreeBSD and Windows ARM64 off the
+  push path (b21aa6a).
