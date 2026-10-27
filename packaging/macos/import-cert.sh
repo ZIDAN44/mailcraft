@@ -19,10 +19,15 @@ fi
 
 TMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 KEYCHAIN="$TMP/mailcraft-signing.keychain-db"
-CERT="$TMP/mailcraft-signing.p12"
+# The decoded certificate goes in a fresh private directory, so a link made in advance at a fixed
+# name in a shared $TMP can't catch it. Only the certificate: the keychain outlives this script
+# (codesign and notarytool use it later), and a sibling app that put it in here too found
+# codesign failing with "The specified item could not be found in the keychain".
+CERT_DIR="$(mktemp -d "$TMP/mailcraft-signing.XXXXXXXX")"
+CERT="$CERT_DIR/mailcraft-signing.p12"
 KC_PASS="${KEYCHAIN_PASSWORD:-$(openssl rand -hex 24)}"
 
-trap 'rm -f "$CERT"' EXIT
+trap 'rm -rf "$CERT_DIR"' EXIT
 printf '%s' "$APPLE_CERTIFICATE" | base64 --decode >"$CERT"
 security create-keychain -p "$KC_PASS" "$KEYCHAIN"
 security set-keychain-settings -lut 21600 "$KEYCHAIN"
