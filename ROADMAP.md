@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.27 — Arabic and Hebrew mirrored, colours of your own, Exchange's directory (2026-10-27). Each milestone below is a version: v0.1 was
+**Stage:** v0.28 — Calendars from the web, full names from the directory (2026-10-28). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 207 (`mailcraft-cli commands`) |
-| Tests | 641 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 210 (`mailcraft-cli commands`) |
+| Tests | 650 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -164,7 +164,14 @@ local-first, media-aware v1); the fuller request is
    a plain top bar, edges on the ribbon, buttons and menus; an Exchange account can name the
    User-Agent its server lets in, and Exchange's directory (the Global Address List) is searched
    as names are typed, on premises and online, so someone new is found without a restart.
-28. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+28. **v0.28 — Calendars from the web, full names from the directory** ✅ From issue #7: a calendar
+   is subscribed to by its iCal or `webcal://` link (Outlook's Add Calendar › From Internet),
+   shown read-only beside the account's own, read again every few hours (as often as it asks)
+   and at once on Refresh; the CLI reads it too. From issue #9: people found in Exchange's
+   directory show by their full names where the server names mailboxes by their aliases, and
+   someone known only by an address takes the directory's name. An event in a read-only calendar
+   can no longer be deleted.
+29. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -470,3 +477,8 @@ local-first, media-aware v1); the fuller request is
   selects; Simplified Chinese fetched in the browser when wanted), gap 7 narrowed (certificates kept
   unlocked in the browser, sealed by WebCrypto, tried against Stalwart and OpenSSL); JMAP accounts
   without an identity get one.
+- **2026-10-28** — **v0.28**, after `v0.27.0-test.24`: issues #7 (subscribe to a calendar by its link:
+  `session/pim/web.rs`, `net/src/protocols/web_calendar.rs`; tried against nginx, Radicale and
+  Thunderbird's published holiday calendars) and #9 (full names from the directory: EWS
+  `ResolveNames` with the full contact; tried against grommunio in Docker, which names a mailbox
+  with no display name by its alias). `session/pim.rs` split: the sync merge in `pim/sync.rs`.

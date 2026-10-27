@@ -3504,7 +3504,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "arboard",
  "chrono",
@@ -3538,7 +3538,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-cli"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "chrono",
  "iana-time-zone",
@@ -3549,7 +3549,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-engine"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "der 0.7.10",
  "log",
@@ -3566,7 +3566,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "log",
  "mailcraft-mime",
@@ -3579,7 +3579,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-keys"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "core-foundation 0.10.1",
  "cryptoki",
@@ -3597,7 +3597,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mime"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "flate2",
  "html2text",
@@ -3610,7 +3610,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-model"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3622,7 +3622,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-net"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "der 0.7.10",
  "hmac 0.13.0",
@@ -3655,7 +3655,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-print"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "miniz_oxide 0.9.1",
  "ttf-parser",
@@ -3663,7 +3663,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-smime"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
@@ -3692,7 +3692,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-store"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "dirs",
  "flate2",
@@ -3706,7 +3706,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ui-egui"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "egui",
  "hayro",
@@ -3722,7 +3722,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-web"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "eframe",
  "egui",
@@ -8297,7 +8297,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "png",
  "serde_json",

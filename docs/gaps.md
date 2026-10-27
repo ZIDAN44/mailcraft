@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.27, 2026-10-27._
+_Status: v0.28, 2026-10-28._
 
 ## Open
 
@@ -1044,3 +1044,30 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
     the server made with no identity to send from couldn't send; one is now made for the address (RFC 8621 §6).
     The certificate dialogs no longer say the password isn't kept when it is.
   - **Gaps 3 and 4 checked:** the `.pst` limits are the libraries' (above); Wayland drag-out comes with winit 0.31.
+
+### v0.28 — Calendars from the web, full names from the directory
+- **Calendars subscribed to by their links (issue #7):** *Subscribe to a calendar…* under the
+  calendar list takes an iCal or `webcal://` link (`webcal://` read over HTTPS; a link on the
+  user's own network works too) and an optional name. The calendar shows read-only beside the
+  account's own, named as it names itself (`X-WR-CALNAME`, RFC 7986's `NAME`) unless the user
+  named it, and is read again every three hours, or as often as it asks (`REFRESH-INTERVAL`,
+  `X-PUBLISHED-TTL`, kept between an hour and a week), asking only for what changed (`ETag`,
+  `Last-Modified`); a failure keeps what was read, says why in the list and is tried again in half
+  an hour. Right-click refreshes or removes it. Its alarms aren't reminders (a holiday list's
+  aren't the user's), and a sync of the account's own calendars leaves it alone. The browser
+  reads it too where the calendar's server lets web pages (CORS); `mailcraft-cli run
+  calendar.subscribe` reads it before it returns. Tried for real: a calendar published by
+  Radicale, a static file from nginx (unchanged on the second read, a 304), Thunderbird's German
+  holidays over `webcal://` (58 events), a missing link, and a 5.5 MB file of 25,000 events (read in
+  under half a second, up to the parser's cap).
+- **Full names from the directory (issue #9, follow-up):** someone found in Exchange's directory
+  showed as their alias (`john.doe`) when the server names the mailbox that way and MailCraft
+  had no mail from them. The search now asks for the full contact and takes its display name, else
+  its given name and surname, before the mailbox's name; and someone known only by an address (a
+  contact saved without a name) takes the directory's name when found. Tried against grommunio
+  (Docker), whose directory names a user with no display name by its alias: "Dana Whitfield" now,
+  `dana.noname` before.
+- **Found on the way:** an event in a read-only calendar (someone else's, one subscribed to) could
+  be deleted: gone until the next read, or a deletion the server then refused. Refused now, as a
+  change already was. A subscribed calendar whose last read was "in the future" (the clock set
+  back) would have waited for the clock; it's read again.
