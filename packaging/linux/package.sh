@@ -86,7 +86,7 @@ fi
 
 # ---- .deb / .rpm --------------------------------------------------------------------------------
 if has deb || has rpm; then
-  command -v nfpm >/dev/null || { echo "error: nfpm not found (https://nfpm.goreleaser.com/install/)" >&2; exit 1; }
+  command -v nfpm >/dev/null || { echo "error: nfpm not found (https://nfpm.goreleaser.com/docs/install/)" >&2; exit 1; }
   export VERSION
   export NFPM_ARCH="$DEB_ARCH"
   # The oldest glibc the binaries run on: the build host's (craft-common-actions sets 2.39 for

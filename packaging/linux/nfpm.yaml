@@ -25,8 +25,11 @@ description: |-
 
 # The binaries link only glibc and libgcc_s directly. Windowing (X11/Wayland, xkbcommon) and the
 # GPU (Vulkan, EGL/GL) are loaded at runtime, so they are dependencies/recommendations here
-# rather than ELF NEEDED entries. D-Bus (the keyring) is spoken in pure Rust; a Secret Service
-# provider (GNOME Keyring, KWallet, KeePassXC) stores the passwords.
+# rather than ELF NEEDED entries. On X11 (and through XWayland, how MailCraft opens on a Wayland
+# desktop by default) winit also loads libxkbcommon-x11: without it the window couldn't open
+# ("Library libxkbcommon-x11.so could not be loaded", seen on a clean Debian). D-Bus (the
+# keyring) is spoken in pure Rust; a Secret Service provider (GNOME Keyring, KWallet, KeePassXC)
+# stores the passwords.
 overrides:
   deb:
     depends:
@@ -38,6 +41,7 @@ overrides:
       - libwayland-client0
       - libx11-6
       - libx11-xcb1
+      - libxkbcommon-x11-0
       - libxcursor1
       - libxi6
       - libxrandr2
@@ -62,6 +66,7 @@ overrides:
     recommends:
       - libwayland-client.so.0()(64bit)
       - libX11.so.6()(64bit)
+      - libxkbcommon-x11.so.0()(64bit)
       - libXcursor.so.1()(64bit)
       - libXi.so.6()(64bit)
       - libXrandr.so.2()(64bit)
