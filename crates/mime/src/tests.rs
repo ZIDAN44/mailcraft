@@ -537,3 +537,45 @@ fn a_signature_keeps_its_pictures() {
     let (t, _, pictures) = signature_html(&odd);
     assert_eq!((t.as_str(), pictures.len()), ("Hi", 0));
 }
+
+/// Issue #11: a signature copied from Word or Outlook with its logo: Word writes the picture into
+/// the copied HTML (`data:`) after its own drawing of it (VML, in a comment that only Office reads,
+/// pointing at a file of its own); the picture comes along, at the size it was given there.
+#[test]
+fn a_logo_copied_from_word_comes_along() {
+    let png = crate::smime::base64(&[0x89, b'P', b'N', b'G', 9, 9]);
+    let png = String::from_utf8(png).unwrap();
+    let html = format!(
+        "<html><body><!--StartFragment--><p class=MsoNormal><span style='mso-no-proof:yes'><!--[if gte vml 1]><v:shape \
+         style='width:135pt;height:40.5pt'><v:imagedata src=\"file:///C:/Users/x/AppData/Local/Temp/msohtmlclip1/01/clip_image001.png\" \
+         o:title=\"\"/></v:shape><![endif]--><![if !vml]><img width=180 height=54\r\nsrc=\"data:image/png;base64,{png}\"\r\n\
+         v:shapes=\"Picture_x0020_1\"><![endif]></span><o:p></o:p></p>\r\n<p class=MsoNormal><b>Riley Moreno<o:p></o:p></b></p>\r\n\
+         <p class=MsoNormal>Studio Lantern<o:p></o:p></p><!--EndFragment--></body></html>"
+    );
+    let (text, styles, pictures) = signature_html(&html);
+    assert_eq!(text, "\u{FFFC}\nRiley Moreno\nStudio Lantern");
+    assert_eq!(pictures.len(), 1);
+    assert_eq!(pictures[0].data, vec![0x89, b'P', b'N', b'G', 9, 9]);
+    assert_eq!((styles.style(0).picture.as_deref(), styles.style(0).picture_width), (Some(pictures[0].cid.as_str()), Some(180)));
+    assert!(styles.style(2).bold && !styles.style(15).bold);
+}
+
+/// Issue #11: pictures older Word and Outlook copy as files of their own are written into the
+/// HTML as the reader gives them, however their address is quoted; other addresses, kinds a mail
+/// program doesn't show, and those past [`LOCAL_PICTURES`] are left as they are.
+#[test]
+fn local_pictures_are_written_into_copied_html() {
+    let read = |src: &str| match src {
+        "file:///a.png" | "file:///b.png" | "file:///c.png" => Some(("image/png".to_string(), vec![1, 2, 3])),
+        "file:///d.svg" => Some(("image/svg+xml".to_string(), b"<svg/>".to_vec())),
+        _ => None,
+    };
+    let html = "<img src=\"file:///a.png\" width=9><img\r\nsrc='file:///b.png'><img src=file:///c.png><img src=\"file:///d.svg\"><img src=\"file:///gone.png\"><img src=\"https://x.example/e.png\">";
+    let out = local_pictures(html, read);
+    assert_eq!(out.matches("src=\"data:image/png;base64,AQID\"").count(), 3, "{out}");
+    assert!(out.contains("file:///d.svg") && out.contains("file:///gone.png") && out.contains("https://x.example/e.png"), "{out}");
+    let many = "<img src=\"file:///a.png\">".repeat(LOCAL_PICTURES + 2);
+    assert_eq!(local_pictures(&many, read).matches("data:").count(), LOCAL_PICTURES);
+    assert_eq!(local_pictures("<p>no pictures</p>", read), "<p>no pictures</p>");
+    assert_eq!(local_pictures("<img src=\"file:", read), "<img src=\"file:");
+}

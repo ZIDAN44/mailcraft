@@ -361,14 +361,16 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
 }
 
 /// Paste what another program put on the clipboard as HTML (a signature copied from Outlook,
-/// part of a web page) with its look, in place of the selection. `false` when there is none,
-/// or it holds no text (a picture alone is pasted as a picture).
+/// part of a web page) with its look, in place of the selection, and the pictures written into
+/// it (a logo copied from Word or Outlook, issue #11: they were left out). `false` when there is
+/// none, or it holds no text (a picture alone is pasted as a picture).
 fn paste_formatted(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, id: egui::Id) -> bool {
     let Some(html) = crate::clipboard_html() else { return false };
-    let (add, add_styles) = mailcraft_engine::mime::pasted_html(&html);
-    if add.trim().is_empty() {
+    let (add, mut add_styles, found) = mailcraft_engine::mime::signature_html(&html);
+    if add.trim().is_empty() || add.chars().all(|ch| ch == PICTURE || ch.is_whitespace()) {
         return false;
     }
+    pictures::take_pasted(c, &add, &mut add_styles, found);
     ui.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_))));
     c.styles.fit(&c.body);
     ed.undo.push(Snap { text: c.body.clone(), styles: c.styles.clone(), cursor: ed.sel.start });

@@ -65,8 +65,18 @@ pub fn set_clipboard_html(read: fn() -> Option<String>) {
     let _ = CLIPBOARD_HTML.set(read);
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The HTML a test has on its clipboard (each test runs on a thread of its own).
+    pub(crate) static TEST_CLIPBOARD_HTML: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
 /// HTML on the clipboard (`None` when there is none).
 pub(crate) fn clipboard_html() -> Option<String> {
+    #[cfg(test)]
+    if let Some(html) = TEST_CLIPBOARD_HTML.with(|h| h.borrow().clone()) {
+        return Some(html);
+    }
     CLIPBOARD_HTML.get().and_then(|read| read())
 }
 

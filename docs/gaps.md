@@ -1132,7 +1132,13 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   links, as pasted from Outlook or Word) but not pictures, and the editor showed no way to format.
   The signature editor now has a bar of its own (the message's formatting, a link, pictures), takes
   pictures from a file or pasted (up to 1 MB each, 10 at most), and keeps them in the signature's
-  HTML (`data:`), so they come with it into every message and are sent inside it.
+  HTML (`data:`), so they come with it into every message and are sent inside it. A signature
+  copied from Word or Outlook with its logo brings the logo when pasted, into the signature
+  editor or a message, at the size it had there (only its text and look came): Word writes the
+  picture into the copied HTML, and older Office versions point it at a file in their clipboard
+  folder in the temporary folder, which the desktop app reads (that folder only, pictures up to
+  1 MB, so copied HTML from a web page can't have a file of the user's attached). Tried with Word's
+  own copy and paste on Windows.
 - **Found on the way:** a picture at the end of a line had no room in the line (egui sizes a row by
   its letters), so a second one after it was squeezed into what was left; the scroll bar took
   the pointer from the corner of a picture as wide as the text; and a drag on a picture's handle

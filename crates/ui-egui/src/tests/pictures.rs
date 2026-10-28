@@ -132,3 +132,52 @@ fn a_picture_goes_into_the_signature() {
     assert_eq!(f.compose.inline.len(), 1, "only the one it had");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #11: a signature copied from Word or Outlook with its logo, pasted into the signature
+/// editor or a message, brings the logo along (only the text and its look came), at its size.
+#[test]
+fn a_logo_pasted_with_a_signature_comes_along() {
+    let (mut a, dir) = app("pasted-logo");
+    let ctx = egui::Context::default();
+    a.session.prefs.new_mail_window = false;
+    // The picture written into the HTML, as Word writes it (`data:`).
+    let logo = mailcraft_engine::mime::InlinePicture {
+        cid: "x".into(),
+        name: "x.png".into(),
+        mime: "image/png".into(),
+        data: mailcraft_engine::sample::sample_png(),
+    };
+    let png = mailcraft_engine::mime::embed_pictures("src=\"cid:x\"", &[logo]);
+    let html = format!("<p class=MsoNormal><![if !vml]><img width=120 height=36 {png}><![endif]></p><p class=MsoNormal><b>Riley Moreno</b></p>");
+    crate::TEST_CLIPBOARD_HTML.with(|h| *h.borrow_mut() = Some(html));
+    frame(&ctx, &mut a, vec![]);
+    // Into the signature editor.
+    a.ui.dialog = Some(Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))));
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::Signature(f)) = a.ui.dialog.as_mut() else { panic!("the editor is open") };
+    f.compose.body.clear();
+    f.compose.styles = mailcraft_engine::mime::rich::Styles::default();
+    let id = crate::rich_edit::body_id(&f.compose);
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Paste("Riley Moreno".into())]);
+    let Some(Dialog::Signature(f)) = a.ui.dialog.as_ref() else { panic!() };
+    assert_eq!(f.compose.body, "\u{FFFC}\nRiley Moreno");
+    assert_eq!(f.compose.inline.len(), 1, "the logo with it");
+    let st = f.compose.styles.style(0);
+    assert_eq!((st.picture.as_deref(), st.picture_width), (Some(f.compose.inline[0].cid.as_str()), Some(120)));
+    assert!(f.compose.styles.style(3).bold);
+    // Into a message: the same, and sent with it.
+    a.ui.dialog = None;
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let id = crate::rich_edit::body_id(a.session.compose.as_ref().unwrap());
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Paste("Riley Moreno".into())]);
+    let c = a.session.compose.as_ref().unwrap();
+    let cids: Vec<&str> = c.inline.iter().map(|p| p.cid.as_str()).collect();
+    assert!(cids.iter().any(|cid| c.bodies().1.is_some_and(|h| h.contains(&format!("cid:{cid}")))), "{cids:?}");
+    crate::TEST_CLIPBOARD_HTML.with(|h| *h.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(dir);
+}

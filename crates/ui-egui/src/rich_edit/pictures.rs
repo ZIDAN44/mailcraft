@@ -197,6 +197,30 @@ pub(super) fn picture(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose,
     }
 }
 
+/// The pictures pasted HTML holds (`found`, as [`mailcraft_engine::mime::signature_html`] reads
+/// them) into the message: each under a `cid:` of its own here, `add`'s pictures pointed at it.
+pub(super) fn take_pasted(c: &mut Compose, add: &str, add_styles: &mut Styles, found: Vec<mailcraft_engine::mime::InlinePicture>) {
+    use std::hash::{Hash, Hasher};
+    for p in found {
+        let mut n = 0u32;
+        let cid = loop {
+            let mut h = std::hash::DefaultHasher::new();
+            (c.id, c.inline.len(), n, &p.data).hash(&mut h);
+            let cid = format!("pasted-{:016x}@mailcraft", h.finish());
+            if !c.inline.iter().any(|q| q.cid == cid) {
+                break cid;
+            }
+            n = n.wrapping_add(1);
+        };
+        for (i, ch) in add.chars().enumerate() {
+            if ch == PICTURE && add_styles.style(i).picture.as_deref() == Some(p.cid.as_str()) {
+                add_styles.restyle(add, i..i + 1, |s| Style { picture: Some(cid.clone()), ..s.clone() });
+            }
+        }
+        c.inline.push(mailcraft_engine::mime::InlinePicture { cid, ..p });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

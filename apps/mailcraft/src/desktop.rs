@@ -355,6 +355,60 @@ pub(crate) fn shell_open(target: &std::ffi::OsStr) -> Result<(), String> {
     }
 }
 
+/// Most bytes a picture taken from Office's clipboard folder may have.
+const OFFICE_PICTURE_MAX: u64 = 1 << 20;
+
+/// Copied HTML with the pictures Office wrote as files of its own written into it instead
+/// (`data:`): older Word and Outlook point a copied logo at `file:///…/msohtmlclip1/01/clip_image001.png`,
+/// which the paste would leave out (issue #11). Only files in Office's clipboard folder, in the
+/// temporary folder, are read, and only pictures up to 1 MB: copied HTML from anywhere else (a
+/// web page) can't have a file of the user's attached.
+pub(crate) fn office_pictures(html: String) -> String {
+    office_pictures_in(html, &std::env::temp_dir())
+}
+
+fn office_pictures_in(html: String, temp: &Path) -> String {
+    let Ok(temp) = temp.canonicalize() else { return html };
+    mailcraft_engine::mime::local_pictures(&html, |src| {
+        let path = office_file(src)?.canonicalize().ok()?;
+        let rest = path.strip_prefix(&temp).ok()?;
+        let first = rest.components().next()?.as_os_str().to_string_lossy().to_ascii_lowercase();
+        let meta = std::fs::metadata(&path).ok()?;
+        if !first.starts_with("msohtmlclip") || !meta.is_file() || meta.len() > OFFICE_PICTURE_MAX {
+            return None;
+        }
+        let name = path.file_name()?.to_string_lossy().to_string();
+        Some((mailcraft_engine::mime::mime_from_name(&name).to_string(), std::fs::read(&path).ok()?))
+    })
+}
+
+/// The file a `file:` address names (`file:///C:/Users/…/clip_image001.png`, with `%20` and
+/// the like decoded); `None` for any other address.
+fn office_file(src: &str) -> Option<PathBuf> {
+    let src = src.trim();
+    let rest = src.get(..5).filter(|s| s.eq_ignore_ascii_case("file:")).and_then(|_| src.get(5..))?;
+    let rest = rest.trim_start_matches('/');
+    let mut bytes = Vec::with_capacity(rest.len());
+    let raw = rest.as_bytes();
+    let mut i = 0;
+    while let Some(&b) = raw.get(i) {
+        let hex = |k: usize| raw.get(k).and_then(|h| (*h as char).to_digit(16));
+        match (b, hex(i + 1), hex(i + 2)) {
+            (b'%', Some(a), Some(b2)) => {
+                bytes.push(u8::try_from(a * 16 + b2).ok()?);
+                i += 3;
+            }
+            _ => {
+                bytes.push(b);
+                i += 1;
+            }
+        }
+    }
+    let path = String::from_utf8(bytes).ok()?;
+    // `C:/…` on Windows; `/tmp/…` elsewhere.
+    Some(if cfg!(windows) { PathBuf::from(path) } else { PathBuf::from(format!("/{path}")) })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -378,5 +432,41 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
         assert!(d.last_dir.as_ref().is_some_and(|p| !p.is_dir()), "gone: the dialog opens where the system says");
         let _ = d.dialog("Attach files");
+    }
+
+    /// Issue #11: a logo older Word and Outlook copy as a file of their own comes along as a
+    /// picture written into the HTML; one anywhere else, or not a picture, or too big, doesn't.
+    #[test]
+    fn office_pictures_from_its_clipboard_folder_come_along() {
+        let temp = std::env::temp_dir().join(format!("mailcraft-office-{}", std::process::id()));
+        let clip = temp.join("msohtmlclip1").join("01");
+        std::fs::create_dir_all(&clip).unwrap();
+        let png = mailcraft_engine::sample::sample_png();
+        std::fs::write(clip.join("clip image001.png"), &png).unwrap();
+        std::fs::write(clip.join("notes.txt"), b"hello").unwrap();
+        std::fs::write(clip.join("big.png"), vec![0u8; (OFFICE_PICTURE_MAX + 1) as usize]).unwrap();
+        std::fs::write(temp.join("secret.png"), &png).unwrap();
+        let url = |p: &Path| format!("file:///{}", p.to_string_lossy().replace('\\', "/").trim_start_matches('/').replace(' ', "%20"));
+        let html = format!(
+            "<p><img width=180 height=54\r\nsrc=\"{}\" v:shapes=x><img src='{}'><img src={}><img src=\"{}\"><b>Riley</b></p>",
+            url(&clip.join("clip image001.png")),
+            url(&temp.join("secret.png")),
+            url(&clip.join("notes.txt")),
+            url(&clip.join("big.png")),
+        );
+        let out = office_pictures_in(html, &temp);
+        assert_eq!(out.matches("data:image/png;base64,").count(), 1, "{out}");
+        assert!(out.contains("<img width=180 height=54\r\nsrc=\"data:image/png;base64,"), "{out}");
+        assert!(out.contains("secret.png") && out.contains("notes.txt") && out.contains("big.png"), "the others left as they were: {out}");
+        let (text, styles, pictures) = mailcraft_engine::mime::signature_html(&out);
+        assert_eq!((text.as_str(), pictures.len()), ("\u{FFFC}Riley", 1));
+        assert_eq!((pictures[0].data.clone(), styles.style(0).picture_width), (png, Some(180)));
+        // Nothing to do: as it was.
+        assert_eq!(
+            office_pictures_in("<p>hi <img src=\"https://x.example/a.png\"></p>".into(), &temp),
+            "<p>hi <img src=\"https://x.example/a.png\"></p>"
+        );
+        assert_eq!(office_file("http://x/a.png"), None);
+        std::fs::remove_dir_all(&temp).unwrap();
     }
 }

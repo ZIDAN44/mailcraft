@@ -29,6 +29,8 @@ fuzz_target!(|input: &[u8]| {
     // Taken as a signature, with its pictures, and kept again.
     let (text, styles, pictures) = mime::signature_html(&page);
     let _ = mime::embed_pictures(&rich::to_html(&text, &styles), &pictures);
+    // Copied from older Word or Outlook: its pictures' files read (as any bytes).
+    let _ = mime::local_pictures(&page, |src| Some(("image/png".to_string(), src.as_bytes().to_vec())));
     // The same input taken as MailCraft's own plain-text markup.
     let _ = rich::from_markup(&page);
     let _ = markup::to_text(&page);

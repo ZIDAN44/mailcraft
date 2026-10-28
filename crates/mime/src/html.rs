@@ -249,6 +249,55 @@ pub fn embed_pictures(html: &str, pictures: &[InlinePicture]) -> String {
     out
 }
 
+/// Most pictures [`local_pictures`] writes into one piece of HTML.
+pub const LOCAL_PICTURES: usize = 10;
+
+/// `html` with the pictures its `<img>`s take from files (`src="file:…"`) written into it
+/// (`data:`), each as `read` gives it (its type and bytes, `None` to leave it as it is), at most
+/// [`LOCAL_PICTURES`]: for HTML copied from older Word and Outlook, whose logos point at their
+/// own files (issue #11). Who may be read is `read`'s to say.
+pub fn local_pictures(html: &str, mut read: impl FnMut(&str) -> Option<(String, Vec<u8>)>) -> String {
+    let lower = html.to_ascii_lowercase();
+    let mut found: Vec<(std::ops::Range<usize>, InlinePicture)> = Vec::new();
+    let mut from = 0;
+    while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
+        let start = from + i;
+        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        from = end + 1;
+        if found.len() >= LOCAL_PICTURES {
+            break;
+        }
+        let tag = html.get(start..end).unwrap_or("");
+        let Some(src) = tag_attr(tag, "src").filter(|s| s.trim().get(..5).is_some_and(|p| p.eq_ignore_ascii_case("file:"))) else { continue };
+        let Some(at) = tag.find(src).map(|a| start + a) else { continue };
+        let Some((mime, data)) = read(src.trim()) else { continue };
+        if !SIGNATURE_PICTURE_TYPES.contains(&mime.as_str()) {
+            continue;
+        }
+        let n = found.len() + 1;
+        found.push((at..at + src.len(), InlinePicture { cid: format!("local{n}@mailcraft"), name: format!("local{n}"), mime, data }));
+    }
+    if found.is_empty() {
+        return html.to_string();
+    }
+    let mut out = String::with_capacity(html.len());
+    let mut last = 0;
+    for (range, p) in &found {
+        out.push_str(html.get(last..range.start).unwrap_or(""));
+        out.push_str(&format!("cid:{}", p.cid));
+        last = range.end;
+    }
+    out.push_str(html.get(last..).unwrap_or(""));
+    let pictures: Vec<InlinePicture> = found.into_iter().map(|(_, p)| p).collect();
+    // Written in wherever the address is quoted; an unquoted one gets its quotes first.
+    for p in &pictures {
+        out = out
+            .replace(&format!("src=cid:{}", p.cid), &format!("src=\"cid:{}\"", p.cid))
+            .replace(&format!("src='cid:{}'", p.cid), &format!("src=\"cid:{}\"", p.cid));
+    }
+    embed_pictures(&out, &pictures)
+}
+
 /// HTML → lines of formatted spans: paragraphs, emphasis, links, list bullets, quotes, tables
 /// laid out as text, and pictures by reference. No scripts, styles or remote loads: what comes
 /// out is plain data. Never panics; empty when conversion fails.

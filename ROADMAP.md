@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 211 (`mailcraft-cli commands`) |
-| Tests | 669 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 673 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -183,7 +183,8 @@ local-first, media-aware v1); the fuller request is
    showed twice as big, and the layout around it moved). From issue #11: an attachment with no
    name, or no extension, gets the one its type has (a WebP saved without one couldn't be
    opened), and a picture sent as plain bytes is still a picture; signatures take pictures, and
-   the signature editor has a bar of its own. Also the search box's text centred, and the message
+   the signature editor has a bar of its own, and a logo copied with a signature from Word or
+   Outlook comes along when pasted. Also the search box's text centred, and the message
    being read kept in the list under the Unread filter. With Remo Laubacher's pull requests
    #12–#16, which the fixes above build on.
 30. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
