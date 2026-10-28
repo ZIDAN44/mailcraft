@@ -302,6 +302,8 @@ pub(super) fn filter(s: &mut Session, v: &Value) -> CmdResult {
         .into_iter()
         .find(|f| f.code().eq_ignore_ascii_case(value))
         .ok_or_else(|| CmdError::Params(format!("unknown filter `{value}`")))?;
+    // A new filter starts afresh: the message being read isn't kept past it (`refresh_list`).
+    s.list.clear();
     s.refresh_list();
     Ok(json!({"messages": s.list.len()}))
 }

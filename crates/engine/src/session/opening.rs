@@ -55,6 +55,7 @@ impl Session {
 
     /// Select one message and show it; `mark`: as the reading options say (else left as it is).
     pub(super) fn show_message(&mut self, key: &MessageKey, mark: bool) {
+        let prev = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| k != key);
         self.leave_reading(Some(key));
         self.selection = vec![key.clone()];
         self.focus = Some(key.clone());
@@ -76,6 +77,11 @@ impl Session {
                 (ReadInPane::Shown, secs) => self.read_due = Some((key.clone(), self.clock.now.saturating_add(i64::from(secs.min(3600))))),
                 (ReadInPane::Left, _) => self.read_on_leave = Some(key.clone()),
             }
+        }
+        // The one read before, kept in the list only while it was read (`refresh_list`), goes.
+        let kept = |m: &Summary| prev.as_ref() == Some(&m.key) && !self.filter_keeps(self.filter, m);
+        if self.list.iter().any(kept) {
+            self.refresh_list();
         }
     }
 

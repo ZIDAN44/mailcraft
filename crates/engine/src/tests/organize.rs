@@ -35,6 +35,42 @@ fn every_command_survives_junk_params() {
 }
 
 #[test]
+fn the_unread_filter_keeps_the_message_being_read() {
+    let mut s = sample_session("unread-kept");
+    s.run("list.selectAll", &json!({})).unwrap();
+    s.run("mail.markUnread", &json!({})).unwrap();
+    s.run("list.filter", &json!({"value": "unread"})).unwrap();
+    let all = s.list.len();
+    assert!(all >= 5, "{all}");
+    let has = |s: &Session, subject: &str| s.list.iter().any(|m| m.subject == subject);
+    let open = |s: &Session| s.reading.as_ref().and_then(|r| s.list.iter().find(|m| m.key == r.key)).cloned().unwrap();
+    // Opened, it's read, but stays in the list and the reading pane while it's read.
+    let first = s.list.first().map(|m| m.subject.clone()).unwrap();
+    s.run("list.open", &key_of(&s, &first)).unwrap();
+    assert!(open(&s).subject == first && open(&s).flags.seen && s.list.len() == all);
+    // The next one down: the one before goes; this one stays while it's read.
+    s.run("list.next", &json!({})).unwrap();
+    let second = open(&s);
+    assert!(!has(&s, &first) && second.flags.seen && s.list.len() == all - 1);
+    s.run("list.next", &json!({})).unwrap();
+    assert!(!has(&s, &second.subject) && s.list.len() == all - 2);
+    // Marked read once another is chosen: it stays unread while open, and goes when left.
+    s.run("view.readingOptions", &json!({"when": "left"})).unwrap();
+    s.run("list.next", &json!({})).unwrap();
+    let fourth = open(&s);
+    assert!(!fourth.flags.seen && s.list.len() == all - 3);
+    s.run("list.next", &json!({})).unwrap();
+    assert!(!has(&s, &fourth.subject) && s.list.len() == all - 4);
+    // A new filter starts afresh: a read message open isn't kept when Unread is chosen.
+    s.run("list.filter", &json!({"value": "all"})).unwrap();
+    let k = key_of(&s, &first);
+    s.run("list.open", &k).unwrap();
+    s.run("list.filter", &json!({"value": "unread"})).unwrap();
+    assert!(!has(&s, &first) && s.reading.is_none());
+    done(s);
+}
+
+#[test]
 fn flags_filters_and_conversations() {
     let mut s = sample_session("flags");
     s.run("list.selectAll", &json!({})).unwrap();

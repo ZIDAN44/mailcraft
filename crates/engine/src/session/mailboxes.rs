@@ -328,7 +328,10 @@ impl Session {
             v
         };
         let filter = self.filter;
-        list.retain(|m| self.filter_keeps(filter, m));
+        // The message being read stays where it was though it no longer passes (marked read
+        // under Unread, say), as Outlook's: it goes once another is chosen (`show_message`).
+        let reading = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| self.list.iter().any(|m| &m.key == k));
+        list.retain(|m| self.filter_keeps(filter, m) || reading.as_ref() == Some(&m.key));
         if self.focus_split() {
             self.ensure_contacts();
             let other = self.focus_other;
