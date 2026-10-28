@@ -51,6 +51,10 @@ pub struct Style {
     /// The `cid:` of the picture this character stands for.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub picture: Option<String>,
+    /// How wide that picture shows, in pixels (resized in the editor); `None` is its own width,
+    /// no wider than the message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub picture_width: Option<u16>,
 }
 
 impl Style {
@@ -60,7 +64,7 @@ impl Style {
 
     /// The same look without what belongs to one spot only (a picture).
     pub fn for_typing(&self) -> Style {
-        Style { picture: None, ..self.clone() }
+        Style { picture: None, picture_width: None, ..self.clone() }
     }
 }
 
@@ -327,7 +331,9 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
         }
         let run: String = chars.get(i..j).map(|c| c.iter().collect()).unwrap_or_default();
         if let Some(cid) = st.picture.as_ref().filter(|_| run.starts_with(PICTURE)) {
-            out.push_str(&format!("<img src=\"cid:{}\" style=\"max-width:100%\">", esc(cid)));
+            // Resized: as wide as it was made (its height follows), as Outlook writes it.
+            let width = st.picture_width.map(|w| format!(" width=\"{w}\"")).unwrap_or_default();
+            out.push_str(&format!("<img src=\"cid:{}\"{width} style=\"max-width:100%\">", esc(cid)));
             i = j;
             continue;
         }
@@ -697,7 +703,12 @@ mod tests {
         assert!(html.contains("<span style=\"font-size:18pt; background-color:#ffff00\"><i><u>team</u></i></span>"), "{html}");
         assert!(html.contains("<ol>\n<li>first</li>\n<li>second</li>\n</ol>"), "{html}");
         assert!(html.contains("<div style=\"text-align:center\">see <a href=\"https://a.example/\">site</a></div>"), "{html}");
-        assert!(html.contains("<div><br></div>") && html.contains("x<img src=\"cid:pic@x\""), "{html}");
+        assert!(html.contains("<div><br></div>") && html.contains("x<img src=\"cid:pic@x\" style=\"max-width:100%\">"), "{html}");
+        // A resized picture says how wide it was made; typing after it doesn't carry that on.
+        let mut resized = s.clone();
+        resized.restyle(text, 32..33, |st| Style { picture_width: Some(240), ..st.clone() });
+        assert!(to_html(text, &resized).contains("x<img src=\"cid:pic@x\" width=\"240\" style=\"max-width:100%\">"));
+        assert_eq!(resized.style(32).for_typing().picture_width, None);
         let t = to_text(text, &s);
         assert_eq!(t, "Hi team\n1. first\n2. second\n\nsee site <https://a.example/>\nx[picture]");
         // Nothing typed can become markup.
