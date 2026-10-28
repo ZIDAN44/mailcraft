@@ -1253,3 +1253,5 @@ month	May	5月
 	Drop to attach them to a new message	拖放到此处，附加到新邮件
 	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} 无法放入签名：图片不超过 1 MB，最多 10 张 (PNG, JPEG, GIF, WebP)
 	Original size	原始大小
+	Write replies and forwards in a window of their own	在单独的窗口中撰写回复和转发
+	Show Favorites at the top of the folder pane	在文件夹窗格顶部显示收藏夹

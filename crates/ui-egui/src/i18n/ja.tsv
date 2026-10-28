@@ -1253,3 +1253,5 @@ month	May	5月
 	Drop to attach them to a new message	ここにドロップすると新しいメッセージに添付します
 	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} は署名に入れられません: 画像は 1 MB まで、10 個まで (PNG, JPEG, GIF, WebP)
 	Original size	元のサイズ
+	Write replies and forwards in a window of their own	返信と転送を専用のウィンドウで書く
+	Show Favorites at the top of the folder pane	フォルダー ウィンドウの上部にお気に入りを表示

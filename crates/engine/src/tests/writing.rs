@@ -549,3 +549,27 @@ fn a_signature_has_pictures() {
     assert!(s.compose.as_ref().unwrap().inline.len() == 1);
     done(s);
 }
+
+/// Issue #11: replies and forwards can open in a window of their own each time (they start in
+/// the reading pane, as Outlook's); new messages keep their own setting.
+#[test]
+fn replies_can_open_in_a_window_of_their_own() {
+    let mut s = sample_session("reply-window");
+    s.run("view.newMailWindow", &json!({"on": false})).unwrap();
+    let first = s.list.first().map(|m| m.subject.clone()).unwrap();
+    s.run("list.open", &key_of(&s, &first)).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    assert!(!s.compose.as_ref().unwrap().window, "in the reading pane, as before");
+    s.run("compose.discard", &json!({})).unwrap();
+    assert_eq!(s.run("view.replyWindow", &json!({})).unwrap()["on"], json!(true));
+    for cmd in ["mail.reply", "mail.replyAll", "mail.forward"] {
+        s.run(cmd, &json!({})).unwrap();
+        assert!(s.compose.as_ref().unwrap().window, "{cmd}: a window of its own");
+        s.run("compose.discard", &json!({})).unwrap();
+    }
+    s.run("mail.new", &json!({})).unwrap();
+    assert!(!s.compose.as_ref().unwrap().window, "a new message as its own setting says");
+    assert_eq!(s.run("view.favorites", &json!({"on": false})).unwrap()["on"], json!(false));
+    assert!(!s.prefs.show_favorites && s.prefs.reply_window);
+    done(s);
+}

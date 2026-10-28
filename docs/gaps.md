@@ -1139,6 +1139,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   folder in the temporary folder, which the desktop app reads (that folder only, pictures up to
   1 MB, so copied HTML from a web page can't have a file of the user's attached). Tried with Word's
   own copy and paste on Windows.
+- **Two options (issue #11):** replies and forwards can open in a window of their own each time
+  (File › Options › Mail; `view.replyWindow`), where they started in the reading pane and had to
+  be popped out; and Favorites can be hidden from the top of the folder pane (View › Favorites;
+  `view.favorites`), where it could only be collapsed.
 - **Found on the way:** a picture at the end of a line had no room in the line (egui sizes a row by
   its letters), so a second one after it was squeezed into what was left; the scroll bar took
   the pointer from the corner of a picture as wide as the text; and a drag on a picture's handle

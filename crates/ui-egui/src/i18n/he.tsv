@@ -1252,3 +1252,5 @@ month	May	מאי
 	Drop to attach them to a new message	שחררו כאן כדי לצרף אותם להודעה חדשה
 	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	לא ניתן להכניס את {name} לחתימה: תמונות עד 1 MB, 10 לכל היותר (PNG, JPEG, GIF, WebP)
 	Original size	גודל מקורי
+	Write replies and forwards in a window of their own	כתיבת תשובות והעברות בחלון משלהן
+	Show Favorites at the top of the folder pane	הצגת מועדפים בראש חלונית התיקיות

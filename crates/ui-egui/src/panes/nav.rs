@@ -126,8 +126,9 @@ fn row(
 pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
-        let favorites_open = !s.prefs.collapsed.contains("favorites");
-        if section_header(ui, t, "Favorites", favorites_open) {
+        // Hidden altogether (View › Favorites), or collapsed to its heading.
+        let favorites_open = s.prefs.show_favorites && !s.prefs.collapsed.contains("favorites");
+        if s.prefs.show_favorites && section_header(ui, t, "Favorites", favorites_open) {
             acts.push(Action::Run("view.collapse", json!({"key": "favorites"})));
         }
         if favorites_open && s.accounts.len() > 1 {

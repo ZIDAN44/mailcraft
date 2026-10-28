@@ -1252,3 +1252,5 @@ month	May	مايو
 	Drop to attach them to a new message	أفلتها هنا لإرفاقها برسالة جديدة
 	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	لا يمكن وضع {name} في توقيع: صور حتى 1 ميغابايت، 10 على الأكثر (PNG, JPEG, GIF, WebP)
 	Original size	الحجم الأصلي
+	Write replies and forwards in a window of their own	كتابة الردود وإعادة التوجيه في نافذة خاصة بها
+	Show Favorites at the top of the folder pane	إظهار المفضلة أعلى جزء المجلدات

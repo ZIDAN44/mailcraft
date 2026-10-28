@@ -178,3 +178,28 @@ fn the_search_box_drops_down_recent_and_advanced_search() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #11: Favorites can be hidden from the top of the folder pane (View › Favorites), not
+/// only collapsed, and shown again.
+#[test]
+fn favorites_can_be_hidden() {
+    let (mut a, dir) = app("favorites-hidden");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let headings = |a: &mut MailApp| {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let nodes = out.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default();
+        nodes.iter().filter(|(_, n)| n.label().is_some_and(|l| l.contains("Favorites"))).count()
+    };
+    headings(&mut a);
+    assert!(headings(&mut a) > 0, "shown at first");
+    a.run("view.favorites", json!({}));
+    headings(&mut a);
+    assert_eq!(headings(&mut a), 0, "hidden");
+    a.run("view.favorites", json!({}));
+    headings(&mut a);
+    assert!(headings(&mut a) > 0, "shown again");
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -416,6 +416,13 @@ impl MailApp {
                         if ui.selectable_label(!s.prefs.folder_pane_minimized, tl!("Folder pane")).clicked() {
                             acts.push(Action::Run("view.folderPane", json!({})));
                         }
+                        if ui
+                            .selectable_label(s.prefs.show_favorites, tl!("Favorites"))
+                            .on_hover_text(tl!("Show Favorites at the top of the folder pane"))
+                            .clicked()
+                        {
+                            acts.push(Action::Run("view.favorites", json!({})));
+                        }
                         widgets::group(ui, &t, "Layout", false);
                         let r = ui.button(tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label())));
                         egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));

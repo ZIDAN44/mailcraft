@@ -71,6 +71,11 @@ pub struct Prefs {
     pub favorites: Option<Vec<FolderRef>>,
     /// New messages open in a window of their own (replies start in the reading pane).
     pub new_mail_window: bool,
+    /// Replies and forwards open in a window of their own too, not in the reading pane (issue
+    /// #11: Pop out each time).
+    pub reply_window: bool,
+    /// The folder pane shows Favorites at its top (issue #11: it could only be collapsed).
+    pub show_favorites: bool,
     /// How the message list is arranged (View › Arrange by), and turned the other way round.
     pub arrange: Arrange,
     pub reverse_sort: bool,
@@ -155,6 +160,8 @@ impl Default for Prefs {
             blocked_senders: BTreeSet::new(),
             safe_senders: BTreeSet::new(),
             new_mail_window: true,
+            reply_window: false,
+            show_favorites: true,
             arrange: Arrange::Date,
             reverse_sort: false,
             work_offline: false,

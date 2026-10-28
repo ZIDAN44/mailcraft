@@ -115,6 +115,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"on": s.prefs.new_mail_window}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.replyWindow", "Replies and forwards in their own window", "File › Options › Mail", |s, v| {
+            s.prefs.reply_window = p::bool(v, "on").unwrap_or(!s.prefs.reply_window);
+            Ok(json!({"on": s.prefs.reply_window}))
+        })
+        .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.favorites", "Show Favorites", "View › Layout", |s, v| {
+            s.prefs.show_favorites = p::bool(v, "on").unwrap_or(!s.prefs.show_favorites);
+            Ok(json!({"on": s.prefs.show_favorites}))
+        })
+        .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.markReadOnOpen", "Mark as read when opened", "File › Options › Mail", |s, v| {
             s.prefs.mark_read_on_open = p::bool(v, "on").unwrap_or(!s.prefs.mark_read_on_open);
             Ok(json!({"on": s.prefs.mark_read_on_open}))

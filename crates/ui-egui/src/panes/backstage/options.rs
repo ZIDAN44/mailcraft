@@ -171,6 +171,9 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, false, tl!("Write new messages in a window of their own"), None, &mut |ui| {
             switch(ui, s.prefs.new_mail_window, tl!("Write new messages in a window of their own"), "view.newMailWindow", acts);
         });
+        setting(ui, false, tl!("Write replies and forwards in a window of their own"), None, &mut |ui| {
+            switch(ui, s.prefs.reply_window, tl!("Write replies and forwards in a window of their own"), "view.replyWindow", acts);
+        });
         setting(ui, false, tl!("Show HTML mail formatted (otherwise as plain text)"), None, &mut |ui| {
             switch(ui, s.prefs.show_html, tl!("Show HTML mail formatted (otherwise as plain text)"), "view.html", acts);
         });

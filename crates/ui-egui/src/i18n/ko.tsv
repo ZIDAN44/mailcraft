@@ -1256,3 +1256,5 @@ month	May	5월
 	Drop to attach them to a new message	여기에 놓으면 새 메시지에 첨부됩니다
 	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name}은(는) 서명에 넣을 수 없습니다: 그림은 1MB까지, 최대 10개 (PNG, JPEG, GIF, WebP)
 	Original size	원래 크기
+	Write replies and forwards in a window of their own	회신과 전달을 별도 창에서 작성
+	Show Favorites at the top of the folder pane	폴더 창 맨 위에 즐겨찾기 표시

@@ -226,6 +226,7 @@ impl Session {
             // An answer to encrypted mail quotes it: encrypted too, and signed, when it can be.
             sign: encrypted,
             encrypt: encrypted,
+            window: self.prefs.reply_window,
             ..Default::default()
         });
         self.style_signature();

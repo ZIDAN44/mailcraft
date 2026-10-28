@@ -1256,3 +1256,5 @@ month	May	Май
 	Drop to attach them to a new message	Отпустите, чтобы вложить их в новое письмо
 	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} нельзя добавить в подпись: изображения до 1 МБ, не больше 10 (PNG, JPEG, GIF, WebP)
 	Original size	Исходный размер
+	Write replies and forwards in a window of their own	Писать ответы и пересылки в отдельном окне
+	Show Favorites at the top of the folder pane	Показывать «Избранное» вверху области папок
