@@ -35,7 +35,7 @@ mod searching;
 mod security;
 mod writing;
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
-pub use writing::SendCheck;
+pub use writing::{SendCheck, signature_block, style_signature};
 // Organizing mail's own parts, named here as before.
 pub use organize::{junk, quick_steps, search_folders};
 pub use prefs::{ACCENTS, Prefs, accent_code, accent_rgb};
@@ -954,29 +954,4 @@ pub fn parse_key(v: &Value) -> Option<MessageKey> {
 /// What a follow-up date is kept under: the Message-ID, or (without one) the message's place.
 fn follow_up_id(m: &Summary) -> String {
     if m.message_id.trim().is_empty() { m.key.to_id() } else { m.message_id.trim().to_string() }
-}
-
-/// A signature as it goes into a message: after the usual `-- ` line (RFC 3676's delimiter).
-pub fn signature_block(sig: &str) -> String {
-    format!("-- \n{}", sig.trim_end())
-}
-
-/// Give the signature in a message (`c.signature`, where it still stands as put there) the look
-/// it has: `sig` is its text and styles.
-pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles)) {
-    let (text, styles) = sig;
-    if c.signature.is_empty() || styles.is_plain() {
-        return;
-    }
-    let mut block = "-- \n".to_string();
-    let mut block_styles = mime::rich::Styles::plain(&block);
-    mime::rich::append(&mut block, &mut block_styles, text.trim_end(), styles);
-    if block != c.signature {
-        return;
-    }
-    let Some(b) = c.body.rfind(&c.signature) else { return };
-    let start = c.body.get(..b).unwrap_or("").chars().count();
-    let n = block.chars().count();
-    c.styles.fit(&c.body);
-    mime::rich::splice(&mut c.body, &mut c.styles, start..start + n, &block, &block_styles);
 }

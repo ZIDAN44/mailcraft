@@ -393,6 +393,23 @@ impl MailApp {
                     self.place_picture(r);
                 }
             }
+            Action::SignaturePicture { paste } => {
+                let found: Vec<Value> = if paste {
+                    // Formatted text that came with a picture was pasted as text.
+                    let text = clipboard_html().is_some_and(|h| !mailcraft_engine::mime::pasted_html(&h).0.trim().is_empty());
+                    let png = if text { None } else { self.services.clipboard_picture() };
+                    png.map(|png| json!({"name": "pasted.png", "data": png})).into_iter().collect()
+                } else {
+                    self.services.pick_pictures().iter().map(|p| json!({"path": p.to_string_lossy()})).collect()
+                };
+                for v in found {
+                    let cid = self.session.new_cid();
+                    let Some(Dialog::Signature(f)) = self.ui.dialog.as_mut() else { break };
+                    if let Err(e) = f.insert_picture(v, cid) {
+                        self.session.notice(e.to_string(), true);
+                    }
+                }
+            }
             Action::AttachFiles => {
                 for p in self.services.pick_files() {
                     self.run("compose.attach", json!({"path": p.to_string_lossy()}));

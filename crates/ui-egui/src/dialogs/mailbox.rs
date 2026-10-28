@@ -12,10 +12,27 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
                 RichText::new(tl!("Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.")).color(t.dim).small(),
             );
             ui.add_space(4.0);
+            // A logo or a photo, from a file or pasted (issue #11), kept with the signature.
+            if widgets::pill_button(ui, Icon::Image, "Pictures", t).clicked() {
+                acts.push(Action::SignaturePicture { paste: false });
+            }
+            ui.add_space(4.0);
             egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
                 egui::ScrollArea::vertical().id_salt("signature-text").max_height(220.0).auto_shrink([false, false]).show(ui, |ui| {
                     ui.set_min_height(220.0);
                     let SignatureForm { compose, editor, .. } = &mut **f;
+                    // A picture on the clipboard is pasted as one (as in a message: egui sends a
+                    // picture alone as `PasteImage`, the browser the key).
+                    let pasted = ui.memory(|m| m.has_focus(crate::rich_edit::body_id(compose)))
+                        && ui.input(|i| {
+                            i.events.iter().any(|e| {
+                                matches!(e, egui::Event::PasteImage(_))
+                                    || matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command)
+                            })
+                        });
+                    if pasted {
+                        acts.push(Action::SignaturePicture { paste: true });
+                    }
                     crate::rich_edit::body(ui, t, &mut editor.0, compose, None, acts);
                     crate::rich_edit::link_dialog(ui, t, &mut editor.0, compose);
                 });
@@ -25,7 +42,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
                 let text = f.compose.body.trim_end().to_string();
                 let mut styles = f.compose.styles.clone();
                 styles.fit(&text);
-                let html = if styles.is_plain() { None } else { Some(mailcraft_engine::mime::rich::to_html(&text, &styles)) };
+                let html = if styles.is_plain() { None } else { Some(mailcraft_engine::mime::signature_to_html(&text, &styles, &f.compose.inline)) };
                 acts.push(Action::Run("account.setSignature", json!({"account": f.account, "signature": text, "html": html})));
                 if f.insert && !text.trim().is_empty() {
                     acts.push(Action::InsertSignature);
@@ -158,13 +175,26 @@ pub struct SignatureForm {
 
 impl SignatureForm {
     pub fn new(s: &Session, account: &str, insert: bool) -> SignatureForm {
-        let (body, styles) = s.signature_rich(account);
+        let (body, styles, inline) = s.signature_parts(account);
         SignatureForm {
             account: account.to_string(),
-            compose: Compose { id: crate::rich_edit::SIGNATURE_ID, account: account.to_string(), body, styles, ..Default::default() },
+            compose: Compose { id: crate::rich_edit::SIGNATURE_ID, account: account.to_string(), body, styles, inline, ..Default::default() },
             insert,
             editor: SignatureEditor(crate::rich_edit::Editor::new(crate::rich_edit::SIGNATURE_ID)),
         }
+    }
+
+    /// Put a picture (`v`: a file's `path`, or `name` and `data`) into the signature at the
+    /// cursor, under `cid`; the cursor goes after it.
+    pub(crate) fn insert_picture(&mut self, mut v: serde_json::Value, cid: String) -> Result<(), mailcraft_engine::CmdError> {
+        let at = self.editor.0.sel.start;
+        if let Some(o) = v.as_object_mut() {
+            o.insert("at".into(), json!(at));
+        }
+        let r = mailcraft_engine::cmd::signature_picture(&mut self.compose, &v, cid)?;
+        let end = r.get("end").and_then(serde_json::Value::as_u64).and_then(|e| usize::try_from(e).ok()).unwrap_or(at);
+        self.editor.0.refocus = Some(end..end);
+        Ok(())
     }
 }
 

@@ -412,10 +412,12 @@ pub(super) fn set_signature(s: &mut Session, v: &Value) -> CmdResult {
     // it, its text the signature's.
     config.signature_html = String::new();
     if let Some(html) = p::str(v, "html").filter(|h| !h.trim().is_empty()) {
-        let (text, styles) = mailcraft_mime::pasted_html(&html.chars().take(200_000).collect::<String>());
+        // Room for its pictures too, written into it (issue #11).
+        let most = 200_000 + mailcraft_mime::SIGNATURE_PICTURES_MAX / 3 * 4 + 4096;
+        let (text, styles, pictures) = mailcraft_mime::signature_from_html(&html.chars().take(most).collect::<String>());
         if !text.trim().is_empty() && !styles.is_plain() {
-            config.signature_html = mailcraft_mime::rich::to_html(&text, &styles);
-            config.signature = text.chars().take(10_000).collect();
+            config.signature_html = mailcraft_mime::signature_to_html(&text, &styles, &pictures);
+            config.signature = text.replace(mailcraft_mime::rich::PICTURE, "").chars().take(10_000).collect();
         }
     }
     s.update_account(config, None)

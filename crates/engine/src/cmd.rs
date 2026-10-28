@@ -39,6 +39,7 @@ fn can_connect(s: &Session) -> Option<&'static str> {
 
 mod accounts;
 mod compose;
+pub use compose::signature_picture;
 mod files;
 mod home;
 mod navigation;

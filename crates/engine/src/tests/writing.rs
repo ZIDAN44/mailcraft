@@ -423,3 +423,49 @@ fn attaching_reads_plain_files_only() {
     assert_eq!(s.compose.as_ref().map(|c| c.attachments.len()), Some(1));
     done(s);
 }
+
+/// Issue #11: a signature can hold pictures. Kept in its HTML with the account, they go into new
+/// messages (each under a name of the message's own) and are sent with them; a signature put in
+/// again doesn't add them twice. Only pictures mail programs show, up to 1 MB in all.
+#[test]
+fn a_signature_holds_pictures() {
+    use crate::session::Compose;
+    use mailcraft_mime::{self as mime, rich::Styles};
+    let mut s = sample_session("signature-pictures");
+    let png = sample::sample_png();
+    // The signature editor's text: a logo before the name.
+    let mut sig = Compose { body: "Riley".into(), styles: Styles::plain("Riley"), ..Default::default() };
+    let r = crate::cmd::signature_picture(&mut sig, &json!({"name": "logo.png", "data": png, "at": 0}), "logo@x".into()).unwrap();
+    assert_eq!((sig.body.as_str(), r["end"].as_u64()), ("\u{FFFC}Riley", Some(1)));
+    assert!(crate::cmd::signature_picture(&mut sig.clone(), &json!({"name": "logo.svg", "data": [60, 115]}), "s@x".into()).is_err());
+    let big = vec![0u8; mime::SIGNATURE_PICTURES_MAX];
+    let too_much = crate::cmd::signature_picture(&mut sig.clone(), &json!({"name": "big.png", "data": big}), "b@x".into());
+    assert!(matches!(too_much, Err(CmdError::Failed(m)) if m.contains("1 MB")));
+
+    let html = mime::signature_to_html(&sig.body, &sig.styles, &sig.inline);
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley", "html": html})).unwrap();
+    let config = s.account("sample").unwrap().config.clone();
+    assert!(config.signature_html.contains("src=\"data:image/png;base64,"), "{}", config.signature_html);
+    assert_eq!(config.signature, "Riley", "the plain-text twin has no picture");
+
+    s.run("mail.new", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    let at = c.body.find('\u{FFFC}').map(|b| c.body[..b].chars().count()).expect("the logo is in the message");
+    let cid = c.styles.style(at).picture.expect("as a picture");
+    assert!(cid.ends_with(&format!(".{}@mailcraft", c.id)), "{cid}");
+    assert_eq!(c.inline.iter().filter(|p| p.cid == cid).map(|p| &p.data).collect::<Vec<_>>(), [&png]);
+    s.run("compose.insertSignature", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!((c.body.matches('\u{FFFC}').count(), c.inline.len()), (1, 1), "put in again: replaced, not added twice");
+
+    // Sent with the message: a part of its own, which the HTML shows.
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "With the logo"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    let k = s.list.iter().find(|m| m.subject == "With the logo").map(|m| m.key.clone()).unwrap();
+    let raw = s.store.as_ref().unwrap().read_body(&k).unwrap();
+    let p = mime::parse(&raw).unwrap();
+    let logo = p.attachments.iter().find(|a| a.content_id.as_deref() == Some(cid.as_str())).expect("the logo goes with it");
+    assert_eq!(mime::attachment_data(&raw, logo.index), Some(png));
+    assert!(p.images.contains(&format!("cid:{cid}")), "{:?}", p.images);
+}

@@ -482,3 +482,52 @@ fn select_names_asks_to_allow_the_directory() {
     assert!(f.consent && f.directory_errors.is_empty(), "{:?}", f.directory_errors);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #11: a picture pasted into the signature editor (or added with Pictures) is kept with
+/// the signature when it's saved, and goes into the next message with it.
+#[test]
+fn a_signature_keeps_a_picture_pasted_into_it() {
+    let (mut a, dir) = app("signature-picture");
+    // Its clipboard holds a picture.
+    a.services = Box::new(Recorder(Default::default()));
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Dialog(Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false)))));
+    frame(&ctx, &mut a, vec![]);
+    let form = |a: &MailApp| match &a.ui.dialog {
+        Some(Dialog::Signature(f)) => Some(f.compose.clone()),
+        _ => None,
+    };
+    let id = crate::rich_edit::body_id(&form(&a).unwrap());
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::PasteImage(std::sync::Arc::new(egui::ColorImage::filled([2, 2], egui::Color32::RED)))]);
+    frame(&ctx, &mut a, vec![]);
+    let c = form(&a).unwrap();
+    assert_eq!((c.body.matches('\u{FFFC}').count(), c.inline.len()), (1, 1), "{:?}", c.body);
+    // Saved with the button a screen reader names Save.
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
+    let save = nodes
+        .iter()
+        .find(|(_, n)| n.role() == egui::accesskit::Role::Button && n.label() == Some("Save"))
+        .and_then(|(_, n)| n.bounds())
+        .map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+        .expect("a Save button");
+    let button = |pressed| Event::PointerButton { pos: save, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(&ctx, &mut a, vec![Event::PointerMoved(save)]);
+    frame(&ctx, &mut a, vec![button(true)]);
+    frame(&ctx, &mut a, vec![button(false)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(form(&a).is_none(), "saved and closed");
+    let html = a.session.account("sample").unwrap().config.signature_html.clone();
+    assert!(html.contains("src=\"data:image/png;base64,"), "{html}");
+    a.run("mail.new", json!({}));
+    let c = a.session.compose.clone().unwrap();
+    assert_eq!((c.body.matches('\u{FFFC}').count(), c.inline.len()), (1, 1), "the next message has it");
+    let _ = std::fs::remove_dir_all(dir);
+}
