@@ -130,6 +130,7 @@ impl MailApp {
         self.shortcuts(&ctx);
 
         let mut acts: Vec<Action> = Vec::new();
+        self.files_from_desktop(&ctx, &mut acts);
         let t = self.ui.tokens;
         if let Some(key) = self.ui.page_message.clone() {
             self.message_page(ui, &key, &mut acts);

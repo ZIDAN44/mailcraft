@@ -1254,3 +1254,6 @@ month	May	Mai
 	Read {time}	Gelesen {time}
 	couldn't be read	konnte nicht gelesen werden
 	Refresh	Aktualisieren
+	Drop to attach them to a new message	Hier ablegen, um sie an eine neue Nachricht anzuhängen
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name} kann nicht in eine Signatur: Bilder bis 1 MB, höchstens 10
+	Original size	Originalgröße

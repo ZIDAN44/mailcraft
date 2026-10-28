@@ -1249,3 +1249,6 @@ month	May	mei
 	Read {time}	Gelezen {time}
 	couldn't be read	kon niet worden gelezen
 	Refresh	Vernieuwen
+	Drop to attach them to a new message	Laat ze hier los om ze aan een nieuw bericht toe te voegen
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name} kan niet in een handtekening: afbeeldingen tot 1 MB, hoogstens 10
+	Original size	Oorspronkelijke grootte

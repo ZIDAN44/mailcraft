@@ -1254,3 +1254,6 @@ month	May	mayo
 	Read {time}	Leído {time}
 	couldn't be read	no se pudo leer
 	Refresh	Actualizar
+	Drop to attach them to a new message	Suéltalos aquí para adjuntarlos a un mensaje nuevo
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name} no puede ir en una firma: imágenes de hasta 1 MB, 10 como máximo
+	Original size	Tamaño original

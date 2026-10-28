@@ -139,6 +139,28 @@ fn formatted_messages_go_out_as_html_with_pictures() {
     assert!(r["cid"].as_str().is_some());
     assert!(s.compose.as_ref().unwrap().body.ends_with(mailcraft_mime::rich::PICTURE));
     assert!(s.run("compose.insertPicture", &json!({"name": "notes.txt", "data": [1]})).is_err(), "pictures only");
+    // Pictures are shown and sent at the width they're given (issue #10), within limits.
+    let cid = r["cid"].as_str().unwrap().to_string();
+    let width = |s: &Session| {
+        let c = s.compose.as_ref().unwrap();
+        let at = c.body.chars().count() - 1;
+        c.styles.style(at).picture_width
+    };
+    assert_eq!(width(&s), None, "its own width");
+    s.run("compose.resizePicture", &json!({"cid": cid, "width": 240})).unwrap();
+    assert_eq!(width(&s), Some(240));
+    assert!(s.compose.as_ref().unwrap().bodies().1.unwrap().contains("width=\"240\""));
+    s.run("compose.resizePicture", &json!({"cid": cid, "width": 5})).unwrap();
+    assert_eq!(width(&s), Some(16), "never narrower than 16");
+    s.run("compose.resizePicture", &json!({"cid": cid, "width": 99_999_999})).unwrap();
+    assert_eq!(width(&s), Some(4000));
+    s.run("compose.resizePicture", &json!({"cid": cid})).unwrap();
+    assert_eq!(width(&s), None, "back to its own");
+    assert!(s.run("compose.resizePicture", &json!({"cid": "nope@x"})).is_err());
+    let wide =
+        s.run("compose.insertPicture", &json!({"name": "wide.png", "data": crate::sample::sample_png(), "width": 300, "insert": false})).unwrap();
+    assert!(wide["cid"].is_string());
+    s.run("compose.resizePicture", &json!({"cid": cid, "width": 320})).unwrap();
     s.run("compose.send", &json!({})).unwrap();
     s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
     let k = key_of(&s, "Plan");
@@ -468,4 +490,34 @@ fn a_signature_holds_pictures() {
     let logo = p.attachments.iter().find(|a| a.content_id.as_deref() == Some(cid.as_str())).expect("the logo goes with it");
     assert_eq!(mime::attachment_data(&raw, logo.index), Some(png));
     assert!(p.images.contains(&format!("cid:{cid}")), "{:?}", p.images);
+}
+
+/// A wide picture goes in on a line of its own (issue #10: a second one after it went past the
+/// editor's edge), the cursor after it; on an empty line already, no lines are added.
+#[test]
+fn wide_pictures_go_on_a_line_of_their_own() {
+    let mut s = sample_session("picture-line");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"body": "the frames are in\n\nthanks"})).unwrap();
+    let before = s.compose.as_ref().unwrap().body.clone();
+    let at = before.find("frames").map(|b| before[..b].chars().count() + 3).unwrap();
+    let r = s.run("compose.insertPicture", &json!({"name": "shot.png", "data": crate::sample::sample_png(), "at": at, "line": true})).unwrap();
+    let body = s.compose.as_ref().unwrap().body.clone();
+    assert!(body.contains("fra\n\u{FFFC}\nmes"), "{body:?}");
+    assert_eq!(r["end"].as_u64(), Some(at as u64 + 2));
+    let shot = r["cid"].as_str().unwrap().to_string();
+    let c = s.compose.as_ref().unwrap();
+    assert_eq!(c.styles.style(at + 1).picture.as_deref(), Some(shot.as_str()));
+    assert!(c.styles.style(at).picture.is_none() && c.styles.style(at + 2).picture.is_none(), "the line breaks aren't pictures");
+    // At the end, after text: a line break before it only.
+    let n = c.body.chars().count();
+    let r = s.run("compose.insertPicture", &json!({"name": "end.png", "data": crate::sample::sample_png(), "at": n, "line": true})).unwrap();
+    assert_eq!(r["end"].as_u64(), Some(n as u64 + 2));
+    let body = s.compose.as_ref().unwrap().body.clone();
+    assert!(body.ends_with("\n\u{FFFC}"), "{body:?}");
+    // On an empty line already: no lines added.
+    let empty = body.find("\n\n").map(|b| body[..b].chars().count() + 1).unwrap();
+    let n = body.chars().count();
+    s.run("compose.insertPicture", &json!({"name": "in.png", "data": crate::sample::sample_png(), "at": empty, "line": true})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().body.chars().count(), n + 1, "the picture alone");
 }

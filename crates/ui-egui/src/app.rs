@@ -2,6 +2,7 @@
 
 mod actions;
 mod bars;
+mod dropped;
 mod frame;
 mod keys;
 mod ribbon;

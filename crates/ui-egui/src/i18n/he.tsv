@@ -1249,3 +1249,6 @@ month	May	מאי
 	Read {time}	נקרא {time}
 	couldn't be read	לא ניתן לקרוא
 	Refresh	רענון
+	Drop to attach them to a new message	שחררו כאן כדי לצרף אותם להודעה חדשה
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	לא ניתן להכניס את {name} לחתימה: תמונות עד 1 MB, 10 לכל היותר
+	Original size	גודל מקורי

@@ -295,6 +295,9 @@ impl Services for Desktop {
         image::DynamicImage::ImageRgba8(rgba).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
         Some(png)
     }
+    fn clipboard_files(&mut self) -> Vec<PathBuf> {
+        read_clipboard(|c| c.get().file_list().ok()).unwrap_or_default()
+    }
     fn open_url(&mut self, url: &str) -> Result<(), String> {
         // Web addresses go to Windows' URL handler: ShellExec_RunDLL (right for files) started
         // and quietly showed nothing, so sign-in pages never reached the browser.

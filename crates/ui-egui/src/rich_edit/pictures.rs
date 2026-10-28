@@ -1,142 +1,199 @@
-//! Pictures in the message being written: each as big as it is (no wider than the text), with a
-//! handle at its corner that resizes it, as Outlook's (issue #10: pasted pictures showed 72
-//! points tall, whatever their size, and couldn't be resized).
+//! Pictures in the message being written, at the size they're sent (issue #10: every picture
+//! was a thumbnail 72 points tall, whatever its size, and couldn't be made bigger or smaller).
+//! A picture shows at its width (its own, else the one it was given) and keeps its shape; never
+//! wider than the text. Clicked, it's selected (Delete removes it); its corner handle drags it
+//! bigger or smaller (a double-click on it gives it its own size back), and its right-click menu
+//! sets its size, as Outlook's do.
 
 use super::*;
 
-/// The size the character a picture stands on is laid out in. Its row is as tall as the picture
-/// (`TextFormat::line_height`), not its letters: a character as tall as a picture filled the font
-/// atlas with a glyph that big.
-const CHAR_PX: f32 = 14.0;
-/// How big a picture shows while its size isn't known (one that can't be read).
-const UNKNOWN: Vec2 = Vec2::new(PICTURE_PX * 4.0 / 3.0, PICTURE_PX);
-/// The narrowest a picture can be made.
+/// The widest a picture goes in at by itself (a page's width in Outlook, 6.5 inches); a wider one
+/// is given this width as it's put in, and can be made bigger again.
+pub(crate) const FIT_WIDTH: u32 = 624;
+/// The narrowest a picture is dragged to.
 const MIN_WIDTH: f32 = 16.0;
-/// Room left on each side of a picture.
-const MARGIN: f32 = 2.0;
-/// The most pixels a picture is decoded with for the editor (bigger ones are drawn from that).
-const DECODE_PX: u32 = 1600;
+/// The largest a picture is decoded for showing in the text.
+const DECODE_MAX: u32 = 1600;
+/// Room kept between a picture and the text's right edge, where the scroll bar is (it took the
+/// pointer from the corner handle of a picture as wide as the text).
+const EDGE: f32 = 24.0;
 
-/// A picture resized with its handle: its character, and how wide it now is (`None`: its own
-/// width again). `started`: the first change of this drag (the one undo goes back to).
-pub(super) struct Resize {
-    pub at: usize,
-    pub width: Option<u16>,
-    pub started: bool,
+/// Where a picture's character is in the laid-out text, and so where the picture goes.
+pub(super) struct Place {
+    /// The character's place (its row's height).
+    pub(super) glyph: Rect,
+    /// Its row's left edge, and the text's right edge.
+    row_left: f32,
+    right: f32,
+    /// Last in its line: its room is before the character (see `layout::picture_format`)…
+    last: bool,
+    /// …unless the line wrapped there (egui leaves a row's leading room out): then it starts the row.
+    pub(super) wrapped: bool,
 }
 
-/// A picture's own size in pixels, from its header (`None`: not a picture this reads).
-fn own_size(data: &[u8]) -> Option<Vec2> {
-    if data.len() > 30 << 20 {
-        return None;
-    }
-    let reader = image::ImageReader::new(std::io::Cursor::new(data)).with_guessed_format().ok()?;
-    let (w, h) = reader.into_dimensions().ok()?;
-    ((1..=12_000).contains(&w) && (1..=12_000).contains(&h)).then(|| vec2(w as f32, h as f32))
-}
-
-/// Each picture's own size, read once.
-pub(super) fn measure(ed: &mut Editor, c: &Compose) {
-    for p in &c.inline {
-        if !ed.sizes.contains_key(&p.cid) {
-            ed.sizes.insert(p.cid.clone(), own_size(&p.data));
+impl Place {
+    pub(super) fn of(g: &Galley, origin: egui::Pos2, at: usize, last: bool) -> Place {
+        // Its own row when the line wraps just before it.
+        let cursor = CCursor { prefer_next_row: true, ..CCursor::new(at) };
+        let lc = g.layout_from_cursor(cursor);
+        let starts_paragraph = lc.row == 0 || g.rows.get(lc.row - 1).is_none_or(|r| r.ends_with_newline);
+        let row_left = g.rows.get(lc.row).map_or(0.0, |r| r.pos.x);
+        Place {
+            glyph: g.pos_from_cursor(cursor).translate(origin.to_vec2()),
+            row_left: origin.x + row_left,
+            right: origin.x + g.job.wrap.max_width,
+            last,
+            wrapped: lc.column.0 == 0 && !starts_paragraph,
         }
     }
 }
 
-/// How big the picture `style` stands for shows, with `most` points of width for it: as wide as
-/// it was made, else its own width, never wider than `most`; as tall as that makes it.
-pub(super) fn shown(style: &Style, sizes: &HashMap<String, Option<Vec2>>, most: f32) -> Vec2 {
-    let Some(own) = style.picture.as_ref().and_then(|cid| sizes.get(cid).copied().flatten()) else { return UNKNOWN };
-    let most = (most - 2.0 * MARGIN).max(MIN_WIDTH);
-    let w = style.picture_width.map_or(own.x, f32::from).clamp(MIN_WIDTH, most);
-    vec2(w, (w * own.y / own.x).max(1.0))
+/// A picture decoded for the text, with its own size (pixels).
+pub(super) struct Pic {
+    tex: egui::TextureHandle,
+    size: egui::Vec2,
 }
 
-/// What the layout needs to make room for pictures: each one's own size, and how wide the
-/// character a picture stands on is.
-#[derive(Clone, Copy)]
-pub(super) struct Rooms<'a> {
-    pub sizes: &'a HashMap<String, Option<Vec2>>,
-    pub advance: f32,
-}
-
-impl Rooms<'_> {
-    /// How wide the picture's character is, for `ui`'s fonts. Laid out, as the text is: a font
-    /// without the character draws another in its place (`glyph_width` had it narrower).
-    pub fn advance(ui: &Ui) -> f32 {
-        ui.fonts_mut(|f| f.layout_no_wrap(PICTURE.to_string(), theme::regular(CHAR_PX), Color32::TRANSPARENT).size().x)
+/// The own sizes of the message's pictures that can be shown (decoded once, then kept).
+pub(super) fn own_sizes(ctx: &egui::Context, ed: &mut Editor, c: &Compose) -> HashMap<String, egui::Vec2> {
+    let mut out = HashMap::new();
+    for cid in rich::pictures(&c.body, &c.styles) {
+        let pic = ed.pictures.entry(cid.clone()).or_insert_with(|| {
+            let data = &c.inline.iter().find(|p| p.cid == cid)?.data;
+            let size = own_size(data)?;
+            let tex = crate::reading::decode(ctx, &format!("compose-{cid}"), data, DECODE_MAX)?;
+            Some(Pic { tex, size: vec2(size.0 as f32, size.1 as f32) })
+        });
+        if let Some(p) = pic {
+            out.insert(cid, p.size);
+        }
     }
-
-    /// The picture's character laid out as tall as the picture, invisible; and the room after
-    /// it, put before what follows it. (As letter spacing it went before the character, and not
-    /// at all at the start of a line.)
-    pub fn room(&self, style: &Style, most: f32) -> (TextFormat, f32) {
-        let size = shown(style, self.sizes, most);
-        let format = TextFormat { font_id: theme::regular(CHAR_PX), line_height: Some(size.y), color: Color32::TRANSPARENT, ..Default::default() };
-        (format, (size.x - self.advance).max(0.0) + 2.0 * MARGIN)
-    }
+    out
 }
 
-/// The picture at character `at` drawn where its character is (`place`: the character's place),
-/// sitting on the line. Hovered or selected, its edge shows with a handle at its corner: dragging
-/// that resizes it (up to `most` wide), a double-click gives it its own size back.
-pub(super) fn paint(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &Compose, at: usize, place: Rect, most: f32) -> Option<Resize> {
+/// A picture's own size in pixels, from its header (nothing decoded); `None` when it isn't a
+/// picture that can be read.
+pub(crate) fn own_size(data: &[u8]) -> Option<(u32, u32)> {
+    let (w, h) = image::ImageReader::new(std::io::Cursor::new(data)).with_guessed_format().ok()?.into_dimensions().ok()?;
+    (w > 0 && h > 0).then_some((w, h))
+}
+
+/// The width a picture is given as it's put in: [`FIT_WIDTH`] when it's wider than that, else
+/// none (its own).
+pub(crate) fn fitted_width(size: Option<(u32, u32)>) -> Option<u32> {
+    size.filter(|(w, _)| *w > FIT_WIDTH).map(|_| FIT_WIDTH)
+}
+
+/// A picture wider than a third of a page goes in on a line of its own, as a screenshot pasted
+/// mid-sentence does in mail editors (egui wraps a row once per letter, so a second wide picture
+/// after one went past the text's edge); smaller ones (icons) go in the line.
+pub(crate) fn own_line(size: Option<(u32, u32)>) -> bool {
+    size.is_some_and(|(w, _)| w > FIT_WIDTH / 3)
+}
+
+/// How big a picture shows in text `wrap` wide: at `width` (else its own), its shape kept, never
+/// wider than the text. One that can't be read is a box of its own size.
+pub(super) fn shown(own: Option<egui::Vec2>, width: Option<u16>, wrap: f32) -> egui::Vec2 {
+    let own = own.filter(|s| s.x >= 1.0 && s.y >= 1.0).unwrap_or(vec2(96.0, 72.0));
+    let room = if wrap.is_finite() { (wrap - EDGE).max(MIN_WIDTH) } else { f32::MAX };
+    let w = width.map_or(own.x, f32::from).clamp(1.0, room);
+    vec2(w, (w * own.y / own.x).clamp(1.0, 8000.0))
+}
+
+/// Picture `cid`'s style at character `at`, `width` wide.
+fn set_width(c: &mut Compose, at: usize, width: Option<u16>) {
+    let mut styles = std::mem::take(&mut c.styles);
+    styles.restyle(&c.body, at..at + 1, |s| Style { picture_width: width, ..s.clone() });
+    c.styles = styles;
+}
+
+/// Draw the picture at character `at` in its place; click, drag and right-click it.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn picture(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, at: usize, cid: &str, place: Place) {
     let style = c.styles.style(at);
-    let cid = style.picture.clone()?;
-    let size = shown(&style, &ed.sizes, most);
-    let r = Rect::from_min_size(egui::pos2(place.min.x + MARGIN, place.max.y - size.y), size);
+    let own = ed.pictures.get(cid).and_then(|p| p.as_ref().map(|p| p.size));
+    let full = shown(own, style.picture_width, place.right - place.row_left);
+    let left = match (place.last, place.wrapped) {
+        (true, true) => place.row_left,
+        (true, false) => place.glyph.min.x - full.x,
+        (false, _) => place.glyph.min.x + 2.0,
+    };
+    // Where its room went past the text's edge (followed by text that wrapped, or after a
+    // picture with no room for both), it stays within the text's width.
+    let size = shown(own, style.picture_width, place.right - left + EDGE);
+    let rect = Rect::from_min_size(egui::pos2(left, place.glyph.max.y - 2.0 - size.y), size);
+    ed.placed.push((at, rect));
     let painter = ui.painter().clone();
-    let tex = ed.pictures.entry(cid.clone()).or_insert_with(|| {
-        c.inline.iter().find(|p| p.cid == cid).and_then(|p| crate::reading::decode(ui.ctx(), &format!("compose-{cid}"), &p.data, DECODE_PX))
-    });
-    let Some(tex) = tex else {
-        painter.rect_stroke(r, 4.0, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-        icons::paint(&painter, icons::centered(r, 22.0), Icon::Image, t.dim);
-        return None;
-    };
-    painter.image(tex.id(), r, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+    match ed.pictures.get(cid).and_then(Option::as_ref) {
+        Some(p) => {
+            painter.image(p.tex.id(), rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+        }
+        None => {
+            painter.rect_stroke(rect, 4.0, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+            icons::paint(&painter, icons::centered(rect, 22.0), Icon::Image, t.dim);
+        }
+    }
     if c.sending {
-        return None;
-    }
-    let handle = Rect::from_center_size(r.right_bottom() - vec2(4.0, 4.0), vec2(9.0, 9.0));
-    let resp = ui.interact(handle.expand(3.0), egui::Id::unique(("picture-size", c.id, at)), Sense::click_and_drag());
-    let resp = resp.on_hover_cursor(egui::CursorIcon::ResizeNwSe);
-    let selected = ed.sel.start <= at && at < ed.sel.end;
-    if selected || resp.hovered() || resp.dragged() || ui.rect_contains_pointer(r) {
-        painter.rect_stroke(r, 0.0, Stroke::new(1.0, t.accent), egui::StrokeKind::Outside);
-        painter.rect_filled(handle, 2.0, t.accent);
-        painter.rect_stroke(handle, 2.0, Stroke::new(1.0, Color32::WHITE), egui::StrokeKind::Inside);
-    }
-    if resp.double_clicked() {
-        return Some(Resize { at, width: None, started: true });
-    }
-    let p = resp.interact_pointer_pos().filter(|_| resp.dragged())?;
-    // The corner stays as far from the pointer as where the handle was taken (it jumped to the
-    // pointer by the handle's inset).
-    let grab = if resp.drag_started() {
-        let grab = ui.input(|i| i.pointer.press_origin()).map_or(0.0, |o| r.max.x - o.x);
-        ui.data_mut(|d| d.insert_temp(resp.id, grab));
-        grab
-    } else {
-        ui.data(|d| d.get_temp::<f32>(resp.id)).unwrap_or(0.0)
-    };
-    let w = (p.x + grab - r.min.x).round().clamp(MIN_WIDTH, (most - 2.0 * MARGIN).max(MIN_WIDTH).min(f32::from(u16::MAX)));
-    Some(Resize { at, width: Some(w as u16), started: resp.drag_started() })
-}
-
-/// Make a picture as wide as it was resized to (a step undo goes back over, per drag).
-pub(super) fn resize(ed: &mut Editor, c: &mut Compose, r: Resize) {
-    if c.body.chars().nth(r.at) != Some(PICTURE) {
         return;
     }
-    // A double-click on a picture at its own size changes nothing.
-    let same = c.styles.style(r.at).picture_width == r.width;
-    if r.started && !(same && r.width.is_none()) {
-        ed.remember(c, ed.sel.start);
+    let body = body_id(c);
+    let r = ui.interact(rect, egui::Id::unique(("compose-picture", c.id, at)), Sense::click());
+    if r.clicked() {
+        ed.sel = at..at + 1;
+        ed.refocus = Some(at..at + 1);
     }
-    if !same {
-        c.styles.restyle(&c.body, r.at..r.at + 1, |s| Style { picture_width: r.width, ..s.clone() });
+    let selected = ed.sel == (at..at + 1);
+    if selected {
+        painter.rect_stroke(rect.expand(1.0), 0.0, Stroke::new(1.0, t.accent), egui::StrokeKind::Outside);
+    }
+    // The corner handle: dragged, the picture follows it (its shape kept). Over the picture, not
+    // only hovered: with the button down on the handle the picture isn't hovered, and a drag
+    // started without selecting the picture first lost its handle (#14's test found it).
+    if selected || r.hovered() || ui.rect_contains_pointer(rect) || ed.resizing == Some(at) {
+        // Just inside the corner, so it's on the picture wherever the picture is.
+        let handle = Rect::from_center_size(rect.right_bottom() - vec2(4.0, 4.0), vec2(10.0, 10.0));
+        let h = ui
+            .interact(handle, egui::Id::unique(("compose-picture-size", c.id, at)), Sense::click_and_drag())
+            .on_hover_cursor(egui::CursorIcon::ResizeNwSe);
+        painter.rect(handle, 1.0, t.surface, Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);
+        // A double-click on it gives the picture its own size back (#14).
+        if h.double_clicked() && c.styles.style(at).picture_width.is_some() {
+            ed.remember(c, at + 1);
+            set_width(c, at, None);
+            ed.refocus = Some(at..at + 1);
+        }
+        if h.drag_started() {
+            ed.remember(c, at + 1);
+            ed.resizing = Some(at);
+        }
+        if h.dragged()
+            && let Some(p) = h.interact_pointer_pos()
+        {
+            let w = (p.x + 4.0 - rect.left()).clamp(MIN_WIDTH, (place.right - place.row_left - EDGE).max(MIN_WIDTH));
+            set_width(c, at, Some(w.round() as u16));
+            ui.ctx().request_repaint();
+        }
+        if h.drag_stopped() {
+            ed.resizing = None;
+            ed.refocus = Some(at..at + 1);
+        }
+    }
+    r.context_menu(|ui| {
+        ui.set_min_width(160.0);
+        let own_w = own.map_or(size.x, |s| s.x);
+        let choices: [(String, Option<f32>); 4] =
+            [(tl!("Original size").to_string(), None), ("75%".into(), Some(0.75)), ("50%".into(), Some(0.5)), ("25%".into(), Some(0.25))];
+        for (label, part) in choices {
+            if ui.button(label).clicked() {
+                ed.remember(c, at + 1);
+                set_width(c, at, part.map(|p| (own_w * p).round().clamp(MIN_WIDTH, f32::from(u16::MAX)) as u16));
+                ed.refocus = Some(at..at + 1);
+                ui.close();
+            }
+        }
+    });
+    if r.secondary_clicked() || r.clicked() {
+        ui.memory_mut(|m| m.request_focus(body));
     }
 }
 
@@ -144,75 +201,23 @@ pub(super) fn resize(ed: &mut Editor, c: &mut Compose, r: Resize) {
 mod tests {
     use super::*;
 
-    fn sizes() -> HashMap<String, Option<Vec2>> {
-        HashMap::from([("pic".to_string(), Some(vec2(300.0, 200.0))), ("bad".to_string(), None)])
-    }
-
-    fn picture(width: Option<u16>) -> Style {
-        Style { picture: Some("pic".into()), picture_width: width, ..Style::default() }
-    }
-
-    /// "a", a 300 × 200 picture and "b", as the editor lays them out `wrap` wide: the room from
-    /// the picture's character to what follows it, and its row's height.
-    fn room(width: Option<u16>, wrap: f32) -> Vec2 {
-        let body = "a\u{FFFC}b";
-        let mut st = Styles::plain(body);
-        st.restyle(body, 1..2, |s| Style { picture: Some("pic".into()), picture_width: width, ..s.clone() });
-        let ctx = egui::Context::default();
-        let mut got = Vec2::ZERO;
-        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-            let g = layout::layout(ui, body, &st, false, &Tokens::light(), wrap, &sizes());
-            let (a, b) = (g.pos_from_cursor(CCursor::new(1)), g.pos_from_cursor(CCursor::new(2)));
-            got = vec2(b.min.x - a.min.x, a.height());
-        });
-        out.textures_delta.clear();
-        got
-    }
-
+    /// A picture shows at its width, or its own, with its shape kept and never wider than the
+    /// text; one wider than a page goes in at a page's width.
     #[test]
-    fn a_picture_shows_as_big_as_it_is_no_wider_than_the_text() {
-        assert_eq!(shown(&picture(None), &sizes(), 1000.0), vec2(300.0, 200.0));
-        assert_eq!(shown(&picture(None), &sizes(), 154.0), vec2(150.0, 100.0), "no wider than the text");
-        assert_eq!(shown(&picture(Some(120)), &sizes(), 1000.0), vec2(120.0, 80.0), "as wide as it was made");
-        assert_eq!(shown(&picture(Some(900)), &sizes(), 304.0), vec2(300.0, 200.0));
-        assert_eq!(shown(&picture(Some(2)), &sizes(), 1000.0).x, MIN_WIDTH);
-        let unreadable = Style { picture: Some("bad".into()), ..Style::default() };
-        assert_eq!(shown(&unreadable, &sizes(), 1000.0), UNKNOWN);
-        // Laid out: room for the picture and a margin each side, its row as tall as it.
-        let close = |a: Vec2, b: Vec2| (a - b).length() < 1.5;
-        let r = room(None, 600.0);
-        assert!(close(r, vec2(304.0, 200.0)), "its own size: {r:?}");
-        let r = room(Some(120), 600.0);
-        assert!(close(r, vec2(124.0, 80.0)), "resized: {r:?}");
-        let r = room(None, 154.0);
-        assert!((r.y - 100.0).abs() < 1.5, "a narrow editor: {r:?}");
-    }
-
-    /// A drag is one step to undo; a double-click gives the picture its own size back.
-    #[test]
-    fn resizing_is_one_step_to_undo() {
-        let body = "a\u{FFFC}b";
-        let mut c = Compose { body: body.into(), styles: Styles::plain(body), ..Default::default() };
-        c.styles.restyle(body, 1..2, |s| Style { picture: Some("pic".into()), ..s.clone() });
-        let mut ed = Editor::new(1);
-        resize(&mut ed, &mut c, Resize { at: 1, width: Some(200), started: true });
-        resize(&mut ed, &mut c, Resize { at: 1, width: Some(180), started: false });
-        assert_eq!((c.styles.style(1).picture_width, ed.undo.len()), (Some(180), 1));
-        assert_eq!(c.styles.style(2).picture_width, None, "what follows isn't resized");
-        resize(&mut ed, &mut c, Resize { at: 0, width: Some(50), started: true });
-        assert_eq!((c.styles.style(0).picture_width, ed.undo.len()), (None, 1), "not a picture there");
-        resize(&mut ed, &mut c, Resize { at: 1, width: None, started: true });
-        resize(&mut ed, &mut c, Resize { at: 1, width: None, started: true });
-        assert_eq!((c.styles.style(1).picture_width, ed.undo.len()), (None, 2));
-    }
-
-    #[test]
-    fn a_pictures_own_size_comes_from_its_header() {
-        let mut png = Vec::new();
-        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::new(30, 20));
-        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
-        assert_eq!(own_size(&png), Some(vec2(30.0, 20.0)));
+    fn pictures_show_at_their_width() {
+        let own = Some(vec2(1200.0, 600.0));
+        assert_eq!(shown(own, None, f32::INFINITY), vec2(1200.0, 600.0));
+        assert_eq!(shown(own, Some(300), 800.0), vec2(300.0, 150.0));
+        assert_eq!(shown(own, None, 624.0), vec2(600.0, 300.0), "the text's width at most");
+        assert_eq!(shown(None, None, 800.0), vec2(96.0, 72.0), "unreadable: a box");
+        assert!(shown(Some(vec2(1.0, 100_000.0)), None, 800.0).y <= 8000.0);
+        assert_eq!(fitted_width(Some((2880, 1800))), Some(FIT_WIDTH));
+        assert_eq!(fitted_width(Some((400, 300))), None);
+        assert_eq!(fitted_width(None), None);
+        assert!(own_line(Some((1200, 600))) && !own_line(Some((32, 32))) && !own_line(None));
+        assert_eq!(own_size(&mailcraft_engine::sample::sample_png()).map(|s| s.0 > 0), Some(true));
         assert_eq!(own_size(b"not a picture"), None);
-        assert_eq!(own_size(png.get(..20).unwrap_or_default()), None, "cut short");
+        let png = mailcraft_engine::sample::sample_png();
+        assert_eq!(own_size(png.get(..20).unwrap_or_default()), None, "cut short (#14's case)");
     }
 }

@@ -28,14 +28,18 @@ pub(super) fn format(s: &Style, t: &Tokens) -> TextFormat {
     }
 }
 
-/// How far a paragraph starts in: its indent, and room for its bullet or number.
-pub(super) fn paragraph_lead(p: &rich::Para) -> f32 {
-    f32::from(p.indent) * INDENT + if p.list == List::None { 0.0 } else { INDENT }
+/// Room for a picture `height` tall: an invisible character the picture is drawn over, as tall
+/// as its row needs; its width is room put after the character, before what follows it, or,
+/// last in its line, before the character (egui sizes and wraps a row by its letters, so room
+/// after the last one wasn't the row's: a picture that didn't fit stayed on the row, squeezed).
+/// (As letter spacing it went before the character, and not at all at the start of a line.)
+pub(super) fn picture_format(height: f32) -> TextFormat {
+    TextFormat { font_id: theme::regular(14.5), line_height: Some(height + 4.0), color: Color32::TRANSPARENT, ..Default::default() }
 }
 
-/// The text laid out with its styles; `shift` moves a paragraph right (alignment); each picture
-/// gets room as big as it shows (`rooms`).
-pub(super) fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, shift: &[f32], rooms: pictures::Rooms<'_>) -> LayoutJob {
+/// The text laid out with its styles; `shift` moves a paragraph right (alignment); `own`: the
+/// pictures' own sizes.
+pub(super) fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, shift: &[f32], own: &HashMap<String, egui::Vec2>) -> LayoutJob {
     let mut job = LayoutJob::default();
     job.wrap.max_width = wrap;
     // Where a paragraph goes is decided here (`layout_aligned`), against the editor's width;
@@ -50,10 +54,8 @@ pub(super) fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, s
             i += 1;
         }
         let p = st.para(n);
-        let indent = if plain { 0.0 } else { paragraph_lead(&p) };
-        let mut lead = indent + shift.get(n).copied().unwrap_or(0.0);
-        // The format of the last picture's character, for the room after one last in its line.
-        let mut room_format = None;
+        let mut lead = if plain { 0.0 } else { f32::from(p.indent) * INDENT + if p.list == List::None { 0.0 } else { INDENT } };
+        lead += shift.get(n).copied().unwrap_or(0.0);
         let mut run_start = 0usize;
         let chars: Vec<(usize, char)> = line.char_indices().collect();
         for k in 0..chars.len() {
@@ -65,25 +67,28 @@ pub(super) fn job(text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, s
                 let to = chars.get(k + 1).map_or(line.len(), |(b, _)| *b);
                 let piece = line.get(from..to).unwrap_or("");
                 let style = st.style(i + run_start);
-                let picture = !plain && piece.starts_with(PICTURE) && style.picture.is_some();
-                if picture {
-                    let (f, gap) = rooms.room(&style, wrap - indent);
-                    job.append(piece, lead, f.clone());
-                    room_format = Some(f);
-                    lead = gap;
-                } else {
-                    job.append(piece, lead, if plain { plain_fmt.clone() } else { format(&style, t) });
-                    lead = 0.0;
+                let size = (!plain && piece.starts_with(PICTURE))
+                    .then(|| style.picture.as_ref().map(|cid| super::pictures::shown(own.get(cid).copied(), style.picture_width, wrap)))
+                    .flatten();
+                let f = match size {
+                    _ if plain => plain_fmt.clone(),
+                    Some(size) => picture_format(size.y),
+                    None => format(&style, t),
+                };
+                // Last in its line, a picture's room goes before it.
+                let last = to == line.len();
+                match size {
+                    Some(size) if last => {
+                        job.append(piece, lead + size.x, f);
+                        lead = 0.0;
+                    }
+                    _ => {
+                        job.append(piece, lead, f);
+                        lead = size.map_or(0.0, |s| s.x);
+                    }
                 }
                 run_start = k + 1;
             }
-        }
-        // A picture last in its line: its room after it still.
-        if !chars.is_empty()
-            && lead > 0.0
-            && let Some(f) = room_format
-        {
-            job.append("", lead, f);
         }
         if chars.is_empty() && lead > 0.0 {
             let f = if plain { plain_fmt.clone() } else { format(&st.style(i), t) };
@@ -100,7 +105,10 @@ pub(super) fn indent_empty_rows(g: Arc<Galley>, st: &Styles, plain: bool) -> Arc
     if plain {
         return g;
     }
-    let lead = |n: usize| paragraph_lead(&st.para(n));
+    let lead = |n: usize| {
+        let p = st.para(n);
+        f32::from(p.indent) * INDENT + if p.list == List::None { 0.0 } else { INDENT }
+    };
     let mut para = 0usize;
     let mut moves = Vec::new();
     for (i, r) in g.rows.iter().enumerate() {
@@ -124,22 +132,12 @@ pub(super) fn indent_empty_rows(g: Arc<Galley>, st: &Styles, plain: bool) -> Arc
 }
 
 /// Lay the text out; centred and right-aligned paragraphs that fit on one line are moved over.
-/// `sizes`: each picture's own size.
-pub(super) fn layout(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, sizes: &HashMap<String, Option<Vec2>>) -> Arc<Galley> {
-    indent_empty_rows(layout_aligned(ui, text, st, plain, t, wrap, sizes), st, plain)
+pub(super) fn layout(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, own: &HashMap<String, egui::Vec2>) -> Arc<Galley> {
+    indent_empty_rows(layout_aligned(ui, text, st, plain, t, wrap, own), st, plain)
 }
 
-pub(super) fn layout_aligned(
-    ui: &Ui,
-    text: &str,
-    st: &Styles,
-    plain: bool,
-    t: &Tokens,
-    wrap: f32,
-    sizes: &HashMap<String, Option<Vec2>>,
-) -> Arc<Galley> {
-    let rooms = pictures::Rooms { sizes, advance: pictures::Rooms::advance(ui) };
-    let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[], rooms));
+pub(super) fn layout_aligned(ui: &Ui, text: &str, st: &Styles, plain: bool, t: &Tokens, wrap: f32, own: &HashMap<String, egui::Vec2>) -> Arc<Galley> {
+    let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[], own));
     // A right-to-left paragraph left as it was sits against the right edge.
     let lines: Vec<&str> = text.split('\n').collect();
     let align_of = |n: usize, a: Align| {
@@ -175,7 +173,7 @@ pub(super) fn layout_aligned(
             }
         }
     }
-    let shifted = ui.painter().layout_job(job(text, st, plain, t, wrap, &shift, rooms));
+    let shifted = ui.painter().layout_job(job(text, st, plain, t, wrap, &shift, own));
     // A right-to-left paragraph left as it was and wrapped: each of its rows against the right edge.
     rtl_rows_right(shifted, |n| st.para(n).align == Align::Left && rtl_of(n), wrap, 2)
 }

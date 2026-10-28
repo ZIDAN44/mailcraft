@@ -51,9 +51,9 @@ pub struct Style {
     /// The `cid:` of the picture this character stands for.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub picture: Option<String>,
-    /// How wide that picture shows, in pixels (resized in the editor); `None` is its own width,
-    /// no wider than the message.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// How wide that picture is shown and sent, in CSS pixels (its height keeps its shape);
+    /// `None` at its own width.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub picture_width: Option<u16>,
 }
 
@@ -331,7 +331,6 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
         }
         let run: String = chars.get(i..j).map(|c| c.iter().collect()).unwrap_or_default();
         if let Some(cid) = st.picture.as_ref().filter(|_| run.starts_with(PICTURE)) {
-            // Resized: as wide as it was made (its height follows), as Outlook writes it.
             let width = st.picture_width.map(|w| format!(" width=\"{w}\"")).unwrap_or_default();
             out.push_str(&format!("<img src=\"cid:{}\"{width} style=\"max-width:100%\">", esc(cid)));
             i = j;

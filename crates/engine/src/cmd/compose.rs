@@ -23,7 +23,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
-            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end)"#)
+            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own)"#)
+            .when(has_compose),
+        CommandSpec::new("compose.resizePicture", "Picture size", "Message › Picture", resize_picture)
+            .params(r#"{"cid": string, "width"?: number (CSS pixels; 0 or none: its own width)}"#)
             .when(has_compose),
         CommandSpec::new("compose.format", "Plain text / Formatted", "Message › Format", |s, v| {
             let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
@@ -191,12 +194,65 @@ pub(super) fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
     }
     c.inline.push(mailcraft_mime::InlinePicture { cid: cid.clone(), name, mime, data });
     c.plain = false;
-    if p::bool(v, "insert").unwrap_or(true) {
-        let n = c.body.chars().count();
-        let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
-        insert_picture_at(c, at, &cid);
+    if !p::bool(v, "insert").unwrap_or(true) {
+        return Ok(json!({"cid": cid}));
     }
-    Ok(json!({"cid": cid}))
+    let n = c.body.chars().count();
+    let mut at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
+    // On a line of its own: a line break before it and after it, where there's text there.
+    if p::bool(v, "line").unwrap_or(false) {
+        if at > 0 && c.body.chars().nth(at - 1) != Some('\n') {
+            insert_text_at(c, at, "\n");
+            at += 1;
+        }
+        if c.body.chars().nth(at).is_some_and(|ch| ch != '\n') {
+            insert_text_at(c, at, "\n");
+        }
+    }
+    insert_picture_at(c, at, &cid, picture_width(v));
+    Ok(json!({"cid": cid, "end": at + 1}))
+}
+
+/// Text into the message at character `at`, in the look of what's around it.
+fn insert_text_at(c: &mut crate::session::Compose, at: usize, text: &str) {
+    let old = c.body.clone();
+    let byte = old.char_indices().nth(at).map_or(old.len(), |(b, _)| b);
+    c.body.insert_str(byte, text);
+    let mut styles = std::mem::take(&mut c.styles);
+    let around = styles.style(at.saturating_sub(1)).for_typing();
+    styles.edit_at(&old, &c.body, &around, Some(at + text.chars().count()));
+    c.styles = styles;
+}
+
+/// Narrowest and widest a picture is set to, in CSS pixels.
+pub const PICTURE_WIDTHS: std::ops::RangeInclusive<u16> = 16..=4000;
+
+/// The `width` asked for a picture, within [`PICTURE_WIDTHS`]; `None` (its own width) when
+/// there's none, or 0.
+fn picture_width(v: &Value) -> Option<u16> {
+    let w = p::u64(v, "width").filter(|w| *w > 0)?;
+    Some(u16::try_from(w).unwrap_or(u16::MAX).clamp(*PICTURE_WIDTHS.start(), *PICTURE_WIDTHS.end()))
+}
+
+/// Show and send picture `cid` at another width (Outlook's picture handles and Size), or at its
+/// own again.
+pub(super) fn resize_picture(s: &mut Session, v: &Value) -> CmdResult {
+    use mailcraft_mime::rich::{PICTURE, Style};
+    let cid = p::req_str(v, "cid")?;
+    let width = picture_width(v);
+    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    c.styles.fit(&c.body);
+    let at: Vec<usize> =
+        c.body.chars().enumerate().filter(|(i, ch)| *ch == PICTURE && c.styles.style(*i).picture.as_deref() == Some(cid)).map(|(i, _)| i).collect();
+    if at.is_empty() {
+        return Err(CmdError::Params(format!("no picture {cid} in the message")));
+    }
+    let mut styles = std::mem::take(&mut c.styles);
+    for i in at {
+        styles.restyle(&c.body, i..i + 1, |s| Style { picture_width: width, ..s.clone() });
+    }
+    c.styles = styles;
+    Ok(json!({"cid": cid, "width": width}))
 }
 
 /// The account's signature into the message being written, at character `at` (else the end),
@@ -257,19 +313,19 @@ pub fn signature_picture(c: &mut crate::session::Compose, v: &Value, cid: String
     c.plain = false;
     let n = c.body.chars().count();
     let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
-    insert_picture_at(c, at, &cid);
+    insert_picture_at(c, at, &cid, None);
     Ok(json!({"cid": cid, "end": at + 1}))
 }
 
-/// Put picture `cid` into the text at character `at`.
-pub fn insert_picture_at(c: &mut crate::session::Compose, at: usize, cid: &str) {
+/// Put picture `cid` into the text at character `at`, `width` wide (`None`: its own width).
+pub fn insert_picture_at(c: &mut crate::session::Compose, at: usize, cid: &str, width: Option<u16>) {
     use mailcraft_mime::rich::{PICTURE, Style};
     let old = c.body.clone();
     let byte = old.char_indices().nth(at).map_or(old.len(), |(b, _)| b);
     c.body.insert(byte, PICTURE);
     let mut styles = std::mem::take(&mut c.styles);
     styles.edit_at(&old, &c.body, &Style::default(), Some(at + 1));
-    styles.restyle(&c.body, at..at + 1, |s| Style { picture: Some(cid.to_string()), picture_width: None, ..s.clone() });
+    styles.restyle(&c.body, at..at + 1, |s| Style { picture: Some(cid.to_string()), picture_width: width, ..s.clone() });
     c.styles = styles;
 }
 

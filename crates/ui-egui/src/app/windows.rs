@@ -64,7 +64,7 @@ impl MailApp {
             Some(p) if opening(ctx, id) => WindowPlace { x: p.x + step, y: p.y + step, ..*p }.apply(builder),
             _ => builder,
         };
-        let (session, st) = (&mut self.session, &mut self.ui);
+        let (session, st, services) = (&mut self.session, &mut self.ui, &mut self.services);
         let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
             let mut place = st.places.get("compose").copied();
             after_open(ui, place);
@@ -80,6 +80,9 @@ impl MailApp {
                 st.dialog = Some(Dialog::SaveChanges);
                 st.dialog_for = Some(mine);
                 closing = false;
+            }
+            for p in super::dropped::pasted_files(ui.ctx(), services.as_mut(), session) {
+                mine_acts.push(Action::Run("compose.attach", json!({"path": p.to_string_lossy()})));
             }
             egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                 reading::compose_window(session, st, ui, &mut mine_acts);

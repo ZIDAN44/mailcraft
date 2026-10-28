@@ -1254,3 +1254,6 @@ month	May	mai
 	Read {time}	Lu {time}
 	couldn't be read	lecture impossible
 	Refresh	Actualiser
+	Drop to attach them to a new message	Déposez-les ici pour les joindre à un nouveau message
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name} ne peut pas aller dans une signature : images de 1 Mo au plus, 10 au maximum
+	Original size	Taille d'origine

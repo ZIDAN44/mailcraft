@@ -396,14 +396,14 @@ fn files_copied_in_a_file_manager_paste_as_attachments() {
     frame(&ctx, &mut a, vec![]);
     let file = dir.join("budget 2026.pdf");
     std::fs::write(&file, b"%PDF-1.4").unwrap();
-    crate::TEST_CLIPBOARD_FILES.with(|f| *f.borrow_mut() = vec![file.clone(), "relative.txt".into()]);
+    a.services = Box::new(super::files::Copied(vec![file.clone(), "relative.txt".into()]));
     frame(&ctx, &mut a, vec![Event::Paste(file.to_string_lossy().into_owned())]);
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.clone().unwrap();
     let names: Vec<&str> = c.attachments.iter().map(|x| x.name.as_str()).collect();
     assert_eq!(names, ["budget 2026.pdf"], "the file with no path to read is left");
     assert!(c.body.is_empty(), "the path isn't pasted as text: {:?}", c.body);
-    crate::TEST_CLIPBOARD_FILES.with(|f| f.borrow_mut().clear());
+    a.services = Box::new(super::files::Copied(Vec::new()));
     frame(&ctx, &mut a, vec![Event::Paste("see attached".into())]);
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.clone().unwrap();
@@ -412,7 +412,7 @@ fn files_copied_in_a_file_manager_paste_as_attachments() {
 }
 
 /// Issue #10: a picture in a message shows as big as it is (it showed 72 points tall), and the
-/// handle at its corner, shown while it's hovered, resizes it.
+/// handle at its corner, shown while it's hovered, resizes it (a small square edged in the accent).
 #[test]
 fn pictures_in_a_message_show_their_size_and_resize_by_their_handle() {
     use egui::{Pos2, Rect, Shape, vec2};
@@ -437,7 +437,7 @@ fn pictures_in_a_message_show_their_size_and_resize_by_their_handle() {
             match s {
                 Shape::Vec(v) => v.iter().for_each(|s| walk(s, picture, handle, accent)),
                 Shape::Mesh(m) if m.texture_id != egui::TextureId::default() => *picture = Some(m.calc_bounds()),
-                Shape::Rect(r) if r.fill == accent && r.rect.width() < 12.0 && r.rect.height() < 12.0 => *handle = true,
+                Shape::Rect(r) if (r.fill == accent || r.stroke.color == accent) && r.rect.width() < 12.0 && r.rect.height() < 12.0 => *handle = true,
                 _ => {}
             }
         }

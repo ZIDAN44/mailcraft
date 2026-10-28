@@ -380,7 +380,16 @@ impl MailApp {
             }
             Action::InsertPicture => {
                 for p in self.services.pick_pictures() {
-                    let r = self.session.run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "at": self.picture_at()}));
+                    // Wider than a page: in at a page's width (its header read, nothing decoded).
+                    let head = std::fs::File::open(&p).and_then(|f| {
+                        let mut v = Vec::new();
+                        std::io::Read::read_to_end(&mut std::io::Read::take(f, 1 << 20), &mut v).map(|_| v)
+                    });
+                    let size = head.ok().as_deref().and_then(rich_edit::own_size);
+                    let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
+                    let r = self
+                        .session
+                        .run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "at": self.picture_at(), "width": width, "line": line}));
                     self.place_picture(r);
                 }
             }
@@ -389,7 +398,12 @@ impl MailApp {
                 // as text.
                 let text = clipboard_html().is_some_and(|h| !mailcraft_engine::mime::pasted_html(&h).0.trim().is_empty());
                 if !text && let Some(png) = self.services.clipboard_picture() {
-                    let r = self.session.run("compose.insertPicture", &json!({"name": "pasted.png", "data": png, "at": self.picture_at()}));
+                    let size = rich_edit::own_size(&png);
+                    let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
+                    let r = self.session.run(
+                        "compose.insertPicture",
+                        &json!({"name": "pasted.png", "data": png, "at": self.picture_at(), "width": width, "line": line}),
+                    );
                     self.place_picture(r);
                 }
             }
@@ -410,6 +424,7 @@ impl MailApp {
                     }
                 }
             }
+            Action::PasteFiles => self.paste_files(),
             Action::AttachFiles => {
                 for p in self.services.pick_files() {
                     self.run("compose.attach", json!({"path": p.to_string_lossy()}));
@@ -461,9 +476,10 @@ impl MailApp {
     pub(crate) fn place_picture(&mut self, r: mailcraft_engine::CmdResult) {
         match r {
             // In place: the cursor goes after it.
-            Ok(_) => {
+            Ok(v) => {
                 if let Some(e) = self.ui.editor.as_mut() {
-                    e.sel = e.sel.start + 1..e.sel.start + 1;
+                    let end = v.get("end").and_then(serde_json::Value::as_u64).and_then(|e| usize::try_from(e).ok()).unwrap_or(e.sel.start + 1);
+                    e.sel = end..end;
                 }
             }
             Err(e) => self.session.notice(e.to_string(), true),

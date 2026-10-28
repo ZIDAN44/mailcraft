@@ -111,6 +111,10 @@ pub trait Services {
     fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
         None
     }
+    /// The files copied to the clipboard (in a file manager), to attach; empty when there are none.
+    fn clipboard_files(&mut self) -> Vec<PathBuf> {
+        Vec::new()
+    }
     /// Pictures to insert (an empty list when cancelled). The default offers the file picker.
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
         self.pick_files()

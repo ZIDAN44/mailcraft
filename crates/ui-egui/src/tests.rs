@@ -409,7 +409,9 @@ impl crate::Services for Ticking {
 
 mod access;
 mod accounts;
+mod files;
 mod organize;
+mod pictures;
 mod pim;
 mod reading;
 mod rtl;
