@@ -210,6 +210,28 @@ fn rich_html_keeps_formatting_links_and_pictures() {
     assert!(parse(SIMPLE).unwrap().rich.is_empty(), "plain mail has no rich body");
 }
 
+/// Issue #11: a WebP sent without a name, or with a name without an extension, is named with its
+/// type's extension (it was saved as `attachment-1`, which nothing would open); one sent as
+/// `application/octet-stream` is still a picture; a name with its own extension is left as it is.
+#[test]
+fn attachments_are_named_for_their_type() {
+    let webp = b"RIFF\x1a\0\0\0WEBPVP8L\x0d\0\0\0\x2f\0\0\0\x10\x07\x10\x11\x11\x88\x88\xfe\x07\0";
+    let part = |headers: &str| {
+        format!("--b\r\n{headers}\r\nContent-Transfer-Encoding: base64\r\n\r\nUklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\r\n").into_bytes()
+    };
+    let mut raw = b"From: a@x.example\r\nTo: b@x.example\r\nSubject: Pictures\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nHere.\r\n".to_vec();
+    raw.extend(part("Content-Type: image/webp\r\nContent-Disposition: attachment"));
+    raw.extend(part("Content-Type: image/webp; name=\"holiday\""));
+    raw.extend(part("Content-Type: application/octet-stream; name=\"beach.webp\""));
+    raw.extend(part("Content-Type: image/webp; name=\"scan.pdf\""));
+    raw.extend(b"--b--\r\n");
+    let p = parse(&raw).unwrap();
+    let names: Vec<&str> = p.attachments.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(names, ["attachment-1.webp", "holiday.webp", "beach.webp", "scan.pdf"]);
+    assert!(p.attachments.iter().take(3).all(|a| a.kind() == AttachmentKind::Image), "{:?}", p.attachments);
+    assert_eq!(attachment_data(&raw, 0).as_deref(), Some(&webp[..]), "saved as it came");
+}
+
 #[test]
 fn html_and_attachments() {
     let p = parse(MULTI).unwrap();
