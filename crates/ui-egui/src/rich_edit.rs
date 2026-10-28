@@ -11,7 +11,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use egui::text::{CCursor, CCursorRange, LayoutJob, TextFormat};
-use egui::{Color32, FontId, Galley, Key, Modifiers, Rect, RichText, Sense, Stroke, Ui, vec2};
+use egui::{Color32, FontId, Galley, Key, Modifiers, Rect, RichText, Sense, Stroke, Ui, Vec2, vec2};
 use mailcraft_engine::Compose;
 use mailcraft_engine::mime::rich::{self, Align, List, PICTURE, Style, Styles};
 use mailcraft_engine::model::dates::Clock;
@@ -22,6 +22,7 @@ use crate::{Action, Dialog};
 
 mod layout;
 mod links;
+mod pictures;
 mod toolbar;
 use layout::*;
 pub(crate) use links::link_dialog;
@@ -35,7 +36,7 @@ pub(crate) use toolbar::{count_words, date_choices};
 const PX: f32 = 4.0 / 3.0;
 /// One indent step (and the room for a bullet or number).
 const INDENT: f32 = 28.0;
-/// The tallest a picture shows in the text.
+/// How tall a picture shows while its size isn't known.
 const PICTURE_PX: f32 = 72.0;
 /// Most undo steps kept.
 const UNDO_MAX: usize = 200;
@@ -83,6 +84,8 @@ pub(crate) struct Editor {
     /// The right-click menu was open last frame (closing it gives the text the keyboard back).
     menu_open: bool,
     pictures: HashMap<String, Option<egui::TextureHandle>>,
+    /// Each picture's own size (`None`: it can't be read).
+    sizes: HashMap<String, Option<Vec2>>,
     /// Give the keyboard back to the text (after a ribbon button took the click), with this
     /// selection.
     pub(crate) refocus: Option<Range<usize>>,
@@ -108,6 +111,7 @@ impl Editor {
             paste: false,
             menu_open: false,
             pictures: HashMap::new(),
+            sizes: HashMap::new(),
             refocus: None,
         }
     }
@@ -127,6 +131,15 @@ pub(crate) const SIGNATURE_ID: u64 = u64::MAX;
 
 pub(crate) fn body_id(c: &Compose) -> egui::Id {
     egui::Id::unique(("compose-body", c.id))
+}
+
+/// Attach files to the message being written (dropped on it, or copied in a file manager and
+/// pasted), read from where they are as Attach File reads them. Only full paths: in the browser
+/// a file has none to read from.
+pub(crate) fn attach_files(paths: &[std::path::PathBuf], acts: &mut Vec<Action>) {
+    for p in paths.iter().take(100).filter(|p| p.is_absolute()) {
+        acts.push(Action::Run("compose.attach", serde_json::json!({"path": p.to_string_lossy()})));
+    }
 }
 
 fn selection(ctx: &egui::Context, id: egui::Id, n: usize) -> Option<Range<usize>> {
@@ -222,7 +235,7 @@ pub(crate) fn apply(ed: &mut Editor, c: &mut Compose, op: Op) {
         }
         Op::Color(col) => Some(Box::new(move |s| Style { color: col, ..s.clone() })),
         Op::Highlight(col) => Some(Box::new(move |s| Style { highlight: col, ..s.clone() })),
-        Op::Clear => Some(Box::new(|s| Style { picture: s.picture.clone(), ..Style::default() })),
+        Op::Clear => Some(Box::new(|s| Style { picture: s.picture.clone(), picture_width: s.picture_width, ..Style::default() })),
         Op::Link(url) => {
             let url = url.trim().to_string();
             Some(Box::new(move |s| Style { link: Some(url.clone()), ..s.clone() }))
@@ -410,7 +423,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let styles = c.styles.clone();
     let plain = c.plain;
     let tokens = *t;
-    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap);
+    pictures::measure(ed, c);
+    let sizes = &ed.sizes;
+    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap, sizes);
     let height = ui.available_height().max(220.0);
     // A right-click inside the selection keeps it (egui's text box moves the cursor on any
     // press); one outside it moves the cursor there, as Outlook does.
@@ -476,8 +491,11 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         set_selection(ui.ctx(), id, at..at);
         ed.sel = at..at;
     }
-    if !c.plain {
-        decorate(ui, t, ed, c, &out.galley, out.galley_pos);
+    if !c.plain
+        && let Some(r) = decorate(ui, t, ed, c, &out.galley, out.galley_pos)
+    {
+        pictures::resize(ed, c, r);
+        ui.ctx().request_repaint();
     }
     if !out.response.has_focus() && !ed.sel.is_empty() {
         let color = ui.visuals().selection.bg_fill.gamma_multiply(0.45);
@@ -537,7 +555,14 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
             ed.refocus = Some(sel.clone());
         }
         if item(ui, "Paste", "Ctrl+V", !c.sending) {
-            ed.paste = true;
+            // Files copied in a file manager are attached. (Ctrl+V with only files on the
+            // clipboard reaches no app on Windows: egui-winit pastes text or a picture.)
+            let files = crate::clipboard_files();
+            if files.is_empty() {
+                ed.paste = true;
+            } else {
+                attach_files(&files, acts);
+            }
             ed.refocus = Some(sel.clone());
         }
         ui.separator();
@@ -574,13 +599,14 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
     ed.menu_open = open;
 }
 
-/// Bullets and numbers, rules and pictures.
-fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &Compose, g: &Galley, origin: egui::Pos2) {
+/// Bullets and numbers, rules and pictures; a picture resized with its handle.
+fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &Compose, g: &Galley, origin: egui::Pos2) -> Option<pictures::Resize> {
     let painter = ui.painter().clone();
     let at = |i: usize| -> Rect { g.pos_from_cursor(CCursor::new(i)).translate(origin.to_vec2()) };
     let mut i = 0usize;
     let mut numbers: Vec<u32> = vec![0; 16];
     let right = ui.min_rect().right().max(origin.x + g.size().x);
+    let mut resized = None;
     for (n, line) in c.body.split('\n').enumerate() {
         let p = c.styles.para(n);
         let r = at(i);
@@ -615,31 +641,18 @@ fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &Compose, g: &Galley, o
         {
             *x = 0;
         }
+        // As wide as the layout let each picture be (`layout::job`).
+        let most = g.job.wrap.max_width - paragraph_lead(&p);
         for (k, ch) in line.chars().enumerate() {
-            if ch != PICTURE {
-                continue;
-            }
-            let Some(cid) = c.styles.style(i + k).picture else { continue };
-            let (a, b) = (at(i + k), at(i + k + 1));
-            let room = Rect::from_min_max(egui::pos2(a.min.x + 2.0, a.min.y), egui::pos2(b.min.x.max(a.min.x + 8.0) - 2.0, a.max.y));
-            let tex = ed.pictures.entry(cid.clone()).or_insert_with(|| {
-                c.inline.iter().find(|p| p.cid == cid).and_then(|p| crate::reading::decode(ui.ctx(), &format!("compose-{cid}"), &p.data, 400))
-            });
-            match tex {
-                Some(tex) => {
-                    let size = tex.size_vec2();
-                    let scale = (room.width() / size.x).min(room.height() / size.y).min(1.0);
-                    let r = Rect::from_min_size(room.min, size * scale);
-                    painter.image(tex.id(), r, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-                }
-                None => {
-                    painter.rect_stroke(room, 4.0, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-                    icons::paint(&painter, icons::centered(room, 22.0), Icon::Image, t.dim);
-                }
+            if ch == PICTURE
+                && let Some(r) = pictures::paint(ui, t, ed, c, i + k, at(i + k), most)
+            {
+                resized = Some(r);
             }
         }
         i += line.chars().count() + 1;
     }
+    resized
 }
 
 #[cfg(test)]
@@ -680,7 +693,7 @@ English stays left.
         for plain in [false, true] {
             let mut rows = Vec::new();
             let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-                let g = layout::layout(ui, text, &Styles::plain(text), plain, &t, wrap);
+                let g = layout::layout(ui, text, &Styles::plain(text), plain, &t, wrap, &HashMap::new());
                 rows = g
                     .rows
                     .iter()
@@ -720,7 +733,7 @@ English stays left.
                 }
             }
             let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-                let g = layout::layout(ui, body, &st, false, &t, 600.0);
+                let g = layout::layout(ui, body, &st, false, &t, 600.0, &HashMap::new());
                 let (a, b) = (g.pos_from_cursor(CCursor::new(at)), g.pos_from_cursor(CCursor::new(at + 1)));
                 let mut glyphs = g.rows.iter().flat_map(|r| r.row.glyphs.iter().map(move |gl| (r.pos.x + gl.pos.x, r.rect().center().y, gl.chr)));
                 let here = glyphs.any(|(x, y, c)| c == PICTURE && (x - a.min.x).abs() < 1.0 && (y - a.center().y).abs() < 40.0);

@@ -380,6 +380,96 @@ fn files_dropped_on_a_message_are_attached() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Issue #10: files copied in a file manager and pasted into a message are attached, and their
+/// paths that came along as text aren't pasted; with no files on the clipboard, text is pasted.
+#[test]
+fn files_copied_in_a_file_manager_paste_as_attachments() {
+    let (mut a, dir) = app("paste-files");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Files", "body": ""}));
+    frame(&ctx, &mut a, vec![]);
+    let id = crate::rich_edit::body_id(a.session.compose.as_ref().unwrap());
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(&ctx, &mut a, vec![]);
+    let file = dir.join("budget 2026.pdf");
+    std::fs::write(&file, b"%PDF-1.4").unwrap();
+    crate::TEST_CLIPBOARD_FILES.with(|f| *f.borrow_mut() = vec![file.clone(), "relative.txt".into()]);
+    frame(&ctx, &mut a, vec![Event::Paste(file.to_string_lossy().into_owned())]);
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    let names: Vec<&str> = c.attachments.iter().map(|x| x.name.as_str()).collect();
+    assert_eq!(names, ["budget 2026.pdf"], "the file with no path to read is left");
+    assert!(c.body.is_empty(), "the path isn't pasted as text: {:?}", c.body);
+    crate::TEST_CLIPBOARD_FILES.with(|f| f.borrow_mut().clear());
+    frame(&ctx, &mut a, vec![Event::Paste("see attached".into())]);
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    assert_eq!((c.body.as_str(), c.attachments.len()), ("see attached", 1));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Issue #10: a picture in a message shows as big as it is (it showed 72 points tall), and the
+/// handle at its corner, shown while it's hovered, resizes it.
+#[test]
+fn pictures_in_a_message_show_their_size_and_resize_by_their_handle() {
+    use egui::{Pos2, Rect, Shape, vec2};
+    let (mut a, dir) = app("picture-size");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Poster", "body": ""}));
+    let mut png = Vec::new();
+    let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(320, 200, image::Rgba([200, 90, 30, 255])));
+    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    a.run("compose.insertPicture", json!({"name": "poster.png", "data": png, "at": 0}));
+    // What a frame paints: where the picture is (the one image not of the fonts), and whether a
+    // handle shows (a small square in the accent colour).
+    let accent = a.ui.tokens.accent;
+    let paint = |a: &mut MailApp, events: Vec<Event>| -> (Option<Rect>, bool) {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 800.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        fn walk(s: &Shape, picture: &mut Option<Rect>, handle: &mut bool, accent: egui::Color32) {
+            match s {
+                Shape::Vec(v) => v.iter().for_each(|s| walk(s, picture, handle, accent)),
+                Shape::Mesh(m) if m.texture_id != egui::TextureId::default() => *picture = Some(m.calc_bounds()),
+                Shape::Rect(r) if r.fill == accent && r.rect.width() < 12.0 && r.rect.height() < 12.0 => *handle = true,
+                _ => {}
+            }
+        }
+        let (mut picture, mut handle) = (None, false);
+        out.shapes.iter().for_each(|c| walk(&c.shape, &mut picture, &mut handle, accent));
+        (picture, handle)
+    };
+    paint(&mut a, vec![]);
+    let (r, handle) = paint(&mut a, vec![]);
+    let r = r.expect("the picture is drawn");
+    assert!((r.width() - 320.0).abs() < 1.0 && (r.height() - 200.0).abs() < 1.0, "its own size: {r:?}");
+    assert!(!handle, "no handle while the pointer is elsewhere");
+    let (_, handle) = paint(&mut a, vec![Event::PointerMoved(r.center())]);
+    assert!(handle, "hovered, the handle shows");
+    // Dragged 120 points in from its corner: 200 wide, as tall as that makes it.
+    let corner = r.right_bottom() - vec2(4.0, 4.0);
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    paint(&mut a, vec![Event::PointerMoved(corner)]);
+    paint(&mut a, vec![button(corner, true)]);
+    for k in 1..=6 {
+        paint(&mut a, vec![Event::PointerMoved(corner - vec2(20.0 * k as f32, 0.0))]);
+    }
+    paint(&mut a, vec![button(corner - vec2(120.0, 0.0), false)]);
+    let (r2, _) = paint(&mut a, vec![Event::PointerMoved(Pos2::new(5.0, 5.0))]);
+    let r2 = r2.expect("still drawn");
+    assert!((r2.width() - 200.0).abs() < 1.5 && (r2.height() - 125.0).abs() < 1.5, "resized: {r2:?}");
+    let c = a.session.compose.clone().unwrap();
+    let at = c.body.chars().position(|ch| ch == mailcraft_engine::mime::rich::PICTURE).unwrap();
+    assert!(c.styles.style(at).picture_width.is_some_and(|w| w.abs_diff(200) <= 1), "{:?}", c.styles.style(at));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Issue #9: with an Exchange account, Select Names offers its Global Address List, the people
 /// the directory finds come into the open list as they're answered, and the person selected
 /// stays selected when they do (the list moving under the selection added someone else).

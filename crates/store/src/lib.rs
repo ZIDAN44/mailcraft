@@ -734,20 +734,24 @@ pub fn default_root() -> Option<PathBuf> {
 /// folder on Linux and the BSDs, where `/tmp` is everyone's: a folder of a predictable name there
 /// could be made first by another user, who could then read the attachments put in it or plant
 /// links that a write would follow (PdfCraft and GridCraft found). There it is under
-/// `$XDG_RUNTIME_DIR` (the user's own, 0700) or the user's cache folder, owner-only. Windows' and
-/// macOS's temporary folders are the user's already. `None` in the browser, or when it can't be
-/// made.
+/// `$XDG_RUNTIME_DIR` (the user's own, 0700) or the user's cache folder, owner-only: the cache
+/// also when the runtime folder can't be used (WSL can name one that isn't there, and no
+/// attachment opened or dragged out). Windows' and macOS's temporary folders are the user's
+/// already. `None` in the browser, or when it can't be made.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn scratch_dir(name: &str) -> Option<PathBuf> {
     let dir = if cfg!(all(unix, not(target_os = "macos"))) {
-        let base = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).filter(|p| p.is_absolute()).or_else(dirs::cache_dir)?;
-        let own = base.join("mailcraft");
-        fs::create_dir_all(&own).ok()?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&own, fs::Permissions::from_mode(0o700)).ok()?;
-        }
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).filter(|p| p.is_absolute());
+        let own = [runtime, dirs::cache_dir()].into_iter().flatten().find_map(|base| {
+            let own = base.join("mailcraft");
+            fs::create_dir_all(&own).ok()?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&own, fs::Permissions::from_mode(0o700)).ok()?;
+            }
+            Some(own)
+        })?;
         own.join(name)
     } else {
         std::env::temp_dir().join(format!("mailcraft-{name}"))

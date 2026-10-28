@@ -244,7 +244,7 @@ pub fn insert_picture_at(c: &mut crate::session::Compose, at: usize, cid: &str) 
     c.body.insert(byte, PICTURE);
     let mut styles = std::mem::take(&mut c.styles);
     styles.edit_at(&old, &c.body, &Style::default(), Some(at + 1));
-    styles.restyle(&c.body, at..at + 1, |s| Style { picture: Some(cid.to_string()), ..s.clone() });
+    styles.restyle(&c.body, at..at + 1, |s| Style { picture: Some(cid.to_string()), picture_width: None, ..s.clone() });
     c.styles = styles;
 }
 

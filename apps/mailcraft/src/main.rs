@@ -250,6 +250,7 @@ fn main() -> eframe::Result {
     let sample = args.iter().any(|a| a == "--sample");
     // Text pasted from Outlook, Word or a web page keeps its look.
     mailcraft_ui_egui::set_clipboard_html(|| read_clipboard(|c| c.get().html().ok()).filter(|h| !h.trim().is_empty()));
+    mailcraft_ui_egui::set_clipboard_files(|| read_clipboard(|c| c.get().file_list().ok()).unwrap_or_default());
     // Each account is a data file in Documents\MailCraft Files (as Outlook keeps .pst files in
     // Outlook Files); the account list and the app's state stay in the app folder. The data files'
     // folder can be moved (File › Options) when it's the usual one: a move asked for is carried
