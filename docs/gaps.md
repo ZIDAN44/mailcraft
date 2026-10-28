@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.28, 2026-10-28._
+_Status: v0.29, 2026-10-28._
 
 ## Open
 
@@ -1087,3 +1087,56 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   be deleted: gone until the next read, or a deletion the server then refused. Refused now, as a
   change already was. A subscribed calendar whose last read was "in the future" (the clock set
   back) would have waited for the clock; it's read again.
+
+### v0.29 — Pictures at their size, pasted files, signatures with pictures
+Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 ended up.
+- **Search box (#12):** the placeholder and typed text sat a few pixels above the scope menu; they
+  sit centred, in the People and Notes search boxes too.
+- **Unread filter (#13):** a message opened with Unread on was marked read and dropped from the
+  list, closing the reading pane as it was clicked. It stays in the list while it's read, as
+  Outlook's, and goes once another is chosen.
+- **Pictures in a message being written (issue #10):** every picture showed as a thumbnail 72
+  points tall, whatever its size, and couldn't be resized. A picture now shows at the size it's
+  sent and keeps its shape, never wider than the text; one wider than a page (624 pixels, Outlook's
+  6.5 inches) goes in at a page's width, and one wider than a third of that on a line of its own.
+  Clicked, it's selected (Delete removes it); its corner handle drags it bigger or smaller, undo
+  takes that back, and its right-click menu sets it to its original size, 75 %, 50 % or 25 %. It's
+  sent at that width (`<img width>`). `compose.resizePicture` does it from the command line;
+  `compose.insertPicture` takes `width` and `line`.
+- **Files pasted and dropped (issue #10):** files copied in a file manager are attached when
+  pasted into the message: on Linux and macOS, where the file manager puts their paths on the
+  clipboard as text too, Ctrl+V attaches them and the paths stay out of the text. Explorer puts no
+  text there, and the Craft apps' egui sends no paste for its Ctrl+V: on Windows the text's
+  right-click Paste attaches them. Files dropped on the main window with nothing being written
+  there start a message with them attached, as Outlook does; while they're held over it, it says
+  so. Dropping on a message being written already worked: tried with the 0.28 `.deb` on Debian 12
+  under X11, and this build on Ubuntu 25.10 with a real drag and a GTK 4 clipboard holding files as
+  Nautilus does.
+- **HTML mail's pictures at their sizes (issue #10):** pictures showed at their own size, so a logo
+  made twice as sharp as it says showed twice as big, a picture capped by `max-width` went past it,
+  one with a height alone kept its own, a spacer took no room, and the layout around them moved.
+  They now show as Outlook and browsers show them: at the `width` and `height` the message sets
+  (attributes, or its style's, which win), the other side keeping its shape when one is set, no
+  wider than `max-width` or the room. Pictures sent inside the message are decoded at a size to read
+  them at (they shared the attachment cards' 480-pixel thumbnails). Checked against Edge's
+  rendering of the same newsletter, sent through GreenMail.
+- **WebP attachments (issue #11):** MailCraft read WebP pictures (lossy, lossless, with
+  transparency, animated) and saved them byte for byte, but an attachment the sender gave no name
+  was saved as `attachment-1`, and one named without an extension kept none: the system couldn't
+  open either, nor the file saved. An attachment now gets the extension its type has (WebP, BMP,
+  TIFF, HEIC, AVIF, SVG, icons, CSV, vCards, ZIP, MP4, MOV, MP3, WAV, besides those before), or,
+  sent as plain bytes, the one its first bytes say (PNG, JPEG, GIF, WebP, PDF); nothing that runs
+  code is ever added. A picture sent as plain bytes with a picture's extension is a picture: it has
+  a thumbnail and a preview.
+- **Signatures with pictures (issue #11):** signatures kept their formatting (bold, colours, sizes,
+  links, as pasted from Outlook or Word) but not pictures, and the editor showed no way to format.
+  The signature editor now has a bar of its own (the message's formatting, a link, pictures), takes
+  pictures from a file or pasted (up to 1 MB each, 10 at most), and keeps them in the signature's
+  HTML (`data:`), so they come with it into every message and are sent inside it.
+- **Found on the way:** a picture at the end of a line had no room in the line (egui sizes a row by
+  its letters), so a second one after it was squeezed into what was left; the scroll bar took
+  the pointer from the corner of a picture as wide as the text; and a drag on a picture's handle
+  without selecting the picture first lost the handle (#14's test found it). Attachments opened
+  or dragged out failed where `$XDG_RUNTIME_DIR` names a folder that isn't there (WSL): the
+  cache folder is used then (#14). A signature's pictures had one Content-ID in every message,
+  where RFC 2392 asks for a unique one: each message gives them its own (#16).

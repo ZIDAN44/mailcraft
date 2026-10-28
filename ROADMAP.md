@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.28 — Calendars from the web, full names from the directory (2026-10-28). Each milestone below is a version: v0.1 was
+**Stage:** v0.29 — Pictures at their size, pasted files, signatures with pictures (2026-10-28). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 210 (`mailcraft-cli commands`) |
-| Tests | 650 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 211 (`mailcraft-cli commands`) |
+| Tests | 669 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -174,7 +174,19 @@ local-first, media-aware v1); the fuller request is
    an update on Windows, macOS's open and save panels speak the interface's language, the Linux
    packages bring `libxkbcommon-x11`, a release build without craft-fonts fails, and CI is
    leaner and grants write access only where it's needed.
-29. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+29. **v0.29 — Pictures at their size, pasted files, signatures with pictures** ✅ From issue #10:
+   a picture in a message being written shows at the size it's sent (it was a thumbnail 72 points
+   tall), goes in at a page's width at most and on a line of its own when it's wide, and is made
+   bigger or smaller by its corner handle or its right-click menu; files copied in a file manager
+   are attached when pasted, and files dropped on the main window start a message with them, as in
+   Outlook; HTML mail shows its pictures at the sizes it sets (a picture made twice as sharp
+   showed twice as big, and the layout around it moved). From issue #11: an attachment with no
+   name, or no extension, gets the one its type has (a WebP saved without one couldn't be
+   opened), and a picture sent as plain bytes is still a picture; signatures take pictures, and
+   the signature editor has a bar of its own. Also the search box's text centred, and the message
+   being read kept in the list under the Unread filter. With Remo Laubacher's pull requests
+   #12–#16, which the fixes above build on.
+30. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
@@ -490,3 +502,17 @@ local-first, media-aware v1); the fuller request is
   certificate (7ce73f5), `libxkbcommon-x11` in the deb and rpm (3c2a9fa), `CRAFT_FONTS_REQUIRED`
   enforced (6df62e5), job-level release permissions (0619fe9), FreeBSD and Windows ARM64 off the
   push path (b21aa6a).
+- **2026-10-28** — **v0.29**, after `v0.28.0-test.25`: issues #10 (pictures in the editor at their
+  size, with handles: `rich_edit/pictures.rs`; files pasted and dropped on the main window:
+  `app/dropped.rs`; HTML pictures at the sizes they set: `mime::ImageSize`) and #11 (attachment
+  extensions from their type or first bytes: `mime/src/files.rs`; pictures in signatures, kept in
+  the signature's HTML as `data:`). Tried for real: the mail through GreenMail in Docker, the 0.28
+  `.deb` on Debian 12 and this build on Ubuntu 25.10 under X11 with a real file drag and a GTK
+  clipboard holding copied files, a newsletter checked against Edge's rendering of the same HTML.
+  `compose.resizePicture` is new; `compose.insertPicture` takes `width` and `line`. The first
+  outside contributions: Remo Laubacher's #12 (search box text centred), #13 (Unread filter keeps
+  the message being read), #14 (pictures at their own size, pasted files, the WSL runtime-folder
+  fallback), #15 (one two-way table of extensions and types) and #16 (signature pictures with
+  Content-IDs of each message's own), squash-merged; v0.29's commits after them fix what testing
+  them found (a second wide picture past the editor's edge, big pictures sent at full width, a
+  drag on a handle that lost it) and add what they left out.
