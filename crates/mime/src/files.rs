@@ -1,6 +1,7 @@
 //! Attachment names from a message, before anything is written to disk or handed to another app:
-//! [`sanitize_filename`] turns whatever the sender wrote into a plain name we can save under, and
-//! [`runs_code`] says whether opening that file would start a program.
+//! [`sanitize_filename`] turns whatever the sender wrote into a plain name we can save under,
+//! [`runs_code`] says whether opening that file would start a program, and [`TYPES`] goes between
+//! a file's extension and its MIME type.
 
 /// Longest name we keep, in characters (file systems allow 255 bytes; this leaves room for UTF-8
 /// and for a ` (2)` added on a clash).
@@ -115,6 +116,76 @@ pub fn runs_code(name: &str) -> bool {
     EXECUTABLE_EXTENSIONS.iter().any(|group| group.contains(&extension))
 }
 
+/// File types: an extension (with its dot) and its MIME type. A type's first extension is the one an attachment
+/// sent without a name (or with a name without one) is saved with; the types after a type's own
+/// are other names senders use for it.
+const TYPES: &[(&str, &str)] = &[
+    (".png", "image/png"),
+    (".jpg", "image/jpeg"),
+    (".jpeg", "image/jpeg"),
+    (".gif", "image/gif"),
+    (".webp", "image/webp"),
+    (".bmp", "image/bmp"),
+    (".tif", "image/tiff"),
+    (".tiff", "image/tiff"),
+    (".heic", "image/heic"),
+    (".avif", "image/avif"),
+    (".svg", "image/svg+xml"),
+    (".pdf", "application/pdf"),
+    (".txt", "text/plain"),
+    (".md", "text/plain"),
+    (".html", "text/html"),
+    (".htm", "text/html"),
+    (".csv", "text/csv"),
+    (".ics", "text/calendar"),
+    (".vcf", "text/vcard"),
+    (".zip", "application/zip"),
+    (".mp4", "video/mp4"),
+    (".mov", "video/quicktime"),
+    (".mp3", "audio/mpeg"),
+    (".wav", "audio/wav"),
+    (".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    (".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    (".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+    (".doc", "application/msword"),
+    (".xls", "application/vnd.ms-excel"),
+    (".ppt", "application/vnd.ms-powerpoint"),
+    (".odt", "application/vnd.oasis.opendocument.text"),
+    (".ods", "application/vnd.oasis.opendocument.spreadsheet"),
+    (".odp", "application/vnd.oasis.opendocument.presentation"),
+    (".rtf", "application/rtf"),
+    (".eml", "message/rfc822"),
+    // Other names for the types above.
+    (".jpg", "image/jpg"),
+    (".jpg", "image/pjpeg"),
+    (".png", "image/x-png"),
+    (".bmp", "image/x-ms-bmp"),
+    (".bmp", "image/x-bmp"),
+    (".wav", "audio/x-wav"),
+    (".vcf", "text/x-vcard"),
+    (".zip", "application/x-zip-compressed"),
+];
+
+/// The MIME type for an attachment, from its file name.
+pub fn mime_from_name(name: &str) -> &'static str {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    TYPES.iter().find(|(e, _)| e.get(1..) == Some(ext.as_str())).map_or("application/octet-stream", |(_, m)| m)
+}
+
+/// The extension, with its dot, a file of this MIME type is saved with (empty for a type not
+/// known here).
+pub(crate) fn ext_for_mime(mime: &str) -> &'static str {
+    let mime = mime.split(';').next().unwrap_or_default().trim().to_ascii_lowercase();
+    TYPES.iter().find(|(_, m)| *m == mime).map_or("", |(e, _)| e)
+}
+
+/// A sender's name for a file, with the extension of its type when it has none (`photo` sent as
+/// `image/webp` is saved as `photo.webp`, which the system knows how to open).
+pub(crate) fn named_for_type(name: String, mime: &str) -> String {
+    let has_extension = name.rsplit_once('.').is_some_and(|(stem, ext)| !stem.is_empty() && !ext.is_empty());
+    if has_extension { name } else { format!("{name}{}", ext_for_mime(mime)) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,6 +262,29 @@ mod tests {
         ];
         for name in safe {
             assert!(!runs_code(name), "{name} should not count as code");
+        }
+    }
+
+    /// Types from names and names from types, the other names senders use for a type included;
+    /// a name keeps an extension it has, and gets its type's when it has none.
+    #[test]
+    fn extensions_and_types_go_both_ways() {
+        assert_eq!(mime_from_name("Beach.WEBP"), "image/webp");
+        assert_eq!(mime_from_name("scan.bmp"), "image/bmp");
+        assert_eq!(mime_from_name("notes.md"), "text/plain");
+        assert_eq!(mime_from_name("no-extension"), "application/octet-stream");
+        assert_eq!(ext_for_mime("image/webp"), ".webp");
+        assert_eq!(ext_for_mime("Image/WebP; name=x"), ".webp");
+        assert_eq!(ext_for_mime("image/jpeg"), ".jpg");
+        assert_eq!(ext_for_mime("image/jpg"), ".jpg");
+        assert_eq!(ext_for_mime("text/plain"), ".txt");
+        assert_eq!(ext_for_mime("application/x-unknown"), "");
+        assert_eq!(named_for_type("holiday".into(), "image/heic"), "holiday.heic");
+        assert_eq!(named_for_type("report.final.pdf".into(), "image/webp"), "report.final.pdf");
+        assert_eq!(named_for_type("data".into(), "application/octet-stream"), "data");
+        // Every type's own extension names it, and is named by it.
+        for (ext, mime) in TYPES.iter().filter(|(e, m)| TYPES.iter().find(|(_, m2)| m2 == m).is_some_and(|(e2, _)| e2 == e)) {
+            assert_eq!(ext_for_mime(mime), *ext);
         }
     }
 }
