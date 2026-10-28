@@ -340,3 +340,31 @@ fn html_pictures_show_at_the_size_the_message_sets() {
     assert_eq!(shown_size(v(1.0, 1.0), None, 800.0), None);
     assert_eq!(shown_size(v(10.0, 10.0), set(Some(Width::Px(0)), Some(0), None), 800.0), None);
 }
+
+/// Reading pane › Bottom only hid the pane (issue #17): the list across the top took the size the
+/// list beside it had saved, the whole height, under the same name.
+#[test]
+fn the_reading_pane_shows_below_the_list() {
+    let (mut a, dir) = app("reading-bottom");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let k = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    // Where the reading pane's own Reply all shows (the ribbon's is higher up), if it does.
+    let reply_all = |a: &mut MailApp| {
+        let mut lowest = None;
+        for _ in 0..3 {
+            let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+            out.textures_delta.clear();
+            let nodes = out.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default();
+            lowest = nodes.iter().filter(|(_, n)| n.label() == Some("Reply all")).filter_map(|(_, n)| n.bounds()).map(|b| b.y0).reduce(f64::max);
+        }
+        lowest
+    };
+    let right = reply_all(&mut a).unwrap_or(0.0);
+    a.run("view.readingPane", json!({"value": "bottom"}));
+    let bottom = reply_all(&mut a);
+    assert!(bottom.is_some_and(|y| y > right + 150.0 && y < 760.0), "below the list, on screen: {bottom:?} (beside it: {right})");
+    let _ = std::fs::remove_dir_all(dir);
+}

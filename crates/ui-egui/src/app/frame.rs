@@ -285,9 +285,16 @@ impl MailApp {
                         });
                     }
                     ReadingPane::Bottom => {
-                        egui::Panel::top("list").resizable(true).default_size(300.0).size_range(140.0..=900.0).frame(list_frame).show(ui, |ui| {
-                            list::show(&self.session, &mut self.ui, ui, &mut acts);
-                        });
+                        // A name of its own: under "list" it took the size the list beside the
+                        // pane had saved, the whole height, and the pane had no room (issue #17).
+                        // The pane always keeps some.
+                        let most = (ui.available_height() - 160.0).max(140.0);
+                        egui::Panel::top("list-above").resizable(true).default_size(300.0).size_range(140.0..=most).frame(list_frame).show(
+                            ui,
+                            |ui| {
+                                list::show(&self.session, &mut self.ui, ui, &mut acts);
+                            },
+                        );
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                             reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
                         });

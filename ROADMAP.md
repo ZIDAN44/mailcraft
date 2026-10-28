@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 213 (`mailcraft-cli commands`) |
-| Tests | 675 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 676 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -185,7 +185,8 @@ local-first, media-aware v1); the fuller request is
    opened), and a picture sent as plain bytes is still a picture; signatures take pictures, and
    the signature editor has a bar of its own, and a logo copied with a signature from Word or
    Outlook comes along when pasted; replies and forwards can open in a window of their own each
-   time, and Favorites can be hidden from the folder pane. Also the search box's text centred, and the message
+   time, and Favorites can be hidden from the folder pane. From issue #17: Reading pane › Bottom
+   shows the message below the list (the list took the whole height). Also the search box's text centred, and the message
    being read kept in the list under the Unread filter. With Remo Laubacher's pull requests
    #12–#16, which the fixes above build on.
 30. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
