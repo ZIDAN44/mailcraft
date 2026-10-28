@@ -70,6 +70,30 @@ pub(crate) fn clipboard_html() -> Option<String> {
     CLIPBOARD_HTML.get().and_then(|read| read())
 }
 
+/// How the app reads files copied in a file manager from the clipboard, set once at start.
+static CLIPBOARD_FILES: std::sync::OnceLock<fn() -> Vec<PathBuf>> = std::sync::OnceLock::new();
+
+/// Tell the editor how to read files copied in a file manager from the clipboard, so pasting
+/// them into a message attaches them (issue #10).
+pub fn set_clipboard_files(read: fn() -> Vec<PathBuf>) {
+    let _ = CLIPBOARD_FILES.set(read);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The files a test has on its clipboard (each test runs on a thread of its own).
+    pub(crate) static TEST_CLIPBOARD_FILES: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Files copied in a file manager, on the clipboard (none in the browser).
+pub(crate) fn clipboard_files() -> Vec<PathBuf> {
+    #[cfg(test)]
+    if let Some(files) = TEST_CLIPBOARD_FILES.with(|f| Some(f.borrow().clone()).filter(|f| !f.is_empty())) {
+        return files;
+    }
+    CLIPBOARD_FILES.get().map(|read| read()).unwrap_or_default()
+}
+
 pub(crate) fn compose_inline(c: &mailcraft_engine::Compose, ctx: &egui::Context) -> bool {
     !c.window || ctx.embed_viewports()
 }

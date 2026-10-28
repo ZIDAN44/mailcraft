@@ -644,15 +644,24 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                 // A picture on the clipboard is pasted as a picture. On the desktop egui takes Ctrl+V as
                 // a paste and never passes the key on: a picture alone on the clipboard comes as
                 // `PasteImage` (so Ctrl+V pasted nothing); in the browser the key itself comes.
-                if ui.memory(|m| m.has_focus(body_id))
-                    && ui.input(|i| {
-                        i.events.iter().any(|e| {
+                if ui.memory(|m| m.has_focus(body_id)) {
+                    let (text, picture) = ui.input(|i| {
+                        let text = i.events.iter().any(|e| matches!(e, egui::Event::Paste(_)));
+                        let picture = i.events.iter().any(|e| {
                             matches!(e, egui::Event::PasteImage(_))
                                 || matches!(e, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command)
-                        })
-                    })
-                {
-                    acts.push(Action::PastePicture);
+                        });
+                        (text, picture)
+                    });
+                    // Files copied in a file manager are attached, as Outlook does (issue #10); the
+                    // text that came with them (their paths, or names) isn't pasted.
+                    let files = if text || picture { crate::clipboard_files() } else { Vec::new() };
+                    if !files.is_empty() {
+                        ui.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_) | egui::Event::PasteImage(_))));
+                        rich_edit::attach_files(&files, acts);
+                    } else if picture {
+                        acts.push(Action::PastePicture);
+                    }
                 }
                 egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| {
                     // Replies start above the quoted text.
@@ -673,7 +682,6 @@ fn attach_dropped(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
     if held_over {
         ui.painter().rect_stroke(ui.max_rect().shrink(2.0), 6.0, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
     }
-    for f in dropped.iter().take(100).filter(|f| f.path().is_absolute()) {
-        acts.push(Action::Run("compose.attach", json!({"path": f.path().to_string_lossy()})));
-    }
+    let paths: Vec<std::path::PathBuf> = dropped.iter().map(|f| f.path().to_path_buf()).collect();
+    rich_edit::attach_files(&paths, acts);
 }

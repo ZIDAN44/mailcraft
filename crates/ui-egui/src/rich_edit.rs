@@ -133,6 +133,15 @@ pub(crate) fn body_id(c: &Compose) -> egui::Id {
     egui::Id::unique(("compose-body", c.id))
 }
 
+/// Attach files to the message being written (dropped on it, or copied in a file manager and
+/// pasted), read from where they are as Attach File reads them. Only full paths: in the browser
+/// a file has none to read from.
+pub(crate) fn attach_files(paths: &[std::path::PathBuf], acts: &mut Vec<Action>) {
+    for p in paths.iter().take(100).filter(|p| p.is_absolute()) {
+        acts.push(Action::Run("compose.attach", serde_json::json!({"path": p.to_string_lossy()})));
+    }
+}
+
 fn selection(ctx: &egui::Context, id: egui::Id, n: usize) -> Option<Range<usize>> {
     let state = egui::TextEdit::load_state(ctx, id)?;
     let r = state.cursor.char_range()?.as_sorted_char_range();
@@ -546,7 +555,14 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
             ed.refocus = Some(sel.clone());
         }
         if item(ui, "Paste", "Ctrl+V", !c.sending) {
-            ed.paste = true;
+            // Files copied in a file manager are attached. (Ctrl+V with only files on the
+            // clipboard reaches no app on Windows: egui-winit pastes text or a picture.)
+            let files = crate::clipboard_files();
+            if files.is_empty() {
+                ed.paste = true;
+            } else {
+                attach_files(&files, acts);
+            }
             ed.refocus = Some(sel.clone());
         }
         ui.separator();

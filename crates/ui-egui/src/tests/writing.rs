@@ -380,6 +380,37 @@ fn files_dropped_on_a_message_are_attached() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Issue #10: files copied in a file manager and pasted into a message are attached, and their
+/// paths that came along as text aren't pasted; with no files on the clipboard, text is pasted.
+#[test]
+fn files_copied_in_a_file_manager_paste_as_attachments() {
+    let (mut a, dir) = app("paste-files");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Files", "body": ""}));
+    frame(&ctx, &mut a, vec![]);
+    let id = crate::rich_edit::body_id(a.session.compose.as_ref().unwrap());
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(&ctx, &mut a, vec![]);
+    let file = dir.join("budget 2026.pdf");
+    std::fs::write(&file, b"%PDF-1.4").unwrap();
+    crate::TEST_CLIPBOARD_FILES.with(|f| *f.borrow_mut() = vec![file.clone(), "relative.txt".into()]);
+    frame(&ctx, &mut a, vec![Event::Paste(file.to_string_lossy().into_owned())]);
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    let names: Vec<&str> = c.attachments.iter().map(|x| x.name.as_str()).collect();
+    assert_eq!(names, ["budget 2026.pdf"], "the file with no path to read is left");
+    assert!(c.body.is_empty(), "the path isn't pasted as text: {:?}", c.body);
+    crate::TEST_CLIPBOARD_FILES.with(|f| f.borrow_mut().clear());
+    frame(&ctx, &mut a, vec![Event::Paste("see attached".into())]);
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    assert_eq!((c.body.as_str(), c.attachments.len()), ("see attached", 1));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Issue #10: a picture in a message shows as big as it is (it showed 72 points tall), and the
 /// handle at its corner, shown while it's hovered, resizes it.
 #[test]
