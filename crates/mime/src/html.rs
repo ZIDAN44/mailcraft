@@ -139,36 +139,82 @@ pub fn pasted_html(html: &str) -> (String, rich::Styles) {
     fonts::apply(&text, &styles, &fonts)
 }
 
-/// The most a signature's pictures may hold, in all: they're kept with the account's settings.
-pub const SIGNATURE_PICTURES_MAX: usize = 1 << 20;
-
-/// The kinds of picture a signature can hold: ones mail programs show.
+/// Most pictures a signature keeps, each at most [`SIGNATURE_PICTURE_MAX`] bytes.
+pub const SIGNATURE_PICTURES: usize = 10;
+pub const SIGNATURE_PICTURE_MAX: usize = 1 << 20;
+/// The kinds of picture a signature can hold: those mail programs show (#16).
 pub const SIGNATURE_PICTURE_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
-/// A signature kept as HTML ([`signature_to_html`]) as text, styles and pictures: as
-/// [`pasted_html`], but a picture written into the HTML itself (a `data:` address) stays, as one
-/// of the text's pictures (issue #11: a signature with a logo, as Outlook's can have). Other
-/// pictures go: they'd point at another program's files or the web.
-pub fn signature_from_html(html: &str) -> (String, rich::Styles, Vec<InlinePicture>) {
-    // Where a picture is kept, this character stands until the text is made (`from_rich` writes
-    // a picture as words).
-    const HELD: char = '\u{E000}';
-    let (marked, fonts) = fonts::mark(&word_paragraphs(&html.replace(HELD, "")));
-    let mut lines = html_to_rich(&marked);
+/// Where a signature's picture stands while its HTML becomes text (a private-use character).
+const SIGNATURE_MARK: char = '\u{E002}';
+
+/// The pictures written into a signature's HTML (`<img src="data:image/png;base64,…">`, as a
+/// signature keeps them with it), each given a `cid:` of its own in their place: the HTML with
+/// those, and the pictures. Pictures only (PNG, JPEG, GIF, WebP), each at most
+/// [`SIGNATURE_PICTURE_MAX`] bytes, at most [`SIGNATURE_PICTURES`]; others are left as written.
+fn data_pictures(html: &str) -> (String, Vec<InlinePicture>) {
+    let lower = html.to_ascii_lowercase();
+    let mut out = String::with_capacity(html.len().min(1 << 20));
     let mut pictures: Vec<InlinePicture> = Vec::new();
-    let mut total = 0usize;
+    let (mut last, mut from) = (0, 0);
+    while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
+        let start = from + i;
+        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        from = end + 1;
+        let tag = html.get(start..end).unwrap_or("");
+        let Some(src) = tag_attr(tag, "src") else { continue };
+        let Some(rest) = src.trim().get(..11).filter(|p| p.eq_ignore_ascii_case("data:image/")).and_then(|_| src.trim().get(11..)) else { continue };
+        let Some((kind, b64)) = rest.split_once(',') else { continue };
+        let kind = kind.to_ascii_lowercase();
+        let ext = match kind.as_str() {
+            "png;base64" => "png",
+            "jpeg;base64" | "jpg;base64" => "jpg",
+            "gif;base64" => "gif",
+            "webp;base64" => "webp",
+            _ => continue,
+        };
+        if pictures.len() >= SIGNATURE_PICTURES || b64.len() > SIGNATURE_PICTURE_MAX / 3 * 4 + 8 {
+            continue;
+        }
+        let clean: Vec<u8> = b64.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+        let Some(data) = mail_parser::decoders::base64::base64_decode(&clean).filter(|d| !d.is_empty() && d.len() <= SIGNATURE_PICTURE_MAX) else {
+            continue;
+        };
+        let n = pictures.len() + 1;
+        let cid = format!("signature{n}@mailcraft");
+        // The address alone changes, where it's written in the tag.
+        let Some(at) = tag.find(src).map(|a| start + a) else { continue };
+        out.push_str(html.get(last..at).unwrap_or(""));
+        out.push_str(&format!("cid:{cid}"));
+        last = at + src.len();
+        pictures.push(InlinePicture { cid, name: format!("signature{n}.{ext}"), mime: mime_from_name(&format!("x.{ext}")).to_string(), data });
+    }
+    out.push_str(html.get(last..).unwrap_or(""));
+    (out, pictures)
+}
+
+/// A signature's HTML as text and styles, as [`pasted_html`] makes it, with its pictures kept
+/// (issue #11): those written into it as `data:` (see [`embed_pictures`]), as pictures in the
+/// text, at the widths it gives them; any other picture is left out.
+pub fn signature_html(html: &str) -> (String, rich::Styles, Vec<InlinePicture>) {
+    let (html, pictures) = data_pictures(&html.replace(SIGNATURE_MARK, ""));
+    let (marked, fonts) = fonts::mark(&word_paragraphs(&html));
+    let mut lines = html_to_rich(&marked);
+    // The pictures in the order they're in the text, with their widths.
+    let mut order: Vec<(String, Option<u16>)> = Vec::new();
     for line in &mut lines {
-        line.retain_mut(|sp| {
-            let Some(src) = sp.image.take() else { return true };
-            let Some((mime, data)) = data_picture(&src).filter(|(_, d)| total + d.len() <= SIGNATURE_PICTURES_MAX && pictures.len() < 20) else {
-                return false;
-            };
-            total += data.len();
-            let n = pictures.len() + 1;
-            pictures.push(InlinePicture { cid: format!("signature-{n}"), name: format!("signature-{n}{}", crate::ext_for_mime(&mime)), mime, data });
-            sp.text = HELD.to_string();
-            true
-        });
+        line.retain(|sp| sp.image.as_deref().is_none_or(|src| src.strip_prefix("cid:").is_some_and(|c| pictures.iter().any(|p| p.cid == c))));
+        for sp in line.iter_mut() {
+            if let Some(src) = sp.image.take() {
+                let width = match sp.image_size.and_then(|z| z.width) {
+                    Some(layout::Width::Px(px)) => u16::try_from(px).ok(),
+                    _ => None,
+                };
+                order.push((src.trim_start_matches("cid:").to_string(), width));
+                sp.text = SIGNATURE_MARK.to_string();
+                sp.link = None;
+            }
+        }
     }
     let blank = |l: &Vec<Span>| l.iter().all(|sp| sp.text.trim().is_empty());
     while lines.last().is_some_and(blank) {
@@ -176,50 +222,31 @@ pub fn signature_from_html(html: &str) -> (String, rich::Styles, Vec<InlinePictu
     }
     let first = lines.iter().position(|l| !blank(l)).unwrap_or(lines.len());
     lines.drain(..first);
-    let (text, mut styles) = rich::from_rich(&lines);
-    let held: Vec<usize> = text.chars().enumerate().filter(|(_, c)| *c == HELD).map(|(i, _)| i).collect();
-    let text = text.replace(HELD, &rich::PICTURE.to_string());
-    for (&i, p) in held.iter().zip(&pictures) {
-        styles.restyle(&text, i..i + 1, |s| rich::Style { picture: Some(p.cid.clone()), ..s.clone() });
-    }
-    let (text, styles) = fonts::apply(&text, &styles, &fonts);
-    (text, styles, pictures)
-}
-
-/// A signature's text, styles and pictures as the HTML kept with the account: as a message's
-/// text is sent, with each picture written into it (a `data:` address), so it needs nothing else.
-pub fn signature_to_html(text: &str, styles: &rich::Styles, pictures: &[InlinePicture]) -> String {
-    let mut html = rich::to_html(text, styles);
-    for p in pictures {
-        let at = format!("src=\"cid:{}\"", p.cid);
-        if html.contains(&at) {
-            html = html.replace(&at, &format!("src=\"data:{};base64,{}\"", p.mime, base64(&p.data)));
+    let (text, styles) = rich::from_rich(&lines);
+    let (text, mut styles) = fonts::apply(&text, &styles, &fonts);
+    // Each mark a picture (the text keeps its length), then given its picture's style.
+    let marks: Vec<usize> = text.chars().enumerate().filter(|(_, ch)| *ch == SIGNATURE_MARK).map(|(i, _)| i).collect();
+    let out: String = text.chars().map(|ch| if ch == SIGNATURE_MARK { rich::PICTURE } else { ch }).collect();
+    let mut used: Vec<String> = Vec::new();
+    for (i, (cid, width)) in marks.into_iter().zip(order) {
+        styles.restyle(&out, i..i + 1, |s| rich::Style { picture: Some(cid.clone()), picture_width: width, ..s.clone() });
+        if !used.contains(&cid) {
+            used.push(cid);
         }
     }
-    html
+    let pictures = pictures.into_iter().filter(|p| used.contains(&p.cid)).collect();
+    (out, styles, pictures)
 }
 
-/// The picture a `data:` address holds (`data:image/png;base64,…`): its type and bytes. Only the
-/// kinds a signature can hold, in base64, and no bigger than a signature's pictures may be.
-fn data_picture(src: &str) -> Option<(String, Vec<u8>)> {
-    let src = src.trim();
-    let rest = src.get(..5).filter(|s| s.eq_ignore_ascii_case("data:")).and_then(|_| src.get(5..))?;
-    let (meta, payload) = rest.split_once(',')?;
-    let meta = meta.to_ascii_lowercase();
-    let mime = meta.strip_suffix(";base64")?.trim();
-    if !SIGNATURE_PICTURE_TYPES.contains(&mime) || payload.len() > SIGNATURE_PICTURES_MAX / 3 * 4 + 4 {
-        return None;
+/// `html` with each picture of `pictures` it shows by `cid:` written into it (`data:…;base64`),
+/// so the HTML keeps its pictures with it: as a signature is kept.
+pub fn embed_pictures(html: &str, pictures: &[InlinePicture]) -> String {
+    let mut out = html.to_string();
+    for p in pictures.iter().filter(|p| SIGNATURE_PICTURE_TYPES.contains(&p.mime.as_str())) {
+        let b64 = String::from_utf8(smime::base64(&p.data)).unwrap_or_default();
+        out = out.replace(&format!("src=\"cid:{}\"", p.cid), &format!("src=\"data:{};base64,{b64}\"", p.mime));
     }
-    let data = mail_parser::decoders::base64::base64_decode(payload.trim().as_bytes())?;
-    (!data.is_empty()).then(|| (mime.to_string(), data))
-}
-
-/// Bytes as base64 (RFC 4648, no line breaks).
-fn base64(data: &[u8]) -> String {
-    let mut out = vec![0u8; data.len().div_ceil(3) * 4];
-    let n = mail_builder::encoders::base64::base64_encode_slice(data, &mut out);
-    out.truncate(n);
-    String::from_utf8(out).unwrap_or_default()
+    out
 }
 
 /// HTML → lines of formatted spans: paragraphs, emphasis, links, list bullets, quotes, tables

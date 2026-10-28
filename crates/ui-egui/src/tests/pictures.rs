@@ -75,3 +75,60 @@ fn pictures_show_at_their_size_and_resize() {
     assert!(html.contains(&format!("width=\"{FIT_WIDTH}\"")), "{html}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Services whose clipboard holds a picture.
+struct Clip(Vec<u8>);
+
+impl crate::Services for Clip {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn notify(&mut self, _: &str, _: &str) {}
+    fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
+        Some(self.0.clone())
+    }
+}
+
+/// Issue #11: the signature editor has a bar of its own and takes pictures; saved, the
+/// signature keeps its picture, and a new message has it.
+#[test]
+fn a_picture_goes_into_the_signature() {
+    let (mut a, dir) = app("signature-picture");
+    let ctx = egui::Context::default();
+    a.services = Box::new(Clip(mailcraft_engine::sample::sample_png()));
+    a.session.prefs.new_mail_window = false;
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::SignaturePicture { paste: true });
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::Signature(f)) = a.ui.dialog.as_ref() else { panic!("the editor is open") };
+    assert_eq!(f.compose.inline.len(), 1);
+    assert!(f.compose.body.contains(mailcraft_engine::mime::rich::PICTURE));
+    // Saved (its Save button is the dialog's first).
+    let Some(Dialog::Signature(f)) = a.ui.dialog.take() else { panic!() };
+    let text = f.compose.body.trim_end().to_string();
+    let html = mailcraft_engine::mime::embed_pictures(&mailcraft_engine::mime::rich::to_html(&text, &f.compose.styles), &f.compose.inline);
+    a.run("account.setSignature", json!({"account": "sample", "signature": text, "html": html}));
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.as_ref().unwrap();
+    assert_eq!(c.inline.len(), 1, "the new message has the signature's picture");
+    assert!(c.bodies().1.is_some_and(|h| h.contains("cid:signature1.")));
+    // Too big for a signature: said, and left out.
+    a.ui.dialog = Some(Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))));
+    a.services = Box::new(Clip(vec![0; mailcraft_engine::mime::SIGNATURE_PICTURE_MAX + 1]));
+    a.act(crate::Action::SignaturePicture { paste: true });
+    let Some(Dialog::Signature(f)) = a.ui.dialog.as_ref() else { panic!() };
+    assert_eq!(f.compose.inline.len(), 1, "only the one it had");
+    let _ = std::fs::remove_dir_all(dir);
+}

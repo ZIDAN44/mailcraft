@@ -407,23 +407,7 @@ impl MailApp {
                     self.place_picture(r);
                 }
             }
-            Action::SignaturePicture { paste } => {
-                let found: Vec<Value> = if paste {
-                    // Formatted text that came with a picture was pasted as text.
-                    let text = clipboard_html().is_some_and(|h| !mailcraft_engine::mime::pasted_html(&h).0.trim().is_empty());
-                    let png = if text { None } else { self.services.clipboard_picture() };
-                    png.map(|png| json!({"name": "pasted.png", "data": png})).into_iter().collect()
-                } else {
-                    self.services.pick_pictures().iter().map(|p| json!({"path": p.to_string_lossy()})).collect()
-                };
-                for v in found {
-                    let cid = self.session.new_cid();
-                    let Some(Dialog::Signature(f)) = self.ui.dialog.as_mut() else { break };
-                    if let Err(e) = f.insert_picture(v, cid) {
-                        self.session.notice(e.to_string(), true);
-                    }
-                }
-            }
+            Action::SignaturePicture { paste } => self.signature_picture(paste),
             Action::PasteFiles => self.paste_files(),
             Action::AttachFiles => {
                 for p in self.services.pick_files() {
@@ -471,6 +455,47 @@ impl MailApp {
     pub(crate) fn picture_at(&self) -> usize {
         let n = self.session.compose.as_ref().map_or(0, |c| c.body.chars().count());
         self.ui.editor.as_ref().filter(|e| self.session.compose.as_ref().is_some_and(|c| c.id == e.id)).map_or(n, |e| e.sel.start.min(n))
+    }
+
+    /// A picture into the signature being edited, at its cursor: pasted, or chosen from files.
+    pub(crate) fn signature_picture(&mut self, paste: bool) {
+        use mailcraft_engine::mime::{InlinePicture, SIGNATURE_PICTURE_MAX, SIGNATURE_PICTURE_TYPES, SIGNATURE_PICTURES, mime_from_name};
+        if !matches!(self.ui.dialog, Some(Dialog::Signature(_))) {
+            return;
+        }
+        let pictures: Vec<(String, Vec<u8>)> = if paste {
+            self.services.clipboard_picture().map(|png| ("pasted.png".to_string(), png)).into_iter().collect()
+        } else {
+            let read = |p: &std::path::PathBuf| {
+                let f = std::fs::File::open(p).ok()?;
+                let mut v = Vec::new();
+                std::io::Read::read_to_end(&mut std::io::Read::take(f, SIGNATURE_PICTURE_MAX as u64 + 1), &mut v).ok()?;
+                Some((p.file_name()?.to_string_lossy().to_string(), v))
+            };
+            self.services.pick_pictures().iter().filter_map(read).collect()
+        };
+        let Some(Dialog::Signature(f)) = self.ui.dialog.as_mut() else { return };
+        for (name, data) in pictures {
+            let mime = mime_from_name(&name);
+            let size = rich_edit::own_size(&data);
+            if data.len() > SIGNATURE_PICTURE_MAX
+                || f.compose.inline.len() >= SIGNATURE_PICTURES
+                || size.is_none()
+                || !SIGNATURE_PICTURE_TYPES.contains(&mime)
+            {
+                self.session
+                    .notice(tf!("{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)", name = name), true);
+                continue;
+            }
+            let cid = (1..).map(|n| format!("signature{n}@mailcraft")).find(|c| !f.compose.inline.iter().any(|p| &p.cid == c)).unwrap_or_default();
+            f.compose.inline.push(InlinePicture { cid: cid.clone(), name, mime: mime.to_string(), data });
+            let n = f.compose.body.chars().count();
+            let at = f.editor.0.sel.start.min(n);
+            let width = rich_edit::fitted_width(size).and_then(|w| u16::try_from(w).ok());
+            mailcraft_engine::cmd::insert_picture_at(&mut f.compose, at, &cid, width);
+            f.editor.0.sel = at + 1..at + 1;
+            f.editor.0.refocus = Some(at + 1..at + 1);
+        }
     }
 
     pub(crate) fn place_picture(&mut self, r: mailcraft_engine::CmdResult) {

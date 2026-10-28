@@ -1254,5 +1254,5 @@ month	May	maggio
 	couldn't be read	impossibile leggerlo
 	Refresh	Aggiorna
 	Drop to attach them to a new message	Rilascia qui per allegarli a un nuovo messaggio
-	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name} non può andare in una firma: immagini fino a 1 MB, al massimo 10
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} non può andare in una firma: immagini fino a 1 MB, al massimo 10 (PNG, JPEG, GIF, WebP)
 	Original size	Dimensioni originali

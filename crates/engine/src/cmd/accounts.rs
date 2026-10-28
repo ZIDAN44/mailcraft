@@ -404,19 +404,21 @@ pub(super) fn set_dav(s: &mut Session, v: &Value) -> CmdResult {
     s.set_dav(id, &caldav, &carddav, username.as_deref(), p::str(v, "password"))
 }
 
+/// Longest signature HTML taken: its formatting, and its pictures written in.
+const SIGNATURE_HTML_MAX: usize = 200_000 + mailcraft_mime::SIGNATURE_PICTURES * (mailcraft_mime::SIGNATURE_PICTURE_MAX / 3 * 4 + 64);
+
 pub(super) fn set_signature(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_str(v, "account")?;
     let mut config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
     config.signature = p::req_str(v, "signature")?.chars().take(10_000).collect();
     // Its look, as HTML (from the signature editor, or pasted): kept as the editor would send
-    // it, its text the signature's.
+    // it, with its pictures written in (issue #11), its text the signature's.
     config.signature_html = String::new();
     if let Some(html) = p::str(v, "html").filter(|h| !h.trim().is_empty()) {
-        // Room for its pictures too, written into it (issue #11).
-        let most = 200_000 + mailcraft_mime::SIGNATURE_PICTURES_MAX / 3 * 4 + 4096;
-        let (text, styles, pictures) = mailcraft_mime::signature_from_html(&html.chars().take(most).collect::<String>());
+        let html: String = html.chars().take(SIGNATURE_HTML_MAX).collect();
+        let (text, styles, pictures) = mailcraft_mime::signature_html(&html);
         if !text.trim().is_empty() && !styles.is_plain() {
-            config.signature_html = mailcraft_mime::signature_to_html(&text, &styles, &pictures);
+            config.signature_html = mailcraft_mime::embed_pictures(&mailcraft_mime::rich::to_html(&text, &styles), &pictures);
             config.signature = text.replace(mailcraft_mime::rich::PICTURE, "").chars().take(10_000).collect();
         }
     }

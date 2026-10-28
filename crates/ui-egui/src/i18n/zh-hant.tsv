@@ -1254,5 +1254,5 @@ month	May	5月
 	couldn't be read	無法讀取
 	Refresh	重新整理
 	Drop to attach them to a new message	拖放到此處，附加到新郵件
-	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name} 無法放入簽名：圖片不超過 1 MB，最多 10 張
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} 無法放入簽名：圖片不超過 1 MB，最多 10 張 (PNG, JPEG, GIF, WebP)
 	Original size	原始大小

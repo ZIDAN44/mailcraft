@@ -1254,5 +1254,5 @@ month	May	Май
 	couldn't be read	не удалось прочитать
 	Refresh	Обновить
 	Drop to attach them to a new message	Отпустите, чтобы вложить их в новое письмо
-	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name} нельзя добавить в подпись: изображения до 1 МБ, не больше 10
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} нельзя добавить в подпись: изображения до 1 МБ, не больше 10 (PNG, JPEG, GIF, WebP)
 	Original size	Исходный размер

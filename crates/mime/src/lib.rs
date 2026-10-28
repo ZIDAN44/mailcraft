@@ -34,7 +34,7 @@ mod html;
 mod photos;
 pub mod smime;
 mod trackers;
-use files::{attachment_name, ext_for_mime};
+use files::attachment_name;
 pub use files::{mime_from_name, runs_code, sanitize_filename};
 pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
 use html::*;

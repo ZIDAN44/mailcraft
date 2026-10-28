@@ -1254,5 +1254,5 @@ month	May	5월
 	couldn't be read	읽을 수 없음
 	Refresh	새로 고침
 	Drop to attach them to a new message	여기에 놓으면 새 메시지에 첨부됩니다
-	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	{name}은(는) 서명에 넣을 수 없습니다: 그림은 1MB까지, 최대 10개
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name}은(는) 서명에 넣을 수 없습니다: 그림은 1MB까지, 최대 10개 (PNG, JPEG, GIF, WebP)
 	Original size	원래 크기

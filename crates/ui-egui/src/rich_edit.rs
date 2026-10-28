@@ -31,9 +31,9 @@ use links::*;
 pub(crate) use pictures::FIT_WIDTH;
 pub(crate) use pictures::{fitted_width, own_line, own_size};
 pub use toolbar::Counts;
-pub(crate) use toolbar::ribbon;
 #[cfg(test)]
 pub(crate) use toolbar::{count_words, date_choices};
+pub(crate) use toolbar::{ribbon, signature_bar};
 
 /// Pixels per point.
 const PX: f32 = 4.0 / 3.0;

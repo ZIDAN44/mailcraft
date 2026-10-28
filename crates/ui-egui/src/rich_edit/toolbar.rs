@@ -79,58 +79,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
     let mut ops: Vec<Op> = Vec::new();
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
-        ui.add_enabled_ui(!c.plain, |ui| {
-            egui::ComboBox::from_id_salt(("font-size", c.id)).width(48.0).selected_text(cur.size().to_string()).show_ui(ui, |ui| {
-                for z in rich::SIZES {
-                    if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
-                        ops.push(Op::Size(z));
-                    }
-                }
-            });
-            ui.add_space(4.0);
-            let letter = |bold: bool, italic: bool, under: bool, strike: bool| {
-                let line = Stroke::new(1.2, t.text);
-                TextFormat {
-                    font_id: if bold { theme::bold(15.0) } else { theme::regular(15.0) },
-                    color: t.text,
-                    italics: italic,
-                    underline: if under { line } else { Stroke::NONE },
-                    strikethrough: if strike { line } else { Stroke::NONE },
-                    ..Default::default()
-                }
-            };
-            for (s, face, on, tip, op) in [
-                ("B", letter(true, false, false, false), cur.bold, "Bold (Ctrl+B)", Op::Bold),
-                ("I", letter(false, true, false, false), cur.italic, "Italic (Ctrl+I)", Op::Italic),
-                ("U", letter(false, false, true, false), cur.underline, "Underline (Ctrl+U)", Op::Underline),
-                ("ab", letter(false, false, false, true), cur.strike, "Strikethrough", Op::Strike),
-            ] {
-                if fmt_button(ui, t, Face::Letter(s, face), on, tip).clicked() {
-                    ops.push(op);
-                }
-            }
-            if let Some(h) = color_button(ui, t, "ab", cur.highlight, &HIGHLIGHTS, "No color", "Text highlight color") {
-                ops.push(Op::Highlight(h));
-            }
-            if let Some(col) = color_button(ui, t, "A", cur.color, &COLORS, "Automatic", "Font color") {
-                ops.push(Op::Color(col));
-            }
-            ui.separator();
-            for (ic, on, tip, op) in [
-                (Icon::ListBullet, para.list == List::Bullet, "Bullets (Ctrl+Shift+L)", Op::Bullets),
-                (Icon::ListNumber, para.list == List::Number, "Numbering", Op::Numbers),
-                (Icon::IndentLess, false, "Decrease indent (Ctrl+Shift+T)", Op::Outdent),
-                (Icon::IndentMore, false, "Increase indent (Ctrl+T)", Op::Indent),
-                (Icon::AlignLeft, para.align == Align::Left, "Align left (Ctrl+L)", Op::Align(Align::Left)),
-                (Icon::AlignCenter, para.align == Align::Center, "Center (Ctrl+E)", Op::Align(Align::Center)),
-                (Icon::AlignRight, para.align == Align::Right, "Align right (Ctrl+R)", Op::Align(Align::Right)),
-                (Icon::ClearFormat, false, "Clear all formatting (Ctrl+Space)", Op::Clear),
-            ] {
-                if fmt_button(ui, t, Face::Icon(ic), on, tip).clicked() {
-                    ops.push(op);
-                }
-            }
-        });
+        format_buttons(ui, t, c, &cur, para, &mut ops);
         ui.separator();
         if crate::widgets::tool_button(ui, Icon::AddressBook, "Address Book", t, !c.sending).on_hover_text(tl!("Ctrl+Shift+B")).clicked() {
             acts.push(Action::Dialog(Dialog::select_names(c, "to")));
@@ -175,6 +124,94 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         }
     });
     link_dialog(ui, t, ed, c);
+    let changed = !ops.is_empty();
+    for op in ops {
+        apply(ed, c, op);
+    }
+    if changed {
+        ed.refocus = Some(ed.sel.clone());
+    }
+}
+
+/// Font size, bold / italic / underline / strikethrough, colours, lists, alignment, indent and
+/// clear formatting: the formatting the Message ribbon and the signature editor share.
+fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich::Para, ops: &mut Vec<Op>) {
+    ui.add_enabled_ui(!c.plain, |ui| {
+        egui::ComboBox::from_id_salt(("font-size", c.id)).width(48.0).selected_text(cur.size().to_string()).show_ui(ui, |ui| {
+            for z in rich::SIZES {
+                if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
+                    ops.push(Op::Size(z));
+                }
+            }
+        });
+        ui.add_space(4.0);
+        let letter = |bold: bool, italic: bool, under: bool, strike: bool| {
+            let line = Stroke::new(1.2, t.text);
+            TextFormat {
+                font_id: if bold { theme::bold(15.0) } else { theme::regular(15.0) },
+                color: t.text,
+                italics: italic,
+                underline: if under { line } else { Stroke::NONE },
+                strikethrough: if strike { line } else { Stroke::NONE },
+                ..Default::default()
+            }
+        };
+        for (s, face, on, tip, op) in [
+            ("B", letter(true, false, false, false), cur.bold, "Bold (Ctrl+B)", Op::Bold),
+            ("I", letter(false, true, false, false), cur.italic, "Italic (Ctrl+I)", Op::Italic),
+            ("U", letter(false, false, true, false), cur.underline, "Underline (Ctrl+U)", Op::Underline),
+            ("ab", letter(false, false, false, true), cur.strike, "Strikethrough", Op::Strike),
+        ] {
+            if fmt_button(ui, t, Face::Letter(s, face), on, tip).clicked() {
+                ops.push(op);
+            }
+        }
+        if let Some(h) = color_button(ui, t, "ab", cur.highlight, &HIGHLIGHTS, "No color", "Text highlight color") {
+            ops.push(Op::Highlight(h));
+        }
+        if let Some(col) = color_button(ui, t, "A", cur.color, &COLORS, "Automatic", "Font color") {
+            ops.push(Op::Color(col));
+        }
+        ui.separator();
+        for (ic, on, tip, op) in [
+            (Icon::ListBullet, para.list == List::Bullet, "Bullets (Ctrl+Shift+L)", Op::Bullets),
+            (Icon::ListNumber, para.list == List::Number, "Numbering", Op::Numbers),
+            (Icon::IndentLess, false, "Decrease indent (Ctrl+Shift+T)", Op::Outdent),
+            (Icon::IndentMore, false, "Increase indent (Ctrl+T)", Op::Indent),
+            (Icon::AlignLeft, para.align == Align::Left, "Align left (Ctrl+L)", Op::Align(Align::Left)),
+            (Icon::AlignCenter, para.align == Align::Center, "Center (Ctrl+E)", Op::Align(Align::Center)),
+            (Icon::AlignRight, para.align == Align::Right, "Align right (Ctrl+R)", Op::Align(Align::Right)),
+            (Icon::ClearFormat, false, "Clear all formatting (Ctrl+Space)", Op::Clear),
+        ] {
+            if fmt_button(ui, t, Face::Icon(ic), on, tip).clicked() {
+                ops.push(op);
+            }
+        }
+    });
+}
+
+/// The signature editor's bar (Outlook's signature editor has one): the formatting, a link, and
+/// pictures (issue #11: signatures were thought to be plain text, their formatting there only to
+/// paste or by its shortcuts).
+pub(crate) fn signature_bar(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
+    c.styles.fit(&c.body);
+    let n = c.body.chars().count();
+    let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
+    let cur =
+        ed.typing.clone().unwrap_or_else(|| if sel.is_empty() { typing_style(&c.body, &c.styles, sel.start) } else { c.styles.style(sel.start) });
+    let para = c.styles.para(rich::lines_of(&c.body, sel.start..sel.start).0);
+    let mut ops: Vec<Op> = Vec::new();
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        format_buttons(ui, t, c, &cur, para, &mut ops);
+        ui.separator();
+        if crate::widgets::tool_button(ui, Icon::Link, "Link", t, true).on_hover_text(tl!("Ctrl+K")).clicked() {
+            ed.link = Some(LinkForm::open(c, sel.clone()));
+        }
+        if crate::widgets::tool_button(ui, Icon::Image, "Pictures", t, true).clicked() {
+            acts.push(Action::SignaturePicture { paste: false });
+        }
+    });
     let changed = !ops.is_empty();
     for op in ops {
         apply(ed, c, op);

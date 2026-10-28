@@ -416,7 +416,8 @@ pub fn safe_to_sign(entity: &[u8]) -> bool {
 const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// Base64 in lines of 76 (RFC 2045 §6.8), CRLF-ended.
-fn base64_lines(data: &[u8]) -> Vec<u8> {
+/// `data` in base64 (RFC 4648), on one line.
+pub(crate) fn base64(data: &[u8]) -> Vec<u8> {
     let mut text = Vec::with_capacity(data.len() * 4 / 3 + 4);
     for chunk in data.chunks(3) {
         let b = [chunk.first().copied().unwrap_or(0), chunk.get(1).copied().unwrap_or(0), chunk.get(2).copied().unwrap_or(0)];
@@ -426,6 +427,11 @@ fn base64_lines(data: &[u8]) -> Vec<u8> {
             text.push(c);
         }
     }
+    text
+}
+
+fn base64_lines(data: &[u8]) -> Vec<u8> {
+    let text = base64(data);
     let mut out = Vec::with_capacity(text.len() + text.len() / 38);
     for line in text.chunks(76) {
         out.extend_from_slice(line);

@@ -1250,5 +1250,5 @@ month	May	مايو
 	couldn't be read	تعذّرت القراءة
 	Refresh	تحديث
 	Drop to attach them to a new message	أفلتها هنا لإرفاقها برسالة جديدة
-	{name} can't go in a signature: pictures of up to 1 MB, 10 at most	لا يمكن وضع {name} في توقيع: صور حتى 1 ميغابايت، 10 على الأكثر
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	لا يمكن وضع {name} في توقيع: صور حتى 1 ميغابايت، 10 على الأكثر (PNG, JPEG, GIF, WebP)
 	Original size	الحجم الأصلي
