@@ -360,6 +360,9 @@ pub struct Span {
     pub color: Option<[u8; 3]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<[u8; 3]>,
+    /// A picture's size as the message sets it (issue #10).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_size: Option<ImageSize>,
 }
 
 fn is_none(v: &usize) -> bool {

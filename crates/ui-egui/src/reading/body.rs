@@ -125,7 +125,7 @@ pub(super) fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Messag
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
                 for src in rest {
-                    picture(s, st, ui, key, p, src, allowed, width);
+                    picture(s, st, ui, key, p, src, allowed, width, None);
                 }
             });
         }
@@ -241,7 +241,7 @@ impl Body<'_> {
         let t = st.tokens;
         if let Some(src) = &sp.image {
             self.shown.push(src.clone());
-            if !picture(self.s, st, ui, self.key, self.p, src, self.allowed, width) {
+            if !picture(self.s, st, ui, self.key, self.p, src, self.allowed, width, sp.image_size) {
                 let alt = if sp.text.trim().is_empty() { "picture" } else { sp.text.trim() };
                 ui.label(RichText::new(format!("[{alt}]")).color(t.faint));
             }
@@ -482,9 +482,20 @@ impl Body<'_> {
     }
 }
 
-/// Draw one picture of an HTML message; `false` when it can't be shown (yet).
+/// Draw one picture of an HTML message, `width` the room it's in, at the size the message sets
+/// (`size`); `false` when it can't be shown (yet).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, src: &str, allowed: bool, width: f32) -> bool {
+pub(super) fn picture(
+    s: &Session,
+    st: &mut UiState,
+    ui: &mut Ui,
+    key: &MessageKey,
+    p: &mime::Parsed,
+    src: &str,
+    allowed: bool,
+    width: f32,
+    size: Option<mime::ImageSize>,
+) -> bool {
     let tex = match picture_texture(s, st, ui.ctx(), key, p, src, allowed) {
         Pic::Ready(tex) => tex,
         Pic::Loading => {
@@ -493,14 +504,42 @@ pub(super) fn picture(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageK
         }
         Pic::Missing => return false,
     };
-    let sz = tex.size_vec2();
-    // Tracking pixels and spacers: nothing to see.
-    if sz.x <= 3.0 && sz.y <= 3.0 {
-        return true;
+    if let Some(at) = shown_size(tex.size_vec2(), size, width) {
+        ui.add(egui::Image::new(&tex).fit_to_exact_size(at).maintain_aspect_ratio(false));
     }
-    let scale = (width.min(900.0) / sz.x).min(1.0);
-    ui.add(egui::Image::new(&tex).fit_to_exact_size(sz * scale));
     true
+}
+
+/// How big a picture of its own size `own` shows in room `width` wide: at the size the message
+/// sets (both sides as set, as Outlook and browsers stretch it; one side, the other keeping its
+/// shape), else its own (at most 900 wide); no wider than `max-width` or the room, its shape
+/// kept. `None` for a tracking pixel or spacer that sets no size: nothing to see. (Every picture
+/// showed at its own size: a picture twice as big as it says, for sharper screens, came out
+/// twice as big, and what was laid out around it moved: issue #10.)
+pub(crate) fn shown_size(own: egui::Vec2, size: Option<mime::ImageSize>, width: f32) -> Option<egui::Vec2> {
+    use mime::layout::Width;
+    let set = size.filter(|z| z.width.is_some() || z.height.is_some());
+    if set.is_none() && own.x <= 3.0 && own.y <= 3.0 {
+        return None;
+    }
+    let shape = own.y.max(1.0) / own.x.max(1.0);
+    let w = set.and_then(|z| z.width).map(|w| match w {
+        Width::Px(px) => px as f32,
+        Width::Percent(pc) => width * f32::from(pc) / 100.0,
+    });
+    let h = set.and_then(|z| z.height).map(|h| h as f32);
+    let (mut w, mut h) = match (w, h) {
+        (Some(w), Some(h)) => (w, h),
+        (Some(w), None) => (w, w * shape),
+        (None, Some(h)) => (h / shape, h),
+        (None, None) => (own.x, own.y),
+    };
+    let most = size.and_then(|z| z.max_width).map_or(f32::INFINITY, |m| m as f32).min(if set.is_some() { width } else { width.min(900.0) });
+    if w > most {
+        h *= most / w;
+        w = most;
+    }
+    (w >= 0.5 && h >= 0.5).then(|| egui::vec2(w, h.min(8000.0)))
 }
 
 /// How wide formatted text is unwrapped (its widest line); `None` for anything but text.
@@ -584,10 +623,24 @@ pub(super) fn picture_texture(
     // One sent with the message: by `cid:`, or by the name or address it was sent under.
     let lower = src.to_ascii_lowercase();
     if !(lower.starts_with("http://") || lower.starts_with("https://")) {
-        return match mime::picture_attachment(p, src) {
-            Some(index) => preview(s, st, ctx, key, index).map_or(Pic::Missing, Pic::Ready),
-            None => Pic::Missing,
-        };
+        let Some(index) = mime::picture_attachment(p, src) else { return Pic::Missing };
+        // At a size to read it at (an attachment's card has a thumbnail 480 wide: a picture
+        // wider than that came out 480 wide, issue #10).
+        let id = format!("cid-{}-{index}", key.to_id());
+        if let Some(t) = st.web_pictures.get(&id) {
+            return t.clone().map_or(Pic::Missing, Pic::Ready);
+        }
+        if st.web_pictures.len() > 200 {
+            st.web_pictures.clear();
+        }
+        let t = s
+            .store
+            .as_ref()
+            .and_then(|store| store.read_body(key))
+            .and_then(|raw| mime::attachment_data(&raw, index))
+            .and_then(|d| decode(ctx, &id, &d, 1200));
+        st.web_pictures.insert(id, t.clone());
+        return t.map_or(Pic::Missing, Pic::Ready);
     }
     if !allowed {
         return Pic::Missing;

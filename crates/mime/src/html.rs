@@ -1,9 +1,95 @@
 //! HTML mail as text and as rich text: pasted and received HTML, its pictures, headings, links.
 
 use super::*;
+use std::collections::{HashMap, VecDeque};
 
 /// Most lines kept of a rich rendering (the rest is shown as text).
 pub(super) const RICH_MAX_LINES: usize = 20_000;
+
+/// A picture's size as the message sets it, by its `width` and `height` or its style's (CSS
+/// pixels; a width can be a share of the space it's in), as Outlook and browsers show it: a
+/// picture twice as big as it says (a sharp one for screens that have the pixels) shows at the
+/// size it says, and the layout around it stays as it was made (issue #10).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImageSize {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<layout::Width>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    /// `max-width` in pixels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_width: Option<u32>,
+}
+
+/// Most pictures whose sizes are read from one piece of HTML.
+const MAX_SIZED: usize = 2000;
+
+/// A length in CSS pixels (`300`, `300px`), at most 4000; `None` for anything else (`auto`, `50%`,
+/// `10em`).
+fn css_px(v: &str) -> Option<u32> {
+    let v = v.trim();
+    let n = v.strip_suffix("px").unwrap_or(v).trim().parse::<f32>().ok()?;
+    (n.is_finite() && n >= 0.0).then(|| n.min(4000.0) as u32)
+}
+
+/// The size each `<img>` of `html` sets, in order, with its address (`src`).
+pub(super) fn picture_sizes(html: &str) -> Vec<(String, ImageSize)> {
+    let lower = html.to_ascii_lowercase();
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
+        let start = from + i;
+        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        from = end + 1;
+        let tag = html.get(start..end).unwrap_or("");
+        let Some(src) = tag_attr(tag, "src").map(str::trim).filter(|s| !s.is_empty()) else { continue };
+        let style = tag_attr(tag, "style").map(css::declarations).unwrap_or_default();
+        let css = |prop: &str| style.iter().rev().find(|d| d.prop == prop).map(|d| d.value.as_str());
+        // The style's size wins over the attributes', as in a browser.
+        let width = css("width").and_then(|w| {
+            let w = w.trim();
+            match w.strip_suffix('%') {
+                Some(p) => p.trim().parse::<f32>().ok().filter(|p| p.is_finite() && *p > 0.0).map(|p| layout::Width::Percent(p.min(100.0) as u8)),
+                None => css_px(w).map(layout::Width::Px),
+            }
+        });
+        let width = width.or_else(|| {
+            let w = tag_attr(tag, "width")?.trim();
+            match w.strip_suffix('%') {
+                Some(p) => p.trim().parse::<f32>().ok().filter(|p| p.is_finite() && *p > 0.0).map(|p| layout::Width::Percent(p.min(100.0) as u8)),
+                None => css_px(w).map(layout::Width::Px),
+            }
+        });
+        let height = css("height").and_then(css_px).or_else(|| tag_attr(tag, "height").and_then(css_px));
+        let max_width = css("max-width").and_then(css_px);
+        out.push((src.to_string(), ImageSize { width, height, max_width }));
+        if out.len() >= MAX_SIZED {
+            break;
+        }
+    }
+    out
+}
+
+/// Each picture of `lines` given the size its `<img>` sets: the pictures with one address in
+/// turn, in order (the converter keeps them in the order they're written).
+fn size_pictures(lines: &mut RichText, sizes: Vec<(String, ImageSize)>) {
+    if sizes.is_empty() {
+        return;
+    }
+    let mut by_src: HashMap<String, VecDeque<ImageSize>> = HashMap::new();
+    for (src, size) in sizes {
+        by_src.entry(src).or_default().push_back(size);
+    }
+    let mut last: HashMap<String, ImageSize> = HashMap::new();
+    for sp in lines.iter_mut().flatten() {
+        let Some(src) = sp.image.as_deref().map(str::trim) else { continue };
+        let size = by_src.get_mut(src).and_then(VecDeque::pop_front).or_else(|| last.get(src).copied());
+        if let Some(size) = size {
+            last.insert(src.to_string(), size);
+            sp.image_size = (size != ImageSize::default()).then_some(size);
+        }
+    }
+}
 
 /// Word's and Outlook's paragraphs (`class=MsoNormal`) have no space between them (their style
 /// sheet, which a copied fragment leaves behind, says so): as lines, not paragraphs.
@@ -234,6 +320,7 @@ pub fn html_to_rich(html: &str) -> RichText {
     while out.last().is_some_and(Vec::is_empty) {
         out.pop();
     }
+    size_pictures(&mut out, picture_sizes(html));
     out
 }
 

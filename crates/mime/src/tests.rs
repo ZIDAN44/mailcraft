@@ -484,3 +484,28 @@ fn a_message_id_cannot_break_a_replys_headers() {
     let text = String::from_utf8_lossy(&out);
     assert!(!text.split("\r\n\r\n").next().unwrap_or_default().lines().any(|l| l.starts_with("Bcc:")), "{text}");
 }
+
+/// Issue #10: pictures carry the size their `<img>` sets (attributes, or the style's, which wins),
+/// each one its own when several share an address; none when nothing is set.
+#[test]
+fn pictures_carry_the_size_the_message_sets() {
+    use layout::Width;
+    let html = r#"<p><img src="cid:logo" width="200" height="50" alt="Studio">
+        <img src="cid:hero" width="600" style="display:block; width:100%; max-width:600px; height:auto" alt="Hero">
+        <img src="cid:dot" width="20" height="20" alt="">x
+        <img src="cid:tall" height="100px" alt="H">
+        <img src="cid:dot" width="40" alt="">y
+        <img src="cid:plain" alt="P">
+        <img src="cid:odd" width="-5" height="1e9" alt="O"></p>"#;
+    let rich = html_to_rich(html);
+    let sizes: Vec<(String, Option<ImageSize>)> = rich.iter().flatten().filter_map(|sp| Some((sp.image.clone()?, sp.image_size))).collect();
+    let of = |src: &str, n: usize| sizes.iter().filter(|(s, _)| s == src).nth(n).and_then(|(_, z)| *z);
+    assert_eq!(of("cid:logo", 0), Some(ImageSize { width: Some(Width::Px(200)), height: Some(50), max_width: None }));
+    assert_eq!(of("cid:hero", 0), Some(ImageSize { width: Some(Width::Percent(100)), height: None, max_width: Some(600) }), "the style wins");
+    assert_eq!(of("cid:dot", 0), Some(ImageSize { width: Some(Width::Px(20)), height: Some(20), max_width: None }));
+    assert_eq!(of("cid:dot", 1), Some(ImageSize { width: Some(Width::Px(40)), height: None, max_width: None }), "each its own");
+    assert_eq!(of("cid:tall", 0), Some(ImageSize { width: None, height: Some(100), max_width: None }));
+    assert_eq!(of("cid:plain", 0), None);
+    let odd = of("cid:odd", 0).unwrap_or_default();
+    assert!(odd.width.is_none() && odd.height == Some(4000), "nonsense is left out or held to 4000: {odd:?}");
+}

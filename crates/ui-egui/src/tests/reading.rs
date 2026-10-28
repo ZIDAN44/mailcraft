@@ -311,3 +311,32 @@ fn motion_plays_and_stops() {
     assert!(a.session.prefs.animations && crate::motion::enabled(&ctx));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #10: a picture of an HTML message shows at the size the message sets, as Outlook and
+/// browsers show it: both sides as set, one side with its shape kept, no wider than its
+/// `max-width` or the room; a spacer that sets a size keeps its room, a tracking pixel has none.
+#[test]
+fn html_pictures_show_at_the_size_the_message_sets() {
+    use crate::reading::body::shown_size;
+    use mailcraft_engine::mime::ImageSize;
+    use mailcraft_engine::mime::layout::Width;
+    let v = egui::vec2;
+    let set = |w: Option<Width>, h: Option<u32>, m: Option<u32>| Some(ImageSize { width: w, height: h, max_width: m });
+    // A logo twice as sharp as it says: at what it says.
+    assert_eq!(shown_size(v(400.0, 100.0), set(Some(Width::Px(200)), Some(50), None), 800.0), Some(v(200.0, 50.0)));
+    // `width: 100%; max-width: 600px`: the room, at most 600.
+    assert_eq!(shown_size(v(1200.0, 600.0), set(Some(Width::Percent(100)), None, Some(600)), 800.0), Some(v(600.0, 300.0)));
+    assert_eq!(shown_size(v(1200.0, 600.0), set(Some(Width::Percent(100)), None, Some(600)), 400.0), Some(v(400.0, 200.0)));
+    // One side: the other keeps its shape.
+    assert_eq!(shown_size(v(300.0, 150.0), set(None, Some(100), None), 800.0), Some(v(200.0, 100.0)));
+    // Both sides that aren't its shape: stretched, as set.
+    assert_eq!(shown_size(v(300.0, 300.0), set(Some(Width::Px(300)), Some(150), None), 800.0), Some(v(300.0, 150.0)));
+    // Wider than the room: the room, its shape kept.
+    assert_eq!(shown_size(v(560.0, 400.0), set(Some(Width::Px(560)), None, None), 280.0), Some(v(280.0, 200.0)));
+    // Nothing set: its own size, at most 900 wide.
+    assert_eq!(shown_size(v(1200.0, 600.0), None, 2000.0), Some(v(900.0, 450.0)));
+    // A spacer keeps its room; a tracking pixel has none.
+    assert_eq!(shown_size(v(1.0, 1.0), set(Some(Width::Px(20)), Some(20), None), 800.0), Some(v(20.0, 20.0)));
+    assert_eq!(shown_size(v(1.0, 1.0), None, 800.0), None);
+    assert_eq!(shown_size(v(10.0, 10.0), set(Some(Width::Px(0)), Some(0), None), 800.0), None);
+}

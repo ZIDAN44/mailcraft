@@ -14,7 +14,7 @@ use crate::theme::{self, Tokens};
 use crate::{Action, UiState, widgets};
 
 mod attachments;
-mod body;
+pub(crate) mod body;
 mod compose;
 mod people;
 mod security;
