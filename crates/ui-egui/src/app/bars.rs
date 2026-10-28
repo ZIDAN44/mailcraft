@@ -51,6 +51,7 @@ impl MailApp {
                             egui::TextEdit::singleline(query)
                                 .hint_text(hint)
                                 .frame(egui::Frame::NONE)
+                                .align(egui::Align2::LEFT_CENTER)
                                 .desired_width(search_w - 60.0)
                                 .text_color(t.text),
                         );
