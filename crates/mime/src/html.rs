@@ -53,6 +53,89 @@ pub fn pasted_html(html: &str) -> (String, rich::Styles) {
     fonts::apply(&text, &styles, &fonts)
 }
 
+/// The most a signature's pictures may hold, in all: they're kept with the account's settings.
+pub const SIGNATURE_PICTURES_MAX: usize = 1 << 20;
+
+/// The kinds of picture a signature can hold: ones mail programs show.
+pub const SIGNATURE_PICTURE_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+/// A signature kept as HTML ([`signature_to_html`]) as text, styles and pictures: as
+/// [`pasted_html`], but a picture written into the HTML itself (a `data:` address) stays, as one
+/// of the text's pictures (issue #11: a signature with a logo, as Outlook's can have). Other
+/// pictures go: they'd point at another program's files or the web.
+pub fn signature_from_html(html: &str) -> (String, rich::Styles, Vec<InlinePicture>) {
+    // Where a picture is kept, this character stands until the text is made (`from_rich` writes
+    // a picture as words).
+    const HELD: char = '\u{E000}';
+    let (marked, fonts) = fonts::mark(&word_paragraphs(&html.replace(HELD, "")));
+    let mut lines = html_to_rich(&marked);
+    let mut pictures: Vec<InlinePicture> = Vec::new();
+    let mut total = 0usize;
+    for line in &mut lines {
+        line.retain_mut(|sp| {
+            let Some(src) = sp.image.take() else { return true };
+            let Some((mime, data)) = data_picture(&src).filter(|(_, d)| total + d.len() <= SIGNATURE_PICTURES_MAX && pictures.len() < 20) else {
+                return false;
+            };
+            total += data.len();
+            let n = pictures.len() + 1;
+            pictures.push(InlinePicture { cid: format!("signature-{n}"), name: format!("signature-{n}{}", crate::ext_for_mime(&mime)), mime, data });
+            sp.text = HELD.to_string();
+            true
+        });
+    }
+    let blank = |l: &Vec<Span>| l.iter().all(|sp| sp.text.trim().is_empty());
+    while lines.last().is_some_and(blank) {
+        lines.pop();
+    }
+    let first = lines.iter().position(|l| !blank(l)).unwrap_or(lines.len());
+    lines.drain(..first);
+    let (text, mut styles) = rich::from_rich(&lines);
+    let held: Vec<usize> = text.chars().enumerate().filter(|(_, c)| *c == HELD).map(|(i, _)| i).collect();
+    let text = text.replace(HELD, &rich::PICTURE.to_string());
+    for (&i, p) in held.iter().zip(&pictures) {
+        styles.restyle(&text, i..i + 1, |s| rich::Style { picture: Some(p.cid.clone()), ..s.clone() });
+    }
+    let (text, styles) = fonts::apply(&text, &styles, &fonts);
+    (text, styles, pictures)
+}
+
+/// A signature's text, styles and pictures as the HTML kept with the account: as a message's
+/// text is sent, with each picture written into it (a `data:` address), so it needs nothing else.
+pub fn signature_to_html(text: &str, styles: &rich::Styles, pictures: &[InlinePicture]) -> String {
+    let mut html = rich::to_html(text, styles);
+    for p in pictures {
+        let at = format!("src=\"cid:{}\"", p.cid);
+        if html.contains(&at) {
+            html = html.replace(&at, &format!("src=\"data:{};base64,{}\"", p.mime, base64(&p.data)));
+        }
+    }
+    html
+}
+
+/// The picture a `data:` address holds (`data:image/png;base64,…`): its type and bytes. Only the
+/// kinds a signature can hold, in base64, and no bigger than a signature's pictures may be.
+fn data_picture(src: &str) -> Option<(String, Vec<u8>)> {
+    let src = src.trim();
+    let rest = src.get(..5).filter(|s| s.eq_ignore_ascii_case("data:")).and_then(|_| src.get(5..))?;
+    let (meta, payload) = rest.split_once(',')?;
+    let meta = meta.to_ascii_lowercase();
+    let mime = meta.strip_suffix(";base64")?.trim();
+    if !SIGNATURE_PICTURE_TYPES.contains(&mime) || payload.len() > SIGNATURE_PICTURES_MAX / 3 * 4 + 4 {
+        return None;
+    }
+    let data = mail_parser::decoders::base64::base64_decode(payload.trim().as_bytes())?;
+    (!data.is_empty()).then(|| (mime.to_string(), data))
+}
+
+/// Bytes as base64 (RFC 4648, no line breaks).
+fn base64(data: &[u8]) -> String {
+    let mut out = vec![0u8; data.len().div_ceil(3) * 4];
+    let n = mail_builder::encoders::base64::base64_encode_slice(data, &mut out);
+    out.truncate(n);
+    String::from_utf8(out).unwrap_or_default()
+}
+
 /// HTML → lines of formatted spans: paragraphs, emphasis, links, list bullets, quotes, tables
 /// laid out as text, and pictures by reference. No scripts, styles or remote loads: what comes
 /// out is plain data. Never panics; empty when conversion fails.

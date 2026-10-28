@@ -21,6 +21,42 @@ pub enum SendCheck {
     Exposed { count: usize },
 }
 
+/// A signature as it goes into a message: after the usual `-- ` line (RFC 3676's delimiter).
+pub fn signature_block(sig: &str) -> String {
+    format!("-- \n{}", sig.trim_end())
+}
+
+/// Give the signature in a message (`c.signature`, where it still stands as put there) the look
+/// it has: `sig` is its text and styles. Its `pictures` go into the message too, each under a name
+/// of the message's own (a signature put in again replaces them).
+pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles), pictures: &[mime::InlinePicture]) {
+    let (text, styles) = sig;
+    if c.signature.is_empty() || styles.is_plain() {
+        return;
+    }
+    let mut block = "-- \n".to_string();
+    let mut block_styles = mime::rich::Styles::plain(&block);
+    mime::rich::append(&mut block, &mut block_styles, text.trim_end(), styles);
+    if block != c.signature {
+        return;
+    }
+    let Some(b) = c.body.rfind(&c.signature) else { return };
+    let start = c.body.get(..b).unwrap_or("").chars().count();
+    let n = block.chars().count();
+    for (i, ch) in block.chars().enumerate() {
+        let Some(p) = block_styles.style(i).picture.and_then(|cid| pictures.iter().find(|p| p.cid == cid)).filter(|_| ch == mime::rich::PICTURE)
+        else {
+            continue;
+        };
+        let cid = format!("{}.{}@mailcraft", p.cid, c.id);
+        block_styles.restyle(&block, i..i + 1, |s| mime::rich::Style { picture: Some(cid.clone()), ..s.clone() });
+        c.inline.retain(|q| q.cid != cid);
+        c.inline.push(mime::InlinePicture { cid, ..p.clone() });
+    }
+    c.styles.fit(&c.body);
+    mime::rich::splice(&mut c.body, &mut c.styles, start..start + n, &block, &block_styles);
+}
+
 impl Session {
     pub(super) fn me(&self, account: &str) -> Vec<String> {
         let mut v: Vec<String> = self.accounts.iter().map(|a| a.config.email.clone()).collect();
@@ -36,22 +72,30 @@ impl Session {
 
     /// An account's signature with its look: its text and styles (plain when it has none).
     pub fn signature_rich(&self, account: &str) -> (String, mime::rich::Styles) {
-        let Some(a) = self.account(account) else { return (String::new(), mime::rich::Styles::default()) };
-        if !a.config.signature_html.trim().is_empty() {
-            let (text, styles) = mime::pasted_html(&a.config.signature_html);
-            if !text.trim().is_empty() {
-                return (text, styles);
-            }
-        }
-        (a.config.signature.clone(), mime::rich::Styles::plain(&a.config.signature))
+        let (text, styles, _) = self.signature_parts(account);
+        (text, styles)
     }
 
-    /// The signature in the message being made, given its look (the text went in plain).
+    /// An account's signature with its look and its pictures (issue #11), each standing in the
+    /// text as a [`mime::rich::PICTURE`].
+    pub fn signature_parts(&self, account: &str) -> (String, mime::rich::Styles, Vec<mime::InlinePicture>) {
+        let Some(a) = self.account(account) else { return (String::new(), mime::rich::Styles::default(), Vec::new()) };
+        if !a.config.signature_html.trim().is_empty() {
+            let (text, styles, pictures) = mime::signature_from_html(&a.config.signature_html);
+            if !text.trim().is_empty() {
+                return (text, styles, pictures);
+            }
+        }
+        (a.config.signature.clone(), mime::rich::Styles::plain(&a.config.signature), Vec::new())
+    }
+
+    /// The signature in the message being made, given its look and pictures (the text went in
+    /// plain).
     pub(super) fn style_signature(&mut self) {
         let Some(account) = self.compose.as_ref().map(|c| c.account.clone()) else { return };
-        let sig = self.signature_rich(&account);
+        let (text, styles, pictures) = self.signature_parts(&account);
         if let Some(c) = self.compose.as_mut() {
-            style_signature(c, &sig);
+            style_signature(c, &(text, styles), &pictures);
         }
     }
 

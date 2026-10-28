@@ -204,7 +204,8 @@ pub(super) fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
 pub(super) fn insert_signature(s: &mut Session, v: &Value) -> CmdResult {
     use mailcraft_mime::rich::Style;
     let account = s.compose.as_ref().map(|c| c.account.clone()).ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-    let rich = s.signature_rich(&account);
+    let (text, styles, pictures) = s.signature_parts(&account);
+    let rich = (text, styles);
     let sig = rich.0.trim_end().to_string();
     if sig.trim().is_empty() {
         return Err(CmdError::Params("this account has no signature yet: make one with Signatures…".into()));
@@ -232,8 +233,32 @@ pub(super) fn insert_signature(s: &mut Session, v: &Value) -> CmdResult {
     let mut styles = std::mem::take(&mut c.styles);
     styles.edit_at(&old, &c.body, &Style::default(), Some(end));
     c.styles = styles;
-    crate::session::style_signature(c, &rich);
+    crate::session::style_signature(c, &rich, &pictures);
     Ok(json!({"inserted": at, "end": end}))
+}
+
+/// A picture into a signature being written (the signature editor's own text, not a message's),
+/// at character `at` (else the end): as Insert picture, but kept with the account's settings, so
+/// only the kinds mail programs show, and no more than [`mailcraft_mime::SIGNATURE_PICTURES_MAX`]
+/// in all (issue #11).
+pub fn signature_picture(c: &mut crate::session::Compose, v: &Value, cid: String) -> CmdResult {
+    let (name, data) = file_param(v)?;
+    let name = sanitize_filename(&name);
+    let mime = mime_from_name(&name).to_string();
+    if !mailcraft_mime::SIGNATURE_PICTURE_TYPES.contains(&mime.as_str()) {
+        return Err(CmdError::Params(format!("{name} isn't a picture a signature can hold (PNG, JPEG, GIF or WebP)")));
+    }
+    let shown = mailcraft_mime::rich::pictures(&c.body, &c.styles);
+    let held: usize = c.inline.iter().filter(|p| shown.contains(&p.cid)).map(|p| p.data.len()).sum();
+    if held + data.len() > mailcraft_mime::SIGNATURE_PICTURES_MAX {
+        return Err(CmdError::Failed("a signature's pictures are limited to 1 MB in all".into()));
+    }
+    c.inline.push(mailcraft_mime::InlinePicture { cid: cid.clone(), name, mime, data });
+    c.plain = false;
+    let n = c.body.chars().count();
+    let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
+    insert_picture_at(c, at, &cid);
+    Ok(json!({"cid": cid, "end": at + 1}))
 }
 
 /// Put picture `cid` into the text at character `at`.

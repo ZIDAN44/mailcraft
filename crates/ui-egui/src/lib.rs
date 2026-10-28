@@ -172,6 +172,10 @@ pub enum Action {
     InsertSignature,
     /// Paste a picture from the clipboard, if there is one.
     PastePicture,
+    /// A picture into the signature being edited: from a file, or (`paste`) the clipboard's.
+    SignaturePicture {
+        paste: bool,
+    },
     /// Choose the interface language (`auto` or a code).
     SetLanguage(String),
     /// Open the signature editor for an account (`insert`: from a message, putting it in).
