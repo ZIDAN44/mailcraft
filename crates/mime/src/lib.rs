@@ -34,7 +34,7 @@ mod html;
 mod photos;
 pub mod smime;
 mod trackers;
-use files::{ext_for_mime, named_for_type};
+use files::{attachment_name, ext_for_mime};
 pub use files::{mime_from_name, runs_code, sanitize_filename};
 pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
 use html::*;
@@ -413,12 +413,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
                 .content_type()
                 .map(|c| format!("{}/{}", c.ctype(), c.subtype().unwrap_or("octet-stream")).to_ascii_lowercase())
                 .unwrap_or_else(|| "application/octet-stream".into());
-            // A name its type is known by (issue #11: a WebP sent without one was saved as
-            // `attachment-1`, which nothing would open).
-            let name = match p.attachment_name() {
-                Some(n) => named_for_type(sanitize_filename(n), &mime),
-                None => format!("attachment-{}{}", index + 1, ext_for_mime(&mime)),
-            };
+            let name = attachment_name(p.attachment_name(), &mime, p.contents(), index);
             AttachmentInfo {
                 index,
                 name,
