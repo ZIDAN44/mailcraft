@@ -14,7 +14,7 @@ _Status: v0.29, 2026-10-28._
 |---|---|---|
 | 1 | **Browser version: accounts other than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so IMAP accounts would need a relay server that holds the password and speaks JMAP to the page: a server product of its own, not built. |
 | 2 | **Right-to-left: inside the editor, dialogs and menus** | The mail window mirrors, inside its panes too, and right-to-left mail and interface text read right to left and can be selected with the pointer and copied. Not yet: dialogs, Calendar, People and Notes aren't mirrored inside; egui's menu items stay on the left (the Craft apps' egui mirrors where menus open and their arrows, but lays their items out with `top_down_justified(Align::Min)`: a one-line change in the shared fork, storytold/egui's `containers/menu.rs`); in the message editor a line mixing right-to-left and left-to-right words shows in the order egui lays it out. |
-| 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail, contacts, calendar items, notes and tasks with a due date come in; export writes the mail as `.pst` and the calendar and contacts beside it as `.ics` and `.vcf`. The writer (`outlook-pst-rw` 1.2.14) makes mail items only (`IPM.Note`), marked read, so contacts, appointments and flags can't go inside the `.pst`. The reader (`outlook-pst` 1.2.0) reads an attached message's own attachment table, but hands the message back as `dyn Message`, and opening those attachments needs `read_embedded`, which is crate-private (in the writer's fork too): a small change in the library. Tasks without a due date are left out (MailCraft has no task list). |
+| 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail, contacts, calendar items, notes and tasks with a due date come in; export writes the mail as `.pst` (a new file, or added to one already there in Outlook's current format) and the calendar and contacts beside it as `.ics` and `.vcf`. A data file opened as a mailbox is read from a copy: what's changed there stays in MailCraft. The writer (`outlook-pst-rw` 1.2.14) makes mail items only (`IPM.Note`), marked read, so contacts, appointments and flags can't go inside the `.pst`. The reader (`outlook-pst` 1.2.0) reads an attached message's own attachment table, but hands the message back as `dyn Message`, and opening those attachments needs `read_embedded`, which is crate-private (in the writer's fork too): a small change in the library. Tasks without a due date are left out (MailCraft has no task list). |
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where the Craft apps' winit (0.30, storytold/winit) can take drops but not start a drag. Upstream winit 0.31 adds it (`ActiveEventLoop::start_drag`, rust-windowing/winit#4571); it comes to MailCraft when egui and the Craft forks move to 0.31 (still in beta, and egui on 0.30.13). |
 | 5 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
 | 6 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store (Chrome's Web Smart Card API is for Isolated Web Apps only). Its certificates are locked again after a reload unless *Keep unlocked in this browser* is on. |
@@ -1143,7 +1143,28 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   (File › Options › Mail; `view.replyWindow`), where they started in the reading pane and had to
   be popped out; and Favorites can be hidden from the top of the folder pane (View › Favorites;
   `view.favorites`), where it could only be collapsed.
-- **Found on the way:** a picture at the end of a line had no room in the line (egui sizes a row by
+- **Outlook's Rich Text mail (issue #18):** Outlook sends mail written in Rich Text Format, and
+  some it forwards from Exchange, as a `winmail.dat` (`application/ms-tnef`) holding the files and
+  the formatted body; MailCraft showed one `winmail.dat` nothing could open and the plain text.
+  It now reads it (MS-OXTNEF, from Microsoft's open specifications): the files are listed in its
+  place, saved, previewed and forwarded like any other; pictures in the body show in it; an
+  attached Outlook message opens as a message; and the body shows formatted: the HTML Outlook
+  keeps, or its compressed RTF (MS-OXRTFCP) as the HTML it wraps (MS-OXRTFEX), or, for RTF of its
+  own, with its bold, italics, underlines, links and line breaks; text in the fonts' code pages
+  and as Unicode. Search finds the files' names and the text. A `winmail.dat` that can't be read
+  stays one. Tried with RTF and attachments Outlook itself saved, sent through GreenMail and read
+  over IMAP.
+- **Adding to an Outlook data file (issue #18):** exporting to a `.pst` that's already there
+  replaced it. It's added to now, as Outlook's export does: its mail stays, the account's goes into
+  folders of the same names, messages it already has (by `Message-ID`) aren't written twice, and
+  the file is written as a copy that takes its place only once it's done. A file that isn't a data
+  file, or is in Outlook's older format, which the writer can't add to, is left alone and said so.
+- **Found on the way:** mail in Shift_JIS, GBK, Big5 and EUC-KR came out as `�` (mail-parser
+  decodes those only with its `full_encoding` feature, now on); a reply or forward showed the
+  pictures in the message it quotes as "[picture]" (they go with it now, as in Outlook; pictures on
+  the web stay a word, never loaded); a message without a `Date` was quoted, and read on the
+  command line, as sent on 1 January 1970 (it's the time the server took it in, as the list shows).
+- **Found on the way, earlier:** a picture at the end of a line had no room in the line (egui sizes a row by
   its letters), so a second one after it was squeezed into what was left; the scroll bar took
   the pointer from the corner of a picture as wide as the text; and a drag on a picture's handle
   without selecting the picture first lost the handle (#14's test found it). Attachments opened
