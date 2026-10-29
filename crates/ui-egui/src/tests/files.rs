@@ -39,6 +39,27 @@ impl egui::DroppedFile for LetGo {
     }
 }
 
+/// A clipboard holding files, or text.
+struct Board(Vec<PathBuf>, Option<String>);
+
+impl crate::ClipboardRead for Board {
+    fn files(&mut self) -> Vec<PathBuf> {
+        self.0.clone()
+    }
+    fn paste(&mut self) -> Option<Event> {
+        self.1.clone().map(Event::Paste)
+    }
+}
+
+/// A frame whose keys go through MailCraft's clipboard keys first, as the app's windows do.
+fn keyed(ctx: &egui::Context, a: &mut MailApp, board: &mut Board, events: Vec<Event>) {
+    let mut input =
+        RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+    crate::clipboard_keys(ctx, &mut input, board);
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+}
+
 fn attached(a: &MailApp) -> Vec<String> {
     a.session.compose.as_ref().map(|c| c.attachments.iter().map(|x| x.name.clone()).collect()).unwrap_or_default()
 }
@@ -48,7 +69,7 @@ fn attached(a: &MailApp) -> Vec<String> {
 /// for which egui sends no paste). Text pasted with no files on the clipboard goes into the text.
 #[test]
 fn files_copied_in_a_file_manager_are_attached_when_pasted() {
-    let (mut a, dir) = app("paste-files");
+    let (mut a, dir) = app("paste-copied");
     let ctx = egui::Context::default();
     a.session.prefs.new_mail_window = false;
     let (report, photo) = (dir.join("report.txt"), dir.join("photo one.webp"));
@@ -73,13 +94,37 @@ fn files_copied_in_a_file_manager_are_attached_when_pasted() {
     a.act(crate::Action::PasteFiles);
     assert!(!a.ui.editor.as_ref().unwrap().paste, "no text paste after it");
     assert_eq!(attached(&a), ["report.txt", "photo one.webp"]);
+    // Ctrl+V with only the files there (Explorer, PCManFM: no text with them, issue #10): the
+    // key is MailCraft's, and the files are looked for first.
+    let ctrl_v = || vec![super::key(egui::Key::V, egui::Modifiers::COMMAND)];
+    a.services = Box::new(Copied(Vec::new()));
+    let brief = dir.join("brief.pdf");
+    std::fs::write(&brief, b"%PDF-1.4").unwrap();
+    ctx.memory_mut(|m| m.request_focus(body));
+    frame(&ctx, &mut a, vec![]);
+    keyed(&ctx, &mut a, &mut Board(vec![brief.clone()], None), ctrl_v());
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(attached(&a), ["report.txt", "photo one.webp", "brief.pdf"]);
+    assert_eq!(a.session.compose.as_ref().unwrap().body, before, "nothing typed");
+    // None there: its text, as egui pasted it on the key.
+    keyed(&ctx, &mut a, &mut Board(Vec::new(), Some("from the keys".into())), ctrl_v());
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.compose.as_ref().unwrap().body.contains("from the keys"));
+    // Somewhere else with the keyboard: the text, the files not looked for.
+    ctx.memory_mut(|m| m.surrender_focus(body));
+    frame(&ctx, &mut a, vec![]);
+    keyed(&ctx, &mut a, &mut Board(vec![brief], Some("elsewhere".into())), ctrl_v());
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(attached(&a).len(), 3);
+    ctx.memory_mut(|m| m.request_focus(body));
+    frame(&ctx, &mut a, vec![]);
     // Text alone pastes as text.
     a.services = Box::new(Copied(Vec::new()));
     ctx.memory_mut(|m| m.request_focus(body));
     frame(&ctx, &mut a, vec![Event::Paste("hello there".into())]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.compose.as_ref().unwrap().body.contains("hello there"));
-    assert_eq!(attached(&a).len(), 2);
+    assert_eq!(attached(&a).len(), 3);
     let _ = std::fs::remove_dir_all(dir);
 }
 

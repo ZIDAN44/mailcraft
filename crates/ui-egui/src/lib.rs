@@ -46,8 +46,8 @@ use mailcraft_engine::model::{MessageKey, SyncStatus};
 use mailcraft_engine::{CalMode, Module, ReadingPane, SearchScope, Session};
 use serde_json::{Value, json};
 
+pub use app::{ClipboardRead, WindowPlace, after_open, clipboard_keys};
 pub(crate) use app::{SearchDrop, junk_menu, scope_label};
-pub use app::{WindowPlace, after_open};
 pub use dialogs::Dialog;
 use icons::Icon;
 pub use services::{Backend, NullBackend, NullServices, Services, UpdateState};

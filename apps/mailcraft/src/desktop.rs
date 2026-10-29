@@ -296,7 +296,7 @@ impl Services for Desktop {
         Some(png)
     }
     fn clipboard_files(&mut self) -> Vec<PathBuf> {
-        read_clipboard(|c| c.get().file_list().ok()).unwrap_or_default()
+        crate::clipboard_files()
     }
     fn open_url(&mut self, url: &str) -> Result<(), String> {
         // Web addresses go to Windows' URL handler: ShellExec_RunDLL (right for files) started

@@ -10,6 +10,7 @@ mod search_box;
 mod updates;
 mod windows;
 
+pub use dropped::{ClipboardRead, clipboard_keys};
 pub(crate) use ribbon::junk_menu;
 pub(crate) use search_box::{SearchDrop, scope_label};
 pub use windows::{WindowPlace, after_open};

@@ -69,6 +69,38 @@ fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
     (None, None)
 }
 
+/// Runs MailCraft's Cut, Copy and Paste keys on each window's input ([`mailcraft_ui_egui::clipboard_keys`]).
+struct ClipboardKeys;
+
+impl eframe::ViewportHooks for ClipboardKeys {
+    fn raw_input(&self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        mailcraft_ui_egui::clipboard_keys(ctx, raw_input, &mut SystemClipboard);
+    }
+}
+
+/// The system clipboard, read as egui-winit reads it for a paste: its text, else its picture.
+struct SystemClipboard;
+
+impl mailcraft_ui_egui::ClipboardRead for SystemClipboard {
+    fn files(&mut self) -> Vec<PathBuf> {
+        clipboard_files()
+    }
+
+    fn paste(&mut self) -> Option<egui::Event> {
+        if let Some(text) = read_clipboard(|c| c.get_text().ok()) {
+            let text = text.replace("\r\n", "\n");
+            return (!text.is_empty()).then_some(egui::Event::Paste(text));
+        }
+        let img = read_clipboard(|c| c.get_image().ok())?;
+        // Its size and its bytes must agree (egui stops on a mismatch).
+        if img.width.checked_mul(img.height).and_then(|n| n.checked_mul(4)) != Some(img.bytes.len()) {
+            return None;
+        }
+        let image = egui::ColorImage::from_rgba_unmultiplied([img.width, img.height], &img.bytes);
+        Some(egui::Event::PasteImage(Arc::new(image)))
+    }
+}
+
 /// The window icon: the committed app icon (`cargo xtask icons`), or egui's default if it can't be decoded.
 fn app_icon() -> egui::IconData {
     const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/ai.storyteller.mailcraft.png");
@@ -366,6 +398,17 @@ fn main() -> eframe::Result {
         None => options,
     };
     graphics::configure(&mut options);
+    // Cut, Copy and Paste keys are MailCraft's, in every window: Ctrl+V attaches files copied
+    // in a file manager that puts no text with them (Explorer, PCManFM; issue #10). Not in a
+    // Wayland window, where egui-winit reads the clipboard without waiting on the event loop.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let own_keys = display::choose_from_env() == display::Choice::X11 || std::env::var_os("WAYLAND_DISPLAY").is_none();
+    #[cfg(not(all(unix, not(target_os = "macos"))))]
+    let own_keys = true;
+    if own_keys {
+        options.clipboard_shortcuts = false;
+        options.viewport_hooks = Some(Arc::new(ClipboardKeys));
+    }
     // Linux and the BSDs: through XWayland on a Wayland desktop, so attachments drag in and out.
     #[cfg(all(unix, not(target_os = "macos")))]
     if display::choose_from_env() == display::Choice::X11 {
@@ -416,6 +459,14 @@ fn read_clipboard<T: Send + 'static>(read: fn(&mut arboard::Clipboard) -> Option
         })
         .ok()?;
     rx.recv_timeout(CLIPBOARD_WAIT).ok().flatten()
+}
+
+/// Files copied in a file manager. PCManFM ends its list with a NUL byte, which stayed on the
+/// last file's name: of two files copied, one was pasted (issue #10).
+fn clipboard_files() -> Vec<PathBuf> {
+    let files = read_clipboard(|c| c.get().file_list().ok()).unwrap_or_default();
+    let nul = char::from(0);
+    files.into_iter().map(|p| p.to_str().filter(|s| s.ends_with(nul)).map_or(p.clone(), |s| PathBuf::from(s.trim_end_matches(nul)))).collect()
 }
 
 /// Read the clipboard (Windows' and macOS's reads don't wait on the app that copied).
