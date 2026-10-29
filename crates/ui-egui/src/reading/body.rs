@@ -301,7 +301,9 @@ impl Body<'_> {
                         None => width,
                     }
                     .max(1.0);
-                    let indent = match table.align {
+                    // In a centred cell (`<td align="center">`), a table is centred too, as browsers do.
+                    let at = if table.align == A::Left && align == A::Center { A::Center } else { table.align };
+                    let indent = match at {
                         A::Center => (width - tw) / 2.0,
                         A::Right => width - tw,
                         A::Left => 0.0,

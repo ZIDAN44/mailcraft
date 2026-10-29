@@ -168,3 +168,33 @@ fn hostile_markup_is_survived() {
     assert_eq!(color("rgb(1, 2, 300)"), Some([1, 2, 255]));
     assert_eq!(color("#12"), None);
 }
+
+/// A message in a centred column of a set width keeps it, one column or not: it was stretched
+/// across the window (issue #10).
+#[test]
+fn a_centred_column_of_a_set_width_keeps_its_width() {
+    // The usual table: a full-width one, a 600-pixel one centred in it.
+    let b = html_layout(
+        r#"<body><table width="100%"><tr><td align="center"><table width="600"><tr><td><h1>Spring sale</h1><p>All week.</p></td></tr>
+        <tr><td><img src="cid:banner@x" width="600"></td></tr></table></td></tr></table></body>"#,
+    );
+    let Block::Table(outer) = &b[0] else { panic!("{b:?}") };
+    assert_eq!(outer.rows[0][0].align, Align::Center);
+    let Block::Table(inner) = &outer.rows[0][0].blocks[0] else { panic!("{b:?}") };
+    assert_eq!(inner.width, Some(Width::Px(600)));
+    // A box: `max-width` and auto margins, no table at all.
+    let b = html_layout(r#"<div style="max-width:600px;margin:0 auto;background-color:#ffffff"><p>Hello</p><p>Thanks for your order.</p></div>"#);
+    let Block::Table(t) = &b[0] else { panic!("{b:?}") };
+    assert_eq!((t.width, t.align), (Some(Width::Px(600)), Align::Center));
+    assert_eq!(t.rows[0][0].background, Some([0xff, 0xff, 0xff]));
+    assert!(text(&t.rows[0][0].blocks[0]).contains("Thanks for your order"));
+    // Narrower than the window: `width: 100%` held to its `max-width`; `<center>` around a box.
+    let b = html_layout(r#"<center><div style="width:100%;max-width:480px;text-align:left">Hi there</div></center>"#);
+    let Block::Table(t) = &b[0] else { panic!("{b:?}") };
+    let Block::Table(t) = &t.rows[0][0].blocks[0] else { panic!("{b:?}") };
+    assert_eq!(t.width, Some(Width::Px(480)));
+    assert_eq!(t.rows[0][0].align, Align::Left);
+    // No set width: the text flows, as before.
+    assert!(html_layout(r#"<div style="width:100%"><p>Just text</p></div>"#).is_empty());
+    assert!(html_layout("<p>Plain <b>mail</b></p><table><tr><td>one cell</td></tr></table>").is_empty());
+}
