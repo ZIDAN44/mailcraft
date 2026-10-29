@@ -646,6 +646,8 @@ pub struct Session {
     cards: security::CardSearch,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
+    /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
+    pub(crate) arrived_invites: Vec<MessageKey>,
     /// New mail to announce (desktop notifications), oldest first.
     pub new_mail: Vec<Summary>,
     /// Inbox rules, run on mail as it arrives (`rules.json`).
@@ -752,6 +754,7 @@ impl Session {
             revocation: Default::default(),
             cards: Default::default(),
             seen_uid: HashMap::new(),
+            arrived_invites: Vec::new(),
             new_mail: Vec::new(),
             rules: Vec::new(),
             snoozes: Vec::new(),

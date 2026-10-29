@@ -1260,3 +1260,5 @@ month	May	mai
 	Write replies and forwards in a window of their own	Rédiger les réponses et transferts dans une fenêtre à part
 	Show Favorites at the top of the folder pane	Afficher les favoris en haut du volet Dossiers
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Messages encore en cours d'envoi : {n}. Ils risquent de ne pas partir si MailCraft se ferme maintenant : patientez un instant, ou fermez quand même.
+	Add meeting invitations to the calendar as tentative when they arrive	Ajouter les invitations aux réunions au calendrier comme provisoires dès leur arrivée
+	Before they're answered; nothing is sent until you answer	Avant d'y répondre ; rien n'est envoyé tant que vous n'avez pas répondu

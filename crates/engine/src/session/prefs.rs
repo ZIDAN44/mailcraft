@@ -76,6 +76,9 @@ pub struct Prefs {
     pub reply_window: bool,
     /// The folder pane shows Favorites at its top (issue #11: it could only be collapsed).
     pub show_favorites: bool,
+    /// Meeting invitations go into the calendar as tentative when they arrive, before they're
+    /// answered, as Outlook shows them (issue #20).
+    pub tentative_invites: bool,
     /// How the message list is arranged (View › Arrange by), and turned the other way round.
     pub arrange: Arrange,
     pub reverse_sort: bool,
@@ -162,6 +165,7 @@ impl Default for Prefs {
             new_mail_window: true,
             reply_window: false,
             show_favorites: true,
+            tentative_invites: true,
             arrange: Arrange::Date,
             reverse_sort: false,
             work_offline: false,

@@ -62,5 +62,6 @@ mod organize;
 mod pim;
 mod safety;
 mod smime;
+mod tentative;
 mod web_calendars;
 mod writing;

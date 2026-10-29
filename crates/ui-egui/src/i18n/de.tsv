@@ -1260,3 +1260,5 @@ month	May	Mai
 	Write replies and forwards in a window of their own	Antworten und Weiterleitungen in einem eigenen Fenster schreiben
 	Show Favorites at the top of the folder pane	Favoriten oben im Ordnerbereich zeigen
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Nachrichten, die noch gesendet werden: {n}. Sie gehen eventuell nicht hinaus, wenn MailCraft jetzt geschlossen wird: kurz warten oder trotzdem schließen.
+	Add meeting invitations to the calendar as tentative when they arrive	Besprechungseinladungen beim Eintreffen als vorläufig in den Kalender eintragen
+	Before they're answered; nothing is sent until you answer	Bevor sie beantwortet sind; nichts wird gesendet, bis du antwortest

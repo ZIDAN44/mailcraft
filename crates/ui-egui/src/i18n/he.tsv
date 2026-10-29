@@ -1255,3 +1255,5 @@ month	May	מאי
 	Write replies and forwards in a window of their own	כתיבת תשובות והעברות בחלון משלהן
 	Show Favorites at the top of the folder pane	הצגת מועדפים בראש חלונית התיקיות
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	הודעות שעדיין נשלחות: {n}. ייתכן שלא יישלחו אם MailCraft ייסגר עכשיו: המתן רגע, או סגור בכל זאת.
+	Add meeting invitations to the calendar as tentative when they arrive	הוספת הזמנות לפגישות ללוח השנה כטנטטיביות כשהן מגיעות
+	Before they're answered; nothing is sent until you answer	לפני שעונים עליהן; דבר אינו נשלח עד שתענה

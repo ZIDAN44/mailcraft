@@ -1255,3 +1255,5 @@ month	May	مايو
 	Write replies and forwards in a window of their own	كتابة الردود وإعادة التوجيه في نافذة خاصة بها
 	Show Favorites at the top of the folder pane	إظهار المفضلة أعلى جزء المجلدات
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	رسائل لا تزال قيد الإرسال: {n}. قد لا تُرسل إذا أُغلق MailCraft الآن: انتظر قليلًا، أو أغلق على أي حال.
+	Add meeting invitations to the calendar as tentative when they arrive	أضف دعوات الاجتماعات إلى التقويم كمبدئية عند وصولها
+	Before they're answered; nothing is sent until you answer	قبل الرد عليها؛ لا يُرسل شيء حتى ترد

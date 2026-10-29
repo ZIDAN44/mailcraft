@@ -140,6 +140,7 @@ impl Session {
             Event::Body { key, raw } => {
                 self.show_body(&key, &raw);
                 self.index_body(&key, &raw);
+                self.invitation_body(&key);
             }
             Event::BodyFailed { key, error } => {
                 for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {

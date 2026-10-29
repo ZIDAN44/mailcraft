@@ -1259,3 +1259,5 @@ month	May	maggio
 	Write replies and forwards in a window of their own	Scrivi risposte e inoltri in una finestra a sé
 	Show Favorites at the top of the folder pane	Mostra Preferiti in cima al riquadro delle cartelle
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Messaggi ancora in invio: {n}. Potrebbero non partire se MailCraft si chiude ora: attendi un momento o chiudi comunque.
+	Add meeting invitations to the calendar as tentative when they arrive	Aggiungi gli inviti alle riunioni al calendario come provvisori all'arrivo
+	Before they're answered; nothing is sent until you answer	Prima di rispondere; non viene inviato nulla finché non rispondi

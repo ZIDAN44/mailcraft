@@ -11,7 +11,7 @@ const WEEK: i64 = 7 * 86_400;
 const ANA: (&str, &str) = ("Ana Lima", "ana@soundlab.example");
 
 /// Put a message carrying a calendar in the sample Inbox and open it.
-fn deliver(s: &mut Session, n: u32, from: (&str, &str), method: &str, events: &[CalEvent], stamp: i64) {
+pub(super) fn deliver(s: &mut Session, n: u32, from: (&str, &str), method: &str, events: &[CalEvent], stamp: i64) {
     let ics = mailcraft_model::ical::write(events, Some(method), stamp);
     let d = mailcraft_mime::Draft {
         to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
@@ -36,11 +36,11 @@ fn deliver(s: &mut Session, n: u32, from: (&str, &str), method: &str, events: &[
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
 }
 
-fn me(partstat: &str) -> Attendee {
+pub(super) fn me(partstat: &str) -> Attendee {
     Attendee { email: "riley@studio.example".into(), name: "Riley".into(), partstat: partstat.into(), rsvp: true }
 }
 
-fn parts<'a>(s: &'a Session, uid: &str) -> Vec<&'a StoredEvent> {
+pub(super) fn parts<'a>(s: &'a Session, uid: &str) -> Vec<&'a StoredEvent> {
     s.pim.get("sample").map(|p| p.events.iter().filter(|e| e.event.uid == uid).collect()).unwrap_or_default()
 }
 

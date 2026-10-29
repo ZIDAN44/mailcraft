@@ -225,6 +225,21 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, false, tl!("Focused Inbox: put newsletters and automatic mail in Other"), None, &mut |ui| {
             switch(ui, s.prefs.focused_inbox, tl!("Focused Inbox: put newsletters and automatic mail in Other"), "view.focused", acts);
         });
+        setting(
+            ui,
+            false,
+            tl!("Add meeting invitations to the calendar as tentative when they arrive"),
+            Some(tl!("Before they're answered; nothing is sent until you answer")),
+            &mut |ui| {
+                switch(
+                    ui,
+                    s.prefs.tentative_invites,
+                    tl!("Add meeting invitations to the calendar as tentative when they arrive"),
+                    "calendar.tentativeInvites",
+                    acts,
+                );
+            },
+        );
         setting(ui, false, tl!("Ask before deleting for good"), None, &mut |ui| {
             switch(ui, s.prefs.confirm_permanent_delete, tl!("Ask before deleting for good"), "view.confirmDelete", acts);
         });

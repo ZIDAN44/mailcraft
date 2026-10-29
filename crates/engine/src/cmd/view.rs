@@ -120,6 +120,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"on": s.prefs.reply_window}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("calendar.tentativeInvites", "Invitations into the calendar as tentative", "File › Options › Calendar", |s, v| {
+            s.prefs.tentative_invites = p::bool(v, "on").unwrap_or(!s.prefs.tentative_invites);
+            Ok(json!({"on": s.prefs.tentative_invites}))
+        })
+        .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.favorites", "Show Favorites", "View › Layout", |s, v| {
             s.prefs.show_favorites = p::bool(v, "on").unwrap_or(!s.prefs.show_favorites);
             Ok(json!({"on": s.prefs.show_favorites}))
