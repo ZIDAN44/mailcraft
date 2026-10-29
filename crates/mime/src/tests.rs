@@ -598,3 +598,36 @@ fn east_asian_mail_reads() {
         assert_eq!(parse(&raw).map(|p| p.text.trim().to_string()).as_deref(), Some(text), "{charset}");
     }
 }
+
+/// Issue #10 (Larsene): a reply or forward quotes every picture of the message, not "[picture]":
+/// one by `cid:`, one by its `Content-Location`, one written into the HTML (`data:`), each sent
+/// with it; one on the web by its address (never loaded); a tracking picture left out.
+#[test]
+fn a_reply_quotes_every_picture() {
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let raw = format!(
+        "From: Zoe <zoe@studio.example>\r\nTo: riley@studio.example\r\nSubject: Frames\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"R\"\r\n\r\n\
+--R\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Frames:</p><img src=\"cid:a@x\"><img src=\"frame2.png\"><img src=\"data:image/png;base64,{png}\"><img src=\"https://cdn.example/poster.jpg\" width=\"300\"><img src=\"https://open.example/t.gif\" width=\"1\" height=\"1\">\r\n\
+--R\r\nContent-Type: image/png\r\nContent-ID: <a@x>\r\nContent-Transfer-Encoding: base64\r\n\r\n{png}\r\n\
+--R\r\nContent-Type: image/png\r\nContent-Location: frame2.png\r\nContent-Transfer-Encoding: base64\r\n\r\n{png}\r\n--R--\r\n"
+    );
+    let mut p = parse(raw.as_bytes()).unwrap();
+    let (pictures, used) = quoted_pictures(&mut p, raw.as_bytes());
+    assert_eq!(used, [0, 1]);
+    assert_eq!(pictures.len(), 3, "{pictures:?}");
+    assert_eq!(pictures[0].cid, "a@x");
+    assert!(pictures.iter().all(|q| q.mime == "image/png" && q.data.starts_with(b"\x89PNG")), "{pictures:?}");
+    let (d, styles) = reply_doc(&p, ReplyMode::Forward, &[], &Clock::default(), "");
+    let html = rich::to_html(&d.body, &styles);
+    for q in &pictures {
+        assert!(html.contains(&format!("<img src=\"cid:{}\"", q.cid)), "{} in {html}", q.cid);
+    }
+    assert!(html.contains("<img src=\"https://cdn.example/poster.jpg\" width=\"300\""), "{html}");
+    assert!(!html.contains("open.example") && !html.contains("[picture]"), "{html}");
+    assert_eq!(rich::pictures(&d.body, &styles).len(), 4);
+    // Twice the same picture: one copy.
+    let twice = raw.replace("<img src=\"frame2.png\">", "<img src=\"cid:a@x\">");
+    let mut p = parse(twice.as_bytes()).unwrap();
+    assert_eq!(quoted_pictures(&mut p, twice.as_bytes()).0.len(), 2);
+}

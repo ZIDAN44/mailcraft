@@ -36,7 +36,7 @@ mod photos;
 pub mod smime;
 mod tnef;
 mod trackers;
-pub use attachments::{AttachmentInfo, AttachmentKind, attachment_data, craft_app_for, kind_of, text_preview_kind};
+pub use attachments::{AttachmentInfo, AttachmentKind, attachment_data, craft_app_for, kind_of, quoted_pictures, text_preview_kind};
 use attachments::{attached, has_real_attachments};
 use files::attachment_name;
 pub use files::{mime_from_name, runs_code, sanitize_filename};

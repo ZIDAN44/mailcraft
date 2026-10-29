@@ -170,6 +170,90 @@ pub fn text_preview_kind(mime: &str, name: &str) -> Option<&'static str> {
     texty.then_some("text")
 }
 
+/// Most pictures a reply or forward takes from the message it quotes, and bytes each.
+const QUOTED_PICTURES: usize = 100;
+const QUOTED_PICTURE_MAX: usize = 25 << 20;
+
+/// The pictures of a message as a reply or forward quotes it (issue #10: they came out as
+/// "[picture]"): each one in the message (by `cid:`, by its `Content-Location` or name, or written
+/// into the HTML as `data:`) given by `cid:`, with its bytes for the reply to send; one on the web
+/// kept by its address, as Outlook keeps it (never loaded here); tracking pictures left out.
+/// Also the indexes of the attachments the quote shows.
+pub fn quoted_pictures(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>, Vec<usize>) {
+    let mut out: Vec<InlinePicture> = Vec::new();
+    let mut used: Vec<usize> = Vec::new();
+    let found: Vec<(String, Option<usize>)> = p
+        .rich
+        .iter()
+        .flatten()
+        .filter_map(|s| s.image.clone())
+        .map(|src| {
+            let at = picture_attachment(p, &src);
+            (src, at)
+        })
+        .collect();
+    let trackers = p.trackers.pictures.clone();
+    let mut given: Vec<(String, String)> = Vec::new();
+    for (src, at) in found {
+        if given.iter().any(|(s, _)| *s == src) || out.len() >= QUOTED_PICTURES {
+            continue;
+        }
+        let picture = match at.and_then(|i| p.attachments.get(i)) {
+            Some(a) if a.size <= QUOTED_PICTURE_MAX => attachment_data(raw, a.index).map(|data| {
+                let cid = a
+                    .content_id
+                    .clone()
+                    .filter(|c| !c.is_empty())
+                    .unwrap_or_else(|| format!("quoted-{}-{:012x}@mailcraft", a.index, crate::fnv(&src) & 0xFFFF_FFFF_FFFF));
+                InlinePicture { cid, name: a.name.clone(), mime: a.mime.clone(), data }
+            }),
+            Some(_) => None,
+            None => data_url(&src).map(|(mime, data)| {
+                let n = out.len() + 1;
+                let ext = Some(crate::files::ext_for_mime(&mime)).filter(|e| !e.is_empty()).unwrap_or(".png");
+                InlinePicture {
+                    cid: format!("quoted{n}-{:012x}@mailcraft", crate::fnv(&src) & 0xFFFF_FFFF_FFFF),
+                    name: format!("image{n:03}{ext}"),
+                    mime,
+                    data,
+                }
+            }),
+        };
+        if let Some(pic) = picture {
+            used.extend(at);
+            given.push((src, pic.cid.clone()));
+            if !out.iter().any(|q| q.cid == pic.cid) {
+                out.push(pic);
+            }
+        }
+    }
+    for span in p.rich.iter_mut().flatten() {
+        let Some(src) = span.image.clone() else { continue };
+        if let Some((_, cid)) = given.iter().find(|(s, _)| *s == src) {
+            span.image = Some(format!("cid:{cid}"));
+        } else if trackers.contains(&src) {
+            span.image = None;
+            span.text.clear();
+        }
+    }
+    (out, used)
+}
+
+/// A picture written into HTML as `data:image/…;base64,…`: its type and bytes.
+fn data_url(src: &str) -> Option<(String, Vec<u8>)> {
+    let rest = src.trim().get(..11).filter(|p| p.eq_ignore_ascii_case("data:image/")).and_then(|_| src.trim().get(5..))?;
+    let (kind, b64) = rest.split_once(',')?;
+    let mime = kind.strip_suffix(";base64").or_else(|| kind.strip_suffix(";BASE64"))?.to_ascii_lowercase();
+    if !["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/bmp"].contains(&mime.as_str())
+        || b64.len() > QUOTED_PICTURE_MAX / 3 * 4 + 8
+    {
+        return None;
+    }
+    let clean: Vec<u8> = b64.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+    let data = mail_parser::decoders::base64::base64_decode(&clean).filter(|d| !d.is_empty())?;
+    Some((if mime == "image/jpg" { "image/jpeg".into() } else { mime }, data))
+}
+
 /// The bytes of attachment `index`.
 pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     let m = MessageParser::default().parse(raw)?;

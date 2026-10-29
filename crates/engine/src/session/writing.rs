@@ -194,28 +194,23 @@ impl Session {
     pub fn reply_compose(&mut self, mode: ReplyMode) -> CmdResult {
         let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
         let encrypted = r.security.as_ref().is_some_and(|s| matches!(s.lock, Some(Lock::Open { .. }))) && self.identity(&r.key.account).is_some();
-        let parsed = r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+        let mut parsed = r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
         let account = r.key.account.clone();
         let sig = self.signature(&account);
+        let raw = self.readable_raw(&r.key);
+        // The pictures in the quoted message go with it (they showed as "[picture]", issue #10).
+        let (inline, quoted) = raw.as_deref().map(|raw| mime::quoted_pictures(&mut parsed, raw)).unwrap_or_default();
         let (d, styles) = mime::reply_doc(&parsed, mode, &self.me(&account), &self.clock, &sig);
         let id = self.fresh_id();
         let mut attachments = Vec::new();
-        let mut inline = Vec::new();
-        if let Some(raw) = self.readable_raw(&r.key) {
-            if mode == ReplyMode::Forward {
-                for a in parsed.attachments.iter().filter(|a| !a.inline) {
-                    if let Some(data) = mime::attachment_data(&raw, a.index) {
-                        attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
-                    }
-                }
-            }
-            // The pictures in the quoted message go with it (they showed as "[picture]").
-            let used = mime::rich::pictures(&d.body, &styles);
-            for a in parsed.attachments.iter().filter(|a| a.content_id.as_ref().is_some_and(|c| used.contains(c))) {
-                if let (Some(cid), Some(data)) = (&a.content_id, mime::attachment_data(&raw, a.index))
-                    && !inline.iter().any(|p: &mime::InlinePicture| &p.cid == cid)
-                {
-                    inline.push(mime::InlinePicture { cid: cid.clone(), name: a.name.clone(), mime: a.mime.clone(), data });
+        if mode == ReplyMode::Forward
+            && let Some(raw) = &raw
+        {
+            // Pictures the quote shows go in it; any other, inline or not, as a file (a picture
+            // sent inline beside plain text was lost).
+            for a in parsed.attachments.iter().filter(|a| !quoted.contains(&a.index)) {
+                if let Some(data) = mime::attachment_data(raw, a.index) {
+                    attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
                 }
             }
         }

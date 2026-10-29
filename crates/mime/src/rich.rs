@@ -332,7 +332,9 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
         let run: String = chars.get(i..j).map(|c| c.iter().collect()).unwrap_or_default();
         if let Some(cid) = st.picture.as_ref().filter(|_| run.starts_with(PICTURE)) {
             let width = st.picture_width.map(|w| format!(" width=\"{w}\"")).unwrap_or_default();
-            out.push_str(&format!("<img src=\"cid:{}\"{width} style=\"max-width:100%\">", esc(cid)));
+            // One on the web (quoted from a message) by its address; the message's own by `cid:`.
+            let src = if web_picture(cid) { esc(cid) } else { format!("cid:{}", esc(cid)) };
+            out.push_str(&format!("<img src=\"{src}\"{width} style=\"max-width:100%\">"));
             i = j;
             continue;
         }
@@ -485,11 +487,15 @@ pub fn from_rich(lines: &RichText) -> (String, Styles) {
         for sp in line {
             let mut st = span_style(sp);
             // A picture in the message stays one (a reply or forward sends it on); one on the
-            // web stays a word, never loaded.
+            // web stays one by its address, never loaded (issue #10).
             let cid = sp
                 .image
                 .as_deref()
-                .and_then(|s| s.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and_then(|_| s.get(4..)))
+                .and_then(|s| match s.get(..4) {
+                    Some(p) if p.eq_ignore_ascii_case("cid:") => s.get(4..),
+                    _ if web_picture(s) => Some(s),
+                    _ => None,
+                })
                 .filter(|c| !c.is_empty());
             if let Some(cid) = cid {
                 st.picture = Some(cid.to_string());
@@ -604,7 +610,13 @@ pub fn from_markup(marked: &str) -> (String, Styles) {
     (text, styles)
 }
 
-/// The `cid:`s of the pictures in a text.
+/// Whether a picture's address is on the web (`https:`), not in the message.
+pub fn web_picture(src: &str) -> bool {
+    let lower = src.get(..8).unwrap_or(src).to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
+}
+
+/// The `cid:`s of the pictures in a text (and the addresses of pictures on the web it quotes).
 pub fn pictures(text: &str, styles: &Styles) -> Vec<String> {
     let mut v: Vec<String> = Vec::new();
     for (i, c) in text.chars().enumerate() {
