@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.29, 2026-10-28._
+_Status: v0.30, 2026-10-30._
 
 ## Open
 
@@ -1205,3 +1205,5 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   or dragged out failed where `$XDG_RUNTIME_DIR` names a folder that isn't there (WSL): the
   cache folder is used then (#14). A signature's pictures had one Content-ID in every message,
   where RFC 2392 asks for a unique one: each message gives them its own (#16).
+
+### v0.30 — Sent where the server keeps it, mail in its column, files pasted from any file manager

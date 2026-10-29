@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.29 — Pictures at their size, pasted files, signatures with pictures (2026-10-28). Each milestone below is a version: v0.1 was
+**Stage:** v0.30 — Sent where the server keeps it, mail in its column, files pasted from any file manager (2026-10-30). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -197,7 +197,11 @@ local-first, media-aware v1); the fuller request is
    tentative as they arrive, before they're answered (on the CalDAV server too). Also the search box's text centred, and the message
    being read kept in the list under the Unread filter. With Remo Laubacher's pull requests
    #12–#16, which the fixes above build on.
-30. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+30. **v0.30 — Sent where the server keeps it, mail in its column, files pasted from any file manager**
+   From issue #19 again: sent mail's copy goes in the Sent folder the server names, wherever it
+   lists it. From issue #10 again: mail set in a centred column of a set width keeps it; Ctrl+V
+   attaches files copied in any file manager.
+31. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
