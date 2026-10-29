@@ -1259,3 +1259,4 @@ month	May	mai
 	Original size	Taille d'origine
 	Write replies and forwards in a window of their own	Rédiger les réponses et transferts dans une fenêtre à part
 	Show Favorites at the top of the folder pane	Afficher les favoris en haut du volet Dossiers
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Messages encore en cours d'envoi : {n}. Ils risquent de ne pas partir si MailCraft se ferme maintenant : patientez un instant, ou fermez quand même.

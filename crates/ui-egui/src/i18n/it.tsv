@@ -1258,3 +1258,4 @@ month	May	maggio
 	Original size	Dimensioni originali
 	Write replies and forwards in a window of their own	Scrivi risposte e inoltri in una finestra a sé
 	Show Favorites at the top of the folder pane	Mostra Preferiti in cima al riquadro delle cartelle
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Messaggi ancora in invio: {n}. Potrebbero non partire se MailCraft si chiude ora: attendi un momento o chiudi comunque.

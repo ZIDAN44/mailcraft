@@ -1259,3 +1259,4 @@ month	May	Mai
 	Original size	Originalgröße
 	Write replies and forwards in a window of their own	Antworten und Weiterleitungen in einem eigenen Fenster schreiben
 	Show Favorites at the top of the folder pane	Favoriten oben im Ordnerbereich zeigen
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Nachrichten, die noch gesendet werden: {n}. Sie gehen eventuell nicht hinaus, wenn MailCraft jetzt geschlossen wird: kurz warten oder trotzdem schließen.

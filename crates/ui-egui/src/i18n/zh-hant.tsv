@@ -1258,3 +1258,4 @@ month	May	5月
 	Original size	原始大小
 	Write replies and forwards in a window of their own	在獨立視窗中撰寫回覆和轉寄
 	Show Favorites at the top of the folder pane	在資料夾窗格頂端顯示我的最愛
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	仍在傳送的郵件：{n}。如果現在關閉 MailCraft，它們可能無法送出：請稍候，或仍然關閉。

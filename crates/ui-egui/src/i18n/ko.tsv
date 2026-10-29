@@ -1258,3 +1258,4 @@ month	May	5월
 	Original size	원래 크기
 	Write replies and forwards in a window of their own	회신과 전달을 별도 창에서 작성
 	Show Favorites at the top of the folder pane	폴더 창 맨 위에 즐겨찾기 표시
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	아직 보내는 중인 메시지: {n}. 지금 MailCraft를 닫으면 보내지지 않을 수 있습니다. 잠시 기다리거나 그래도 닫으세요.

@@ -1254,3 +1254,4 @@ month	May	مايو
 	Original size	الحجم الأصلي
 	Write replies and forwards in a window of their own	كتابة الردود وإعادة التوجيه في نافذة خاصة بها
 	Show Favorites at the top of the folder pane	إظهار المفضلة أعلى جزء المجلدات
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	رسائل لا تزال قيد الإرسال: {n}. قد لا تُرسل إذا أُغلق MailCraft الآن: انتظر قليلًا، أو أغلق على أي حال.

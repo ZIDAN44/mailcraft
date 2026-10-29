@@ -1255,3 +1255,4 @@ month	May	5月
 	Original size	原始大小
 	Write replies and forwards in a window of their own	在单独的窗口中撰写回复和转发
 	Show Favorites at the top of the folder pane	在文件夹窗格顶部显示收藏夹
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	仍在发送的邮件：{n}。如果现在关闭 MailCraft，它们可能无法发出：请稍候，或仍然关闭。

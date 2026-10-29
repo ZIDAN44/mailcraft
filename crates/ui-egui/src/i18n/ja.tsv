@@ -1255,3 +1255,4 @@ month	May	5月
 	Original size	元のサイズ
 	Write replies and forwards in a window of their own	返信と転送を専用のウィンドウで書く
 	Show Favorites at the top of the folder pane	フォルダー ウィンドウの上部にお気に入りを表示
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	送信中のメッセージ: {n}。今 MailCraft を閉じると送信されない場合があります。少し待つか、そのまま閉じてください。

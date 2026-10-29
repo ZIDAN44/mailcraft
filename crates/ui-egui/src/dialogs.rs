@@ -43,10 +43,12 @@ pub enum Dialog {
     },
     /// Closing MailCraft with messages being written (how many): save them as drafts?
     SaveOnClose(usize),
-    /// Closing would lose what online-only accounts hold in memory only (issue #4).
+    /// Closing would lose what online-only accounts hold in memory only (issue #4), or messages
+    /// still on their way to the server (`sending`).
     LostOnClose {
         unsent: usize,
         changes: usize,
+        sending: usize,
     },
     /// Closing with an update about to be installed, or still downloading: what becomes of it.
     UpdateOnClose(crate::UpdateState),

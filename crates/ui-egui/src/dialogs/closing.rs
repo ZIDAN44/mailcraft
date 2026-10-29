@@ -6,9 +6,21 @@ use crate::UpdateState;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
-        Dialog::LostOnClose { unsent, changes } => {
+        Dialog::LostOnClose { unsent, changes, sending } => {
             ui.set_width(420.0);
             title(ui, t, "Close MailCraft?");
+            if *sending > 0 {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(tf!(
+                            "Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.",
+                            n = sending
+                        ))
+                        .color(t.dim),
+                    )
+                    .wrap(),
+                );
+            }
             let mut lost = Vec::new();
             if *unsent > 0 {
                 lost.push(tf!("Messages waiting to be sent: {n}", n = unsent));
@@ -16,16 +28,18 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             if *changes > 0 {
                 lost.push(tf!("Changes not yet on the server: {n}", n = changes));
             }
-            ui.add(
-                egui::Label::new(
-                    RichText::new(tf!(
-                        "These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.",
-                        what = lost.join("; ")
-                    ))
-                    .color(t.dim),
-                )
-                .wrap(),
-            );
+            if !lost.is_empty() {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(tf!(
+                            "These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.",
+                            what = lost.join("; ")
+                        ))
+                        .color(t.dim),
+                    )
+                    .wrap(),
+                );
+            }
             let (ok, cancel) = buttons(ui, t, "Close anyway", true);
             if ok {
                 acts.push(Action::CloseAnyway);

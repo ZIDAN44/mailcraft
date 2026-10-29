@@ -1254,3 +1254,4 @@ month	May	מאי
 	Original size	גודל מקורי
 	Write replies and forwards in a window of their own	כתיבת תשובות והעברות בחלון משלהן
 	Show Favorites at the top of the folder pane	הצגת מועדפים בראש חלונית התיקיות
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	הודעות שעדיין נשלחות: {n}. ייתכן שלא יישלחו אם MailCraft ייסגר עכשיו: המתן רגע, או סגור בכל זאת.

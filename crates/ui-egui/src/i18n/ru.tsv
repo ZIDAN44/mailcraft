@@ -1258,3 +1258,4 @@ month	May	Май
 	Original size	Исходный размер
 	Write replies and forwards in a window of their own	Писать ответы и пересылки в отдельном окне
 	Show Favorites at the top of the folder pane	Показывать «Избранное» вверху области папок
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Сообщения, которые ещё отправляются: {n}. Они могут не уйти, если закрыть MailCraft сейчас: подождите немного или всё равно закройте.

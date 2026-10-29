@@ -270,6 +270,33 @@ fn closing_with_messages_written_asks_and_keeps_them() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Closing while a message is still being sent asks first: it isn't in the Outbox yet, and was
+/// lost (found testing issue #19).
+#[test]
+fn closing_while_a_message_is_sent_asks() {
+    let (mut a, dir) = app("close-while-sending");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "On its way"}));
+    if let Some(c) = a.session.compose.as_mut() {
+        c.sending = true;
+    }
+    let close = RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
+            .collect(),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(close, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    assert!(matches!(a.ui.dialog, Some(Dialog::LostOnClose { sending: 1, unsent: 0, changes: 0 })), "{:?}", a.ui.dialog);
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Closed from the taskbar while minimized, when eframe runs `logic` alone and no `ui`: the close
 /// still waits for the question, and the window comes back to ask it (craft-libs' quit crate:
 /// eframe closed the window, and the messages being written were lost).

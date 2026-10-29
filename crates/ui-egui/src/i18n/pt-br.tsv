@@ -1259,3 +1259,4 @@ month	May	maio
 	Original size	Tamanho original
 	Write replies and forwards in a window of their own	Escrever respostas e encaminhamentos em uma janela própria
 	Show Favorites at the top of the folder pane	Mostrar Favoritos no topo do painel de pastas
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Mensagens ainda sendo enviadas: {n}. Elas podem não sair se o MailCraft fechar agora: aguarde um momento ou feche mesmo assim.

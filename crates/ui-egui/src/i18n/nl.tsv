@@ -1254,3 +1254,4 @@ month	May	mei
 	Original size	Oorspronkelijke grootte
 	Write replies and forwards in a window of their own	Antwoorden en doorgestuurde berichten in een eigen venster schrijven
 	Show Favorites at the top of the folder pane	Favorieten bovenaan het mappenvenster tonen
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Berichten die nog worden verzonden: {n}. Ze gaan misschien niet weg als MailCraft nu sluit: wacht even, of sluit toch.

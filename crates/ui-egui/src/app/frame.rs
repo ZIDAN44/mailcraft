@@ -48,14 +48,16 @@ impl MailApp {
             // Messages being written: kept as drafts if wanted, as Outlook asks; never lost.
             let written = self.session.all_composes().filter(|c| self.session.written(c) && !c.sending).count();
             let (unsent, changes) = self.session.lost_on_close();
+            // Messages still on their way: not in the Outbox yet, so closing now would lose them.
+            let sending = self.session.all_composes().filter(|c| c.sending).count();
             let asked = if self.ui.closing_anyway {
                 false
             } else if written > 0 {
                 self.ui.dialog = Some(Dialog::SaveOnClose(written));
                 self.ui.dialog_for = None;
                 true
-            } else if unsent + changes > 0 {
-                self.ui.dialog = Some(Dialog::LostOnClose { unsent, changes });
+            } else if unsent + changes + sending > 0 {
+                self.ui.dialog = Some(Dialog::LostOnClose { unsent, changes, sending });
                 true
             } else if self.ask_about_update() {
                 // An update about to be installed, or still downloading: said first.

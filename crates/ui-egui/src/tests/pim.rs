@@ -181,7 +181,7 @@ fn invitations_read_and_the_new_footers_draw() {
     frame(&ctx, &mut a, vec![]);
     a.session.server_search = Some(mailcraft_engine::ServerSearch { query: "zzz-nothing".into(), pending: 1, ..Default::default() });
     frame(&ctx, &mut a, vec![]);
-    a.ui.dialog = Some(Dialog::LostOnClose { unsent: 2, changes: 1 });
+    a.ui.dialog = Some(Dialog::LostOnClose { unsent: 2, changes: 1, sending: 1 });
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
