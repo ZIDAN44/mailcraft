@@ -325,12 +325,17 @@ impl FolderRole {
 
     /// The role a folder name suggests, for servers without special-use attributes: the English
     /// names, and the ones mail servers and programs give them in other languages (the name as
-    /// the server writes it, modified UTF-7, or as read).
+    /// the server writes it, modified UTF-7, or as read). Only at the top or right in the Inbox
+    /// (`INBOX.Sent`, as cPanel has it): one further down is the user's own (`Clients/Sent`,
+    /// issue #19: one such took Sent Items, and sent mail's copies went in it).
     pub fn from_name(path: &str, delimiter: Option<char>) -> FolderRole {
         if path.eq_ignore_ascii_case("INBOX") {
             return FolderRole::Inbox;
         }
-        let leaf = delimiter.and_then(|d| path.rsplit(d).next()).unwrap_or(path);
+        let (parent, leaf) = delimiter.and_then(|d| path.rsplit_once(d)).unwrap_or(("", path));
+        if !parent.is_empty() && !parent.eq_ignore_ascii_case("INBOX") {
+            return FolderRole::Other;
+        }
         let leaf = utf7::decode(leaf).to_lowercase();
         if SENT_NAMES.split('|').any(|n| n == leaf) {
             return FolderRole::Sent;
@@ -899,6 +904,10 @@ mod tests {
         assert_eq!(FolderRole::from_name("&BB4EQgQ,BEAEMAQyBDsENQQ9BD0ESwQ1-", Some('/')), FolderRole::Sent);
         assert_eq!(FolderRole::from_name("Elementos enviados", None), FolderRole::Sent);
         assert_eq!(FolderRole::from_name("Gesendet/Alt", Some('/')), FolderRole::Other, "a folder inside it is just a folder");
+        // Further down, a folder of the user's own (issue #19).
+        assert_eq!(FolderRole::from_name("INBOX.Clients.Sent", Some('.')), FolderRole::Other);
+        assert_eq!(FolderRole::from_name("Clients/Sent", Some('/')), FolderRole::Other);
+        assert_eq!(FolderRole::from_name("INBOX/Drafts", Some('/')), FolderRole::Drafts);
         assert_eq!(FolderRole::from_name("Deleted Items", None), FolderRole::Trash);
         assert_eq!(FolderRole::from_name("Projects", Some('/')), FolderRole::Other);
         assert_eq!(FolderRole::from_attribute("\\Junk"), Some(FolderRole::Junk));

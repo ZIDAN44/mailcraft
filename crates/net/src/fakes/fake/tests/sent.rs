@@ -108,3 +108,29 @@ fn a_sent_folder_in_another_language_takes_the_copy() {
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Listed ahead of the server's flagged Sent (Dovecot lists cPanel's `INBOX.Sent` last): another
+/// program's `Sent Items`, and a `Sent` of the user's own further down. The flagged one takes the
+/// copy; the copies went in the first of those, where nobody looks.
+#[test]
+fn the_flagged_sent_folder_takes_the_copy_wherever_it_is_listed() {
+    let st = State::new();
+    {
+        let mut s = st.lock().unwrap();
+        for (at, name) in (1..).zip(["Clients", "Clients/Sent", "Sent Items"]) {
+            let b = Mailbox { name: name.into(), attr: "", validity: 500 + at, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() };
+            s.boxes.insert(at as usize, b);
+        }
+    }
+    let (mut pool, store, _log) = online(&st, "sent-flagged");
+    let roles = store.load_folders("a1").unwrap_or_default();
+    let sent: Vec<&str> = roles.iter().filter(|f| f.role == FolderRole::Sent).map(|f| f.path.as_str()).collect();
+    assert_eq!(sent, ["Sent"]);
+    send(&mut pool);
+    copy_in(&st, "Sent");
+    for other in ["Clients/Sent", "Sent Items"] {
+        assert!(st.lock().unwrap().mailbox(other).is_some_and(|b| b.msgs.is_empty()), "{other} got it");
+    }
+    pool.submit(Job::Remove { account: "a1".into() });
+    let _ = std::fs::remove_dir_all(store.root());
+}

@@ -363,6 +363,8 @@ impl<S: Read + Write> Client<S> {
         let cmd = if self.has("SPECIAL-USE") && self.has("LIST-EXTENDED") { "LIST \"\" \"*\" RETURN (SPECIAL-USE)" } else { "LIST \"\" \"*\"" };
         let rs = self.cmd(&[Part::Text(cmd)])?;
         let mut out: Vec<Folder> = Vec::new();
+        // Which roles the server gave (RFC 6154), not guessed from a name.
+        let mut flagged = HashSet::new();
         for r in rs {
             let Response::MailboxData(MailboxDatum::List(l)) = r else { continue };
             let delimiter = l.delimiter.as_deref().and_then(|d| d.chars().next());
@@ -383,20 +385,17 @@ impl<S: Read + Write> Client<S> {
                     _ => {}
                 }
             }
-            let role =
-                if path.eq_ignore_ascii_case("INBOX") { FolderRole::Inbox } else { role.unwrap_or_else(|| FolderRole::from_name(&path, delimiter)) };
             if out.iter().any(|f| f.path == path) {
                 continue;
             }
+            if role.is_some() && !path.eq_ignore_ascii_case("INBOX") {
+                flagged.insert(path.clone());
+            }
+            let role =
+                if path.eq_ignore_ascii_case("INBOX") { FolderRole::Inbox } else { role.unwrap_or_else(|| FolderRole::from_name(&path, delimiter)) };
             out.push(Folder { account: account.to_string(), path, delimiter, role, selectable, ..Default::default() });
         }
-        // One folder per special role: the first wins, later ones become ordinary folders.
-        let mut seen = HashSet::new();
-        for f in &mut out {
-            if f.role != FolderRole::Other && !seen.insert(f.role) {
-                f.role = FolderRole::Other;
-            }
-        }
+        one_per_role(&mut out, &flagged);
         Ok(out)
     }
 
@@ -828,6 +827,24 @@ pub fn base64(data: &[u8]) -> String {
         }
     }
     out
+}
+
+/// One folder per special role, the rest ordinary folders: the one the server flags for it, else
+/// one that can be opened, else the first listed. Servers don't list it first (Dovecot lists cPanel's
+/// flagged `INBOX.Sent` after `INBOX.Sent Items` made by another program: issue #19, where sent
+/// mail's copies went in the one nobody looks at).
+fn one_per_role(folders: &mut [Folder], flagged: &HashSet<String>) {
+    let mut order: Vec<usize> = (0..folders.len()).collect();
+    order.sort_by_key(|&i| folders.get(i).map(|f| (!flagged.contains(&f.path), !f.selectable)));
+    let mut seen = HashSet::new();
+    for i in order {
+        if let Some(f) = folders.get_mut(i)
+            && f.role != FolderRole::Other
+            && !seen.insert(f.role)
+        {
+            f.role = FolderRole::Other;
+        }
+    }
 }
 
 #[cfg(test)]
