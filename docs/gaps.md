@@ -1207,3 +1207,24 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   where RFC 2392 asks for a unique one: each message gives them its own (#16).
 
 ### v0.30 — Sent where the server keeps it, mail in its column, files pasted from any file manager
+- **The Sent folder the server names (issue #19, again):** at a cPanel host the copy of sent mail
+  went in another folder: the first one in the list with a Sent role took Sent Items, and Dovecot
+  lists the server's own `INBOX.Sent` (flagged `\Sent`, RFC 6154) after folders other programs
+  made (`INBOX.Sent Items`) or a `Sent` of the user's own further down (`INBOX.Clients.Sent`).
+  The flagged folder wins now, then one that can be opened, then the first listed; a name says
+  Sent Items only at the top or right in the Inbox. An account already set up moves over at its
+  next sync, and the log says where each copy went. Tried with Dovecot laid out as cPanel's.
+- **Mail in its column (issue #10, again):** a message set in one centred column of a set width
+  (a 600-pixel table, or `max-width: 600px; margin: 0 auto`) was stretched across the window: a
+  layout was kept only for columns side by side. A box or table of a set width keeps it now,
+  centred where the message centres it (a cell that centres it too, as browsers do), and
+  `max-width` holds a `width: 100%`.
+- **Files pasted from any file manager (issue #10, again):** Ctrl+V attached files only when the
+  file manager put their names on the clipboard as text too: egui-winit takes Ctrl+V and reads
+  only text or a picture, so files copied in PCManFM (LXDE's) or Explorer reached nothing but the
+  right-click Paste. The clipboard keys are MailCraft's now, on every window (a viewport hook;
+  not in a native Wayland window), and Ctrl+V in a message's text looks for files first; PCManFM's
+  file list ends with a NUL byte, which hid its last file. Tried on Debian 12 under X11 with GNOME
+  Files, Nemo, Caja, Thunar, Dolphin and PCManFM, dragging too, and on Windows; text paste, copy
+  and cut checked against v0.29. The Flatpak still can't attach a file dropped or pasted from
+  outside Downloads: it isn't given the home folder.

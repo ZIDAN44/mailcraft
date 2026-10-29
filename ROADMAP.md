@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 214 (`mailcraft-cli commands`) |
-| Tests | 698 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 700 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -541,3 +541,9 @@ local-first, media-aware v1); the fuller request is
   `FolderRole::from_name`), tried with GreenMail and Dovecot set out as cPanel's. Issue #20's
   invitations on arrival (`session/invite.rs`, `take_invitation`; `calendar.tentativeInvites`),
   tried with GreenMail and Radicale.
+- **2026-10-30** — **v0.30**, after `v0.29.0-test.27`: issue #19 at a cPanel host (one Sent Items per
+  account, the server's flag first: `protocols/imap.rs`, `one_per_role`; names further down aren't
+  roles), issue #10's centred columns (`mime/src/layout`, a box or table of a set width) and
+  Ctrl+V of files (`ui-egui/src/app/dropped.rs`, `clipboard_keys`, run by a viewport hook in the
+  app with eframe's clipboard shortcuts off). Tried with Dovecot as cPanel's, GreenMail, and on
+  Debian 12 under X11 with six file managers.
