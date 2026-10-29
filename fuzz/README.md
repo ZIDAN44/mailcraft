@@ -17,6 +17,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
 | `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files |
 | `pst` | an Outlook data file: a good exported file with the input as byte patches, or a whole file |
+| `tnef` | Outlook's `winmail.dat`: its files, body and attached messages, compressed RTF and the HTML or text in it, and as a message's attachment |
 
 ## Running
 

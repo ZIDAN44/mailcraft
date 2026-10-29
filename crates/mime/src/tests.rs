@@ -33,6 +33,9 @@ fn a_teams_invitations_join_link_survives_as_text() {
 
 use super::*;
 
+mod importance;
+mod report;
+
 /// Issue #11 (#16's test): a signature's pictures are written into the HTML kept with the account, and come
 /// back from it as pictures of its text, with its look; pictures from the web, kinds a signature
 /// can't hold, and broken ones don't.
