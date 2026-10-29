@@ -1172,11 +1172,27 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   and Evolution make one: `Sent`, or `INBOX.Sent` on a server that keeps every folder in the Inbox
   (cPanel, Courier); folders named Sent Items in other languages are known; and when no copy can
   be kept, it's said. Tried with GreenMail and with Dovecot laid out as cPanel's.
+- **Invitations on the calendar as they arrive (issue #20):** a meeting invitation by mail (iMIP)
+  reached the calendar only once it was answered, so its time showed free and could be booked
+  twice. It's on the calendar as tentative the moment it arrives, as Outlook's "process requests
+  on arrival" puts it, in the account's calendar and on its CalDAV server so other clients see it
+  too; nothing goes to the organizer until it's answered, and answering it keeps one copy. An
+  update from the organizer changes it (keeping the answer once there is one), a cancellation
+  takes out one never answered and marks an answered one cancelled; one already on the calendar
+  (the server put it there) isn't added twice, and deleting the invitation leaves the meeting.
+  Mail from anyone can bring a new invitation, so it only ever arrives tentative, nothing is
+  sent, and changes still have to come from the organizer (or be the very invitation already
+  there, as a calendar service sends one for the organizer). File › Options › Inbox and
+  notifications turns it off (`calendar.tentativeInvites`). Mail whose body isn't downloaded yet
+  (online-only accounts) is looked at once it is. Tried with GreenMail and Radicale (CalDAV) and an
+  invitation laid out as Outlook sends one.
 - **Found on the way, again:** closing MailCraft while a message was still on its way lost it
   (it isn't in the Outbox until the server refuses it): closing asks first. The command line's
   `send` stopped before the copy was filed (so it kept none), and could take another message's
   word for its own (one waiting in the Outbox, sent as the account connected) and stop before
-  its own went: it waits for its own, then for the copy.
+  its own went: it waits for its own, then for the copy. With the app open on the same data, the
+  command line showed every folder empty: it says the app has it open. `account.exportPst`'s
+  help still said a data file already there is replaced.
 - **Found on the way:** mail in Shift_JIS, GBK, Big5 and EUC-KR came out as `�` (mail-parser
   decodes those only with its `full_encoding` feature, now on); a reply or forward showed the
   pictures in the message it quotes as "[picture]" (they go with it now, as in Outlook; pictures on

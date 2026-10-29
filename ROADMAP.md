@@ -11,8 +11,8 @@ local-first, media-aware v1); the fuller request is
 | | |
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
-| Commands | 213 (`mailcraft-cli commands`) |
-| Tests | 693 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Commands | 214 (`mailcraft-cli commands`) |
+| Tests | 698 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -193,7 +193,8 @@ local-first, media-aware v1); the fuller request is
    again: every picture of a forwarded message goes with it (in the message, written into its
    HTML, or on the web by its address). From issue #19: sent mail gets its copy on servers with
    no Sent folder (one is made) or with one named in another language; closing while a message
-   is still being sent asks first. Also the search box's text centred, and the message
+   is still being sent asks first. From issue #20: meeting invitations are on the calendar as
+   tentative as they arrive, before they're answered (on the CalDAV server too). Also the search box's text centred, and the message
    being read kept in the list under the Unread filter. With Remo Laubacher's pull requests
    #12–#16, which the fixes above build on.
 30. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
@@ -533,4 +534,6 @@ local-first, media-aware v1); the fuller request is
   Outlook itself saved, packed as its transport packs them, sent through GreenMail and read over
   IMAP by the CLI and the app. Issue #10's forwarded pictures (`mime::quoted_pictures`) and
   issue #19's Sent folder (`worker/send.rs`, made where there's none; other languages' names in
-  `FolderRole::from_name`), tried with GreenMail and Dovecot set out as cPanel's.
+  `FolderRole::from_name`), tried with GreenMail and Dovecot set out as cPanel's. Issue #20's
+  invitations on arrival (`session/invite.rs`, `take_invitation`; `calendar.tentativeInvites`),
+  tried with GreenMail and Radicale.
