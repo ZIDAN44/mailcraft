@@ -35,7 +35,8 @@ chrono = { version = "0.4", default-features = false }
 chrono-tz = { version = "0.10", default-features = false }
 
 # mail (all MIT and/or Apache-2.0)
-mail-parser = "0.11"
+# `full_encoding`: mail in Shift_JIS, GBK, Big5 and EUC-KR (without it those came out as U+FFFD).
+mail-parser = { version = "0.11", features = ["full_encoding"] }
 mail-builder = { version = "1", default-features = false }
 html2text = { version = "0.17", features = ["css"] }
 imap-proto = "0.17"

@@ -579,3 +579,19 @@ fn local_pictures_are_written_into_copied_html() {
     assert_eq!(local_pictures("<p>no pictures</p>", read), "<p>no pictures</p>");
     assert_eq!(local_pictures("<img src=\"file:", read), "<img src=\"file:");
 }
+
+/// Mail in the East Asian code pages reads as text: Shift_JIS, GBK, Big5 and EUC-KR came out as
+/// U+FFFD (found testing `winmail.dat`, issue #18, whose strings can be in them too).
+#[test]
+fn east_asian_mail_reads() {
+    let raw = b"From: a@b.example\r\nSubject: =?shift_jis?B?gqA=?=\r\nContent-Type: text/plain; charset=shift_jis\r\n\r\n\x82\xa0\x82\xa2\r\n";
+    let p = parse(raw).unwrap();
+    assert_eq!((p.subject.as_str(), p.text.trim()), ("あ", "あい"));
+    for (charset, bytes, text) in
+        [("gbk", &b"\xc4\xe3\xba\xc3"[..], "你好"), ("big5", &b"\xa7\x41\xa6\x6e"[..], "你好"), ("euc-kr", &b"\xbe\xc8\xb3\xe7"[..], "안녕")]
+    {
+        let mut raw = format!("From: a@b.example\r\nSubject: x\r\nContent-Type: text/plain; charset={charset}\r\n\r\n").into_bytes();
+        raw.extend(bytes);
+        assert_eq!(parse(&raw).map(|p| p.text.trim().to_string()).as_deref(), Some(text), "{charset}");
+    }
+}
