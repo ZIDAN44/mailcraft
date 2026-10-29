@@ -1159,6 +1159,24 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   folders of the same names, messages it already has (by `Message-ID`) aren't written twice, and
   the file is written as a copy that takes its place only once it's done. A file that isn't a data
   file, or is in Outlook's older format, which the writer can't add to, is left alone and said so.
+- **Pictures in replies and forwards (issue #10):** a forwarded or answered message's pictures
+  came out as "[picture]". Every one now goes with it, as in Outlook: those sent in the message
+  (by `cid:`, by `Content-Location` or name) and those written into its HTML (`data:`) are sent
+  inside the reply; one on the web keeps its address (never loaded here: the message being
+  written shows its place); tracking pictures are left out. A picture sent inline beside plain
+  text, which the quote can't show, goes with a forward as a file.
+- **Sent mail on the server (issue #19):** an IMAP server with no Sent folder (GreenMail, a new
+  account on many hosts) got no copy of sent mail, and nothing said so; nor did one whose Sent
+  folder has another language's name (`Gesendet`, `Envoyés`, `Elementos enviados`…) without
+  the server marking it. A Sent folder is made the first time something is sent, as Thunderbird
+  and Evolution make one: `Sent`, or `INBOX.Sent` on a server that keeps every folder in the Inbox
+  (cPanel, Courier); folders named Sent Items in other languages are known; and when no copy can
+  be kept, it's said. Tried with GreenMail and with Dovecot laid out as cPanel's.
+- **Found on the way, again:** closing MailCraft while a message was still on its way lost it
+  (it isn't in the Outbox until the server refuses it): closing asks first. The command line's
+  `send` stopped before the copy was filed (so it kept none), and could take another message's
+  word for its own (one waiting in the Outbox, sent as the account connected) and stop before
+  its own went: it waits for its own, then for the copy.
 - **Found on the way:** mail in Shift_JIS, GBK, Big5 and EUC-KR came out as `�` (mail-parser
   decodes those only with its `full_encoding` feature, now on); a reply or forward showed the
   pictures in the message it quotes as "[picture]" (they go with it now, as in Outlook; pictures on
