@@ -1226,5 +1226,6 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   not in a native Wayland window), and Ctrl+V in a message's text looks for files first; PCManFM's
   file list ends with a NUL byte, which hid its last file. Tried on Debian 12 under X11 with GNOME
   Files, Nemo, Caja, Thunar, Dolphin and PCManFM, dragging too, and on Windows; text paste, copy
-  and cut checked against v0.29. The Flatpak still can't attach a file dropped or pasted from
-  outside Downloads: it isn't given the home folder.
+  and cut checked against v0.29. The Flatpak couldn't attach a file dropped or pasted from
+  outside Downloads (the paths a file manager hands over weren't there in its sandbox): it reads
+  the home folder now (`--filesystem=home:ro`), still writing nowhere but Downloads.

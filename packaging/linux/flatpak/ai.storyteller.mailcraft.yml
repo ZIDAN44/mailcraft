@@ -33,8 +33,12 @@ finish-args:
   # the OpenURI portal, so picked files work anywhere without broad filesystem access.
   # Downloads is granted so saved attachments land in the usual place.
   - --filesystem=xdg-download
-  # Deliberately not granted: home/host filesystem access and sound. The mail cache lives in the
-  # sandbox's own data folder (~/.var/app/ai.storyteller.mailcraft/data/mailcraft).
+  # Files dragged onto a message or pasted into it come as paths from the file manager (X11's
+  # drag and drop and clipboard carry no portal handle): the home folder is readable so they can
+  # be attached (issue #10). Read-only: nothing is written outside the sandbox but Downloads.
+  - --filesystem=home:ro
+  # Deliberately not granted: writing outside Downloads, the host filesystem, and sound. The mail
+  # cache lives in the sandbox's own data folder (~/.var/app/ai.storyteller.mailcraft/data/mailcraft).
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
 modules:
