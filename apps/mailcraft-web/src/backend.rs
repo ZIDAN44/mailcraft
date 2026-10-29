@@ -683,6 +683,7 @@ impl Backend for WebBackend {
                     account,
                     messages: 0,
                     skipped: 0,
+                    already: 0,
                     done: true,
                     error: Some("writing Outlook data files needs the desktop app".into()),
                 },

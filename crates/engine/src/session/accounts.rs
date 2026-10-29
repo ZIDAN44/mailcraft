@@ -104,13 +104,23 @@ impl Session {
         Ok(serde_json::json!({ "account": account, "exporting": true }))
     }
 
-    pub(super) fn exported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {
+    /// How an export is going; `left`: messages not on this computer, and ones the data file
+    /// already had.
+    pub(super) fn exported(&mut self, account: &str, messages: usize, left: (usize, usize), done: bool, error: Option<String>) {
+        let (skipped, already) = left;
         let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
         match (done, error) {
             (false, _) => self.notice(format!("{name}: {messages} messages exported so far…"), false),
             (true, Some(e)) => self.notice(format!("{name} could not be exported: {e}"), true),
             (true, None) => {
-                let more = if skipped > 0 { format!(" ({skipped} not on this computer were left out)") } else { String::new() };
+                let mut more = Vec::new();
+                if skipped > 0 {
+                    more.push(format!("{skipped} not on this computer were left out"));
+                }
+                if already > 0 {
+                    more.push(format!("{already} the data file already had"));
+                }
+                let more = if more.is_empty() { String::new() } else { format!(" ({})", more.join("; ")) };
                 self.notice(format!("{name}: {messages} messages exported{more}"), false);
             }
         }

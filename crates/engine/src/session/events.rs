@@ -112,7 +112,9 @@ impl Session {
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
             Event::Imported { account, messages, skipped, done, error } => self.imported(&account, messages, skipped, done, error),
-            Event::Exported { account, messages, skipped, done, error } => self.exported(&account, messages, skipped, done, error),
+            Event::Exported { account, messages, skipped, already, done, error } => {
+                self.exported(&account, messages, (skipped, already), done, error)
+            }
             Event::Quota { account, used, limit } => {
                 if let Some(a) = self.account_mut(&account) {
                     a.quota = Some((used, limit));

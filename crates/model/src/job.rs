@@ -487,6 +487,9 @@ pub enum Event {
         account: String,
         messages: usize,
         skipped: usize,
+        /// Messages a data file already had, not written again (issue #18).
+        #[serde(default)]
+        already: usize,
         done: bool,
         error: Option<String>,
     },
