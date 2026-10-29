@@ -25,7 +25,7 @@ fn picture(a: &MailApp) -> (Option<u16>, egui::Rect) {
 /// undo takes that back; its menu sets it to half its own size.
 #[test]
 fn pictures_show_at_their_size_and_resize() {
-    let (mut a, dir) = app("picture-size");
+    let (mut a, dir) = app("picture-size-shown");
     let ctx = egui::Context::default();
     a.session.prefs.new_mail_window = false;
     // The message as wide as the window.
@@ -102,7 +102,7 @@ impl crate::Services for Clip {
 /// signature keeps its picture, and a new message has it.
 #[test]
 fn a_picture_goes_into_the_signature() {
-    let (mut a, dir) = app("signature-picture");
+    let (mut a, dir) = app("signature-picture-pasted");
     let ctx = egui::Context::default();
     a.services = Box::new(Clip(mailcraft_engine::sample::sample_png()));
     a.session.prefs.new_mail_window = false;
