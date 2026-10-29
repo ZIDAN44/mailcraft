@@ -302,6 +302,14 @@ pub enum FolderRole {
     Other,
 }
 
+/// What Sent Items is called in other languages by mail servers and programs, lower case and
+/// `|` between (issue #19: a Sent folder by one of these names wasn't known for one).
+const SENT_NAMES: &str = "gesendet|gesendete elemente|gesendete objekte|gesendete nachrichten|envoyés|éléments envoyés|messages envoyés|\
+     enviados|elementos enviados|mensajes enviados|itens enviados|mensagens enviadas|inviati|posta inviata|\
+     elementi inviati|verzonden|verzonden items|verzonden berichten|skickat|skickade objekt|sendt|sendte elementer|\
+     lähetetyt|wysłane|elementy wysłane|odeslané|odeslaná pošta|elküldött|elküldött elemek|gönderilmiş öğeler|\
+     gönderilenler|отправленные|надіслані|送信済み|送信済みアイテム|已发送|已发送邮件|寄件備份|보낸 편지함|보낸편지함|المرسلة|פריטים שנשלחו";
+
 impl FolderRole {
     /// The role an RFC 6154 attribute (`\Sent`) names.
     pub fn from_attribute(attr: &str) -> Option<FolderRole> {
@@ -315,12 +323,18 @@ impl FolderRole {
         }
     }
 
-    /// The role a folder name suggests, for servers without special-use attributes.
+    /// The role a folder name suggests, for servers without special-use attributes: the English
+    /// names, and the ones mail servers and programs give them in other languages (the name as
+    /// the server writes it, modified UTF-7, or as read).
     pub fn from_name(path: &str, delimiter: Option<char>) -> FolderRole {
         if path.eq_ignore_ascii_case("INBOX") {
             return FolderRole::Inbox;
         }
-        let leaf = delimiter.and_then(|d| path.rsplit(d).next()).unwrap_or(path).to_ascii_lowercase();
+        let leaf = delimiter.and_then(|d| path.rsplit(d).next()).unwrap_or(path);
+        let leaf = utf7::decode(leaf).to_lowercase();
+        if SENT_NAMES.split('|').any(|n| n == leaf) {
+            return FolderRole::Sent;
+        }
         match leaf.as_str() {
             "sent" | "sent items" | "sent mail" | "sent messages" => FolderRole::Sent,
             "drafts" | "draft" => FolderRole::Drafts,
@@ -878,6 +892,13 @@ mod tests {
     fn folder_roles_from_names_and_attributes() {
         assert_eq!(FolderRole::from_name("INBOX", Some('/')), FolderRole::Inbox);
         assert_eq!(FolderRole::from_name("INBOX.Sent", Some('.')), FolderRole::Sent);
+        // In other languages (issue #19), as the server writes them (modified UTF-7) or as read.
+        assert_eq!(FolderRole::from_name("INBOX.Gesendet", Some('.')), FolderRole::Sent);
+        assert_eq!(FolderRole::from_name("Gesendete Elemente", None), FolderRole::Sent);
+        assert_eq!(FolderRole::from_name("Envoy&AOk-s", Some('/')), FolderRole::Sent);
+        assert_eq!(FolderRole::from_name("&BB4EQgQ,BEAEMAQyBDsENQQ9BD0ESwQ1-", Some('/')), FolderRole::Sent);
+        assert_eq!(FolderRole::from_name("Elementos enviados", None), FolderRole::Sent);
+        assert_eq!(FolderRole::from_name("Gesendet/Alt", Some('/')), FolderRole::Other, "a folder inside it is just a folder");
         assert_eq!(FolderRole::from_name("Deleted Items", None), FolderRole::Trash);
         assert_eq!(FolderRole::from_name("Projects", Some('/')), FolderRole::Other);
         assert_eq!(FolderRole::from_attribute("\\Junk"), Some(FolderRole::Junk));

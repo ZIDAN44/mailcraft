@@ -503,6 +503,7 @@ y"
 mod hostile;
 mod idle;
 mod searching;
+mod sent;
 
 /// Issue #4: an account kept online only syncs its folders and opens its mail as any other,
 /// but none of it reaches the disk: no data file, nothing downloaded ahead of reading, and

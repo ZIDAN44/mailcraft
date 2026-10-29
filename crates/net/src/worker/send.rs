@@ -2,6 +2,14 @@
 
 use super::*;
 
+/// Said when a sent message's copy has nowhere to go.
+const NO_SENT: &str = "sent, but no copy was saved: the server has no Sent Items folder, and one couldn't be made";
+
+/// Whether a folder's name says Sent Items.
+fn sent_name(path: &str, delimiter: Option<char>) -> bool {
+    FolderRole::from_name(path, delimiter) == FolderRole::Sent
+}
+
 impl Worker {
     /// The account's second connection: sends mail and reads or changes the automatic replies,
     /// whatever the main connection is doing. It connects when there's something to do, and lets
@@ -70,28 +78,113 @@ impl Worker {
         }
     }
 
+    /// Gmail files sent mail itself.
+    fn files_itself(&self) -> bool {
+        self.acc.smtp.host.ends_with("gmail.com") || self.acc.smtp.host.ends_with("googlemail.com")
+    }
+
+    /// The folder a sent message's copy goes in: the one it was sent with, else the account's
+    /// Sent Items. An IMAP account with none gets one, as Thunderbird, Evolution and Outlook make
+    /// one (issue #19: sent mail was kept nowhere, and nothing said so): `Sent`, or `INBOX.Sent`
+    /// on a server that keeps every folder in the Inbox. Connects to make it.
+    pub(super) fn sent_folder(&mut self, given: Option<String>) -> Result<Option<String>> {
+        if let Some(f) = given.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone())) {
+            return Ok(Some(f));
+        }
+        if self.acc.is_api() || self.files_itself() {
+            return Ok(None);
+        }
+        if self.conn.is_none() {
+            self.connect()?;
+        }
+        if !matches!(self.conn, Some(Conn::Imap(_))) {
+            return Ok(None);
+        }
+        // A folder there by the name, without the role (another client's, unflagged): that one.
+        if let Some(f) = self.folders.iter_mut().find(|f| f.role == FolderRole::Other && sent_name(&f.path, f.delimiter)) {
+            f.role = FolderRole::Sent;
+            let path = f.path.clone();
+            self.publish_folders();
+            return Ok(Some(path));
+        }
+        let delimiter = self
+            .folders
+            .iter()
+            .find(|f| f.role == FolderRole::Inbox)
+            .and_then(|f| f.delimiter)
+            .or_else(|| self.folders.iter().find_map(|f| f.delimiter));
+        let others: Vec<&Folder> = self.folders.iter().filter(|f| !f.path.eq_ignore_ascii_case("INBOX")).collect();
+        let in_inbox = delimiter
+            .map(|d| format!("INBOX{d}"))
+            .filter(|p| !others.is_empty() && others.iter().all(|f| f.path.to_ascii_uppercase().starts_with(p.as_str())));
+        let mut names = Vec::new();
+        if let Some(p) = &in_inbox {
+            names.push(format!("{p}Sent"));
+        }
+        names.push("Sent".to_string());
+        if let (None, Some(d)) = (&in_inbox, delimiter) {
+            names.push(format!("INBOX{d}Sent"));
+        }
+        for name in names {
+            match self.client()?.create(&name) {
+                Ok(()) => {
+                    log::info!("{}: no Sent folder on the server; made {name}", self.acc.id);
+                    self.folders.retain(|f| f.path != name);
+                    self.folders.push(Folder {
+                        account: self.id(),
+                        path: name.clone(),
+                        delimiter,
+                        role: FolderRole::Sent,
+                        selectable: true,
+                        ..Default::default()
+                    });
+                    sort_folders(&mut self.folders);
+                    self.publish_folders();
+                    return Ok(Some(name));
+                }
+                // Not allowed there (a server that keeps folders in the Inbox): the next name.
+                Err(NetError::No(m)) => log::info!("{}: making {name}: {m}", self.acc.id),
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(None)
+    }
+
     /// A sent message's copy: Exchange, Graph and JMAP file it themselves; IMAP servers get one
     /// (not Gmail, which files its own). Then the main connection reads Sent Items, now and, where
     /// the server files it a moment later, again then.
     pub(super) fn file_sent_quick(&mut self, raw: &[u8], sent_folder: Option<String>) {
-        let folder = sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()));
-        let Some(folder) = folder else { return };
-        if !self.acc.is_api() {
-            let files_itself = self.acc.smtp.host.ends_with("gmail.com") || self.acc.smtp.host.ends_with("googlemail.com");
-            if !files_itself {
-                let r = (|| -> Result<()> {
-                    if self.conn.is_none() {
-                        self.connect()?;
-                    }
-                    self.client()?.append(&folder, "\\Seen", raw).map(|_| ())
-                })();
-                if let Err(e) = r {
+        // What the main connection has listed since this one started.
+        if let Ok(listed) = self.store.load_folders(&self.acc.id)
+            && !listed.is_empty()
+        {
+            self.folders = listed;
+        }
+        let folder = if self.acc.is_api() || self.files_itself() {
+            sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()))
+        } else {
+            let r = (|| -> Result<Option<String>> {
+                let Some(folder) = self.sent_folder(sent_folder)? else { return Ok(None) };
+                if self.conn.is_none() {
+                    self.connect()?;
+                }
+                self.client()?.append(&folder, "\\Seen", raw)?;
+                Ok(Some(folder))
+            })();
+            match r {
+                Ok(Some(f)) => Some(f),
+                Ok(None) => {
+                    self.notice(NO_SENT.to_string());
+                    None
+                }
+                Err(e) => {
                     self.conn = None;
                     self.notice(format!("sent, but no copy was saved in Sent Items: {e}"));
                     return;
                 }
             }
-        }
+        };
+        let Some(folder) = folder else { return };
         let Some(main) = self.main.clone() else { return };
         let job = Job::SyncFolder { account: self.id(), folder: folder.clone() };
         let _ = main.send(job.clone());
@@ -260,23 +353,27 @@ impl Worker {
             return;
         }
         // Gmail files sent mail itself; elsewhere keep a copy in Sent.
-        let files_itself = self.acc.smtp.host.ends_with("gmail.com") || self.acc.smtp.host.ends_with("googlemail.com");
-        if let Some(folder) = sent_folder.filter(|_| !files_itself) {
-            let r = (|| -> Result<()> {
-                if self.conn.is_none() {
-                    self.connect()?;
-                }
-                // POP: Sent Items is on this computer.
-                if let Some(Conn::Pop) = self.conn.as_ref() {
-                    let flags = mailcraft_model::Flags { seen: true, ..Default::default() };
-                    return crate::pop::file_locally(&self.store, &self.acc.id, &folder, raw, flags, now()).map(drop);
-                }
-                self.client()?.append(&folder, "\\Seen", raw).map(|_| ())
-            })();
-            match r {
-                Ok(()) => self.sync_one(&folder),
-                Err(e) => self.notice(format!("sent, but no copy was saved in Sent Items: {e}")),
+        if self.files_itself() {
+            return;
+        }
+        let r = (|| -> Result<Option<String>> {
+            if self.conn.is_none() {
+                self.connect()?;
             }
+            // POP: Sent Items is on this computer.
+            if let Some(Conn::Pop) = self.conn.as_ref() {
+                let folder = sent_folder.clone().unwrap_or_else(|| "Sent Items".into());
+                let flags = mailcraft_model::Flags { seen: true, ..Default::default() };
+                return crate::pop::file_locally(&self.store, &self.acc.id, &folder, raw, flags, now()).map(|_| Some(folder));
+            }
+            let Some(folder) = self.sent_folder(sent_folder.clone())? else { return Ok(None) };
+            self.client()?.append(&folder, "\\Seen", raw)?;
+            Ok(Some(folder))
+        })();
+        match r {
+            Ok(Some(folder)) => self.sync_one(&folder),
+            Ok(None) => self.notice(NO_SENT.to_string()),
+            Err(e) => self.notice(format!("sent, but no copy was saved in Sent Items: {e}")),
         }
     }
 }
