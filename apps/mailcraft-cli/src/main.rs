@@ -352,13 +352,37 @@ fn run() -> Result<(), String> {
                 return Ok(());
             }
             let mut pool = start(&mut s, &store, &account)?;
-            s.run("compose.send", &json!({"allowEmptySubject": true})).map_err(|e| e.to_string())?;
+            let sending = s.run("compose.send", &json!({"allowEmptySubject": true})).map_err(|e| e.to_string())?;
+            let me = sending["sending"].as_u64();
+            // This message's word only: one waiting in the Outbox goes out as the account connects,
+            // and its word ended the wait before this one was sent (issue #19's testing).
             drive(&mut s, &mut pool, Duration::from_secs(180), |e| match e {
-                Event::Sent { .. } => Some(Ok(())),
-                Event::SendFailed { error, .. } => Some(Err(error.clone())),
+                Event::Sent { id, .. } if Some(*id) == me => Some(Ok(())),
+                Event::SendFailed { id, error, .. } if Some(*id) == me => Some(Err(error.clone())),
+                // Kept in the Outbox to go later (it waited there unsaid until the time ran out).
+                Event::Queued { id, error, .. } if Some(*id) == me => Some(Err(format!("not sent yet, kept in the Outbox: {error}"))),
                 _ => None,
             })?;
             outln!("sent");
+            // The copy in Sent Items is filed after the message goes (issue #19: the CLI stopped
+            // before, and none was kept): wait for it, or for word it couldn't be.
+            let mut sent = s.account(&account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Sent)).map(|f| f.path.clone());
+            let filed = drive(&mut s, &mut pool, Duration::from_secs(60), |e| match e {
+                Event::Folders { folders, .. } => {
+                    if let Some(f) = folders.iter().find(|f| f.role == mailcraft_engine::model::FolderRole::Sent) {
+                        sent = Some(f.path.clone());
+                    }
+                    None
+                }
+                Event::FolderChanged { folder, .. } if sent.as_deref() == Some(folder.as_str()) => Some(Ok(())),
+                Event::Notice { message, .. } if message.contains("no copy was saved") => Some(Err(message.clone())),
+                _ => None,
+            });
+            match (filed, s.account(&account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Sent))) {
+                (Ok(()), Some(f)) => outln!("a copy is in {}", mailcraft_engine::model::utf7::decode(&f.path)),
+                (Ok(()), None) => {}
+                (Err(e), _) => errln!("note: {e}"),
+            }
         }
         "run" => {
             let id = args.positional(1).ok_or("run ID [JSON]")?;
