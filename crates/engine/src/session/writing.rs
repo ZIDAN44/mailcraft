@@ -200,12 +200,22 @@ impl Session {
         let (d, styles) = mime::reply_doc(&parsed, mode, &self.me(&account), &self.clock, &sig);
         let id = self.fresh_id();
         let mut attachments = Vec::new();
-        if mode == ReplyMode::Forward
-            && let Some(raw) = self.readable_raw(&r.key)
-        {
-            for a in parsed.attachments.iter().filter(|a| !a.inline) {
-                if let Some(data) = mime::attachment_data(&raw, a.index) {
-                    attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
+        let mut inline = Vec::new();
+        if let Some(raw) = self.readable_raw(&r.key) {
+            if mode == ReplyMode::Forward {
+                for a in parsed.attachments.iter().filter(|a| !a.inline) {
+                    if let Some(data) = mime::attachment_data(&raw, a.index) {
+                        attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
+                    }
+                }
+            }
+            // The pictures in the quoted message go with it (they showed as "[picture]").
+            let used = mime::rich::pictures(&d.body, &styles);
+            for a in parsed.attachments.iter().filter(|a| a.content_id.as_ref().is_some_and(|c| used.contains(c))) {
+                if let (Some(cid), Some(data)) = (&a.content_id, mime::attachment_data(&raw, a.index))
+                    && !inline.iter().any(|p: &mime::InlinePicture| &p.cid == cid)
+                {
+                    inline.push(mime::InlinePicture { cid: cid.clone(), name: a.name.clone(), mime: a.mime.clone(), data });
                 }
             }
         }
@@ -221,6 +231,7 @@ impl Session {
             in_reply_to: d.in_reply_to,
             references: d.references,
             attachments,
+            inline,
             mode: Some(mode),
             source: Some(r.key),
             // An answer to encrypted mail quotes it: encrypted too, and signed, when it can be.

@@ -101,7 +101,7 @@ impl Session {
             match cached {
                 Some(raw) => {
                     let (shown, security) = self.unwrap(key, &raw);
-                    w.parsed = mime::parse(&shown);
+                    w.parsed = self.parse_for_reading(key, &shown);
                     w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
                     w.warning = w.parsed.as_ref().and_then(|p| self.sender_warning(&p.from));
                     w.security = security;
@@ -119,6 +119,18 @@ impl Session {
         self.windows.retain(|w| &w.key != key);
     }
 
+    /// A message as it's read: one without a `Date` gets the time the server took it in, as the
+    /// list shows it (replies and forwards quoted it as sent on 1 January 1970).
+    fn parse_for_reading(&self, key: &MessageKey, raw: &[u8]) -> Option<mime::Parsed> {
+        let mut p = mime::parse(raw)?;
+        if p.date == 0
+            && let Some(m) = self.list.iter().find(|m| &m.key == key)
+        {
+            p.date = m.date;
+        }
+        Some(p)
+    }
+
     pub(super) fn show_body(&mut self, key: &MessageKey, raw: &[u8]) {
         // Signed or encrypted: what's inside is what's shown, the protection said beside it.
         let shown = self.reading.as_ref().is_some_and(|r| &r.key == key) || self.windows.iter().any(|w| &w.key == key && w.parsed.is_none());
@@ -126,17 +138,17 @@ impl Session {
         let raw = raw.as_slice();
         let mut windows = std::mem::take(&mut self.windows);
         for w in windows.iter_mut().filter(|w| &w.key == key && w.parsed.is_none()) {
-            w.parsed = mime::parse(raw);
+            w.parsed = self.parse_for_reading(key, raw);
             w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
             w.warning = w.parsed.as_ref().and_then(|p| self.sender_warning(&p.from));
             w.security = security.clone();
         }
         self.windows = windows;
         // Only the open message is laid out (bodies downloaded ahead aren't, each costing time).
-        if let Some(r) = self.reading.as_mut()
-            && &r.key == key
+        if self.reading.as_ref().is_some_and(|r| &r.key == key)
+            && let parsed = self.parse_for_reading(key, raw)
+            && let Some(r) = self.reading.as_mut()
         {
-            let parsed = mime::parse(raw);
             r.error = if parsed.is_none() { Some("this message could not be read".into()) } else { None };
             r.parsed = parsed;
             r.security = security;

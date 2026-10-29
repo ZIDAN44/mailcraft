@@ -483,9 +483,29 @@ pub fn from_rich(lines: &RichText) -> (String, Styles) {
         }
         styles.paras.push(Para::default());
         for sp in line {
-            let st = span_style(sp);
+            let mut st = span_style(sp);
+            // A picture in the message stays one (a reply or forward sends it on); one on the
+            // web stays a word, never loaded.
+            let cid = sp
+                .image
+                .as_deref()
+                .and_then(|s| s.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and_then(|_| s.get(4..)))
+                .filter(|c| !c.is_empty());
+            if let Some(cid) = cid {
+                st.picture = Some(cid.to_string());
+                st.picture_width = match sp.image_size.as_ref().and_then(|s| s.width) {
+                    Some(crate::layout::Width::Px(w)) => u16::try_from(w).ok(),
+                    _ => None,
+                };
+            }
             let id = styles.intern(st);
-            let t = if sp.image.is_some() && sp.text.trim().is_empty() { "[picture]".to_string() } else { sp.text.replace(['\n', PICTURE], " ") };
+            let t = if cid.is_some() {
+                PICTURE.to_string()
+            } else if sp.image.is_some() && sp.text.trim().is_empty() {
+                "[picture]".to_string()
+            } else {
+                sp.text.replace(['\n', PICTURE], " ")
+            };
             for _ in t.chars() {
                 styles.chars.push(id);
             }

@@ -573,3 +573,43 @@ fn replies_can_open_in_a_window_of_their_own() {
     assert!(!s.prefs.show_favorites && s.prefs.reply_window);
     done(s);
 }
+
+/// A reply or forward keeps the pictures in the message it quotes (they came out as
+/// "[picture]"), and quotes a message without a `Date` as sent when the server took it in (not
+/// on 1 January 1970). Found testing Outlook's `winmail.dat` (issue #18).
+#[test]
+fn replies_keep_the_quoted_pictures_and_date() {
+    let mut s = sample_session("quoted-pictures");
+    let raw = b"From: Sam Okafor <sam@studio.example>\r\nTo: riley@studio.example\r\nSubject: Logo\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/related; boundary=\"R\"\r\n\r\n--R\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Here is the <b>logo</b>:</p><p><img src=\"cid:logo@studio.example\" width=\"40\"></p><p><img src=\"https://tracker.example/p.gif\"></p>\r\n\
+--R\r\nContent-Type: image/png\r\nContent-ID: <logo@studio.example>\r\nContent-Disposition: inline; filename=\"logo.png\"\r\n\r\nPNGDATA\r\n--R--\r\n";
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9300 };
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, raw).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    assert_eq!(s.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.date), Some(NOW - 3600));
+    for cmd in ["mail.reply", "mail.forward"] {
+        s.run(cmd, &json!({})).unwrap();
+        let c = s.compose.clone().unwrap();
+        assert!(c.attachments.is_empty(), "{cmd}: the picture isn't attached as a file");
+        assert_eq!(
+            c.inline.iter().map(|p| (p.cid.as_str(), p.data.as_slice())).collect::<Vec<_>>(),
+            [("logo@studio.example", &b"PNGDATA"[..])],
+            "{cmd}"
+        );
+        let (text, html, pictures) = c.bodies();
+        let html = html.unwrap_or_default();
+        assert!(html.contains("<img src=\"cid:logo@studio.example\" width=\"40\""), "{cmd}: {html}");
+        assert!(!html.contains("tracker.example") && text.contains("[picture]"), "{cmd}: a picture on the web stays a word");
+        assert_eq!(pictures.len(), 1);
+        assert!(!text.contains("1970"), "{cmd}: {text}");
+        s.run("compose.discard", &json!({})).unwrap();
+    }
+    done(s);
+}
