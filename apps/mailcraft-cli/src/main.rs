@@ -199,6 +199,17 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
     let mut s = Session::open(Some(store.clone()), clock());
+    // An account's data file the app has open can't be read here: say so, where its folders came
+    // out empty (found testing issue #20).
+    for a in &s.accounts {
+        if let Err(e) = store.load_folders(&a.config.id)
+            && e.to_string().contains("another copy of MailCraft")
+        {
+            // The data file's own words, without the file inside it that was asked for.
+            let e = e.to_string();
+            return Err(format!("{}: close MailCraft first", e.split_once(": ").map_or(e.as_str(), |(_, rest)| rest)));
+        }
+    }
     match cmd.as_str() {
         "accounts" => print(&s.run("account.list", &json!({})).map_err(|e| e.to_string())?),
         "commands" => print(&s.registry().describe()),
