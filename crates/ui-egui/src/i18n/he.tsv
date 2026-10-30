@@ -804,6 +804,11 @@ month	May	מאי
 	Home phone	טלפון בבית
 	Address book	פנקס כתובות
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	הדביקו חתימה מ-Outlook או מ-Word והעיצוב שלה יישמר; Ctrl+B,‏ Ctrl+I ו-Ctrl+U מעצבים אותה.
+	Formatted	מעוצב
+	HTML code	קוד HTML
+	From a file…	מקובץ…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	הדביקו את ה-HTML של חתימה שנוצרה במקום אחר, או פתחו חתימה ששמורה כדף אינטרנט (‎.htm של Outlook). היא נשלחת כפי שנכתבה; בזמן הכתיבה ההודעה מציגה את הטקסט שלה.
+	{name} can't be read as a signature	אי אפשר לקרוא את {name} כחתימה
 	All contacts	כל אנשי הקשר
 	Always open with this address book	לפתוח תמיד עם פנקס כתובות זה
 	Day and week show each calendar in a pane of its own	יום ושבוע מציגים כל לוח שנה בחלונית משלו

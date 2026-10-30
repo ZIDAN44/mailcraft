@@ -8,10 +8,23 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             ui.set_width(480.0);
             title(ui, t, "Signature");
             ui.label(RichText::new(tl!("Added to new messages, replies and forwards.")).color(t.dim).small());
+            ui.add_space(4.0);
+            // Formatted here, or HTML code made elsewhere (a business card in columns, issue #11).
+            let was_code = f.code.is_some();
+            let mut code = was_code;
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut code, false, tl!("Formatted"));
+                ui.selectable_value(&mut code, true, tl!("HTML code"));
+            });
+            if code != was_code {
+                f.switch(code);
+            }
+            if f.code.is_some() {
+                return signature_code(ui, f, t, acts);
+            }
             ui.label(
                 RichText::new(tl!("Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.")).color(t.dim).small(),
             );
-            ui.add_space(4.0);
             {
                 let SignatureForm { compose, editor, .. } = &mut **f;
                 crate::rich_edit::signature_bar(ui, t, &mut editor.0, compose, acts);
@@ -58,6 +71,35 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
         // Every other kind is shown by its own group (`body`).
         _ => true,
     }
+}
+
+/// The signature as HTML code: the code, from a file too, saved as written.
+fn signature_code(ui: &mut Ui, f: &mut SignatureForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.label(
+        RichText::new(tl!("Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text."))
+            .color(t.dim)
+            .small(),
+    );
+    if ui.button(tl!("From a file…")).clicked() {
+        acts.push(Action::SignatureFile);
+    }
+    let code = f.code.get_or_insert_with(String::new);
+    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("signature-code").max_height(220.0).auto_shrink([false, false]).show(ui, |ui| {
+            ui.set_min_height(220.0);
+            ui.add(egui::TextEdit::multiline(code).code_editor().desired_width(f32::INFINITY).frame(egui::Frame::NONE));
+        });
+    });
+    let (ok, cancel) = buttons(ui, t, if f.insert { "Save and insert" } else { "Save" }, true);
+    if ok {
+        let code = mailcraft_engine::mime::code_with_pictures(f.code.as_deref().unwrap_or(""), &f.pictures);
+        acts.push(Action::Run("account.setSignature", json!({"account": f.account, "signature": "", "code": code})));
+        if f.insert && !code.trim().is_empty() {
+            acts.push(Action::InsertSignature);
+        }
+        return false;
+    }
+    !cancel
 }
 
 /// Automatic replies being edited.
@@ -174,18 +216,62 @@ pub struct SignatureForm {
     /// Opened from a message being written: shown over its window, and put into it.
     pub insert: bool,
     pub(crate) editor: SignatureEditor,
+    /// The signature as HTML code (`None`: formatted in the editor), its pictures as
+    /// `picture:N` (the pictures in [`SignatureForm::pictures`]).
+    pub code: Option<String>,
+    pub pictures: Vec<String>,
 }
 
 impl SignatureForm {
     pub fn new(s: &Session, account: &str, insert: bool) -> SignatureForm {
         let (body, styles) = s.signature_rich(account);
         let inline = s.signature_pictures(account);
+        let code = s.account(account).map(|a| a.config.signature_code.clone()).filter(|c| !c.trim().is_empty());
+        let (code, pictures) = match code {
+            Some(c) => {
+                let (c, p) = mailcraft_engine::mime::code_without_pictures(&c);
+                (Some(c), p)
+            }
+            None => (None, Vec::new()),
+        };
         SignatureForm {
             account: account.to_string(),
             compose: Compose { id: crate::rich_edit::SIGNATURE_ID, account: account.to_string(), body, styles, inline, ..Default::default() },
             insert,
             editor: SignatureEditor(crate::rich_edit::Editor::new(crate::rich_edit::SIGNATURE_ID)),
+            code,
+            pictures,
         }
+    }
+
+    /// To HTML code (the formatted signature's, to start from) or back to the editor (the
+    /// code's text and look).
+    pub fn switch(&mut self, to_code: bool) {
+        use mailcraft_engine::mime;
+        if to_code {
+            let mut styles = self.compose.styles.clone();
+            styles.fit(&self.compose.body);
+            let text = self.compose.body.trim_end();
+            let html = if text.is_empty() { String::new() } else { mime::embed_pictures(&mime::rich::to_html(text, &styles), &self.compose.inline) };
+            let (code, pictures) = mime::code_without_pictures(&html);
+            self.code = Some(code);
+            self.pictures = pictures;
+        } else {
+            let code = mime::code_with_pictures(self.code.as_deref().unwrap_or(""), &self.pictures);
+            let (body, styles, inline) = mime::signature_html(&mime::signature_code(&code));
+            self.compose.body = body;
+            self.compose.styles = styles;
+            self.compose.inline = inline;
+            self.code = None;
+            self.pictures.clear();
+        }
+    }
+
+    /// The code in a file (as [`mime::signature_file`] reads it), with its pictures written in.
+    pub fn take_code(&mut self, html: &str) {
+        let (code, pictures) = mailcraft_engine::mime::code_without_pictures(&mailcraft_engine::mime::signature_code(html));
+        self.code = Some(code);
+        self.pictures = pictures;
     }
 }
 

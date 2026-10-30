@@ -802,6 +802,11 @@
 	Home phone	Telefono casa
 	Address book	Rubrica
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Incollane una da Outlook o Word e mantiene il suo aspetto; Ctrl+B, Ctrl+I e Ctrl+U la formattano.
+	Formatted	Formattata
+	HTML code	Codice HTML
+	From a file…	Da un file…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Incolla l'HTML di una firma creata altrove, o aprine una salvata come pagina web (.htm di Outlook). Viene inviata così come è scritta; mentre scrivi, il messaggio ne mostra il testo.
+	{name} can't be read as a signature	{name} non può essere letto come firma
 	All contacts	Tutti i contatti
 	Always open with this address book	Apri sempre con questa rubrica
 	Day and week show each calendar in a pane of its own	Giorno e settimana mostrano ogni calendario in un riquadro proprio

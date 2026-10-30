@@ -415,6 +415,7 @@ mod pictures;
 mod pim;
 mod reading;
 mod rtl;
+mod signatures;
 mod soak;
 mod updates;
 mod windows;

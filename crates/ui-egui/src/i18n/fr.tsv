@@ -803,6 +803,11 @@
 	Home phone	Téléphone domicile
 	Address book	Carnet d'adresses
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Collez-en une depuis Outlook ou Word et elle garde sa mise en forme ; Ctrl+B, Ctrl+I et Ctrl+U la mettent en forme.
+	Formatted	Mise en forme
+	HTML code	Code HTML
+	From a file…	Depuis un fichier…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Collez le HTML d'une signature faite ailleurs, ou ouvrez-en une enregistrée comme page web (.htm d'Outlook). Elle est envoyée telle qu'elle est écrite ; pendant la rédaction, le message affiche son texte.
+	{name} can't be read as a signature	{name} ne peut pas être lu comme signature
 	All contacts	Tous les contacts
 	Always open with this address book	Toujours ouvrir avec ce carnet d'adresses
 	Day and week show each calendar in a pane of its own	Jour et semaine affichent chaque calendrier dans son propre volet

@@ -162,6 +162,9 @@ pub enum Action {
     SignaturePicture {
         paste: bool,
     },
+    /// A signature saved as a web page (an Outlook `.htm` signature) as the one being edited's
+    /// HTML code, with the pictures beside it.
+    SignatureFile,
     /// The text's right-click Paste: files on the clipboard are attached.
     PasteFiles,
     /// Choose the interface language (`auto` or a code).

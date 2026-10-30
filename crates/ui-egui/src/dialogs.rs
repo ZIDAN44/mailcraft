@@ -291,6 +291,12 @@ impl Dialog {
         crate::pim_dialogs::EventForm::open(s, uid, occurrence).map(|f| Dialog::Event(Box::new(f)))
     }
 
+    /// The signature editor for the first account (`--cmd ui.signature`).
+    pub fn signature(s: &Session) -> Option<Dialog> {
+        let account = s.accounts.first()?.config.id.clone();
+        Some(Dialog::Signature(Box::new(mailbox::SignatureForm::new(s, &account, false))))
+    }
+
     pub fn new_contact() -> Dialog {
         Dialog::Contact(Box::default())
     }

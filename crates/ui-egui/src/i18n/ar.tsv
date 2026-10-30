@@ -804,6 +804,11 @@ month	May	مايو
 	Home phone	هاتف المنزل
 	Address book	دفتر العناوين
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	الصق توقيعًا من Outlook أو Word ليحتفظ بمظهره؛ Ctrl+B وCtrl+I وCtrl+U لتنسيقه.
+	Formatted	منسّق
+	HTML code	شيفرة HTML
+	From a file…	من ملف…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	الصق HTML لتوقيع صُنع في مكان آخر، أو افتح توقيعًا محفوظًا كصفحة ويب (‎.htm من Outlook). يُرسل كما كُتب؛ وأثناء الكتابة تعرض الرسالة نصّه.
+	{name} can't be read as a signature	لا يمكن قراءة {name} كتوقيع
 	All contacts	كل جهات الاتصال
 	Always open with this address book	الفتح دائمًا بدفتر العناوين هذا
 	Day and week show each calendar in a pane of its own	يعرض اليوم والأسبوع كل تقويم في جزء خاص به

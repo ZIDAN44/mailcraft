@@ -804,6 +804,11 @@ month	May	mei
 	Home phone	Telefoon thuis
 	Address book	Adresboek
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Plak er een uit Outlook of Word en de opmaak blijft behouden; Ctrl+B, Ctrl+I en Ctrl+U maken haar op.
+	Formatted	Opgemaakt
+	HTML code	HTML-code
+	From a file…	Uit een bestand…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Plak de HTML van een elders gemaakte handtekening, of open er een die als webpagina is opgeslagen (.htm van Outlook). Ze wordt verzonden zoals ze geschreven is; tijdens het schrijven toont een bericht haar tekst.
+	{name} can't be read as a signature	{name} kan niet als handtekening worden gelezen
 	All contacts	Alle contactpersonen
 	Always open with this address book	Altijd met dit adresboek openen
 	Day and week show each calendar in a pane of its own	Dag en week tonen elke agenda in een eigen deelvenster

@@ -805,6 +805,11 @@ month	May	5月
 	Home phone	自宅電話
 	Address book	アドレス帳
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Outlook や Word から貼り付けると書式が保たれます。Ctrl+B、Ctrl+I、Ctrl+U で書式を設定できます。
+	Formatted	書式あり
+	HTML code	HTML コード
+	From a file…	ファイルから…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	ほかで作った署名の HTML を貼り付けるか、Web ページとして保存した署名 (Outlook の .htm) を開きます。書かれたとおりに送信され、作成中のメッセージにはその文字が表示されます。
+	{name} can't be read as a signature	{name} は署名として読み込めません
 	All contacts	すべての連絡先
 	Always open with this address book	常にこのアドレス帳で開く
 	Day and week show each calendar in a pane of its own	日と週の表示で、各予定表をそれぞれのウィンドウに表示します

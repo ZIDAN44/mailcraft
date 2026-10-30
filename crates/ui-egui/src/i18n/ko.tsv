@@ -802,6 +802,11 @@
 	Home phone	집 전화
 	Address book	주소록
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Outlook이나 Word에서 붙여 넣으면 서식이 유지됩니다. Ctrl+B, Ctrl+I, Ctrl+U로 서식을 지정합니다.
+	Formatted	서식 있음
+	HTML code	HTML 코드
+	From a file…	파일에서…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	다른 곳에서 만든 서명의 HTML을 붙여 넣거나, 웹 페이지로 저장한 서명(Outlook의 .htm)을 여세요. 작성된 그대로 보내지며, 메시지를 쓰는 동안에는 그 텍스트가 표시됩니다.
+	{name} can't be read as a signature	{name}을(를) 서명으로 읽을 수 없습니다
 	All contacts	모든 연락처
 	Always open with this address book	항상 이 주소록으로 열기
 	Day and week show each calendar in a pane of its own	일 및 주 보기에서 각 일정을 별도 창에 표시합니다

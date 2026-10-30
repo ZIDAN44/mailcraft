@@ -805,6 +805,11 @@ month	May	5月
 	Home phone	住宅电话
 	Address book	通讯簿
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	从 Outlook 或 Word 粘贴，格式会保留；Ctrl+B、Ctrl+I 和 Ctrl+U 可设置格式。
+	Formatted	带格式
+	HTML code	HTML 代码
+	From a file…	从文件…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	粘贴在别处制作的签名的 HTML，或打开另存为网页的签名（Outlook 的 .htm）。它按原样发送；撰写时，邮件中显示它的文字。
+	{name} can't be read as a signature	无法将 {name} 读取为签名
 	All contacts	所有联系人
 	Always open with this address book	始终用此通讯簿打开
 	Day and week show each calendar in a pane of its own	日视图和周视图中，每个日历显示在各自的窗格中

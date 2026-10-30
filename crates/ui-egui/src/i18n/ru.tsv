@@ -802,6 +802,11 @@
 	Home phone	Домашний телефон
 	Address book	Адресная книга
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Вставьте подпись из Outlook или Word — оформление сохранится; Ctrl+B, Ctrl+I и Ctrl+U форматируют её.
+	Formatted	С форматированием
+	HTML code	HTML-код
+	From a file…	Из файла…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Вставьте HTML подписи, созданной в другом месте, или откройте подпись, сохранённую как веб-страница (.htm из Outlook). Она отправляется в том виде, в каком написана; пока вы пишете, в письме виден её текст.
+	{name} can't be read as a signature	{name} не удаётся прочитать как подпись
 	All contacts	Все контакты
 	Always open with this address book	Всегда открывать эту адресную книгу
 	Day and week show each calendar in a pane of its own	День и неделя показывают каждый календарь в отдельной панели

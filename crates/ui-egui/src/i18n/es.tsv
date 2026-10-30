@@ -803,6 +803,11 @@
 	Home phone	Teléfono particular
 	Address book	Libreta de direcciones
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Pega una desde Outlook o Word y conserva su aspecto; Ctrl+B, Ctrl+I y Ctrl+U le dan formato.
+	Formatted	Con formato
+	HTML code	Código HTML
+	From a file…	Desde un archivo…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Pega el HTML de una firma hecha en otro lugar o abre una guardada como página web (.htm de Outlook). Se envía tal como está escrita; mientras escribes, el mensaje muestra su texto.
+	{name} can't be read as a signature	{name} no se puede leer como firma
 	All contacts	Todos los contactos
 	Always open with this address book	Abrir siempre con esta libreta de direcciones
 	Day and week show each calendar in a pane of its own	Día y semana muestran cada calendario en su propio panel

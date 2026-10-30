@@ -803,6 +803,11 @@
 	Home phone	Telefon privat
 	Address book	Adressbuch
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Aus Outlook oder Word eingefügt, behält sie ihr Aussehen; Strg+B, Strg+I und Strg+U formatieren sie.
+	Formatted	Formatiert
+	HTML code	HTML-Code
+	From a file…	Aus einer Datei…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Fügen Sie den HTML-Code einer anderswo erstellten Signatur ein oder öffnen Sie eine als Webseite gespeicherte (.htm aus Outlook). Sie wird so gesendet, wie sie geschrieben ist; beim Schreiben zeigt eine Nachricht ihren Text.
+	{name} can't be read as a signature	{name} kann nicht als Signatur gelesen werden
 	All contacts	Alle Kontakte
 	Always open with this address book	Immer mit diesem Adressbuch öffnen
 	Day and week show each calendar in a pane of its own	Tag und Woche zeigen jeden Kalender in einem eigenen Bereich

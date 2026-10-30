@@ -408,6 +408,7 @@ impl MailApp {
                 }
             }
             Action::SignaturePicture { paste } => self.signature_picture(paste),
+            Action::SignatureFile => self.signature_file(),
             Action::PasteFiles => self.paste_files(),
             Action::AttachFiles => {
                 for p in self.services.pick_files() {
@@ -498,6 +499,45 @@ impl MailApp {
         }
     }
 
+    /// A signature saved as a web page, as the one being edited's HTML code (issue #11): an
+    /// Outlook `.htm` signature, its pictures read from the folder beside it (that folder only,
+    /// pictures only, each 1 MB at most).
+    pub(crate) fn signature_file(&mut self) {
+        use mailcraft_engine::mime;
+        if !matches!(self.ui.dialog, Some(Dialog::Signature(_))) {
+            return;
+        }
+        let Some(path) = self.services.pick_files().into_iter().next() else { return };
+        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let read = std::fs::File::open(&path).and_then(|f| {
+            let mut v = Vec::new();
+            std::io::Read::read_to_end(&mut std::io::Read::take(f, mime::SIGNATURE_CODE_MAX as u64 + 1), &mut v).map(|_| v)
+        });
+        let bytes = match read {
+            Ok(b) if b.len() <= mime::SIGNATURE_CODE_MAX => b,
+            _ => {
+                self.session.notice(tf!("{name} can't be read as a signature", name = name), true);
+                return;
+            }
+        };
+        let folder = path.parent().and_then(|p| p.canonicalize().ok());
+        let html = mime::local_pictures(&mime::pictures_beside(&mime::signature_file(&bytes)), |src| {
+            let folder = folder.as_ref()?;
+            let rel = percent_decoded(src.trim().get(5..)?);
+            let file = folder.join(rel.trim_start_matches(['/', '\\'])).canonicalize().ok()?;
+            let meta = std::fs::metadata(&file).ok()?;
+            if !file.starts_with(folder) || !meta.is_file() || meta.len() > mime::SIGNATURE_PICTURE_MAX as u64 {
+                return None;
+            }
+            let kind = mime::mime_from_name(&file.file_name()?.to_string_lossy()).to_string();
+            mime::SIGNATURE_PICTURE_TYPES.contains(&kind.as_str()).then_some(())?;
+            Some((kind, std::fs::read(&file).ok()?))
+        });
+        if let Some(Dialog::Signature(f)) = self.ui.dialog.as_mut() {
+            f.take_code(&html);
+        }
+    }
+
     pub(crate) fn place_picture(&mut self, r: mailcraft_engine::CmdResult) {
         match r {
             // In place: the cursor goes after it.
@@ -575,4 +615,26 @@ impl MailApp {
         let all: Vec<usize> = r.parsed.as_ref().map(|p| p.attachments.iter().filter(|a| !a.inline).map(|a| a.index).collect()).unwrap_or_default();
         self.ui.attachment_selected = Some((r.key.clone(), all));
     }
+}
+
+/// `%20` and the like decoded (an address in a saved web page), as UTF-8, else in Windows'
+/// Western characters, which Outlook writes a name with an accent in (`Andr%E9_files`).
+fn percent_decoded(s: &str) -> String {
+    let raw = s.as_bytes();
+    let mut out = Vec::with_capacity(raw.len());
+    let mut i = 0;
+    while let Some(&b) = raw.get(i) {
+        let hex = |k: usize| raw.get(k).and_then(|h| char::from(*h).to_digit(16));
+        match (b, hex(i + 1), hex(i + 2)) {
+            (b'%', Some(a), Some(c)) => {
+                out.push(u8::try_from(a * 16 + c).unwrap_or(b'%'));
+                i += 3;
+            }
+            _ => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    mailcraft_engine::mime::signature_file(&out)
 }

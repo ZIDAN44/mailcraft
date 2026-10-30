@@ -803,6 +803,11 @@
 	Home phone	Telefone residencial
 	Address book	Catálogo de endereços
 	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Cole uma do Outlook ou do Word e ela mantém a aparência; Ctrl+B, Ctrl+I e Ctrl+U a formatam.
+	Formatted	Formatada
+	HTML code	Código HTML
+	From a file…	De um arquivo…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Cole o HTML de uma assinatura feita em outro lugar, ou abra uma salva como página da web (.htm do Outlook). Ela é enviada como está escrita; enquanto você escreve, a mensagem mostra o texto dela.
+	{name} can't be read as a signature	{name} não pode ser lido como assinatura
 	All contacts	Todos os contatos
 	Always open with this address book	Sempre abrir com este catálogo de endereços
 	Day and week show each calendar in a pane of its own	Dia e semana mostram cada calendário em um painel próprio

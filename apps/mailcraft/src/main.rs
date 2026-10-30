@@ -600,6 +600,7 @@ fn run(
                     "ui.about" => app.ui.backstage = Some(Backstage::new(Page::About)),
                     "ui.newEvent" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_event(&app.session, None)),
                     "ui.newContact" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_contact()),
+                    "ui.signature" => app.ui.dialog = mailcraft_ui_egui::Dialog::signature(&app.session),
                     _ => match serde_json::from_str(params) {
                         Ok(p) => app.run(id, p),
                         Err(e) => say(&format!("--cmd {id}: bad JSON: {e}")),
