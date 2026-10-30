@@ -1229,3 +1229,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   and cut checked against v0.29. The Flatpak couldn't attach a file dropped or pasted from
   outside Downloads (the paths a file manager hands over weren't there in its sandbox): it reads
   the home folder now (`--filesystem=home:ro`), still writing nowhere but Downloads.
+- **A signature in HTML code, a business card in columns (issue #11, again):** a signature with
+  the photo beside the name and numbers couldn't be had: a signature is text with a look, which
+  holds no columns, and a pasted card's table came out as lines drawn in a fixed-width font. The
+  signature editor takes HTML code now (Formatted or HTML code; pasted, or From a file… for one
+  saved as a web page, as Outlook keeps its `.htm` signatures, with the pictures in the folder
+  beside it), sent as written into each message's HTML while the signature stands as put in;
+  its pictures go as parts of the message, each under a `cid:` of its own. Scripts, frames,
+  forms, `on…` handlers and `javascript:` links are left out. While writing, and in the text
+  part, it reads as its cells one after another, and so does any signature's table now. Read
+  back, a column holding only a picture of a set width is as wide as the picture and stays
+  beside the text (it took half the table, and then stacked). Sent through GreenMail and read
+  back in MailCraft and Outlook, which shows the card as written.
+- **Found on the way:** a picture in a folder with an accent in its name (`Andr%E9_files`, as
+  Outlook writes it) wasn't found; the fuzz targets didn't build (the fuzz lockfile resolved a
+  newer `sspi` than the workspace's, and the `tnef` target used functions mime didn't export).
