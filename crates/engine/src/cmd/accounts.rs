@@ -94,7 +94,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account": string} (a Microsoft account over IMAP starts again through Microsoft Graph, for a mailbox Microsoft won't open over IMAP)"#),
         CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
         CommandSpec::new("account.setSignature", "Signature", "File › Options › Mail", set_signature)
-            .params(r#"{"account": string, "signature": string, "html"?: string (its look: bold, colours, links; the text then comes from it)}"#),
+            .params(r#"{"account": string, "signature": string, "html"?: string (its look: bold, colours, links; the text then comes from it), "code"?: string (HTML code sent as written, a business card in columns; the text and look then come from it)}"#),
         CommandSpec::new("account.dav", "Calendars and contacts", "File › Info › Account settings", set_dav).params(
             r#"{"account": string, "caldav"?: string (the calendar server's address: its own, the home, or one calendar; empty: found from the account's address), "carddav"?: string (the same for contacts), "username"?: string|null (its own sign-in; null: as the mail server), "password"?: string}"#,
         ),
@@ -221,6 +221,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         smtp_username: None,
         signature: p::str(v, "signature").unwrap_or_default().to_string(),
         signature_html: String::new(),
+        signature_code: String::new(),
         color: 0,
         oauth,
         jmap,
@@ -414,12 +415,18 @@ pub(super) fn set_signature(s: &mut Session, v: &Value) -> CmdResult {
     // Its look, as HTML (from the signature editor, or pasted): kept as the editor would send
     // it, with its pictures written in (issue #11), its text the signature's.
     config.signature_html = String::new();
-    if let Some(html) = p::str(v, "html").filter(|h| !h.trim().is_empty()) {
+    // As HTML code (issue #11): sent as written, the editor showing its text.
+    config.signature_code = p::str(v, "code").map(mailcraft_mime::signature_code).unwrap_or_default();
+    let html = if config.signature_code.is_empty() { p::str(v, "html").map(str::to_string) } else { Some(config.signature_code.clone()) };
+    if let Some(html) = html.filter(|h| !h.trim().is_empty()) {
         let html: String = html.chars().take(SIGNATURE_HTML_MAX).collect();
         let (text, styles, pictures) = mailcraft_mime::signature_html(&html);
         if !text.trim().is_empty() && !styles.is_plain() {
             config.signature_html = mailcraft_mime::embed_pictures(&mailcraft_mime::rich::to_html(&text, &styles), &pictures);
-            config.signature = text.replace(mailcraft_mime::rich::PICTURE, "").chars().take(10_000).collect();
+        }
+        if !text.trim().is_empty() && (!styles.is_plain() || !config.signature_code.is_empty()) {
+            // Without its pictures, nor the lines they had to themselves (a card's photo).
+            config.signature = text.replace(mailcraft_mime::rich::PICTURE, "").trim_start_matches(['\n', '\r']).chars().take(10_000).collect();
         }
     }
     s.update_account(config, None)

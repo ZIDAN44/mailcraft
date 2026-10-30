@@ -61,6 +61,7 @@ mod mail;
 mod organize;
 mod pim;
 mod safety;
+mod signature_code;
 mod smime;
 mod tentative;
 mod web_calendars;

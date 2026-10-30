@@ -68,7 +68,51 @@ pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles), pict
     c.inline.retain(|p| !p.cid.starts_with("signature") || shown.contains(&p.cid));
 }
 
+impl Compose {
+    /// [`Compose::bodies`], with the account's signature `code` in the HTML where the signature
+    /// stands (issue #11: a business card in columns, which the text can't hold), as long as it
+    /// stands there as it was put in; the text keeps the signature's text. Its pictures go with
+    /// it, under this message's own `cid:`s.
+    pub fn bodies_with(&self, code: &str) -> (String, Option<String>, Vec<mime::InlinePicture>) {
+        let (text, html, pictures) = self.bodies();
+        let at = self.body.rfind(&self.signature).filter(|_| !self.plain && !code.trim().is_empty() && !self.signature.is_empty());
+        let Some(b) = at else { return (text, html, pictures) };
+        let mut styles = self.styles.clone();
+        styles.fit(&self.body);
+        let start = self.body.get(..b).unwrap_or("").chars().count();
+        let end = start + self.signature.chars().count();
+        // `-- ` stays text, as above every signature; the code is its next line.
+        let (before, before_styles) = mime::rich::slice(&self.body, &styles, 0..start + "-- ".len());
+        let (after, after_styles) = mime::rich::slice(&self.body, &styles, end..self.body.chars().count());
+        let tag = self
+            .inline
+            .iter()
+            .find_map(|p| p.cid.strip_prefix("signature")?.split_once('.')?.1.strip_suffix("@mailcraft").map(str::to_string))
+            .unwrap_or_else(|| format!("{:012x}", self.id));
+        let (code_html, code_pictures) = mime::signature_code_parts(code, &tag);
+        let mut out = mime::rich::to_html(&before, &before_styles);
+        out.push_str(&format!("<div>{code_html}</div>"));
+        if !after.trim().is_empty() {
+            out.push_str(&mime::rich::to_html(&after, &after_styles));
+        }
+        let mut used = mime::rich::pictures(&before, &before_styles);
+        used.extend(mime::rich::pictures(&after, &after_styles));
+        let mut pictures: Vec<mime::InlinePicture> = pictures.into_iter().filter(|p| used.contains(&p.cid)).collect();
+        for p in code_pictures {
+            if !pictures.iter().any(|q| q.cid == p.cid) {
+                pictures.push(p);
+            }
+        }
+        (text, Some(out), pictures)
+    }
+}
+
 impl Session {
+    /// An account's signature as HTML code (empty when it has none).
+    pub(crate) fn signature_code(&self, account: &str) -> String {
+        self.account(account).map(|a| a.config.signature_code.clone()).unwrap_or_default()
+    }
+
     /// A tag for the `cid:`s of a signature's pictures in the message being written
     /// ([`style_signature`]): the one it has already, so a signature put in again keeps them.
     pub(crate) fn signature_tag(&mut self) -> String {
@@ -260,7 +304,7 @@ impl Session {
 
     pub(super) fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
         let parse = |field: &str, s: &str| addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")));
-        let (body, html, inline) = c.bodies();
+        let (body, html, inline) = c.bodies_with(&self.signature_code(&c.account));
         Ok(mime::Draft {
             reply_to: parse("Replies to", &c.reply_to)?,
             to: parse("To", &c.to)?,
@@ -505,7 +549,7 @@ impl Session {
     pub(super) fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String), CmdError> {
         // Drafts may hold unfinished addresses: keep only the valid ones.
         let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
-        let (body, html, inline) = c.bodies();
+        let (body, html, inline) = c.bodies_with(&self.signature_code(&c.account));
         let d = mime::Draft {
             reply_to: lenient(&c.reply_to),
             to: lenient(&c.to),

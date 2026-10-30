@@ -90,6 +90,10 @@ pub struct AccountConfig {
     /// links, as pasted from Outlook or set in the signature editor.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub signature_html: String,
+    /// The signature as HTML code, sent as written (a business card in columns, issue #11);
+    /// `signature_html` is then its text as the editor shows it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub signature_code: String,
     /// The colour index the UI uses for this account's marker.
     #[serde(default)]
     pub color: u8,
@@ -247,6 +251,7 @@ impl AccountConfig {
             smtp_username: None,
             signature: String::new(),
             signature_html: String::new(),
+            signature_code: String::new(),
             color: 0,
             oauth: None,
             jmap: None,

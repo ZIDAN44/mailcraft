@@ -35,6 +35,7 @@ use super::*;
 
 mod importance;
 mod report;
+mod signature_code;
 
 /// Issue #11 (#16's test): a signature's pictures are written into the HTML kept with the account, and come
 /// back from it as pictures of its text, with its look; pictures from the web, kinds a signature

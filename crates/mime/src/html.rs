@@ -3,6 +3,9 @@
 use super::*;
 use std::collections::{HashMap, VecDeque};
 
+mod signature;
+pub use signature::*;
+
 /// Most lines kept of a rich rendering (the rest is shown as text).
 pub(super) const RICH_MAX_LINES: usize = 20_000;
 
@@ -198,7 +201,7 @@ fn data_pictures(html: &str) -> (String, Vec<InlinePicture>) {
 /// text, at the widths it gives them; any other picture is left out.
 pub fn signature_html(html: &str) -> (String, rich::Styles, Vec<InlinePicture>) {
     let (html, pictures) = data_pictures(&html.replace(SIGNATURE_MARK, ""));
-    let (marked, fonts) = fonts::mark(&word_paragraphs(&html));
+    let (marked, fonts) = fonts::mark(&word_paragraphs(&cells_in_turn(&html)));
     let mut lines = html_to_rich(&marked);
     // The pictures in the order they're in the text, with their widths.
     let mut order: Vec<(String, Option<u16>)> = Vec::new();
