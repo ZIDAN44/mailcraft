@@ -64,6 +64,7 @@
 	Document	文件
 	Don't run later rules on mail this one matches	符合此規則的郵件不再套用後續規則
 	Downloading the message…	正在下載郵件…
+	Downloading the attachments…	正在下載附件…
 	Draft saved	已儲存草稿
 	Drafts	草稿
 	Edit	編輯

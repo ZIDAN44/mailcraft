@@ -428,6 +428,9 @@ pub enum Row {
     Message { index: usize, count: usize, unread: usize },
 }
 
+/// Said of the files of a message whose text came first, while they come (issue #24).
+pub(crate) const STILL_COMING: &str = "its attachments are still downloading: a moment";
+
 /// The most messages open in their own windows at once.
 pub const MAX_WINDOWS: usize = 8;
 
@@ -444,6 +447,8 @@ pub struct Reading {
     pub warning: Option<mailcraft_model::lookalike::SenderWarning>,
     /// Signed or encrypted (S/MIME), and how that went.
     pub security: Option<Security>,
+    /// What's shown is its text first, its files still coming (issue #24).
+    pub text_first: bool,
 }
 
 /// A message being written.

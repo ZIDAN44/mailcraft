@@ -64,6 +64,7 @@
 	Document	ドキュメント
 	Don't run later rules on mail this one matches	このルールに一致したメールには以降のルールを適用しない
 	Downloading the message…	メッセージをダウンロードしています…
+	Downloading the attachments…	添付ファイルをダウンロードしています…
 	Draft saved	下書きを保存しました
 	Drafts	下書き
 	Edit	編集

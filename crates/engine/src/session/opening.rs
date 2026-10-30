@@ -60,7 +60,7 @@ impl Session {
         self.selection = vec![key.clone()];
         self.focus = Some(key.clone());
         let thread = self.thread_of(key);
-        self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread, warning: None, security: None });
+        self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread, warning: None, security: None, text_first: false });
         let cached = if key.folder == OUTBOX {
             self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
         } else {
@@ -97,7 +97,7 @@ impl Session {
             } else {
                 self.store.as_ref().and_then(|s| s.read_body(key))
             };
-            let mut w = Reading { key: key.clone(), parsed: None, error: None, thread: Vec::new(), warning: None, security: None };
+            let mut w = Reading { key: key.clone(), parsed: None, error: None, thread: Vec::new(), warning: None, security: None, text_first: false };
             match cached {
                 Some(raw) => {
                     let (shown, security) = self.unwrap(key, &raw);
@@ -137,8 +137,10 @@ impl Session {
         let (raw, security) = if shown { self.unwrap(key, raw) } else { (raw.to_vec(), None) };
         let raw = raw.as_slice();
         let mut windows = std::mem::take(&mut self.windows);
-        for w in windows.iter_mut().filter(|w| &w.key == key && w.parsed.is_none()) {
+        let text_first = mime::is_text_first(raw);
+        for w in windows.iter_mut().filter(|w| &w.key == key && (w.parsed.is_none() || w.text_first)) {
             w.parsed = self.parse_for_reading(key, raw);
+            w.text_first = text_first;
             w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
             w.warning = w.parsed.as_ref().and_then(|p| self.sender_warning(&p.from));
             w.security = security.clone();
@@ -152,6 +154,7 @@ impl Session {
             r.error = if parsed.is_none() { Some("this message could not be read".into()) } else { None };
             r.parsed = parsed;
             r.security = security;
+            r.text_first = text_first;
         }
         let from = self.reading.as_ref().filter(|r| &r.key == key).and_then(|r| r.parsed.as_ref()).map(|p| p.from.clone());
         if let Some(from) = from {

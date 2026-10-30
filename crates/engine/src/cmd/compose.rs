@@ -344,6 +344,9 @@ impl Session {
     /// The open message's attachment `index`, as bytes.
     pub fn attachment_bytes(&self, index: usize) -> Result<Vec<u8>, CmdError> {
         let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        if r.text_first {
+            return Err(CmdError::Failed(crate::session::STILL_COMING.into()));
+        }
         // A signed or encrypted message's attachments are the ones inside it.
         let raw = self.readable_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
         mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))
@@ -426,6 +429,9 @@ pub(super) fn save_all_attachments(s: &mut Session, v: &Value) -> CmdResult {
     }
     let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
     let parsed = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+    if r.text_first {
+        return Err(CmdError::Failed(crate::session::STILL_COMING.into()));
+    }
     let raw = s.readable_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
     // Only some of them, when asked (the ones selected).
     let only: Option<Vec<u64>> = v.get("indices").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).take(10_000).collect());
@@ -454,6 +460,9 @@ pub(super) fn preview_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let parsed = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
     let a = parsed.attachments.iter().find(|a| a.index == index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))?;
     let kind = mailcraft_mime::text_preview_kind(&a.mime, &a.name).ok_or_else(|| CmdError::Failed(format!("{} can't be shown as text", a.name)))?;
+    if r.text_first {
+        return Err(CmdError::Failed(crate::session::STILL_COMING.into()));
+    }
     let raw = s.readable_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
     let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Failed("the attachment can't be read".into()))?;
     if kind == "message" {

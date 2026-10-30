@@ -347,7 +347,11 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                             .color(t.dim)
                             .small(),
                     );
-                    if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
+                    // Its text came first (issue #24): the files are on their way.
+                    if r.text_first {
+                        ui.add(egui::Spinner::new().size(11.0));
+                        ui.label(RichText::new(tl!("Downloading the attachments…")).color(t.dim).small());
+                    } else if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
                         acts.push(Action::SaveAll);
                     }
                 });

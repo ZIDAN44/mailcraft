@@ -137,6 +137,8 @@ impl Session {
                     self.notice(format!("automatic replies weren't changed: {e}"), true);
                 }
             }
+            // Its text first (issue #24): shown, and nothing else until the whole message comes.
+            Event::Body { key, raw } if mime::is_text_first(&raw) => self.show_body(&key, &raw),
             Event::Body { key, raw } => {
                 self.show_body(&key, &raw);
                 self.index_body(&key, &raw);

@@ -64,6 +64,7 @@
 	Document	Document
 	Don't run later rules on mail this one matches	Ne pas appliquer les règles suivantes au courrier qui correspond à celle-ci
 	Downloading the message…	Téléchargement du message…
+	Downloading the attachments…	Téléchargement des pièces jointes…
 	Draft saved	Brouillon enregistré
 	Drafts	Brouillons
 	Edit	Modifier

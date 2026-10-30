@@ -6,6 +6,18 @@ use std::borrow::Cow;
 use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
+mod text_first;
+pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, text_first};
+
+/// A part's size: its bytes, or, with none yet (a message's text that came first, issue #24), the
+/// size its `Content-Disposition` gives (RFC 2183's `size`).
+fn shown_size(p: &mail_parser::MessagePart<'_>) -> usize {
+    if !p.is_empty() {
+        return p.len();
+    }
+    p.content_disposition().and_then(|d| d.attribute("size")).and_then(|s| s.trim().parse::<usize>().ok()).unwrap_or(0)
+}
+
 /// One of a message's attachments, with its bytes.
 pub(super) struct Attached<'a> {
     pub(super) info: AttachmentInfo,
@@ -45,7 +57,7 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
             index,
             name,
             mime,
-            size: p.len(),
+            size: shown_size(p),
             inline: p.is_inline_part(),
             content_id: p.content_id().map(|c| c.trim().trim_matches(['<', '>']).to_string()),
             content_location: p.content_location().map(|c| c.trim().trim_matches(['<', '>', '"']).to_string()).filter(|c| !c.is_empty()),

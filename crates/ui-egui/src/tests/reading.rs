@@ -368,3 +368,38 @@ fn the_reading_pane_shows_below_the_list() {
     assert!(bottom.is_some_and(|y| y > right + 150.0 && y < 760.0), "below the list, on screen: {bottom:?} (beside it: {right})");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #24: a message whose text came first shows it, its files named and sized, and says
+/// they're downloading; the whole message, once it comes, takes its place.
+#[test]
+fn a_message_text_first_says_its_files_are_coming() {
+    let (mut a, dir) = app("text-first");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    let key = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.session.open_message(&key);
+    let d = mailcraft_engine::mime::Draft { subject: "Rushes".into(), body: "Here's the reel.".into(), ..Default::default() };
+    let file = mailcraft_engine::mime::PendingFile { name: "reel.mov".into(), mime: "video/quicktime".into(), size: 12 << 20, ..Default::default() };
+    let from = mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example");
+    let raw = mailcraft_engine::mime::text_first(&d, &from, NOW, "<r@x>", &[file]).unwrap();
+    a.session.apply(mailcraft_engine::model::Event::Body { key: key.clone(), raw });
+    let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
+        tree.nodes.iter().filter_map(|(_, n)| n.label().or(n.value()).map(str::to_string)).collect()
+    };
+    frame(&ctx, &mut a, vec![]);
+    let shown = labels(&ctx, &mut a);
+    assert!(shown.iter().any(|l| l.contains("Downloading the attachments")), "{shown:?}");
+    assert!(shown.iter().any(|l| l.contains("reel.mov")));
+    // The whole message: no more saying so.
+    let full = a.session.store.as_ref().and_then(|st| st.read_body(&key)).unwrap();
+    a.session.apply(mailcraft_engine::model::Event::Body { key, raw: full });
+    frame(&ctx, &mut a, vec![]);
+    let shown = labels(&ctx, &mut a);
+    assert!(!shown.iter().any(|l| l.contains("Downloading the attachments")), "{shown:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
