@@ -417,6 +417,7 @@ mod reading;
 mod rtl;
 mod signatures;
 mod soak;
+mod typing;
 mod updates;
 mod windows;
 mod writing;

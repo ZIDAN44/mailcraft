@@ -39,7 +39,7 @@ mod trackers;
 pub use attachments::{AttachmentInfo, AttachmentKind, attachment_data, craft_app_for, kind_of, quoted_pictures, text_preview_kind};
 use attachments::{attached, has_real_attachments};
 use files::attachment_name;
-pub use files::{mime_from_name, runs_code, sanitize_filename};
+pub use files::{alt_code_char, alt_code_pages, mime_from_name, runs_code, sanitize_filename};
 pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
 use html::*;
 pub use html::*;

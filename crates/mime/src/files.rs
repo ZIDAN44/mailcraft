@@ -4,6 +4,9 @@
 //! whether opening that file would start a program, and [`TYPES`] goes between a file's extension
 //! and its MIME type.
 
+mod alt_code;
+pub use alt_code::{alt_code_char, alt_code_pages};
+
 /// Longest name we keep, in characters (file systems allow 255 bytes; this leaves room for UTF-8
 /// and for a ` (2)` added on a clash).
 const LONGEST_NAME: usize = 180;

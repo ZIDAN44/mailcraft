@@ -69,11 +69,18 @@ fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
     (None, None)
 }
 
-/// Runs MailCraft's Cut, Copy and Paste keys on each window's input ([`mailcraft_ui_egui::clipboard_keys`]).
-struct ClipboardKeys;
+/// Runs MailCraft's own keys on each window's input: Cut, Copy and Paste
+/// ([`mailcraft_ui_egui::clipboard_keys`]) and, on Windows, Alt+numpad character codes
+/// ([`mailcraft_ui_egui::alt_codes`], in the code pages for the user's language).
+struct ClipboardKeys {
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pages: (u16, u16),
+}
 
 impl eframe::ViewportHooks for ClipboardKeys {
     fn raw_input(&self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        #[cfg(windows)]
+        mailcraft_ui_egui::alt_codes(ctx, raw_input, self.pages);
         mailcraft_ui_egui::clipboard_keys(ctx, raw_input, &mut SystemClipboard);
     }
 }
@@ -407,7 +414,7 @@ fn main() -> eframe::Result {
     let own_keys = true;
     if own_keys {
         options.clipboard_shortcuts = false;
-        options.viewport_hooks = Some(Arc::new(ClipboardKeys));
+        options.viewport_hooks = Some(Arc::new(ClipboardKeys { pages: mailcraft_ui_egui::alt_code_pages() }));
     }
     // Linux and the BSDs: through XWayland on a Wayland desktop, so attachments drag in and out.
     #[cfg(all(unix, not(target_os = "macos")))]
