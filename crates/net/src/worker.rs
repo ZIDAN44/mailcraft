@@ -111,7 +111,13 @@ struct Handle {
     /// replies): it never waits behind a sync. `None` where it can't be used (POP, JMAP sends).
     quick: Option<Sender<Job>>,
     quick_thread: Option<JoinHandle<()>>,
+    /// The main connection's way to the second one, emptied when the account stops: otherwise
+    /// each would keep the other's queue open, and neither thread would end.
+    quick_link: QuickLink,
 }
+
+/// The second connection's queue, as the main one holds it ([`Handle::quick_link`]).
+type QuickLink = Arc<Mutex<Option<Sender<Job>>>>;
 
 /// What an account signs in with, shared by its connections: the password or refresh token, and
 /// the current access token (refreshed by one, used by both).
@@ -504,12 +510,15 @@ impl Pool {
         q.creds = Some(self.creds.clone());
         q.sieve_port = self.sieve_port;
         q.main = Some(tx.clone());
+        q.given_back = w.given_back.clone();
         let quick_thread = std::thread::Builder::new().name(format!("mail-{}-quick", account.id)).spawn(move || q.run_quick(qrx)).ok();
         let quick = quick_thread.is_some().then_some(qtx);
+        let quick_link: QuickLink = Arc::new(Mutex::new(quick.clone()));
+        w.quick = quick_link.clone();
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
-                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread });
+                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread, quick_link });
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
         }
@@ -520,6 +529,9 @@ impl Pool {
         if let Some(mut h) = self.workers.remove(account) {
             drop(h.tx);
             drop(h.quick.take());
+            if let Ok(mut q) = h.quick_link.lock() {
+                q.take();
+            }
             // The thread notices the closed channel within half a second (IDLE slices); don't
             // block the UI waiting for a slow network call to finish.
             for t in [h.thread.take(), h.quick_thread.take()].into_iter().flatten() {
@@ -598,6 +610,15 @@ struct Worker {
     jstate: jmap::State,
     folders: Vec<Folder>,
     queue: VecDeque<Job>,
+    /// Messages whose text went first (issue #24), the whole of each still to come: downloaded
+    /// when nothing else waits, so the next one opened shows its text without waiting on them.
+    rest: VecDeque<mailcraft_model::MessageKey>,
+    /// The account's second connection, which downloads the whole of those (the main one stays
+    /// free to open the next message).
+    quick: QuickLink,
+    /// Messages it couldn't get, shared with it: those it gives back are downloaded on the main
+    /// connection (one opened again meanwhile is handed to it again, not downloaded twice).
+    given_back: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
     backoff: Duration,
     next_attempt: Instant,
     last_full: Option<Instant>,
@@ -652,6 +673,9 @@ impl Worker {
             folders,
             windows,
             queue: VecDeque::new(),
+            rest: VecDeque::new(),
+            quick: Arc::default(),
+            given_back: Arc::default(),
             backoff: Duration::from_secs(5),
             next_attempt: Instant::now(),
             last_full: None,
@@ -712,6 +736,10 @@ impl Worker {
             self.fresh_token();
             if let Some(job) = self.queue.pop_front() {
                 self.handle(job);
+                continue;
+            }
+            if let Some(key) = self.rest.pop_front() {
+                self.fetch_whole(key);
                 continue;
             }
             if self.conn.is_none() {

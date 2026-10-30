@@ -75,3 +75,30 @@ fn only_https_unless_local() {
     assert!(Client::new("https://mail.contoso.example/EWS/Exchange.asmx", "u", "p", "e").is_ok());
     assert!(Client::new("http://127.0.0.1:9/EWS/Exchange.asmx", "u", "p", "e").is_ok());
 }
+
+/// Issue #24: a message's text first from a `GetItem` that asks for its body and files' list, as
+/// grommunio answers it; a file of another message is a message; no files, no text first.
+#[test]
+fn a_message_text_first_from_its_item() {
+    let doc = parse(
+        "<s:Envelope xmlns:s=\"x\"><s:Body><m:GetItemResponse><m:ResponseMessages><m:GetItemResponseMessage ResponseClass=\"Success\"><m:Items><t:Message>\
+         <t:ItemId Id=\"A1\"/><t:Subject>Rushes reel 2</t:Subject>\
+         <t:Body BodyType=\"HTML\">&lt;p&gt;Here's reel 2.&lt;/p&gt;</t:Body>\
+         <t:Attachments><t:FileAttachment><t:AttachmentId Id=\"F1\"/><t:Name>reel2.mov</t:Name><t:ContentType>video/quicktime</t:ContentType><t:Size>20971586</t:Size></t:FileAttachment>\
+         <t:ItemAttachment><t:AttachmentId Id=\"F2\"/><t:Name>Earlier note</t:Name><t:Size>4096</t:Size></t:ItemAttachment></t:Attachments>\
+         <t:Importance>High</t:Importance><t:DateTimeSent>2026-10-30T08:02:19Z</t:DateTimeSent>\
+         <t:ToRecipients><t:Mailbox><t:Name>Riley</t:Name><t:EmailAddress>riley@studio.test</t:EmailAddress></t:Mailbox></t:ToRecipients>\
+         <t:From><t:Mailbox><t:Name>Sam</t:Name><t:EmailAddress>sam@studio.test</t:EmailAddress></t:Mailbox></t:From>\
+         <t:InternetMessageId>&lt;r2@studio.test&gt;</t:InternetMessageId></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>",
+    );
+    let raw = text_first::text_first(&doc).expect("its text first");
+    assert!(mime::is_text_first(&raw));
+    let p = mime::parse(&raw).unwrap();
+    assert_eq!((p.subject.as_str(), p.from.email.as_str(), p.message_id.as_str()), ("Rushes reel 2", "sam@studio.test", "r2@studio.test"));
+    assert!(p.text.contains("Here's reel 2."), "{}", p.text);
+    let files: Vec<(&str, &str, usize)> = p.attachments.iter().map(|a| (a.name.as_str(), a.mime.as_str(), a.size)).collect();
+    assert_eq!(files[0], ("reel2.mov", "video/quicktime", 20_971_586));
+    assert_eq!((files[1].1, files[1].2), ("message/rfc822", 4096));
+    let none = parse("<s:Envelope><s:Body><t:Message><t:Body BodyType=\"Text\">hi</t:Body></t:Message></s:Body></s:Envelope>");
+    assert!(text_first::text_first(&none).is_none(), "no files: the whole of it is as quick");
+}

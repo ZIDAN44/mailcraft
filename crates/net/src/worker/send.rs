@@ -30,6 +30,8 @@ impl Worker {
                     self.send_quick(Job::Send { account, id, raw, from, recipients, sent_folder });
                 }
                 j @ (Job::GetVacation { .. } | Job::SetVacation { .. }) => self.handle(j),
+                // Only the main connection sends these: a message whose text it gave first.
+                Job::FetchBody { key } => self.fetch_for_main(key),
                 // Anything else belongs to the main connection.
                 other => {
                     if let Some(m) = &self.main {

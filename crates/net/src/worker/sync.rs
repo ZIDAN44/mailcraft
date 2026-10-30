@@ -183,8 +183,13 @@ impl Worker {
             // Body fetches and local edits are served between folders, ahead of the rest.
             let (urgent, rest): (VecDeque<Job>, VecDeque<Job>) = std::mem::take(&mut self.queue).into_iter().partition(between_folders);
             self.queue = rest;
+            let opened = !urgent.is_empty();
             for j in urgent {
                 self.handle(j);
+            }
+            // A message whose text went first: the whole of it, unless one was just opened.
+            if !opened && let Some(key) = self.rest.pop_front() {
+                self.fetch_whole(key);
             }
             if self.closed || self.conn.is_none() {
                 return;
@@ -448,27 +453,114 @@ impl Worker {
         }
     }
 
+    /// A message opened: from here, or else from the server; a big Exchange message's text first,
+    /// the whole of it later ([`Worker::fetch_whole`]).
     pub(super) fn fetch(&mut self, key: MessageKey) {
+        // Given back by the second connection: the whole of it, here.
+        let whole = self.given_back.lock().is_ok_and(|mut g| g.remove(&key));
+        self.fetch_as(key, whole);
+    }
+
+    /// On the second connection: the whole of a message whose text went first on the main one
+    /// (issue #24), with the message ids the main one keeps; one it can't get goes back there.
+    pub(super) fn fetch_for_main(&mut self, key: MessageKey) {
+        if let Some(raw) = self.store.read_body(&key) {
+            self.sink.emit(Event::Body { key, raw });
+            return;
+        }
+        self.jstate = jmap::State::load(&self.store, &self.acc.id);
+        let (store, began) = (self.store.clone(), Instant::now());
+        let r = (|| -> Result<Vec<u8>> {
+            if self.conn.is_none() {
+                self.connect()?;
+            }
+            match self.conn.as_ref() {
+                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key),
+                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
+                _ => Err(NetError::No("not an Exchange connection".into())),
+            }
+        })();
+        match r {
+            Ok(raw) => {
+                log::info!(
+                    "{}: message {} downloaded on the second connection ({} bytes) in {:.1} s",
+                    self.acc.id,
+                    key.uid,
+                    raw.len(),
+                    began.elapsed().as_secs_f32()
+                );
+                self.sink.emit(Event::Body { key: key.clone(), raw });
+                self.sink.emit(Event::FolderChanged { account: key.account.clone(), folder: key.folder.clone() });
+            }
+            Err(e) => {
+                log::info!("{}: message {}: left to the main connection: {e}", self.acc.id, key.uid);
+                if matches!(e, NetError::Closed(_) | NetError::Io(_)) {
+                    self.conn = None;
+                }
+                if let Some(m) = &self.main {
+                    if let Ok(mut g) = self.given_back.lock() {
+                        g.insert(key.clone());
+                    }
+                    let _ = m.send(Job::FetchBody { key });
+                }
+            }
+        }
+    }
+
+    /// The whole of a message whose text went first.
+    pub(super) fn fetch_whole(&mut self, key: MessageKey) {
+        self.fetch_as(key, true);
+    }
+
+    fn fetch_as(&mut self, key: MessageKey, whole: bool) {
         if let Some(raw) = self.store.read_body(&key) {
             self.sink.emit(Event::Body { key, raw });
             return;
         }
         let store = self.store.clone();
-        let r = (|| -> Result<Vec<u8>> {
+        let began = Instant::now();
+        let r = (|| -> Result<Option<Vec<u8>>> {
             if self.conn.is_none() {
                 self.connect()?;
             }
-            match self.conn.as_mut() {
+            // Exchange: a big message's text first, to read while the rest comes (issue #24); the
+            // rest once nothing else waits.
+            let text = match self.conn.as_ref().filter(|_| !whole) {
+                Some(Conn::Ews(c)) => Some(crate::ews::fetch_text(c, &self.jstate, &store, &key)),
+                Some(Conn::Graph(c)) => Some(crate::graph::fetch_text(c, &self.jstate, &store, &key)),
+                _ => None,
+            };
+            if let Some(text) = text {
+                match text {
+                    Ok(Some(raw)) => {
+                        log::info!("{}: message {}: its text first ({} bytes), then the rest", self.acc.id, key.uid, raw.len());
+                        self.sink.emit(Event::Body { key: key.clone(), raw });
+                        return Ok(None);
+                    }
+                    Ok(None) => {}
+                    Err(e) => log::info!("{}: the text first: {e}", self.acc.id),
+                }
+            }
+            let raw = match self.conn.as_mut() {
                 Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key),
                 Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
                 Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key),
                 // POP mail is downloaded whole: what isn't here isn't anywhere.
                 Some(Conn::Pop) => store.read_body(&key).ok_or_else(|| NetError::No("this message isn't on this computer".into())),
                 _ => fetch_body(self.client()?, &store, &key),
-            }
+            }?;
+            Ok(Some(raw))
         })();
         match r {
-            Ok(raw) => {
+            // The rest on the second connection, or here once nothing else waits.
+            Ok(None) => {
+                let handed = self.quick.lock().is_ok_and(|q| q.as_ref().is_some_and(|q| q.send(Job::FetchBody { key: key.clone() }).is_ok()));
+                if !handed && !self.rest.contains(&key) {
+                    self.rest.push_back(key);
+                }
+            }
+            Ok(Some(raw)) => {
+                log::info!("{}: message {} downloaded ({} bytes) in {:.1} s", self.acc.id, key.uid, raw.len(), began.elapsed().as_secs_f32());
                 self.sink.emit(Event::Body { key: key.clone(), raw });
                 self.sink.emit(Event::FolderChanged { account: key.account.clone(), folder: key.folder.clone() });
             }

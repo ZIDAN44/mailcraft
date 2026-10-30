@@ -794,7 +794,9 @@ pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
 }
 
 mod directory;
+mod text_first;
 pub use directory::{needs_consent, search_directory};
+pub use text_first::fetch_text;
 
 #[cfg(test)]
 mod tests {

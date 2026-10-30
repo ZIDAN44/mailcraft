@@ -137,7 +137,7 @@ impl Data {
             "ccRecipients": [],
             "receivedDateTime": m.received,
             "bodyPreview": p.as_ref().map(|p| p.text.chars().take(60).collect::<String>()),
-            "hasAttachments": false,
+            "hasAttachments": p.as_ref().is_some_and(|p| !p.attachments.is_empty()),
             "internetMessageId": p.as_ref().map(|p| format!("<{}>", p.message_id)),
         })
     }
@@ -324,6 +324,23 @@ impl Data {
                 }
                 ok(json!({ "id": id, "parentFolderId": drafts }))
             }
+            // With its body and files' list (a message's text first, issue #24).
+            ("GET", ["me", "messages", id]) if query.contains("$expand=attachments") => match self.message(id) {
+                Some(m) => {
+                    let mut v = self.message_json(m);
+                    let p = mailcraft_mime::parse(&m.raw);
+                    v["body"] = json!({"contentType": "text", "content": p.as_ref().map(|p| p.text.clone())});
+                    v["attachments"] = json!(p
+                        .map(|p| p
+                            .attachments
+                            .iter()
+                            .map(|a| json!({"@odata.type": "#microsoft.graph.fileAttachment", "name": a.name, "contentType": a.mime, "size": a.size, "isInline": a.inline}))
+                            .collect::<Vec<_>>())
+                        .unwrap_or_default());
+                    ok(v)
+                }
+                None => not_found(),
+            },
             ("GET", ["me", "messages", id]) => self.message(id).map_or_else(not_found, |m| ok(self.message_json(m))),
             ("PATCH", ["me", "messages", id]) => match self.messages.iter_mut().find(|m| m.id == plain_id(id)) {
                 Some(m) => {

@@ -508,3 +508,43 @@ fn a_refused_token_is_renewed_once_before_asking_to_sign_in() {
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Issue #24: a message with files comes as its text first (its files named and sized, no
+/// bytes), then whole, downloaded on the account's second connection.
+#[test]
+fn a_message_with_files_comes_as_its_text_first() {
+    let mut d = Data::default();
+    let inbox = d.folder("Inbox", None, Some("inbox"));
+    let big = "A".repeat(3 << 20);
+    let raw = format!(
+        "From: Sam <sam@contoso.example>\r\nTo: me@contoso.example\r\nSubject: Rushes\r\nMessage-ID: <r1@x>\r\nMIME-Version: 1.0\r\n\
+         Content-Type: multipart/mixed; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/plain\r\n\r\nThe notes, to read now.\r\n\
+         --B\r\nContent-Type: video/quicktime; name=\"reel.mov\"\r\nContent-Disposition: attachment; filename=\"reel.mov\"\r\n\r\n{big}\r\n--B--\r\n"
+    );
+    d.deliver(&inbox, raw.as_bytes(), false, "2024-05-06T10:00:00Z");
+    let server = serve(d);
+    let store = crate::fake::tests_store("graph-text-first");
+    let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+    let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+    pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let st = store.load_folder("a1", "INBOX").unwrap();
+    let m = st.messages.first().unwrap();
+    assert!(m.has_attachments && !store.has_body(&m.key), "not downloaded ahead");
+    let key = m.key.clone();
+    pool.submit(Job::FetchBody { key: key.clone() });
+    let seen = until(&pool, "the whole of it", |e| matches!(e, Event::Body { key: k, raw } if *k == key && !mailcraft_mime::is_text_first(raw)));
+    let first = seen.iter().find_map(|e| match e {
+        Event::Body { key: k, raw } if *k == key => Some(raw.clone()),
+        _ => None,
+    });
+    let first = first.unwrap();
+    assert!(mailcraft_mime::is_text_first(&first), "its text first");
+    let p = mailcraft_mime::parse(&first).unwrap();
+    assert!(p.text.contains("The notes, to read now."), "{}", p.text);
+    assert_eq!(p.attachments.iter().map(|a| (a.name.as_str(), a.size)).collect::<Vec<_>>(), [("reel.mov", big.len())]);
+    assert!(first.len() < 4096, "no bytes of the file: {}", first.len());
+    assert!(store.has_body(&key), "the whole of it kept");
+    let calls = server.data.lock().unwrap().calls.clone();
+    assert!(calls.iter().any(|c| c.contains("$expand=attachments")) && calls.iter().any(|c| c.ends_with("$value")), "{calls:?}");
+}

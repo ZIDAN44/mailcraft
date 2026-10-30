@@ -776,6 +776,20 @@ pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Re
     Ok(raw)
 }
 
+/// A message's text first, its files listed but not downloaded (issue #24), when it's big and
+/// has files and isn't here already: `None` otherwise (then [`fetch_body`] brings it whole).
+pub fn fetch_text(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<Option<Vec<u8>>> {
+    if store.has_body(key) || key.validity != VALIDITY {
+        return Ok(None);
+    }
+    let fs = store.load_folder(&key.account, &key.folder)?;
+    let big = fs.find(key.uid).is_some_and(|m| m.size >= text_first::TEXT_FIRST_OVER && m.has_attachments);
+    match st.id(key.uid).filter(|_| big) {
+        Some(id) => c.download_text(id),
+        None => Ok(None),
+    }
+}
+
 fn item_ids(ids: &[String]) -> String {
     ids.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect()
 }
@@ -928,6 +942,7 @@ use discover::autodiscover_answer;
 use discover::autodiscover_urls;
 pub use discover::{autodiscover, autodiscover_as};
 mod shared;
+mod text_first;
 
 #[cfg(test)]
 mod tests;
