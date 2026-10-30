@@ -17,6 +17,7 @@ bin = [
     { name = "photo", bench = false, test = false, doc = false, path = "fuzz_targets/photo.rs" }, # photos' EXIF and XMP blocks as they're sent
     { name = "pst", bench = false, test = false, doc = false, path = "fuzz_targets/pst.rs" }, # Outlook data file import
     { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
+    { name = "signature", bench = false, test = false, doc = false, path = "fuzz_targets/signature.rs" }, # signatures as HTML code and saved web pages
     { name = "smime", bench = false, test = false, doc = false, path = "fuzz_targets/smime.rs" }, # signatures, encrypted mail, certificates, .p12
     { name = "tnef", bench = false, test = false, doc = false, path = "fuzz_targets/tnef.rs" }, # Outlook's winmail.dat and compressed RTF
     { name = "vcard", bench = false, test = false, doc = false, path = "fuzz_targets/vcard.rs" }, # contact cards

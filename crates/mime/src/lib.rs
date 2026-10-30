@@ -44,7 +44,7 @@ pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
 use html::*;
 pub use html::*;
 pub use photos::without_location;
-pub use tnef::{Tnef, TnefBody, TnefFile, read_tnef};
+pub use tnef::{Tnef, TnefBody, TnefFile, decompress_rtf, read_tnef, rtf_body};
 pub use trackers::{Trackers, clean_link, trackers, tracks_click};
 
 /// Longest preview kept in a summary, in characters.
