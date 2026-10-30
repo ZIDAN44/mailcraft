@@ -57,13 +57,11 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                             row.into_iter()
                                 .map(|c| {
                                     ctx.cells += 1;
+                                    let content =
+                                        if ctx.cells > MAX_CELLS { Vec::new() } else { colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth + 1)) };
                                     Cell {
-                                        blocks: if ctx.cells > MAX_CELLS {
-                                            Vec::new()
-                                        } else {
-                                            colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth + 1))
-                                        },
-                                        width: c.width(),
+                                        width: c.width().or_else(|| picture_width(&content)),
+                                        blocks: content,
                                         background: c.background().or(row_bg),
                                         align: c.align(),
                                         span: c.attr("colspan").and_then(|s| s.trim().parse::<u16>().ok()).unwrap_or(1).clamp(1, 50),
@@ -236,6 +234,23 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     }
     flush(&mut pending, &mut out, ctx);
     out
+}
+
+/// The width of a cell that holds a picture of a set width and nothing else (a business card's
+/// photo beside its details): the picture's and a little room, as a browser fits the column to
+/// it, rather than half the table.
+fn picture_width(blocks: &[Block]) -> Option<Width> {
+    let [Block::Text(lines)] = blocks else { return None };
+    let mut widest = 0;
+    for sp in lines.iter().flatten() {
+        match (&sp.image, sp.image_size.and_then(|z| z.width)) {
+            (Some(_), Some(Width::Px(w))) => widest = widest.max(w),
+            (Some(_), _) => return None,
+            (None, _) if !sp.text.trim().is_empty() => return None,
+            (None, _) => {}
+        }
+    }
+    (widest > 0).then(|| Width::Px(widest.saturating_add(16)))
 }
 
 /// Whether any table puts content side by side, or a picture behind it, or boxes over it, or is

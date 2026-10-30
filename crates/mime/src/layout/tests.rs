@@ -198,3 +198,15 @@ fn a_centred_column_of_a_set_width_keeps_its_width() {
     assert!(html_layout(r#"<div style="width:100%"><p>Just text</p></div>"#).is_empty());
     assert!(html_layout("<p>Plain <b>mail</b></p><table><tr><td>one cell</td></tr></table>").is_empty());
 }
+
+/// A business card (issue #11): the photo's column as wide as the photo, the details beside it.
+#[test]
+fn a_photo_column_is_as_wide_as_its_photo() {
+    let b = html_layout(r#"<table><tr><td><img src="cid:p@x" width="80" height="80"></td><td><b>Dean Moss</b><br>Sales</td></tr></table>"#);
+    let Block::Table(t) = &b[0] else { panic!("{b:?}") };
+    assert_eq!(t.rows[0].iter().map(|c| c.width).collect::<Vec<_>>(), [Some(Width::Px(96)), None]);
+    // A picture of no set width, or with text beside it, leaves the column as it was.
+    let b = html_layout(r#"<table><tr><td><img src="cid:p@x"> Hi</td><td>There</td></tr></table>"#);
+    let Block::Table(t) = &b[0] else { panic!("{b:?}") };
+    assert_eq!(t.rows[0][0].width, None);
+}

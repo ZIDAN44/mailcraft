@@ -441,7 +441,10 @@ impl Body<'_> {
         {
             *last += width - used;
         }
-        let stack = row.len() > 1 && widths.iter().zip(row).any(|(w, c)| *w < MIN_COLUMN && !c.blocks.is_empty());
+        // Stacked when a column is squeezed too narrow to read; one as narrow as it asks (a
+        // business card's photo, issue #11) stays beside the others.
+        let squeezed = |w: f32, asked: Option<f32>| w < MIN_COLUMN && asked.is_none_or(|a| w + 0.5 < a);
+        let stack = row.len() > 1 && widths.iter().zip(row).zip(&asked).any(|((w, c), a)| squeezed(*w, *a) && !c.blocks.is_empty());
         let cell = |this: &mut Self, st: &mut UiState, ui: &mut Ui, c: &mime::layout::Cell, w: f32| {
             let bg = theme::box_color(c.background, page, &st.tokens);
             let fill = bg.map_or(Color32::TRANSPARENT, |b| Color32::from_rgb(b[0], b[1], b[2]));
