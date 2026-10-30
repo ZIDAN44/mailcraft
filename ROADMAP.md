@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 214 (`mailcraft-cli commands`) |
-| Tests | 710 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 717 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -202,7 +202,9 @@ local-first, media-aware v1); the fuller request is
    lists it. From issue #10 again: mail set in a centred column of a set width keeps it; Ctrl+V
    attaches files copied in any file manager. From issue #11 again: a signature can be HTML
    code, sent as written (a business card, the photo beside the details), pasted or opened from
-   a signature saved as a web page, as Outlook keeps its own.
+   a signature saved as a web page, as Outlook keeps its own. From issue #23: Alt+numpad codes
+   (Alt+0201 → É) type their characters on Windows. From issue #24: on an Exchange account a
+   message with files shows its text at once, its files coming after.
 31. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -551,4 +553,7 @@ local-first, media-aware v1); the fuller request is
   Debian 12 under X11 with six file managers. Issue #11's signatures in HTML code
   (`mime/src/html/signature.rs`, `Compose::bodies_with`; the editor's code box in
   `dialogs/mailbox.rs`), a fuzz target `signature`; sent through GreenMail and read back in
-  MailCraft and Outlook.
+  MailCraft and Outlook. Issue #23's Alt codes (`ui-egui/src/app/alt_code.rs`, after WordCraft's;
+  `mime::alt_code_char`), tried with real key presses; issue #24's text first
+  (`mime::text_first`; EWS `ews/text_first.rs`, Graph `graph/text_first.rs`; the rest on the
+  account's second connection), tried against grommunio behind a 2 MB/s link.

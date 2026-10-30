@@ -1244,3 +1244,19 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
 - **Found on the way:** a picture in a folder with an accent in its name (`Andr%E9_files`, as
   Outlook writes it) wasn't found; the fuzz targets didn't build (the fuzz lockfile resolved a
   newer `sspi` than the workspace's, and the `tnef` target used functions mime didn't export).
+- **Alt+numpad codes on Windows (issue #23):** É, È and Ç, which a French keyboard has no keys
+  for, are typed as Alt+0201 and the like, and nothing came: Windows makes the character once Alt
+  is let go, as a character message with no key of its own, which the window library drops. The
+  digits typed with Alt alone held are collected on every window's input and the character typed
+  when Alt comes up, in any text: a leading 0 reads the code in the system's ANSI code page, none
+  in its OEM page (850 in Western Europe, 437 for US English, 866 Cyrillic), above 255 as
+  Unicode; another key ends a code with nothing typed, as on Windows. After WordCraft's (#961).
+- **A message's text first on Exchange (issue #24):** opening a message with a big attachment
+  waited for the whole of it before a line showed (20 s for 20 MB at 2 MB/s). Its body, headers
+  and the list of its files (names, types, sizes, no bytes) come first in one quick request (EWS
+  `GetItem`, Graph `$expand=attachments`), shown with "Downloading the attachments…" by the
+  files; the whole message follows on the account's second connection, so the next one opened
+  shows at once. Open, Save, Preview and Forward wait for the files and say so. EWS does this
+  for messages over 1 MB with files, Graph (no sizes) for all with files. grommunio sends the
+  whole source when the request names a body type or the headers, so neither is asked for.
+  Tried against grommunio behind a 2 MB/s link: the text in 0.01 s, the rest 15 s later.
