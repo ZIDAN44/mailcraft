@@ -7,7 +7,7 @@
 //! appointments updated field by field, changed contacts made again, deletions done (no meeting
 //! mail is ever sent); then both folders are read again.
 
-use mailcraft_model::ical::{Attendee, CalEvent, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
+use mailcraft_model::ical::{Attendee, CalEvent, Privacy, ShowAs, personal, privacy, set_personal, set_privacy, set_show_as, show_as};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, Note, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use serde_json::{Value, json};
@@ -189,8 +189,14 @@ pub fn event_of(it: &El) -> Option<CalEvent> {
         mailcraft_model::ical::set_reminder(&mut event, Some(minutes));
     }
     // Private and Show as (issue #32), as its CLASS and TRANSP (with Outlook's busy status).
-    if let Some(p) = it.text_of("Sensitivity").and_then(Privacy::from_code) {
-        set_privacy(&mut event, p);
+    match it.text_of("Sensitivity") {
+        Some(s) if s.trim().eq_ignore_ascii_case("Personal") => set_personal(&mut event),
+        Some(s) => {
+            if let Some(p) = Privacy::from_code(s) {
+                set_privacy(&mut event, p);
+            }
+        }
+        None => {}
     }
     if let Some(s) = it.text_of("LegacyFreeBusyStatus").and_then(ShowAs::from_code) {
         set_show_as(&mut event, s);
@@ -201,6 +207,7 @@ pub fn event_of(it: &El) -> Option<CalEvent> {
 /// An event's classification as EWS's `Sensitivity`.
 fn sensitivity(e: &CalEvent) -> &'static str {
     match privacy(e) {
+        _ if personal(e) => "Personal",
         Privacy::Public => "Normal",
         Privacy::Private => "Private",
         Privacy::Confidential => "Confidential",

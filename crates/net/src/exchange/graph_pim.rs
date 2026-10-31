@@ -6,7 +6,7 @@
 //! with their responses. Changes made here go first (new, changed, deleted), then every calendar
 //! and the contacts are read again.
 
-use mailcraft_model::ical::{Attendee, CalEvent, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
+use mailcraft_model::ical::{Attendee, CalEvent, Privacy, ShowAs, personal, privacy, set_personal, set_privacy, set_show_as, show_as};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use serde_json::{Value, json};
@@ -228,8 +228,14 @@ pub fn event_of(v: &Value) -> Option<CalEvent> {
         mailcraft_model::ical::set_reminder(&mut event, Some(minutes));
     }
     // Private and Show as (issue #32), as its CLASS and TRANSP (with Outlook's busy status).
-    if let Some(p) = v.get("sensitivity").and_then(Value::as_str).and_then(Privacy::from_code) {
-        set_privacy(&mut event, p);
+    match v.get("sensitivity").and_then(Value::as_str) {
+        Some(s) if s.trim().eq_ignore_ascii_case("personal") => set_personal(&mut event),
+        Some(s) => {
+            if let Some(p) = Privacy::from_code(s) {
+                set_privacy(&mut event, p);
+            }
+        }
+        None => {}
     }
     if let Some(st) = v.get("showAs").and_then(Value::as_str).and_then(ShowAs::from_code) {
         set_show_as(&mut event, st);
@@ -256,6 +262,7 @@ pub fn event_json(e: &CalEvent) -> Value {
     }
     v["recurrence"] = e.rrule.as_deref().and_then(|r| recurrence_of(r, e.start)).unwrap_or(Value::Null);
     v["sensitivity"] = json!(match privacy(e) {
+        _ if personal(e) => "personal",
         Privacy::Public => "normal",
         Privacy::Private => "private",
         Privacy::Confidential => "confidential",
@@ -580,7 +587,7 @@ mod tests {
             "end": {"dateTime": "2026-10-16T15:00:00", "timeZone": "UTC"}});
         for (sens, show, p, st) in [
             ("normal", "busy", Privacy::Public, ShowAs::Busy),
-            ("personal", "free", Privacy::Private, ShowAs::Free),
+            ("private", "free", Privacy::Private, ShowAs::Free),
             ("private", "oof", Privacy::Private, ShowAs::OutOfOffice),
             ("confidential", "workingElsewhere", Privacy::Confidential, ShowAs::WorkingElsewhere),
             ("normal", "tentative", Privacy::Public, ShowAs::Tentative),
@@ -601,5 +608,14 @@ mod tests {
             assert_eq!(back["sensitivity"], json!(want));
         }
         assert!(EVENT_FIELDS.contains("sensitivity") && EVENT_FIELDS.contains("showAs"), "asked for");
+        // Personal: private here, personal again on the way back.
+        let mut v = base.clone();
+        v["sensitivity"] = json!("personal");
+        let mut e = event_of(&v).unwrap();
+        assert_eq!(privacy(&e), Privacy::Private);
+        set_privacy(&mut e, Privacy::Private);
+        assert_eq!(event_json(&e)["sensitivity"], json!("personal"));
+        set_privacy(&mut e, Privacy::Public);
+        assert_eq!(event_json(&e)["sensitivity"], json!("normal"));
     }
 }

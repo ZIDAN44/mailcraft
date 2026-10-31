@@ -138,4 +138,12 @@ fn private_and_show_as_both_ways() {
     let fields = event_fields(&plain);
     assert!(fields.iter().any(|(_, x)| x == "<t:Sensitivity>Normal</t:Sensitivity>"));
     assert!(fields.iter().any(|(_, x)| x == "<t:LegacyFreeBusyStatus>Busy</t:LegacyFreeBusyStatus>"));
+    // Personal (iCalendar has no word for it) is private here, and goes back personal through
+    // an edit; made confidential here, it's that.
+    let mut mine = item("Personal", "Busy");
+    mine.summary = "Doctor (moved)".into();
+    mailcraft_model::ical::set_privacy(&mut mine, Privacy::Private);
+    assert!(event_fields(&mine).iter().any(|(_, x)| x == "<t:Sensitivity>Personal</t:Sensitivity>"));
+    mailcraft_model::ical::set_privacy(&mut mine, Privacy::Confidential);
+    assert!(event_fields(&mine).iter().any(|(_, x)| x == "<t:Sensitivity>Confidential</t:Sensitivity>"));
 }

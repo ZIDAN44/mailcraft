@@ -116,6 +116,26 @@ fn show_as_is_written_as_outlook_writes_it_and_round_trips() {
     assert_eq!(Privacy::from_code("personal"), Some(Privacy::Private), "Exchange's Personal");
 }
 
+/// A classification and Show as come after many other lines of an event (more than are kept of
+/// the rest): they're still read, and changed in place, never doubled.
+#[test]
+fn a_classification_after_many_other_lines_is_kept() {
+    let many: String = (0..300).map(|i| format!("X-OTHER-{i}:v\r\n")).collect();
+    let mut e = one(&format!("{many}CLASS:CONFIDENTIAL\r\nTRANSP:TRANSPARENT\r\nCLASS:PUBLIC\r\n"));
+    assert_eq!((privacy(&e), show_as(&e)), (Privacy::Confidential, ShowAs::Free), "the first of each");
+    assert_eq!(e.extra.iter().filter(|l| l.starts_with("CLASS")).count(), 1, "only the first kept past the cap");
+    set_privacy(&mut e, Privacy::Private);
+    let text = written(&e);
+    assert_eq!(text.matches("CLASS:").count(), 1, "{text}");
+    assert_eq!(privacy(&parse(&text, 0).events[0]), Privacy::Private);
+    // Past a long alarm too.
+    let alarm: String = (0..1200).map(|i| format!("X-A-{i}:v\r\n")).collect();
+    let mut long = one(&format!("BEGIN:VALARM\r\n{alarm}END:VALARM\r\nCLASS:PRIVATE\r\n"));
+    assert_eq!(privacy(&long), Privacy::Private);
+    set_privacy(&mut long, Privacy::Confidential);
+    assert_eq!(written(&long).matches("CLASS:").count(), 1);
+}
+
 /// Answering an invitation Outlook sent as tentative: accepted, it shows as the organizer meant
 /// (busy); tentatively, tentative; one marked free stays free.
 #[test]

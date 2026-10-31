@@ -109,7 +109,7 @@ const BUSY_STATUS: &str = "X-MICROSOFT-CDO-BUSYSTATUS";
 fn own(e: &CalEvent, name: &str) -> Vec<(usize, String)> {
     let mut out = Vec::new();
     let mut depth = 0usize;
-    for (i, raw) in e.extra.iter().enumerate().take(1000) {
+    for (i, raw) in e.extra.iter().enumerate() {
         let head = raw.trim_start();
         if head.get(..6).is_some_and(|b| b.eq_ignore_ascii_case("BEGIN:")) {
             depth += 1;
@@ -232,4 +232,20 @@ pub fn show_as_answered(e: &mut CalEvent, partstat: &str) {
         _ => now,
     };
     set_show_as(e, to);
+}
+
+/// Exchange's Personal (a sensitivity iCalendar has no word for): kept as `CLASS:X-PERSONAL`,
+/// which counts as private here, so an item edited here goes back to Exchange still personal.
+const PERSONAL: &str = "X-PERSONAL";
+
+/// Whether an event is Exchange's Personal ([`set_personal`]).
+pub fn personal(e: &CalEvent) -> bool {
+    own(e, CLASS).first().is_some_and(|(_, v)| v == PERSONAL)
+}
+
+/// Mark an event as Exchange's Personal.
+pub fn set_personal(e: &mut CalEvent) {
+    if !personal(e) {
+        replace(e, &[CLASS], vec![format!("{CLASS}:{PERSONAL}")]);
+    }
 }

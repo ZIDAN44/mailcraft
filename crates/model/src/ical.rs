@@ -367,6 +367,8 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
     let mut pending: Vec<&Line> = Vec::new();
     let mut ev: Option<(CalEvent, Option<i64>)> = None;
     let mut depth_in_event = 0usize;
+    // Which of the event's CLASS, TRANSP and busy status have come (kept past the cap).
+    let mut showing_seen = 0u8;
     for l in &all {
         let n = l.name.as_str();
         if n == "BEGIN" {
@@ -374,6 +376,7 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             if what == "VEVENT" && ev.is_none() {
                 ev = Some((CalEvent::default(), None));
                 depth_in_event = 0;
+                showing_seen = 0;
                 pending.clear();
                 continue;
             }
@@ -483,7 +486,17 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             "DTSTAMP" => e.dtstamp = zones.time(l, "").map_or(0, |(t, _, _)| t),
             "CREATED" | "LAST-MODIFIED" => {}
             _ => {
-                if e.extra.len() < 200 {
+                // Past the cap, an event's classification and Show as are still kept (once each):
+                // they're never dropped (issue #32).
+                let bit = match n {
+                    "CLASS" => 1u8,
+                    "TRANSP" => 2,
+                    "X-MICROSOFT-CDO-BUSYSTATUS" => 4,
+                    _ => 0,
+                };
+                let kept_anyway = bit != 0 && showing_seen & bit == 0;
+                showing_seen |= bit;
+                if e.extra.len() < 200 || kept_anyway {
                     e.extra.push(l.raw.clone());
                 }
             }
