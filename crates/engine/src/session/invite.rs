@@ -433,7 +433,9 @@ impl Session {
             reply.attendees.push(Attendee { email: me.1.clone(), name: me.0.clone(), partstat: stat.into(), rsvp: false });
         }
         reply.description.clear();
-        reply.extra.retain(|x| !x.to_ascii_uppercase().starts_with("BEGIN:VALARM"));
+        // The user's alarms are their own: each goes whole (its lines left after a lone `BEGIN`
+        // taken out would end a component never begun).
+        ical::set_reminder(&mut reply, None);
         let word = match stat {
             "ACCEPTED" => "Accepted",
             "TENTATIVE" => "Tentative",

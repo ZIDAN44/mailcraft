@@ -9,11 +9,11 @@ use mailcraft_model::{Folder, MessageKey, Summary};
 use super::*;
 
 const ZOE: (&str, &str) = ("Zoe Park", "zoe@studio.example");
-const OWN: &str = "https://dav.example.org/SOGo/dav/riley/Calendar/personal/";
+pub(super) const OWN: &str = "https://dav.example.org/SOGo/dav/riley/Calendar/personal/";
 const THEIRS: &str = "https://dav.example.org/SOGo/dav/riley/Calendar/sam_team/";
 
 /// An IMAP account with an Inbox whose first look is done (so what comes next arrives).
-fn imap_session(name: &str) -> (Session, String) {
+pub(super) fn imap_session(name: &str) -> (Session, String) {
     let store = temp(name);
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
@@ -49,7 +49,7 @@ fn invitation(uid: &str, sequence: u32) -> CalEvent {
 }
 
 /// A message carrying a calendar arrives in the account's Inbox (its body downloaded).
-fn arrive(s: &mut Session, id: &str, n: u32, method: &str, events: &[CalEvent]) -> MessageKey {
+pub(super) fn arrive(s: &mut Session, id: &str, n: u32, method: &str, events: &[CalEvent]) -> MessageKey {
     let ics = mailcraft_model::ical::write(events, Some(method), NOW);
     let d = mailcraft_mime::Draft {
         to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
@@ -79,7 +79,7 @@ fn cal(id: &str, name: &str, foreign: bool) -> CalendarInfo {
 
 /// The server's calendars found: someone else's (writable, listed first, as SOGo can) and the
 /// account's own, with these events in them.
-fn found(s: &mut Session, id: &str, events: Vec<StoredEvent>) {
+pub(super) fn found(s: &mut Session, id: &str, events: Vec<StoredEvent>) {
     let sync = DavSync {
         caldav_home: Some("https://dav.example.org/SOGo/dav/riley/Calendar/".into()),
         calendars: Some(vec![cal(THEIRS, "Sam's team", true), cal(OWN, "Personal Calendar", false)]),
@@ -91,7 +91,7 @@ fn found(s: &mut Session, id: &str, events: Vec<StoredEvent>) {
     s.apply(Event::DavSynced { account: id.into(), sync: Box::new(sync) });
 }
 
-fn parts<'a>(s: &'a Session, id: &str, uid: &str) -> Vec<&'a StoredEvent> {
+pub(super) fn parts<'a>(s: &'a Session, id: &str, uid: &str) -> Vec<&'a StoredEvent> {
     s.pim[id].events.iter().filter(|e| e.event.uid == uid).collect()
 }
 
