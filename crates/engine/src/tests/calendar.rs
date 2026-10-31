@@ -9,6 +9,7 @@ mod invite_placing;
 mod invites;
 mod meetings;
 mod pim;
+mod sogo;
 mod tentative;
 mod together;
 mod web_calendars;

@@ -414,6 +414,11 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
                         }
                     }
                 }
+                // The server's stand-in for a title it hid ("(Private event)") isn't the event's:
+                // it shows as a private appointment, in the user's language (issue #32).
+                if details_hidden(&e) {
+                    e.summary.clear();
+                }
                 if e.end <= e.start {
                     e.end = match dur {
                         Some(d) => e.start.saturating_add(d.max(0)),

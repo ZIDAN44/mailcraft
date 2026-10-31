@@ -423,6 +423,11 @@ impl Session {
         if p.calendars.iter().any(|c| c.id == stored.calendar && c.read_only) {
             return Err(CmdError::Params("this calendar can't be changed".into()));
         }
+        // Only its time came (SOGo's copy for a colleague who may see no more): saving it would
+        // write that copy over the owner's event, which may be in a calendar the user can change.
+        if mailcraft_model::ical::details_hidden(&stored.event) {
+            return Err(CmdError::Params("only this event's time can be seen: it can't be changed".into()));
+        }
         let mut e = stored.event.clone();
         change(&mut e);
         check_event(&e)?;

@@ -104,6 +104,7 @@ impl ShowAs {
 const CLASS: &str = "CLASS";
 const TRANSP: &str = "TRANSP";
 const BUSY_STATUS: &str = "X-MICROSOFT-CDO-BUSYSTATUS";
+const SECURE: &str = "X-SOGO-SECURE";
 
 /// The event's own lines (not its alarms') named `name`: where each is, and its value.
 fn own(e: &CalEvent, name: &str) -> Vec<(usize, String)> {
@@ -148,10 +149,19 @@ fn replace(e: &mut CalEvent, names: &[&str], add: Vec<String>) {
     }
 }
 
+/// Whether the server gave only the event's time, its details hidden from this user: SOGo's
+/// `X-SOGO-SECURE:YES` on a private or confidential event of someone else's calendar that the
+/// user may see the date and time of only. Such a copy has SOGo's own words for a title
+/// (`(Private event)`, in the owner's language), no `CLASS`, and a uid made up for it.
+pub fn details_hidden(e: &CalEvent) -> bool {
+    own(e, SECURE).first().is_some_and(|(_, v)| v == "YES")
+}
+
 /// An event's classification. One a calendar doesn't know (an `x-name`) counts as private, as
-/// RFC 5545 asks.
+/// RFC 5545 asks; one whose details the server hid is private, though it says no `CLASS`.
 pub fn privacy(e: &CalEvent) -> Privacy {
     match own(e, CLASS).first().map(|(_, v)| v.as_str()) {
+        None if details_hidden(e) => Privacy::Private,
         None | Some("PUBLIC" | "") => Privacy::Public,
         Some("CONFIDENTIAL") => Privacy::Confidential,
         Some(_) => Privacy::Private,

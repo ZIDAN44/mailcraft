@@ -165,3 +165,27 @@ fn an_answer_sets_how_an_invitation_shows() {
     show_as_answered(&mut junk, "ACCEPTED");
     assert_eq!(show_as(&junk), ShowAs::Busy, "an intent that can't be read: busy");
 }
+
+/// What SOGo serves a colleague who may see only the date and time of ann's private or
+/// confidential events (taken from a real Mailcow): its own words for a title, a uid made up
+/// for the copy, no CLASS and no Show as. It's a private appointment, busy, at its time.
+#[test]
+fn an_event_sogo_hid_the_details_of_is_a_private_appointment() {
+    let text = "BEGIN:VCALENDAR\r\nPRODID:-//probe//EN\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nDTSTAMP:20261031T080000Z\r\nDTSTART:20261105T090000Z\r\n\
+                DTEND:20261105T100000Z\r\nSUMMARY:(Private event)\r\nUID:d620a8857101682c5479e45f2346415b2393d6cde7ea04f4aa9d35ec24ff80766237616\r\n \
+                2303961336561636238353766316439613039353131633333336566373030343062343566\r\nX-SOGO-SECURE:YES\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let e = parse(text, 0).events.into_iter().next().unwrap();
+    assert!(details_hidden(&e));
+    assert_eq!(e.summary, "", "SOGo's stand-in isn't the title");
+    assert_eq!((privacy(&e), show_as(&e)), (Privacy::Private, ShowAs::Busy));
+    assert_eq!((e.start, e.end - e.start), (1_793_869_200, 3600));
+    assert!(e.uid.starts_with("d620a885") && e.uid.ends_with("343062343566"), "{}", e.uid);
+    // The owner's own copy, and one a server says isn't hidden, are as they are.
+    for lines in ["SUMMARY:(Private event)\r\nX-SOGO-SECURE:NO\r\n", "SUMMARY:(Private event)\r\n"] {
+        let e = one(lines);
+        assert!(!details_hidden(&e));
+        assert_eq!((e.summary.as_str(), privacy(&e)), ("(Private event)", Privacy::Public));
+    }
+    // A classification the copy does say counts.
+    assert_eq!(privacy(&one("X-SOGO-SECURE:YES\r\nCLASS:CONFIDENTIAL\r\n")), Privacy::Confidential);
+}
