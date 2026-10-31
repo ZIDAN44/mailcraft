@@ -1319,3 +1319,11 @@ month	May	Mai
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Bis zu 50 Buchstaben, Ziffern und Zeichen, ohne Leerzeichen, Anführungszeichen, Backslashes oder ( ) { } ] % *
 	{name} has that keyword already.	{name} hat dieses Schlüsselwort bereits.
 	Messages: {n}	Nachrichten: {n}
+	Busy	Beschäftigt
+	Free	Frei
+	Out of office	Außer Haus
+	Private	Privat
+	Private appointment	Privater Termin
+	Show as	Zeigen als
+	Show time only	Nur die Zeit zeigen
+	Working elsewhere	Woanders tätig

@@ -1318,3 +1318,11 @@ month	May	maggio
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Fino a 50 lettere, cifre e simboli, senza spazi, virgolette, barre rovesciate o ( ) { } ] % *
 	{name} has that keyword already.	{name} ha già quella parola chiave.
 	Messages: {n}	Messaggi: {n}
+	Busy	Occupato
+	Free	Libero
+	Out of office	Fuori ufficio
+	Private	Privato
+	Private appointment	Appuntamento privato
+	Show as	Mostra come
+	Show time only	Mostra solo l'orario
+	Working elsewhere	Al lavoro altrove

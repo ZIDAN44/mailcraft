@@ -1315,3 +1315,11 @@ month	May	5月
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	最多 50 个字母、数字和符号，不能有空格、引号、反斜杠或 ( ) { } ] % *
 	{name} has that keyword already.	{name} 已经有该关键字。
 	Messages: {n}	邮件：{n}
+	Busy	忙碌
+	Free	空闲
+	Out of office	外出
+	Private	私人
+	Private appointment	私人约会
+	Show as	显示为
+	Show time only	仅显示时间
+	Working elsewhere	在别处工作

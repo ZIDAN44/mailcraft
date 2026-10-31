@@ -1315,3 +1315,11 @@ month	May	5月
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	50 文字までの英字・数字・記号。空白、引用符、バックスラッシュ、( ) { } ] % * は使えません
 	{name} has that keyword already.	{name} にはすでにそのキーワードがあります。
 	Messages: {n}	メッセージ: {n}
+	Busy	予定あり
+	Free	空き時間
+	Out of office	外出中
+	Private	非公開
+	Private appointment	非公開の予定
+	Show as	表示方法
+	Show time only	時間のみ表示
+	Working elsewhere	別の場所で勤務

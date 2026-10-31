@@ -250,3 +250,39 @@ fn reminders_pop_up_snooze_and_dismiss() {
     assert!(!crate::reminders::showing(&a.ui.reminders));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #32: the event form shows an event's Private and Show as and saves what's changed; the
+/// calendar draws a private one with a lock and names one that came without a subject.
+#[test]
+fn the_event_form_sets_private_and_show_as() {
+    use mailcraft_engine::model::ical::{Privacy, ShowAs, privacy, show_as};
+    let (mut a, dir) = app("event-private");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let lunch = a.session.agenda(NOW - 86_400, NOW + 86_400).into_iter().find(|i| i.summary == "Lunch with Jun").unwrap();
+    assert_eq!(lunch.privacy, Privacy::Private, "the sample's lunch is private");
+    let Some(Dialog::Event(mut f)) = Dialog::open_event(&a.session, &lunch.uid, lunch.occurrence) else { panic!("no form") };
+    assert_eq!((f.privacy, f.show_as), (Privacy::Private, ShowAs::Busy));
+    f.privacy = Privacy::Confidential;
+    f.show_as = ShowAs::WorkingElsewhere;
+    let params = f.params();
+    a.ui.dialog = Some(Dialog::Event(f));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Submit("event.update", params));
+    let e = a.session.find_event(&lunch.uid).unwrap().1.event.clone();
+    assert_eq!((privacy(&e), show_as(&e)), (Privacy::Confidential, ShowAs::WorkingElsewhere));
+    // A new one is public and busy unless said otherwise.
+    let Some(Dialog::Event(f)) = Some(Dialog::new_event(&a.session, None)) else { panic!() };
+    assert_eq!((f.params()["privacy"].as_str(), f.params()["showAs"].as_str()), (Some("public"), Some("busy")));
+    // Without a subject (a shared calendar's time only): named, never blank.
+    use crate::panes::calendar::event_title;
+    assert_eq!(event_title(" ", Privacy::Private, ShowAs::Busy), "Private appointment");
+    assert_eq!(event_title("", Privacy::Public, ShowAs::OutOfOffice), "Out of office");
+    assert_eq!(event_title("Lunch", Privacy::Private, ShowAs::Busy), "Lunch");
+    for mode in ["day", "week", "month"] {
+        a.run("view.module", json!({"name": "calendar"}));
+        a.run("calendar.view", json!({"mode": mode}));
+        frame(&ctx, &mut a, vec![]);
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}

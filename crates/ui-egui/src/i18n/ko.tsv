@@ -1318,3 +1318,11 @@ month	May	5월
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	최대 50자의 문자, 숫자, 기호. 공백, 따옴표, 백슬래시, ( ) { } ] % * 는 쓸 수 없습니다
 	{name} has that keyword already.	{name}에 이미 그 키워드가 있습니다.
 	Messages: {n}	메시지: {n}
+	Busy	바쁨
+	Free	한가함
+	Out of office	부재중
+	Private	비공개
+	Private appointment	비공개 일정
+	Show as	표시 방법
+	Show time only	시간만 표시
+	Working elsewhere	다른 곳에서 근무

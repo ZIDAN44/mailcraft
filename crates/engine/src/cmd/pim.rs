@@ -58,7 +58,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!(s.agenda(from, to).iter().map(|i| json!({
                 "uid": i.uid, "summary": i.summary, "location": i.location, "start": i.start, "end": i.end, "allDay": i.all_day,
                 "occurrence": i.occurrence, "recurring": i.recurring, "account": i.account, "calendar": i.calendar,
-                "needsReply": i.needs_reply, "status": i.status,
+                "needsReply": i.needs_reply, "status": i.status, "privacy": i.privacy, "showAs": i.show_as,
             })).collect::<Vec<_>>()))
         })
         .params(r#"{"from"?: date or date-time, "to"?: …} (default: what the calendar shows)"#),
@@ -80,7 +80,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "account"?: string, "calendar"?: string}"#),
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "account"?: string, "calendar"?: string}"#),
         CommandSpec::new("reminders.list", "Reminders", "File › Reminders", |s, _| {
             let now = s.clock.now;
             Ok(json!(s
@@ -353,6 +353,18 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
             _ => return Err(CmdError::Params("`reminder` is minutes before it starts (0 to four weeks) or none".into())),
         },
         None => {}
+    }
+    // Private, and how it shows its time (issue #32): a classification set elsewhere stays
+    // unless one is asked for.
+    if let Some(x) = p::str(v, "privacy") {
+        let privacy =
+            mailcraft_model::ical::Privacy::from_code(x).ok_or_else(|| CmdError::Params(format!("`{x}` is not public, private or confidential")))?;
+        mailcraft_model::ical::set_privacy(&mut e, privacy);
+    }
+    if let Some(x) = p::str(v, "showAs") {
+        let show = mailcraft_model::ical::ShowAs::from_code(x)
+            .ok_or_else(|| CmdError::Params(format!("`{x}` is not free, workingElsewhere, tentative, busy or oof")))?;
+        mailcraft_model::ical::set_show_as(&mut e, show);
     }
     match p::str(v, "repeat").map(str::trim) {
         Some("" | "none" | "never") => e.rrule = None,

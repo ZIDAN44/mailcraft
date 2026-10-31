@@ -3,8 +3,12 @@
 
 use egui::{Align2, Color32, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::dates::{self, civil_from_days, days_from_civil};
+use mailcraft_engine::model::ical::{Privacy, ShowAs};
 use mailcraft_engine::{AgendaItem, CalMode, Session};
 use serde_json::json;
+
+mod showing;
+pub use showing::*;
 
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
@@ -383,6 +387,10 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     }
 }
 
+fn title_of(it: &AgendaItem) -> String {
+    event_title(&it.summary, it.privacy, it.show_as)
+}
+
 /// Open an item (its event).
 fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
     Dialog::open_event(s, &item.uid, item.occurrence).map(Action::Dialog)
@@ -395,7 +403,7 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
     let resp = ui.interact(rect, ui.scope_id().with(("chip", &item.account, &item.calendar, &item.uid, item.start)), Sense::click());
     // A category's colour, as Outlook draws a categorized appointment; else its calendar's.
     let c = item.category.map_or_else(|| color(item.color, t), |i| theme::category_color(i, t.dark));
-    let tentative = item.needs_reply || item.status == "TENTATIVE";
+    let tentative = item.needs_reply || item.status == "TENTATIVE" || matches!(item.show_as, ShowAs::Tentative | ShowAs::Free);
     // Stronger under the pointer, with its colour round it.
     let hovered = resp.hovered();
     let fill = match (tentative, hovered) {
@@ -409,12 +417,18 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
         }),
     };
     ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(if tentative || hovered { 1.0 } else { 0.0 }, c), egui::StrokeKind::Inside);
-    ui.painter().rect_filled(Rect::from_min_size(rect.min, vec2(3.0, rect.height())), 2.0, c);
+    time_strip(ui, Rect::from_min_size(rect.min, vec2(3.0, rect.height())), c, item.show_as);
+    // A private one has a lock in its corner (issue #32), as Outlook marks it.
+    let lock = item.privacy != Privacy::Public && rect.width() > 30.0;
+    if lock {
+        let r = Rect::from_min_size(pos2(rect.max.x - 15.0, rect.min.y + 3.0), vec2(11.0, 11.0));
+        icons::paint(ui.painter(), r, Icon::Lock, t.dim);
+    }
     // As many whole lines as the box holds, the last one ending in "…" when more is left (a line
     // cut in half by the box's edge read badly).
     let font = theme::regular(12.0);
     let row = ui.fonts_mut(|f| f.row_height(&font)).max(1.0);
-    let mut job = egui::text::LayoutJob::simple(text.to_string(), font, t.text, (rect.width() - 8.0).max(4.0));
+    let mut job = egui::text::LayoutJob::simple(text.to_string(), font, t.text, (rect.width() - if lock { 22.0 } else { 8.0 }).max(4.0));
     job.wrap.max_rows = ((rect.height() - 4.0) / row).floor().max(1.0) as usize;
     job.wrap.overflow_character = Some('…');
     let galley = ui.fonts_mut(|f| f.layout_job(job));
@@ -465,7 +479,7 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
             let shown = if todays.len() > fit { fit.saturating_sub(1) } else { todays.len() };
             for (k, it) in todays.iter().take(shown).enumerate() {
                 let cr = Rect::from_min_size(r.min + vec2(3.0, 24.0 + 19.0 * k as f32), vec2(cw - 6.0, 17.0));
-                let text = if it.all_day { it.summary.clone() } else { format!("{} {}", hm(it.start, s), it.summary) };
+                let text = if it.all_day { title_of(it) } else { format!("{} {}", hm(it.start, s), title_of(it)) };
                 if chip(ui, t, cr, it, &text).clicked()
                     && let Some(a) = open(s, it)
                 {
@@ -603,7 +617,7 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
                 pos2(strip.min.x + day_x(a - d0, col_of(it)) + 2.0, strip.min.y + 3.0 + 20.0 * lane as f32),
                 vec2(cw * (b - a + 1) as f32 - 4.0, 18.0),
             );
-            if chip(ui, &t, r, it, &it.summary).clicked()
+            if chip(ui, &t, r, it, &title_of(it)).clicked()
                 && let Some(act) = open(s, it)
             {
                 acts.push(act);
@@ -694,7 +708,7 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
                 );
                 // The place beside the time when both fit on one line (a short event still shows it),
                 // else on a line of its own.
-                let mut text = format!("{}\n{} – {}", it.summary, hm(it.start, s), hm(it.end, s));
+                let mut text = format!("{}\n{} – {}", title_of(it), hm(it.start, s), hm(it.end, s));
                 if !it.location.is_empty() {
                     let both = format!("{} – {} · {}", hm(it.start, s), hm(it.end, s), it.location);
                     let w = ui.fonts_mut(|f| f.layout_no_wrap(both, theme::regular(12.0), t.text).size().x);

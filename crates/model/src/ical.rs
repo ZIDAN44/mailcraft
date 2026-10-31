@@ -21,12 +21,14 @@ use crate::dates::{civil_from_days, days_from_civil};
 mod alarms;
 mod notes;
 mod recurrence;
+mod showing;
 mod zones;
 pub use alarms::*;
 use notes::*;
 pub use notes::*;
 use recurrence::*;
 pub use recurrence::*;
+pub use showing::*;
 use zones::*;
 
 /// The most occurrences produced for one event in one expansion.

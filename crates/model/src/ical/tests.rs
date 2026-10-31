@@ -120,6 +120,7 @@ fn an_events_links_and_the_one_that_joins_it() {
 
 use super::*;
 
+mod showing;
 mod zones;
 
 fn at(y: i64, m: u32, d: u32, h: i64, mi: i64) -> i64 {

@@ -85,6 +85,9 @@ pub struct AgendaItem {
     pub status: String,
     /// The user's reply is awaited (`NEEDS-ACTION`).
     pub needs_reply: bool,
+    /// Who sees what of it, and how it shows its time (issue #32).
+    pub privacy: ical::Privacy,
+    pub show_as: ical::ShowAs,
 }
 
 /// A person in an address book.
@@ -254,6 +257,8 @@ impl Session {
                         category: e.categories.first().map(|c| self.category_color_of(c)),
                         status: e.status.clone(),
                         needs_reply,
+                        privacy: ical::privacy(e),
+                        show_as: ical::show_as(e),
                     });
                 }
             }

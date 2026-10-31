@@ -6,7 +6,7 @@
 //! with their responses. Changes made here go first (new, changed, deleted), then every calendar
 //! and the contacts are read again.
 
-use mailcraft_model::ical::{Attendee, CalEvent};
+use mailcraft_model::ical::{Attendee, CalEvent, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use serde_json::{Value, json};
@@ -18,7 +18,7 @@ use crate::{NetError, Result};
 const MAX_ITEMS: usize = 5000;
 /// The address book Graph's contacts go into.
 pub const CONTACTS: &str = "graph:contacts";
-const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories,onlineMeeting,isReminderOn,reminderMinutesBeforeStart";
+const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories,onlineMeeting,isReminderOn,reminderMinutesBeforeStart,sensitivity,showAs";
 const CONTACT_FIELDS: &str = "id,changeKey,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,personalNotes,businessAddress,homeAddress,otherAddress,birthday";
 
 fn seg(id: &str) -> String {
@@ -227,6 +227,13 @@ pub fn event_of(v: &Value) -> Option<CalEvent> {
         let minutes = v.get("reminderMinutesBeforeStart").and_then(Value::as_i64).unwrap_or(15);
         mailcraft_model::ical::set_reminder(&mut event, Some(minutes));
     }
+    // Private and Show as (issue #32), as its CLASS and TRANSP (with Outlook's busy status).
+    if let Some(p) = v.get("sensitivity").and_then(Value::as_str).and_then(Privacy::from_code) {
+        set_privacy(&mut event, p);
+    }
+    if let Some(st) = v.get("showAs").and_then(Value::as_str).and_then(ShowAs::from_code) {
+        set_show_as(&mut event, st);
+    }
     Some(event)
 }
 
@@ -248,6 +255,12 @@ pub fn event_json(e: &CalEvent) -> Value {
         v["reminderMinutesBeforeStart"] = json!(m);
     }
     v["recurrence"] = e.rrule.as_deref().and_then(|r| recurrence_of(r, e.start)).unwrap_or(Value::Null);
+    v["sensitivity"] = json!(match privacy(e) {
+        Privacy::Public => "normal",
+        Privacy::Private => "private",
+        Privacy::Confidential => "confidential",
+    });
+    v["showAs"] = json!(show_as(e).code());
     v
 }
 
@@ -557,5 +570,36 @@ mod tests {
         );
         let back = card_json(&card);
         assert_eq!((back["mobilePhone"].as_str(), back["businessPhones"][0].as_str()), (Some("+1 555 0101"), Some("+1 555 0100")));
+    }
+
+    /// Issue #32: Graph's sensitivity and showAs come in as the event's CLASS and Show as, and
+    /// go back as Graph names them; "unknown" and nonsense leave it busy.
+    #[test]
+    fn private_and_show_as_both_ways() {
+        let base = json!({"id": "E1", "subject": "Doctor", "start": {"dateTime": "2026-10-16T14:00:00", "timeZone": "UTC"},
+            "end": {"dateTime": "2026-10-16T15:00:00", "timeZone": "UTC"}});
+        for (sens, show, p, st) in [
+            ("normal", "busy", Privacy::Public, ShowAs::Busy),
+            ("personal", "free", Privacy::Private, ShowAs::Free),
+            ("private", "oof", Privacy::Private, ShowAs::OutOfOffice),
+            ("confidential", "workingElsewhere", Privacy::Confidential, ShowAs::WorkingElsewhere),
+            ("normal", "tentative", Privacy::Public, ShowAs::Tentative),
+            ("junk", "unknown", Privacy::Public, ShowAs::Busy),
+        ] {
+            let mut v = base.clone();
+            v["sensitivity"] = json!(sens);
+            v["showAs"] = json!(show);
+            let e = event_of(&v).unwrap();
+            assert_eq!((privacy(&e), show_as(&e)), (p, st), "{sens} {show}");
+            let back = event_json(&e);
+            assert_eq!(back["showAs"], json!(st.code()));
+            let want = match p {
+                Privacy::Public => "normal",
+                Privacy::Private => "private",
+                Privacy::Confidential => "confidential",
+            };
+            assert_eq!(back["sensitivity"], json!(want));
+        }
+        assert!(EVENT_FIELDS.contains("sensitivity") && EVENT_FIELDS.contains("showAs"), "asked for");
     }
 }

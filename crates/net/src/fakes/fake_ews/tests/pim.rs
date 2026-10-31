@@ -450,3 +450,51 @@ fn shared_mailboxes_open_by_themselves_or_by_hand() {
     assert!(anchors.iter().any(|a| a == "sales@contoso.example") && anchors.iter().any(|a| a == "team@contoso.example"), "{anchors:?}");
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Issue #32 against the fake Exchange: a private, out-of-office event made here is stored with
+/// Sensitivity Private and LegacyFreeBusyStatus OOF; made "show time only" and free, the update
+/// changes both on the item; a colleague's private appointment that comes without its subject
+/// is still read, with its classification and status.
+#[test]
+fn private_and_show_as_go_to_exchange_and_back() {
+    use mailcraft_model::ical::{CalEvent, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
+    use mailcraft_model::pim::{LOCAL, Pim, StoredEvent};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let cal = d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    let hidden = parse(
+        "<t:CalendarItem><t:Sensitivity>Private</t:Sensitivity><t:Start>2026-10-07T08:00:00Z</t:Start><t:End>2026-10-07T09:00:00Z</t:End>\
+         <t:IsAllDayEvent>false</t:IsAllDayEvent><t:LegacyFreeBusyStatus>Busy</t:LegacyFreeBusyStatus><t:UID>hidden-1</t:UID></t:CalendarItem>",
+    );
+    d.pim.push(("H1".into(), cal, hidden.kids[0].clone()));
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let mut e = CalEvent { uid: "doc-1".into(), summary: "Doctor".into(), start: 1_792_000_000, end: 1_792_003_600, ..Default::default() };
+    set_privacy(&mut e, Privacy::Private);
+    set_show_as(&mut e, ShowAs::OutOfOffice);
+    let pim = Pim { events: vec![StoredEvent { calendar: LOCAL.into(), event: e, dirty: true, ..Default::default() }], ..Default::default() };
+    let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let doc = sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap();
+    assert_eq!((privacy(&doc.event), show_as(&doc.event)), (Privacy::Private, ShowAs::OutOfOffice));
+    let stored = |s: &Server, id: &str| s.data.lock().unwrap().pim.iter().find(|(i, _, _)| i == id).map(|(_, _, el)| el.clone()).unwrap();
+    let el = stored(&server, &doc.href);
+    assert_eq!((el.text_of("Sensitivity"), el.text_of("LegacyFreeBusyStatus")), (Some("Private"), Some("OOF")));
+    // Changed: show time only, and free.
+    let mut changed = doc.clone();
+    set_privacy(&mut changed.event, Privacy::Confidential);
+    set_show_as(&mut changed.event, ShowAs::Free);
+    changed.dirty = true;
+    let sync = crate::ews_pim::sync(&c, &Pim { events: vec![changed], ..Default::default() }, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let el = stored(&server, &doc.href);
+    assert_eq!((el.text_of("Sensitivity"), el.text_of("LegacyFreeBusyStatus")), (Some("Confidential"), Some("Free")));
+    assert_eq!(el.children("Sensitivity").count(), 1, "replaced, not added");
+    let back = sync.events.iter().find(|x| x.href == doc.href).unwrap();
+    assert_eq!((privacy(&back.event), show_as(&back.event)), (Privacy::Confidential, ShowAs::Free));
+    // Without a subject: kept, private, its time taken.
+    let h = sync.events.iter().find(|x| x.event.uid == "hidden-1").unwrap();
+    assert!(h.event.summary.is_empty());
+    assert_eq!((privacy(&h.event), show_as(&h.event)), (Privacy::Private, ShowAs::Busy));
+}

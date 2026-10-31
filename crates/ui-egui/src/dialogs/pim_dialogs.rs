@@ -9,6 +9,8 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, widgets};
 
+mod showing;
+
 /// A new event's reminder (Outlook's default for appointments).
 pub const DEFAULT_REMINDER: i64 = 15;
 /// The reminders offered, in minutes before the start (Outlook's list).
@@ -73,6 +75,9 @@ pub struct EventForm {
     pub repeat: String,
     /// Its reminder, in minutes before it starts (`None`: none).
     pub reminder: Option<i64>,
+    /// Who sees what of it, and how it shows its time (issue #32).
+    pub privacy: mailcraft_engine::model::ical::Privacy,
+    pub show_as: mailcraft_engine::model::ical::ShowAs,
     pub organizer: Option<String>,
     /// (who, their answer).
     pub attendees: Vec<(String, String)>,
@@ -164,6 +169,8 @@ impl EventForm {
             end: local_time(end, s),
             all_day: e.all_day,
             reminder: mailcraft_engine::model::ical::reminder_minutes(e),
+            privacy: mailcraft_engine::model::ical::privacy(e),
+            show_as: mailcraft_engine::model::ical::show_as(e),
             repeat: match e.rrule.as_deref() {
                 None => String::new(),
                 Some(r) => match r.to_ascii_uppercase().as_str() {
@@ -210,6 +217,8 @@ impl EventForm {
             "repeat": if self.repeat.is_empty() { "none" } else { self.repeat.as_str() },
             "reminder": self.reminder.map_or_else(|| json!("none"), |m| json!(m)),
             "categories": self.categories,
+            "privacy": self.privacy.code(),
+            "showAs": self.show_as.code(),
         });
         if self.can_invite {
             p["attendees"] = json!(self.guests.trim());
@@ -435,6 +444,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 });
             });
         });
+        showing::show_as_row(ui, t, f);
         form_row(ui, t, true, Some(Icon::Location), "Location", |ui| {
             field(ui, &mut f.location, tl!("Add a place"), f32::INFINITY);
         });

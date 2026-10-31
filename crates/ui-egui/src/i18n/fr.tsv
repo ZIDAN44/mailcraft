@@ -1319,3 +1319,11 @@ month	May	mai
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Jusqu’à 50 lettres, chiffres et symboles, sans espaces, guillemets, barres obliques inverses ni ( ) { } ] % *
 	{name} has that keyword already.	La catégorie {name} a déjà ce mot-clé.
 	Messages: {n}	Messages : {n}
+	Busy	Occupé
+	Free	Libre
+	Out of office	Absent du bureau
+	Private	Privé
+	Private appointment	Rendez-vous privé
+	Show as	Afficher comme
+	Show time only	Afficher seulement l'heure
+	Working elsewhere	Travaille ailleurs

@@ -700,7 +700,13 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
     for e in &mut p.events {
         match e.event.uid.split('@').next().unwrap_or("") {
             "review" | "edit" => e.event.categories = vec!["Work".into()],
-            "lunch" => e.event.categories = vec!["Personal".into()],
+            "lunch" => {
+                e.event.categories = vec!["Personal".into()];
+                // Private (issue #32): the calendar marks it with a lock.
+                mailcraft_model::ical::set_privacy(&mut e.event, mailcraft_model::ical::Privacy::Private);
+            }
+            // Out of the studio, as Outlook's Show As has it.
+            "opening" => mailcraft_model::ical::set_show_as(&mut e.event, mailcraft_model::ical::ShowAs::OutOfOffice),
             _ => {}
         }
     }

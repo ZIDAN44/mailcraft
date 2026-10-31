@@ -7,7 +7,7 @@
 //! appointments updated field by field, changed contacts made again, deletions done (no meeting
 //! mail is ever sent); then both folders are read again.
 
-use mailcraft_model::ical::{Attendee, CalEvent};
+use mailcraft_model::ical::{Attendee, CalEvent, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, Note, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use serde_json::{Value, json};
@@ -188,7 +188,34 @@ pub fn event_of(it: &El) -> Option<CalEvent> {
         let minutes = it.text_of("ReminderMinutesBeforeStart").and_then(|m| m.trim().parse::<i64>().ok()).unwrap_or(15);
         mailcraft_model::ical::set_reminder(&mut event, Some(minutes));
     }
+    // Private and Show as (issue #32), as its CLASS and TRANSP (with Outlook's busy status).
+    if let Some(p) = it.text_of("Sensitivity").and_then(Privacy::from_code) {
+        set_privacy(&mut event, p);
+    }
+    if let Some(s) = it.text_of("LegacyFreeBusyStatus").and_then(ShowAs::from_code) {
+        set_show_as(&mut event, s);
+    }
     Some(event)
+}
+
+/// An event's classification as EWS's `Sensitivity`.
+fn sensitivity(e: &CalEvent) -> &'static str {
+    match privacy(e) {
+        Privacy::Public => "Normal",
+        Privacy::Private => "Private",
+        Privacy::Confidential => "Confidential",
+    }
+}
+
+/// How an event shows its time as EWS's `LegacyFreeBusyStatus`.
+fn free_busy(e: &CalEvent) -> &'static str {
+    match show_as(e) {
+        ShowAs::Free => "Free",
+        ShowAs::WorkingElsewhere => "WorkingElsewhere",
+        ShowAs::Tentative => "Tentative",
+        ShowAs::Busy => "Busy",
+        ShowAs::OutOfOffice => "OOF",
+    }
 }
 
 /// The fields of an appointment, in the order EWS wants them.
@@ -196,6 +223,7 @@ fn event_fields(e: &CalEvent) -> Vec<(&'static str, String)> {
     let (start, end) = if e.all_day { (e.start, e.end.max(e.start + 86_400)) } else { (e.start, e.end.max(e.start)) };
     let mut f = vec![
         ("Subject", format!("<t:Subject>{}</t:Subject>", esc(&e.summary))),
+        ("Sensitivity", format!("<t:Sensitivity>{}</t:Sensitivity>", sensitivity(e))),
         ("Body", format!("<t:Body BodyType=\"Text\">{}</t:Body>", esc(&e.description))),
     ];
     // Categories come between the item's fields and the appointment's (EWS keeps the schema's
@@ -214,6 +242,7 @@ fn event_fields(e: &CalEvent) -> Vec<(&'static str, String)> {
         ("Start", format!("<t:Start>{}</t:Start>", utc(start))),
         ("End", format!("<t:End>{}</t:End>", utc(end))),
         ("IsAllDayEvent", format!("<t:IsAllDayEvent>{}</t:IsAllDayEvent>", e.all_day)),
+        ("LegacyFreeBusyStatus", format!("<t:LegacyFreeBusyStatus>{}</t:LegacyFreeBusyStatus>", free_busy(e))),
         ("Location", format!("<t:Location>{}</t:Location>", esc(&e.location))),
     ]);
     if let Some(r) = e.rrule.as_deref().and_then(|r| recurrence_xml(r, e.start)) {
@@ -595,7 +624,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             let mut updates: String = fields
                 .iter()
                 .map(|(name, x)| {
-                    let uri = if matches!(*name, "Subject" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
+                    let uri = if matches!(*name, "Subject" | "Sensitivity" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
                         format!("item:{name}")
                     } else {
                         format!("calendar:{name}")
@@ -821,94 +850,4 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ews::parse;
-
-    #[test]
-    fn recurrences_both_ways() {
-        let start = mailcraft_jmap::utc_date("2026-10-05T09:00:00Z").unwrap_or(0);
-        for rule in [
-            "FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=2;UNTIL=20261231T235959Z",
-            "FREQ=MONTHLY;BYDAY=-1FR;COUNT=6",
-            "FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=14",
-            "FREQ=DAILY",
-        ] {
-            let xml = recurrence_xml(rule, start).unwrap();
-            let el = parse(&xml);
-            let back = el.find("Recurrence").and_then(recurrence_json).as_ref().and_then(rrule_of).unwrap();
-            assert_eq!(back, rule, "{xml}");
-        }
-        assert!(recurrence_xml("FREQ=HOURLY", start).is_none());
-        let junk = parse("<t:Recurrence><t:WeeklyRecurrence><t:Interval>x</t:Interval></t:WeeklyRecurrence></t:Recurrence>");
-        assert!(junk.find("Recurrence").and_then(recurrence_json).is_some(), "a bad number falls back");
-    }
-
-    #[test]
-    fn contacts_both_ways() {
-        let card = Card {
-            uid: "x".into(),
-            name: "Ana Lima".into(),
-            given: "Ana".into(),
-            family: "Lima".into(),
-            emails: vec![Typed { value: "ana@contoso.example".into(), kind: String::new() }],
-            // Issue #1: each number keeps what it is, two of a kind too.
-            phones: vec![
-                Typed { value: "+1 555 0101".into(), kind: "work".into() },
-                Typed { value: "+1 555 0102".into(), kind: "work".into() },
-                Typed { value: "+1 555 0103".into(), kind: "home".into() },
-                Typed { value: "+1 555 0100".into(), kind: "cell".into() },
-                Typed { value: "+1 555 0104".into(), kind: "fax".into() },
-            ],
-            org: "Contoso & Co".into(),
-            title: "Producer".into(),
-            note: "Met at the fair".into(),
-            addresses: vec![
-                PostalAddress {
-                    kind: "work".into(),
-                    street: "An street 1".into(),
-                    city: "Brussel".into(),
-                    postcode: "1000".into(),
-                    country: "Belgium".into(),
-                    ..Default::default()
-                },
-                PostalAddress { kind: "home".into(), street: "Rue Haute 9".into(), city: "Gent".into(), ..Default::default() },
-            ],
-            birthday: "1990-07-12".into(),
-            extra: Vec::new(),
-        };
-        let xml = contact_xml(&card).replace("<t:Contact>", "<t:Contact><t:ItemId Id=\"C1\" ChangeKey=\"k\"/>");
-        // In the schema's order: addresses between emails and phones, the birthday after phones.
-        let at = |s: &str| xml.find(s).unwrap();
-        assert!(at("<t:EmailAddresses>") < at("<t:PhysicalAddresses>") && at("<t:PhysicalAddresses>") < at("<t:PhoneNumbers>"));
-        assert!(at("<t:PhoneNumbers>") < at("<t:Birthday>") && at("<t:Birthday>") < at("<t:JobTitle>"));
-        assert!(xml.contains("<t:Entry Key=\"BusinessPhone2\">+1 555 0102</t:Entry>"));
-        let back = card_of(parse(&xml).find("Contact").unwrap()).unwrap();
-        assert_eq!(
-            (back.name.as_str(), back.org.as_str(), back.note.as_str(), back.uid.as_str()),
-            ("Ana Lima", "Contoso & Co", "Met at the fair", "C1")
-        );
-        assert_eq!(back.phones, card.phones);
-        assert_eq!(back.emails, card.emails);
-        assert_eq!(back.addresses, card.addresses);
-        assert_eq!(back.birthday, "1990-07-12");
-        // Exchange's own: a birthday kept as the start of that day in Brussels, in UTC.
-        let theirs = "<t:Contact><t:ItemId Id=\"C2\"/><t:Birthday>1990-07-11T22:00:00Z</t:Birthday></t:Contact>";
-        assert_eq!(card_of(parse(theirs).find("Contact").unwrap()).unwrap().birthday, "1990-07-12");
-    }
-
-    /// An appointment's categories come in, and go out between its body and its start (the
-    /// schema's order); none at all aren't written.
-    #[test]
-    fn categories_both_ways() {
-        let xml = "<t:CalendarItem><t:ItemId Id=\"E1\"/><t:Subject>Pitch</t:Subject><t:Categories><t:String>Clients</t:String><t:String> </t:String><t:String>Red category</t:String></t:Categories>\
-                   <t:Start>2026-10-16T10:00:00Z</t:Start><t:End>2026-10-16T11:00:00Z</t:End></t:CalendarItem>";
-        let e = event_of(parse(xml).find("CalendarItem").unwrap()).unwrap();
-        assert_eq!(e.categories, ["Clients", "Red category"]);
-        let names: Vec<&str> = event_fields(&e).iter().map(|(n, _)| *n).collect();
-        assert_eq!(names.get(..5), Some(&["Subject", "Body", "Categories", "ReminderIsSet", "Start"][..]));
-        assert!(event_fields(&e).iter().any(|(_, x)| x.contains("<t:String>Red category</t:String>")));
-        let plain = CalEvent { categories: Vec::new(), ..e };
-        assert!(event_fields(&plain).iter().all(|(n, _)| *n != "Categories"));
-    }
-}
+mod tests;

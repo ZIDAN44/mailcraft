@@ -548,3 +548,40 @@ fn a_message_with_files_comes_as_its_text_first() {
     let calls = server.data.lock().unwrap().calls.clone();
     assert!(calls.iter().any(|c| c.contains("$expand=attachments")) && calls.iter().any(|c| c.ends_with("$value")), "{calls:?}");
 }
+
+/// Issue #32 against the fake Graph: a private, tentative event is created with Graph's
+/// `sensitivity` and `showAs`, read back so, and a change of both is sent and kept.
+#[test]
+fn private_and_show_as_go_to_graph_and_back() {
+    use mailcraft_model::ical::{CalEvent, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
+    use mailcraft_model::pim::{LOCAL, Pim, StoredEvent};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"));
+    d.calendars.push(("CAL1".into(), "Calendar".into()));
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    let mut e = CalEvent { uid: "doc-1".into(), summary: "Doctor".into(), start: 1_792_000_000, end: 1_792_003_600, ..Default::default() };
+    set_privacy(&mut e, Privacy::Private);
+    set_show_as(&mut e, ShowAs::Tentative);
+    let pim = Pim { events: vec![StoredEvent { calendar: LOCAL.into(), event: e, dirty: true, ..Default::default() }], ..Default::default() };
+    let sync = crate::graph_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    {
+        let d = server.data.lock().unwrap();
+        let on = d.events.iter().find(|e| e["subject"] == "Doctor").unwrap();
+        assert_eq!((on["sensitivity"].as_str(), on["showAs"].as_str()), (Some("private"), Some("tentative")));
+    }
+    let doc = sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap().clone();
+    assert_eq!((privacy(&doc.event), show_as(&doc.event)), (Privacy::Private, ShowAs::Tentative));
+    let mut changed = doc;
+    set_privacy(&mut changed.event, Privacy::Public);
+    set_show_as(&mut changed.event, ShowAs::WorkingElsewhere);
+    changed.dirty = true;
+    let sync = crate::graph_pim::sync(&c, &Pim { events: vec![changed], ..Default::default() }, 1_792_000_100).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let d = server.data.lock().unwrap();
+    let on = d.events.iter().find(|e| e["subject"] == "Doctor").unwrap();
+    assert_eq!((on["sensitivity"].as_str(), on["showAs"].as_str()), (Some("normal"), Some("workingElsewhere")));
+    let back = sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap();
+    assert_eq!((privacy(&back.event), show_as(&back.event)), (Privacy::Public, ShowAs::WorkingElsewhere));
+}
