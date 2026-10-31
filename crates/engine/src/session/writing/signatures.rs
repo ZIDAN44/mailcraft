@@ -69,15 +69,16 @@ fn quote_line(c: &Compose) -> Option<usize> {
 }
 
 impl Compose {
-    /// Where the signature put in stands (a byte offset), as it was put in: above the quote of a
-    /// reply, never in it (a reply to one's own message quotes the same signature, and changing
-    /// that one would change what was said).
+    /// Where the signature put in stands (a byte offset), as it was put in: the last above the
+    /// quote of a reply, never in it (a reply to one's own message quotes the same signature,
+    /// and changing that one would change what was said), nor a copy of its text written above
+    /// it (a `mailto:` link's words, a message pasted in), which is the writer's.
     pub fn signature_at(&self) -> Option<usize> {
         if self.signature.is_empty() {
             return None;
         }
         let end = quote_line(self).and_then(|i| self.body.char_indices().nth(i).map(|(b, _)| b)).unwrap_or(self.body.len());
-        self.body.get(..end)?.find(self.signature.as_str())
+        self.body.get(..end)?.rfind(self.signature.as_str())
     }
 }
 

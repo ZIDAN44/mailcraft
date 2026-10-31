@@ -18,7 +18,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .params(r#"{"account": string, "new"?: string|null (the one for new messages; null: none), "reply"?: string|null (for replies and forwards)}"#),
         CommandSpec::new("account.signatures", "Signatures", "File › Options › Mail › Signatures", list_signatures).params(r#"{"account": string}"#),
         CommandSpec::new("compose.insertSignature", "Insert signature", "Message › Signature", insert_signature)
-            .params(r#"{"name"?: string (default: the one in the message, else the account's for this kind of message, else its first), "at"?: number (the character it goes at, when there's none in the message to replace; default the end)}"#)
+            .params(r#"{"name"?: string (default: the one in the message, else the account's for this kind of message, else its first), "at"?: number (the character it goes at, when there's none in the message to replace; default where a signature goes: above the quote of a reply or forward, else the end)}"#)
             .when(has_compose),
     ]
 }
@@ -116,7 +116,7 @@ pub(super) fn list_signatures(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// A signature into the message being written (Outlook's Insert › Signature, or one picked from
-/// its list): in place of the one there, else at character `at` (else the end) on a line of its
+/// its list): in place of the one there, else at character `at` (else where a signature goes) on a line of its
 /// own after the usual `-- ` line.
 pub(super) fn insert_signature(s: &mut Session, v: &Value) -> CmdResult {
     let (account, current, reply) = s
@@ -134,7 +134,8 @@ pub(super) fn insert_signature(s: &mut Session, v: &Value) -> CmdResult {
     let sig = sig
         .filter(|g| !crate::Session::signature_text(Some(g)).is_empty())
         .ok_or_else(|| CmdError::Params("this account has no signature yet: make one with Signatures…".into()))?;
-    let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).or(Some(usize::MAX));
+    // No place given: where a signature goes (above a reply's quote, not under it).
+    let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok());
     let range = s.put_signature(Some(&sig), at)?;
     Ok(json!({"inserted": range.start, "end": range.end, "name": sig.name}))
 }

@@ -251,3 +251,34 @@ fn signature_names_and_defaults_refuse_junk() {
     assert!(s.run("compose.insertSignature", &json!({"name": "Big"})).is_err());
     done(s);
 }
+
+/// The signature put in is the last one above the quote: a copy of its text written above it
+/// (a `mailto:` link's words, or a message pasted in) is the writer's, never swapped or styled.
+#[test]
+fn a_copy_of_the_signature_in_the_text_is_left_alone() {
+    let mut s = sample_session("signatures-copy");
+    s.run("account.setSignature", &json!({"account": "sample", "name": "Short", "signature": "R."})).unwrap();
+    let link = "mailto:lee@greenhouse.example?body=As%20signed%3A%0A--%20%0ARiley%20Moreno%20%C2%B7%20Studio%20Lantern%0Athanks";
+    s.run("mail.mailto", &json!({ "url": link })).unwrap();
+    let b = body(&s);
+    assert_eq!(b.matches("Riley Moreno · Studio Lantern").count(), 2, "{b:?}");
+    s.run("compose.insertSignature", &json!({"name": "Short"})).unwrap();
+    assert_eq!(body(&s), "As signed:\n-- \nRiley Moreno · Studio Lantern\nthanks\n\n-- \nR.", "the one put in replaced, the writer's copy kept");
+    done(s);
+}
+
+/// Insert signature with no place given, in a reply with none: above the quote, where a
+/// signature goes, not under the original at the very end.
+#[test]
+fn insert_signature_goes_above_the_quote_of_a_reply() {
+    let mut s = sample_session("signatures-insert-reply");
+    s.run("account.signatureDefaults", &json!({"account": "sample", "reply": null})).unwrap();
+    s.run("list.open", &key_of(&s, "Your proof for the festival poster is ready")).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    s.run("compose.insertSignature", &json!({})).unwrap();
+    let b = body(&s);
+    assert!(b.starts_with("\n\n-- \nRiley Moreno · Studio Lantern\n\n"), "{b:?}");
+    assert!(!b.trim_end().ends_with("Studio Lantern"), "not under the quote: {b:?}");
+    rule_over_quote(&s);
+    done(s);
+}
