@@ -440,3 +440,87 @@ fn real_scheduling_without_a_scheduling_server() {
     sent(&mut ann, &aid, &uid);
     counted(&tag, &[("bob", &bob_box, 2), ("outside", &ext, 2)]);
 }
+
+/// Crossings on Mailcow's SOGo: the organizer's MailCraft, holding a colleague's first answer,
+/// takes an outside guest's in while the colleague changed theirs in SOGo: both stay, the
+/// colleague's newer one too (storing the organizer's copy's answers over SOGo's put it back, in
+/// her calendar and, through SOGo, in his). Then the colleague declines in his calendar, whose
+/// copy SOGo changed meanwhile (it wrote the outside guest's answer in): his answer is stored
+/// over it, and reaches the organizer once, from SOGo, by mail or in her calendar (it was kept
+/// as SOGo's and lost, neither stored nor mailed).
+#[test]
+#[ignore]
+fn real_scheduling_crossings_on_sogo() {
+    let Some(m) = Mailcow::from_env() else { return };
+    let Some((ext, ext_addr)) = outside() else { return eprintln!("MAILCRAFT_REAL_OUTSIDE isn't set: skipped") };
+    let mb = |n: usize| Mailbox::new(&m.imap, m.user(n).0, m.user(n).1);
+    let (ann_box, bob_box) = (mb(0), mb(1));
+    for b in [&ann_box, &bob_box, &ext] {
+        b.clear();
+    }
+    let web = format!("{}/", m.web);
+    let tag = format!("SchedCross{}", std::process::id());
+    let (mut ann, aid) = app(&m.imap, &m.smtp, m.user(0).0, m.user(0).0, m.user(0).1, &web, "sched-cross");
+    let (mut bob, bid) = app(&m.imap, &m.smtp, m.user(1).0, m.user(1).0, m.user(1).1, &web, "sched-cross");
+    let bob_addr = m.user(1).0.to_string();
+    let sogos = usize::from(!notifications_off());
+    let uid = create(&mut ann, &aid, &tag, &format!("Bob <{bob_addr}>, Ext <{ext_addr}>"));
+    counted(&tag, &[("ann", &ann_box, 0), ("bob", &bob_box, 1), ("outside", &ext, 1)]);
+    let anns_copy =
+        || m.calendar(0, &format!("{}personal/", m.dav_home(0))).into_iter().find(|(_, d)| d.contains(&uid)).map(|x| x.1).unwrap_or_default();
+    let bobs_copy =
+        || m.calendar(1, &format!("{}personal/", m.dav_home(1))).into_iter().find(|(_, d)| d.contains(&uid)).map(|x| x.1).unwrap_or_default();
+    let until = |what: &str, done: &dyn Fn() -> bool| {
+        let end = Instant::now() + Duration::from_secs(30);
+        while !done() {
+            assert!(Instant::now() < end, "{what}");
+            std::thread::sleep(Duration::from_secs(2));
+        }
+    };
+
+    eprintln!("bob accepts in the message; ann's MailCraft reads it in");
+    let key = newest(&mut bob, &bid, &format!("Invitation: {tag}"), 0);
+    answer_mail(&mut bob, &bid, &key, "accepted");
+    until("bob's answer in ann's calendar", &|| partstat(&anns_copy(), &bob_addr) == "ACCEPTED");
+    ann.sync_dav(&aid);
+    ann.settle(2);
+    let has = |s: &mailcraft_engine::Session, who: &str| {
+        s.find_event(&uid).and_then(|(_, e)| e.event.attendees.iter().find(|a| a.email.eq_ignore_ascii_case(who)).map(|a| a.partstat.clone()))
+    };
+    assert_eq!(has(&ann.s, &bob_addr).as_deref(), Some("ACCEPTED"));
+
+    eprintln!("bob says tentative in his calendar; ann takes the outside guest's answer in before she syncs");
+    bob.s.run("event.respond", &json!({"uid": uid, "answer": "tentative"})).unwrap();
+    settled(&mut bob, &bid, &uid);
+    until("bob's new answer in ann's calendar", &|| partstat(&anns_copy(), &bob_addr) == "TENTATIVE");
+    assert_eq!(has(&ann.s, &bob_addr).as_deref(), Some("ACCEPTED"), "ann's MailCraft hasn't read it");
+    let mut reply = ann.s.find_event(&uid).unwrap().1.event.clone();
+    reply.attendees.retain(|a| a.email.eq_ignore_ascii_case(&ext_addr));
+    reply.attendees[0].partstat = "TENTATIVE".into();
+    reply.client_scheduled = false;
+    m.imap_as(0).append("INBOX", "", &itip_mail(&ext_addr, m.user(0).0, &format!("Tentative: {tag}"), "REPLY", &reply));
+    let key = newest(&mut ann, &aid, &format!("Tentative: {tag}"), 0);
+    ann.s.run("folder.open", &json!({"account": aid, "folder": "INBOX"})).unwrap();
+    ann.s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    ann.s.run("invite.apply", &json!({})).unwrap();
+    sent(&mut ann, &aid, &uid);
+    let copy = anns_copy();
+    assert_eq!((partstat(&copy, &bob_addr).as_str(), partstat(&copy, &ext_addr).as_str()), ("TENTATIVE", "TENTATIVE"), "{copy}");
+    std::thread::sleep(Duration::from_secs(5));
+    assert_eq!(partstat(&bobs_copy(), &bob_addr), "TENTATIVE", "bob's own calendar: {}", bobs_copy());
+    assert_eq!(has(&ann.s, &bob_addr).as_deref(), Some("TENTATIVE"));
+    counted(&tag, &[("ann", &ann_box, 2 * sogos + 1), ("bob", &bob_box, 1), ("outside", &ext, 1)]);
+
+    eprintln!("bob declines in his calendar");
+    bob.s.run("event.respond", &json!({"uid": uid, "answer": "declined"})).unwrap();
+    settled(&mut bob, &bid, &uid);
+    counted(&tag, &[("ann", &ann_box, 3 * sogos + 1), ("bob", &bob_box, 1), ("outside", &ext, 1)]);
+    until("bob's decline in ann's calendar", &|| partstat(&anns_copy(), &bob_addr) == "DECLINED");
+    assert_eq!(partstat(&bobs_copy(), &bob_addr), "DECLINED", "bob's own calendar: {}", bobs_copy());
+
+    eprintln!("ann calls it off");
+    ann.sync_dav(&aid);
+    ann.s.run("event.delete", &json!({"uid": uid})).unwrap();
+    sent(&mut ann, &aid, &uid);
+    counted(&tag, &[("ann", &ann_box, 3 * sogos + 1), ("bob", &bob_box, 2), ("outside", &ext, 2)]);
+}
