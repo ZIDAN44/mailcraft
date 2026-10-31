@@ -1359,3 +1359,4 @@ month	May	5月
 	Add room	添加会议室
 	Meeting hosts	会议服务器
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	指向这些服务器的链接可加入会议(Teams、Zoom、Google Meet、Webex、BigBlueButton 会议室以及你的会议室所在的服务器已默认支持)
+	Dial-in numbers and other lines for the invitation (optional)	邀请中的拨入号码及其他内容（可选）

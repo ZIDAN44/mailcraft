@@ -37,7 +37,10 @@ pub(super) fn meetings(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Ac
                 },
             );
             for (i, r) in s.prefs.meeting_rooms.iter().enumerate() {
-                let about = if r.code.is_empty() { r.url.clone() } else { format!("{} · {}", r.url, tf!("access code {code}", code = r.code)) };
+                let mut about = if r.code.is_empty() { r.url.clone() } else { format!("{} · {}", r.url, tf!("access code {code}", code = r.code)) };
+                if let Some(first) = r.details.lines().next() {
+                    about.push_str(&format!(" · {}", crate::widgets::shorten(first, 40)));
+                }
                 setting_row(ui, &t, false, name(&t, &r.name), Some(note(&t, &about)), |ui| {
                     if ui.button(tl!("Remove")).clicked() {
                         acts.push(Action::Run("meetings.removeRoom", json!({"room": r.url})));
@@ -50,7 +53,7 @@ pub(super) fn meetings(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Ac
                 });
             }
             ui.add_space(6.0);
-            let (mut room, mut url, mut code) = (typed(ui, "room"), typed(ui, "url"), typed(ui, "code"));
+            let (mut room, mut url, mut code, mut details) = (typed(ui, "room"), typed(ui, "url"), typed(ui, "code"), typed(ui, "details"));
             let mut add = false;
             ui.horizontal_wrapped(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut room).hint_text(tl!("Name")).desired_width(140.0));
@@ -59,18 +62,30 @@ pub(super) fn meetings(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Ac
                 ui.add(egui::TextEdit::singleline(&mut code).hint_text(tl!("Access code")).desired_width(110.0));
                 add |= ui.add_enabled(!url.trim().is_empty(), egui::Button::new(tl!("Add room"))).clicked();
             });
+            // Dial-in numbers and the like, for the block in the invitation.
+            ui.add(
+                egui::TextEdit::multiline(&mut details)
+                    .hint_text(tl!("Dial-in numbers and other lines for the invitation (optional)"))
+                    .desired_rows(2)
+                    .desired_width(ui.available_width().min(560.0)),
+            );
             if add && !url.trim().is_empty() {
-                acts.push(Action::Run("meetings.addRoom", json!({"name": room.trim(), "url": url.trim(), "code": code.trim()})));
+                acts.push(Action::Run(
+                    "meetings.addRoom",
+                    json!({"name": room.trim(), "url": url.trim(), "code": code.trim(), "details": details.trim()}),
+                ));
                 // One that can't be added stays to be corrected (the reason shows as a notice).
                 if mailcraft_engine::model::ical::meeting_url(&url).is_some() {
                     room.clear();
                     url.clear();
                     code.clear();
+                    details.clear();
                 }
             }
             keep_typed(ui, "room", room);
             keep_typed(ui, "url", url);
             keep_typed(ui, "code", code);
+            keep_typed(ui, "details", details);
             ui.add_space(10.0);
 
             // Other organisations' self-hosted servers: their links get Join meeting too.
