@@ -146,14 +146,31 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
             // copy itself): the server's copy comes back, rather than being sent again, refused
             // again, at every sync.
             Ok(Err(r @ (Refused::Forbidden | Refused::Changed))) if !master.href.is_empty() => {
+                let server = if r == Refused::Changed { server_item(dav, calendar, &master.href, local) } else { None };
+                // A meeting the server holds an older version of than this one (its SEQUENCE):
+                // what changed there is a guest's answer (SOGo writes each into the organizer's
+                // copy, and into the other guests'), not a change of the meeting. This one goes
+                // again, over it, with those answers; the copy stored then is read back. (An event
+                // without guests isn't: another program may change one without a new SEQUENCE.)
+                if let Some((tag, theirs)) = &server
+                    && parts.iter().any(|p| !p.event.attendees.is_empty())
+                    && let Some(newest) = theirs.iter().map(|e| e.sequence).max()
+                    && parts.iter().any(|p| p.event.sequence > newest)
+                {
+                    let merged: Vec<CalEvent> = parts.iter().map(|p| with_their_answers(&p.event, theirs)).collect();
+                    match dav.store(&master.href, "text/calendar; charset=utf-8", &ical::write(&merged, None, now), Some(tag)) {
+                        Ok(Ok(_)) => {
+                            out.refused.push(uid.to_string());
+                            refetch.push(master.href.clone());
+                            continue;
+                        }
+                        Err(e @ NetError::Auth(_)) => return Err(e),
+                        _ => {}
+                    }
+                }
                 // Said, unless the server's copy has what was changed here already (SOGo put a
                 // guest's answer in the organizer's copy before the organizer's MailCraft did).
-                let kept = r == Refused::Changed
-                    && dav.multiget(Kind::Calendars, calendar, std::slice::from_ref(&master.href)).is_ok_and(|got| {
-                        got.iter()
-                            .flat_map(|(_, _, d)| ical::parse_in(d, local).events)
-                            .any(|e| e.recurrence_id.is_none() && has_all_of(&e, &master.event))
-                    });
+                let kept = server.is_some_and(|(_, theirs)| parts.iter().all(|p| theirs.iter().any(|s| has_all_of(s, &p.event))));
                 if !kept {
                     out.errors.push(format!("{}: {r}; the server's copy is kept", master.event.summary));
                 }
@@ -268,6 +285,12 @@ fn over_theirs(found: (String, String, u32, Vec<CalEvent>), parts: &[&StoredEven
     if theirs_sequence > sequence || !parts.iter().any(|p| answers_more(&p.event, &theirs)) { Err(href) } else { Ok((href, tag)) }
 }
 
+/// The server's copy of an item: its etag and events (`None` when it can't be read).
+fn server_item(dav: &Dav, calendar: &str, href: &str, local: mailcraft_model::zone::Zone) -> Option<(String, Vec<CalEvent>)> {
+    let got = dav.multiget(Kind::Calendars, calendar, &[href.to_string()]).ok()?;
+    got.into_iter().next().map(|(_, etag, data)| (etag, ical::parse_in(&data, local).events))
+}
+
 /// A guest's answer in an event (upper case), if they're in it.
 fn answer(e: &CalEvent, who: &str) -> Option<String> {
     e.attendees.iter().find(|a| a.email.eq_ignore_ascii_case(who)).map(|a| a.partstat.to_ascii_uppercase())
@@ -285,11 +308,37 @@ fn answers_more(mine: &CalEvent, server: &[CalEvent]) -> bool {
     mine.attendees.iter().any(|a| !unanswered(&a.partstat) && answer(s, &a.email) != Some(a.partstat.to_ascii_uppercase()))
 }
 
-/// Whether the server's copy of an event has what the user's copy says: its title, place and
-/// times, and each guest's answer.
+/// The user's copy with the answers the server's copy has where it has none yet (guests who
+/// answered since it was read).
+fn with_their_answers(mine: &CalEvent, server: &[CalEvent]) -> CalEvent {
+    let mut e = mine.clone();
+    if let Some(s) = server.iter().find(|s| s.recurrence_id == mine.recurrence_id) {
+        for a in e.attendees.iter_mut().filter(|a| unanswered(&a.partstat)) {
+            if let Some(theirs) = s.attendees.iter().find(|x| x.email.eq_ignore_ascii_case(&a.email) && !unanswered(&x.partstat)) {
+                a.partstat = theirs.partstat.clone();
+            }
+        }
+    }
+    e
+}
+
+/// Whether the server's copy of an event (or of one occurrence) has everything the user's copy
+/// says: what can be changed here (title, place, notes, times, repeats, status, categories,
+/// privacy, Show as, reminder) and each guest's answer.
 fn has_all_of(server: &CalEvent, mine: &CalEvent) -> bool {
+    let what = |e: &CalEvent| {
+        let mut exdates = e.exdates.clone();
+        exdates.sort_unstable();
+        let mut categories: Vec<String> = e.categories.iter().map(|c| c.to_lowercase()).collect();
+        categories.sort();
+        (
+            (e.summary.trim().to_string(), e.location.trim().to_string(), e.description.trim_end().to_string()),
+            (e.start, e.end, e.all_day, e.rrule.clone(), exdates),
+            (e.status.to_ascii_uppercase(), categories, ical::privacy(e), ical::show_as(e), ical::reminder_minutes(e)),
+        )
+    };
     server.uid == mine.uid
-        && (server.summary.as_str(), server.location.as_str(), server.start, server.end)
-            == (mine.summary.as_str(), mine.location.as_str(), mine.start, mine.end)
+        && server.recurrence_id == mine.recurrence_id
+        && what(server) == what(mine)
         && mine.attendees.iter().all(|a| answer(server, &a.email) == Some(a.partstat.to_ascii_uppercase()))
 }

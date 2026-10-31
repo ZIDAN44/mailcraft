@@ -579,4 +579,62 @@ mod tests {
         assert!(d.items[&format!("{CAL}p1.ics")].1.contains("PARTSTAT=ACCEPTED"), "the answer given elsewhere stays");
         assert!(d.items[&format!("{CAL}p2.ics")].1.contains("PARTSTAT=DECLINED"));
     }
+
+    /// SOGo writes a guest's answer into the organizer's copy (and the other guests'), without a
+    /// new SEQUENCE. A change made here meanwhile (the meeting's notes, a version on) was refused
+    /// with 412 and the server's copy kept: on a real Mailcow, the agenda ann wrote right after
+    /// taking bob's answer in was gone, without a word. It's stored now, with the answers the
+    /// server has. A change to the same version as the server's is still given way to, said
+    /// unless the server's copy has all of it.
+    #[test]
+    fn a_change_crossing_a_guests_answer_keeps_both() {
+        let server = serve();
+        let dav = Dav::new(USER, PASSWORD);
+        let guests = |bob: &str, carol: &str| {
+            vec![
+                ical::Attendee { email: "bob@x".into(), partstat: bob.into(), ..Default::default() },
+                ical::Attendee { email: "carol@x".into(), partstat: carol.into(), ..Default::default() },
+            ]
+        };
+        let base = CalEvent { attendees: guests("NEEDS-ACTION", "NEEDS-ACTION"), ..event("m", "Budget", 1_800_000_000) };
+        server.data.lock().unwrap().put(&format!("{CAL}m.ics"), &ical::write(std::slice::from_ref(&base), None, 0));
+        let pim = read(&server, &dav);
+        // bob answers: the server writes it in, the same version.
+        let answered = CalEvent { attendees: guests("ACCEPTED", "NEEDS-ACTION"), ..base.clone() };
+        server.data.lock().unwrap().put(&format!("{CAL}m.ics"), &ical::write(std::slice::from_ref(&answered), None, 0));
+        // The organizer writes the agenda (a new version) and takes carol's answer in.
+        let mut mine = pim.clone();
+        mine.events[0].event.description = "Agenda: numbers".into();
+        mine.events[0].event.sequence = 1;
+        mine.events[0].event.attendees = guests("NEEDS-ACTION", "DECLINED");
+        mine.events[0].dirty = true;
+        let out = sync(&dav, &AT, &mine, 200, Zone::UTC).unwrap();
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        assert_eq!(out.refused, ["m"], "the stored copy is read back");
+        let back = out.events.iter().find(|e| e.event.uid == "m").expect("read back");
+        assert_eq!(back.event.description, "Agenda: numbers");
+        let answers: Vec<&str> = back.event.attendees.iter().map(|a| a.partstat.as_str()).collect();
+        assert_eq!(answers, ["ACCEPTED", "DECLINED"], "both answers");
+        // The same version changed here and there: the server's is kept, and the change that
+        // isn't in it is said (it used to go without a word when the title and times matched).
+        let mut same = read(&server, &dav);
+        server.data.lock().unwrap().put(&format!("{CAL}m.ics"), &ical::write(&[CalEvent { sequence: 1, ..back.event.clone() }], None, 0));
+        same.events[0].event.description = "Agenda: other numbers".into();
+        same.events[0].dirty = true;
+        let out = sync(&dav, &AT, &same, 300, Zone::UTC).unwrap();
+        assert_eq!((out.errors.len(), out.refused.len()), (1, 1), "{:?}", out.errors);
+        assert!(server.data.lock().unwrap().items[&format!("{CAL}m.ics")].1.contains("Agenda: numbers"));
+        // An event without guests changed elsewhere (another program needn't give it a new
+        // SEQUENCE): not written over, the server's kept and the change here said.
+        server.data.lock().unwrap().put(&format!("{CAL}solo.ics"), &ical::write(&[event("solo", "Dentist", 1_800_100_000)], None, 0));
+        let mut solo = read(&server, &dav);
+        server.data.lock().unwrap().put(&format!("{CAL}solo.ics"), &ical::write(&[event("solo", "Dentist (moved)", 1_800_100_000)], None, 0));
+        solo.events.retain(|e| e.event.uid == "solo");
+        solo.events[0].event.description = "Bring the card".into();
+        solo.events[0].event.sequence = 1;
+        solo.events[0].dirty = true;
+        let out = sync(&dav, &AT, &solo, 400, Zone::UTC).unwrap();
+        assert_eq!((out.errors.len(), out.refused.as_slice()), (1, ["solo".to_string()].as_slice()), "{:?}", out.errors);
+        assert!(server.data.lock().unwrap().items[&format!("{CAL}solo.ics")].1.contains("Dentist (moved)"));
+    }
 }
