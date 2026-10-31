@@ -1,6 +1,7 @@
 //! The `.pst` reader's fixes (its fork's PATCHES.md) on files the writer makes and these
-//! tests then change byte by byte where the writer can't go: a data tree that says less than it
-//! holds or points back at itself. Each file is read on a thread of its own with a time limit.
+//! tests then change byte by byte where the writer can't go: an attachment that holds a message,
+//! and a data tree that says less than it holds or points back at itself. Each file is read on a
+//! thread of its own with a time limit, as an attached message once hung the reader.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -10,10 +11,12 @@ use std::time::Duration;
 
 use outlook_pst::UnicodePstFile;
 use outlook_pst::messaging::attachment::{Attachment, AttachmentData, UnicodeAttachment};
-use outlook_pst::messaging::message::UnicodeMessage;
+use outlook_pst::messaging::message::{Message, UnicodeMessage};
 use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
 use pst_rw::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage};
+
+use super::super::props::text_of;
 
 /// The writer's node for an attachment's bytes (`NID_TYPE_INTERNAL`, index 0x200 + n) and for
 /// the attachment itself (`NID_TYPE_ATTACHMENT`, index 0x100 + n).
@@ -119,6 +122,62 @@ fn sub_node_entry(f: &[u8], blocks: &HashMap<u64, (usize, usize)>, nid: u64) -> 
     panic!("no subnode entry for {nid:#x}");
 }
 
+/// Where a record for `prop` starts in a property context's heap block (a BTH leaf of 8-byte
+/// records: id, type, value).
+fn record(f: &[u8], (start, size): (usize, usize), prop: u16, prop_type: u16) -> usize {
+    let pattern = [prop.to_le_bytes(), prop_type.to_le_bytes()].concat();
+    start + f[start..start + size].windows(4).position(|w| w == pattern).unwrap()
+}
+
+/// Where a heap item starts in a one-block heap, from its HID (MS-PST 2.3.1).
+fn heap_item(f: &[u8], (start, _): (usize, usize), hid: u32) -> usize {
+    let page_map = start + usize::from(u16_at(f, start));
+    let index = (hid >> 5) as usize & 0x7FF;
+    start + usize::from(u16_at(f, page_map + 4 + (index - 1) * 2))
+}
+
+/// A data file with one message, "Outer", whose first attachment holds a message and whose
+/// second is a zero-byte file. The writer only writes files, so the first one is turned into an
+/// attached message after: its method becomes 5, its 0x3701 a `PtypObject` naming its node, and
+/// that node, in the attachment's own subnode tree, points at the outer message's own blocks
+/// (the attached message is a copy of the message it is attached to).
+fn with_an_attached_message(dir: &Path) -> PathBuf {
+    let path = dir.join("attached.pst");
+    let files = [file("letter.bin", b"twelve bytes"), file("empty.txt", b"")];
+    drop(Writer::create_with_attachments(&path, &message("Outer"), &files).unwrap());
+    let mut f = std::fs::read(&path).unwrap();
+    let all = blocks(&f);
+    // The outer message's subnode block holds the attachment: its PC, its subnode block.
+    let (outer_sub_nodes, at) = sub_node_entry(&f, &all, ATTACHMENT_NODE);
+    let outer_sub_nodes_id = all.iter().find(|(_, b)| **b == outer_sub_nodes).map(|(id, _)| *id).unwrap();
+    let attachment = all[&u64_at(&f, at + 8)];
+    // The outer message's PC: the node B-tree entry whose subnode block is that one.
+    let outer = (0..f.len() - 32)
+        .step_by(32)
+        .find(|&o| u64_at(&f, o + 16) == outer_sub_nodes_id && (u64_at(&f, o) & 0x1F) == 0x04)
+        .map(|o| u64_at(&f, o + 8))
+        .unwrap();
+    // The attachment's own subnode block: its bytes' node now names the outer message's blocks.
+    let (own, at) = sub_node_entry(&f, &all, DATA_NODE);
+    put64(&mut f, at + 8, outer);
+    put64(&mut f, at + 16, outer_sub_nodes_id);
+    seal(&mut f, own);
+    // Method 1 → 5; 0x3701 → PtypObject on an 8-byte heap item (node, size), written over the
+    // MIME type's text.
+    let method = record(&f, attachment, 0x3705, 0x0003);
+    put32(&mut f, method + 4, 5);
+    let mime = u32_at(&f, record(&f, attachment, 0x370E, 0x001F) + 4);
+    let item = heap_item(&f, attachment, mime);
+    put32(&mut f, item, DATA_NODE as u32);
+    put32(&mut f, item + 4, 0);
+    let object = record(&f, attachment, 0x3701, 0x0102);
+    f[object + 2..object + 4].copy_from_slice(&0x000D_u16.to_le_bytes());
+    put32(&mut f, object + 4, mime);
+    seal(&mut f, attachment);
+    std::fs::write(&path, f).unwrap();
+    path
+}
+
 /// The first message in the file's folders (the writer's Inbox).
 fn first_message(store: &Rc<UnicodeStore>) -> Rc<UnicodeMessage> {
     let any: Rc<dyn PstStore> = store.clone();
@@ -136,6 +195,25 @@ fn first_message(store: &Rc<UnicodeStore>) -> Rc<UnicodeMessage> {
     panic!("no message in the file");
 }
 
+fn subject(m: &dyn Message) -> String {
+    m.properties().get(0x0037).and_then(text_of).unwrap_or_default()
+}
+
+/// Each attachment of `m`, as "file <bytes>", "message <subject>" or the error reading it.
+fn attachments(m: &Rc<UnicodeMessage>) -> Vec<String> {
+    let rows: Vec<u32> = m.attachment_table().map(|t| t.rows_matrix().map(|r| u32::from(r.id())).collect()).unwrap_or_default();
+    rows.into_iter()
+        .map(|id| match UnicodeAttachment::read(m.clone(), NodeId::from(id), None) {
+            Ok(a) => match a.data() {
+                Some(AttachmentData::Binary(b)) => format!("file {}", b.buffer().len()),
+                Some(AttachmentData::Message(inner)) => format!("message {}", subject(&**inner)),
+                None => "nothing".into(),
+            },
+            Err(e) => format!("error {e}"),
+        })
+        .collect()
+}
+
 /// Read the file on a thread of its own: what `read` makes of it, or a failure when it hasn't
 /// finished in 20 s (the reader once hung on an attached message, waiting on its own lock).
 fn read_in_time<T: Send + 'static>(path: &Path, read: fn(UnicodePstFile) -> T) -> T {
@@ -146,6 +224,50 @@ fn read_in_time<T: Send + 'static>(path: &Path, read: fn(UnicodePstFile) -> T) -
         let _ = tx.send(read(pst));
     });
     rx.recv_timeout(Duration::from_secs(20)).expect("the file was read in time")
+}
+
+/// An attached message reads: looked up in the attachment's own subnode tree, read once the
+/// file's lock is let go, and handed back as the file's own type, whose attachments read in
+/// turn. A zero-byte file reads as one with no bytes.
+#[test]
+fn an_attached_message_and_an_empty_file_read() {
+    let dir = scratch("attached");
+    let path = with_an_attached_message(&dir);
+    let (outer, inner) = read_in_time(&path, |pst| {
+        let store = UnicodeStore::read(Rc::new(pst)).unwrap();
+        let m = first_message(&store);
+        let a = UnicodeAttachment::read(m.clone(), NodeId::from(ATTACHMENT_NODE as u32), None).unwrap();
+        let attached = a.embedded_message().expect("the attachment's message, as UnicodeMessage");
+        (attachments(&m), (subject(&*attached), attachments(&attached)))
+    });
+    assert_eq!(outer, ["message Outer", "file 0"]);
+    // The copy has the same attachments: its own are read with the file's own types.
+    assert_eq!(inner, ("Outer".to_string(), vec!["message Outer".to_string(), "file 0".to_string()]));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// What the import makes of it: the attached message comes in as an attached .eml, and the
+/// zero-byte file comes in too (both were left out before).
+#[test]
+fn the_import_keeps_an_attached_message_and_an_empty_file() {
+    use mailcraft_model::MessageKey;
+    use mailcraft_store::Store;
+    let dir = scratch("attached-import");
+    let path = with_an_attached_message(&dir);
+    let store = Store::open(dir.join("cache")).unwrap();
+    let done = super::import(&path, &store, "a1", &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.skipped), (1, 0), "{done:?}");
+    let (folder, st) = done
+        .folders
+        .iter()
+        .find_map(|f| store.load_folder("a1", &f.path).ok().filter(|s| !s.messages.is_empty()).map(|s| (f.path.clone(), s)))
+        .unwrap();
+    let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
+    let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
+    let names: Vec<&str> = p.attachments.iter().map(|a| a.name.as_str()).collect();
+    assert!(names.iter().any(|n| n.ends_with(".eml")), "{names:?}");
+    assert!(names.contains(&"empty.txt"), "{names:?}");
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A file of 20,000 bytes: three data blocks under an XBLOCK (btype 1, level 1, count, total).
