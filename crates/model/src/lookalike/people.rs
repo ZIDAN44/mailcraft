@@ -82,6 +82,13 @@ const GENERIC: &[&str] = &[
     "webmaster",
 ];
 
+/// Titles and suffixes worn around a name ("Dr. Jane Director", "Jane Director, CEO"): left out
+/// like initials, so a title added to a known name doesn't make it another name.
+const TITLES: &[&str] = &[
+    "cfo", "ceo", "cio", "coo", "cto", "dr", "esq", "evp", "ii", "iii", "jr", "md", "miss", "mr", "mrs", "ms", "mx", "phd", "prof", "sir", "sr",
+    "svp", "vp",
+];
+
 /// Names longer than this (in bytes) are sentences or company blurbs, never a person's name.
 const LONGEST_NAME: usize = 120;
 /// A person's name has at most this many words (initials not counted).
@@ -115,11 +122,17 @@ pub fn name_key(name: &str) -> Option<String> {
     if !word.is_empty() {
         words.push(word);
     }
-    // Digits make it an account or a ticket, not a person; one letter is an initial.
+    // Digits drawn like letters inside a word read as those letters (`Z0e`); any other digit
+    // makes it an account or a ticket, not a person. One letter is an initial.
+    for w in words.iter_mut() {
+        if w.chars().any(char::is_alphabetic) && w.chars().any(|c| c.is_ascii_digit()) {
+            *w = w.chars().map(plain).collect();
+        }
+    }
     if words.iter().any(|w| w.chars().any(char::is_numeric)) {
         return None;
     }
-    words.retain(|w| w.chars().count() > 1);
+    words.retain(|w| w.chars().count() > 1 && !TITLES.contains(&w.as_str()));
     if words.len() < 2 || words.len() > MOST_WORDS || words.iter().any(|w| GENERIC.contains(&w.as_str())) {
         return None;
     }
@@ -134,9 +147,14 @@ fn invisible(c: char) -> bool {
         || matches!(c, '\u{00AD}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}' | '\u{034F}')
 }
 
-/// `c` lower case, without its accent, and as the Latin letter it's drawn like.
+/// `c` lower case, without its accent, and as the Latin letter it's drawn like (full-width and
+/// mathematical letters too: `Ｊａｎｅ`, `𝐉𝐚𝐧𝐞`).
 fn fold_into(c: char, out: &mut String) {
-    for c in c.to_lowercase() {
+    for c in wide_or_styled(c).to_lowercase() {
+        // `İ` lowers to `i` and a combining dot: the dot isn't seen apart.
+        if invisible(c) {
+            continue;
+        }
         if c.is_ascii() {
             out.push(c);
             continue;
@@ -163,10 +181,35 @@ fn fold_into(c: char, out: &mut String) {
     }
 }
 
+/// The plain Latin letter or digit a full-width (`Ｊ`) or mathematical (`𝐉`, `𝟎`) one is drawn
+/// as; anything else as it is.
+fn wide_or_styled(c: char) -> char {
+    let n = u32::from(c);
+    let shifted = match n {
+        // Full-width forms of `!`…`~`.
+        0xFF01..=0xFF5E => n.checked_sub(0xFEE0),
+        // Mathematical letters: bold, italic, script… each 26 capitals then 26 small letters.
+        0x1D400..=0x1D6A3 => {
+            let i = (n - 0x1D400) % 52;
+            Some(if i < 26 { u32::from(b'A') + i } else { u32::from(b'a') + i - 26 })
+        }
+        // Mathematical digits: five styles of ten.
+        0x1D7CE..=0x1D7FF => Some(u32::from(b'0') + (n - 0x1D7CE) % 10),
+        _ => None,
+    };
+    shifted.and_then(char::from_u32).unwrap_or(c)
+}
+
+/// A name's key as it's looked up: [`name_key`] with letters drawn alike made one (`l`, `i` and
+/// `1`; `rn` and `m`), as domains are compared, so `Wh1tfield` is `Whitfield`.
+fn drawn_key(name: &str) -> Option<String> {
+    name_key(name).map(|k| k.replace("rn", "m").replace("vv", "w").replace('i', "l"))
+}
+
 /// The people the user deals with, by name and by address.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct KnownPeople {
-    /// [`name_key`] → the name that person was first known by, and the addresses they're
+    /// [`drawn_key`] → the name that person was first known by, and the addresses they're
     /// known by (lower case).
     by_name: HashMap<String, (String, BTreeSet<String>)>,
     /// Every address known (lower case), named or not.
@@ -185,7 +228,7 @@ impl KnownPeople {
         if !crate::addr::is_valid_email(&email) || self.addresses.len() >= MOST_PEOPLE {
             return;
         }
-        if let Some(key) = name_key(&a.name) {
+        if let Some(key) = drawn_key(&a.name) {
             self.by_name.entry(key).or_insert_with(|| (a.name.trim().to_string(), BTreeSet::new())).1.insert(email.clone());
         }
         self.addresses.insert(email);
@@ -207,7 +250,7 @@ impl KnownPeople {
     /// The addresses the person named `name` is known by (none for a name that doesn't say who
     /// someone is).
     pub fn addresses_of(&self, name: &str) -> Option<&BTreeSet<String>> {
-        self.by_name.get(&name_key(name)?).map(|(_, a)| a)
+        self.by_name.get(&drawn_key(name)?).map(|(_, a)| a)
     }
 
     /// `from` wears the name of someone known on an address that person isn't known by. Not
@@ -224,7 +267,7 @@ impl KnownPeople {
         if domain.is_empty() || self.knows_address(&real) {
             return None;
         }
-        let (known_as, theirs) = self.by_name.get(&name_key(&from.name)?)?;
+        let (known_as, theirs) = self.by_name.get(&drawn_key(&from.name)?)?;
         let free = super::is_free_mail(&domain);
         if listed && !free {
             return None;
@@ -280,6 +323,23 @@ mod tests {
         assert_eq!(name_key("Jose\u{301} Garci\u{301}a"), name_key("José García"));
         assert_eq!(name_key("Jane Direc\u{200B}tor").as_deref(), Some("director jane"));
         assert_eq!(name_key("\u{202E}Jane Dir\u{2066}ector\u{202C}").as_deref(), Some("director jane"));
+        // Letters that only look like the plain ones, and digits standing for letters, read as
+        // them; titles worn around the name don't make it another name.
+        for name in [
+            "J\u{FF41}ne Director",
+            "\u{FF2A}\u{FF41}\u{FF4E}\u{FF45} \u{FF24}irector",
+            "\u{1D409}\u{1D41A}\u{1D427}\u{1D41E} Director",
+            "\u{1D5DD}\u{1D5EE}\u{1D5FB}\u{1D5F2} Director",
+            "JANE D\u{130}RECTOR",
+            "Jane Direct0r",
+            "Dr. Jane Director",
+            "Jane Director, CEO",
+            "Jane Director Jr.",
+        ] {
+            assert_eq!(name_key(name).as_deref(), Some("director jane"), "{name:?}");
+        }
+        assert_eq!(name_key("Dr. Director"), None);
+        assert_eq!(name_key("Jane Director \u{1D7CF}"), None);
     }
 
     #[test]
@@ -326,6 +386,9 @@ mod tests {
         assert!(warned(&k, "Zoe Angstrom", "zoe.a@proton.me"));
         assert!(warned(&k, "Robert Brown", "robert.brown@yahoo.co.uk"));
         assert!(warned(&k, "Bobby Brown", "rob.brown@hotmail.com"));
+        // A digit or letter drawn like another: `1` for `i`, `rn` for `m`.
+        assert!(warned(&k, "Jane D1rector", "jd@corp-pay.example"));
+        assert!(warned(&k, "Robert Brovvn", "rb@gmail.com"));
         // A list header on free mail doesn't excuse it.
         assert!(k.check(&EmailAddress::new("Jane Director", "jd1984@gmail.com"), true).is_some());
     }
