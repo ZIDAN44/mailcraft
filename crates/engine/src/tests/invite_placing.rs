@@ -300,3 +300,48 @@ fn holding_has_its_limits() {
     done(s2);
     done(s);
 }
+
+/// Trying to break it: a calendar sent for reading isn't held (it has nothing for the
+/// calendar), and big invitations are held only up to a size: the rest go to the calendar on
+/// this computer at once, none lost, so the calendar's file stays small.
+#[test]
+fn only_invitations_are_held_and_only_so_much() {
+    let (mut s, id) = imap_session("placing-held-bytes");
+    arrive(&mut s, &id, 1, "PUBLISH", &[invitation("p@studio.example", 0)]);
+    assert!(s.pim.get(&id).is_none_or(|p| p.held.is_empty()), "a published calendar isn't held");
+    let big = |n: u32| CalEvent { description: "x".repeat(240 << 10), ..invitation(&format!("big{n}@studio.example"), 0) };
+    for n in 0..12 {
+        arrive(&mut s, &id, 10 + n, "REQUEST", &[big(n)]);
+    }
+    let held = s.pim[&id].held.len();
+    let bytes: usize = s.pim[&id].held.iter().map(|h| h.ics.len()).sum();
+    assert!(held > 0 && held < 12 && bytes <= 2 << 20, "{held} held, {bytes} bytes");
+    let here = (0..12).filter(|n| parts(&s, &id, &format!("big{n}@studio.example")).iter().any(|e| e.calendar == LOCAL)).count();
+    assert_eq!(held + here, 12, "none lost");
+    found(&mut s, &id, Vec::new());
+    assert!((0..12).all(|n| parts(&s, &id, &format!("big{n}@studio.example")).iter().all(|e| e.calendar == OWN)));
+    done(s);
+}
+
+/// Trying to break it: an invitation answered (declined) from its message while held, or a
+/// cancellation taken in while its invitation is held, doesn't come back into the calendar as
+/// tentative once the calendars are found.
+#[test]
+fn dealt_with_while_held_stays_dealt_with() {
+    let (mut s, id) = imap_session("placing-declined-held");
+    let key = arrive(&mut s, &id, 1, "REQUEST", &[invitation("no@studio.example", 0)]);
+    arrive(&mut s, &id, 2, "REQUEST", &[invitation("off@studio.example", 0)]);
+    let cancel = arrive(&mut s, &id, 3, "CANCEL", &[invitation("off@studio.example", 1)]);
+    // A newer version of the declined one, also held: still to be seen.
+    arrive(&mut s, &id, 4, "REQUEST", &[invitation("later@studio.example", 0)]);
+    assert_eq!(s.pim[&id].held.len(), 4);
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
+    s.run("list.open", &json!({"key": cancel.to_id()})).unwrap();
+    s.run("invite.apply", &json!({})).unwrap();
+    found(&mut s, &id, Vec::new());
+    assert!(parts(&s, &id, "no@studio.example").is_empty(), "declined: not back as tentative");
+    assert!(parts(&s, &id, "off@studio.example").is_empty(), "cancelled: not back");
+    assert_eq!(parts(&s, &id, "later@studio.example").len(), 1, "the others held still go in");
+    done(s);
+}

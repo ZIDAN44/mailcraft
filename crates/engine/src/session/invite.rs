@@ -297,6 +297,8 @@ impl Session {
         if existing.is_empty() && stat != "DECLINED" {
             self.placed_here(&account, &calendar, &uid);
         }
+        // Answered while held: not to come back as tentative (a declined one) later.
+        self.forget_held(&account, &uid, &events);
         self.after_pim_change(&account, remote);
         if let Some(first) = events.first().cloned() {
             self.send_reply(&account, &first, stat)?;
@@ -353,7 +355,9 @@ impl Session {
             return match inv.method.as_str() {
                 "CANCEL" => {
                     // Not in the calendar (never answered, and taken out as it came): taken in all
-                    // the same, so out of the way (issue #31).
+                    // the same, so out of the way (issue #31). Its invitation, if held still, isn't
+                    // to come in later (issue #30).
+                    self.forget_held(&key.account, &uid, &taken);
                     let only = self.cancelled_only(&cal, &uid);
                     let moved = self.tidy_meeting_mail(&key.account, &uid, &["REQUEST", "CANCEL"], only.as_deref(), &taken, Some(&key));
                     Ok(serde_json::json!({"removed": false, "moved": moved}))
@@ -381,6 +385,7 @@ impl Session {
                         remote |= drop_occurrence(p, &uid, at);
                     }
                 }
+                self.forget_held(&key.account, &uid, &taken);
                 self.after_pim_change(&account, remote);
                 // The cancellation, and the meeting's invitations, out of the way (issue #31).
                 let only = self.cancelled_only(&cal, &uid);

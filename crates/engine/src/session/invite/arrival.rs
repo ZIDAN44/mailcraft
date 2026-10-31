@@ -18,6 +18,8 @@ const MAX_ARRIVED_INVITES: usize = 200;
 const MAX_HELD: usize = 200;
 /// The largest invitation held (its calendar is kept as text until it's put in the calendar).
 const MAX_HELD_ICS: usize = 256 << 10;
+/// Most bytes of invitations held per account (they are kept in the calendar's file).
+const MAX_HELD_BYTES: usize = 2 << 20;
 /// How long an invitation waits for the account's calendars to be found before it goes to the
 /// calendar on this computer (it moves to the server's once that's found).
 pub(crate) const HOLD_SECS: i64 = 180;
@@ -61,17 +63,22 @@ impl Session {
     }
 
     /// An arrived invitation into the calendar; held while the account's calendars are still to
-    /// be found (issue #30). Whether anything changed.
+    /// be found (issue #30). Only an invitation or a cancellation is held (a calendar sent for
+    /// reading, or a guest's answer, has nothing to put in the calendar), and only so much of
+    /// them: past that, one goes to the calendar on this computer at once (it moves to the
+    /// server's later), so the calendar's file stays small. Whether anything changed.
     pub(crate) fn take_invitation(&mut self, key: &MessageKey) -> bool {
         let Some((ics, sender)) = self.message_ics(key) else { return false };
         let account = key.account.clone();
-        if self.calendars_pending(&account) && ics.len() <= MAX_HELD_ICS {
+        let invitation = || matches!(ical::parse_in(&ics, self.clock.local_zone()).method.as_deref(), Some("REQUEST" | "CANCEL"));
+        if self.calendars_pending(&account) && ics.len() <= MAX_HELD_ICS && invitation() {
             let now = self.clock.now;
             let p = self.pim_mut(&account);
             if p.held.iter().any(|h| &h.key == key) {
                 return false;
             }
-            if p.held.len() < MAX_HELD {
+            let bytes = p.held.iter().map(|h| h.ics.len()).fold(ics.len(), usize::saturating_add);
+            if p.held.len() < MAX_HELD && bytes <= MAX_HELD_BYTES {
                 p.held.push(HeldInvite { key: key.clone(), since: now, ics, from: sender });
                 self.save_pim(&account);
                 return false;
@@ -106,6 +113,26 @@ impl Session {
         }
         for h in due {
             self.take_calendar(account, &h.ics, &h.from);
+        }
+    }
+
+    /// A meeting the user dealt with (answered or cancelled) in its message while its
+    /// invitations were held: those held, no newer than the version dealt with, are let go, so
+    /// a declined or cancelled meeting doesn't come back as tentative once the calendars are
+    /// found. A newer update still goes in, to be seen.
+    pub(super) fn forget_held(&mut self, account: &str, uid: &str, dealt: &[CalEvent]) {
+        let zone = self.clock.local_zone();
+        let Some(p) = self.pim.get_mut(account).filter(|p| !p.held.is_empty()) else { return };
+        let before = p.held.len();
+        p.held.retain(|h| {
+            let cal = ical::parse_in(&h.ics, zone);
+            let parts: Vec<&CalEvent> = cal.events.iter().filter(|e| e.uid == uid).collect();
+            // The series dealt with covers its occurrences; an occurrence covers only itself.
+            let covered = |e: &CalEvent| dealt.iter().any(|d| d.recurrence_id.is_none() || d.recurrence_id == e.recurrence_id);
+            parts.is_empty() || parts.iter().any(|e| !covered(e) || newer_than(e, dealt))
+        });
+        if p.held.len() != before {
+            self.save_pim(account);
         }
     }
 
