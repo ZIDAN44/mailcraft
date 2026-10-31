@@ -1405,3 +1405,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   K, with Shift too) queued in one frame are now one step of so many messages (`list.next
   {"by": n}`): only the message landed on is read and marked read, as in Outlook's list, and
   those passed over keep their flags.
+- **A message with many pictures:** each thumbnail read and parsed the whole message again, in
+  the frame drawing it (a 33 MB message with 36 pictures took 2.6 s to show), and past 64 the
+  thumbnails were thrown away and made again every frame, so the window froze for as long as the
+  message was open. The message's files are now taken out once, by one parse, kept while it's
+  open, and its pictures decoded one a frame; the picture opened big, a `cid:` picture in its
+  HTML and a PDF's pages come from that same read. What's kept is bounded (96 MB of pictures,
+  the least recently shown let go first), a PDF draws only the pages on screen, and moving to
+  another message stops the work on the last one's. A picture that breaks the decoder fails
+  alone. Thumbnails are made at 160 pixels (they're shown at 30 points), not 480.

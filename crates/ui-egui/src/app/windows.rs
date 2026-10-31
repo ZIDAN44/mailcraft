@@ -91,7 +91,7 @@ impl MailApp {
             let here = st.dialog_for.is_none_or(|f| f == mine);
             if let Some(mut d) = st.dialog.take() {
                 if d.for_compose() && here {
-                    let keep = dialogs::show(ui.ctx(), &mut d, session, &t, &mut mine_acts);
+                    let keep = dialogs::show(ui.ctx(), &mut d, session, &mut st.pictures, &t, &mut mine_acts);
                     if keep && st.dialog.is_none() {
                         st.dialog = Some(d);
                     }

@@ -266,9 +266,12 @@ pub struct UiState {
     /// ([`widgets::RibbonFit`]).
     ribbon_icons_from: usize,
     pub dialog: Option<Dialog>,
-    previews: HashMap<(MessageKey, usize), Option<egui::TextureHandle>>,
-    /// Decoded web pictures, by address.
-    web_pictures: HashMap<String, Option<egui::TextureHandle>>,
+    /// The pictures of the messages shown: attachment thumbnails, pictures in HTML, a picture or
+    /// a PDF's pages at the pane's size ([`reading::Pictures`]).
+    pub(crate) pictures: reading::Pictures,
+    /// Decoded web pictures, by address, and the frame each was last shown in (the oldest go
+    /// when there are too many).
+    web_pictures: HashMap<String, (Option<egui::TextureHandle>, u64)>,
     pub toast: Option<(String, bool, f64)>,
     seen_notices: usize,
     scroll_to_focus: bool,
@@ -302,7 +305,7 @@ pub struct UiState {
     /// The interface language setting (`auto` or a language code).
     pub language: String,
     /// The fonts installed, kept to add a CJK fallback later (and for PDF thumbnails).
-    pub(crate) fonts: (Option<Vec<u8>>, Option<Vec<u8>>),
+    pub(crate) fonts: thumbs::Fonts,
     /// A fallback font for Arabic and Hebrew (when the main font hasn't them).
     rtl_font: Option<Vec<u8>>,
     /// The language whose CJK font is loaded.
@@ -319,6 +322,8 @@ pub struct UiState {
     /// Video attachments written out for the platform to take a frame from, and the frames.
     pub(crate) video_files: HashMap<(MessageKey, usize), PathBuf>,
     pub(crate) video_frames: HashMap<PathBuf, VideoFrame>,
+    /// Video frames made thumbnails, kept apart from the pictures (a few, by attachment).
+    pub(crate) video_thumbs: HashMap<(MessageKey, usize), Option<egui::TextureHandle>>,
     /// The File page, while it's open.
     pub backstage: Option<backstage::Backstage>,
     /// The month the calendar's small month shows (`year * 12 + month - 1`; `None`: the day on
@@ -413,7 +418,7 @@ impl MailApp {
                 ribbon_rect: None,
                 ribbon_icons_from: usize::MAX,
                 dialog: None,
-                previews: HashMap::new(),
+                pictures: reading::Pictures::default(),
                 web_pictures: HashMap::new(),
                 toast: None,
                 seen_notices: seen,
@@ -443,6 +448,7 @@ impl MailApp {
                 focus_main: false,
                 video_files: HashMap::new(),
                 video_frames: HashMap::new(),
+                video_thumbs: HashMap::new(),
                 backstage: None,
                 mini_month: None,
                 cal_scrolled: [false; 2],
@@ -475,7 +481,7 @@ impl MailApp {
 
     /// Register the UI fonts, preferring an installed system font (call before the first frame).
     pub fn install_fonts(&mut self, ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
-        self.ui.fonts = (regular.clone(), bold.clone());
+        self.ui.fonts = (regular.clone().map(std::sync::Arc::new), bold.clone().map(std::sync::Arc::new));
         bidi::set_coverage(regular.as_deref());
         if !bidi::covers_rtl() {
             self.ui.rtl_font = self.services.rtl_font();
@@ -518,7 +524,7 @@ impl MailApp {
                 }
             }
             if !cjk.is_empty() {
-                let (r, b) = self.ui.fonts.clone();
+                let (r, b) = (self.ui.fonts.0.as_ref().map(|f| f.to_vec()), self.ui.fonts.1.as_ref().map(|f| f.to_vec()));
                 theme::install_fonts_with(ctx, r, b, cjk, self.ui.rtl_font.clone());
                 ctx.request_repaint();
             } else if self.services.font_pending() {

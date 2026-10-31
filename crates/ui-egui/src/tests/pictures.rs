@@ -1,4 +1,5 @@
-//! Pictures in a message being written: their size, and making them bigger or smaller (issue #10).
+//! Pictures in a message being written: their size, and making them bigger or smaller (issue #10);
+//! and those of a message read: its files taken out once, decoded once each, within a budget.
 
 use super::*;
 use crate::rich_edit::{FIT_WIDTH, own_size};
@@ -179,5 +180,297 @@ fn a_logo_pasted_with_a_signature_comes_along() {
     let cids: Vec<&str> = c.inline.iter().map(|p| p.cid.as_str()).collect();
     assert!(cids.iter().any(|cid| c.bodies().1.is_some_and(|h| h.contains(&format!("cid:{cid}")))), "{cids:?}");
     crate::TEST_CLIPBOARD_HTML.with(|h| *h.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A PDF of `pages` pages (100 x 50 points), each with a box in it.
+fn pdf(pages: usize) -> Vec<u8> {
+    let content = "0 0 1 rg 10 10 40 30 re f";
+    let kids: Vec<String> = (0..pages).map(|k| format!("{} 0 R", 3 + 2 * k)).collect();
+    let mut objects = vec!["<< /Type /Catalog /Pages 2 0 R >>".to_string(), format!("<< /Type /Pages /Kids [{}] /Count {pages} >>", kids.join(" "))];
+    for k in 0..pages {
+        objects.push(format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 50] /Contents {} 0 R >>", 4 + 2 * k));
+        objects.push(format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()));
+    }
+    let mut out = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes());
+    for off in offsets {
+        out.extend(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
+    out
+}
+
+fn png(w: u32, h: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(w, h, image::Rgba([40, 90, 200, 255])))
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    out
+}
+
+/// A message with these files put first in the Inbox, and the Inbox shown.
+fn with_files(a: &mut MailApp, uid: u32, files: Vec<(String, &str, Vec<u8>)>) -> MessageKey {
+    use mailcraft_engine::mime::{self, Draft, OutAttachment};
+    let d = Draft {
+        subject: format!("Files {uid}"),
+        body: "Here they are.".into(),
+        attachments: files.into_iter().map(|(name, mime, data)| OutAttachment { name, mime: mime.into(), data }).collect(),
+        ..Default::default()
+    };
+    let raw = mime::build(&d, &mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example"), NOW, &format!("<files{uid}@x>")).unwrap();
+    with_raw(a, uid, &raw)
+}
+
+/// A message of this source put first in the Inbox, and the Inbox shown.
+fn with_raw(a: &mut MailApp, uid: u32, raw: &[u8]) -> MessageKey {
+    use mailcraft_engine::mime;
+    let store = a.session.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
+    inbox.messages.insert(0, mime::summary_from_full(raw, key.clone(), Default::default(), 0, NOW));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, raw).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    key
+}
+
+fn pictures(n: usize) -> Vec<(String, &'static str, Vec<u8>)> {
+    (0..n).map(|i| (format!("photo {i}.png"), "image/png", png(8 + (i % 5) as u32, 8))).collect()
+}
+
+/// Frames in a window this big until `done` (at most `max`); how many it took, and the most
+/// pictures decoded in one of them.
+fn pump(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2, max: usize, done: impl Fn(&MailApp) -> bool) -> (usize, usize) {
+    let mut most = 0;
+    for n in 0..max {
+        if done(a) {
+            return (n, most);
+        }
+        let before = a.ui.pictures.counts().1;
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        most = most.max(a.ui.pictures.counts().1 - before);
+    }
+    (max, most)
+}
+
+const WINDOW: egui::Vec2 = egui::vec2(1280.0, 800.0);
+
+/// A message with more than 64 pictures cleared every thumbnail each time one more was made,
+/// so it read, parsed and decoded all of them again every frame: each is decoded once, from
+/// one read of the message, a picture a frame (none of it in one long frame).
+#[test]
+fn seventy_pictures_decode_once_each() {
+    let (mut a, dir) = app("seventy-pictures");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9001, pictures(70));
+    a.run("list.open", json!({"key": k.to_id()}));
+    let (frames, most) = pump(&ctx, &mut a, WINDOW, 80, |a| a.ui.pictures.ready() == 70);
+    assert!(frames < 80, "all 70 thumbnails in {frames} frames ({} ready)", a.ui.pictures.ready());
+    assert_eq!(most, 1, "a picture a frame");
+    assert_eq!(a.ui.pictures.counts(), (1, 70), "one read, each picture decoded once");
+    pump(&ctx, &mut a, WINDOW, 10, |_| false);
+    assert_eq!(a.ui.pictures.counts(), (1, 70), "and not again");
+    assert_eq!(a.ui.pictures.working(), 0);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The 36 thumbnails, a picture opened big and a PDF's ten pages all come from one read of the
+/// message (each was a read and a parse of the whole message, per picture and per page).
+#[test]
+fn one_extraction_per_message() {
+    let (mut a, dir) = app("one-extraction");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let mut files = pictures(36);
+    files.push(("report.pdf".into(), "application/pdf", pdf(10)));
+    let k = with_files(&mut a, 9002, files);
+    a.run("list.open", json!({"key": k.to_id()}));
+    let (frames, most) = pump(&ctx, &mut a, WINDOW, 60, |a| a.ui.pictures.ready() == 37);
+    assert!(frames < 60, "36 thumbnails and the PDF's first page ({} ready)", a.ui.pictures.ready());
+    assert_eq!(most, 1);
+    // A picture shown at the pane's size.
+    a.ui.attachment_view = Some((k.clone(), 3));
+    let (frames, _) = pump(&ctx, &mut a, WINDOW, 10, |a| a.ui.pictures.ready() == 38);
+    assert!(frames < 10, "the picture big");
+    // The PDF's pages, all on a tall screen.
+    a.ui.attachment_view = Some((k.clone(), 36));
+    let (frames, _) = pump(&ctx, &mut a, egui::vec2(1280.0, 8000.0), 30, |a| a.ui.pictures.ready() == 48);
+    assert!(frames < 30, "its ten pages ({} ready)", a.ui.pictures.ready());
+    assert_eq!(a.ui.pictures.pages(&k, 36), Some(10));
+    assert_eq!(a.ui.pictures.counts(), (1, 48), "one read of the message for all of them");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A 60-page PDF draws the pages on screen only, and what it keeps stays within the budget
+/// even when every page shows (those that don't fit come smaller, or not at all).
+#[test]
+fn a_long_pdf_stays_within_the_budget() {
+    let (mut a, dir) = app("long-pdf");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9003, vec![("manual.pdf".into(), "application/pdf", pdf(60))]);
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.ui.attachment_view = Some((k.clone(), 0));
+    pump(&ctx, &mut a, WINDOW, 40, |_| false);
+    assert_eq!(a.ui.pictures.pages(&k, 0), Some(60));
+    let (_, decodes) = a.ui.pictures.counts();
+    assert!(decodes <= 6, "the chip and the pages on screen only: {decodes}");
+    // Every page on screen, with room for a few.
+    let budget = 1 << 20;
+    a.ui.pictures.set_budget(budget);
+    for _ in 0..150 {
+        pump(&ctx, &mut a, egui::vec2(1280.0, 24_000.0), 1, |_| false);
+        assert!(a.ui.pictures.bytes() <= budget, "{} kept", a.ui.pictures.bytes());
+    }
+    assert!(a.ui.pictures.ready() > 3, "the pages that fit ({})", a.ui.pictures.ready());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A picture bigger than a frame's uploads (2048 pixels square, 16 MiB) is still made, alone.
+#[test]
+fn a_single_big_upload() {
+    let (mut a, dir) = app("big-upload");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9004, vec![("poster.png".into(), "image/png", png(2048, 2048))]);
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.ui.attachment_view = Some((k.clone(), 0));
+    let (frames, _) = pump(&ctx, &mut a, WINDOW, 20, |a| a.ui.pictures.ready() == 2);
+    assert!(frames < 20, "the thumbnail and the picture big ({} ready)", a.ui.pictures.ready());
+    assert!(a.ui.pictures.bytes() >= 16 << 20, "{}", a.ui.pictures.bytes());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A picture that breaks the decoder fails, with the rest of its message's, and the next
+/// message's pictures show.
+#[test]
+fn a_panicking_decode_leaves_later_work_alone() {
+    let (mut a, dir) = app("panicking-decode");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let bad = with_files(&mut a, 9005, pictures(5));
+    let good = with_files(&mut a, 9006, pictures(4));
+    a.ui.pictures.panic_at = Some(2);
+    a.run("list.open", json!({"key": bad.to_id()}));
+    // (Once it started: the message was read.)
+    let (frames, _) = pump(&ctx, &mut a, WINDOW, 20, |a| a.ui.pictures.counts().0 == 1 && a.ui.pictures.working() == 0);
+    assert!(frames < 20, "its work ends");
+    assert_eq!(a.ui.pictures.ready(), 2, "the pictures before it");
+    assert_eq!(a.ui.pictures.counts(), (1, 2), "and none after it decoded");
+    a.ui.pictures.panic_at = None;
+    a.run("list.open", json!({"key": good.to_id()}));
+    let before = a.ui.pictures.ready();
+    let (frames, _) = pump(&ctx, &mut a, WINDOW, 20, |a| a.ui.pictures.ready() >= before + 4);
+    assert!(frames < 20, "the next message's four ({} ready)", a.ui.pictures.ready());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Moving on to another message stops the work on the last one's pictures.
+#[test]
+fn pictures_of_a_message_left_are_cancelled() {
+    let (mut a, dir) = app("pictures-left");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let many = with_files(&mut a, 9007, pictures(70));
+    let next = with_files(&mut a, 9008, pictures(2));
+    a.run("list.open", json!({"key": many.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 5, |_| false);
+    a.run("list.open", json!({"key": next.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 30, |_| false);
+    let (reads, decodes) = a.ui.pictures.counts();
+    assert_eq!(reads, 2);
+    assert!(decodes < 10, "the first message's stopped: {decodes} decoded");
+    assert_eq!(a.ui.pictures.working(), 0);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A window resized a pixel a frame with a PDF's pages shown: the pages are made again only
+/// at each 100 pixels, what's kept for the message stays small, and the pages show at the
+/// width it ends at (each width was a new page kept, until the message's 200 failed them all).
+#[test]
+fn resizing_keeps_a_pdf_showing() {
+    let (mut a, dir) = app("pdf-resized");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9009, vec![("plan.pdf".into(), "application/pdf", pdf(3))]);
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.ui.attachment_view = Some((k.clone(), 0));
+    pump(&ctx, &mut a, egui::vec2(1000.0, 800.0), 20, |_| false);
+    let settled = a.ui.pictures.counts().1;
+    for w in 0..300 {
+        pump(&ctx, &mut a, egui::vec2(1000.0 + w as f32, 800.0), 1, |_| false);
+        assert!(a.ui.pictures.of(&k).0 <= 12, "pictures kept at {w}: {:?}", a.ui.pictures.of(&k));
+    }
+    pump(&ctx, &mut a, egui::vec2(900.0, 800.0), 20, |_| false);
+    let decodes = a.ui.pictures.counts().1 - settled;
+    assert!(decodes <= 20, "the pages made again at each 100 pixels only: {decodes}");
+    let (kept, shown) = a.ui.pictures.of(&k);
+    assert!(shown >= 3 && kept <= 12, "the three pages show at the last width: {shown} shown, {kept} kept");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Past 200 pictures the chips show their kind's icon, but one opened still shows.
+#[test]
+fn a_picture_past_the_chips_opens() {
+    let (mut a, dir) = app("many-chips");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9010, pictures(205));
+    a.run("list.open", json!({"key": k.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 5, |_| false);
+    a.ui.attachment_view = Some((k.clone(), 204));
+    pump(&ctx, &mut a, WINDOW, 10, |_| false);
+    assert!(matches!(a.ui.pictures.get(&k, 204, crate::reading::Want::Big), crate::reading::Got::Ready(_)), "the last picture big");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Pictures left out of a read for room are read again, not failed: with room for two files
+/// taken out, all six show.
+#[test]
+fn pictures_left_out_for_room_show() {
+    let (mut a, dir) = app("sources-room");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let files = pictures(6);
+    let most = files.iter().map(|f| f.2.len()).max().unwrap();
+    let k = with_files(&mut a, 9011, files);
+    a.ui.pictures.set_sources_max(2 * most);
+    a.run("list.open", json!({"key": k.to_id()}));
+    let (frames, _) = pump(&ctx, &mut a, WINDOW, 40, |a| a.ui.pictures.ready() == 6);
+    assert!(frames < 40, "all six ({} ready)", a.ui.pictures.ready());
+    let (reads, decodes) = a.ui.pictures.counts();
+    assert!(decodes == 6 && reads <= 3, "two at a time, each decoded once: {reads} reads, {decodes} decodes");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// More web pictures shown at once than are kept: each is decoded once and kept while shown,
+/// not decoded again every frame.
+#[test]
+fn many_web_pictures_are_kept_while_shown() {
+    let (mut a, dir) = app("web-pictures");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let urls: Vec<String> = (0..250).map(|i| format!("https://cdn.shop.example/{i}.png")).collect();
+    let imgs: String = urls.iter().map(|u| format!("<img src=\"{u}\" width=\"4\" height=\"4\">")).collect();
+    let raw = format!("From: Shop <news@shop.example>\r\nSubject: Sale\r\nContent-Type: text/html\r\n\r\n<p>Sale</p>{imgs}");
+    let k = with_raw(&mut a, 9012, raw.as_bytes());
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.run("message.showPictures", json!({}));
+    for u in &urls {
+        a.session.apply(MailEvent::Fetched { url: u.clone(), data: Some(png(4, 4)), error: None });
+    }
+    pump(&ctx, &mut a, egui::vec2(1280.0, 8000.0), 3, |_| false);
+    assert_eq!(a.ui.web_pictures.len(), 250, "all of them kept while shown");
     let _ = std::fs::remove_dir_all(dir);
 }

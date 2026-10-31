@@ -15,6 +15,10 @@ use hayro::{PixmapSettings, RenderCache, RenderSettings};
 /// Largest PDF rendered for a thumbnail.
 const MAX_PDF: usize = 40 << 20;
 
+/// The interface's fonts (regular, bold), shared with the work that draws PDF pages rather than
+/// copied for each page.
+pub type Fonts = (Option<Arc<Vec<u8>>>, Option<Arc<Vec<u8>>>);
+
 /// A video frame the platform is working on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VideoFrame {
@@ -30,8 +34,8 @@ pub enum VideoFrame {
 /// doesn't carry (its "standard" fonts) is drawn with `fonts` (regular, bold), the interface's
 /// system fonts, when given.
 #[cfg(test)]
-pub fn pdf_first_page(data: &[u8], max: u32, fonts: (Option<Vec<u8>>, Option<Vec<u8>>)) -> Option<egui::ColorImage> {
-    pdf_page(data, 0, Fit::Longer(max), u32::MAX, fonts).map(|(img, _)| img)
+pub fn pdf_first_page(data: &[u8], max: u32, fonts: Fonts) -> Option<egui::ColorImage> {
+    pdf_page(&Arc::new(data.to_vec()), 0, Fit::Longer(max), u32::MAX, fonts).map(|(img, _)| img)
 }
 
 /// How big a page is drawn: its longer side at most this many pixels, or this wide.
@@ -44,13 +48,14 @@ pub enum Fit {
 /// Page `n` (from 0) of a PDF, and how many pages it has, for the reading pane's preview; never
 /// more than `limit` pixels on a side (the graphics card's largest picture: a till receipt drawn
 /// as wide as the pane was taller than that, and egui and the card refuse it).
-pub fn pdf_page(data: &[u8], n: usize, fit: Fit, limit: u32, fonts: (Option<Vec<u8>>, Option<Vec<u8>>)) -> Option<(egui::ColorImage, usize)> {
+/// The PDF's bytes are shared with the renderer, not copied for each page.
+pub fn pdf_page(data: &Arc<Vec<u8>>, n: usize, fit: Fit, limit: u32, fonts: Fonts) -> Option<(egui::ColorImage, usize)> {
     if data.len() > MAX_PDF || !data.windows(5).take(1024).any(|w| w == b"%PDF-") {
         return None;
     }
-    let data = data.to_vec();
-    let regular: Option<FontData> = fonts.0.map(|f| Arc::new(f) as FontData);
-    let bold: Option<FontData> = fonts.1.map(|f| Arc::new(f) as FontData).or_else(|| regular.clone());
+    let data = Arc::clone(data);
+    let regular: Option<FontData> = fonts.0.map(|f| f as FontData);
+    let bold: Option<FontData> = fonts.1.map(|f| f as FontData).or_else(|| regular.clone());
     let interpreter = InterpreterSettings {
         font_resolver: Arc::new(move |q: &FontQuery| {
             let heavy = matches!(q, FontQuery::Standard(s) if format!("{s:?}").contains("Bold"));
@@ -133,7 +138,7 @@ mod tests {
     #[test]
     fn a_long_page_fits_the_card() {
         let receipt = String::from_utf8(tiny_pdf()).unwrap().replace("/MediaBox [0 0 100 50]", "/MediaBox [0 0 227 14173]");
-        let (img, pages) = pdf_page(receipt.as_bytes(), 0, Fit::Width(700), 2048, (None, None)).expect("a page");
+        let (img, pages) = pdf_page(&Arc::new(receipt.into_bytes()), 0, Fit::Width(700), 2048, (None, None)).expect("a page");
         assert_eq!(pages, 1);
         assert!(img.size[0] <= 2048 && img.size[1] <= 2048, "{:?}", img.size);
         assert!(img.size[1] > 2000, "as big as it may be: {:?}", img.size);

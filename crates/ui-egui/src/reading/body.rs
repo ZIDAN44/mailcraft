@@ -615,6 +615,9 @@ pub(super) fn column_widths(rows: &[Vec<mime::layout::Cell>]) -> Vec<Option<mime
     out
 }
 
+/// Most web pictures kept decoded.
+const WEB_PICTURES: usize = 200;
+
 /// A picture of an HTML message: one inside it (`cid:`) always, one on the web once allowed.
 pub(super) fn picture_texture(
     s: &Session,
@@ -629,37 +632,37 @@ pub(super) fn picture_texture(
     let lower = src.to_ascii_lowercase();
     if !(lower.starts_with("http://") || lower.starts_with("https://")) {
         let Some(index) = mime::picture_attachment(p, src) else { return Pic::Missing };
-        // At a size to read it at (an attachment's card has a thumbnail 480 wide: a picture
-        // wider than that came out 480 wide, issue #10).
-        let id = format!("cid-{}-{index}", key.to_id());
-        if let Some(t) = st.web_pictures.get(&id) {
-            return t.clone().map_or(Pic::Missing, Pic::Ready);
-        }
-        if st.web_pictures.len() > 200 {
-            st.web_pictures.clear();
-        }
-        let t = s
-            .store
-            .as_ref()
-            .and_then(|store| store.read_body(key))
-            .and_then(|raw| mime::attachment_data(&raw, index))
-            .and_then(|d| decode(ctx, &id, &d, 1200));
-        st.web_pictures.insert(id, t.clone());
-        return t.map_or(Pic::Missing, Pic::Ready);
+        // At a size to read it at (an attachment's card has a small thumbnail: a picture wider
+        // than that came out that wide, issue #10), taken out with the message's others.
+        return match st.pictures.get(key, index, crate::reading::Want::Body) {
+            crate::reading::Got::Ready(t) => Pic::Ready(t),
+            crate::reading::Got::Pending => Pic::Loading,
+            crate::reading::Got::Failed => Pic::Missing,
+        };
     }
     if !allowed {
         return Pic::Missing;
     }
     match s.pictures.get(src) {
         Some(mailcraft_engine::Picture::Ready(bytes)) => {
-            if let Some(t) = st.web_pictures.get(src) {
+            let now = st.pictures.frame();
+            if let Some((t, used)) = st.web_pictures.get_mut(src) {
+                *used = now;
                 return t.clone().map_or(Pic::Missing, Pic::Ready);
             }
-            if st.web_pictures.len() > 200 {
-                st.web_pictures.clear();
-            }
             let t = decode(ctx, &format!("web-{src}"), bytes, 1200);
-            st.web_pictures.insert(src.to_string(), t.clone());
+            // Those shown least recently go (never one shown in this frame: a message with more
+            // than that many pictures decoded all of them again every frame). Past that many
+            // shown at once it's kept anyway, and let go once no longer shown.
+            while st.web_pictures.len() >= WEB_PICTURES {
+                let Some(oldest) =
+                    st.web_pictures.iter().filter(|(_, (_, used))| *used < now).min_by_key(|(_, (_, used))| *used).map(|(k, _)| k.clone())
+                else {
+                    break;
+                };
+                st.web_pictures.remove(&oldest);
+            }
+            st.web_pictures.insert(src.to_string(), (t.clone(), now));
             t.map_or(Pic::Missing, Pic::Ready)
         }
         Some(mailcraft_engine::Picture::Loading) => Pic::Loading,

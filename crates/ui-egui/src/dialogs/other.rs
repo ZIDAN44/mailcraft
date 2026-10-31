@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::ConfirmDeleteContact { uid, name } => {
             ui.set_width(380.0);
@@ -24,13 +24,16 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let h = (ui.ctx().content_rect().height() * 0.7).max(240.0);
             ui.set_width(w);
             title(ui, t, name);
-            match crate::reading::big_picture(s, ui.ctx(), key, *index) {
-                Some(tex) => {
+            match pics.get(key, *index, crate::reading::Want::Big) {
+                crate::reading::Got::Ready(tex) => {
                     let sz = tex.size_vec2();
                     let scale = (w / sz.x).min(h / sz.y).min(1.0);
                     ui.vertical_centered(|ui| ui.add(egui::Image::new(&tex).fit_to_exact_size(sz * scale)));
                 }
-                None => {
+                crate::reading::Got::Pending => {
+                    ui.vertical_centered(|ui| ui.spinner());
+                }
+                crate::reading::Got::Failed => {
                     ui.label(RichText::new(tl!("This picture can't be shown.")).color(t.dim));
                 }
             }

@@ -482,8 +482,15 @@ fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) 
     res
 }
 
-/// Show the dialog; returns whether it stays open.
-pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+/// Show the dialog; returns whether it stays open. `pics` draws a picture it previews.
+pub(crate) fn show(
+    ctx: &egui::Context,
+    d: &mut Dialog,
+    s: &Session,
+    pics: &mut crate::reading::Pictures,
+    t: &Tokens,
+    acts: &mut Vec<Action>,
+) -> bool {
     let frame = dialog_frame(t);
     // Each kind of dialog keeps its own size: one id for all let a small one open at the size
     // of the last big one.
@@ -501,7 +508,7 @@ pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: 
                 .id_salt("dialog-body")
                 .max_height(max)
                 .min_scrolled_height(max)
-                .show(ui, |ui| body(ui, d, s, t, acts))
+                .show(ui, |ui| body(ui, d, s, pics, t, acts))
                 .inner;
             (keep, ui.unique_id())
         })
@@ -519,7 +526,7 @@ pub fn show(ctx: &egui::Context, d: &mut Dialog, s: &Session, t: &Tokens, acts: 
     keep && !modal.should_close()
 }
 
-fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     // Each kind is drawn by its group; listing them all here keeps the match exhaustive.
     match d {
         Dialog::LostOnClose { .. } | Dialog::SaveOnClose(..) | Dialog::UpdateOnClose(..) => closing::draw(ui, d, s, t, acts),
@@ -551,7 +558,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         | Dialog::Certificate { .. }
         | Dialog::SmartCard { .. }
         | Dialog::Event(..)
-        | Dialog::Contact(..) => other::draw(ui, d, s, t, acts),
+        | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
     }
 }
 
