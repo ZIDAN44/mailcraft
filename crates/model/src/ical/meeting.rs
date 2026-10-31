@@ -11,8 +11,10 @@ use super::{CalEvent, links_in, parse_line};
 const NAME_MAX: usize = 100;
 const CODE_MAX: usize = 100;
 pub const URL_MAX: usize = 2048;
-/// The most extra lines (dial-in numbers…) a room adds to the notes.
+/// The most extra text (dial-in numbers…) a room adds to the notes, and its most lines: a
+/// block is found again only when it's short ([`BLOCK_LINES`]).
 const DETAILS_MAX: usize = 2000;
+const DETAILS_LINES: usize = 20;
 /// The most meeting hosts the user can list, and rooms they can keep.
 pub const HOSTS_MAX: usize = 100;
 pub const ROOMS_MAX: usize = 50;
@@ -51,6 +53,10 @@ impl MeetingRoom {
                 .filter(|c| *c == '\n' || !c.is_control())
                 .take(DETAILS_MAX)
                 .collect::<String>()
+                .lines()
+                .take(DETAILS_LINES)
+                .collect::<Vec<_>>()
+                .join("\n")
                 .trim()
                 .to_string(),
         })
@@ -102,7 +108,9 @@ pub fn meeting_url(given: &str) -> Option<String> {
     {
         return None;
     }
-    host_of(&url).map(|_| url)
+    // A link is found in the notes again as it was given (one ending in `.` or an unopened `)`
+    // would be cut short there, and its block never found to take out).
+    (host_of(&url).is_some() && links_in(&url) == [url.as_str()]).then_some(url)
 }
 
 /// A link's host, lower case, without a port or user: `None` when it has none worth the name.
@@ -231,8 +239,10 @@ fn block_end(line: &str) -> bool {
 
 /// The first meeting block in some notes: its byte range (from its first line's start to the
 /// end of its last, line break included) and the links in it. A block is the lines from a
-/// `---- … ----` line to the next line of dashes, a few dozen at most, with a link in them.
-fn find_block(text: &str) -> Option<(usize, usize, Vec<String>)> {
+/// `---- … ----` line to the next line of dashes, a few dozen at most, its first line with a
+/// link (`Join: https://…`): a quoted `-----Original Message-----` isn't one. With `only`, a
+/// block with one of those links.
+fn find_block(text: &str, only: &[String]) -> Option<(usize, usize, Vec<String>)> {
     let mut at = 0;
     let lines: Vec<(usize, &str)> = text
         .split_inclusive('\n')
@@ -247,9 +257,10 @@ fn find_block(text: &str) -> Option<(usize, usize, Vec<String>)> {
             continue;
         }
         let Some((j, (end_at, end_line))) = lines.iter().enumerate().skip(i + 1).take(BLOCK_LINES).find(|(_, (_, l))| block_end(l)) else { continue };
-        let inner: String = lines.get(i + 1..j).unwrap_or(&[]).iter().map(|(_, l)| *l).collect();
-        let links = links_in(&inner);
-        if !links.is_empty() {
+        let inner = lines.get(i + 1..j).unwrap_or(&[]);
+        let first = inner.iter().map(|(_, l)| *l).find(|l| !l.trim().is_empty()).unwrap_or("");
+        let links = links_in(&inner.iter().map(|(_, l)| *l).collect::<String>());
+        if !links_in(first).is_empty() && (only.is_empty() || links.iter().any(|l| only.contains(l))) {
             return Some((*start, end_at + end_line.len(), links));
         }
     }
@@ -264,7 +275,7 @@ pub fn meeting_block(room: &MeetingRoom, labels: &MeetingLabels) -> String {
     if !room.code.is_empty() {
         out.push_str(&format!("{} {}\n", one_line(&labels.code, 40), room.code));
     }
-    for l in room.details.lines().filter(|l| !block_start(l) && !block_end(l)) {
+    for l in room.details.lines().filter(|l| !block_start(l) && !block_end(l)).take(DETAILS_LINES) {
         out.push_str(l.trim_end());
         out.push('\n');
     }
@@ -323,7 +334,7 @@ impl CalEvent {
             .into_iter()
             .find(Conference::joins)
             .map(|c| c.uri)
-            .or_else(|| find_block(&self.description).and_then(|(_, _, l)| l.into_iter().next()))
+            .or_else(|| find_block(&self.description, &[]).and_then(|(_, _, l)| l.into_iter().next()))
     }
 
     /// Add a room's meeting, as Outlook adds a Teams meeting: its link as the place (after the
@@ -334,7 +345,7 @@ impl CalEvent {
         if self.online_meeting().is_some_and(|u| u != room.url) {
             self.remove_online_meeting();
         }
-        if !find_block(&self.description).is_some_and(|(_, _, links)| links.contains(&room.url)) {
+        if find_block(&self.description, std::slice::from_ref(&room.url)).is_none() {
             let notes = self.description.trim_end();
             let block = meeting_block(room, labels);
             self.description = if notes.is_empty() { block } else { format!("{notes}\n\n{block}") };
@@ -358,7 +369,7 @@ impl CalEvent {
         self.extra.retain(|raw| !is_conference(raw));
         let mut found = self.extra.len() != before;
         for _ in 0..10 {
-            let Some((start, end, l)) = find_block(&self.description) else { break };
+            let Some((start, end, l)) = find_block(&self.description, &[]) else { break };
             self.description = cut(&self.description, start, end);
             links.extend(l);
             found = true;

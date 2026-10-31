@@ -20,6 +20,17 @@ fn rooms_and_hosts_are_kept_and_checked() {
         assert!(s.run("meetings.addRoom", &bad).is_err(), "{bad}");
     }
     assert!(s.run("meetings.removeRoom", &json!({"room": "nope"})).is_err());
+    // Two rooms on one server, given no names: both kept, told apart by their links.
+    s.run("meetings.addRoom", &json!({"url": "https://bbb.example.edu/rooms/aaa-bbb-ccc"})).unwrap();
+    s.run("meetings.addRoom", &json!({"url": "https://bbb.example.edu/rooms/ddd-eee-fff"})).unwrap();
+    let names: Vec<&str> = s.prefs.meeting_rooms.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, ["Jitsi", "bbb", "bbb.example.edu", "bbb.example.edu/rooms/ddd-eee-fff"]);
+    s.run("meetings.removeRoom", &json!({"room": "bbb.example.edu"})).unwrap();
+    s.run("meetings.removeRoom", &json!({"room": "bbb.example.edu/rooms/ddd-eee-fff"})).unwrap();
+    // Links that differ in case only are two rooms: removing one by its link leaves the other.
+    s.run("meetings.addRoom", &json!({"name": "Upper", "url": "https://jitsi.example.org/TEAM"})).unwrap();
+    s.run("meetings.removeRoom", &json!({"room": "https://jitsi.example.org/TEAM"})).unwrap();
+    assert!(s.prefs.meeting_rooms.iter().any(|r| r.url == "https://jitsi.example.org/Team"), "{:?}", s.prefs.meeting_rooms);
 
     // Another organisation's self-hosted Jitsi: its links join once its host is listed.
     let e = mailcraft_model::ical::CalEvent { location: "https://video.partner.example/Kickoff".into(), ..Default::default() };

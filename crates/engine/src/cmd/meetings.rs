@@ -30,8 +30,15 @@ impl Session {
         if w.is_empty() || w.eq_ignore_ascii_case("default") {
             return self.prefs.meeting_rooms.first();
         }
-        self.prefs.meeting_rooms.iter().find(|r| r.name.eq_ignore_ascii_case(w) || r.url.eq_ignore_ascii_case(w))
+        self.prefs.meeting_rooms.get(room_index(&self.prefs.meeting_rooms, w)?)
     }
+}
+
+/// Which saved room is meant: its link exactly (two rooms' links can differ in case only), else
+/// its name or link, case aside.
+fn room_index(rooms: &[MeetingRoom], which: &str) -> Option<usize> {
+    let w = which.trim();
+    rooms.iter().position(|r| r.url == w).or_else(|| rooms.iter().position(|r| r.name.eq_ignore_ascii_case(w) || r.url.eq_ignore_ascii_case(w)))
 }
 
 fn listing(s: &Session) -> Value {
@@ -104,11 +111,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("meetings.list", "Online meetings", "File › Options › Online meetings", |s, _| Ok(listing(s))),
         CommandSpec::new("meetings.addRoom", "Add a meeting room", "File › Options › Online meetings", |s, v| {
             let get = |k: &str| p::str(v, k).unwrap_or_default();
-            let room = MeetingRoom::new(get("name"), p::req_str(v, "url")?, get("code"), get("details"))
+            let mut room = MeetingRoom::new(get("name"), p::req_str(v, "url")?, get("code"), get("details"))
                 .ok_or_else(|| CmdError::Params("`url` isn't a web link (https://…)".into()))?;
-            // The same name or link: changed in place.
+            let named = !get("name").trim().is_empty();
+            // The same link, or the same name given: changed in place.
             let rooms = &mut s.prefs.meeting_rooms;
-            match rooms.iter().position(|r| r.name.eq_ignore_ascii_case(&room.name) || r.url == room.url) {
+            let same = |r: &MeetingRoom, room: &MeetingRoom| r.url == room.url || (named && r.name.eq_ignore_ascii_case(&room.name));
+            // Unnamed, it's named by its server; a second room there by its link.
+            if !named && rooms.iter().any(|r| r.url != room.url && r.name.eq_ignore_ascii_case(&room.name)) {
+                room.name = room.url.split_once("://").map_or(room.url.as_str(), |(_, r)| r).chars().take(100).collect();
+            }
+            match rooms.iter().position(|r| same(r, &room)) {
                 Some(i) => {
                     if let Some(r) = rooms.get_mut(i) {
                         *r = room;
@@ -122,17 +135,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"url": string (the room's link), "name"?: string, "code"?: string (its access code), "details"?: string (more lines for invitations: dial-in…)}"#),
         CommandSpec::new("meetings.removeRoom", "Remove a meeting room", "File › Options › Online meetings", |s, v| {
             let which = p::req_str(v, "room")?;
-            let before = s.prefs.meeting_rooms.len();
-            s.prefs.meeting_rooms.retain(|r| !(r.name.eq_ignore_ascii_case(which.trim()) || r.url.eq_ignore_ascii_case(which.trim())));
-            if s.prefs.meeting_rooms.len() == before {
+            let Some(i) = room_index(&s.prefs.meeting_rooms, which) else {
                 return Err(CmdError::Params(format!("no room `{}`", which.chars().take(100).collect::<String>())));
-            }
+            };
+            s.prefs.meeting_rooms.remove(i);
             Ok(listing(s))
         })
         .params(r#"{"room": string (its name or link)}"#),
         CommandSpec::new("meetings.defaultRoom", "Room added first", "File › Options › Online meetings", |s, v| {
             let which = p::req_str(v, "room")?;
-            let Some(i) = s.prefs.meeting_rooms.iter().position(|r| r.name.eq_ignore_ascii_case(which.trim()) || r.url.eq_ignore_ascii_case(which.trim())) else {
+            let Some(i) = room_index(&s.prefs.meeting_rooms, which) else {
                 return Err(CmdError::Params(format!("no room `{}`", which.chars().take(100).collect::<String>())));
             };
             let r = s.prefs.meeting_rooms.remove(i);

@@ -189,3 +189,43 @@ fn a_meeting_from_exchange_goes_with_its_link_footnote() {
     assert!(e.remove_online_meeting());
     assert_eq!(e.description, "Agenda[1]\n\n[1]: https://docs.example.org/agenda");
 }
+
+/// Quoted mail in the notes (Reply with meeting puts the message there) has lines of dashes
+/// too: an `-----Original Message-----` with a link and a dashed line under it isn't a meeting,
+/// and adding or taking out one leaves it as written.
+#[test]
+fn quoted_mail_with_dashed_lines_isnt_a_meeting() {
+    let quoted = "Shall we meet?\n\n-----Original Message-----\nFrom: Zoe\nSee https://docs.example.org/plan\n--------------------\nThanks";
+    let mut e = CalEvent { description: quoted.into(), ..Default::default() };
+    assert_eq!(e.online_meeting(), None);
+    assert!(!e.remove_online_meeting());
+    assert_eq!(e.description, quoted);
+    e.add_online_meeting(&room(), &MeetingLabels::default());
+    assert!(e.description.starts_with(quoted), "{:?}", e.description);
+    assert!(e.remove_online_meeting());
+    assert_eq!(e.description, quoted);
+}
+
+/// A room's link and details as kept are ones its block is found by again: added twice it's
+/// there once, and it comes out whole without its `CONFERENCE` (Exchange keeps none).
+#[test]
+fn every_kept_room_is_found_again() {
+    for bad in ["https://meet.example.org/r.", "https://x.example.org/a)", "https://x.example.org/a?"] {
+        assert_eq!(MeetingRoom::new("R", bad, "", ""), None, "{bad}");
+    }
+    let details = (0..60).map(|i| format!("Dial-in {i}: +1 555 01{i:02}")).collect::<Vec<_>>().join("\n");
+    let r = MeetingRoom::new("R", "https://meet.example.edu/rooms/abc-def-ghi", "", &details).unwrap();
+    assert_eq!(r.details.lines().count(), 20);
+    // Even a longer one from a hand-edited settings file.
+    let long = MeetingRoom { details: details.clone(), ..r.clone() };
+    for room in [r, long] {
+        let mut e = CalEvent { location: "Room 4".into(), ..Default::default() };
+        e.add_online_meeting(&room, &MeetingLabels::default());
+        let once = e.clone();
+        e.add_online_meeting(&room, &MeetingLabels::default());
+        assert_eq!(e, once);
+        e.extra.clear();
+        assert!(e.remove_online_meeting());
+        assert_eq!((e.location.as_str(), e.description.as_str()), ("Room 4", ""));
+    }
+}
