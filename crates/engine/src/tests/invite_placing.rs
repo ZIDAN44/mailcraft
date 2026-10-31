@@ -95,8 +95,10 @@ fn parts<'a>(s: &'a Session, id: &str, uid: &str) -> Vec<&'a StoredEvent> {
     s.pim[id].events.iter().filter(|e| e.event.uid == uid).collect()
 }
 
+/// A calendar sync is asked for, once (a second would start before the first one's results are
+/// merged, and send its new items again).
 fn asks_sync(s: &mut Session) -> bool {
-    s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. }))
+    s.take_jobs().iter().filter(|j| matches!(j, Job::SyncDav { .. })).count() == 1
 }
 
 /// Held until the calendars are found (across a restart), then put in the account's own
@@ -185,7 +187,9 @@ fn no_calendars_then_a_server_given_by_hand() {
     assert!(s.calendars_pending(&id), "looked for again");
     arrive(&mut s, &id, 2, "REQUEST", &[invitation("y@studio.example", 0)]);
     assert!(parts(&s, &id, "y@studio.example").is_empty(), "held");
+    s.take_jobs();
     found(&mut s, &id, Vec::new());
+    assert!(asks_sync(&mut s), "one sync for the one moved and the one held");
     assert_eq!(parts(&s, &id, "x@studio.example")[0].calendar, OWN);
     assert_eq!(parts(&s, &id, "y@studio.example")[0].calendar, OWN);
     let dentist = s.pim[&id].events.iter().find(|e| e.event.summary == "Dentist").unwrap();

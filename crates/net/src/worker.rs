@@ -133,9 +133,11 @@ impl Auth {
 }
 
 /// Queue a job, unless it's a folder to read that is waiting already (a few messages sent in a
-/// row each ask for Sent Items: once is enough).
+/// row each ask for Sent Items: once is enough), or a calendar sync that is (a second one would
+/// run before the first one's results are merged, and send its new items again: "changed on the
+/// server meanwhile").
 fn push_job(queue: &mut VecDeque<Job>, j: Job) {
-    if matches!(j, Job::SyncFolder { .. }) && queue.contains(&j) {
+    if matches!(j, Job::SyncFolder { .. } | Job::SyncDav { .. }) && queue.contains(&j) {
         return;
     }
     queue.push_back(j);

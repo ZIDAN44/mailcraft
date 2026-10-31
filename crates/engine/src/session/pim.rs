@@ -470,11 +470,14 @@ impl Session {
         Ok(serde_json::json!({"deleted": uid}))
     }
 
-    /// Save, and ask for a sync when the server has something to learn.
+    /// Save, and ask for a sync when the server has something to learn (once: a second sync
+    /// asked for meanwhile would start before the first one's results are merged, and send its
+    /// new items again).
     pub(crate) fn after_pim_change(&mut self, account: &str, remote: bool) {
         self.save_pim(account);
-        if remote && self.account(account).is_some_and(|a| !a.is_local()) {
-            self.jobs.push(Job::SyncDav { account: account.to_string() });
+        let job = Job::SyncDav { account: account.to_string() };
+        if remote && self.account(account).is_some_and(|a| !a.is_local()) && !self.jobs.contains(&job) {
+            self.jobs.push(job);
         }
     }
 

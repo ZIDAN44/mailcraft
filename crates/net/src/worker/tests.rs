@@ -11,6 +11,12 @@ fn a_folder_waiting_to_be_read_isnt_queued_twice() {
     push_job(&mut q, Job::GetVacation { account: "a".into() });
     push_job(&mut q, Job::GetVacation { account: "a".into() });
     assert_eq!(q.len(), 4, "only the folder read is merged");
+    // A calendar sync waiting already: the second would send the first one's new items again
+    // before its results were merged (found testing issue #30 against Radicale).
+    push_job(&mut q, Job::SyncDav { account: "a".into() });
+    push_job(&mut q, Job::SyncDav { account: "a".into() });
+    push_job(&mut q, Job::SyncDav { account: "b".into() });
+    assert_eq!(q.len(), 6);
 }
 
 #[test]
