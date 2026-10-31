@@ -206,3 +206,30 @@ fn a_signature_cant_take_anothers_name() {
     assert_eq!(config.signatures.iter().map(|g| g.name.as_str()).collect::<Vec<_>>(), ["Long", "Short"]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// An account's first signature shows for new messages and replies alike, as it's saved; one
+/// chosen for new messages only, "(none)" for replies, is saved so (it went into both).
+#[test]
+fn the_first_signature_is_saved_with_the_defaults_chosen() {
+    let (mut a, dir) = app("signatures-first");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("account.removeSignature", json!({"account": "sample", "name": "Signature"}));
+    a.ui.dialog = Dialog::signature(&a.session);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!((form(&a).for_new.clone(), form(&a).for_reply.clone()), (None, None), "nothing written yet");
+    form_mut(&mut a).compose.set_text("Riley".into());
+    frame(&ctx, &mut a, vec![]);
+    let f = form(&a);
+    assert_eq!((f.for_new.as_deref(), f.for_reply.as_deref()), (Some("Signature"), Some("Signature")), "shown as it'll be saved");
+    // Replies: "(none)", as picked.
+    let f = form_mut(&mut a);
+    f.for_reply = None;
+    f.picked = true;
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(form(&a).for_reply, None, "kept as picked");
+    click(&ctx, &mut a, "Save");
+    let config = a.session.account("sample").unwrap().config.clone();
+    assert_eq!((config.signature_new.as_deref(), config.signature_reply.as_deref()), (Some("Signature"), None));
+    let _ = std::fs::remove_dir_all(dir);
+}

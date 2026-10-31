@@ -29,6 +29,9 @@ pub struct SignatureForm {
     /// Which goes into new messages, and which into replies and forwards (`None`: none).
     pub for_new: Option<String>,
     pub for_reply: Option<String>,
+    /// Whether those were chosen here: until they are, an account's first signature is for
+    /// both (as the pickers show it), after, they're as chosen ("(none)" too).
+    pub picked: bool,
     /// What saving it as it was opened would send: changed from that, it's saved on switching.
     loaded: Value,
 }
@@ -55,6 +58,7 @@ impl SignatureForm {
             pictures: Vec::new(),
             for_new: config.signature_new.clone(),
             for_reply: config.signature_reply.clone(),
+            picked: false,
             loaded: Value::Null,
         };
         f.load(s, first.as_deref());
@@ -154,7 +158,7 @@ impl SignatureForm {
         }
         self.names.retain(|n| !n.eq_ignore_ascii_case(&old) && !n.eq_ignore_ascii_case(&name));
         if !empty {
-            if self.names.is_empty() && was.is_none() {
+            if self.names.is_empty() && was.is_none() && !self.picked {
                 // The account's first: for new messages and replies alike, as the engine has it.
                 self.for_new = Some(name.clone());
                 self.for_reply = Some(name.clone());
@@ -211,8 +215,9 @@ impl std::fmt::Debug for SignatureEditor {
     }
 }
 
-/// A picker of signature names, "(none)" first.
-fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value: &mut Option<String>) {
+/// A picker of signature names, "(none)" first. Whether one was picked.
+fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value: &mut Option<String>) -> bool {
+    let before = value.clone();
     ui.horizontal(|ui| {
         ui.add_sized([150.0, 22.0], egui::Label::new(label));
         let none = tl!("(none)").to_string();
@@ -223,6 +228,7 @@ fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value:
             }
         });
     });
+    *value != before
 }
 
 pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
@@ -294,8 +300,14 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
     if f.editing.is_none() && !f.is_empty() && !names.iter().any(|n| n.eq_ignore_ascii_case(f.name.trim())) {
         names.push(f.name.trim().to_string());
     }
-    default_picker(ui, "signature-new", tl!("New messages:").to_string(), &names, &mut f.for_new);
-    default_picker(ui, "signature-reply", tl!("Replies/forwards:").to_string(), &names, &mut f.for_reply);
+    // The account's first signature, not chosen for anything yet: shown for both, as it's saved.
+    if !f.picked && f.names.is_empty() && f.editing.is_none() {
+        let first = (!f.is_empty()).then(|| f.name.trim().to_string());
+        f.for_new.clone_from(&first);
+        f.for_reply = first;
+    }
+    f.picked |= default_picker(ui, "signature-new", tl!("New messages:").to_string(), &names, &mut f.for_new);
+    f.picked |= default_picker(ui, "signature-reply", tl!("Replies/forwards:").to_string(), &names, &mut f.for_reply);
     let problem = f.problem().filter(|_| !f.is_empty());
     if let Some(p) = &problem {
         ui.label(RichText::new(p.as_str()).color(t.danger).small());
