@@ -1384,3 +1384,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the same way as in a `winmail.dat`: as the HTML it wraps, or, when there's no plain text, its
   own formatting or its text; the pictures its HTML shows are in the body instead of listed as
   files. A plain body stays over RTF of its own, whose tables and pictures the text keeps better.
+- **Outlook data files in their own code pages:** an imported `.pst` message's HTML body was
+  read as UTF-8 or Windows-1252 only, so Cyrillic, Greek, Chinese, Korean and Japanese mail
+  came in as mojibake (and Japanese mail with its ISO-2022-JP escapes showing). It is now read
+  in the code page the item names (`PidTagInternetCodepage`), with GB18030, EUC-JP/KR,
+  ISO-2022-JP, UTF-7, UTF-16BE, KOI8-U, Mac Cyrillic, DOS Latin 1 (850) and more ISO-8859 pages
+  added to the table winmail.dat already used; every page in it is tested with its own bytes.
+  A body that is valid UTF-8 stays UTF-8 unless it declares another charset near its top
+  (Outlook labels some UTF-8 mail with the sender's code page), though UTF-16 is always read as
+  UTF-16; an HTML body's byte-order mark decides first. An older (ANSI) data file's subjects,
+  names and file names are read in the message's code page (`PidTagMessageCodepage`) rather than
+  as Windows-1252. Windows-1252's five undefined bytes still come through as the C1 controls they
+  number rather than U+FFFD, and UTF-7 is read by MailCraft itself, so text ending inside a base64
+  run keeps its last characters. ISO-2022-KR has no decoder: its ASCII is kept, and the import
+  logs how many messages (counting attached ones) lost text that way. A new fuzz target,
+  `pst_props`, reads property text in every page.

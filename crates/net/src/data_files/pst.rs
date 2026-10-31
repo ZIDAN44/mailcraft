@@ -36,7 +36,7 @@ mod rebuild;
 #[cfg(test)]
 mod tests;
 
-use item::{Item, attachment, item};
+use item::{Item, attachment, item, message_code_page};
 use out::Out;
 pub(crate) use props::{Val, text_of};
 
@@ -61,6 +61,10 @@ pub struct Imported {
     /// Items that couldn't be read or written, and how many for each reason.
     pub skipped: usize,
     pub skips: BTreeMap<SkipReason, usize>,
+    /// Messages with text (or an attached message with text) in a code page MailCraft can't read
+    /// (ISO-2022-KR): imported with only its ASCII. Logged, and not in `skips`, since the message
+    /// itself came in.
+    pub charset_unsupported: usize,
 }
 
 /// Import the data file at `path` into `account`'s cache (an account with no server). Calls
@@ -74,6 +78,7 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
         imported: 0,
         skipped: 0,
         skips: BTreeMap::new(),
+        charset_unsupported: 0,
         progress,
         pim: Pim::default(),
         pending: Vec::new(),
@@ -121,12 +126,13 @@ macro_rules! reader {
             let named = crate::pst_pim::Named::of(&*any);
             let read = |entry: &EntryId| -> io::Result<Item> {
                 let m = <$message>::read(store.clone(), entry, None)?;
+                let cp = message_code_page(&*m);
                 let mut files = Vec::new();
                 if let Some(table) = m.attachment_table() {
                     for row in table.rows_matrix() {
                         let node = NodeId::from(u32::from(row.id()));
                         match <$attachment>::read(m.clone(), node, None) {
-                            Ok(a) => files.extend(attachment(&*a, 0, &named)),
+                            Ok(a) => files.extend(attachment(&*a, 0, cp, &named)),
                             Err(e) => log::info!("an attachment could not be read: {e}"),
                         }
                     }
@@ -136,6 +142,13 @@ macro_rules! reader {
             walk(&*any, &read, out)
         }
     };
+}
+
+/// Bytes from a data file as the import reads them as text: an HTML body (`html`) in its internet
+/// code page, or an 8-bit string in its message's. For the fuzz target.
+#[doc(hidden)]
+pub fn text_from_bytes(bytes: &[u8], code_page: u32, html: bool) -> String {
+    props::decode(bytes, code_page, html)
 }
 
 reader!(read_unicode, UnicodePstFile, UnicodeStore, UnicodeMessage, UnicodeAttachment);
