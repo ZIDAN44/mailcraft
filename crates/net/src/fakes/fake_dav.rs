@@ -25,6 +25,8 @@ pub struct Data {
     /// Store a new item over one of the same name, though asked not to (`If-None-Match: *`),
     /// as SOGo does.
     pub overwrites: bool,
+    /// Says it schedules meetings itself (`calendar-auto-schedule`, RFC 6638).
+    pub schedules: bool,
 }
 
 /// The uid an item's data names (its lines unfolded).
@@ -129,6 +131,10 @@ pub fn serve() -> Server {
                 continue;
             }
             match (method.as_str(), path.as_str()) {
+                ("OPTIONS", _) => {
+                    let dav = if d.schedules { "1, 2, access-control, calendar-access, calendar-auto-schedule" } else { "1, 2, 3, calendar-access" };
+                    respond(&mut s, "200 OK", &[("DAV", dav.into())], "");
+                }
                 ("PROPFIND", "/.well-known/caldav" | "/.well-known/carddav") => respond(&mut s, "301 Moved", &[("Location", "/dav/".into())], ""),
                 ("PROPFIND", "/dav/") => respond(
                     &mut s,
@@ -225,6 +231,9 @@ pub fn serve() -> Server {
 }
 
 #[cfg(test)]
+mod scheduling;
+
+#[cfg(test)]
 mod tests {
     use mailcraft_model::ical::{self, CalEvent};
     use mailcraft_model::pim::{LOCAL, Pim, StoredEvent};
@@ -235,7 +244,7 @@ mod tests {
     use crate::dav::{Dav, Kind, Where, sync};
 
     /// Found from the address, as an account with nothing given by hand.
-    const AT: Where<'static> = Where { email: USER, imap_host: "imap.example", caldav: None, carddav: None };
+    const AT: Where<'static> = Where { email: USER, username: "", imap_host: "imap.example", caldav: None, carddav: None };
 
     fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
         CalEvent { uid: uid.into(), summary: summary.into(), start, end: start + 3600, ..Default::default() }

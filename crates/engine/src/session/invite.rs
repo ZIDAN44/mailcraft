@@ -13,11 +13,13 @@ use mailcraft_model::pim::{LOCAL, Pim, StoredEvent, Tombstone};
 use super::*;
 
 mod arrival;
+mod notices;
 mod tidy;
 
 #[cfg(test)]
 pub(crate) use arrival::HOLD_SECS;
 pub(crate) use arrival::drop_empty_local;
+pub use notices::Route;
 pub use tidy::AnsweredInvites;
 
 /// The most occurrences one message can take out of a series.
@@ -319,7 +321,7 @@ impl Session {
         self.forget_held(&account, &uid, &events);
         self.after_pim_change(&account, remote);
         if let Some(first) = events.first().cloned() {
-            self.send_reply(&account, &first, stat)?;
+            self.answer_organizer(&account, &calendar, &existing, &first, stat)?;
         }
         // The invitation, and its earlier versions in the Inbox, out of the way (issue #31): all
         // of the meeting's for an answer to the series, else those naming only these occurrences.
@@ -344,6 +346,7 @@ impl Session {
             return Err(CmdError::Params("this calendar can't be changed".into()));
         }
         let mut remote = false;
+        let copy: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid && !theirs.contains(&e.calendar)).cloned().collect();
         for e in p.events.iter_mut().filter(|e| e.event.uid == uid && !theirs.contains(&e.calendar)) {
             set_answer(&mut e.event, &mine, &me, stat);
             answered.push(e.event.clone());
@@ -356,7 +359,8 @@ impl Session {
         self.after_pim_change(&account, remote);
         let mut moved = 0;
         if let Some(m) = master {
-            self.send_reply(&account, &m, stat)?;
+            let calendar = copy.iter().find(|e| e.event.recurrence_id.is_none()).map(|e| e.calendar.clone()).unwrap_or_default();
+            self.answer_organizer(&account, &calendar, &copy, &m, stat)?;
             // Answered from the calendar: its invitations in the Inbox out of the way too (issue
             // #31), unless it's the user's own meeting.
             let theirs = m.organizer.as_ref().is_some_and(|o| !mine.contains(&without_mailto(&o.email).to_ascii_lowercase()));

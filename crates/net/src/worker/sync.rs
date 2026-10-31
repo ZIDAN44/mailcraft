@@ -422,6 +422,7 @@ impl Worker {
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
         let at = crate::dav::Where {
             email: &self.acc.email,
+            username: &self.acc.username,
             imap_host: host,
             caldav: Some(given.caldav.as_str()).filter(|c| !c.trim().is_empty()),
             carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),

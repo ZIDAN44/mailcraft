@@ -23,6 +23,7 @@ mod find;
 mod meeting;
 mod notes;
 mod recurrence;
+mod scheduling;
 mod showing;
 mod zones;
 pub use alarms::*;
@@ -32,6 +33,7 @@ use notes::*;
 pub use notes::*;
 use recurrence::*;
 pub use recurrence::*;
+pub use scheduling::*;
 pub use showing::*;
 use zones::*;
 
@@ -110,6 +112,16 @@ pub struct CalEvent {
     /// Graph's `onlineMeeting.joinUrl`); otherwise found in its notes ([`CalEvent::join_link`]).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub join_url: String,
+    /// The calendar's server leaves this meeting's invitations and answers to the program that
+    /// stores it (RFC 6638 `SCHEDULE-AGENT=CLIENT` on its organizer): MailCraft mails them.
+    /// Written on the organizer and every guest in a server's copy ([`write_for_server`]), never
+    /// in an invitation or a file.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub client_scheduled: bool,
+    /// The server delivered this version to guests itself (`SCHEDULE-STATUS` 1.x or 2.x on a
+    /// guest, RFC 6638 §7.3). Only read, never written.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub server_delivered: bool,
 }
 
 fn is_zero(n: &i64) -> bool {
@@ -482,8 +494,12 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
                     pending.push(l);
                 }
             }
-            "ORGANIZER" => e.organizer = Some(person(l)),
+            "ORGANIZER" => {
+                e.organizer = Some(person(l));
+                e.client_scheduled = schedule_agent_client(l.param("SCHEDULE-AGENT"));
+            }
             "ATTENDEE" => {
+                e.server_delivered |= server_delivered(l.param("SCHEDULE-STATUS"));
                 if e.attendees.len() < 500 {
                     e.attendees.push(person(l));
                 }
@@ -538,7 +554,7 @@ fn day(t: i64) -> String {
     format!("{y:04}{m:02}{d:02}")
 }
 
-fn mailbox(prop: &str, a: &Attendee) -> String {
+fn mailbox(prop: &str, a: &Attendee, client: bool) -> String {
     let mut s = prop.to_string();
     if !a.name.is_empty() {
         s.push_str(&format!(";CN=\"{}\"", a.name.replace(['"', '\r', '\n'], "")));
@@ -549,12 +565,30 @@ fn mailbox(prop: &str, a: &Attendee) -> String {
     if a.rsvp {
         s.push_str(";RSVP=TRUE");
     }
+    if client {
+        s.push_str(";SCHEDULE-AGENT=CLIENT");
+    }
     s.push_str(&format!(":mailto:{}", a.email.replace(['\r', '\n'], "")));
     s
 }
 
 /// One `VEVENT`, folded; `now` is its `DTSTAMP`.
 pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
+    write_one(e, now, Purpose::Plain, out);
+}
+
+/// What a written event is for: what of the server's scheduling it carries.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    /// A file, or an invitation: no `SCHEDULE-AGENT` (RFC 6638 §7.1: never in iTIP), and no
+    /// mark of a guest's own copy.
+    Plain,
+    /// A CalDAV server's copy: both, as the event has them.
+    Server,
+}
+
+fn write_one(e: &CalEvent, now: i64, purpose: Purpose, out: &mut String) {
+    let client = purpose == Purpose::Server && e.client_scheduled;
     let mut lines: Vec<String> = vec!["BEGIN:VEVENT".into(), format!("UID:{}", e.uid.replace(['\r', '\n'], "")), format!("DTSTAMP:{}", stamp(now))];
     // Timed events in a zone are written in it (repeating at its wall-clock time); others in UTC.
     let zone = zone_of(e);
@@ -597,12 +631,12 @@ pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
         lines.push(format!("SEQUENCE:{}", e.sequence));
     }
     if let Some(o) = &e.organizer {
-        lines.push(mailbox("ORGANIZER", o));
+        lines.push(mailbox("ORGANIZER", o, client));
     }
     for a in &e.attendees {
-        lines.push(mailbox("ATTENDEE", a));
+        lines.push(mailbox("ATTENDEE", a, client));
     }
-    lines.extend(e.extra.iter().map(|x| x.replace(['\r', '\n'], "")));
+    lines.extend(e.extra.iter().filter(|x| purpose == Purpose::Server || !is_guest_copy_line(x)).map(|x| x.replace(['\r', '\n'], "")));
     lines.push("END:VEVENT".into());
     for l in lines {
         fold(&l, out);
@@ -613,6 +647,17 @@ pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
 /// An invitation is stamped `now`; a stored event keeps the stamp it came with, so the copy on a
 /// server still tells which invitation it was.
 pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
+    write_all(events, method, now, Purpose::Plain)
+}
+
+/// A CalDAV server's copy of these events: as [`write`] stores them, with who schedules them
+/// (`SCHEDULE-AGENT=CLIENT` on the organizer and every guest of a meeting MailCraft schedules)
+/// and the mark of a guest's own copy ([`mark_guest_copy`]).
+pub fn write_for_server(events: &[CalEvent], now: i64) -> String {
+    write_all(events, None, now, Purpose::Server)
+}
+
+fn write_all(events: &[CalEvent], method: Option<&str>, now: i64, purpose: Purpose) -> String {
     let mut out = String::new();
     for l in ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MailCraft//MailCraft//EN", "CALSCALE:GREGORIAN"] {
         fold(l, &mut out);
@@ -642,7 +687,7 @@ pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
     }
     for e in events {
         let stamp = if method.is_none() && e.dtstamp > 0 { e.dtstamp } else { now };
-        write_event(e, stamp, &mut out);
+        write_one(e, stamp, purpose, &mut out);
     }
     fold("END:VCALENDAR", &mut out);
     out

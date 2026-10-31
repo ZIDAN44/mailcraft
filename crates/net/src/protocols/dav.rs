@@ -208,9 +208,20 @@ fn end_tag(
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Where<'a> {
     pub email: &'a str,
+    /// The account's user name when it isn't its address (a meeting it organizes may name it).
+    pub username: &'a str,
     pub imap_host: &'a str,
     pub caldav: Option<&'a str>,
     pub carddav: Option<&'a str>,
+}
+
+impl Where<'_> {
+    /// An address of the account's own (an organizer's, say), `mailto:` and case aside.
+    pub fn is_me(&self, address: &str) -> bool {
+        let a = address.trim();
+        let a = a.get(..7).filter(|p| p.eq_ignore_ascii_case("mailto:")).map_or(a, |_| a.get(7..).unwrap_or("")).trim();
+        !a.is_empty() && [self.email, self.username].iter().any(|m| m.contains('@') && m.trim().eq_ignore_ascii_case(a))
+    }
 }
 
 /// What a collection holds.
@@ -416,6 +427,13 @@ impl Dav {
         Ok(out)
     }
 
+    /// Whether the server sends meeting invitations and answers itself as events are stored
+    /// (RFC 6638 §2: `calendar-auto-schedule` in the `DAV` header of its `OPTIONS` answer).
+    pub fn schedules(&self, url: &str) -> Result<bool> {
+        let (resp, _) = self.request("OPTIONS", url, None, "", &[])?;
+        Ok(resp.ok() && schedules_in(&resp.headers))
+    }
+
     /// The items in a collection and their etags.
     pub fn etags(&self, collection: &str) -> Result<Vec<(String, String)>> {
         let (items, at) = self.propfind(collection, "1", "<d:getetag/><d:resourcetype/>")?;
@@ -524,6 +542,14 @@ impl Dav {
         }
         Ok(out)
     }
+}
+
+/// Whether `DAV` headers say `calendar-auto-schedule` (each may list several, comma-separated).
+pub fn schedules_in(headers: &[(String, String)]) -> bool {
+    headers
+        .iter()
+        .filter(|(k, _)| k.eq_ignore_ascii_case("DAV"))
+        .any(|(_, v)| v.split(',').any(|t| t.trim().eq_ignore_ascii_case("calendar-auto-schedule")))
 }
 
 /// Why a server didn't store or delete an item.

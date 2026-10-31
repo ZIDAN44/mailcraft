@@ -382,3 +382,31 @@ fn occurrences_at_the_ends_of_time() {
     let whole = occurrences(&[at(-10, i64::MAX, None)], 0, 10);
     assert_eq!(whole.len(), 1, "one that runs to the end of time is there now");
 }
+
+/// Who schedules a meeting (RFC 6638): read from the organizer, written on the organizer and
+/// every guest in a server's copy only, never in an invitation (§7.1) or a file; the server's
+/// own delivery read from a guest's `SCHEDULE-STATUS`; a guest's own copy marked for the server
+/// and nowhere else.
+#[test]
+fn scheduling_is_said_to_the_server_only() {
+    let text = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s1\r\nDTSTART:20261110T100000Z\r\nDTEND:20261110T110000Z\r\n\
+                ORGANIZER;CN=Ann;SCHEDULE-AGENT=\"client\":mailto:ann@x.example\r\n\
+                ATTENDEE;PARTSTAT=NEEDS-ACTION;SCHEDULE-STATUS=\"3.7,1.2\":mailto:bob@x.example\r\n\
+                X-MAILCRAFT-GUEST-COPY:TRUE\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let e = parse(text, 0).events.remove(0);
+    assert!(e.client_scheduled && e.server_delivered && is_guest_copy(&e));
+    let server = write_for_server(std::slice::from_ref(&e), 0).replace("\r\n ", "");
+    assert!(server.contains("ORGANIZER;CN=\"Ann\";SCHEDULE-AGENT=CLIENT:mailto:ann@x.example"), "{server}");
+    assert!(server.contains("ATTENDEE;PARTSTAT=NEEDS-ACTION;SCHEDULE-AGENT=CLIENT:mailto:bob@x.example"), "{server}");
+    assert!(server.contains("X-MAILCRAFT-GUEST-COPY:TRUE") && !server.contains("SCHEDULE-STATUS"), "{server}");
+    for plain in [write(std::slice::from_ref(&e), Some("REPLY"), 0), write(std::slice::from_ref(&e), None, 0)] {
+        assert!(!plain.contains("SCHEDULE-") && !plain.contains("X-MAILCRAFT"), "{plain}");
+    }
+    let mut back = parse(&server, 0).events.remove(0);
+    assert!(back.client_scheduled && !back.server_delivered);
+    mark_guest_copy(&mut back);
+    assert_eq!(back.extra.iter().filter(|l| l.starts_with("X-MAILCRAFT-GUEST-COPY")).count(), 1, "marked once");
+    let failed = "BEGIN:VEVENT\r\nUID:s2\r\nATTENDEE;SCHEDULE-STATUS=5.1:mailto:b@x\r\nORGANIZER;SCHEDULE-AGENT=SERVER:mailto:a@x\r\nEND:VEVENT\r\n";
+    let f = parse(failed, 0).events.remove(0);
+    assert!(!f.client_scheduled && !f.server_delivered);
+}

@@ -94,7 +94,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let r = s.create_event(Some(&account), p::str(v, "calendar"), e.clone())?;
             if let Some(uid) = r.get("uid").and_then(Value::as_str) {
                 e.uid = uid.to_string();
-                s.send_invitations(&e, &account, "REQUEST")?;
+                let route = s.meeting_route(&account, uid);
+                s.tell_guests(&account, &e, "REQUEST", route, "")?;
             }
             Ok(r)
         })
@@ -150,17 +151,21 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             if let Some((account, stored)) = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone()))
                 && organized_by_me(s, &stored)
             {
-                s.send_invitations(&stored, &account, "REQUEST")?;
+                let route = s.meeting_route(&account, &uid);
+                s.tell_guests(&account, &stored, "REQUEST", route, "")?;
             }
             Ok(r)
         })
         .params(r#"{"uid": string, … the fields of event.create to change}"#),
         CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
-            let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone()));
+            let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone(), e.href.clone()));
+            // Decided before it's gone: a server that schedules hears of it first.
+            let route = before.as_ref().map(|(a, _, _)| s.meeting_route(a, &uid));
             let occurrence = p::i64(v, "occurrence");
             let r = s.delete_event(&uid, occurrence)?;
-            if let Some((account, mut e)) = before
+            if let Some((account, mut e, href)) = before
+                && let Some(route) = route
                 && organized_by_me(s, &e)
             {
                 // One occurrence off: the guests are told of that one.
@@ -172,7 +177,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                     e.end = at + len;
                 }
                 e.sequence = e.sequence.saturating_add(1);
-                s.send_invitations(&e, &account, "CANCEL")?;
+                // The whole meeting waits for its item to be deleted; one occurrence, for the
+                // series to be stored without it.
+                let href = if e.recurrence_id.is_some() { String::new() } else { href };
+                s.tell_guests(&account, &e, "CANCEL", route, &href)?;
             }
             Ok(r)
         })

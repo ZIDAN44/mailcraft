@@ -52,6 +52,16 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         _ => None,
     };
     out.checked = now;
+    // Whether the calendar server schedules meetings itself (asked at every sync: it's one short
+    // request, and a server's settings change). Not known, what was known stays.
+    if let Some(home) = &out.caldav_home {
+        out.auto_schedule = match dav.schedules(home) {
+            Ok(b) => Some(b),
+            Err(e @ NetError::Auth(_)) => return Err(e),
+            Err(_) => None,
+        };
+    }
+    let schedules = out.auto_schedule.unwrap_or(pim.auto_schedule);
 
     // Only the server the homes are on is written to: an item from another one (the calendar
     // server changed, its old items not yet moved out of the way) isn't sent there with this
@@ -96,8 +106,6 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         if !ours(&url) {
             continue;
         }
-        let events: Vec<CalEvent> = parts.iter().map(|e| e.event.clone()).collect();
-        let data = ical::write(&events, None, now);
         let etag = (!master.href.is_empty()).then_some(master.etag.as_str());
         // A new meeting the calendar may have already: SOGo puts a meeting in the calendar of
         // each of its users invited itself, under the organizer's item name (MailCraft's names
@@ -110,6 +118,17 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
             },
             false => None,
         };
+        // Who sends this meeting's invitations or answers (see `ical::scheduling`).
+        let role = Role::of(at, pim, &parts, schedules, found.is_none());
+        let events: Vec<CalEvent> = parts.iter().map(|p| role.prepare(&p.event)).collect();
+        let data = ical::write_for_server(&events, now);
+        // A guest's own copy not answered yet (an invitation from elsewhere, put in the
+        // calendar as it came) waits here for the answer: SOGo answers the organizer itself for
+        // any answer changed in a copy it has (whatever `SCHEDULE-AGENT` says), but for none
+        // stored new with it. Stored new with the answer, the copy needs no change for it.
+        if role == Role::GuestCopy && master.href.is_empty() && !answered(at, &parts) {
+            continue;
+        }
         let stored = match found.map(|f| over_theirs(f, &parts, master.event.sequence)) {
             Some(Err(href)) => {
                 out.refused.push(uid.to_string());
@@ -157,8 +176,8 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                     && let Some(newest) = theirs.iter().map(|e| e.sequence).max()
                     && parts.iter().any(|p| p.event.sequence > newest)
                 {
-                    let merged: Vec<CalEvent> = parts.iter().map(|p| with_their_answers(&p.event, theirs)).collect();
-                    match dav.store(&master.href, "text/calendar; charset=utf-8", &ical::write(&merged, None, now), Some(tag)) {
+                    let merged: Vec<CalEvent> = parts.iter().map(|p| role.prepare(&with_their_answers(&p.event, theirs))).collect();
+                    match dav.store(&master.href, "text/calendar; charset=utf-8", &ical::write_for_server(&merged, now), Some(tag)) {
                         Ok(Ok(_)) => {
                             out.refused.push(uid.to_string());
                             refetch.push(master.href.clone());
@@ -168,9 +187,47 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                         _ => {}
                     }
                 }
+                // The same version, with guests' answers taken in here (the organizer's MailCraft
+                // took one from the mail) and others written in there meanwhile (SOGo writes a
+                // colleague's answer in the organizer's copy): the server's, with these answers,
+                // when that loses nothing changed here. It used to keep the server's and drop the
+                // answer taken in (a real Mailcow, an outside guest's answer). The organizer's only:
+                // a guest's copy the server changed is the server's (SOGo asks its users to answer
+                // a moved meeting again, and would mail the organizer the old answer as a new one).
+                if let Some((tag, theirs)) = &server
+                    && master.event.organizer.as_ref().is_some_and(|o| at.is_me(&o.email))
+                    && let Some(newest) = theirs.iter().map(|e| e.sequence).max()
+                    && parts.iter().all(|p| p.event.sequence == newest)
+                    && parts.iter().any(|p| answers_more(&p.event, theirs))
+                {
+                    let merged: Vec<CalEvent> = theirs
+                        .iter()
+                        .map(|t| {
+                            parts
+                                .iter()
+                                .find(|p| p.event.recurrence_id == t.recurrence_id)
+                                .map_or_else(|| t.clone(), |p| with_our_answers(t, &p.event))
+                        })
+                        .collect();
+                    if parts.iter().all(|p| merged.iter().any(|m| has_all_of(m, &with_their_answers(&p.event, theirs)))) {
+                        let merged: Vec<CalEvent> = merged.iter().map(|e| role.prepare(e)).collect();
+                        match dav.store(&master.href, "text/calendar; charset=utf-8", &ical::write_for_server(&merged, now), Some(tag)) {
+                            Ok(Ok(_)) => {
+                                out.refused.push(uid.to_string());
+                                refetch.push(master.href.clone());
+                                continue;
+                            }
+                            Err(e @ NetError::Auth(_)) => return Err(e),
+                            _ => {}
+                        }
+                    }
+                }
                 // Said, unless the server's copy has what was changed here already (SOGo put a
-                // guest's answer in the organizer's copy before the organizer's MailCraft did).
-                let kept = server.is_some_and(|(_, theirs)| parts.iter().all(|p| theirs.iter().any(|s| has_all_of(s, &p.event))));
+                // guest's answer in the organizer's copy before the organizer's MailCraft did), but
+                // for the user's own answer asked again there (SOGo does when a meeting moves).
+                let kept = server
+                    .as_ref()
+                    .is_some_and(|(_, theirs)| parts.iter().all(|p| theirs.iter().any(|s| has_all_of(s, &asked_again(at, &p.event, s)))));
                 if !kept {
                     out.errors.push(format!("{}: {r}; the server's copy is kept", master.event.summary));
                 }
@@ -264,6 +321,58 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     Ok(out)
 }
 
+/// Who sends a meeting's invitations or answers, for the copy stored on the server.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    /// The server doesn't schedule: nothing is said.
+    Plain,
+    /// The user's own meeting on a server that schedules: MailCraft does
+    /// (`SCHEDULE-AGENT=CLIENT`).
+    Organizer,
+    /// The user's own copy of someone else's meeting, put on the server by MailCraft (the server
+    /// never had it): MailCraft answers, and the copy is marked as such.
+    GuestCopy,
+    /// Anything else as it is: a meeting the server put in the calendar is answered there, and
+    /// the server takes the answer on.
+    AsItIs,
+}
+
+impl Role {
+    /// `none_found`: no copy of a new meeting was found on the server (one it put there itself).
+    fn of(at: &Where, pim: &Pim, parts: &[&StoredEvent], schedules: bool, none_found: bool) -> Role {
+        let Some(master) = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first()) else { return Role::Plain };
+        if !schedules {
+            return Role::Plain;
+        }
+        let Some(organizer) = master.event.organizer.as_ref() else { return Role::AsItIs };
+        if at.is_me(&organizer.email) {
+            return if parts.iter().any(|p| !p.event.attendees.is_empty()) { Role::Organizer } else { Role::AsItIs };
+        }
+        let marked = pim.guest_copies.contains(&master.event.uid) || parts.iter().any(|p| ical::is_guest_copy(&p.event));
+        if none_found && (marked || master.href.is_empty()) { Role::GuestCopy } else { Role::AsItIs }
+    }
+
+    /// The copy to store.
+    fn prepare(self, e: &CalEvent) -> CalEvent {
+        let mut e = e.clone();
+        match self {
+            Role::Plain => e.client_scheduled = false,
+            Role::Organizer => e.client_scheduled = true,
+            Role::GuestCopy => {
+                e.client_scheduled = true;
+                ical::mark_guest_copy(&mut e);
+            }
+            Role::AsItIs => {}
+        }
+        e
+    }
+}
+
+/// Whether the user has answered a meeting (any part of it).
+fn answered(at: &Where, parts: &[&StoredEvent]) -> bool {
+    parts.iter().flat_map(|p| p.event.attendees.iter()).any(|a| at.is_me(&a.email) && !unanswered(&a.partstat))
+}
+
 /// The calendar's own item with this uid: its address, etag, newest `SEQUENCE` and events.
 fn the_servers(dav: &Dav, calendar: &str, uid: &str, local: mailcraft_model::zone::Zone) -> Result<Option<(String, String, u32, Vec<CalEvent>)>> {
     let found = dav.find_uid(calendar, uid)?;
@@ -317,6 +426,38 @@ fn with_their_answers(mine: &CalEvent, server: &[CalEvent]) -> CalEvent {
             if let Some(theirs) = s.attendees.iter().find(|x| x.email.eq_ignore_ascii_case(&a.email) && !unanswered(&x.partstat)) {
                 a.partstat = theirs.partstat.clone();
             }
+        }
+    }
+    e
+}
+
+/// The user's copy of an event with their own answer as the server's copy has it when the server
+/// asks for it again (none there), and the time shown as it is there (an answer shows it).
+fn asked_again(at: &Where, mine: &CalEvent, server: &CalEvent) -> CalEvent {
+    let mut e = mine.clone();
+    if server.recurrence_id != mine.recurrence_id {
+        return e;
+    }
+    let mut asked = false;
+    for a in e.attendees.iter_mut().filter(|a| at.is_me(&a.email)) {
+        if server.attendees.iter().any(|s| s.email.eq_ignore_ascii_case(&a.email) && unanswered(&s.partstat)) {
+            a.partstat = "NEEDS-ACTION".into();
+            asked = true;
+        }
+    }
+    if asked {
+        ical::set_show_as(&mut e, ical::show_as(server));
+    }
+    e
+}
+
+/// The server's copy of an event with the answers the user's copy has (given or taken in here).
+fn with_our_answers(server: &CalEvent, mine: &CalEvent) -> CalEvent {
+    let mut e = server.clone();
+    for a in mine.attendees.iter().filter(|a| !unanswered(&a.partstat)) {
+        match e.attendees.iter_mut().find(|x| x.email.eq_ignore_ascii_case(&a.email)) {
+            Some(x) => x.partstat = a.partstat.clone(),
+            None => e.attendees.push(a.clone()),
         }
     }
     e

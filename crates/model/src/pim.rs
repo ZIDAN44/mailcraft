@@ -249,6 +249,47 @@ pub struct Pim {
     /// isn't offered again.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub keep_here: bool,
+    /// The calendar server sends meeting invitations and answers itself when events are stored
+    /// (it says `calendar-auto-schedule`, RFC 6638): MailCraft tells it to leave them to
+    /// MailCraft, and mails them once the server has the meeting ([`Notice`]).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_schedule: bool,
+    /// Meetings (their uids) whose copy in the user's calendar on such a server MailCraft put
+    /// there as a guest, from the invitation's mail (`ical::GUEST_COPY`): answers to them go by
+    /// mail, as the server never had them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guest_copies: Vec<String>,
+    /// Invitations, answers and cancellations to mail once the server has stored (or deleted)
+    /// what they're about; kept, so a restart doesn't lose them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notices: Vec<Notice>,
+}
+
+/// The most notices kept waiting for the server.
+pub const MAX_NOTICES: usize = 500;
+
+/// A meeting message (iTIP) waiting for the calendar server: the organizer's invitation or
+/// change goes with the version the server stored (SOGo raises its `SEQUENCE`), a cancellation
+/// once the server deleted the meeting, and a guest's answer once it's known whether the server
+/// takes it to the organizer itself (a meeting it put in the calendar) or MailCraft mails it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Notice {
+    pub uid: String,
+    /// `REQUEST`, `CANCEL` or `REPLY`.
+    pub method: String,
+    /// A guest's answer (`ACCEPTED`, `TENTATIVE`, `DECLINED`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub answer: String,
+    /// The meeting as it was (a cancelled or declined one is gone from the calendar), or the
+    /// occurrence a cancellation names.
+    pub event: CalEvent,
+    /// The item to be deleted on the server first (empty: none).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub href: String,
+    /// A guest's answer goes by mail whatever the server's copy says (the user's own copy was
+    /// a guest copy MailCraft put there).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub by_mail: bool,
 }
 
 /// An invitation that arrived, waiting for the account's calendars to be found (issue #30).
@@ -303,6 +344,9 @@ pub struct DavSync {
     /// again in this sync.
     #[serde(default)]
     pub refused: Vec<String>,
+    /// Whether the calendar server schedules (`calendar-auto-schedule`); `None`: not asked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_schedule: Option<bool>,
 }
 
 impl Pim {

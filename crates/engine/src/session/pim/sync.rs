@@ -15,6 +15,9 @@ impl Session {
         p.caldav_home = sync.caldav_home.clone().or_else(|| Some(String::new()));
         p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
         p.dav_checked = Some(sync.checked);
+        if let Some(schedules) = sync.auto_schedule {
+            p.auto_schedule = schedules;
+        }
         p.deleted.retain(|t| !sync.deleted.contains(&t.href));
         // Changes the server refused for good (SOGo's roles): its copy, read again in this
         // sync, comes back in their place.
@@ -120,6 +123,8 @@ impl Session {
             self.notice(format!("calendars and contacts: {e}"), true);
         }
         self.save_pim(account);
+        // Meeting messages waiting for the server (see `invite::notices`).
+        self.after_dav_sync(account);
         // Invitations put on this computer meanwhile move to the server's calendar, those held
         // go in (issue #30).
         self.calendars_found(account, &answered);
