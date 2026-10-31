@@ -13,7 +13,7 @@
 use std::time::{Duration, Instant};
 
 use mailcraft_model::job::Secret;
-use mailcraft_model::{AccountConfig, Event, Job, Security, ServerConfig, SyncStatus};
+use mailcraft_model::{AccountConfig, Event, Job, Op, Security, ServerConfig, SyncStatus};
 
 use crate::worker::{MemoryCredentials, Pool};
 
@@ -331,5 +331,81 @@ fn real_calendar_by_hand_and_a_renewed_certificate() {
     let seen = until(&pool, 30, "decrypted", |e| matches!(e, Event::Decrypted { .. }));
     let Some(Event::Decrypted { content: Some(c), error: None, .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!(c.0, body);
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
+/// Categories as keywords on a real server (issue #28), in a folder another user shares:
+/// Thunderbird's tags (`r=c3=bcckfrage`, `to=20do`) and SOGo's (`$label6`) come down as they are,
+/// one set here goes up as it is; a user who may only read the folder (PERMANENTFLAGS without
+/// `\*`, which Dovecot answers a STORE to with OK and forgets) is refused.
+///
+/// ```text
+/// MAILCRAFT_REAL_KEYWORDS="127.0.0.1:1143 bob pw shared/alice dave" \
+///   cargo test -p mailcraft-net real_keywords -- --ignored --nocapture
+/// ```
+///
+/// `shared/alice` holds a message with those three keywords; `bob` may write to it (`lrwsite`),
+/// `dave` only read (`lrs`); every password is the same.
+#[test]
+#[ignore]
+fn real_keywords_in_a_shared_folder() {
+    let Some((imap, user, pass, rest)) = server("MAILCRAFT_REAL_KEYWORDS") else {
+        eprintln!("MAILCRAFT_REAL_KEYWORDS isn't set: skipped");
+        return;
+    };
+    let (Some(folder), Some(reader)) = (rest.first().cloned(), rest.get(1).cloned()) else {
+        panic!("MAILCRAFT_REAL_KEYWORDS: the shared folder and the read-only user are missing");
+    };
+    let store = crate::fake::store("real-keywords");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let start = |pool: &mut Pool, id: &str, who: &str| {
+        let account = AccountConfig {
+            id: id.into(),
+            email: who.into(),
+            username: who.into(),
+            imap: imap.clone(),
+            smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+            ..Default::default()
+        };
+        pool.submit(Job::Start { account, password: Some(Secret(pass.clone())) });
+        until(pool, 120, "online", |e| matches!(e, Event::Status { account, status: SyncStatus::Online { .. } } if account == id));
+    };
+    start(&mut pool, "w", &user);
+    let m = store.load_folder("w", &folder).ok().and_then(|f| f.messages.into_iter().next()).expect("the shared folder's message");
+    eprintln!("came down: {:?}", m.flags.keywords);
+    for k in ["r=c3=bcckfrage", "to=20do", "$label6"] {
+        assert!(m.flags.has(k), "{k} in {:?}", m.flags.keywords);
+    }
+
+    // One set here, one taken off: the server has them so for every client.
+    pool.submit(Job::Apply { account: "w".into(), op: Op::SetKeyword { keys: vec![m.key.clone()], keyword: "$label7".into(), on: true } });
+    pool.submit(Job::Apply { account: "w".into(), op: Op::SetKeyword { keys: vec![m.key.clone()], keyword: "to=20do".into(), on: false } });
+    let mut other = crate::imap::Client::connect(&imap).unwrap();
+    other.login(&user, &pass).unwrap();
+    let end = Instant::now() + Duration::from_secs(30);
+    loop {
+        other.select(&folder, true).unwrap();
+        let f: Vec<String> =
+            other.uid_fetch(&m.key.uid.to_string(), "FLAGS", "").unwrap().into_iter().flat_map(|x| x.flags.unwrap_or_default()).collect();
+        let has = |k: &str| f.iter().any(|x| x.eq_ignore_ascii_case(k));
+        if has("$label7") && !has("to=20do") {
+            eprintln!("on the server: {:?}", f);
+            break;
+        }
+        assert!(Instant::now() < end, "not on the server: {f:?}");
+        let _ = pool.wait(Duration::from_millis(200));
+    }
+
+    // Read-only: refused, not taken and forgotten.
+    start(&mut pool, "r", &reader);
+    let mine = store.load_folder("r", &folder).ok().and_then(|f| f.messages.into_iter().next()).expect("the reader's copy");
+    pool.submit(Job::Apply {
+        account: "r".into(),
+        op: Op::SetKeyword { keys: vec![mine.key.clone()], keyword: "dave=20was=20here".into(), on: true },
+    });
+    let seen = until(&pool, 60, "the refusal", |e| matches!(e, Event::OpFailed { account, .. } if account == "r"));
+    eprintln!("refused: {:?}", seen.last());
+    pool.submit(Job::Remove { account: "w".into() });
+    pool.submit(Job::Remove { account: "r".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }

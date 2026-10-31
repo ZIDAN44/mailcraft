@@ -51,6 +51,10 @@ pub struct State {
     /// Folders can only be made inside this one (`INBOX/`), as cPanel's and Courier's servers
     /// keep every folder in the Inbox.
     pub create_under: Option<String>,
+    /// The `PERMANENTFLAGS` every folder reports, when set (`\Seen $label2`: no `\*`, so no
+    /// new keywords, as on a shared folder without the right to write); a STORE of another
+    /// keyword is taken and forgotten, as Dovecot does.
+    pub permanent_flags: Option<&'static str>,
 }
 
 impl State {
@@ -72,6 +76,7 @@ impl State {
             trickle: std::time::Duration::ZERO,
             deliver_on: None,
             create_under: None,
+            permanent_flags: None,
         }))
     }
 
@@ -305,6 +310,7 @@ impl Fake {
         } else if upper.starts_with("SELECT ") || upper.starts_with("EXAMINE ") {
             let name = quoted_arg(rest);
             let modseq = st.modseq;
+            let permanent = st.permanent_flags;
             // `(QRESYNC (validity modseq …))`
             let qresync: Option<(u32, u64)> = upper.split("(QRESYNC (").nth(1).and_then(|r| {
                 let mut w = r.split([' ', ')']);
@@ -317,6 +323,9 @@ impl Fake {
                     self.say(&format!("* OK [UIDVALIDITY {v}] ok"));
                     self.say(&format!("* OK [UIDNEXT {next}] ok"));
                     self.say(&format!("* OK [HIGHESTMODSEQ {modseq}] ok"));
+                    if let Some(p) = permanent {
+                        self.say(&format!("* OK [PERMANENTFLAGS ({p})] ok"));
+                    }
                     if let Some((qv, qm)) = qresync.filter(|(qv, _)| *qv == v) {
                         let _ = qv;
                         let gone: Vec<String> = b.expunged.iter().filter(|(_, m)| *m > qm).map(|(u, _)| u.to_string()).collect();
@@ -400,6 +409,7 @@ impl Fake {
         } else if upper.starts_with("UID ") || upper == "EXPUNGE" || upper == "NOOP" || upper == "LOGOUT" {
             let sel = self.selected.clone().unwrap_or_default();
             let modseq_now = st.modseq;
+            let permanent = st.permanent_flags;
             let mut lines: Vec<Vec<u8>> = Vec::new();
             let mut extra = String::new();
             let mut moved: Vec<Msg> = Vec::new();
@@ -471,7 +481,10 @@ impl Fake {
                 } else if verb == "STORE" {
                     let set = words.get(2).copied().unwrap_or("");
                     let add = words.get(3).is_some_and(|w| w.starts_with('+'));
-                    let flags = paren_arg(rest);
+                    let mut flags = paren_arg(rest);
+                    if let Some(p) = permanent.filter(|p| !p.split(' ').any(|k| k == r"\*")) {
+                        flags.retain(|f| f.starts_with('\\') || p.split(' ').any(|k| k.eq_ignore_ascii_case(f)));
+                    }
                     for m in b.msgs.iter_mut().filter(|m| in_set(m.uid, set, max)) {
                         for f in &flags {
                             m.flags.retain(|x| !x.eq_ignore_ascii_case(f));

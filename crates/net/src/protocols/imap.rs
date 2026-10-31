@@ -154,6 +154,20 @@ pub struct SelectInfo {
     pub uid_next: u32,
     pub highest_modseq: u64,
     pub read_only: bool,
+    /// The folder can't be given new keywords: its `PERMANENTFLAGS` has no `\*` (RFC 3501
+    /// §7.1), as on a shared folder without the right to write flags. Only the keywords in
+    /// [`permanent_keywords`](Self::permanent_keywords) last.
+    pub no_new_keywords: bool,
+    /// The keywords `PERMANENTFLAGS` named.
+    pub permanent_keywords: Vec<String>,
+}
+
+impl SelectInfo {
+    /// Whether the server keeps `keyword` on this folder's mail (no `PERMANENTFLAGS` at all:
+    /// everything may be changed for good).
+    pub fn keeps_keyword(&self, keyword: &str) -> bool {
+        !self.no_new_keywords || self.permanent_keywords.iter().any(|k| k.eq_ignore_ascii_case(keyword))
+    }
 }
 
 /// What a QRESYNC `SELECT` reports: the usual data, the UID ranges expunged since the cached
@@ -440,6 +454,10 @@ impl<S: Read + Write> Client<S> {
                     Some(ResponseCode::UidNext(v)) => info.uid_next = v,
                     Some(ResponseCode::HighestModSeq(v)) => info.highest_modseq = v,
                     Some(ResponseCode::ReadOnly) => info.read_only = true,
+                    Some(ResponseCode::PermanentFlags(flags)) => {
+                        info.no_new_keywords = !flags.iter().any(|f| f == r"\*");
+                        info.permanent_keywords = flags.iter().filter(|f| !f.starts_with('\\')).take(1000).map(|f| f.to_string()).collect();
+                    }
                     _ => {}
                 },
                 _ => {}

@@ -65,9 +65,15 @@ pub fn apply_remote_with<S: std::io::Read + std::io::Write>(c: &mut Client<S>, o
     match op {
         Op::SetFlag { keys, flag, on } => by_folder(c, keys, |c, _, set| c.uid_store(set, *on, flag.imap())),
         // A keyword that isn't an atom would make the command malformed: the engine never sends one.
-        Op::SetKeyword { keys, keyword, on } if mailcraft_model::is_keyword(keyword) => {
-            by_folder(c, keys, |c, _, set| c.uid_store(set, *on, keyword))
-        }
+        Op::SetKeyword { keys, keyword, on } if mailcraft_model::is_keyword(keyword) => by_folder(c, keys, |c, folder, set| {
+            // A folder that can't keep a new keyword (no `\*` in its PERMANENTFLAGS) takes the
+            // STORE and forgets it: refused here instead, so the user is told and the change
+            // undone, not seen to vanish later (issue #28).
+            if *on && c.seen(folder).is_some_and(|i| !i.keeps_keyword(keyword)) {
+                return Err(NetError::No(format!("{folder} can't keep categories (the keyword {keyword}) on its mail")));
+            }
+            c.uid_store(set, *on, keyword)
+        }),
         Op::SetKeyword { .. } => Ok(()),
         Op::Move { keys, to } => by_folder(c, keys, |c, folder, set| if folder == to { Ok(()) } else { c.uid_move(set, to) }),
         Op::Expunge { keys } => expunge_keys(c, keys, trash),

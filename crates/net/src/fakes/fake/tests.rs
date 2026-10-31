@@ -771,3 +771,29 @@ fn the_outgoing_server_signs_in_with_its_own_user_name_and_password() {
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// A folder whose PERMANENTFLAGS has no `\*` (a shared folder without the right to write, on
+/// Dovecot) takes a STORE of a new keyword and forgets it: refused before it's sent, so the
+/// change is undone and the user told (issue #28). Keywords it names, flags, and taking a
+/// keyword off still go through.
+#[test]
+fn keywords_a_folder_cant_keep_are_refused() {
+    let st = State::new();
+    st.lock().unwrap().add("INBOX", "shared", &[]);
+    st.lock().unwrap().permanent_flags = Some(r"\Seen \Flagged $label2");
+    let mut c = login(&st);
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 100, uid: 1 };
+    let r = apply_remote(&mut c, &Op::SetKeyword { keys: vec![key.clone()], keyword: "r=c3=bcckfrage".into(), on: true });
+    assert!(matches!(&r, Err(crate::NetError::No(e)) if e.contains("INBOX")), "{r:?}");
+    assert!(!st.lock().unwrap().log.iter().any(|l| l.contains("r=c3=bcckfrage")), "not sent");
+    apply_remote(&mut c, &Op::SetKeyword { keys: vec![key.clone()], keyword: "$LABEL2".into(), on: true }).unwrap();
+    apply_remote(&mut c, &Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true }).unwrap();
+    apply_remote(&mut c, &Op::SetKeyword { keys: vec![key], keyword: "other".into(), on: false }).unwrap();
+    let flags = st.lock().unwrap().boxes[0].msgs[0].flags.clone();
+    assert_eq!(flags, ["$LABEL2", r"\Seen"]);
+    // With `\*`, anything goes.
+    st.lock().unwrap().permanent_flags = Some(r"\Seen \*");
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 100, uid: 1 };
+    apply_remote(&mut c, &Op::SetKeyword { keys: vec![key], keyword: "r=c3=bcckfrage".into(), on: true }).unwrap();
+    assert!(st.lock().unwrap().boxes[0].msgs[0].flags.iter().any(|f| f == "r=c3=bcckfrage"));
+}
