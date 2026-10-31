@@ -169,6 +169,10 @@ fn the_external_tag_marks_mail_from_outside_the_organisation() {
     let r = s.run("view.externalTag", &json!({"domains": " @Unknown.Example., studio.example studio.example"})).unwrap();
     assert_eq!(r["domains"], json!(["unknown.example", "studio.example"]));
     assert!(!external(&mut s, "Outside"));
+    // The user's own mail isn't external, even when their account's domain isn't listed.
+    s.run("view.externalTag", &json!({"domains": "unknown.example"})).unwrap();
+    assert!(!s.is_external("riley@studio.example"));
+    assert!(s.is_external("sam@studio.example"));
     for bad in [json!({"domains": "not a domain!"}), json!({"domains": 5}), json!({"domains": [1]})] {
         assert!(s.run("view.externalTag", &bad).is_err(), "{bad}");
     }
@@ -188,4 +192,49 @@ fn a_free_mail_user_has_no_organisation() {
     assert_eq!(r["organisation"], json!([]));
     assert!(!s.is_external("anyone@gmail.com"));
     assert!(!s.is_external("anyone@else.example"));
+}
+
+#[test]
+fn a_list_message_whose_entry_doesnt_say_so_is_known_by_its_own_header() {
+    // An Exchange listing carries no `List-Id`, and a message opened in a window or from another
+    // folder needn't be in the list: its own header says it came through a list.
+    let mut s = sample_session("listed-by-header");
+    let key = deliver(&mut s, 1, ("Zoe Park", "animators@lists.example"), "Listed", "List-Id: Animators <animators.lists.example>\r\n");
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    inbox.messages.iter_mut().filter(|m| m.key == key).for_each(|m| m.bulk = false);
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    assert!(!s.summary(&key).unwrap().bulk);
+    assert_eq!(warning(&s), None);
+    // Gathered again (a contact saved), it still says so.
+    s.run("contact.create", &json!({"name": "Pat Doe", "emails": "pat@unknown.example"})).unwrap();
+    s.tick();
+    assert_eq!(warning(&s), None);
+    done(s);
+}
+
+#[test]
+fn a_calendar_syncing_doesnt_count_the_address_book_again() {
+    // Every calendar or contacts sync drops the address book; counting it again reads every
+    // cached folder, which the window's every frame mustn't do each time one comes in.
+    let mut s = sample_session("senders-cheap");
+    deliver(&mut s, 1, ("Zoe Park", "zoe.park.director@gmail.com"), "Urgent", "");
+    s.tick();
+    let counted = s.contacts_built;
+    for _ in 0..5 {
+        s.save_pim("sample");
+        s.tick();
+    }
+    assert_eq!(s.contacts_built, counted);
+    // The people written to are still known, and the warning stands.
+    assert!(warning(&s).is_some());
+    s.run("view.senderAddresses", &json!({"show": "strangers"})).unwrap();
+    assert_eq!(row(&mut s, "Urgent")["senderWarning"], json!(true));
+    // Old, it's counted again as the list is refreshed.
+    s.clock.now += 3600;
+    s.refresh_list();
+    assert_ne!(s.contacts_built, counted);
+    done(s);
 }

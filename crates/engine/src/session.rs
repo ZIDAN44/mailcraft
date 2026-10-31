@@ -645,7 +645,7 @@ pub struct Session {
     /// The organisation directory's answers (issue #9).
     pub directory: pim::Directory,
     /// Address books counted so far (each count starts the sender check again).
-    contacts_built: u64,
+    pub(crate) contacts_built: u64,
     /// The sender check ([`Session::keep_senders`]): kept a while, since the address book is
     /// counted again after every sync.
     senders: Option<opening::Senders>,

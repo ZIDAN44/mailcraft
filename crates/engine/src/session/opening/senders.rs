@@ -18,6 +18,10 @@ pub(crate) struct Senders {
     check: SenderCheck,
     /// The organisation's domains, for the External tag (empty: none).
     org: BTreeSet<String>,
+    /// The people written to and their domains, as the address book last counted them: kept for
+    /// when the check is gathered again without counting it (a calendar synced, a contact saved).
+    written: Vec<EmailAddress>,
+    written_domains: BTreeSet<String>,
 }
 
 /// What the check was gathered from: when any of it changes, it's gathered again.
@@ -69,7 +73,25 @@ impl Session {
         if fresh {
             return;
         }
-        self.ensure_contacts();
+        // Counting the address book reads every cached folder: done when it's there anyway, at
+        // first, or when it's old; not each time a calendar syncs or a contact is saved (each
+        // drops the book), where the people written to are as they were last counted.
+        let (at, kept) = match self.senders.take() {
+            Some(s) if self.contacts.is_none() && (!by_age || self.clock.now.saturating_sub(s.at) < FRESH_SECS) => {
+                (s.at, Some((s.written, s.written_domains)))
+            }
+            _ => (self.clock.now, None),
+        };
+        let (written, written_domains) = match kept {
+            Some(kept) => kept,
+            None => {
+                self.ensure_contacts();
+                self.contacts
+                    .as_ref()
+                    .map(|book| (book.written().map(|c| c.address.clone()).collect(), book.written_domains().collect()))
+                    .unwrap_or_default()
+            }
+        };
         let mut domains: BTreeSet<String> = self.accounts.iter().map(|a| lookalike::domain_of(&a.config.email)).collect();
         let mut people = KnownPeople::new();
         let mut own: Vec<String> = Vec::new();
@@ -96,11 +118,9 @@ impl Session {
                 people.add(p);
             }
         }
-        if let Some(book) = &self.contacts {
-            domains.extend(book.written_domains());
-            for c in book.written() {
-                people.add(&c.address);
-            }
+        domains.extend(written_domains.iter().cloned());
+        for a in &written {
+            people.add(a);
         }
         domains.remove("");
         let listed: BTreeSet<String> = self.prefs.org_domains.iter().filter_map(|d| lookalike::clean_domain(d)).collect();
@@ -111,16 +131,16 @@ impl Session {
         if let Some(r) = self.reading.as_mut()
             && let Some(p) = &r.parsed
         {
-            let listed = self.list.iter().find(|m| m.key == r.key).is_some_and(|m| m.bulk);
+            let listed = p.bulk || self.list.iter().any(|m| m.key == r.key && m.bulk);
             r.warning = check.check(&p.from, listed);
         }
         for w in self.windows.iter_mut() {
             if let Some(p) = &w.parsed {
-                let listed = self.list.iter().find(|m| m.key == w.key).is_some_and(|m| m.bulk);
+                let listed = p.bulk || self.list.iter().any(|m| m.key == w.key && m.bulk);
                 w.warning = check.check(&p.from, listed);
             }
         }
-        self.senders = Some(Senders { at: self.clock.now, stamp, check, org });
+        self.senders = Some(Senders { at, stamp, check, org, written, written_domains });
     }
 
     /// The domains the user deals with: their own accounts', and those of the people they write
@@ -149,9 +169,11 @@ impl Session {
         self.senders.as_ref().and_then(|s| s.check.check(from, listed))
     }
 
-    /// The sender warning for a message in the list (its header says whether it came in bulk).
-    pub(crate) fn message_warning(&mut self, key: &MessageKey, from: &EmailAddress) -> Option<SenderWarning> {
-        let listed = self.summary(key).is_some_and(|m| m.bulk);
+    /// The sender warning for an open message: `bulk` as its own header says (a message opened
+    /// in a window, or from another folder, needn't be in the list; an Exchange listing doesn't
+    /// carry `List-Id`), or as its list entry does.
+    pub(crate) fn message_warning(&mut self, key: &MessageKey, from: &EmailAddress, bulk: bool) -> Option<SenderWarning> {
+        let listed = bulk || self.summary(key).is_some_and(|m| m.bulk);
         self.sender_warning_listed(from, listed)
     }
 
@@ -161,9 +183,10 @@ impl Session {
         self.senders.as_ref().map(|s| &s.org)
     }
 
-    /// Whether `email` is from outside the organisation, with the External tag on.
+    /// Whether `email` is from outside the organisation, with the External tag on (never the
+    /// user's own: their organisation's domains needn't be those of every account).
     pub fn is_external(&self, email: &str) -> bool {
-        self.prefs.external_tag && self.senders.as_ref().is_some_and(|s| lookalike::is_external(email, &s.org))
+        self.prefs.external_tag && self.senders.as_ref().is_some_and(|s| !s.check.is_own(email) && lookalike::is_external(email, &s.org))
     }
 
     /// What the message list shows about a message's sender, as the check last gathered knows

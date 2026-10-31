@@ -229,6 +229,10 @@ pub struct Parsed {
     pub trackers: Trackers,
     /// `List-Unsubscribe` target, when the sender offers one.
     pub unsubscribe: Option<String>,
+    /// Sent in bulk (a list, a newsletter, an automatic message), as [`Summary::bulk`] says,
+    /// from this message's own header: whatever account it came through.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bulk: bool,
 }
 
 /// A run of text in a rich (HTML) message, with its formatting.
@@ -347,6 +351,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         hidden_text: hidden.map(|(t, _)| t).unwrap_or_default(),
         trackers: tracking,
         unsubscribe,
+        bulk: is_bulk(&m),
     })
 }
 

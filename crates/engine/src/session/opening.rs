@@ -115,8 +115,8 @@ impl Session {
                     let (shown, security) = self.unwrap(key, &raw);
                     w.parsed = self.parse_for_reading(key, &shown);
                     w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
-                    let from = w.parsed.as_ref().map(|p| p.from.clone());
-                    w.warning = from.and_then(|from| self.message_warning(key, &from));
+                    let from = w.parsed.as_ref().map(|p| (p.from.clone(), p.bulk));
+                    w.warning = from.and_then(|(from, bulk)| self.message_warning(key, &from, bulk));
                     w.security = security;
                 }
                 None => self.jobs.push(Job::FetchBody { key: key.clone() }),
@@ -155,8 +155,8 @@ impl Session {
             w.parsed = self.parse_for_reading(key, raw);
             w.text_first = text_first;
             w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
-            let from = w.parsed.as_ref().map(|p| p.from.clone());
-            w.warning = from.and_then(|from| self.message_warning(key, &from));
+            let from = w.parsed.as_ref().map(|p| (p.from.clone(), p.bulk));
+            w.warning = from.and_then(|(from, bulk)| self.message_warning(key, &from, bulk));
             w.security = security.clone();
         }
         self.windows = windows;
@@ -170,9 +170,9 @@ impl Session {
             r.security = security;
             r.text_first = text_first;
         }
-        let from = self.reading.as_ref().filter(|r| &r.key == key).and_then(|r| r.parsed.as_ref()).map(|p| p.from.clone());
-        if let Some(from) = from {
-            let warning = self.message_warning(key, &from);
+        let from = self.reading.as_ref().filter(|r| &r.key == key).and_then(|r| r.parsed.as_ref()).map(|p| (p.from.clone(), p.bulk));
+        if let Some((from, bulk)) = from {
+            let warning = self.message_warning(key, &from, bulk);
             if let Some(r) = self.reading.as_mut() {
                 r.warning = warning;
             }
