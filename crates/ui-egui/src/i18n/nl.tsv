@@ -1339,3 +1339,22 @@ month	May	mei
 	Events kept on this computer only: {count}	Afspraken alleen op deze computer: {count}
 	Move them to {calendar}	Verplaatsen naar {calendar}
 	Keep them here	Hier houden
+	Online meeting	Onlinevergadering
+	Online meetings	Onlinevergaderingen
+	Join:	Deelnemen:
+	Access code:	Toegangscode:
+	Access code	Toegangscode
+	Remove online meeting	Onlinevergadering verwijderen
+	Add online meeting	Onlinevergadering toevoegen
+	Adds {room}: its link as the place, and how to join in the notes	Voegt {room} toe: de link als locatie, en in de notities hoe je deelneemt
+	Add your meeting rooms under File › Options › Online meetings	Voeg je vergaderruimtes toe onder Bestand › Opties › Onlinevergaderingen
+	Choose a room	Kies een ruimte
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	Je eigen vergaderruimtes (de link van een BigBlueButton-, Jitsi- of andere ruimte, en de toegangscode). Onlinevergadering toevoegen in een afspraak voegt er een toe: de link als locatie, en in de notities hoe je deelneemt.
+	Add an online meeting to all meetings with guests	Een onlinevergadering toevoegen aan alle vergaderingen met gasten
+	The first room's, as the meeting is made	Die van de eerste ruimte, als de vergadering wordt gemaakt
+	access code {code}	toegangscode {code}
+	Make default	Als standaard
+	Add online meeting adds this room unless another is chosen	Onlinevergadering toevoegen voegt deze ruimte toe als er geen andere gekozen wordt
+	Add room	Ruimte toevoegen
+	Meeting hosts	Vergaderservers
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Links naar deze servers openen een vergadering (Teams, Zoom, Google Meet, Webex, BigBlueButton-ruimtes en de servers van je ruimtes doen dat al)

@@ -1343,3 +1343,22 @@ month	May	Май
 	Events kept on this computer only: {count}	События только на этом компьютере: {count}
 	Move them to {calendar}	Перенести в {calendar}
 	Keep them here	Оставить здесь
+	Online meeting	Онлайн-собрание
+	Online meetings	Онлайн-собрания
+	Join:	Присоединиться:
+	Access code:	Код доступа:
+	Access code	Код доступа
+	Remove online meeting	Убрать онлайн-собрание
+	Add online meeting	Добавить онлайн-собрание
+	Adds {room}: its link as the place, and how to join in the notes	Добавляет {room}: ссылку как место и в заметках — как присоединиться
+	Add your meeting rooms under File › Options › Online meetings	Добавьте свои комнаты для собраний в разделе Файл › Параметры › Онлайн-собрания
+	Choose a room	Выбрать комнату
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	Ваши собственные комнаты для собраний (ссылка на комнату BigBlueButton, Jitsi или другую и её код доступа). «Добавить онлайн-собрание» в событии добавляет одну: ссылку как место и в заметках — как присоединиться.
+	Add an online meeting to all meetings with guests	Добавлять онлайн-собрание во все собрания с гостями
+	The first room's, as the meeting is made	Первой комнаты, при создании собрания
+	access code {code}	код доступа {code}
+	Make default	Сделать основной
+	Add online meeting adds this room unless another is chosen	«Добавить онлайн-собрание» добавляет эту комнату, если не выбрана другая
+	Add room	Добавить комнату
+	Meeting hosts	Серверы собраний
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Ссылки на эти серверы открывают собрание (для Teams, Zoom, Google Meet, Webex, комнат BigBlueButton и серверов ваших комнат это уже так)

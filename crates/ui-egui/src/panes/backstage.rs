@@ -14,6 +14,7 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, UpdateState, widgets};
 
+mod meetings;
 mod options;
 mod security;
 use options::options;

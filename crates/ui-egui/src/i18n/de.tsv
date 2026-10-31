@@ -1344,3 +1344,22 @@ month	May	Mai
 	Events kept on this computer only: {count}	Nur auf diesem Computer gespeicherte Termine: {count}
 	Move them to {calendar}	In {calendar} verschieben
 	Keep them here	Hier behalten
+	Online meeting	Onlinebesprechung
+	Online meetings	Onlinebesprechungen
+	Join:	Teilnehmen:
+	Access code:	Zugangscode:
+	Access code	Zugangscode
+	Remove online meeting	Onlinebesprechung entfernen
+	Add online meeting	Onlinebesprechung hinzufügen
+	Adds {room}: its link as the place, and how to join in the notes	Fügt {room} hinzu: den Link als Ort und in den Notizen, wie man teilnimmt
+	Add your meeting rooms under File › Options › Online meetings	Füge deine Besprechungsräume unter Datei › Optionen › Onlinebesprechungen hinzu
+	Choose a room	Raum auswählen
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	Deine eigenen Besprechungsräume (der Link eines BigBlueButton-, Jitsi- oder anderen Raums und sein Zugangscode). „Onlinebesprechung hinzufügen“ in einem Termin fügt einen hinzu: den Link als Ort und in den Notizen, wie man teilnimmt.
+	Add an online meeting to all meetings with guests	Allen Besprechungen mit Gästen eine Onlinebesprechung hinzufügen
+	The first room's, as the meeting is made	Die des ersten Raums, wenn die Besprechung erstellt wird
+	access code {code}	Zugangscode {code}
+	Make default	Als Standard
+	Add online meeting adds this room unless another is chosen	„Onlinebesprechung hinzufügen“ fügt diesen Raum hinzu, wenn kein anderer gewählt wird
+	Add room	Raum hinzufügen
+	Meeting hosts	Besprechungsserver
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Links zu diesen Servern führen in eine Besprechung (bei Teams, Zoom, Google Meet, Webex, BigBlueButton-Räumen und den Servern deiner Räume schon von selbst)

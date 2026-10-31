@@ -1343,3 +1343,22 @@ month	May	5月
 	Events kept on this computer only: {count}	僅儲存在這台電腦上的事件：{count}
 	Move them to {calendar}	移到 {calendar}
 	Keep them here	保留在這裡
+	Online meeting	線上會議
+	Online meetings	線上會議
+	Join:	加入：
+	Access code:	存取碼：
+	Access code	存取碼
+	Remove online meeting	移除線上會議
+	Add online meeting	新增線上會議
+	Adds {room}: its link as the place, and how to join in the notes	新增 {room}:連結作為地點，備註中寫明如何加入
+	Add your meeting rooms under File › Options › Online meetings	請在「檔案 › 選項 › 線上會議」中新增你的會議室
+	Choose a room	選擇會議室
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	你自己的會議室(BigBlueButton、Jitsi 或其他會議室的連結及其存取碼)。在事件中按「新增線上會議」即可新增:連結作為地點，備註中寫明如何加入。
+	Add an online meeting to all meetings with guests	為所有有來賓的會議新增線上會議
+	The first room's, as the meeting is made	建立會議時新增第一個會議室的會議
+	access code {code}	存取碼 {code}
+	Make default	設為預設
+	Add online meeting adds this room unless another is chosen	除非選擇其他會議室，「新增線上會議」會新增此會議室
+	Add room	新增會議室
+	Meeting hosts	會議伺服器
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	指向這些伺服器的連結可加入會議(Teams、Zoom、Google Meet、Webex、BigBlueButton 會議室以及你的會議室所在的伺服器已預設支援)

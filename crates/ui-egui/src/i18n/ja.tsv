@@ -1340,3 +1340,22 @@ month	May	5月
 	Events kept on this computer only: {count}	このコンピューターだけにある予定: {count}
 	Move them to {calendar}	{calendar} に移動
 	Keep them here	ここに残す
+	Online meeting	オンライン会議
+	Online meetings	オンライン会議
+	Join:	参加：
+	Access code:	アクセスコード：
+	Access code	アクセスコード
+	Remove online meeting	オンライン会議を削除
+	Add online meeting	オンライン会議を追加
+	Adds {room}: its link as the place, and how to join in the notes	{room} を追加します: リンクを場所に、参加方法をメモに入れます
+	Add your meeting rooms under File › Options › Online meetings	会議室は [ファイル] › [オプション] › [オンライン会議] で追加します
+	Choose a room	会議室を選択
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	自分の会議室 (BigBlueButton、Jitsi などの会議室のリンクとアクセスコード)。予定の [オンライン会議を追加] で追加すると、リンクが場所に、参加方法がメモに入ります。
+	Add an online meeting to all meetings with guests	ゲストがいるすべての会議にオンライン会議を追加する
+	The first room's, as the meeting is made	会議の作成時に、最初の会議室のものを追加します
+	access code {code}	アクセスコード {code}
+	Make default	既定にする
+	Add online meeting adds this room unless another is chosen	ほかの会議室を選ばない限り、[オンライン会議を追加] はこの会議室を追加します
+	Add room	会議室を追加
+	Meeting hosts	会議サーバー
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	これらのサーバーへのリンクで会議に参加できます (Teams、Zoom、Google Meet、Webex、BigBlueButton の会議室、自分の会議室のサーバーは最初から対象です)

@@ -1343,3 +1343,22 @@ month	May	maggio
 	Events kept on this computer only: {count}	Eventi tenuti solo su questo computer: {count}
 	Move them to {calendar}	Spostali in {calendar}
 	Keep them here	Tienili qui
+	Online meeting	Riunione online
+	Online meetings	Riunioni online
+	Join:	Partecipa:
+	Access code:	Codice di accesso:
+	Access code	Codice di accesso
+	Remove online meeting	Rimuovi riunione online
+	Add online meeting	Aggiungi riunione online
+	Adds {room}: its link as the place, and how to join in the notes	Aggiunge {room}: il suo link come luogo e come partecipare nelle note
+	Add your meeting rooms under File › Options › Online meetings	Aggiungi le tue sale riunioni in File › Opzioni › Riunioni online
+	Choose a room	Scegli una sala
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	Le tue sale riunioni (il link di una sala BigBlueButton, Jitsi o altra, e il suo codice di accesso). Aggiungi riunione online in un evento ne aggiunge una: il suo link come luogo e come partecipare nelle note.
+	Add an online meeting to all meetings with guests	Aggiungi una riunione online a tutte le riunioni con invitati
+	The first room's, as the meeting is made	Quella della prima sala, quando la riunione viene creata
+	access code {code}	codice di accesso {code}
+	Make default	Imposta come predefinita
+	Add online meeting adds this room unless another is chosen	Aggiungi riunione online aggiunge questa sala se non ne viene scelta un'altra
+	Add room	Aggiungi sala
+	Meeting hosts	Server delle riunioni
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	I link a questi server portano a una riunione (Teams, Zoom, Google Meet, Webex, le sale BigBlueButton e i server delle tue sale lo fanno già)

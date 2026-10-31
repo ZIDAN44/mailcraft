@@ -9,7 +9,11 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, widgets};
 
+mod online_meeting;
 mod showing;
+pub use online_meeting::MeetingState;
+#[cfg(test)]
+pub(crate) use online_meeting::{add as online_meeting_add, remove as online_meeting_remove};
 
 /// A new event's reminder (Outlook's default for appointments).
 pub const DEFAULT_REMINDER: i64 = 15;
@@ -98,6 +102,8 @@ pub struct EventForm {
     /// The notes shown to read, their links to open, rather than in the box that edits them:
     /// an invitation's (issue #1), or any with links.
     pub reading_notes: bool,
+    /// Its online meeting (issue #25): the rooms to add, and what Save asks.
+    pub meeting: MeetingState,
     pub error: Option<String>,
 }
 
@@ -141,6 +147,7 @@ impl EventForm {
             all_categories: all_categories(s, &[]),
             // As Outlook sets a new appointment's reminder.
             reminder: Some(DEFAULT_REMINDER),
+            meeting: MeetingState::new(s, None),
             ..Default::default()
         }
     }
@@ -192,7 +199,8 @@ impl EventForm {
                 .join(", "),
             can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
             links: e.links(),
-            join: e.join_link(),
+            join: s.join_link(e),
+            meeting: MeetingState::new(s, Some(e)),
             reading_notes: read_only || !e.links().is_empty(),
             read_only,
             categories: e.categories.clone(),
@@ -223,6 +231,7 @@ impl EventForm {
         if self.can_invite {
             p["attendees"] = json!(self.guests.trim());
         }
+        online_meeting::param(self, &mut p);
         match &self.uid {
             Some(u) => p["uid"] = json!(u),
             None => {
@@ -378,6 +387,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         }
         ui.add_space(8.0);
     }
+    online_meeting::row(ui, f, t, acts);
     ui.add_enabled_ui(!f.read_only, |ui| {
         let w = ui.available_width();
         ui.add(

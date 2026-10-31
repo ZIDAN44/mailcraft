@@ -1339,3 +1339,22 @@ month	May	מאי
 	Events kept on this computer only: {count}	אירועים שנשמרו רק במחשב זה: {count}
 	Move them to {calendar}	העברה אל {calendar}
 	Keep them here	להשאיר כאן
+	Online meeting	פגישה מקוונת
+	Online meetings	פגישות מקוונות
+	Join:	הצטרפות:
+	Access code:	קוד גישה:
+	Access code	קוד גישה
+	Remove online meeting	הסרת הפגישה המקוונת
+	Add online meeting	הוספת פגישה מקוונת
+	Adds {room}: its link as the place, and how to join in the notes	מוסיף את {room}: הקישור שלו כמיקום, ובהערות איך מצטרפים
+	Add your meeting rooms under File › Options › Online meetings	הוסף את חדרי הפגישות שלך בקובץ › אפשרויות › פגישות מקוונות
+	Choose a room	בחירת חדר
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	חדרי הפגישות שלך (קישור לחדר BigBlueButton,‏ Jitsi או אחר, וקוד הגישה שלו). „הוספת פגישה מקוונת” באירוע מוסיפה פגישה: הקישור כמיקום, ובהערות איך מצטרפים.
+	Add an online meeting to all meetings with guests	הוספת פגישה מקוונת לכל הפגישות עם אורחים
+	The first room's, as the meeting is made	של החדר הראשון, כשהפגישה נוצרת
+	access code {code}	קוד גישה {code}
+	Make default	קבע כברירת מחדל
+	Add online meeting adds this room unless another is chosen	„הוספת פגישה מקוונת” מוסיפה את החדר הזה אם לא נבחר אחר
+	Add room	הוספת חדר
+	Meeting hosts	שרתי פגישות
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	קישורים לשרתים האלה פותחים פגישה (קישורי Teams,‏ Zoom,‏ Google Meet,‏ Webex, חדרי BigBlueButton והשרתים של החדרים שלך כבר עושים זאת)

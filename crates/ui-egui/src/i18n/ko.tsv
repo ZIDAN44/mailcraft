@@ -1343,3 +1343,22 @@ month	May	5월
 	Events kept on this computer only: {count}	이 컴퓨터에만 있는 일정: {count}
 	Move them to {calendar}	{calendar}(으)로 이동
 	Keep them here	여기에 두기
+	Online meeting	온라인 모임
+	Online meetings	온라인 모임
+	Join:	참가:
+	Access code:	액세스 코드:
+	Access code	액세스 코드
+	Remove online meeting	온라인 모임 제거
+	Add online meeting	온라인 모임 추가
+	Adds {room}: its link as the place, and how to join in the notes	{room}을(를) 추가합니다: 링크는 장소로, 참가 방법은 메모로 들어갑니다
+	Add your meeting rooms under File › Options › Online meetings	모임방은 파일 › 옵션 › 온라인 모임에서 추가하세요
+	Choose a room	모임방 선택
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	내 모임방(BigBlueButton, Jitsi 등의 방 링크와 액세스 코드). 일정에서 온라인 모임 추가를 누르면 하나가 추가됩니다: 링크는 장소로, 참가 방법은 메모로 들어갑니다.
+	Add an online meeting to all meetings with guests	손님이 있는 모든 모임에 온라인 모임 추가
+	The first room's, as the meeting is made	모임을 만들 때 첫 번째 방의 것을 추가합니다
+	access code {code}	액세스 코드 {code}
+	Make default	기본으로 설정
+	Add online meeting adds this room unless another is chosen	다른 방을 고르지 않으면 온라인 모임 추가는 이 방을 추가합니다
+	Add room	방 추가
+	Meeting hosts	모임 서버
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	이 서버로 가는 링크는 모임에 참가합니다(Teams, Zoom, Google Meet, Webex, BigBlueButton 방과 내 방의 서버는 이미 그렇습니다)

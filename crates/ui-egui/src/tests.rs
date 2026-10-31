@@ -443,6 +443,7 @@ impl crate::Services for Ticking {
 mod access;
 mod accounts;
 mod files;
+mod meetings;
 mod organize;
 mod pictures;
 mod pim;

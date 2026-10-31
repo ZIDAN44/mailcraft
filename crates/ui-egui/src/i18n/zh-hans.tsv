@@ -1340,3 +1340,22 @@ month	May	5月
 	Events kept on this computer only: {count}	仅保存在这台电脑上的事件：{count}
 	Move them to {calendar}	移到 {calendar}
 	Keep them here	保留在这里
+	Online meeting	联机会议
+	Online meetings	联机会议
+	Join:	加入：
+	Access code:	访问码：
+	Access code	访问码
+	Remove online meeting	删除联机会议
+	Add online meeting	添加联机会议
+	Adds {room}: its link as the place, and how to join in the notes	添加 {room}:链接作为地点，备注中写明如何加入
+	Add your meeting rooms under File › Options › Online meetings	请在“文件 › 选项 › 联机会议”中添加你的会议室
+	Choose a room	选择会议室
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	你自己的会议室(BigBlueButton、Jitsi 或其他会议室的链接及其访问码)。在事件中点“添加联机会议”即可添加:链接作为地点，备注中写明如何加入。
+	Add an online meeting to all meetings with guests	为所有有来宾的会议添加联机会议
+	The first room's, as the meeting is made	创建会议时添加第一个会议室的会议
+	access code {code}	访问码 {code}
+	Make default	设为默认
+	Add online meeting adds this room unless another is chosen	除非选择其他会议室，“添加联机会议”会添加此会议室
+	Add room	添加会议室
+	Meeting hosts	会议服务器
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	指向这些服务器的链接可加入会议(Teams、Zoom、Google Meet、Webex、BigBlueButton 会议室以及你的会议室所在的服务器已默认支持)

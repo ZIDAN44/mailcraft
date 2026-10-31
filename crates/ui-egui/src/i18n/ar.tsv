@@ -1339,3 +1339,22 @@ month	May	مايو
 	Events kept on this computer only: {count}	أحداث محفوظة على هذا الكمبيوتر فقط: {count}
 	Move them to {calendar}	نقلها إلى {calendar}
 	Keep them here	إبقاؤها هنا
+	Online meeting	اجتماع عبر الإنترنت
+	Online meetings	الاجتماعات عبر الإنترنت
+	Join:	الانضمام:
+	Access code:	رمز الدخول:
+	Access code	رمز الدخول
+	Remove online meeting	إزالة الاجتماع عبر الإنترنت
+	Add online meeting	إضافة اجتماع عبر الإنترنت
+	Adds {room}: its link as the place, and how to join in the notes	يضيف {room}: رابطها كمكان، وطريقة الانضمام في الملاحظات
+	Add your meeting rooms under File › Options › Online meetings	أضف غرف اجتماعاتك من ملف › خيارات › الاجتماعات عبر الإنترنت
+	Choose a room	اختر غرفة
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	غرف اجتماعاتك الخاصة (رابط غرفة BigBlueButton أو Jitsi أو غيرها، ورمز دخولها). يضيف «إضافة اجتماع عبر الإنترنت» في حدث اجتماعًا: رابطه كمكان، وطريقة الانضمام في الملاحظات.
+	Add an online meeting to all meetings with guests	إضافة اجتماع عبر الإنترنت إلى كل الاجتماعات التي فيها ضيوف
+	The first room's, as the meeting is made	اجتماع الغرفة الأولى، عند إنشاء الاجتماع
+	access code {code}	رمز الدخول {code}
+	Make default	اجعلها الافتراضية
+	Add online meeting adds this room unless another is chosen	يضيف «إضافة اجتماع عبر الإنترنت» هذه الغرفة ما لم تُختر غيرها
+	Add room	إضافة غرفة
+	Meeting hosts	خوادم الاجتماعات
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	الروابط إلى هذه الخوادم تفتح اجتماعًا (روابط Teams وZoom وGoogle Meet وWebex وغرف BigBlueButton وخوادم غرفك تفعل ذلك أصلًا)

@@ -305,6 +305,8 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         );
     });
 
+    super::meetings::meetings(s, st, ui, acts);
+
     // Junk Email: the blocked and safe senders, each list with a box to add to it.
     for (list, title, about) in [
         ("blocked", "Blocked senders", "Mail from these addresses and domains goes to Junk Email as it arrives."),
