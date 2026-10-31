@@ -17,8 +17,11 @@ use mail_builder::mime::MimePart;
 
 use crate::files::mime_from_name;
 
+mod codepage;
 mod rtf;
 
+pub use codepage::{decode_code_page, known_code_page, unsupported_code_page, utf16_code_page};
+use codepage::{decode_code_page as decode, utf16};
 pub use rtf::{decompress_rtf, rtf_body, rtf_wraps_html};
 
 /// The signature a TNEF stream starts with (little-endian `0x223E9F78`).
@@ -338,49 +341,6 @@ fn text(v: Option<&Value>, cp: u32) -> Option<String> {
         _ => None,
     }
     .filter(|s| !s.is_empty())
-}
-
-/// Bytes in a Windows code page as text (Windows-1252 for pages this doesn't know).
-pub(crate) fn decode(b: &[u8], cp: u32) -> String {
-    let name: &[u8] = match cp {
-        65001 => return String::from_utf8_lossy(b).into_owned(),
-        1200 => return utf16(b),
-        874 => b"windows-874",
-        932 => b"shift_jis",
-        936 | 54936 => b"gbk",
-        949 => b"euc-kr",
-        950 => b"big5",
-        1250 => b"windows-1250",
-        1251 => b"windows-1251",
-        1253 => b"windows-1253",
-        1254 => b"windows-1254",
-        1255 => b"windows-1255",
-        1256 => b"windows-1256",
-        1257 => b"windows-1257",
-        1258 => b"windows-1258",
-        20866 => b"koi8-r",
-        28591 => b"iso-8859-1",
-        28592 => b"iso-8859-2",
-        28595 => b"iso-8859-5",
-        28597 => b"iso-8859-7",
-        28605 => b"iso-8859-15",
-        10000 => b"macintosh",
-        20127 => return b.iter().map(|c| if c.is_ascii() { char::from(*c) } else { '\u{FFFD}' }).collect(),
-        _ => b"windows-1252",
-    };
-    // Plain ASCII reads the same in all of them.
-    if b.is_ascii() {
-        return b.iter().map(|c| char::from(*c)).collect();
-    }
-    match mail_parser::decoders::charsets::map::charset_decoder(name) {
-        Some(f) => f(b),
-        None => String::from_utf8_lossy(b).into_owned(),
-    }
-}
-
-fn utf16(b: &[u8]) -> String {
-    let units: Vec<u16> = b.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
-    char::decode_utf16(units).map(|c| c.unwrap_or('\u{FFFD}')).filter(|c| *c != '\0').collect()
 }
 
 /// A MAPI property list (`attMsgProps`, `attAttachment`). A damaged list gives what came before.

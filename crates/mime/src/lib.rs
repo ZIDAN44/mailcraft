@@ -49,7 +49,10 @@ pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
 use html::*;
 pub use html::*;
 pub use photos::without_location;
-pub use tnef::{Tnef, TnefBody, TnefFile, decompress_rtf, read_tnef, rtf_body, rtf_wraps_html};
+pub use tnef::{
+    Tnef, TnefBody, TnefFile, decode_code_page, decompress_rtf, known_code_page, read_tnef, rtf_body, rtf_wraps_html, unsupported_code_page,
+    utf16_code_page,
+};
 pub use trackers::{Trackers, clean_link, trackers, tracks_click};
 
 /// `bytes` read in the character set `charset` names (`iso-8859-1`, `shift_jis`), when it's one

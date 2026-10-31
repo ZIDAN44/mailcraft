@@ -414,6 +414,83 @@ fn code_pages_read() {
     assert_eq!(decode(b"plain", 99999), "plain");
 }
 
+#[test]
+fn every_code_page_reads_its_own_bytes() {
+    let cases: &[(u32, &[u8], &str)] = &[
+        // Japanese mail as Outlook keeps it: all ASCII bytes, with escapes.
+        (50220, b"\x1b$B$\"\x1b(B ok", "あ ok"),
+        (50221, b"\x1b$B$\"\x1b(B", "あ"),
+        (50222, b"\x1b$B$\"\x1b(B", "あ"),
+        (65000, b"caf+AOk-", "café"),
+        // The end of the text ends a base64 run.
+        (65000, b"caf+AOk", "café"),
+        (65000, b"a+-b", "a+b"),
+        (65000, b"+2D3eAA-+AOkA6Q.", "\u{1F600}éé."),
+        (1201, b"\x00c\x00a\x00f\x00\xe9", "café"),
+        // All ASCII bytes, and still UTF-16.
+        (1201, b"\x00h\x00i", "hi"),
+        // Windows-1252's five undefined bytes stay the C1 controls they number.
+        (1252, b"a\x80\x81\x8d\x8f\x90\x9d\x9f", "a€\u{81}\u{8D}\u{8F}\u{90}\u{9D}Ÿ"),
+        (850, b"\x82", "é"),
+        (874, b"\xa1", "ก"),
+        (932, b"\x82\xa0", "あ"),
+        (949, b"\xb0\xa1", "가"),
+        (950, b"\xa4\x40", "一"),
+        (1250, b"\xa5", "Ą"),
+        (1251, b"\xcf", "П"),
+        (1253, b"\xc1", "Α"),
+        (1254, b"\xf0", "ğ"),
+        (1255, b"\xe0", "א"),
+        (1256, b"\xc7", "ا"),
+        (1257, b"\xc0", "Ą"),
+        (1258, b"\xf5", "ơ"),
+        (10000, b"\x8e", "é"),
+        (20866, b"\xc1", "а"),
+        (28591, b"\xe9", "é"),
+        (28592, b"\xa1", "Ą"),
+        (28595, b"\xb0", "А"),
+        (28597, b"\xc1", "Α"),
+        (28605, b"\xa4", "€"),
+        (65001, b"\xc3\xa9", "é"),
+        // GB18030's four-byte sequences, which GBK doesn't have.
+        (54936, b"\x81\x30\x81\x30\xc4\xe3", "\u{80}你"),
+        (936, b"\xc4\xe3", "你"),
+        (51932, b"\xa4\xa2", "あ"),
+        (20932, b"\xa4\xa2", "あ"),
+        (51949, b"\xb0\xa1", "가"),
+        (28593, b"\xa1", "Ħ"),
+        (28594, b"\xa1", "Ą"),
+        (28596, b"\xc7", "ا"),
+        (28598, b"\xe0", "א"),
+        (28599, b"\xf0", "ğ"),
+        (28603, b"\xc0", "Ą"),
+        (28606, b"\xa4", "€"),
+        (866, b"\x80", "А"),
+        (10007, b"\x80", "А"),
+        (21866, b"\xa4", "є"),
+        (1200, b"c\x00\xe9\x00", "cé"),
+        (20127, b"a\xe9", "a\u{FFFD}"),
+    ];
+    for (cp, bytes, text) in cases {
+        assert_eq!(decode_code_page(bytes, *cp), *text, "code page {cp}");
+        assert!(known_code_page(*cp), "code page {cp}");
+    }
+    // ISO-2022-KR has no decoder: its ASCII is kept rather than turned into U+FFFD, and it is
+    // known as a page that can't be read.
+    assert_eq!(decode_code_page(b"hi \x0e\x30\x21\x0f", 50225), "hi \u{e}0!\u{f}");
+    assert!(unsupported_code_page(50225) && !known_code_page(50225));
+    assert!(!known_code_page(99999) && !unsupported_code_page(99999));
+    assert_eq!(decode_code_page(b"a\x81", 99999), "a\u{81}", "an unknown page reads as Windows-1252");
+    assert!(utf16_code_page(1200) && utf16_code_page(1201) && !utf16_code_page(65001) && !utf16_code_page(1252));
+    // Junk in every page gives text, never a panic.
+    let junk: Vec<u8> = (0..=255u8).chain((0..=255u8).rev()).chain([0x1b, b'$', b'B', 0xff, b'+', 0x80]).collect();
+    for cp in [0, 437, 1200, 1201, 20127, 50220, 50225, 54936, 65000, 65001, 51932, 51949, 10007, 28606, u32::MAX] {
+        for end in [0, 1, 7, junk.len()] {
+            let _ = decode_code_page(junk.get(..end).unwrap_or_default(), cp);
+        }
+    }
+}
+
 /// A message as Outlook sends one in Rich Text Format: a plain-text part and a `winmail.dat`.
 pub(crate) fn outlook_message(dat: Vec<u8>) -> Vec<u8> {
     MessageBuilder::new()
