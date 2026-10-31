@@ -589,7 +589,7 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
     sort_newest_first(&mut fs.messages);
     fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
     store.save_folder(account, folder, &fs)?;
-    prefetch(c, st, store, account, folder, &mut fs, opts)?;
+    report.fetched = prefetch(c, st, store, account, folder, &mut fs, opts)?;
     report.total = total;
     report.unread = unread;
     Ok(report)
@@ -661,7 +661,7 @@ pub fn find_on_server(
     Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
 }
 
-fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, fs: &mut FolderState, opts: &SyncOptions) -> Result<()> {
+fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, fs: &mut FolderState, opts: &SyncOptions) -> Result<usize> {
     let wanted: Vec<(u32, String)> = fs
         .messages
         .iter()
@@ -671,8 +671,9 @@ fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, 
         .filter_map(|m| Some((m.key.uid, st.id(m.key.uid)?.to_string())))
         .collect();
     if wanted.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
+    let mut fetched = 0;
     let mut failures = crate::sync::AheadFailures::new();
     for (n, id) in &wanted {
         let raw = match c.download(id) {
@@ -691,9 +692,10 @@ fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, 
         let Some(m) = fs.find_mut(*n) else { continue };
         store.write_body(&m.key, &raw)?;
         fill_from_source(m, &raw);
+        fetched += 1;
     }
     store.save_folder(account, folder, fs)?;
-    Ok(())
+    Ok(fetched)
 }
 
 /// Download one message's source (and cache it).

@@ -133,11 +133,13 @@ pub struct SyncReport {
     pub unread: u32,
     /// The cache was emptied because UIDVALIDITY changed.
     pub reset: bool,
+    /// Message sources downloaded ahead (their summaries filled in, their words searchable).
+    pub fetched: usize,
 }
 
 impl SyncReport {
     pub fn touched(&self) -> bool {
-        self.new + self.changed + self.removed > 0 || self.reset
+        self.new + self.changed + self.removed + self.fetched > 0 || self.reset
     }
 }
 

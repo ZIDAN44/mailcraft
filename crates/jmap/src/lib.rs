@@ -742,7 +742,7 @@ pub async fn sync_folder<H: Http>(
     sort_newest_first(&mut fs.messages);
     fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
     store.save_folder(account, folder, &fs)?;
-    prefetch(c, st, store, account, folder, &mut fs, opts).await?;
+    report.fetched = prefetch(c, st, store, account, folder, &mut fs, opts).await?;
     let (total, unread) = counts.unwrap_or((u32::try_from(fs.messages.len()).unwrap_or(u32::MAX), fs.unread()));
     report.total = total;
     report.unread = unread;
@@ -827,7 +827,7 @@ async fn prefetch<H: Http>(
     folder: &str,
     fs: &mut FolderState,
     opts: &SyncOptions,
-) -> Result<()> {
+) -> Result<usize> {
     let wanted: Vec<(u32, String)> = fs
         .messages
         .iter()
@@ -836,18 +836,20 @@ async fn prefetch<H: Http>(
         .filter_map(|m| Some((m.key.uid, st.id(m.key.uid)?.to_string())))
         .collect();
     if wanted.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
     let blobs = c.blobs(&wanted.iter().map(|(_, id)| id.clone()).collect::<Vec<_>>()).await?;
+    let mut fetched = 0;
     for (n, id) in &wanted {
         let Some(blob) = blobs.get(id) else { continue };
         let raw = c.download(blob).await?;
         let Some(m) = fs.find_mut(*n) else { continue };
         store.write_body(&m.key, &raw)?;
         fill_from_source(m, &raw);
+        fetched += 1;
     }
     store.save_folder(account, folder, fs)?;
-    Ok(())
+    Ok(fetched)
 }
 
 /// Download one message's source (and cache it).

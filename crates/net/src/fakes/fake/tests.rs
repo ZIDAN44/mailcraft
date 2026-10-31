@@ -168,6 +168,13 @@ fn first_sync_takes_a_window() {
     assert_eq!(uids, vec![8, 7, 6]);
     assert!(store.has_body(&cache.messages[0].key));
     assert!(!store.has_body(&cache.messages[1].key));
+    // Downloaded ahead later with nothing new (more asked for, a retry): the folder changed all
+    // the same, so what came in is searched.
+    let ahead = SyncOptions { prefetch: 3, ..opts };
+    let r = sync_folder(&mut c, &store, "a1", "INBOX", &ahead).unwrap();
+    assert_eq!((r.new, r.fetched), (0, 2));
+    assert!(r.touched());
+    assert!(store.has_body(&cache.messages[1].key));
     // Later syncs only add what's new, not the older backlog.
     st.lock().unwrap().add("INBOX", "m8", &[]);
     assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &opts).unwrap().new, 1);

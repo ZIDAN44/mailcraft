@@ -178,7 +178,7 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
     store.save_folder(account, folder, &st)?;
 
     // 5: prefetch the newest sources (in small batches, saving as we go).
-    prefetch(c, store, account, folder, &mut st, opts)?;
+    report.fetched = prefetch(c, store, account, folder, &mut st, opts)?;
 
     report.total = info.exists;
     report.unread = if info.exists == 0 { 0 } else { u32::try_from(c.uid_search("UNSEEN")?.len()).unwrap_or(u32::MAX) };
@@ -450,7 +450,15 @@ fn fetch_headers<S: Read + Write>(
     Ok(())
 }
 
-fn prefetch<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, folder: &str, st: &mut FolderState, opts: &SyncOptions) -> Result<()> {
+/// How many sources came in.
+fn prefetch<S: Read + Write>(
+    c: &mut Client<S>,
+    store: &Store,
+    account: &str,
+    folder: &str,
+    st: &mut FolderState,
+    opts: &SyncOptions,
+) -> Result<usize> {
     let wanted: Vec<(u32, u32)> = st
         .messages
         .iter()
@@ -459,18 +467,20 @@ fn prefetch<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, fo
         .map(|m| (m.key.uid, m.size))
         .collect();
     if wanted.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
+    let mut fetched = 0;
     for chunk in body_chunks(&wanted) {
         for f in c.uid_fetch(&uid_set(&chunk), "UID BODY.PEEK[]", "")? {
             let Some(raw) = &f.body else { continue };
             let Some(m) = st.find_mut(f.uid) else { continue };
             store.write_body(&m.key, raw)?;
             fill_from_source(m, raw);
+            fetched += 1;
         }
         store.save_folder(account, folder, st)?;
     }
-    Ok(())
+    Ok(fetched)
 }
 
 /// Prefetch chunks: ten messages at most, and no more than one literal's worth of sources
