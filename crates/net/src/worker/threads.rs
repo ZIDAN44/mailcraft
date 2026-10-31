@@ -159,6 +159,7 @@ impl Pool {
     pub(super) fn import_pst(&mut self, account: String, path: String) {
         let sink = self.sink.clone();
         let store = self.store.clone();
+        let id = account.clone();
         let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
             if path.to_ascii_lowercase().ends_with(".mailcraft") {
                 match store.import_data_file(&account, std::path::Path::new(&path)) {
@@ -189,8 +190,9 @@ impl Pool {
                 Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e) }),
             }
         });
+        // No thread, no import: it ends here, as a failed one (the account isn't left importing).
         if let Err(e) = spawned {
-            self.sink.emit(Event::Notice { account: String::new(), message: format!("import: {e}") });
+            self.sink.emit(Event::Imported { account: id, messages: 0, skipped: 0, done: true, error: Some(format!("import: {e}")) });
         }
     }
 }
