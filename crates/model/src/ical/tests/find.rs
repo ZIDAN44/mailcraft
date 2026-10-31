@@ -99,3 +99,21 @@ fn odd_queries_dont_break_it() {
     big.description = "needle ".to_string() + &"x ".repeat(100_000);
     assert!(EventQuery::parse("needle").matches(&big));
 }
+
+/// Issue #25 with #33: an online meeting only its server (Teams' join link) or a `CONFERENCE`
+/// line names is found by its link and its name, in the place.
+#[test]
+fn an_online_meeting_outside_the_place_and_notes_is_found() {
+    let teams = CalEvent { summary: "Sync".into(), join_url: "https://teams.microsoft.com/l/meetup-join/19%3a".into(), ..Default::default() };
+    let room = CalEvent {
+        summary: "Seminar".into(),
+        extra: vec!["CONFERENCE;VALUE=URI;FEATURE=AUDIO,VIDEO;LABEL=\"Lecture hall\":https://meet.example.edu/rooms/abc-def-ghi".into()],
+        ..Default::default()
+    };
+    let m = |q: &str, e: &CalEvent| EventQuery::parse(q).matches(e);
+    assert!(m("teams.microsoft.com", &teams) && m("location:teams", &teams));
+    for q in ["meet.example.edu", "location:\"rooms/abc-def-ghi\"", "where:lecture", "https://meet.example.edu/rooms/abc-def-ghi"] {
+        assert!(m(q, &room), "{q}");
+    }
+    assert!(!m("notes:meet.example.edu", &room), "not in its notes");
+}

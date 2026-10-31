@@ -199,7 +199,19 @@ fn field_text(f: EventField, e: &CalEvent) -> String {
     };
     match f {
         EventField::Subject => e.summary.clone(),
-        EventField::Location => e.location.clone(),
+        // Where it is online too (issue #25): its server's join link, and the `CONFERENCE`
+        // links another calendar gave it without putting them in its place or notes.
+        EventField::Location => {
+            let mut s = e.location.clone();
+            let online = std::iter::once(e.join_url.clone()).chain(e.conferences().into_iter().flat_map(|c| [c.uri, c.label]));
+            for x in online.filter(|x| !x.trim().is_empty()) {
+                if !s.contains(x.as_str()) {
+                    s.push_str(" \u{1f} ");
+                    s.push_str(&x);
+                }
+            }
+            s
+        }
         EventField::Notes => notes(),
         EventField::Organizer => people(&e.organizer.iter().collect::<Vec<_>>()),
         EventField::Attendees => people(&e.attendees.iter().collect::<Vec<_>>()),
