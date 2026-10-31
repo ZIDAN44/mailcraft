@@ -11,6 +11,9 @@ mailcraft-cli [--data DIR] <command>
   source KEY [--headers]         print a message's source, headers and all
   search QUERY                   search the cache (from:, subject:, has:attachment…)
   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
+       [--signature NAME|none]   one of the account's signatures under the text (default:
+                                 its own for new messages), or none
+       [--from ID]               From changed to that account: its signature follows
   commands                       every engine command, as JSON
   run ID [JSON]                  run an engine command against the cache (its changes
                                  to mail go to the server with the next `sync`)

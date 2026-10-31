@@ -13,7 +13,8 @@
 //!   list [--account ID] [--folder PATH] [--limit N]
 //!   read KEY                       print a message (KEY from `list`)
 //!   search QUERY                   search the cache (from:, subject:, has:attachment…)
-//!   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
+//!   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE] [--signature NAME|none]
+//!        [--from ID]                (From changed to that account after the message is made)
 //!   commands                       every engine command, as JSON
 //!   run ID [JSON]                  run an engine command against the cache (its changes
 //!                                  to mail go to the server with the next `sync`)
@@ -393,8 +394,28 @@ fn run() -> Result<(), String> {
             let account = pick_account(&s, &args)?;
             s.run("mail.new", &json!({"account": account})).map_err(|e| e.to_string())?;
             let body = args.opt("--body").unwrap_or_default();
-            s.run("compose.update", &json!({"to": args.opt("--to").ok_or("--to is required")?, "cc": args.opt("--cc").unwrap_or_default(), "subject": args.opt("--subject").unwrap_or_default(), "body": body}))
+            // The account's signature stays under the text, as in a new message in the app (it
+            // was dropped): `--signature NAME` picks another of its signatures, `none` none.
+            let signature = args.opt("--signature");
+            let below =
+                if signature.as_deref() == Some("none") { String::new() } else { s.compose.as_ref().map(|c| c.body.clone()).unwrap_or_default() };
+            s.run("compose.update", &json!({"to": args.opt("--to").ok_or("--to is required")?, "cc": args.opt("--cc").unwrap_or_default(), "subject": args.opt("--subject").unwrap_or_default(), "body": format!("{body}{below}")}))
                 .map_err(|e| e.to_string())?;
+            match signature.as_deref() {
+                Some("none") => {}
+                // Put in again: its look and pictures, which the text above doesn't carry.
+                None if below.trim().is_empty() => {}
+                None => drop(s.run("compose.insertSignature", &json!({})).map_err(|e| e.to_string())?),
+                Some(name) => drop(s.run("compose.insertSignature", &json!({"name": name})).map_err(|e| e.to_string())?),
+            }
+            // Sent from another account (From changed): its signature takes the first one's place.
+            let account = match args.opt("--from") {
+                Some(from) => {
+                    s.run("compose.update", &json!({"account": from})).map_err(|e| e.to_string())?;
+                    from
+                }
+                None => account,
+            };
             if let Some(f) = args.opt("--attach") {
                 s.run("compose.attach", &json!({"path": f})).map_err(|e| e.to_string())?;
             }
