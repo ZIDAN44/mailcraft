@@ -94,9 +94,20 @@ impl Session {
         self.move_meeting_mail(keys, &to)
     }
 
-    /// Move these messages (of one account) to a folder, each from its own.
+    /// Move these messages (of one account) to a folder, each from its own. The one being read
+    /// among them: the list goes on to the next, as after a delete, so the reading pane, the
+    /// focus and the anchor of a Shift selection (issue #26) aren't lost with it (they were: Down
+    /// went back to the top of the list).
     fn move_meeting_mail(&mut self, keys: Vec<MessageKey>, to: &str) -> usize {
         let n = keys.len();
+        let read = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| keys.contains(k));
+        // The one after it in the list (else before it), not one of those going: an earlier
+        // version further down doesn't take the list there.
+        let next = read.as_ref().and_then(|k| {
+            let at = self.list.iter().position(|m| &m.key == k)?;
+            let stays = |m: &&Summary| !keys.contains(&m.key);
+            self.list.iter().skip(at + 1).find(stays).or_else(|| self.list.iter().take(at).rev().find(stays)).map(|m| m.key.clone())
+        });
         let mut by_folder: Vec<(String, Vec<MessageKey>)> = Vec::new();
         for k in keys {
             match by_folder.iter_mut().find(|(a, f)| *a == k.account && f.first().is_some_and(|x| x.folder == k.folder)) {
@@ -106,6 +117,9 @@ impl Session {
         }
         for (account, keys) in by_folder {
             self.apply_op(&account, Op::Move { keys, to: to.to_string() });
+        }
+        if read.is_some() {
+            self.after_removal(next);
         }
         n
     }

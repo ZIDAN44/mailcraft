@@ -225,3 +225,49 @@ fn the_calendars_own_stamp_isnt_a_version() {
     assert_eq!(r["moved"], 1, "{r}");
     done(s);
 }
+
+/// Answered while read, the invitation leaves the Inbox and the list goes on to the next
+/// message, as after a delete: the reading pane, the focus and the Shift anchor (issue #26) are
+/// there, not lost with it (Down went back to the top of the list, Shift+Down selected from
+/// there). An earlier version further down doesn't take the list with it.
+#[test]
+fn answered_while_read_the_list_goes_on_to_the_next() {
+    let mut s = sample_session("answered-next");
+    let uid = "next@studio.example";
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, 0)], NOW - 30 * 86_400);
+    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation(uid, 1)], NOW);
+    // The newest invitation, read in the middle of the list (the list is by date).
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let rows_before: Vec<i64> = inbox.messages.iter().map(|m| m.date).collect();
+    let mut dates = rows_before.clone();
+    dates.sort_unstable();
+    let middle = dates.get(dates.len() / 2).copied().unwrap();
+    for m in inbox.messages.iter_mut().filter(|m| m.subject.starts_with("REQUEST")) {
+        m.date = if m.subject == "REQUEST 2" { middle - 1 } else { dates[0] - 1 };
+    }
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let rows = s.row_keys();
+    let read = s.reading.as_ref().map(|r| r.key.clone()).unwrap();
+    let at = rows.iter().position(|k| *k == read).unwrap();
+    assert!(at > 0 && at + 2 < rows.len(), "in the middle: {at} of {}", rows.len());
+    let after = rows[at + 1].clone();
+    assert_eq!(s.run("invite.respond", &json!({"answer": "accepted"})).unwrap()["moved"], 2);
+    assert!(has(&mut s, "Trash", "REQUEST 1") && has(&mut s, "Trash", "REQUEST 2"));
+    assert_eq!(s.reading.as_ref().map(|r| &r.key), Some(&after), "the next one is read");
+    assert_eq!(s.selection, vec![after.clone()]);
+    assert_eq!((s.focus.as_ref(), s.anchor.as_ref()), (Some(&after), Some(&after)));
+    // Shift+Down goes on from there.
+    s.run("list.extendNext", &json!({})).unwrap();
+    let rows = s.row_keys();
+    let from = rows.iter().position(|k| *k == after).unwrap();
+    assert_eq!(s.selection, rows[from..=from + 1].to_vec());
+    // Answered from the calendar, the message read isn't the invitation: it stays read.
+    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation("cal-next@studio.example", 0)], NOW);
+    s.run("list.open", &json!({"key": after.to_id()})).unwrap();
+    s.run("event.respond", &json!({"uid": "cal-next@studio.example", "answer": "accepted"})).unwrap();
+    assert!(has(&mut s, "Trash", "REQUEST 3"));
+    assert_eq!(s.reading.as_ref().map(|r| &r.key), Some(&after));
+    done(s);
+}
