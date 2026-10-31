@@ -184,11 +184,16 @@ fn invitations_from_others_or_out_of_date_are_not_applied() {
     assert_eq!(s.invite().unwrap().problem, Some(InviteProblem::OutOfDate));
     assert!(s.run("invite.respond", &json!({"answer": "accepted"})).is_err());
     assert_eq!(s.find_event(uid).unwrap().1.event.summary, "Sound mix playback (room 2)");
-    // Nor does one with the same sequence stamped earlier.
+    // Nor does one with the same sequence stamped earlier; it can be answered, though (a
+    // server that keeps the calendar stamps its copy when it writes it, as SOGo does): the
+    // calendar keeps its version, with the answer.
     let earlier = CalEvent { summary: "Sound mix playback (draft)".into(), sequence: 5, ..stored.clone() };
     deliver(&mut s, 5, ANA, "REQUEST", &[earlier], NOW - 3600);
-    assert!(s.run("invite.respond", &json!({"answer": "accepted"})).is_err());
-    assert_eq!(s.find_event(uid).unwrap().1.event.summary, "Sound mix playback (room 2)");
+    assert_eq!(s.invite().unwrap().problem, None);
+    s.run("invite.respond", &json!({"answer": "tentative"})).unwrap();
+    let kept = s.find_event(uid).unwrap().1.event.clone();
+    assert_eq!(kept.summary, "Sound mix playback (room 2)");
+    assert!(kept.attendees.iter().any(|a| a.partstat == "TENTATIVE"), "{:?}", kept.attendees);
     // Nor an older cancellation.
     let stale = CalEvent { status: "CANCELLED".into(), sequence: 3, ..stored.clone() };
     deliver(&mut s, 6, ANA, "CANCEL", &[stale], NOW);

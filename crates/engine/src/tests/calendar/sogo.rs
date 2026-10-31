@@ -156,3 +156,37 @@ fn a_change_the_server_refused_gives_way_to_its_copy() {
     assert_eq!(parts.len(), 1);
     assert!(!parts[0].dirty && parts[0].event.summary == "Planning", "{:?}", parts[0]);
 }
+
+/// A real Mailcow: ann invites bob in SOGo (or from MailCraft, through SOGo's calendar); SOGo
+/// puts the meeting in bob's calendar and mails him the invitation. SOGo stamps the copy it
+/// keeps whenever it writes it, later than the mail, with the same SEQUENCE: answering the mail
+/// said "This invitation is out of date". It's answered now, in the copy the calendar has.
+#[test]
+fn sogos_invitation_is_answered_though_its_copy_was_stamped_later() {
+    let (mut s, id) = super::invite_placing::imap_session("sogo-stamped-later");
+    // From Zoe (the test's mail comes from her), as SOGo's comes from its organizer.
+    let zoe = Some(ical::Attendee { email: "zoe@studio.example".into(), name: "Zoe".into(), ..Default::default() });
+    let mut copy = meeting("m3", OWN, "NEEDS-ACTION");
+    copy.event.organizer = zoe.clone();
+    copy.event.dtstamp = NOW + 180;
+    copy.event.extra = vec!["CLASS:PUBLIC".into()];
+    synced(&mut s, &id, &[ANNS, OWN], vec![copy]);
+    let mut mailed = meeting("m3", OWN, "NEEDS-ACTION").event;
+    mailed.summary = "Planning (as mailed)".into();
+    mailed.organizer = zoe;
+    let key = super::invite_placing::arrive(&mut s, &id, 1, "REQUEST", &[mailed]);
+    s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    assert_eq!(s.invite().unwrap().problem, None);
+    s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    let parts = super::invite_placing::parts(&s, &id, "m3");
+    assert_eq!(parts.len(), 1);
+    let e = &parts[0];
+    assert!(e.calendar == OWN && e.dirty && e.href.ends_with("m3.ics"), "{e:?}");
+    assert_eq!((e.event.summary.as_str(), e.event.attendees[0].partstat.as_str()), ("Planning", "ACCEPTED"), "the calendar's version, answered");
+    assert!(e.event.extra.iter().any(|l| l == "CLASS:PUBLIC"));
+    // A meeting only a colleague's calendar holds isn't answered there.
+    synced(&mut s, &id, &[ANNS], vec![meeting("m4", ANNS, "NEEDS-ACTION")]);
+    assert!(s.run("event.respond", &json!({"uid": "m4", "answer": "accepted"})).is_err());
+    assert!(!super::invite_placing::parts(&s, &id, "m4")[0].dirty);
+}

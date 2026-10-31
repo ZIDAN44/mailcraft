@@ -189,7 +189,17 @@ impl Session {
                 if !same_version && !master.event.organizer.as_ref().is_some_and(|o| same_address(&o.email, sender)) {
                     return Some(InviteProblem::NotFromOrganizer);
                 }
-                let stale = msg.iter().any(|m| parts.iter().any(|s| s.event.recurrence_id == m.recurrence_id && older(m, &s.event)));
+                // An invitation is out of date when the calendar has a later version of the
+                // meeting (its SEQUENCE). The same version stamped earlier can still be answered
+                // (the calendar keeps what it has): a server that keeps the calendar stamps its
+                // copy whenever it writes it (SOGo does, as the organizer's copy changes), so the
+                // invitation SOGo mailed was always "older" than the meeting it put there.
+                let request = cal.method.as_deref() == Some("REQUEST");
+                let stale = msg.iter().any(|m| {
+                    parts
+                        .iter()
+                        .any(|s| s.event.recurrence_id == m.recurrence_id && if request { m.sequence < s.event.sequence } else { older(m, &s.event) })
+                });
                 stale.then_some(InviteProblem::OutOfDate)
             }
             _ => None,
@@ -256,13 +266,18 @@ impl Session {
         let account = key.account.clone();
         let me = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
         let uid = cal.events.first().map(|e| e.uid.clone()).unwrap_or_default();
+        // The user's own copy (not a colleague's of the same meeting, in a calendar of theirs).
+        let existing: Vec<StoredEvent> = self.stored_parts(&uid).map(|(_, parts)| parts.into_iter().cloned().collect()).unwrap_or_default();
         let mut events: Vec<CalEvent> = cal.events.into_iter().filter(|e| e.uid == uid).collect();
         for e in &mut events {
+            // The same version the calendar has, stamped earlier: what the calendar has stays.
+            if let Some(kept) = existing.iter().find(|x| x.event.recurrence_id == e.recurrence_id && older(e, &x.event)) {
+                *e = kept.event.clone();
+            }
             set_answer(e, &self.my_addresses(), &me, stat);
         }
         let whole = events.iter().any(|e| e.recurrence_id.is_none());
         let p = self.pim_mut(&account);
-        let existing: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).cloned().collect();
         let calendar =
             existing.first().map(|e| e.calendar.clone()).or_else(|| p.default_calendar().map(|c| c.id.clone())).unwrap_or_else(|| LOCAL.into());
         let mut remote = false;
@@ -322,8 +337,14 @@ impl Session {
         let mut master = None;
         let mut answered = Vec::new();
         let p = self.pim_mut(&account);
+        // In the user's own calendar: a colleague's copy (one the user may only read) isn't
+        // theirs to answer in, and the server would refuse it.
+        let theirs: Vec<String> = p.calendars.iter().filter(|c| c.foreign || c.read_only).map(|c| c.id.clone()).collect();
+        if !p.events.iter().any(|e| e.event.uid == uid && !theirs.contains(&e.calendar)) {
+            return Err(CmdError::Params("this calendar can't be changed".into()));
+        }
         let mut remote = false;
-        for e in p.events.iter_mut().filter(|e| e.event.uid == uid) {
+        for e in p.events.iter_mut().filter(|e| e.event.uid == uid && !theirs.contains(&e.calendar)) {
             set_answer(&mut e.event, &mine, &me, stat);
             answered.push(e.event.clone());
             remote |= e.calendar != LOCAL;
