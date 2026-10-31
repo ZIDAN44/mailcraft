@@ -7,7 +7,14 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{AccountConfig, Flag, Folder, MessageKey};
+use crate::{AccountConfig, Folder, MessageKey};
+
+mod keys;
+mod op;
+mod vacation;
+pub use keys::{HeldKey, Revocation};
+pub use op::Op;
+pub use vacation::{Vacation, is_day};
 
 /// A password in transit. Its `Debug` form is redacted so it never reaches a log.
 #[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,118 +35,6 @@ pub struct Private(pub Vec<u8>);
 impl fmt::Debug for Private {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Private(<{} bytes>)", self.0.len())
-    }
-}
-
-/// A change to the mailbox the user makes, applied to the local cache at once and replayed on
-/// the server when it can be reached (RFC 4549's "pending actions").
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "camelCase")]
-pub enum Op {
-    SetFlag {
-        keys: Vec<MessageKey>,
-        flag: Flag,
-        on: bool,
-    },
-    /// Add or remove a keyword (a category, `$Pinned`).
-    SetKeyword {
-        keys: Vec<MessageKey>,
-        keyword: String,
-        on: bool,
-    },
-    /// Move to another folder of the same account.
-    Move {
-        keys: Vec<MessageKey>,
-        to: String,
-    },
-    /// Delete permanently (`\Deleted` + `UID EXPUNGE`).
-    Expunge {
-        keys: Vec<MessageKey>,
-    },
-    /// Create a folder (`CREATE`, then `SUBSCRIBE`). `path` is the server's name for it.
-    CreateFolder {
-        path: String,
-    },
-    /// Rename or move a folder; folders inside it move with it (`RENAME`).
-    RenameFolder {
-        from: String,
-        to: String,
-    },
-    /// Delete a folder and the mail in it (`DELETE`). The engine deletes subfolders first.
-    DeleteFolder {
-        path: String,
-    },
-    /// Delete every message in a folder for good (Deleted Items, Junk Email), including those
-    /// not downloaded.
-    EmptyFolder {
-        path: String,
-    },
-}
-
-/// Automatic replies (out of office): sent once per sender while on, between the dates when
-/// set. Kept on the server, so they work while this computer is off.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Vacation {
-    pub enabled: bool,
-    #[serde(default)]
-    pub subject: String,
-    #[serde(default)]
-    pub text: String,
-    /// First and last day (`YYYY-MM-DD`), when limited.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub from: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub until: Option<String>,
-    /// Exchange: the reply to people outside the organisation, when it isn't the same as `text`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub external: Option<String>,
-    /// Exchange: who outside the organisation gets a reply: `all` (the default, empty), `known`
-    /// (the user's contacts only) or `none`.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub outside: String,
-}
-
-impl Vacation {
-    /// The reply to people outside the organisation.
-    pub fn external_text(&self) -> &str {
-        self.external.as_deref().unwrap_or(&self.text)
-    }
-}
-
-/// A `YYYY-MM-DD` date that is a real day.
-pub fn is_day(s: &str) -> bool {
-    let b = s.as_bytes();
-    if b.len() != 10 || b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-') {
-        return false;
-    }
-    let num = |a: usize, z: usize| s.get(a..z).filter(|x| x.bytes().all(|c| c.is_ascii_digit())).and_then(|x| x.parse::<u32>().ok());
-    match (num(0, 4), num(5, 7), num(8, 10)) {
-        (Some(y), Some(m), Some(d)) => {
-            let days = match m {
-                1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-                4 | 6 | 9 | 11 => 30,
-                2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
-                2 => 28,
-                _ => 0,
-            };
-            y >= 1970 && (1..=days).contains(&d)
-        }
-        _ => false,
-    }
-}
-
-impl Op {
-    /// The messages a change touches (none for folder changes).
-    pub fn keys(&self) -> &[MessageKey] {
-        match self {
-            Op::SetFlag { keys, .. } | Op::SetKeyword { keys, .. } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
-            Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => &[],
-        }
-    }
-
-    /// Whether this changes the folder list rather than messages.
-    pub fn is_folder_op(&self) -> bool {
-        matches!(self, Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. })
     }
 }
 
@@ -560,30 +455,6 @@ pub enum Event {
     },
 }
 
-/// A certificate with its private key held where MailCraft can't read it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HeldKey {
-    /// What it's called there (the card's label, the keychain's name).
-    pub label: String,
-    /// The certificate (DER).
-    pub cert: Vec<u8>,
-    /// Where the key is, for the network layer to find it again (opaque here).
-    pub at: String,
-}
-
-/// Whether a certificate's authority withdrew it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "status", rename_all = "camelCase")]
-pub enum Revocation {
-    /// Not withdrawn; the answer holds until `until` (Unix seconds), when it says.
-    Good { until: Option<i64> },
-    /// Withdrawn at `at` (Unix seconds).
-    Revoked { at: i64 },
-    /// No answer to go by (none given, or none to trust), and why.
-    Unknown { why: String },
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -594,16 +465,6 @@ mod tests {
         assert!(!format!("{j:?}").contains("hunter2"));
         let e = Event::Decrypted { key: MessageKey::default(), content: Some(Private(b"the plan".to_vec())), authenticated: true, error: None };
         assert!(!format!("{e:?}").contains("the plan"), "what decrypted mail says never prints");
-    }
-
-    #[test]
-    fn days() {
-        for ok in ["2026-10-15", "2024-02-29", "2000-02-29"] {
-            assert!(is_day(ok), "{ok}");
-        }
-        for bad in ["2026-02-29", "1900-02-29", "2026-13-01", "2026-1-01", "26-10-15", "2026-10-15T00", "", "2026-10-00", "abcd-ef-gh"] {
-            assert!(!is_day(bad), "{bad}");
-        }
     }
 
     #[test]
