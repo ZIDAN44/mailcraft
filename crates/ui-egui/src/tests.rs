@@ -303,12 +303,22 @@ impl crate::Services for PageServices {
     }
 }
 
-/// The File page: every page, in the tour's languages and themes.
+/// The File page: every page, in the tour's languages and themes; Options again with what this
+/// version's settings show only when chosen (a meeting room, answered invitations to a folder,
+/// the External tag), as they were after.
 pub(crate) fn backstage_tour(a: &mut MailApp, ctx: &egui::Context) {
     for page in [crate::backstage::Page::Info, crate::backstage::Page::Open, crate::backstage::Page::Options, crate::backstage::Page::About] {
         a.act(crate::Action::Backstage(page));
         frame(ctx, a, vec![]);
     }
+    let prefs = a.session.prefs.clone();
+    a.run("meetings.addRoom", json!({"name": "My room", "url": "https://meet.example.org/rooms/abc", "code": "123", "details": "+1 555 0100"}));
+    a.run("meetings.addHost", json!({"host": "jitsi.example.org"}));
+    a.run("options.answeredInvites", json!({"after": "move", "replies": true}));
+    a.run("view.externalTag", json!({"on": true, "domains": "studio.example"}));
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    frame(ctx, a, vec![]);
+    a.session.prefs = prefs;
     a.ui.backstage = None;
 }
 
