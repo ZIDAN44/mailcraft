@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::dates::{Clock, civil_from_days};
 use crate::{FolderRole, Summary, keyword_for};
 
+pub mod keywords;
+
 /// A category: a name and colour shown on messages, stored on the server as a keyword so other
 /// clients (and other computers) see it too.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -91,8 +91,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .params(r#"{"on"?: bool, "due"?: "today"|"tomorrow"|"thisWeek"|"nextWeek"|"none"|"YYYY-MM-DD" (Follow Up: flag, due then), "complete"?: true (Mark Complete: unflag, forget the date)}"#)
             .when(has_selection),
         CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read).when(has_account),
-        CommandSpec::new("mail.categorize", "Categorize", "Home › Tags", |s, v| s.categorize_selection(p::req_str(v, "category")?, p::bool(v, "on")))
-            .params(r#"{"category": string, "on"?: bool}"#)
+        CommandSpec::new("mail.categorize", "Categorize", "Home › Tags", |s, v| s.categorize_selection(p::str(v, "category"), p::str(v, "keyword"), p::bool(v, "on")))
+            .params(r#"{"category": string, "on"?: bool} | {"keyword": string (one not in the list, e.g. "$label6"), "on"?: bool}"#)
             .when(has_selection),
         CommandSpec::new("mail.pin", "Pin / Unpin", "Home › Tags", |s, v| s.pin_selection(p::bool(v, "on"))).params(r#"{"on"?: bool}"#).when(has_selection),
         CommandSpec::new("mail.snooze", "Snooze", "Home › Tags", snooze)
@@ -105,12 +105,40 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("category.list", "Categories", "Home › Tags › Categorize", |s, _| {
             Ok(json!(s.prefs.categories.iter().map(|c| json!({"name": c.name, "keyword": c.keyword, "color": c.color})).collect::<Vec<_>>()))
         }),
+        CommandSpec::new("category.unlisted", "Categories not in the list", "Home › Tags › Categorize › All Categories", |s, _| {
+            Ok(json!(
+                s.unlisted_keywords()
+                    .into_iter()
+                    .map(|(k, n)| {
+                        let c = Session::unlisted_category(&k);
+                        json!({"keyword": k, "name": c.name, "color": c.color, "messages": n})
+                    })
+                    .collect::<Vec<_>>()
+            ))
+        }),
         CommandSpec::new("category.create", "New category", "Home › Tags › Categorize", |s, v| {
-            s.add_category(p::req_str(v, "name")?, p::u64(v, "color").and_then(|c| u8::try_from(c).ok()))
+            s.add_category(p::req_str(v, "name")?, color(v), p::str(v, "keyword"))
         })
-        .params(r#"{"name": string, "color"?: number}"#),
+        .params(r#"{"name": string, "color"?: number, "keyword"?: string (the IMAP keyword, e.g. "$label6"; else made from the name as Thunderbird does)}"#),
+        CommandSpec::new("category.edit", "Edit category", "Home › Tags › Categorize › All Categories", |s, v| {
+            s.edit_category(p::req_str(v, "name")?, p::str(v, "newName"), color(v), p::str(v, "keyword"))
+        })
+        .params(r#"{"name": string, "newName"?: string, "color"?: number, "keyword"?: string}"#),
         CommandSpec::new("category.delete", "Delete category", "Home › Tags › Categorize", |s, v| s.remove_category(p::req_str(v, "name")?))
             .params(r#"{"name": string}"#),
+        CommandSpec::new("category.export", "Export categories", "Home › Tags › Categorize › All Categories", |s, v| {
+            let path = p::req_str(v, "path")?;
+            let bytes = s.categories_file()?;
+            std::fs::write(path, bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+            Ok(json!({ "categories": s.prefs.categories.len(), "path": path }))
+        })
+        .params(r#"{"path": string}"#),
+        CommandSpec::new("category.import", "Import categories", "Home › Tags › Categorize › All Categories", |s, v| {
+            let path = p::req_str(v, "path")?;
+            let bytes = read_capped(path, 1 << 20)?;
+            s.import_categories(&bytes)
+        })
+        .params(r#"{"path": string}"#),
         // Rules
         CommandSpec::new("rules.list", "Rules", "Home › Rules", |s, _| Ok(json!(s.rules))),
         CommandSpec::new("rules.set", "Replace rules", "Home › Rules", |s, v| {
@@ -238,4 +266,9 @@ pub(super) fn mark_all_read(s: &mut Session, _: &Value) -> CmdResult {
         s.apply_op(&a, mailcraft_model::Op::SetFlag { keys, flag: Flag::Seen, on: true });
     }
     Ok(json!({"count": n}))
+}
+
+/// A category colour from the params (an index into the palette).
+fn color(v: &Value) -> Option<u8> {
+    p::u64(v, "color").and_then(|c| u8::try_from(c).ok())
 }

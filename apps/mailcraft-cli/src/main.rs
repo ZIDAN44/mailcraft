@@ -314,6 +314,10 @@ fn run() -> Result<(), String> {
                     m["from"].as_str().unwrap_or(""),
                     m["subject"].as_str().unwrap_or("")
                 );
+                let cats: Vec<&str> = m["categories"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+                if !cats.is_empty() {
+                    outln!("      categories: {}", cats.join(", "));
+                }
                 outln!("      key: {}", m["key"].as_str().unwrap_or(""));
             }
         }

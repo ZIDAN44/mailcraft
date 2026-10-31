@@ -372,7 +372,7 @@ impl Session {
             ListFilter::Unread => !m.flags.seen,
             ListFilter::Flagged => m.flags.flagged,
             ListFilter::Attachments => m.has_attachments,
-            ListFilter::Categorized => self.prefs.categories.iter().any(|c| m.flags.has(&c.keyword)),
+            ListFilter::Categorized => self.is_categorized(m),
             ListFilter::Important => m.importance > 0,
             ListFilter::ToMe => self.account(&m.key.account).is_some_and(|a| {
                 let me = a.config.email.trim();

@@ -376,6 +376,8 @@ pub(super) fn list_messages(s: &mut Session, v: &Value) -> CmdResult {
             j["fromAddress"] = json!(marks.address);
             j["senderWarning"] = json!(marks.warning);
             j["external"] = json!(marks.external);
+            // Its categories by name, those from other programs' keywords too (issue #28).
+            j["categories"] = json!(s.categories_of(m).into_iter().map(|c| c.name).collect::<Vec<_>>());
             j
         }).collect::<Vec<_>>(),
     }))

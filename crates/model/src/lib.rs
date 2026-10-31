@@ -603,25 +603,10 @@ pub fn is_keyword(k: &str) -> bool {
     !k.is_empty() && k.len() <= 64 && !k.starts_with('\\') && k.chars().all(|c| c.is_ascii_graphic() && !"(){%*\"\\]".contains(c))
 }
 
-/// A keyword for a category name (`To do` → `to_do`), for categories made in MailCraft.
+/// The keyword for a category name, as Thunderbird makes a tag's (`To do` → `to=20do`,
+/// `Rückfrage` → `r=c3=bcckfrage`): [`organize::keywords::tag_key`].
 pub fn keyword_for(name: &str) -> String {
-    if !name.is_ascii() {
-        // Keywords are ASCII atoms: other scripts get a stable hash of the name.
-        let mut h: u32 = 2_166_136_261;
-        for b in name.trim().to_lowercase().bytes() {
-            h = (h ^ u32::from(b)).wrapping_mul(16_777_619);
-        }
-        return format!("cat_{h:08x}");
-    }
-    let k: String = name
-        .trim()
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_whitespace() { '_' } else { c })
-        .filter(|c| c.is_ascii_graphic() && !"(){%*\"\\]".contains(*c))
-        .take(64)
-        .collect();
-    if k.is_empty() || k.starts_with('$') { format!("cat_{k}") } else { k }
+    organize::keywords::tag_key(name.trim())
 }
 
 impl Flags {
@@ -947,10 +932,9 @@ mod tests {
     fn keywords() {
         assert!(is_keyword("$label1") && is_keyword("to_do"));
         assert!(!is_keyword("two words") && !is_keyword("\\Seen") && !is_keyword("a(b") && !is_keyword(""));
-        assert_eq!(keyword_for("To do"), "to_do");
-        assert!(keyword_for("Café").starts_with("cat_") && is_keyword(&keyword_for("Café")));
-        assert_eq!(keyword_for("Café"), keyword_for(" café "));
-        assert_eq!(keyword_for("$x"), "cat_$x");
+        assert_eq!(keyword_for("To do"), "to=20do");
+        assert_eq!(keyword_for("Café"), "caf=c3=a9");
+        assert_eq!(keyword_for(" Café "), keyword_for("café"));
         assert!(is_keyword(&keyword_for("Projects: Film!")));
     }
 

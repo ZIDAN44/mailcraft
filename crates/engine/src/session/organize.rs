@@ -1,10 +1,11 @@
 //! Organising mail: categories, pinning, snoozing, inbox rules and the Focused/Other split.
 
-use mailcraft_model::organize::{Category, Rule, RuleAction, Snooze, actions_for};
+use mailcraft_model::organize::{Rule, RuleAction, Snooze, actions_for};
 use mailcraft_model::{PINNED, is_keyword};
 
 use super::*;
 
+pub mod categories;
 pub mod junk;
 pub mod quick_steps;
 pub mod search_folders;
@@ -40,48 +41,8 @@ impl Session {
         Ok(serde_json::json!({ "on": on, "count": sel.len() }))
     }
 
-    /// The category called `name` (any case).
-    pub fn category(&self, name: &str) -> Option<&Category> {
-        self.prefs.categories.iter().find(|c| c.name.eq_ignore_ascii_case(name.trim()))
-    }
-
-    /// The categories a message carries, in the order the user keeps them.
-    pub fn categories_of(&self, m: &Summary) -> Vec<&Category> {
-        self.prefs.categories.iter().filter(|c| m.flags.has(&c.keyword)).collect()
-    }
-
-    pub fn categorize_selection(&mut self, name: &str, on: Option<bool>) -> CmdResult {
-        let kw = self.category(name).map(|c| c.keyword.clone()).ok_or_else(|| CmdError::Params(format!("no category called {name}")))?;
-        self.keyword_selection(&kw, on)
-    }
-
     pub fn pin_selection(&mut self, on: Option<bool>) -> CmdResult {
         self.keyword_selection(PINNED, on)
-    }
-
-    pub fn add_category(&mut self, name: &str, color: Option<u8>) -> CmdResult {
-        let name = name.trim();
-        if name.is_empty() || name.chars().count() > 60 {
-            return Err(CmdError::Params("a category needs a name (up to 60 characters)".into()));
-        }
-        if self.category(name).is_some() {
-            return Err(CmdError::Params(format!("there is already a category called {name}")));
-        }
-        let color = color.unwrap_or_else(|| u8::try_from(self.prefs.categories.len() % 8).unwrap_or(0));
-        let c = Category::new(name, color);
-        let kw = c.keyword.clone();
-        self.prefs.categories.push(c);
-        Ok(serde_json::json!({ "created": name, "keyword": kw }))
-    }
-
-    /// Forget a category. Messages keep the keyword (another client may still use it).
-    pub fn remove_category(&mut self, name: &str) -> CmdResult {
-        let before = self.prefs.categories.len();
-        self.prefs.categories.retain(|c| !c.name.eq_ignore_ascii_case(name.trim()));
-        if self.prefs.categories.len() == before {
-            return Err(CmdError::Params(format!("no category called {name}")));
-        }
-        Ok(serde_json::json!({ "removed": name }))
     }
 
     // ----- snooze -----
@@ -269,7 +230,15 @@ impl Session {
                 v
             })
             .collect();
-        let doc = serde_json::json!({ "mailcraftRules": 1, "rules": rules });
+        // The categories the rules file mail under, with their keywords: another computer
+        // makes a missing one with the same keyword, so both mark mail the same way.
+        let used: Vec<&mailcraft_model::organize::Category> = self
+            .prefs
+            .categories
+            .iter()
+            .filter(|c| self.rules.iter().flat_map(|r| &r.actions).any(|a| matches!(a, RuleAction::Categorize(n) if n.eq_ignore_ascii_case(&c.name))))
+            .collect();
+        let doc = serde_json::json!({ "mailcraftRules": 1, "rules": rules, "categories": used });
         serde_json::to_vec_pretty(&doc).map_err(|e| CmdError::Failed(e.to_string()))
     }
 
@@ -289,6 +258,8 @@ impl Session {
             (Some(_), Some(list)) => list.clone(),
             _ => return Err(CmdError::Failed("not a MailCraft rules file".into())),
         };
+        let known: Vec<mailcraft_model::organize::Category> =
+            doc.get("categories").cloned().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
         let mut rules = if replace { Vec::new() } else { self.rules.clone() };
         let (mut added, mut off) = (0usize, 0usize);
         for (i, v) in list.into_iter().take(500).enumerate() {
@@ -310,7 +281,16 @@ impl Session {
                 if let RuleAction::Categorize(c) = a
                     && self.category(c).is_none()
                 {
-                    self.add_category(c, None)?;
+                    // With the keyword and colour it has where the rules came from, when that
+                    // keyword is free here.
+                    let from = known.iter().find(|k| k.name.eq_ignore_ascii_case(c));
+                    let made = match from {
+                        Some(k) => self.add_category(c, Some(k.color), Some(&k.keyword)),
+                        None => Err(CmdError::Params(String::new())),
+                    };
+                    if made.is_err() {
+                        self.add_category(c, None, None)?;
+                    }
                 }
             }
             if !rules.contains(&rule) {

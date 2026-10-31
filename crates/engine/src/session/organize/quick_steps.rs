@@ -116,7 +116,7 @@ impl Session {
                 // A category deleted since is passed over.
                 RuleAction::Categorize(c) => {
                     if self.category(c).is_some() {
-                        self.categorize_selection(c, Some(true))?;
+                        self.categorize_selection(Some(c), None, Some(true))?;
                     }
                 }
                 RuleAction::MoveTo(f) => target = Some(MoveTarget::Folder(f.clone())),

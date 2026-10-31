@@ -363,8 +363,7 @@ impl Session {
         if let Some(c) = self.prefs.categories.iter().find(|c| c.name.eq_ignore_ascii_case(name.trim())) {
             return c.color;
         }
-        let h = name.trim().to_lowercase().bytes().fold(5381u32, |h, b| h.wrapping_mul(33) ^ u32::from(b));
-        u8::try_from(h % 8).unwrap_or(0)
+        super::organize::categories::color_from_name(name)
     }
 
     /// The event (master, not an instance) with a uid, and its account.

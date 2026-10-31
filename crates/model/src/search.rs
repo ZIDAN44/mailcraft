@@ -50,7 +50,7 @@ pub enum Term {
     /// Marked high importance by its sender (`is:important`).
     Important,
     /// Carries one of these keywords (`is:categorized`: the caller fills in its categories'
-    /// keywords; left empty, any keyword that isn't a system one, `$…`, counts).
+    /// keywords), or any keyword that isn't a [system one](crate::organize::keywords::is_system_keyword).
     Categorized(Vec<String>),
     /// Bigger than this many bytes (`larger:`), or (`false`) smaller (`smaller:`).
     Size(bool, u64),
@@ -323,8 +323,10 @@ fn clause_matches(term: &Term, doc: &Doc<'_>) -> bool {
         Term::Keyword(k) => m.flags.has(k) || m.flags.has(&crate::keyword_for(k)),
         Term::Important => m.importance > 0,
         Term::Awaiting => doc.awaiting,
-        Term::Categorized(ks) if ks.is_empty() => m.flags.keywords.iter().any(|k| !k.starts_with('$')),
-        Term::Categorized(ks) => ks.iter().any(|k| m.flags.has(k)),
+        // A keyword not in the list shows as a category too (issue #28): any but a system one.
+        Term::Categorized(ks) => {
+            ks.iter().any(|k| m.flags.has(k)) || m.flags.keywords.iter().any(|k| !crate::organize::keywords::is_system_keyword(k))
+        }
         Term::Size(true, b) => u64::from(m.size) > *b,
         Term::Size(false, b) => u64::from(m.size) < *b,
         Term::AnyOf(ts) => ts.iter().any(|t| clause_matches(t, doc)),
@@ -510,7 +512,11 @@ mod tests {
         m2.flags.keywords = vec!["$Pinned".into(), "work".into()];
         assert!(q("is:important is:categorized", &m2));
         let label = Query { clauses: vec![Clause { term: Term::Categorized(vec!["$label1".into()]), negated: false }] };
-        assert!(!label.matches(&Doc { summary: &m2, body: None, indexed: false, awaiting: false }));
+        assert!(label.matches(&Doc { summary: &m2, body: None, indexed: false, awaiting: false }), "a keyword not in the list counts");
+        m2.flags.keywords = vec!["$Pinned".into(), "$Forwarded".into(), "NonJunk".into(), "$MailFlagBit1".into()];
+        assert!(!label.matches(&Doc { summary: &m2, body: None, indexed: false, awaiting: false }), "system keywords don't");
+        m2.flags.keywords.push("$LABEL1".into());
+        assert!(label.matches(&Doc { summary: &m2, body: None, indexed: false, awaiting: false }));
         assert!(Query::parse("").matches(&Doc { summary: &m, body: None, indexed: false, awaiting: false }));
     }
 
