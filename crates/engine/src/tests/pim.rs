@@ -771,3 +771,22 @@ fn a_calendar_server_given_by_hand() {
     assert!(s.run("account.dav", &json!({"account": "sample", "caldav": "https://dav.example/"})).is_err());
     done(s);
 }
+
+/// An event at the very end of time in the cache (a damaged file) doesn't stop the calendar.
+#[test]
+fn an_event_at_the_end_of_time_is_drawn_without_overflow() {
+    let mut s = sample_session("calendar-end-of-time");
+    let e = mailcraft_model::ical::CalEvent { uid: "end".into(), summary: "End".into(), start: i64::MAX, end: i64::MAX, ..Default::default() };
+    s.pim_mut("sample").events.push(mailcraft_model::pim::StoredEvent {
+        calendar: mailcraft_model::pim::LOCAL.into(),
+        event: e,
+        ..Default::default()
+    });
+    for mode in ["day", "week", "month"] {
+        s.run("calendar.view", &json!({"mode": mode})).unwrap();
+        assert!(s.run("calendar.events", &json!({})).is_ok());
+    }
+    let _ = s.agenda(i64::MAX - 100, i64::MAX);
+    let _ = s.agenda(i64::MIN, i64::MIN + 100);
+    done(s);
+}

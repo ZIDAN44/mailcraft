@@ -359,3 +359,23 @@ fn a_published_calendar_names_itself() {
     let c = parse(&format!("{head}X-WR-CALNAME: \u{7} \r\nX-PUBLISHED-TTL:junk\r\n{ev}END:VCALENDAR\r\n"), 0);
     assert_eq!((c.name, c.refresh), (None, None));
 }
+
+/// Times at the very ends of the range (a damaged cache, a hostile server) make no overflow:
+/// their occurrences are worked out, or none, and nothing panics.
+#[test]
+fn occurrences_at_the_ends_of_time() {
+    let at =
+        |start: i64, end: i64, rrule: Option<&str>| CalEvent { uid: "x".into(), start, end, rrule: rrule.map(str::to_string), ..Default::default() };
+    let events = [
+        at(i64::MAX, i64::MAX, None),
+        at(i64::MAX - 5, i64::MAX, Some("FREQ=DAILY")),
+        at(i64::MIN, i64::MAX, None),
+        at(i64::MIN, i64::MIN, Some("FREQ=WEEKLY")),
+        CalEvent { recurrence_id: Some(i64::MAX), ..at(i64::MAX, i64::MAX, None) },
+    ];
+    for (from, to) in [(i64::MIN, i64::MAX), (0, 1_800_000_000), (i64::MAX - 10, i64::MAX)] {
+        let _ = occurrences(&events, from, to);
+    }
+    let whole = occurrences(&[at(-10, i64::MAX, None)], 0, 10);
+    assert_eq!(whole.len(), 1, "one that runs to the end of time is there now");
+}

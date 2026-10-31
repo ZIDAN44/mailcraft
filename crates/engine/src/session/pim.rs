@@ -232,10 +232,10 @@ impl Session {
                 let stored: Vec<&StoredEvent> = p.events.iter().filter(|e| e.calendar == cal.id).collect();
                 let events: Vec<CalEvent> = stored.iter().map(|e| e.event.clone()).collect();
                 // All-day events are dates, not times: widen the window by a day each way.
-                for o in ical::occurrences(&events, from - 86_400, to + 86_400) {
+                for o in ical::occurrences(&events, from.saturating_sub(86_400), to.saturating_add(86_400)) {
                     let Some(e) = events.get(o.event) else { continue };
                     let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
-                    if start >= to || end.max(start + 1) <= from {
+                    if start >= to || end.max(start.saturating_add(1)) <= from {
                         continue;
                     }
                     let needs_reply = e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION");

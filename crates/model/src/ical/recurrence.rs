@@ -247,17 +247,17 @@ pub fn occurrences(events: &[CalEvent], from: i64, to: i64) -> Vec<Occurrence> {
         if e.recurrence_id.is_some() || e.status == "CANCELLED" {
             continue;
         }
-        let len = (e.end - e.start).max(0);
+        let len = e.end.saturating_sub(e.start).max(0);
         let overrides = moved.get(e.uid.as_str()).unwrap_or(&none);
         let mut n = 0;
         for s in starts(e, to) {
             if s >= to {
                 break;
             }
-            if s + len.max(1) <= from || e.exdates.contains(&s) || overrides.contains(&s) {
+            if s.saturating_add(len.max(1)) <= from || e.exdates.contains(&s) || overrides.contains(&s) {
                 continue;
             }
-            out.push(Occurrence { event: i, start: s, end: s + len });
+            out.push(Occurrence { event: i, start: s, end: s.saturating_add(len) });
             n += 1;
             if n >= MAX_OCCURRENCES {
                 break;
@@ -265,7 +265,7 @@ pub fn occurrences(events: &[CalEvent], from: i64, to: i64) -> Vec<Occurrence> {
         }
     }
     for (i, e) in events.iter().enumerate() {
-        if e.recurrence_id.is_some() && e.status != "CANCELLED" && e.start < to && e.end.max(e.start + 1) > from {
+        if e.recurrence_id.is_some() && e.status != "CANCELLED" && e.start < to && e.end.max(e.start.saturating_add(1)) > from {
             out.push(Occurrence { event: i, start: e.start, end: e.end });
         }
     }
