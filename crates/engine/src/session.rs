@@ -516,6 +516,8 @@ pub struct Session {
     index: HashMap<(String, String), SearchIndex>,
     /// How many times search words were read for some folder ([`Session::index_builds`]).
     index_builds: u64,
+    /// How many times a message was shown in the reading pane ([`Session::messages_shown`]).
+    shown: u64,
     /// Accounts a data file is being imported into: their folders' search words wait for the end.
     importing: HashSet<String>,
     /// The message in the reading pane to mark read, and when (`ReadInPane::Shown` with a wait).
@@ -615,6 +617,7 @@ impl Session {
             cal_day: None,
             index: HashMap::new(),
             index_builds: 0,
+            shown: 0,
             importing: HashSet::new(),
             read_due: None,
             read_on_leave: None,

@@ -222,3 +222,85 @@ fn select_all_is_several_selected() {
     assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), reading);
     done(s);
 }
+
+/// Down held faster than a frame: the presses queued in one go as `list.next {"by": n}`, which
+/// lands where `n` single steps do but reads only the message landed on; those passed over keep
+/// their flags (Outlook's list doesn't mark them read either). `by` that isn't a count of at
+/// least one is one step; a huge one stops at the end.
+#[test]
+fn several_steps_read_only_the_message_landed_on() {
+    let mut s = sample_session("steps-by");
+    let all = rows(&s);
+    assert!(all.len() >= 6, "{all:?}");
+    s.run("list.selectAll", &json!({})).unwrap();
+    s.run("mail.markUnread", &json!({})).unwrap();
+    s.run("list.first", &json!({})).unwrap();
+    let unread = |s: &Session, i: usize| s.summary(&s.row_keys()[i]).is_some_and(|m| !m.flags.seen);
+    assert!(!unread(&s, 0) && unread(&s, 1) && unread(&s, 3));
+    let shown = s.messages_shown();
+    s.run("list.next", &json!({"by": 3})).unwrap();
+    assert_eq!(focus(&s), all[3]);
+    assert_eq!(selected(&s), vec![all[3].clone()]);
+    assert_eq!(s.messages_shown(), shown + 1, "one message shown");
+    assert!(unread(&s, 1) && unread(&s, 2), "passed over: still unread");
+    assert!(!unread(&s, 3), "the one landed on is read");
+    // As far as three single steps.
+    let mut t = sample_session("steps-one-by-one");
+    t.run("list.first", &json!({})).unwrap();
+    for _ in 0..3 {
+        t.run("list.next", &json!({})).unwrap();
+    }
+    assert_eq!(focus(&t), focus(&s));
+    done(t);
+    // Up, and Shift with them.
+    s.run("list.prev", &json!({"by": 2})).unwrap();
+    assert_eq!(focus(&s), all[1]);
+    s.run("list.extendNext", &json!({"by": 2})).unwrap();
+    assert_eq!(selected(&s), all[1..4].to_vec());
+    s.run("list.extendPrev", &json!({"by": 1})).unwrap();
+    assert_eq!(selected(&s), all[1..3].to_vec());
+    // Junk: one step; huge: to the end.
+    s.run("list.first", &json!({})).unwrap();
+    for junk in [json!(0), json!(-4), json!("3"), json!(null), json!(2.5e-3), json!([1])] {
+        let at = s.row_keys().iter().position(|k| Some(k) == s.focus.as_ref()).unwrap();
+        s.run("list.next", &json!({"by": junk})).unwrap();
+        assert_eq!(focus(&s), all[at + 1], "{junk}");
+    }
+    s.run("list.first", &json!({})).unwrap();
+    s.run("list.next", &json!({"by": 1e300})).unwrap();
+    assert_eq!(focus(&s), all[all.len() - 1]);
+    s.run("list.prev", &json!({"by": u64::MAX})).unwrap();
+    assert_eq!(focus(&s), all[0]);
+    done(s);
+}
+
+/// Nothing focused yet (a folder just opened, a search just run): a step of n lands where n
+/// single steps do, the first of them on the top row; Shift with it selects all of them.
+#[test]
+fn several_steps_from_nothing_focused() {
+    let mut one = sample_session("steps-none-singles");
+    let all = rows(&one);
+    assert!(one.focus.is_none() && all.len() >= 6, "{all:?}");
+    for _ in 0..3 {
+        one.run("list.next", &json!({})).unwrap();
+    }
+    assert_eq!(focus(&one), all[2]);
+    done(one);
+    let mut s = sample_session("steps-none-by");
+    s.run("list.next", &json!({"by": 3})).unwrap();
+    assert_eq!(focus(&s), all[2], "as three single steps");
+    done(s);
+    let mut s = sample_session("steps-none-extend");
+    s.run("list.extendNext", &json!({"by": 3})).unwrap();
+    assert_eq!(selected(&s), all[..3].to_vec());
+    done(s);
+    // Further than the list goes: the last row; up from nothing: the top, as single Ups.
+    let mut s = sample_session("steps-none-ends");
+    s.run("list.next", &json!({"by": 1000})).unwrap();
+    assert_eq!(focus(&s), all[all.len() - 1]);
+    done(s);
+    let mut s = sample_session("steps-none-up");
+    s.run("list.prev", &json!({"by": 3})).unwrap();
+    assert_eq!(focus(&s), all[0]);
+    done(s);
+}

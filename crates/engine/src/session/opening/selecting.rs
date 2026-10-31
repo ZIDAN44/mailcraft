@@ -38,14 +38,15 @@ impl Session {
         rows.iter().position(|k| members.contains(k))
     }
 
-    /// The row the focus goes to from where it is (no focus: from the top).
+    /// The row the focus goes to from where it is (no focus: from the top, the first step down
+    /// landing on the first row, as n single steps do).
     fn row_toward(&self, rows: &[MessageKey], toward: Toward) -> Option<usize> {
         let last = rows.len().checked_sub(1)?;
         let cur = self.focus.as_ref().and_then(|k| self.row_of(rows, k));
         Some(match (toward, cur) {
             (Toward::First, _) => 0,
             (Toward::Last, _) => last,
-            (Toward::By(_), None) => 0,
+            (Toward::By(n), None) => usize::try_from(n.saturating_sub(1).max(0)).unwrap_or(usize::MAX).min(last),
             (Toward::By(n), Some(c)) => {
                 let c = i64::try_from(c).unwrap_or(i64::MAX);
                 usize::try_from(c.saturating_add(n).max(0)).unwrap_or(0).min(last)
@@ -67,6 +68,11 @@ impl Session {
     /// (going back toward the anchor selects less), as in Outlook's list.
     pub fn extend_selection(&mut self, toward: Toward) -> CmdResult {
         let rows = self.row_keys();
+        // Nothing chosen yet: a step of n starts where the first of n single steps lands, the top.
+        let placed = |k: &Option<MessageKey>| k.as_ref().and_then(|k| self.row_of(&rows, k)).is_some();
+        if matches!(toward, Toward::By(_)) && !placed(&self.anchor) && !placed(&self.focus) {
+            self.anchor = rows.first().cloned();
+        }
         match self.row_toward(&rows, toward) {
             Some(to) => self.select_to(&rows, to, false),
             None => Ok(serde_json::json!({"selected": self.selection.len(), "key": null})),

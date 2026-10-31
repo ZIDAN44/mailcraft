@@ -78,16 +78,21 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.select_range(&k, p::bool(v, "add").unwrap_or(false))
         })
         .params(r#"{"key": string (from the anchor to it), "add"?: bool (keep the rest selected: Ctrl+Shift+click)}"#),
-        CommandSpec::new("list.next", "Next message", "Message list", |s, _| s.move_focus(Toward::By(1))).key("Down / J"),
-        CommandSpec::new("list.prev", "Previous message", "Message list", |s, _| s.move_focus(Toward::By(-1))).key("Up / K"),
+        // `by`: a key held down repeats faster than a frame; the window sends the presses queued
+        // in one as a single step, so only the message landed on is read (and marked read).
+        CommandSpec::new("list.next", "Next message", "Message list", |s, v| s.move_focus(Toward::By(by(v)))).key("Down / J").params(BY),
+        CommandSpec::new("list.prev", "Previous message", "Message list", |s, v| s.move_focus(Toward::By(-by(v)))).key("Up / K").params(BY),
         CommandSpec::new("list.first", "First message", "Message list", |s, _| s.move_focus(Toward::First)).key("Home"),
         CommandSpec::new("list.last", "Last message", "Message list", |s, _| s.move_focus(Toward::Last)).key("End"),
         CommandSpec::new("list.pageDown", "A page down", "Message list", |s, v| s.move_focus(Toward::By(page(v)))).key("PageDown").params(PAGE),
         CommandSpec::new("list.pageUp", "A page up", "Message list", |s, v| s.move_focus(Toward::By(-page(v)))).key("PageUp").params(PAGE),
         // Shift with them: selected from the anchor to where the focus goes (issue #26).
-        CommandSpec::new("list.extendNext", "Select the next message too", "Message list", |s, _| s.extend_selection(Toward::By(1))).key("Shift+Down"),
-        CommandSpec::new("list.extendPrev", "Select the previous message too", "Message list", |s, _| s.extend_selection(Toward::By(-1)))
-            .key("Shift+Up"),
+        CommandSpec::new("list.extendNext", "Select the next message too", "Message list", |s, v| s.extend_selection(Toward::By(by(v))))
+            .key("Shift+Down")
+            .params(BY),
+        CommandSpec::new("list.extendPrev", "Select the previous message too", "Message list", |s, v| s.extend_selection(Toward::By(-by(v))))
+            .key("Shift+Up")
+            .params(BY),
         CommandSpec::new("list.extendFirst", "Select to the first message", "Message list", |s, _| s.extend_selection(Toward::First)).key("Shift+Home"),
         CommandSpec::new("list.extendLast", "Select to the last message", "Message list", |s, _| s.extend_selection(Toward::Last)).key("Shift+End"),
         CommandSpec::new("list.extendPageDown", "Select a page down", "Message list", |s, v| s.extend_selection(Toward::By(page(v))))
@@ -311,6 +316,13 @@ const PAGE: &str = r#"{"rows"?: number (a page: as many rows as the list shows)}
 
 fn page(v: &Value) -> i64 {
     p::u64(v, "rows").map_or(10, |n| i64::try_from(n.clamp(1, 10_000)).unwrap_or(10))
+}
+
+/// So many messages on (the presses of an arrow key queued in one frame).
+const BY: &str = r#"{"by"?: number (rows to go: default 1)}"#;
+
+fn by(v: &Value) -> i64 {
+    p::u64(v, "by").map_or(1, |n| i64::try_from(n.clamp(1, 10_000)).unwrap_or(1))
 }
 
 /// A message's source in a window of its own (issue #27); its text, as shown there, comes back.
