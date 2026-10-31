@@ -1500,7 +1500,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap"
-version = "0.30.0"
+version = "0.32.0"
 dependencies = [
  "log",
  "mailcraft-mime",
@@ -1513,7 +1513,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-keys"
-version = "0.30.0"
+version = "0.32.0"
 dependencies = [
  "core-foundation",
  "cryptoki",
@@ -1530,7 +1530,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mime"
-version = "0.30.0"
+version = "0.32.0"
 dependencies = [
  "flate2",
  "html2text",
@@ -1538,23 +1538,25 @@ dependencies = [
  "mail-builder",
  "mail-parser",
  "mailcraft-model",
+ "memchr",
  "serde",
 ]
 
 [[package]]
 name = "mailcraft-model"
-version = "0.30.0"
+version = "0.32.0"
 dependencies = [
  "chrono",
  "chrono-tz",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "unicode-segmentation",
 ]
 
 [[package]]
 name = "mailcraft-net"
-version = "0.30.0"
+version = "0.32.0"
 dependencies = [
  "hmac 0.13.0",
  "iana-time-zone",
@@ -1586,7 +1588,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-smime"
-version = "0.30.0"
+version = "0.32.0"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
@@ -1615,12 +1617,13 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-store"
-version = "0.30.0"
+version = "0.32.0"
 dependencies = [
  "dirs",
  "flate2",
  "log",
  "mailcraft-model",
+ "miniz_oxide",
  "redb",
  "serde",
  "serde_json",
@@ -1838,8 +1841,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "outlook-pst"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "299eace9d895cc31490927d7de779f8e8f3deb5fb6bd1e68eb192aa1da19bd47"
+source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=37112867ebf46411b4684a70d4575bb8c5a7a63e#37112867ebf46411b4684a70d4575bb8c5a7a63e"
 dependencies = [
  "byteorder",
  "thiserror",

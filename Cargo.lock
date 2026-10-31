@@ -4608,8 +4608,7 @@ dependencies = [
 [[package]]
 name = "outlook-pst"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "299eace9d895cc31490927d7de779f8e8f3deb5fb6bd1e68eb192aa1da19bd47"
+source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=37112867ebf46411b4684a70d4575bb8c5a7a63e#37112867ebf46411b4684a70d4575bb8c5a7a63e"
 dependencies = [
  "byteorder",
  "thiserror 2.0.21",

@@ -11,6 +11,11 @@ the fonts listed in [storytold/craft-fonts](https://github.com/storytold/craft-f
 About page. The app icon files in `assets/app-icon/`
 are rendered by `cargo xtask icons` from MailCraft's own drawing in `xtask/src/icons.rs`.
 
+Third-party code built from a fork rather than taken from crates.io as it is published:
+Microsoft's [outlook-pst](https://github.com/microsoft/outlook-pst-rs) 1.2.0 (MIT, its `LICENSE`),
+from [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs)'s `craft/1.2.0` branch
+with the fixes listed in its `PATCHES.md`. It adds no asset files.
+
 | Path | Author | Source | Licence |
 |---|---|---|---|
 | `docs/images/reading.png` | MailCraft contributors | Screenshot of MailCraft's own sample mailbox | MIT OR Apache-2.0 |

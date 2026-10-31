@@ -28,7 +28,7 @@
 | L1 | `mailcraft-smime` | — | S/MIME (RFC 8551) on RustCrypto: `.p12` files, signatures, encryption (RSA and ECDH), revocation answers; keys behind a `PrivateKey` trait. Portable, wasm-safe |
 | L2 | `mailcraft-keys` | smime | Keys that stay where they are: smart cards through their PKCS #11 module (`cryptoki`), the macOS Keychain (`security-framework`), the Windows certificate store (`rustls-cng`). Native only; the one crate whose `unsafe` is denied rather than forbidden (`windows/cng.rs`, `macos/sec.rs`) |
 | L2 | `mailcraft-jmap` | model, mime, store | The JMAP transport, written once as async code over a two-method `Http` trait: the desktop runs it over `net`'s client (answers are ready at once, so a no-op `block_on` drives it), the browser over `fetch`. Portable, wasm-safe |
-| L3 | `mailcraft-net` | model, mime, store, jmap | Native only. IMAP (`imap-proto`), POP3, SMTP (`lettre`), JMAP push, Microsoft Graph, Exchange Web Services with NTLM, CalDAV/CardDAV (`quick-xml`), ManageSieve, a small HTTP/1.1 client, DNS for autoconfiguration, OAuth, Outlook data files (`outlook-pst` to read, `outlook-pst-rw` to write); TLS through `rustls` |
+| L3 | `mailcraft-net` | model, mime, store, jmap | Native only. IMAP (`imap-proto`), POP3, SMTP (`lettre`), JMAP push, Microsoft Graph, Exchange Web Services with NTLM, CalDAV/CardDAV (`quick-xml`), ManageSieve, a small HTTP/1.1 client, DNS for autoconfiguration, OAuth, Outlook data files (`outlook-pst` to read, built from MailCraft's fork with its fixes, `outlook-pst-rw` to write); TLS through `rustls` |
 | L4 | `mailcraft-engine` | model, mime, store | Sans-I/O, wasm-safe |
 | L6 | `mailcraft-ui-egui` | engine | egui only; platform services behind traits; interface languages (`i18n/*.tsv`) |
 

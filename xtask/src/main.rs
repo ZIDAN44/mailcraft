@@ -18,7 +18,8 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
-  ci       fmt --check, sizes, clippy -D warnings, tests, layers, assets, fuzz, wasm (stops at the first failure)
+  ci       fmt --check, sizes, clippy -D warnings, tests, forks pinned alike, layers, assets, fuzz,
+           wasm (stops at the first failure)
   layers   enforce the crate layering (docs/architecture.md)
   assets   check that every asset file is attributed in ATTRIBUTION.md
   fuzz     check that every fuzz target has its seeds and dictionary (fuzz/README.md)
@@ -43,6 +44,10 @@ const LAYERS: &[(&str, u8)] = &[
     ("mailcraft-engine", 4),
     ("mailcraft-ui-egui", 6),
 ];
+
+/// Third-party crates built from a fork with fixes of ours, pinned by revision in
+/// `[patch.crates-io]`. Each fork's `PATCHES.md` lists its fixes, and its own tests prove them.
+const FORKED: &[&str] = &["outlook-pst"];
 
 /// Crates that never build for the web (sockets, threads, TLS).
 const NATIVE_ONLY: &[&str] = &["mailcraft-keys", "mailcraft-net"];
@@ -182,6 +187,31 @@ fn cmd_wasm() -> Result<(), String> {
     run(c, "cargo check --target wasm32-unknown-unknown (portable crates)")
 }
 
+/// Each forked crate is what both workspaces build, at the same revision: the main one and the
+/// fuzzing one (a fix missing from the fuzz build would leave the weekly run fuzzing the code it
+/// replaced).
+fn patched(root: &Path) -> Result<(), String> {
+    let read = |manifest: &str| std::fs::read_to_string(root.join(manifest)).map_err(|e| format!("{manifest}: {e}"));
+    let (main, fuzz) = (read("Cargo.toml")?, read("fuzz/Cargo.toml")?);
+    let wrong: Vec<String> = FORKED
+        .iter()
+        .filter_map(|name| match (pin(&main, name), pin(&fuzz, name)) {
+            (Some(a), Some(b)) if a == b => None,
+            (a, b) => Some(format!("{name}: {a:?} in Cargo.toml, {b:?} in fuzz/Cargo.toml")),
+        })
+        .collect();
+    if wrong.is_empty() { Ok(()) } else { Err(format!("forked crates not pinned alike in [patch.crates-io]:\n  {}", wrong.join("\n  "))) }
+}
+
+/// The fork and revision a manifest's `[patch.crates-io]` takes `name` from, as `<git>@<rev>`.
+fn pin(manifest: &str, name: &str) -> Option<String> {
+    // The section itself, at the start of a line (a comment may name it too).
+    let patch = manifest.split("\n[patch.crates-io]").nth(1).map(|p| p.split("\n[").next().unwrap_or(p))?;
+    let line = patch.lines().find(|l| l.trim_start().starts_with(&format!("{name} ")))?;
+    let field = |key: &str| line.split(&format!("{key} = \"")).nth(1).and_then(|v| v.split('"').next());
+    Some(format!("{}@{}", field("git")?, field("rev")?))
+}
+
 fn cmd_ci() -> Result<(), String> {
     let mut fmt = cargo();
     fmt.args(["fmt", "--all", "--", "--check"]);
@@ -193,6 +223,7 @@ fn cmd_ci() -> Result<(), String> {
     let mut test = cargo();
     test.args(["test", "--workspace"]);
     run(test, "cargo test")?;
+    patched(&root())?;
     cmd_layers()?;
     cmd_assets()?;
     fuzz::run(&root())?;
@@ -240,5 +271,16 @@ mod tests {
         assert_eq!(v.len(), 2, "{v:?}");
         assert!(v[0].contains("mailcraft-net"));
         assert!(v[1].contains("egui"));
+    }
+
+    #[test]
+    fn forked_crates_are_pinned_alike() {
+        let ok = "# [patch.crates-io] below\n[patch.crates-io]\negui = { git = \"x\" }\noutlook-pst = { git = \"https://f.git\", rev = \"1a\" }\n";
+        assert_eq!(pin(ok, "outlook-pst").as_deref(), Some("https://f.git@1a"));
+        assert_eq!(pin(&ok.replace("1a", "2b"), "outlook-pst").as_deref(), Some("https://f.git@2b"), "another revision");
+        assert_eq!(pin(&ok.replace(", rev = \"1a\"", ""), "outlook-pst"), None, "a branch's head isn't a pin");
+        let elsewhere = "[dependencies]\noutlook-pst = { git = \"https://f.git\", rev = \"1a\" }\n[patch.crates-io]\negui = \"1\"\n";
+        assert_eq!(pin(elsewhere, "outlook-pst"), None, "only [patch.crates-io] counts");
+        assert!(patched(&root()).is_ok(), "{:?}", patched(&root()));
     }
 }
