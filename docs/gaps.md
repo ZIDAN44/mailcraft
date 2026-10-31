@@ -1262,3 +1262,84 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   Tried against grommunio behind a 2 MB/s link: the text in 0.01 s, the rest 15 s later.
 
 ### v0.31 — Signatures for replies, several messages by keyboard, the message source, the sender check, shared categories, private events, invitations on the server, online meetings
+
+- **Several signatures (issue #11, again):** an account had one signature, put into new
+  messages, replies and forwards alike, and changing From while writing kept the first
+  account's. Signatures now have names ("Full", "Short"), as in Outlook's Signatures and
+  Stationery; each account picks one for new messages and one for replies and forwards, either
+  of them "(none)". The message's Signature menu lists them, ticks the one in the message and
+  swaps it. Changing From swaps an unchanged signature for the new account's (and takes it out
+  where that account has none); one the writer changed is left alone. The one signature an
+  account had becomes "Signature", for both. Found on the way: a reply to one of the user's own
+  messages with a picture signature took the quoted picture's Content-ID for its own, and moving
+  an account to Microsoft Graph kept only the plain text of its signature. Settings moved to
+  several signatures aren't read by v0.30, which then shows none.
+- **Several messages by keyboard (issue #26):** Shift with Up, Down, Home, End, Page Up and Page
+  Down selects from where the selection started, and going back selects less, as in Outlook;
+  Shift+click goes by the rows on screen (a pinned message's range was wrong). With several
+  selected the reading pane says how many, and the right-click menu acts on them all (it used
+  to open the one clicked and act on it alone). The list's keys no longer run in Calendar,
+  People and Notes, where End read a hidden message and Delete deleted one.
+- **View message source (issue #27):** View › Message source, More actions and the list's
+  right-click menu open the message as it came, headers and all (or the header only), in a
+  window of its own, selectable and copied whole; `mailcraft-cli source`. A message not
+  downloaded yet is fetched. Text in an 8-bit charset is read in it; control characters show
+  as their pictures and marks of text direction by name, so a subject can't reorder what's
+  around it; the first 2 MB is shown, the rest saved with Save as.
+- **Categories other programs share (issue #28):** a new category gets the keyword Thunderbird
+  gives a tag of the same name ("Rückfrage" → `r=c3=bcckfrage`, "To do" → `to=20do`); a
+  category's keyword can be set (`$label6`, as SOGo numbers its tags) and is checked as an IMAP
+  atom; categories made before keep theirs. Keywords other programs set show as categories
+  (system ones such as `$Forwarded`, `NonJunk` or `JunkRecorded` aside), and Categorize › All
+  categories… lists them with Add to the list. The list goes out and comes back as a file.
+  Searching the server for a category asked for its name, not its keyword; it asks for the
+  keyword now. A folder that can't keep keywords (PERMANENTFLAGS without `\*`, as a shared
+  folder the user may only read) refused them silently, Dovecot answering OK: MailCraft
+  refuses them itself and says so. Tried on Dovecot with a folder shared by ACL.
+- **The sender check (issue #29):** "Jane Director" <jane.director1984@gmail.com> passed: a real
+  address at a real mail service. The list now shows the address after the name of a sender the
+  user doesn't know (an option: always, strangers, never), and a name that matches a contact,
+  someone written to, a person from the directory or the user (case, accents, look-alike and
+  styled letters, digits for letters, titles and word order folded) from an address that isn't
+  theirs is warned of in the reading pane and marked in the list. Lists, single words and names
+  such as "IT Support" don't count. An External tag for senders outside the organisation's
+  domains is an option, off at first (outside a company nearly everything would carry it); a
+  mail service is never taken for the organisation.
+- **Invitations on the server (issue #30):** an invitation that came before the account's
+  calendars on its server were found (the check failing, a CalDAV address given by hand later)
+  went into the calendar on this computer and stayed there. It waits now, in the cache, until
+  they are, and goes there; after three minutes it goes here and moves once they're found.
+  Other events kept here are offered to move. Each account's default calendar can be set; else
+  its own calendar comes before calendars shared with it (SOGo's `personal` first). Found on the
+  way: a new account's first message in an empty Inbox wasn't taken for new, and two calendar
+  syncs back to back sent new events twice; a new event in the form went to the account's first
+  calendar, not its default; an answer sent the organizer the pieces of its alarm it had cut.
+- **Answered invitations out of the Inbox (issue #31):** File › Options › Mail › After answering
+  a meeting invitation: leave it, move it to Deleted Items (as Outlook does; the setting for a
+  new install) or to a folder. It applies to answers from the message and from the calendar,
+  takes the meeting's older invitations along (never a newer update not taken in yet), and
+  cancellations once applied; guests' answers optionally. Settings from before keep the mail
+  where it is. An invitation answered while it's read goes on to the next message, as after a
+  delete. A rule condition "is an invitation" isn't there: rules run on the header, before the
+  body that says so arrives.
+- **Private events and Show as (issue #32):** the event form has Private (a lock in the views),
+  Show time only and Show as (free, working elsewhere, tentative, busy, out of office), written
+  as CLASS, TRANSP and Outlook's X-MICROSOFT-CDO-BUSYSTATUS, EWS's Sensitivity and
+  LegacyFreeBusyStatus and Graph's sensitivity and showAs; one set elsewhere is never dropped
+  (Exchange's Personal included). An accepted invitation shows as busy, not tentative. An event
+  without a subject reads "Private appointment". Whether a server then hides it from a
+  colleague is the server's: SOGo wasn't there to try.
+- **Calendar search (issue #33):** in the Calendar the search box searches events across every
+  calendar shown, offline: subject, place, notes, organizer, guests and categories, with the
+  mail search's syntax (`location:`, `organizer:`, `attendee:`, `category:`, `is:private`,
+  `after:`, `before:`). The results list upcoming then past events (or one of them), a series
+  once at its next occurrence; a click goes to the day and opens it; a meeting is found by its
+  link too. `calendar.search` too.
+- **Online meetings (issue #25):** the user's own rooms (a BigBlueButton, Jitsi or OpenTalk room's
+  link, access code and dial-in lines) are kept in File › Options › Online meetings; Add online
+  meeting in the event form puts the link in the place, an RFC 7986 CONFERENCE line in the event
+  and a block in the notes, and Remove takes them out again; an option adds one to every meeting
+  with guests. Join meeting knows rooms by their shape, the rooms' servers and hosts the user
+  adds, and a received event's CONFERENCE. Sign-in to a room server and rooms made from MailCraft
+  wait for those servers' APIs (PILOS's is a draft, Greenlight has none); a Teams meeting through
+  Graph waits for a Microsoft 365 tenant to try it on.

@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 214 (`mailcraft-cli commands`) |
-| Tests | 717 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 855 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -206,6 +206,18 @@ local-first, media-aware v1); the fuller request is
    (Alt+0201 → É) type their characters on Windows. From issue #24: on an Exchange account a
    message with files shows its text at once, its files coming after.
 31. **v0.31 — Signatures for replies, several messages by keyboard, the message source, the sender check, shared categories, private events, invitations on the server, online meetings**
+   From issue #11 again: several signatures per account, one for new messages and one for
+   replies and forwards, picked from the message's Signature menu and following From. From
+   issue #26: Shift with the arrows, Home, End and the page keys selects a range of messages.
+   From issue #27: View message source. From issue #28: categories keep the keyword
+   Thunderbird gives a tag of the same name, the keyword can be set (`$label6` for SOGo), and
+   tags other programs set show. From issue #29: the sender's address in the list for
+   strangers, a warning when a known person's name comes from another address, an optional
+   External tag. From issue #30: invitations wait for the account's calendar on its server.
+   From issue #31: an answered invitation leaves the Inbox, as Outlook's option does. From
+   issue #32: Private, Show time only and Show as. From issue #33: search across every
+   calendar. From issue #25: online meetings from the user's own rooms (BigBlueButton,
+   Jitsi, OpenTalk…), CONFERENCE read and written, the hosts of Join meeting set by the user.
 32. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
@@ -558,3 +570,17 @@ local-first, media-aware v1); the fuller request is
   `mime::alt_code_char`), tried with real key presses; issue #24's text first
   (`mime::text_first`; EWS `ews/text_first.rs`, Graph `graph/text_first.rs`; the rest on the
   account's second connection), tried against grommunio behind a 2 MB/s link.
+- **2026-10-31** — **v0.31**, after `v0.30.0-test.28`: issue #11's named signatures
+  (`model/src/signature.rs`, `session/writing/signatures.rs`, `dialogs/signatures.rs`; the old
+  single signature moves into the list), issue #26's ranges (`session/opening/selecting.rs`, an
+  anchor and a focus), issue #27's source (`session/opening/source.rs`, `app/source.rs`, the
+  CLI's `source`), issue #28's keywords (`model/src/organize/keywords.rs`, PERMANENTFLAGS read
+  at SELECT), issue #29's sender check (`model/src/lookalike/people.rs` and `external.rs`,
+  `session/opening/senders.rs`), issues #30 and #31 (`session/invite/arrival.rs`,
+  `session/invite/tidy.rs`, `session/pim/local.rs`), issues #32 and #33
+  (`model/src/ical/showing.rs` and `find.rs`, `session/pim/find.rs`) and issue #25
+  (`model/src/ical/meeting.rs`, `cmd/meetings.rs`, `dialogs/pim_dialogs/online_meeting.rs`).
+  Built in seven worktrees, each reviewed by another agent that tried to break it, then
+  reviewed together (mail, calendar, the app's look). Tried with
+  Dovecot (an ACL-shared folder), GreenMail, Radicale, Stalwart (JMAP and CalDAV), a proxy
+  holding the calendar server back, and the fake Exchange servers.
