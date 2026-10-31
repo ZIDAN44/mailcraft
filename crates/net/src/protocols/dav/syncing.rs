@@ -99,21 +99,41 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         let events: Vec<CalEvent> = parts.iter().map(|e| e.event.clone()).collect();
         let data = ical::write(&events, None, now);
         let etag = (!master.href.is_empty()).then_some(master.etag.as_str());
-        let stored = match dav.store(&url, "text/calendar; charset=utf-8", &data, etag) {
-            // A new one the calendar has already: SOGo put the meeting there itself when it was
-            // organised (its users' invitations), before the invitation's mail was taken in
-            // here. Stored over the server's copy, so there's one, unless that one is newer.
-            Ok(Err(Refused::UidTaken)) if master.href.is_empty() => match the_servers(dav, calendar, uid, local) {
-                Ok(Some((href, _, sequence))) if sequence > master.event.sequence => {
-                    out.refused.push(uid.to_string());
-                    refetch.push(href);
-                    continue;
-                }
-                Ok(Some((href, tag, _))) => dav.store(&href, "text/calendar; charset=utf-8", &data, Some(&tag)).map(|r| r.map(|t| (href, t))),
-                Ok(None) => Ok(Err(Refused::UidTaken)),
-                Err(e) => Err(e),
+        // A new meeting the calendar may have already: SOGo puts a meeting in the calendar of
+        // each of its users invited itself, under the organizer's item name (MailCraft's names
+        // it by its uid too), before the invitation's mail is taken in here; and it stores a new
+        // item over one of the same name, though asked not to (If-None-Match). Looked for first.
+        let found = match master.href.is_empty() && master.event.organizer.is_some() {
+            true => match the_servers(dav, calendar, uid, local) {
+                Err(e @ NetError::Auth(_)) => return Err(e),
+                found => found.ok().flatten(),
             },
-            r => r.map(|r| r.map(|t| (url.clone(), t))),
+            false => None,
+        };
+        let stored = match found.map(|f| over_theirs(f, &parts, master.event.sequence)) {
+            Some(Err(href)) => {
+                out.refused.push(uid.to_string());
+                refetch.push(href);
+                continue;
+            }
+            Some(Ok((href, tag))) => dav.store(&href, "text/calendar; charset=utf-8", &data, Some(&tag)).map(|r| r.map(|t| (href, t))),
+            None => match dav.store(&url, "text/calendar; charset=utf-8", &data, etag) {
+                // A new one the calendar has already, under another name (409, "Event UID
+                // already in use"): the same.
+                Ok(Err(Refused::UidTaken)) if master.href.is_empty() => match the_servers(dav, calendar, uid, local) {
+                    Ok(Some(f)) => match over_theirs(f, &parts, master.event.sequence) {
+                        Err(href) => {
+                            out.refused.push(uid.to_string());
+                            refetch.push(href);
+                            continue;
+                        }
+                        Ok((href, tag)) => dav.store(&href, "text/calendar; charset=utf-8", &data, Some(&tag)).map(|r| r.map(|t| (href, t))),
+                    },
+                    Ok(None) => Ok(Err(Refused::UidTaken)),
+                    Err(e) => Err(e),
+                },
+                r => r.map(|r| r.map(|t| (url.clone(), t))),
+            },
         };
         match stored {
             Ok(Ok((href, new))) => {
@@ -227,22 +247,47 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     Ok(out)
 }
 
-/// The calendar's own item with this uid: its address, etag and newest `SEQUENCE`.
-fn the_servers(dav: &Dav, calendar: &str, uid: &str, local: mailcraft_model::zone::Zone) -> Result<Option<(String, String, u32)>> {
+/// The calendar's own item with this uid: its address, etag, newest `SEQUENCE` and events.
+fn the_servers(dav: &Dav, calendar: &str, uid: &str, local: mailcraft_model::zone::Zone) -> Result<Option<(String, String, u32, Vec<CalEvent>)>> {
     let found = dav.find_uid(calendar, uid)?;
     for (href, etag, data) in dav.multiget(Kind::Calendars, calendar, &found)? {
-        let events = ical::parse_in(&data, local).events;
-        if let Some(sequence) = events.iter().filter(|e| e.uid == uid).map(|e| e.sequence).max() {
-            return Ok(Some((href, etag, sequence)));
+        let events: Vec<CalEvent> = ical::parse_in(&data, local).events.into_iter().filter(|e| e.uid == uid).collect();
+        if let Some(sequence) = events.iter().map(|e| e.sequence).max() {
+            return Ok(Some((href, etag, sequence, events)));
         }
     }
     Ok(None)
 }
 
+/// A new item the calendar holds already (`found`: [`the_servers`]): stored over it (its
+/// address and etag) when it has an answer given here that the server's lacks; otherwise, as
+/// when the server's is a newer version, the server's comes in its place (its address in `Err`).
+/// Stored over, an answer given since on another device was undone.
+fn over_theirs(found: (String, String, u32, Vec<CalEvent>), parts: &[&StoredEvent], sequence: u32) -> std::result::Result<(String, String), String> {
+    let (href, tag, theirs_sequence, theirs) = found;
+    if theirs_sequence > sequence || !parts.iter().any(|p| answers_more(&p.event, &theirs)) { Err(href) } else { Ok((href, tag)) }
+}
+
+/// A guest's answer in an event (upper case), if they're in it.
+fn answer(e: &CalEvent, who: &str) -> Option<String> {
+    e.attendees.iter().find(|a| a.email.eq_ignore_ascii_case(who)).map(|a| a.partstat.to_ascii_uppercase())
+}
+
+/// An answer still to come.
+fn unanswered(partstat: &str) -> bool {
+    partstat.is_empty() || partstat.eq_ignore_ascii_case("NEEDS-ACTION")
+}
+
+/// Whether the user's copy of an event (or one of its occurrences) has an answer the server's
+/// copy lacks: one given here. One the server doesn't have at all counts.
+fn answers_more(mine: &CalEvent, server: &[CalEvent]) -> bool {
+    let Some(s) = server.iter().find(|s| s.recurrence_id == mine.recurrence_id) else { return true };
+    mine.attendees.iter().any(|a| !unanswered(&a.partstat) && answer(s, &a.email) != Some(a.partstat.to_ascii_uppercase()))
+}
+
 /// Whether the server's copy of an event has what the user's copy says: its title, place and
 /// times, and each guest's answer.
 fn has_all_of(server: &CalEvent, mine: &CalEvent) -> bool {
-    let answer = |e: &CalEvent, who: &str| e.attendees.iter().find(|a| a.email.eq_ignore_ascii_case(who)).map(|a| a.partstat.to_ascii_uppercase());
     server.uid == mine.uid
         && (server.summary.as_str(), server.location.as_str(), server.start, server.end)
             == (mine.summary.as_str(), mine.location.as_str(), mine.start, mine.end)

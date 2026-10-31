@@ -1,7 +1,8 @@
 //! An in-memory CalDAV / CardDAV server for tests: the well-known redirect, a principal with
 //! its homes, one calendar and one address book, PROPFIND, multiget REPORTs, conditional PUT
 //! and DELETE, Basic authentication. As SOGo: one uid per collection (a second is refused,
-//! 409), items the user may not change (403), and a calendar-query by uid.
+//! 409), items the user may not change (403), and a calendar-query by uid; and, when asked, a new
+//! item stored over one of the same name (SOGo doesn't heed `If-None-Match`).
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -21,6 +22,9 @@ pub struct Data {
     pub log: Vec<String>,
     /// Items the user may read and not change or delete (SOGo's roles per classification).
     pub forbidden: Vec<String>,
+    /// Store a new item over one of the same name, though asked not to (`If-None-Match: *`),
+    /// as SOGo does.
+    pub overwrites: bool,
 }
 
 /// The uid an item's data names (its lines unfolded).
@@ -192,7 +196,7 @@ pub fn serve() -> Server {
                 ("PUT", p) => {
                     let current = d.items.get(p).map(|(e, _)| e.clone());
                     let ok = match (&current, &if_match, if_none) {
-                        (Some(_), _, true) => false,
+                        (Some(_), _, true) => d.overwrites,
                         (Some(c), Some(m), _) => c == m,
                         (None, Some(_), _) => false,
                         _ => true,
@@ -493,37 +497,86 @@ mod tests {
     /// SOGo puts a meeting in the calendar of each of its users invited, under the organizer's
     /// item name, before the invitation's mail comes. The invitation taken in here (a new item,
     /// named by its uid) was refused (409, "Event UID already in use") at every sync, and stayed
-    /// apart from the server's copy. It goes over the server's copy now, so there's one; unless
-    /// the server's is a newer version, which then comes in its place.
+    /// apart from the server's copy. It goes over the server's copy now, so there's one, when it
+    /// has the user's answer; otherwise (and when the server's is a newer version) the server's
+    /// comes in its place. Stored over, an answer given on another device was undone (a real
+    /// Mailcow: accepted on the phone, back to "needs action" when the laptop woke up).
     #[test]
     fn a_meeting_the_server_put_in_the_calendar_already_is_stored_over() {
         let server = serve();
         let dav = Dav::new(USER, PASSWORD);
-        let meeting = |uid: &str, sequence: u32, summary: &str| CalEvent { sequence, ..event(uid, summary, 1_800_000_000) };
+        let meeting = |uid: &str, sequence: u32, summary: &str, answer: &str| CalEvent {
+            sequence,
+            attendees: vec![ical::Attendee { email: USER.into(), partstat: answer.into(), ..Default::default() }],
+            ..event(uid, summary, 1_800_000_000)
+        };
         {
             let mut d = server.data.lock().unwrap();
-            d.put(&format!("{CAL}organizers-name.ics"), &ical::write(&[meeting("m1", 0, "Planning")], None, 0));
-            d.put(&format!("{CAL}updated.ics"), &ical::write(&[meeting("m2", 2, "Review (moved)")], None, 0));
+            d.put(&format!("{CAL}organizers-name.ics"), &ical::write(&[meeting("m1", 0, "Planning", "NEEDS-ACTION")], None, 0));
+            d.put(&format!("{CAL}updated.ics"), &ical::write(&[meeting("m2", 2, "Review (moved)", "NEEDS-ACTION")], None, 0));
+            d.put(&format!("{CAL}phone.ics"), &ical::write(&[meeting("m3", 0, "Standup", "ACCEPTED")], None, 0));
             // Another whose uid holds this one's: not taken for it.
-            d.put(&format!("{CAL}longer.ics"), &ical::write(&[meeting("m1-and-more", 0, "Other")], None, 0));
+            d.put(&format!("{CAL}longer.ics"), &ical::write(&[meeting("m1-and-more", 0, "Other", "NEEDS-ACTION")], None, 0));
         }
         let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
         pim.ensure_defaults();
         let cal = format!("{}{CAL}", server.base);
-        let mut answered = meeting("m1", 0, "Planning");
-        answered.description = "accepted here".into();
-        pim.events.push(StoredEvent { calendar: cal.clone(), event: answered, dirty: true, ..Default::default() });
-        pim.events.push(StoredEvent { calendar: cal.clone(), event: meeting("m2", 1, "Review"), dirty: true, ..Default::default() });
+        // Answered here: m1. Taken in from the mail only: m2 (older) and m3 (answered elsewhere).
+        let new = |e: CalEvent| StoredEvent { calendar: cal.clone(), event: e, dirty: true, ..Default::default() };
+        pim.events.push(new(meeting("m1", 0, "Planning", "TENTATIVE")));
+        pim.events.push(new(meeting("m2", 1, "Review", "NEEDS-ACTION")));
+        pim.events.push(new(meeting("m3", 0, "Standup", "NEEDS-ACTION")));
         let out = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
         assert!(out.errors.is_empty(), "{:?}", out.errors);
         let m1 = out.pushed_events.iter().find(|e| e.event.uid == "m1").expect("stored");
         assert_eq!(m1.href, format!("{cal}organizers-name.ics"), "over the server's copy");
-        assert_eq!(out.refused, ["m2"], "the server's is newer");
+        assert_eq!(out.refused, ["m2", "m3"], "the server's is newer, or has all this one has");
         assert!(out.events.iter().any(|e| e.event.uid == "m2" && e.event.summary == "Review (moved)"), "read in its place");
+        assert!(out.events.iter().any(|e| e.event.uid == "m3" && e.event.attendees[0].partstat == "ACCEPTED"), "read in its place");
         let d = server.data.lock().unwrap();
         let with = |uid: &str| d.items.values().filter(|(_, v)| uid_of(v).as_deref() == Some(uid)).count();
-        assert_eq!((with("m1"), with("m2"), with("m1-and-more")), (1, 1, 1));
-        assert!(d.items[&format!("{CAL}organizers-name.ics")].1.contains("accepted here"));
+        assert_eq!((with("m1"), with("m2"), with("m3"), with("m1-and-more")), (1, 1, 1, 1));
+        assert!(d.items[&format!("{CAL}organizers-name.ics")].1.contains("PARTSTAT=TENTATIVE"));
         assert!(d.items[&format!("{CAL}updated.ics")].1.contains("Review (moved)"));
+        assert!(d.items[&format!("{CAL}phone.ics")].1.contains("PARTSTAT=ACCEPTED"), "the answer given elsewhere stays");
+    }
+
+    /// SOGo stores a new item over one of the same name, though asked not to (If-None-Match),
+    /// and puts a meeting in each invited user's calendar under the organizer's item name, which
+    /// MailCraft's (and so the invitation taken in here) names by its uid. On a real Mailcow, bob
+    /// accepted on his phone, his laptop woke up, took the invitation in from the mail and stored
+    /// it over the calendar's copy: back to "needs action". The calendar is asked for the meeting
+    /// first now; its copy comes in, unless this one has an answer the server's lacks.
+    #[test]
+    fn a_meeting_stored_under_its_own_name_already_isnt_written_over() {
+        let server = serve();
+        let dav = Dav::new(USER, PASSWORD);
+        let ann = Some(ical::Attendee { email: "ann@x".into(), ..Default::default() });
+        let meeting = |uid: &str, answer: &str| CalEvent {
+            organizer: ann.clone(),
+            attendees: vec![ical::Attendee { email: USER.into(), partstat: answer.into(), ..Default::default() }],
+            ..event(uid, "Planning", 1_800_000_000)
+        };
+        {
+            let mut d = server.data.lock().unwrap();
+            d.overwrites = true;
+            d.put(&format!("{CAL}p1.ics"), &ical::write(&[meeting("p1", "ACCEPTED")], None, 0));
+            d.put(&format!("{CAL}p2.ics"), &ical::write(&[meeting("p2", "NEEDS-ACTION")], None, 0));
+        }
+        let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
+        pim.ensure_defaults();
+        let cal = format!("{}{CAL}", server.base);
+        let new = |e: CalEvent| StoredEvent { calendar: cal.clone(), event: e, dirty: true, ..Default::default() };
+        // p1: taken in from the mail, answered elsewhere since. p2: answered here.
+        pim.events.push(new(meeting("p1", "NEEDS-ACTION")));
+        pim.events.push(new(meeting("p2", "DECLINED")));
+        let out = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        assert_eq!(out.refused, ["p1"]);
+        assert!(out.events.iter().any(|e| e.event.uid == "p1" && e.event.attendees[0].partstat == "ACCEPTED"), "the server's copy read");
+        assert_eq!(out.pushed_events.iter().map(|e| e.event.uid.as_str()).collect::<Vec<_>>(), ["p2"]);
+        let d = server.data.lock().unwrap();
+        assert!(d.items[&format!("{CAL}p1.ics")].1.contains("PARTSTAT=ACCEPTED"), "the answer given elsewhere stays");
+        assert!(d.items[&format!("{CAL}p2.ics")].1.contains("PARTSTAT=DECLINED"));
     }
 }
