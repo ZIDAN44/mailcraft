@@ -279,5 +279,18 @@ fn graph_sends_the_users_meeting_itself() {
     s.run("event.delete", &json!({"uid": uid})).unwrap();
     assert!(sent(&mut s).is_empty());
     assert!(s.pim[&id].notices.is_empty());
+    // One occurrence of a series off: Graph's copy keeps it (it's stored without exceptions), so
+    // Graph cancels nothing, and MailCraft mails that occurrence's cancellation as it did.
+    let uid = s
+        .run("event.create", &json!({"account": id, "summary": "Weekly", "start": "2026-11-10T10:00", "repeat": "weekly", "attendees": ANN}))
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(sent(&mut s).is_empty());
+    let week = parts(&s, &id, &uid)[0].event.start + 7 * 86_400;
+    s.run("event.delete", &json!({"uid": uid, "occurrence": week})).unwrap();
+    let mail = sent(&mut s);
+    assert!(mail.len() == 1 && mail[0].0 == "CANCEL" && mail[0].1.contains("RECURRENCE-ID"), "{mail:?}");
     done(s);
 }

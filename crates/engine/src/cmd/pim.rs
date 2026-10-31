@@ -180,6 +180,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 // The whole meeting waits for its item to be deleted; one occurrence, for the
                 // series to be stored without it.
                 let href = if e.recurrence_id.is_some() { String::new() } else { href };
+                // Graph's copy can't leave one occurrence out (the series is stored without
+                // exceptions), so Graph tells nobody of it: MailCraft does.
+                let route = if route == crate::Route::Server && e.recurrence_id.is_some() { crate::Route::Now } else { route };
                 s.tell_guests(&account, &e, "CANCEL", route, &href)?;
             }
             Ok(r)
