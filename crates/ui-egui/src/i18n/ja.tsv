@@ -1275,4 +1275,16 @@ month	May	5月
 	Copy all	すべてコピー
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	{size} のうち最初の {shown} だけを表示しています。メール (.eml) として保存すると全体が残ります。
 	The source couldn't be downloaded: {error}	ソースをダウンロードできませんでした: {error}
+	Always	常に
+	External	外部
+	Check who sent it	差出人を確認してください
 	Careful: you know {name} as {known}, but this comes from {real}.	注意: {name} は {known} として知られていますが、実際は {real} から届いています。
+	This sender is outside your organisation.	この差出人は組織の外部です。
+	Sender addresses in the message list	メッセージ一覧の差出人アドレス
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	差出人の名前の後に、メッセージの送信元アドレスを表示します。見慣れた名前は誰のアドレスからでも送れます
+	People you don't know	知らない人のみ
+	Tag mail from outside your organisation	組織外からのメールにタグを付ける
+	Messages from other domains are tagged External, in the list and above the message	他のドメインからのメッセージに、一覧とメッセージの上で「外部」のタグを付けます
+	Your organisation's domains	組織のドメイン
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	コンマ区切り。空の場合は、アカウントのドメイン (Gmail などのメールサービスを除く)
+	None: nothing is tagged	なし: タグは付きません

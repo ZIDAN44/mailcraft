@@ -288,6 +288,7 @@ impl Session {
                 }
             }
             self.contacts = Some(book);
+            self.contacts_built = self.contacts_built.wrapping_add(1);
         }
     }
 
@@ -302,6 +303,8 @@ impl Session {
 
     /// Rebuild the list from the view, search and filter, keeping the selection where possible.
     pub fn refresh_list(&mut self) {
+        // What the list shows about senders (issue #29) is ready as it's drawn.
+        self.keep_senders();
         let mut list: Vec<Summary> = if let Some((q, scope)) = self.search.clone() {
             let mut found = self.search_results(&q, scope);
             // What the servers found: its words may be in mail not downloaded here.

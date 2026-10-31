@@ -130,6 +130,45 @@ pub struct Prefs {
     /// signed mail is shown. Off at first: the authority learns whose mail is being read.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub check_revocation: bool,
+    /// When the message list shows a sender's address after their name (issue #29): Outlook
+    /// shows names only, which lets anyone pass for anyone.
+    pub sender_addresses: SenderAddresses,
+    /// Tag mail from outside the organisation "External" (issue #29). Off at first: outside a
+    /// company nearly every message is, and a tag on everything is a tag nobody reads.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub external_tag: bool,
+    /// The organisation's domains, for the External tag (empty: those of the user's accounts,
+    /// mail services left out).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub org_domains: Vec<String>,
+}
+
+/// When the message list shows a sender's address after their name (issue #29).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SenderAddresses {
+    Always,
+    /// For senders the user doesn't know (not a contact, never written to, not in the
+    /// directory): where an unknown address hides behind a familiar name.
+    #[default]
+    Strangers,
+    Never,
+}
+
+impl SenderAddresses {
+    pub fn code(self) -> &'static str {
+        match self {
+            SenderAddresses::Always => "always",
+            SenderAddresses::Strangers => "strangers",
+            SenderAddresses::Never => "never",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<SenderAddresses> {
+        [SenderAddresses::Always, SenderAddresses::Strangers, SenderAddresses::Never]
+            .into_iter()
+            .find(|a| a.code() == code.trim().to_ascii_lowercase())
+    }
 }
 
 impl Default for Prefs {
@@ -179,6 +218,9 @@ impl Default for Prefs {
             keep_photo_location: false,
             clean_links: true,
             check_revocation: false,
+            sender_addresses: SenderAddresses::Strangers,
+            external_tag: false,
+            org_domains: Vec::new(),
             quick_steps: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),

@@ -1279,4 +1279,16 @@ month	May	mai
 	Copy all	Tout copier
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Seuls les premiers {shown} sur {size} sont affichés. L’enregistrement en e-mail (.eml) garde tout.
 	The source couldn't be downloaded: {error}	Impossible de télécharger la source : {error}
+	Always	Toujours
+	External	Externe
+	Check who sent it	Vérifiez qui l'a envoyé
 	Careful: you know {name} as {known}, but this comes from {real}.	Attention : vous connaissez {name} à l'adresse {known}, mais ceci vient de l'adresse {real}.
+	This sender is outside your organisation.	Cet expéditeur est extérieur à votre organisation.
+	Sender addresses in the message list	Adresses des expéditeurs dans la liste des messages
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	L'adresse d'où vient un message, après le nom de l'expéditeur : un nom familier peut venir de l'adresse de n'importe qui
+	People you don't know	Personnes que vous ne connaissez pas
+	Tag mail from outside your organisation	Signaler le courrier venant de l'extérieur de votre organisation
+	Messages from other domains are tagged External, in the list and above the message	Les messages d'autres domaines sont signalés Externe, dans la liste et au-dessus du message
+	Your organisation's domains	Domaines de votre organisation
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Séparés par des virgules. Vide : les domaines de vos comptes, hors services de messagerie comme Gmail
+	None: nothing is tagged	Aucun : rien n'est signalé

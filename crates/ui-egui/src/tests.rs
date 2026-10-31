@@ -175,6 +175,16 @@ line two"
                     like: "printshop.example".into(),
                 }),
             },
+            Dialog::Preview {
+                title: "favour.eml".into(),
+                header: vec![("From".into(), "Zoe Park".into())],
+                text: "Are you at your desk?".into(),
+                warning: Some(mailcraft_engine::model::lookalike::SenderWarning::NameOfKnownPerson {
+                    name: "Zoe Park".into(),
+                    known: "zoe@studio.example".into(),
+                    real: "zoe.park.director@gmail.com".into(),
+                }),
+            },
         ] {
             a.ui.dialog = Some(d);
             frame(&ctx, &mut a, vec![]);

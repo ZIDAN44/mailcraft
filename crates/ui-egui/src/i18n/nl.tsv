@@ -1274,4 +1274,16 @@ month	May	mei
 	Copy all	Alles kopiëren
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Alleen de eerste {shown} van {size} worden getoond. Opslaan als e-mail (.eml) bewaart alles.
 	The source couldn't be downloaded: {error}	De bron kon niet worden gedownload: {error}
+	Always	Altijd
+	External	Extern
+	Check who sent it	Controleer wie het stuurde
 	Careful: you know {name} as {known}, but this comes from {real}.	Let op: u kent {name} als {known}, maar dit komt van {real}.
+	This sender is outside your organisation.	Deze afzender hoort niet bij uw organisatie.
+	Sender addresses in the message list	Adressen van afzenders in de berichtenlijst
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	Het adres waar een bericht vandaan komt, na de naam van de afzender: een bekende naam kan van ieders adres komen
+	People you don't know	Mensen die u niet kent
+	Tag mail from outside your organisation	Mail van buiten uw organisatie markeren
+	Messages from other domains are tagged External, in the list and above the message	Berichten van andere domeinen worden gemarkeerd als Extern, in de lijst en boven het bericht
+	Your organisation's domains	Domeinen van uw organisatie
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Gescheiden door komma's. Leeg: de domeinen van uw accounts, zonder maildiensten zoals Gmail
+	None: nothing is tagged	Geen: niets wordt gemarkeerd

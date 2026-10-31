@@ -1275,4 +1275,16 @@ month	May	5月
 	Copy all	全部复制
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	只显示了 {size} 中的前 {shown}。另存为电子邮件 (.eml) 可保留全部内容。
 	The source couldn't be downloaded: {error}	无法下载源文件：{error}
+	Always	始终
+	External	外部
+	Check who sent it	请核实发件人
 	Careful: you know {name} as {known}, but this comes from {real}.	当心：你认识的 {name} 地址是 {known}，但这封邮件来自 {real}。
+	This sender is outside your organisation.	此发件人不在你的组织内。
+	Sender addresses in the message list	邮件列表中的发件人地址
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	在发件人姓名后显示邮件的来源地址：熟悉的名字可能来自任何人的地址
+	People you don't know	不认识的人
+	Tag mail from outside your organisation	标记来自组织外部的邮件
+	Messages from other domains are tagged External, in the list and above the message	来自其他域的邮件会在列表中和邮件上方标记为“外部”
+	Your organisation's domains	你组织的域
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	用逗号分隔。留空：你的帐户所在的域，不含 Gmail 等邮件服务
+	None: nothing is tagged	无：不标记任何邮件

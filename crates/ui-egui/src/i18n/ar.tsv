@@ -1274,4 +1274,16 @@ month	May	مايو
 	Copy all	نسخ الكل
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	يُعرض أول {shown} فقط من {size}. الحفظ كبريد إلكتروني (.eml) يحتفظ بها كاملة.
 	The source couldn't be downloaded: {error}	تعذّر تنزيل المصدر: {error}
+	Always	دائمًا
+	External	خارجي
+	Check who sent it	تحقّق ممن أرسلها
 	Careful: you know {name} as {known}, but this comes from {real}.	انتبه: تعرف {name} بالعنوان {known}، لكن هذه الرسالة من {real}.
+	This sender is outside your organisation.	هذا المرسل من خارج مؤسستك.
+	Sender addresses in the message list	عناوين المرسلين في قائمة الرسائل
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	العنوان الذي تأتي منه الرسالة، بعد اسم المرسل: قد يأتي اسم مألوف من عنوان أي شخص
+	People you don't know	الأشخاص الذين لا تعرفهم
+	Tag mail from outside your organisation	وسم البريد الوارد من خارج مؤسستك
+	Messages from other domains are tagged External, in the list and above the message	تُوسم الرسائل الواردة من نطاقات أخرى بأنها خارجية، في القائمة وفوق الرسالة
+	Your organisation's domains	نطاقات مؤسستك
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	مفصولة بفواصل. إن تُركت فارغة: نطاقات حساباتك، باستثناء خدمات البريد مثل Gmail
+	None: nothing is tagged	لا شيء: لا يُوسم شيء

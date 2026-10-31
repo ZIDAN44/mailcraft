@@ -326,6 +326,58 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 switch(ui, s.prefs.check_revocation, tl!("Check whether certificates were withdrawn"), "view.checkRevocation", acts);
             },
         );
+        // Issue #29: who mail is really from.
+        setting(
+            ui,
+            false,
+            tl!("Sender addresses in the message list"),
+            Some(tl!("The address a message comes from, after the sender's name: a familiar name can come from anyone's address")),
+            &mut |ui| {
+                let options = [tl!("Always"), tl!("People you don't know"), tl!("Never")];
+                let values = {
+                    use mailcraft_engine::SenderAddresses as A;
+                    [A::Always, A::Strangers, A::Never]
+                };
+                let now = values.iter().position(|v| *v == s.prefs.sender_addresses).unwrap_or(1);
+                if let Some(i) = widgets::segmented(ui, &t, "sender-addresses", &options, now)
+                    && let Some(v) = values.get(i)
+                {
+                    acts.push(Action::Run("view.senderAddresses", json!({"show": v.code()})));
+                }
+            },
+        );
+        setting(
+            ui,
+            false,
+            tl!("Tag mail from outside your organisation"),
+            Some(tl!("Messages from other domains are tagged External, in the list and above the message")),
+            &mut |ui| {
+                switch(ui, s.prefs.external_tag, tl!("Tag mail from outside your organisation"), "view.externalTag", acts);
+            },
+        );
+        setting(
+            ui,
+            false,
+            tl!("Your organisation's domains"),
+            Some(tl!("Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out")),
+            &mut |ui| {
+                let id = egui::Id::unique("org-domains");
+                let saved = s.prefs.org_domains.join(", ");
+                let mut text: String = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| saved.clone());
+                let own: Vec<&str> = s.organisation().into_iter().flatten().map(String::as_str).collect();
+                let hint = if own.is_empty() { tl!("None: nothing is tagged").to_string() } else { own.join(", ") };
+                let r = ui.add_enabled(s.prefs.external_tag, egui::TextEdit::singleline(&mut text).hint_text(hint).desired_width(260.0));
+                if r.lost_focus() && text.trim() != saved {
+                    acts.push(Action::Run("view.externalTag", json!({"domains": text.trim()})));
+                }
+                // Kept while it's typed in; the saved list shows again after.
+                if r.has_focus() {
+                    ui.data_mut(|d| d.insert_temp(id, text));
+                } else {
+                    ui.data_mut(|d| d.remove::<String>(id));
+                }
+            },
+        );
     });
 
     group(ui, tl!("Privacy"), Some(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")), &mut |ui| {

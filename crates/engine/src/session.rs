@@ -40,8 +40,9 @@ pub use opening::{SOURCE_SHOWN, SourceView, Toward};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::{SendCheck, signature_block, style_signature};
 // Organizing mail's own parts, named here as before.
+pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders};
-pub use prefs::{ACCENTS, Prefs, accent_code, accent_rgb};
+pub use prefs::{ACCENTS, Prefs, SenderAddresses, accent_code, accent_rgb};
 pub mod pim;
 
 /// One account and what the session knows about it.
@@ -643,9 +644,11 @@ pub struct Session {
     contacts: Option<ContactBook>,
     /// The organisation directory's answers (issue #9).
     pub directory: pim::Directory,
-    /// The domains the user deals with ([`Session::known_domains`]) and when they were counted:
-    /// kept a while, since the address book is counted again after every sync.
-    known_domains: Option<(i64, BTreeSet<String>)>,
+    /// Address books counted so far (each count starts the sender check again).
+    contacts_built: u64,
+    /// The sender check ([`Session::keep_senders`]): kept a while, since the address book is
+    /// counted again after every sync.
+    senders: Option<opening::Senders>,
     /// S/MIME: each account's settings, the roots trusted for email, decrypted messages (in
     /// memory only: the MIME entity inside, and whether it was authenticated), the ones being
     /// decrypted and why others couldn't be, and messages waiting to be signed or encrypted.
@@ -759,7 +762,8 @@ impl Session {
             cache_limit: CACHE_MESSAGES,
             contacts: None,
             directory: pim::Directory::default(),
-            known_domains: None,
+            contacts_built: 0,
+            senders: None,
             smime: HashMap::new(),
             trust_roots: Vec::new(),
             opened: HashMap::new(),

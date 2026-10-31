@@ -325,13 +325,24 @@ fn message_row(
     let hovered = ui.rect_contains_pointer(r) && !ui.ctx().is_being_dragged(id) || resp.hovered();
     let selected = s.selection.contains(&m.key);
     let unread = if count > 1 { unread_in_thread > 0 } else { !m.flags.seen };
+    // Who the sender is (issue #29): their address beside their name, a warning, External.
+    let marks = if sent_view { mailcraft_engine::SenderMarks::default() } else { s.sender_marks(m) };
     // To a screen reader a row is one item of the list: who, the subject, when, and what its
     // markers show (unread, flagged, attachments).
     resp.widget_info(|| {
-        let who = if sent_view { m.to.first().map(|a| a.display().to_string()).unwrap_or_default() } else { m.from.display().to_string() };
+        let mut who = if sent_view { m.to.first().map(|a| a.display().to_string()).unwrap_or_default() } else { m.from.display().to_string() };
+        if marks.address {
+            who = format!("{who} <{}>", m.from.email.trim());
+        }
         let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
         let mut spoken = vec![who, subject.to_string(), crate::i18n::date(&dates::list_time(m.date, &s.clock))];
-        for (on, word) in [(unread, "Unread"), (m.flags.flagged, "Flagged"), (m.has_attachments, "Has attachments")] {
+        for (on, word) in [
+            (marks.warning, "Check who sent it"),
+            (marks.external, "External"),
+            (unread, "Unread"),
+            (m.flags.flagged, "Flagged"),
+            (m.has_attachments, "Has attachments"),
+        ] {
             if on {
                 spoken.push(tl!(word).to_string());
             }
@@ -377,15 +388,55 @@ fn message_row(
         p.galley(egui::pos2(mr.start(right - tw - 10.0 - fw, fw), line1 + 2.0), fg, t.faint);
         tw += fw + 10.0;
     }
+    // From outside the organisation: a small tag before the time.
+    if marks.external {
+        let eg = p.layout_no_wrap(tl!("External").to_string(), theme::regular(11.0), t.dim);
+        let ew = eg.size().x + 10.0;
+        let er = mr.rect(Rect::from_min_size(egui::pos2(right - tw - 10.0 - ew, line1), vec2(ew, 17.0)));
+        p.rect_stroke(er, 4.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+        p.galley(er.center() - eg.size() / 2.0, eg, t.dim);
+        tw += ew + 10.0;
+    }
+    let mut who_x = x;
+    // Something about the sender doesn't add up: a warning sign before the name (the reading
+    // pane says what).
+    if marks.warning {
+        let ir = mr.rect(Rect::from_min_size(egui::pos2(who_x, line1 + 1.0), vec2(15.0, 15.0)));
+        icons::paint(&p, ir, Icon::Warning, t.danger);
+        who_x += 19.0;
+    }
     let who = if sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
-    let who = if count > 1 { format!("{who}  ({count})") } else { who };
+    let who = if count > 1 && !marks.address { format!("{who}  ({count})") } else { who };
     let (who, who_rtl) = crate::bidi::shown(&who);
     let who_right = right - tw - 10.0;
-    let who_g = widgets::one_line(ui, &who, if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.text, who_right - x);
+    let who_font = if unread { theme::bold(14.0) } else { theme::regular(14.0) };
     // A line between `from` and `to`, at its start: right-to-left text starts at the right, as
     // everything does in a right-to-left interface. What doesn't fit is cut from its end.
     let place = |rtl: bool, from: f32, to: f32, w: f32| mr.start(if rtl && !mr.on() { to - w } else { from }, w);
-    p.galley(egui::pos2(place(who_rtl, x, who_right, who_g.size().x), line1), who_g, t.text);
+    if marks.address {
+        // The name, then the address it really came from, dimmer. The address is what tells, so
+        // it's laid out first (up to seven tenths of the room, cut to its domain if it must be:
+        // `<…@example.com>`), and the name has what's left.
+        let room = (who_right - who_x).max(1.0);
+        let email = m.from.email.trim();
+        let more = if count > 1 { format!("  ({count})") } else { String::new() };
+        let font = theme::regular(12.5);
+        let full = format!("<{email}>{more}");
+        let fits = p.layout_no_wrap(full.clone(), font.clone(), t.dim).size().x <= room * 0.7;
+        let address = match email.rsplit_once('@') {
+            Some((_, domain)) if !fits => format!("<…@{domain}>{more}"),
+            _ => full,
+        };
+        let ag = widgets::one_line(ui, &address, font, t.dim, room * 0.7);
+        let aw = ag.size().x;
+        let who_g = widgets::one_line(ui, &who, who_font, t.text, (room - aw - 6.0).max(1.0));
+        let nw = who_g.size().x;
+        p.galley(egui::pos2(mr.start(who_x, nw), line1), who_g, t.text);
+        p.galley(egui::pos2(mr.start(who_x + nw + 6.0, aw), line1 + 1.5), ag, t.dim);
+    } else {
+        let who_g = widgets::one_line(ui, &who, who_font, t.text, who_right - who_x);
+        p.galley(egui::pos2(place(who_rtl, who_x, who_right, who_g.size().x), line1), who_g, t.text);
+    }
 
     // Subject with markers.
     let line2 = line1 + 19.0;

@@ -1278,4 +1278,16 @@ month	May	5월
 	Copy all	모두 복사
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	{size} 중 처음 {shown}만 표시됩니다. 이메일(.eml)로 저장하면 전체가 보관됩니다.
 	The source couldn't be downloaded: {error}	원본을 다운로드하지 못했습니다: {error}
+	Always	항상
+	External	외부
+	Check who sent it	보낸 사람을 확인하세요
 	Careful: you know {name} as {known}, but this comes from {real}.	주의: {name}님은 {known}(으)로 알고 있는 사람이지만, 이 메일은 {real}에서 왔습니다.
+	This sender is outside your organisation.	이 보낸 사람은 조직 외부에 있습니다.
+	Sender addresses in the message list	메시지 목록의 보낸 사람 주소
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	보낸 사람 이름 뒤에 메시지를 보낸 주소를 표시합니다. 익숙한 이름은 누구의 주소에서든 올 수 있습니다
+	People you don't know	모르는 사람
+	Tag mail from outside your organisation	조직 외부에서 온 메일에 태그 표시
+	Messages from other domains are tagged External, in the list and above the message	다른 도메인에서 온 메시지는 목록과 메시지 위에 외부로 표시됩니다
+	Your organisation's domains	조직의 도메인
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	쉼표로 구분합니다. 비워 두면 계정의 도메인(Gmail 같은 메일 서비스 제외)
+	None: nothing is tagged	없음: 아무것도 표시되지 않습니다

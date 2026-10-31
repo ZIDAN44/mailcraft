@@ -235,6 +235,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "on": s.prefs.check_revocation }))
         })
         .params(r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#),
+        CommandSpec::new("view.senderAddresses", "Show sender addresses in the message list", "File › Options › Safety", |s, v| {
+            let show = p::req_str(v, "show")?;
+            s.prefs.sender_addresses = crate::session::SenderAddresses::from_code(show)
+                .ok_or_else(|| CmdError::Params(format!("`show` is always, strangers or never, not `{show}`")))?;
+            Ok(json!({"show": s.prefs.sender_addresses.code()}))
+        })
+        .params(r#"{"show": "always"|"strangers"|"never" (strangers: for senders who aren't contacts, written to or in the directory)}"#),
+        CommandSpec::new("view.externalTag", "Tag mail from outside the organisation", "File › Options › Safety", external_tag).params(
+            r#"{"on"?: bool (none: as it is), "domains"?: [string] | string (the organisation's domains, separated by commas or spaces; empty: those of your accounts, mail services left out)}"#,
+        ),
         CommandSpec::new("view.trustSender", "Show pictures from a sender", "File › Options › Privacy", |s, v| {
             let who = p::req_str(v, "address")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&who) {
@@ -249,6 +259,38 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"address": string, "on"?: bool}"#),
     ]
+}
+
+/// The External tag (issue #29): on or off, and the organisation's domains.
+fn external_tag(s: &mut Session, v: &Value) -> CmdResult {
+    if let Some(given) = v.get("domains").filter(|d| !d.is_null()) {
+        let words: Vec<String> = match given {
+            Value::String(text) => text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).map(str::to_string).collect(),
+            Value::Array(list) => list
+                .iter()
+                .map(|d| d.as_str().map(str::to_string).ok_or_else(|| CmdError::Params("`domains` lists domains as text".into())))
+                .collect::<Result<_, _>>()?,
+            _ => return Err(CmdError::Params("`domains` is a list of domains or a text".into())),
+        };
+        let mut domains: Vec<String> = Vec::new();
+        for w in words.iter().map(|w| w.trim()).filter(|w| !w.is_empty()) {
+            let d = mailcraft_model::lookalike::clean_domain(w)
+                .ok_or_else(|| CmdError::Params(format!("`{}` isn't a domain", w.chars().take(80).collect::<String>())))?;
+            if !domains.contains(&d) {
+                domains.push(d);
+            }
+        }
+        const MOST: usize = 100;
+        if domains.len() > MOST {
+            return Err(CmdError::Params(format!("at most {MOST} domains")));
+        }
+        s.prefs.org_domains = domains;
+    }
+    if let Some(on) = p::bool(v, "on") {
+        s.prefs.external_tag = on;
+    }
+    let effective: Vec<String> = s.org_domains().into_iter().collect();
+    Ok(json!({"on": s.prefs.external_tag, "domains": s.prefs.org_domains, "organisation": effective}))
 }
 
 pub(super) fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {

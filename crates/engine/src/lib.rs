@@ -26,7 +26,8 @@ pub use mailcraft_store as store;
 pub use session::{
     ACCENTS, ARRANGE_HEADINGS, AccountState, Arrange, CardSearch, Compose, FolderRef, KnownCert, ListFilter, Lock, MoveTarget, NotesOrder, Notice,
     PANICS_CAUGHT, PaneSection, Picture, Prefs, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, SMIME_DOC, SOURCE_SHOWN, Seal, SearchScope,
-    Security, SendCheck, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, UpdateCheck, VacationState, View, accent_code, accent_rgb,
+    Security, SendCheck, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, UpdateCheck, VacationState, View,
+    accent_code, accent_rgb,
     invite::{Invite, InviteProblem},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,

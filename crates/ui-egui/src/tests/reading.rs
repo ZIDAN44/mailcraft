@@ -403,3 +403,55 @@ fn a_message_text_first_says_its_files_are_coming() {
     assert!(!shown.iter().any(|l| l.contains("Downloading the attachments")), "{shown:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #29: a contact's name on a free-mail address shows that address in the list with a
+/// warning sign, the reading pane says whose name it is, and the External tag shows when on.
+#[test]
+fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
+    let (mut a, dir) = app("known-name");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let d = mailcraft_engine::mime::Draft { subject: "Quick favour".into(), body: "Are you at your desk?".into(), ..Default::default() };
+    let from = mailcraft_engine::model::EmailAddress::new("Zoe Park", "zoe.park.director@gmail.com");
+    let raw = mailcraft_engine::mime::build(&d, &from, NOW, "<favour@x>").unwrap();
+    let store = a.session.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9900 };
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key.clone(), Default::default(), 0, NOW));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, &raw).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    a.run("view.externalTag", json!({"on": true}));
+    let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
+        tree.nodes.iter().filter_map(|(_, n)| n.label().or(n.value()).map(str::to_string)).collect()
+    };
+    frame(&ctx, &mut a, vec![]);
+    let shown = labels(&ctx, &mut a);
+    let row = shown.iter().find(|l| l.contains("Quick favour")).cloned().unwrap_or_default();
+    assert!(row.contains("Zoe Park <zoe.park.director@gmail.com>"), "{row}");
+    assert!(row.contains("Check who sent it") && row.contains("External"), "{row}");
+    // Zoe's own mail: her name alone, nothing to check, not external.
+    let own = shown.iter().find(|l| l.starts_with("Zoe Park,")).cloned().unwrap_or_default();
+    assert!(!own.is_empty(), "{shown:?}");
+    assert!(!own.contains('<') && !own.contains("Check who sent it") && !own.contains("External"), "{own}");
+    a.run("list.open", json!({"key": key.to_id()}));
+    for dark in [Some(false), Some(true)] {
+        a.ui.dark = dark;
+        frame(&ctx, &mut a, vec![]);
+    }
+    let shown = labels(&ctx, &mut a);
+    assert!(shown.iter().any(|l| l.contains("you know Zoe Park as zoe@studio.example")), "{shown:?}");
+    assert!(shown.iter().any(|l| l == "External"), "{shown:?}");
+    // Addresses always, never, and the compact list.
+    for show in ["always", "never"] {
+        a.run("view.senderAddresses", json!({"show": show}));
+        a.run("view.compact", json!({}));
+        frame(&ctx, &mut a, vec![]);
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -305,7 +305,14 @@ fn run() -> Result<(), String> {
                 let flag = if m["flagged"].as_bool() == Some(true) { "⚑" } else { " " };
                 let att = if m["attachments"].as_bool() == Some(true) { "📎" } else { "  " };
                 let when = full_time(m["date"].as_i64().unwrap_or(0), &s.clock);
-                outln!("{mark}{flag}{att} {when}  {:<28}  {}", m["from"].as_str().unwrap_or(""), m["subject"].as_str().unwrap_or(""));
+                // Who it's from doesn't add up, or it's from outside the organisation (issue #29).
+                let check = if m["senderWarning"].as_bool() == Some(true) { "⚠ " } else { "" };
+                let external = if m["external"].as_bool() == Some(true) { " [External]" } else { "" };
+                outln!(
+                    "{mark}{flag}{att} {when}  {check}{:<28}  {}{external}",
+                    m["from"].as_str().unwrap_or(""),
+                    m["subject"].as_str().unwrap_or("")
+                );
                 outln!("      key: {}", m["key"].as_str().unwrap_or(""));
             }
         }
@@ -325,7 +332,11 @@ fn run() -> Result<(), String> {
                 })?;
                 r = s.run("message.read", &json!({})).map_err(|e| e.to_string())?;
             }
-            outln!("From:    {}", r["from"].as_str().unwrap_or(""));
+            let external = if r["external"].as_bool() == Some(true) { " [External]" } else { "" };
+            outln!("From:    {}{external}", r["from"].as_str().unwrap_or(""));
+            if let Some(w) = r.get("warning").filter(|w| !w.is_null()) {
+                outln!("Careful: {}", sender_warning_text(w));
+            }
             outln!("To:      {}", r["to"].as_str().unwrap_or(""));
             if r["cc"].as_str().is_some_and(|c| !c.is_empty()) {
                 outln!("Cc:      {}", r["cc"].as_str().unwrap_or(""));
@@ -510,6 +521,17 @@ fn main() -> ExitCode {
             errln!("error: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// A sender warning (`message.read`'s `warning`) said in a line.
+fn sender_warning_text(w: &serde_json::Value) -> String {
+    let f = |k: &str| w[k].as_str().unwrap_or("").to_string();
+    match w["kind"].as_str().unwrap_or("") {
+        "lookalike" => format!("this comes from {}, which looks like {} but isn't it.", f("domain"), f("like")),
+        "nameShowsOther" => format!("the sender's name shows {}, but this comes from {}.", f("shown"), f("real")),
+        "nameOfKnownPerson" => format!("you know {} as {}, but this comes from {}.", f("name"), f("known"), f("real")),
+        other => format!("the sender doesn't add up ({other})."),
     }
 }
 

@@ -8,6 +8,9 @@ pub use selecting::Toward;
 #[cfg(test)]
 pub(crate) use source::source_lines;
 pub use source::{SOURCE_SHOWN, SourceView};
+mod senders;
+pub use senders::SenderMarks;
+pub(crate) use senders::Senders;
 
 impl Session {
     pub fn open_view(&mut self, view: View) {
@@ -112,7 +115,8 @@ impl Session {
                     let (shown, security) = self.unwrap(key, &raw);
                     w.parsed = self.parse_for_reading(key, &shown);
                     w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
-                    w.warning = w.parsed.as_ref().and_then(|p| self.sender_warning(&p.from));
+                    let from = w.parsed.as_ref().map(|p| p.from.clone());
+                    w.warning = from.and_then(|from| self.message_warning(key, &from));
                     w.security = security;
                 }
                 None => self.jobs.push(Job::FetchBody { key: key.clone() }),
@@ -151,7 +155,8 @@ impl Session {
             w.parsed = self.parse_for_reading(key, raw);
             w.text_first = text_first;
             w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
-            w.warning = w.parsed.as_ref().and_then(|p| self.sender_warning(&p.from));
+            let from = w.parsed.as_ref().map(|p| p.from.clone());
+            w.warning = from.and_then(|from| self.message_warning(key, &from));
             w.security = security.clone();
         }
         self.windows = windows;
@@ -167,41 +172,12 @@ impl Session {
         }
         let from = self.reading.as_ref().filter(|r| &r.key == key).and_then(|r| r.parsed.as_ref()).map(|p| p.from.clone());
         if let Some(from) = from {
-            let warning = self.sender_warning(&from);
+            let warning = self.message_warning(key, &from);
             if let Some(r) = self.reading.as_mut() {
                 r.warning = warning;
             }
         }
         self.request_pictures();
-    }
-
-    /// The domains the user deals with: their own accounts', and those of the people they write
-    /// to or keep in an address book.
-    pub fn known_domains(&mut self) -> BTreeSet<String> {
-        const FRESH_SECS: i64 = 600;
-        if self.contacts.is_none()
-            && let Some((at, known)) = &self.known_domains
-            && self.clock.now.saturating_sub(*at) < FRESH_SECS
-        {
-            return known.clone();
-        }
-        self.ensure_contacts();
-        let mut known: BTreeSet<String> = self.accounts.iter().map(|a| mailcraft_model::lookalike::domain_of(&a.config.email)).collect();
-        if let Some(book) = &self.contacts {
-            known.extend(book.written_domains());
-        }
-        known.remove("");
-        self.known_domains = Some((self.clock.now, known.clone()));
-        known
-    }
-
-    /// What doesn't add up about a sender (nothing for the user's own messages).
-    pub fn sender_warning(&mut self, from: &EmailAddress) -> Option<mailcraft_model::lookalike::SenderWarning> {
-        if self.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(from.email.trim())) {
-            return None;
-        }
-        let known = self.known_domains();
-        mailcraft_model::lookalike::check_sender(from, &known)
     }
 
     /// A body that came in joins the search index there is (rather than throwing it away).

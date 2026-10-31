@@ -369,7 +369,15 @@ pub(super) fn list_messages(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({
         "view": s.view_title(),
         "total": s.list.len(),
-        "messages": s.list.iter().take(limit).map(summary_json).collect::<Vec<_>>(),
+        "messages": s.list.iter().take(limit).map(|m| {
+            let mut j = summary_json(m);
+            // What the list shows about the sender (issue #29).
+            let marks = s.sender_marks(m);
+            j["fromAddress"] = json!(marks.address);
+            j["senderWarning"] = json!(marks.warning);
+            j["external"] = json!(marks.external);
+            j
+        }).collect::<Vec<_>>(),
     }))
 }
 
@@ -381,8 +389,11 @@ pub(super) fn read_message(s: &mut Session, v: &Value) -> CmdResult {
         }
     }
     let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+    let external = r.parsed.as_ref().is_some_and(|m| s.is_external(&m.from.email));
     match &r.parsed {
         Some(m) => Ok(json!({
+            "warning": r.warning,
+            "external": external,
             "key": r.key.to_id(),
             "subject": m.subject,
             "from": m.from.to_string(),
