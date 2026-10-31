@@ -58,6 +58,7 @@ mod calendar_find;
 mod categories;
 mod directory;
 mod files;
+mod invite_placing;
 mod invites;
 mod mail;
 mod organize;

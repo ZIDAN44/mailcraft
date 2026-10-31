@@ -1330,3 +1330,9 @@ month	May	5月
 	Show as	顯示為
 	Show time only	僅顯示時間
 	Working elsewhere	在別處工作
+	default	預設
+	New events and invitations go to this calendar	新事件和邀請會放入此行事曆
+	Use as default calendar	設為預設行事曆
+	Events kept on this computer only: {count}	僅儲存在這台電腦上的事件：{count}
+	Move them to {calendar}	移到 {calendar}
+	Keep them here	保留在這裡

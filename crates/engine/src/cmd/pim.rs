@@ -187,6 +187,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.respond_to_event(&uid, p::req_str(v, "answer")?)
         })
         .params(r#"{"uid": string, "answer": "accepted"|"tentative"|"declined"}"#),
+        CommandSpec::new("calendar.setDefault", "Use as default calendar", "Calendar › Calendars", |s, v| {
+            s.set_default_calendar(p::str(v, "account"), p::str(v, "calendar").unwrap_or_default())
+        })
+        .params(r#"{"account"?: string, "calendar": string ("" for the account's own)}"#),
+        CommandSpec::new("calendar.moveLocal", "Move events to the server's calendar", "Calendar › Calendars", |s, v| {
+            s.move_local_events(p::str(v, "account"), p::str(v, "calendar"))
+        })
+        .params(r#"{"account"?: string, "calendar"?: string (default: the account's default calendar)}"#),
+        CommandSpec::new("calendar.keepLocal", "Keep events on this computer", "Calendar › Calendars", |s, v| s.keep_local_events(p::str(v, "account")))
+            .params(r#"{"account"?: string}"#),
         CommandSpec::new("contact.list", "People", "People", |s, v| {
             let q = p::str(v, "query").unwrap_or_default();
             Ok(json!(s.people(q).iter().map(|x| json!({"uid": x.card.uid, "name": x.card.display(), "emails": x.card.emails, "phones": x.card.phones, "org": x.card.org, "title": x.card.title, "account": x.account})).collect::<Vec<_>>()))

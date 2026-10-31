@@ -1330,3 +1330,9 @@ month	May	maggio
 	Show as	Mostra come
 	Show time only	Mostra solo l'orario
 	Working elsewhere	Al lavoro altrove
+	default	predefinito
+	New events and invitations go to this calendar	I nuovi eventi e inviti vanno in questo calendario
+	Use as default calendar	Usa come calendario predefinito
+	Events kept on this computer only: {count}	Eventi tenuti solo su questo computer: {count}
+	Move them to {calendar}	Spostali in {calendar}
+	Keep them here	Tienili qui

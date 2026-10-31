@@ -235,7 +235,14 @@ fn dav_results_merge_without_losing_local_changes() {
     };
     let first = DavSync {
         caldav_home: Some("https://dav.example.org/cal/".into()),
-        calendars: Some(vec![CalendarInfo { id: cal.clone(), name: "Work".into(), color: 2, read_only: false, ctag: "a".into() }]),
+        calendars: Some(vec![CalendarInfo {
+            id: cal.clone(),
+            name: "Work".into(),
+            color: 2,
+            read_only: false,
+            ctag: "a".into(),
+            ..Default::default()
+        }]),
         events: vec![ev("a", "Review", &format!("{cal}a.ics")), ev("b", "Lunch", &format!("{cal}b.ics"))],
         synced_calendars: vec![cal.clone()],
         checked: NOW,
@@ -256,7 +263,14 @@ fn dav_results_merge_without_losing_local_changes() {
     pushed.dirty = false;
     let second = DavSync {
         caldav_home: Some("https://dav.example.org/cal/".into()),
-        calendars: Some(vec![CalendarInfo { id: cal.clone(), name: "Work".into(), color: 2, read_only: false, ctag: "b".into() }]),
+        calendars: Some(vec![CalendarInfo {
+            id: cal.clone(),
+            name: "Work".into(),
+            color: 2,
+            read_only: false,
+            ctag: "b".into(),
+            ..Default::default()
+        }]),
         events: vec![pushed.clone()],
         synced_calendars: vec![cal.clone()],
         pushed_events: vec![pushed],
@@ -271,7 +285,14 @@ fn dav_results_merge_without_losing_local_changes() {
     // A change made while a sync was out stays to be sent.
     s.run("event.update", &json!({"uid": "a", "summary": "Review (moved again)"})).unwrap();
     let stale = DavSync {
-        calendars: Some(vec![CalendarInfo { id: cal.clone(), name: "Work".into(), color: 2, read_only: false, ctag: "c".into() }]),
+        calendars: Some(vec![CalendarInfo {
+            id: cal.clone(),
+            name: "Work".into(),
+            color: 2,
+            read_only: false,
+            ctag: "c".into(),
+            ..Default::default()
+        }]),
         events: vec![ev("a", "Review (moved)", &format!("{cal}a.ics"))],
         synced_calendars: vec![cal.clone()],
         caldav_home: Some("https://dav.example.org/cal/".into()),
@@ -296,7 +317,14 @@ fn dav_results_merge_without_losing_local_changes() {
     let read = StoredEvent { event: CalEvent { uid: "ical-EV1".into(), ..local.event.clone() }, ..pushed.clone() };
     let merged = DavSync {
         caldav_home: Some("graph".into()),
-        calendars: Some(vec![CalendarInfo { id: server_cal.clone(), name: "Calendar".into(), color: 0, read_only: false, ctag: String::new() }]),
+        calendars: Some(vec![CalendarInfo {
+            id: server_cal.clone(),
+            name: "Calendar".into(),
+            color: 0,
+            read_only: false,
+            ctag: String::new(),
+            ..Default::default()
+        }]),
         events: vec![read],
         synced_calendars: vec![server_cal],
         pushed_events: vec![pushed],

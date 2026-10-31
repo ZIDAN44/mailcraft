@@ -44,6 +44,9 @@ pub struct Item {
     pub comps: Vec<String>,
     /// The user may write to it (a `write` privilege, or `all`); `None` when not said.
     pub writable: Option<bool>,
+    /// Someone else's, listed in the user's home ([`Dav::collections`]: its `owner` isn't the
+    /// user's).
+    pub foreign: bool,
 }
 
 fn local(name: &str) -> String {
@@ -394,11 +397,14 @@ impl Dav {
         home.map(|h| absolute(&at, &h)).transpose()
     }
 
-    /// The collections in a home (calendars that hold events, or address books).
+    /// The collections in a home (calendars that hold events, or address books). One whose
+    /// `owner` is known and is neither the home's owner nor the signed-in user is marked
+    /// someone else's (SOGo lists the calendars subscribed to in the user's home, issue #30).
     pub fn collections(&self, kind: Kind, home: &str) -> Result<Vec<Item>> {
-        let props = "<d:resourcetype/><d:displayname/><cs:getctag/><d:sync-token/><a:calendar-color/><c:supported-calendar-component-set/><d:current-user-privilege-set/>";
-        let (items, at) = self.propfind(home, "1", props)?;
+        let props = "<d:resourcetype/><d:displayname/><cs:getctag/><d:sync-token/><a:calendar-color/><c:supported-calendar-component-set/><d:current-user-privilege-set/><d:owner/><d:current-user-principal/>";
+        let (mut items, at) = self.propfind(home, "1", props)?;
         let want = if kind == Kind::Calendars { "calendar" } else { "addressbook" };
+        mark_foreign(&mut items, &at, home);
         let mut out = Vec::new();
         for mut i in items.into_iter().filter(|i| i.kinds.iter().any(|k| k == want)) {
             if kind == Kind::Calendars && !i.comps.is_empty() && !i.comps.iter().any(|c| c == "VEVENT") {
@@ -486,6 +492,21 @@ impl Dav {
             401 | 403 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
             s => Err(NetError::No(format!("the server didn't delete it (HTTP {s})"))),
         }
+    }
+}
+
+/// Mark the collections of a home listing (read at `at`) that are someone else's: an `owner`
+/// that is neither the home's owner nor the signed-in user (`current-user-principal`). Nothing
+/// is marked when the server names neither.
+fn mark_foreign(items: &mut [Item], at: &str, home: &str) {
+    let path = |h: &str| absolute(at, h).map(|u| path_of(&u).trim_end_matches('/').to_string()).unwrap_or_default();
+    let home_path = path(home);
+    let mut mine: Vec<String> = items.iter().flat_map(|i| i.hrefs.get("current-user-principal").into_iter().flatten()).map(|h| path(h)).collect();
+    mine.extend(items.iter().filter(|i| path(&i.href) == home_path).flat_map(|i| i.hrefs.get("owner").into_iter().flatten()).map(|h| path(h)));
+    mine.retain(|m| !m.is_empty());
+    for i in items.iter_mut().filter(|i| path(&i.href) != home_path) {
+        let owner = i.hrefs.get("owner").and_then(|o| o.first()).map(|h| path(h)).filter(|o| !o.is_empty());
+        i.foreign = !mine.is_empty() && owner.is_some_and(|o| !mine.contains(&o));
     }
 }
 
@@ -671,6 +692,7 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                 color: known.map_or(u8::try_from(n % 8).unwrap_or(0), |k| k.color),
                 read_only: c.writable == Some(false),
                 ctag: ctag.clone(),
+                foreign: c.foreign,
             };
             let pushed_here = out.pushed_events.iter().any(|e| e.calendar == c.href);
             if !ctag.is_empty() && known.is_some_and(|k| k.ctag == ctag) && !pushed_here {

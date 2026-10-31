@@ -707,7 +707,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     }
     // Named as the server names it, in the mailbox's language ("Agenda"), as Outlook shows it.
     let own = folder_name(c, "calendar").unwrap_or_else(|| "Calendar".into());
-    let mut calendars = vec![CalendarInfo { id: CALENDAR.into(), name: own, color: 0, read_only: false, ctag: String::new() }];
+    let mut calendars = vec![CalendarInfo { id: CALENDAR.into(), name: own, color: 0, read_only: false, ctag: String::new(), ..Default::default() }];
     // Other people's calendars opened here (Open shared calendar), then the calendars of the
     // shared mailboxes the account opens (Outlook lists a shared mailbox's calendar with its
     // mail): each their mailbox's calendar folder, the delegate permissions they gave deciding
@@ -751,7 +751,14 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
                 continue;
             }
         }
-        calendars.push(CalendarInfo { id, name, color: u8::try_from((n + 1) % 8).unwrap_or(0), read_only: !can_edit, ctag: String::new() });
+        calendars.push(CalendarInfo {
+            id,
+            name,
+            color: u8::try_from((n + 1) % 8).unwrap_or(0),
+            read_only: !can_edit,
+            ctag: String::new(),
+            ..Default::default()
+        });
     }
     out.calendars = Some(calendars);
     match items(c, "contacts") {
@@ -815,6 +822,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
                             color: u8::try_from((n + 3) % 8).unwrap_or(0),
                             read_only: true,
                             ctag: String::new(),
+                            foreign: false,
                         });
                     }
                     out.synced_calendars.push(key);

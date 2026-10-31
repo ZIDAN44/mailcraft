@@ -8,6 +8,9 @@ impl Session {
     /// Merge what a CalDAV / CardDAV sync found. Changes made here since stay (and go to the
     /// server next time); everything else follows the server.
     pub fn apply_dav(&mut self, account: &str, sync: &mailcraft_model::pim::DavSync) {
+        // The answers given here to invitations put on this computer, before the server's copy
+        // of the same meeting (CalDAV scheduling) takes their place (issue #30).
+        let answered = self.answered_here(account);
         let p = self.pim_mut(account);
         p.caldav_home = sync.caldav_home.clone().or_else(|| Some(String::new()));
         p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
@@ -96,5 +99,8 @@ impl Session {
             self.notice(format!("calendars and contacts: {e}"), true);
         }
         self.save_pim(account);
+        // Invitations put on this computer meanwhile move to the server's calendar, those held
+        // go in (issue #30).
+        self.calendars_found(account, &answered);
     }
 }

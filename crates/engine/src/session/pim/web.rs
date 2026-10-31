@@ -42,6 +42,7 @@ impl Session {
             color,
             read_only: true,
             ctag: String::new(),
+            foreign: false,
         });
         p.subscribed.push(WebCalendar { id: id.clone(), url: link, named: !name.is_empty(), ..Default::default() });
         self.fetch_web_calendar(&account, &id);

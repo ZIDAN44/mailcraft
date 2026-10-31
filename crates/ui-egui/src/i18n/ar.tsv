@@ -1326,3 +1326,9 @@ month	May	مايو
 	Show as	الإظهار كـ
 	Show time only	إظهار الوقت فقط
 	Working elsewhere	أعمل من مكان آخر
+	default	افتراضي
+	New events and invitations go to this calendar	تذهب الأحداث والدعوات الجديدة إلى هذا التقويم
+	Use as default calendar	استخدامه تقويمًا افتراضيًا
+	Events kept on this computer only: {count}	أحداث محفوظة على هذا الكمبيوتر فقط: {count}
+	Move them to {calendar}	نقلها إلى {calendar}
+	Keep them here	إبقاؤها هنا

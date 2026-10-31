@@ -1330,3 +1330,9 @@ month	May	5월
 	Show as	표시 방법
 	Show time only	시간만 표시
 	Working elsewhere	다른 곳에서 근무
+	default	기본
+	New events and invitations go to this calendar	새 일정과 초대가 이 일정으로 들어갑니다
+	Use as default calendar	기본 일정으로 사용
+	Events kept on this computer only: {count}	이 컴퓨터에만 있는 일정: {count}
+	Move them to {calendar}	{calendar}(으)로 이동
+	Keep them here	여기에 두기

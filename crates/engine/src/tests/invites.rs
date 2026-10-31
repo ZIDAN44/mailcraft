@@ -70,7 +70,14 @@ fn weekly_series(s: &mut Session) -> CalEvent {
     let stored = |e: CalEvent, href: &str| StoredEvent { calendar: cal.clone(), href: href.into(), etag: "\"1\"".into(), event: e, dirty: false };
     let sync = DavSync {
         caldav_home: Some("https://dav.example.org/cal/".into()),
-        calendars: Some(vec![CalendarInfo { id: cal.clone(), name: "Work".into(), color: 1, read_only: false, ctag: "a".into() }]),
+        calendars: Some(vec![CalendarInfo {
+            id: cal.clone(),
+            name: "Work".into(),
+            color: 1,
+            read_only: false,
+            ctag: "a".into(),
+            ..Default::default()
+        }]),
         events: vec![
             stored(master.clone(), &format!("{cal}weekly.ics")),
             stored(moved(1), &format!("{cal}weekly.ics")),

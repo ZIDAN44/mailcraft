@@ -1327,3 +1327,9 @@ month	May	5月
 	Show as	表示方法
 	Show time only	時間のみ表示
 	Working elsewhere	別の場所で勤務
+	default	既定
+	New events and invitations go to this calendar	新しい予定と招待はこの予定表に入ります
+	Use as default calendar	既定の予定表として使う
+	Events kept on this computer only: {count}	このコンピューターだけにある予定: {count}
+	Move them to {calendar}	{calendar} に移動
+	Keep them here	ここに残す

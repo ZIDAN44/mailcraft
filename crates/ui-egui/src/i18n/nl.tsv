@@ -1326,3 +1326,9 @@ month	May	mei
 	Show as	Tonen als
 	Show time only	Alleen de tijd tonen
 	Working elsewhere	Werkt elders
+	default	standaard
+	New events and invitations go to this calendar	Nieuwe afspraken en uitnodigingen komen in deze agenda
+	Use as default calendar	Als standaardagenda gebruiken
+	Events kept on this computer only: {count}	Afspraken alleen op deze computer: {count}
+	Move them to {calendar}	Verplaatsen naar {calendar}
+	Keep them here	Hier houden

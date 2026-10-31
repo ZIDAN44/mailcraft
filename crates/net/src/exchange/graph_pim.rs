@@ -385,6 +385,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
                 color: u8::try_from(i % 8).unwrap_or(0),
                 read_only: !v.get("canEdit").and_then(Value::as_bool).unwrap_or(true),
                 ctag: String::new(),
+                foreign: false,
             })
         })
         .collect();
@@ -482,6 +483,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             color: u8::try_from(n % 8).unwrap_or(0),
             read_only: can_edit != Some(true),
             ctag: String::new(),
+            foreign: false,
         });
     }
     out.calendars = Some(calendars);

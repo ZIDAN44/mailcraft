@@ -1331,3 +1331,9 @@ month	May	maio
 	Show as	Mostrar como
 	Show time only	Mostrar só o horário
 	Working elsewhere	Trabalhando em outro local
+	default	padrão
+	New events and invitations go to this calendar	Novos eventos e convites vão para este calendário
+	Use as default calendar	Usar como calendário padrão
+	Events kept on this computer only: {count}	Eventos guardados só neste computador: {count}
+	Move them to {calendar}	Movê-los para {calendar}
+	Keep them here	Mantê-los aqui

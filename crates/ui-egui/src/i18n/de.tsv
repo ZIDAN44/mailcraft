@@ -1331,3 +1331,9 @@ month	May	Mai
 	Show as	Zeigen als
 	Show time only	Nur die Zeit zeigen
 	Working elsewhere	Woanders tätig
+	default	Standard
+	New events and invitations go to this calendar	Neue Termine und Einladungen kommen in diesen Kalender
+	Use as default calendar	Als Standardkalender verwenden
+	Events kept on this computer only: {count}	Nur auf diesem Computer gespeicherte Termine: {count}
+	Move them to {calendar}	In {calendar} verschieben
+	Keep them here	Hier behalten

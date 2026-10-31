@@ -133,6 +133,7 @@ impl Session {
         self.web_calendars_due();
         // The sender check follows contacts saved, accounts and the directory (cheap when not).
         self.keep_senders_when(false);
+        self.held_invitations_due();
         let now = self.clock.now;
         if !self.snoozes.iter().any(|s| s.until <= now) {
             return;

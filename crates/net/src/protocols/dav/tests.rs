@@ -95,3 +95,33 @@ fn addresses_typed_by_hand_read_as_https() {
     assert_eq!(parent_of("https://p.example/calendars/me/").as_deref(), Some("https://p.example/calendars/"));
     assert_eq!(parent_of("https://p.example/").as_deref(), None);
 }
+
+/// Issue #30: SOGo lists the calendars the user subscribed to in their own home; one whose
+/// owner isn't the user (nor the home's owner) is someone else's. A server that names no owner
+/// marks nothing.
+#[test]
+fn calendars_owned_by_someone_else_are_told_apart() {
+    let listing = |owner_of_home: &str, cup: &str| {
+        format!(
+            r#"<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+<d:response><d:href>/SOGo/dav/riley/Calendar/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype>{owner_of_home}{cup}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/SOGo/dav/riley/Calendar/sam_team/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:owner><d:href>https://mail.example/SOGo/dav/sam/</d:href></d:owner></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/SOGo/dav/riley/Calendar/personal/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:owner><d:href>/SOGo/dav/riley</d:href></d:owner></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/SOGo/dav/riley/Calendar/nobody/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>"#
+        )
+    };
+    let at = "https://mail.example/SOGo/dav/riley/Calendar/";
+    let foreign = |xml: &str| {
+        let mut items = multistatus(xml);
+        mark_foreign(&mut items, at, at);
+        items.iter().map(|i| i.foreign).collect::<Vec<_>>()
+    };
+    let owner = "<d:owner><d:href>/SOGo/dav/riley/</d:href></d:owner>";
+    let cup = "<d:current-user-principal><d:href>/SOGo/dav/riley/</d:href></d:current-user-principal>";
+    assert_eq!(foreign(&listing(owner, "")), [false, true, false, false]);
+    assert_eq!(foreign(&listing("", cup)), [false, true, false, false]);
+    assert_eq!(foreign(&listing("", "")), [false, false, false, false], "no owner of the user's named: nothing marked");
+    let mut junk = multistatus(r#"<d:multistatus xmlns:d="DAV:"><d:response><d:href>%%%</d:href></d:response></d:multistatus>"#);
+    mark_foreign(&mut junk, "not a url", "");
+}

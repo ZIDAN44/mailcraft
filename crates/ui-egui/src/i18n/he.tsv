@@ -1326,3 +1326,9 @@ month	May	מאי
 	Show as	הצג כ
 	Show time only	הצג רק את השעה
 	Working elsewhere	עובד ממקום אחר
+	default	ברירת מחדל
+	New events and invitations go to this calendar	אירועים והזמנות חדשים נכנסים ללוח שנה זה
+	Use as default calendar	שימוש כלוח שנה המוגדר כברירת מחדל
+	Events kept on this computer only: {count}	אירועים שנשמרו רק במחשב זה: {count}
+	Move them to {calendar}	העברה אל {calendar}
+	Keep them here	להשאיר כאן

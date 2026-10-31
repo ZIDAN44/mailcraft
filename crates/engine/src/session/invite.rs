@@ -12,10 +12,14 @@ use mailcraft_model::pim::{LOCAL, Pim, StoredEvent, Tombstone};
 
 use super::*;
 
+mod arrival;
+
+#[cfg(test)]
+pub(crate) use arrival::HOLD_SECS;
+pub(crate) use arrival::drop_empty_local;
+
 /// The most occurrences one message can take out of a series.
 const MAX_EXDATES: usize = 1000;
-/// Most arrived messages waiting for their bodies to be looked at for an invitation.
-const MAX_ARRIVED_INVITES: usize = 200;
 
 /// An invitation (or an answer to one, or a cancellation) in the open message.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -121,6 +125,14 @@ impl Session {
 
     /// The calendar in a message, and the address it's from.
     fn message_invitation(&self, key: &MessageKey) -> Option<(ICalendar, String)> {
+        let (ics, from) = self.message_ics(key)?;
+        let cal = ical::parse_in(&ics, self.clock.local_zone());
+        (!cal.events.is_empty()).then_some((cal, from))
+    }
+
+    /// The text of the calendar in a message (its `text/calendar` part or `.ics` file), and the
+    /// address it's from.
+    fn message_ics(&self, key: &MessageKey) -> Option<(String, String)> {
         let raw = self.readable_raw(key)?;
         let parsed = mime::parse(&raw)?;
         let att = parsed
@@ -128,8 +140,7 @@ impl Session {
             .iter()
             .find(|a| a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))?;
         let data = mime::attachment_data(&raw, att.index)?;
-        let cal = ical::parse_in(&String::from_utf8_lossy(&data), self.clock.local_zone());
-        (!cal.events.is_empty()).then_some((cal, parsed.from.email))
+        Some((String::from_utf8_lossy(&data).into_owned(), parsed.from.email))
     }
 
     /// The account holding an event (the series or any occurrence of it), and its parts there.
@@ -179,129 +190,6 @@ impl Session {
             .map(|a| a.partstat.as_str())
             .collect();
         !answers.is_empty() && answers.iter().all(|a| a.eq_ignore_ascii_case("NEEDS-ACTION"))
-    }
-
-    /// New mail that may hold an invitation (issue #20): looked at now when its body is here,
-    /// else when it comes.
-    pub(super) fn invitations_arrived(&mut self, arrived: &[Summary]) {
-        if !self.prefs.tentative_invites {
-            return;
-        }
-        for m in arrived {
-            if self.readable_raw(&m.key).is_some() {
-                self.take_invitation(&m.key);
-            } else if self.arrived_invites.len() < MAX_ARRIVED_INVITES && !self.arrived_invites.contains(&m.key) {
-                self.arrived_invites.push(m.key.clone());
-            }
-        }
-    }
-
-    /// An arrived message's body came: its invitation, if it has one, into the calendar.
-    pub(super) fn invitation_body(&mut self, key: &MessageKey) {
-        if let Some(i) = self.arrived_invites.iter().position(|k| k == key) {
-            self.arrived_invites.remove(i);
-            if self.prefs.tentative_invites {
-                self.take_invitation(key);
-            }
-        }
-    }
-
-    /// An invitation that arrived, into the calendar before it's answered, as Outlook shows one
-    /// (issue #20): a new one tentative (the user's answer `NEEDS-ACTION`), in the account's
-    /// calendar, and on its server so other clients see it; an update from its organizer to one
-    /// not answered yet replaces it, and one to an answered meeting changes it keeping the answer;
-    /// a cancellation takes out one not answered and marks an answered one cancelled (out of the
-    /// calendar's view, and so of the user's time, either way). Nothing is
-    /// sent: the organizer hears only the user's own answer. One the server put in the calendar
-    /// already (CalDAV scheduling) isn't added twice. Whether anything changed.
-    pub(super) fn take_invitation(&mut self, key: &MessageKey) -> bool {
-        let Some((cal, sender)) = self.message_invitation(key) else { return false };
-        let Some(uid) = cal.events.first().map(|e| e.uid.clone()).filter(|u| !u.trim().is_empty()) else { return false };
-        let mine = self.my_addresses();
-        // The user's own meeting (a copy to themselves): theirs already.
-        if cal.events.iter().any(|e| e.organizer.as_ref().is_some_and(|o| mine.contains(&without_mailto(&o.email).to_ascii_lowercase()))) {
-            return false;
-        }
-        if self.invite_problem(&cal, &sender).is_some() {
-            return false;
-        }
-        let events: Vec<CalEvent> = cal.events.iter().filter(|e| e.uid == uid).cloned().collect();
-        let stored = self.stored_parts(&uid).map(|(a, parts)| (a.to_string(), self.tentative_copy(&parts)));
-        match (cal.method.as_deref(), stored) {
-            (Some("REQUEST"), None) => {
-                let account = key.account.clone();
-                let me = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
-                let p = self.pim_mut(&account);
-                let calendar = p.default_calendar().map(|c| c.id.clone()).unwrap_or_else(|| LOCAL.into());
-                let mut remote = false;
-                for mut e in events {
-                    set_answer(&mut e, &mine, &me, "NEEDS-ACTION");
-                    e.attendees.iter_mut().filter(|a| mine.contains(&a.email.to_ascii_lowercase())).for_each(|a| a.rsvp = true);
-                    remote |= put_occurrence(p, &calendar, e);
-                }
-                self.after_pim_change(&account, remote);
-                true
-            }
-            (Some("REQUEST"), Some((account, unanswered))) => {
-                // An update: only when newer than what's there (invite_problem said so; the same
-                // version, as the server or another copy of the mail put it, changes nothing).
-                let p = self.pim_mut(&account);
-                let newer = events
-                    .iter()
-                    .any(|m| p.events.iter().filter(|s| s.event.uid == uid && s.event.recurrence_id == m.recurrence_id).all(|s| newer(m, &s.event)));
-                if !newer {
-                    return false;
-                }
-                let me = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
-                let p = self.pim_mut(&account);
-                // A new occurrence goes where the series is.
-                let calendar = p.events.iter().find(|s| s.event.uid == uid).map(|s| s.calendar.clone()).unwrap_or_else(|| LOCAL.into());
-                let mut remote = false;
-                for mut e in events {
-                    // The user's answer stays, unless there's none yet.
-                    let kept = p
-                        .events
-                        .iter()
-                        .find(|s| s.event.uid == uid && (s.event.recurrence_id == e.recurrence_id || s.event.recurrence_id.is_none()))
-                        .and_then(|s| s.event.attendees.iter().find(|a| mine.contains(&a.email.to_ascii_lowercase())).map(|a| a.partstat.clone()))
-                        .filter(|_| !unanswered)
-                        .unwrap_or_else(|| "NEEDS-ACTION".into());
-                    set_answer(&mut e, &mine, &me, &kept);
-                    remote |= put_occurrence(p, &calendar, e);
-                }
-                self.after_pim_change(&account, remote);
-                true
-            }
-            (Some("CANCEL"), Some((account, unanswered))) => {
-                let cancelled: Vec<Option<i64>> = events.iter().map(|e| e.recurrence_id).collect();
-                let p = self.pim_mut(&account);
-                let mut remote = false;
-                if unanswered {
-                    // Never answered: gone, as if it hadn't come.
-                    if cancelled.iter().any(Option::is_none) {
-                        let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).cloned().collect();
-                        remote |= delete_items(p, &gone);
-                        p.events.retain(|e| e.event.uid != uid);
-                    } else {
-                        for at in cancelled.into_iter().flatten() {
-                            remote |= drop_occurrence(p, &uid, at);
-                        }
-                    }
-                } else {
-                    // Answered: marked cancelled, on the server too, as other calendars show it; the
-                    // calendar here leaves cancelled meetings out, so its time is free.
-                    let whole = cancelled.iter().any(Option::is_none);
-                    for e in p.events.iter_mut().filter(|e| e.event.uid == uid && (whole || cancelled.contains(&e.event.recurrence_id))) {
-                        e.event.status = "CANCELLED".into();
-                        e.dirty |= e.calendar != LOCAL;
-                        remote |= e.calendar != LOCAL;
-                    }
-                }
-                self.after_pim_change(&account, remote);
-                true
-            }
-            _ => false,
-        }
     }
 
     /// The invitation in the open message.
@@ -388,6 +276,11 @@ impl Session {
                     _ => put_occurrence(p, &calendar, e.clone()),
                 };
             }
+        }
+        // Put on this computer before the account's calendar on its server was found: moved
+        // there once it is (issue #30).
+        if existing.is_empty() && stat != "DECLINED" {
+            self.placed_here(&account, &calendar, &uid);
         }
         self.after_pim_change(&account, remote);
         if let Some(first) = events.first().cloned() {

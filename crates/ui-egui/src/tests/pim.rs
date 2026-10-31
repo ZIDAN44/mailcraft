@@ -315,3 +315,46 @@ fn the_calendar_search_box_lists_and_opens_events() {
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The text drawn in a frame.
+fn texts(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 1600.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    out.shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::Shape::Text(t) => Some(t.galley.job.text.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Issue #30: events kept on this computer before the account's calendars on its server were
+/// found are offered to move there, the default calendar marked.
+#[test]
+fn local_events_are_offered_to_the_server() {
+    let (mut a, dir) = app("pim-local-offer");
+    let ctx = egui::Context::default();
+    let id =
+        a.session.run("account.add", &json!({"email": "riley@work.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.run("event.create", &json!({"account": id, "summary": "Dentist", "start": NOW + 3600, "end": NOW + 7200})).unwrap();
+    let cal = |id: &str, name: &str| mailcraft_engine::model::pim::CalendarInfo { id: id.into(), name: name.into(), ..Default::default() };
+    let sync = mailcraft_engine::model::pim::DavSync {
+        caldav_home: Some("https://dav.example/riley/".into()),
+        calendars: Some(vec![cal("https://dav.example/riley/work/", "Work"), cal("https://dav.example/riley/personal/", "Personal")]),
+        checked: NOW,
+        ..Default::default()
+    };
+    a.session.apply(MailEvent::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    a.run("view.module", json!({"name": "calendar"}));
+    frame(&ctx, &mut a, vec![]);
+    let shown = texts(&ctx, &mut a);
+    for want in ["Events kept on this computer only: 1", "Move them to Personal", "Keep them here", "default"] {
+        assert!(shown.iter().any(|t| t == want), "{want:?} not in {shown:?}");
+    }
+    a.run("calendar.moveLocal", json!({"account": id}));
+    let shown = texts(&ctx, &mut a);
+    assert!(!shown.iter().any(|t| t.starts_with("Events kept on this computer")), "moved: not offered");
+    let _ = std::fs::remove_dir_all(dir);
+}

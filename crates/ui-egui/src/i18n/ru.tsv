@@ -1330,3 +1330,9 @@ month	May	Май
 	Show as	Показывать как
 	Show time only	Показывать только время
 	Working elsewhere	Работаю в другом месте
+	default	по умолчанию
+	New events and invitations go to this calendar	Новые события и приглашения попадают в этот календарь
+	Use as default calendar	Сделать календарём по умолчанию
+	Events kept on this computer only: {count}	События только на этом компьютере: {count}
+	Move them to {calendar}	Перенести в {calendar}
+	Keep them here	Оставить здесь

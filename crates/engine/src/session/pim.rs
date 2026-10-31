@@ -15,6 +15,8 @@ pub mod directory;
 pub use directory::Directory;
 mod find;
 pub use find::{EVENT_HITS_MAX, EventHit, EventWhen};
+mod local;
+pub use local::LocalEvents;
 mod sync;
 pub mod web;
 
