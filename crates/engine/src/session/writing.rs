@@ -440,8 +440,9 @@ impl Session {
             return Ok(serde_json::json!({ "queued": c.id, "sendAfter": at }));
         }
         if local {
+            // Not kept in Sent: the message stays open, its draft too.
             if let Some(folder) = &sent_folder {
-                self.file_locally(&c.account, folder, &raw, true);
+                self.file_locally(&c.account, folder, &raw, true)?;
             }
             self.finish_sent(c, true);
             return Ok(serde_json::json!({ "sent": c.id, "local": true }));
@@ -488,12 +489,13 @@ impl Session {
         let c = self.compose.clone().ok_or_else(|| CmdError::Disabled("nothing to save".into()))?;
         let (raw, folder) = self.draft_bytes(&c)?;
         if self.account(&c.account).is_none_or(AccountState::is_local) {
+            // The new copy first: the earlier one goes only once this one is kept.
+            let key = self.file_locally(&c.account, &folder, &raw, false)?;
             if let Some(old) = &c.draft {
                 self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
             }
-            let key = self.file_locally(&c.account, &folder, &raw, false);
             if let Some(cm) = self.compose.as_mut() {
-                cm.draft = key;
+                cm.draft = Some(key);
             }
         } else {
             self.jobs.push(self.draft_job(&c, raw, folder, false));
@@ -514,10 +516,13 @@ impl Session {
         for c in written {
             let Ok((raw, folder)) = self.draft_bytes(&c) else { continue };
             if self.account(&c.account).is_none_or(AccountState::is_local) {
+                if let Err(e) = self.file_locally(&c.account, &folder, &raw, false) {
+                    self.notice(format!("A draft wasn't kept: {e}"), true);
+                    continue;
+                }
                 if let Some(old) = &c.draft {
                     self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
                 }
-                self.file_locally(&c.account, &folder, &raw, false);
             } else {
                 let job = self.draft_job(&c, raw, folder, true);
                 self.jobs.push(job);
@@ -571,10 +576,13 @@ impl Session {
         Ok((raw, folder))
     }
 
-    /// File a message in a local account's folder; returns its key.
-    pub(super) fn file_locally(&mut self, account: &str, folder: &str, raw: &[u8], seen: bool) -> Option<MessageKey> {
-        let store = self.store.clone()?;
-        let mut st = store.load_folder(account, folder).unwrap_or_default();
+    /// File a message in a local account's folder; returns its key. A folder that can't be read,
+    /// or a source that can't be kept, changes nothing: the folder was saved as if empty (its
+    /// mail gone), or listed a message that had no source.
+    pub(super) fn file_locally(&mut self, account: &str, folder: &str, raw: &[u8], seen: bool) -> Result<MessageKey, CmdError> {
+        let store = self.store.clone().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
+        let failed = |e: mailcraft_store::StoreError| CmdError::Failed(format!("it couldn't be kept: {e}"));
+        let mut st = store.load_folder(account, folder).map_err(failed)?;
         if st.validity == 0 {
             st.validity = 1;
         }
@@ -584,16 +592,13 @@ impl Session {
         let flags = mailcraft_model::Flags { seen, draft: !seen, ..Default::default() };
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
         let s = mime::summary_from_full(raw, key.clone(), flags, size, self.clock.now);
-        let _ = store.write_body(&key, raw);
+        store.write_body(&key, raw).map_err(failed)?;
         st.messages.push(s);
         sort_newest_first(&mut st.messages);
-        if let Err(e) = store.save_folder(account, folder, &st) {
-            self.notice(e.to_string(), true);
-            return None;
-        }
+        store.save_folder(account, folder, &st).map_err(failed)?;
         self.reload_folder(account, folder);
         self.recount_local(account, Some(&[folder.to_string()]));
         self.refresh_list();
-        Some(key)
+        Ok(key)
     }
 }

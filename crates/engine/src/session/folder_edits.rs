@@ -169,7 +169,8 @@ impl Session {
         Ok(serde_json::json!({ "on": on }))
     }
 
-    /// Count a local account's folders again (`only` these, or all of them).
+    /// Count a local account's folders again (`only` these, or all of them). One whose list
+    /// can't be read keeps its counts (not 0).
     pub(super) fn recount_local(&mut self, account: &str, only: Option<&[String]>) {
         let paths: Vec<String> = match only {
             Some(list) => list.to_vec(),
@@ -177,6 +178,10 @@ impl Session {
         };
         let mut counts = Vec::new();
         for p in paths {
+            if let Err(e) = self.load_cached(account, &p) {
+                log::warn!("{account}: a folder isn't counted: {e}");
+                continue;
+            }
             let st = self.folder_state(account, &p);
             counts.push((p, st.unread(), u32::try_from(st.messages.len()).unwrap_or(u32::MAX)));
         }

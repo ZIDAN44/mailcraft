@@ -1360,3 +1360,4 @@ month	May	5月
 	Meeting hosts	会議サーバー
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	これらのサーバーへのリンクで会議に参加できます (Teams、Zoom、Google Meet、Webex、BigBlueButton の会議室、自分の会議室のサーバーは最初から対象です)
 	Dial-in numbers and other lines for the invitation (optional)	招待状に入れるダイヤルイン番号などの行 (省略可)
+	Calendar and contacts couldn't be read: changes to them won't be saved	カレンダーと連絡先を読み込めませんでした。変更は保存されません

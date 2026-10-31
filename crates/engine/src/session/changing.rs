@@ -137,45 +137,15 @@ impl Session {
             return;
         }
         if let Op::Move { keys, to } = op {
-            let mut dest = store.load_folder(account, to).unwrap_or_default();
-            if dest.validity == 0 {
-                dest.validity = 1;
-            }
-            // Each source folder read once, its messages found by number; the bodies written
-            // together (a folder's every message may go at once: per message, all of this was
-            // read again, and each body was a write of its own).
-            let mut sources: HashMap<String, HashMap<u32, Summary>> = HashMap::new();
-            let mut uid = dest.uid_next.max(dest.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1);
-            let mut bodies: Vec<(MessageKey, Vec<u8>)> = Vec::new();
-            let mut pending = 0usize;
-            for k in keys {
-                if k.folder == *to {
-                    continue;
+            // Not filed in the destination: the messages stay where they were (taken from the
+            // sources after all, they were lost), and the lists in memory are read again.
+            if let Err(e) = Self::file_moved(&store, account, keys, to) {
+                self.notice(format!("Your mail couldn't be moved, so it stays where it was: {e}"), true);
+                for f in &touched {
+                    self.reload_folder(account, f);
                 }
-                let src = sources.entry(k.folder.clone()).or_insert_with(|| {
-                    store.load_folder(account, &k.folder).map(|st| st.messages.into_iter().map(|m| (m.key.uid, m)).collect()).unwrap_or_default()
-                });
-                let Some(m) = src.get(&k.uid) else { continue };
-                let mut moved = m.clone();
-                moved.key = MessageKey { account: account.to_string(), folder: to.clone(), validity: dest.validity, uid };
-                uid += 1;
-                if let Some(raw) = store.read_body(k) {
-                    pending += raw.len();
-                    bodies.push((moved.key.clone(), raw));
-                }
-                if bodies.len() >= 1000 || pending >= 16 << 20 {
-                    let _ = store.write_bodies(&std::mem::take(&mut bodies));
-                    pending = 0;
-                }
-                dest.messages.push(moved);
-            }
-            if !bodies.is_empty() {
-                let _ = store.write_bodies(&bodies);
-            }
-            dest.uid_next = uid;
-            sort_newest_first(&mut dest.messages);
-            if let Err(e) = store.save_folder(account, to, &dest) {
-                self.notice(e.to_string(), true);
+                self.recount_local(account, Some(&touched));
+                return;
             }
             self.reload_folder(account, to);
         }
@@ -196,6 +166,51 @@ impl Session {
             }
         }
         self.recount_local(account, (!op.is_folder_op()).then_some(&touched));
+    }
+
+    /// A local move's first half: the messages filed in `to` with new numbers, their sources with
+    /// them. Every list is read before anything is written, and any error but a source that
+    /// isn't here stops it (a list read as empty was saved over the destination's mail).
+    fn file_moved(store: &Store, account: &str, keys: &[MessageKey], to: &str) -> Result<(), mailcraft_store::StoreError> {
+        let mut dest = store.load_folder(account, to)?;
+        if dest.validity == 0 {
+            dest.validity = 1;
+        }
+        // Each source folder read once, its messages found by number; the bodies written
+        // together (a folder's every message may go at once: per message, all of this was
+        // read again, and each body was a write of its own).
+        let mut sources: HashMap<String, HashMap<u32, Summary>> = HashMap::new();
+        for k in keys.iter().filter(|k| k.folder != to) {
+            if !sources.contains_key(&k.folder) {
+                let st = store.load_folder(account, &k.folder)?;
+                sources.insert(k.folder.clone(), st.messages.into_iter().map(|m| (m.key.uid, m)).collect());
+            }
+        }
+        let mut uid = dest.uid_next.max(dest.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1));
+        let mut bodies: Vec<(MessageKey, Vec<u8>)> = Vec::new();
+        let mut pending = 0usize;
+        for k in keys.iter().filter(|k| k.folder != to) {
+            let Some(m) = sources.get(&k.folder).and_then(|src| src.get(&k.uid)) else { continue };
+            let mut moved = m.clone();
+            moved.key = MessageKey { account: account.to_string(), folder: to.to_string(), validity: dest.validity, uid };
+            uid = uid.saturating_add(1);
+            // One never downloaded moves without it.
+            if let Some(raw) = store.load_body(k)? {
+                pending = pending.saturating_add(raw.len());
+                bodies.push((moved.key.clone(), raw));
+            }
+            if bodies.len() >= 1000 || pending >= 16 << 20 {
+                store.write_bodies(&std::mem::take(&mut bodies))?;
+                pending = 0;
+            }
+            dest.messages.push(moved);
+        }
+        if !bodies.is_empty() {
+            store.write_bodies(&bodies)?;
+        }
+        dest.uid_next = uid;
+        sort_newest_first(&mut dest.messages);
+        store.save_folder(account, to, &dest)
     }
 
     /// A folder-list change, in memory: the account's folders, the open view, cached folder

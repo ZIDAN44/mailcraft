@@ -533,7 +533,7 @@ impl Session {
         let raw = mime::build(&d, &from, now, &mid).map_err(CmdError::Failed)?;
         if local {
             if let Some(folder) = &sent_folder {
-                self.file_locally(account, folder, &raw, true);
+                self.file_locally(account, folder, &raw, true)?;
             }
             return Ok(());
         }

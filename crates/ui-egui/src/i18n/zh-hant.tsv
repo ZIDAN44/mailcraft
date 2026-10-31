@@ -1363,3 +1363,4 @@ month	May	5月
 	Meeting hosts	會議伺服器
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	指向這些伺服器的連結可加入會議(Teams、Zoom、Google Meet、Webex、BigBlueButton 會議室以及你的會議室所在的伺服器已預設支援)
 	Dial-in numbers and other lines for the invitation (optional)	邀請中的撥入號碼及其他內容（選填）
+	Calendar and contacts couldn't be read: changes to them won't be saved	無法讀取行事曆和連絡人：對它們的變更不會儲存

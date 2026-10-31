@@ -499,6 +499,8 @@ pub struct Session {
     pub open_urls: Vec<String>,
     /// Each account's calendars and address books.
     pub pim: HashMap<String, mailcraft_model::pim::Pim>,
+    /// The accounts whose calendars and contacts couldn't be read: never saved over.
+    pub(crate) pim_unread: HashSet<String>,
     /// Mail, Calendar or People.
     pub module: pim::Module,
     pub cal_mode: pim::CalMode,
@@ -600,6 +602,7 @@ impl Session {
             print_fonts: None,
             open_urls: Vec::new(),
             pim: HashMap::new(),
+            pim_unread: HashSet::new(),
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,
             cal_day: None,

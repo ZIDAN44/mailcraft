@@ -1364,3 +1364,4 @@ month	May	mai
 	Meeting hosts	Serveurs de réunion
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Les liens vers ces serveurs ouvrent une réunion (c'est déjà le cas pour Teams, Zoom, Google Meet, Webex, les salles BigBlueButton et les serveurs de vos salles)
 	Dial-in numbers and other lines for the invitation (optional)	Numéros d’accès par téléphone et autres lignes pour l’invitation (facultatif)
+	Calendar and contacts couldn't be read: changes to them won't be saved	Le calendrier et les contacts n'ont pas pu être lus : leurs modifications ne seront pas enregistrées

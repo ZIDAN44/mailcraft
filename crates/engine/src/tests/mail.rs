@@ -3,6 +3,7 @@
 use super::*;
 
 mod search;
+mod store_errors;
 
 #[test]
 fn sample_inbox_lists_newest_first_with_groups() {
