@@ -533,3 +533,38 @@ fn an_online_meeting_survives_exchange_in_its_place_and_notes() {
     assert!(back.remove_online_meeting());
     assert_eq!((back.description.trim_end(), back.location.as_str()), ("Bring the slides", ""));
 }
+
+/// Issues #25 and #32 at once against the fake Exchange: Sensitivity, LegacyFreeBusyStatus and
+/// a room's meeting (in the place and notes) all go up and come back.
+#[test]
+fn private_show_as_and_a_meeting_together_through_exchange() {
+    use mailcraft_model::ical::{CalEvent, MeetingLabels, MeetingRoom, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
+    use mailcraft_model::pim::{LOCAL, Pim, StoredEvent};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let room = MeetingRoom::new("BBB", "https://meet.example.edu/rooms/abc-def-ghi", "123-456-789", "").unwrap();
+    let mut e = CalEvent {
+        uid: "all-1".into(),
+        summary: "Doctor".into(),
+        description: "Bring the card".into(),
+        start: 1_792_000_000,
+        end: 1_792_003_600,
+        ..Default::default()
+    };
+    set_privacy(&mut e, Privacy::Private);
+    set_show_as(&mut e, ShowAs::WorkingElsewhere);
+    e.add_online_meeting(&room, &MeetingLabels::default());
+    let pim = Pim { events: vec![StoredEvent { calendar: LOCAL.into(), event: e, dirty: true, ..Default::default() }], ..Default::default() };
+    let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let doc = sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap();
+    let el = server.data.lock().unwrap().pim.iter().find(|(i, _, _)| *i == doc.href).map(|(_, _, el)| el.clone()).unwrap();
+    assert_eq!((el.text_of("Sensitivity"), el.text_of("LegacyFreeBusyStatus")), (Some("Private"), Some("WorkingElsewhere")));
+    let back = &doc.event;
+    assert_eq!((privacy(back), show_as(back)), (Privacy::Private, ShowAs::WorkingElsewhere));
+    assert_eq!(back.online_meeting().as_deref(), Some(room.url.as_str()));
+    assert_eq!(back.location, room.url);
+}

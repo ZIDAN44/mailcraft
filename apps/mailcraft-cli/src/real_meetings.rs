@@ -12,7 +12,7 @@
 //! against the servers, a second copy of MailCraft reading back what the servers kept.
 
 use super::*;
-use mailcraft_engine::model::ical::CalEvent;
+use mailcraft_engine::model::ical::{self, CalEvent};
 
 const RILEY: &str = "riley@studio.test";
 const ZOE: &str = "zoe@studio.test";
@@ -113,7 +113,8 @@ fn real_meeting_through_a_calendar_server_and_an_invitation() {
         .run(
             "event.create",
             &json!({"summary": format!("Team meeting {tag}"), "description": "Team meeting", "start": start, "end": start + 3600,
-                    "attendees": format!("Zoe Park <{ZOE}>"), "onlineMeeting": "BigBlueButton", "calendar": calendar}),
+                    "attendees": format!("Zoe Park <{ZOE}>"), "onlineMeeting": "BigBlueButton", "calendar": calendar,
+                    "privacy": "private", "showAs": "oof"}),
         )
         .unwrap();
     let uid = r["uid"].as_str().unwrap().to_string();
@@ -128,6 +129,8 @@ fn real_meeting_through_a_calendar_server_and_an_invitation() {
     assert_eq!((c.len(), c[0].uri.as_str(), c[0].label.as_str()), (1, ROOM, "BigBlueButton"));
     assert_eq!(c[0].features, ["AUDIO", "VIDEO"]);
     assert_eq!(back.join_link().as_deref(), Some(ROOM));
+    // Private and out of office with it (issue #32), kept by the server too.
+    assert_eq!((ical::privacy(&back), ical::show_as(&back)), (ical::Privacy::Private, ical::ShowAs::OutOfOffice), "{:?}", back.extra);
 
     // The invitation, as Zoe's server delivered it.
     let (mut z, mut zpool, zstore) = open("zoe", ZOE, &sv);
@@ -144,6 +147,7 @@ fn real_meeting_through_a_calendar_server_and_an_invitation() {
     assert_eq!(z.join_link(invited).as_deref(), Some(ROOM));
     assert_eq!(invited.conferences()[0].label, "BigBlueButton");
     assert!(invited.description.contains("Access code: 123-456-789"));
+    assert_eq!((ical::privacy(invited), ical::show_as(invited)), (ical::Privacy::Private, ical::ShowAs::OutOfOffice));
 
     // Taken out: the calendar server's copy and the guests' update lose it, the notes stay.
     s.run("event.update", &json!({"uid": uid, "onlineMeeting": false})).unwrap();

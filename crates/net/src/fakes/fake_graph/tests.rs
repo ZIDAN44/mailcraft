@@ -585,3 +585,42 @@ fn private_and_show_as_go_to_graph_and_back() {
     let back = sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap();
     assert_eq!((privacy(&back.event), show_as(&back.event)), (Privacy::Public, ShowAs::WorkingElsewhere));
 }
+
+/// Issues #25 and #32 at once against the fake Graph: a private, out-of-office event with a
+/// room's meeting goes up with all three and comes back with all three, the meeting found in
+/// its place and notes once.
+#[test]
+fn private_show_as_and_a_meeting_together_through_graph() {
+    use mailcraft_model::ical::{CalEvent, MeetingLabels, MeetingRoom, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
+    use mailcraft_model::pim::{LOCAL, Pim, StoredEvent};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"));
+    d.calendars.push(("CAL1".into(), "Calendar".into()));
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    let room = MeetingRoom::new("BBB", "https://meet.example.edu/rooms/abc-def-ghi", "123-456-789", "").unwrap();
+    let mut e = CalEvent {
+        uid: "all-1".into(),
+        summary: "Doctor".into(),
+        description: "Bring the card".into(),
+        start: 1_792_000_000,
+        end: 1_792_003_600,
+        ..Default::default()
+    };
+    set_privacy(&mut e, Privacy::Confidential);
+    set_show_as(&mut e, ShowAs::OutOfOffice);
+    e.add_online_meeting(&room, &MeetingLabels::default());
+    let pim = Pim { events: vec![StoredEvent { calendar: LOCAL.into(), event: e, dirty: true, ..Default::default() }], ..Default::default() };
+    let sync = crate::graph_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    {
+        let d = server.data.lock().unwrap();
+        let on = d.events.iter().find(|e| e["subject"] == "Doctor").unwrap();
+        assert_eq!((on["sensitivity"].as_str(), on["showAs"].as_str()), (Some("confidential"), Some("oof")));
+        assert_eq!(on["location"]["displayName"], room.url.as_str());
+    }
+    let back = &sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap().event;
+    assert_eq!((privacy(back), show_as(back)), (Privacy::Confidential, ShowAs::OutOfOffice));
+    assert_eq!(back.online_meeting().as_deref(), Some(room.url.as_str()));
+    assert_eq!(back.description.matches("---- Online meeting").count(), 1, "{}", back.description);
+}

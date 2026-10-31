@@ -4,6 +4,7 @@
 //! ```text
 //! MAILCRAFT_REAL_INVITES="127.0.0.1:21510 http://127.0.0.1:21532/riley@studio.example/personal/" \
 //! MAILCRAFT_REAL_INVITES_JMAP="http://127.0.0.1:21508 riley pw" \
+//! MAILCRAFT_REAL_TOGETHER="127.0.0.1:21510 http://127.0.0.1:21532/riley@studio.example/personal/" \
 //!   cargo test -p mailcraft-cli --test real_invitations -- --ignored --nocapture
 //! ```
 //!
@@ -464,5 +465,185 @@ fn real_jmap_answered_invitation_leaves_the_inbox() {
         "stored on the server, accepted:
 {ics}"
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An Outlook invitation with an online meeting (`CONFERENCE`), sent tentative but meant busy,
+/// with the organizer's alarm: the calendar of v0.31 together (issues #25, #30, #31, #32, #33).
+fn outlook_invitation(uid: &str, summary: &str, start: &str) -> Vec<u8> {
+    let raw = String::from_utf8(invitation(uid, summary, start)).unwrap();
+    raw.replace(
+        "SEQUENCE:0\r\n",
+        "SEQUENCE:0\r\nCONFERENCE;VALUE=URI;FEATURE=AUDIO,VIDEO;LABEL=Join:https://meet.example.edu/rooms/abc-def-ghi\r\n\
+         TRANSP:OPAQUE\r\nX-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE\r\nX-MICROSOFT-CDO-INTENDEDSTATUS:BUSY\r\n\
+         BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Reminder\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\n",
+    )
+    .into_bytes()
+}
+
+/// The server's copy of an accepted meeting made private and out of office: each of its
+/// classification, busy status and meeting once.
+fn check_stored(ics: &str, uid: &str) {
+    let unfolded = ics.replace("\r\n ", "").replace("\n ", "");
+    let item = unfolded.split("BEGIN:VEVENT").find(|v| v.contains(&format!("UID:{uid}"))).unwrap_or_else(|| panic!("{uid} not stored:\n{ics}"));
+    for want in
+        ["CONFERENCE", "meet.example.edu/rooms/abc-def-ghi", "PARTSTAT=ACCEPTED", "CLASS:PRIVATE", "X-MICROSOFT-CDO-BUSYSTATUS:OOF", "TRANSP:OPAQUE"]
+    {
+        assert!(item.contains(want), "{want} not stored:\n{item}");
+    }
+    for once in ["CLASS:", "BUSYSTATUS:", "CONFERENCE", "TRANSP:"] {
+        assert_eq!(item.matches(once).count(), 1, "{once}: {item}");
+    }
+}
+
+/// Dovecot and Radicale (`MAILCRAFT_REAL_TOGETHER="imap calendar"`, as MAILCRAFT_REAL_INVITES):
+/// the Outlook invitation arrives while the calendar server can't be reached, is held, accepted
+/// in its message (out of the Inbox), then stored in the server's calendar busy, with its
+/// meeting; made private and out of office, it's stored so, and found by its meeting's link.
+#[test]
+#[ignore]
+fn real_outlook_meeting_held_accepted_private_and_found() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_TOGETHER") else {
+        eprintln!("MAILCRAFT_REAL_TOGETHER isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [imap, calendar] = p.as_slice() else { panic!("MAILCRAFT_REAL_TOGETHER: imap calendar") };
+    let target = calendar.trim_start_matches("http://").split('/').next().unwrap().to_string();
+    let (proxy_port, mode) = proxy(&target);
+    let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
+    let proxied = home.replace(&target, &format!("127.0.0.1:{proxy_port}"));
+    let (host, port) = imap.rsplit_once(':').unwrap();
+    let dir = std::env::temp_dir().join(format!("mailcraft-real-together-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let mut s = Session::open(Some(store.clone()), Clock::new(chrono_now(), 0));
+    let id = s
+        .run(
+            "account.add",
+            &json!({"email": USER, "password": "pw", "imapHost": host, "imapPort": port.parse::<u16>().unwrap(), "imapSecurity": "none", "smtpHost": "127.0.0.1", "smtpPort": 1, "smtpSecurity": "none"}),
+        )
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.run("account.dav", &json!({"account": id, "caldav": proxied})).unwrap();
+    s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
+    let mut app = App { s, pool: Pool::new(store.clone(), Arc::new(MemoryCredentials::default())) };
+    let mut other = Imap::connect(imap);
+    other.n += 1;
+    let _ = write!(other.s, "t{} CREATE Trash\r\n", other.n);
+    other.read_until(&format!("t{} ", other.n));
+    *mode.lock().unwrap() = None;
+    app.pump(120, "online", |_, e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let tag = std::process::id();
+    let uid = format!("together-{tag}@organizer.example");
+    let summary = format!("Planning {tag}");
+    other.append("INBOX", &outlook_invitation(&uid, &summary, "20261110T100000Z"));
+    app.pump(120, "the invitation held", |s, _| !s.pim[&id].held.is_empty());
+    assert!(app.s.calendars_pending(&id));
+    let subject = format!("Invitation: {summary}");
+    let key = app.s.folder_state(&id, "INBOX").messages.iter().find(|m| m.subject == subject).map(|m| m.key.to_id()).unwrap();
+    app.s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+    app.s.run("list.open", &json!({"key": key})).unwrap();
+    let r = app.s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    assert_eq!(r["moved"], 1, "{r}");
+    assert!(app.s.pim[&id].held.is_empty(), "dealt with");
+    // The calendar server answers: the accepted meeting goes there, busy, with its meeting.
+    *mode.lock().unwrap() = Some(1);
+    app.pool.submit(Job::SyncDav { account: id.clone() });
+    app.pump(180, "the calendars found", |_, e| matches!(e, Event::DavSynced { sync, .. } if sync.calendars.is_some()));
+    app.pump(180, "stored on the server", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty && !e.href.is_empty()));
+    let (_, e) = app.s.find_event(&uid).unwrap();
+    assert!(e.calendar.ends_with("/personal/"), "{}", e.calendar);
+    assert_eq!(mailcraft_engine::model::ical::show_as(&e.event), mailcraft_engine::model::ical::ShowAs::Busy);
+    let ics = stored(calendar);
+    assert!(ics.contains("X-MICROSOFT-CDO-BUSYSTATUS:BUSY"), "{ics}");
+    // Made private and out of office here: stored so on the server, each line once.
+    app.s.run("event.update", &json!({"uid": uid, "privacy": "private", "showAs": "oof"})).unwrap();
+    app.pump(120, "the change stored", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty));
+    check_stored(&stored(calendar), &uid);
+    let hits = app.s.run("calendar.search", &json!({"query": "is:private meet.example.edu/rooms/abc-def-ghi"})).unwrap();
+    assert!(hits.as_array().unwrap().iter().any(|h| h["uid"] == uid.as_str()), "{hits}");
+    let end = Instant::now() + Duration::from_secs(30);
+    while !other.subjects("Trash").iter().any(|x| x.contains(&summary)) {
+        assert!(Instant::now() < end, "not moved on the server");
+        let _ = app.pool.wait(Duration::from_millis(500));
+    }
+    eprintln!("held, accepted, moved, stored busy then private and out of office, found");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Stalwart (`MAILCRAFT_REAL_INVITES_JMAP`): an event made private, out of office and with a
+/// room's meeting at once is stored with all of them; the Outlook invitation delivered by JMAP,
+/// accepted from the calendar and made private, likewise, and moved out of the Inbox.
+#[test]
+#[ignore]
+fn real_jmap_private_meeting_and_outlook_invitation() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_INVITES_JMAP") else {
+        eprintln!("MAILCRAFT_REAL_INVITES_JMAP isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [base, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_INVITES_JMAP: base user password") };
+    let auth = format!("{user}:{password}");
+    let other = Jmap::connect(base, &auth);
+    let dir = std::env::temp_dir().join(format!("mailcraft-real-together-jmap-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let mut s = Session::open(Some(store.clone()), Clock::new(chrono_now(), 0));
+    let id = s
+        .run("account.add", &json!({"email": USER, "username": user, "password": password, "jmap": format!("{base}/jmap/session")}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.run("account.dav", &json!({"account": id, "caldav": format!("{base}/dav/cal/"), "username": user, "password": password})).unwrap();
+    s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
+    s.run("meetings.addRoom", &json!({"name": "BBB", "url": "https://meet.example.edu/rooms/abc-def-ghi", "code": "123"})).unwrap();
+    let mut app = App { s, pool: Pool::new(store.clone(), Arc::new(MemoryCredentials::default())) };
+    app.pump(120, "calendars found", |_, e| matches!(e, Event::DavSynced { sync, .. } if sync.calendars.is_some()));
+    let tag = std::process::id();
+    let made = app
+        .s
+        .run(
+            "event.create",
+            &json!({"account": id, "summary": format!("Doctor {tag}"), "start": "2026-11-12T09:00", "privacy": "private", "showAs": "oof", "onlineMeeting": "BBB", "reminder": 10}),
+        )
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    app.pump(120, "made and stored", |s, _| s.find_event(&made).is_some_and(|(_, e)| !e.dirty && !e.href.is_empty()));
+    let (_, e) = app.s.find_event(&made).unwrap();
+    let ics = http("GET", &e.href, &auth, "text/plain", b"").replace("\r\n ", "");
+    for want in ["CLASS:PRIVATE", "X-MICROSOFT-CDO-BUSYSTATUS:OOF", "CONFERENCE", "---- Online meeting ----", "TRIGGER:-PT10M"] {
+        assert!(ics.contains(want), "{want}: {ics}");
+    }
+    let uid = format!("together-jmap-{tag}@organizer.example");
+    let summary = format!("Planning {tag}");
+    other.deliver(&outlook_invitation(&uid, &summary, "20261113T100000Z"));
+    let inbox = app.s.account(&id).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Inbox)).map(|f| f.path.clone()).unwrap();
+    app.pool.submit(Job::SyncFolder { account: id.clone(), folder: inbox });
+    app.pump(120, "the invitation", |s, _| s.find_event(&uid).is_some());
+    app.pump(120, "stored on the server", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty && !e.href.is_empty()));
+    app.s.run("event.respond", &json!({"uid": uid, "answer": "accepted"})).unwrap();
+    app.s.run("event.update", &json!({"uid": uid, "privacy": "private", "showAs": "oof"})).unwrap();
+    app.pump(120, "the answer stored", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty));
+    let (_, e) = app.s.find_event(&uid).unwrap();
+    check_stored(&http("GET", &e.href, &auth, "text/plain", b""), &uid);
+    let end = Instant::now() + Duration::from_secs(60);
+    while !other.subjects("trash").iter().any(|x| x.contains(&summary)) {
+        for j in app.s.take_jobs() {
+            app.pool.submit(j);
+        }
+        if let Some(e) = app.pool.wait(Duration::from_millis(300)) {
+            app.s.apply(e);
+        }
+        assert!(Instant::now() < end, "not moved: Inbox {:?}", other.subjects("inbox"));
+    }
+    let hits = app.s.run("calendar.search", &json!({"query": "is:private meet.example.edu"})).unwrap();
+    assert_eq!(hits.as_array().map(Vec::len), Some(2), "{hits}");
+    eprintln!("made and stored with all three; the invitation accepted, private, moved, found");
     let _ = std::fs::remove_dir_all(&dir);
 }
