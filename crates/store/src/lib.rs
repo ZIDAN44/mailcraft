@@ -296,6 +296,26 @@ impl Store {
         Store { files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())), root, changes: Arc::default(), reads: Arc::default() }
     }
 
+    /// A memory cache whose files can be made to fail ([`Store::fail`]), for tests of what a
+    /// store error loses.
+    #[doc(hidden)]
+    pub fn failing() -> Store {
+        let root = PathBuf::from("memory");
+        let faults = files::Faults { files: Files::Memory(Arc::default(), Arc::default()), reads: Mutex::default(), writes: Mutex::default() };
+        Store { files: Routed::new(&root, Files::Failing(Arc::new(faults))), root, changes: Arc::default(), reads: Arc::default() }
+    }
+
+    /// From now on, a [`Store::failing`] cache fails to read the files whose path ends with
+    /// `reads` (`state.json`, `.eml`), and to write, rename or remove those ending with `writes`;
+    /// `None` lets them work again. Other caches ignore it.
+    #[doc(hidden)]
+    pub fn fail(&self, reads: Option<&str>, writes: Option<&str>) {
+        if let Files::Failing(f) = &self.files.main {
+            *f.reads.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = reads.map(str::to_string);
+            *f.writes.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = writes.map(str::to_string);
+        }
+    }
+
     /// A memory cache holding files from an earlier [`Store::snapshot`].
     pub fn memory_from(files: Vec<(String, Vec<u8>)>) -> Store {
         let s = Store::memory();

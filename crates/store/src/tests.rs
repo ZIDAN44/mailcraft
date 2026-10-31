@@ -380,3 +380,33 @@ fn a_memory_folder_lists_only_its_own_files() {
     assert!(!s.files.exists(&dir.join("8")) && !s.files.exists(&s.folder_dir("a1", "Other")));
     assert_eq!(s.files.main.walk(&dir).len(), 3);
 }
+
+/// A store that fails says so: a source that isn't kept is told from one that can't be read, and
+/// the changes waiting for the server aren't written over when they can't be read.
+#[test]
+fn a_failing_store_says_so_and_writes_nothing_over() {
+    let s = Store::failing();
+    let st = FolderState { validity: 3, uid_next: 10, messages: vec![msg(9, false)], ..Default::default() };
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let k9 = st.messages[0].key.clone();
+    s.write_body(&k9, b"x").unwrap();
+    let missing = MessageKey { uid: 4, ..k9.clone() };
+    assert_eq!(s.load_body(&missing).unwrap(), None, "not kept: no error");
+    let waiting = vec![Op::Move { keys: vec![k9.clone()], to: "Archive".into() }];
+    s.save_ops("a1", &waiting).unwrap();
+
+    s.fail(Some(".eml"), None);
+    assert!(s.load_body(&k9).is_err() && s.load_body(&missing).is_err());
+    assert!(s.load_folder("a1", "INBOX").is_ok(), "only what ends so fails");
+    s.fail(Some("ops.json"), None);
+    assert!(s.add_op("a1", Op::Expunge { keys: vec![k9.clone()] }).is_err());
+    assert!(s.remove_op("a1", &waiting[0]).is_err());
+    s.fail(None, Some("state.json"));
+    assert!(s.save_folder("a1", "INBOX", &FolderState::default()).is_err());
+    assert!(s.apply_op("a1", &Op::Expunge { keys: vec![k9.clone()] }).is_err());
+
+    s.fail(None, None);
+    assert_eq!(s.load_ops("a1").unwrap(), waiting);
+    assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
+    assert_eq!(s.load_body(&k9).unwrap().as_deref(), Some(&b"x"[..]));
+}

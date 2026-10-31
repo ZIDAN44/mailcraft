@@ -8,6 +8,18 @@ impl Store {
         self.files.read(&self.body_path(key)).ok()
     }
 
+    /// A message's source, `None` when it isn't kept here (never downloaded); an error when it is
+    /// but couldn't be read, so that what goes on to rewrite it stops rather than lose it.
+    pub fn load_body(&self, key: &MessageKey) -> Result<Option<Vec<u8>>> {
+        self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = self.body_path(key);
+        match self.files.read(&path) {
+            Ok(raw) => Ok(Some(raw)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(io_err(&path)(e)),
+        }
+    }
+
     /// How many message sources were read since the cache opened (clones count together): a
     /// search that needs none can be shown to read none.
     pub fn reads(&self) -> u64 {
@@ -47,10 +59,11 @@ impl Store {
         self.read_json(&self.account_dir(account).join("ops.json"))
     }
 
-    /// Append `op` to ops.json.
+    /// Append `op` to ops.json. One that can't be read stops it: written over, the changes
+    /// waiting in it would be lost (a missing or damaged one reads as empty).
     pub fn add_op(&self, account: &str, op: Op) -> Result<()> {
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut ops = self.load_ops(account).unwrap_or_default();
+        let mut ops = self.load_ops(account)?;
         ops.push(op);
         self.save_ops(account, &ops)
     }
@@ -58,7 +71,7 @@ impl Store {
     /// Delete the first entry equal to `op` from ops.json, if any.
     pub fn remove_op(&self, account: &str, op: &Op) -> Result<()> {
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut ops = self.load_ops(account).unwrap_or_default();
+        let mut ops = self.load_ops(account)?;
         if let Some(i) = ops.iter().position(|o| o == op) {
             ops.remove(i);
             self.save_ops(account, &ops)?;

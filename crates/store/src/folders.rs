@@ -145,11 +145,12 @@ impl Store {
         }
         if let Op::EmptyFolder { path } = op {
             let mut st = self.load_folder(account, path)?;
-            for m in &st.messages {
+            // The list first: one that can't be saved still has its messages' sources.
+            let gone = std::mem::take(&mut st.messages);
+            self.save_folder(account, path, &st)?;
+            for m in &gone {
                 self.remove_body(&m.key);
             }
-            st.messages.clear();
-            self.save_folder(account, path, &st)?;
             let mut list = self.load_folders(account)?;
             for f in list.iter_mut().filter(|f| &f.path == path) {
                 f.total = 0;
@@ -163,6 +164,7 @@ impl Store {
         folders.dedup();
         for folder in &folders {
             let mut st = self.load_folder(account, folder)?;
+            let mut sources_gone: Vec<&MessageKey> = Vec::new();
             let in_folder = |k: &MessageKey| k.account == account && &k.folder == folder && k.validity == st.validity;
             match op {
                 Op::SetFlag { keys, flag, on } => {
@@ -188,16 +190,17 @@ impl Store {
                     st.messages.retain(|m| !uids.contains(&m.key.uid));
                 }
                 Op::Expunge { keys } => {
-                    let gone: Vec<&MessageKey> = keys.iter().filter(|k| in_folder(k)).collect();
-                    for k in &gone {
-                        self.remove_body(k);
-                    }
-                    let uids: HashSet<u32> = gone.iter().map(|k| k.uid).collect();
+                    sources_gone = keys.iter().filter(|k| in_folder(k)).collect();
+                    let uids: HashSet<u32> = sources_gone.iter().map(|k| k.uid).collect();
                     st.messages.retain(|m| !uids.contains(&m.key.uid));
                 }
                 Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
             }
             self.save_folder(account, folder, &st)?;
+            // Once the list no longer has them: one that can't be saved keeps their sources.
+            for k in sources_gone {
+                self.remove_body(k);
+            }
         }
         Ok(folders)
     }
