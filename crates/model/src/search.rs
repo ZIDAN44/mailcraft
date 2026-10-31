@@ -250,6 +250,37 @@ impl Query {
         self.clauses.is_empty()
     }
 
+    /// The query typed, with each `category:` (`keyword:`, `label:`, `tag:`) value put through
+    /// `keyword_of` and written `keyword:<what it gives>`, for a server, which knows keywords, not
+    /// category names (`category:"To do"` → `keyword:$label4`). Unchanged when nothing is.
+    pub fn with_keywords(input: &str, keyword_of: impl Fn(&str) -> Option<String>) -> String {
+        let tokens = split_tokens(input);
+        let mut changed = false;
+        let out: Vec<String> = tokens
+            .into_iter()
+            .map(|tok| {
+                let (neg, rest) = match tok.strip_prefix('-') {
+                    Some(r) if !r.is_empty() => ("-", r),
+                    _ => ("", tok.as_str()),
+                };
+                let resolved = rest
+                    .split_once(':')
+                    .filter(|(k, v)| !v.is_empty() && matches!(k.to_ascii_lowercase().as_str(), "keyword" | "category" | "label" | "tag"))
+                    .and_then(|(_, v)| keyword_of(v.trim_matches('"')))
+                    .filter(|k| crate::is_keyword(k))
+                    .map(|k| format!("{neg}keyword:{k}"));
+                match resolved {
+                    Some(r) if r != tok => {
+                        changed = true;
+                        r
+                    }
+                    _ => tok,
+                }
+            })
+            .collect();
+        if changed { out.join(" ") } else { input.to_string() }
+    }
+
     /// The words the index can narrow by: words of positive text clauses.
     pub fn index_words(&self) -> Vec<String> {
         let mut v = Vec::new();
@@ -559,5 +590,17 @@ mod tests {
         for not in ["from:zoe storyboard", "is:unread budget", "subject:weekly"] {
             assert!(!Query::parse(not).needs_body(), "{not}");
         }
+    }
+
+    #[test]
+    fn categories_asked_by_keyword() {
+        let k = |v: &str| (v == "Work" || v == "To do").then(|| if v == "Work" { "$label2".to_string() } else { "$label4".to_string() });
+        assert_eq!(Query::with_keywords("category:Work  -tag:\"To do\" plan", k), "keyword:$label2 -keyword:$label4 plan");
+        assert_eq!(Query::with_keywords("from:ana  category:Other", k), "from:ana  category:Other");
+        // What gives no keyword atom is left as typed.
+        assert_eq!(Query::with_keywords("category:x", |_| Some("two words".into())), "category:x");
+        assert_eq!(Query::with_keywords("category: Work", k), "keyword:$label2");
+        let q = Query::parse(&Query::with_keywords("-category:Work", k));
+        assert_eq!(q.clauses.first().map(|c| (&c.term, c.negated)), Some((&Term::Keyword("$label2".into()), true)));
     }
 }

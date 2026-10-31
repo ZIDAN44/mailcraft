@@ -47,11 +47,9 @@ pub fn search_filter(query: &str) -> Option<Value> {
                     conds.push(not(json!({"operator": "OR", "conditions": one})));
                 }
             }
-            Term::Keyword(k)
-                if !k.is_empty() && k.len() < 100 && k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '$' | '_' | '-' | '.')) =>
-            {
-                conds.push(keyword(k, !c.negated));
-            }
+            // Any keyword atom (RFC 8621 §4.1.1 allows what IMAP does): Thunderbird's `to=20do`
+            // too (issue #28).
+            Term::Keyword(k) if mailcraft_model::is_keyword(k) => conds.push(keyword(k, !c.negated)),
             _ => {}
         }
     }

@@ -273,6 +273,9 @@ pub struct ServerSearch {
     /// Which search it is (the jobs' `search`), so a newer one stops it.
     pub id: u64,
     pub query: String,
+    /// The query as the servers were asked it: categories by their keywords
+    /// ([`Session::server_query`]); their answers name it.
+    pub sent: String,
     /// Accounts still searching.
     pub pending: usize,
     /// What the servers found (in their folders' lists now), shown whether or not the words are

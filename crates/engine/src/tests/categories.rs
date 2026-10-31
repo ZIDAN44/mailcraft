@@ -174,3 +174,21 @@ fn many_unlisted_keywords_are_counted_and_capped() {
     assert_eq!(found[0], ("Common".to_string(), 20_000), "one keyword whatever its case");
     assert!(!found.iter().any(|(k, _)| k == "$Junk"));
 }
+
+/// A server knows keywords, not category names: its search asks `category:Work` as the Work
+/// category's keyword, a name not in the list as the keyword Thunderbird makes of it, and the
+/// answers, which name the query asked, still show (issue #28).
+#[test]
+fn the_server_is_asked_for_categories_by_keyword() {
+    let mut s = sample_session("cat-server-search");
+    assert_eq!(s.server_query("category:Work report"), "keyword:$label2 report");
+    assert_eq!(s.server_query("-category:\"To do\""), "-keyword:$label4");
+    assert_eq!(s.server_query("tag:Rückfrage"), "keyword:r=c3=bcckfrage");
+    assert_eq!(s.server_query("category:$label6"), "category:$label6", "a keyword already");
+    assert_eq!(s.server_query("from:ana  quarterly"), "from:ana  quarterly", "untouched");
+    let q = "category:Work";
+    s.search = Some((q.into(), SearchScope::All));
+    s.server_search = Some(crate::ServerSearch { id: 1, query: q.into(), sent: "keyword:$label2".into(), pending: 1, ..Default::default() });
+    s.apply(Event::ServerSearched { account: "sample".into(), query: "keyword:$label2".into(), keys: Vec::new(), error: None, done: true });
+    assert_eq!(s.server_search.as_ref().map(|ss| ss.pending), Some(0), "the answer counted");
+}

@@ -407,11 +407,23 @@ impl Session {
         }
         self.searches = self.searches.wrapping_add(1).max(1);
         let id = self.searches;
-        self.server_search = Some(ServerSearch { id, query: q.clone(), pending: by_account.len(), ..Default::default() });
+        let sent = self.server_query(&q);
+        self.server_search = Some(ServerSearch { id, query: q.clone(), sent: sent.clone(), pending: by_account.len(), ..Default::default() });
         for (account, folders) in by_account {
-            self.jobs.push(Job::SearchServer { account, folders, query: q.clone(), search: id });
+            self.jobs.push(Job::SearchServer { account, folders, query: sent.clone(), search: id });
         }
         Ok(serde_json::json!({ "query": q, "searching": true }))
+    }
+
+    /// The search box's query for a server: `category:Work` asks for the Work category's keyword
+    /// (`$label2`), and a name not in the list the keyword Thunderbird makes of it
+    /// (`category:"To do list"` → `to=20do=20list`, issue #28); the server knows no names.
+    pub fn server_query(&self, q: &str) -> String {
+        mailcraft_model::search::Query::with_keywords(q, |v| match self.category(v) {
+            Some(c) => Some(c.keyword.clone()),
+            None if !mailcraft_model::is_keyword(v) => Some(mailcraft_model::keyword_for(v)),
+            None => None,
+        })
     }
 
     /// Ask for MailCraft's releases (File › About › Check for updates).

@@ -396,6 +396,19 @@ fn real_keywords_in_a_shared_folder() {
         let _ = pool.wait(Duration::from_millis(200));
     }
 
+    // The server searched for a Thunderbird keyword (it was left out of the search before).
+    let q = "keyword:r=c3=bcckfrage";
+    pool.submit(Job::SearchServer { account: "w".into(), folders: vec![folder.clone()], query: q.into(), search: 1 });
+    let mut found = Vec::new();
+    until(&pool, 60, "the search", |e| match e {
+        Event::ServerSearched { query, keys, done, .. } if query == q => {
+            found.extend(keys.iter().cloned());
+            *done
+        }
+        _ => false,
+    });
+    assert_eq!(found, std::slice::from_ref(&m.key));
+
     // Read-only: refused, not taken and forgotten.
     start(&mut pool, "r", &reader);
     let mine = store.load_folder("r", &folder).ok().and_then(|f| f.messages.into_iter().next()).expect("the reader's copy");
@@ -404,6 +417,10 @@ fn real_keywords_in_a_shared_folder() {
         op: Op::SetKeyword { keys: vec![mine.key.clone()], keyword: "dave=20was=20here".into(), on: true },
     });
     let seen = until(&pool, 60, "the refusal", |e| matches!(e, Event::OpFailed { account, .. } if account == "r"));
+    eprintln!("refused: {:?}", seen.last());
+    // Taking one off too: Dovecot answers the reader's `-FLAGS` with OK and keeps it.
+    pool.submit(Job::Apply { account: "r".into(), op: Op::SetKeyword { keys: vec![mine.key.clone()], keyword: "$label6".into(), on: false } });
+    let seen = until(&pool, 60, "the refusal to take one off", |e| matches!(e, Event::OpFailed { account, .. } if account == "r"));
     eprintln!("refused: {:?}", seen.last());
     pool.submit(Job::Remove { account: "w".into() });
     pool.submit(Job::Remove { account: "r".into() });

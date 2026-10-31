@@ -95,7 +95,7 @@ impl Session {
             }
             Event::DirectoryAllowed { account, error } => self.directory_allowed(&account, error),
             Event::ServerSearched { account, query, keys, error, done } => {
-                if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.query == query) {
+                if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.sent == query) {
                     // What's found so far shows at once; the account is done at its last answer.
                     if done {
                         ss.pending = ss.pending.saturating_sub(1);

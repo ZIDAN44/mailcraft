@@ -28,6 +28,17 @@ fn a_query_becomes_imap_search_keys() {
         imap_criteria("from:ana,jun lee"),
         Some(vec![a("TEXT"), st("lee")]).map(|v| [vec![a("OR"), a("FROM"), st("ana"), a("FROM"), st("jun")], v].concat())
     );
+    // Issue #28: Thunderbird's keywords are asked as they are (they were left out); what isn't an
+    // atom can't be.
+    assert_eq!(
+        imap_criteria("keyword:to=20do -keyword:&x-moz-ab12"),
+        Some(vec![a("KEYWORD"), a("to=20do"), a("NOT"), a("KEYWORD"), a("&x-moz-ab12")])
+    );
+    assert_eq!(imap_criteria("keyword:a]b"), None);
+    assert_eq!(
+        mailcraft_jmap::search_filter("keyword:r=c3=bcckfrage"),
+        Some(serde_json::json!({"operator": "AND", "conditions": [{"hasKeyword": "r=c3=bcckfrage"}]}))
+    );
 }
 
 /// Gap #7: the query as Exchange's KQL/AQS words with the read, flag and attachment

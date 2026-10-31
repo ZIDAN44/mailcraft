@@ -253,9 +253,9 @@ pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
                     }
                 }
             }
-            Term::Keyword(k)
-                if !k.is_empty() && k.len() < 100 && k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '$' | '_' | '-' | '.')) =>
-            {
+            // Any keyword atom: Thunderbird's `to=20do` and `&x-moz-…` too (issue #28), which
+            // were left out, so the server was asked without the category.
+            Term::Keyword(k) if mailcraft_model::is_keyword(k) => {
                 not(&mut out);
                 out.extend([atom("KEYWORD"), atom(k)]);
             }
