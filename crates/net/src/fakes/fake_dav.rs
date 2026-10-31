@@ -304,12 +304,20 @@ mod tests {
         // sent again, and refused again, at every sync).
         let mut stale = pim.clone();
         stale.deleted.clear();
-        stale.events = vec![StoredEvent { event: CalEvent { summary: "Old edit".into(), ..review.event.clone() }, dirty: true, ..review }];
+        stale.events = vec![StoredEvent { event: CalEvent { summary: "Old edit".into(), ..review.event.clone() }, dirty: true, ..review.clone() }];
         let third = sync(&dav, &AT, &stale, 300, Zone::UTC).unwrap();
         assert_eq!(third.errors.len(), 1, "{:?}", third.errors);
         assert!(!data.lock().unwrap().items.values().any(|(_, v)| v.contains("Old edit")));
         assert_eq!(third.refused, ["a"]);
         assert!(third.events.iter().any(|e| e.event.uid == "a" && e.event.summary == "Review (moved)"), "the server's copy read");
+        // The server has what was changed here already (SOGo put a guest's answer in the
+        // organizer's copy itself): its copy is kept without a word.
+        let mut same = pim.clone();
+        same.deleted.clear();
+        same.events =
+            vec![StoredEvent { event: CalEvent { summary: "Review (moved)".into(), ..review.event.clone() }, dirty: true, ..review.clone() }];
+        let quiet = sync(&dav, &AT, &same, 300, Zone::UTC).unwrap();
+        assert_eq!((quiet.errors.len(), quiet.refused.len()), (0, 1), "{:?}", quiet.errors);
         // Nothing changed since: the calendar isn't read again.
         let mut settled = pim.clone();
         settled.deleted.clear();

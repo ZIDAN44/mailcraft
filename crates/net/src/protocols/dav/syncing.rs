@@ -126,7 +126,17 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
             // copy itself): the server's copy comes back, rather than being sent again, refused
             // again, at every sync.
             Ok(Err(r @ (Refused::Forbidden | Refused::Changed))) if !master.href.is_empty() => {
-                out.errors.push(format!("{}: {r}; the server's copy is kept", master.event.summary));
+                // Said, unless the server's copy has what was changed here already (SOGo put a
+                // guest's answer in the organizer's copy before the organizer's MailCraft did).
+                let kept = r == Refused::Changed
+                    && dav.multiget(Kind::Calendars, calendar, std::slice::from_ref(&master.href)).is_ok_and(|got| {
+                        got.iter()
+                            .flat_map(|(_, _, d)| ical::parse_in(d, local).events)
+                            .any(|e| e.recurrence_id.is_none() && has_all_of(&e, &master.event))
+                    });
+                if !kept {
+                    out.errors.push(format!("{}: {r}; the server's copy is kept", master.event.summary));
+                }
                 out.refused.push(uid.to_string());
                 refetch.push(master.href.clone());
             }
@@ -227,4 +237,14 @@ fn the_servers(dav: &Dav, calendar: &str, uid: &str, local: mailcraft_model::zon
         }
     }
     Ok(None)
+}
+
+/// Whether the server's copy of an event has what the user's copy says: its title, place and
+/// times, and each guest's answer.
+fn has_all_of(server: &CalEvent, mine: &CalEvent) -> bool {
+    let answer = |e: &CalEvent, who: &str| e.attendees.iter().find(|a| a.email.eq_ignore_ascii_case(who)).map(|a| a.partstat.to_ascii_uppercase());
+    server.uid == mine.uid
+        && (server.summary.as_str(), server.location.as_str(), server.start, server.end)
+            == (mine.summary.as_str(), mine.location.as_str(), mine.start, mine.end)
+        && mine.attendees.iter().all(|a| answer(server, &a.email) == Some(a.partstat.to_ascii_uppercase()))
 }
