@@ -312,6 +312,81 @@ fn a_headerless_item_keeps_forwarded_importance_and_references() {
     assert!(text.contains("Importance: high"), "{text}");
 }
 
+/// The header of a rebuilt message: its lines, each ASCII without control characters (but tab),
+/// at most 998 bytes.
+fn clean_header(raw: &[u8]) -> Vec<String> {
+    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    let head = std::str::from_utf8(&raw[..end]).unwrap();
+    let lines: Vec<String> = head.split("\r\n").map(str::to_string).collect();
+    for l in &lines {
+        assert!(l.len() <= 998 && l.chars().all(|c| c == '\t' || (c.is_ascii() && !c.is_ascii_control())), "{l:?}");
+    }
+    lines
+}
+
+/// Outlook's conversation index and topic and the sensitivity become headers on an item that
+/// has none; hostile text in them stays inside its own line, short and encoded.
+#[test]
+fn a_headerless_item_gets_thread_and_sensitivity_headers() {
+    let index: Vec<u8> = (0..22 + 5 * 60 + 3).map(|i: u32| i as u8).collect();
+    let topic = "Plan\r\nBcc: evil@example.com\u{0}\u{7}  for the café";
+    let props = [
+        (0x001A, Val::Text("IPM.Note".into())),
+        (0x0037, Val::Text("Plan".into())),
+        (0x0071, Val::Bin(&index)),
+        (0x0070, Val::Text(topic.into())),
+        (0x0036, Val::Int(3)),
+        (0x1035, Val::Text("<id@x>\r\nBcc: evil@example.com".into())),
+    ];
+    let (raw, _) = rebuilt(&props, &[]).unwrap();
+    let lines = clean_header(&raw);
+    assert!(!lines.iter().any(|l| l.to_ascii_lowercase().starts_with("bcc")), "{lines:#?}");
+    let index_line = lines.iter().find(|l| l.starts_with("Thread-Index: ")).unwrap();
+    let kept = crate::ews::unb64(&index_line["Thread-Index: ".len()..]).unwrap();
+    assert_eq!(kept.len(), 22 + 5 * 50, "whole blocks, at most 50");
+    assert_eq!(kept[..], index[..kept.len()]);
+    assert!(lines.contains(&"Sensitivity: Company-Confidential".to_string()), "{lines:#?}");
+    let m = mailparse_header(&raw, "Thread-Topic");
+    assert_eq!(m, "Plan Bcc: evil@example.com for the café");
+    // A long topic is cut short, and plain ASCII stays as it is.
+    let long = "x".repeat(2000);
+    let (raw, _) = rebuilt(&[(0x0070, Val::Text(long.as_str().into()))], &[]).unwrap();
+    assert!(clean_header(&raw).contains(&format!("Thread-Topic: {}", "x".repeat(MAX_TOPIC))));
+    // Nothing but spaces: no header.
+    let (raw, _) = rebuilt(&[(0x0070, Val::Text("\r\n \t".into())), (0x0036, Val::Int(9))], &[]).unwrap();
+    assert!(!clean_header(&raw).iter().any(|l| l.starts_with("Thread-Topic") || l.starts_with("Sensitivity")));
+}
+
+/// A header's value as a mail reader decodes it (read as a subject).
+fn mailparse_header(raw: &[u8], name: &str) -> String {
+    let head = String::from_utf8_lossy(raw);
+    let start = head.find(&format!("\r\n{name}: ")).unwrap() + 2 + name.len();
+    let field: String = head[start..].split("\r\n").enumerate().take_while(|(i, l)| *i == 0 || l.starts_with(' ')).map(|(_, l)| l).collect();
+    mime::parse(format!("Subject{field}\r\n\r\n").as_bytes()).unwrap().subject
+}
+
+/// An item with its own header gets only the lines that header lacks.
+#[test]
+fn an_original_header_gets_only_what_it_lacks() {
+    let it = Item {
+        subject: "Hello".into(),
+        from: EmailAddress::new("Ana", "ana@example.com"),
+        date: 1_704_067_200,
+        body: "Hi".into(),
+        headers: "From: ana@example.com\r\nSubject: Hello\r\nthread-topic: Theirs\r\n".into(),
+        thread_index: vec![1; 22],
+        thread_topic: "Ours".into(),
+        sensitivity: 2,
+        ..Default::default()
+    };
+    let raw = to_raw(&it, "f@x").unwrap();
+    let lines = clean_header(&raw);
+    let named = |n: &str| lines.iter().filter(|l| l.to_ascii_lowercase().starts_with(&n.to_ascii_lowercase())).count();
+    assert_eq!((named("thread-topic:"), named("thread-index:"), named("sensitivity:")), (1, 1, 1), "{lines:#?}");
+    assert!(lines.contains(&"thread-topic: Theirs".to_string()));
+    assert!(lines.contains(&"Sensitivity: Private".to_string()));
+}
+
 #[test]
 fn original_headers_are_kept_over_the_rebuilt_body() {
     let it = Item {

@@ -1435,4 +1435,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
 - **Mail from a `.pst` that came without headers** (sent items, drafts, mail Outlook made
   itself): a forwarded message shows as forwarded (by Outlook's last action on it, or its
   forwarded icon), high and low importance come through, and the ids it answers are read
-  however the file separated them (`<a><b>`, commas, spaces), so its replies thread.
+  however the file separated them (`<a><b>`, commas, spaces), so its replies thread. Its
+  conversation index and topic and its sensitivity become `Thread-Index`, `Thread-Topic` and
+  `Sensitivity` headers (on mail whose own header lacks them too), each cleaned of line breaks
+  and control characters, capped and encoded, so a damaged file can't add header lines.

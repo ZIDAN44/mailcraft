@@ -35,15 +35,72 @@ pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<Vec<u8>, String> {
             }
         }
     }
-    let id = it.message_id.trim().trim_matches(|c| c == '<' || c == '>');
-    let id = if id.is_empty() { fallback_id } else { id };
+    // An id from the file goes into a header line: no spaces or line breaks.
+    let id = mailcraft_model::thread::norm_id(&it.message_id);
+    let id = if id.is_empty() { fallback_id } else { &id };
     let built = mime::build(&d, &it.from, it.date, id)?;
-    Ok(with_headers(built, &it.headers, &it.bcc))
+    Ok(with_headers(built, &it.headers, &it.bcc, &extra_headers(it)))
+}
+
+/// What the item's properties say that a header carries: Outlook's conversation index and
+/// topic, and its sensitivity (RFC 2156), each as one line of safe text.
+fn extra_headers(it: &Item) -> Vec<(&'static str, String)> {
+    let mut out = Vec::new();
+    if !it.thread_index.is_empty() {
+        out.push(("Thread-Index", crate::imap::base64(&it.thread_index)));
+    }
+    let topic = header_text(&it.thread_topic, MAX_TOPIC);
+    if !topic.is_empty() {
+        out.push(("Thread-Topic", topic));
+    }
+    let sensitivity = match it.sensitivity {
+        1 => "Personal",
+        2 => "Private",
+        3 => "Company-Confidential",
+        _ => "",
+    };
+    if !sensitivity.is_empty() {
+        out.push(("Sensitivity", sensitivity.to_string()));
+    }
+    out
+}
+
+/// Text from the file as a header's value: control characters and line breaks become spaces,
+/// runs of spaces one, at most `cap` characters, and RFC 2047 words (UTF-8, base64, folded)
+/// when it isn't plain ASCII or could be read as such words.
+pub(super) fn header_text(s: &str, cap: usize) -> String {
+    let mut text = String::new();
+    for c in s.chars().map(|c| if c.is_control() || c.is_whitespace() { ' ' } else { c }).take(cap) {
+        if c != ' ' || !(text.is_empty() || text.ends_with(' ')) {
+            text.push(c);
+        }
+    }
+    let text = text.trim_end();
+    if text.is_ascii() && !text.contains("=?") {
+        return text.to_string();
+    }
+    // Words of at most 45 bytes: 60 in base64, 72 with `=?utf-8?B?…?=`.
+    let word = |w: &str| format!("=?utf-8?B?{}?=", crate::imap::base64(w.as_bytes()));
+    let mut words = Vec::new();
+    let mut start = 0;
+    for (i, c) in text.char_indices() {
+        if i + c.len_utf8() - start > 45 {
+            words.push(word(text.get(start..i).unwrap_or_default()));
+            start = i;
+        }
+    }
+    words.push(word(text.get(start..).unwrap_or_default()));
+    words.join("\r\n ")
+}
+
+/// Whether a header block has a line named `name`.
+fn has_header(head: &str, name: &str) -> bool {
+    head.lines().any(|l| l.split_once(':').is_some_and(|(n, _)| n.trim().eq_ignore_ascii_case(name)))
 }
 
 /// Keep the item's original headers (when it came in by mail) above the rebuilt body; a sent
-/// item's Bcc goes back in.
-fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress]) -> Vec<u8> {
+/// item's Bcc goes back in, and the `extra` lines the header lacks are added.
+fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(&str, String)]) -> Vec<u8> {
     let Some(split) = built.windows(4).position(|w| w == b"\r\n\r\n") else { return built };
     let (head, body) = built.split_at(split);
     let head = String::from_utf8_lossy(head);
@@ -65,6 +122,9 @@ fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress]) -> Vec<u8>
                 out.push_str("\r\n");
             }
         }
+        for (name, value) in extra.iter().filter(|(name, _)| !has_header(original, name)) {
+            out.push_str(&format!("{name}: {value}\r\n"));
+        }
         let mut keep = false;
         for line in head.split("\r\n") {
             if !line.starts_with([' ', '\t']) {
@@ -78,6 +138,9 @@ fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress]) -> Vec<u8>
     } else {
         if !bcc.is_empty() {
             out.push_str(&format!("Bcc: {}\r\n", mailcraft_model::addr::format_list(bcc)));
+        }
+        for (name, value) in extra.iter().filter(|(name, _)| !has_header(&head, name)) {
+            out.push_str(&format!("{name}: {value}\r\n"));
         }
         out.push_str(&head);
         out.push_str("\r\n");

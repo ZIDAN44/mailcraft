@@ -21,6 +21,11 @@ pub(super) struct Item {
     pub(super) headers: String,
     /// High (1) or low (-1), for an item with no headers of its own.
     pub(super) importance: i8,
+    /// Outlook's conversation index and topic, and the sensitivity (1 personal, 2 private, 3
+    /// confidential): headers for an item whose own header lacks them.
+    pub(super) thread_index: Vec<u8>,
+    pub(super) thread_topic: String,
+    pub(super) sensitivity: u8,
     pub(super) flags: Flags,
     pub(super) files: Vec<File>,
     /// A contact's or appointment's own properties.
@@ -101,7 +106,7 @@ pub(super) fn item_of<'a>(
     {
         rtf_into(&mut it, rtf);
     }
-    it.message_id = s(0x1035);
+    it.message_id = message_ids(&s(0x1035)).into_iter().next().unwrap_or_default();
     it.in_reply_to = message_ids(&s(0x1042)).into_iter().next().unwrap_or_default();
     it.references = message_ids(&s(0x1039));
     it.headers = s(0x007D);
@@ -109,6 +114,19 @@ pub(super) fn item_of<'a>(
     it.importance = match p(0x0017) {
         Some(Val::Int(0)) => -1,
         Some(Val::Int(2)) => 1,
+        _ => 0,
+    };
+    // A conversation index is a 22-byte header and 5-byte blocks (MS-OXOMSG 2.2.1.3): kept
+    // whole blocks only, at most MAX_THREAD_BLOCKS of them.
+    if let Some(Val::Bin(b)) = p(0x0071)
+        && b.len() >= 22
+    {
+        let blocks = ((b.len() - 22) / 5).min(MAX_THREAD_BLOCKS);
+        it.thread_index = b.get(..22 + blocks * 5).unwrap_or_default().to_vec();
+    }
+    it.thread_topic = s(0x0070);
+    it.sensitivity = match p(0x0036) {
+        Some(Val::Int(n @ 1..=3)) => u8::try_from(n).unwrap_or(0),
         _ => 0,
     };
     let flags = match p(0x0E07) {

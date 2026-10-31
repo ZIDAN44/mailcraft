@@ -12,7 +12,7 @@ use super::mime;
 
 /// A property's value, by what it holds.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Val<'a> {
+pub enum Val<'a> {
     Text(Cow<'a, str>),
     Bin(&'a [u8]),
     Int(i64),
