@@ -1296,3 +1296,21 @@ month	May	מאי
 	New messages:	הודעות חדשות:
 	Replies/forwards:	תשובות והעברות:
 	Another signature has that name.	לחתימה אחרת יש כבר את השם הזה.
+	Add to the list	הוספה לרשימה
+	All categories…	כל הקטגוריות…
+	Categories imported: {n} new, {changed} changed	קטגוריות יובאו: {n} חדשות, {changed} שונו
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	קטגוריות יובאו: {n} חדשות, {changed} שונו, {skipped} הושמטו (מילת המפתח שלהן שייכת כאן לקטגוריה אחרת)
+	Categories saved in {file}: {n}	הקטגוריות נשמרו ב־{file}: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	כל קטגוריה נשמרת עם הדואר בשרת כמילת מפתח, שגם תוכנות דואר אחרות רואות.
+	Edit category	עריכת קטגוריה
+	Keyword on the server	מילת מפתח בשרת
+	Mail that has the old keyword keeps it, shown as a category not in the list.	דואר עם מילת המפתח הישנה שומר עליה, והיא מוצגת כקטגוריה שאינה ברשימה.
+	No categories yet.	אין עדיין קטגוריות.
+	Not in the category list	לא ברשימת הקטגוריות
+	Not in the category list: click to name it and choose its colour	לא ברשימת הקטגוריות: יש ללחוץ כדי לתת לה שם ולבחור צבע
+	On mail here, not in the list	בדואר כאן, לא ברשימה
+	Other mail programs that set the same keyword show the same category.	תוכנות דואר אחרות שמציבות את אותה מילת מפתח מציגות את אותה קטגוריה.
+	That keyword has another use.	למילת המפתח הזו יש שימוש אחר.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	עד 50 אותיות, ספרות וסימנים, בלי רווחים, מירכאות, לוכסנים הפוכים או ( ) { } ] % *
+	{name} has that keyword already.	ל־{name} כבר יש את מילת המפתח הזו.
+	Messages: {n}	הודעות: {n}

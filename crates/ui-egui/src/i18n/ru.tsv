@@ -1300,3 +1300,21 @@ month	May	Май
 	New messages:	Новые сообщения:
 	Replies/forwards:	Ответы и пересылка:
 	Another signature has that name.	Подпись с таким именем уже есть.
+	Add to the list	Добавить в список
+	All categories…	Все категории…
+	Categories imported: {n} new, {changed} changed	Категории импортированы: новых {n}, изменено {changed}
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	Категории импортированы: новых {n}, изменено {changed}, пропущено {skipped} (их ключевое слово здесь у другой категории)
+	Categories saved in {file}: {n}	Категории сохранены в {file}: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	Каждая категория хранится вместе с письмом на сервере как ключевое слово, которое видят и другие почтовые программы.
+	Edit category	Изменить категорию
+	Keyword on the server	Ключевое слово на сервере
+	Mail that has the old keyword keeps it, shown as a category not in the list.	Письма со старым ключевым словом сохраняют его и показывают как категорию не из списка.
+	No categories yet.	Категорий пока нет.
+	Not in the category list	Нет в списке категорий
+	Not in the category list: click to name it and choose its colour	Нет в списке категорий: нажмите, чтобы дать имя и выбрать цвет
+	On mail here, not in the list	В письмах здесь, не в списке
+	Other mail programs that set the same keyword show the same category.	Другие почтовые программы с тем же ключевым словом показывают ту же категорию.
+	That keyword has another use.	Это ключевое слово используется для другого.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	До 50 букв, цифр и символов, без пробелов, кавычек, обратных косых черт и ( ) { } ] % *
+	{name} has that keyword already.	У категории {name} уже есть это ключевое слово.
+	Messages: {n}	Сообщений: {n}

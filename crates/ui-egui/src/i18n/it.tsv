@@ -1300,3 +1300,21 @@ month	May	maggio
 	New messages:	Nuovi messaggi:
 	Replies/forwards:	Risposte e inoltri:
 	Another signature has that name.	Un'altra firma ha già questo nome.
+	Add to the list	Aggiungi all'elenco
+	All categories…	Tutte le categorie…
+	Categories imported: {n} new, {changed} changed	Categorie importate: {n} nuove, {changed} modificate
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	Categorie importate: {n} nuove, {changed} modificate, {skipped} escluse (la loro parola chiave è di un'altra categoria qui)
+	Categories saved in {file}: {n}	Categorie salvate in {file}: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	Ogni categoria è conservata con la posta sul server come parola chiave, visibile anche agli altri programmi di posta.
+	Edit category	Modifica categoria
+	Keyword on the server	Parola chiave sul server
+	Mail that has the old keyword keeps it, shown as a category not in the list.	La posta con la vecchia parola chiave la mantiene, mostrata come categoria non presente nell'elenco.
+	No categories yet.	Ancora nessuna categoria.
+	Not in the category list	Non presente nell'elenco delle categorie
+	Not in the category list: click to name it and choose its colour	Non presente nell'elenco delle categorie: fai clic per darle un nome e sceglierne il colore
+	On mail here, not in the list	Sulla posta qui, non nell'elenco
+	Other mail programs that set the same keyword show the same category.	Gli altri programmi di posta che usano la stessa parola chiave mostrano la stessa categoria.
+	That keyword has another use.	Quella parola chiave ha un altro uso.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Fino a 50 lettere, cifre e simboli, senza spazi, virgolette, barre rovesciate o ( ) { } ] % *
+	{name} has that keyword already.	{name} ha già quella parola chiave.
+	Messages: {n}	Messaggi: {n}

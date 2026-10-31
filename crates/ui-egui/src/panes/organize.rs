@@ -15,7 +15,9 @@ pub fn dot(ui: &mut Ui, color: u8, dark: bool) {
     ui.painter().circle_filled(r.center(), 5.0, theme::category_color(color, dark));
 }
 
-/// The Categorize menu: tick or untick a category on the selection, or make a new one.
+/// The Categorize menu: tick or untick a category on the selection; the selected message's
+/// keywords that aren't in the list (another program's tags) too, by their keyword; make a new
+/// one, or see them all (Outlook's All Categories).
 pub fn categorize_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
     let first = s.selected().into_iter().next();
     for c in &s.prefs.categories {
@@ -31,13 +33,32 @@ pub fn categorize_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
             ui.close();
         }
     }
+    let unlisted: Vec<_> = first
+        .as_ref()
+        .map(|m| s.categories_of(m))
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|c| s.category_with_keyword(&c.keyword).is_none())
+        .collect();
+    for c in unlisted {
+        let clicked = ui
+            .horizontal(|ui| {
+                dot(ui, c.color, t.dark);
+                ui.selectable_label(true, c.name.as_str()).on_hover_text(tl!("Not in the category list")).clicked()
+            })
+            .inner;
+        if clicked {
+            acts.push(Action::Run("mail.categorize", json!({"keyword": c.keyword, "on": false})));
+            ui.close();
+        }
+    }
     ui.separator();
     if ui.button(tl!("New category…")).clicked() {
-        acts.push(Action::Dialog(Dialog::NewCategory {
-            name: String::new(),
-            color: u8::try_from(s.prefs.categories.len() % 8).unwrap_or(0),
-            error: None,
-        }));
+        acts.push(Action::Dialog(Dialog::new_category(s)));
+        ui.close();
+    }
+    if ui.button(tl!("All categories…")).clicked() {
+        acts.push(Action::Dialog(Dialog::Categories));
         ui.close();
     }
 }

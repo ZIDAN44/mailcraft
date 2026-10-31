@@ -1300,3 +1300,21 @@ month	May	5月
 	New messages:	新郵件:
 	Replies/forwards:	回覆和轉寄:
 	Another signature has that name.	已有同名的簽名。
+	Add to the list	新增到清單
+	All categories…	所有類別…
+	Categories imported: {n} new, {changed} changed	已匯入類別：新增 {n} 個，變更 {changed} 個
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	已匯入類別：新增 {n} 個，變更 {changed} 個，略過 {skipped} 個（其關鍵字在此處屬於另一個類別）
+	Categories saved in {file}: {n}	類別已儲存到 {file}：{n} 個
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	每個類別以關鍵字的形式隨郵件保存在伺服器上，其他郵件程式也看得到。
+	Edit category	編輯類別
+	Keyword on the server	伺服器上的關鍵字
+	Mail that has the old keyword keeps it, shown as a category not in the list.	帶有舊關鍵字的郵件會保留它，並顯示為不在清單中的類別。
+	No categories yet.	還沒有類別。
+	Not in the category list	不在類別清單中
+	Not in the category list: click to name it and choose its colour	不在類別清單中：按一下以命名並選擇色彩
+	On mail here, not in the list	此處郵件上有、但不在清單中
+	Other mail programs that set the same keyword show the same category.	設定相同關鍵字的其他郵件程式會顯示相同的類別。
+	That keyword has another use.	該關鍵字另有用途。
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	最多 50 個字母、數字和符號，不能有空格、引號、反斜線或 ( ) { } ] % *
+	{name} has that keyword already.	{name} 已經有該關鍵字。
+	Messages: {n}	郵件：{n}

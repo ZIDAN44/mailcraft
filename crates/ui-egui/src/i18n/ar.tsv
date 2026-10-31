@@ -1296,3 +1296,21 @@ month	May	مايو
 	New messages:	الرسائل الجديدة:
 	Replies/forwards:	الردود وإعادة التوجيه:
 	Another signature has that name.	يحمل توقيع آخر هذا الاسم.
+	Add to the list	إضافة إلى القائمة
+	All categories…	كل الفئات…
+	Categories imported: {n} new, {changed} changed	استُوردت الفئات: {n} جديدة، {changed} معدّلة
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	استُوردت الفئات: {n} جديدة، {changed} معدّلة، {skipped} متروكة (كلمتها المفتاحية لفئة أخرى هنا)
+	Categories saved in {file}: {n}	حُفظت الفئات في {file}: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	تُحفظ كل فئة مع البريد على الخادم ككلمة مفتاحية تراها برامج البريد الأخرى أيضًا.
+	Edit category	تحرير الفئة
+	Keyword on the server	الكلمة المفتاحية على الخادم
+	Mail that has the old keyword keeps it, shown as a category not in the list.	يحتفظ البريد الذي يحمل الكلمة المفتاحية القديمة بها، وتظهر كفئة ليست في القائمة.
+	No categories yet.	لا توجد فئات بعد.
+	Not in the category list	ليست في قائمة الفئات
+	Not in the category list: click to name it and choose its colour	ليست في قائمة الفئات: انقر لتسميتها واختيار لونها
+	On mail here, not in the list	على البريد هنا، وليست في القائمة
+	Other mail programs that set the same keyword show the same category.	برامج البريد الأخرى التي تضع الكلمة المفتاحية نفسها تعرض الفئة نفسها.
+	That keyword has another use.	لهذه الكلمة المفتاحية استخدام آخر.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	حتى 50 حرفًا ورقمًا ورمزًا، بلا مسافات أو علامات اقتباس أو شرطات مائلة عكسية أو ( ) { } ] % *
+	{name} has that keyword already.	لدى {name} هذه الكلمة المفتاحية بالفعل.
+	Messages: {n}	الرسائل: {n}

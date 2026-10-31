@@ -239,6 +239,41 @@ impl MailApp {
                     }
                 }
             }
+            Action::ExportCategories => {
+                if let Some(path) = self.services.save_path("MailCraft categories.json") {
+                    match self.session.run("category.export", &json!({"path": path.to_string_lossy()})) {
+                        Ok(v) => {
+                            let n = v.get("categories").and_then(Value::as_u64).unwrap_or(0);
+                            let file = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                            self.session.notice(tf!("Categories saved in {file}: {n}", n = n, file = file), false);
+                        }
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
+            Action::ImportCategories => {
+                if let Some(path) = self.services.pick_categories_file() {
+                    match self.session.run("category.import", &json!({"path": path.to_string_lossy()})) {
+                        Ok(v) => {
+                            let n = v.get("added").and_then(Value::as_u64).unwrap_or(0);
+                            let changed = v.get("changed").and_then(Value::as_u64).unwrap_or(0);
+                            let skipped = v.get("skipped").and_then(Value::as_array).map_or(0, Vec::len);
+                            let text = if skipped > 0 {
+                                tf!(
+                                    "Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)",
+                                    n = n,
+                                    changed = changed,
+                                    skipped = skipped
+                                )
+                            } else {
+                                tf!("Categories imported: {n} new, {changed} changed", n = n, changed = changed)
+                            };
+                            self.session.notice(text, skipped > 0);
+                        }
+                        Err(e) => self.session.notice(e.to_string(), true),
+                    }
+                }
+            }
             Action::OpenFolder(path) => {
                 if let Err(e) = self.services.open_path(&path) {
                     self.session.notice(e, true);

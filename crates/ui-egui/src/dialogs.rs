@@ -11,6 +11,7 @@ use crate::theme::{self, Tokens};
 use crate::{Action, Icon, widgets};
 
 mod accounts;
+mod categories;
 mod closing;
 mod dav;
 mod folders;
@@ -159,11 +160,19 @@ pub enum Dialog {
         permanent: bool,
         error: Option<String>,
     },
+    /// A category made or changed ([`Dialog::new_category`], [`Dialog::edit_category`],
+    /// [`Dialog::name_keyword`]).
     NewCategory {
         name: String,
         color: u8,
+        /// The keyword it's kept as on the server (empty: one made from the name).
+        keyword: String,
+        /// The category being changed (its name before), `None` for a new one.
+        editing: Option<String>,
         error: Option<String>,
     },
+    /// The category list (Outlook's Color Categories).
+    Categories,
     Rules,
     EditRule(Box<RuleForm>),
     /// A Search Folder made or changed (Outlook's New Search Folder).
@@ -529,9 +538,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Act
         | Dialog::DeleteFolder { .. }
         | Dialog::FolderProperties { .. }
         | Dialog::ConfirmEmpty { .. } => folders::draw(ui, d, s, t, acts),
-        Dialog::NewCategory { .. } | Dialog::Rules | Dialog::EditRule(..) | Dialog::SearchFolder(..) | Dialog::QuickStep(..) => {
-            organize::draw(ui, d, s, t, acts)
-        }
+        Dialog::NewCategory { .. } | Dialog::Categories => categories::draw(ui, d, s, t, acts),
+        Dialog::Rules | Dialog::EditRule(..) | Dialog::SearchFolder(..) | Dialog::QuickStep(..) => organize::draw(ui, d, s, t, acts),
         Dialog::SelectNames(..) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::SendCheck(_) | Dialog::WordCount(..) => {
             writing::draw(ui, d, s, t, acts)
         }

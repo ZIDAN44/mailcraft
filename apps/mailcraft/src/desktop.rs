@@ -269,6 +269,10 @@ impl Services for Desktop {
         let file = self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file();
         self.used(file, false)
     }
+    fn pick_categories_file(&mut self) -> Option<PathBuf> {
+        let file = self.dialog("Import categories").add_filter("MailCraft categories", &["json"]).add_filter("All files", &["*"]).pick_file();
+        self.used(file, false)
+    }
     fn pick_data_file(&mut self) -> Option<PathBuf> {
         let mut d = rfd::FileDialog::new();
         // Where the data files are (a removed account's stays there), as Outlook opens its own.

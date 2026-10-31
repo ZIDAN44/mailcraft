@@ -1297,3 +1297,21 @@ month	May	5月
 	New messages:	新しいメッセージ:
 	Replies/forwards:	返信と転送:
 	Another signature has that name.	同じ名前の署名がすでにあります。
+	Add to the list	一覧に追加
+	All categories…	すべての分類…
+	Categories imported: {n} new, {changed} changed	分類をインポートしました: 新規 {n}、変更 {changed}
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	分類をインポートしました: 新規 {n}、変更 {changed}、除外 {skipped} (キーワードがここで別の分類のものです)
+	Categories saved in {file}: {n}	分類を {file} に保存しました: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	各分類はキーワードとしてサーバー上のメールと一緒に保存され、ほかのメールソフトからも見えます。
+	Edit category	分類の編集
+	Keyword on the server	サーバー上のキーワード
+	Mail that has the old keyword keeps it, shown as a category not in the list.	古いキーワードの付いたメールはそのまま残り、一覧にない分類として表示されます。
+	No categories yet.	分類はまだありません。
+	Not in the category list	分類の一覧にありません
+	Not in the category list: click to name it and choose its colour	分類の一覧にありません: クリックして名前と色を付けます
+	On mail here, not in the list	ここのメールにあり、一覧にないもの
+	Other mail programs that set the same keyword show the same category.	同じキーワードを付けるほかのメールソフトでは、同じ分類として表示されます。
+	That keyword has another use.	そのキーワードは別の用途に使われています。
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	50 文字までの英字・数字・記号。空白、引用符、バックスラッシュ、( ) { } ] % * は使えません
+	{name} has that keyword already.	{name} にはすでにそのキーワードがあります。
+	Messages: {n}	メッセージ: {n}

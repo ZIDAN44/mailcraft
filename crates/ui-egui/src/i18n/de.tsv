@@ -1301,3 +1301,21 @@ month	May	Mai
 	New messages:	Neue Nachrichten:
 	Replies/forwards:	Antworten/Weiterleitungen:
 	Another signature has that name.	Eine andere Signatur hat diesen Namen.
+	Add to the list	Zur Liste hinzufügen
+	All categories…	Alle Kategorien…
+	Categories imported: {n} new, {changed} changed	Kategorien importiert: {n} neu, {changed} geändert
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	Kategorien importiert: {n} neu, {changed} geändert, {skipped} ausgelassen (ihr Schlüsselwort gehört hier einer anderen Kategorie)
+	Categories saved in {file}: {n}	Kategorien gespeichert in {file}: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	Jede Kategorie wird mit der Mail auf dem Server als Schlüsselwort gespeichert, das auch andere Mailprogramme sehen.
+	Edit category	Kategorie bearbeiten
+	Keyword on the server	Schlüsselwort auf dem Server
+	Mail that has the old keyword keeps it, shown as a category not in the list.	Mail mit dem alten Schlüsselwort behält es und zeigt es als Kategorie, die nicht in der Liste steht.
+	No categories yet.	Noch keine Kategorien.
+	Not in the category list	Nicht in der Kategorienliste
+	Not in the category list: click to name it and choose its colour	Nicht in der Kategorienliste: Klicken, um sie zu benennen und ihre Farbe zu wählen
+	On mail here, not in the list	Auf Mail hier, nicht in der Liste
+	Other mail programs that set the same keyword show the same category.	Andere Mailprogramme, die dasselbe Schlüsselwort setzen, zeigen dieselbe Kategorie.
+	That keyword has another use.	Dieses Schlüsselwort wird anderweitig verwendet.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Bis zu 50 Buchstaben, Ziffern und Zeichen, ohne Leerzeichen, Anführungszeichen, Backslashes oder ( ) { } ] % *
+	{name} has that keyword already.	{name} hat dieses Schlüsselwort bereits.
+	Messages: {n}	Nachrichten: {n}

@@ -142,6 +142,9 @@ pub enum Action {
     /// The rules to a file, or rules from one (Outlook's Export and Import Rules).
     ExportRules,
     ImportRules,
+    /// The category list to a file, or categories from one.
+    ExportCategories,
+    ImportCategories,
     /// Pick a `.p12` / `.pfx` file for an account's certificate, then ask its password.
     ImportCertificate(String),
     /// The browser: open the account's certificate it keeps, with its password, for this page.

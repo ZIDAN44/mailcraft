@@ -608,6 +608,12 @@ fn run(
                     "ui.newEvent" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_event(&app.session, None)),
                     "ui.newContact" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_contact()),
                     "ui.signature" => app.ui.dialog = mailcraft_ui_egui::Dialog::signature(&app.session),
+                    "ui.categories" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::Categories),
+                    "ui.nameKeyword" => {
+                        let p: serde_json::Value = serde_json::from_str(params).unwrap_or_default();
+                        let k = p.get("keyword").and_then(|v| v.as_str()).unwrap_or_default();
+                        app.ui.dialog = Some(mailcraft_ui_egui::Dialog::name_keyword(k));
+                    }
                     _ => match serde_json::from_str(params) {
                         Ok(p) => app.run(id, p),
                         Err(e) => say(&format!("--cmd {id}: bad JSON: {e}")),

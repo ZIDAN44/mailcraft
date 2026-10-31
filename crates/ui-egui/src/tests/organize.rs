@@ -203,3 +203,43 @@ fn favorites_can_be_hidden() {
     assert!(headings(&mut a) > 0, "shown again");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #28: a keyword another program set shows on the message (in the list, the reading pane
+/// and the Categorize menu's list) and in the Categories dialog; added from there it keeps its
+/// keyword; a keyword another category has is refused in the dialog.
+#[test]
+fn categories_from_other_programs_render_and_join_the_list() {
+    let (mut a, dir) = app("categories-28");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list[0].key.clone();
+    a.run("list.select", json!({"key": k.to_id()}));
+    a.run("mail.categorize", json!({"keyword": "r=c3=bcckfrage"}));
+    a.run("mail.categorize", json!({"category": "Work"}));
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    let names: Vec<String> = a.session.categories_of(&a.session.selected()[0]).into_iter().map(|c| c.name).collect();
+    assert_eq!(names, ["Work", "rückfrage"]);
+    a.ui.dialog = Some(Dialog::Categories);
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::name_keyword("r=c3=bcckfrage"));
+    frame(&ctx, &mut a, vec![]);
+    if let Some(Dialog::NewCategory { name, .. }) = a.ui.dialog.as_mut() {
+        *name = "Rückfrage".into();
+    }
+    a.act(crate::Action::Submit("category.create", json!({"name": "Rückfrage", "keyword": "r=c3=bcckfrage", "color": 4})));
+    assert!(a.ui.dialog.is_none());
+    assert_eq!(a.session.category("rückfrage").map(|c| c.keyword.as_str()), Some("r=c3=bcckfrage"));
+    // Taken: the dialog stays, saying why.
+    a.ui.dialog = Some(Dialog::new_category(&a.session));
+    a.act(crate::Action::Submit("category.create", json!({"name": "Other", "keyword": "R=C3=BCCKFRAGE"})));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::NewCategory { error: Some(e), .. }) if e.contains("Rückfrage")), "{:?}", a.ui.dialog.is_some());
+    // Edited: renamed, keyword kept.
+    let c = a.session.category("Rückfrage").cloned().unwrap();
+    a.ui.dialog = Some(Dialog::edit_category(&c));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Submit("category.edit", json!({"name": "Rückfrage", "newName": "Nachfrage", "color": 2})));
+    assert_eq!(a.session.category("Nachfrage").map(|c| c.keyword.as_str()), Some("r=c3=bcckfrage"));
+    frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}

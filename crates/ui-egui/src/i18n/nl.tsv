@@ -1296,3 +1296,21 @@ month	May	mei
 	New messages:	Nieuwe berichten:
 	Replies/forwards:	Antwoorden en doorsturen:
 	Another signature has that name.	Een andere handtekening heeft die naam al.
+	Add to the list	Aan de lijst toevoegen
+	All categories…	Alle categorieën…
+	Categories imported: {n} new, {changed} changed	Categorieën geïmporteerd: {n} nieuw, {changed} gewijzigd
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	Categorieën geïmporteerd: {n} nieuw, {changed} gewijzigd, {skipped} overgeslagen (hun trefwoord hoort hier bij een andere categorie)
+	Categories saved in {file}: {n}	Categorieën opgeslagen in {file}: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	Elke categorie wordt met de e-mail op de server bewaard als trefwoord, dat andere mailprogramma's ook zien.
+	Edit category	Categorie bewerken
+	Keyword on the server	Trefwoord op de server
+	Mail that has the old keyword keeps it, shown as a category not in the list.	E-mail met het oude trefwoord houdt het, getoond als een categorie die niet in de lijst staat.
+	No categories yet.	Nog geen categorieën.
+	Not in the category list	Niet in de categorielijst
+	Not in the category list: click to name it and choose its colour	Niet in de categorielijst: klik om een naam en kleur te kiezen
+	On mail here, not in the list	Op e-mail hier, niet in de lijst
+	Other mail programs that set the same keyword show the same category.	Andere mailprogramma's die hetzelfde trefwoord zetten, tonen dezelfde categorie.
+	That keyword has another use.	Dat trefwoord heeft een ander gebruik.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Tot 50 letters, cijfers en tekens, zonder spaties, aanhalingstekens, backslashes of ( ) { } ] % *
+	{name} has that keyword already.	{name} heeft dat trefwoord al.
+	Messages: {n}	Berichten: {n}

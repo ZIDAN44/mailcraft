@@ -82,6 +82,10 @@ pub trait Services {
     fn pick_rules_file(&mut self) -> Option<PathBuf> {
         None
     }
+    /// A categories file to import (`None` when cancelled, or where there's no file picker).
+    fn pick_categories_file(&mut self) -> Option<PathBuf> {
+        None
+    }
     /// A certificate file (`.p12`, `.pfx`) to import (`None` when cancelled, or where there's no
     /// file picker).
     fn pick_certificate(&mut self) -> Option<PathBuf> {

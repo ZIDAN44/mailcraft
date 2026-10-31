@@ -1300,3 +1300,21 @@ month	May	5월
 	New messages:	새 메시지:
 	Replies/forwards:	회신 및 전달:
 	Another signature has that name.	같은 이름의 서명이 이미 있습니다.
+	Add to the list	목록에 추가
+	All categories…	모든 범주…
+	Categories imported: {n} new, {changed} changed	범주를 가져왔습니다: 새 범주 {n}개, 변경 {changed}개
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	범주를 가져왔습니다: 새 범주 {n}개, 변경 {changed}개, 제외 {skipped}개 (키워드가 여기서 다른 범주의 것입니다)
+	Categories saved in {file}: {n}	범주를 {file}에 저장했습니다: {n}개
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	각 범주는 서버의 메일과 함께 키워드로 저장되며, 다른 메일 프로그램에서도 보입니다.
+	Edit category	범주 편집
+	Keyword on the server	서버의 키워드
+	Mail that has the old keyword keeps it, shown as a category not in the list.	이전 키워드가 있는 메일은 그대로 유지되며, 목록에 없는 범주로 표시됩니다.
+	No categories yet.	아직 범주가 없습니다.
+	Not in the category list	범주 목록에 없음
+	Not in the category list: click to name it and choose its colour	범주 목록에 없음: 클릭하여 이름과 색을 지정하세요
+	On mail here, not in the list	여기 메일에 있지만 목록에 없음
+	Other mail programs that set the same keyword show the same category.	같은 키워드를 쓰는 다른 메일 프로그램에서는 같은 범주로 표시됩니다.
+	That keyword has another use.	그 키워드는 다른 용도로 쓰입니다.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	최대 50자의 문자, 숫자, 기호. 공백, 따옴표, 백슬래시, ( ) { } ] % * 는 쓸 수 없습니다
+	{name} has that keyword already.	{name}에 이미 그 키워드가 있습니다.
+	Messages: {n}	메시지: {n}

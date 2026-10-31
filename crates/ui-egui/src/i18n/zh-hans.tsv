@@ -1297,3 +1297,21 @@ month	May	5月
 	New messages:	新邮件:
 	Replies/forwards:	答复和转发:
 	Another signature has that name.	已有同名的签名。
+	Add to the list	添加到列表
+	All categories…	所有类别…
+	Categories imported: {n} new, {changed} changed	已导入类别：新增 {n} 个，更改 {changed} 个
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	已导入类别：新增 {n} 个，更改 {changed} 个，略过 {skipped} 个（其关键字在此处属于另一个类别）
+	Categories saved in {file}: {n}	类别已保存到 {file}：{n} 个
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	每个类别以关键字的形式随邮件保存在服务器上，其他邮件程序也能看到。
+	Edit category	编辑类别
+	Keyword on the server	服务器上的关键字
+	Mail that has the old keyword keeps it, shown as a category not in the list.	带有旧关键字的邮件会保留它，并显示为不在列表中的类别。
+	No categories yet.	还没有类别。
+	Not in the category list	不在类别列表中
+	Not in the category list: click to name it and choose its colour	不在类别列表中：单击以命名并选择颜色
+	On mail here, not in the list	此处邮件上有、但不在列表中
+	Other mail programs that set the same keyword show the same category.	设置相同关键字的其他邮件程序会显示相同的类别。
+	That keyword has another use.	该关键字另有用途。
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	最多 50 个字母、数字和符号，不能有空格、引号、反斜杠或 ( ) { } ] % *
+	{name} has that keyword already.	{name} 已经有该关键字。
+	Messages: {n}	邮件：{n}

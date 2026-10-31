@@ -134,12 +134,27 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                             ui.horizontal_wrapped(|ui| {
                                 for c in cats {
                                     let color = theme::category_color(c.color, t.dark);
-                                    egui::Frame::new().fill(color.gamma_multiply(0.18)).corner_radius(10).inner_margin(Margin::symmetric(8, 2)).show(
-                                        ui,
-                                        |ui| {
-                                            ui.label(RichText::new(&c.name).color(color).small());
-                                        },
-                                    );
+                                    // One not in the list (another program's tag): outlined, and a
+                                    // click names it and gives it a colour, keeping its keyword.
+                                    let listed = s.category_with_keyword(&c.keyword).is_some();
+                                    let frame = if listed {
+                                        egui::Frame::new().fill(color.gamma_multiply(0.18))
+                                    } else {
+                                        egui::Frame::new().stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.6)))
+                                    };
+                                    let chip = frame.corner_radius(10).inner_margin(Margin::symmetric(8, 2)).show(ui, |ui| {
+                                        ui.label(RichText::new(&c.name).color(color).small());
+                                    });
+                                    if !listed {
+                                        let r = chip
+                                            .response
+                                            .interact(Sense::click())
+                                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                            .on_hover_text(tl!("Not in the category list: click to name it and choose its colour"));
+                                        if r.clicked() {
+                                            acts.push(Action::Dialog(crate::Dialog::name_keyword(&c.keyword)));
+                                        }
+                                    }
                                 }
                             });
                         }

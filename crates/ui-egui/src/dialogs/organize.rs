@@ -1,43 +1,9 @@
-//! Dialogs: categories, rules, Search Folders and Quick Steps.
+//! Dialogs: rules, Search Folders and Quick Steps.
 
 use super::*;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
-        Dialog::NewCategory { name, color, error } => {
-            ui.set_width(340.0);
-            title(ui, t, "New category");
-            let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Name")).desired_width(f32::INFINITY));
-            if ui.memory(|m| m.focused().is_none()) {
-                r.request_focus();
-            }
-            ui.horizontal(|ui| {
-                for c in 0..8u8 {
-                    let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::click());
-                    if resp.hovered() {
-                        ui.painter().circle_filled(rect.center(), 11.0, t.hover);
-                    }
-                    ui.painter().circle_filled(rect.center(), 8.0, theme::category_color(c, t.dark));
-                    if *color == c {
-                        ui.painter().circle_stroke(rect.center(), 10.0, egui::Stroke::new(2.0, t.text));
-                    }
-                    if resp.clicked() {
-                        *color = c;
-                    }
-                }
-            });
-            if let Some(e) = error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
-            }
-            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
-            let ready = !name.trim().is_empty();
-            let (ok, cancel) = buttons(ui, t, "Create", ready);
-            if (ok || enter) && ready {
-                *error = None;
-                acts.push(Action::Submit("category.create", json!({"name": name.trim(), "color": color})));
-            }
-            !cancel
-        }
         Dialog::Rules => {
             ui.set_width(560.0);
             title(ui, t, "Rules");

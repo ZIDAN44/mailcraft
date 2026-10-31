@@ -1301,3 +1301,21 @@ month	May	mai
 	New messages:	Nouveaux messages :
 	Replies/forwards:	Réponses et transferts :
 	Another signature has that name.	Une autre signature porte ce nom.
+	Add to the list	Ajouter à la liste
+	All categories…	Toutes les catégories…
+	Categories imported: {n} new, {changed} changed	Catégories importées : {n} nouvelles, {changed} modifiées
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	Catégories importées : {n} nouvelles, {changed} modifiées, {skipped} laissées de côté (leur mot-clé est celui d’une autre catégorie ici)
+	Categories saved in {file}: {n}	Catégories enregistrées dans {file} : {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	Chaque catégorie est conservée avec le courrier sur le serveur sous forme de mot-clé, que les autres logiciels de messagerie voient aussi.
+	Edit category	Modifier la catégorie
+	Keyword on the server	Mot-clé sur le serveur
+	Mail that has the old keyword keeps it, shown as a category not in the list.	Le courrier qui a l’ancien mot-clé le garde, affiché comme une catégorie absente de la liste.
+	No categories yet.	Aucune catégorie pour l’instant.
+	Not in the category list	Absente de la liste des catégories
+	Not in the category list: click to name it and choose its colour	Absente de la liste des catégories : cliquez pour la nommer et choisir sa couleur
+	On mail here, not in the list	Sur le courrier ici, absentes de la liste
+	Other mail programs that set the same keyword show the same category.	Les autres logiciels de messagerie qui posent le même mot-clé affichent la même catégorie.
+	That keyword has another use.	Ce mot-clé a un autre usage.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Jusqu’à 50 lettres, chiffres et symboles, sans espaces, guillemets, barres obliques inverses ni ( ) { } ] % *
+	{name} has that keyword already.	La catégorie {name} a déjà ce mot-clé.
+	Messages: {n}	Messages : {n}
