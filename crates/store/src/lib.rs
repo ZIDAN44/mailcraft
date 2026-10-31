@@ -186,6 +186,29 @@ impl FolderState {
     pub fn unread(&self) -> u32 {
         u32::try_from(self.messages.iter().filter(|m| !m.flags.seen && !m.flags.deleted).count()).unwrap_or(u32::MAX)
     }
+
+    /// The number for the next message filed in `account`'s `folder` (this list): at least
+    /// `uid_next`, past every number in the list, never 0; an error once they've run out (a
+    /// damaged list at the last one).
+    pub fn free_uid(&self, account: &str, folder: &str) -> Result<u32> {
+        let past = match self.messages.iter().map(|m| m.key.uid).max() {
+            Some(u) => u.checked_add(1).ok_or_else(|| no_uids_left(account, folder))?,
+            None => 1,
+        };
+        Ok(self.uid_next.max(past).max(1))
+    }
+
+    /// Give `uid` to a message filed in `account`'s `folder` and move `uid` on: an error, to be
+    /// returned before anything is written, when there's no number after it (two messages under
+    /// one number are one source written over the other).
+    pub fn take_uid(uid: &mut u32, account: &str, folder: &str) -> Result<u32> {
+        let next = uid.checked_add(1).ok_or_else(|| no_uids_left(account, folder))?;
+        Ok(std::mem::replace(uid, next))
+    }
+}
+
+fn no_uids_left(account: &str, folder: &str) -> StoreError {
+    StoreError::Io { path: format!("{account}/{folder}"), source: io::Error::other("the folder has no message numbers left") }
 }
 
 /// A message waiting in the Outbox (its source is stored next to it as `<id>.eml`).
@@ -307,7 +330,8 @@ impl Store {
 
     /// From now on, a [`Store::failing`] cache fails to read the files whose path ends with
     /// `reads` (`state.json`, `.eml`), and to write, rename or remove those ending with `writes`;
-    /// `None` lets them work again. Other caches ignore it.
+    /// `None` lets them work again; a leading `!` makes them damaged rather than failing. Other
+    /// caches ignore it.
     #[doc(hidden)]
     pub fn fail(&self, reads: Option<&str>, writes: Option<&str>) {
         if let Files::Failing(f) = &self.files.main {

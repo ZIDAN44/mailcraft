@@ -27,13 +27,18 @@ pub(super) struct Faults {
 
 impl Faults {
     /// An error when `rule` names how `p` ends: never "not found", which the store reads as an
-    /// empty file.
+    /// empty file. A rule starting with `!` is a damaged file (invalid data), not a failing disk.
     fn check(rule: &Mutex<Option<String>>, p: &Path) -> io::Result<()> {
         let rule = rule.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        match rule.as_deref() {
-            Some(end) if p.to_string_lossy().replace('\\', "/").ends_with(end) => Err(io::Error::other("failed on purpose")),
-            _ => Ok(()),
+        let Some(rule) = rule.as_deref() else { return Ok(()) };
+        let (damaged, end) = match rule.strip_prefix('!') {
+            Some(end) => (true, end),
+            None => (false, rule),
+        };
+        if !p.to_string_lossy().replace('\\', "/").ends_with(end) {
+            return Ok(());
         }
+        Err(if damaged { io::Error::new(io::ErrorKind::InvalidData, "damaged on purpose") } else { io::Error::other("failed on purpose") })
     }
 }
 
