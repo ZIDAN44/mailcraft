@@ -455,3 +455,23 @@ fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The External tag stays one line in a pane too narrow for it (wrapped, its word stood in a
+/// column a letter wide beside the sender's name), in English and Arabic.
+#[test]
+fn the_external_tag_never_wraps() {
+    let ctx = egui::Context::default();
+    let t = crate::theme::Tokens::light();
+    for lang in ["en", "ar"] {
+        crate::i18n::set_current(crate::i18n::Lang::from_code(lang).unwrap());
+        let mut tag = egui::Rect::NOTHING;
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            ui.allocate_ui(egui::vec2(12.0, 200.0), |ui| tag = crate::reading::external_tag(ui, &t).rect);
+        });
+        out.textures_delta.clear();
+        assert!(tag.height() < 22.0, "{lang}: {tag:?}");
+        assert!(tag.width() > 30.0, "{lang}: {tag:?}");
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}

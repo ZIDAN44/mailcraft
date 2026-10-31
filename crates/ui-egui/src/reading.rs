@@ -191,7 +191,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                 }
                                 // From outside the organisation (issue #29, with the tag on).
                                 if s.is_external(&p.from.email) {
-                                    external_tag(ui, &t);
+                                    let _ = external_tag(ui, &t);
                                 }
                                 let known = known_contact(s, &p.from.email).is_some();
                                 if !known && !p.from.email.is_empty() && widgets::tiny_icon_button(ui, Icon::Person, "Add to contacts", &t).clicked()
@@ -438,17 +438,18 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     });
 }
 
-/// The External tag: a sender from outside the organisation (issue #29).
-fn external_tag(ui: &mut Ui, t: &Tokens) {
+/// The External tag: a sender from outside the organisation (issue #29). One line however
+/// narrow the pane: wrapped, its word stood in a column a letter wide.
+pub(crate) fn external_tag(ui: &mut Ui, t: &Tokens) -> egui::Response {
     egui::Frame::new()
         .stroke(egui::Stroke::new(1.0, t.border))
         .corner_radius(4)
         .inner_margin(Margin::symmetric(5, 1))
         .show(ui, |ui| {
-            ui.label(RichText::new(tl!("External")).color(t.dim).small());
+            ui.add(egui::Label::new(RichText::new(tl!("External")).color(t.dim).small()).wrap_mode(egui::TextWrapMode::Extend));
         })
         .response
-        .on_hover_text(tl!("This sender is outside your organisation."));
+        .on_hover_text(tl!("This sender is outside your organisation."))
 }
 
 /// Who the message says it's from doesn't add up: said plainly, above everything it asks for.
