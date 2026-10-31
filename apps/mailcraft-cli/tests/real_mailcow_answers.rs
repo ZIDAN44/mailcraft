@@ -118,7 +118,8 @@ fn real_mailcow_an_agenda_written_as_a_guest_answers_stays() {
     let key = loop {
         ann.pool.submit(Job::SyncFolder { account: aid.clone(), folder: "INBOX".into() });
         ann.settle(3);
-        let reply = ann.s.folder_state(&aid, "INBOX").messages.iter().find(|x| x.subject.contains(&title) && x.subject.starts_with("Accepted:"));
+        // SOGo's ("Accepted invitation: …"): bob answered in the copy SOGo put in his calendar.
+        let reply = ann.s.folder_state(&aid, "INBOX").messages.iter().find(|x| x.subject.contains(&title) && x.subject.starts_with("Accepted"));
         if let Some(k) = reply.map(|x| x.key.to_id()) {
             break k;
         }

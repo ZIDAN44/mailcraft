@@ -1,6 +1,7 @@
 //! Meeting invitations between two users of a real Mailcow on this computer, both in MailCraft:
 //! ann invites bob (with an online meeting, issue #25) through Postfix; SOGo, which schedules
-//! for its own users itself, puts the meeting in bob's calendar and mails him too. bob's calendar
+//! for its own users itself, puts the meeting in bob's calendar, and leaves the mail to
+//! MailCraft (see `real_scheduling.rs`). bob's calendar
 //! can't be reached when the invitations come (issue #30); once it can, they go there. Answered
 //! in MailCraft from the message and from the calendar, they leave bob's Inbox (issue #31), and
 //! ann's MailCraft takes his answers in. Never a real account; run by hand:
@@ -92,7 +93,7 @@ fn real_mailcow_invitations_between_two_users() {
     let (_, stored) = ann.s.find_event(&uid).unwrap();
     eprintln!("ann's meeting is at {}", stored.href);
 
-    // What reaches bob: MailCraft's invitation, and SOGo's own (it schedules for its users).
+    // What reaches bob: MailCraft's invitation only (SOGo is told MailCraft sends them).
     let inbox = wait_subjects(&m, 1, "INBOX", "the invitations", |s| s.iter().any(|x| x.contains(&first)));
     std::thread::sleep(Duration::from_secs(5));
     let inbox = {
@@ -100,6 +101,7 @@ fn real_mailcow_invitations_between_two_users() {
         if again.len() > inbox.len() { again } else { inbox }
     };
     eprintln!("bob's Inbox: {inbox:?}");
+    assert_eq!(inbox.iter().filter(|x| x.contains(&first)).count(), 1, "one invitation: {inbox:?}");
     let in_sogo: Vec<(String, String)> =
         m.calendar(1, &format!("{}personal/", m.dav_home(1))).into_iter().filter(|(_, d)| d.contains(&uid)).collect();
     eprintln!("SOGo put it in bob's calendar itself: {:?}", in_sogo.iter().map(|x| &x.0).collect::<Vec<_>>());
@@ -145,16 +147,16 @@ fn real_mailcow_invitations_between_two_users() {
     assert_eq!(in_sogo.len(), 1, "{in_sogo:?}");
     assert!(in_sogo[0].1.contains("CONFERENCE") && in_sogo[0].1.contains("meet.example.edu/rooms/mc3-1in-vit"), "{}", in_sogo[0].1);
 
-    // Answered in SOGo's message (SOGo stamps the copy it keeps later than the mail): accepted,
-    // out of the Inbox to Trash on Mailcow, with MailCraft's own invitation for it.
+    // Answered in the message (SOGo stamps the copy it keeps later than the mail): accepted, out
+    // of the Inbox to Trash on Mailcow.
     let key = bob
         .s
         .folder_state(&bid, "INBOX")
         .messages
         .iter()
-        .find(|x| x.subject.contains(&first) && x.subject.starts_with("Event Invitation"))
+        .find(|x| x.subject.contains(&first) && x.subject.starts_with("Invitation:"))
         .map(|x| x.key.to_id())
-        .expect("SOGo's invitation");
+        .expect("MailCraft's invitation");
     bob.s.run("folder.open", &json!({"account": bid, "folder": "INBOX"})).unwrap();
     bob.s.run("list.open", &json!({"key": key})).unwrap();
     let r = bob.s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
@@ -168,12 +170,27 @@ fn real_mailcow_invitations_between_two_users() {
     let bobs = m.calendar(1, &format!("{}personal/", m.dav_home(1))).into_iter().find(|(_, d)| d.contains(&uid)).map(|x| x.1).unwrap_or_default();
     assert!(bobs.contains("PARTSTAT=ACCEPTED"), "{bobs}");
 
-    // ann's MailCraft takes bob's answer in.
-    let replies = wait_subjects(&m, 0, "INBOX", "bob's answer", |s| s.iter().any(|x| x.contains(&first)));
-    eprintln!("ann's Inbox: {replies:?}");
-    ann.pool.submit(Job::SyncFolder { account: aid.clone(), folder: "INBOX".into() });
-    ann.settle(4);
-    let key = ann.s.folder_state(&aid, "INBOX").messages.iter().find(|x| x.subject.contains(&first)).map(|x| x.key.to_id()).expect("bob's answer");
+    // ann's MailCraft takes bob's answer in: SOGo's, as bob answered in the copy SOGo put in his
+    // calendar (its subject's words encoded one by one).
+    let end = Instant::now() + Duration::from_secs(60);
+    let key = loop {
+        ann.pool.submit(Job::SyncFolder { account: aid.clone(), folder: "INBOX".into() });
+        ann.settle(3);
+        let replies: Vec<_> = ann
+            .s
+            .folder_state(&aid, "INBOX")
+            .messages
+            .iter()
+            .filter(|x| x.subject.contains(&first))
+            .map(|x| (x.key.to_id(), x.subject.clone()))
+            .collect();
+        if let Some((k, _)) = replies.first() {
+            std::thread::sleep(Duration::from_secs(5));
+            assert_eq!(replies.len(), 1, "one answer: {replies:?}");
+            break k.clone();
+        }
+        assert!(Instant::now() < end, "bob's answer didn't come");
+    };
     ann.s.run("folder.open", &json!({"account": aid, "folder": "INBOX"})).unwrap();
     ann.s.run("list.open", &json!({"key": key})).unwrap();
     let r = ann.s.run("invite.apply", &json!({}));
@@ -184,7 +201,8 @@ fn real_mailcow_invitations_between_two_users() {
     assert_eq!(bob_said, "ACCEPTED");
     let anns = m.calendar(0, &format!("{}personal/", m.dav_home(0))).into_iter().find(|(_, d)| d.contains(&uid)).map(|x| x.1).unwrap_or_default();
     eprintln!("--- ann's copy on SOGo:\n{anns}");
-    assert!(anns.contains("PARTSTAT=ACCEPTED;CN=Bob") || anns.contains("PARTSTAT=ACCEPTED:mailto:bob"), "SOGo has bob's answer: {anns}");
+    let bobs_line = anns.lines().find(|l| l.starts_with("ATTENDEE") && l.contains(&format!("mailto:{bob_email}"))).unwrap_or_default();
+    assert!(bobs_line.contains("PARTSTAT=ACCEPTED"), "SOGo has bob's answer: {anns}");
     // SOGo wrote bob's answer into ann's copy itself: her change, made to the copy before, is
     // refused once (412) and SOGo's kept, not sent again at every sync.
     ann.sync_dav(&aid);

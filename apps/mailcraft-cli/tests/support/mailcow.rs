@@ -440,16 +440,23 @@ impl App {
     /// computer); returns the account's id.
     pub fn new(m: &Mailcow, n: usize, tag: &str) -> (App, String) {
         let (email, password) = m.user(n);
-        let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("mailcow-{tag}-{}-{}", m.name(n), std::process::id()));
+        App::at(&m.imap, &m.smtp, email, email, password, tag)
+    }
+
+    /// A new MailCraft for `email` (signing in as `username`), its mail on these IMAP and SMTP
+    /// servers without TLS, on this computer; returns the account's id.
+    pub fn at(imap: &str, smtp: &str, email: &str, username: &str, password: &str, tag: &str) -> (App, String) {
+        let name = email.split('@').next().unwrap_or_default();
+        let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("mailcow-{tag}-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = Store::open(&dir).unwrap();
         let mut s = Session::open(Some(store.clone()), Clock::new(now(), 0));
-        let (ih, ip) = m.imap.rsplit_once(':').unwrap();
-        let (sh, sp) = m.smtp.rsplit_once(':').unwrap();
+        let (ih, ip) = imap.rsplit_once(':').unwrap();
+        let (sh, sp) = smtp.rsplit_once(':').unwrap();
         let id = s
             .run(
                 "account.add",
-                &json!({"email": email, "password": password, "imapHost": ih, "imapPort": ip.parse::<u16>().unwrap(), "imapSecurity": "none",
+                &json!({"email": email, "username": username, "password": password, "imapHost": ih, "imapPort": ip.parse::<u16>().unwrap(), "imapSecurity": "none",
                         "smtpHost": sh, "smtpPort": sp.parse::<u16>().unwrap(), "smtpSecurity": "none"}),
             )
             .unwrap()["account"]
