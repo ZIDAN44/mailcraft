@@ -1,4 +1,4 @@
-use super::item::item_of;
+use super::item::{File, item_of};
 use super::props::{decode, val};
 use super::rebuild::to_raw;
 use super::*;
@@ -94,6 +94,94 @@ fn an_item_reads_from_its_values() {
     assert_eq!(it.html.as_deref(), Some("caf\u{FFFD}"), "the HTML is read in its code page");
     assert_eq!(it.cc.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["ben@example.com"]);
     assert!(it.to.is_empty() && it.bcc.is_empty() && it.extra.is_none());
+}
+
+/// `PidTagRtfCompressed` stored as it is (`MELA`), as Outlook may keep a short body.
+fn stored_rtf(rtf: &[u8]) -> Vec<u8> {
+    let len = u32::try_from(rtf.len()).unwrap();
+    let mut out = (len + 12).to_le_bytes().to_vec();
+    out.extend(len.to_le_bytes());
+    out.extend(0x414C_454Du32.to_le_bytes());
+    out.extend(0u32.to_le_bytes());
+    out.extend(rtf);
+    out
+}
+
+/// An item from its properties alone, with no recipients.
+fn item_with<'a>(props: &HashMap<u16, Val<'a>>, files: Vec<File>) -> Item {
+    let none: [fn(u16) -> Option<Val<'a>>; 0] = [];
+    item_of(&|id| props.get(&id).cloned(), &none, files, &crate::pst_pim::Named::default())
+}
+
+/// A body Outlook kept only as RTF comes in as the HTML it wraps, and the picture that HTML
+/// names by `cid:` goes inline instead of being a file.
+#[test]
+fn an_rtf_only_body_comes_in_with_its_pictures_inline() {
+    let rtf = stored_rtf(
+        br#"{\rtf1\ansi\ansicpg1252\fromhtml1 \deff0{\fonttbl{\f0\fswiss Calibri;}}{\*\htmltag19 <html>}{\*\htmltag34 <body>}{\*\htmltag <p>}\htmlrtf {\htmlrtf0 Hi Riley, the {\*\htmltag <b>}\htmlrtf\b\htmlrtf0 storyboard{\*\htmltag </b>}\htmlrtf\b0\htmlrtf0  is attached.{\*\htmltag <img src="cid:logo@studio.example">}\htmlrtf\par\htmlrtf0}{\*\htmltag </p></body></html>}}"#,
+    );
+    let props = HashMap::from([(0x001A, Val::Text("IPM.Note".into())), (0x0037, Val::Text("Storyboard".into())), (0x1009, Val::Bin(&rtf))]);
+    let logo =
+        File::Data { name: "logo.png".into(), mime: "image/png".into(), cid: "logo@studio.example".into(), data: b"\x89PNG\r\n\x1a\nfake".to_vec() };
+    let it = item_with(&props, vec![logo]);
+    let html = it.html.as_deref().unwrap_or_default();
+    assert!(html.contains("<b>storyboard</b>") && html.contains("cid:logo@studio.example"), "{html}");
+    let raw = to_raw(&it, "rtf@x").unwrap();
+    let p = mime::parse(&raw).unwrap();
+    assert!(p.had_html && p.text.contains("storyboard"), "{}", p.text);
+    let inline: Vec<_> = p.attachments.iter().map(|a| (a.inline, a.content_id.as_deref())).collect();
+    assert_eq!(inline, [(true, Some("logo@studio.example"))], "the picture is inline");
+
+    // Compressed (LZFu, MS-OXRTFCP 3.1.1): RTF of its own reads as simple HTML.
+    let compressed = [
+        0x2d, 0x00, 0x00, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x4c, 0x5a, 0x46, 0x75, 0xf1, 0xc5, 0xc7, 0xa7, 0x03, 0x00, 0x0a, 0x00, 0x72, 0x63, 0x70,
+        0x67, 0x31, 0x32, 0x35, 0x42, 0x32, 0x0a, 0xf3, 0x20, 0x68, 0x65, 0x6c, 0x09, 0x00, 0x20, 0x62, 0x77, 0x05, 0xb0, 0x6c, 0x64, 0x7d, 0x0a,
+        0x80, 0x0f, 0xa0,
+    ];
+    let it = item_with(&HashMap::from([(0x1009, Val::Bin(&compressed[..]))]), Vec::new());
+    assert!(it.html.as_deref().is_some_and(|h| h.contains("hello world")), "{:?}", it.html);
+    let p = mime::parse(&to_raw(&it, "lzfu@x").unwrap()).unwrap();
+    assert!(p.text.contains("hello world"), "{}", p.text);
+}
+
+/// RTF fills in only what the item lacks: plain text keeps its place and gains the HTML the RTF
+/// wraps, an HTML body wins over the RTF, wrapped text fills an empty body, and RTF that can't be
+/// read leaves the item as it was.
+#[test]
+fn rtf_fills_in_only_what_is_missing() {
+    let wrapped = stored_rtf(br#"{\rtf1\ansi\fromhtml1 {\*\htmltag <p>}\htmlrtf {\htmlrtf0 From the RTF}{\*\htmltag </p>}}"#);
+    let with = |extra: &[(u16, Val<'static>)], rtf: &[u8]| {
+        let mut props: HashMap<u16, Val<'_>> = extra.iter().cloned().collect();
+        props.insert(0x1009, Val::Bin(rtf));
+        item_with(&props, Vec::new())
+    };
+    let it = with(&[(0x1000, Val::Text("Plain text".into()))], &wrapped);
+    assert_eq!(it.body, "Plain text");
+    assert!(it.html.as_deref().is_some_and(|h| h.contains("From the RTF")), "{:?}", it.html);
+
+    let it = with(&[(0x1013, Val::Text("<p>From the HTML</p>".into()))], &wrapped);
+    assert_eq!(it.html.as_deref(), Some("<p>From the HTML</p>"));
+
+    let text = stored_rtf(b"{\\rtf1\\ansi\\fromtext \\deff0{\\fonttbl{\\f0 Courier;}}Line one\\par\nLine\\tab two\\par}");
+    let it = with(&[], &text);
+    assert_eq!((it.body.as_str(), it.html.as_deref()), ("Line one\r\nLine\ttwo\r\n", None));
+    let it = with(&[(0x1000, Val::Text("Kept".into()))], &text);
+    assert_eq!(it.body, "Kept");
+
+    // RTF of its own (an RTF-format mail, a meeting request) doesn't stand in for the plain text:
+    // its simple HTML would run a table's cells together and drop its pictures and objects.
+    let own = stored_rtf(br"{\rtf1\ansi\deff0 Name\cell Value\cell\row Alpha\cell Beta\cell\row Before{\pict\pngblip 89504e47}After\par}");
+    let plain = "Name\tValue\r\nAlpha\tBeta\r\nBefore [picture] After";
+    let it = with(&[(0x1000, Val::Text(plain.into()))], &own);
+    assert_eq!((it.body.as_str(), it.html.as_deref()), (plain, None));
+    let it = with(&[], &own);
+    assert!(it.body.is_empty() && it.html.as_deref().is_some_and(|h| h.contains("Before")), "{:?}", it.html);
+
+    for junk in [&b""[..], b"0123456789abcdefghij", &stored_rtf(b"not rtf at all"), &wrapped[..20]] {
+        let it = with(&[], junk);
+        assert!(it.body.is_empty() && it.html.is_none(), "{junk:?}");
+        assert!(to_raw(&it, "junk@x").is_ok());
+    }
 }
 
 #[test]

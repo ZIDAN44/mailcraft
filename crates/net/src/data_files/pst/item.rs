@@ -75,6 +75,11 @@ pub(super) fn item_of<'a>(
         }
         other => other.into_text(),
     });
+    if it.html.as_deref().is_none_or(|h| h.trim().is_empty())
+        && let Some(Val::Bin(rtf)) = p(0x1009)
+    {
+        rtf_into(&mut it, rtf);
+    }
     it.message_id = s(0x1035);
     it.in_reply_to = s(0x1042);
     it.references = s(0x1039).split_whitespace().map(str::to_string).collect();
@@ -99,6 +104,24 @@ pub(super) fn item_of<'a>(
         }
     }
     it
+}
+
+/// A body kept as compressed RTF (`PidTagRtfCompressed`) and no HTML: the HTML it wraps, or,
+/// when the item has no text, its own formatting or its text. Its pictures are then inline, as
+/// the HTML names their `cid:`. A plain body is kept over RTF of its own, whose simple HTML
+/// leaves out tables, pictures and objects the text still has.
+fn rtf_into(it: &mut Item, compressed: &[u8]) {
+    let plain = !it.body.trim().is_empty();
+    let rtf = mime::decompress_rtf(compressed);
+    if plain && !rtf.as_deref().is_some_and(mime::rtf_wraps_html) {
+        return;
+    }
+    match rtf.map(|rtf| mime::rtf_body(&rtf)) {
+        Some(mime::TnefBody::Html(h)) => it.html = Some(h),
+        Some(mime::TnefBody::Text(t)) if !plain && !t.trim().is_empty() => it.body = t,
+        _ if plain => {}
+        _ => log::info!("a Rich Text body could not be read"),
+    }
 }
 
 /// An attachment's file, or the message it holds.

@@ -19,7 +19,7 @@ use crate::files::mime_from_name;
 
 mod rtf;
 
-pub use rtf::{decompress_rtf, rtf_body};
+pub use rtf::{decompress_rtf, rtf_body, rtf_wraps_html};
 
 /// The signature a TNEF stream starts with (little-endian `0x223E9F78`).
 const SIGNATURE: [u8; 4] = [0x78, 0x9F, 0x3E, 0x22];

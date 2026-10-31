@@ -1378,3 +1378,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   SmartScreen, Protected View and Office's block on internet macros still apply). Tried on
   Windows 11: Photos asked for PNG and WebP with the mark and not without; Media Player (MP3,
   MP4) and Notepad don't ask either way, so those keep it.
+- **Rich Text mail from a data file:** an item Outlook kept only in Rich Text Format came in from
+  a `.pst` with an empty body (996 in a 47 GB file), and plain-text items lost the HTML their
+  RTF wrapped. The compressed RTF (`PidTagRtfCompressed`) is now read when an item has no HTML,
+  the same way as in a `winmail.dat`: as the HTML it wraps, or, when there's no plain text, its
+  own formatting or its text; the pictures its HTML shows are in the body instead of listed as
+  files. A plain body stays over RTF of its own, whose tables and pictures the text keeps better.

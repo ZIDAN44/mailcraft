@@ -187,6 +187,12 @@ fn rtf_of_its_own_comes_as_html() {
         rtf_body(b"{\\rtf1\\ansi\\fromtext \\deff0{\\fonttbl{\\f0 Courier;}}Line one\\par\nLine\\tab two\\par}"),
         TnefBody::Text("Line one\r\nLine\ttwo\r\n".into())
     );
+    assert!(rtf_wraps_html(br"{\rtf1\ansi\ansicpg1252\fromhtml1 \deff0{\*\htmltag <p>}}"));
+    for other in
+        [&br"{\rtf1\ansi\fromtext \deff0 text}"[..], br"{\rtf1\ansi\fromhtml0 \deff0 own}", br"{\rtf1\ansi\deff0 own}", b"<p>not rtf</p>", b""]
+    {
+        assert!(!rtf_wraps_html(other), "{other:?}");
+    }
     let rtf = br#"{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss Calibri;}{\f1\fcharset204 Arial Cyr;}}{\colortbl;\red255\green0\blue0;}
 {\*\generator Riched20;}\pard Hello \b bold\b0 , {\i italic} and {\ul under}\ulnone  caf\'e9 \f1\'cf\'f0\'e8\f0  \u8364?\u-10179?\u-8704?.\par
 A {\field{\*\fldinst{HYPERLINK "https://studio.example/a?b=1&c=2"}}{\fldrslt{link}}} and 1 < 2 & {\strike gone}.\line

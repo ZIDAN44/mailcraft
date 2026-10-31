@@ -86,28 +86,32 @@ enum Mode {
     Rich,
 }
 
+/// What RTF wraps: the first ten tokens say, when they're all groups and control words.
+fn mode(rtf: &[u8]) -> Mode {
+    for t in (Lexer { s: rtf, i: 0 }).take(10) {
+        match t {
+            Tok::Open => {}
+            Tok::Word(b"fromhtml", n) if n != Some(0) => return Mode::Html,
+            Tok::Word(b"fromtext", _) => return Mode::Text,
+            Tok::Word(..) => {}
+            _ => break,
+        }
+    }
+    Mode::Rich
+}
+
+/// Whether RTF wraps HTML (`\fromhtml1`), so [`rtf_body`] gives that HTML back rather than
+/// simple HTML of the RTF's own, which leaves out tables, pictures and objects.
+pub fn rtf_wraps_html(rtf: &[u8]) -> bool {
+    rtf.starts_with(b"{\\rtf") && mode(rtf) == Mode::Html
+}
+
 /// A body's RTF as the reading pane takes it.
 pub fn rtf_body(rtf: &[u8]) -> TnefBody {
     if !rtf.starts_with(b"{\\rtf") {
         return TnefBody::None;
     }
-    let mut mode = Mode::Rich;
-    // The first ten tokens say, when they're all groups and control words.
-    for t in (Lexer { s: rtf, i: 0 }).take(10) {
-        match t {
-            Tok::Open => {}
-            Tok::Word(b"fromhtml", n) if n != Some(0) => {
-                mode = Mode::Html;
-                break;
-            }
-            Tok::Word(b"fromtext", _) => {
-                mode = Mode::Text;
-                break;
-            }
-            Tok::Word(..) => {}
-            _ => break,
-        }
-    }
+    let mode = mode(rtf);
     let out = read(rtf, mode);
     match mode {
         Mode::Text => TnefBody::Text(out),
