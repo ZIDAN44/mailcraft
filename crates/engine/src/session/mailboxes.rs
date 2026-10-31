@@ -116,7 +116,7 @@ impl Session {
     pub(super) fn reload_folder(&mut self, account: &str, folder: &str) {
         let k = (account.to_string(), folder.to_string());
         self.cache.remove(&k);
-        self.index = None;
+        self.index_changed(account, folder);
         self.contacts = None;
     }
 

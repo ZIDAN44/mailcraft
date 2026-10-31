@@ -145,6 +145,7 @@ impl Session {
             vacation: VacationState::Unknown,
         });
         self.save_accounts();
+        self.import_started(&id);
         self.jobs.push(Job::ImportPst { account: id.clone(), path: path.to_string() });
         Ok(serde_json::json!({ "account": id, "importing": true }))
     }
@@ -201,11 +202,17 @@ impl Session {
         if let Some(a) = self.account_mut(account) {
             a.status = SyncStatus::Syncing { folder: String::new() };
         }
+        self.import_started(account);
         self.jobs.push(Job::ImportPst { account: account.to_string(), path: path.to_string() });
         Ok(serde_json::json!({ "account": account, "importing": true }))
     }
 
     pub(super) fn imported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {
+        if done {
+            self.import_ended(account);
+        } else if self.account(account).is_some() {
+            self.import_started(account);
+        }
         let Some(name) = self.account(account).map(|a| a.config.email.clone()) else { return };
         if !done {
             self.notice(format!("{name}: {messages} messages imported so far…"), false);
@@ -318,6 +325,8 @@ impl Session {
         };
         self.accounts.retain(|a| a.config.id != id);
         self.cache.retain(|(a, _), _| a != id);
+        self.forget_account_index(id);
+        self.importing.remove(id);
         self.pim.remove(id);
         let mut kept = None;
         if let Some(store) = &self.store {

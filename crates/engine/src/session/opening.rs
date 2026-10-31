@@ -17,7 +17,6 @@ impl Session {
         self.view = view;
         self.search = None;
         self.stop_server_search();
-        self.index = None;
         self.selection.clear();
         self.focus = None;
         self.anchor = None;
@@ -182,13 +181,15 @@ impl Session {
 
     /// A body that came in joins the search index there is (rather than throwing it away).
     pub(super) fn index_body(&mut self, key: &MessageKey, raw: &[u8]) {
-        // No index yet: read when one is built (downloading ahead costs nothing extra then).
-        if self.index.is_none() {
+        // No index of its folder yet: read when one is built (downloading ahead costs nothing
+        // extra then).
+        let folder = (key.account.clone(), key.folder.clone());
+        if !self.index.contains_key(&folder) {
             return;
         }
         let words: Arc<str> = Arc::from(mime::search_text(raw));
         self.keep_words(key, words.clone());
-        if let Some(ix) = self.index.as_mut()
+        if let Some(ix) = self.index.get_mut(&folder)
             && let Some(doc) = ix.keys.iter().position(|k| k == key)
             && ix.has_body.get(doc) == Some(&false)
         {

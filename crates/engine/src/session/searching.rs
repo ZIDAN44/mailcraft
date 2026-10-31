@@ -37,37 +37,95 @@ impl Session {
         }
     }
 
-    pub(super) fn ensure_index(&mut self, scope: SearchScope) {
-        if self.index.as_ref().is_some_and(|ix| ix.scope == scope && (scope == SearchScope::All || ix.view == self.view)) {
-            return;
+    /// Search words for each of these folders that has none yet; an importing account's folders
+    /// wait for the import to end (searched by their summaries until then).
+    pub(super) fn ensure_index(&mut self, folders: &[(String, String)]) {
+        let mut built = false;
+        for (a, f) in folders {
+            let k = (a.clone(), f.clone());
+            if self.index.contains_key(&k) || self.importing.contains(a) {
+                continue;
+            }
+            let ix = self.folder_index(a, f);
+            self.index.insert(k, ix);
+            built = true;
         }
-        let folders = self.scope_folders(scope);
+        if built {
+            self.index_builds = self.index_builds.wrapping_add(1);
+        }
+    }
+
+    /// One folder's search words: its summaries' and its downloaded messages'.
+    fn folder_index(&mut self, a: &str, f: &str) -> SearchIndex {
         let mut index = Index::new();
         let mut keys = Vec::new();
         let mut has_body = Vec::new();
-        for (a, f) in folders {
-            // A thousand at a time: a big folder isn't copied whole while it's read.
-            let n = self.folder_state(&a, &f).messages.len();
-            let mut at = 0;
-            while at < n {
-                let msgs: Vec<Summary> = self.folder_state(&a, &f).messages.get(at..(at + 1000).min(n)).map(<[Summary]>::to_vec).unwrap_or_default();
-                if msgs.is_empty() {
-                    break;
+        // A thousand at a time: a big folder isn't copied whole while it's read.
+        let n = self.folder_state(a, f).messages.len();
+        let mut at = 0;
+        while at < n {
+            let msgs: Vec<Summary> =
+                self.folder_state(a, f).messages.get(at..at.saturating_add(1000).min(n)).map(<[Summary]>::to_vec).unwrap_or_default();
+            if msgs.is_empty() {
+                break;
+            }
+            at += msgs.len();
+            for m in msgs {
+                let doc = u32::try_from(keys.len()).unwrap_or(u32::MAX);
+                index.add(doc, &summary_text(&m));
+                let words = self.words_of(&m.key);
+                if let Some(words) = &words {
+                    index.add(doc, words);
                 }
-                at += msgs.len();
-                for m in msgs {
-                    let doc = u32::try_from(keys.len()).unwrap_or(u32::MAX);
-                    index.add(doc, &summary_text(&m));
-                    let words = self.words_of(&m.key);
-                    if let Some(words) = &words {
-                        index.add(doc, words);
-                    }
-                    has_body.push(words.is_some());
-                    keys.push(m.key);
-                }
+                has_body.push(words.is_some());
+                keys.push(m.key);
             }
         }
-        self.index = Some(SearchIndex { index, keys, has_body, scope, view: self.view.clone() });
+        SearchIndex { index, keys, has_body, stale: false }
+    }
+
+    /// A folder's mail changed: its search words go (read again at the next search), or, while
+    /// its account imports, are kept and marked to go when the import ends.
+    pub(super) fn index_changed(&mut self, account: &str, folder: &str) {
+        let k = (account.to_string(), folder.to_string());
+        if self.importing.contains(account) {
+            if let Some(ix) = self.index.get_mut(&k) {
+                ix.stale = true;
+            }
+        } else {
+            self.index.remove(&k);
+        }
+    }
+
+    /// An account's folders changed (created, renamed, deleted): all its search words go.
+    pub(super) fn forget_account_index(&mut self, account: &str) {
+        self.index.retain(|(a, _), _| a != account);
+    }
+
+    /// An account's folder list came in: the search words of folders no longer in it go.
+    pub(super) fn index_folders_listed(&mut self, account: &str) {
+        let listed: HashSet<String> = self.account(account).map(|a| a.folders.iter().map(|f| f.path.clone()).collect()).unwrap_or_default();
+        self.index.retain(|(a, f), _| a != account || listed.contains(f));
+    }
+
+    /// A data file import into `account` begins (or is under way).
+    pub(super) fn import_started(&mut self, account: &str) {
+        self.importing.insert(account.to_string());
+    }
+
+    /// The import into `account` ended: the folders it changed are read again for search, once,
+    /// at the next search.
+    pub(super) fn import_ended(&mut self, account: &str) {
+        if self.importing.remove(account) {
+            self.index.retain(|(a, _), ix| a != account || !ix.stale);
+        }
+    }
+
+    /// How many times search words were read for some folder (one search reading several folders
+    /// counts once): tests check what doesn't read them again.
+    #[cfg(test)]
+    pub(crate) fn index_builds(&self) -> u64 {
+        self.index_builds
     }
 
     /// A downloaded message's words for search, read once (`None`: not downloaded).
@@ -112,30 +170,51 @@ impl Session {
             return Vec::new();
         }
         let awaiting = if query.clauses.iter().any(|c| asks_awaiting(&c.term)) { self.awaiting_replies() } else { HashSet::new() };
-        self.ensure_index(scope);
-        let Some(ix) = self.index.take() else { return Vec::new() };
+        let folders = self.scope_folders(scope);
         let mut out = Vec::new();
-        // Each folder's messages by number, made once: looked up one by one in the list, a search
-        // finding most of a big folder was quadratic.
-        let mut by_uid: HashMap<(String, String), HashMap<u32, usize>> = HashMap::new();
-        let needs_body = query.needs_body();
-        for doc in ix.index.candidates(&query) {
-            let Some(key) = ix.keys.get(doc as usize) else { continue };
-            let folder = (key.account.clone(), key.folder.clone());
-            if !by_uid.contains_key(&folder) {
-                // Where each message is in its folder's list (not a copy of every summary).
-                let map = self.folder_state(&key.account, &key.folder).messages.iter().enumerate().map(|(i, m)| (m.key.uid, i)).collect();
-                by_uid.insert(folder.clone(), map);
+        // Flags, sizes, senders, subjects: the summaries answer, no message is read.
+        if summary_only(&query) {
+            for (a, f) in &folders {
+                let st = self.folder_state(a, f);
+                let found = st
+                    .messages
+                    .iter()
+                    .filter(|m| query.matches(&Doc { summary: m, body: None, indexed: false, awaiting: awaiting.contains(&m.key) }));
+                out.extend(found.cloned());
             }
-            let Some(&at) = by_uid.get(&folder).and_then(|f| f.get(&key.uid)) else { continue };
-            let Some(m) = self.folder_state(&key.account, &key.folder).messages.get(at).filter(|m| m.key.uid == key.uid).cloned() else { continue };
-            // The body read again only when the index can't settle the query.
-            let body = if needs_body && ix.has_body.get(doc as usize) == Some(&true) { self.words_of(key) } else { None };
-            if query.matches(&Doc { summary: &m, body: body.as_deref(), indexed: true, awaiting: awaiting.contains(&m.key) }) {
-                out.push(m);
-            }
+            return out;
         }
-        self.index = Some(ix);
+        self.ensure_index(&folders);
+        let needs_body = query.needs_body();
+        for (a, f) in folders {
+            let Some(ix) = self.index.remove(&(a.clone(), f.clone())) else {
+                // An importing account's folder not read yet: its summaries alone answer.
+                let st = self.folder_state(&a, &f);
+                let found = st
+                    .messages
+                    .iter()
+                    .filter(|m| query.matches(&Doc { summary: m, body: None, indexed: false, awaiting: awaiting.contains(&m.key) }));
+                out.extend(found.cloned());
+                continue;
+            };
+            let docs = ix.index.candidates(&query);
+            if !docs.is_empty() {
+                // Where each message is in the folder's list, made once: looked up one by one, a
+                // search finding most of a big folder was quadratic.
+                let by_uid: HashMap<u32, usize> = self.folder_state(&a, &f).messages.iter().enumerate().map(|(i, m)| (m.key.uid, i)).collect();
+                for doc in docs {
+                    let Some(key) = ix.keys.get(doc as usize) else { continue };
+                    let Some(&at) = by_uid.get(&key.uid) else { continue };
+                    let Some(m) = self.folder_state(&a, &f).messages.get(at).filter(|m| m.key == *key).cloned() else { continue };
+                    // The body read again only when the index can't settle the query.
+                    let body = if needs_body && ix.has_body.get(doc as usize) == Some(&true) { self.words_of(key) } else { None };
+                    if query.matches(&Doc { summary: &m, body: body.as_deref(), indexed: true, awaiting: awaiting.contains(&m.key) }) {
+                        out.push(m);
+                    }
+                }
+            }
+            self.index.insert((a, f), ix);
+        }
         out
     }
 
@@ -249,6 +328,28 @@ impl Session {
 /// (`Some(false)`, `-is:awaiting`), as one of the terms that must all match.
 pub(super) fn awaiting_wanted(q: &str) -> Option<bool> {
     Query::parse(q).clauses.iter().find(|c| c.term == mailcraft_model::search::Term::Awaiting).map(|c| !c.negated)
+}
+
+/// Whether the summaries alone answer a query: it looks for no words anywhere or in the text
+/// (flags, categories, sizes, senders, recipients, subjects, waiting for a reply).
+pub(super) fn summary_only(q: &Query) -> bool {
+    q.clauses.iter().all(|c| summary_term(&c.term))
+}
+
+fn summary_term(t: &mailcraft_model::search::Term) -> bool {
+    use mailcraft_model::search::{Field, Term};
+    match t {
+        Term::Words(f, _) | Term::Phrase(f, _) => !matches!(f, Field::Any | Field::Body),
+        Term::AnyOf(any) => any.iter().all(summary_term),
+        Term::HasAttachment(_)
+        | Term::Unread(_)
+        | Term::Flagged(_)
+        | Term::Keyword(_)
+        | Term::Important
+        | Term::Categorized(_)
+        | Term::Size(..)
+        | Term::Awaiting => true,
+    }
 }
 
 /// Whether a search term asks for mail waiting for a reply (on its own or among others).

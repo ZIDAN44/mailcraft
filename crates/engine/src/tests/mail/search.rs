@@ -124,8 +124,8 @@ fn searching_a_big_mailbox_stays_quick() {
     let t = std::time::Instant::now();
     assert_eq!(s.run("search.run", &json!({"query": "needle"})).unwrap()["results"], 1);
     let first = t.elapsed();
-    // Mail changes (as a sync does), and the next key is typed: the index is built again.
-    s.open_view(View::Folder { account: "a1".into(), folder: "INBOX".into() });
+    // Mail changes (as a sync does), and the next key is typed: the folder's index is built again.
+    s.apply(Event::FolderChanged { account: "a1".into(), folder: "INBOX".into() });
     let t = std::time::Instant::now();
     assert_eq!(s.run("search.run", &json!({"query": "needl"})).unwrap()["results"], 1);
     let again = t.elapsed();
@@ -217,5 +217,133 @@ fn more_on_the_server_and_searching_it() {
     s.take_jobs();
     s.open_view(crate::View::Folder { account: a.clone(), folder: "INBOX".into() });
     assert_eq!(s.take_jobs(), vec![Job::StopSearch]);
+    done(s);
+}
+
+/// What every folder of the sample mailbox holds that `keep` keeps, counted from the summaries.
+fn counted(s: &mut Session, keep: impl Fn(&mailcraft_model::Summary) -> bool) -> usize {
+    let mut n = 0;
+    for (a, f) in s.scope_folders(SearchScope::All) {
+        n += s.folder_state(&a, &f).messages.iter().filter(|m| keep(m)).count();
+    }
+    n
+}
+
+/// Flags, senders, sizes: the summaries answer, and no message is read for them (a big data
+/// file's every message was read again for `is:unread`), nor for a Search Folder asking them.
+#[test]
+fn summary_searches_read_no_message() {
+    let mut s = sample_session("summary-search");
+    let unread = counted(&mut s, |m| !m.flags.seen);
+    let flagged = counted(&mut s, |m| m.flags.flagged);
+    let from_zoe = counted(&mut s, |m| m.from.name.to_lowercase().contains("zoe") || m.from.email.contains("zoe"));
+    assert!(unread > 0 && flagged > 0 && from_zoe > 0, "the sample has some of each");
+    let reads = s.store.as_ref().unwrap().reads();
+    let all = |s: &mut Session, q: &str| s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap()["results"].as_u64().unwrap() as usize;
+    assert_eq!(all(&mut s, "is:unread"), unread);
+    assert_eq!(all(&mut s, "is:flagged"), flagged);
+    assert_eq!(all(&mut s, "from:zoe"), from_zoe);
+    all(&mut s, "has:attachment -is:read larger:1KB subject:storyboard");
+    s.run("searchFolder.create", &json!({"name": "Unread", "query": "is:unread"})).unwrap();
+    assert!(!s.list.is_empty());
+    assert_eq!(s.store.as_ref().unwrap().reads(), reads, "no message was read");
+    assert_eq!(s.index_builds(), 0, "no search words were read");
+    // Words anywhere need the text: those still read it.
+    assert_eq!(all(&mut s, "projector"), 1);
+    assert_eq!(s.index_builds(), 1);
+    done(s);
+}
+
+/// Marking a result read keeps the search words: flags aren't among them.
+#[test]
+fn marking_a_result_read_keeps_the_search_words() {
+    let mut s = sample_session("search-mark-read");
+    s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
+    let found = s.list.len();
+    let builds = s.index_builds();
+    assert_eq!(builds, 1);
+    let unread = s.list.iter().find(|m| !m.flags.seen).map(|m| json!({"key": m.key.to_id()})).expect("an unread result");
+    s.run("list.open", &unread).unwrap();
+    assert!(s.reading.as_ref().is_some_and(|r| s.list.iter().any(|m| m.key == r.key && m.flags.seen)), "marked read");
+    s.run("mail.markUnread", &json!({})).unwrap();
+    s.run("mail.flag", &json!({})).unwrap();
+    assert_eq!(s.list.len(), found, "the same results");
+    assert_eq!(s.index_builds(), builds, "not read again");
+    // Mail moving: the two folders are read again (in one search), the others aren't. Deleted,
+    // it's still found, in Deleted Items.
+    s.run("mail.delete", &json!({})).unwrap();
+    assert_eq!(s.list.len(), found);
+    assert_eq!(s.index_builds(), builds + 1);
+    done(s);
+}
+
+/// Going to another folder and searching again uses the words already read.
+#[test]
+fn another_view_keeps_the_search_words() {
+    let mut s = sample_session("search-views");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "mailbox"})).unwrap()["results"], 1);
+    assert_eq!(s.index_builds(), 1);
+    let reads = s.store.as_ref().unwrap().reads();
+    s.open_view(View::Folder { account: a.clone(), folder: "Projects".into() });
+    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "mailbox"})).unwrap()["results"], 1);
+    s.open_view(View::Unified { role: FolderRole::Inbox });
+    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
+    assert_eq!(s.index_builds(), 1, "the folders' words are kept whatever is on view");
+    assert_eq!(s.store.as_ref().unwrap().reads(), reads);
+    // A folder that changes is read again, alone.
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
+    assert_eq!(s.index_builds(), 2);
+    done(s);
+}
+
+/// A data file import ends folder after folder: a search open meanwhile doesn't read the
+/// account's mail again for each one, but once, after the import.
+#[test]
+fn an_import_reads_search_words_again_once() {
+    let mut s = sample_session("search-import");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
+    let before = s.list.len();
+    assert_eq!(s.index_builds(), 1);
+    s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: false, error: None });
+    // A message comes into the Inbox as the import goes on.
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
+    store.write_body(&key, b"From: a@x.example\r\nSubject: Imported\r\n\r\nThe storyboard, imported.\r\n").unwrap();
+    st.messages.push(mailcraft_model::Summary { key, subject: "Imported".into(), ..Default::default() });
+    store.save_folder(&a, "INBOX", &st).unwrap();
+    let folders: Vec<String> = s.account(&a).unwrap().folders.iter().map(|f| f.path.clone()).collect();
+    for n in 0..50 {
+        let folder = folders[n % folders.len()].clone();
+        s.apply(Event::FolderChanged { account: a.clone(), folder });
+        s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
+    }
+    assert_eq!(s.index_builds(), 1, "not read again while the import goes on");
+    assert_eq!(s.list.len(), before, "what was found stays found");
+    s.apply(Event::Imported { account: a.clone(), messages: 1, skipped: 0, done: true, error: None });
+    assert_eq!(s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap()["results"].as_u64(), Some(before as u64 + 1));
+    assert_eq!(s.index_builds(), 2, "read again once, after it");
+    s.run("search.run", &json!({"query": "storyboard imported", "scope": "all"})).unwrap();
+    assert_eq!(s.index_builds(), 2);
+    done(s);
+}
+
+/// Search events and queries that make no sense change nothing and break nothing.
+#[test]
+fn search_survives_junk_events_and_queries() {
+    let mut s = sample_session("search-junk");
+    for q in ["from:", "-", "\"", "is:", "larger:x", "from:,,", "-from:zoe -is:unread", "\"unterminated", "category:", "\u{0}\u{ffff}"] {
+        let _ = s.run("search.run", &json!({"query": q, "scope": "all"}));
+    }
+    s.apply(Event::Imported { account: "nobody".into(), messages: 1, skipped: 0, done: false, error: None });
+    s.apply(Event::FolderChanged { account: "nobody".into(), folder: "INBOX".into() });
+    s.apply(Event::FolderChanged { account: sample::SAMPLE_ACCOUNT.into(), folder: "No such folder".into() });
+    s.apply(Event::Imported { account: "nobody".into(), messages: 1, skipped: 0, done: true, error: None });
+    s.apply(Event::Imported { account: sample::SAMPLE_ACCOUNT.into(), messages: 0, skipped: 0, done: true, error: None });
+    assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 1);
     done(s);
 }

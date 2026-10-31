@@ -65,7 +65,7 @@ impl Session {
                     self.refresh_list();
                 }
                 self.mark_junk(&account);
-                self.index = None;
+                self.index_folders_listed(&account);
             }
             Event::FolderChanged { account, folder } => {
                 if self.showing_more.as_ref().is_some_and(|(a, f)| *a == account && *f == folder) {

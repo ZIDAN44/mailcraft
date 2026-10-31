@@ -348,14 +348,16 @@ pub struct Notice {
     pub error: bool,
 }
 
+/// One folder's search words: kept until that folder's mail changes, whatever is on view.
 struct SearchIndex {
     index: Index,
     keys: Vec<MessageKey>,
     /// Whether each message's body words are in the index (the words themselves aren't kept: a
     /// big mailbox's would fill the memory; they're read again for the messages a search finds).
     has_body: Vec<bool>,
-    scope: SearchScope,
-    view: View,
+    /// The folder changed while its account was importing: still used, built again once the
+    /// import is done (not once per folder the import finishes).
+    stale: bool,
 }
 
 /// File for the Replied/Forwarded flags still owed by replies and forwards in the Outbox.
@@ -495,14 +497,19 @@ pub struct Session {
     pub cal_mode: pim::CalMode,
     /// The local day the calendar shows (`None`: today).
     pub cal_day: Option<i64>,
-    index: Option<SearchIndex>,
+    /// Each folder's search words, by (account, folder).
+    index: HashMap<(String, String), SearchIndex>,
+    /// How many times search words were read for some folder ([`Session::index_builds`]).
+    index_builds: u64,
+    /// Accounts a data file is being imported into: their folders' search words wait for the end.
+    importing: HashSet<String>,
     /// The message in the reading pane to mark read, and when (`ReadInPane::Shown` with a wait).
     read_due: Option<(MessageKey, i64)>,
     /// The message to mark read once another is chosen (`ReadInPane::Left`).
     read_on_leave: Option<MessageKey>,
     /// Each downloaded message's words for search (its text and attachment names), read from
-    /// the cache once: the index is rebuilt whenever mail changes, and parsing every message
-    /// again each time made typing in the search box hang.
+    /// the cache once: a folder's index is built again when its mail changes, and parsing every
+    /// message again each time made typing in the search box hang.
     body_words: HashMap<MessageKey, Arc<str>>,
     /// Their size, kept under [`BODY_WORDS_BYTES`].
     body_words_bytes: usize,
@@ -589,7 +596,9 @@ impl Session {
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,
             cal_day: None,
-            index: None,
+            index: HashMap::new(),
+            index_builds: 0,
+            importing: HashSet::new(),
             read_due: None,
             read_on_leave: None,
             body_words: HashMap::new(),
