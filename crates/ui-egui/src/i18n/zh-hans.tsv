@@ -1361,3 +1361,5 @@ month	May	5月
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	指向这些服务器的链接可加入会议(Teams、Zoom、Google Meet、Webex、BigBlueButton 会议室以及你的会议室所在的服务器已默认支持)
 	Dial-in numbers and other lines for the invitation (optional)	邀请中的拨入号码及其他内容（可选）
 	Calendar and contacts couldn't be read: changes to them won't be saved	无法读取日历和联系人：对它们的更改不会保存
+	Your rules couldn't be read: changes to them won't be saved	无法读取你的规则：对它们的更改不会保存
+	Snoozed mail couldn't be read: changes to it won't be saved	无法读取已暂停提醒的邮件：对它们的更改不会保存

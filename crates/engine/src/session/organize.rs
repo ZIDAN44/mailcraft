@@ -72,6 +72,10 @@ impl Session {
         if sel.iter().any(|m| m.message_id.is_empty()) {
             return Err(CmdError::Failed("a message without a Message-ID can't be snoozed".into()));
         }
+        // Its record wouldn't be kept: the mail would stay in Snoozed after a restart.
+        if self.docs_unread.contains(SNOOZES_DOC) {
+            return Err(CmdError::Failed("Snoozed mail couldn't be read, so no more can be snoozed".into()));
+        }
         let next = self.successor(&self.selection.clone());
         let mut accounts: Vec<String> = sel.iter().map(|m| m.key.account.clone()).collect();
         accounts.sort();
@@ -172,6 +176,10 @@ impl Session {
     }
 
     pub(super) fn save_snoozes(&mut self) {
+        // What couldn't be read isn't written over (the mail snoozed before wouldn't come back).
+        if self.docs_unread.contains(SNOOZES_DOC) {
+            return;
+        }
         // An online-only account's snoozed mail is kept without its subject (issue #4).
         let kept: Vec<_> = self
             .snoozes
@@ -182,7 +190,7 @@ impl Session {
             })
             .collect();
         if let Some(store) = &self.store
-            && let Err(e) = store.save_doc("snoozes.json", &kept)
+            && let Err(e) = store.save_doc(SNOOZES_DOC, &kept)
         {
             self.notice(format!("snoozed mail couldn't be saved: {e}"), true);
         }
@@ -206,9 +214,12 @@ impl Session {
                 }
             }
         }
+        if self.docs_unread.contains(RULES_DOC) {
+            return Err(CmdError::Failed("Your rules couldn't be read, so they aren't saved over".into()));
+        }
         self.rules = rules;
         if let Some(store) = &self.store
-            && let Err(e) = store.save_doc("rules.json", &self.rules)
+            && let Err(e) = store.save_doc(RULES_DOC, &self.rules)
         {
             return Err(CmdError::Failed(format!("the rules couldn't be saved: {e}")));
         }

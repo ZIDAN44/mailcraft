@@ -6,6 +6,14 @@ impl Session {
     /// Apply a change: to the in-memory list at once, then to the cache and server (through a
     /// job), or straight to the cache for local accounts.
     pub fn apply_op(&mut self, account: &str, op: Op) {
+        if let Err(e) = self.apply_op_checked(account, op) {
+            self.notice(e, true);
+        }
+    }
+
+    /// [`Session::apply_op`], saying when a local move didn't happen (the mail stays where it
+    /// was) rather than putting it in a notice: a move command fails with it.
+    pub(super) fn apply_op_checked(&mut self, account: &str, op: Op) -> Result<(), String> {
         // Outbox entries aren't on a server: mail commands leave them alone.
         let op = match op {
             Op::SetFlag { keys, flag, on } => Op::SetFlag { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), flag, on },
@@ -15,16 +23,18 @@ impl Session {
             other => other,
         };
         if !op.is_folder_op() && !matches!(op, Op::EmptyFolder { .. }) && op.keys().is_empty() {
-            return;
+            return Ok(());
         }
         let local = self.account(account).is_none_or(AccountState::is_local);
         self.apply_op_memory(account, &op);
-        if local {
-            self.apply_op_local(account, &op);
+        let done = if local {
+            self.apply_op_local(account, &op)
         } else {
             self.jobs.push(Job::Apply { account: account.to_string(), op });
-        }
+            Ok(())
+        };
         self.refresh_list();
+        done
     }
 
     pub(super) fn apply_op_memory(&mut self, account: &str, op: &Op) {
@@ -108,8 +118,8 @@ impl Session {
 
     /// Local accounts: change the cache directly, including filing moved messages in their
     /// destination with new UIDs.
-    pub(super) fn apply_op_local(&mut self, account: &str, op: &Op) {
-        let Some(store) = self.store.clone() else { return };
+    pub(super) fn apply_op_local(&mut self, account: &str, op: &Op) -> Result<(), String> {
+        let Some(store) = self.store.clone() else { return Ok(()) };
         // The folders it touches (counted again after; all of them for a folder change).
         let mut touched: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
         match op {
@@ -134,18 +144,17 @@ impl Session {
                 }
             }
             self.recount_local(account, Some(&touched));
-            return;
+            return Ok(());
         }
         if let Op::Move { keys, to } = op {
             // Not filed in the destination: the messages stay where they were (taken from the
             // sources after all, they were lost), and the lists in memory are read again.
             if let Err(e) = Self::file_moved(&store, account, keys, to) {
-                self.notice(format!("Your mail couldn't be moved, so it stays where it was: {e}"), true);
                 for f in &touched {
                     self.reload_folder(account, f);
                 }
                 self.recount_local(account, Some(&touched));
-                return;
+                return Err(format!("Your mail couldn't be moved, so it stays where it was: {e}"));
             }
             self.reload_folder(account, to);
         }
@@ -166,6 +175,7 @@ impl Session {
             }
         }
         self.recount_local(account, (!op.is_folder_op()).then_some(&touched));
+        Ok(())
     }
 
     /// A local move's first half: the messages filed in `to` with new numbers, their sources with
@@ -186,14 +196,18 @@ impl Session {
                 sources.insert(k.folder.clone(), st.messages.into_iter().map(|m| (m.key.uid, m)).collect());
             }
         }
-        let mut uid = dest.uid_next.max(dest.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1));
+        let mut uid = dest.free_uid(account, to)?;
         let mut bodies: Vec<(MessageKey, Vec<u8>)> = Vec::new();
         let mut pending = 0usize;
         for k in keys.iter().filter(|k| k.folder != to) {
             let Some(m) = sources.get(&k.folder).and_then(|src| src.get(&k.uid)) else { continue };
             let mut moved = m.clone();
-            moved.key = MessageKey { account: account.to_string(), folder: to.to_string(), validity: dest.validity, uid };
-            uid = uid.saturating_add(1);
+            moved.key = MessageKey {
+                account: account.to_string(),
+                folder: to.to_string(),
+                validity: dest.validity,
+                uid: FolderState::take_uid(&mut uid, account, to)?,
+            };
             // One never downloaded moves without it.
             if let Some(raw) = store.load_body(k)? {
                 pending = pending.saturating_add(raw.len());

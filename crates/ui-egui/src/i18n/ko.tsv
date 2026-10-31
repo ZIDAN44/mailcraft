@@ -1364,3 +1364,5 @@ month	May	5월
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	이 서버로 가는 링크는 모임에 참가합니다(Teams, Zoom, Google Meet, Webex, BigBlueButton 방과 내 방의 서버는 이미 그렇습니다)
 	Dial-in numbers and other lines for the invitation (optional)	초대장에 넣을 전화 참가 번호 및 기타 줄(선택 사항)
 	Calendar and contacts couldn't be read: changes to them won't be saved	일정과 연락처를 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
+	Your rules couldn't be read: changes to them won't be saved	규칙을 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
+	Snoozed mail couldn't be read: changes to it won't be saved	다시 알림으로 미룬 메일을 읽을 수 없습니다. 변경 내용은 저장되지 않습니다

@@ -517,7 +517,7 @@ impl Session {
             let Ok((raw, folder)) = self.draft_bytes(&c) else { continue };
             if self.account(&c.account).is_none_or(AccountState::is_local) {
                 if let Err(e) = self.file_locally(&c.account, &folder, &raw, false) {
-                    self.notice(format!("A draft wasn't kept: {e}"), true);
+                    self.notice(e.to_string(), true);
                     continue;
                 }
                 if let Some(old) = &c.draft {
@@ -581,13 +581,14 @@ impl Session {
     /// mail gone), or listed a message that had no source.
     pub(super) fn file_locally(&mut self, account: &str, folder: &str, raw: &[u8], seen: bool) -> Result<MessageKey, CmdError> {
         let store = self.store.clone().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
-        let failed = |e: mailcraft_store::StoreError| CmdError::Failed(format!("it couldn't be kept: {e}"));
+        let failed = |e: mailcraft_store::StoreError| CmdError::Failed(format!("The message couldn't be kept in {folder}: {e}"));
         let mut st = store.load_folder(account, folder).map_err(failed)?;
         if st.validity == 0 {
             st.validity = 1;
         }
-        let uid = st.uid_next.max(st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1);
-        st.uid_next = uid + 1;
+        let mut next = st.free_uid(account, folder).map_err(failed)?;
+        let uid = mailcraft_store::FolderState::take_uid(&mut next, account, folder).map_err(failed)?;
+        st.uid_next = next;
         let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: st.validity, uid };
         let flags = mailcraft_model::Flags { seen, draft: !seen, ..Default::default() };
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);

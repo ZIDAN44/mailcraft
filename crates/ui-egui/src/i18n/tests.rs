@@ -222,6 +222,8 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         "Draft saved",
         "Saved in the Outbox: it will be sent when you're back online",
         "Calendar and contacts couldn't be read: changes to them won't be saved",
+        "Your rules couldn't be read: changes to them won't be saved",
+        "Snoozed mail couldn't be read: changes to it won't be saved",
         "Opened as a PDF: print it from the viewer",
         "Reply",
         "Reply all",

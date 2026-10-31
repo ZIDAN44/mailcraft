@@ -1360,3 +1360,5 @@ month	May	mei
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Links naar deze servers openen een vergadering (Teams, Zoom, Google Meet, Webex, BigBlueButton-ruimtes en de servers van je ruimtes doen dat al)
 	Dial-in numbers and other lines for the invitation (optional)	Inbelnummers en andere regels voor de uitnodiging (optioneel)
 	Calendar and contacts couldn't be read: changes to them won't be saved	Agenda en contactpersonen konden niet worden gelezen: wijzigingen daarin worden niet opgeslagen
+	Your rules couldn't be read: changes to them won't be saved	Je regels konden niet worden gelezen: wijzigingen daarin worden niet opgeslagen
+	Snoozed mail couldn't be read: changes to it won't be saved	Uitgestelde e-mail kon niet worden gelezen: wijzigingen daarin worden niet opgeslagen

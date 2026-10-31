@@ -1365,3 +1365,5 @@ month	May	mayo
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Los enlaces a estos servidores abren una reunión (los de Teams, Zoom, Google Meet, Webex, las salas de BigBlueButton y los servidores de tus salas ya lo hacen)
 	Dial-in numbers and other lines for the invitation (optional)	Números de acceso telefónico y otras líneas para la invitación (opcional)
 	Calendar and contacts couldn't be read: changes to them won't be saved	No se pudieron leer el calendario y los contactos: los cambios en ellos no se guardarán
+	Your rules couldn't be read: changes to them won't be saved	No se pudieron leer tus reglas: los cambios en ellas no se guardarán
+	Snoozed mail couldn't be read: changes to it won't be saved	No se pudo leer el correo pospuesto: los cambios en él no se guardarán

@@ -369,6 +369,9 @@ struct SearchIndex {
 
 /// File for the Replied/Forwarded flags still owed by replies and forwards in the Outbox.
 const PENDING_MARKS: &str = "pending-marks.json";
+/// The mail rules, and the snoozed mail to bring back.
+const RULES_DOC: &str = "rules.json";
+const SNOOZES_DOC: &str = "snoozes.json";
 
 /// Message summaries kept in memory at most, besides the folders on screen (a big data file's
 /// whole mailbox is several times this).
@@ -501,6 +504,9 @@ pub struct Session {
     pub pim: HashMap<String, mailcraft_model::pim::Pim>,
     /// The accounts whose calendars and contacts couldn't be read: never saved over.
     pub(crate) pim_unread: HashSet<String>,
+    /// The documents (`rules.json`, `snoozes.json`) that couldn't be read at start: never saved
+    /// over with what's shown in their place.
+    pub(crate) docs_unread: HashSet<&'static str>,
     /// Mail, Calendar or People.
     pub module: pim::Module,
     pub cal_mode: pim::CalMode,
@@ -603,6 +609,7 @@ impl Session {
             open_urls: Vec::new(),
             pim: HashMap::new(),
             pim_unread: HashSet::new(),
+            docs_unread: HashSet::new(),
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,
             cal_day: None,
@@ -620,9 +627,23 @@ impl Session {
             build_sha: None,
             update: UpdateCheck::NotAsked,
         };
-        if let Some(store) = &s.store {
-            s.rules = store.load_doc("rules.json").unwrap_or_default();
-            s.snoozes = store.load_doc("snoozes.json").unwrap_or_default();
+        if let Some(store) = s.store.clone() {
+            match store.load_doc(RULES_DOC) {
+                Ok(r) => s.rules = r,
+                Err(e) => {
+                    log::warn!("the rules couldn't be read: {e}");
+                    s.docs_unread.insert(RULES_DOC);
+                    s.notice("Your rules couldn't be read: changes to them won't be saved", true);
+                }
+            }
+            match store.load_doc(SNOOZES_DOC) {
+                Ok(z) => s.snoozes = z,
+                Err(e) => {
+                    log::warn!("snoozed mail couldn't be read: {e}");
+                    s.docs_unread.insert(SNOOZES_DOC);
+                    s.notice("Snoozed mail couldn't be read: changes to it won't be saved", true);
+                }
+            }
             s.pending_marks = store
                 .load_doc::<Vec<(u64, MessageKey, Flag)>>(PENDING_MARKS)
                 .unwrap_or_default()

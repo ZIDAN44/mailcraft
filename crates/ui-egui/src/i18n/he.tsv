@@ -1360,3 +1360,5 @@ month	May	מאי
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	קישורים לשרתים האלה פותחים פגישה (קישורי Teams,‏ Zoom,‏ Google Meet,‏ Webex, חדרי BigBlueButton והשרתים של החדרים שלך כבר עושים זאת)
 	Dial-in numbers and other lines for the invitation (optional)	מספרי חיוג ושורות נוספות להזמנה (אופציונלי)
 	Calendar and contacts couldn't be read: changes to them won't be saved	לא ניתן היה לקרוא את לוח השנה ואנשי הקשר: שינויים בהם לא יישמרו
+	Your rules couldn't be read: changes to them won't be saved	לא ניתן היה לקרוא את הכללים שלך: שינויים בהם לא יישמרו
+	Snoozed mail couldn't be read: changes to it won't be saved	לא ניתן היה לקרוא את הדואר שנדחה: שינויים בו לא יישמרו

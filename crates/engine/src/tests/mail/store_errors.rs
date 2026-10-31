@@ -45,10 +45,13 @@ fn a_local_move_that_cant_read_or_write_leaves_the_mail_where_it_was() {
     for (reads, writes) in [(Some("state.json"), None), (Some(".eml"), None), (None, Some(".eml"))] {
         let k = key_of(&s, "Character turnarounds");
         s.run("list.select", &k).unwrap();
+        let undo = s.undo.len();
         store(&s).fail(reads, writes);
-        let _ = s.run("mail.move", &json!({"folder": SHORT_FILM}));
+        let r = s.run("mail.move", &json!({"folder": SHORT_FILM}));
         store(&s).fail(None, None);
-        assert!(s.notices.last().is_some_and(|n| n.error), "{reads:?} {writes:?}: said");
+        // Said by the command (the CLI too), with nothing to undo.
+        assert!(matches!(r, Err(CmdError::Failed(_))), "{reads:?} {writes:?}: {r:?}");
+        assert_eq!(s.undo.len(), undo, "{reads:?} {writes:?}: no undo for a move that didn't happen");
         assert_eq!(subjects(&folder(&s, "INBOX")), subjects(&inbox), "{reads:?} {writes:?}: still in the Inbox");
         assert_eq!(subjects(&folder(&s, SHORT_FILM)), subjects(&film), "{reads:?} {writes:?}: the destination keeps its mail");
         assert!(all_kept(&s, &folder(&s, "INBOX")) && all_kept(&s, &folder(&s, SHORT_FILM)), "{reads:?} {writes:?}");
@@ -109,4 +112,76 @@ fn calendars_and_contacts_that_cant_be_read_arent_written_over() {
     s.run("contact.create", &json!({"name": "Mira Chen", "emails": "mira@colour.example"})).unwrap();
     let after = store(&s).load_account_doc::<serde_json::Value>(sample::SAMPLE_ACCOUNT, mailcraft_model::pim::PIM_DOC).unwrap();
     assert_eq!(after, before, "what couldn't be read isn't saved over");
+    // Gone, the account is forgotten: one added later under its id saves its own.
+    s.run("account.remove", &json!({"account": sample::SAMPLE_ACCOUNT})).unwrap();
+    assert!(s.pim_unread.is_empty());
+}
+
+#[test]
+fn a_damaged_source_moves_without_it() {
+    let mut s = failing_session();
+    let film = folder(&s, SHORT_FILM);
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    store(&s).fail(Some("!.eml"), None);
+    s.run("mail.move", &json!({"folder": SHORT_FILM})).unwrap();
+    store(&s).fail(None, None);
+    assert_eq!(folder(&s, SHORT_FILM).messages.len(), film.messages.len() + 1, "moved, its unreadable source left behind");
+    assert!(folder(&s, "INBOX").messages.iter().all(|m| m.subject != "Character turnarounds"));
+}
+
+#[test]
+fn a_destination_out_of_numbers_takes_nothing_rather_than_two_under_one() {
+    let mut s = failing_session();
+    let mut film = folder(&s, SHORT_FILM);
+    film.uid_next = u32::MAX;
+    store(&s).save_folder(sample::SAMPLE_ACCOUNT, SHORT_FILM, &film).unwrap();
+    let inbox = folder(&s, "INBOX");
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    assert!(s.run("mail.move", &json!({"folder": SHORT_FILM})).is_err());
+    assert_eq!(subjects(&folder(&s, "INBOX")), subjects(&inbox));
+    assert_eq!(subjects(&folder(&s, SHORT_FILM)), subjects(&film));
+    // Nor is a draft filed there.
+    s.run("folder.open", &json!({"account": "sample", "folder": "Drafts"})).unwrap();
+    let mut drafts = folder(&s, "Drafts");
+    drafts.uid_next = u32::MAX;
+    store(&s).save_folder(sample::SAMPLE_ACCOUNT, "Drafts", &drafts).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ana@soundlab.example", "subject": "Mix notes", "body": "First take\n"})).unwrap();
+    assert!(s.run("compose.saveDraft", &json!({})).is_err());
+    assert_eq!(subjects(&folder(&s, "Drafts")), subjects(&drafts));
+}
+
+#[test]
+fn rules_and_snoozes_that_cant_be_read_arent_written_over() {
+    let cache = Store::failing();
+    assert!(sample::seed_if_empty(&cache, NOW).unwrap());
+    let rule = json!({"name": "Print", "conditions": [{"if": "from", "value": "printshop"}], "actions": [{"do": "markRead"}]});
+    let mut s = Session::open(Some(cache.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("rules.add", &json!({"rule": rule})).unwrap();
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    s.run("mail.snooze", &json!({"until": NOW + 3600})).unwrap();
+    let docs = || (cache.load_doc::<serde_json::Value>("rules.json").unwrap(), cache.load_doc::<serde_json::Value>("snoozes.json").unwrap());
+    drop(s);
+    for name in ["rules.json", "snoozes.json"] {
+        let before = docs();
+        cache.fail(Some(name), None);
+        let mut s = Session::open(Some(cache.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+        cache.fail(None, None);
+        assert!(s.notices.iter().any(|n| n.error), "{name}: said");
+        let _ = s.run("rules.add", &json!({"rule": {"name": "Other", "conditions": [{"if": "subject", "value": "x"}], "actions": [{"do": "flag"}]}}));
+        let k = json!({"key": s.list[0].key.to_id()});
+        let _ = s.run("list.select", &k);
+        let _ = s.run("mail.snooze", &json!({"until": NOW + 7200}));
+        s.clock = mailcraft_model::dates::Clock::new(NOW + 4000, 0);
+        s.tick();
+        let after = docs();
+        if name == "rules.json" {
+            assert_eq!(after.0, before.0, "the rules aren't saved over");
+        } else {
+            assert_eq!(after.1, before.1, "the snoozes aren't saved over");
+        }
+    }
 }

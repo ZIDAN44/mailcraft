@@ -257,10 +257,12 @@ impl Session {
                     .iter()
                     .filter_map(|k| self.summary(k).filter(|m| !m.message_id.is_empty()).map(|m| (m.message_id.clone(), k.folder.clone())))
                     .collect();
+                // One that didn't happen (a local store error) has nothing to undo, and the
+                // selection stays on it.
+                self.apply_op_checked(&a, Op::Move { keys, to: dest.clone() }).map_err(CmdError::Failed)?;
                 if !back.is_empty() {
-                    self.remember(Undo::Move { account: a.clone(), to: dest.clone(), back });
+                    self.remember(Undo::Move { account: a.clone(), to: dest, back });
                 }
-                self.apply_op(&a, Op::Move { keys, to: dest });
             }
         }
         self.after_removal(next);

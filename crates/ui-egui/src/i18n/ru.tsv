@@ -1364,3 +1364,5 @@ month	May	Май
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Ссылки на эти серверы открывают собрание (для Teams, Zoom, Google Meet, Webex, комнат BigBlueButton и серверов ваших комнат это уже так)
 	Dial-in numbers and other lines for the invitation (optional)	Номера для дозвона и другие строки для приглашения (необязательно)
 	Calendar and contacts couldn't be read: changes to them won't be saved	Не удалось прочитать календарь и контакты: изменения в них не будут сохранены
+	Your rules couldn't be read: changes to them won't be saved	Не удалось прочитать ваши правила: изменения в них не будут сохранены
+	Snoozed mail couldn't be read: changes to it won't be saved	Не удалось прочитать отложенную почту: изменения в ней не будут сохранены

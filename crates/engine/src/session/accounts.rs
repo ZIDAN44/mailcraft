@@ -242,6 +242,7 @@ impl Session {
                 {
                     p.ensure_defaults();
                     self.pim.insert(account.to_string(), p);
+                    self.pim_unread.remove(account);
                     self.contacts = None;
                     self.pim_revision = self.pim_revision.wrapping_add(1);
                 }
@@ -328,6 +329,8 @@ impl Session {
         self.forget_account_index(id);
         self.importing.remove(id);
         self.pim.remove(id);
+        // An account added later under the same id has its own calendar and contacts to save.
+        self.pim_unread.remove(id);
         let mut kept = None;
         if let Some(store) = &self.store {
             let gone = if keep { store.remove_account(id).map(|f| kept = f) } else { store.delete_account(id) };
