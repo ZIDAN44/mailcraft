@@ -446,7 +446,8 @@ fn a_message_from_outlook_shows_what_its_winmail_dat_holds() {
 }
 
 /// Search reads a `winmail.dat` for its files (the picture its body shows left out) and, for a
-/// message with no text of its own, its body.
+/// message with no text of its own, its body; the paperclip counts the same files, so one that
+/// holds only a body has none.
 #[test]
 fn search_reads_what_a_winmail_dat_holds() {
     let d = crate::index_doc(&outlook_message(outlook_stream()));
@@ -464,6 +465,26 @@ fn search_reads_what_a_winmail_dat_holds() {
         .unwrap_or_default();
     let d = crate::index_doc(&raw);
     assert_eq!((d.text.as_str(), d.has_text, d.files), ("Only in the winmail.dat", true, 0));
+    let key = mailcraft_model::MessageKey { account: "a".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    assert!(!crate::summary_from_header(&raw, key.clone(), mailcraft_model::Flags::default(), 0, 0).has_attachments);
+    let raw = outlook_message(outlook_stream());
+    assert!(crate::summary_from_header(&raw, key, mailcraft_model::Flags::default(), 0, 0).has_attachments);
+}
+
+/// A picture the body shows is matched by its whole `cid:`, whatever its case; one whose
+/// Content-ID only starts the same is a file.
+#[test]
+fn a_winmail_dat_picture_is_shown_by_its_whole_cid() {
+    let file = |cid: &str| TnefFile { name: "p.png".into(), mime: "image/png".into(), data: vec![1], content_id: Some(cid.into()), hidden: false };
+    let t = Tnef {
+        subject: String::new(),
+        from_name: String::new(),
+        from_email: String::new(),
+        date: 0,
+        body: TnefBody::Html("<img src=\"cid:logo@studio.example\"><img src=\"cid:image10\">".into()),
+        attachments: vec![file("Logo@Studio.Example"), file("image1"), file("image10")],
+    };
+    assert_eq!(crate::attachments::tnef_inline(&t), [true, false, true]);
 }
 
 /// Found reading Outlook's own Rich Text messages: the body ends with the document's group (the

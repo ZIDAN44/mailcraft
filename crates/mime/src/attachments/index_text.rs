@@ -8,7 +8,7 @@ use mail_parser::{MessageParser, MessagePart, MimeHeaders};
 use mailcraft_model::search::{IndexDoc, MAX_INDEX_CHARS};
 use memchr::memmem::Finder;
 
-use super::{HtmlRefs, is_smime, may_be_shown, mime_of};
+use super::{HtmlRefs, is_smime, may_be_shown, mime_of, tnef_inline};
 use crate::html_to_text;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
@@ -24,6 +24,8 @@ const MAX_TNEF: usize = 64 << 20;
 const MAX_HEADER: usize = 1 << 20;
 /// Longest name kept, in characters.
 const MAX_NAME: usize = 1024;
+/// Longest boundary followed (RFC 2046 allows 70 characters).
+const MAX_BOUNDARY: usize = 4096;
 
 /// What a walk cost, for tests: how many bytes went to a decoder.
 #[doc(hidden)]
@@ -89,7 +91,7 @@ impl Walk {
             self.push_text(s);
         }
         let mut scope = Scope::default();
-        self.entity(part, raw, body, depth, text_on, "text/plain", &mut scope);
+        self.entity(part, raw, body, depth, text_on, true, "text/plain", &mut scope);
         if scope.maybe_shown.is_empty() {
             return;
         }
@@ -109,7 +111,8 @@ impl Walk {
         }
     }
 
-    /// One MIME entity: `whole` is its header and body, `body` the body alone.
+    /// One MIME entity: `whole` is its header and body, `body` the body alone. A text part is
+    /// a body only where mail-parser takes it as one (`bodily`); elsewhere it's a file.
     #[allow(clippy::too_many_arguments)]
     fn entity<'b>(
         &mut self,
@@ -118,6 +121,7 @@ impl Walk {
         body: &'b [u8],
         depth: usize,
         text_on: bool,
+        bodily: bool,
         default: &str,
         scope: &mut Scope<'b>,
     ) {
@@ -127,8 +131,11 @@ impl Walk {
         let name = part.and_then(|p| p.attachment_name()).map(|n| n.chars().take(MAX_NAME).collect::<String>()).filter(|n| !n.trim().is_empty());
         if mime.starts_with("multipart/") {
             let boundary = part.and_then(|p| p.content_type()).and_then(|c| c.attribute("boundary")).unwrap_or_default();
-            self.multipart(&mime, boundary.as_bytes(), body, depth, text_on, scope);
-        } else if (mime == "text/plain" || mime == "text/html") && !attachment {
+            if !self.multipart(&mime, boundary.as_bytes(), body, depth, text_on, scope) {
+                // No delimiter in it: mail-parser lists it as a file of text.
+                self.file(name);
+            }
+        } else if (mime == "text/plain" || mime == "text/html") && !attachment && bodily {
             let html = mime == "text/html";
             if text_on {
                 let Some(text) = self.text_leaf(part.is_some(), whole, body) else { return };
@@ -156,13 +163,14 @@ impl Walk {
     }
 
     /// A multipart's parts, in order; of an alternative's, only the one read as text gives text
-    /// (its plain text, as the reading pane takes it), the others their files and pictures.
-    fn multipart<'b>(&mut self, mime: &str, boundary: &[u8], body: &'b [u8], depth: usize, text_on: bool, scope: &mut Scope<'b>) {
-        if depth >= MAX_DEPTH {
+    /// (its plain text, as the reading pane takes it, else the last that can give text), the
+    /// others their files and pictures. `false` when its boundary never comes.
+    fn multipart<'b>(&mut self, mime: &str, boundary: &[u8], body: &'b [u8], depth: usize, text_on: bool, scope: &mut Scope<'b>) -> bool {
+        if depth >= MAX_DEPTH || boundary.len() > MAX_BOUNDARY {
             self.doc.truncated = true;
-            return;
+            return true;
         }
-        let (parts, cut) = split_parts(body, boundary, MAX_PARTS.saturating_sub(self.stats.parts));
+        let Some((parts, cut)) = split_parts(body, boundary, MAX_PARTS.saturating_sub(self.stats.parts)) else { return false };
         self.doc.truncated |= cut;
         let default = if mime == "multipart/digest" { "message/rfc822" } else { "text/plain" };
         let heads: Vec<(&[u8], &[u8], Option<mail_parser::Message<'_>>)> = parts
@@ -172,19 +180,29 @@ impl Walk {
                 (p, body, parse_head(head))
             })
             .collect();
-        let chosen = (mime == "multipart/alternative").then(|| {
-            let plain =
-                heads.iter().position(|(_, _, h)| h.as_ref().and_then(|m| m.parts.first()).and_then(mime_of).is_none_or(|m| m == "text/plain"));
-            plain.unwrap_or(heads.len().saturating_sub(1))
+        let alternative = mime == "multipart/alternative";
+        let chosen = alternative.then(|| {
+            let types: Vec<Option<String>> = heads.iter().map(|(_, _, h)| h.as_ref().and_then(|m| m.parts.first()).and_then(mime_of)).collect();
+            types
+                .iter()
+                .position(|t| t.as_deref().is_none_or(|m| m == "text/plain"))
+                .or_else(|| types.iter().rposition(|t| t.as_deref().is_some_and(|m| m == "text/html" || m.starts_with("multipart/"))))
+                .unwrap_or(heads.len().saturating_sub(1))
         });
         for (i, (whole, body, head)) in heads.iter().enumerate() {
             if self.stats.parts >= MAX_PARTS {
                 self.doc.truncated = true;
-                return;
+                return true;
             }
+            let part = head.as_ref().and_then(|m| m.parts.first());
+            // As mail-parser reads it: past a multipart's first part, a text part that has a name,
+            // or any in a `multipart/related`, is a file; an alternative's are all bodies.
+            let named = part.and_then(|p| p.content_type()).is_some_and(|c| c.attribute("name").is_some());
+            let bodily = alternative || i == 0 || (mime != "multipart/related" && !named);
             let on = text_on && chosen.is_none_or(|c| c == i);
-            self.entity(head.as_ref().and_then(|m| m.parts.first()), whole, body, depth + 1, on, default, scope);
+            self.entity(part, whole, body, depth + 1, on, bodily, default, scope);
         }
+        true
     }
 
     /// An attached message: a file named by its subject, whose text joins the message's.
@@ -216,9 +234,8 @@ impl Walk {
     fn tnef(&mut self, whole: &[u8], name: Option<String>) {
         let Some(data) = self.decode_bytes(whole, MAX_TNEF) else { return self.file(name) };
         let Some(t) = read_tnef(&data).filter(|t| !t.attachments.is_empty() || !t.body.is_empty()) else { return self.file(name) };
-        let shown = |cid: &str| matches!(&t.body, TnefBody::Html(h) if h.contains(&format!("cid:{cid}")));
-        for f in &t.attachments {
-            if !f.content_id.as_deref().is_some_and(|c| f.hidden || shown(c)) {
+        for (f, inline) in t.attachments.iter().zip(tnef_inline(&t)) {
+            if !inline {
                 self.file(Some(f.name.chars().take(MAX_NAME).collect()));
             }
         }
@@ -329,15 +346,17 @@ pub(super) fn split(raw: &[u8]) -> (&[u8], &[u8]) {
 /// the start of a line (the body's first byte included), followed by the line end, spaces or
 /// tabs (transport padding), or `--` that closes it; `--boundary-2` isn't one. The line end
 /// before a delimiter belongs to it. A body never closed runs to its end. At most `max` parts;
-/// `true` when some were left out.
-pub(super) fn split_parts<'b>(body: &'b [u8], boundary: &[u8], max: usize) -> (Vec<&'b [u8]>, bool) {
+/// `true` when some were left out. `None` when the boundary is empty or never comes, as
+/// mail-parser finds it (`--boundary` anywhere).
+pub(super) fn split_parts<'b>(body: &'b [u8], boundary: &[u8], max: usize) -> Option<(Vec<&'b [u8]>, bool)> {
     let mut parts = Vec::new();
-    if boundary.is_empty() || boundary.len() > 200 {
-        return (parts, false);
+    if boundary.is_empty() {
+        return None;
     }
     let mut needle = b"--".to_vec();
     needle.extend_from_slice(boundary);
     let finder = Finder::new(&needle);
+    finder.find(body)?;
     let mut start: Option<usize> = None;
     for at in finder.find_iter(body) {
         if at > 0 && body.get(at - 1) != Some(&b'\n') {
@@ -346,22 +365,22 @@ pub(super) fn split_parts<'b>(body: &'b [u8], boundary: &[u8], max: usize) -> (V
         let Some((close, next)) = delimiter_end(body, at + needle.len()) else { continue };
         if let Some(s) = start {
             if parts.len() >= max {
-                return (parts, true);
+                return Some((parts, true));
             }
             parts.push(body.get(s..line_start(body, at)).unwrap_or_default());
         }
         if close {
-            return (parts, false);
+            return Some((parts, false));
         }
         start = Some(next);
     }
     if let Some(s) = start {
         if parts.len() >= max {
-            return (parts, true);
+            return Some((parts, true));
         }
         parts.push(body.get(s..).unwrap_or_default());
     }
-    (parts, false)
+    Some((parts, false))
 }
 
 /// Where a delimiter's line ends (after `--boundary` at `at`): whether it closes, and where the

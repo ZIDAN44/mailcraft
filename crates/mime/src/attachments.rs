@@ -41,17 +41,15 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
         if is_tnef(&mime, p.attachment_name())
             && let Some(t) = read_tnef(p.contents()).filter(|t| !t.attachments.is_empty() || !t.body.is_empty())
         {
-            if body.is_empty() {
-                body = t.body;
-            }
-            // A picture the body shows is in it, whether or not Outlook marked it hidden.
-            let shown = |cid: &str| matches!(&body, TnefBody::Html(h) if h.contains(&format!("cid:{cid}")));
-            for f in t.attachments {
+            let shown = tnef_inline(&t);
+            for (f, inline) in t.attachments.into_iter().zip(shown) {
                 let index = out.len();
-                let inline = f.content_id.as_deref().is_some_and(|c| f.hidden || shown(c));
                 let name = attachment_name(Some(&f.name), &f.mime, &f.data, index);
                 let info = AttachmentInfo { index, name, mime: f.mime, size: f.data.len(), inline, content_id: f.content_id, content_location: None };
                 out.push(Attached { info, data: Cow::Owned(f.data) });
+            }
+            if body.is_empty() {
+                body = t.body;
             }
             continue;
         }
@@ -76,31 +74,126 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
 pub(super) fn has_real_attachments(m: &Message<'_>) -> bool {
     let html = || m.html_bodies().filter(|p| p.is_text_html()).filter_map(|p| p.text_contents()).collect::<Vec<_>>().join("\n");
     let refs = HtmlRefs::new(&html);
-    m.attachments().any(|p| is_file(p, &refs))
+    m.attachments().any(|p| {
+        // A `winmail.dat` is the files in it, as the reading pane and search list them.
+        if is_tnef(&mime_of(p).unwrap_or_default(), p.attachment_name())
+            && let Some(t) = read_tnef(p.contents()).filter(|t| !t.attachments.is_empty() || !t.body.is_empty())
+        {
+            return tnef_inline(&t).contains(&false);
+        }
+        is_file(p, &refs)
+    })
 }
+
+/// For each file in a `winmail.dat`, whether it's a picture in its body: one Outlook hid, or
+/// one the body shows by `cid:`.
+pub(crate) fn tnef_inline(t: &crate::Tnef) -> Vec<bool> {
+    let make = || match &t.body {
+        TnefBody::Html(h) => h.clone(),
+        _ => String::new(),
+    };
+    let refs = HtmlRefs::new(&make);
+    t.attachments.iter().map(|f| f.content_id.as_deref().is_some_and(|c| f.hidden || refs.shows(Some(c), None))).collect()
+}
+
+/// Most references kept from one message's HTML.
+const MAX_REFS: usize = 10_000;
 
 /// The pictures a message's HTML shows, by `cid:` or by the address a part's
 /// `Content-Location` gives it (RFC 2557): read from the HTML only when a part asks.
 pub(crate) struct HtmlRefs<'a> {
-    html: std::cell::OnceCell<String>,
+    refs: std::cell::OnceCell<Refs>,
     make: &'a dyn Fn() -> String,
+}
+
+/// What an HTML body refers to, lower case: every `cid:` (up to its closing quote, bracket or
+/// space), and every `src`, `href` and `background` address, whole and by its last segment.
+#[derive(Default)]
+struct Refs {
+    cids: std::collections::HashSet<String>,
+    paths: std::collections::HashSet<String>,
+    files: std::collections::HashSet<String>,
+}
+
+impl Refs {
+    fn read(html: &str) -> Refs {
+        let lower = html.to_ascii_lowercase();
+        let mut r = Refs::default();
+        let mut from = 0;
+        while let Some(at) = lower.get(from..).and_then(|s| s.find("cid:")).map(|i| i + from + 4) {
+            from = at;
+            let rest = lower.get(at..).unwrap_or_default().trim_start_matches('<');
+            let end = rest.find(|c: char| c.is_ascii_whitespace() || "\"'()<>&;,".contains(c)).unwrap_or(rest.len());
+            let cid = rest.get(..end).unwrap_or_default();
+            if !cid.is_empty() && r.cids.len() < MAX_REFS {
+                r.cids.insert(cid.to_string());
+                r.cids.insert(percent_decoded(cid));
+            }
+        }
+        for attr in ["src", "href", "background"] {
+            let mut from = 0;
+            while let Some(at) = lower.get(from..).and_then(|s| s.find(attr)).map(|i| i + from) {
+                from = at + attr.len();
+                if at > 0 && !lower.as_bytes().get(at - 1).is_some_and(|b| b.is_ascii_whitespace()) {
+                    continue;
+                }
+                let Some(value) = lower.get(from..).and_then(|s| s.trim_start().strip_prefix('=')).map(str::trim_start) else { continue };
+                let value = match value.chars().next() {
+                    Some(q @ ('"' | '\'')) => value.get(1..).and_then(|v| v.split(q).next()).unwrap_or_default(),
+                    _ => value.split(|c: char| c.is_ascii_whitespace() || c == '>').next().unwrap_or_default(),
+                };
+                let path = percent_decoded(value.split(['?', '#']).next().unwrap_or(value).trim());
+                if !path.is_empty() && r.paths.len() < MAX_REFS {
+                    if !last_segment(&path).is_empty() {
+                        r.files.insert(last_segment(&path).to_string());
+                    }
+                    r.paths.insert(path);
+                }
+            }
+        }
+        r
+    }
+}
+
+/// A path's last segment (`chart.png` of `http://studio.example/a/chart.png`).
+fn last_segment(path: &str) -> &str {
+    path.rsplit(['/', '\\']).next().unwrap_or(path)
+}
+
+/// `%xx` escapes decoded.
+fn percent_decoded(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while let Some(&c) = b.get(i) {
+        match (c, b.get(i + 1..i + 3).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok())) {
+            (b'%', Some(v)) => {
+                out.push(v);
+                i += 3;
+            }
+            _ => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 impl<'a> HtmlRefs<'a> {
     pub(crate) fn new(make: &'a dyn Fn() -> String) -> HtmlRefs<'a> {
-        HtmlRefs { html: std::cell::OnceCell::new(), make }
+        HtmlRefs { refs: std::cell::OnceCell::new(), make }
     }
 
-    /// Whether the HTML shows the part with this `Content-ID` or `Content-Location`.
+    /// Whether the HTML shows the part with this `Content-ID` or `Content-Location`, matched as
+    /// the reading pane finds a picture ([`picture_attachment`]): the `cid:` exactly, the address
+    /// exactly or by its last segment.
     pub(crate) fn shows(&self, cid: Option<&str>, location: Option<&str>) -> bool {
-        let html = self.html.get_or_init(|| {
-            let mut h = (self.make)();
-            h.make_ascii_lowercase();
-            h
-        });
+        let r = self.refs.get_or_init(|| Refs::read(&(self.make)()));
         let cid = cid.map(|c| c.trim().trim_matches(['<', '>']).to_ascii_lowercase()).filter(|c| !c.is_empty());
         let location = location.map(|l| l.trim().trim_matches(['<', '>', '"']).to_ascii_lowercase()).filter(|l| !l.is_empty());
-        cid.is_some_and(|c| html.contains(&format!("cid:{c}"))) || location.is_some_and(|l| html.contains(&l))
+        cid.is_some_and(|c| r.cids.contains(&c) || r.files.contains(&c))
+            || location.is_some_and(|l| r.paths.contains(&l) || r.files.contains(last_segment(&l)) || r.cids.contains(&l))
     }
 }
 

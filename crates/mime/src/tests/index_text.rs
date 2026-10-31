@@ -243,3 +243,81 @@ fn a_big_attachment_is_never_decoded() {
     assert_eq!((d.files, d.names.clone(), d.text.as_str()), (1, vec!["big.bin".to_string()], "The big one."));
     assert!(stats.decoded_bytes <= 64 << 10, "{} bytes decoded", stats.decoded_bytes);
 }
+
+/// An alternative with no plain text gives its HTML's words, not those of a calendar or
+/// enriched text sent after it (a meeting invite: HTML, then `text/calendar`).
+#[test]
+fn an_alternative_without_plain_text_gives_its_html() {
+    let calendar = "Content-Type: text/calendar; method=REQUEST; charset=utf-8\r\n\r\nBEGIN:VCALENDAR\r\nEND:VCALENDAR".to_string();
+    let raw = message("multipart/alternative; boundary=\"alt\"", &parts("alt", &[html("<p>meeting agenda words</p>"), calendar]));
+    let d = doc(&raw);
+    assert_eq!(d.text, "meeting agenda words");
+    let enriched = "Content-Type: text/enriched\r\n\r\n<bold>other</bold>".to_string();
+    let raw = message("multipart/alternative; boundary=\"alt\"", &parts("alt", &[html("<p>html words</p>"), enriched]));
+    assert_eq!(doc(&raw).text, "html words");
+    // A related HTML body chosen over a later part that gives no text.
+    let related = format!("Content-Type: multipart/related; boundary=\"rel\"\r\n\r\n{}", parts("rel", &[html("<p>related words</p>")]));
+    let raw = message("multipart/alternative; boundary=\"alt\"", &parts("alt", &[related, "Content-Type: text/calendar\r\n\r\nX".into()]));
+    assert_eq!(doc(&raw).text, "related words");
+}
+
+/// A text file sent inline or with no disposition (Apple Mail sends small .txt and .html files
+/// so) is a file by its name, as mail-parser and the paperclip take it, not more body text.
+#[test]
+fn a_named_text_part_is_a_file() {
+    for disposition in ["Content-Disposition: inline; filename=\"notes.txt\"\r\n", ""] {
+        let named = format!("Content-Type: text/plain; charset=utf-8; name=\"notes.txt\"\r\n{disposition}\r\nfile words");
+        let d = doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[text("body words"), named])));
+        assert_eq!((d.files, d.names.clone(), d.text.as_str()), (1, vec!["notes.txt".to_string()], "body words"));
+    }
+    let page = "Content-Type: text/html; name=\"page.html\"\r\nContent-Disposition: inline; filename=\"page.html\"\r\n\r\n<p>page</p>".to_string();
+    let d = doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[text("body words"), page])));
+    assert_eq!((d.files, d.names.clone()), (1, vec!["page.html".to_string()]));
+    // The body itself may carry a name, and a filename only in the disposition isn't one.
+    let first = "Content-Type: text/plain; name=\"body.txt\"\r\n\r\nfirst words".to_string();
+    let only_filename = "Content-Type: text/plain\r\nContent-Disposition: inline; filename=\"x.txt\"\r\n\r\nmore words".to_string();
+    let d = doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[first, only_filename])));
+    assert_eq!((d.files, d.text.as_str()), (0, "first words\nmore words"));
+}
+
+/// The HTML shows a part only by a whole `cid:` or an address it refers to: not `cid:image10`
+/// for `image1`, nor a file's name in its words.
+#[test]
+fn a_reference_must_be_whole() {
+    let pictures = [picture("image1", "a.png", "inline"), picture("image10", "b.png", "inline")];
+    let mut ps = vec![html("<img src=\"cid:image10\">")];
+    ps.extend(pictures.iter().cloned());
+    let body = format!("Content-Type: multipart/related; boundary=\"rel\"\r\n\r\n{}", parts("rel", &ps));
+    let d = doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[body])));
+    assert_eq!((d.files, d.names.clone()), (1, vec!["a.png".to_string()]));
+
+    let located = "Content-Type: application/pdf\r\nContent-Location: report.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQ=";
+    let raw = message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[html("<p>The report.pdf is attached.</p>"), located.to_string()]));
+    assert_eq!(doc(&raw).files, 1);
+    let by_id = "Content-Type: application/pdf\r\nContent-ID: <part1>\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQ=";
+    let raw = message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[html("<img src=\"cid:part12\">"), by_id.to_string()]));
+    assert_eq!(doc(&raw).files, 1);
+    // By its last segment, as the reading pane finds it.
+    let located = "Content-Type: image/png\r\nContent-Location: http://studio.example/a/chart.png\r\n\r\nx";
+    let body =
+        format!("Content-Type: multipart/related; boundary=\"rel\"\r\n\r\n{}", parts("rel", &[html("<img src='chart.png'>"), located.to_string()]));
+    assert_eq!(doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[body]))).files, 0);
+}
+
+/// A long boundary is followed; one past the limit is flagged; a multipart whose boundary never
+/// comes is one file, as mail-parser lists it.
+#[test]
+fn unusual_boundaries_keep_the_count() {
+    let long = "b".repeat(210);
+    let raw = message(&format!("multipart/mixed; boundary=\"{long}\""), &parts(&long, &[text("long words"), pdf("a.pdf", "attachment")]));
+    let d = doc(&raw);
+    assert_eq!((d.text.as_str(), d.files, d.truncated), ("long words", 1, false));
+
+    let huge = "b".repeat(5000);
+    let raw = message(&format!("multipart/mixed; boundary=\"{huge}\""), &parts(&huge, &[text("x")]));
+    assert!(index_doc(&raw).truncated);
+
+    let raw = message("multipart/mixed; boundary=\"never\"", "just some words\r\n");
+    let d = doc(&raw);
+    assert_eq!(d.files, 1);
+}
