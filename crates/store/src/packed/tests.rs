@@ -485,6 +485,9 @@ fn a_folder_is_listed_without_walking_what_is_inside_it() {
     // The account's own files: its folders aren't walked either.
     let (top, looked) = packs.children("a1", "").unwrap();
     assert!(top.is_empty() && looked <= 3, "{top:?} {looked}");
+    // A folder exists when anything is under it, found from the first key.
+    assert!(s.files.exists(&dir.join("70")) && s.files.exists(&dir.join("7").join("deeper")));
+    assert!(!s.files.exists(&dir.join("9")) && !s.files.exists(&dir.join("7").join("de")));
     drop(s);
     let _ = std::fs::remove_dir_all(&t);
 }

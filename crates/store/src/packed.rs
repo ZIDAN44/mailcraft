@@ -186,9 +186,27 @@ impl Packs {
         }
     }
 
+    /// Whether any file is under `prefix` (a folder), from the first key alone.
+    fn has_under(&self, account: &str, prefix: &str) -> io::Result<bool> {
+        let Some(db) = self.db(account, false)? else { return Ok(false) };
+        let tx = db.begin_read().map_err(other)?;
+        let table = match tx.open_table(FILES) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(false),
+            Err(e) => return Err(other(e)),
+        };
+        let start = if prefix.is_empty() { String::new() } else { format!("{prefix}/") };
+        let first = table.range(start.as_str()..).map_err(other)?.next();
+        match first {
+            Some(item) => Ok(item.map_err(other)?.0.value().starts_with(start.as_str())),
+            None => Ok(false),
+        }
+    }
+
     /// The names of the files directly in `prefix` (a folder: `""` for the account's own), by key
-    /// alone: what they hold isn't read, and a folder inside is passed over in one step, not
-    /// walked file by file (a mail folder's list beside its messages took reading them all).
+    /// alone: what they hold isn't read (`cached_bodies` lists a validity folder of messages this
+    /// way), and a folder inside is passed over in one step, not walked file by file (no listing
+    /// today is of a folder with others inside; this keeps one from costing what they hold).
     /// Also how many keys it looked at.
     fn children(&self, account: &str, prefix: &str) -> io::Result<(Vec<String>, usize)> {
         let Some(db) = self.db(account, false)? else { return Ok((Vec::new(), 0)) };
@@ -382,7 +400,7 @@ impl Packs {
 
     pub(crate) fn exists(&self, p: &Path) -> bool {
         match self.place(p) {
-            Place::In(a, k) => self.has(&a, &k).unwrap_or(false) || self.keys(&a, &k).is_ok_and(|v| !v.is_empty()),
+            Place::In(a, k) => self.has(&a, &k).unwrap_or(false) || self.has_under(&a, &k).unwrap_or(false),
             Place::Account(a) => self.file(&a).is_some_and(|f| f.exists()),
             Place::Disk => p.exists(),
         }

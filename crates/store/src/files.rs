@@ -18,6 +18,14 @@ fn not_found() -> io::Error {
     io::Error::from(io::ErrorKind::NotFound)
 }
 
+/// The paths at or under `dir` in memory, from where they start in the map (paths sort by
+/// component, so everything under a folder is together): an online-only account's listing doesn't
+/// pass over every other file.
+fn under<'a>(m: &'a BTreeMap<PathBuf, Vec<u8>>, dir: &'a Path) -> impl Iterator<Item = &'a PathBuf> + 'a {
+    use std::ops::Bound;
+    m.range::<Path, _>((Bound::Included(dir), Bound::Unbounded)).map(|(k, _)| k).take_while(move |k| k.starts_with(dir))
+}
+
 impl Files {
     pub(super) fn with<T>(m: &Arc<Mutex<BTreeMap<PathBuf, Vec<u8>>>>, f: impl FnOnce(&mut BTreeMap<PathBuf, Vec<u8>>) -> T) -> T {
         let mut g = m.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -146,7 +154,7 @@ impl Files {
             Files::Disk => p.exists(),
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => x.exists(p),
-            Files::Memory(m, _) => Files::with(m, |m| m.keys().any(|k| k.starts_with(p))),
+            Files::Memory(m, _) => Files::with(m, |m| under(m, p).next().is_some()),
         }
     }
 
@@ -163,7 +171,7 @@ impl Files {
                     .collect()
             }
             Files::Memory(m, _) => Files::with(m, |m| {
-                m.keys().filter(|k| k.parent() == Some(dir)).filter_map(|k| Some((k.file_name()?.to_str()?.to_string(), k.clone()))).collect()
+                under(m, dir).filter(|k| k.parent() == Some(dir)).filter_map(|k| Some((k.file_name()?.to_str()?.to_string(), k.clone()))).collect()
             }),
         }
     }
@@ -188,7 +196,7 @@ impl Files {
             }
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => x.walk(dir),
-            Files::Memory(m, _) => Files::with(m, |m| m.keys().filter(|k| k.starts_with(dir)).cloned().collect()),
+            Files::Memory(m, _) => Files::with(m, |m| under(m, dir).cloned().collect()),
         }
     }
 
