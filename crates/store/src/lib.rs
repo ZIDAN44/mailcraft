@@ -267,6 +267,8 @@ pub struct Store {
     files: Routed,
     /// Serializes read-modify-write of ops.json between the UI-side pool and account threads.
     changes: Arc<Mutex<()>>,
+    /// How many message sources were read ([`Store::reads`]).
+    reads: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Store {
@@ -274,7 +276,7 @@ impl Store {
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
         private_dir(&root)?;
-        Ok(Store { files: Routed::new(&root, Files::Disk), root, changes: Arc::default() })
+        Ok(Store { files: Routed::new(&root, Files::Disk), root, changes: Arc::default(), reads: Arc::default() })
     }
 
     /// A cache whose accounts are each one data file in `files` (as Outlook keeps a `.pst` per
@@ -285,13 +287,13 @@ impl Store {
         let root = root.into();
         private_dir(&root)?;
         let packs = packed::Packs::open(&root, files.as_ref())?;
-        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default() })
+        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default(), reads: Arc::default() })
     }
 
     /// A cache kept in memory only (clones share it).
     pub fn memory() -> Store {
         let root = PathBuf::from("memory");
-        Store { files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())), root, changes: Arc::default() }
+        Store { files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())), root, changes: Arc::default(), reads: Arc::default() }
     }
 
     /// A memory cache holding files from an earlier [`Store::snapshot`].

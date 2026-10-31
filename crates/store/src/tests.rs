@@ -337,3 +337,22 @@ hi"
     let bad = Store::memory_from(vec![("rules.json".into(), b"{oops".to_vec())]);
     assert!(bad.load_doc::<Vec<i32>>("rules.json").unwrap().is_empty());
 }
+
+/// Message sources read are counted, across the cache's clones (a search that needs none can be
+/// shown to read none); lists, flags and listing the cached mail read none.
+#[test]
+fn message_sources_read_are_counted() {
+    let s = Store::memory();
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    s.write_body(&key, b"Subject: x\r\n\r\nx").unwrap();
+    s.save_folder("a1", "INBOX", &FolderState { validity: 1, ..Default::default() }).unwrap();
+    let _ = s.load_folder("a1", "INBOX").unwrap();
+    assert!(s.has_body(&key));
+    assert_eq!(s.cached_bodies("a1", "INBOX", 1), [1]);
+    assert_eq!(s.reads(), 0);
+    let other = s.clone();
+    assert!(other.read_body(&key).is_some());
+    assert!(s.read_body(&MessageKey { uid: 2, ..key.clone() }).is_none());
+    assert_eq!((s.reads(), other.reads()), (2, 2));
+    assert_eq!(Store::memory().reads(), 0, "a cache of its own counts its own");
+}

@@ -4,7 +4,14 @@ use crate::*;
 
 impl Store {
     pub fn read_body(&self, key: &MessageKey) -> Option<Vec<u8>> {
+        self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.files.read(&self.body_path(key)).ok()
+    }
+
+    /// How many message sources were read since the cache opened (clones count together): a
+    /// search that needs none can be shown to read none.
+    pub fn reads(&self) -> u64 {
+        self.reads.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn has_body(&self, key: &MessageKey) -> bool {
