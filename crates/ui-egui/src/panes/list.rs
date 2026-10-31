@@ -560,8 +560,10 @@ fn message_row(
         });
         crate::organize::context_items(ui, s, t, acts, flags.pinned());
     });
-    // Reply actions need the message open.
-    if resp.secondary_clicked() && !s.reading.as_ref().is_some_and(|r| r.key == m.key) {
+    // Reply actions need the message open; not one of several selected, which the menu acts on
+    // all of (opening it selected it alone: Delete took only that one).
+    let one_of_several = selected && s.selection.len() > 1;
+    if resp.secondary_clicked() && !one_of_several && !s.reading.as_ref().is_some_and(|r| r.key == m.key) {
         acts.push(Action::Open(m.key.clone()));
     }
 }

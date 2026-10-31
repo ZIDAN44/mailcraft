@@ -91,9 +91,11 @@ fn shift_arrows_select_from_the_keyboard() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// Shift+click selects from the row clicked first to the one Shift+clicked.
+/// Shift+click selects from the row clicked first to the one Shift+clicked; right-clicking one
+/// of them keeps them all selected, so the menu acts on all of them (opening the one clicked
+/// selected it alone: Delete took just that one).
 #[test]
-fn shift_click_selects_a_range() {
+fn shift_click_and_a_right_click_on_the_selection() {
     let (mut a, dir) = app("shift-click-ui");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
@@ -107,5 +109,12 @@ fn shift_click_selects_a_range() {
     assert_eq!(subjects(&a), vec![all[0].clone()]);
     click(&ctx, &mut a, rows[2].1.center(), egui::PointerButton::Primary, Modifiers::SHIFT);
     assert_eq!(subjects(&a), all[..3].to_vec());
+    // A right-click on the middle one: all three stay selected.
+    click(&ctx, &mut a, rows[1].1.center(), egui::PointerButton::Secondary, Modifiers::NONE);
+    assert_eq!(subjects(&a), all[..3].to_vec(), "the menu is for all of them");
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    // A right-click on one outside them: that one alone.
+    click(&ctx, &mut a, rows[3].1.center(), egui::PointerButton::Secondary, Modifiers::NONE);
+    assert_eq!(subjects(&a), vec![all[3].clone()]);
     let _ = std::fs::remove_dir_all(dir);
 }
