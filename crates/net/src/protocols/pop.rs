@@ -314,13 +314,14 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
             continue;
         }
         let raw = c.retr(*n)?;
-        let uid = fs.uid_next.max(1);
+        let mut next = fs.free_uid(account, inbox)?;
+        let uid = FolderState::take_uid(&mut next, account, inbox)?;
         let key = MessageKey { account: account.to_string(), folder: inbox.to_string(), validity: fs.validity, uid };
         store.write_body(&key, &raw)?;
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
         state.insert(id.clone(), Kept { at: now, key: Some(key.to_id()), gone: false });
         fs.messages.push(mime::summary_from_full(&raw, key, Flags::default(), size, 0));
-        fs.uid_next = uid.saturating_add(1);
+        fs.uid_next = next;
         report.new += 1;
         // Saved as it goes: a dropped connection loses nothing already downloaded.
         sort_newest_first(&mut fs.messages);
@@ -352,58 +353,78 @@ pub fn file_locally(store: &Store, account: &str, folder: &str, raw: &[u8], flag
     if fs.validity == 0 {
         fs.validity = 1;
     }
-    let uid = fs.uid_next.max(1);
+    let mut next = fs.free_uid(account, folder)?;
+    let uid = FolderState::take_uid(&mut next, account, folder)?;
     let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: fs.validity, uid };
     store.write_body(&key, raw)?;
     let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
     fs.messages.push(mime::summary_from_full(raw, key.clone(), flags, size, now));
-    fs.uid_next = uid.saturating_add(1);
+    fs.uid_next = next;
     sort_newest_first(&mut fs.messages);
     store.save_folder(account, folder, &fs)?;
     Ok(key)
 }
 
 /// Move messages between folders on this computer (a POP account's folders are only here): each
-/// keeps its flags and body under a new key in `to`. Returns the folders changed.
+/// keeps its flags and body under a new key in `to`. Returns the folders changed. Every list is
+/// read and the messages filed in `to` before a source folder is saved without them or an old
+/// source removed: a store error on the way leaves them where they were, not in neither folder.
 pub fn move_locally(store: &Store, account: &str, keys: &[MessageKey], to: &str) -> Result<Vec<String>> {
     let mut dest = store.load_folder(account, to)?;
     if dest.validity == 0 {
         dest.validity = 1;
     }
-    let mut changed = Vec::new();
-    let mut pairs = Vec::new();
     let mut sources: Vec<&str> = keys.iter().map(|k| k.folder.as_str()).filter(|f| *f != to).collect();
     sources.sort_unstable();
     sources.dedup();
+    let mut lists = Vec::new();
     for folder in sources {
-        let mut src = store.load_folder(account, folder)?;
+        lists.push((folder, store.load_folder(account, folder)?));
+    }
+    let mut uid = dest.free_uid(account, to)?;
+    let mut pairs = Vec::new();
+    let mut changed = Vec::new();
+    for (folder, src) in &mut lists {
         let (going, staying): (Vec<_>, Vec<_>) =
-            src.messages.into_iter().partition(|m| keys.iter().any(|k| k.folder == folder && k.uid == m.key.uid));
+            std::mem::take(&mut src.messages).into_iter().partition(|m| keys.iter().any(|k| k.folder == *folder && k.uid == m.key.uid));
         src.messages = staying;
         if going.is_empty() {
             continue;
         }
         for mut m in going {
             let old = m.key.clone();
-            let key = MessageKey { account: account.to_string(), folder: to.to_string(), validity: dest.validity, uid: dest.uid_next.max(1) };
-            if let Some(raw) = store.read_body(&old) {
+            let key = MessageKey {
+                account: account.to_string(),
+                folder: to.to_string(),
+                validity: dest.validity,
+                uid: FolderState::take_uid(&mut uid, account, to)?,
+            };
+            // One whose source isn't here moves without it.
+            if let Some(raw) = store.load_body(&old)? {
                 store.write_body(&key, &raw)?;
             }
-            store.remove_body(&old);
-            dest.uid_next = key.uid.saturating_add(1);
             pairs.push((old, key.clone()));
             m.key = key;
             dest.messages.push(m);
         }
-        store.save_folder(account, folder, &src)?;
         changed.push(folder.to_string());
     }
-    if !changed.is_empty() {
-        sort_newest_first(&mut dest.messages);
-        store.save_folder(account, to, &dest)?;
-        changed.push(to.to_string());
-        moved(store, account, &pairs)?;
+    if changed.is_empty() {
+        return Ok(changed);
     }
+    dest.uid_next = uid;
+    sort_newest_first(&mut dest.messages);
+    store.save_folder(account, to, &dest)?;
+    for (folder, src) in &lists {
+        if changed.iter().any(|c| c == folder) {
+            store.save_folder(account, folder, src)?;
+        }
+    }
+    for (old, _) in &pairs {
+        store.remove_body(old);
+    }
+    changed.push(to.to_string());
+    moved(store, account, &pairs)?;
     Ok(changed)
 }
 
@@ -584,6 +605,44 @@ mod tests {
         store.save_account_doc("p1", SEEN_DOC, &vec!["u4".to_string()]).unwrap();
         assert_eq!(sync(15 * day).new, 0);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A move the cache can't read or write leaves the mail where it was, its source with it;
+    /// working again, it moves.
+    #[test]
+    fn a_move_that_cant_read_or_write_keeps_the_mail() {
+        let store = Store::failing();
+        folders(&store, "p1").unwrap();
+        let one = file_locally(&store, "p1", "INBOX", &mail("One", ""), Flags::default(), 1).unwrap();
+        let two = file_locally(&store, "p1", "INBOX", &mail("Two", ""), Flags::default(), 2).unwrap();
+        let kept = file_locally(&store, "p1", "Archive", &mail("Kept", ""), Flags::default(), 3).unwrap();
+        let path = store.body_path(&kept);
+        let dir = path.parent().and_then(std::path::Path::parent).and_then(std::path::Path::file_name).unwrap().to_string_lossy();
+        let archive_list = format!("{dir}/state.json");
+        let count = |f: &str| store.load_folder("p1", f).unwrap().messages.len();
+        let whole = |f: &str| store.load_folder("p1", f).unwrap().messages.iter().all(|m| store.read_body(&m.key).is_some());
+        for (reads, writes) in [(Some(".eml"), None), (None, Some(".eml")), (None, Some(archive_list.as_str())), (Some("state.json"), None)] {
+            store.fail(reads, writes);
+            let r = move_locally(&store, "p1", &[one.clone(), two.clone()], "Archive");
+            store.fail(None, None);
+            assert!(r.is_err(), "{reads:?} {writes:?}: {r:?}");
+            assert_eq!((count("INBOX"), count("Archive")), (2, 1), "{reads:?} {writes:?}");
+            assert!(whole("INBOX") && whole("Archive"), "{reads:?} {writes:?}");
+        }
+        assert_eq!(move_locally(&store, "p1", &[one, two], "Archive").unwrap(), ["INBOX", "Archive"]);
+        assert_eq!((count("INBOX"), count("Archive")), (0, 3));
+        assert!(whole("Archive"));
+        // A list at the last number takes no more, rather than filing two under one.
+        let mut full = store.load_folder("p1", "Archive").unwrap();
+        full.uid_next = u32::MAX;
+        store.save_folder("p1", "Archive", &full).unwrap();
+        let moving: Vec<_> = full.messages.iter().map(|m| m.key.clone()).take(2).collect();
+        assert!(move_locally(&store, "p1", &moving, "INBOX").is_ok(), "the Inbox has numbers");
+        let back = store.load_folder("p1", "INBOX").unwrap().messages.iter().map(|m| m.key.clone()).collect::<Vec<_>>();
+        assert!(move_locally(&store, "p1", &back, "Archive").is_err());
+        assert!(file_locally(&store, "p1", "Archive", &mail("Late", ""), Flags::default(), 4).is_err());
+        assert_eq!((count("INBOX"), count("Archive")), (2, 1));
+        assert!(whole("INBOX") && whole("Archive"));
     }
 
     /// Answers to read, and what's written thrown away.
