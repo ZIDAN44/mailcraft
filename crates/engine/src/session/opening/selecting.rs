@@ -30,13 +30,17 @@ impl Session {
     }
 
     /// The row a message is on: its own, or its conversation's (one read from the conversation
-    /// shown above it in the reading pane has no row of its own).
+    /// shown above it in the reading pane has no row of its own). A pass over the rows, which
+    /// are built afresh for each step until the engine keeps them.
     fn row_of(&self, rows: &[MessageKey], key: &MessageKey) -> Option<usize> {
         if let Some(i) = rows.iter().position(|k| k == key) {
             return Some(i);
         }
-        let at = self.list.iter().position(|m| &m.key == key)?;
-        let t = self.threads.iter().find(|t| t.messages.contains(&at))?;
+        // Only a list grouped by conversation has rows that stand for others.
+        if self.threads.is_empty() {
+            return None;
+        }
+        let t = self.thread_at(self.index_of(key)?)?;
         let members: HashSet<&MessageKey> = t.messages.iter().filter_map(|&i| self.list.get(i)).map(|m| &m.key).collect();
         rows.iter().position(|k| members.contains(k))
     }

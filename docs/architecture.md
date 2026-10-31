@@ -112,6 +112,11 @@ across all accounts such as *All Inboxes*), the filter and search, the message l
 focus, the open message (`Reading`, parsed on demand from the cached source), the message being
 written (`Compose`), preferences and status-bar notices.
 
+- The list is indexed as it's built (`refresh_list` → `ListNav` in `session/mailboxes/nav.rs`):
+  `index_of`, `summary`, `selected_iter` and `first_selected` are lookups, not passes over the
+  list, and a message's conversation is worked out with the list. What's drawn each frame uses
+  them; `selected()` copies and is for commands.
+
 - `run(id, params)` dispatches a command from the registry (`cmd.rs`), checking `enabled` first and
   catching panics.
 - `take_jobs()` hands queued work to the network layer; `apply(event)` folds results back in.

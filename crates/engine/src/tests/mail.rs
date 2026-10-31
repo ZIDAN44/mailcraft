@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod nav;
 mod search;
 mod store_errors;
 

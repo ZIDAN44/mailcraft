@@ -94,19 +94,33 @@ pub(super) fn size_group(size: u32) -> &'static str {
 /// Sort a list as `arrange` says (each one's natural order; `reverse` the other way), newest
 /// first among equals.
 pub fn arrange_list(list: &mut [Summary], arrange: Arrange, reverse: bool) {
-    let text = |s: String| s.to_lowercase();
+    let newest = |a: &Summary, b: &Summary| b.date.cmp(&a.date).then_with(|| b.key.cmp(&a.key));
+    // By a name: each one's name lower-cased once (it was in every comparison, twice), over
+    // the list already newest first, which the sort keeps among equal names.
+    let text: Option<fn(&Summary) -> String> = match arrange {
+        Arrange::From => Some(|m| person(Some(&m.from)).to_lowercase()),
+        Arrange::To => Some(|m| person(m.to.first()).to_lowercase()),
+        Arrange::Subject => Some(|m| m.base_subject().to_lowercase()),
+        _ => None,
+    };
+    if let Some(text) = text {
+        list.sort_by(newest);
+        if reverse {
+            list.sort_by_cached_key(|m| std::cmp::Reverse(text(m)));
+        } else {
+            list.sort_by_cached_key(text);
+        }
+        return;
+    }
     list.sort_by(|a, b| {
         let primary = match arrange {
-            Arrange::Date => b.date.cmp(&a.date),
-            Arrange::From => text(person(Some(&a.from))).cmp(&text(person(Some(&b.from)))),
-            Arrange::To => text(person(a.to.first())).cmp(&text(person(b.to.first()))),
-            Arrange::Subject => text(a.base_subject()).cmp(&text(b.base_subject())),
             Arrange::Size => b.size.cmp(&a.size),
             Arrange::Flag => b.flags.flagged.cmp(&a.flags.flagged),
             Arrange::Attachments => b.has_attachments.cmp(&a.has_attachments),
+            Arrange::Date | Arrange::From | Arrange::To | Arrange::Subject => b.date.cmp(&a.date),
         };
         let primary = if reverse { primary.reverse() } else { primary };
-        primary.then_with(|| b.date.cmp(&a.date)).then_with(|| b.key.cmp(&a.key))
+        primary.then_with(|| newest(a, b))
     });
 }
 

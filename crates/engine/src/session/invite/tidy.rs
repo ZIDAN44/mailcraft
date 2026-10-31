@@ -104,7 +104,7 @@ impl Session {
         // The one after it in the list (else before it), not one of those going: an earlier
         // version further down doesn't take the list there.
         let next = read.as_ref().and_then(|k| {
-            let at = self.list.iter().position(|m| &m.key == k)?;
+            let at = self.index_of(k)?;
             let stays = |m: &&Summary| !keys.contains(&m.key);
             self.list.iter().skip(at + 1).find(stays).or_else(|| self.list.iter().take(at).rev().find(stays)).map(|m| m.key.clone())
         });

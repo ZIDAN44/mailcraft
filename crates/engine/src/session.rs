@@ -40,6 +40,8 @@ pub use opening::{SOURCE_SHOWN, SourceView, Toward};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::{Compose, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
+#[cfg(test)]
+pub(crate) use mailboxes::arrange_list;
 pub use mailboxes::{ARRANGE_HEADINGS, Arrange, Row};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
@@ -412,6 +414,8 @@ pub struct Session {
     pub list: Vec<Summary>,
     /// Conversations over `list` (when [`Prefs::conversations`] is on).
     pub threads: Vec<Thread>,
+    /// Where each message of `list` is (built with it).
+    pub(crate) nav: mailboxes::ListNav,
     pub selection: Vec<MessageKey>,
     pub focus: Option<MessageKey>,
     /// Where a range of selected messages starts (Shift+click, Shift+Down): it stays put while
@@ -561,6 +565,7 @@ impl Session {
             asked_password: HashSet::new(),
             list: Vec::new(),
             threads: Vec::new(),
+            nav: Default::default(),
             selection: Vec::new(),
             focus: None,
             anchor: None,

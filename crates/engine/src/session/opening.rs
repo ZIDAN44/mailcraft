@@ -97,8 +97,7 @@ impl Session {
             }
         }
         // The one read before, kept in the list only while it was read (`refresh_list`), goes.
-        let kept = |m: &Summary| prev.as_ref() == Some(&m.key) && !self.filter_keeps(self.filter, m);
-        if self.list.iter().any(kept) {
+        if prev.as_ref().and_then(|k| self.summary(k)).is_some_and(|m| !self.filter_keeps(self.filter, m)) {
             self.refresh_list();
         }
     }
@@ -143,7 +142,7 @@ impl Session {
     fn parse_for_reading(&self, key: &MessageKey, raw: &[u8]) -> Option<mime::Parsed> {
         let mut p = mime::parse(raw)?;
         if p.date == 0
-            && let Some(m) = self.list.iter().find(|m| &m.key == key)
+            && let Some(m) = self.summary(key)
         {
             p.date = m.date;
         }

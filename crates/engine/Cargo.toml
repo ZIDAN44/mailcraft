@@ -24,3 +24,5 @@ thiserror = { workspace = true }
 # S/MIME tests read PEM and play the network layer's decrypting.
 der = { version = "0.7", features = ["pem"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
+# Property tests of the list's index and arrangement (tests/mail/nav.rs).
+proptest = "1"
