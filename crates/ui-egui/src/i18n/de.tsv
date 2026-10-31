@@ -1331,6 +1331,13 @@ month	May	Mai
 	Show as	Zeigen als
 	Show time only	Nur die Zeit zeigen
 	Working elsewhere	Woanders tätig
+	After answering a meeting invitation	Nach dem Beantworten einer Besprechungseinladung
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	Ob in der Nachricht oder im Kalender beantwortet: Die Einladung und ihre früheren Fassungen verlassen den Posteingang, eine Absage ebenso, sobald sie übernommen ist
+	Leave it	Liegen lassen
+	A folder	Ein Ordner
+	Folder for {email}	Ordner für {email}
+	Choose a folder	Ordner wählen
+	Guests' answers to my meetings go the same way, once recorded	Antworten der Gäste auf meine Besprechungen ebenso, sobald sie eingetragen sind
 	default	Standard
 	New events and invitations go to this calendar	Neue Termine und Einladungen kommen in diesen Kalender
 	Use as default calendar	Als Standardkalender verwenden

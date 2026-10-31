@@ -28,7 +28,7 @@ pub use session::{
     PANICS_CAUGHT, PaneSection, Picture, Prefs, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, SMIME_DOC, SOURCE_SHOWN, Seal, SearchScope,
     Security, SendCheck, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, UpdateCheck, VacationState, View,
     accent_code, accent_rgb,
-    invite::{Invite, InviteProblem},
+    invite::{AnsweredInvites, Invite, InviteProblem},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
     pim::{ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, EVENT_HITS_MAX, EventHit, EventWhen, LocalEvents, Module, NoteRef, Person, parse_local},

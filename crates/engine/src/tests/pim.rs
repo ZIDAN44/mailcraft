@@ -129,6 +129,8 @@ fn people_in_the_address_book() {
 #[test]
 fn invitations_are_answered_and_sent() {
     let mut s = sample_session("invites");
+    // The invitation stays in the Inbox to be answered again (moving it: answered_invites.rs).
+    s.run("options.answeredInvites", &json!({"after": "keep"})).unwrap();
     let k = s.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
     s.run("list.open", &json!({"key": k.to_id()})).unwrap();
     let inv = s.invite().expect("an invitation");

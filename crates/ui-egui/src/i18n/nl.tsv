@@ -1326,6 +1326,13 @@ month	May	mei
 	Show as	Tonen als
 	Show time only	Alleen de tijd tonen
 	Working elsewhere	Werkt elders
+	After answering a meeting invitation	Na het beantwoorden van een vergaderuitnodiging
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	Beantwoord in het bericht of in de agenda: de uitnodiging en haar eerdere versies verlaten het Postvak IN; een annulering ook, zodra die is verwerkt
+	Leave it	Laten staan
+	A folder	Een map
+	Folder for {email}	Map voor {email}
+	Choose a folder	Kies een map
+	Guests' answers to my meetings go the same way, once recorded	Antwoorden van gasten op mijn vergaderingen gaan dezelfde weg, zodra ze zijn verwerkt
 	default	standaard
 	New events and invitations go to this calendar	Nieuwe afspraken en uitnodigingen komen in deze agenda
 	Use as default calendar	Als standaardagenda gebruiken

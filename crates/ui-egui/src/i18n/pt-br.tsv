@@ -1331,6 +1331,13 @@ month	May	maio
 	Show as	Mostrar como
 	Show time only	Mostrar só o horário
 	Working elsewhere	Trabalhando em outro local
+	After answering a meeting invitation	Depois de responder a um convite de reunião
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	Respondido na mensagem ou no calendário, o convite e suas versões anteriores saem da Caixa de Entrada; um cancelamento também, depois de aplicado
+	Leave it	Deixar
+	A folder	Uma pasta
+	Folder for {email}	Pasta para {email}
+	Choose a folder	Escolher uma pasta
+	Guests' answers to my meetings go the same way, once recorded	As respostas dos convidados às minhas reuniões seguem o mesmo caminho, depois de registradas
 	default	padrão
 	New events and invitations go to this calendar	Novos eventos e convites vão para este calendário
 	Use as default calendar	Usar como calendário padrão

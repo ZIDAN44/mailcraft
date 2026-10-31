@@ -1,5 +1,6 @@
 //! The settings the user changes (View tab, File › Options), saved by the app.
 
+use super::invite::AnsweredInvites;
 use super::*;
 
 /// Settings the user changes from the View tab (saved by the app).
@@ -79,6 +80,19 @@ pub struct Prefs {
     /// Meeting invitations go into the calendar as tentative when they arrive, before they're
     /// answered, as Outlook shows them (issue #20).
     pub tentative_invites: bool,
+    /// What becomes of a meeting invitation's mail (and its earlier versions in the Inbox) once
+    /// it's answered, in the message or the calendar, and of a cancellation once it's taken in
+    /// (issue #31), as Outlook's "Delete meeting requests and notifications from Inbox after
+    /// responding". Deleted Items at first, as there; settings saved before the option came
+    /// leave the mail where it is, as it was.
+    #[serde(default = "AnsweredInvites::kept")]
+    pub answered_invites: AnsweredInvites,
+    /// With [`AnsweredInvites::Move`]: the folder each account's go to (account id → path).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub answered_folders: BTreeMap<String, String>,
+    /// Guests' answers to the user's meetings go the same way once recorded.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub answered_replies: bool,
     /// How the message list is arranged (View › Arrange by), and turned the other way round.
     pub arrange: Arrange,
     pub reverse_sort: bool,
@@ -205,6 +219,9 @@ impl Default for Prefs {
             reply_window: false,
             show_favorites: true,
             tentative_invites: true,
+            answered_invites: AnsweredInvites::Delete,
+            answered_folders: BTreeMap::new(),
+            answered_replies: false,
             arrange: Arrange::Date,
             reverse_sort: false,
             work_offline: false,

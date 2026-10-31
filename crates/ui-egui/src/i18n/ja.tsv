@@ -1327,6 +1327,13 @@ month	May	5月
 	Show as	表示方法
 	Show time only	時間のみ表示
 	Working elsewhere	別の場所で勤務
+	After answering a meeting invitation	会議の招待に返信した後
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	メッセージでも予定表でも、返信すると招待とその以前の版が受信トレイから移動します。キャンセルも、反映された時点で移動します
+	Leave it	そのままにする
+	A folder	フォルダー
+	Folder for {email}	{email} のフォルダー
+	Choose a folder	フォルダーを選択
+	Guests' answers to my meetings go the same way, once recorded	自分の会議への出席者の返信も、記録された時点で同じように移動する
 	default	既定
 	New events and invitations go to this calendar	新しい予定と招待はこの予定表に入ります
 	Use as default calendar	既定の予定表として使う

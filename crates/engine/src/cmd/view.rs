@@ -124,6 +124,34 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"on": s.prefs.tentative_invites}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("options.answeredInvites", "After answering a meeting invitation", "File › Options › Mail", |s, v| {
+            if let Some(after) = p::str(v, "after") {
+                s.prefs.answered_invites = match after {
+                    "keep" => crate::AnsweredInvites::Keep,
+                    "delete" => crate::AnsweredInvites::Delete,
+                    "move" => crate::AnsweredInvites::Move,
+                    other => return Err(CmdError::Params(format!("`{other}`: after answering, keep, delete or move"))),
+                };
+            }
+            if let Some(folder) = p::str(v, "folder") {
+                let account = p::req_str(v, "account")?.to_string();
+                let a = s.account(&account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+                if folder.is_empty() {
+                    s.prefs.answered_folders.remove(&account);
+                } else {
+                    let f = a.folders.iter().find(|f| f.path == folder).ok_or_else(|| CmdError::Params(format!("no folder `{folder}`")))?;
+                    if !f.selectable || matches!(f.role, FolderRole::Inbox | FolderRole::Sent | FolderRole::Drafts) {
+                        return Err(CmdError::Params(format!("`{folder}` can't take answered invitations")));
+                    }
+                    s.prefs.answered_folders.insert(account, folder.to_string());
+                }
+            }
+            if let Some(on) = p::bool(v, "replies") {
+                s.prefs.answered_replies = on;
+            }
+            Ok(json!({"after": s.prefs.answered_invites, "folders": s.prefs.answered_folders, "replies": s.prefs.answered_replies}))
+        })
+        .params(r#"{"after"?: "keep"|"delete"|"move", "account"?: string, "folder"?: string (with "move": where the account's go; "" for none), "replies"?: bool (guests' answers too)}"#),
         CommandSpec::new("view.favorites", "Show Favorites", "View › Layout", |s, v| {
             s.prefs.show_favorites = p::bool(v, "on").unwrap_or(!s.prefs.show_favorites);
             Ok(json!({"on": s.prefs.show_favorites}))

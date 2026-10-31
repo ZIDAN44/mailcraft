@@ -1326,6 +1326,13 @@ month	May	מאי
 	Show as	הצג כ
 	Show time only	הצג רק את השעה
 	Working elsewhere	עובד ממקום אחר
+	After answering a meeting invitation	לאחר מענה להזמנה לפגישה
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	בין אם המענה ניתן בהודעה או בלוח השנה, ההזמנה והגרסאות הקודמות שלה יוצאות מתיבת הדואר הנכנס; גם ביטול, לאחר שהוחל
+	Leave it	להשאיר
+	A folder	תיקייה
+	Folder for {email}	תיקייה עבור {email}
+	Choose a folder	בחירת תיקייה
+	Guests' answers to my meetings go the same way, once recorded	תשובות האורחים לפגישות שלי עוברות באותה דרך, לאחר שנרשמו
 	default	ברירת מחדל
 	New events and invitations go to this calendar	אירועים והזמנות חדשים נכנסים ללוח שנה זה
 	Use as default calendar	שימוש כלוח שנה המוגדר כברירת מחדל

@@ -13,10 +13,12 @@ use mailcraft_model::pim::{LOCAL, Pim, StoredEvent, Tombstone};
 use super::*;
 
 mod arrival;
+mod tidy;
 
 #[cfg(test)]
 pub(crate) use arrival::HOLD_SECS;
 pub(crate) use arrival::drop_empty_local;
+pub use tidy::AnsweredInvites;
 
 /// The most occurrences one message can take out of a series.
 const MAX_EXDATES: usize = 1000;
@@ -249,6 +251,7 @@ impl Session {
         let calendar =
             existing.first().map(|e| e.calendar.clone()).or_else(|| p.default_calendar().map(|c| c.id.clone())).unwrap_or_else(|| LOCAL.into());
         let mut remote = false;
+        let answered: Vec<i64> = events.iter().filter_map(|e| e.recurrence_id).collect();
         if whole {
             // The series: into the calendar, replacing an earlier copy (an updated
             // invitation); out if declined.
@@ -286,7 +289,11 @@ impl Session {
         if let Some(first) = events.first().cloned() {
             self.send_reply(&account, &first, stat)?;
         }
-        Ok(serde_json::json!({"answer": stat, "uid": uid}))
+        // The invitation, and its earlier versions in the Inbox, out of the way (issue #31): all
+        // of the meeting's for an answer to the series, else those naming only these occurrences.
+        let only = (!whole).then_some(answered.as_slice());
+        let moved = self.tidy_meeting_mail(&account, &uid, &["REQUEST"], only, Some(&key));
+        Ok(serde_json::json!({"answer": stat, "uid": uid, "moved": moved}))
     }
 
     /// Answer an invitation already in the calendar (from the event form).
@@ -307,10 +314,17 @@ impl Session {
             }
         }
         self.after_pim_change(&account, remote);
+        let mut moved = 0;
         if let Some(m) = master {
             self.send_reply(&account, &m, stat)?;
+            // Answered from the calendar: its invitations in the Inbox out of the way too (issue
+            // #31), unless it's the user's own meeting.
+            let theirs = m.organizer.as_ref().is_some_and(|o| !mine.contains(&without_mailto(&o.email).to_ascii_lowercase()));
+            if theirs {
+                moved = self.tidy_meeting_mail(&account, uid, &["REQUEST"], None, None);
+            }
         }
-        Ok(serde_json::json!({"answer": stat, "uid": uid}))
+        Ok(serde_json::json!({"answer": stat, "uid": uid, "moved": moved}))
     }
 
     /// Take in an answer from a guest, or a cancellation from the organizer, in the open message.
@@ -321,7 +335,13 @@ impl Session {
         let uid = inv.event.uid.clone();
         let Some(account) = self.stored_parts(&uid).map(|(a, _)| a.to_string()) else {
             return match inv.method.as_str() {
-                "CANCEL" => Ok(serde_json::json!({"removed": false})),
+                "CANCEL" => {
+                    // Not in the calendar (never answered, and taken out as it came): taken in all
+                    // the same, so out of the way (issue #31).
+                    let only = self.cancelled_only(&cal, &uid);
+                    let moved = self.tidy_meeting_mail(&key.account, &uid, &["REQUEST", "CANCEL"], only.as_deref(), Some(&key));
+                    Ok(serde_json::json!({"removed": false, "moved": moved}))
+                }
                 "REPLY" => Err(CmdError::Disabled("the event isn't in your calendar".into())),
                 _ => Err(CmdError::Disabled("answer the invitation instead".into())),
             };
@@ -346,7 +366,10 @@ impl Session {
                     }
                 }
                 self.after_pim_change(&account, remote);
-                Ok(serde_json::json!({"removed": true}))
+                // The cancellation, and the meeting's invitations, out of the way (issue #31).
+                let only = self.cancelled_only(&cal, &uid);
+                let moved = self.tidy_meeting_mail(&key.account, &uid, &["REQUEST", "CANCEL"], only.as_deref(), Some(&key));
+                Ok(serde_json::json!({"removed": true, "moved": moved}))
             }
             "REPLY" => {
                 let who = inv.replier.ok_or_else(|| CmdError::Disabled("the answer names no one".into()))?;
@@ -361,10 +384,18 @@ impl Session {
                     e.dirty |= e.calendar != LOCAL;
                 }
                 self.after_pim_change(&account, remote);
+                self.tidy_reply_mail(&key);
                 Ok(serde_json::json!({"recorded": who.partstat}))
             }
             _ => Err(CmdError::Disabled("answer the invitation instead".into())),
         }
+    }
+
+    /// The occurrences a cancellation names, when it names some only (`None`: the whole
+    /// meeting).
+    fn cancelled_only(&self, cal: &ICalendar, uid: &str) -> Option<Vec<i64>> {
+        let parts: Vec<Option<i64>> = cal.events.iter().filter(|e| e.uid == uid).map(|e| e.recurrence_id).collect();
+        (!parts.iter().any(Option::is_none)).then(|| parts.into_iter().flatten().collect())
     }
 
     /// Send the organizer the user's answer.

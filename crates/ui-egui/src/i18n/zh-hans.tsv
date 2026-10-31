@@ -1327,6 +1327,13 @@ month	May	5月
 	Show as	显示为
 	Show time only	仅显示时间
 	Working elsewhere	在别处工作
+	After answering a meeting invitation	回复会议邀请后
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	无论在邮件中还是在日历中回复，邀请及其早先的版本都会离开收件箱；取消通知在应用后也会离开
+	Leave it	保留原处
+	A folder	某个文件夹
+	Folder for {email}	{email} 的文件夹
+	Choose a folder	选择文件夹
+	Guests' answers to my meetings go the same way, once recorded	来宾对我的会议的答复记录后也同样处理
 	default	默认
 	New events and invitations go to this calendar	新事件和邀请会放入此日历
 	Use as default calendar	设为默认日历

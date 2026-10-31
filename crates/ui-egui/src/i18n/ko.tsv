@@ -1330,6 +1330,13 @@ month	May	5월
 	Show as	표시 방법
 	Show time only	시간만 표시
 	Working elsewhere	다른 곳에서 근무
+	After answering a meeting invitation	모임 초대에 회신한 후
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	메시지나 일정에서 회신하면 초대와 그 이전 버전이 받은 편지함에서 이동합니다. 취소도 반영되면 이동합니다
+	Leave it	그대로 두기
+	A folder	폴더
+	Folder for {email}	{email}의 폴더
+	Choose a folder	폴더 선택
+	Guests' answers to my meetings go the same way, once recorded	내 모임에 대한 참석자의 회신도 기록되면 같은 곳으로 이동
 	default	기본
 	New events and invitations go to this calendar	새 일정과 초대가 이 일정으로 들어갑니다
 	Use as default calendar	기본 일정으로 사용

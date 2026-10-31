@@ -36,6 +36,8 @@ fn answer(s: &Session, uid: &str) -> Vec<String> {
 #[test]
 fn an_invitation_is_in_the_calendar_as_it_arrives() {
     let mut s = sample_session("tentative-arrives");
+    // The invitation stays in the Inbox once answered (moving it: answered_invites.rs).
+    s.run("options.answeredInvites", &json!({"after": "keep"})).unwrap();
     let before = sent(&mut s);
     deliver(&mut s, 1, ZOE, "REQUEST", &[invitation("crit@studio.example", "Storyboard crit", 0)], NOW);
     assert_eq!(answer(&s, "crit@studio.example"), ["NEEDS-ACTION"]);

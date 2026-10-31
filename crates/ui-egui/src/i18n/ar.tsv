@@ -1326,6 +1326,13 @@ month	May	مايو
 	Show as	الإظهار كـ
 	Show time only	إظهار الوقت فقط
 	Working elsewhere	أعمل من مكان آخر
+	After answering a meeting invitation	بعد الرد على دعوة اجتماع
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	سواء كان الرد في الرسالة أو في التقويم، تغادر الدعوة ونسخها السابقة علبة الوارد؛ وكذلك الإلغاء بعد تطبيقه
+	Leave it	تركها
+	A folder	مجلد
+	Folder for {email}	مجلد لـ {email}
+	Choose a folder	اختر مجلدًا
+	Guests' answers to my meetings go the same way, once recorded	ردود الضيوف على اجتماعاتي تذهب إلى المكان نفسه بعد تسجيلها
 	default	افتراضي
 	New events and invitations go to this calendar	تذهب الأحداث والدعوات الجديدة إلى هذا التقويم
 	Use as default calendar	استخدامه تقويمًا افتراضيًا

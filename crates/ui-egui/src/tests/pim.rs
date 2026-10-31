@@ -331,7 +331,8 @@ fn texts(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
 }
 
 /// Issue #30: events kept on this computer before the account's calendars on its server were
-/// found are offered to move there, the default calendar marked.
+/// found are offered to move there, the default calendar marked; issue #31: the setting for
+/// answered invitations, a folder per account when moving to one.
 #[test]
 fn local_events_are_offered_to_the_server() {
     let (mut a, dir) = app("pim-local-offer");
@@ -356,5 +357,13 @@ fn local_events_are_offered_to_the_server() {
     a.run("calendar.moveLocal", json!({"account": id}));
     let shown = texts(&ctx, &mut a);
     assert!(!shown.iter().any(|t| t.starts_with("Events kept on this computer")), "moved: not offered");
+    // File › Options with answered invitations moved to a folder: a folder per account.
+    a.run("options.answeredInvites", json!({"after": "move", "account": "sample", "folder": "Projects"}));
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let _ = texts(&ctx, &mut a);
+    a.ui.backstage = None;
     let _ = std::fs::remove_dir_all(dir);
 }

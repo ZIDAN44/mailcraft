@@ -1,5 +1,8 @@
 //! File › Options: the app's settings, a card per subject.
 
+use mailcraft_engine::AnsweredInvites;
+use mailcraft_engine::model::FolderRole;
+
 use super::*;
 
 pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
@@ -240,6 +243,54 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 );
             },
         );
+        // Issue #31: Outlook's "Delete meeting requests and notifications from Inbox after
+        // responding", with a folder of the user's as a third way.
+        setting(
+            ui,
+            false,
+            tl!("After answering a meeting invitation"),
+            Some(tl!(
+                "Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in"
+            )),
+            &mut |ui| {
+                let modes = [AnsweredInvites::Keep, AnsweredInvites::Delete, AnsweredInvites::Move];
+                let now = modes.iter().position(|m| *m == s.prefs.answered_invites).unwrap_or(0);
+                if let Some(i) = widgets::segmented(ui, &t, "answered", &[tl!("Leave it"), tl!("Deleted Items"), tl!("A folder")], now)
+                    && let Some(m) = modes.get(i)
+                {
+                    acts.push(Action::Run("options.answeredInvites", json!({"after": m})));
+                }
+            },
+        );
+        if s.prefs.answered_invites == AnsweredInvites::Move {
+            for a in &s.accounts {
+                let label = tf!("Folder for {email}", email = a.config.email);
+                setting(ui, false, &label, None, &mut |ui| {
+                    let chosen = s.prefs.answered_folders.get(&a.config.id);
+                    let fits = |f: &&mailcraft_engine::model::Folder| {
+                        f.selectable && !matches!(f.role, FolderRole::Inbox | FolderRole::Sent | FolderRole::Drafts)
+                    };
+                    let current = chosen
+                        .and_then(|c| a.folders.iter().find(|f| &f.path == c))
+                        .map_or_else(|| tl!("Choose a folder").to_string(), crate::i18n::folder);
+                    egui::ComboBox::from_id_salt(("answered-folder", &a.config.id)).selected_text(current).show_ui(ui, |ui| {
+                        for f in a.folders.iter().filter(fits) {
+                            if ui.selectable_label(chosen == Some(&f.path), crate::i18n::folder(f)).clicked() {
+                                acts.push(Action::Run("options.answeredInvites", json!({"account": a.config.id, "folder": f.path})));
+                            }
+                        }
+                    });
+                });
+            }
+        }
+        if s.prefs.answered_invites != AnsweredInvites::Keep {
+            setting(ui, false, tl!("Guests' answers to my meetings go the same way, once recorded"), None, &mut |ui| {
+                let mut on = s.prefs.answered_replies;
+                if widgets::switch(ui, &t, &mut on, tl!("Guests' answers to my meetings go the same way, once recorded")).changed() {
+                    acts.push(Action::Run("options.answeredInvites", json!({"replies": on})));
+                }
+            });
+        }
         setting(ui, false, tl!("Ask before deleting for good"), None, &mut |ui| {
             switch(ui, s.prefs.confirm_permanent_delete, tl!("Ask before deleting for good"), "view.confirmDelete", acts);
         });
