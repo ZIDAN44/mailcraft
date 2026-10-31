@@ -27,18 +27,37 @@ pub(super) const INFLATE_MAX: u64 = 1 << 30;
 /// flate2's zlib-rs backend on for everyone, and its fastest level (static Huffman tables) kept
 /// base64 attachments at 0.995 of their size, so they were stored raw; miniz's level 1 keeps
 /// them at about 0.76, and is faster. The stream is the same raw deflate either way.
+///
+/// The stream is written straight after the prefix into a buffer that holds no more than would
+/// be kept, so there's no second copy, and a file that won't compress stops as soon as it fills it.
 pub(super) fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    use miniz_oxide::deflate::core::{CompressorOxide, TDEFLFlush, TDEFLStatus, compress, create_comp_flags_from_zip_params};
     if bytes.len() < DEFLATE_MIN || bytes.starts_with(DEFLATED) {
         return bytes.into();
     }
-    let stream = miniz_oxide::deflate::compress_to_vec(bytes, 1);
-    let kept = DEFLATED.len().saturating_add(stream.len());
-    if kept >= bytes.len() - bytes.len() / 10 {
-        return bytes.into();
+    // Kept compressed only when it comes to less than this.
+    let limit = bytes.len() - bytes.len() / 10;
+    let mut out = vec![0; limit];
+    let Some(prefix) = out.get_mut(..DEFLATED.len()) else { return bytes.into() };
+    prefix.copy_from_slice(DEFLATED);
+    // Level 1, raw deflate (window bits 0), the default strategy: as `compress_to_vec(bytes, 1)`.
+    let mut deflate = CompressorOxide::new(create_comp_flags_from_zip_params(1, 0, 0));
+    let (mut read, mut at) = (0, DEFLATED.len());
+    loop {
+        let (Some(input), Some(room)) = (bytes.get(read..), out.get_mut(at..)) else { return bytes.into() };
+        if room.is_empty() {
+            return bytes.into();
+        }
+        let (status, took, wrote) = compress(&mut deflate, input, room, TDEFLFlush::Finish);
+        read = read.saturating_add(took);
+        at = at.saturating_add(wrote);
+        match status {
+            TDEFLStatus::Done if at < limit => break,
+            TDEFLStatus::Okay if took > 0 || wrote > 0 => {}
+            _ => return bytes.into(),
+        }
     }
-    let mut out = Vec::with_capacity(kept);
-    out.extend_from_slice(DEFLATED);
-    out.extend_from_slice(&stream);
+    out.truncate(at);
     out.into()
 }
 

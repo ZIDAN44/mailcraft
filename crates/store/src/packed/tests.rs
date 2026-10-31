@@ -292,6 +292,30 @@ fn base64_attachments_are_kept_compressed() {
     assert_eq!(super::unpack(kept.into_owned()).unwrap(), text);
 }
 
+/// `pack` writes the stream straight into its own buffer and gives up once that's full: it keeps
+/// exactly what compressing the whole file and then applying the tenth rule would have kept,
+/// right up to the line, from text that compresses well to noise that doesn't.
+#[test]
+fn packing_in_place_keeps_what_the_tenth_rule_would() {
+    let (mut raw, mut deflated) = (0, 0);
+    for noisy in (0..=100).step_by(2) {
+        let len = 40_000;
+        let noisy_len = len * noisy / 100;
+        let mut bytes = noise(noisy_len, noisy as u64 + 1);
+        bytes.extend("The figures for October are in the attached sheet. ".bytes().cycle().take(len - noisy_len));
+        let stream = miniz_oxide::deflate::compress_to_vec(&bytes, 1);
+        let expected = if super::DEFLATED.len() + stream.len() >= len - len / 10 {
+            raw += 1;
+            bytes.clone()
+        } else {
+            deflated += 1;
+            [super::DEFLATED, &stream].concat()
+        };
+        assert_eq!(super::pack(&bytes).as_ref(), expected.as_slice(), "{noisy}% noise");
+    }
+    assert!(raw > 0 && deflated > 0, "both sides of the line: {raw} raw, {deflated} compressed");
+}
+
 #[test]
 fn folders_from_before_come_into_the_data_file() {
     let t = temp("bring-in");
