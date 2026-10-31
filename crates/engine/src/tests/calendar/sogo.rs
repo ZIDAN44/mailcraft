@@ -131,3 +131,28 @@ fn an_invitation_already_in_a_colleagues_calendar_goes_in_the_users_own() {
     synced(&mut s, &id, &[ANNS], vec![meeting("m2", ANNS, "ACCEPTED")]);
     assert_eq!(super::invite_placing::parts(&s, &id, "m2").len(), 1);
 }
+
+/// A change the server refused for good (SOGo's roles let bob change ann's public events, not
+/// her confidential one): the server's copy, read again, takes its place, and it's not sent
+/// again at every sync.
+#[test]
+fn a_change_the_server_refused_gives_way_to_its_copy() {
+    let (mut s, id) = super::invite_placing::imap_session("sogo-refused");
+    synced(&mut s, &id, &[ANNS, OWN], vec![meeting("c1", OWN, "ACCEPTED")]);
+    s.run("event.update", &json!({"uid": "c1", "summary": "Bob was here"})).unwrap();
+    assert!(super::invite_placing::parts(&s, &id, "c1")[0].dirty);
+    let sync = DavSync {
+        caldav_home: Some("https://mail.mc31.test/SOGo/dav/bob@mc31.test/Calendar/".into()),
+        calendars: Some(vec![CalendarInfo { id: OWN.into(), name: "Personal Calendar".into(), ctag: "2".into(), ..Default::default() }]),
+        events: vec![meeting("c1", OWN, "ACCEPTED")],
+        synced_calendars: vec![OWN.into()],
+        refused: vec!["c1".into()],
+        errors: vec!["Bob was here: the server doesn't allow this change (HTTP 403)".into()],
+        checked: NOW,
+        ..Default::default()
+    };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    let parts = super::invite_placing::parts(&s, &id, "c1");
+    assert_eq!(parts.len(), 1);
+    assert!(!parts[0].dirty && parts[0].event.summary == "Planning", "{:?}", parts[0]);
+}

@@ -60,21 +60,33 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         [&out.caldav_home, &out.carddav_home].into_iter().flatten().filter_map(|h| Url::parse(h).ok()).map(|u| u.origin()).collect();
     let ours = |url: &str| Url::parse(url).is_ok_and(|u| origins.contains(&u.origin()));
 
-    // 1. Deletions made here.
+    // Items whose change the server refused for good: read again below, whatever their etag.
+    let mut refetch: Vec<String> = Vec::new();
+
+    // 1. Deletions made here. One the server doesn't allow (SOGo's roles) is given up and the
+    //    event read again, so it's back as it is there.
     for t in pim.deleted.iter().filter(|t| ours(&t.href)) {
-        match dav.delete(&t.href, &t.etag) {
-            Ok(()) => out.deleted.push(t.href.clone()),
+        match dav.remove(&t.href, &t.etag) {
+            Ok(Ok(())) => out.deleted.push(t.href.clone()),
+            Ok(Err(Refused::Forbidden)) => {
+                out.errors.push(format!("the server doesn't allow deleting {}", t.href.rsplit('/').next().unwrap_or_default()));
+                out.deleted.push(t.href.clone());
+                refetch.push(t.href.clone());
+            }
+            Ok(Err(r)) => out.errors.push(r.to_string()),
             Err(e @ NetError::Auth(_)) => return Err(e),
             Err(e) => out.errors.push(e.to_string()),
         }
     }
 
-    // 2. Changes made here, per item (an event with its changed instances).
-    let mut uids: Vec<&str> = pim.events.iter().filter(|e| e.dirty && e.calendar != LOCAL).map(|e| e.event.uid.as_str()).collect();
-    uids.sort_unstable();
-    uids.dedup();
-    for uid in uids {
-        let parts: Vec<&StoredEvent> = pim.events.iter().filter(|e| e.event.uid == uid).collect();
+    // 2. Changes made here, per item (an event with its changed instances), in the calendar
+    //    it's in (a colleague's copy of the same meeting isn't part of it).
+    let mut items: Vec<(&str, &str)> =
+        pim.events.iter().filter(|e| e.dirty && e.calendar != LOCAL).map(|e| (e.event.uid.as_str(), e.calendar.as_str())).collect();
+    items.sort_unstable();
+    items.dedup();
+    for (uid, calendar) in items {
+        let parts: Vec<&StoredEvent> = pim.events.iter().filter(|e| e.event.uid == uid && e.calendar == calendar).collect();
         let Some(master) = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first()) else { continue };
         let url = if master.href.is_empty() {
             format!("{}/{}", master.calendar.trim_end_matches('/'), resource_name(uid, "ics"))
@@ -87,12 +99,38 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         let events: Vec<CalEvent> = parts.iter().map(|e| e.event.clone()).collect();
         let data = ical::write(&events, None, now);
         let etag = (!master.href.is_empty()).then_some(master.etag.as_str());
-        match dav.put(&url, "text/calendar; charset=utf-8", &data, etag) {
-            Ok(new) => {
+        let stored = match dav.store(&url, "text/calendar; charset=utf-8", &data, etag) {
+            // A new one the calendar has already: SOGo put the meeting there itself when it was
+            // organised (its users' invitations), before the invitation's mail was taken in
+            // here. Stored over the server's copy, so there's one, unless that one is newer.
+            Ok(Err(Refused::UidTaken)) if master.href.is_empty() => match the_servers(dav, calendar, uid, local) {
+                Ok(Some((href, _, sequence))) if sequence > master.event.sequence => {
+                    out.refused.push(uid.to_string());
+                    refetch.push(href);
+                    continue;
+                }
+                Ok(Some((href, tag, _))) => dav.store(&href, "text/calendar; charset=utf-8", &data, Some(&tag)).map(|r| r.map(|t| (href, t))),
+                Ok(None) => Ok(Err(Refused::UidTaken)),
+                Err(e) => Err(e),
+            },
+            r => r.map(|r| r.map(|t| (url.clone(), t))),
+        };
+        match stored {
+            Ok(Ok((href, new))) => {
                 for p in parts {
-                    out.pushed_events.push(StoredEvent { href: url.clone(), etag: new.clone(), dirty: false, ..(*p).clone() });
+                    out.pushed_events.push(StoredEvent { href: href.clone(), etag: new.clone(), dirty: false, ..(*p).clone() });
                 }
             }
+            // Not the user's to change after all (a role per classification, in SOGo), or changed
+            // on the server since it was read (SOGo writes a guest's answer into the organizer's
+            // copy itself): the server's copy comes back, rather than being sent again, refused
+            // again, at every sync.
+            Ok(Err(r @ (Refused::Forbidden | Refused::Changed))) if !master.href.is_empty() => {
+                out.errors.push(format!("{}: {r}; the server's copy is kept", master.event.summary));
+                out.refused.push(uid.to_string());
+                refetch.push(master.href.clone());
+            }
+            Ok(Err(r)) => out.errors.push(format!("{}: {r}", master.event.summary)),
             Err(e @ NetError::Auth(_)) => return Err(e),
             Err(e) => out.errors.push(format!("{}: {e}", master.event.summary)),
         }
@@ -124,14 +162,15 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                 ctag: ctag.clone(),
                 foreign: c.foreign,
             };
-            let pushed_here = out.pushed_events.iter().any(|e| e.calendar == c.href);
+            let pushed_here = out.pushed_events.iter().any(|e| e.calendar == c.href) || refetch.iter().any(|h| h.starts_with(&c.href));
             if !ctag.is_empty() && known.is_some_and(|k| k.ctag == ctag) && !pushed_here {
                 out.unchanged_calendars.push(c.href.clone());
             } else {
                 let have: HashMap<&str, &str> =
                     pim.events.iter().filter(|e| e.calendar == c.href).map(|e| (e.href.as_str(), e.etag.as_str())).collect();
                 let listed = dav.etags(&c.href)?;
-                let fetch: Vec<String> = listed.iter().filter(|(h, t)| have.get(h.as_str()) != Some(&t.as_str())).map(|(h, _)| h.clone()).collect();
+                let fetch: Vec<String> =
+                    listed.iter().filter(|(h, t)| have.get(h.as_str()) != Some(&t.as_str()) || refetch.contains(h)).map(|(h, _)| h.clone()).collect();
                 // Unchanged: the engine keeps what it has.
                 out.kept.extend(listed.iter().filter(|(h, _)| !fetch.contains(h)).map(|(h, _)| h.clone()));
                 for (href, etag, data) in dav.multiget(Kind::Calendars, &c.href, &fetch)? {
@@ -176,4 +215,16 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         out.books = Some(books);
     }
     Ok(out)
+}
+
+/// The calendar's own item with this uid: its address, etag and newest `SEQUENCE`.
+fn the_servers(dav: &Dav, calendar: &str, uid: &str, local: mailcraft_model::zone::Zone) -> Result<Option<(String, String, u32)>> {
+    let found = dav.find_uid(calendar, uid)?;
+    for (href, etag, data) in dav.multiget(Kind::Calendars, calendar, &found)? {
+        let events = ical::parse_in(&data, local).events;
+        if let Some(sequence) = events.iter().filter(|e| e.uid == uid).map(|e| e.sequence).max() {
+            return Ok(Some((href, etag, sequence)));
+        }
+    }
+    Ok(None)
 }

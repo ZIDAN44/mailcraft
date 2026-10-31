@@ -16,6 +16,11 @@ impl Session {
         p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
         p.dav_checked = Some(sync.checked);
         p.deleted.retain(|t| !sync.deleted.contains(&t.href));
+        // Changes the server refused for good (SOGo's roles): its copy, read again in this
+        // sync, comes back in their place.
+        for e in p.events.iter_mut().filter(|e| sync.refused.contains(&e.event.uid)) {
+            e.dirty = false;
+        }
         // What was stored: its address and version, and no longer to send (unless it changed
         // again meanwhile).
         for x in &sync.pushed_events {

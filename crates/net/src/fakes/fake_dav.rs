@@ -1,6 +1,7 @@
 //! An in-memory CalDAV / CardDAV server for tests: the well-known redirect, a principal with
 //! its homes, one calendar and one address book, PROPFIND, multiget REPORTs, conditional PUT
-//! and DELETE, Basic authentication.
+//! and DELETE, Basic authentication. As SOGo: one uid per collection (a second is refused,
+//! 409), items the user may not change (403), and a calendar-query by uid.
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -18,6 +19,22 @@ pub struct Data {
     pub items: BTreeMap<String, (String, String)>,
     pub ctag: u32,
     pub log: Vec<String>,
+    /// Items the user may read and not change or delete (SOGo's roles per classification).
+    pub forbidden: Vec<String>,
+}
+
+/// The uid an item's data names (its lines unfolded).
+fn uid_of(data: &str) -> Option<String> {
+    data.replace(
+        "
+ ", "",
+    )
+    .replace(
+        "
+ ", "",
+    )
+    .lines()
+    .find_map(|l| l.trim().strip_prefix("UID:").map(|u| u.trim().to_string()))
 }
 
 impl Data {
@@ -140,6 +157,18 @@ pub fn serve() -> Server {
                     }
                     respond(&mut s, "207 Multi-Status", &[], &multistatus(&rs));
                 }
+                ("REPORT", p) if p == CAL && body.contains("calendar-query") => {
+                    // By uid: its text-match finds the uid inside longer ones too, as RFC 4791's does.
+                    let wanted =
+                        body.split("<c:text-match").nth(1).and_then(|x| x.split_once('>')).and_then(|(_, x)| x.split("</c:text-match>").next());
+                    let mut rs = Vec::new();
+                    for (href, (etag, data)) in d.items.iter().filter(|(h, _)| h.starts_with(p)) {
+                        if wanted.is_some_and(|w| uid_of(data).is_some_and(|u| u.contains(w))) {
+                            rs.push(response(href, &format!("<d:getetag>{}</d:getetag>", esc(etag))));
+                        }
+                    }
+                    respond(&mut s, "207 Multi-Status", &[], &multistatus(&rs));
+                }
                 ("REPORT", p) if p == CAL || p == BOOK => {
                     let field = if p == CAL { "c:calendar-data" } else { "card:address-data" };
                     let mut rs = Vec::new();
@@ -149,6 +178,16 @@ pub fn serve() -> Server {
                         }
                     }
                     respond(&mut s, "207 Multi-Status", &[], &multistatus(&rs));
+                }
+                ("PUT", p) if d.forbidden.iter().any(|f| f == p) => respond(&mut s, "403 Forbidden", &[], ""),
+                ("PUT", p)
+                    if !d.items.contains_key(p)
+                        && uid_of(&body).is_some_and(|u| {
+                            let folder = p.rsplit_once('/').map_or("", |(f, _)| f);
+                            d.items.iter().any(|(h, (_, v))| h.rsplit_once('/').map_or("", |(f, _)| f) == folder && uid_of(v).as_ref() == Some(&u))
+                        }) =>
+                {
+                    respond(&mut s, "409 Conflict", &[], "<D:error xmlns:D=\"DAV:\">Event UID already in use.</D:error>");
                 }
                 ("PUT", p) => {
                     let current = d.items.get(p).map(|(e, _)| e.clone());
@@ -165,6 +204,7 @@ pub fn serve() -> Server {
                         respond(&mut s, "412 Precondition Failed", &[], "");
                     }
                 }
+                ("DELETE", p) if d.forbidden.iter().any(|f| f == p) => respond(&mut s, "403 Forbidden", &[], ""),
                 ("DELETE", p) => {
                     if d.items.remove(p).is_some() {
                         d.ctag += 1;
@@ -260,13 +300,16 @@ mod tests {
         }
         assert!(second.events.iter().any(|e| e.event.summary == "Review (moved)"), "read back after the change");
 
-        // A stale copy isn't written over a newer one.
+        // A stale copy isn't written over a newer one: the server's comes in its place (it was
+        // sent again, and refused again, at every sync).
         let mut stale = pim.clone();
         stale.deleted.clear();
         stale.events = vec![StoredEvent { event: CalEvent { summary: "Old edit".into(), ..review.event.clone() }, dirty: true, ..review }];
         let third = sync(&dav, &AT, &stale, 300, Zone::UTC).unwrap();
         assert_eq!(third.errors.len(), 1, "{:?}", third.errors);
         assert!(!data.lock().unwrap().items.values().any(|(_, v)| v.contains("Old edit")));
+        assert_eq!(third.refused, ["a"]);
+        assert!(third.events.iter().any(|e| e.event.uid == "a" && e.event.summary == "Review (moved)"), "the server's copy read");
         // Nothing changed since: the calendar isn't read again.
         let mut settled = pim.clone();
         settled.deleted.clear();
@@ -387,5 +430,92 @@ mod tests {
 
         // Plain http to another computer: refused before anything is sent.
         assert!(matches!(dav.home_from(Kind::Calendars, "http://calendar.example/dav/"), Err(crate::NetError::Tls(_))));
+    }
+
+    /// A calendar on the server, read, as the engine keeps it.
+    fn read(server: &Server, dav: &Dav) -> Pim {
+        let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
+        pim.ensure_defaults();
+        let first = sync(dav, &AT, &pim, 100, Zone::UTC).unwrap();
+        pim.calendars = first.calendars.unwrap();
+        pim.events = first.events;
+        pim
+    }
+
+    /// As a real Mailcow's SOGo does: an event the user may see and not change (a role for its
+    /// classification, in a calendar where they may change others) is refused with 403. It was
+    /// taken for a wrong password, and the whole sync of calendars and contacts stopped, at
+    /// every sync. Now the change and the deletion are given up and the server's copy read
+    /// again; the sync goes on.
+    #[test]
+    fn a_change_the_server_forbids_is_given_up() {
+        let server = serve();
+        let dav = Dav::new(USER, PASSWORD);
+        {
+            let mut d = server.data.lock().unwrap();
+            d.put(&format!("{CAL}conf.ics"), &ical::write(&[event("conf", "Interview", 1_800_000_000)], None, 0));
+            d.put(&format!("{CAL}mine.ics"), &ical::write(&[event("mine", "Lunch", 1_800_100_000)], None, 0));
+            d.forbidden = vec![format!("{CAL}conf.ics"), format!("{CAL}mine.ics")];
+        }
+        let mut pim = read(&server, &dav);
+        let conf = pim.events.iter().position(|e| e.event.uid == "conf").unwrap();
+        pim.events[conf].event.summary = "Bob was here".into();
+        pim.events[conf].dirty = true;
+        let mine = pim.events.iter().position(|e| e.event.uid == "mine").unwrap();
+        let gone = pim.events.remove(mine);
+        pim.deleted.push(mailcraft_model::pim::Tombstone { href: gone.href.clone(), etag: gone.etag.clone(), ..Default::default() });
+        pim.events.push(StoredEvent {
+            calendar: pim.calendars[0].id.clone(),
+            event: event("new", "Standup", 1_800_200_000),
+            dirty: true,
+            ..Default::default()
+        });
+        let out = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
+        assert_eq!(out.refused, ["conf"]);
+        assert_eq!(out.deleted, std::slice::from_ref(&gone.href), "the deletion is given up");
+        assert_eq!(out.errors.len(), 2, "both said: {:?}", out.errors);
+        assert!(out.errors.iter().any(|e| e.contains("Interview") || e.contains("Bob was here")), "{:?}", out.errors);
+        let back: Vec<&str> = out.events.iter().map(|e| e.event.summary.as_str()).collect();
+        assert!(back.contains(&"Interview") && back.contains(&"Lunch"), "the server's copies read again: {back:?}");
+        assert_eq!(out.pushed_events.iter().map(|e| e.event.uid.as_str()).collect::<Vec<_>>(), ["new"], "the rest is stored");
+        let d = server.data.lock().unwrap();
+        assert!(!d.items.values().any(|(_, v)| v.contains("Bob was here")));
+    }
+
+    /// SOGo puts a meeting in the calendar of each of its users invited, under the organizer's
+    /// item name, before the invitation's mail comes. The invitation taken in here (a new item,
+    /// named by its uid) was refused (409, "Event UID already in use") at every sync, and stayed
+    /// apart from the server's copy. It goes over the server's copy now, so there's one; unless
+    /// the server's is a newer version, which then comes in its place.
+    #[test]
+    fn a_meeting_the_server_put_in_the_calendar_already_is_stored_over() {
+        let server = serve();
+        let dav = Dav::new(USER, PASSWORD);
+        let meeting = |uid: &str, sequence: u32, summary: &str| CalEvent { sequence, ..event(uid, summary, 1_800_000_000) };
+        {
+            let mut d = server.data.lock().unwrap();
+            d.put(&format!("{CAL}organizers-name.ics"), &ical::write(&[meeting("m1", 0, "Planning")], None, 0));
+            d.put(&format!("{CAL}updated.ics"), &ical::write(&[meeting("m2", 2, "Review (moved)")], None, 0));
+            // Another whose uid holds this one's: not taken for it.
+            d.put(&format!("{CAL}longer.ics"), &ical::write(&[meeting("m1-and-more", 0, "Other")], None, 0));
+        }
+        let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
+        pim.ensure_defaults();
+        let cal = format!("{}{CAL}", server.base);
+        let mut answered = meeting("m1", 0, "Planning");
+        answered.description = "accepted here".into();
+        pim.events.push(StoredEvent { calendar: cal.clone(), event: answered, dirty: true, ..Default::default() });
+        pim.events.push(StoredEvent { calendar: cal.clone(), event: meeting("m2", 1, "Review"), dirty: true, ..Default::default() });
+        let out = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        let m1 = out.pushed_events.iter().find(|e| e.event.uid == "m1").expect("stored");
+        assert_eq!(m1.href, format!("{cal}organizers-name.ics"), "over the server's copy");
+        assert_eq!(out.refused, ["m2"], "the server's is newer");
+        assert!(out.events.iter().any(|e| e.event.uid == "m2" && e.event.summary == "Review (moved)"), "read in its place");
+        let d = server.data.lock().unwrap();
+        let with = |uid: &str| d.items.values().filter(|(_, v)| uid_of(v).as_deref() == Some(uid)).count();
+        assert_eq!((with("m1"), with("m2"), with("m1-and-more")), (1, 1, 1));
+        assert!(d.items[&format!("{CAL}organizers-name.ics")].1.contains("accepted here"));
+        assert!(d.items[&format!("{CAL}updated.ics")].1.contains("Review (moved)"));
     }
 }

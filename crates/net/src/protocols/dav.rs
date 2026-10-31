@@ -460,6 +460,12 @@ impl Dav {
     /// Store an item: a new one (`etag` `None`) only if nothing is there, else only if it is
     /// unchanged on the server. Returns the new etag (empty when the server doesn't say).
     pub fn put(&self, url: &str, content_type: &str, data: &str, etag: Option<&str>) -> Result<String> {
+        self.store(url, content_type, data, etag)?.map_err(|r| NetError::No(r.to_string()))
+    }
+
+    /// [`Dav::put`], telling why the server didn't store it (`Err` inside): only a refused
+    /// sign-in, or no answer, is an error of the whole sync.
+    pub fn store(&self, url: &str, content_type: &str, data: &str, etag: Option<&str>) -> Result<std::result::Result<String, Refused>> {
         let cond = match etag {
             Some(e) if !e.is_empty() => ("If-Match", e.to_string()),
             _ => ("If-None-Match", "*".to_string()),
@@ -474,23 +480,84 @@ impl Dav {
         req = req.header("Authorization", &self.auth).header(cond.0, &cond.1);
         let resp = http::send(&req)?;
         match resp.status {
-            200..=299 => Ok(resp.header("ETag").unwrap_or_default().to_string()),
-            401 | 403 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
-            412 => Err(NetError::No("changed on the server meanwhile".into())),
-            s => Err(NetError::No(format!("the server didn't store it (HTTP {s})"))),
+            200..=299 => Ok(Ok(resp.header("ETag").unwrap_or_default().to_string())),
+            401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            s => Ok(Err(Refused::from_status(s))),
         }
     }
 
     pub fn delete(&self, url: &str, etag: &str) -> Result<()> {
+        self.remove(url, etag)?.map_err(|r| NetError::No(r.to_string()))
+    }
+
+    /// [`Dav::delete`], telling why the server didn't delete it (`Err` inside).
+    pub fn remove(&self, url: &str, etag: &str) -> Result<std::result::Result<(), Refused>> {
         let mut req = Request { method: "DELETE".into(), url: url.into(), max: 1 << 20, ..Default::default() }.header("Authorization", &self.auth);
         if !etag.is_empty() {
             req = req.header("If-Match", etag);
         }
         let resp = http::send(&req)?;
         match resp.status {
-            200..=299 | 404 | 410 => Ok(()),
-            401 | 403 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
-            s => Err(NetError::No(format!("the server didn't delete it (HTTP {s})"))),
+            200..=299 | 404 | 410 => Ok(Ok(())),
+            401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            s => Ok(Err(Refused::from_status(s))),
+        }
+    }
+
+    /// The items of a calendar that may have this uid (a calendar-query, RFC 4791 §7.8; its
+    /// text-match finds the uid inside longer ones too, so what's found is to be read to be
+    /// sure).
+    pub fn find_uid(&self, calendar: &str, uid: &str) -> Result<Vec<String>> {
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-query xmlns:d=\"{DAV}\" xmlns:c=\"{CALDAV}\"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\"><c:prop-filter name=\"UID\"><c:text-match collation=\"i;octet\">{}</c:text-match></c:prop-filter></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>",
+            xml_escape(uid)
+        );
+        let (resp, at) = self.request("REPORT", calendar, Some("1"), &body, &[])?;
+        if resp.status != 207 {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for i in multistatus(&String::from_utf8_lossy(&resp.body)) {
+            if !i.kinds.iter().any(|k| k == "collection") && out.len() < 20 {
+                out.push(absolute(&at, &i.href)?);
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Why a server didn't store or delete an item.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refused {
+    /// Not allowed (403): SOGo's roles let a user change some events of a calendar shared with
+    /// them (its public ones, say) and not others.
+    Forbidden,
+    /// The calendar holds an item with this uid already (409): SOGo puts a meeting in the
+    /// calendars of its users it invites itself.
+    UidTaken,
+    /// Changed on the server since it was read (412).
+    Changed,
+    Other(u16),
+}
+
+impl Refused {
+    fn from_status(s: u16) -> Refused {
+        match s {
+            403 => Refused::Forbidden,
+            409 => Refused::UidTaken,
+            412 => Refused::Changed,
+            s => Refused::Other(s),
+        }
+    }
+}
+
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Refused::Forbidden => write!(f, "the server doesn't allow this change (HTTP 403)"),
+            Refused::UidTaken => write!(f, "the calendar has this event already (HTTP 409)"),
+            Refused::Changed => write!(f, "changed on the server meanwhile"),
+            Refused::Other(s) => write!(f, "the server refused it (HTTP {s})"),
         }
     }
 }

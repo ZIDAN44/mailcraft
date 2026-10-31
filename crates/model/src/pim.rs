@@ -298,6 +298,11 @@ pub struct DavSync {
     pub deleted: Vec<String>,
     /// What couldn't be stored or deleted (tried again next time).
     pub errors: Vec<String>,
+    /// Events (by uid) whose change the server refused for good (a colleague's event the user's
+    /// role there doesn't let them change): what's here gives way to the server's copy, read
+    /// again in this sync.
+    #[serde(default)]
+    pub refused: Vec<String>,
 }
 
 impl Pim {
