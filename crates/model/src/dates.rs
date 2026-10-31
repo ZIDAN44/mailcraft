@@ -4,7 +4,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::zone::Zone;
+pub mod zone;
+
+use zone::Zone;
 
 /// "Now" and the local time zone, as the app reports them each frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
