@@ -26,7 +26,9 @@ pub(super) struct Out<'a> {
     /// (a folder of hundreds of thousands isn't held whole; written ones keep only their counts).
     pub(super) states: HashMap<String, Open>,
     pub(super) imported: usize,
+    /// Items left out, in all and by reason.
     pub(super) skipped: usize,
+    pub(super) skips: BTreeMap<SkipReason, usize>,
     pub(super) progress: &'a mut dyn FnMut(usize),
     /// Contacts and calendar items read so far.
     pub(super) pim: Pim,
@@ -36,6 +38,13 @@ pub(super) struct Out<'a> {
 }
 
 impl Out<'_> {
+    /// Count `n` items left out for `reason`.
+    pub(super) fn skip(&mut self, reason: SkipReason, n: usize) {
+        self.skipped = self.skipped.saturating_add(n);
+        let c = self.skips.entry(reason).or_default();
+        *c = c.saturating_add(n);
+    }
+
     /// A folder for `name` under `parent`, with a role when it's a usual top-level one.
     pub(super) fn add_folder(&mut self, parent: Option<&str>, name: &str) -> String {
         let name = name.trim().replace('/', "∕");
@@ -79,7 +88,7 @@ impl Out<'_> {
             // A note's text is its body (its subject is the first line of it).
             let text = if it.body.trim().is_empty() { it.subject.clone() } else { it.body.replace("\r\n", "\n") };
             if text.trim().is_empty() {
-                self.skipped += 1;
+                self.skip(SkipReason::ItemNotUsable, 1);
                 return;
             }
             let note =
@@ -88,7 +97,7 @@ impl Out<'_> {
         } else if it.class.to_ascii_lowercase().starts_with("ipm.task") {
             // MailCraft has no task list: a task with a due date shows in the calendar that day.
             let Some(due) = x.due else {
-                self.skipped += 1;
+                self.skip(SkipReason::ItemNotUsable, 1);
                 return;
             };
             let day = crate::pst_pim::Extra { start: Some(due), end: Some(due), all_day: true, ..Default::default() };
@@ -103,7 +112,7 @@ impl Out<'_> {
             let people: Vec<EmailAddress> = it.to.iter().chain(&it.cc).cloned().collect();
             match crate::pst_pim::event_of(x, &it.subject, &it.body, &it.from, &people, uid) {
                 Some(event) => self.pim.events.push(StoredEvent { calendar: LOCAL.into(), event, ..Default::default() }),
-                None => self.skipped += 1,
+                None => self.skip(SkipReason::ItemNotUsable, 1),
             }
         }
     }
@@ -122,7 +131,7 @@ impl Out<'_> {
             Ok(r) => r,
             Err(e) => {
                 log::info!("a message could not be rebuilt: {e}");
-                self.skipped += 1;
+                self.skip(SkipReason::MessageNotRebuilt, 1);
                 return;
             }
         };
@@ -162,7 +171,7 @@ impl Out<'_> {
                 }
             }
             self.imported = self.imported.saturating_sub(batch.len());
-            self.skipped += batch.len();
+            self.skip(SkipReason::NotWritten, batch.len());
         }
     }
 
@@ -213,6 +222,6 @@ impl Out<'_> {
             self.pim.ensure_defaults();
             self.store.save_account_doc(self.account, PIM_DOC, &self.pim).map_err(|e| e.to_string())?;
         }
-        Ok(Imported { folders: self.folders, messages: self.imported, contacts, events, notes, skipped: self.skipped })
+        Ok(Imported { folders: self.folders, messages: self.imported, contacts, events, notes, skipped: self.skipped, skips: self.skips })
     }
 }

@@ -1,5 +1,7 @@
 //! What the pool runs on threads of its own, so it never waits behind a sync: browser sign-in,
-//! a message's pictures, and Outlook data files read or written.
+//! a message's pictures, and Outlook data files looked at, read or written.
+
+use mailcraft_model::job::{DataFileFacts, ImportPhase, ImportProgress, ImportReport, Work};
 
 use super::*;
 
@@ -161,6 +163,9 @@ impl Pool {
         let store = self.store.clone();
         let id = account.clone();
         let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
+            let began = Instant::now();
+            // The file the account's mail was copied into ("" for a cache that isn't kept in one).
+            let data_file = |store: &Store| store.data_file(&account).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
             if path.to_ascii_lowercase().ends_with(".mailcraft") {
                 match store.import_data_file(&account, std::path::Path::new(&path)) {
                     Ok(messages) => {
@@ -170,29 +175,108 @@ impl Pool {
                         for folder in paths {
                             sink.emit(Event::FolderChanged { account: account.clone(), folder });
                         }
-                        sink.emit(Event::Imported { account, messages, skipped: 0, done: true, error: None });
+                        let report = ImportReport {
+                            file: path,
+                            data_file: data_file(&store),
+                            messages: count(messages),
+                            runs: 1,
+                            elapsed_ms: ms(began),
+                            ..Default::default()
+                        };
+                        sink.emit(Event::Imported { account, messages, skipped: 0, done: true, error: None, report: Some(Box::new(report)) });
                     }
-                    Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e.to_string()) }),
+                    Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e.to_string()), report: None }),
                 }
                 return;
             }
-            let mut progress = |messages| sink.emit(Event::Imported { account: account.clone(), messages, skipped: 0, done: false, error: None });
+            // No totals yet: the bar has none to go by.
+            let mut progress = |messages| {
+                let done = count(messages);
+                let run_ms = ms(began);
+                let progress = ImportProgress {
+                    phase: ImportPhase::Importing,
+                    work: Work { done, ..Work::default() },
+                    imported: done,
+                    elapsed_ms: run_ms,
+                    run_ms,
+                    ..ImportProgress::default()
+                };
+                sink.emit(Event::ImportProgress { account: account.clone(), progress });
+            };
             let result = crate::pst::import(std::path::Path::new(&path), &store, &account, &mut progress);
             match result {
                 Ok(done) => {
+                    let mut report = ImportReport {
+                        file: path,
+                        data_file: data_file(&store),
+                        messages: count(done.messages),
+                        folders: u32::try_from(done.folders.len()).unwrap_or(u32::MAX),
+                        contacts: count(done.contacts),
+                        events: count(done.events),
+                        notes: count(done.notes),
+                        elapsed_ms: ms(began),
+                        runs: 1,
+                        ..ImportReport::default()
+                    };
+                    for (reason, n) in &done.skips {
+                        report.skip(*reason, count(*n));
+                    }
                     let paths: Vec<String> = done.folders.iter().map(|f| f.path.clone()).collect();
                     sink.emit(Event::Folders { account: account.clone(), folders: done.folders });
                     for folder in paths {
                         sink.emit(Event::FolderChanged { account: account.clone(), folder });
                     }
-                    sink.emit(Event::Imported { account, messages: done.messages, skipped: done.skipped, done: true, error: None });
+                    let (messages, skipped) = (done.messages, done.skipped);
+                    sink.emit(Event::Imported { account, messages, skipped, done: true, error: None, report: Some(Box::new(report)) });
                 }
-                Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e) }),
+                Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e), report: None }),
             }
         });
         // No thread, no import: it ends here, as a failed one (the account isn't left importing).
         if let Err(e) = spawned {
-            self.sink.emit(Event::Imported { account: id, messages: 0, skipped: 0, done: true, error: Some(format!("import: {e}")) });
+            self.sink.emit(Event::Imported { account: id, messages: 0, skipped: 0, done: true, error: Some(format!("import: {e}")), report: None });
         }
     }
+
+    /// Look at a data file before it's imported, on a thread of its own (it may be on a slow
+    /// drive): what kind it is, how big, when it last changed. What it holds comes from a walk
+    /// over its folders, which the import does on its own for now.
+    pub(super) fn inspect_data_file(&mut self, path: String) {
+        let (sink, asked) = (self.sink.clone(), path.clone());
+        let spawned = std::thread::Builder::new().name("mail-inspect".into()).spawn(move || {
+            let facts = facts_of(&path);
+            sink.emit(Event::DataFileInspected { path, facts: Box::new(facts) });
+        });
+        if let Err(e) = spawned {
+            let facts = DataFileFacts { path: asked.clone(), error: Some(format!("inspect: {e}")), ..DataFileFacts::default() };
+            self.sink.emit(Event::DataFileInspected { path: asked, facts: Box::new(facts) });
+        }
+    }
+}
+
+/// What the file system says of a data file (nothing read from inside it).
+fn facts_of(path: &str) -> DataFileFacts {
+    let lower = path.to_ascii_lowercase();
+    let kind = [".pst", ".ost", ".mailcraft"].iter().find(|k| lower.ends_with(*k)).map_or("", |k| k.trim_start_matches('.'));
+    let mut facts = DataFileFacts { path: path.to_string(), kind: kind.to_string(), ..DataFileFacts::default() };
+    match std::fs::metadata(path) {
+        Ok(m) if m.is_file() => {
+            facts.size = m.len();
+            facts.modified =
+                m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
+        }
+        Ok(_) => facts.error = Some("not a file".into()),
+        Err(e) => facts.error = Some(e.to_string()),
+    }
+    facts
+}
+
+/// A count as the model keeps it.
+fn count(n: usize) -> u64 {
+    u64::try_from(n).unwrap_or(u64::MAX)
+}
+
+/// Milliseconds since `began`.
+fn ms(began: Instant) -> u64 {
+    u64::try_from(began.elapsed().as_millis()).unwrap_or(u64::MAX)
 }

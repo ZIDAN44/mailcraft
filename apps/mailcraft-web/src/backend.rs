@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
+use mailcraft_engine::model::job::DataFileFacts;
 use mailcraft_engine::model::{AccountConfig, Event, Folder, FolderRole, Job, Op, SyncStatus, sort_folders};
 use mailcraft_engine::store::Store;
 use mailcraft_jmap::{Client, Error, State, SyncOptions};
@@ -540,6 +541,8 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::Discover { .. }
         | Job::SignIn { .. }
         | Job::ImportPst { .. }
+        | Job::InspectDataFile { .. }
+        | Job::StopImport { .. }
         | Job::ExportPst { .. }
         | Job::WorkOffline { .. }
         | Job::SetSync { .. } => {}
@@ -653,6 +656,8 @@ async fn fetch_calendar(sh: Rcs, account: String, calendar: String, url: String)
 
 /// Largest calendar read in the browser.
 const MAX_CALENDAR: usize = 20 << 20;
+/// Why an Outlook data file isn't opened here.
+const DESKTOP_PST: &str = "opening Outlook data files needs the desktop app";
 
 impl Backend for WebBackend {
     fn submit(&mut self, job: Job) {
@@ -667,16 +672,15 @@ impl Backend for WebBackend {
             Job::SignIn { account } => {
                 status(sh, &account.id, SyncStatus::NeedsPassword { error: "signing in through Google or Microsoft needs the desktop app".into() })
             }
-            Job::ImportPst { account, .. } => emit(
-                sh,
-                Event::Imported {
-                    account,
-                    messages: 0,
-                    skipped: 0,
-                    done: true,
-                    error: Some("opening Outlook data files needs the desktop app".into()),
-                },
-            ),
+            Job::ImportPst { account, .. } => {
+                emit(sh, Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(DESKTOP_PST.into()), report: None })
+            }
+            Job::InspectDataFile { path } => {
+                let facts = Box::new(DataFileFacts { path: path.clone(), error: Some(DESKTOP_PST.into()), ..DataFileFacts::default() });
+                emit(sh, Event::DataFileInspected { path, facts })
+            }
+            // No import runs here to stop.
+            Job::StopImport { .. } => {}
             Job::ExportPst { account, .. } => emit(
                 sh,
                 Event::Exported {

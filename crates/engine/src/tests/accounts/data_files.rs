@@ -34,7 +34,7 @@ fn pop_accounts_download_and_can_start_from_a_data_file() {
         .unwrap()
         .to_string();
     assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { path, .. }] if path == "C:/Mail/old.pst"), "held until the file is in");
-    s.apply(Event::Imported { account: id.clone(), messages: 40, skipped: 0, done: true, error: None });
+    s.apply(Event::Imported { account: id.clone(), messages: 40, skipped: 0, done: true, error: None, report: None });
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.id == id));
     // A file that can't be read: the account stays, and connects anyway.
     let id =
@@ -43,7 +43,14 @@ fn pop_accounts_download_and_can_start_from_a_data_file() {
             .unwrap()
             .to_string();
     s.take_jobs();
-    s.apply(Event::Imported { account: id.clone(), messages: 0, skipped: 0, done: true, error: Some("Outlook has this data file open".into()) });
+    s.apply(Event::Imported {
+        account: id.clone(),
+        messages: 0,
+        skipped: 0,
+        done: true,
+        error: Some("Outlook has this data file open".into()),
+        report: None,
+    });
     assert!(s.account(&id).is_some());
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("Outlook has this data file open")));
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }]));
@@ -59,10 +66,13 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     let a = s.account(&id).unwrap();
     assert_eq!((a.config.name.as_str(), a.config.email.as_str()), ("Archive 2024", "Archive 2024.pst"));
     assert!(a.is_local());
-    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { account, path }] if *account == id && path.ends_with("Archive 2024.pst")));
+    assert!(
+        matches!(s.take_jobs().as_slice(), [Job::ImportPst { account, path, resume: false }] if *account == id && path.ends_with("Archive 2024.pst"))
+    );
 
     // The import reports progress, then its folders, then that it's done: the Inbox opens.
-    s.apply(Event::Imported { account: id.clone(), messages: 200, skipped: 0, done: false, error: None });
+    let progress = mailcraft_model::job::ImportProgress { imported: 200, ..Default::default() };
+    s.apply(Event::ImportProgress { account: id.clone(), progress });
     assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("200")));
     let inbox = mailcraft_model::Folder {
         account: id.clone(),
@@ -81,7 +91,7 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         ..Default::default()
     });
     s.store.clone().unwrap().save_account_doc(&id, mailcraft_model::pim::PIM_DOC, &pim).unwrap();
-    s.apply(Event::Imported { account: id.clone(), messages: 250, skipped: 2, done: true, error: None });
+    s.apply(Event::Imported { account: id.clone(), messages: 250, skipped: 2, done: true, error: None, report: None });
     assert!(s.pim[&id].cards.iter().any(|c| c.card.name == "Ana Lima"));
     assert!(!s.pim[&id].calendars.is_empty(), "with a calendar to add to");
     assert!(s.notices.last().is_some_and(|n| n.text.contains("250 messages imported (2 could not be read)")));
@@ -90,7 +100,14 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
 
     // A file that isn't one: the account goes again.
     let bad = s.run("account.importPst", &json!({"path": "/tmp/notes.txt"})).unwrap()["account"].as_str().unwrap().to_string();
-    s.apply(Event::Imported { account: bad.clone(), messages: 0, skipped: 0, done: true, error: Some("not an Outlook data file".into()) });
+    s.apply(Event::Imported {
+        account: bad.clone(),
+        messages: 0,
+        skipped: 0,
+        done: true,
+        error: Some("not an Outlook data file".into()),
+        report: None,
+    });
     assert!(s.account(&bad).is_none());
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("notes.txt could not be opened")));
 

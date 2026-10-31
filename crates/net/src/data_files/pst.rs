@@ -10,12 +10,13 @@
 //! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
 //! can't be read are skipped and counted, and sizes are capped.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::path::Path;
 use std::rc::Rc;
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
+use mailcraft_model::job::SkipReason;
 use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::{FolderState, Store};
@@ -57,8 +58,9 @@ pub struct Imported {
     pub contacts: usize,
     pub events: usize,
     pub notes: usize,
-    /// Items that couldn't be read or written.
+    /// Items that couldn't be read or written, and how many for each reason.
     pub skipped: usize,
+    pub skips: BTreeMap<SkipReason, usize>,
 }
 
 /// Import the data file at `path` into `account`'s cache (an account with no server). Calls
@@ -71,6 +73,7 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
         states: HashMap::new(),
         imported: 0,
         skipped: 0,
+        skips: BTreeMap::new(),
         progress,
         pim: Pim::default(),
         pending: Vec::new(),
@@ -190,7 +193,7 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
                     Ok(i) => out.add_message(&path, i),
                     Err(e) => {
                         log::info!("a message could not be read: {e}");
-                        out.skipped += 1;
+                        out.skip(SkipReason::MessageUnreadable, 1);
                     }
                 }
             }
@@ -217,7 +220,7 @@ fn read_items(store: &dyn PstStore, folder: &dyn PstFolder, read: &ReadItem<'_>,
             Ok(i) => out.add_pim(i),
             Err(e) => {
                 log::info!("an item could not be read: {e}");
-                out.skipped += 1;
+                out.skip(SkipReason::ItemNotUsable, 1);
             }
         }
     }

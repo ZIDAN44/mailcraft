@@ -116,7 +116,10 @@ impl Session {
                 }
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
-            Event::Imported { account, messages, skipped, done, error } => self.imported(&account, messages, skipped, done, error),
+            Event::ImportProgress { account, progress } => self.import_progress(&account, &progress),
+            Event::Imported { account, messages, skipped, done, error, report: _ } => self.imported(&account, messages, skipped, done, error),
+            // Nothing asks yet: the import's own dialog will.
+            Event::DataFileInspected { .. } => {}
             Event::Exported { account, messages, skipped, already, done, error } => {
                 self.exported(&account, messages, (skipped, already), done, error)
             }

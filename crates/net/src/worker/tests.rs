@@ -86,13 +86,32 @@ fn a_mailcraft_data_file_is_imported() {
     drop(old);
     let store = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
     let mut p = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    p.submit(Job::ImportPst { account: "p1".into(), path: file.to_string_lossy().into_owned() });
+    // Looked at first: what the file system says of it.
+    let path = file.to_string_lossy().into_owned();
+    p.submit(Job::InspectDataFile { path: path.clone() });
+    p.submit(Job::InspectDataFile { path: t.join("gone.pst").to_string_lossy().into_owned() });
+    let end = Instant::now() + Duration::from_secs(20);
+    let mut facts = Vec::new();
+    while Instant::now() < end && facts.len() < 2 {
+        facts.extend(p.wait(Duration::from_millis(100)).into_iter().filter_map(|e| match e {
+            Event::DataFileInspected { facts, .. } => Some(facts),
+            _ => None,
+        }));
+    }
+    let size = std::fs::metadata(&file).unwrap().len();
+    assert!(facts.iter().any(|f| f.path == path && f.kind == "mailcraft" && f.size == size && f.modified > 0 && f.error.is_none()), "{facts:?}");
+    assert!(facts.iter().any(|f| f.path.ends_with("gone.pst") && f.kind == "pst" && f.error.is_some()), "{facts:?}");
+    p.submit(Job::ImportPst { account: "p1".into(), path, resume: false });
     let end = Instant::now() + Duration::from_secs(20);
     let mut seen = Vec::new();
     while Instant::now() < end && !seen.iter().any(|e| matches!(e, Event::Imported { done: true, .. })) {
         seen.extend(p.wait(Duration::from_millis(100)));
     }
     assert!(seen.iter().any(|e| matches!(e, Event::Imported { messages: 1, done: true, error: None, .. })), "{seen:?}");
+    assert!(
+        seen.iter().any(|e| matches!(e, Event::Imported { report: Some(r), .. } if r.messages == 1 && r.runs == 1 && r.skips.is_empty() && !r.data_file.is_empty())),
+        "with what it came to"
+    );
     assert!(seen.iter().any(|e| matches!(e, Event::Folders { folders, .. } if folders.len() == 1)));
     assert_eq!(store.load_folder("p1", "INBOX").unwrap().messages[0].key.account, "p1");
     let _ = std::fs::remove_dir_all(&t);

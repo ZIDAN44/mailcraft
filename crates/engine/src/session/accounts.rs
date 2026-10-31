@@ -146,7 +146,7 @@ impl Session {
         });
         self.save_accounts();
         self.import_started(&id);
-        self.jobs.push(Job::ImportPst { account: id.clone(), path: path.to_string() });
+        self.jobs.push(Job::ImportPst { account: id.clone(), path: path.to_string(), resume: false });
         Ok(serde_json::json!({ "account": id, "importing": true }))
     }
 
@@ -203,8 +203,13 @@ impl Session {
             a.status = SyncStatus::Syncing { folder: String::new() };
         }
         self.import_started(account);
-        self.jobs.push(Job::ImportPst { account: account.to_string(), path: path.to_string() });
+        self.jobs.push(Job::ImportPst { account: account.to_string(), path: path.to_string(), resume: false });
         Ok(serde_json::json!({ "account": account, "importing": true }))
+    }
+
+    /// How an import is going.
+    pub(super) fn import_progress(&mut self, account: &str, p: &mailcraft_model::job::ImportProgress) {
+        self.imported(account, usize::try_from(p.imported).unwrap_or(usize::MAX), 0, false, None);
     }
 
     pub(super) fn imported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {

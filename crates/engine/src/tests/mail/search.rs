@@ -362,7 +362,7 @@ fn an_import_reads_search_words_again_once() {
     s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
     let before = s.list.len();
     assert_eq!(s.index_builds(), 1);
-    s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: false, error: None });
+    s.apply(Event::ImportProgress { account: a.clone(), progress: Default::default() });
     // A message comes into the Inbox as the import goes on.
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder(&a, "INBOX").unwrap();
@@ -381,7 +381,7 @@ fn an_import_reads_search_words_again_once() {
     assert_eq!(s.list.len(), before, "what was found stays found");
     // What came in meanwhile is found by its summary until then.
     assert_eq!(s.run("search.run", &json!({"query": "imported", "scope": "all"})).unwrap()["results"], 1);
-    s.apply(Event::Imported { account: a.clone(), messages: 1, skipped: 0, done: true, error: None });
+    s.apply(Event::Imported { account: a.clone(), messages: 1, skipped: 0, done: true, error: None, report: None });
     assert_eq!(s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap()["results"].as_u64(), Some(before as u64 + 1));
     assert_eq!(s.index_builds(), 2, "read again once, after it");
     s.run("search.run", &json!({"query": "storyboard imported", "scope": "all"})).unwrap();
@@ -396,7 +396,7 @@ fn an_import_reads_search_words_again_once() {
 fn a_search_during_an_import_reads_the_words_once() {
     let mut s = sample_session("search-import-first");
     let a = sample::SAMPLE_ACCOUNT.to_string();
-    s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: false, error: None });
+    s.apply(Event::ImportProgress { account: a.clone(), progress: Default::default() });
     assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 1, "found in a message's text");
     assert_eq!(s.index_builds(), 1);
     let folders: Vec<String> = s.account(&a).unwrap().folders.iter().map(|f| f.path.clone()).collect();
@@ -406,7 +406,7 @@ fn a_search_during_an_import_reads_the_words_once() {
     }
     assert_eq!(s.index_builds(), 1);
     // Nothing came in: the account goes, and its search words with it.
-    s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: true, error: Some("no thread".into()) });
+    s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: true, error: Some("no thread".into()), report: None });
     assert!(s.account(&a).is_none());
     assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 0);
     done(s);
@@ -419,11 +419,11 @@ fn search_survives_junk_events_and_queries() {
     for q in ["from:", "-", "\"", "is:", "larger:x", "from:,,", "-from:zoe -is:unread", "\"unterminated", "category:", "\u{0}\u{ffff}"] {
         let _ = s.run("search.run", &json!({"query": q, "scope": "all"}));
     }
-    s.apply(Event::Imported { account: "nobody".into(), messages: 1, skipped: 0, done: false, error: None });
+    s.apply(Event::ImportProgress { account: "nobody".into(), progress: Default::default() });
     s.apply(Event::FolderChanged { account: "nobody".into(), folder: "INBOX".into() });
     s.apply(Event::FolderChanged { account: sample::SAMPLE_ACCOUNT.into(), folder: "No such folder".into() });
-    s.apply(Event::Imported { account: "nobody".into(), messages: 1, skipped: 0, done: true, error: None });
-    s.apply(Event::Imported { account: sample::SAMPLE_ACCOUNT.into(), messages: 0, skipped: 0, done: true, error: None });
+    s.apply(Event::Imported { account: "nobody".into(), messages: 1, skipped: 0, done: true, error: None, report: None });
+    s.apply(Event::Imported { account: sample::SAMPLE_ACCOUNT.into(), messages: 0, skipped: 0, done: true, error: None, report: None });
     assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 1);
     done(s);
 }

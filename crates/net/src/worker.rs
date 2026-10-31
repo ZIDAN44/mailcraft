@@ -283,7 +283,11 @@ impl Pool {
                     log::warn!("autoconfiguration: {e}");
                 }
             }
-            Job::ImportPst { account, path } => self.import_pst(account, path),
+            // An import starts from the beginning: nothing records where one stopped yet.
+            Job::ImportPst { account, path, resume: _ } => self.import_pst(account, path),
+            Job::InspectDataFile { path } => self.inspect_data_file(path),
+            // An import runs to its end: nothing stops one yet, so there is nothing to answer.
+            Job::StopImport { account, how } => log::info!("import into {account}: can't be stopped yet ({how:?})"),
             // The desktop keeps keys in the system's keychain: nothing to keep unlocked.
             Job::KeepUnlocked { .. } => {}
             j @ (Job::ImportIdentity { .. }

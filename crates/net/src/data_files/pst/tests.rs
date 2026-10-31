@@ -17,6 +17,7 @@ fn notes_come_in_as_notes() {
         states: HashMap::new(),
         imported: 0,
         skipped: 0,
+        skips: BTreeMap::new(),
         progress: &mut progress,
         pim: Pim::default(),
         pending: Vec::new(),
@@ -35,6 +36,7 @@ fn notes_come_in_as_notes() {
     out.add_pim(note("  ", Some(2)));
     let done = out.finish().unwrap();
     assert_eq!((done.notes, done.skipped), (2, 1));
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::ItemNotUsable, 1)], "an empty note isn't an unreadable message");
     let pim: Pim = store.load_account_doc("d1", PIM_DOC).unwrap();
     let n = &pim.notes[0].note;
     assert_eq!((n.text.as_str(), n.color, n.modified), ("Poster\nAsk about 170 gsm", 1, 1_700_000_500));

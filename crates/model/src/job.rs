@@ -144,8 +144,21 @@ pub enum Job {
     /// Ask where MailCraft is published for its recent releases (File › About › Check for
     /// updates); answered by [`Event::Releases`].
     CheckUpdates,
-    /// Read an Outlook data file (`.pst`) into an account with no server.
-    ImportPst { account: String, path: String },
+    /// Read an Outlook data file (`.pst`) into an account with no server; `resume`: go on with an
+    /// import that stopped, from where it stopped. Progress comes as [`Event::ImportProgress`],
+    /// the end as [`Event::Imported`].
+    ImportPst {
+        account: String,
+        path: String,
+        #[serde(default)]
+        resume: bool,
+    },
+    /// Look at a data file before importing it: what it holds, and the room its copy needs.
+    /// Answered by [`Event::DataFileInspected`].
+    InspectDataFile { path: String },
+    /// Stop an account's import, keeping what came in or not as `how` says. Answered by
+    /// [`Event::Imported`].
+    StopImport { account: String, how: StopHow },
     /// Write the account's mail to an Outlook data file, which opens as `name`.
     ExportPst { account: String, path: String, name: String },
     /// Keep the certificate and private key in a `.p12` / `.pfx` file (opened with `password`)
@@ -213,8 +226,10 @@ impl Job {
             | Job::SearchDirectory { account, .. }
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
+            | Job::StopImport { account, .. }
             | Job::ExportPst { account, .. } => account,
             Job::FetchUrl { .. }
+            | Job::InspectDataFile { .. }
             | Job::Discover { .. }
             | Job::WorkOffline { .. }
             | Job::SetSync { .. }
@@ -374,14 +389,27 @@ pub enum Event {
         account: String,
         sync: Box<crate::pim::DavSync>,
     },
-    /// How a data file import is going (`done`: finished, or failed with `error`). The folders
-    /// come as [`Event::Folders`] first.
+    /// How a data file import is going (the newest replaces the ones before).
+    ImportProgress {
+        account: String,
+        progress: ImportProgress,
+    },
+    /// A data file import ended (`done`: finished, stopped, or failed with `error`; an earlier
+    /// version also said how it was going with `done` false). The folders come as
+    /// [`Event::Folders`] first. `report`: what it came to, every loss by its reason.
     Imported {
         account: String,
         messages: usize,
         skipped: usize,
         done: bool,
         error: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        report: Option<Box<ImportReport>>,
+    },
+    /// What [`Job::InspectDataFile`] found (its `error` says why it couldn't look).
+    DataFileInspected {
+        path: String,
+        facts: Box<DataFileFacts>,
     },
     /// How an export to a data file is going (`done`: finished, or failed with `error`).
     Exported {
@@ -480,5 +508,28 @@ mod tests {
         assert_eq!(v["job"], "syncFolder");
         assert_eq!(serde_json::from_value::<Job>(v).unwrap(), j);
         assert_eq!(j.account(), "a1");
+    }
+
+    #[test]
+    fn import_events_read_what_earlier_versions_wrote() {
+        // As an earlier version sent them: no report, no `resume`.
+        let old = r#"{"event":"imported","account":"a1","messages":3,"skipped":1,"done":true,"error":null}"#;
+        let e: Event = serde_json::from_str(old).unwrap();
+        assert_eq!(e, Event::Imported { account: "a1".into(), messages: 3, skipped: 1, done: true, error: None, report: None });
+        assert_eq!(serde_json::to_value(&e).unwrap(), serde_json::from_str::<serde_json::Value>(old).unwrap(), "written as it was");
+        let j: Job = serde_json::from_str(r#"{"job":"importPst","account":"a1","path":"a.pst"}"#).unwrap();
+        assert_eq!(j, Job::ImportPst { account: "a1".into(), path: "a.pst".into(), resume: false });
+
+        // And the new ones round trip.
+        let mut report = ImportReport { messages: 3, runs: 1, ..Default::default() };
+        report.skip(SkipReason::AttachmentTooBig, 2);
+        let e = Event::Imported { account: "a1".into(), messages: 3, skipped: 1, done: true, error: None, report: Some(Box::new(report)) };
+        assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
+        let progress = ImportProgress { phase: ImportPhase::Importing, work: Work { done: 1, total: 9, ..Default::default() }, ..Default::default() };
+        let e = Event::ImportProgress { account: "a1".into(), progress };
+        assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
+        let j = Job::StopImport { account: "a1".into(), how: StopHow::Discard };
+        assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
+        assert_eq!(Job::InspectDataFile { path: "a.pst".into() }.account(), "");
     }
 }
