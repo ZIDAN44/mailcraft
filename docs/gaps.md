@@ -1351,5 +1351,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   refusing one event (403, its roles per classification) no longer stops the calendar sync as a
   wrong password; a 412 or 409 over a meeting SOGo already filed keeps both sides' changes (SOGo
   ignores `If-None-Match: *`, so a new meeting is looked up first), and SOGo's re-stamped
-  invitation can be answered. Open: SOGo emails guests itself when Mailcow leaves that on, so
-  they get MailCraft's invitation and SOGo's.
+  invitation can be answered.
+- **One invitation when the server schedules too:** SOGo and Stalwart say `calendar-auto-schedule`
+  and email guests themselves, so MailCraft's own invitation made two. MailCraft keeps sending
+  (it is the only way outside guests hear on a stock SOGo, and Stalwart doesn't answer for the
+  user): it marks what it stores `SCHEDULE-AGENT=CLIENT` (RFC 6638; SOGo reads the organizer's,
+  Stalwart the guests') and mails once the server holds the change, with the server's SEQUENCE.
+  An answer to a meeting the server delivered is left to the server; Graph sends its own. Counted
+  per mailbox on Mailcow with SOGo's mail on and off, Stalwart, Radicale and an outside domain.
+  Open: changing an answer already given to an outside organizer on a SOGo that mails sends it
+  twice (SOGo ignores every opt-out there; its "Disable e-mail notifications on CalDAV" stops
+  it); a meeting moved into another account's calendar is judged by that account's address;
+  Graph meetings untried on a real tenant.
