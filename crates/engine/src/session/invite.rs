@@ -100,6 +100,18 @@ fn newer(msg: &CalEvent, stored: &CalEvent) -> bool {
     msg.sequence > stored.sequence || (msg.sequence == stored.sequence && msg.dtstamp > stored.dtstamp && stored.dtstamp > 0)
 }
 
+/// Whether a part of a meeting in a message is newer than the version dealt with: than the same
+/// part of it (the series, or the same occurrence), or, for an occurrence it didn't have, than
+/// all of it (an occurrence changed on its own carries a sequence of its own, above the
+/// series'). By `SEQUENCE` only: a copy kept in the calendar is stamped (`DTSTAMP`) when it was
+/// written there, so its stamp says nothing about the organizer's versions.
+fn newer_than(part: &CalEvent, dealt: &[CalEvent]) -> bool {
+    match dealt.iter().find(|d| d.recurrence_id == part.recurrence_id) {
+        Some(d) => part.sequence > d.sequence,
+        None => dealt.iter().map(|d| d.sequence).max().is_some_and(|s| part.sequence > s),
+    }
+}
+
 /// The same version of an event: its `SEQUENCE`, `DTSTAMP` and organizer.
 fn same_version(msg: &CalEvent, stored: &CalEvent) -> bool {
     let organizer = match (&msg.organizer, &stored.organizer) {
@@ -292,7 +304,7 @@ impl Session {
         // The invitation, and its earlier versions in the Inbox, out of the way (issue #31): all
         // of the meeting's for an answer to the series, else those naming only these occurrences.
         let only = (!whole).then_some(answered.as_slice());
-        let moved = self.tidy_meeting_mail(&account, &uid, &["REQUEST"], only, Some(&key));
+        let moved = self.tidy_meeting_mail(&account, &uid, &["REQUEST"], only, &events, Some(&key));
         Ok(serde_json::json!({"answer": stat, "uid": uid, "moved": moved}))
     }
 
@@ -303,10 +315,12 @@ impl Session {
         let me = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
         let mine = self.my_addresses();
         let mut master = None;
+        let mut answered = Vec::new();
         let p = self.pim_mut(&account);
         let mut remote = false;
         for e in p.events.iter_mut().filter(|e| e.event.uid == uid) {
             set_answer(&mut e.event, &mine, &me, stat);
+            answered.push(e.event.clone());
             remote |= e.calendar != LOCAL;
             e.dirty |= e.calendar != LOCAL;
             if e.event.recurrence_id.is_none() {
@@ -321,7 +335,7 @@ impl Session {
             // #31), unless it's the user's own meeting.
             let theirs = m.organizer.as_ref().is_some_and(|o| !mine.contains(&without_mailto(&o.email).to_ascii_lowercase()));
             if theirs {
-                moved = self.tidy_meeting_mail(&account, uid, &["REQUEST"], None, None);
+                moved = self.tidy_meeting_mail(&account, uid, &["REQUEST"], None, &answered, None);
             }
         }
         Ok(serde_json::json!({"answer": stat, "uid": uid, "moved": moved}))
@@ -333,13 +347,15 @@ impl Session {
         let (cal, sender) = self.message_invitation(&key).ok_or_else(|| CmdError::Disabled("this message has no invitation".into()))?;
         let inv = self.invite().ok_or_else(|| CmdError::Disabled("this message has no invitation".into()))?;
         let uid = inv.event.uid.clone();
+        // The version taken in: newer invitations to the meeting stay in the Inbox (issue #31).
+        let taken: Vec<CalEvent> = cal.events.iter().filter(|e| e.uid == uid).cloned().collect();
         let Some(account) = self.stored_parts(&uid).map(|(a, _)| a.to_string()) else {
             return match inv.method.as_str() {
                 "CANCEL" => {
                     // Not in the calendar (never answered, and taken out as it came): taken in all
                     // the same, so out of the way (issue #31).
                     let only = self.cancelled_only(&cal, &uid);
-                    let moved = self.tidy_meeting_mail(&key.account, &uid, &["REQUEST", "CANCEL"], only.as_deref(), Some(&key));
+                    let moved = self.tidy_meeting_mail(&key.account, &uid, &["REQUEST", "CANCEL"], only.as_deref(), &taken, Some(&key));
                     Ok(serde_json::json!({"removed": false, "moved": moved}))
                 }
                 "REPLY" => Err(CmdError::Disabled("the event isn't in your calendar".into())),
@@ -368,7 +384,7 @@ impl Session {
                 self.after_pim_change(&account, remote);
                 // The cancellation, and the meeting's invitations, out of the way (issue #31).
                 let only = self.cancelled_only(&cal, &uid);
-                let moved = self.tidy_meeting_mail(&key.account, &uid, &["REQUEST", "CANCEL"], only.as_deref(), Some(&key));
+                let moved = self.tidy_meeting_mail(&key.account, &uid, &["REQUEST", "CANCEL"], only.as_deref(), &taken, Some(&key));
                 Ok(serde_json::json!({"removed": true, "moved": moved}))
             }
             "REPLY" => {

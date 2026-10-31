@@ -55,9 +55,18 @@ impl Session {
 
     /// Move a meeting's mail out of the way once it's dealt with: the message it was dealt with
     /// in (`also`), and the account's Inbox messages carrying the same meeting (`uid`) with one
-    /// of `methods`, which name only the occurrences in `only` (`None`: any). Returns how many
-    /// moved.
-    pub(super) fn tidy_meeting_mail(&mut self, account: &str, uid: &str, methods: &[&str], only: Option<&[i64]>, also: Option<&MessageKey>) -> usize {
+    /// of `methods`, which name only the occurrences in `only` (`None`: any) and are no newer
+    /// than `upto`, the version dealt with (none: any version): an update not taken in yet (held, or with tentative
+    /// invitations off) stays, to be seen and answered. Returns how many moved.
+    pub(super) fn tidy_meeting_mail(
+        &mut self,
+        account: &str,
+        uid: &str,
+        methods: &[&str],
+        only: Option<&[i64]>,
+        upto: &[CalEvent],
+        also: Option<&MessageKey>,
+    ) -> usize {
         let Some(to) = self.answered_folder(account) else { return 0 };
         let mut keys: Vec<MessageKey> = Vec::new();
         // The message answered, wherever it is (not out of Sent Items, Drafts or the Outbox).
@@ -77,7 +86,7 @@ impl Session {
                 if budget == 0 {
                     break;
                 }
-                if !keys.contains(&k) && self.carries_meeting(&k, uid, methods, only, &mut budget) {
+                if !keys.contains(&k) && self.carries_meeting(&k, uid, methods, only, upto, &mut budget) {
                     keys.push(k);
                 }
             }
@@ -112,8 +121,8 @@ impl Session {
     }
 
     /// Whether a downloaded message carries this meeting with one of these methods, naming only
-    /// the occurrences in `only` (when given).
-    fn carries_meeting(&self, key: &MessageKey, uid: &str, methods: &[&str], only: Option<&[i64]>, budget: &mut usize) -> bool {
+    /// the occurrences in `only` (when given), in no newer version than `upto`.
+    fn carries_meeting(&self, key: &MessageKey, uid: &str, methods: &[&str], only: Option<&[i64]>, upto: &[CalEvent], budget: &mut usize) -> bool {
         // Most mail has no calendar: told from its source without parsing it.
         let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(key)) else { return false };
         *budget = budget.saturating_sub(raw.len());
@@ -125,7 +134,9 @@ impl Session {
             return false;
         }
         let parts: Vec<&CalEvent> = cal.events.iter().filter(|e| e.uid == uid).collect();
-        !parts.is_empty() && only.is_none_or(|only| parts.iter().all(|e| e.recurrence_id.is_some_and(|r| only.contains(&r))))
+        !parts.is_empty()
+            && only.is_none_or(|only| parts.iter().all(|e| e.recurrence_id.is_some_and(|r| only.contains(&r))))
+            && !parts.iter().any(|e| newer_than(e, upto))
     }
 }
 

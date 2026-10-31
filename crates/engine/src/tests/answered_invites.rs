@@ -189,3 +189,39 @@ fn only_the_meetings_own_mail_moves() {
     assert!(has(&mut s, "INBOX", "REQUEST 1") && has(&mut s, "INBOX", "PUBLISH 2"), "a published copy isn't an invitation");
     done(s);
 }
+
+/// An update newer than the version answered (not taken into the calendar: tentative
+/// invitations off here, or held while the account's calendars are found) stays in the Inbox, to
+/// be seen and answered; it isn't moved to Deleted Items with the one answered.
+#[test]
+fn a_newer_update_not_taken_in_stays() {
+    let mut s = sample_session("answered-newer");
+    s.run("calendar.tentativeInvites", &json!({"on": false})).unwrap();
+    let uid = "moved@studio.example";
+    deliver(&mut s, 1, ZOE, "REQUEST", &[CalEvent { start: NOW + 3 * 86_400, end: NOW + 3 * 86_400 + 3600, ..invitation(uid, 1) }], NOW + 60);
+    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation(uid, 0)], NOW);
+    let r = s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    assert_eq!(r["moved"], 1, "only the one answered: {r}");
+    assert!(has(&mut s, "Trash", "REQUEST 2") && has(&mut s, "INBOX", "REQUEST 1"), "the newer update stays");
+    // Answered from the calendar: the update still stays, it isn't what was answered.
+    let r = s.run("event.respond", &json!({"uid": uid, "answer": "tentative"})).unwrap();
+    assert_eq!(r["moved"], 0, "{r}");
+    assert!(has(&mut s, "INBOX", "REQUEST 1"));
+    done(s);
+}
+
+/// The calendar's copy of a meeting is stamped (`DTSTAMP`) when MailCraft writes it to the
+/// server; with the organizer's clock ahead, that's before the invitation's own stamp. It's still
+/// the same version, so answering it from the calendar moves the invitation.
+#[test]
+fn the_calendars_own_stamp_isnt_a_version() {
+    let mut s = sample_session("answered-stamp");
+    let uid = "stamp@studio.example";
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, 0)], NOW + 3600);
+    for e in s.pim.get_mut("sample").unwrap().events.iter_mut().filter(|e| e.event.uid == uid) {
+        e.event.dtstamp = NOW - 60;
+    }
+    let r = s.run("event.respond", &json!({"uid": uid, "answer": "accepted"})).unwrap();
+    assert_eq!(r["moved"], 1, "{r}");
+    done(s);
+}
