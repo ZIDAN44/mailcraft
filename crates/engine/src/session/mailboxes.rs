@@ -169,6 +169,16 @@ impl Session {
         }
     }
 
+    /// The Inbox's high-water mark, from what's kept, once the account's mail has been synced
+    /// in full: an Inbox empty at the first sync never changed, so it had none, and its first
+    /// message was taken for the backlog (not announced, no rules, no invitation taken in).
+    pub(super) fn mark_inbox(&mut self, account: &str) {
+        let Some(inbox) = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()) else { return };
+        if !self.seen_uid.contains_key(&(account.to_string(), inbox.clone())) {
+            self.note_new_mail(account, &inbox);
+        }
+    }
+
     /// New mail to announce since the last call.
     pub fn take_new_mail(&mut self) -> Vec<Summary> {
         std::mem::take(&mut self.new_mail)

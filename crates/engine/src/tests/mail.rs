@@ -466,6 +466,32 @@ fn only_mail_that_arrives_later_is_announced() {
     let _ = std::fs::remove_dir_all(store.root());
 }
 
+/// A new account whose Inbox was empty at its first sync: nothing said the Inbox changed, so
+/// its first message was taken for the backlog (not announced; no rules, no invitation into the
+/// calendar). Synced in full, the empty Inbox is marked.
+#[test]
+fn the_first_message_of_an_empty_inbox_is_new() {
+    let store = temp("notify-empty");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::Online { at: NOW } });
+    let m = mailcraft_model::Summary {
+        key: mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 9, uid: 1 },
+        subject: "first".into(),
+        date: NOW,
+        ..Default::default()
+    };
+    store
+        .save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 2, highest_modseq: 0, messages: vec![m], window: 0 })
+        .unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert_eq!(s.take_new_mail().into_iter().map(|m| m.subject).collect::<Vec<_>>(), ["first"]);
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
 #[test]
 fn recipients_are_suggested_from_mail_seen() {
     let mut s = sample_session("contacts");

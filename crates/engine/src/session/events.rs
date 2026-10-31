@@ -34,6 +34,11 @@ impl Session {
                         self.ask_password.push(account.clone());
                     }
                 }
+                // Its mail synced in full: an Inbox empty until now (so never said to have
+                // changed) is marked, so its first message counts as arriving, not as the backlog.
+                if matches!(status, SyncStatus::Online { .. }) {
+                    self.mark_inbox(&account);
+                }
                 if let Some(a) = self.account_mut(&account) {
                     a.status = status;
                 }
