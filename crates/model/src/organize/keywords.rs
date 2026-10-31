@@ -56,6 +56,8 @@ const SYSTEM: &[&str] = &[
     "Forwarded",
     "Redirected",
     "$Redirected",
+    // Apple Mail's note that it has trained its junk filter on a message.
+    "JunkRecorded",
     // KMail's message states.
     "$Attachment",
     "$Signed",
@@ -240,7 +242,9 @@ mod tests {
 
     #[test]
     fn system_keywords_and_checks() {
-        for k in ["$Forwarded", "$mdnsent", "$Junk", "junk", "NonJunk", "NotJunk", "$SubmitPending", "$MailFlagBit2", "$Pinned", "\\Seen"] {
+        for k in
+            ["$Forwarded", "$mdnsent", "$Junk", "junk", "NonJunk", "NotJunk", "$SubmitPending", "$MailFlagBit2", "$Pinned", "\\Seen", "JunkRecorded"]
+        {
             assert!(is_system_keyword(k), "{k}");
         }
         for k in ["$label1", "$label6", "to=20do", "work", "$Mail"] {

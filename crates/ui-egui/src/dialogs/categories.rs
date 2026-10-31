@@ -93,8 +93,12 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             });
             ui.add_space(6.0);
             ui.label(RichText::new(tl!("Keyword on the server")).small().color(t.dim));
-            // Left empty, one made from the name as Thunderbird makes a tag's: shown as the hint.
-            let made = keywords::new_keyword(name, &s.prefs.categories);
+            // Left empty, one made from the name as Thunderbird makes a tag's (a category being
+            // changed keeps its own): shown as the hint.
+            let made = match editing.as_ref().and_then(|e| s.category(e)) {
+                Some(c) => c.keyword.clone(),
+                None => keywords::new_keyword(name, &s.prefs.categories),
+            };
             ui.add(egui::TextEdit::singleline(keyword).hint_text(made).font(egui::FontId::monospace(13.0)).desired_width(f32::INFINITY));
             let wanted = keyword.trim();
             let bad = !wanted.is_empty() && check_keyword(wanted).is_err();
