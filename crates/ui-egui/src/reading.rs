@@ -34,7 +34,13 @@ pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Actio
     }
     let t = st.tokens;
     if s.reading.is_none() {
-        empty(ui, &t, if s.list.is_empty() { "" } else { tl!("Select a message to read it") });
+        // Several selected: how many, as Outlook's pane says (issue #26).
+        let n = s.selection.len();
+        if n > 1 {
+            empty(ui, &t, &tf!("{n} messages selected", n = n));
+        } else {
+            empty(ui, &t, if s.list.is_empty() { "" } else { tl!("Select a message to read it") });
+        }
         return;
     }
     // A message just opened comes in: fading up from a few pixels below, quickly.

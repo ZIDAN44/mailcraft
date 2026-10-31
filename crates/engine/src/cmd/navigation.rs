@@ -2,6 +2,7 @@
 
 use super::compose::{export_pdf, save_message};
 use super::*;
+use crate::session::Toward;
 
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
@@ -72,8 +73,29 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("list.open", "Open message", "Message list", open_message).params(r#"{"key": "account:validity:uid:folder"}"#),
         CommandSpec::new("list.select", "Select", "Message list", select).params(r#"{"key": string, "add"?: bool}"#),
         CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).key("Mod+A"),
-        CommandSpec::new("list.next", "Next message", "Message list", |s, _| step(s, 1)).key("Down / J"),
-        CommandSpec::new("list.prev", "Previous message", "Message list", |s, _| step(s, -1)).key("Up / K"),
+        CommandSpec::new("list.selectRange", "Select to here", "Message list (Shift+click)", |s, v| {
+            let k = key_param(s, v)?;
+            s.select_range(&k, p::bool(v, "add").unwrap_or(false))
+        })
+        .params(r#"{"key": string (from the anchor to it), "add"?: bool (keep the rest selected: Ctrl+Shift+click)}"#),
+        CommandSpec::new("list.next", "Next message", "Message list", |s, _| s.move_focus(Toward::By(1))).key("Down / J"),
+        CommandSpec::new("list.prev", "Previous message", "Message list", |s, _| s.move_focus(Toward::By(-1))).key("Up / K"),
+        CommandSpec::new("list.first", "First message", "Message list", |s, _| s.move_focus(Toward::First)).key("Home"),
+        CommandSpec::new("list.last", "Last message", "Message list", |s, _| s.move_focus(Toward::Last)).key("End"),
+        CommandSpec::new("list.pageDown", "A page down", "Message list", |s, v| s.move_focus(Toward::By(page(v)))).key("PageDown").params(PAGE),
+        CommandSpec::new("list.pageUp", "A page up", "Message list", |s, v| s.move_focus(Toward::By(-page(v)))).key("PageUp").params(PAGE),
+        // Shift with them: selected from the anchor to where the focus goes (issue #26).
+        CommandSpec::new("list.extendNext", "Select the next message too", "Message list", |s, _| s.extend_selection(Toward::By(1))).key("Shift+Down"),
+        CommandSpec::new("list.extendPrev", "Select the previous message too", "Message list", |s, _| s.extend_selection(Toward::By(-1)))
+            .key("Shift+Up"),
+        CommandSpec::new("list.extendFirst", "Select to the first message", "Message list", |s, _| s.extend_selection(Toward::First)).key("Shift+Home"),
+        CommandSpec::new("list.extendLast", "Select to the last message", "Message list", |s, _| s.extend_selection(Toward::Last)).key("Shift+End"),
+        CommandSpec::new("list.extendPageDown", "Select a page down", "Message list", |s, v| s.extend_selection(Toward::By(page(v))))
+            .key("Shift+PageDown")
+            .params(PAGE),
+        CommandSpec::new("list.extendPageUp", "Select a page up", "Message list", |s, v| s.extend_selection(Toward::By(-page(v))))
+            .key("Shift+PageUp")
+            .params(PAGE),
         CommandSpec::new("list.filter", "Filter", "Message list", filter)
             .params(r#"{"value": "all"|"unread"|"flagged"|"attachments"|"categorized"|"important"|"toMe"}"#),
         CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
@@ -262,13 +284,11 @@ pub(super) fn open_message(s: &mut Session, v: &Value) -> CmdResult {
 pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
     let k = key_param(s, v)?;
     if p::bool(v, "add").unwrap_or(false) {
-        if let Some(i) = s.selection.iter().position(|x| *x == k) {
-            s.selection.remove(i);
-        } else {
-            s.selection.push(k);
-        }
+        s.toggle_selected(&k);
     } else {
-        s.selection = vec![k];
+        s.selection = vec![k.clone()];
+        s.focus = Some(k.clone());
+        s.anchor = Some(k);
     }
     Ok(json!({"selected": s.selection.len()}))
 }
@@ -278,22 +298,11 @@ pub(super) fn select_all(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"selected": s.selection.len()}))
 }
 
-pub(super) fn step(s: &mut Session, dir: i64) -> CmdResult {
-    let rows: Vec<usize> = s.rows().iter().filter_map(|r| if let crate::Row::Message { index, .. } = r { Some(*index) } else { None }).collect();
-    if rows.is_empty() {
-        return Ok(json!({"key": null}));
-    }
-    let cur = s.focus.as_ref().and_then(|k| s.list.iter().position(|m| &m.key == k)).and_then(|i| rows.iter().position(|&r| r == i));
-    let next = match cur {
-        None => 0,
-        Some(c) => {
-            let n = i64::try_from(c).unwrap_or(0).saturating_add(dir).clamp(0, i64::try_from(rows.len()).unwrap_or(1) - 1);
-            usize::try_from(n).unwrap_or(0)
-        }
-    };
-    let Some(key) = rows.get(next).and_then(|&i| s.list.get(i)).map(|m| m.key.clone()) else { return Ok(json!({"key": null})) };
-    s.open_message(&key);
-    Ok(json!({"key": key.to_id()}))
+/// A page of the list's rows (`rows`: as many as it shows; else 10).
+const PAGE: &str = r#"{"rows"?: number (a page: as many rows as the list shows)}"#;
+
+fn page(v: &Value) -> i64 {
+    p::u64(v, "rows").map_or(10, |n| i64::try_from(n.clamp(1, 10_000)).unwrap_or(10))
 }
 
 pub(super) fn filter(s: &mut Session, v: &Value) -> CmdResult {

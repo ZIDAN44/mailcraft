@@ -268,6 +268,8 @@ pub struct UiState {
     pub toast: Option<(String, bool, f64)>,
     seen_notices: usize,
     scroll_to_focus: bool,
+    /// How many message rows the list shows at once: a page, for Page Up and Page Down.
+    list_page: u64,
     /// The named font families the UI uses are registered (`install_fonts`).
     fonts_ready: bool,
     /// The messages being written that have been shown, to focus a new one's first field once.
@@ -406,6 +408,7 @@ impl MailApp {
                 toast: None,
                 seen_notices: seen,
                 scroll_to_focus: false,
+                list_page: 10,
                 fonts_ready: false,
                 compose_shown: Default::default(),
                 editors: HashMap::new(),

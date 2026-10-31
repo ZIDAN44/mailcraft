@@ -34,6 +34,7 @@ mod prefs;
 mod searching;
 mod security;
 mod writing;
+pub use opening::Toward;
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::{SendCheck, signature_block, style_signature};
 // Organizing mail's own parts, named here as before.
@@ -600,6 +601,9 @@ pub struct Session {
     pub threads: Vec<Thread>,
     pub selection: Vec<MessageKey>,
     pub focus: Option<MessageKey>,
+    /// Where a range of selected messages starts (Shift+click, Shift+Down): it stays put while
+    /// `focus`, the other end, moves (issue #26).
+    pub anchor: Option<MessageKey>,
     pub reading: Option<Reading>,
     /// Messages opened in their own windows (double-click), oldest first.
     pub windows: Vec<Reading>,
@@ -730,6 +734,7 @@ impl Session {
             threads: Vec::new(),
             selection: Vec::new(),
             focus: None,
+            anchor: None,
             reading: None,
             windows: Vec::new(),
             compose: None,

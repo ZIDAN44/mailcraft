@@ -188,6 +188,8 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
 
     // After the last message: more on the server, or searching it (issue #4).
     let has_footer = s.more_on_server().is_some() || s.search.is_some();
+    // A page (Page Up, Page Down): the rows shown at once, less one kept in view.
+    st.list_page = ((ui.available_height() / mh.max(1.0)).floor() as u64).saturating_sub(1).max(1);
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("list").show_viewport(ui, |ui, viewport| {
         ui.set_height(total + if has_footer { FOOTER_H } else { 0.0 });
         let origin = ui.min_rect().min;
@@ -476,10 +478,12 @@ fn message_row(
 
     if resp.clicked() && !clicked_action {
         let mods = ui.input(|i| i.modifiers);
-        if mods.command || mods.ctrl {
+        // Shift: from the anchor to here (with Ctrl, added to what's selected); Ctrl: this one in
+        // or out (issue #26).
+        if mods.shift {
+            acts.push(Action::Run("list.selectRange", json!({"key": m.key.to_id(), "add": mods.command || mods.ctrl})));
+        } else if mods.command || mods.ctrl {
             acts.push(Action::Run("list.select", json!({"key": m.key.to_id(), "add": true})));
-        } else if mods.shift {
-            range_select(s, &m.key, acts);
         } else {
             acts.push(Action::Open(m.key.clone()));
         }
@@ -559,22 +563,5 @@ fn message_row(
     // Reply actions need the message open.
     if resp.secondary_clicked() && !s.reading.as_ref().is_some_and(|r| r.key == m.key) {
         acts.push(Action::Open(m.key.clone()));
-    }
-}
-
-fn range_select(s: &Session, to: &MessageKey, acts: &mut Vec<Action>) {
-    let anchor = s.focus.clone().or_else(|| s.selection.first().cloned());
-    let Some(anchor) = anchor else {
-        acts.push(Action::Run("list.select", json!({"key": to.to_id()})));
-        return;
-    };
-    let a = s.list.iter().position(|m| m.key == anchor);
-    let b = s.list.iter().position(|m| &m.key == to);
-    let (Some(a), Some(b)) = (a, b) else { return };
-    let (lo, hi) = (a.min(b), a.max(b));
-    for m in s.list.iter().take(hi + 1).skip(lo) {
-        if !s.selection.contains(&m.key) {
-            acts.push(Action::Run("list.select", json!({"key": m.key.to_id(), "add": true})));
-        }
     }
 }

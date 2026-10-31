@@ -68,6 +68,10 @@ pub(crate) fn tour() {
         a.run("message.popOut", json!({"key": k.to_id()}));
         frame(&ctx, &mut a, vec![]);
         a.run("message.closeWindow", json!({"key": k.to_id()}));
+        // Several selected (issue #26).
+        a.run("list.extendNext", json!({}));
+        frame(&ctx, &mut a, vec![]);
+        a.run("list.open", json!({"key": k.to_id()}));
         backstage_tour(&mut a, &ctx);
         pim_tour(&mut a, &ctx);
         updates::tour(&mut a, &ctx);
@@ -415,6 +419,7 @@ mod pictures;
 mod pim;
 mod reading;
 mod rtl;
+mod selecting;
 mod signatures;
 mod soak;
 mod typing;

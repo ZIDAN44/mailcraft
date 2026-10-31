@@ -1267,3 +1267,4 @@ month	May	maggio
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Messaggi ancora in invio: {n}. Potrebbero non partire se MailCraft si chiude ora: attendi un momento o chiudi comunque.
 	Add meeting invitations to the calendar as tentative when they arrive	Aggiungi gli inviti alle riunioni al calendario come provvisori all'arrivo
 	Before they're answered; nothing is sent until you answer	Prima di rispondere; non viene inviato nulla finché non rispondi
+	{n} messages selected	{n} messaggi selezionati

@@ -114,7 +114,7 @@ impl MailApp {
                     self.ui.search_text.clear();
                 }
                 self.run(id, p);
-                if matches!(id, "list.next" | "list.prev") {
+                if super::keys::moves_focus(id) {
                     self.ui.scroll_to_focus = true;
                 }
             }

@@ -1264,3 +1264,4 @@ month	May	5月
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	送信中のメッセージ: {n}。今 MailCraft を閉じると送信されない場合があります。少し待つか、そのまま閉じてください。
 	Add meeting invitations to the calendar as tentative when they arrive	会議の招待を届いた時点で仮の予定として予定表に追加する
 	Before they're answered; nothing is sent until you answer	返信する前に追加されます。返信するまで何も送信されません
+	{n} messages selected	{n} 件のメッセージを選択中

@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod selecting;
+pub use selecting::Toward;
+
 impl Session {
     pub fn open_view(&mut self, view: View) {
         self.view = view;
@@ -10,6 +13,7 @@ impl Session {
         self.index = None;
         self.selection.clear();
         self.focus = None;
+        self.anchor = None;
         self.reading = None;
         self.leave_reading(None);
         self.refresh_list();
@@ -59,6 +63,7 @@ impl Session {
         self.leave_reading(Some(key));
         self.selection = vec![key.clone()];
         self.focus = Some(key.clone());
+        self.anchor = Some(key.clone());
         let thread = self.thread_of(key);
         self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread, warning: None, security: None, text_first: false });
         let cached = if key.folder == OUTBOX {

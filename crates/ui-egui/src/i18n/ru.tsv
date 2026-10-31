@@ -1267,3 +1267,4 @@ month	May	Май
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Сообщения, которые ещё отправляются: {n}. Они могут не уйти, если закрыть MailCraft сейчас: подождите немного или всё равно закройте.
 	Add meeting invitations to the calendar as tentative when they arrive	Добавлять приглашения на встречи в календарь как предварительные при получении
 	Before they're answered; nothing is sent until you answer	До ответа на них; ничего не отправляется, пока вы не ответите
+	{n} messages selected	Выбрано писем: {n}

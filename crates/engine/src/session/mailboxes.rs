@@ -347,6 +347,9 @@ impl Session {
         if self.focus.as_ref().is_some_and(|k| !alive.contains(k)) {
             self.focus = None;
         }
+        if self.anchor.as_ref().is_some_and(|k| !alive.contains(k)) {
+            self.anchor = None;
+        }
         if let Some(r) = &self.reading
             && !alive.contains(&r.key)
             && self.search.is_none()
