@@ -414,3 +414,77 @@ fn threads_opening_a_data_file_together_all_get_it() {
         let _ = std::fs::remove_dir_all(&t);
     }
 }
+
+/// Listing a real data file's mail, timed (counts and timings only): `MC_DATA` names a copy of a
+/// data folder (opening a data file may write to it, so never the original), its data files in
+/// "MailCraft Files".
+#[test]
+#[ignore = "needs a copy of a real data folder in MC_DATA"]
+fn a_real_data_files_mail_is_listed_quickly() {
+    let Some(root) = std::env::var_os("MC_DATA").map(std::path::PathBuf::from) else { return };
+    let s = Store::open_packed(&root, root.join("MailCraft Files")).unwrap();
+    for a in s.load_accounts().unwrap() {
+        let (mut folders, mut bodies, mut names) = (0usize, 0usize, 0usize);
+        let (mut listing, mut listing_folders) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
+        for f in s.load_folders(&a.id).unwrap() {
+            let validity = s.load_folder(&a.id, &f.path).unwrap().validity;
+            let t = std::time::Instant::now();
+            bodies += s.cached_bodies(&a.id, &f.path, validity).len();
+            listing += t.elapsed();
+            let t = std::time::Instant::now();
+            names += s.files.list(&s.folder_dir(&a.id, &f.path)).len();
+            listing_folders += t.elapsed();
+            folders += 1;
+        }
+        eprintln!("{folders} folders: cached_bodies {bodies} in {listing:?}; folder files {names} in {listing_folders:?}");
+    }
+}
+
+/// A folder's files are listed by key alone: the folders inside it are passed over in one step
+/// each, not walked message by message (a mail folder's list beside thousands of messages read
+/// them all), and the names come out as they did, cached mail included.
+#[test]
+fn a_folder_is_listed_without_walking_what_is_inside_it() {
+    let t = temp("children");
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let key = |validity: u32, uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity, uid };
+    let mut bodies: Vec<(MessageKey, Vec<u8>)> = (1..=2000).map(|uid| (key(7, uid), b"Subject: x\r\n\r\nx".to_vec())).collect();
+    bodies.push((key(70, 1), b"Subject: y\r\n\r\ny".to_vec()));
+    s.write_bodies(&bodies).unwrap();
+    let st = crate::FolderState { validity: 7, ..Default::default() };
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let dir = s.folder_dir("a1", "INBOX");
+    // Names beside the folders that sort before, between and after them.
+    for name in ["7.json", "6-x.json", "70.json", "8.json"] {
+        s.files.write(&dir.join(name), b"{}").unwrap();
+    }
+    s.files.write(&dir.join("7").join("deeper").join("1.eml"), b"z").unwrap();
+
+    let mut names: Vec<String> = s
+        .files
+        .list(&dir)
+        .into_iter()
+        .map(|(n, p)| {
+            assert_eq!(p, dir.join(&n));
+            n
+        })
+        .collect();
+    names.sort();
+    assert_eq!(names, ["6-x.json", "7.json", "70.json", "8.json", "state.json"]);
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let inside = dir.strip_prefix(t.join("app").join("a1")).unwrap().to_str().unwrap().to_string();
+    let (_, looked) = packs.children("a1", &inside).unwrap();
+    // The five files, the two folders and the key after the last one: not the 2,002 inside.
+    assert!(looked <= 8, "looked at {looked} keys");
+    let mut cached = s.cached_bodies("a1", "INBOX", 7);
+    cached.sort_unstable();
+    assert_eq!(cached, (1..=2000).collect::<Vec<u32>>(), "only the messages, not the folder inside");
+    assert_eq!(s.cached_bodies("a1", "INBOX", 70), [1]);
+    assert!(s.cached_bodies("a1", "INBOX", 9).is_empty() && s.cached_bodies("a1", "Other", 7).is_empty());
+    // The account's own files: its folders aren't walked either.
+    let (top, looked) = packs.children("a1", "").unwrap();
+    assert!(top.is_empty() && looked <= 3, "{top:?} {looked}");
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}

@@ -186,6 +186,40 @@ impl Packs {
         }
     }
 
+    /// The names of the files directly in `prefix` (a folder: `""` for the account's own), by key
+    /// alone: what they hold isn't read, and a folder inside is passed over in one step, not
+    /// walked file by file (a mail folder's list beside its messages took reading them all).
+    /// Also how many keys it looked at.
+    fn children(&self, account: &str, prefix: &str) -> io::Result<(Vec<String>, usize)> {
+        let Some(db) = self.db(account, false)? else { return Ok((Vec::new(), 0)) };
+        let tx = db.begin_read().map_err(other)?;
+        let table = match tx.open_table(FILES) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok((Vec::new(), 0)),
+            Err(e) => return Err(other(e)),
+        };
+        let start = if prefix.is_empty() { String::new() } else { format!("{prefix}/") };
+        let (mut out, mut looked) = (Vec::new(), 0usize);
+        let mut from = start.clone();
+        'seek: loop {
+            for item in table.range(from.as_str()..).map_err(other)? {
+                let (k, _) = item.map_err(other)?;
+                looked = looked.saturating_add(1);
+                let Some(name) = k.value().strip_prefix(start.as_str()) else { break 'seek };
+                match name.split_once('/') {
+                    None => out.push(name.to_string()),
+                    // A folder: on past everything in it ('0' comes right after '/').
+                    Some((inner, _)) => {
+                        from = format!("{start}{inner}0");
+                        continue 'seek;
+                    }
+                }
+            }
+            break;
+        }
+        Ok((out, looked))
+    }
+
     /// Keys under `prefix` (a folder: `""` for the account's own), with their sizes.
     fn keys(&self, account: &str, prefix: &str) -> io::Result<Vec<(String, u64)>> {
         let Some(db) = self.db(account, false)? else { return Ok(Vec::new()) };
@@ -368,15 +402,7 @@ impl Packs {
                     .collect();
             }
         };
-        let start = if k.is_empty() { String::new() } else { format!("{k}/") };
-        self.keys(&a, &k)
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|(key, _)| {
-                let name = key.strip_prefix(&start)?;
-                (!name.contains('/')).then(|| (name.to_string(), dir.join(name)))
-            })
-            .collect()
+        self.children(&a, &k).map(|(names, _)| names).unwrap_or_default().into_iter().map(|name| (name.clone(), dir.join(name))).collect()
     }
 
     /// Every file under a folder (an account's: all of its data file), at any depth.
