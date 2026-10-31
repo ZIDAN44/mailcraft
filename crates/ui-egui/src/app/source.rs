@@ -37,7 +37,9 @@ impl MailApp {
                 egui::Panel::top(egui::Id::unique(("source-window-bar", key.to_id())))
                     .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 6)).stroke(egui::Stroke::new(1.0, t.border)))
                     .show(ui, |ui| {
-                        ui.horizontal(|ui| {
+                        // From the side the interface's text starts on (the right in Arabic).
+                        let bar = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
+                        ui.allocate_ui_with_layout(bar, crate::bidi::row_from_start(Align::Center), |ui| {
                             for (only, label) in [(false, tl!("Whole message")), (true, tl!("Header only"))] {
                                 if ui.selectable_label(header_only == only, label).clicked() {
                                     if only {
@@ -57,7 +59,7 @@ impl MailApp {
                             }
                             // Drawn inside the page (the browser), the window has no title bar.
                             if ui.ctx().embed_viewports() {
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                ui.with_layout(crate::bidi::row_from_end(Align::Center), |ui| {
                                     if widgets::tool_button(ui, Icon::Close, "Close", &t, true).clicked() {
                                         closing = true;
                                     }
@@ -90,26 +92,33 @@ impl MailApp {
     }
 }
 
-/// The source's lines (or its header's), only those in view laid out.
-fn source_text(ui: &mut Ui, t: &Tokens, v: &mailcraft_engine::SourceView, header_only: bool) {
+/// The source's lines (or its header's), only those in view laid out (which, returned).
+pub(crate) fn source_text(ui: &mut Ui, t: &Tokens, v: &mailcraft_engine::SourceView, header_only: bool) -> std::ops::Range<usize> {
     if let Some(e) = &v.error {
         ui.label(RichText::new(tf!("The source couldn't be downloaded: {error}", error = e)).color(t.danger));
-        return;
+        return 0..0;
     }
     if v.pending {
         ui.horizontal(|ui| {
             ui.add(egui::Spinner::new().size(14.0));
             ui.label(RichText::new(tl!("Downloading the message…")).color(t.dim));
         });
-        return;
+        return 0..0;
     }
     let n = if header_only { v.header_lines.min(v.lines.len()) } else { v.lines.len() };
     let font = egui::FontId::monospace(12.5);
     let row = ui.fonts_mut(|f| f.row_height(&font));
-    egui::ScrollArea::both().auto_shrink(false).id_salt(("source", v.key.to_id())).show_rows(ui, row, n, |ui, rows| {
-        ui.spacing_mut().item_spacing.y = 0.0;
-        for line in v.lines.get(rows).unwrap_or_default() {
-            ui.add(egui::Label::new(RichText::new(line).font(font.clone()).color(t.text)).wrap_mode(egui::TextWrapMode::Extend).selectable(true));
-        }
-    });
+    // The lines touch: set before the rows are counted, which reckons a row with the spacing
+    // under it (set inside, the window's lower part stayed empty).
+    ui.spacing_mut().item_spacing.y = 0.0;
+    egui::ScrollArea::both()
+        .auto_shrink(false)
+        .id_salt(("source", v.key.to_id()))
+        .show_rows(ui, row, n, |ui, rows| {
+            for line in v.lines.get(rows.clone()).unwrap_or_default() {
+                ui.add(egui::Label::new(RichText::new(line).font(font.clone()).color(t.text)).wrap_mode(egui::TextWrapMode::Extend).selectable(true));
+            }
+            rows.start..rows.end.min(n)
+        })
+        .inner
 }

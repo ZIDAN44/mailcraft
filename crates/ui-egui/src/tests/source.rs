@@ -76,3 +76,29 @@ fn a_huge_source_draws_quickly() {
     assert!(opened.as_secs() < 5 && drawn.as_secs() < 20, "{opened:?} {drawn:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The window is filled with lines to its foot: the rows laid out are counted at the height
+/// they're drawn at (they were counted with the spacing under each, which the lines don't
+/// have, and the window's lower third stayed empty).
+#[test]
+fn a_source_fills_its_window() {
+    let v =
+        mailcraft_engine::SourceView { lines: (0..400).map(|i| format!("Line {i}")).collect(), header_lines: 3, size: 4000, ..Default::default() };
+    let t = crate::theme::Tokens::light();
+    let ctx = egui::Context::default();
+    let height = 600.0;
+    let mut shown = 0..0;
+    let mut row = 0.0;
+    for _ in 0..2 {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, height))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default().frame(egui::Frame::new()).show(ui, |ui| {
+                row = ui.fonts_mut(|f| f.row_height(&egui::FontId::monospace(12.5)));
+                shown = crate::app::source::source_text(ui, &t, &v, false);
+            });
+        });
+        out.textures_delta.clear();
+    }
+    assert_eq!(shown.start, 0);
+    assert!(shown.len() as f32 * row >= height - row, "{} lines of {row} in {height}", shown.len());
+}
