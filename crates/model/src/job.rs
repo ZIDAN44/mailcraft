@@ -9,11 +9,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AccountConfig, Folder, MessageKey};
 
+pub mod eta;
+mod import;
 mod keys;
 mod op;
+pub mod progress;
 mod vacation;
+pub use eta::Eta;
+pub use import::*;
 pub use keys::{HeldKey, Revocation};
 pub use op::Op;
+pub use progress::Work;
 pub use vacation::{Vacation, is_day};
 
 /// A password in transit. Its `Debug` form is redacted so it never reaches a log.

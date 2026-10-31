@@ -1,6 +1,7 @@
 //! Round trips that must hold for any input, not only the examples the unit tests pick:
 //! what MailCraft writes it reads back the same.
 
+use mailcraft_model::job::{Eta, ImportProgress, Work, eta};
 use mailcraft_model::search::{Advanced, Query};
 use mailcraft_model::vcard::{self, Card, PostalAddress, Typed};
 use mailcraft_model::{EmailAddress, ical, lookalike, utf7};
@@ -141,5 +142,33 @@ proptest! {
         prop_assert_eq!(people.check(&from, false).is_some(), key.is_some());
         let _ = people.check(&EmailAddress::new(junk.clone(), junk.clone()), false);
         let _ = lookalike::name_key(&junk);
+    }
+
+    /// Whatever an import reports (times that go on, work that never goes back, totals up to
+    /// the limit and past it), the time left is unknown or 1 s to the most ever said, and the
+    /// share done never goes back nor reaches the end.
+    #[test]
+    fn an_import_estimate_stays_in_range(
+        steps in prop::collection::vec((0u64..5_000, any::<u64>(), 0u64..3_000), 1..60),
+        total in prop_oneof![Just(0u64), Just(u64::MAX), any::<u64>(), 1u64..1_000_000],
+        bytes_total in prop_oneof![Just(0u64), Just(u64::MAX), any::<u64>()],
+    ) {
+        let mut eta = Eta::default();
+        let mut p = ImportProgress { work: Work { total, bytes_total, ..Default::default() }, ..Default::default() };
+        let (mut now, mut last) = (0u64, None);
+        for (dt, more, ui_dt) in steps {
+            p.run_ms = p.run_ms.saturating_add(dt);
+            p.work.done = p.work.done.saturating_add(more % 1_000);
+            p.work.bytes_done = p.work.bytes_done.saturating_add(more);
+            now = now.saturating_add(ui_dt);
+            eta.update(&p, now);
+            for at in [now, now.saturating_add(10_000), now.saturating_add(40_000)] {
+                prop_assert!(eta.remaining_s(at).is_none_or(|s| (1..=eta::MAX_S).contains(&s)));
+            }
+            let permille = p.permille();
+            prop_assert!(permille.is_none_or(|m| m <= 999));
+            prop_assert!(last <= permille, "{last:?} then {permille:?}");
+            last = permille;
+        }
     }
 }
