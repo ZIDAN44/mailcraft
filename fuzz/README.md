@@ -30,7 +30,8 @@ cargo +nightly fuzz run -O imap corpus/imap seeds/imap -- -dict=dicts/imap.dict 
 ```
 
 `seeds/` holds a hand-written valid input per target and `dicts/` the protocol's keywords, both
-to get the fuzzer past the first line quickly; `corpus/` and `artifacts/` stay out of git. A
+to get the fuzzer past the first line quickly; a new target needs both (`cargo xtask fuzz`, part
+of `cargo xtask ci`, checks). `corpus/` and `artifacts/` stay out of git. A
 crash leaves its input in `artifacts/<target>/`: replay it with
 `cargo +nightly fuzz run -O <target> <file>`, fix the code, and add the input to a regression test
 next to the code (never only to the corpus).

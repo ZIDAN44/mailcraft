@@ -3,6 +3,7 @@
 //! Pure Rust (std, serde_json, png). External tools (`cargo`, `git`) run through
 //! `std::process::Command`.
 
+mod fuzz;
 mod ico;
 mod icons;
 mod sizes;
@@ -17,9 +18,10 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
-  ci       fmt --check, sizes, clippy -D warnings, tests, layers, assets, wasm (stops at the first failure)
+  ci       fmt --check, sizes, clippy -D warnings, tests, layers, assets, fuzz, wasm (stops at the first failure)
   layers   enforce the crate layering (docs/architecture.md)
   assets   check that every asset file is attributed in ATTRIBUTION.md
+  fuzz     check that every fuzz target has its seeds and dictionary (fuzz/README.md)
   sizes    files stay under 1000 lines and folders under 16 Rust files (xtask/sizes.txt holds
            what was over then, which may shrink but never grow); `sizes --update` lowers it
   wasm     cargo check --target wasm32-unknown-unknown for the portable crates and the web app
@@ -193,6 +195,7 @@ fn cmd_ci() -> Result<(), String> {
     run(test, "cargo test")?;
     cmd_layers()?;
     cmd_assets()?;
+    fuzz::run(&root())?;
     cmd_wasm()
 }
 
@@ -202,6 +205,7 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("layers") => cmd_layers(),
         Some("assets") => cmd_assets(),
+        Some("fuzz") => fuzz::run(&root()),
         Some("sizes") => sizes::run(&root(), &args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),
         Some("wasm") => cmd_wasm(),
         Some("icons") => icons::run(&root()),
