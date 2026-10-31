@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.31 — Signatures for replies, several messages by keyboard, the message source, the sender check, shared categories, private events, invitations on the server, online meetings (2026-10-31). Each milestone below is a version: v0.1 was
+**Stage:** v0.32 — Pictures open without asking (2026-10-31). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -218,7 +218,8 @@ local-first, media-aware v1); the fuller request is
    issue #32: Private, Show time only and Show as. From issue #33: search across every
    calendar. From issue #25: online meetings from the user's own rooms (BigBlueButton,
    Jitsi, OpenTalk…), CONFERENCE read and written, the hosts of Join meeting set by the user.
-32. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+32. **v0.32 — Pictures open without asking**
+33. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 

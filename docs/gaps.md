@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.31, 2026-10-31._
+_Status: v0.32, 2026-10-31._
 
 ## Open
 
@@ -1363,3 +1363,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   twice (SOGo ignores every opt-out there; its "Disable e-mail notifications on CalDAV" stops
   it); a meeting moved into another account's calendar is judged by that account's address;
   Graph meetings untried on a real tenant.
+- **The weekly fuzz run, running:** it had never fuzzed anything (`cargo-fuzz` as installed is a
+  musl build and built the targets for musl, where the address sanitizer can't link). Running,
+  it found a photo whose place a second pass still took out (a second GPS pointer, or an offset
+  the wiping itself changed), now gone in one pass; and the signature target, which had no
+  dictionary. `cargo xtask fuzz` checks every target has its seeds and dictionary.
+
+### v0.32 — Pictures open without asking
+
+- **Opened pictures:** every attachment opened or saved on Windows carried the mark that it came
+  from the internet, and Windows' Photos now asks "Is this file from a trusted source?" before
+  every picture with it. A picture whose bytes are the picture its name says, and plain text,
+  aren't marked any more; Office files, PDFs, web pages, SVG, archives and programs keep it (so
+  SmartScreen, Protected View and Office's block on internet macros still apply). Tried on
+  Windows 11: Photos asked for PNG and WebP with the mark and not without; Media Player (MP3,
+  MP4) and Notepad don't ask either way, so those keep it.
