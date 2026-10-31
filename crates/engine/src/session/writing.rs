@@ -24,7 +24,96 @@ pub enum SendCheck {
     Exposed { count: usize },
 }
 
+/// A message being written.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Compose {
+    pub id: u64,
+    pub account: String,
+    /// The signature in the text as it was put there (`-- ` and the signature): replaced when
+    /// another goes in, while it's still there unchanged.
+    #[serde(default)]
+    pub signature: String,
+    /// That signature's name, its HTML code (sent in its place while it's there as it was) and
+    /// the tag of its pictures' `cid:`s.
+    #[serde(default)]
+    pub signature_name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub signature_code: String,
+    #[serde(default)]
+    pub signature_tag: String,
+    pub to: String,
+    pub cc: String,
+    pub bcc: String,
+    pub subject: String,
+    pub body: String,
+    pub attachments: Vec<OutAttachment>,
+    pub in_reply_to: String,
+    pub references: Vec<String>,
+    pub mode: Option<ReplyMode>,
+    /// The message replied to or forwarded (it gets `\Answered` / `$Forwarded` once sent).
+    pub source: Option<MessageKey>,
+    pub sending: bool,
+    pub error: Option<String>,
+    /// The copy saved in Drafts, replaced on the next save.
+    pub draft: Option<MessageKey>,
+    /// The Bcc row is shown.
+    pub show_cc: bool,
+    /// Send as plain text only (lists written out, the rest of the formatting dropped).
+    #[serde(default)]
+    pub plain: bool,
+    /// The pictures placed in the text (each where a [`mime::rich::PICTURE`] stands).
+    #[serde(default)]
+    pub inline: Vec<mime::InlinePicture>,
+    /// How the text looks: a style for each character and paragraph.
+    #[serde(default)]
+    pub styles: mime::rich::Styles,
+    /// Written in a window of its own rather than the reading pane.
+    #[serde(default)]
+    pub window: bool,
+    /// High (1) or low (-1) importance.
+    #[serde(default)]
+    pub importance: i8,
+    /// Ask the recipients for a read receipt.
+    #[serde(default)]
+    pub read_receipt: bool,
+    /// Where replies go, when not to the sender (Outlook's "Have replies sent to").
+    #[serde(default)]
+    pub reply_to: String,
+    /// Hold it in the Outbox until then (Unix seconds): Outlook's Delay Delivery.
+    #[serde(default)]
+    pub send_after: Option<i64>,
+    /// The Replies to row is shown.
+    #[serde(default)]
+    pub show_reply_to: bool,
+    /// S/MIME: signed, and encrypted to its recipients, as it's sent.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sign: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub encrypt: bool,
+}
+
 impl Compose {
+    /// The text, HTML and pictures to send: formatted when the text uses formatting or has
+    /// pictures (and the message isn't set to plain text), else plain text alone.
+    pub fn bodies(&self) -> (String, Option<String>, Vec<mime::InlinePicture>) {
+        let mut styles = self.styles.clone();
+        styles.fit(&self.body);
+        let used = mime::rich::pictures(&self.body, &styles);
+        let pictures: Vec<mime::InlinePicture> = self.inline.iter().filter(|p| used.contains(&p.cid)).cloned().collect();
+        let text = mime::rich::to_text(&self.body, &styles);
+        if self.plain || (styles.is_plain() && pictures.is_empty()) {
+            (text, None, Vec::new())
+        } else {
+            (text, Some(mime::rich::to_html(&self.body, &styles)), pictures)
+        }
+    }
+
+    /// Set the text (and forget its formatting).
+    pub fn set_text(&mut self, text: String) {
+        self.styles = mime::rich::Styles::plain(&text);
+        self.body = text;
+    }
+
     /// [`Compose::bodies`], with the signature's `code` in the HTML where the signature
     /// stands (issue #11: a business card in columns, which the text can't hold), as long as it
     /// stands there as it was put in; the text keeps the signature's text. Its pictures go with

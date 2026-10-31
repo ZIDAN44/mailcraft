@@ -2,6 +2,10 @@
 
 use super::*;
 
+mod rows;
+pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
+use rows::{person, size_group};
+
 impl Session {
     pub fn account(&self, id: &str) -> Option<&AccountState> {
         self.accounts.iter().find(|a| a.config.id == id)

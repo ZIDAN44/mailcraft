@@ -2,7 +2,63 @@
 
 use super::*;
 
+/// A local account with more messages than this keeps the counts it saved when it opens, rather
+/// than reading every folder to count them.
+const RECOUNT_MAX: u64 = 50_000;
+
 impl Session {
+    /// The accounts the cache keeps, with their folders. Remote ones get a `Start` job (password
+    /// from the keychain); local ones are counted again, unless big; what's already cached isn't new.
+    pub(super) fn load_accounts(&mut self) {
+        if let Some(store) = &self.store {
+            let accounts = store.load_accounts().unwrap_or_else(|e| {
+                log::warn!("accounts: {e}");
+                Vec::new()
+            });
+            for mut config in accounts {
+                config.migrate_signature();
+                // Online only: held in memory from the start (anything left on disk goes).
+                if config.keeps_online()
+                    && let Err(e) = store.set_online_only(&config.id, true)
+                {
+                    log::warn!("{}: couldn't be kept online only: {e}", config.id);
+                }
+                let mut folders = store.load_folders(&config.id).unwrap_or_default();
+                // A folder belongs to the account it's kept with (a data file brought in from
+                // another account once kept that one's name).
+                for f in &mut folders {
+                    if f.account != config.id {
+                        f.account.clone_from(&config.id);
+                    }
+                }
+                sort_folders(&mut folders);
+                self.accounts.push(AccountState { config, folders, status: SyncStatus::Offline, quota: None, vacation: VacationState::Unknown });
+            }
+        }
+        let mut local = Vec::new();
+        for a in &self.accounts {
+            if a.is_local() {
+                local.push(a.config.id.clone());
+            } else {
+                self.jobs.push(Job::Start { account: a.config.clone(), password: None });
+            }
+        }
+        // Counted again on opening, unless big: a big data file's counts were kept as it came in
+        // and with every change since (counting meant reading its every folder's list).
+        for id in local {
+            let kept: u64 = self.account(&id).map(|a| a.folders.iter().map(|f| u64::from(f.total)).sum()).unwrap_or(0);
+            if kept <= RECOUNT_MAX {
+                self.recount_local(&id, None);
+            }
+        }
+        // What's already cached isn't new.
+        let inboxes: Vec<(String, String)> =
+            self.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone()))).collect();
+        for (a, f) in inboxes {
+            self.note_new_mail(&a, &f);
+        }
+    }
+
     /// Add an account (the password goes to the keychain through the `Start` job).
     pub fn add_account(&mut self, mut config: AccountConfig, password: Option<String>) -> Result<String, CmdError> {
         config.email = config.email.trim().to_string();

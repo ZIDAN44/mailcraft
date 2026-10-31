@@ -38,7 +38,9 @@ mod writing;
 pub(crate) use opening::source_lines;
 pub use opening::{SOURCE_SHOWN, SourceView, Toward};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
-pub use writing::{SendCheck, signature_parts};
+pub use writing::{Compose, SendCheck, signature_parts};
+// The message list's arrangement and rows, named here as before.
+pub use mailboxes::{ARRANGE_HEADINGS, Arrange, Row};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders};
@@ -295,60 +297,6 @@ pub struct PaneSection {
     pub mailbox: Option<String>,
 }
 
-/// What the message list is sorted and grouped by.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Arrange {
-    /// Newest first, under Today, Yesterday… (conversations, when on, apply here).
-    #[default]
-    Date,
-    /// By sender, A to Z.
-    From,
-    /// By the first recipient, A to Z.
-    To,
-    /// By subject (without Re:, Fwd:…), A to Z.
-    Subject,
-    /// Largest first, under size ranges.
-    Size,
-    /// Flagged first.
-    Flag,
-    /// With attachments first.
-    Attachments,
-}
-
-impl Arrange {
-    pub const ALL: [Arrange; 7] = [Arrange::Date, Arrange::From, Arrange::To, Arrange::Subject, Arrange::Size, Arrange::Flag, Arrange::Attachments];
-
-    pub fn code(self) -> &'static str {
-        match self {
-            Arrange::Date => "date",
-            Arrange::From => "from",
-            Arrange::To => "to",
-            Arrange::Subject => "subject",
-            Arrange::Size => "size",
-            Arrange::Flag => "flag",
-            Arrange::Attachments => "attachments",
-        }
-    }
-
-    pub fn from_code(s: &str) -> Option<Arrange> {
-        Arrange::ALL.into_iter().find(|a| a.code() == s)
-    }
-
-    /// The name shown in the View tab and above the list.
-    pub fn label(self) -> &'static str {
-        match self {
-            Arrange::Date => "Date",
-            Arrange::From => "From",
-            Arrange::To => "To",
-            Arrange::Subject => "Subject",
-            Arrange::Size => "Size",
-            Arrange::Flag => "Flag status",
-            Arrange::Attachments => "Attachments",
-        }
-    }
-}
-
 /// A change the user made that Undo can put back.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Undo {
@@ -362,77 +310,11 @@ pub enum Undo {
 /// Changes Undo remembers.
 const UNDO_DEPTH: usize = 20;
 
-/// Who a message is shown under: a name, else the address, else nothing.
-fn person(a: Option<&mailcraft_model::EmailAddress>) -> String {
-    a.map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }).unwrap_or_default()
-}
-
-/// The fixed headings an arranged list shows (for translations).
-pub const ARRANGE_HEADINGS: [&str; 13] = [
-    "Under 10 KB",
-    "10 to 25 KB",
-    "25 to 100 KB",
-    "100 to 500 KB",
-    "500 KB to 1 MB",
-    "1 to 5 MB",
-    "Over 5 MB",
-    "Flagged",
-    "Not flagged",
-    "With attachments",
-    "Without attachments",
-    "(no subject)",
-    "(nobody)",
-];
-
-/// The size range a message is shown under.
-fn size_group(size: u32) -> &'static str {
-    match size {
-        0..10_240 => "Under 10 KB",
-        10_240..25_600 => "10 to 25 KB",
-        25_600..102_400 => "25 to 100 KB",
-        102_400..512_000 => "100 to 500 KB",
-        512_000..1_048_576 => "500 KB to 1 MB",
-        1_048_576..5_242_880 => "1 to 5 MB",
-        _ => "Over 5 MB",
-    }
-}
-
-/// Sort a list as `arrange` says (each one's natural order; `reverse` the other way), newest
-/// first among equals.
-pub fn arrange_list(list: &mut [Summary], arrange: Arrange, reverse: bool) {
-    let text = |s: String| s.to_lowercase();
-    list.sort_by(|a, b| {
-        let primary = match arrange {
-            Arrange::Date => b.date.cmp(&a.date),
-            Arrange::From => text(person(Some(&a.from))).cmp(&text(person(Some(&b.from)))),
-            Arrange::To => text(person(a.to.first())).cmp(&text(person(b.to.first()))),
-            Arrange::Subject => text(a.base_subject()).cmp(&text(b.base_subject())),
-            Arrange::Size => b.size.cmp(&a.size),
-            Arrange::Flag => b.flags.flagged.cmp(&a.flags.flagged),
-            Arrange::Attachments => b.has_attachments.cmp(&a.has_attachments),
-        };
-        let primary = if reverse { primary.reverse() } else { primary };
-        primary.then_with(|| b.date.cmp(&a.date)).then_with(|| b.key.cmp(&a.key))
-    });
-}
-
 /// A folder of an account, by path.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FolderRef {
     pub account: String,
     pub folder: String,
-}
-
-/// A line in the message list.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Row {
-    /// A date heading (`Today`, `Last week`…), or another heading of a fixed text.
-    Header(&'static str),
-    /// A heading that's a name (a sender, a recipient, a subject), shown as it is.
-    Group(String),
-    /// A message (index into [`Session::list`]); with conversations on, the newest message of a
-    /// conversation and how many messages (and unread ones) it holds.
-    Message { index: usize, count: usize, unread: usize },
 }
 
 /// Said of the files of a message whose text came first, while they come (issue #24).
@@ -458,97 +340,6 @@ pub struct Reading {
     pub text_first: bool,
 }
 
-/// A message being written.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Compose {
-    pub id: u64,
-    pub account: String,
-    /// The signature in the text as it was put there (`-- ` and the signature): replaced when
-    /// another goes in, while it's still there unchanged.
-    #[serde(default)]
-    pub signature: String,
-    /// That signature's name, its HTML code (sent in its place while it's there as it was) and
-    /// the tag of its pictures' `cid:`s.
-    #[serde(default)]
-    pub signature_name: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub signature_code: String,
-    #[serde(default)]
-    pub signature_tag: String,
-    pub to: String,
-    pub cc: String,
-    pub bcc: String,
-    pub subject: String,
-    pub body: String,
-    pub attachments: Vec<OutAttachment>,
-    pub in_reply_to: String,
-    pub references: Vec<String>,
-    pub mode: Option<ReplyMode>,
-    /// The message replied to or forwarded (it gets `\Answered` / `$Forwarded` once sent).
-    pub source: Option<MessageKey>,
-    pub sending: bool,
-    pub error: Option<String>,
-    /// The copy saved in Drafts, replaced on the next save.
-    pub draft: Option<MessageKey>,
-    /// The Bcc row is shown.
-    pub show_cc: bool,
-    /// Send as plain text only (lists written out, the rest of the formatting dropped).
-    #[serde(default)]
-    pub plain: bool,
-    /// The pictures placed in the text (each where a [`mime::rich::PICTURE`] stands).
-    #[serde(default)]
-    pub inline: Vec<mime::InlinePicture>,
-    /// How the text looks: a style for each character and paragraph.
-    #[serde(default)]
-    pub styles: mime::rich::Styles,
-    /// Written in a window of its own rather than the reading pane.
-    #[serde(default)]
-    pub window: bool,
-    /// High (1) or low (-1) importance.
-    #[serde(default)]
-    pub importance: i8,
-    /// Ask the recipients for a read receipt.
-    #[serde(default)]
-    pub read_receipt: bool,
-    /// Where replies go, when not to the sender (Outlook's "Have replies sent to").
-    #[serde(default)]
-    pub reply_to: String,
-    /// Hold it in the Outbox until then (Unix seconds): Outlook's Delay Delivery.
-    #[serde(default)]
-    pub send_after: Option<i64>,
-    /// The Replies to row is shown.
-    #[serde(default)]
-    pub show_reply_to: bool,
-    /// S/MIME: signed, and encrypted to its recipients, as it's sent.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub sign: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub encrypt: bool,
-}
-
-impl Compose {
-    /// The text, HTML and pictures to send: formatted when the text uses formatting or has
-    /// pictures (and the message isn't set to plain text), else plain text alone.
-    pub fn bodies(&self) -> (String, Option<String>, Vec<mime::InlinePicture>) {
-        let mut styles = self.styles.clone();
-        styles.fit(&self.body);
-        let used = mime::rich::pictures(&self.body, &styles);
-        let pictures: Vec<mime::InlinePicture> = self.inline.iter().filter(|p| used.contains(&p.cid)).cloned().collect();
-        let text = mime::rich::to_text(&self.body, &styles);
-        if self.plain || (styles.is_plain() && pictures.is_empty()) {
-            (text, None, Vec::new())
-        } else {
-            (text, Some(mime::rich::to_html(&self.body, &styles)), pictures)
-        }
-    }
-
-    /// Set the text (and forget its formatting).
-    pub fn set_text(&mut self, text: String) {
-        self.styles = mime::rich::Styles::plain(&text);
-        self.body = text;
-    }
-}
-
 /// A status-bar message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Notice {
@@ -569,10 +360,6 @@ struct SearchIndex {
 
 /// File for the Replied/Forwarded flags still owed by replies and forwards in the Outbox.
 const PENDING_MARKS: &str = "pending-marks.json";
-
-/// A local account with more messages than this keeps the counts it saved when it opens, rather
-/// than reading every folder to count them.
-const RECOUNT_MAX: u64 = 50_000;
 
 /// Message summaries kept in memory at most, besides the folders on screen (a big data file's
 /// whole mailbox is several times this).
@@ -823,52 +610,8 @@ impl Session {
                 .into_iter()
                 .map(|(id, k, f)| (id, (k, f)))
                 .collect();
-            let accounts = store.load_accounts().unwrap_or_else(|e| {
-                log::warn!("accounts: {e}");
-                Vec::new()
-            });
-            for mut config in accounts {
-                config.migrate_signature();
-                // Online only: held in memory from the start (anything left on disk goes).
-                if config.keeps_online()
-                    && let Err(e) = store.set_online_only(&config.id, true)
-                {
-                    log::warn!("{}: couldn't be kept online only: {e}", config.id);
-                }
-                let mut folders = store.load_folders(&config.id).unwrap_or_default();
-                // A folder belongs to the account it's kept with (a data file brought in from
-                // another account once kept that one's name).
-                for f in &mut folders {
-                    if f.account != config.id {
-                        f.account.clone_from(&config.id);
-                    }
-                }
-                sort_folders(&mut folders);
-                s.accounts.push(AccountState { config, folders, status: SyncStatus::Offline, quota: None, vacation: VacationState::Unknown });
-            }
         }
-        let mut local = Vec::new();
-        for a in &s.accounts {
-            if a.is_local() {
-                local.push(a.config.id.clone());
-            } else {
-                s.jobs.push(Job::Start { account: a.config.clone(), password: None });
-            }
-        }
-        // Counted again on opening, unless big: a big data file's counts were kept as it came in
-        // and with every change since (counting meant reading its every folder's list).
-        for id in local {
-            let kept: u64 = s.account(&id).map(|a| a.folders.iter().map(|f| u64::from(f.total)).sum()).unwrap_or(0);
-            if kept <= RECOUNT_MAX {
-                s.recount_local(&id, None);
-            }
-        }
-        // What's already cached isn't new.
-        let inboxes: Vec<(String, String)> =
-            s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone()))).collect();
-        for (a, f) in inboxes {
-            s.note_new_mail(&a, &f);
-        }
+        s.load_accounts();
         for id in s.accounts.iter().map(|a| a.config.id.clone()).collect::<Vec<_>>() {
             s.mark_junk(&id);
         }
