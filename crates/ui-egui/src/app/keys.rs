@@ -117,6 +117,12 @@ impl MailApp {
                 if id == "search.run" {
                     continue;
                 }
+                // The message list's keys, and those acting on the mail selected, are Mail's: in
+                // Calendar, People or Notes the list isn't there, and End read its last message,
+                // Delete or Backspace took mail away unseen (found testing issue #26).
+                if self.session.module != Module::Mail && list_key(id) {
+                    continue;
+                }
                 if id == "mail.delete" && self.needs_delete_confirm() {
                     self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
                     continue;
@@ -149,6 +155,12 @@ impl MailApp {
                     .is_some_and(|t| t.path == m.key.folder)
             })
     }
+}
+
+/// Whether a shortcut's command is the message list's or acts on the mail selected in it (new
+/// mail and Send/Receive aren't: they work from anywhere).
+fn list_key(id: &str) -> bool {
+    id.starts_with("list.") || id.starts_with("quickStep.") || (id.starts_with("mail.") && !matches!(id, "mail.new" | "mail.sync"))
 }
 
 /// Whether a command moves the list's focus (which is then scrolled into view).

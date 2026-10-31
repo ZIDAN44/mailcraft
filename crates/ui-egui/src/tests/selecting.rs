@@ -118,3 +118,31 @@ fn shift_click_and_a_right_click_on_the_selection() {
     assert_eq!(subjects(&a), vec![all[3].clone()]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The list's keys are Mail's: in Calendar the list isn't there, and End read its last message,
+/// Delete and Backspace took the mail selected away unseen (found reviewing issue #26).
+#[test]
+fn list_keys_stay_in_mail() {
+    let (mut a, dir) = app("keys-in-calendar");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let first = a.session.row_keys()[0].clone();
+    a.run("list.open", json!({"key": first.to_id()}));
+    let n = a.session.list.len();
+    a.run("view.calendar", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    for k in [Key::End, Key::ArrowDown, Key::Delete, Key::Backspace] {
+        frame(&ctx, &mut a, vec![key(k, Modifiers::NONE)]);
+        frame(&ctx, &mut a, vec![key(k, Modifiers::SHIFT)]);
+    }
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    assert!(a.ui.dialog.is_none());
+    a.run("view.mail", json!({}));
+    assert_eq!(a.session.list.len(), n, "nothing deleted or archived");
+    assert_eq!(a.session.selection, vec![first.clone()]);
+    assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(first));
+    // Back in Mail they work.
+    frame(&ctx, &mut a, vec![key(Key::End, Modifiers::NONE)]);
+    assert_eq!(a.session.selection.last(), a.session.row_keys().last());
+    let _ = std::fs::remove_dir_all(dir);
+}
