@@ -543,6 +543,42 @@ mod tests {
         assert!(recurrence_of("FREQ=SECONDLY", start).is_none() && recurrence_of("junk", start).is_none());
     }
 
+    /// Issue #25: an online meeting added in MailCraft goes to Graph in the place and the
+    /// notes (Graph has no `CONFERENCE`); Exchange gives the notes back as HTML, and the block
+    /// read from it is still found, joined and taken out.
+    #[test]
+    fn an_online_meeting_goes_through_graph_in_its_place_and_notes() {
+        use mailcraft_model::ical::{MeetingLabels, MeetingRoom};
+        let room = MeetingRoom::new("Jitsi", "https://meet.example.edu/rooms/abc-def-ghi", "42", "").unwrap();
+        let mut e = CalEvent {
+            uid: "g1".into(),
+            summary: "Seminar".into(),
+            description: "Bring the slides".into(),
+            start: 1_800_000_000,
+            end: 1_800_003_600,
+            ..Default::default()
+        };
+        e.add_online_meeting(&room, &MeetingLabels::default());
+        let sent = event_json(&e);
+        assert_eq!(sent["location"]["displayName"], room.url);
+        let text = sent["body"]["content"].as_str().unwrap();
+        // As Exchange keeps a text body: HTML, a line a paragraph or a break, links made links.
+        let html = format!(
+            "<html><body><div>{}</div></body></html>",
+            text.lines()
+                .map(|l| if l.contains("https://") { l.replace(&room.url, &format!("<a href=\"{0}\">{0}</a>", room.url)) } else { l.to_string() })
+                .collect::<Vec<_>>()
+                .join("<br>")
+        );
+        let v = json!({"iCalUId": "g1", "subject": "Seminar", "body": {"contentType": "html", "content": html},
+            "start": {"dateTime": "2030-01-15T08:00:00", "timeZone": "UTC"}, "location": {"displayName": room.url}});
+        let mut back = event_of(&v).unwrap();
+        assert_eq!(back.join_link().as_deref(), Some(room.url.as_str()));
+        assert!(back.description.contains("---- Online meeting ----"), "{}", back.description);
+        assert!(back.remove_online_meeting());
+        assert_eq!((back.description.trim(), back.location.as_str()), ("Bring the slides", ""), "{:?}", back.description);
+    }
+
     #[test]
     fn events_and_contacts_both_ways() {
         let v = json!({

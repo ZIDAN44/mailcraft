@@ -42,6 +42,7 @@ mod compose;
 pub use compose::insert_picture_at;
 mod files;
 mod home;
+mod meetings;
 mod navigation;
 mod pim;
 mod security;
@@ -56,6 +57,7 @@ pub fn registry() -> Registry {
     all.extend(compose::commands());
     all.extend(view::commands());
     all.extend(pim::commands());
+    all.extend(meetings::commands());
     all.extend(files::commands());
     all.extend(security::commands());
     all.extend(accounts::commands());

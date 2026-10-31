@@ -167,7 +167,8 @@ pub(super) fn bare_links(text: &str, out: &mut Vec<NotePart>) {
 }
 
 /// Whether a web address joins an online meeting: Microsoft Teams, Zoom, Google Meet, Webex,
-/// GoTo Meeting, Jitsi, Whereby, Skype.
+/// GoTo Meeting, Jitsi, Whereby, Skype. Self-hosted rooms, and the user's own meeting hosts:
+/// [`super::is_meeting_link_in`].
 pub fn is_meeting_link(url: &str) -> bool {
     let lower = url.to_ascii_lowercase();
     let Some(rest) = lower.strip_prefix("https://").or_else(|| lower.strip_prefix("http://")) else { return false };

@@ -155,6 +155,19 @@ pub struct Prefs {
     /// mail services left out).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub org_domains: Vec<String>,
+    /// Online meetings (issue #25): the user's own rooms (a BigBlueButton or Jitsi room's
+    /// permanent link and access code), added to a meeting with Add online meeting; the first is
+    /// the one added unless another is picked.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub meeting_rooms: Vec<mailcraft_model::ical::MeetingRoom>,
+    /// More hosts whose links join a meeting (`jitsi.example.org`, `example.edu/rooms/`), for
+    /// self-hosted servers other organisations run ([`mailcraft_model::ical::host_entry`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub meeting_hosts: Vec<String>,
+    /// Add the first room's meeting to every new meeting with guests (Outlook's "Add online
+    /// meeting to all meetings").
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub meeting_for_all: bool,
 }
 
 /// When the message list shows a sender's address after their name (issue #29).
@@ -238,6 +251,9 @@ impl Default for Prefs {
             sender_addresses: SenderAddresses::Strangers,
             external_tag: false,
             org_domains: Vec::new(),
+            meeting_rooms: Vec::new(),
+            meeting_hosts: Vec::new(),
+            meeting_for_all: false,
             quick_steps: Vec::new(),
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),

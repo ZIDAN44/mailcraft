@@ -20,12 +20,14 @@ use crate::dates::{civil_from_days, days_from_civil};
 
 mod alarms;
 mod find;
+mod meeting;
 mod notes;
 mod recurrence;
 mod showing;
 mod zones;
 pub use alarms::*;
 pub use find::*;
+pub use meeting::*;
 use notes::*;
 pub use notes::*;
 use recurrence::*;
@@ -115,13 +117,11 @@ fn is_zero(n: &i64) -> bool {
 }
 
 impl CalEvent {
-    /// The address that joins it online: the server's own, else the first meeting link in its
-    /// location or notes (as Outlook's Join finds a Teams or Zoom meeting).
+    /// The address that joins it online: the server's own, a `CONFERENCE` link, else the first
+    /// meeting link in its location or notes (as Outlook's Join finds a Teams or Zoom meeting).
+    /// [`CalEvent::join_link_in`] counts the user's own meeting hosts too.
     pub fn join_link(&self) -> Option<String> {
-        if is_meeting_link(&self.join_url) {
-            return Some(self.join_url.clone());
-        }
-        links_in(&self.location).into_iter().chain(links_in(&self.description)).find(|l| is_meeting_link(l))
+        self.join_link_in(&[])
     }
 
     /// Every web address in its location and notes (and its join address), once each.

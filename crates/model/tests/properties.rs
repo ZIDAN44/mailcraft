@@ -106,6 +106,22 @@ proptest! {
         prop_assert_eq!(utf7::decode(&wire), name);
     }
 
+    /// An online meeting added to any event and taken out again leaves its place and notes as
+    /// they were (issue #25), and the event written and read back in between still has it.
+    #[test]
+    fn an_online_meeting_comes_out_as_it_went_in(notes in "[^\r\u{0}]{0,80}", place in "[^\r\n\u{0}]{0,30}", code in "[0-9-]{0,12}") {
+        let room = ical::MeetingRoom::new("Room", "https://meet.example.edu/rooms/abc-def-ghi", &code, "").unwrap();
+        let before = ical::CalEvent { uid: "u".into(), description: notes.clone(), location: place.clone(), start: 1_800_000_000, end: 1_800_003_600, ..Default::default() };
+        let mut e = before.clone();
+        e.add_online_meeting(&room, &ical::MeetingLabels::default());
+        let mut back = ical::parse(&ical::write(std::slice::from_ref(&e), None, 1_800_000_000), 0).events.remove(0);
+        prop_assert_eq!(back.online_meeting(), Some(room.url.clone()));
+        back.remove_online_meeting();
+        prop_assert_eq!(back.description.as_str(), notes.trim_end());
+        prop_assert_eq!(back.location.trim(), place.trim());
+        prop_assert!(back.conferences().is_empty());
+    }
+
     /// iCalendar text values: escaped and unescaped, the same text.
     #[test]
     fn ical_text_round_trips(text in "[^\r]{0,60}") {

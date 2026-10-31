@@ -81,6 +81,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("event.create", "New event", "Calendar › New event", |s, v| {
             let mut e = event_from(s, v, mailcraft_model::ical::CalEvent::default())?;
+            super::meetings::for_all(s, v, &mut e);
             let account = match p::str(v, "account") {
                 Some(a) => a.to_string(),
                 None => s.current_account().map(|a| a.config.id.clone()).ok_or_else(|| CmdError::Disabled("add an account first".into()))?,
@@ -97,7 +98,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "account"?: string, "calendar"?: string}"#),
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string}"#),
         CommandSpec::new("reminders.list", "Reminders", "File › Reminders", |s, _| {
             let now = s.clock.now;
             Ok(json!(s
@@ -400,6 +401,7 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
         Some(r) => return Err(CmdError::Params(format!("`{r}` is not a repeat"))),
         None => {}
     }
+    super::meetings::apply(s, v, &mut e)?;
     Ok(e)
 }
 

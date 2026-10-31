@@ -498,3 +498,38 @@ fn private_and_show_as_go_to_exchange_and_back() {
     assert!(h.event.summary.is_empty());
     assert_eq!((privacy(&h.event), show_as(&h.event)), (Privacy::Private, ShowAs::Busy));
 }
+
+/// Issue #25: an online meeting added in MailCraft, through Exchange: EWS has no place for the
+/// `CONFERENCE` property, so the link lives on in the place and the block in the notes: Join
+/// still finds it there, and Remove online meeting still takes it out.
+#[test]
+fn an_online_meeting_survives_exchange_in_its_place_and_notes() {
+    use mailcraft_model::ical::{CalEvent, MeetingLabels, MeetingRoom};
+    use mailcraft_model::pim::{LOCAL, Pim, StoredEvent};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let room = MeetingRoom::new("BigBlueButton", "https://meet.example.edu/rooms/abc-def-ghi", "123-456-789", "").unwrap();
+    let mut e = CalEvent {
+        uid: "bbb-1".into(),
+        summary: "Seminar".into(),
+        description: "Bring the slides".into(),
+        start: 1_792_000_000,
+        end: 1_792_003_600,
+        ..Default::default()
+    };
+    e.add_online_meeting(&room, &MeetingLabels::default());
+    let mut pim = Pim::default();
+    pim.events.push(StoredEvent { calendar: LOCAL.into(), event: e.clone(), dirty: true, ..Default::default() });
+    let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let mut back = sync.events.iter().find(|x| x.event.summary == "Seminar").unwrap().event.clone();
+    assert_eq!(back.location, room.url);
+    assert_eq!(back.description.replace("\r\n", "\n").trim_end(), e.description.trim_end());
+    assert!(back.conferences().is_empty(), "EWS keeps no CONFERENCE");
+    assert_eq!(back.join_link().as_deref(), Some(room.url.as_str()), "joined from its place");
+    assert!(back.remove_online_meeting());
+    assert_eq!((back.description.trim_end(), back.location.as_str()), ("Bring the slides", ""));
+}

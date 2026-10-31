@@ -62,6 +62,7 @@ mod files;
 mod invite_placing;
 mod invites;
 mod mail;
+mod meetings;
 mod organize;
 mod pim;
 mod safety;
