@@ -11,9 +11,11 @@ use mailcraft_model::EmailAddress;
 use mailcraft_model::dates::civil_from_days;
 use mailcraft_model::ical::{Attendee, CalEvent};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
-use outlook_pst::ltp::prop_context::{GuidValue, PropertyValue};
+use outlook_pst::ltp::prop_context::GuidValue;
 use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId, PS_MAPI, PS_PUBLIC_STRINGS};
 use outlook_pst::messaging::store::Store as PstStore;
+
+use crate::pst::Val;
 
 type GuidKey = (u32, u16, u16, [u8; 8]);
 const OLE: [u8; 8] = [0xC0, 0, 0, 0, 0, 0, 0, 0x46];
@@ -93,11 +95,11 @@ pub(crate) struct Extra {
 }
 
 /// Read the contact and appointment properties of an item.
-pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<&'a PropertyValue>, named: &Named) -> Extra {
-    let s = |id: u16| p(id).and_then(crate::pst::text_of).unwrap_or_default();
+pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> Extra {
+    let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     let n = |set, lid| named.id(set, lid).and_then(p);
-    let ns = |set, lid| n(set, lid).and_then(crate::pst::text_of).unwrap_or_default();
-    let time = |set, lid, fallback: u16| n(set, lid).or_else(|| p(fallback)).and_then(crate::pst::time_of);
+    let ns = |set, lid| n(set, lid).and_then(Val::into_text).unwrap_or_default();
+    let time = |set, lid, fallback: u16| n(set, lid).or_else(|| p(fallback)).and_then(|v| v.time());
     let mut x = Extra { display: s(0x3001), given: s(0x3A06), family: s(0x3A11), company: s(0x3A16), title: s(0x3A17), ..Default::default() };
     // Email1/2/3: the address, or (for an Exchange address) the display address.
     for (address, original) in [(0x8083, 0x8084), (0x8093, 0x8094), (0x80A3, 0x80A4)] {
@@ -134,23 +136,23 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<&'a PropertyValue>, named: &
             x.addresses.push(a);
         }
     }
-    x.birthday = p(0x3A42).and_then(crate::pst::time_of);
+    x.birthday = p(0x3A42).and_then(|v| v.time());
     x.start = time(PSETID_APPOINTMENT, 0x820D, 0x0060);
     x.end = time(PSETID_APPOINTMENT, 0x820E, 0x0061);
     x.location = ns(PSETID_APPOINTMENT, 0x8208);
-    x.due = n(PSETID_TASK, 0x8105).and_then(crate::pst::time_of);
-    x.done = matches!(n(PSETID_TASK, 0x811C), Some(PropertyValue::Boolean(true)));
-    x.all_day = matches!(n(PSETID_APPOINTMENT, 0x8215), Some(PropertyValue::Boolean(true)));
-    if let Some(PropertyValue::Binary(b)) = n(PSETID_APPOINTMENT, 0x8216) {
-        x.recurrence = b.buffer().to_vec();
+    x.due = n(PSETID_TASK, 0x8105).and_then(|v| v.time());
+    x.done = matches!(n(PSETID_TASK, 0x811C), Some(Val::Bool(true)));
+    x.all_day = matches!(n(PSETID_APPOINTMENT, 0x8215), Some(Val::Bool(true)));
+    if let Some(Val::Bin(b)) = n(PSETID_APPOINTMENT, 0x8216) {
+        x.recurrence = b.to_vec();
     }
-    if let Some(PropertyValue::Binary(b)) = n(PSETID_MEETING, 0x0003) {
-        x.uid = b.buffer().iter().map(|b| format!("{b:02X}")).collect();
+    if let Some(Val::Bin(b)) = n(PSETID_MEETING, 0x0003) {
+        x.uid = b.iter().map(|b| format!("{b:02X}")).collect();
     }
-    if let Some(PropertyValue::Integer32(c)) = n(PSETID_NOTE, 0x8B00) {
-        x.note_color = u8::try_from(*c).ok().filter(|c| *c < mailcraft_model::pim::NOTE_COLORS);
+    if let Some(Val::Int(c)) = n(PSETID_NOTE, 0x8B00) {
+        x.note_color = u8::try_from(c).ok().filter(|c| *c < mailcraft_model::pim::NOTE_COLORS);
     }
-    x.modified = p(0x3008).and_then(crate::pst::time_of);
+    x.modified = p(0x3008).and_then(|v| v.time());
     x
 }
 
@@ -362,6 +364,16 @@ mod tests {
         let mut huge = blob(0x200B, 0x0001, 1, &[1], (0x2023, 0), &[], &[], first);
         huge.splice(38..42, u32::MAX.to_le_bytes());
         assert!(recurrence(&huge, start).is_none());
+    }
+
+    /// A named start or end of a type that is not a time leaves the event without one: it does not
+    /// fall back to the plain start and end properties.
+    #[test]
+    fn a_mistyped_named_time_hides_the_fallback() {
+        let named = Named(HashMap::from([((PSETID_APPOINTMENT, 0x820D), 0x8001), ((PSETID_APPOINTMENT, 0x820E), 0x8002)]));
+        let props = HashMap::from([(0x8001, Val::Other), (0x8002, Val::Time(133_485_408_000_000_000)), (0x0060, Val::Time(133_485_408_000_000_000))]);
+        let x = extract(&|id| props.get(&id).cloned(), &named);
+        assert_eq!((x.start, x.end), (None, Some(1_704_067_200)));
     }
 
     #[test]

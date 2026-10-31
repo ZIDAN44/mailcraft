@@ -228,6 +228,10 @@ too): opening one then says so instead of trying the older ANSI format. An `.ost
 Feeds folder (`IPF.Note.OutlookHomepage`) isn't mail, and an empty Outbox (the store's 0x35E2) is
 skipped.
 
+The walk over the folder tree lives in `pst.rs`; an item is read from its properties in
+`pst/item.rs`, through `pst/props.rs`'s `Val` (a closure gives each property's value, so tests can
+build items without a file), written out again in `pst/rebuild.rs`, and saved by `pst/out.rs`.
+
 ## POP accounts (`crates/net/src/protocols/pop.rs`)
 
 A POP account (RFC 1939; SSL/TLS, `STLS` or none; `USER`/`PASS` or `AUTH XOAUTH2`) has the
