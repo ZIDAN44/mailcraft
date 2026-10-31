@@ -264,6 +264,34 @@ fn text_is_kept_compressed() {
     let _ = std::fs::remove_dir_all(t);
 }
 
+/// Base64 (as attachments travel in mail) in lines of 76.
+fn base64(bytes: &[u8]) -> Vec<u8> {
+    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::new();
+    for (i, c) in bytes.chunks(3).enumerate() {
+        let n = c.iter().enumerate().fold(0u32, |n, (j, b)| n | (u32::from(*b) << (16 - 8 * j)));
+        for j in 0..4 {
+            out.push(if j <= c.len() { ABC[((n >> (18 - 6 * j)) & 63) as usize] } else { b'=' });
+        }
+        if i % 19 == 18 {
+            out.extend_from_slice(b"\r\n");
+        }
+    }
+    out
+}
+
+/// An attachment's base64 is kept compressed, at most 0.80 of its size: base64 carries six bits
+/// in eight, so even random bytes shrink by about a quarter. (The fast level of flate2's zlib-rs
+/// backend, which the app's build turned on, kept it at 0.995, so it was stored raw.)
+#[test]
+fn base64_attachments_are_kept_compressed() {
+    let text = base64(&noise(1 << 20, 7));
+    let kept = super::pack(&text);
+    assert!(kept.starts_with(super::DEFLATED), "stored raw");
+    assert!(kept.len() * 100 <= text.len() * 80, "kept {} of {} bytes", kept.len(), text.len());
+    assert_eq!(super::unpack(kept.into_owned()).unwrap(), text);
+}
+
 #[test]
 fn folders_from_before_come_into_the_data_file() {
     let t = temp("bring-in");

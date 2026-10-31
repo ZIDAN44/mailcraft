@@ -21,6 +21,9 @@ thiserror = { workspace = true }
 # Each account's mail in one data file (`packed.rs`): a crash-safe, pure-Rust embedded database.
 redb = "=4.4.0"
 # What a data file keeps is compressed (deflate, pure Rust): mail and folder lists are text.
+# flate2 reads it back; miniz_oxide writes it, called directly, since in the app another crate
+# turns flate2's zlib-rs on, whose fast level hardly shrinks base64 (attachments) at all.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+miniz_oxide = "0.9"
 # The Documents folder (where "MailCraft Files" goes), wherever the system has put it.
 dirs = "7"

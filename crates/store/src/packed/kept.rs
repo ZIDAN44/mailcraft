@@ -22,16 +22,24 @@ const DEFLATE_MIN: usize = 1024;
 pub(super) const INFLATE_MAX: u64 = 1 << 30;
 
 /// A file as kept: compressed (fast deflate) when that saves a tenth or more.
+///
+/// miniz_oxide is called directly rather than through flate2: in the app, another crate turns
+/// flate2's zlib-rs backend on for everyone, and its fastest level (static Huffman tables) kept
+/// base64 attachments at 0.995 of their size, so they were stored raw; miniz's level 1 keeps
+/// them at about 0.76, and is faster. The stream is the same raw deflate either way.
 pub(super) fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
-    use std::io::Write;
     if bytes.len() < DEFLATE_MIN || bytes.starts_with(DEFLATED) {
         return bytes.into();
     }
-    let mut z = flate2::write::DeflateEncoder::new(DEFLATED.to_vec(), flate2::Compression::fast());
-    match z.write_all(bytes).and_then(|()| z.finish()) {
-        Ok(out) if out.len() < bytes.len() - bytes.len() / 10 => out.into(),
-        _ => bytes.into(),
+    let stream = miniz_oxide::deflate::compress_to_vec(bytes, 1);
+    let kept = DEFLATED.len().saturating_add(stream.len());
+    if kept >= bytes.len() - bytes.len() / 10 {
+        return bytes.into();
     }
+    let mut out = Vec::with_capacity(kept);
+    out.extend_from_slice(DEFLATED);
+    out.extend_from_slice(&stream);
+    out.into()
 }
 
 /// A file as kept, back as it was written.
