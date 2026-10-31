@@ -524,10 +524,20 @@ fn message_row(
         };
         item(ui, acts, tl!("Open in new window"), Action::Run("message.popOut", json!({"key": key.to_id()})));
         ui.separator();
-        item(ui, acts, tl!("Reply"), Action::Run("mail.reply", json!({})));
-        item(ui, acts, tl!("Reply all"), Action::Run("mail.replyAll", json!({})));
-        item(ui, acts, tl!("Forward"), Action::Run("mail.forward", json!({})));
-        item(ui, acts, tl!("Quick print"), Action::Print);
+        // One of several selected: answering and printing are for one message (they failed, or
+        // asked where to save a PDF and then said nothing is open).
+        let several = selected && s.selection.len() > 1;
+        for (label, act) in [
+            (tl!("Reply"), Action::Run("mail.reply", json!({}))),
+            (tl!("Reply all"), Action::Run("mail.replyAll", json!({}))),
+            (tl!("Forward"), Action::Run("mail.forward", json!({}))),
+            (tl!("Quick print"), Action::Print),
+        ] {
+            if ui.add_enabled(!several, egui::Button::new(label)).clicked() {
+                acts.push(act);
+                ui.close();
+            }
+        }
         ui.separator();
         item(
             ui,

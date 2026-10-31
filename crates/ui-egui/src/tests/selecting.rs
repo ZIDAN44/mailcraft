@@ -146,3 +146,34 @@ fn list_keys_stay_in_mail() {
     assert_eq!(a.session.selection.last(), a.session.row_keys().last());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A right-click on one of several selected: Reply, Reply all, Forward and Quick print are for
+/// one message, so they're off (they failed, or asked where to save a PDF of nothing).
+#[test]
+fn the_menu_of_several_has_no_reply() {
+    let (mut a, dir) = app("menu-several");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let rows = list_rows(&ctx, &mut a);
+    click(&ctx, &mut a, rows[0].1.center(), egui::PointerButton::Primary, Modifiers::NONE);
+    click(&ctx, &mut a, rows[2].1.center(), egui::PointerButton::Primary, Modifiers::SHIFT);
+    click(&ctx, &mut a, rows[1].1.center(), egui::PointerButton::Secondary, Modifiers::NONE);
+    assert_eq!(a.session.selection.len(), 3);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
+    for name in ["Quick print", "Forward", "Delete"] {
+        let found: Vec<bool> = tree.nodes.iter().filter(|(_, n)| n.label() == Some(name)).map(|(_, n)| n.is_disabled()).collect();
+        assert!(!found.is_empty(), "the menu has {name}");
+        if name == "Delete" {
+            assert!(found.iter().any(|d| !d), "Delete is for all of them");
+        } else {
+            assert!(found.iter().all(|d| *d), "{name} is off: {found:?}");
+        }
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
