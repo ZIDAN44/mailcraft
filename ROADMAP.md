@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 8 libraries + 3 apps + xtask |
 | Commands | 214 (`mailcraft-cli commands`) |
-| Tests | 855 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 865 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -583,4 +583,5 @@ local-first, media-aware v1); the fuller request is
   Built in seven worktrees, each reviewed by another agent that tried to break it, then
   reviewed together (mail, calendar, the app's look). Tried with
   Dovecot (an ACL-shared folder), GreenMail, Radicale, Stalwart (JMAP and CalDAV), a proxy
-  holding the calendar server back, and the fake Exchange servers.
+  holding the calendar server back, the fake Exchange servers, and a Mailcow (Dovecot, Postfix,
+  SOGo 5.12) set up as the issues' reporter runs it.

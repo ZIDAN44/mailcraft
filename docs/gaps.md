@@ -1343,3 +1343,13 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   adds, and a received event's CONFERENCE. Sign-in to a room server and rooms made from MailCraft
   wait for those servers' APIs (PILOS's is a draft, Greenlight has none); a Teams meeting through
   Graph waits for a Microsoft 365 tenant to try it on.
+- **On Mailcow (issues #28, #30, #31, #32, #25, #33):** tried against a Mailcow in Docker, Dovecot,
+  Postfix and SOGo 5.12, as the issues' reporter runs it. SOGo's labels and MailCraft's
+  categories pass both ways, in a shared Inbox too. An event SOGo gives a colleague only the time
+  of (titled "(Private event)", `X-SOGO-SECURE:YES`) is a private appointment, not to be edited.
+  A meeting in the user's calendar and a colleague's subscribed one keeps the user's copy. SOGo
+  refusing one event (403, its roles per classification) no longer stops the calendar sync as a
+  wrong password; a 412 or 409 over a meeting SOGo already filed keeps both sides' changes (SOGo
+  ignores `If-None-Match: *`, so a new meeting is looked up first), and SOGo's re-stamped
+  invitation can be answered. Open: SOGo emails guests itself when Mailcow leaves that on, so
+  they get MailCraft's invitation and SOGo's.
