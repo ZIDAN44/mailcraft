@@ -34,6 +34,7 @@ pub use session::{
     pim::{ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, Module, NoteRef, Person, parse_local},
     quick_steps::QuickStep,
     search_folders::SearchFolder,
+    signature_parts,
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]

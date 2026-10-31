@@ -206,14 +206,16 @@ impl Session {
 
     /// Whether anything was written in `c` (beyond its signature).
     pub fn written(&self, c: &Compose) -> bool {
-        let signature = self.signature(&c.account).trim().to_string();
+        // Only a signature: the one put in, or (a message from before) the account's.
+        let put = c.signature.trim();
+        let signature = self.default_signature(&c.account, c.mode.is_some()).map(|s| signature_parts(&s).0).unwrap_or_default();
         let body = c.body.trim();
         !(c.to.trim().is_empty()
             && c.cc.trim().is_empty()
             && c.bcc.trim().is_empty()
             && c.subject.trim().is_empty()
             && c.attachments.is_empty()
-            && (body.is_empty() || body.trim_start_matches("--").trim() == signature))
+            && (body.is_empty() || (!put.is_empty() && body == put) || body.trim_start_matches("--").trim() == signature.trim()))
     }
 
     /// The address book, as Outlook's Select Names dialog lists it: `people` for the people

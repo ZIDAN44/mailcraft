@@ -1291,3 +1291,12 @@ month	May	Май
 	Your organisation's domains	Домены вашей организации
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Через запятую. Если пусто — домены ваших учётных записей, кроме почтовых сервисов вроде Gmail
 	None: nothing is tagged	Нет: ничего не помечается
+	Signatures	Подписи
+	(none)	(нет)
+	A signature needs a name, on one line.	У подписи должно быть имя в одну строку.
+	Default signatures for {email}	Подписи по умолчанию для {email}
+	New signature	Новая подпись
+	No signatures yet	Подписей пока нет
+	New messages:	Новые сообщения:
+	Replies/forwards:	Ответы и пересылка:
+	Another signature has that name.	Подпись с таким именем уже есть.

@@ -331,7 +331,12 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     let can_delay = s.compose.as_ref().and_then(|c| s.account(&c.account)).is_some_and(|a| !a.is_local());
     // S/MIME's switches, for an account with a certificate.
     let has_cert = s.compose.as_ref().is_some_and(|c| s.identity(&c.account).is_some());
-    let signature = s.compose.as_ref().and_then(|c| s.account(&c.account)).map(|a| a.config.signature.clone()).unwrap_or_default();
+    let signatures: Vec<String> = s
+        .compose
+        .as_ref()
+        .and_then(|c| s.account(&c.account))
+        .map(|a| a.config.signatures.iter().map(|g| g.name.clone()).collect())
+        .unwrap_or_default();
     let Some(c) = s.compose.as_mut() else { return };
     // The editor's state belongs to one message.
     if st.editor.as_ref().is_none_or(|e| e.id != c.id) {
@@ -407,7 +412,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             // The Message ribbon.
             egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                rich_edit::ribbon(ui, &t, &mut ed, c, &signature, &clock, acts);
+                rich_edit::ribbon(ui, &t, &mut ed, c, &signatures, &clock, acts);
             });
             ui.add_space(4.0);
             // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);
@@ -537,8 +542,11 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                             let b = label_button_menu(ui, &t, "From", many, many);
                             if many {
                                 egui::Popup::menu(&b).show(|ui| {
+                                    // Through the engine: the signature follows the account (issue #11).
                                     for (id, label) in &accounts {
-                                        ui.selectable_value(&mut c.account, id.clone(), label);
+                                        if ui.selectable_label(c.account == *id, label).clicked() && c.account != *id {
+                                            acts.push(Action::Run("compose.update", json!({"account": id})));
+                                        }
                                     }
                                 });
                             }

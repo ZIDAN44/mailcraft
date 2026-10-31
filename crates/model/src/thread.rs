@@ -9,6 +9,8 @@
 //! 3. Empty containers (referenced, never seen) are dropped, promoting their children.
 //! 4. Roots whose base subjects match are merged when one of them is a reply or forward.
 
+pub mod cleanup;
+
 use std::collections::HashMap;
 
 use crate::Summary;

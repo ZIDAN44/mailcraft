@@ -370,8 +370,12 @@ impl MailApp {
             Action::EditSignature { account, insert } => {
                 self.ui.dialog = Some(Dialog::Signature(Box::new(dialogs::SignatureForm::new(&self.session, &account, insert))));
             }
-            Action::InsertSignature => {
-                let r = self.session.run("compose.insertSignature", &json!({"at": self.picture_at()}));
+            Action::InsertSignature(name) => {
+                let mut p = json!({"at": self.picture_at()});
+                if let Some(name) = name {
+                    p["name"] = json!(name);
+                }
+                let r = self.session.run("compose.insertSignature", &p);
                 match r {
                     Ok(v) => {
                         // The cursor after it.

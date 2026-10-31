@@ -1288,3 +1288,12 @@ month	May	5月
 	Your organisation's domains	你组织的域
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	用逗号分隔。留空：你的帐户所在的域，不含 Gmail 等邮件服务
 	None: nothing is tagged	无：不标记任何邮件
+	Signatures	签名
+	(none)	(无)
+	A signature needs a name, on one line.	签名需要一个单行名称。
+	Default signatures for {email}	{email} 的默认签名
+	New signature	新建签名
+	No signatures yet	还没有签名
+	New messages:	新邮件:
+	Replies/forwards:	答复和转发:
+	Another signature has that name.	已有同名的签名。

@@ -124,10 +124,13 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(at) = p::i64(v, "sendAfter") {
         c.send_after = (at > 0).then_some(at);
     }
+    let id = c.id;
+    // The signature follows the account it's sent from (issue #11).
     if let Some(a) = account {
-        c.account = a;
+        let was = std::mem::replace(&mut c.account, a);
+        s.follow_from(&was);
     }
-    Ok(json!({"compose": c.id}))
+    Ok(json!({"compose": id}))
 }
 
 /// Largest attachment accepted (most servers refuse messages over 25–35 MB).
@@ -253,45 +256,6 @@ pub(super) fn resize_picture(s: &mut Session, v: &Value) -> CmdResult {
     }
     c.styles = styles;
     Ok(json!({"cid": cid, "width": width}))
-}
-
-/// The account's signature into the message being written, at character `at` (else the end),
-/// on a line of its own after the usual `-- ` line (Outlook's Insert › Signature).
-pub(super) fn insert_signature(s: &mut Session, v: &Value) -> CmdResult {
-    use mailcraft_mime::rich::Style;
-    let account = s.compose.as_ref().map(|c| c.account.clone()).ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-    let rich = s.signature_rich(&account);
-    let pictures = s.signature_pictures(&account);
-    let tag = s.signature_tag();
-    let sig = rich.0.trim_end().to_string();
-    if sig.trim().is_empty() {
-        return Err(CmdError::Params("this account has no signature yet: make one with Signatures…".into()));
-    }
-    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-    let old = c.body.clone();
-    let block = crate::session::signature_block(&sig);
-    // The signature put in before, still there as it was, is replaced (as choosing a signature
-    // in Outlook replaces the one there); otherwise it goes in at the cursor.
-    let there = if c.signature.is_empty() { None } else { old.rfind(&c.signature).map(|b| (b, b + c.signature.len())) };
-    let (start, stop, text) = match there {
-        Some((b, e)) => (b, e, block.clone()),
-        None => {
-            let n = old.chars().count();
-            let at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
-            let b = old.char_indices().nth(at).map_or(old.len(), |(b, _)| b);
-            let before = if at > 0 && old.chars().nth(at - 1) != Some('\n') { "\n" } else { "" };
-            (b, b, format!("{before}{block}\n"))
-        }
-    };
-    c.signature = block;
-    c.body.replace_range(start..stop, &text);
-    let at = old.get(..start).unwrap_or("").chars().count();
-    let end = at + text.chars().count();
-    let mut styles = std::mem::take(&mut c.styles);
-    styles.edit_at(&old, &c.body, &Style::default(), Some(end));
-    c.styles = styles;
-    crate::session::style_signature(c, &rich, &pictures, &tag);
-    Ok(json!({"inserted": at, "end": end}))
 }
 
 /// Put picture `cid` into the text at character `at`, `width` wide (`None`: its own width).

@@ -1287,3 +1287,12 @@ month	May	مايو
 	Your organisation's domains	نطاقات مؤسستك
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	مفصولة بفواصل. إن تُركت فارغة: نطاقات حساباتك، باستثناء خدمات البريد مثل Gmail
 	None: nothing is tagged	لا شيء: لا يُوسم شيء
+	Signatures	التوقيعات
+	(none)	(بلا)
+	A signature needs a name, on one line.	يحتاج التوقيع إلى اسم في سطر واحد.
+	Default signatures for {email}	التوقيعات الافتراضية لـ {email}
+	New signature	توقيع جديد
+	No signatures yet	لا توجد توقيعات بعد
+	New messages:	الرسائل الجديدة:
+	Replies/forwards:	الردود وإعادة التوجيه:
+	Another signature has that name.	يحمل توقيع آخر هذا الاسم.

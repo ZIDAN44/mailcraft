@@ -418,9 +418,9 @@ fn a_formatted_signature_keeps_its_look() {
                 <p class=MsoNormal>An street 1<br><a href=\"http://www.company.com/\">www.company.com</a></p>\
                 <p class=MsoNormal><i>Confidential.</i></p>";
     s.run("account.setSignature", &json!({"account": "sample", "signature": "ignored", "html": html})).unwrap();
-    let config = s.account("sample").unwrap().config.clone();
-    assert_eq!(config.signature, "Company bv\nAn street 1\nwww.company.com\nConfidential.");
-    assert!(!config.signature_html.is_empty());
+    let config = s.default_signature("sample", false).unwrap();
+    assert_eq!(config.text, "Company bv\nAn street 1\nwww.company.com\nConfidential.");
+    assert!(!config.html.is_empty());
     let check = |s: &Session| {
         let c = s.compose.as_ref().unwrap();
         let at = c.body.find("Company bv").map(|b| c.body[..b].chars().count()).unwrap();
@@ -448,7 +448,7 @@ fn a_formatted_signature_keeps_its_look() {
     check(&s);
     // Saved plain again, the look goes.
     s.run("account.setSignature", &json!({"account": "sample", "signature": "R."})).unwrap();
-    assert!(s.account("sample").unwrap().config.signature_html.is_empty());
+    assert!(s.default_signature("sample", false).unwrap().html.is_empty());
     assert!(s.run("account.setSignature", &json!({"account": "sample", "signature": "x", "html": "<p><b>\u{0}"})).is_ok(), "junk HTML");
 }
 

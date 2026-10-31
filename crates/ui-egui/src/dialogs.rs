@@ -18,12 +18,14 @@ mod mailbox;
 mod organize;
 mod other;
 pub(crate) mod pim_dialogs;
+mod signatures;
 mod writing;
 
 pub use accounts::*;
 pub use dav::DavForm;
 pub use mailbox::*;
 pub use organize::*;
+pub use signatures::SignatureForm;
 pub use writing::*;
 
 #[derive(Clone, Debug)]
@@ -294,7 +296,7 @@ impl Dialog {
     /// The signature editor for the first account (`--cmd ui.signature`).
     pub fn signature(s: &Session) -> Option<Dialog> {
         let account = s.accounts.first()?.config.id.clone();
-        Some(Dialog::Signature(Box::new(mailbox::SignatureForm::new(s, &account, false))))
+        Some(Dialog::Signature(Box::new(SignatureForm::new(s, &account, false))))
     }
 
     pub fn new_contact() -> Dialog {

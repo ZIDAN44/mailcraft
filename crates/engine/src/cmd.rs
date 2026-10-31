@@ -45,6 +45,7 @@ mod home;
 mod navigation;
 mod pim;
 mod security;
+mod signatures;
 mod view;
 
 /// Every command, in the order the CLI lists them: the Home tab's first, accounts' last.
@@ -58,6 +59,7 @@ pub fn registry() -> Registry {
     all.extend(files::commands());
     all.extend(security::commands());
     all.extend(accounts::commands());
+    all.extend(signatures::commands());
     Registry::new(all)
 }
 

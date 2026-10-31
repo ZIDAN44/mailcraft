@@ -462,9 +462,9 @@ fn a_signature_holds_pictures() {
     assert_eq!(sig.body.as_str(), "\u{FFFC}Riley");
     let html = mime::embed_pictures(&mime::rich::to_html(&sig.body, &sig.styles), &sig.inline);
     s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley", "html": html})).unwrap();
-    let config = s.account("sample").unwrap().config.clone();
-    assert!(config.signature_html.contains("src=\"data:image/png;base64,"), "{}", config.signature_html);
-    assert_eq!(config.signature, "Riley", "the plain-text twin has no picture");
+    let config = s.default_signature("sample", false).unwrap();
+    assert!(config.html.contains("src=\"data:image/png;base64,"), "{}", config.html);
+    assert_eq!(config.text, "Riley", "the plain-text twin has no picture");
 
     s.run("mail.new", &json!({})).unwrap();
     let c = s.compose.clone().unwrap();
@@ -527,9 +527,9 @@ fn a_signature_has_pictures() {
     let pic = mailcraft_mime::InlinePicture { cid: "logo@x".into(), name: "logo.png".into(), mime: "image/png".into(), data: png.clone() };
     let html = mailcraft_mime::embed_pictures("<p><b>Riley</b> <img src=\"cid:logo@x\" width=\"96\"></p>", &[pic]);
     s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley", "html": html})).unwrap();
-    let a = s.account("sample").unwrap();
-    assert!(a.config.signature_html.contains("data:image/png;base64,"), "kept with it");
-    assert_eq!(a.config.signature, "Riley ", "its text has no picture mark");
+    let a = s.default_signature("sample", false).unwrap();
+    assert!(a.html.contains("data:image/png;base64,"), "kept with it");
+    assert_eq!(a.text, "Riley ", "its text has no picture mark");
     s.run("mail.new", &json!({})).unwrap();
     let c = s.compose.as_ref().unwrap();
     let at = c.body.chars().position(|ch| ch == mailcraft_mime::rich::PICTURE).expect("the picture in the signature");
@@ -544,9 +544,19 @@ fn a_signature_has_pictures() {
     let p = s.reading.as_ref().unwrap().parsed.clone().unwrap();
     assert_eq!(p.images.len(), 1, "sent with the message");
     assert!(p.attachments.iter().any(|a| a.inline && a.mime == "image/png"));
-    // Insert › Signature in a reply brings it too.
+    // A reply brings it too: under a `cid:` of its own, not the one of the quoted message's
+    // picture (it looked the same, so the quote's stood in for it: another sender's photo).
+    let sent_cid = p.images[0].trim_start_matches("cid:").to_string();
     s.run("mail.reply", &json!({})).unwrap();
-    assert!(s.compose.as_ref().unwrap().inline.len() == 1);
+    let c = s.compose.as_ref().unwrap();
+    let cids: Vec<&str> = c.inline.iter().map(|p| p.cid.as_str()).collect();
+    assert_eq!(cids.len(), 2, "the quote's and the signature's: {cids:?}");
+    assert!(cids.contains(&sent_cid.as_str()), "{cids:?}");
+    let own = cids.iter().find(|c| **c != sent_cid).unwrap();
+    assert!(own.starts_with("signature1.") && own.ends_with(&format!(".{}@mailcraft", c.signature_tag)), "{own}");
+    let (_, html, pictures) = c.bodies();
+    assert_eq!(pictures.len(), 2);
+    assert!(html.unwrap().contains(own), "shown in the signature");
     done(s);
 }
 

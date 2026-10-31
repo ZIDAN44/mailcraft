@@ -154,8 +154,9 @@ pub enum Action {
     SignInAgain(String),
     /// Insert a picture at the cursor of the message being written (from a file).
     InsertPicture,
-    /// The account's signature at the cursor of the message being written.
-    InsertSignature,
+    /// A signature of the account (by name; `None`: the one in it, else its own for this kind
+    /// of message) into the message being written: in place of the one there, else at the cursor.
+    InsertSignature(Option<String>),
     /// Paste a picture from the clipboard, if there is one.
     PastePicture,
     /// A picture into the signature being edited: from a file, or (`paste`) the clipboard's.

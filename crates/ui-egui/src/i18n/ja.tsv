@@ -1288,3 +1288,12 @@ month	May	5月
 	Your organisation's domains	組織のドメイン
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	コンマ区切り。空の場合は、アカウントのドメイン (Gmail などのメールサービスを除く)
 	None: nothing is tagged	なし: タグは付きません
+	Signatures	署名
+	(none)	(なし)
+	A signature needs a name, on one line.	署名には 1 行の名前が必要です。
+	Default signatures for {email}	{email} の既定の署名
+	New signature	新しい署名
+	No signatures yet	署名はまだありません
+	New messages:	新しいメッセージ:
+	Replies/forwards:	返信と転送:
+	Another signature has that name.	同じ名前の署名がすでにあります。

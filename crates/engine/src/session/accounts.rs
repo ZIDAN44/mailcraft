@@ -6,6 +6,7 @@ impl Session {
     /// Add an account (the password goes to the keychain through the `Start` job).
     pub fn add_account(&mut self, mut config: AccountConfig, password: Option<String>) -> Result<String, CmdError> {
         config.email = config.email.trim().to_string();
+        config.migrate_signature();
         if !addr::is_valid_email(&config.email) {
             return Err(CmdError::Params(format!("`{}` is not an email address", config.email)));
         }
@@ -326,7 +327,10 @@ impl Session {
             name: c.name,
             email: c.email,
             username: String::new(),
-            signature: c.signature,
+            // Its signatures, all of them with their look and pictures, go with it.
+            signatures: c.signatures,
+            signature_new: c.signature_new,
+            signature_reply: c.signature_reply,
             oauth: Some("microsoft".into()),
             graph: Some(mailcraft_model::GRAPH_URL.to_string()),
             ..Default::default()
@@ -423,7 +427,8 @@ impl Session {
         }
     }
 
-    pub fn update_account(&mut self, config: AccountConfig, password: Option<String>) -> CmdResult {
+    pub fn update_account(&mut self, mut config: AccountConfig, password: Option<String>) -> CmdResult {
+        config.migrate_signature();
         let id = config.id.clone();
         let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
         let reconnect = a.config.imap != config.imap

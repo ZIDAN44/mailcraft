@@ -38,7 +38,7 @@ mod writing;
 pub(crate) use opening::source_lines;
 pub use opening::{SOURCE_SHOWN, SourceView, Toward};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
-pub use writing::{SendCheck, signature_block, style_signature};
+pub use writing::{SendCheck, signature_parts};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders};
@@ -464,6 +464,14 @@ pub struct Compose {
     /// another goes in, while it's still there unchanged.
     #[serde(default)]
     pub signature: String,
+    /// That signature's name, its HTML code (sent in its place while it's there as it was) and
+    /// the tag of its pictures' `cid:`s.
+    #[serde(default)]
+    pub signature_name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub signature_code: String,
+    #[serde(default)]
+    pub signature_tag: String,
     pub to: String,
     pub cc: String,
     pub bcc: String,
@@ -816,7 +824,8 @@ impl Session {
                 log::warn!("accounts: {e}");
                 Vec::new()
             });
-            for config in accounts {
+            for mut config in accounts {
+                config.migrate_signature();
                 // Online only: held in memory from the start (anything left on disk goes).
                 if config.keeps_online()
                     && let Err(e) = store.set_online_only(&config.id, true)

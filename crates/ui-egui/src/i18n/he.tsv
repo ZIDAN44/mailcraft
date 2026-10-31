@@ -1287,3 +1287,12 @@ month	May	מאי
 	Your organisation's domains	הדומיינים של הארגון שלכם
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	מופרדים בפסיקים. ריק: הדומיינים של החשבונות שלכם, בלי שירותי דואר כמו Gmail
 	None: nothing is tagged	אין: שום דבר לא מסומן
+	Signatures	חתימות
+	(none)	(ללא)
+	A signature needs a name, on one line.	לחתימה נדרש שם בשורה אחת.
+	Default signatures for {email}	חתימות ברירת מחדל עבור {email}
+	New signature	חתימה חדשה
+	No signatures yet	אין עדיין חתימות
+	New messages:	הודעות חדשות:
+	Replies/forwards:	תשובות והעברות:
+	Another signature has that name.	לחתימה אחרת יש כבר את השם הזה.

@@ -1292,3 +1292,12 @@ month	May	mai
 	Your organisation's domains	Domaines de votre organisation
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Séparés par des virgules. Vide : les domaines de vos comptes, hors services de messagerie comme Gmail
 	None: nothing is tagged	Aucun : rien n'est signalé
+	Signatures	Signatures
+	(none)	(aucune)
+	A signature needs a name, on one line.	Une signature a besoin d'un nom, sur une seule ligne.
+	Default signatures for {email}	Signatures par défaut : {email}
+	New signature	Nouvelle signature
+	No signatures yet	Aucune signature pour l'instant
+	New messages:	Nouveaux messages :
+	Replies/forwards:	Réponses et transferts :
+	Another signature has that name.	Une autre signature porte ce nom.

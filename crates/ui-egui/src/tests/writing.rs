@@ -641,7 +641,7 @@ fn a_signature_keeps_a_picture_pasted_into_it() {
     frame(&ctx, &mut a, vec![button(false)]);
     frame(&ctx, &mut a, vec![]);
     assert!(form(&a).is_none(), "saved and closed");
-    let html = a.session.account("sample").unwrap().config.signature_html.clone();
+    let html = a.session.default_signature("sample", false).unwrap().html;
     assert!(html.contains("src=\"data:image/png;base64,"), "{html}");
     a.run("mail.new", json!({}));
     let c = a.session.compose.clone().unwrap();

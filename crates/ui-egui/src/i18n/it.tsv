@@ -1291,3 +1291,12 @@ month	May	maggio
 	Your organisation's domains	Domini della tua organizzazione
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Separati da virgole. Se vuoto, i domini dei tuoi account, esclusi i servizi di posta come Gmail
 	None: nothing is tagged	Nessuno: non viene contrassegnato nulla
+	Signatures	Firme
+	(none)	(nessuna)
+	A signature needs a name, on one line.	Una firma ha bisogno di un nome, su una sola riga.
+	Default signatures for {email}	Firme predefinite per {email}
+	New signature	Nuova firma
+	No signatures yet	Ancora nessuna firma
+	New messages:	Nuovi messaggi:
+	Replies/forwards:	Risposte e inoltri:
+	Another signature has that name.	Un'altra firma ha già questo nome.

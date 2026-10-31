@@ -562,7 +562,8 @@ fn a_microsoft_account_moves_to_graph() {
     let order: Vec<&str> = s.accounts.iter().map(|a| a.config.id.as_str()).collect();
     assert_eq!(order, [first.as_str(), new.as_str(), last.as_str()]);
     let c = &s.account(&new).unwrap().config;
-    assert_eq!((c.email.as_str(), c.name.as_str(), c.signature.as_str()), ("zoe@hotmail.com", "Zoe", "Zoe x"));
+    assert_eq!((c.email.as_str(), c.name.as_str()), ("zoe@hotmail.com", "Zoe"));
+    assert_eq!(c.default_signature(true).map(|g| g.text.as_str()), Some("Zoe x"), "its signature goes with it");
     assert_eq!((c.graph.as_deref(), c.oauth.as_deref()), (Some(mailcraft_model::GRAPH_URL), Some("microsoft")));
     let jobs = s.take_jobs();
     assert!(jobs.iter().any(|j| matches!(j, Job::Remove { account } if *account == id)));

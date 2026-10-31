@@ -1,6 +1,5 @@
 //! Commands: the View tab and the options.
 
-use super::compose::insert_signature;
 use super::*;
 
 pub(super) fn commands() -> Vec<CommandSpec> {
@@ -193,8 +192,6 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"by": p::req_str(v, "by")?}))
         })
         .params(r#"{"by": "modified"|"title"|"color"}"#),
-        CommandSpec::new("compose.insertSignature", "Insert signature", "Message › Signature", insert_signature)
-            .params(r#"{"at"?: number (the character it goes at; default the end)}"#),
         CommandSpec::new("view.readingOptions", "Reading pane options", "File › Options › Mail", |s, v| {
             if let Some(on) = p::bool(v, "markRead") {
                 s.prefs.mark_read_on_open = on;

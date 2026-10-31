@@ -68,8 +68,8 @@ pub(super) fn color_button(
 
 /// The Message ribbon: font size, bold / italic / underline / strikethrough, colours, lists,
 /// alignment, indent, clear formatting; then names, files, links and pictures.
-/// The Message ribbon; `signature` is the sending account's (for Insert › Signature).
-pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, signature: &str, clock: &Clock, acts: &mut Vec<Action>) {
+/// The Message ribbon; `signatures` are the sending account's, by name (its Signature menu).
+pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, signatures: &[String], clock: &Clock, acts: &mut Vec<Action>) {
     c.styles.fit(&c.body);
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
@@ -93,14 +93,21 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         if crate::widgets::tool_button(ui, Icon::Image, "Pictures", t, !c.sending && !c.plain).clicked() {
             acts.push(Action::InsertPicture);
         }
-        // The account's signature at the cursor, or making and changing it, from the message
-        // (Outlook's Signature menu on the Message ribbon).
+        // The account's signatures, one picked replacing the one in the message, or making and
+        // changing them, from the message (Outlook's Signature menu on the Message ribbon).
         let r = crate::widgets::tool_button(ui, Icon::Drafts, "Signature", t, !c.sending);
         egui::Popup::menu(&r).show(|ui| {
-            if ui.add_enabled(!signature.trim().is_empty(), egui::Button::new(tl!("Insert signature"))).clicked() {
-                acts.push(Action::InsertSignature);
-                ui.close();
+            for name in signatures {
+                let on = c.signature_name.eq_ignore_ascii_case(name) && c.signature_at().is_some();
+                if ui.add(egui::Button::selectable(on, name.as_str())).clicked() {
+                    acts.push(Action::InsertSignature(Some(name.clone())));
+                    ui.close();
+                }
             }
+            if signatures.is_empty() {
+                ui.add_enabled(false, egui::Button::new(tl!("No signatures yet")));
+            }
+            ui.separator();
             if ui.button(tl!("Signatures…")).clicked() {
                 acts.push(Action::EditSignature { account: c.account.clone(), insert: true });
                 ui.close();

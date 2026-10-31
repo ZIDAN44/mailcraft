@@ -4,6 +4,9 @@ use mailcraft_model::lookalike;
 
 use super::*;
 
+mod signatures;
+pub use signatures::signature_parts;
+
 /// From this many people (counted as [`SendCheck::Exposed`] says), sending to all of them in To
 /// and Cc asks first.
 const EXPOSED_FROM: usize = 8;
@@ -21,61 +24,14 @@ pub enum SendCheck {
     Exposed { count: usize },
 }
 
-/// A signature as it goes into a message: after the usual `-- ` line (RFC 3676's delimiter).
-pub fn signature_block(sig: &str) -> String {
-    format!(
-        "-- 
-{}",
-        sig.trim_end()
-    )
-}
-
-/// Give the signature in a message (`c.signature`, where it still stands as put there) the look
-/// it has: `sig` is its text and styles. Its `pictures` go into the message too, each under a
-/// `cid:` of this message's own (`tag`, from [`Session::signature_tag`]): one `cid:` in every
-/// message isn't unique, as RFC 2392 asks (#16). Pictures of a signature put in before and no
-/// longer in the text go.
-pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles), pictures: &[mime::InlinePicture], tag: &str) {
-    let (text, styles) = sig;
-    if c.signature.is_empty() || styles.is_plain() {
-        return;
-    }
-    let mut block = "-- 
-"
-    .to_string();
-    let mut block_styles = mime::rich::Styles::plain(&block);
-    mime::rich::append(&mut block, &mut block_styles, text.trim_end(), styles);
-    if block != c.signature {
-        return;
-    }
-    let Some(b) = c.body.rfind(&c.signature) else { return };
-    let start = c.body.get(..b).unwrap_or("").chars().count();
-    let n = block.chars().count();
-    for (i, ch) in block.chars().enumerate() {
-        let Some(p) = block_styles.style(i).picture.and_then(|cid| pictures.iter().find(|p| p.cid == cid)).filter(|_| ch == mime::rich::PICTURE)
-        else {
-            continue;
-        };
-        let cid = format!("{}.{tag}@mailcraft", p.cid.split('@').next().unwrap_or("signature"));
-        block_styles.restyle(&block, i..i + 1, |s| mime::rich::Style { picture: Some(cid.clone()), ..s.clone() });
-        if !c.inline.iter().any(|q| q.cid == cid) {
-            c.inline.push(mime::InlinePicture { cid, ..p.clone() });
-        }
-    }
-    c.styles.fit(&c.body);
-    mime::rich::splice(&mut c.body, &mut c.styles, start..start + n, &block, &block_styles);
-    let shown = mime::rich::pictures(&c.body, &c.styles);
-    c.inline.retain(|p| !p.cid.starts_with("signature") || shown.contains(&p.cid));
-}
-
 impl Compose {
-    /// [`Compose::bodies`], with the account's signature `code` in the HTML where the signature
+    /// [`Compose::bodies`], with the signature's `code` in the HTML where the signature
     /// stands (issue #11: a business card in columns, which the text can't hold), as long as it
     /// stands there as it was put in; the text keeps the signature's text. Its pictures go with
     /// it, under this message's own `cid:`s.
     pub fn bodies_with(&self, code: &str) -> (String, Option<String>, Vec<mime::InlinePicture>) {
         let (text, html, pictures) = self.bodies();
-        let at = self.body.rfind(&self.signature).filter(|_| !self.plain && !code.trim().is_empty() && !self.signature.is_empty());
+        let at = self.signature_at().filter(|_| !self.plain && !code.trim().is_empty());
         let Some(b) = at else { return (text, html, pictures) };
         let mut styles = self.styles.clone();
         styles.fit(&self.body);
@@ -84,11 +40,7 @@ impl Compose {
         // `-- ` stays text, as above every signature; the code is its next line.
         let (before, before_styles) = mime::rich::slice(&self.body, &styles, 0..start + "-- ".len());
         let (after, after_styles) = mime::rich::slice(&self.body, &styles, end..self.body.chars().count());
-        let tag = self
-            .inline
-            .iter()
-            .find_map(|p| p.cid.strip_prefix("signature")?.split_once('.')?.1.strip_suffix("@mailcraft").map(str::to_string))
-            .unwrap_or_else(|| format!("{:012x}", self.id));
+        let tag = Some(self.signature_tag.clone()).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("{:012x}", self.id));
         let (code_html, code_pictures) = mime::signature_code_parts(code, &tag);
         let mut out = mime::rich::to_html(&before, &before_styles);
         out.push_str(&format!("<div>{code_html}</div>"));
@@ -108,20 +60,6 @@ impl Compose {
 }
 
 impl Session {
-    /// An account's signature as HTML code (empty when it has none).
-    pub(crate) fn signature_code(&self, account: &str) -> String {
-        self.account(account).map(|a| a.config.signature_code.clone()).unwrap_or_default()
-    }
-
-    /// A tag for the `cid:`s of a signature's pictures in the message being written
-    /// ([`style_signature`]): the one it has already, so a signature put in again keeps them.
-    pub(crate) fn signature_tag(&mut self) -> String {
-        let had = self.compose.as_ref().and_then(|c| {
-            c.inline.iter().find_map(|p| p.cid.strip_prefix("signature")?.split_once('.')?.1.strip_suffix("@mailcraft").map(str::to_string))
-        });
-        had.unwrap_or_else(|| format!("{:012x}", self.random() & 0xFFFF_FFFF_FFFF))
-    }
-
     pub(super) fn me(&self, account: &str) -> Vec<String> {
         let mut v: Vec<String> = self.accounts.iter().map(|a| a.config.email.clone()).collect();
         if let Some(a) = self.account(account) {
@@ -130,47 +68,11 @@ impl Session {
         v
     }
 
-    pub(super) fn signature(&self, account: &str) -> String {
-        self.signature_rich(account).0
-    }
-
-    /// An account's signature with its look: its text and styles (plain when it has none).
-    pub fn signature_rich(&self, account: &str) -> (String, mime::rich::Styles) {
-        let (text, styles, _) = self.signature_full(account);
-        (text, styles)
-    }
-
-    /// The pictures in an account's signature (issue #11).
-    pub fn signature_pictures(&self, account: &str) -> Vec<mime::InlinePicture> {
-        self.signature_full(account).2
-    }
-
-    fn signature_full(&self, account: &str) -> (String, mime::rich::Styles, Vec<mime::InlinePicture>) {
-        let Some(a) = self.account(account) else { return (String::new(), mime::rich::Styles::default(), Vec::new()) };
-        if !a.config.signature_html.trim().is_empty() {
-            let (text, styles, pictures) = mime::signature_html(&a.config.signature_html);
-            if !text.trim().is_empty() {
-                return (text, styles, pictures);
-            }
-        }
-        (a.config.signature.clone(), mime::rich::Styles::plain(&a.config.signature), Vec::new())
-    }
-
-    /// The signature in the message being made, given its look (the text went in plain), and
-    /// its pictures.
-    pub(super) fn style_signature(&mut self) {
-        let Some(account) = self.compose.as_ref().map(|c| c.account.clone()) else { return };
-        let (text, styles, pictures) = self.signature_full(&account);
-        let tag = self.signature_tag();
-        if let Some(c) = self.compose.as_mut() {
-            style_signature(c, &(text, styles), &pictures, &tag);
-        }
-    }
-
     /// A new message from a `mailto:` link (MailCraft as the system's mail app): its addresses,
     /// subject and first words, above the signature. Nothing is attached and nothing is sent.
     pub fn mailto_compose(&mut self, m: &mailcraft_model::mailto::Mailto) -> CmdResult {
         let c = self.new_compose(None)?;
+        let account = c.account.clone();
         let cap = |x: &str| x.chars().take(1 << 20).collect::<String>();
         c.to = cap(&m.to);
         c.cc = cap(&m.cc);
@@ -182,7 +84,8 @@ impl Session {
             c.set_text(text);
         }
         let id = c.id;
-        self.style_signature();
+        let sig = self.default_signature(&account, false);
+        self.style_signature(sig.as_ref());
         Ok(serde_json::json!({"compose": id}))
     }
 
@@ -224,14 +127,11 @@ impl Session {
             None => self.current_account().map(|a| a.config.id.clone()),
         }
         .ok_or_else(|| CmdError::Disabled("add an account first".into()))?;
-        let sig = self.signature(&account);
+        let sig = self.default_signature(&account, false);
         let id = self.fresh_id();
-        let body = if sig.trim().is_empty() { String::new() } else { format!("\n\n{}", signature_block(&sig)) };
         let window = self.prefs.new_mail_window;
-        let signature = if sig.trim().is_empty() { String::new() } else { signature_block(&sig) };
-        let styles = mime::rich::Styles::plain(&body);
-        self.open_compose(Compose { id, account, body, styles, window, signature, ..Default::default() });
-        self.style_signature();
+        self.open_compose(Compose { id, account, window, ..Default::default() });
+        self.put_signature(sig.as_ref(), None)?;
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
 
@@ -244,11 +144,13 @@ impl Session {
             return Err(CmdError::Failed(super::STILL_COMING.into()));
         }
         let account = r.key.account.clone();
-        let sig = self.signature(&account);
+        let signature = self.default_signature(&account, true);
+        let block = Self::signature_text(signature.as_ref());
+        let sig = block.strip_prefix("-- \n").unwrap_or_default();
         let raw = self.readable_raw(&r.key);
         // The pictures in the quoted message go with it (they showed as "[picture]", issue #10).
         let (inline, quoted) = raw.as_deref().map(|raw| mime::quoted_pictures(&mut parsed, raw)).unwrap_or_default();
-        let (d, styles) = mime::reply_doc(&parsed, mode, &self.me(&account), &self.clock, &sig);
+        let (d, styles) = mime::reply_doc(&parsed, mode, &self.me(&account), &self.clock, sig);
         let id = self.fresh_id();
         let mut attachments = Vec::new();
         if mode == ReplyMode::Forward
@@ -265,7 +167,7 @@ impl Session {
         self.open_compose(Compose {
             id,
             account,
-            signature: if sig.trim().is_empty() { String::new() } else { signature_block(&sig) },
+            signature: block.clone(),
             to: addr::format_field(&d.to),
             cc: addr::format_field(&d.cc),
             subject: d.subject,
@@ -283,7 +185,7 @@ impl Session {
             window: self.prefs.reply_window,
             ..Default::default()
         });
-        self.style_signature();
+        self.style_signature(signature.as_ref());
         Ok(serde_json::json!({ "compose": id }))
     }
 
@@ -294,21 +196,22 @@ impl Session {
         let raw =
             self.store.as_ref().and_then(|s| s.read_body(&r.key)).ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
         let out = self.reply_compose(ReplyMode::Forward)?;
-        let sig = self.signature(&r.key.account);
+        let sig = self.default_signature(&r.key.account, true);
         let subject = r.parsed.as_ref().map(|p| p.subject.trim().to_string()).unwrap_or_default();
         let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() });
         if let Some(c) = self.compose.as_mut() {
-            c.set_text(if sig.trim().is_empty() { String::new() } else { format!("\n\n{}", signature_block(&sig)) });
-            c.signature = if sig.trim().is_empty() { String::new() } else { signature_block(&sig) };
+            c.set_text(String::new());
+            c.signature = String::new();
+            c.inline.clear();
             c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw }];
         }
-        self.style_signature();
+        self.put_signature(sig.as_ref(), None)?;
         Ok(out)
     }
 
     pub(super) fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
         let parse = |field: &str, s: &str| addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")));
-        let (body, html, inline) = c.bodies_with(&self.signature_code(&c.account));
+        let (body, html, inline) = c.bodies_with(&c.signature_code);
         Ok(mime::Draft {
             reply_to: parse("Replies to", &c.reply_to)?,
             to: parse("To", &c.to)?,
@@ -553,7 +456,7 @@ impl Session {
     pub(super) fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String), CmdError> {
         // Drafts may hold unfinished addresses: keep only the valid ones.
         let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
-        let (body, html, inline) = c.bodies_with(&self.signature_code(&c.account));
+        let (body, html, inline) = c.bodies_with(&c.signature_code);
         let d = mime::Draft {
             reply_to: lenient(&c.reply_to),
             to: lenient(&c.to),

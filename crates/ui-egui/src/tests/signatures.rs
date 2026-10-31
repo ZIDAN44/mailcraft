@@ -1,5 +1,6 @@
-//! A signature as HTML code (issue #11): from a file saved as Outlook saves one, and back to the
-//! formatted editor.
+//! Signatures (issue #11): several by name, made, renamed and deleted in the editor, with one
+//! for new messages and one for replies; picked from the message's Signature menu; and as HTML
+//! code, from a file saved as Outlook saves one, and back to the formatted editor.
 
 use super::*;
 use std::path::{Path, PathBuf};
@@ -64,8 +65,8 @@ fn an_outlook_signature_file_becomes_the_code() {
     let Some(Dialog::Signature(f)) = a.ui.dialog.as_mut() else { panic!() };
     let code = mailcraft_engine::mime::code_with_pictures(f.code.as_deref().unwrap_or(""), &f.pictures);
     a.run("account.setSignature", json!({"account": "sample", "signature": "", "code": code}));
-    let config = a.session.account("sample").unwrap().config.clone();
-    assert!(config.signature_code.contains("data:image/png;base64,"), "kept with its picture");
+    let config = a.session.default_signature("sample", false).unwrap();
+    assert!(config.code.contains("data:image/png;base64,"), "kept with its picture");
     let Some(Dialog::Signature(f)) = a.ui.dialog.as_mut() else { panic!() };
     f.switch(false);
     assert!(f.code.is_none() && f.compose.body.contains("Andr\u{e9} Moss") && f.compose.inline.len() == 1, "{:?}", f.compose.body);
@@ -75,5 +76,133 @@ fn an_outlook_signature_file_becomes_the_code() {
     a.ui.dialog = Dialog::signature(&a.session);
     assert!(form(&a).code.as_deref().is_some_and(|c| c.contains("WordSection1")));
     frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Click the button a screen reader names `label` (the frame after shows what it did).
+fn click(ctx: &egui::Context, a: &mut MailApp, label: &str) {
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
+    let at = nodes
+        .iter()
+        .find(|(_, n)| n.label() == Some(label) && n.bounds().is_some() && !n.is_disabled())
+        .and_then(|(_, n)| n.bounds())
+        .map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+        .unwrap_or_else(|| panic!("no {label} to click"));
+    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(ctx, a, vec![Event::PointerMoved(at)]);
+    frame(ctx, a, vec![button(true)]);
+    frame(ctx, a, vec![button(false)]);
+    frame(ctx, a, vec![]);
+}
+
+fn form_mut(a: &mut MailApp) -> &mut crate::dialogs::SignatureForm {
+    let Some(Dialog::Signature(f)) = a.ui.dialog.as_mut() else { panic!("the editor is open") };
+    f
+}
+
+/// Issue #11: in the editor, a second signature is made (the first kept as it was), chosen for
+/// replies, renamed (the defaults following it) and deleted; "(none)" is a choice too.
+#[test]
+fn signatures_are_made_renamed_and_chosen_in_the_editor() {
+    let (mut a, dir) = app("signatures-editor");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Dialog::signature(&a.session);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(form(&a).name, "Signature", "the one from before");
+    assert!(form(&a).compose.body.contains("Riley Moreno"));
+    click(&ctx, &mut a, "New");
+    let f = form_mut(&mut a);
+    assert_eq!((f.editing.as_deref(), f.name.as_str()), (None, "Signature 2"), "a name not taken");
+    f.name = "Short".into();
+    f.compose.set_text("Riley".into());
+    f.for_reply = Some("Short".into());
+    click(&ctx, &mut a, "Save");
+    assert!(a.ui.dialog.is_none(), "saved and closed");
+    let config = a.session.account("sample").unwrap().config.clone();
+    assert_eq!(config.signatures.iter().map(|g| g.name.as_str()).collect::<Vec<_>>(), ["Signature", "Short"]);
+    assert_eq!(config.signature_named("Signature").map(|g| g.text.as_str()), Some("Riley Moreno · Studio Lantern"), "kept as it was");
+    assert_eq!((config.signature_new.as_deref(), config.signature_reply.as_deref()), (Some("Signature"), Some("Short")));
+
+    // Renamed, then another made: the rename is saved on switching, the defaults follow it.
+    a.ui.dialog = Dialog::signature(&a.session);
+    frame(&ctx, &mut a, vec![]);
+    form_mut(&mut a).name = "Full".into();
+    click(&ctx, &mut a, "New");
+    let config = a.session.account("sample").unwrap().config.clone();
+    assert_eq!(config.signature_new.as_deref(), Some("Full"), "{:?}", config.signatures);
+    assert_eq!(form(&a).names, ["Short", "Full"]);
+    assert_eq!(form(&a).for_new.as_deref(), Some("Full"));
+    // Deleted: gone, and none goes into replies.
+    let Some(Dialog::Signature(f)) = a.ui.dialog.as_mut() else { panic!() };
+    f.load(&a.session, Some("Short"));
+    click(&ctx, &mut a, "Delete");
+    assert!(a.session.account("sample").unwrap().config.signature_named("Short").is_none());
+    assert_eq!(form(&a).for_reply, None);
+    assert_eq!(form(&a).name, "Full", "the next one to edit");
+    form_mut(&mut a).for_new = None;
+    click(&ctx, &mut a, "Save");
+    assert_eq!(a.session.account("sample").unwrap().config.signature_new, None, "(none) for new messages");
+    a.run("mail.new", json!({}));
+    assert_eq!(a.session.compose.as_ref().unwrap().body, "");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The message's Signature menu lists the account's signatures: one picked takes the place of
+/// the one in the message.
+#[test]
+fn the_signature_menu_lists_the_accounts_signatures() {
+    let (mut a, dir) = app("signatures-menu");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.session.prefs.new_mail_window = false;
+    a.run("account.setSignature", json!({"account": "sample", "name": "Short", "signature": "R."}));
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, "Signature");
+    click(&ctx, &mut a, "Short");
+    let c = a.session.compose.as_ref().unwrap();
+    assert!(c.body.ends_with("-- \nR.") && c.body.matches("-- ").count() == 1, "{:?}", c.body);
+    assert_eq!(c.signature_name, "Short");
+    // From another account: its signature takes the place of the one picked (issue #11).
+    a.run("account.add", json!({"email": "desk@studio.example", "password": "pw", "name": "Front desk", "deferSignIn": true}));
+    let desk = a.session.accounts.iter().find(|x| x.config.email == "desk@studio.example").map(|x| x.config.id.clone()).unwrap();
+    a.run("account.setSignature", json!({"account": desk, "name": "Desk", "signature": "Front desk"}));
+    frame(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, "From");
+    click(&ctx, &mut a, "Front desk <desk@studio.example>");
+    let c = a.session.compose.as_ref().unwrap();
+    assert_eq!(c.account, desk);
+    assert!(c.body.ends_with("-- \nFront desk") && c.body.matches("-- ").count() == 1, "{:?}", c.body);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Renamed to another signature's name, it isn't saved (it would take that one's place), nor
+/// left behind by switching: the editor says why and waits.
+#[test]
+fn a_signature_cant_take_anothers_name() {
+    let (mut a, dir) = app("signatures-taken");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("account.setSignature", json!({"account": "sample", "name": "Short", "signature": "R."}));
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Dialog::signature(&a.session);
+    frame(&ctx, &mut a, vec![]);
+    form_mut(&mut a).name = "short".into();
+    assert!(form(&a).problem().is_some());
+    click(&ctx, &mut a, "New");
+    assert_eq!(form(&a).name, "short", "still this one, to put right");
+    frame(&ctx, &mut a, vec![]);
+    let config = a.session.account("sample").unwrap().config.clone();
+    assert_eq!(config.signature_named("Short").map(|g| g.text.as_str()), Some("R."), "the other one untouched");
+    assert_eq!(config.signatures.len(), 2);
+    form_mut(&mut a).name = "Long".into();
+    click(&ctx, &mut a, "Save");
+    let config = a.session.account("sample").unwrap().config.clone();
+    assert_eq!(config.signatures.iter().map(|g| g.name.as_str()).collect::<Vec<_>>(), ["Long", "Short"]);
     let _ = std::fs::remove_dir_all(dir);
 }

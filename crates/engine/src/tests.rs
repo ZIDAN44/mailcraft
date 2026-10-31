@@ -64,6 +64,7 @@ mod safety;
 mod selecting;
 mod senders;
 mod signature_code;
+mod signatures;
 mod smime;
 mod source;
 mod tentative;

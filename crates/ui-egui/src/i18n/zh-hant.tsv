@@ -1291,3 +1291,12 @@ month	May	5月
 	Your organisation's domains	你組織的網域
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	以逗號分隔。留空：你的帳戶所在的網域，不含 Gmail 等郵件服務
 	None: nothing is tagged	無：不標記任何郵件
+	Signatures	簽名
+	(none)	(無)
+	A signature needs a name, on one line.	簽名需要一個單行名稱。
+	Default signatures for {email}	{email} 的預設簽名
+	New signature	新增簽名
+	No signatures yet	尚無簽名
+	New messages:	新郵件:
+	Replies/forwards:	回覆和轉寄:
+	Another signature has that name.	已有同名的簽名。

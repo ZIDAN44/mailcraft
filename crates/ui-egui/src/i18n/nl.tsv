@@ -1287,3 +1287,12 @@ month	May	mei
 	Your organisation's domains	Domeinen van uw organisatie
 	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Gescheiden door komma's. Leeg: de domeinen van uw accounts, zonder maildiensten zoals Gmail
 	None: nothing is tagged	Geen: niets wordt gemarkeerd
+	Signatures	Handtekeningen
+	(none)	(geen)
+	A signature needs a name, on one line.	Een handtekening heeft een naam nodig, op één regel.
+	Default signatures for {email}	Standaardhandtekeningen voor {email}
+	New signature	Nieuwe handtekening
+	No signatures yet	Nog geen handtekeningen
+	New messages:	Nieuwe berichten:
+	Replies/forwards:	Antwoorden en doorsturen:
+	Another signature has that name.	Een andere handtekening heeft die naam al.

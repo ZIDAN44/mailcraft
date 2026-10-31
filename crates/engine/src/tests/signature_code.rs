@@ -34,13 +34,13 @@ fn a_signature_in_html_code_is_sent_as_written() {
     let mut s = sample_session("signature-code");
     let png = crate::sample::sample_png();
     s.run("account.setSignature", &json!({"account": "sample", "signature": "", "code": card(&png)})).unwrap();
-    let config = s.account("sample").unwrap().config.clone();
-    assert!(config.signature_code.starts_with("<table"), "{}", config.signature_code);
+    let config = s.default_signature("sample", false).unwrap();
+    assert!(config.code.starts_with("<table"), "{}", config.code);
     for gone in ["<script", "<title", "onclick", "javascript:", "<body"] {
-        assert!(!config.signature_code.contains(gone), "{gone}: {}", config.signature_code);
+        assert!(!config.code.contains(gone), "{gone}: {}", config.code);
     }
-    assert!(config.signature.contains("Riley Moreno") && config.signature.contains("Producer"), "{:?}", config.signature);
-    assert!(!config.signature.contains(['│', '─']), "no table drawn in lines: {:?}", config.signature);
+    assert!(config.text.contains("Riley Moreno") && config.text.contains("Producer"), "{:?}", config.text);
+    assert!(!config.text.contains(['│', '─']), "no table drawn in lines: {:?}", config.text);
 
     s.run("mail.new", &json!({})).unwrap();
     let c = s.compose.clone().unwrap();
@@ -73,17 +73,17 @@ fn a_changed_signature_goes_as_changed() {
     let body = s.compose.as_ref().unwrap().body.replace("Producer", "Director");
     s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Changed", "body": body})).unwrap();
     let c = s.compose.clone().unwrap();
-    let (text, html, _) = c.bodies_with(&s.signature_code("sample"));
+    let (text, html, _) = c.bodies_with(&c.signature_code);
     assert!(text.contains("Director"), "{text}");
     assert!(!html.unwrap_or_default().contains("border-left"), "the card as it was isn't sent");
 
     s.run("mail.new", &json!({})).unwrap();
     s.run("compose.format", &json!({"plain": true})).unwrap();
     let c = s.compose.clone().unwrap();
-    assert_eq!(c.bodies_with(&s.signature_code("sample")).1, None);
+    assert_eq!(c.bodies_with(&c.signature_code).1, None);
 
     s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley", "html": "<b>Riley</b>"})).unwrap();
-    assert!(s.account("sample").unwrap().config.signature_code.is_empty());
+    assert!(s.default_signature("sample", false).unwrap().code.is_empty());
     done(s);
 }
 
@@ -101,7 +101,7 @@ fn a_reply_has_the_card_then_the_quote() {
     s.run("list.open", &k).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
     let c = s.compose.clone().unwrap();
-    let (text, html, pictures) = c.bodies_with(&s.signature_code("sample"));
+    let (text, html, pictures) = c.bodies_with(&c.signature_code);
     let html = html.unwrap();
     let (card_at, quote_at) = (html.find("border-left:2px solid #c03").unwrap(), html.find("festival poster").unwrap_or(0));
     assert!(card_at < quote_at, "the card, then the quote: {html}");
@@ -112,7 +112,7 @@ fn a_reply_has_the_card_then_the_quote() {
     s.run("mail.new", &json!({})).unwrap();
     let c = s.compose.clone().unwrap();
     assert!(c.body.contains("RILEY"));
-    let html = c.bodies_with(&s.signature_code("sample")).1.unwrap_or_default();
+    let html = c.bodies_with(&c.signature_code).1.unwrap_or_default();
     assert!(html.contains("letter-spacing:2px"), "{html}");
     done(s);
 }

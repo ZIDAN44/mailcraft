@@ -7,7 +7,6 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod addr;
-pub mod cleanup;
 pub mod contacts;
 pub mod dates;
 pub mod ical;
@@ -17,6 +16,7 @@ pub mod mailto;
 pub mod organize;
 pub mod pim;
 pub mod search;
+pub mod signature;
 pub mod thread;
 pub mod utf7;
 pub mod vcard;
@@ -25,7 +25,10 @@ pub mod zone;
 use serde::{Deserialize, Serialize};
 
 pub use addr::EmailAddress;
+pub use signature::Signature;
+// Clean Up is a part of conversations, kept under its old path.
 pub use job::{Event, HeldKey, Job, Op, Private, Revocation, Secret, SyncStatus};
+pub use thread::cleanup;
 
 /// How a connection to a server is secured.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,14 +87,21 @@ pub struct AccountConfig {
     /// (its password is kept apart in the keychain); otherwise SMTP signs in as IMAP or POP does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub smtp_username: Option<String>,
-    #[serde(default)]
+    /// Its signatures by name (issue #11: "Full", "Short"…), as Outlook's Signatures keeps them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub signatures: Vec<Signature>,
+    /// The signature (by name) put into new messages, and the one put into replies and forwards
+    /// (Outlook's "New messages" and "Replies/forwards"); `None` puts none in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature_new: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature_reply: Option<String>,
+    /// The one signature an account had before it could have several (its text, its look as
+    /// HTML, its HTML code): moved into `signatures` ([`AccountConfig::migrate_signature`]).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub signature: String,
-    /// The signature's look, as HTML (empty when it's plain text): bold, colours, sizes and
-    /// links, as pasted from Outlook or set in the signature editor.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub signature_html: String,
-    /// The signature as HTML code, sent as written (a business card in columns, issue #11);
-    /// `signature_html` is then its text as the editor shows it.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub signature_code: String,
     /// The colour index the UI uses for this account's marker.
@@ -248,24 +258,7 @@ impl AccountConfig {
             username: email.to_string(),
             imap: ServerConfig { host: imap_host, port: 993, security: Security::Tls },
             smtp,
-            smtp_username: None,
-            signature: String::new(),
-            signature_html: String::new(),
-            signature_code: String::new(),
-            color: 0,
-            oauth: None,
-            jmap: None,
-            graph: None,
-            ews: None,
-            pop: None,
-            pop_delete: false,
-            pop_keep_days: None,
-            pop_delete_with_trash: false,
-            oauth_user: None,
-            shared_mailboxes: Vec::new(),
-            online_only: false,
-            dav: None,
-            user_agent: None,
+            ..AccountConfig::default()
         }
     }
 
