@@ -633,6 +633,23 @@ mod tests {
         }
     }
 
+    /// An address is split into the words the index holds of it: with another word it finds
+    /// what it finds alone, as the summaries do.
+    #[test]
+    fn addresses_narrow_by_the_words_the_index_holds() {
+        assert_eq!(Query::parse("from:zoe@studio.example").clauses[0].term, Term::Words(Field::From, vec!["zoe".into(), "studio.example".into()]));
+        let m = sample();
+        let mut ix = Index::new();
+        ix.add(0, &summary_text(&m));
+        ix.add(0, "the storyboard draft");
+        ix.add(1, "budget from someone@else.example");
+        for q in ["from:zoe@studio.example", "from:zoe@studio.example storyboard", "zoe@studio.example"] {
+            assert_eq!(ix.candidates(&Query::parse(q)), BTreeSet::from([0]), "{q}");
+        }
+        assert!(ix.candidates(&Query::parse("from:zoe@studio.example budget")).is_empty());
+        assert!(Query::parse("from:zoe@studio.example").matches(&Doc { summary: &m, body: None, indexed: false, awaiting: false }));
+    }
+
     #[test]
     fn categories_asked_by_keyword() {
         let k = |v: &str| (v == "Work" || v == "To do").then(|| if v == "Work" { "$label2".to_string() } else { "$label4".to_string() });

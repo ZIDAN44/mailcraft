@@ -124,7 +124,10 @@ fn searching_a_big_mailbox_stays_quick() {
     let t = std::time::Instant::now();
     assert_eq!(s.run("search.run", &json!({"query": "needle"})).unwrap()["results"], 1);
     let first = t.elapsed();
-    // Mail changes (as a sync does), and the next key is typed: the folder's index is built again.
+    // Mail changes (as a sync does: a message goes), and the next key is typed: the folder's
+    // index is built again.
+    st.messages.pop();
+    store.save_folder("a1", "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: "a1".into(), folder: "INBOX".into() });
     let t = std::time::Instant::now();
     assert_eq!(s.run("search.run", &json!({"query": "needl"})).unwrap()["results"], 1);
@@ -291,10 +294,62 @@ fn another_view_keeps_the_search_words() {
     assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
     assert_eq!(s.index_builds(), 1, "the folders' words are kept whatever is on view");
     assert_eq!(s.store.as_ref().unwrap().reads(), reads);
-    // A folder that changes is read again, alone.
+    // A folder read again with the same mail keeps its words; one with other mail is read
+    // again, alone.
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
+    assert_eq!(s.index_builds(), 1);
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    st.messages.pop();
+    store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
     assert_eq!(s.index_builds(), 2);
+    done(s);
+}
+
+/// An account whose edits go to a server: marking a result read is recorded in the cache, and
+/// the folder read again from it (`FolderChanged`). The same mail, the words are kept.
+#[test]
+fn a_mark_read_sent_to_the_server_keeps_the_search_words() {
+    let mut s = sample_session("search-remote-read");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
+    let found = s.list.len();
+    assert_eq!(s.index_builds(), 1);
+    let unread = s.list.iter().find(|m| !m.flags.seen).map(|m| m.key.clone()).expect("an unread result");
+    // What the worker does with the edit, then tells.
+    let store = s.store.clone().unwrap();
+    let op = mailcraft_model::Op::SetFlag { keys: vec![unread.clone()], flag: mailcraft_model::Flag::Seen, on: true };
+    for folder in store.apply_op(&a, &op).unwrap() {
+        s.apply(Event::FolderChanged { account: a.clone(), folder });
+    }
+    assert_eq!(s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap()["results"].as_u64(), Some(found as u64));
+    assert!(s.list.iter().any(|m| m.key == unread && m.flags.seen), "read");
+    assert_eq!(s.index_builds(), 1, "not read again");
+    done(s);
+}
+
+/// A body downloaded ahead with no word to the search (a sync's, its folder changed): its words
+/// are found at the next search, without reading the folder again.
+#[test]
+fn a_body_downloaded_ahead_is_searched() {
+    let mut s = sample_session("search-ahead");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
+    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Headers only".into(), ..Default::default() });
+    store.save_folder(&a, "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    assert_eq!(s.run("search.run", &json!({"query": "zeppelin", "scope": "all"})).unwrap()["results"], 0);
+    assert_eq!(s.index_builds(), 1);
+    store.write_body(&key, b"From: a@x.example\r\nSubject: Headers only\r\n\r\nThe zeppelin lands at noon.\r\n").unwrap();
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    assert_eq!(s.run("search.run", &json!({"query": "zeppelin", "scope": "all"})).unwrap()["results"], 1);
+    assert_eq!(s.index_builds(), 1, "the folder's words kept, the new body's added");
     done(s);
 }
 
@@ -324,11 +379,36 @@ fn an_import_reads_search_words_again_once() {
     }
     assert_eq!(s.index_builds(), 1, "not read again while the import goes on");
     assert_eq!(s.list.len(), before, "what was found stays found");
+    // What came in meanwhile is found by its summary until then.
+    assert_eq!(s.run("search.run", &json!({"query": "imported", "scope": "all"})).unwrap()["results"], 1);
     s.apply(Event::Imported { account: a.clone(), messages: 1, skipped: 0, done: true, error: None });
     assert_eq!(s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap()["results"].as_u64(), Some(before as u64 + 1));
     assert_eq!(s.index_builds(), 2, "read again once, after it");
     s.run("search.run", &json!({"query": "storyboard imported", "scope": "all"})).unwrap();
     assert_eq!(s.index_builds(), 2);
+    done(s);
+}
+
+/// An import into an account whose folders have no search words yet: a search reads them once
+/// (mail already in is found by its text, not just its summary), not again for each folder the
+/// import finishes. The import failing (its thread couldn't start, say) ends it all the same.
+#[test]
+fn a_search_during_an_import_reads_the_words_once() {
+    let mut s = sample_session("search-import-first");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: false, error: None });
+    assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 1, "found in a message's text");
+    assert_eq!(s.index_builds(), 1);
+    let folders: Vec<String> = s.account(&a).unwrap().folders.iter().map(|f| f.path.clone()).collect();
+    for folder in folders {
+        s.apply(Event::FolderChanged { account: a.clone(), folder });
+        s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap();
+    }
+    assert_eq!(s.index_builds(), 1);
+    // Nothing came in: the account goes, and its search words with it.
+    s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: true, error: Some("no thread".into()) });
+    assert!(s.account(&a).is_none());
+    assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 0);
     done(s);
 }
 

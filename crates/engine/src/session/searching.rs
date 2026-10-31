@@ -37,14 +37,17 @@ impl Session {
         }
     }
 
-    /// Search words for each of these folders that has none yet; an importing account's folders
-    /// wait for the import to end (searched by their summaries until then).
+    /// Search words for each of these folders that has none yet, or whose list was read again
+    /// with other messages in it. One that changed while its account imports is kept as it is
+    /// until the import ends.
     pub(super) fn ensure_index(&mut self, folders: &[(String, String)]) {
         let mut built = false;
         for (a, f) in folders {
             let k = (a.clone(), f.clone());
-            if self.index.contains_key(&k) || self.importing.contains(a) {
-                continue;
+            match self.index.get(&k).map(|ix| (ix.stale, ix.recheck)) {
+                Some((true, _) | (false, false)) => continue,
+                Some((false, true)) if self.index_still_holds(a, f) => continue,
+                Some(_) | None => {}
             }
             let ix = self.folder_index(a, f);
             self.index.insert(k, ix);
@@ -60,6 +63,7 @@ impl Session {
         let mut index = Index::new();
         let mut keys = Vec::new();
         let mut has_body = Vec::new();
+        let mut texts = Vec::new();
         // A thousand at a time: a big folder isn't copied whole while it's read.
         let n = self.folder_state(a, f).messages.len();
         let mut at = 0;
@@ -72,7 +76,9 @@ impl Session {
             at += msgs.len();
             for m in msgs {
                 let doc = u32::try_from(keys.len()).unwrap_or(u32::MAX);
-                index.add(doc, &summary_text(&m));
+                let text = summary_text(&m);
+                index.add(doc, &text);
+                texts.push(text_hash(&text));
                 let words = self.words_of(&m.key);
                 if let Some(words) = &words {
                     index.add(doc, words);
@@ -81,19 +87,61 @@ impl Session {
                 keys.push(m.key);
             }
         }
-        SearchIndex { index, keys, has_body, stale: false }
+        SearchIndex { index, keys, has_body, texts, recheck: false, stale: false }
     }
 
-    /// A folder's mail changed: its search words go (read again at the next search), or, while
-    /// its account imports, are kept and marked to go when the import ends.
+    /// Whether a folder's search words, its list read again, still hold: the same messages in
+    /// the same order (a flag changed, say). Summaries that changed add their new words (the
+    /// index may find too much, never too little), and so do bodies downloaded since.
+    fn index_still_holds(&mut self, a: &str, f: &str) -> bool {
+        let k = (a.to_string(), f.to_string());
+        let Some(mut ix) = self.index.remove(&k) else { return false };
+        let st = self.folder_state(a, f);
+        if st.messages.len() != ix.keys.len() || st.messages.iter().zip(&ix.keys).any(|(m, key)| m.key != *key) {
+            return false;
+        }
+        for (doc, m) in st.messages.iter().enumerate() {
+            let text = summary_text(m);
+            let hash = text_hash(&text);
+            if let Some(old) = ix.texts.get_mut(doc)
+                && *old != hash
+            {
+                *old = hash;
+                ix.index.add(u32::try_from(doc).unwrap_or(u32::MAX), &text);
+            }
+        }
+        // Downloaded without a word to the index (ahead, by a sync): their words join now.
+        let fetched: Vec<(usize, MessageKey)> = ix
+            .has_body
+            .iter()
+            .zip(&ix.keys)
+            .enumerate()
+            .filter(|(_, (has, key))| !**has && self.store.as_ref().is_some_and(|s| s.has_body(key)))
+            .map(|(doc, (_, key))| (doc, key.clone()))
+            .collect();
+        for (doc, key) in fetched {
+            if let Some(words) = self.words_of(&key) {
+                ix.index.add(u32::try_from(doc).unwrap_or(u32::MAX), &words);
+                if let Some(has) = ix.has_body.get_mut(doc) {
+                    *has = true;
+                }
+            }
+        }
+        ix.recheck = false;
+        self.index.insert(k, ix);
+        true
+    }
+
+    /// A folder's mail changed: its search words are checked at the next search, or, while its
+    /// account imports, kept as they are and marked to go when the import ends.
     pub(super) fn index_changed(&mut self, account: &str, folder: &str) {
         let k = (account.to_string(), folder.to_string());
-        if self.importing.contains(account) {
-            if let Some(ix) = self.index.get_mut(&k) {
+        if let Some(ix) = self.index.get_mut(&k) {
+            if self.importing.contains(account) {
                 ix.stale = true;
+            } else {
+                ix.recheck = true;
             }
-        } else {
-            self.index.remove(&k);
         }
     }
 
@@ -188,7 +236,7 @@ impl Session {
         let needs_body = query.needs_body();
         for (a, f) in folders {
             let Some(ix) = self.index.remove(&(a.clone(), f.clone())) else {
-                // An importing account's folder not read yet: its summaries alone answer.
+                // No words for it (not expected): its summaries alone answer.
                 let st = self.folder_state(&a, &f);
                 let found = st
                     .messages
@@ -197,6 +245,16 @@ impl Session {
                 out.extend(found.cloned());
                 continue;
             };
+            // Mail that came into a folder an import is still changing isn't in its words yet:
+            // its summaries answer for it until the import ends.
+            if ix.stale {
+                let known: HashSet<&MessageKey> = ix.keys.iter().collect();
+                let st = self.folder_state(&a, &f);
+                let found = st.messages.iter().filter(|m| {
+                    !known.contains(&m.key) && query.matches(&Doc { summary: m, body: None, indexed: false, awaiting: awaiting.contains(&m.key) })
+                });
+                out.extend(found.cloned());
+            }
             let docs = ix.index.candidates(&query);
             if !docs.is_empty() {
                 // Where each message is in the folder's list, made once: looked up one by one, a
@@ -350,6 +408,14 @@ fn summary_term(t: &mailcraft_model::search::Term) -> bool {
         | Term::Size(..)
         | Term::Awaiting => true,
     }
+}
+
+/// A hash of a message's summary words, to tell when they change.
+fn text_hash(text: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::hash::DefaultHasher::new();
+    text.hash(&mut h);
+    h.finish()
 }
 
 /// Whether a search term asks for mail waiting for a reply (on its own or among others).

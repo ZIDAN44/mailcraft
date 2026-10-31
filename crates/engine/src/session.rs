@@ -355,6 +355,13 @@ struct SearchIndex {
     /// Whether each message's body words are in the index (the words themselves aren't kept: a
     /// big mailbox's would fill the memory; they're read again for the messages a search finds).
     has_body: Vec<bool>,
+    /// A hash of each message's summary words: a message whose summary changed (its preview
+    /// filled in by its download) has its new words added.
+    texts: Vec<u64>,
+    /// The folder's list was read again (a sync, an edit the cache recorded): checked at the
+    /// next search, and kept when it holds the same messages (a flag changed), with the words
+    /// of what was downloaded since.
+    recheck: bool,
     /// The folder changed while its account was importing: still used, built again once the
     /// import is done (not once per folder the import finishes).
     stale: bool,
