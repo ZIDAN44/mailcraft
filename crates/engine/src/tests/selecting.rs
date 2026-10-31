@@ -198,3 +198,27 @@ fn the_anchor_leaves_with_its_message() {
     assert!(s.selection.iter().all(|k| s.summary(k).is_some()));
     done(s);
 }
+
+/// Ctrl+A is several selected like Shift's: the reading pane lets go of the message it read and
+/// Reply waits for one (it answered the message read before; found reviewing issue #26). An empty
+/// list's Ctrl+A leaves the pane as it is.
+#[test]
+fn select_all_is_several_selected() {
+    let mut s = sample_session("select-all");
+    let keys = s.row_keys();
+    s.run("list.open", &json!({"key": keys[1].to_id()})).unwrap();
+    s.run("list.selectAll", &json!({})).unwrap();
+    assert_eq!(s.selection.len(), s.list.len());
+    assert!(s.reading.is_none(), "several selected: none is read");
+    assert!(s.run("mail.reply", &json!({})).is_err(), "Reply waits for one message");
+    // Shift+Down after it goes on from where the selection started.
+    s.run("list.extendNext", &json!({})).unwrap();
+    assert_eq!(s.selection, keys[1..3].to_vec());
+    // Nothing in the list: nothing to select, and nothing let go of.
+    s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
+    s.run("search.run", &json!({"query": "nothing-at-all-matches-this"})).unwrap();
+    let reading = s.reading.as_ref().map(|r| r.key.clone());
+    s.run("list.selectAll", &json!({})).unwrap();
+    assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), reading);
+    done(s);
+}

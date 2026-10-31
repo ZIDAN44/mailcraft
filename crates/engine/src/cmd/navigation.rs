@@ -302,7 +302,7 @@ pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 pub(super) fn select_all(s: &mut Session, _: &Value) -> CmdResult {
-    s.selection = s.list.iter().map(|m| m.key.clone()).collect();
+    s.select_every_message();
     Ok(json!({"selected": s.selection.len()}))
 }
 

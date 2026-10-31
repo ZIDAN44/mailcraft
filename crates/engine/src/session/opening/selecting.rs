@@ -94,6 +94,16 @@ impl Session {
         self.after_selecting();
     }
 
+    /// Ctrl+A: every message in the list. Several are then selected as with Shift, so the
+    /// reading pane says how many and Reply waits for one (it read on, and Reply answered the
+    /// message read before: found testing issue #26).
+    pub fn select_every_message(&mut self) {
+        self.selection = self.list.iter().map(|m| m.key.clone()).collect();
+        if !self.selection.is_empty() {
+            self.after_selecting();
+        }
+    }
+
     fn select_to(&mut self, rows: &[MessageKey], to: usize, add: bool) -> CmdResult {
         // No anchor (nothing was chosen yet, or it left the list): where the focus is, else here.
         let from =
