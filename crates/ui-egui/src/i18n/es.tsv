@@ -1279,3 +1279,4 @@ month	May	mayo
 	Copy all	Copiar todo
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Solo se muestran los primeros {shown} de {size}. Guardar como correo (.eml) lo conserva todo.
 	The source couldn't be downloaded: {error}	No se pudo descargar el código fuente: {error}
+	Careful: you know {name} as {known}, but this comes from {real}.	Cuidado: conoces a {name} como {known}, pero esto viene de {real}.

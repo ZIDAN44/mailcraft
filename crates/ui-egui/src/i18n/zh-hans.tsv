@@ -1275,3 +1275,4 @@ month	May	5月
 	Copy all	全部复制
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	只显示了 {size} 中的前 {shown}。另存为电子邮件 (.eml) 可保留全部内容。
 	The source couldn't be downloaded: {error}	无法下载源文件：{error}
+	Careful: you know {name} as {known}, but this comes from {real}.	当心：你认识的 {name} 地址是 {known}，但这封邮件来自 {real}。

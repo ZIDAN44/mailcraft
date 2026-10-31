@@ -1274,3 +1274,4 @@ month	May	mei
 	Copy all	Alles kopiëren
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Alleen de eerste {shown} van {size} worden getoond. Opslaan als e-mail (.eml) bewaart alles.
 	The source couldn't be downloaded: {error}	De bron kon niet worden gedownload: {error}
+	Careful: you know {name} as {known}, but this comes from {real}.	Let op: u kent {name} als {known}, maar dit komt van {real}.

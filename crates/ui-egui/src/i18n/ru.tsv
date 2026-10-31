@@ -1278,3 +1278,4 @@ month	May	Май
 	Copy all	Копировать всё
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Показаны только первые {shown} из {size}. «Сохранить как письмо (.eml)» сохраняет его целиком.
 	The source couldn't be downloaded: {error}	Не удалось загрузить исходный текст: {error}
+	Careful: you know {name} as {known}, but this comes from {real}.	Осторожно: вы знаете {name} по адресу {known}, но письмо пришло с {real}.

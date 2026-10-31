@@ -1274,3 +1274,4 @@ month	May	مايو
 	Copy all	نسخ الكل
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	يُعرض أول {shown} فقط من {size}. الحفظ كبريد إلكتروني (.eml) يحتفظ بها كاملة.
 	The source couldn't be downloaded: {error}	تعذّر تنزيل المصدر: {error}
+	Careful: you know {name} as {known}, but this comes from {real}.	انتبه: تعرف {name} بالعنوان {known}، لكن هذه الرسالة من {real}.

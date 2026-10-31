@@ -102,6 +102,11 @@ impl ContactBook {
         self.by_email.values().filter(|c| c.sent > 0).map(|c| crate::lookalike::domain_of(&c.address.email)).filter(|d| !d.is_empty())
     }
 
+    /// The people the user writes to (or saved in an address book).
+    pub fn written(&self) -> impl Iterator<Item = &Contact> + '_ {
+        self.by_email.values().filter(|c| c.sent > 0)
+    }
+
     /// Up to `limit` contacts matching `query` (the start of the address, of the name, or of any
     /// word of the name; case-insensitive), best first.
     pub fn suggest(&self, query: &str, limit: usize, now: i64) -> Vec<Contact> {

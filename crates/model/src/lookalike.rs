@@ -5,10 +5,18 @@
 //!
 //! [`imitates`] compares a domain with the ones the user really deals with (their own, and the
 //! people they write to) and names the one it imitates; [`check_sender`] does that for a message's
-//! sender and also catches an address hidden in the name. Both only compare text: nothing is
-//! looked up.
+//! sender and also catches an address hidden in the name. [`SenderCheck`] adds a known person's
+//! name worn on someone else's address ([`people`]); [`external`] tells senders from outside the
+//! organisation. All of it only compares text: nothing is looked up.
 
+mod external;
+mod people;
+
+use std::borrow::Cow;
 use std::collections::BTreeSet;
+
+pub use external::{clean_domain, is_external, is_free_mail, own_domains};
+pub use people::{KnownPeople, name_key};
 
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +30,9 @@ pub enum SenderWarning {
     Lookalike { domain: String, like: String },
     /// The sender's name shows an address (`shown`) that isn't the one it came from.
     NameShowsOther { shown: String, real: String },
+    /// The sender's name is that of someone the user knows (`name`, as they know them) by
+    /// another address (`known`), not the one it came from (`real`): issue #29.
+    NameOfKnownPerson { name: String, known: String, real: String },
 }
 
 /// Big mail services whose names are close to each other (`mail.com`, `gmail.com`): neither is
@@ -82,26 +93,41 @@ pub fn domain_of(email: &str) -> String {
 /// one of the big mail services, or a part of a known one (`mail.example.com` and
 /// `example.com`) is never an imitation.
 pub fn imitates<'a>(domain: &str, known: &'a BTreeSet<String>) -> Option<&'a str> {
+    imitates_shaped(domain, known, known.iter().map(|k| (k.as_str(), Cow::Owned(skeleton(k)))))
+}
+
+/// [`imitates`], with the known domains' skeletons given (worked out once for many senders).
+fn imitates_shaped<'a, 'b>(domain: &str, known: &BTreeSet<String>, mut shaped: impl Iterator<Item = (&'a str, Cow<'b, str>)>) -> Option<&'a str> {
     let d = domain.trim().trim_end_matches('.').to_lowercase();
     if d.is_empty() || d.len() > 253 || known.contains(&d) || MAIL_SERVICES.contains(&d.as_str()) {
         return None;
     }
     let shape = skeleton(&d);
-    known.iter().map(String::as_str).find(|k| {
-        if k.is_empty() || related(&d, k) {
-            return false;
-        }
-        // Drawn the same: look-alike letters, digits for letters, or the same name in punycode.
-        shape == skeleton(k)
-            // One slip of the keyboard away.
-            || (d.len().min(k.len()) >= SHORTEST_COMPARED && one_edit_apart(&d, k))
-            // The real domain worn as a label: `paypal.com.secure.example`, `secure-paypal.com`.
-            || worn_inside(&d, k)
-    })
+    shaped
+        .find(|(k, k_shape)| {
+            if k.is_empty() || related(&d, k) {
+                return false;
+            }
+            // Drawn the same: look-alike letters, digits for letters, or the same name in punycode.
+            shape == *k_shape
+                // One slip of the keyboard away.
+                || (d.len().min(k.len()) >= SHORTEST_COMPARED && one_edit_apart(&d, k))
+                // The real domain worn as a label: `paypal.com.secure.example`, `secure-paypal.com`.
+                || worn_inside(&d, k)
+        })
+        .map(|(k, _)| k)
 }
 
 /// What's wrong with `from`, as a sender, given the domains the user deals with.
 pub fn check_sender(from: &EmailAddress, known: &BTreeSet<String>) -> Option<SenderWarning> {
+    check_sender_shaped(from, known, known.iter().map(|k| (k.as_str(), Cow::Owned(skeleton(k)))))
+}
+
+fn check_sender_shaped<'a, 'b>(
+    from: &EmailAddress,
+    known: &BTreeSet<String>,
+    shaped: impl Iterator<Item = (&'a str, Cow<'b, str>)>,
+) -> Option<SenderWarning> {
     let real = from.email.trim().to_lowercase();
     let domain = domain_of(&real);
     if domain.is_empty() {
@@ -117,7 +143,58 @@ pub fn check_sender(from: &EmailAddress, known: &BTreeSet<String>) -> Option<Sen
             }
         }
     }
-    imitates(&domain, known).map(|like| SenderWarning::Lookalike { domain: domain.clone(), like: like.to_string() })
+    imitates_shaped(&domain, known, shaped).map(|like| SenderWarning::Lookalike { domain: domain.clone(), like: like.to_string() })
+}
+
+/// Everything a sender is checked against, gathered once: the domains the user deals with (their
+/// skeletons worked out ahead, so a list of messages is checked quickly), the people they know,
+/// and their own addresses.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SenderCheck {
+    known: BTreeSet<String>,
+    shapes: Vec<(String, String)>,
+    people: KnownPeople,
+    own: BTreeSet<String>,
+}
+
+impl SenderCheck {
+    /// `known`: the domains the user deals with; `people`: who they know; `own`: their own
+    /// addresses (mail from those is never doubted).
+    pub fn new(known: BTreeSet<String>, people: KnownPeople, own: impl IntoIterator<Item = String>) -> SenderCheck {
+        let shapes = known.iter().map(|k| (k.clone(), skeleton(k))).collect();
+        let own = own.into_iter().map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
+        SenderCheck { known, shapes, people, own }
+    }
+
+    /// The domains the user deals with.
+    pub fn domains(&self) -> &BTreeSet<String> {
+        &self.known
+    }
+
+    pub fn people(&self) -> &KnownPeople {
+        &self.people
+    }
+
+    /// Whether `email` is one of the user's own addresses.
+    pub fn is_own(&self, email: &str) -> bool {
+        self.own.contains(&email.trim().to_lowercase())
+    }
+
+    /// Whether `email` belongs to someone the user knows (or to the user).
+    pub fn knows(&self, email: &str) -> bool {
+        self.is_own(email) || self.people.knows_address(email)
+    }
+
+    /// What's wrong with `from` as a sender: an address in its name, a look-alike domain, or a
+    /// known person's name on an address that isn't theirs. `listed`: the message came through a
+    /// mailing list or from someone sending for its author ([`KnownPeople::check`]).
+    pub fn check(&self, from: &EmailAddress, listed: bool) -> Option<SenderWarning> {
+        if self.is_own(&from.email) {
+            return None;
+        }
+        check_sender_shaped(from, &self.known, self.shapes.iter().map(|(k, s)| (k.as_str(), Cow::Borrowed(s.as_str()))))
+            .or_else(|| self.people.check(from, listed))
+    }
 }
 
 /// One domain is the other or under it (`a.example.com`, `example.com`).

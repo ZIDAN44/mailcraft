@@ -1278,3 +1278,4 @@ month	May	5월
 	Copy all	모두 복사
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	{size} 중 처음 {shown}만 표시됩니다. 이메일(.eml)로 저장하면 전체가 보관됩니다.
 	The source couldn't be downloaded: {error}	원본을 다운로드하지 못했습니다: {error}
+	Careful: you know {name} as {known}, but this comes from {real}.	주의: {name}님은 {known}(으)로 알고 있는 사람이지만, 이 메일은 {real}에서 왔습니다.

@@ -1275,3 +1275,4 @@ month	May	5月
 	Copy all	すべてコピー
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	{size} のうち最初の {shown} だけを表示しています。メール (.eml) として保存すると全体が残ります。
 	The source couldn't be downloaded: {error}	ソースをダウンロードできませんでした: {error}
+	Careful: you know {name} as {known}, but this comes from {real}.	注意: {name} は {known} として知られていますが、実際は {real} から届いています。

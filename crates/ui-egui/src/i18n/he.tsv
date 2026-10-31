@@ -1274,3 +1274,4 @@ month	May	מאי
 	Copy all	העתק הכול
 	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	מוצגים רק {shown} הראשונים מתוך {size}. שמירה כדואר אלקטרוני (.eml) שומרת את כולה.
 	The source couldn't be downloaded: {error}	לא ניתן היה להוריד את המקור: {error}
+	Careful: you know {name} as {known}, but this comes from {real}.	זהירות: אתם מכירים את {name} בכתובת {known}, אבל ההודעה הגיעה מ־{real}.
