@@ -7,6 +7,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | Target | What it reads |
 |---|---|
 | `mime_parse` | a message source: parse, list summary, search text, HTML body, attachments |
+| `index_text` | a message source read for search: boundaries found, text parts decoded, files counted and named but never decoded, pictures the HTML shows told from files |
 | `html` | an HTML body: text, formatted lines, columns, CSS, links and pictures, trackers and cleaned links, hidden text; MailCraft's markup |
 | `ical` | an iCalendar file, written back and read again; a WebDAV `multistatus` answer |
 | `vcard` | a vCard file, each card written back and read again |

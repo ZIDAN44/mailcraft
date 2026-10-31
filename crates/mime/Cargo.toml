@@ -19,3 +19,5 @@ html5ever = "0.40"
 serde = { workspace = true }
 # Office attachments (zip archives) for the reading pane's preview: pure Rust, wasm too.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# Finding MIME boundaries for search without parsing (and decoding) every part: wasm too.
+memchr = "2"

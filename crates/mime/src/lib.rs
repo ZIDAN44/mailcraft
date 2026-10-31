@@ -37,9 +37,11 @@ pub mod smime;
 mod tnef;
 mod trackers;
 pub use attachments::{
-    AttachmentInfo, AttachmentKind, PendingFile, TEXT_FIRST, attachment_data, craft_app_for, is_text_first, kind_of, quoted_pictures, text_first,
-    text_preview_kind,
+    AttachmentInfo, AttachmentKind, PendingFile, TEXT_FIRST, attachment_data, craft_app_for, index_doc, is_text_first, kind_of, quoted_pictures,
+    text_first, text_preview_kind,
 };
+#[doc(hidden)]
+pub use attachments::{IndexStats, index_doc_stats};
 use attachments::{attached, has_real_attachments};
 use files::attachment_name;
 pub use files::{alt_code_char, alt_code_pages, harmless_to_open, mime_from_name, runs_code, sanitize_filename};
@@ -355,25 +357,10 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     })
 }
 
-/// A message's words for search: its text (HTML as text) and its attachments' names. Lighter
-/// than [`parse`] (no formatting, no layout), for indexing every downloaded message.
+/// A message's words for search: its text (HTML as text) and its files' names, as one text
+/// ([`index_doc`], which never decodes the files themselves).
 pub fn search_text(raw: &[u8]) -> String {
-    let Some(m) = MessageParser::default().parse(raw) else { return String::new() };
-    let mut out: String = m.body_text(0).map(|t| t.chars().take(50_000).collect()).unwrap_or_default();
-    let (attached, tnef_body) = attached(&m);
-    // What Outlook wrapped in a `winmail.dat`, when the message has no text of its own.
-    if out.trim().is_empty() {
-        match tnef_body {
-            TnefBody::Html(h) => out = html_to_text(&h).chars().take(50_000).collect(),
-            TnefBody::Text(t) => out = t.chars().take(50_000).collect(),
-            TnefBody::None => {}
-        }
-    }
-    for a in attached {
-        out.push('\n');
-        out.push_str(&a.info.name);
-    }
-    out
+    index_doc(raw).joined()
 }
 
 /// The summary for a fully downloaded message (preview from the real body, HTML included).

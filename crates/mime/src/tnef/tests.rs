@@ -445,6 +445,27 @@ fn a_message_from_outlook_shows_what_its_winmail_dat_holds() {
     assert!(!p.had_html);
 }
 
+/// Search reads a `winmail.dat` for its files (the picture its body shows left out) and, for a
+/// message with no text of its own, its body.
+#[test]
+fn search_reads_what_a_winmail_dat_holds() {
+    let d = crate::index_doc(&outlook_message(outlook_stream()));
+    assert_eq!(d.text, "Hi Riley, the storyboard is attached.");
+    assert_eq!(d.names, ["Storyboard – scenes 4 to 7.pdf", "Notes from Monday.eml"]);
+    assert_eq!(d.files, 2);
+
+    let mut a = Vec::new();
+    attr(&mut a, 1, ATT_BODY, b"Only in the winmail.dat\0");
+    let raw = MessageBuilder::new()
+        .from(("Sam Okafor", "sam@studio.example"))
+        .subject("Rich")
+        .attachment("application/ms-tnef", "winmail.dat", stream(&a))
+        .write_to_vec()
+        .unwrap_or_default();
+    let d = crate::index_doc(&raw);
+    assert_eq!((d.text.as_str(), d.has_text, d.files), ("Only in the winmail.dat", true, 0));
+}
+
 /// Found reading Outlook's own Rich Text messages: the body ends with the document's group (the
 /// bytes after it, left from an older body, came out as a second copy with its Russian garbled);
 /// a link closes before the line break after it; a picture the body shows is in it, though

@@ -400,6 +400,41 @@ pub fn summary_text(m: &Summary) -> String {
     s
 }
 
+/// Most characters of a message's text kept for search; a longer one is cut there
+/// ([`IndexDoc::truncated`]).
+pub const MAX_INDEX_CHARS: usize = 1_000_000;
+
+/// What search keeps of a downloaded message: its text and its files' names, read without
+/// decoding the files themselves.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct IndexDoc {
+    /// The text the reader sees (HTML as text), with the subjects and text of attached messages;
+    /// at most [`MAX_INDEX_CHARS`] characters.
+    pub text: String,
+    /// The files' names and the attached messages' (`<subject>.eml`); pictures the text shows
+    /// aren't files and aren't named.
+    pub names: Vec<String>,
+    /// How many files the message carries (`has:attachment`).
+    pub files: u32,
+    /// Something was left out: text past the limit, parts nested too deep, too many parts.
+    pub truncated: bool,
+    /// The message has text of its own (or a `winmail.dat`'s), not only files.
+    pub has_text: bool,
+}
+
+impl IndexDoc {
+    /// The text and then the names, a line each: what search reads as one text.
+    pub fn joined(&self) -> String {
+        let mut out = String::with_capacity(self.text.len() + self.names.iter().map(|n| n.len() + 1).sum::<usize>());
+        out.push_str(&self.text);
+        for n in &self.names {
+            out.push('\n');
+            out.push_str(n);
+        }
+        out
+    }
+}
+
 impl Index {
     pub fn new() -> Index {
         Index::default()

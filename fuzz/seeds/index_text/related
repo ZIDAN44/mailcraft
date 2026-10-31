@@ -1,0 +1,50 @@
+From: Ana <ana@studio.example>
+To: jun@studio.example
+Subject: Plans
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mix"
+
+--mix
+Content-Type: multipart/alternative; boundary="mix-alt"
+
+--mix-alt
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+The plan for Monday, caf=C3=A9 at noon.
+--mix-alt
+Content-Type: multipart/related; boundary="rel"
+
+--rel
+Content-Type: text/html; charset=utf-8
+
+<p>The <b>plan</b> for Monday.</p><img src="cid:image001.png@01DA"><img src="chart.png">
+--rel
+Content-Type: image/png; name="image001.png"
+Content-ID: <image001.png@01DA>
+Content-Disposition: inline; filename="image001.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgo=
+--rel
+Content-Type: image/png
+Content-Location: chart.png
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgo=
+--rel--
+--mix-alt--
+--mix
+Content-Type: application/pdf; name="report.pdf"
+Content-Disposition: attachment; filename*=utf-8''r%C3%A9port.pdf
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQ=
+--mix
+Content-Type: message/rfc822
+
+Subject: Notes
+Content-Type: text/plain
+
+The minutes.
+--mix--

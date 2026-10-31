@@ -12,6 +12,7 @@ bin = [
     { name = "ical", bench = false, test = false, doc = false, path = "fuzz_targets/ical.rs" }, # calendar files and WebDAV replies
     { name = "http", bench = false, test = false, doc = false, path = "fuzz_targets/http.rs" }, # HTTP answers, downloads' ranges, GitHub's release list
     { name = "imap", bench = false, test = false, doc = false, path = "fuzz_targets/imap.rs" }, # a whole IMAP session from the server side
+    { name = "index_text", bench = false, test = false, doc = false, path = "fuzz_targets/index_text.rs" }, # raw message sources read for search
     { name = "jmap", bench = false, test = false, doc = false, path = "fuzz_targets/jmap.rs" }, # JMAP replies, push events and URLs
     { name = "mime_parse", bench = false, test = false, doc = false, path = "fuzz_targets/mime_parse.rs" }, # raw message sources
     { name = "photo", bench = false, test = false, doc = false, path = "fuzz_targets/photo.rs" }, # photos' EXIF and XMP blocks as they're sent

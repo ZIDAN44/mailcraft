@@ -3620,6 +3620,7 @@ dependencies = [
  "mail-builder",
  "mail-parser",
  "mailcraft-model",
+ "memchr",
  "serde",
 ]
 

@@ -6,7 +6,11 @@ use std::borrow::Cow;
 use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
+mod index_text;
 mod text_first;
+pub use index_text::index_doc;
+#[doc(hidden)]
+pub use index_text::{IndexStats, index_doc_stats};
 pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, text_first};
 
 /// A part's size: its bytes, or, with none yet (a message's text that came first, issue #24), the
@@ -67,13 +71,63 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
     (out, body)
 }
 
+/// Whether a message carries a file: the paperclip, "Has files" and `has:attachment` agree
+/// with search's count ([`index_doc`]) by sharing [`is_file`].
 pub(super) fn has_real_attachments(m: &Message<'_>) -> bool {
-    // S/MIME's signature and encrypted content are the message itself, not files in it.
-    let smime = |p: &mail_parser::MessagePart<'_>| {
-        let mime = p.content_type().map(|c| format!("{}/{}", c.ctype(), c.subtype().unwrap_or_default())).unwrap_or_default();
-        smime::is_smime_part(&mime, p.attachment_name().unwrap_or_default())
-    };
-    m.attachments().any(|p| (p.attachment_name().is_some() || !p.is_inline_part()) && !smime(p))
+    let html = || m.html_bodies().filter(|p| p.is_text_html()).filter_map(|p| p.text_contents()).collect::<Vec<_>>().join("\n");
+    let refs = HtmlRefs::new(&html);
+    m.attachments().any(|p| is_file(p, &refs))
+}
+
+/// The pictures a message's HTML shows, by `cid:` or by the address a part's
+/// `Content-Location` gives it (RFC 2557): read from the HTML only when a part asks.
+pub(crate) struct HtmlRefs<'a> {
+    html: std::cell::OnceCell<String>,
+    make: &'a dyn Fn() -> String,
+}
+
+impl<'a> HtmlRefs<'a> {
+    pub(crate) fn new(make: &'a dyn Fn() -> String) -> HtmlRefs<'a> {
+        HtmlRefs { html: std::cell::OnceCell::new(), make }
+    }
+
+    /// Whether the HTML shows the part with this `Content-ID` or `Content-Location`.
+    pub(crate) fn shows(&self, cid: Option<&str>, location: Option<&str>) -> bool {
+        let html = self.html.get_or_init(|| {
+            let mut h = (self.make)();
+            h.make_ascii_lowercase();
+            h
+        });
+        let cid = cid.map(|c| c.trim().trim_matches(['<', '>']).to_ascii_lowercase()).filter(|c| !c.is_empty());
+        let location = location.map(|l| l.trim().trim_matches(['<', '>', '"']).to_ascii_lowercase()).filter(|l| !l.is_empty());
+        cid.is_some_and(|c| html.contains(&format!("cid:{c}"))) || location.is_some_and(|l| html.contains(&l))
+    }
+}
+
+/// A part's type as `type/subtype`, lower case.
+pub(crate) fn mime_of(p: &mail_parser::MessagePart<'_>) -> Option<String> {
+    p.content_type().map(|c| format!("{}/{}", c.ctype(), c.subtype().unwrap_or_default()).to_ascii_lowercase())
+}
+
+/// S/MIME's signature and encrypted content are the message itself, not files in it.
+pub(crate) fn is_smime(p: &mail_parser::MessagePart<'_>) -> bool {
+    smime::is_smime_part(&mime_of(p).unwrap_or_default(), p.attachment_name().unwrap_or_default())
+}
+
+/// The `Content-ID` and `Content-Location` of a part the HTML may show in its place: one inline
+/// or without a disposition, that has either.
+pub(crate) fn may_be_shown<'p>(p: &'p mail_parser::MessagePart<'_>) -> Option<(Option<&'p str>, Option<&'p str>)> {
+    let inline = p.content_disposition().is_none_or(|d| d.ctype().eq_ignore_ascii_case("inline"));
+    let (cid, location) = (p.content_id(), p.content_location());
+    (inline && (cid.is_some() || location.is_some())).then_some((cid, location))
+}
+
+/// Whether one of a message's non-text parts is a file it carries: not S/MIME's own part, and not
+/// a picture the HTML shows (an inline part, or one with no disposition, whose `Content-ID` or
+/// `Content-Location` the real `text/html` bodies refer to). Whatever its name says: Outlook names
+/// its pictures `image001.png`, and Apple Mail's inline PDF has no `Content-ID` and is a file.
+pub(crate) fn is_file(p: &mail_parser::MessagePart<'_>, refs: &HtmlRefs<'_>) -> bool {
+    !is_smime(p) && may_be_shown(p).is_none_or(|(cid, location)| !refs.shows(cid, location))
 }
 
 pub(super) trait InlinePart {
