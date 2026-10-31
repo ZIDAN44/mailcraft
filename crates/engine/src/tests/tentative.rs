@@ -169,3 +169,27 @@ fn an_invitation_whose_body_comes_later_is_taken_then() {
     assert_eq!(answer(&s, "later@studio.example"), ["NEEDS-ACTION"]);
     done(s);
 }
+
+/// Issue #32: Outlook sends the guest's copy as tentative (and means it to be busy). It stays
+/// tentative until answered; accepted, it shows as busy, and an update to it keeps that.
+#[test]
+fn an_accepted_outlook_invitation_shows_as_busy() {
+    use mailcraft_model::ical::ShowAs;
+    let mut s = sample_session("tentative-outlook-busy");
+    let mut e = invitation("plan@studio.example", "Planning", 0);
+    e.extra = vec!["TRANSP:OPAQUE".into(), "X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE".into(), "X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY".into()];
+    deliver(&mut s, 1, ZOE, "REQUEST", std::slice::from_ref(&e), NOW);
+    let shown = |s: &Session| s.agenda(NOW, NOW + 7 * 86_400).into_iter().find(|i| i.uid == "plan@studio.example").map(|i| i.show_as);
+    assert_eq!(shown(&s), Some(ShowAs::Tentative), "not answered yet");
+    s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    assert_eq!(shown(&s), Some(ShowAs::Busy), "accepted: busy, as the organizer meant");
+    // The organizer moves it: the answer stays, and so does busy.
+    e.sequence = 1;
+    e.summary = "Planning (moved)".into();
+    deliver(&mut s, 2, ZOE, "REQUEST", &[e], NOW + 60);
+    assert_eq!(answer(&s, "plan@studio.example"), ["ACCEPTED"]);
+    assert_eq!(shown(&s), Some(ShowAs::Busy));
+    s.run("event.respond", &json!({"uid": "plan@studio.example", "answer": "tentative"})).unwrap();
+    assert_eq!(shown(&s), Some(ShowAs::Tentative));
+    done(s);
+}

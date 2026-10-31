@@ -206,3 +206,30 @@ pub fn set_show_as(e: &mut CalEvent, s: ShowAs) {
     let transp = if s == ShowAs::Free { "TRANSPARENT" } else { "OPAQUE" };
     replace(e, &[TRANSP, BUSY_STATUS], vec![format!("TRANSP:{transp}"), format!("{BUSY_STATUS}:{}", s.busy_status())]);
 }
+
+/// What an invitation's organizer meant it to show as once it's accepted: Outlook sends the
+/// guest's copy as tentative (`X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE`) and says this beside it
+/// (`X-MICROSOFT-CDO-INTENDEDSTATUS`, usually busy).
+pub fn intended_show_as(e: &CalEvent) -> Option<ShowAs> {
+    own(e, INTENDED_STATUS).first().and_then(|(_, v)| ShowAs::from_code(v))
+}
+
+const INTENDED_STATUS: &str = "X-MICROSOFT-CDO-INTENDEDSTATUS";
+
+/// The user answered an invitation (`ACCEPTED`, `TENTATIVE`…): its time shows as that answer
+/// says, as Outlook's does. Accepted, it's what the organizer meant (else busy, when it was only
+/// tentative); tentatively accepted, tentative (unless it takes no time: free stays free). Other
+/// answers leave it.
+pub fn show_as_answered(e: &mut CalEvent, partstat: &str) {
+    let now = show_as(e);
+    let to = match partstat.trim().to_ascii_uppercase().as_str() {
+        "ACCEPTED" => match intended_show_as(e) {
+            Some(s) => s,
+            None if now == ShowAs::Tentative => ShowAs::Busy,
+            None => now,
+        },
+        "TENTATIVE" if now != ShowAs::Free => ShowAs::Tentative,
+        _ => now,
+    };
+    set_show_as(e, to);
+}

@@ -115,3 +115,33 @@ fn show_as_is_written_as_outlook_writes_it_and_round_trips() {
     assert_eq!(ShowAs::from_code(""), None);
     assert_eq!(Privacy::from_code("personal"), Some(Privacy::Private), "Exchange's Personal");
 }
+
+/// Answering an invitation Outlook sent as tentative: accepted, it shows as the organizer meant
+/// (busy); tentatively, tentative; one marked free stays free.
+#[test]
+fn an_answer_sets_how_an_invitation_shows() {
+    let outlook = "TRANSP:OPAQUE\r\nX-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE\r\nX-MICROSOFT-CDO-INTENDEDSTATUS:BUSY\r\n";
+    let mut e = one(outlook);
+    assert_eq!((show_as(&e), intended_show_as(&e)), (ShowAs::Tentative, Some(ShowAs::Busy)));
+    show_as_answered(&mut e, "NEEDS-ACTION");
+    assert_eq!(show_as(&e), ShowAs::Tentative, "not answered yet");
+    show_as_answered(&mut e, "ACCEPTED");
+    assert_eq!(show_as(&e), ShowAs::Busy);
+    assert_eq!(written(&e).matches("BUSYSTATUS").count(), 1);
+    show_as_answered(&mut e, "TENTATIVE");
+    assert_eq!(show_as(&e), ShowAs::Tentative);
+    let mut oof = one("X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE\r\nX-MICROSOFT-CDO-INTENDEDSTATUS:OOF\r\n");
+    show_as_answered(&mut oof, "accepted");
+    assert_eq!(show_as(&oof), ShowAs::OutOfOffice);
+    // Without Outlook's lines: busy stays busy, free stays free, untouched.
+    let mut plain = one("");
+    show_as_answered(&mut plain, "ACCEPTED");
+    assert!(plain.extra.is_empty());
+    let mut free = one("TRANSP:TRANSPARENT\r\n");
+    show_as_answered(&mut free, "TENTATIVE");
+    show_as_answered(&mut free, "ACCEPTED");
+    assert_eq!(show_as(&free), ShowAs::Free);
+    let mut junk = one("X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE\r\nX-MICROSOFT-CDO-INTENDEDSTATUS:???\r\n");
+    show_as_answered(&mut junk, "ACCEPTED");
+    assert_eq!(show_as(&junk), ShowAs::Busy, "an intent that can't be read: busy");
+}

@@ -465,8 +465,32 @@ fn real_caldav_private_and_show_as() {
     eprintln!("--- public and free:\n{stored}");
     assert!(!stored.contains("CLASS:") && stored.contains("TRANSP:TRANSPARENT") && stored.contains("X-MICROSOFT-CDO-BUSYSTATUS:FREE"), "{stored}");
     assert_eq!(stored.matches("TRANSP:").count(), 1, "{stored}");
+    // An invitation as Outlook sends it (the guest's copy tentative, meant to be busy), accepted
+    // here: busy on the server, Outlook's other lines kept.
+    let invite = format!("mc31e-invite-{}@mailcraft", std::process::id());
+    let ics = format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Another calendar//EN\r\nBEGIN:VEVENT\r\nUID:{invite}\r\nDTSTAMP:20261020T080000Z\r\n\
+         DTSTART:20261023T090000Z\r\nDTEND:20261023T100000Z\r\nSUMMARY:Planning\r\nTRANSP:OPAQUE\r\n\
+         X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE\r\nX-MICROSOFT-CDO-INTENDEDSTATUS:BUSY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    );
+    let href = format!("{}/{}.ics", cal.trim_end_matches('/'), invite.replace('@', "-"));
+    dav.put(&href, "text/calendar; charset=utf-8", &ics, None).unwrap();
+    pim.calendars.iter_mut().for_each(|c| c.ctag.clear());
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    for x in pim.events.iter_mut().filter(|x| x.event.uid == invite) {
+        assert_eq!(show_as(&x.event), ShowAs::Tentative);
+        mailcraft_model::ical::show_as_answered(&mut x.event, "ACCEPTED");
+        x.dirty = true;
+    }
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    let stored = raw(&pim, &invite);
+    eprintln!("--- accepted:\n{stored}");
+    assert!(stored.contains("X-MICROSOFT-CDO-BUSYSTATUS:BUSY") && stored.contains("X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY"), "{stored}");
+    assert_eq!(stored.matches("BUSYSTATUS").count(), 1, "{stored}");
     // Cleaned up.
-    for u in [&uid, &other] {
+    for u in [&uid, &other, &invite] {
         let e = pim.events.iter().find(|e| &e.event.uid == u).unwrap();
         dav.delete(&e.href, "").unwrap();
     }

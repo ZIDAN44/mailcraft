@@ -580,6 +580,9 @@ fn set_answer(e: &mut CalEvent, mine: &[String], me: &str, stat: &str) {
     if !found && !me.is_empty() {
         e.attendees.push(Attendee { email: me.to_string(), name: String::new(), partstat: stat.to_string(), rsvp: false });
     }
+    // Issue #32: Outlook sends the guest's copy as tentative; accepted, it shows as busy (or as
+    // the organizer meant it to), not tentative for good.
+    ical::show_as_answered(e, stat);
 }
 
 /// Delete these parts of an event on the server: each item once. True when the server has
