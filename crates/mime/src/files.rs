@@ -156,6 +156,27 @@ pub fn runs_code(name: &str) -> bool {
     EXECUTABLE_EXTENSIONS.iter().any(|group| group.contains(&extension))
 }
 
+/// Whether a file of this name and content is safe to open without Windows' mark that it came from
+/// the internet: a picture that is the picture its name says (opened in a viewer, it shows pixels
+/// and nothing else) or plain text. Windows picks the program by the last extension, so that's
+/// the one that counts, and the bytes must agree with it. Everything else keeps the mark:
+/// documents (macros, Protected View), PDFs, web pages and SVG (scripts), archives, programs.
+pub fn harmless_to_open(name: &str, data: &[u8]) -> bool {
+    let cleaned = sanitize_filename(name).to_ascii_lowercase();
+    let Some((_, extension)) = cleaned.rsplit_once('.') else { return false };
+    match extension.trim() {
+        "png" => data.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]),
+        "jpg" | "jpeg" | "jfif" => data.starts_with(&[0xFF, 0xD8, 0xFF]),
+        "gif" => data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a"),
+        "bmp" => data.starts_with(b"BM"),
+        "webp" => matches!(data, [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..]),
+        "tif" | "tiff" => data.starts_with(b"II*\0") || data.starts_with(b"MM\0*"),
+        "heic" | "heif" | "avif" => matches!(data, [_, _, _, _, b'f', b't', b'y', b'p', ..]),
+        "txt" => true,
+        _ => false,
+    }
+}
+
 /// File types: an extension (with its dot) and its MIME type. A type's first extension is the one an attachment
 /// sent without a name (or with a name without one) is saved with; the types after a type's own
 /// are other names senders use for it.
@@ -225,6 +246,24 @@ pub(crate) fn ext_for_mime(mime: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_real_pictures_and_text_go_unmarked() {
+        let png = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0];
+        assert!(harmless_to_open("Let's seee.png", &png));
+        assert!(harmless_to_open("PHOTO.JPG", &[0xFF, 0xD8, 0xFF, 0xE0]));
+        assert!(harmless_to_open("scan.tiff", b"II*\0rest"));
+        assert!(harmless_to_open("notes.txt", b"anything"));
+        // The name and the bytes must agree, and the last extension decides.
+        assert!(!harmless_to_open("photo.png", b"MZ\x90\0"));
+        assert!(!harmless_to_open("photo.png.exe", &png));
+        assert!(!harmless_to_open("photo.png.html", &png));
+        assert!(!harmless_to_open("photo", &png));
+        // What can carry code keeps the mark, whatever it looks like.
+        for name in ["drawing.svg", "report.pdf", "letter.docx", "page.html", "data.csv", "files.zip"] {
+            assert!(!harmless_to_open(name, &png), "{name}");
+        }
+    }
 
     /// Issue #11: an attachment with no name, or a name without an extension, gets the one its
     /// type has (else the one its first bytes say), so the system can open it and the file saved;

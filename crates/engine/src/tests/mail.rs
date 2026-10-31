@@ -40,9 +40,14 @@ fn open_marks_read_and_shows_text_and_attachments() {
     let out = s.store.as_ref().unwrap().root().join("saved.png");
     s.run("attachment.save", &json!({"index": 0, "path": out.to_string_lossy()})).unwrap();
     assert_eq!(&std::fs::read(&out).unwrap()[..4], b"\x89PNG");
-    // Marked as from the internet on Windows, so SmartScreen and Protected View apply.
+    // A picture that is one isn't marked as from the internet (Photos would ask before showing
+    // it); the same bytes under a name another program opens are, so SmartScreen and Protected
+    // View apply.
     if cfg!(windows) {
-        let zone = std::fs::read_to_string(format!("{}:Zone.Identifier", out.display())).unwrap();
+        assert!(std::fs::read_to_string(format!("{}:Zone.Identifier", out.display())).is_err(), "a picture isn't marked");
+        let doc = s.store.as_ref().unwrap().root().join("saved.docx");
+        s.run("attachment.save", &json!({"index": 0, "path": doc.to_string_lossy()})).unwrap();
+        let zone = std::fs::read_to_string(format!("{}:Zone.Identifier", doc.display())).unwrap();
         assert!(zone.contains("ZoneId=3"), "{zone}");
     }
     // Saved to be opened by another app: never something that runs code.
