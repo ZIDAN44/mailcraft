@@ -442,11 +442,10 @@ impl crate::Services for Ticking {
 
 mod access;
 mod accounts;
+mod calendar;
 mod files;
-mod meetings;
 mod organize;
 mod pictures;
-mod pim;
 mod reading;
 mod rtl;
 mod selecting;

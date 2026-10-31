@@ -54,17 +54,12 @@ fn mailcraft_engine_day(s: &Session) -> i64 {
 }
 
 mod accounts;
-mod answered_invites;
-mod calendar_find;
+mod calendar;
 mod categories;
 mod directory;
 mod files;
-mod invite_placing;
-mod invites;
 mod mail;
-mod meetings;
 mod organize;
-mod pim;
 mod safety;
 mod selecting;
 mod senders;
@@ -72,7 +67,5 @@ mod signature_code;
 mod signatures;
 mod smime;
 mod source;
-mod tentative;
 mod text_first;
-mod web_calendars;
 mod writing;
