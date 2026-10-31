@@ -224,3 +224,82 @@ fn a_guests_copy_the_server_asks_again_is_left_to_it() {
     assert_eq!(out.refused, ["moved"]);
     assert!(server.data.lock().unwrap().items[&href].1.contains("PARTSTAT=NEEDS-ACTION:mailto:me@studio.example"));
 }
+
+/// The same crossing, with an answer the organizer's MailCraft had read before, changed on the
+/// server since (the colleague declined in SOGo): the newer answer stays, and the one taken in
+/// here is added. Storing the user's copy's answers over the server's put the colleague back to
+/// "accepted", in the organizer's calendar and, through SOGo, in the colleague's own.
+#[test]
+fn an_answer_changed_on_the_server_isnt_put_back() {
+    let server = serve();
+    let mut base = meeting("m", USER, "ACCEPTED");
+    base.attendees.push(person("colleague@studio.example", "ACCEPTED"));
+    let href = format!("{CAL}m.ics");
+    let etag = server.data.lock().unwrap().put(&href, &ical::write(std::slice::from_ref(&base), None, 0));
+    let mut theirs = base.clone();
+    theirs.attendees[2].partstat = "DECLINED".into();
+    server.data.lock().unwrap().put(&href, &ical::write(std::slice::from_ref(&theirs), None, 0));
+    let (mut pim, cal) = pim_at(&server);
+    let mut mine = base.clone();
+    mine.attendees[1].partstat = "TENTATIVE".into();
+    pim.events.push(StoredEvent { calendar: cal.clone(), href: format!("{}{href}", server.base), etag, event: mine, dirty: true });
+    let out = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 100, Zone::UTC).unwrap();
+    assert!(out.errors.is_empty(), "{:?}", out.errors);
+    let back = out.events.iter().find(|e| e.event.uid == "m").expect("read back");
+    let answers: Vec<(&str, &str)> = back.event.attendees.iter().map(|a| (a.email.as_str(), a.partstat.as_str())).collect();
+    assert!(
+        answers.contains(&("guest@elsewhere.example", "TENTATIVE")) && answers.contains(&("colleague@studio.example", "DECLINED")),
+        "{answers:?}"
+    );
+}
+
+/// A guest's answer given here to a meeting the server put in the calendar, while the server
+/// wrote another guest's answer in the user's copy (SOGo does in every guest's copy; the same
+/// version): stored over the server's copy, with both. Kept as the server's, it was lost, and
+/// the server, left to take it to the organizer, never had it (a real Mailcow, a decline).
+#[test]
+fn a_guests_answer_crossing_another_guests_is_stored() {
+    let server = serve();
+    server.data.lock().unwrap().schedules = true;
+    let href = format!("{CAL}theirs.ics");
+    let base = meeting("theirs", "ann@studio.example", "ACCEPTED");
+    let etag = server.data.lock().unwrap().put(&href, &ical::write(std::slice::from_ref(&base), None, 0));
+    let mut moved_on = base.clone();
+    moved_on.attendees[1].partstat = "TENTATIVE".into();
+    server.data.lock().unwrap().put(&href, &ical::write(std::slice::from_ref(&moved_on), None, 0));
+    let (mut pim, cal) = pim_at(&server);
+    // Shown as tentative before (an earlier answer), which the server's copy dropped.
+    let mut mine = base.clone();
+    ical::show_as_answered(&mut mine, "TENTATIVE");
+    mine.attendees[0].partstat = "DECLINED".into();
+    ical::show_as_answered(&mut mine, "DECLINED");
+    pim.events.push(StoredEvent {
+        calendar: cal.clone(),
+        href: format!("{}{href}", server.base),
+        etag: etag.clone(),
+        event: mine.clone(),
+        dirty: true,
+    });
+    pim.notices.push(mailcraft_model::pim::Notice {
+        uid: "theirs".into(),
+        method: "REPLY".into(),
+        answer: "DECLINED".into(),
+        event: mine,
+        ..Default::default()
+    });
+    // Without the answer given here (only one kept from before, the server asking again), the
+    // server's copy stays.
+    let mut unasked = pim.clone();
+    unasked.notices.clear();
+    let out = sync(&Dav::new(USER, PASSWORD), &AT, &unasked, 100, Zone::UTC).unwrap();
+    assert!(server.data.lock().unwrap().items[&href].1.contains("PARTSTAT=ACCEPTED:mailto:me@studio.example"), "{:?}", out.errors);
+    let out = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 100, Zone::UTC).unwrap();
+    assert!(out.errors.is_empty(), "{:?}", out.errors);
+    let data = server.data.lock().unwrap().items[&href].1.replace(
+        "
+ ", "",
+    );
+    assert!(data.contains("PARTSTAT=DECLINED:mailto:me@studio.example"), "{data}");
+    assert!(data.contains("PARTSTAT=TENTATIVE:mailto:guest@elsewhere.example"), "{data}");
+    assert!(!data.contains("SCHEDULE-AGENT") && !data.contains(ical::GUEST_COPY), "{data}");
+}

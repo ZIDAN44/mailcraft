@@ -198,7 +198,7 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                     && master.event.organizer.as_ref().is_some_and(|o| at.is_me(&o.email))
                     && let Some(newest) = theirs.iter().map(|e| e.sequence).max()
                     && parts.iter().all(|p| p.event.sequence == newest)
-                    && parts.iter().any(|p| answers_more(&p.event, theirs))
+                    && parts.iter().any(|p| fills_in(&p.event, theirs))
                 {
                     let merged: Vec<CalEvent> = theirs
                         .iter()
@@ -209,7 +209,45 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                                 .map_or_else(|| t.clone(), |p| with_our_answers(t, &p.event))
                         })
                         .collect();
-                    if parts.iter().all(|p| merged.iter().any(|m| has_all_of(m, &with_their_answers(&p.event, theirs)))) {
+                    if parts.iter().all(|p| merged.iter().any(|m| has_all_of(m, &with_newer_answers(&p.event, theirs)))) {
+                        let merged: Vec<CalEvent> = merged.iter().map(|e| role.prepare(e)).collect();
+                        match dav.store(&master.href, "text/calendar; charset=utf-8", &ical::write_for_server(&merged, now), Some(tag)) {
+                            Ok(Ok(_)) => {
+                                out.refused.push(uid.to_string());
+                                refetch.push(master.href.clone());
+                                continue;
+                            }
+                            Err(e @ NetError::Auth(_)) => return Err(e),
+                            _ => {}
+                        }
+                    }
+                }
+                // The user's answer, given here as a guest, to a meeting the server changed
+                // meanwhile without a new version (SOGo writes each guest's answer in every guest's
+                // copy): the server's copy with it, when that loses nothing changed here. Kept as
+                // the server's, the answer was lost: a server that schedules is left to take it to
+                // the organizer, so it isn't mailed either (a real Mailcow, a decline).
+                if let Some((tag, theirs)) = &server
+                    && !master.event.organizer.as_ref().is_some_and(|o| at.is_me(&o.email))
+                    && let Some(given) = pim.notices.iter().rev().find(|n| n.uid == uid && n.method == "REPLY").map(|n| n.answer.as_str())
+                    && let Some(newest) = theirs.iter().map(|e| e.sequence).max()
+                    && parts.iter().all(|p| p.event.sequence == newest)
+                    && theirs.iter().any(|t| t.attendees.iter().any(|a| at.is_me(&a.email) && !a.partstat.eq_ignore_ascii_case(given)))
+                {
+                    // The time shown as the user's copy shows it (SOGo drops it from a guest's copy
+                    // as it writes the other answers in).
+                    let merged: Vec<CalEvent> = theirs
+                        .iter()
+                        .map(|t| {
+                            let shown = parts.iter().find(|p| p.event.recurrence_id == t.recurrence_id).map(|p| ical::show_as(&p.event));
+                            with_my_answer(at, t, given, shown)
+                        })
+                        .collect();
+                    let loses = |p: &&StoredEvent| {
+                        let mine = with_my_answer(at, &with_newer_answers(&p.event, theirs), given, Some(ical::show_as(&p.event)));
+                        !merged.iter().any(|m| has_all_of(m, &mine))
+                    };
+                    if !parts.iter().any(loses) {
                         let merged: Vec<CalEvent> = merged.iter().map(|e| role.prepare(e)).collect();
                         match dav.store(&master.href, "text/calendar; charset=utf-8", &ical::write_for_server(&merged, now), Some(tag)) {
                             Ok(Ok(_)) => {
@@ -451,13 +489,51 @@ fn asked_again(at: &Where, mine: &CalEvent, server: &CalEvent) -> CalEvent {
     e
 }
 
-/// The server's copy of an event with the answers the user's copy has (given or taken in here).
+/// The server's copy of an event with the answers the user's copy has (given or taken in here)
+/// where the server's has none: one the server has is as new as the user's, or newer (a guest
+/// who changed it there since it was read here), so it isn't put back.
 fn with_our_answers(server: &CalEvent, mine: &CalEvent) -> CalEvent {
     let mut e = server.clone();
     for a in mine.attendees.iter().filter(|a| !unanswered(&a.partstat)) {
         match e.attendees.iter_mut().find(|x| x.email.eq_ignore_ascii_case(&a.email)) {
-            Some(x) => x.partstat = a.partstat.clone(),
+            Some(x) if unanswered(&x.partstat) => x.partstat = a.partstat.clone(),
+            Some(_) => {}
             None => e.attendees.push(a.clone()),
+        }
+    }
+    e
+}
+
+/// An event with the user's own answer `given`, and the time shown as `shown` (none: as the
+/// answer shows it).
+fn with_my_answer(at: &Where, e: &CalEvent, given: &str, shown: Option<ical::ShowAs>) -> CalEvent {
+    let mut e = e.clone();
+    for a in e.attendees.iter_mut().filter(|a| at.is_me(&a.email)) {
+        a.partstat = given.to_string();
+        a.rsvp = false;
+    }
+    match shown {
+        Some(s) => ical::set_show_as(&mut e, s),
+        None => ical::show_as_answered(&mut e, given),
+    }
+    e
+}
+
+/// Whether the user's copy of an event has an answer where the server's copy has none (a guest's
+/// taken in here).
+fn fills_in(mine: &CalEvent, server: &[CalEvent]) -> bool {
+    let Some(s) = server.iter().find(|s| s.recurrence_id == mine.recurrence_id) else { return false };
+    mine.attendees.iter().any(|a| !unanswered(&a.partstat) && answer(s, &a.email).is_none_or(|x| unanswered(&x)))
+}
+
+/// The user's copy with every answer the server's copy has in place of its own.
+fn with_newer_answers(mine: &CalEvent, server: &[CalEvent]) -> CalEvent {
+    let mut e = mine.clone();
+    if let Some(s) = server.iter().find(|s| s.recurrence_id == mine.recurrence_id) {
+        for a in e.attendees.iter_mut() {
+            if let Some(theirs) = s.attendees.iter().find(|x| x.email.eq_ignore_ascii_case(&a.email) && !unanswered(&x.partstat)) {
+                a.partstat = theirs.partstat.clone();
+            }
         }
     }
     e
