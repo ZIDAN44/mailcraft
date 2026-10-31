@@ -190,9 +190,10 @@ struct PendingDraft {
     raw: Vec<u8>,
 }
 
-/// Keep a draft on this computer for the next connection.
+/// Keep a draft on this computer for the next connection. A list that can't be read stops it:
+/// saved as just this one, the drafts waiting in it would be lost.
 fn keep_draft(store: &Store, account: &str, folder: &str, replaces: Option<mailcraft_model::MessageKey>, raw: Vec<u8>) -> Result<()> {
-    let mut list: Vec<PendingDraft> = store.load_account_doc(account, PENDING_DRAFTS).unwrap_or_default();
+    let mut list: Vec<PendingDraft> = store.load_account_doc(account, PENDING_DRAFTS)?;
     // A newer version of the same draft replaces the one kept.
     if let Some(r) = &replaces {
         list.retain(|d| d.replaces.as_ref() != Some(r));
