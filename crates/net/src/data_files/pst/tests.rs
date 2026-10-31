@@ -411,6 +411,8 @@ fn imports_a_data_file() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+mod reader;
+
 mod real_files {
     /// Import a real data file named by `MAILCRAFT_PST` (counts only).
     #[test]
