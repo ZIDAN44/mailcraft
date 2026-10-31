@@ -178,13 +178,16 @@ impl Session {
         let before = (p.placed.len(), p.events.len(), p.calendars.len());
         let mut remote = false;
         if let Some(target) = p.server_calendar().filter(|_| !p.placed.is_empty()).map(|c| c.id.clone()) {
+            // In the user's own calendar there: a colleague's copy of the meeting (a calendar
+            // subscribed to in SOGo) isn't the one to answer in, nor one to write to.
+            let own = p.own_server_calendars();
             for uid in std::mem::take(&mut p.placed) {
-                let on_server = p.events.iter().any(|e| e.event.uid == uid && is_server_calendar(&e.calendar));
+                let on_server = p.events.iter().any(|e| e.event.uid == uid && own.contains(&e.calendar));
                 if on_server {
                     p.events.retain(|e| !(e.event.uid == uid && e.calendar == LOCAL));
                     // Still unanswered there: the answer given here.
                     if let Some((_, stat)) = answered.iter().find(|(u, _)| *u == uid) {
-                        for e in p.events.iter_mut().filter(|e| e.event.uid == uid && is_server_calendar(&e.calendar)) {
+                        for e in p.events.iter_mut().filter(|e| e.event.uid == uid && own.contains(&e.calendar)) {
                             let unanswered = e
                                 .event
                                 .attendees
@@ -263,6 +266,9 @@ impl Session {
                     e.attendees.iter_mut().filter(|a| mine.contains(&a.email.to_ascii_lowercase())).for_each(|a| a.rsvp = true);
                     remote |= put_occurrence(p, &calendar, e);
                 }
+                // The user's copy now: a colleague's of the same meeting isn't shown beside it.
+                let theirs: Vec<String> = p.calendars.iter().filter(|c| c.foreign).map(|c| c.id.clone()).collect();
+                p.events.retain(|e| !(e.event.uid == uid && theirs.contains(&e.calendar)));
                 self.placed_here(account, &calendar, &uid);
                 self.after_pim_change(account, remote);
                 true

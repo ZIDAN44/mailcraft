@@ -64,16 +64,32 @@ impl Session {
             // Calendars subscribed to by their links aren't the server's: they stay (issue #7).
             list.extend(p.calendars.iter().filter(|c| mailcraft_model::pim::is_web_calendar(&c.id)).cloned());
             p.events.retain(|e| e.calendar == LOCAL || list.iter().any(|c| c.id == e.calendar) || e.dirty);
-            for cal in &sync.synced_calendars {
+            // The user's own copy of a meeting comes before a colleague's: SOGo lists the
+            // calendars the user subscribed to in their home, and a meeting both are in is in
+            // both, under one uid (a real Mailcow, issue #30). Taken one for the other, the
+            // user's copy (the one to answer in) was gone. Their own calendars are read first,
+            // so a copy gone from them doesn't keep the colleague's out.
+            let web = |e: &StoredEvent| mailcraft_model::pim::is_web_calendar(&e.calendar);
+            let foreign = |id: &str| list.iter().any(|c| c.id == id && c.foreign);
+            let mine = |e: &StoredEvent| !foreign(&e.calendar) && !web(e);
+            let mut order: Vec<&String> = sync.synced_calendars.iter().collect();
+            order.sort_by_key(|c| foreign(c));
+            for cal in order {
                 p.events.retain(|e| &e.calendar != cal || e.dirty || e.href.is_empty() || sync.kept.contains(&e.href));
                 for x in sync.events.iter().filter(|x| &x.calendar == cal) {
+                    let same = |e: &StoredEvent| e.event.uid == x.event.uid && e.event.recurrence_id == x.event.recurrence_id;
+                    if foreign(&x.calendar) && p.events.iter().chain(&sync.events).any(|e| same(e) && mine(e)) {
+                        continue;
+                    }
                     if !p.events.iter().any(|e| e.dirty && e.event.uid == x.event.uid) {
-                        let web = |e: &StoredEvent| mailcraft_model::pim::is_web_calendar(&e.calendar);
-                        p.events.retain(|e| web(e) || !(e.event.uid == x.event.uid && e.event.recurrence_id == x.event.recurrence_id && !e.dirty));
+                        p.events.retain(|e| web(e) || !(same(e) && !e.dirty));
                         p.events.push(x.clone());
                     }
                 }
             }
+            // A colleague's copy read before the user's own came (or was put here) goes now.
+            let own_uids: std::collections::HashSet<String> = p.events.iter().filter(|e| mine(e)).map(|e| e.event.uid.clone()).collect();
+            p.events.retain(|e| !(foreign(&e.calendar) && own_uids.contains(&e.event.uid)));
             p.calendars = list;
         }
         if let Some(server) = &sync.books {

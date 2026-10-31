@@ -55,8 +55,10 @@ impl Session {
         uids.sort_unstable();
         uids.dedup();
         let (mut moved, mut kept) = (0usize, 0usize);
+        // Already in one of the user's own (not in a colleague's calendar listed with them).
+        let own = p.own_server_calendars();
         for uid in uids {
-            if p.events.iter().any(|e| e.event.uid == uid && is_server_calendar(&e.calendar)) {
+            if p.events.iter().any(|e| e.event.uid == uid && own.contains(&e.calendar)) {
                 kept += 1;
                 continue;
             }

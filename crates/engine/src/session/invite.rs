@@ -160,7 +160,10 @@ impl Session {
     /// The account holding an event (the series or any occurrence of it), and its parts there.
     fn stored_parts(&self, uid: &str) -> Option<(&str, Vec<&StoredEvent>)> {
         self.pim.iter().find_map(|(a, p)| {
-            let parts: Vec<&StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).collect();
+            // Not a colleague's copy of the meeting (a calendar of theirs the user subscribed
+            // to in SOGo, or one they may only read): the user's own is answered and updated.
+            let theirs = |e: &StoredEvent| p.calendars.iter().any(|c| c.id == e.calendar && (c.foreign || c.read_only));
+            let parts: Vec<&StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid && !theirs(e)).collect();
             (!parts.is_empty()).then_some((a.as_str(), parts))
         })
     }
@@ -577,7 +580,9 @@ fn drop_occurrence(p: &mut Pim, uid: &str, at: i64) -> bool {
 /// bringing it back if it had been taken out). True when the server has something to learn.
 fn put_occurrence(p: &mut Pim, calendar: &str, e: CalEvent) -> bool {
     let at = e.recurrence_id;
-    let old = p.events.iter().find(|x| x.event.uid == e.uid && x.event.recurrence_id == at).cloned();
+    // Not a colleague's copy of the meeting (one they may only read): that one only goes.
+    let theirs = |x: &StoredEvent| p.calendars.iter().any(|c| c.id == x.calendar && (c.foreign || c.read_only));
+    let old = p.events.iter().find(|x| x.event.uid == e.uid && x.event.recurrence_id == at && !theirs(x)).cloned();
     p.events.retain(|x| !(x.event.uid == e.uid && x.event.recurrence_id == at));
     if let Some(at) = at
         && let Some(m) = p.events.iter_mut().find(|x| x.event.uid == e.uid && x.event.recurrence_id.is_none())

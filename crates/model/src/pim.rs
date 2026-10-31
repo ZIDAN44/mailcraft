@@ -380,6 +380,12 @@ impl Pim {
         self.calendars.iter().find(|c| c.id == id)
     }
 
+    /// The user's own calendars on the server, that they may change: not someone else's listed
+    /// with them (SOGo lists those the user subscribed to in their home), nor one read-only.
+    pub fn own_server_calendars(&self) -> Vec<String> {
+        self.calendars.iter().filter(|c| is_server_calendar(&c.id) && !c.foreign && !c.read_only).map(|c| c.id.clone()).collect()
+    }
+
     pub fn default_book(&self) -> Option<&BookInfo> {
         self.books.iter().find(|b| !b.read_only)
     }
