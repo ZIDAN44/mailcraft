@@ -6,7 +6,7 @@ the items it deferred (calendar, contacts, Exchange, PST import, a web build) ar
 limits below. What each version brought is under [Done](#done); the milestones are in
 [ROADMAP.md](../ROADMAP.md).
 
-_Status: v0.30, 2026-10-30._
+_Status: v0.31, 2026-10-31._
 
 ## Open
 
@@ -1260,3 +1260,5 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   for messages over 1 MB with files, Graph (no sizes) for all with files. grommunio sends the
   whole source when the request names a body type or the headers, so neither is asked for.
   Tried against grommunio behind a 2 MB/s link: the text in 0.01 s, the rest 15 s later.
+
+### v0.31 — Signatures for replies, several messages by keyboard, the message source, the sender check, shared categories, private events, invitations on the server, online meetings

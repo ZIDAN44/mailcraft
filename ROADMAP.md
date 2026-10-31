@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stage:** v0.30 — Sent where the server keeps it, mail in its column, files pasted from any file manager (2026-10-30). Each milestone below is a version: v0.1 was
+**Stage:** v0.31 — Signatures for replies, several messages by keyboard, the message source, the sender check, shared categories, private events, invitations on the server, online meetings (2026-10-31). Each milestone below is a version: v0.1 was
 the first working client, and every later one is named for what it added.
 Scope: [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) (lightweight,
 local-first, media-aware v1); the fuller request is
@@ -205,7 +205,8 @@ local-first, media-aware v1); the fuller request is
    a signature saved as a web page, as Outlook keeps its own. From issue #23: Alt+numpad codes
    (Alt+0201 → É) type their characters on Windows. From issue #24: on an Exchange account a
    message with files shows its text at once, its files coming after.
-31. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
+31. **v0.31 — Signatures for replies, several messages by keyboard, the message source, the sender check, shared categories, private events, invitations on the server, online meetings**
+32. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.
 
