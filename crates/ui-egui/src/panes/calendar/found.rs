@@ -69,7 +69,9 @@ fn calendars(s: &Session) -> Vec<(String, String, String)> {
 pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     egui::Frame::new().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
-        ui.horizontal(|ui| {
+        // From the side the interface's text starts on (the right in Arabic and Hebrew).
+        let bar = vec2(ui.available_width(), ui.spacing().interact_size.y);
+        ui.allocate_ui_with_layout(bar, crate::bidi::row_from_start(egui::Align::Center), |ui| {
             for (when, label) in [(EventWhen::All, tl!("All")), (EventWhen::Upcoming, tl!("Upcoming")), (EventWhen::Past, tl!("Past"))] {
                 if ui.selectable_label(st.cal_search.when == when, label).clicked() {
                     st.cal_search.when = when;
@@ -114,7 +116,9 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                 if st.cal_search.when == EventWhen::All && heading != Some(h.upcoming) {
                     heading = Some(h.upcoming);
                     ui.add_space(6.0);
-                    ui.label(RichText::new(if h.upcoming { tl!("Upcoming") } else { tl!("Past") }).font(theme::bold(13.0)).color(t.dim));
+                    ui.with_layout(crate::bidi::column(), |ui| {
+                        ui.label(RichText::new(if h.upcoming { tl!("Upcoming") } else { tl!("Past") }).font(theme::bold(13.0)).color(t.dim));
+                    });
                     ui.add_space(2.0);
                 }
                 if row(s, &t, ui, h).clicked() {
@@ -139,35 +143,38 @@ pub(crate) fn open_hit(s: &Session, st: &mut UiState, h: &EventHit, acts: &mut V
 }
 
 /// One result: its calendar's colour, its date and time, its subject (a lock when private, a
-/// mark when it repeats), its place and calendar.
+/// mark when it repeats), its place and calendar. Laid out from the left, mirrored for a
+/// right-to-left interface (the colour on the right, the date's column after it).
 fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::click());
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
     }
+    let mr = crate::bidi::Mirror::new(rect);
+    let start = mr.align(Align2::LEFT_CENTER);
     let c = h.category.map_or_else(|| color(h.color, t), |i| theme::category_color(i, t.dark));
-    time_strip(ui, Rect::from_min_size(rect.min + vec2(2.0, 6.0), vec2(4.0, ROW - 12.0)), c, h.show_as);
+    time_strip(ui, mr.rect(Rect::from_min_size(rect.min + vec2(2.0, 6.0), vec2(4.0, ROW - 12.0))), c, h.show_as);
     let p = ui.painter().with_clip_rect(rect);
     let date_x = rect.min.x + 16.0;
     let day = s.clock.local(h.start).div_euclid(86_400);
-    p.text(pos2(date_x, rect.min.y + 14.0), Align2::LEFT_CENTER, long_date(day), theme::regular(12.5), t.text);
+    p.text(mr.pos(pos2(date_x, rect.min.y + 14.0)), start, long_date(day), theme::regular(12.5), t.text);
     let time = if h.all_day { tl!("All day").to_string() } else { format!("{} – {}", hm(h.start, s), hm(h.end, s)) };
-    p.text(pos2(date_x, rect.min.y + 32.0), Align2::LEFT_CENTER, time, theme::regular(12.0), t.dim);
+    p.text(mr.pos(pos2(date_x, rect.min.y + 32.0)), start, time, theme::regular(12.0), t.dim);
     // The subject and what's under it, after the date's column (narrower on a narrow pane).
     let x = date_x + (rect.width() * 0.3).clamp(150.0, 240.0);
     let mut sx = x;
     if h.privacy != Privacy::Public {
-        icons::paint(&p, Rect::from_min_size(pos2(sx, rect.min.y + 8.0), vec2(12.0, 12.0)), Icon::Lock, t.dim);
+        icons::paint(&p, mr.rect(Rect::from_min_size(pos2(sx, rect.min.y + 8.0), vec2(12.0, 12.0))), Icon::Lock, t.dim);
         sx += 17.0;
     }
     if h.recurring {
-        icons::paint(&p, Rect::from_min_size(pos2(sx, rect.min.y + 8.0), vec2(12.0, 12.0)), Icon::Sync, t.dim);
+        icons::paint(&p, mr.rect(Rect::from_min_size(pos2(sx, rect.min.y + 8.0), vec2(12.0, 12.0))), Icon::Sync, t.dim);
         sx += 17.0;
     }
     let title = event_title(&h.summary, h.privacy, h.show_as);
-    p.with_clip_rect(rect.with_min_x(sx).shrink2(vec2(0.0, 1.0)).with_max_x(rect.max.x - 8.0)).text(
-        pos2(sx, rect.min.y + 14.0),
-        Align2::LEFT_CENTER,
+    p.with_clip_rect(mr.rect(rect.with_min_x(sx).shrink2(vec2(0.0, 1.0)).with_max_x(rect.max.x - 8.0))).text(
+        mr.pos(pos2(sx, rect.min.y + 14.0)),
+        start,
         title,
         theme::bold(13.0),
         t.text,
@@ -179,9 +186,9 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> egui::Response {
         .map(|c| if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() })
         .unwrap_or_default();
     let under: Vec<String> = [h.location.clone(), h.categories.join(", "), calendar].into_iter().filter(|x| !x.trim().is_empty()).collect();
-    p.with_clip_rect(rect.with_min_x(x).with_max_x(rect.max.x - 8.0)).text(
-        pos2(x, rect.min.y + 32.0),
-        Align2::LEFT_CENTER,
+    p.with_clip_rect(mr.rect(rect.with_min_x(x).with_max_x(rect.max.x - 8.0))).text(
+        mr.pos(pos2(x, rect.min.y + 32.0)),
+        start,
         under.join(" · "),
         theme::regular(12.0),
         t.dim,

@@ -200,3 +200,45 @@ fn right_to_left_text_is_selected_and_copied() {
         assert_eq!(copied, [text.to_string()], "dragged across {text:?}");
     }
 }
+
+/// The calendar's search results are mirrored in Arabic: a result's date column is right of
+/// its subject, and All is the rightmost switch; in English the other way round. And a message
+/// source's bar starts on the right: Whole message right of Header only.
+#[test]
+fn calendar_results_and_the_source_bar_are_mirrored() {
+    for (lang, all, past, whole, header) in
+        [("ar", "الكل", "السابقة", "الرسالة كاملة", "الترويسة فقط"), ("en", "All", "Past", "Whole message", "Header only")]
+    {
+        let (mut a, dir) = app(&format!("rtl-found-{lang}"));
+        a.ui.language = lang.into();
+        let ctx = egui::Context::default();
+        a.run("view.module", json!({"name": "calendar"}));
+        a.ui.cal_search.query = "stand-up".into();
+        for _ in 0..3 {
+            frame(&ctx, &mut a, vec![]);
+        }
+        let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+        let at =
+            |name: &str| texts.iter().find(|(s, ..)| s == name).map(|(_, r, _)| *r).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
+        let rtl = lang == "ar";
+        assert_eq!(at(all).center().x > at(past).center().x, rtl, "{lang}: the switches");
+        let title = at("Team stand-up");
+        let date = texts.iter().filter(|(s, r, _)| s.contains("2026") && (r.center().y - title.center().y).abs() < 6.0).map(|(_, r, _)| *r).next();
+        let date = date.unwrap_or_else(|| panic!("{lang}: no date by the result in {texts:?}"));
+        assert_eq!(date.center().x > title.center().x, rtl, "{lang}: the date's side");
+        // A message's source: its bar from the interface's start.
+        a.ui.cal_search = Default::default();
+        a.run("view.module", json!({"name": "mail"}));
+        let k = a.session.list[0].key.clone();
+        a.act(crate::Action::Run("message.source", json!({"key": k.to_id()})));
+        for _ in 0..3 {
+            frame(&ctx, &mut a, vec![]);
+        }
+        let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+        let at =
+            |name: &str| texts.iter().find(|(s, ..)| s == name).map(|(_, r, _)| *r).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
+        assert_eq!(at(whole).center().x > at(header).center().x, rtl, "{lang}: the source's bar");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}
