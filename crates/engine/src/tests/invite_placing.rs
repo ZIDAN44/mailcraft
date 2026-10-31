@@ -301,6 +301,26 @@ fn holding_has_its_limits() {
     done(s);
 }
 
+/// Trying to break it: the calendar on this computer (or someone else's opened by address)
+/// can't be made the Default calendar of an account with calendars on its server: invitations
+/// put there would be moved to the server's at every sync, against the choice.
+#[test]
+fn only_a_calendar_on_the_server_is_the_default() {
+    let (mut s, id) = imap_session("placing-default-local");
+    s.run("event.create", &json!({"account": id, "summary": "Gym", "start": NOW + 3600, "end": NOW + 7200})).unwrap();
+    found(&mut s, &id, Vec::new());
+    let shared = mailcraft_model::pim::shared_calendar_id("sam@studio.example");
+    s.pim.get_mut(&id).unwrap().calendars.push(CalendarInfo { id: shared.clone(), ..Default::default() });
+    for bad in [LOCAL, shared.as_str()] {
+        assert!(s.run("calendar.setDefault", &json!({"account": id, "calendar": bad})).is_err(), "{bad}");
+    }
+    assert_eq!(s.pim[&id].chosen_calendar, None);
+    arrive(&mut s, &id, 1, "REQUEST", &[invitation("d@studio.example", 0)]);
+    let d = parts(&s, &id, "d@studio.example");
+    assert!(!d.is_empty() && d.iter().all(|e| e.calendar == OWN));
+    done(s);
+}
+
 /// Trying to break it: a calendar sent for reading isn't held (it has nothing for the
 /// calendar), and big invitations are held only up to a size: the rest go to the calendar on
 /// this computer at once, none lost, so the calendar's file stays small.

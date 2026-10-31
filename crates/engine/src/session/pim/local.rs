@@ -97,6 +97,12 @@ impl Session {
             if c.read_only || mailcraft_model::pim::is_web_calendar(&c.id) {
                 return Err(CmdError::Params(format!("`{}` can't be added to", c.name)));
             }
+            // Only one of the account's own on its server, as the calendar pane offers: what's
+            // put on this computer moves to the server's once it's found, so choosing it here
+            // wouldn't hold, and someone else's calendar isn't one to fill unasked.
+            if !is_server_calendar(&c.id) {
+                return Err(CmdError::Params(format!("`{}` isn't one of the account's calendars on its server", c.name)));
+            }
             p.chosen_calendar = Some(c.id.clone());
         }
         let chosen = p.default_calendar().map(|c| c.id.clone());
