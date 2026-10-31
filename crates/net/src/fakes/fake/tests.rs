@@ -774,8 +774,8 @@ fn the_outgoing_server_signs_in_with_its_own_user_name_and_password() {
 
 /// A folder whose PERMANENTFLAGS has no `\*` (a shared folder without the right to write, on
 /// Dovecot) takes a STORE of a new keyword and forgets it: refused before it's sent, so the
-/// change is undone and the user told (issue #28). Keywords it names, flags, and taking a
-/// keyword off still go through.
+/// change is undone and the user told (issue #28); so is taking one off. Keywords it names
+/// and flags still go through.
 #[test]
 fn keywords_a_folder_cant_keep_are_refused() {
     let st = State::new();
@@ -788,9 +788,16 @@ fn keywords_a_folder_cant_keep_are_refused() {
     assert!(!st.lock().unwrap().log.iter().any(|l| l.contains("r=c3=bcckfrage")), "not sent");
     apply_remote(&mut c, &Op::SetKeyword { keys: vec![key.clone()], keyword: "$LABEL2".into(), on: true }).unwrap();
     apply_remote(&mut c, &Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true }).unwrap();
-    apply_remote(&mut c, &Op::SetKeyword { keys: vec![key], keyword: "other".into(), on: false }).unwrap();
     let flags = st.lock().unwrap().boxes[0].msgs[0].flags.clone();
     assert_eq!(flags, ["$LABEL2", r"\Seen"]);
+    // Taking off a keyword it doesn't name is refused too: Dovecot answers a reader's `-FLAGS`
+    // with OK and leaves the keyword on.
+    st.lock().unwrap().boxes[0].msgs[0].flags.push("other".into());
+    let r = apply_remote(&mut c, &Op::SetKeyword { keys: vec![key.clone()], keyword: "other".into(), on: false });
+    assert!(matches!(&r, Err(crate::NetError::No(_))), "{r:?}");
+    apply_remote(&mut c, &Op::SetKeyword { keys: vec![key], keyword: "$label2".into(), on: false }).unwrap();
+    let flags = st.lock().unwrap().boxes[0].msgs[0].flags.clone();
+    assert_eq!(flags, [r"\Seen", "other"]);
     // With `\*`, anything goes.
     st.lock().unwrap().permanent_flags = Some(r"\Seen \*");
     let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 100, uid: 1 };

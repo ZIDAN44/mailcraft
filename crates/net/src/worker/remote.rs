@@ -68,8 +68,9 @@ pub fn apply_remote_with<S: std::io::Read + std::io::Write>(c: &mut Client<S>, o
         Op::SetKeyword { keys, keyword, on } if mailcraft_model::is_keyword(keyword) => by_folder(c, keys, |c, folder, set| {
             // A folder that can't keep a new keyword (no `\*` in its PERMANENTFLAGS) takes the
             // STORE and forgets it: refused here instead, so the user is told and the change
-            // undone, not seen to vanish later (issue #28).
-            if *on && c.seen(folder).is_some_and(|i| !i.keeps_keyword(keyword)) {
+            // undone, not seen to vanish later (issue #28). Taking one off is the same: Dovecot
+            // answers OK to a reader's `-FLAGS` and leaves the keyword on.
+            if c.seen(folder).is_some_and(|i| !i.keeps_keyword(keyword)) {
                 return Err(NetError::No(format!("{folder} can't keep categories (the keyword {keyword}) on its mail")));
             }
             c.uid_store(set, *on, keyword)
