@@ -352,7 +352,7 @@ impl Worker {
                     Ok(r)
                 })()
             }
-            Some(Conn::Pop) => Ok(crate::pop::local_counts(&store, &id, path)),
+            Some(Conn::Pop) => crate::pop::local_counts(&store, &id, path),
             None => Err(NetError::Closed("not connected".into())),
         };
         match result {

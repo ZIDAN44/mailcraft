@@ -64,15 +64,16 @@ impl Keep {
 
 type State = std::collections::BTreeMap<String, Kept>;
 
-fn load_state(store: &Store, account: &str, now: i64) -> State {
-    if let Ok(s) = store.load_account_doc::<State>(account, STATE_DOC)
-        && !s.is_empty()
-    {
-        return s;
+/// What was downloaded. One that can't be read stops the download: read as empty, everything on
+/// the server came again, and the record of it was written over.
+fn load_state(store: &Store, account: &str, now: i64) -> Result<State> {
+    let s: State = store.load_account_doc(account, STATE_DOC)?;
+    if !s.is_empty() {
+        return Ok(s);
     }
     // From before: the ids only, as if downloaded now.
-    let seen: Vec<String> = store.load_account_doc(account, SEEN_DOC).unwrap_or_default();
-    seen.into_iter().map(|id| (id, Kept { at: now, ..Default::default() })).collect()
+    let seen: Vec<String> = store.load_account_doc(account, SEEN_DOC)?;
+    Ok(seen.into_iter().map(|id| (id, Kept { at: now, ..Default::default() })).collect())
 }
 
 /// Note that messages here were deleted for good (their server copies can go, when the account
@@ -82,7 +83,7 @@ pub fn deleted_for_good(store: &Store, account: &str, keys: &[MessageKey]) -> Re
         return Ok(());
     }
     let ids: Vec<String> = keys.iter().map(MessageKey::to_id).collect();
-    let mut state: State = store.load_account_doc(account, STATE_DOC).unwrap_or_default();
+    let mut state: State = store.load_account_doc(account, STATE_DOC)?;
     let mut changed = false;
     for k in state.values_mut().filter(|k| k.key.as_ref().is_some_and(|id| ids.contains(id))) {
         k.gone = true;
@@ -96,7 +97,7 @@ pub fn deleted_for_good(store: &Store, account: &str, keys: &[MessageKey]) -> Re
 
 /// A message moved here: the server's record follows it.
 fn moved(store: &Store, account: &str, pairs: &[(MessageKey, MessageKey)]) -> Result<()> {
-    let mut state: State = store.load_account_doc(account, STATE_DOC).unwrap_or_default();
+    let mut state: State = store.load_account_doc(account, STATE_DOC)?;
     let mut changed = false;
     for (old, new) in pairs {
         let (old, new) = (old.to_id(), new.to_id());
@@ -297,7 +298,7 @@ pub fn folders(store: &Store, account: &str) -> Result<Vec<Folder>> {
 /// Download what's new into the Inbox, and remove from the server what the account says should go
 /// (`keep`): at once, so many days after downloading, or once deleted here for good.
 pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, inbox: &str, keep: &Keep, now: i64) -> Result<SyncReport> {
-    let mut state = load_state(store, account, now);
+    let mut state = load_state(store, account, now)?;
     let listed = c.uidl()?;
     let mut fs = store.load_folder(account, inbox)?;
     if fs.validity == 0 {
@@ -338,10 +339,11 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
     Ok(report)
 }
 
-/// A folder kept on this computer: its counts.
-pub fn local_counts(store: &Store, account: &str, folder: &str) -> SyncReport {
-    let fs: FolderState = store.load_folder(account, folder).unwrap_or_default();
-    SyncReport { total: u32::try_from(fs.messages.len()).unwrap_or(u32::MAX), unread: fs.unread(), ..Default::default() }
+/// A folder kept on this computer: its counts (an error rather than none when its list can't be
+/// read: they're shown and kept).
+pub fn local_counts(store: &Store, account: &str, folder: &str) -> Result<SyncReport> {
+    let fs: FolderState = store.load_folder(account, folder)?;
+    Ok(SyncReport { total: u32::try_from(fs.messages.len()).unwrap_or(u32::MAX), unread: fs.unread(), ..Default::default() })
 }
 
 /// Put a message in a folder on this computer (a draft, or the copy of one sent); its key.
@@ -678,6 +680,33 @@ mod tests {
         assert_eq!(here("Sent Items", 1).messages.len(), 1);
         pool.submit(Job::Remove { account: "p1".into() });
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// What was downloaded can't be read: nothing comes down again (it all did, as new), and the
+    /// record isn't written over; a folder that can't be read has no counts rather than 0.
+    #[test]
+    fn a_store_that_cant_be_read_downloads_nothing_twice() {
+        let server = fake::serve(vec![("u1".into(), mail("One", "")), ("u2".into(), mail("Two", ""))]);
+        let store = Store::failing();
+        let cfg = ServerConfig { host: "127.0.0.1".into(), port: server.port, security: Security::None };
+        let acc = AccountConfig { id: "p1".into(), email: "me@pop.example".into(), pop: Some(cfg), ..Default::default() };
+        folders(&store, "p1").unwrap();
+        let keep = Keep { remove_now: false, days: None, with_trash: false };
+        let sync = || {
+            let mut c = open(&acc, "pw").unwrap();
+            let r = fetch_new(&mut c, &store, "p1", "INBOX", &keep, 0);
+            let _ = c.quit();
+            r
+        };
+        assert_eq!(sync().unwrap().new, 2);
+        store.fail(Some(STATE_DOC), None);
+        assert!(sync().is_err());
+        store.fail(Some("state.json"), None);
+        assert!(local_counts(&store, "p1", "Deleted Items").is_err());
+        store.fail(None, None);
+        assert_eq!(sync().unwrap().new, 0);
+        assert_eq!(store.load_folder("p1", "INBOX").unwrap().messages.len(), 2);
+        assert_eq!(local_counts(&store, "p1", "INBOX").unwrap().total, 2);
     }
 
     #[test]
