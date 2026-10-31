@@ -22,6 +22,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   FUZZ_SECONDS: ${{ github.event.inputs.seconds || '240' }}
+  # cargo-fuzz builds for the target it was itself built for, and install-action's cargo-fuzz is a
+  # musl build: the address sanitizer can't link musl's static libc, so name the runner's own.
+  FUZZ_TARGET: x86_64-unknown-linux-gnu
 
 jobs:
   targets:
@@ -47,7 +50,7 @@ jobs:
           restore-keys: fuzz-corpus-
       - name: Compile every target
         working-directory: fuzz
-        run: cargo +nightly fuzz build -O
+        run: cargo +nightly fuzz build -O --target "$FUZZ_TARGET"
       - name: Run the targets one after another
         working-directory: fuzz
         shell: bash
@@ -56,7 +59,7 @@ jobs:
           for target in $(cargo +nightly fuzz list); do
             echo "::group::fuzzing $target"
             mkdir -p "corpus/$target"
-            if ! cargo +nightly fuzz run -O "$target" "corpus/$target" "seeds/$target" -- \
+            if ! cargo +nightly fuzz run -O --target "$FUZZ_TARGET" "$target" "corpus/$target" "seeds/$target" -- \
               -dict="dicts/$target.dict" -max_len=65536 -rss_limit_mb=2048 -timeout=10 \
               -max_total_time="$FUZZ_SECONDS" -print_final_stats=1; then
               crashed+=("$target")
