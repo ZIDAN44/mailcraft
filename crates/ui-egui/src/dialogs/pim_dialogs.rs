@@ -136,8 +136,15 @@ impl EventForm {
         let start = at.unwrap_or_else(|| (s.clock.now / 3600 + 1) * 3600);
         let calendars = writable_calendars(s);
         let current = s.current_account().map(|a| a.config.id.clone()).unwrap_or_default();
+        // The account's default calendar (issue #30: the one chosen, else its own rather than a
+        // colleague's listed first), as an event made without the form goes to.
+        let default = s.pim.get(&current).and_then(|p| p.default_calendar()).map(|c| c.id.clone());
         EventForm {
-            calendar: calendars.iter().position(|c| c.0 == current).unwrap_or(0),
+            calendar: calendars
+                .iter()
+                .position(|c| c.0 == current && default.as_ref() == Some(&c.1))
+                .or_else(|| calendars.iter().position(|c| c.0 == current))
+                .unwrap_or(0),
             calendars,
             date: local_date(start, s),
             start: local_time(start, s),

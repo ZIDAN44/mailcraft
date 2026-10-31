@@ -121,3 +121,54 @@ fn the_options_card_and_the_room_menu_draw() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The form with every choice of v0.31 at once (issues #25, #30, #32): a new event goes to the
+/// account's default calendar, not a colleague's listed first; Private (time only), Show as and
+/// a room's meeting draw together and are all saved.
+#[test]
+fn the_form_with_privacy_show_as_and_a_meeting() {
+    use mailcraft_engine::model::ical::{Privacy, ShowAs};
+    use mailcraft_engine::model::pim::CalendarInfo;
+    let (mut a, dir) = app("meeting-together");
+    let ctx = egui::Context::default();
+    rooms(&mut a);
+    let theirs = "https://dav.example.org/SOGo/dav/riley/Calendar/sam_team/";
+    let own = "https://dav.example.org/SOGo/dav/riley/Calendar/personal/";
+    let p = a.session.pim.entry("sample".into()).or_default();
+    p.calendars = vec![
+        CalendarInfo { id: theirs.into(), name: "Sam's team".into(), foreign: true, ..Default::default() },
+        CalendarInfo { id: own.into(), name: "Personal".into(), ..Default::default() },
+    ];
+    let f = crate::pim_dialogs::EventForm::new(&a.session, Some(NOW + 86_400));
+    assert_eq!(f.calendars.get(f.calendar).map(|c| c.1.as_str()), Some(own), "the account's own");
+    a.run("calendar.setDefault", json!({"account": "sample", "calendar": theirs}));
+    let f = crate::pim_dialogs::EventForm::new(&a.session, Some(NOW + 86_400));
+    assert_eq!(f.calendars.get(f.calendar).map(|c| c.1.as_str()), Some(theirs), "the one chosen");
+    a.run("calendar.setDefault", json!({"account": "sample", "calendar": ""}));
+
+    let mut d = Some(Dialog::new_event(&a.session, Some(NOW + 86_400)));
+    let f = form(&mut d);
+    f.summary = "Doctor".into();
+    f.guests = "zoe@studio.example".into();
+    f.privacy = Privacy::Confidential;
+    f.show_as = ShowAs::OutOfOffice;
+    let room = f.meeting.rooms[0].clone();
+    crate::pim_dialogs::online_meeting_add(f, &room);
+    let params = f.params();
+    assert_eq!((params["privacy"].as_str(), params["showAs"].as_str()), (Some("confidential"), Some("oof")));
+    assert_eq!(params["calendar"], own);
+    a.ui.dialog = d;
+    for dark in [Some(false), Some(true)] {
+        a.ui.dark = dark;
+        frame(&ctx, &mut a, vec![]);
+    }
+    a.act(crate::Action::Submit("event.create", params));
+    assert!(a.ui.dialog.is_none(), "saved and closed");
+    let (_, stored) =
+        a.session.pim.iter().flat_map(|(acc, p)| p.events.iter().map(move |e| (acc, e))).find(|(_, e)| e.event.summary == "Doctor").unwrap();
+    let e = &stored.event;
+    assert_eq!(stored.calendar, own);
+    assert_eq!((mailcraft_engine::model::ical::privacy(e), mailcraft_engine::model::ical::show_as(e)), (Privacy::Confidential, ShowAs::OutOfOffice));
+    assert_eq!(e.online_meeting().as_deref(), Some(room.url.as_str()));
+    let _ = std::fs::remove_dir_all(dir);
+}
