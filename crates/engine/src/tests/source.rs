@@ -86,6 +86,10 @@ fn hostile_sources() {
     let (lines, header, cut) = lines_of(b"Subject: a\x00b\x1bc\x7f\r\nX: \xe2\x80\xaeevil\xe2\x80\xac\r\n\r\nbody\rold mac\nunix caf\xe9\r\n");
     assert_eq!(lines, vec!["Subject: a\u{2400}b\u{241b}c\u{2421}", "X: <U+202E>evil<U+202C>", "", "body", "old mac", "unix café"]);
     assert_eq!((header, cut), (2, false));
+    // The Arabic letter mark turns text as the others do; the line and paragraph separators
+    // would break a line the source doesn't (found reviewing issue #27).
+    let (lines, _, _) = lines_of("Subject: a\u{61c}b\u{2028}c\u{2029}d".as_bytes());
+    assert_eq!(lines, vec!["Subject: a<U+061C>b<U+2028>c<U+2029>d"]);
     // 8-bit text in the character set its part says; one that isn't known: U+FFFD.
     let (lines, _, _) = lines_of(b"Content-Type: text/plain; charset=\"koi8-r\"\r\n\r\n\xf0\xd2\xc9\xd7\xc5\xd4\r\n");
     assert_eq!(lines[2], "Привет");

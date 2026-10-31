@@ -139,7 +139,8 @@ fn charset_of(line: &[u8]) -> Option<String> {
 }
 
 /// A line with what would hide or reorder text shown by name: control characters as their
-/// pictures (␀, ␛), the marks and overrides of text direction as `<U+202E>`. Tabs stay.
+/// pictures (␀, ␛), the marks and overrides of text direction as `<U+202E>` (and the line
+/// separators, as `<U+2028>`). Tabs stay.
 fn shown_text(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     for c in line.chars() {
@@ -147,7 +148,17 @@ fn shown_text(line: &str) -> String {
             '\t' => out.push(c),
             '\u{0}'..='\u{1f}' => out.push(char::from_u32(0x2400 + u32::from(c)).unwrap_or('\u{fffd}')),
             '\u{7f}' => out.push('\u{2421}'),
-            '\u{80}'..='\u{9f}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}' => {
+            // The Arabic letter mark turns text too; the line and paragraph separators would
+            // end a line where the source has none.
+            '\u{80}'..='\u{9f}'
+            | '\u{61c}'
+            | '\u{200e}'
+            | '\u{200f}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{feff}' => {
                 out.push_str(&format!("<U+{:04X}>", u32::from(c)));
             }
             c => out.push(c),
