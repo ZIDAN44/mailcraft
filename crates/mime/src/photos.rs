@@ -12,6 +12,8 @@
 const GPS_POINTER: u16 = 0x8825;
 /// More entries than this in one directory isn't a photo's metadata.
 const ENTRIES_MAX: usize = 1000;
+/// A TIFF structure's header: byte order, 42, the first directory's offset.
+const TIFF_HEADER: usize = 8;
 const JPEG_START: &[u8] = &[0xFF, 0xD8];
 const PNG_START: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 const EXIF_ID: &[u8] = b"Exif\0\0";
@@ -131,17 +133,29 @@ fn wipe_gps(tiff: &mut [u8]) -> bool {
         Some(b"MM") => false,
         _ => return false,
     };
-    let Some(first) = read32(tiff, 4, little) else { return false };
-    let Some(n) = read16(tiff, first, little) else { return false };
-    for i in 0..usize::from(n).min(ENTRIES_MAX) {
-        let Some(entry) = first.checked_add(2 + 12 * i) else { return false };
-        if read16(tiff, entry, little) == Some(GPS_POINTER)
-            && let Some(gps) = read32(tiff, entry.saturating_add(8), little)
-        {
-            return wipe_directory(tiff, gps, little);
+    let mut wiped = false;
+    // Every GPS pointer, not just the first (it may lead to an empty block), and again until
+    // none leads to anything: a value wiped can lie over an offset that's followed (found by
+    // fuzzing). Each round empties a block that wasn't, so it ends.
+    loop {
+        let Some(first) = read32(tiff, 4, little) else { return wiped };
+        let Some(n) = read16(tiff, first, little) else { return wiped };
+        let mut round = false;
+        for i in 0..usize::from(n).min(ENTRIES_MAX) {
+            let Some(entry) = first.checked_add(2 + 12 * i) else { break };
+            if read16(tiff, entry, little) == Some(GPS_POINTER)
+                && let Some(gps) = read32(tiff, entry.saturating_add(8), little)
+                // The first 8 bytes are the header, never a block.
+                && gps >= TIFF_HEADER
+            {
+                round |= wipe_directory(tiff, gps, little);
+            }
         }
+        if !round {
+            return wiped;
+        }
+        wiped = true;
     }
-    false
 }
 
 fn wipe_directory(tiff: &mut [u8], at: usize, little: bool) -> bool {
@@ -308,6 +322,57 @@ mod tests {
         assert!(!clean.windows(3).any(|w| w == b"GPS"));
         assert!(clean.windows(7).any(|w| w == b"Harbour"));
         assert!(clean.windows(4).any(|w| w == b"IDAT"));
+    }
+
+    #[test]
+    fn a_second_gps_block_goes_too() {
+        // IFD0 with two GPS pointers: the first to an empty block, the second to the latitude.
+        let mut t = tiff(true);
+        let ifd0_end = 8 + 2 + 12 * 2;
+        t.splice(ifd0_end..ifd0_end, [0x25, 0x88, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
+        t[8] = 3;
+        // Everything after IFD0 moved 12 on; the new pointer leads to a block of no entries
+        // (the zeroed "next" pointer), the old one to the latitude's block.
+        let empty = u32::try_from(8 + 2 + 12 * 3).unwrap_or(0);
+        t[8 + 2 + 12 + 8..8 + 2 + 12 + 12].copy_from_slice(&empty.to_le_bytes());
+        t[8 + 2 + 24 + 8..8 + 2 + 24 + 12].copy_from_slice(&50u32.to_le_bytes());
+        t[50 + 2 + 8..50 + 2 + 12].copy_from_slice(&68u32.to_le_bytes());
+        let photo = jpeg_with(&[(0xE1, [EXIF_ID.to_vec(), t].concat())]);
+        assert!(has_latitude(&photo, true));
+        let clean = without_location(&photo);
+        assert!(clean.as_deref().is_some_and(|c| !has_latitude(c, true)), "the latitude goes");
+        assert_eq!(without_location(&clean.unwrap_or_default()), None);
+    }
+
+    #[test]
+    fn a_value_over_the_gps_pointer_doesnt_lead_to_the_header() {
+        // Found by the weekly fuzz run: the latitude's values lie over IFD0's GPS pointer, so
+        // wiping them turned the pointer to 0, the TIFF header, which the next pass took for a
+        // GPS block of 18761 entries.
+        let mut t = tiff(true);
+        t[38 + 2 + 8..38 + 2 + 12].copy_from_slice(&28u32.to_le_bytes());
+        let photo = jpeg_with(&[(0xE1, [EXIF_ID.to_vec(), t].concat())]);
+        let clean = without_location(&photo);
+        assert!(clean.is_some());
+        let clean = clean.unwrap_or_default();
+        assert_eq!(without_location(&clean), None);
+        assert!(clean.get(JPEG_START.len() + 4 + EXIF_ID.len()..).is_some_and(|t| t.starts_with(b"II")), "the header is left alone");
+    }
+
+    #[test]
+    fn once_is_enough_whatever_the_offsets_say() {
+        // The weekly fuzz run's check (fuzz/fuzz_targets/photo.rs), over every byte of the EXIF
+        // block set to a few values: wiping one block can move an offset the next pass follows.
+        let photo = jpeg_with(&[(0xE1, exif(true))]);
+        for at in 0..photo.len() {
+            for v in [0u8, 1, 8, 0x25, 0x88, 0xFF] {
+                let mut p = photo.clone();
+                p[at] = v;
+                if let Some(clean) = without_location(&p) {
+                    assert_eq!(without_location(&clean), None, "byte {at} set to {v}");
+                }
+            }
+        }
     }
 
     #[test]
