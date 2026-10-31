@@ -37,8 +37,8 @@ pub mod smime;
 mod tnef;
 mod trackers;
 pub use attachments::{
-    AttachmentInfo, AttachmentKind, PendingFile, TEXT_FIRST, attachment_data, craft_app_for, index_doc, is_text_first, kind_of, quoted_pictures,
-    text_first, text_preview_kind,
+    AttachmentInfo, AttachmentKind, MAX_WANTED, PendingFile, TEXT_FIRST, attachment_data, attachments_data, craft_app_for, index_doc, is_text_first,
+    kind_of, quoted_pictures, text_first, text_preview_kind,
 };
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};

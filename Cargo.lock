@@ -3621,6 +3621,7 @@ dependencies = [
  "mail-parser",
  "mailcraft-model",
  "memchr",
+ "proptest",
  "serde",
 ]
 

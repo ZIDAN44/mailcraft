@@ -35,6 +35,7 @@ use super::*;
 
 mod importance;
 mod index_text;
+mod one_parse;
 mod report;
 mod signature_code;
 

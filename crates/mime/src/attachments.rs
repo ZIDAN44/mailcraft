@@ -415,6 +415,48 @@ fn data_url(src: &str) -> Option<(String, Vec<u8>)> {
 
 /// The bytes of attachment `index`.
 pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
-    let m = MessageParser::default().parse(raw)?;
-    attached(&m).0.into_iter().nth(index).map(|a| a.data.into_owned())
+    attachments_data(raw, &[index], usize::MAX, usize::MAX).pop().map(|(_, d)| d)
+}
+
+/// Most attachments [`attachments_data`] looks for at once.
+pub const MAX_WANTED: usize = 256;
+
+/// The bytes of several attachments from one parse (a message with 36 pictures was read and
+/// parsed 36 times to show their thumbnails). Indexes are [`attachment_data`]'s; they're taken
+/// in the order `wanted` lists them (the first [`MAX_WANTED`], each once), each at most
+/// `max_each` bytes and all together at most `max_total`: one past either cap is left out, and
+/// so is an index the message doesn't have.
+pub fn attachments_data(raw: &[u8], wanted: &[usize], max_each: usize, max_total: usize) -> Vec<(usize, Vec<u8>)> {
+    let mut order: Vec<usize> = Vec::new();
+    for i in wanted {
+        if order.len() >= MAX_WANTED {
+            break;
+        }
+        if !order.contains(i) {
+            order.push(*i);
+        }
+    }
+    if order.is_empty() {
+        return Vec::new();
+    }
+    let Some(m) = MessageParser::default().parse(raw) else { return Vec::new() };
+    let mut sorted = order.clone();
+    sorted.sort_unstable();
+    let mut found: Vec<(usize, Cow<'_, [u8]>)> =
+        attached(&m).0.into_iter().filter(|a| sorted.binary_search(&a.info.index).is_ok()).map(|a| (a.info.index, a.data)).collect();
+    let mut out = Vec::new();
+    let mut total = 0usize;
+    for i in order {
+        let Some(at) = found.iter().position(|(j, _)| *j == i) else { continue };
+        let (_, data) = found.swap_remove(at);
+        if data.len() > max_each {
+            continue;
+        }
+        match total.checked_add(data.len()) {
+            Some(t) if t <= max_total => total = t,
+            _ => continue,
+        }
+        out.push((i, data.into_owned()));
+    }
+    out
 }

@@ -21,3 +21,7 @@ serde = { workspace = true }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # Finding MIME boundaries for search without parsing (and decoding) every part: wasm too.
 memchr = "2"
+
+[dev-dependencies]
+# Property tests: several attachments from one parse are each one's own (tests/one_parse.rs).
+proptest = "1"

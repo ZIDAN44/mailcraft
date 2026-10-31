@@ -17,6 +17,8 @@ fuzz_target!(|raw: &[u8]| {
         for i in 0..p.attachments.len().min(8) {
             let _ = mime::attachment_data(raw, i);
         }
+        // Several from one parse, as the reading pane takes a message's pictures.
+        let _ = mime::attachments_data(raw, &[0, 1, 5, usize::MAX], 1 << 20, 4 << 20);
         let _ = mime::with_date(raw, 0);
     }
 });
