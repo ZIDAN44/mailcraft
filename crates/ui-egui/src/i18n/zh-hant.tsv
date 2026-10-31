@@ -1318,11 +1318,15 @@ month	May	5月
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	最多 50 個字母、數字和符號，不能有空格、引號、反斜線或 ( ) { } ] % *
 	{name} has that keyword already.	{name} 已經有該關鍵字。
 	Messages: {n}	郵件：{n}
+	All calendars	所有行事曆
 	Busy	忙碌
 	Free	空閒
+	No events match.	沒有符合的活動。
 	Out of office	外出
+	Past	過去
 	Private	私人
 	Private appointment	私人約會
+	Search calendar (location:, organizer:, after:…)	搜尋行事曆 (location:, organizer:, after:…)
 	Show as	顯示為
 	Show time only	僅顯示時間
 	Working elsewhere	在別處工作

@@ -19,11 +19,13 @@ use serde::{Deserialize, Serialize};
 use crate::dates::{civil_from_days, days_from_civil};
 
 mod alarms;
+mod find;
 mod notes;
 mod recurrence;
 mod showing;
 mod zones;
 pub use alarms::*;
+pub use find::*;
 use notes::*;
 pub use notes::*;
 use recurrence::*;

@@ -328,6 +328,17 @@ pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
     a.ui.dialog = Some(Dialog::new_event(&a.session, None));
     frame(ctx, a, vec![]);
     a.ui.dialog = None;
+    // The calendar's search: what it finds, each switch, and nothing found.
+    for (q, when) in [
+        ("a", mailcraft_engine::EventWhen::All),
+        ("stand-up", mailcraft_engine::EventWhen::Past),
+        ("nothing-like-it", mailcraft_engine::EventWhen::Upcoming),
+    ] {
+        a.ui.cal_search.query = q.into();
+        a.ui.cal_search.when = when;
+        frame(ctx, a, vec![]);
+    }
+    a.ui.cal_search = Default::default();
     a.run("view.module", json!({"name": "people"}));
     frame(ctx, a, vec![]);
     a.ui.person = a.session.people("").first().map(|p| p.card.uid.clone());

@@ -1319,11 +1319,15 @@ month	May	mayo
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Hasta 50 letras, cifras y símbolos, sin espacios, comillas, barras invertidas ni ( ) { } ] % *
 	{name} has that keyword already.	{name} ya tiene esa palabra clave.
 	Messages: {n}	Mensajes: {n}
+	All calendars	Todos los calendarios
 	Busy	Ocupado
 	Free	Libre
+	No events match.	Ningún evento coincide.
 	Out of office	Fuera de la oficina
+	Past	Pasados
 	Private	Privado
 	Private appointment	Cita privada
+	Search calendar (location:, organizer:, after:…)	Buscar en el calendario (location:, organizer:, after:…)
 	Show as	Mostrar como
 	Show time only	Mostrar solo la hora
 	Working elsewhere	Trabajando en otro sitio

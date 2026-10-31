@@ -334,6 +334,144 @@ fn real_calendar_by_hand_and_a_renewed_certificate() {
     let _ = std::fs::remove_dir_all(store.root());
 }
 
+/// Issue #32 on a real CalDAV server (Radicale, Stalwart): an event made private, out of the
+/// office, is stored with `CLASS:PRIVATE`, `TRANSP:OPAQUE` and Outlook's busy status, and read
+/// back so; one another calendar wrote "show time only" (as Thunderbird does, with its own
+/// lines) keeps its classification and lines through an edit here; made public and free, its
+/// `CLASS` goes and `TRANSP` says transparent. Then the calendar's search (issue #33) finds it
+/// in what was read.
+///
+/// ```text
+/// MAILCRAFT_REAL_CALDAV="http://127.0.0.1:21432/riley/ riley pw" \
+///   cargo test -p mailcraft-net real_caldav_private -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+fn real_caldav_private_and_show_as() {
+    use mailcraft_model::ical::{EventQuery, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
+    use mailcraft_model::pim::{Pim, StoredEvent};
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALDAV") else {
+        eprintln!("MAILCRAFT_REAL_CALDAV isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
+    let dav = crate::dav::Dav::new(user, password);
+    let at = crate::dav::Where { email: user, imap_host: "127.0.0.1", caldav: Some(url), carddav: None };
+    let zone = mailcraft_model::zone::Zone::Fixed(0);
+    let now = 1_792_000_000;
+    // Each sync merged as the engine does, roughly: what the server has, what was pushed.
+    let merge = |pim: &mut Pim, s: mailcraft_model::pim::DavSync| {
+        assert!(s.errors.is_empty(), "{:?}", s.errors);
+        pim.caldav_home = s.caldav_home.clone();
+        pim.carddav_home = Some(String::new());
+        pim.dav_checked = Some(s.checked);
+        if let Some(c) = s.calendars.clone() {
+            pim.calendars = c;
+        }
+        for c in &s.synced_calendars {
+            pim.events.retain(|e| &e.calendar != c || s.kept.contains(&e.href));
+        }
+        pim.events.retain(|e| !s.pushed_events.iter().any(|x| x.event.uid == e.event.uid));
+        pim.events.extend(s.pushed_events.clone());
+        for e in s.events {
+            pim.events.retain(|x| !(x.href == e.href && x.event.uid == e.event.uid));
+            pim.events.push(e);
+        }
+        pim.deleted.clear();
+    };
+    let mut pim = Pim::default();
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    let cal = pim.calendars.iter().find(|c| !c.read_only).map(|c| c.id.clone()).expect("a calendar to write to");
+    eprintln!("calendar: {cal}");
+    let raw = |pim: &Pim, uid: &str| -> String {
+        let href = pim.events.iter().find(|e| e.event.uid == uid).map(|e| e.href.clone()).unwrap();
+        let got = dav.multiget(crate::dav::Kind::Calendars, &cal, &[href]).unwrap();
+        got.first().map(|g| g.2.clone()).unwrap_or_default()
+    };
+    // Made here: private, out of office.
+    let uid = format!("mc31e-private-{}@mailcraft", std::process::id());
+    let mut e = mailcraft_model::ical::CalEvent {
+        uid: uid.clone(),
+        summary: "Doctor".into(),
+        location: "Clinic 4".into(),
+        start: now,
+        end: now + 3600,
+        ..Default::default()
+    };
+    set_privacy(&mut e, Privacy::Private);
+    set_show_as(&mut e, ShowAs::OutOfOffice);
+    pim.events.push(StoredEvent { calendar: cal.clone(), event: e, dirty: true, ..Default::default() });
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    let stored = raw(&pim, &uid);
+    eprintln!("--- stored:\n{stored}");
+    for line in ["CLASS:PRIVATE", "TRANSP:OPAQUE", "X-MICROSOFT-CDO-BUSYSTATUS:OOF"] {
+        assert!(stored.contains(line), "{line} in {stored}");
+    }
+    pim.calendars.iter_mut().for_each(|c| c.ctag.clear());
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    let back = pim.events.iter().find(|e| e.event.uid == uid).unwrap();
+    assert_eq!((privacy(&back.event), show_as(&back.event)), (Privacy::Private, ShowAs::OutOfOffice));
+
+    // Written by another calendar: show time only, with lines of its own.
+    let other = format!("mc31e-other-{}@mailcraft", std::process::id());
+    let ics = format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Another calendar//EN\r\nBEGIN:VEVENT\r\nUID:{other}\r\nDTSTAMP:20261020T080000Z\r\n\
+         DTSTART:20261022T090000Z\r\nDTEND:20261022T100000Z\r\nSUMMARY:Board meeting\r\nLOCATION:Room 2.14\r\nCLASS:CONFIDENTIAL\r\n\
+         TRANSP:TRANSPARENT\r\nX-MOZ-GENERATION:4\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    );
+    let href = format!("{}/{}.ics", cal.trim_end_matches('/'), other.replace('@', "-"));
+    dav.put(&href, "text/calendar; charset=utf-8", &ics, None).unwrap();
+    pim.calendars.iter_mut().for_each(|c| c.ctag.clear());
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    let theirs = pim.events.iter().find(|e| e.event.uid == other).cloned().unwrap();
+    assert_eq!((privacy(&theirs.event), show_as(&theirs.event)), (Privacy::Confidential, ShowAs::Free));
+    // The calendar's search finds both, offline, in what was read.
+    let found: Vec<&str> =
+        pim.events.iter().filter(|e| EventQuery::parse("is:private").matches(&e.event)).map(|e| e.event.summary.as_str()).collect();
+    assert!(found.contains(&"Doctor") && found.contains(&"Board meeting"), "{found:?}");
+    assert!(pim.events.iter().any(|e| EventQuery::parse("location:2.14").matches(&e.event) && e.event.uid == other));
+    // Edited here (its title): the classification and the other calendar's lines stay.
+    for x in pim.events.iter_mut().filter(|x| x.event.uid == other) {
+        x.event.summary = "Board meeting (moved)".into();
+        x.event.sequence += 1;
+        x.dirty = true;
+    }
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    let stored = raw(&pim, &other);
+    eprintln!("--- edited:\n{stored}");
+    assert!(stored.contains("SUMMARY:Board meeting (moved)"));
+    assert_eq!(stored.matches("CLASS:").count(), 1, "{stored}");
+    assert!(stored.contains("CLASS:CONFIDENTIAL") && stored.contains("X-MOZ-GENERATION:4") && stored.contains("TRANSP:TRANSPARENT"), "{stored}");
+    // Made public and free here.
+    for x in pim.events.iter_mut().filter(|x| x.event.uid == other) {
+        set_privacy(&mut x.event, Privacy::Public);
+        set_show_as(&mut x.event, ShowAs::Free);
+        x.dirty = true;
+    }
+    for x in pim.events.iter_mut().filter(|x| x.event.uid == uid) {
+        set_privacy(&mut x.event, Privacy::Public);
+        set_show_as(&mut x.event, ShowAs::Free);
+        x.dirty = true;
+    }
+    let s = crate::dav::sync(&dav, &at, &pim, now, zone).unwrap();
+    merge(&mut pim, s);
+    let stored = raw(&pim, &uid);
+    eprintln!("--- public and free:\n{stored}");
+    assert!(!stored.contains("CLASS:") && stored.contains("TRANSP:TRANSPARENT") && stored.contains("X-MICROSOFT-CDO-BUSYSTATUS:FREE"), "{stored}");
+    assert_eq!(stored.matches("TRANSP:").count(), 1, "{stored}");
+    // Cleaned up.
+    for u in [&uid, &other] {
+        let e = pim.events.iter().find(|e| &e.event.uid == u).unwrap();
+        dav.delete(&e.href, "").unwrap();
+    }
+}
+
 /// Categories as keywords on a real server (issue #28), in a folder another user shares:
 /// Thunderbird's tags (`r=c3=bcckfrage`, `to=20do`) and SOGo's (`$label6`) come down as they are,
 /// one set here goes up as it is; a user who may only read the folder (PERMANENTFLAGS without

@@ -1318,11 +1318,15 @@ month	May	Май
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	До 50 букв, цифр и символов, без пробелов, кавычек, обратных косых черт и ( ) { } ] % *
 	{name} has that keyword already.	У категории {name} уже есть это ключевое слово.
 	Messages: {n}	Сообщений: {n}
+	All calendars	Все календари
 	Busy	Занят
 	Free	Свободен
+	No events match.	Подходящих событий нет.
 	Out of office	Нет на месте
+	Past	Прошедшие
 	Private	Личное
 	Private appointment	Личная встреча
+	Search calendar (location:, organizer:, after:…)	Поиск в календаре (location:, organizer:, after:…)
 	Show as	Показывать как
 	Show time only	Показывать только время
 	Working elsewhere	Работаю в другом месте

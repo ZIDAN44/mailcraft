@@ -1315,11 +1315,15 @@ month	May	5月
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	最多 50 个字母、数字和符号，不能有空格、引号、反斜杠或 ( ) { } ] % *
 	{name} has that keyword already.	{name} 已经有该关键字。
 	Messages: {n}	邮件：{n}
+	All calendars	所有日历
 	Busy	忙碌
 	Free	空闲
+	No events match.	没有匹配的事件。
 	Out of office	外出
+	Past	过去
 	Private	私人
 	Private appointment	私人约会
+	Search calendar (location:, organizer:, after:…)	搜索日历 (location:, organizer:, after:…)
 	Show as	显示为
 	Show time only	仅显示时间
 	Working elsewhere	在别处工作

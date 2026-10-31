@@ -62,6 +62,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             })).collect::<Vec<_>>()))
         })
         .params(r#"{"from"?: date or date-time, "to"?: …} (default: what the calendar shows)"#),
+        // Issue #33: find events in every calendar shown, offline, as the mail search box reads.
+        CommandSpec::new("calendar.search", "Search the calendar", "Calendar › Search", |s, v| {
+            let when = match p::str(v, "when") {
+                Some(w) => crate::EventWhen::from_code(w).ok_or_else(|| CmdError::Params(format!("`{w}` is not all, upcoming or past")))?,
+                None => crate::EventWhen::All,
+            };
+            let limit = p::u64(v, "limit").map_or(200, |n| usize::try_from(n).unwrap_or(usize::MAX)).clamp(1, crate::EVENT_HITS_MAX);
+            let hits = s.find_events(p::str(v, "query").unwrap_or_default(), when, p::str(v, "account"), p::str(v, "calendar"), limit);
+            Ok(json!(hits.iter().map(|h| json!({
+                "uid": h.uid, "account": h.account, "calendar": h.calendar, "summary": h.summary, "location": h.location,
+                "start": h.start, "end": h.end, "allDay": h.all_day, "occurrence": h.occurrence, "recurring": h.recurring,
+                "upcoming": h.upcoming, "categories": h.categories, "privacy": h.privacy, "showAs": h.show_as,
+            })).collect::<Vec<_>>()))
+        })
+        .params(
+            r#"{"query": words, "quoted phrases", location:, subject:, notes:, organizer:/from:, attendee:/to:, category:, is:private, is:recurring, after:/before: YYYY-MM-DD, "when"?: "all"|"upcoming"|"past", "account"?: string, "calendar"?: string (id or name; default: every calendar shown), "limit"?: number}"#,
+        ),
         CommandSpec::new("event.create", "New event", "Calendar › New event", |s, v| {
             let mut e = event_from(s, v, mailcraft_model::ical::CalEvent::default())?;
             let account = match p::str(v, "account") {

@@ -1314,11 +1314,15 @@ month	May	מאי
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	עד 50 אותיות, ספרות וסימנים, בלי רווחים, מירכאות, לוכסנים הפוכים או ( ) { } ] % *
 	{name} has that keyword already.	ל־{name} כבר יש את מילת המפתח הזו.
 	Messages: {n}	הודעות: {n}
+	All calendars	כל לוחות השנה
 	Busy	עסוק
 	Free	פנוי
+	No events match.	אין אירועים מתאימים.
 	Out of office	מחוץ למשרד
+	Past	שעברו
 	Private	פרטי
 	Private appointment	פגישה פרטית
+	Search calendar (location:, organizer:, after:…)	חפש בלוח השנה (location:, organizer:, after:…)
 	Show as	הצג כ
 	Show time only	הצג רק את השעה
 	Working elsewhere	עובד ממקום אחר

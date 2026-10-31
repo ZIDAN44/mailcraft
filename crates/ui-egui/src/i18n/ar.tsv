@@ -1314,11 +1314,15 @@ month	May	مايو
 	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	حتى 50 حرفًا ورقمًا ورمزًا، بلا مسافات أو علامات اقتباس أو شرطات مائلة عكسية أو ( ) { } ] % *
 	{name} has that keyword already.	لدى {name} هذه الكلمة المفتاحية بالفعل.
 	Messages: {n}	الرسائل: {n}
+	All calendars	كل التقاويم
 	Busy	مشغول
 	Free	متاح
+	No events match.	لا توجد أحداث مطابقة.
 	Out of office	خارج المكتب
+	Past	السابقة
 	Private	خاص
 	Private appointment	موعد خاص
+	Search calendar (location:, organizer:, after:…)	البحث في التقويم (location:, organizer:, after:…)
 	Show as	الإظهار كـ
 	Show time only	إظهار الوقت فقط
 	Working elsewhere	أعمل من مكان آخر

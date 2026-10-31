@@ -38,14 +38,15 @@ impl MailApp {
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), r, Icon::Search, t.dim);
-                    // In People and Notes it searches those (as Outlook's box searches where you are).
+                    // In the Calendar, People and Notes it searches those (as Outlook's box searches
+                    // where you are).
                     let module = self.session.module;
-                    if matches!(module, Module::People | Module::Notes) {
+                    if matches!(module, Module::Calendar | Module::People | Module::Notes) {
                         let focus = std::mem::take(&mut self.ui.focus_search);
-                        let (query, hint) = if module == Module::People {
-                            (&mut self.ui.people_query, tl!("Search people"))
-                        } else {
-                            (&mut self.ui.notes_query, tl!("Search notes"))
+                        let (query, hint) = match module {
+                            Module::People => (&mut self.ui.people_query, tl!("Search people")),
+                            Module::Calendar => (&mut self.ui.cal_search.query, tl!("Search calendar (location:, organizer:, after:…)")),
+                            _ => (&mut self.ui.notes_query, tl!("Search notes")),
                         };
                         let resp = ui.add(
                             egui::TextEdit::singleline(query)

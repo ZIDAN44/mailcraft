@@ -7,7 +7,11 @@ use mailcraft_engine::model::ical::{Privacy, ShowAs};
 use mailcraft_engine::{AgendaItem, CalMode, Session};
 use serde_json::json;
 
+mod found;
 mod showing;
+#[cfg(test)]
+pub(crate) use found::open_hit;
+pub(crate) use found::{CalSearch, found};
 pub use showing::*;
 
 use crate::icons::{self, Icon};
@@ -351,6 +355,11 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
 
 /// The main pane.
 pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+    // Searching: the events found, in place of the days.
+    if st.cal_search.active() {
+        found(s, st, ui, acts);
+        return;
+    }
     let t = st.tokens;
     egui::Frame::new().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
         ui.horizontal(|ui| {

@@ -286,3 +286,32 @@ fn the_event_form_sets_private_and_show_as() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #33: in the Calendar the search box searches the calendar (not mail); what it finds is
+/// listed, and one clicked goes to its day and opens.
+#[test]
+fn the_calendar_search_box_lists_and_opens_events() {
+    let (mut a, dir) = app("calendar-search");
+    let ctx = egui::Context::default();
+    a.run("view.module", json!({"name": "calendar"}));
+    frame(&ctx, &mut a, vec![]);
+    a.ui.focus_search = true;
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Text("storyboard".into())]);
+    assert_eq!(a.ui.cal_search.query, "storyboard");
+    assert!(a.session.search.is_none(), "mail isn't searched");
+    frame(&ctx, &mut a, vec![]);
+    let hits = a.ui.cal_search.results(&a.session).to_vec();
+    assert_eq!(hits.iter().map(|h| h.summary.as_str()).collect::<Vec<_>>(), ["Storyboard review"]);
+    let mut acts = Vec::new();
+    crate::panes::calendar::open_hit(&a.session, &mut a.ui, &hits[0], &mut acts);
+    for act in acts {
+        a.act(act);
+    }
+    assert!(a.ui.cal_search.query.is_empty(), "back to the days");
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Event(f)) if f.summary == "Storyboard review"));
+    let day = a.session.clock.local(hits[0].start).div_euclid(86_400);
+    assert_eq!(a.session.cal_day(), day, "on its day");
+    frame(&ctx, &mut a, vec![]);
+    let _ = std::fs::remove_dir_all(dir);
+}

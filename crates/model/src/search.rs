@@ -85,6 +85,12 @@ pub struct Doc<'a> {
 }
 
 fn split_tokens(input: &str) -> Vec<String> {
+    split_tokens_with(input, field_waiting)
+}
+
+/// The query's tokens: split at whitespace outside quotes, a bare `field:` (as `waiting` knows
+/// fields) joined to the value after it.
+pub(crate) fn split_tokens_with(input: &str, waiting: impl Fn(&str) -> bool) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut quoted = false;
@@ -96,7 +102,7 @@ fn split_tokens(input: &str) -> Vec<String> {
             }
             c if c.is_whitespace() && !quoted => {
                 // Whitespace after a bare `field:` is skipped, joining the value to the field.
-                if !cur.is_empty() && !field_waiting(&cur) {
+                if !cur.is_empty() && !waiting(&cur) {
                     out.push(std::mem::take(&mut cur));
                 }
             }

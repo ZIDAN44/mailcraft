@@ -120,6 +120,7 @@ fn an_events_links_and_the_one_that_joins_it() {
 
 use super::*;
 
+mod find;
 mod showing;
 mod zones;
 
