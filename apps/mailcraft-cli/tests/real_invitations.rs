@@ -2,7 +2,9 @@
 //! (issues #30 and #31; never a real account), run by hand:
 //!
 //! ```text
-//! MAILCRAFT_REAL_INVITES="127.0.0.1:21510 http://127.0.0.1:21532/riley@studio.example/personal/" //! MAILCRAFT_REAL_INVITES_JMAP="http://127.0.0.1:21508 riley pw" //!   cargo test -p mailcraft-cli --test real_invitations -- --ignored --nocapture
+//! MAILCRAFT_REAL_INVITES="127.0.0.1:21510 http://127.0.0.1:21532/riley@studio.example/personal/" \
+//! MAILCRAFT_REAL_INVITES_JMAP="http://127.0.0.1:21508 riley pw" \
+//!   cargo test -p mailcraft-cli --test real_invitations -- --ignored --nocapture
 //! ```
 //!
 //! An IMAP server (Dovecot: any user, password `pw`, with a folder `Trash`) and a CalDAV server
@@ -219,6 +221,10 @@ fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
     let mut app = App { s, pool: Pool::new(store.clone(), Arc::new(MemoryCredentials::default())) };
     let mut other = Imap::connect(imap);
+    // Deleted Items, as a new mailbox may not have it yet (made once; "already exists" after).
+    other.n += 1;
+    let _ = write!(other.s, "t{} CREATE Trash\r\n", other.n);
+    other.read_until(&format!("t{} ", other.n));
 
     // 1. No calendar server found from the address (studio.example has none): the account's
     //    calendar is on this computer, and an invitation that comes goes there, as it should.
@@ -244,6 +250,21 @@ fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     assert_eq!(app.s.find_event("two@organizer.example").unwrap().1.calendar, LOCAL, "waited long enough: here");
     other.append("INBOX", &invitation("three@organizer.example", "Mix review", "20261107T150000Z"));
     app.pump(120, "the third invitation held", |s, _| !s.pim[&id].held.is_empty());
+    // One declined in its message while held: it doesn't come back once the calendars are found.
+    other.append("INBOX", &invitation("four@organizer.example", "Bounce", "20261108T150000Z"));
+    app.pump(120, "the fourth invitation held", |s, _| s.pim[&id].held.len() == 2);
+    let key = app.s.folder_state(&id, "INBOX").messages.iter().find(|m| m.subject == "Invitation: Bounce").map(|m| m.key.to_id()).unwrap();
+    app.s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+    app.s.run("list.open", &json!({"key": key})).unwrap();
+    let r = app.s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
+    assert_eq!(
+        r["moved"],
+        1,
+        "{r} to {:?} of {:?}",
+        app.s.answered_folder(&id),
+        app.s.account(&id).map(|a| a.folders.iter().map(|f| (f.path.clone(), f.role)).collect::<Vec<_>>())
+    );
+    assert_eq!(app.s.pim[&id].held.len(), 1, "let go");
 
     // 3. The server answers, slowly: the held one goes to its calendar, those put here move
     //    there, and both are stored on the server.
@@ -260,7 +281,8 @@ fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     for summary in ["Colour pass", "Grade review", "Mix review"] {
         assert!(ics.contains(&format!("SUMMARY:{summary}")), "{summary} not on the server:\n{ics}");
     }
-    eprintln!("3: all three are in the server's calendar");
+    assert!(!ics.contains("SUMMARY:Bounce") && app.s.find_event("four@organizer.example").is_none(), "declined while held: not back");
+    eprintln!("3: all three are in the server's calendar, the one declined while held isn't");
 
     // 4. Issue #31: answered from the calendar, the invitation leaves the Inbox on the server
     //    (Deleted Items); answered in the message, likewise; the answer is stored.
@@ -276,7 +298,7 @@ fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     loop {
         let inbox = other.subjects("INBOX");
         let trash = other.subjects("Trash");
-        if trash.len() >= 2 {
+        if trash.len() >= 3 {
             assert!(inbox.iter().all(|s| !s.contains("Colour pass") && !s.contains("Grade review")), "{inbox:?}");
             assert!(inbox.iter().any(|s| s.contains("Mix review")), "the unanswered one stays: {inbox:?}");
             eprintln!("4: on the server, Inbox {inbox:?}, Trash {trash:?}");
