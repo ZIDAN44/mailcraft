@@ -1267,4 +1267,14 @@ month	May	Май
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Сообщения, которые ещё отправляются: {n}. Они могут не уйти, если закрыть MailCraft сейчас: подождите немного или всё равно закройте.
 	Add meeting invitations to the calendar as tentative when they arrive	Добавлять приглашения на встречи в календарь как предварительные при получении
 	Before they're answered; nothing is sent until you answer	До ответа на них; ничего не отправляется, пока вы не ответите
+	View message source	Показать исходный текст письма
 	{n} messages selected	Выбрано писем: {n}
+	Message source	Исходный текст
+	View the message as it came, headers and all	Показать письмо в том виде, в каком оно пришло, со всеми заголовками
+	Message	Письмо
+	{subject} – Message source	{subject} – Исходный текст письма
+	Whole message	Всё письмо
+	Header only	Только заголовки
+	Copy all	Копировать всё
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Показаны только первые {shown} из {size}. «Сохранить как письмо (.eml)» сохраняет его целиком.
+	The source couldn't be downloaded: {error}	Не удалось загрузить исходный текст: {error}

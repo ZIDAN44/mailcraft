@@ -1263,4 +1263,14 @@ month	May	mei
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Berichten die nog worden verzonden: {n}. Ze gaan misschien niet weg als MailCraft nu sluit: wacht even, of sluit toch.
 	Add meeting invitations to the calendar as tentative when they arrive	Uitnodigingen voor vergaderingen bij aankomst als voorlopig in de agenda zetten
 	Before they're answered; nothing is sent until you answer	Voordat ze beantwoord zijn; er wordt niets verstuurd tot je antwoordt
+	View message source	Berichtbron weergeven
 	{n} messages selected	{n} berichten geselecteerd
+	Message source	Berichtbron
+	View the message as it came, headers and all	Het bericht tonen zoals het binnenkwam, met alle kopregels
+	Message	Bericht
+	{subject} – Message source	{subject} – Berichtbron
+	Whole message	Heel bericht
+	Header only	Alleen kopregels
+	Copy all	Alles kopiëren
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Alleen de eerste {shown} van {size} worden getoond. Opslaan als e-mail (.eml) bewaart alles.
+	The source couldn't be downloaded: {error}	De bron kon niet worden gedownload: {error}

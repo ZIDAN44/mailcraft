@@ -1263,4 +1263,14 @@ month	May	מאי
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	הודעות שעדיין נשלחות: {n}. ייתכן שלא יישלחו אם MailCraft ייסגר עכשיו: המתן רגע, או סגור בכל זאת.
 	Add meeting invitations to the calendar as tentative when they arrive	הוספת הזמנות לפגישות ללוח השנה כטנטטיביות כשהן מגיעות
 	Before they're answered; nothing is sent until you answer	לפני שעונים עליהן; דבר אינו נשלח עד שתענה
+	View message source	הצג את מקור ההודעה
 	{n} messages selected	הודעות שנבחרו: {n}
+	Message source	מקור ההודעה
+	View the message as it came, headers and all	הצג את ההודעה כפי שהגיעה, עם כל הכותרות
+	Message	הודעה
+	{subject} – Message source	{subject} – מקור ההודעה
+	Whole message	ההודעה כולה
+	Header only	כותרות בלבד
+	Copy all	העתק הכול
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	מוצגים רק {shown} הראשונים מתוך {size}. שמירה כדואר אלקטרוני (.eml) שומרת את כולה.
+	The source couldn't be downloaded: {error}	לא ניתן היה להוריד את המקור: {error}

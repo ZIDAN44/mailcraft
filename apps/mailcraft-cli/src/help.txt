@@ -8,6 +8,7 @@ mailcraft-cli [--data DIR] <command>
   sync [--account ID]            download new mail into the cache
   list [--account ID] [--folder PATH] [--limit N]
   read KEY                       print a message (KEY from `list`)
+  source KEY [--headers]         print a message's source, headers and all
   search QUERY                   search the cache (from:, subject:, has:attachment…)
   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
   commands                       every engine command, as JSON

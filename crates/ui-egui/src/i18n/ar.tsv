@@ -1263,4 +1263,14 @@ month	May	مايو
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	رسائل لا تزال قيد الإرسال: {n}. قد لا تُرسل إذا أُغلق MailCraft الآن: انتظر قليلًا، أو أغلق على أي حال.
 	Add meeting invitations to the calendar as tentative when they arrive	أضف دعوات الاجتماعات إلى التقويم كمبدئية عند وصولها
 	Before they're answered; nothing is sent until you answer	قبل الرد عليها؛ لا يُرسل شيء حتى ترد
+	View message source	عرض مصدر الرسالة
 	{n} messages selected	الرسائل المحددة: {n}
+	Message source	مصدر الرسالة
+	View the message as it came, headers and all	عرض الرسالة كما وصلت، بكل ترويساتها
+	Message	رسالة
+	{subject} – Message source	{subject} – مصدر الرسالة
+	Whole message	الرسالة كاملة
+	Header only	الترويسة فقط
+	Copy all	نسخ الكل
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	يُعرض أول {shown} فقط من {size}. الحفظ كبريد إلكتروني (.eml) يحتفظ بها كاملة.
+	The source couldn't be downloaded: {error}	تعذّر تنزيل المصدر: {error}

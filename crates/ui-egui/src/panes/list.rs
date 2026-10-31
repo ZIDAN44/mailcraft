@@ -559,6 +559,8 @@ fn message_row(
             }
         });
         crate::organize::context_items(ui, s, t, acts, flags.pinned());
+        ui.separator();
+        item(ui, acts, tl!("View message source"), Action::Run("message.source", json!({"key": key.to_id()})));
     });
     // Reply actions need the message open; not one of several selected, which the menu acts on
     // all of (opening it selected it alone: Delete took only that one).

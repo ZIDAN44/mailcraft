@@ -1267,4 +1267,14 @@ month	May	5月
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	仍在傳送的郵件：{n}。如果現在關閉 MailCraft，它們可能無法送出：請稍候，或仍然關閉。
 	Add meeting invitations to the calendar as tentative when they arrive	會議邀請送達時以暫訂形式加入行事曆
 	Before they're answered; nothing is sent until you answer	在回覆之前加入；回覆之前不會傳送任何內容
+	View message source	檢視郵件原始檔
 	{n} messages selected	已選取 {n} 封郵件
+	Message source	郵件原始檔
+	View the message as it came, headers and all	依收到時的原樣檢視郵件，包括所有郵件標頭
+	Message	郵件
+	{subject} – Message source	{subject} – 郵件原始檔
+	Whole message	整封郵件
+	Header only	僅郵件標頭
+	Copy all	全部複製
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	只顯示了 {size} 中的前 {shown}。另存為電子郵件 (.eml) 可保留全部內容。
+	The source couldn't be downloaded: {error}	無法下載原始檔：{error}

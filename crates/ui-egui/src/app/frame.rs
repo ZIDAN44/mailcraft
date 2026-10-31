@@ -315,6 +315,7 @@ impl MailApp {
         }
 
         self.message_windows(&ctx, &mut acts);
+        self.source_windows(&ctx, &mut acts);
         self.compose_windows(&ctx, &mut acts);
 
         // The address book reads the session's people.

@@ -68,7 +68,12 @@ pub(crate) fn tour() {
         a.run("message.popOut", json!({"key": k.to_id()}));
         frame(&ctx, &mut a, vec![]);
         a.run("message.closeWindow", json!({"key": k.to_id()}));
-        // Several selected (issue #26).
+        // A message's source, whole and its header only (issue #27); several selected (#26).
+        a.act(crate::Action::Run("message.source", json!({"key": k.to_id()})));
+        frame(&ctx, &mut a, vec![]);
+        a.ui.source_headers.insert(k.clone());
+        frame(&ctx, &mut a, vec![]);
+        a.run("message.closeSource", json!({"key": k.to_id()}));
         a.run("list.extendNext", json!({}));
         frame(&ctx, &mut a, vec![]);
         a.run("list.open", json!({"key": k.to_id()}));
@@ -422,6 +427,7 @@ mod rtl;
 mod selecting;
 mod signatures;
 mod soak;
+mod source;
 mod typing;
 mod updates;
 mod windows;

@@ -34,7 +34,9 @@ mod prefs;
 mod searching;
 mod security;
 mod writing;
-pub use opening::Toward;
+#[cfg(test)]
+pub(crate) use opening::source_lines;
+pub use opening::{SOURCE_SHOWN, SourceView, Toward};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::{SendCheck, signature_block, style_signature};
 // Organizing mail's own parts, named here as before.
@@ -607,6 +609,8 @@ pub struct Session {
     pub reading: Option<Reading>,
     /// Messages opened in their own windows (double-click), oldest first.
     pub windows: Vec<Reading>,
+    /// Messages' sources, each shown in a window of its own (issue #27), oldest first.
+    pub sources: Vec<SourceView>,
     /// The message being written that commands act on (`compose.*`).
     pub compose: Option<Compose>,
     /// Other messages being written, each in a window of its own (Outlook keeps every one
@@ -737,6 +741,7 @@ impl Session {
             anchor: None,
             reading: None,
             windows: Vec::new(),
+            sources: Vec::new(),
             compose: None,
             composes: Vec::new(),
             prefs: Prefs::default(),

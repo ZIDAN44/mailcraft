@@ -50,6 +50,12 @@ pub use photos::without_location;
 pub use tnef::{Tnef, TnefBody, TnefFile, decompress_rtf, read_tnef, rtf_body};
 pub use trackers::{Trackers, clean_link, trackers, tracks_click};
 
+/// `bytes` read in the character set `charset` names (`iso-8859-1`, `shift_jis`), when it's one
+/// known: for showing a source's text that isn't UTF-8 (View message source, issue #27).
+pub fn decode_in(charset: &str, bytes: &[u8]) -> Option<String> {
+    mail_parser::decoders::charsets::map::charset_decoder(charset.trim().as_bytes()).map(|d| d(bytes))
+}
+
 /// Longest preview kept in a summary, in characters.
 pub const PREVIEW_CHARS: usize = 200;
 /// HTML larger than this is cut before conversion (the rest is rarely more than markup).

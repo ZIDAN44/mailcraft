@@ -1267,4 +1267,14 @@ month	May	5월
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	아직 보내는 중인 메시지: {n}. 지금 MailCraft를 닫으면 보내지지 않을 수 있습니다. 잠시 기다리거나 그래도 닫으세요.
 	Add meeting invitations to the calendar as tentative when they arrive	모임 초대가 도착하면 일정에 미정으로 추가
 	Before they're answered; nothing is sent until you answer	응답하기 전에 추가되며, 응답할 때까지 아무것도 보내지 않습니다
+	View message source	메시지 원본 보기
 	{n} messages selected	메시지 {n}개 선택됨
+	Message source	메시지 원본
+	View the message as it came, headers and all	받은 그대로의 메시지를 모든 헤더와 함께 봅니다
+	Message	메시지
+	{subject} – Message source	{subject} – 메시지 원본
+	Whole message	전체 메시지
+	Header only	헤더만
+	Copy all	모두 복사
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	{size} 중 처음 {shown}만 표시됩니다. 이메일(.eml)로 저장하면 전체가 보관됩니다.
+	The source couldn't be downloaded: {error}	원본을 다운로드하지 못했습니다: {error}

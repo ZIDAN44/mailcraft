@@ -140,11 +140,13 @@ impl Session {
             // Its text first (issue #24): shown, and nothing else until the whole message comes.
             Event::Body { key, raw } if mime::is_text_first(&raw) => self.show_body(&key, &raw),
             Event::Body { key, raw } => {
+                self.source_arrived(&key, &raw);
                 self.show_body(&key, &raw);
                 self.index_body(&key, &raw);
                 self.invitation_body(&key);
             }
             Event::BodyFailed { key, error } => {
+                self.source_failed(&key, &error);
                 for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {
                     w.error = Some(error.clone());
                 }

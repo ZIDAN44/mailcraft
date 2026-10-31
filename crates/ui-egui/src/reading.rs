@@ -315,6 +315,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                     acts.push(Action::Run("mail.forwardAsAttachment", json!({})));
                                     ui.close();
                                 }
+                                if ui.button(tl!("View message source")).clicked() {
+                                    acts.push(Action::Run("message.source", json!({"key": r.key.to_id()})));
+                                    ui.close();
+                                }
                             });
                         });
                     }

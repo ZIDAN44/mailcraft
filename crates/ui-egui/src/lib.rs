@@ -270,6 +270,10 @@ pub struct UiState {
     scroll_to_focus: bool,
     /// How many message rows the list shows at once: a page, for Page Up and Page Down.
     list_page: u64,
+    /// A message source's window to bring to the front (asked for again while open).
+    raise_source: Option<MessageKey>,
+    /// The message sources shown as their header only (by key).
+    source_headers: std::collections::HashSet<MessageKey>,
     /// The named font families the UI uses are registered (`install_fonts`).
     fonts_ready: bool,
     /// The messages being written that have been shown, to focus a new one's first field once.
@@ -409,6 +413,8 @@ impl MailApp {
                 seen_notices: seen,
                 scroll_to_focus: false,
                 list_page: 10,
+                raise_source: None,
+                source_headers: Default::default(),
                 fonts_ready: false,
                 compose_shown: Default::default(),
                 editors: HashMap::new(),

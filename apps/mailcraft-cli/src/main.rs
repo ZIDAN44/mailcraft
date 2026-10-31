@@ -58,6 +58,10 @@ impl Args {
     fn opt(&self, name: &str) -> Option<String> {
         self.rest.iter().position(|a| a == name).and_then(|i| self.rest.get(i + 1)).cloned()
     }
+    /// A switch given (`--headers`); it goes after the positional arguments.
+    fn flag(&self, name: &str) -> bool {
+        self.rest.iter().any(|a| a == name)
+    }
     fn positional(&self, n: usize) -> Option<String> {
         let mut skip = false;
         let mut i = 0;
@@ -332,6 +336,32 @@ fn run() -> Result<(), String> {
                 outln!("Attached: [{}] {} ({}, {} bytes)", a["index"], a["name"].as_str().unwrap_or(""), a["mime"].as_str().unwrap_or(""), a["size"]);
             }
             outln!("\n{}", r["text"].as_str().unwrap_or(""));
+        }
+        "source" => {
+            // A message as it came, headers and all (issue #27): what View message source shows.
+            let key = args.positional(1).ok_or("source KEY")?;
+            let k = mailcraft_engine::model::MessageKey::from_id(&key).ok_or("bad key")?;
+            s.open_view(mailcraft_engine::View::Folder { account: k.account.clone(), folder: k.folder.clone() });
+            let params = json!({"key": key, "headers": args.flag("--headers")});
+            let mut r = s.run("message.source", &params).map_err(|e| e.to_string())?;
+            if r["pending"].as_bool() == Some(true) {
+                // Not cached: download it (its text first, from Exchange, isn't it).
+                let mut pool = start(&mut s, &store, &k.account)?;
+                pool.submit(Job::FetchBody { key: k.clone() });
+                drive(&mut s, &mut pool, Duration::from_secs(300), |e| match e {
+                    Event::Body { key, raw } if *key == k && !mailcraft_engine::mime::is_text_first(raw) => Some(Ok(())),
+                    Event::BodyFailed { key, error } if *key == k => Some(Err(error.clone())),
+                    _ => None,
+                })?;
+                r = s.run("message.source", &params).map_err(|e| e.to_string())?;
+            }
+            if let Some(e) = r["error"].as_str() {
+                return Err(e.to_string());
+            }
+            let _ = write!(std::io::stdout(), "{}", r["text"].as_str().unwrap_or(""));
+            if r["truncated"].as_bool() == Some(true) {
+                errln!("(only the start of {} bytes is shown)", r["size"]);
+            }
         }
         "search" => {
             let q = args.positional(1).ok_or("search QUERY")?;

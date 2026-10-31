@@ -3,7 +3,11 @@
 use super::*;
 
 mod selecting;
+mod source;
 pub use selecting::Toward;
+#[cfg(test)]
+pub(crate) use source::source_lines;
+pub use source::{SOURCE_SHOWN, SourceView};
 
 impl Session {
     pub fn open_view(&mut self, view: View) {

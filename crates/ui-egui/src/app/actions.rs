@@ -108,6 +108,11 @@ impl MailApp {
                 Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
                 Err(e) => self.session.notice(e.to_string(), true),
             },
+            // A message's source in its window, brought to the front (asked for again while open).
+            Action::Run("message.source", p) => match self.session.run("message.source", &p) {
+                Ok(v) => self.ui.raise_source = v.get("key").and_then(Value::as_str).and_then(MessageKey::from_id),
+                Err(e) => self.session.notice(e.to_string(), true),
+            },
             Action::Run(id, p) => {
                 // A Search Folder isn't a search typed in: the box is left empty.
                 if matches!(id, "search.clear" | "searchFolder.open") {

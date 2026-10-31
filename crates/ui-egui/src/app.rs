@@ -8,6 +8,7 @@ mod frame;
 mod keys;
 mod ribbon;
 mod search_box;
+mod source;
 mod updates;
 mod windows;
 

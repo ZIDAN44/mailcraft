@@ -64,6 +64,7 @@ mod safety;
 mod selecting;
 mod signature_code;
 mod smime;
+mod source;
 mod tentative;
 mod text_first;
 mod web_calendars;

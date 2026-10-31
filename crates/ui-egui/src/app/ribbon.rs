@@ -430,6 +430,16 @@ impl MailApp {
                             acts.push(Action::Run("view.reverseSort", json!({})));
                         }
                         widgets::group(ui, &t, "Arrangement", false);
+                        // The message's source, headers and all, in a window of its own (issue #27).
+                        let one = s.reading.is_some() || s.focus.is_some() || !s.selection.is_empty();
+                        if widgets::tool_button(ui, Icon::File, "Message source", &t, one)
+                            .on_hover_text(tl!("View the message as it came, headers and all"))
+                            .clicked()
+                            && one
+                        {
+                            acts.push(Action::Run("message.source", json!({})));
+                        }
+                        widgets::group(ui, &t, "Message", false);
                         ui.label(RichText::new(tl!("Theme")).color(t.dim));
                         for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
                             if ui.selectable_label(ust.dark == v, tl!(label)).clicked() {

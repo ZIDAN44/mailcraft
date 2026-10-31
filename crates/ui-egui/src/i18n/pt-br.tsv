@@ -1268,4 +1268,14 @@ month	May	maio
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Mensagens ainda sendo enviadas: {n}. Elas podem não sair se o MailCraft fechar agora: aguarde um momento ou feche mesmo assim.
 	Add meeting invitations to the calendar as tentative when they arrive	Adicionar convites de reunião ao calendário como provisórios quando chegam
 	Before they're answered; nothing is sent until you answer	Antes de serem respondidos; nada é enviado até você responder
+	View message source	Exibir código-fonte da mensagem
 	{n} messages selected	{n} mensagens selecionadas
+	Message source	Código-fonte
+	View the message as it came, headers and all	Ver a mensagem como chegou, com todos os cabeçalhos
+	Message	Mensagem
+	{subject} – Message source	{subject} – Código-fonte da mensagem
+	Whole message	Mensagem inteira
+	Header only	Só o cabeçalho
+	Copy all	Copiar tudo
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Só os primeiros {shown} de {size} são mostrados. Salvar como e-mail (.eml) guarda tudo.
+	The source couldn't be downloaded: {error}	Não foi possível baixar o código-fonte: {error}

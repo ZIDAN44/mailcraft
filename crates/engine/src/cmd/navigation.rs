@@ -119,6 +119,14 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"windows": s.windows.len()}))
         })
         .params(r#"{"key": string}"#),
+        CommandSpec::new("message.source", "View message source", "View › Message (and a message's right-click menu)", message_source)
+            .params(r#"{"key"?: string (default: the message read, else the one with the focus), "headers"?: bool (the text: its header only)}"#),
+        CommandSpec::new("message.closeSource", "Close the message source", "Message source window", |s, v| {
+            let k = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required".into()))?;
+            s.close_source(&k);
+            Ok(json!({"sources": s.sources.len()}))
+        })
+        .params(r#"{"key": string}"#),
         CommandSpec::new("message.saveAs", "Save as", "File › Save As", save_message).params(r#"{"path": string}"#).when(has_reading),
         CommandSpec::new("message.exportPdf", "Save as PDF", "File › Save As", export_pdf).params(r#"{"path": string}"#).when(has_reading),
         CommandSpec::new("message.showPictures", "Show pictures", "Reading pane", |s, v| s.show_pictures(p::bool(v, "always").unwrap_or(false)))
@@ -303,6 +311,32 @@ const PAGE: &str = r#"{"rows"?: number (a page: as many rows as the list shows)}
 
 fn page(v: &Value) -> i64 {
     p::u64(v, "rows").map_or(10, |n| i64::try_from(n.clamp(1, 10_000)).unwrap_or(10))
+}
+
+/// A message's source in a window of its own (issue #27); its text, as shown there, comes back.
+pub(super) fn message_source(s: &mut Session, v: &Value) -> CmdResult {
+    let key = match parse_key(v) {
+        Some(k) if s.knows_message(&k) => k,
+        Some(k) => return Err(CmdError::Params(format!("`{}` is not in the list", k.to_id()))),
+        None => s
+            .reading
+            .as_ref()
+            .map(|r| r.key.clone())
+            .or_else(|| s.focus.clone())
+            .or_else(|| s.selection.first().cloned())
+            .ok_or_else(|| CmdError::Disabled("select a message first".into()))?,
+    };
+    let header_only = p::bool(v, "headers").unwrap_or(false);
+    let view = s.open_source(&key).ok_or_else(|| CmdError::Failed("the source couldn't be shown".into()))?;
+    Ok(json!({
+        "key": key.to_id(),
+        "pending": view.pending,
+        "error": view.error,
+        "size": view.size,
+        "truncated": view.truncated,
+        "lines": if header_only { view.header_lines } else { view.lines.len() },
+        "text": view.text(header_only),
+    }))
 }
 
 pub(super) fn filter(s: &mut Session, v: &Value) -> CmdResult {
