@@ -456,6 +456,45 @@ fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Issue #29: with the sender's address shown in a narrow list, the name keeps room enough to be
+/// read: the address, laid out first, took up to seven tenths of the line and cut the name to
+/// a few letters.
+#[test]
+fn a_narrow_row_keeps_the_senders_name_readable() {
+    let (mut a, dir) = app("narrow-sender");
+    let ctx = egui::Context::default();
+    let name = "Alexandra Whitfield";
+    let d = mailcraft_engine::mime::Draft { subject: "Invoice".into(), body: "Attached.".into(), ..Default::default() };
+    let from = mailcraft_engine::model::EmailAddress::new(name, "alexandra.whitfield.accounts@example-billing.com");
+    let raw = mailcraft_engine::mime::build(&d, &from, NOW, "<narrow@x>").unwrap();
+    let store = a.session.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9901 };
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key, Default::default(), 0, NOW));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    a.run("folder.unified", json!({"role": "inbox"}));
+    a.run("view.senderAddresses", json!({"show": "always"}));
+    a.run("view.externalTag", json!({"on": true}));
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(700.0, 700.0))), ..Default::default() };
+    let mut widths = Vec::new();
+    for _ in 0..2 {
+        let mut out = ctx.run_ui(input.clone(), |ui| a.ui(ui));
+        out.textures_delta.clear();
+        widths = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) if t.galley.job.text == name => Some(t.galley.size().x),
+                _ => None,
+            })
+            .collect();
+    }
+    let full = ctx.fonts_mut(|f| f.layout_no_wrap(name.into(), crate::theme::regular(14.0), egui::Color32::WHITE).size().x);
+    assert!(widths.iter().any(|w| *w >= full * 0.6), "the name drawn {widths:?} wide of {full}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// The External tag stays one line in a pane too narrow for it (wrapped, its word stood in a
 /// column a letter wide beside the sender's name), in English and Arabic.
 #[test]

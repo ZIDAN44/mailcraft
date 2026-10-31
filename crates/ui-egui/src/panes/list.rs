@@ -415,19 +415,21 @@ fn message_row(
     let place = |rtl: bool, from: f32, to: f32, w: f32| mr.start(if rtl && !mr.on() { to - w } else { from }, w);
     if marks.address {
         // The name, then the address it really came from, dimmer. The address is what tells, so
-        // it's laid out first (up to seven tenths of the room, cut to its domain if it must be:
-        // `<…@example.com>`), and the name has what's left.
+        // it's laid out first (cut to its domain if it must be: `<…@example.com>`), but the name
+        // keeps up to nine twentieths of the room, so a narrow row still says who.
         let room = (who_right - who_x).max(1.0);
         let email = m.from.email.trim();
         let more = if count > 1 { format!("  ({count})") } else { String::new() };
         let font = theme::regular(12.5);
+        let name_w = p.layout_no_wrap(who.to_string(), who_font.clone(), t.text).size().x;
+        let cap = (room - name_w.min(room * 0.45) - 6.0).clamp(1.0, room * 0.7);
         let full = format!("<{email}>{more}");
-        let fits = p.layout_no_wrap(full.clone(), font.clone(), t.dim).size().x <= room * 0.7;
+        let fits = p.layout_no_wrap(full.clone(), font.clone(), t.dim).size().x <= cap;
         let address = match email.rsplit_once('@') {
             Some((_, domain)) if !fits => format!("<…@{domain}>{more}"),
             _ => full,
         };
-        let ag = widgets::one_line(ui, &address, font, t.dim, room * 0.7);
+        let ag = widgets::one_line(ui, &address, font, t.dim, cap);
         let aw = ag.size().x;
         let who_g = widgets::one_line(ui, &who, who_font, t.text, (room - aw - 6.0).max(1.0));
         let nw = who_g.size().x;
