@@ -1432,3 +1432,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   `received:2024` was two words that matched nearly everything; a date that isn't one
   (`2024-13`) is now left out rather than looked for. `attachment:` asks
   for a word in the files' names (for now the message's text is looked through with them).
+- **Mail from a `.pst` that came without headers** (sent items, drafts, mail Outlook made
+  itself): a forwarded message shows as forwarded (by Outlook's last action on it, or its
+  forwarded icon), high and low importance come through, and the ids it answers are read
+  however the file separated them (`<a><b>`, commas, spaces), so its replies thread.

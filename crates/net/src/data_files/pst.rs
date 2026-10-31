@@ -51,6 +51,8 @@ const MAX_VALUE: u64 = 256 * 1024 * 1024;
 const MAX_HEADERS: usize = 256 * 1024;
 /// Embedded messages inside embedded messages… stop here.
 const MAX_NESTING: usize = 3;
+/// Message ids kept from an item's References (as many as threading reads).
+const MAX_IDS: usize = 256;
 
 /// What an import did.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

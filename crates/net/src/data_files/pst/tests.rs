@@ -275,6 +275,43 @@ fn rtf_fills_in_only_what_is_missing() {
     }
 }
 
+/// An item with no headers of its own keeps that it was forwarded, its importance and the ids
+/// it answers, however the file wrote them.
+#[test]
+fn a_headerless_item_keeps_forwarded_importance_and_references() {
+    let read = |props: &[(u16, Val<'static>)]| {
+        let props: HashMap<u16, Val<'static>> = props.iter().cloned().collect();
+        let none: [fn(u16) -> Option<Val<'static>>; 0] = [];
+        item_of(&|id| props.get(&id).cloned(), &none, Vec::new(), &crate::pst_pim::Named::default())
+    };
+    // Forwarded by its last verb, or by its icon when it has none; a reply stays a reply.
+    let it = read(&[(0x1081, Val::Int(0x0068))]);
+    assert!(it.flags.forwarded && !it.flags.answered);
+    assert!(read(&[(0x1080, Val::Int(0x0106))]).flags.forwarded);
+    let reply = read(&[(0x1081, Val::Int(0x0066)), (0x1080, Val::Int(0x0106))]);
+    assert!(reply.flags.answered && !reply.flags.forwarded);
+    // Importance: low, normal, high.
+    for (n, want) in [(0, -1), (1, 0), (2, 1)] {
+        assert_eq!(read(&[(0x0017, Val::Int(n))]).importance, want, "{n}");
+    }
+    // References however they're separated.
+    for refs in ["<a@x><b@x>", "<a@x>,<b@x>", "<a@x> , <b@x>", "a@x b@x", "a@x,b@x", " <a@x>\r\n\t<b@x> "] {
+        let it = read(&[(0x1039, Val::Text(refs.into())), (0x1042, Val::Text(refs.into()))]);
+        assert_eq!(it.references, ["a@x", "b@x"], "{refs:?}");
+        assert_eq!(it.in_reply_to, "a@x", "{refs:?}");
+    }
+    let many = (0..300).map(|i| format!("<{i}@x>")).collect::<String>();
+    let it = read(&[(0x1039, Val::Text(many.into()))]);
+    assert_eq!((it.references.len(), it.references.first().map(String::as_str)), (256, Some("44@x")), "the latest are kept");
+
+    // …and they reach the message and its summary.
+    let it = Item { subject: "Fwd".into(), body: "x".into(), date: 1_704_067_200, ..read(&[(0x1081, Val::Int(0x0068)), (0x0017, Val::Int(2))]) };
+    let raw = to_raw(&Item { references: vec!["a@x".into(), "b@x".into()], ..it }, "id@x").unwrap();
+    let text = String::from_utf8_lossy(&raw);
+    assert!(text.contains("References: <a@x> <b@x>"), "{text}");
+    assert!(text.contains("Importance: high"), "{text}");
+}
+
 #[test]
 fn original_headers_are_kept_over_the_rebuilt_body() {
     let it = Item {

@@ -12,9 +12,10 @@ pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<Vec<u8>, String> {
         cc: it.cc.clone(),
         subject: it.subject.clone(),
         body,
-        in_reply_to: it.in_reply_to.trim().trim_matches(|c| c == '<' || c == '>').to_string(),
-        references: it.references.iter().map(|r| r.trim_matches(|c| c == '<' || c == '>').to_string()).collect(),
+        in_reply_to: it.in_reply_to.clone(),
+        references: it.references.clone(),
         html: html.clone(),
+        importance: it.importance,
         ..Default::default()
     };
     for f in &it.files {

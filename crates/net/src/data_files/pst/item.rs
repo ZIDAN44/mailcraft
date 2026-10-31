@@ -19,6 +19,8 @@ pub(super) struct Item {
     pub(super) in_reply_to: String,
     pub(super) references: Vec<String>,
     pub(super) headers: String,
+    /// High (1) or low (-1), for an item with no headers of its own.
+    pub(super) importance: i8,
     pub(super) flags: Flags,
     pub(super) files: Vec<File>,
     /// A contact's or appointment's own properties.
@@ -100,17 +102,30 @@ pub(super) fn item_of<'a>(
         rtf_into(&mut it, rtf);
     }
     it.message_id = s(0x1035);
-    it.in_reply_to = s(0x1042);
-    it.references = s(0x1039).split_whitespace().map(str::to_string).collect();
+    it.in_reply_to = message_ids(&s(0x1042)).into_iter().next().unwrap_or_default();
+    it.references = message_ids(&s(0x1039));
     it.headers = s(0x007D);
+    // PidTagImportance: 0 low, 1 normal, 2 high.
+    it.importance = match p(0x0017) {
+        Some(Val::Int(0)) => -1,
+        Some(Val::Int(2)) => 1,
+        _ => 0,
+    };
     let flags = match p(0x0E07) {
         Some(Val::Int(n)) => n,
         _ => 0,
     };
     let follow_up = matches!(p(0x1090), Some(Val::Int(2)));
-    let replied = matches!(p(0x1081), Some(Val::Int(n)) if n == 0x0066 || n == 0x0067);
+    // The last thing done to it (PidTagLastVerbExecuted): reply, reply to all, forward; or,
+    // without one, its forwarded icon (PidTagIconIndex).
+    let verb = match p(0x1081) {
+        Some(Val::Int(n)) => n,
+        _ => 0,
+    };
+    let replied = verb == 0x0066 || verb == 0x0067;
+    let forwarded = verb == 0x0068 || (verb == 0 && matches!(p(0x1080), Some(Val::Int(0x0106))));
     // MSGFLAG_READ, MSGFLAG_UNSENT.
-    it.flags = Flags { seen: flags & 0x1 != 0, draft: flags & 0x8 != 0, flagged: follow_up, answered: replied, ..Default::default() };
+    it.flags = Flags { seen: flags & 0x1 != 0, draft: flags & 0x8 != 0, flagged: follow_up, answered: replied, forwarded, ..Default::default() };
     for row in recipients {
         let get = |id: u16| row(id).and_then(Val::into_text).unwrap_or_default();
         let address = [get(0x39FE), get(0x3003)].into_iter().find(|e| e.contains('@'));
@@ -141,6 +156,20 @@ fn rtf_into(it: &mut Item, compressed: &[u8]) {
         _ if plain => {}
         _ => log::info!("a Rich Text body could not be read"),
     }
+}
+
+/// The message ids in a References or In-Reply-To value as the file keeps it: every `<…>` when
+/// there is one (`<a><b>`, `<a>,<b>`, `<a> , <b>`), else the words between spaces and commas;
+/// without their brackets; the last [`MAX_IDS`], as threading keeps them.
+pub(super) fn message_ids(s: &str) -> Vec<String> {
+    let words: Vec<&str> = if s.contains('<') {
+        s.split('<').skip(1).filter_map(|w| w.split_once('>').map(|(id, _)| id)).collect()
+    } else {
+        s.split(|c: char| c.is_whitespace() || c == ',').collect()
+    };
+    let mut ids: Vec<String> = words.into_iter().map(mailcraft_model::thread::norm_id).filter(|id| !id.is_empty()).collect();
+    ids.drain(..ids.len().saturating_sub(MAX_IDS));
+    ids
 }
 
 /// An attachment's file, or the message it holds; its 8-bit strings are in `code_page` (the
