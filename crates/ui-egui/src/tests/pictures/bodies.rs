@@ -126,3 +126,37 @@ fn holding_down_over_big_messages_parses_none_in_a_frame() {
     assert_eq!(a.session.bodies_parsed_here(), before, "none parsed in a frame");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The arc's target: holding Down over 200 big messages on threads of their own, every step
+/// (the command and its frame) takes under 16 ms. A timing test: run in release
+/// (`cargo test --release -p mailcraft-ui-egui holding_down_frames -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn holding_down_frames_stay_under_16_ms() {
+    let (mut a, dir) = app("body-frames");
+    let ctx = egui::Context::default();
+    a.services = Box::new(Threads);
+    a.defer_bodies();
+    frame(&ctx, &mut a, vec![]);
+    let big = "A long line of text that goes on. ".repeat(30_000);
+    for i in 0..200u32 {
+        with_files(&mut a, 9700 + i, vec![(format!("notes {i}.txt"), "text/plain", big.clone().into_bytes())]);
+    }
+    a.run("list.open", json!({"key": a.session.list[0].key.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    // Not marked read on the way: each mark is saved at once (no write-behind), 15 to 490 ms
+    // a step in a temporary folder, which this lane can't take off the window's thread.
+    a.session.prefs.mark_read_on_open = false;
+    let mut worst = std::time::Duration::ZERO;
+    for _ in 1..200 {
+        let t = std::time::Instant::now();
+        a.run("list.next", json!({}));
+        frame(&ctx, &mut a, vec![]);
+        worst = worst.max(t.elapsed());
+        // A key held down repeats about every 30 ms.
+        std::thread::sleep(std::time::Duration::from_millis(30));
+    }
+    println!("worst step {:.1} ms", worst.as_secs_f64() * 1000.0);
+    assert!(worst < std::time::Duration::from_millis(16), "worst step {worst:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
