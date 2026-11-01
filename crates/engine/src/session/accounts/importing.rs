@@ -656,7 +656,7 @@ impl Session {
         }
         self.cache.retain(|(a, _), _| a != account);
         self.seen_uid.retain(|(a, _), _| a != account);
-        self.forget_account_index(account);
+        self.search_folders_changed(account);
         self.pim.remove(account);
         self.pim_unread.remove(account);
         self.contacts = None;
