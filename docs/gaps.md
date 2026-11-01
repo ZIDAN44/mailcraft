@@ -1925,3 +1925,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   shown), and the window logs any that takes over 50 ms with its kind, so the next one is named.
   A folder's list isn't read while read marks wait to be written (the read would wait for them
   on the window's thread): the step goes on and reads it once they're on disk.
+- **Memory while the search index is built:** building the index of the 41 GB file's 34,691
+  messages took the app from about 395 MB to 784 MB. Eight reader threads each read a source
+  whole (up to 33 MB) with 64 texts waiting behind them, and the index's writer held 32 MB of
+  words, counted, before writing them, which took several times that. The readers now share
+  48 MB for the sources being read and the texts taken out of them until they're added (a bigger
+  source is read alone), and a pass's writer writes at a quarter of what an import's holds: the
+  build peaks at 563 MB (170 MB above the window's own, against the 150 MB aimed for) in 110 s,
+  as before (40 to 90 s is aimed for; the readers spend most of it waiting for the data file).

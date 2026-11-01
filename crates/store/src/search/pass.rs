@@ -28,11 +28,18 @@ pub struct Pass {
     files: BTreeMap<String, FilesFound>,
 }
 
+/// What a pass's writer holds in memory before it writes: a quarter of an import's
+/// ([`IN_FLIGHT_BYTES`](super::IN_FLIGHT_BYTES)). Its words take several times what they're
+/// counted for: with an import's, a pass over the 41 GB file rose and fell by 300 MB between its
+/// flushes and peaked 390 MB above the window's own; with this, 170 MB, in the same 110 s.
+const PASS_IN_FLIGHT: usize = 16 << 20;
+
 impl Pass {
     /// Hold `account`'s index ([`StoreError::Busy`] while another holds it), plan what brings
     /// `folders` up to the mail (none: every folder), and make the changes that read nothing.
     pub fn start(store: &Store, account: &str, folders: &[String]) -> Result<Pass> {
         let mut writer = Writer::open(store, account)?;
+        writer.hold_at_most(PASS_IN_FLIGHT);
         let mut plan = plan(store, &writer, account, folders)?;
         plan.apply(&mut writer)?;
         let adds: Arc<[Message]> = std::mem::take(&mut plan.add).into();

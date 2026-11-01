@@ -753,3 +753,21 @@ fn words_made_ready_elsewhere_are_the_same_index() {
         assert_eq!(rb.text(&ready, d).unwrap(), ra.text(&direct, d).unwrap());
     }
 }
+
+/// A writer told to hold less writes sooner (a background pass's holds a quarter of an
+/// import's), and none holds more than an import's.
+#[test]
+fn a_writer_held_to_less_writes_sooner() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    w.hold_at_most(IN_FLIGHT_BYTES * 4);
+    assert_eq!(w.in_flight, IN_FLIGHT_BYTES);
+    w.hold_at_most(64 << 10);
+    let mut uid = 0;
+    while !w.should_flush() {
+        uid += 1;
+        w.add(&mk("INBOX", uid), 0, 100, &text(&format!("word{uid} other{uid} more{uid}"), &[], 0)).unwrap();
+        assert!(uid < 10_000, "never due");
+    }
+    assert!(uid < 2_000, "{uid} messages held");
+}

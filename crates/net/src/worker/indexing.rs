@@ -28,10 +28,11 @@ const QUIET: Duration = Duration::from_millis(1500);
 const RETRY: Duration = Duration::from_secs(5);
 /// Messages read and not yet added, at most (each at most a source's text).
 const IN_FLIGHT: usize = 64;
-/// Bytes of sources (by their summaries' sizes) being read and taken apart at once, across the
-/// readers: one of 30 MB on each of eight threads at once held hundreds of megabytes (the pass
-/// over the 41 GB file peaked 545 MB above the window's own). A source bigger than this is read
-/// alone; small ones each count as [`LEAST_COST`].
+/// Bytes in flight across the readers: sources (by their summaries' sizes) being read and taken
+/// apart, then the texts taken out of them until they're added. One of 30 MB on each of eight
+/// threads at once held hundreds of megabytes, and 64 texts waiting more (the pass over the 41 GB
+/// file peaked 545 MB above the window's own). A source bigger than this is read alone; small
+/// ones each count as [`LEAST_COST`].
 const READING_BYTES: u64 = 48 << 20;
 /// What a small source counts for in [`READING_BYTES`] (its reading's own buffers).
 const LEAST_COST: u64 = 64 << 10;
@@ -279,6 +280,16 @@ impl Room {
         u64::from(size).clamp(LEAST_COST, READING_BYTES)
     }
 
+    /// What the text taken out of a source holds until it's added (no more than the source
+    /// counted for: what's left of it is given back once it's taken apart).
+    fn kept(doc: &std::thread::Result<Option<IndexDoc>>, cost: u64) -> u64 {
+        let bytes = match doc {
+            Ok(Some(d)) => d.names.iter().fold(d.text.len(), |n, x| n.saturating_add(x.len())),
+            _ => 0,
+        };
+        u64::try_from(bytes).unwrap_or(u64::MAX).min(cost)
+    }
+
     /// Wait for room for `cost`; `false` when `done` says to stop meanwhile.
     fn take(&self, cost: u64, done: &dyn Fn() -> bool) -> bool {
         let mut left = lock(&self.left);
@@ -302,9 +313,10 @@ impl Room {
     }
 }
 
-/// What a reader thread hands the pass: the message's place in the pass, and what search keeps
-/// of it (`Ok(None)`: its source has gone; `Err`: taking its text out panicked).
-type Read = (usize, std::thread::Result<Option<IndexDoc>>);
+/// What a reader thread hands the pass: the message's place in the pass, what search keeps of it
+/// (`Ok(None)`: its source has gone; `Err`: taking its text out panicked), and the room it holds
+/// until it's added.
+type Read = (usize, std::thread::Result<Option<IndexDoc>>, u64);
 
 /// One pass over `account`'s index in `folders` (none: all): planned, its messages read on
 /// `readers` threads and taken apart by `extract`, added, merged. `report` hears how it's going
@@ -347,9 +359,11 @@ pub(super) fn pass(
                         break;
                     }
                     let doc = catch_unwind(AssertUnwindSafe(|| store.read_body(&m.key).map(|raw| extract(&raw))));
-                    // The source is let go of: what's sent is its text.
-                    room.give(cost);
-                    if tx.send((i, doc)).is_err() {
+                    // The source is let go of: its text holds its room until it's added.
+                    let kept = Room::kept(&doc, cost);
+                    room.give(cost.saturating_sub(kept));
+                    if tx.send((i, doc, kept)).is_err() {
+                        room.give(kept);
                         break;
                     }
                 }
@@ -360,7 +374,7 @@ pub(super) fn pass(
         }
         drop(tx);
         let mut told = Instant::now();
-        for (i, doc) in rx {
+        for (i, doc, kept) in rx {
             if stop.load(Ordering::Relaxed) {
                 break;
             }
@@ -371,6 +385,7 @@ pub(super) fn pass(
                     p.add_unreadable(store, i)
                 }
             };
+            room.give(kept);
             match added {
                 Ok(flushed) if flushed.is_some() || told.elapsed() >= PROGRESS_EVERY => {
                     if flushed.is_some() {

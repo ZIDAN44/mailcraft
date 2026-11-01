@@ -324,7 +324,7 @@ impl Writer {
                 bytes = bytes.saturating_add(add_words(&mut words, doc, &blob.text, &blob.names));
                 docs = docs.saturating_add(1);
             }
-            if bytes >= IN_FLIGHT_BYTES / 2 {
+            if bytes >= self.in_flight / 2 {
                 self.write_segment(store, &mut meta, std::mem::take(&mut words), docs)?;
                 (bytes, docs) = (0, 0);
             }

@@ -68,8 +68,8 @@ pub struct Writer {
     /// Fewer segments than a meta names, to reach the limit sooner.
     #[cfg(test)]
     pub(crate) max_segments: usize,
-    /// A smaller [`IN_FLIGHT_BYTES`], to reach it sooner.
-    #[cfg(test)]
+    /// What it holds in memory before it must write: [`IN_FLIGHT_BYTES`], or less for a
+    /// background pass ([`Writer::hold_at_most`]; tests, to reach it sooner).
     pub(crate) in_flight: usize,
     /// A smaller [`RENUMBER_SLACK`], to reach it sooner.
     #[cfg(test)]
@@ -257,7 +257,6 @@ impl Writer {
             stop_before_meta: false,
             #[cfg(test)]
             max_segments: MAX_SEGMENTS,
-            #[cfg(test)]
             in_flight: IN_FLIGHT_BYTES,
             #[cfg(test)]
             renumber_slack: RENUMBER_SLACK,
@@ -307,11 +306,12 @@ impl Writer {
 
     /// Whether enough is held to flush now ([`IN_FLIGHT_BYTES`]: its half).
     pub fn should_flush(&self) -> bool {
-        #[cfg(not(test))]
-        let in_flight = IN_FLIGHT_BYTES;
-        #[cfg(test)]
-        let in_flight = self.in_flight;
-        self.pending_bytes() >= in_flight / 2
+        self.pending_bytes() >= self.in_flight / 2
+    }
+
+    /// Hold at most `bytes` in memory before writing (at most [`IN_FLIGHT_BYTES`]).
+    pub fn hold_at_most(&mut self, bytes: usize) {
+        self.in_flight = bytes.min(IN_FLIGHT_BYTES);
     }
 
     /// A folder's number, a new folder given the next. A name longer than the meta keeps is

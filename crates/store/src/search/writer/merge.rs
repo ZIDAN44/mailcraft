@@ -441,7 +441,7 @@ impl Writer {
                 page.push((new, blob.clone()));
             }
             docs.push(rec);
-            if word_bytes >= IN_FLIGHT_BYTES / 2 {
+            if word_bytes >= self.in_flight / 2 {
                 self.write_segment(store, &mut meta, std::mem::take(&mut words), word_docs)?;
                 (word_bytes, word_docs) = (0, 0);
             }
