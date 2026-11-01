@@ -1379,7 +1379,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   Windows 11: Photos asked for PNG and WebP with the mark and not without; Media Player (MP3,
   MP4) and Notepad don't ask either way, so those keep it.
 - **Rich Text mail from a data file:** an item Outlook kept only in Rich Text Format came in from
-  a `.pst` with an empty body (996 in a 47 GB file), and plain-text items lost the HTML their
+  a `.pst` with an empty body (996 in a 41 GB file), and plain-text items lost the HTML their
   RTF wrapped. The compressed RTF (`PidTagRtfCompressed`) is now read when an item has no HTML,
   the same way as in a `winmail.dat`: as the HTML it wraps, or, when there's no plain text, its
   own formatting or its text; the pictures its HTML shows are in the body instead of listed as
@@ -1435,6 +1435,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   message's, an attachment's, the store's, a folder's or the name map's) is an error before any
   of it is read, a table's index levels can't be walked without end, and a data, subnode or
   B-tree page that points back at itself is an error rather than a crash.
+- **Files a `.pst` couldn't hand over:** an attachment the reader failed on was left out with
+  only a line in the log, and one that is just a link to a file elsewhere (attached by reference)
+  went without a word. Links, files over 100 MB, and files and attached messages that can't be
+  read are now counted by reason in the import's report, apart from the messages it couldn't
+  read. When the reader fails on one, its row in the message's attachment table is read: a
+  zero-byte file kept with no value would come in empty, named from the row (at least its short
+  name) and typed from the name. That row is a backstop: the reader MailCraft carries already
+  reads such a file as one with no bytes, and the 7 zero-byte files of a 41 GB test file all
+  come in that way, with no attachment the reader fails on.
 - **Search reads accents and dates:** a word is found whatever its accents, typed or written
   (`resume` finds "Résumé", `résumé` finds "resume", `strasse` "Straße"; Cyrillic keeps й, and
   other scripts are looked for as written). `received:` (also `sent:`, `date:`) takes a day, a

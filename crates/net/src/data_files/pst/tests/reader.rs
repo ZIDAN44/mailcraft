@@ -493,3 +493,47 @@ fn an_attached_message_in_the_message_tree_reads_when_its_own_tree_is_damaged() 
     assert_eq!(read.as_deref(), Some("message Outer"));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// An attachment the reader fails on, and one that only links to a file elsewhere, are counted
+/// by reason; the message comes in without them, and isn't counted as skipped.
+#[test]
+fn an_unreadable_attachment_and_a_link_are_counted() {
+    use mailcraft_model::MessageKey;
+    use mailcraft_model::job::SkipReason;
+    use mailcraft_store::Store;
+    let dir = scratch("unread-and-link");
+    let path = dir.join("left-out.pst");
+    let files = [file("letter.bin", b"twelve bytes"), file("share.txt", b"a path")];
+    drop(Writer::create_with_attachments(&path, &message("Outer"), &files).unwrap());
+    let mut f = std::fs::read(&path).unwrap();
+    let all = blocks(&f);
+    // The first one's method (0x3705) becomes 0x3706, so the reader finds none; its row in the
+    // attachment table still has it.
+    let (_, at) = sub_node_entry(&f, &all, ATTACHMENT_NODE);
+    let first = all[&u64_at(&f, at + 8)];
+    let method = record(&f, first, 0x3705, 0x0003);
+    f[method..method + 2].copy_from_slice(&0x3706_u16.to_le_bytes());
+    seal(&mut f, first);
+    // The second one's method: by reference (2).
+    let (_, at) = sub_node_entry(&f, &all, ATTACHMENT_NODE + (1 << 5));
+    let second = all[&u64_at(&f, at + 8)];
+    let method = record(&f, second, 0x3705, 0x0003);
+    put32(&mut f, method + 4, 2);
+    seal(&mut f, second);
+    std::fs::write(&path, &f).unwrap();
+
+    let store = Store::open(dir.join("cache")).unwrap();
+    let done = super::import(&path, &store, "a1", &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.skipped), (1, 0), "{done:?}");
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentUnreadable, 1), (SkipReason::AttachmentLink, 1)]);
+    let (folder, st) = done
+        .folders
+        .iter()
+        .find_map(|f| store.load_folder("a1", &f.path).ok().filter(|s| !s.messages.is_empty()).map(|s| (f.path.clone(), s)))
+        .unwrap();
+    assert!(!st.messages[0].has_attachments);
+    let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
+    let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
+    assert!(p.attachments.is_empty(), "{:?}", p.attachments.iter().map(|a| &a.name).collect::<Vec<_>>());
+    let _ = std::fs::remove_dir_all(dir);
+}

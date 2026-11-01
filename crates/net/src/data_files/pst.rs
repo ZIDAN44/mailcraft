@@ -24,7 +24,7 @@ use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, S
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::{FolderState, Store};
 use outlook_pst::ltp::prop_context::PropertyValue;
-use outlook_pst::ltp::table_context::TableContext;
+use outlook_pst::ltp::table_context::{TableContext, TableRowData};
 use outlook_pst::messaging::attachment::{AnsiAttachment, Attachment, AttachmentData, UnicodeAttachment};
 use outlook_pst::messaging::folder::Folder as PstFolder;
 use outlook_pst::messaging::message::{AnsiMessage, Message, UnicodeMessage};
@@ -39,7 +39,7 @@ mod rebuild;
 #[cfg(test)]
 mod tests;
 
-use item::{Item, attachment, item, message_code_page};
+use item::{Files, Item, attachment, item, message_code_page, unread_attachment};
 use out::Out;
 #[doc(hidden)]
 pub use props::Val;
@@ -82,8 +82,9 @@ pub struct Imported {
     pub notes: usize,
     /// Items that couldn't be read or written; and how many for each reason, with messages that
     /// came in with part of them lost (`CharsetUnsupported`: text, or an attached message's, in a
-    /// code page MailCraft can't read, ISO-2022-KR, of which only the ASCII was kept), which
-    /// `skipped` doesn't count.
+    /// code page MailCraft can't read, ISO-2022-KR, of which only the ASCII was kept), and the
+    /// attachments left out of the messages that came in (a link to a file elsewhere, one too
+    /// large, one that couldn't be read), which `skipped` doesn't count.
     pub skipped: usize,
     pub skips: BTreeMap<SkipReason, usize>,
     /// Messages whose only body was Rich Text that couldn't be read: imported without a body.
@@ -301,17 +302,18 @@ macro_rules! reader {
             let read = |entry: &EntryId| -> io::Result<Item> {
                 let m = <$message>::read(store.clone(), entry, None)?;
                 let cp = message_code_page(&*m);
-                let mut files = Vec::new();
+                let mut files = Files::default();
                 if let Some(table) = m.attachment_table() {
                     for row in table.rows_matrix() {
                         let node = NodeId::from(u32::from(row.id()));
-                        match <$attachment>::read(m.clone(), node, None) {
-                            Ok(a) => files.extend(attachment(&*a, 0, cp, &named)),
-                            Err(e) => log::info!("an attachment could not be read: {e}"),
-                        }
+                        // The row itself is read only for an attachment the reader fails on.
+                        files.add(match <$attachment>::read(m.clone(), node, None) {
+                            Ok(a) => attachment(&*a, 0, cp, &named),
+                            Err(e) => unread_attachment(&e, &**table, row, cp),
+                        });
                     }
                 }
-                Ok(item(&*m, files, &named))
+                Ok(Item { left_out: files.left_out, ..item(&*m, files.files, &named) })
             };
             walk(&*any, &read, out)
         }

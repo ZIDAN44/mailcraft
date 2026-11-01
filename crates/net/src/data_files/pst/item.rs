@@ -37,11 +37,42 @@ pub(super) struct Item {
     pub(super) recipients_without_address: usize,
     /// The item's only body is Rich Text that couldn't be read: it came in with none.
     pub(super) body_not_converted: bool,
+    /// The item's attachments that didn't come in, by reason (a link has no file to bring).
+    pub(super) left_out: BTreeMap<SkipReason, usize>,
 }
 
 pub(super) enum File {
     Data { name: String, mime: String, cid: String, data: Vec<u8> },
     Message(Box<Item>),
+}
+
+/// What one of an item's attachments gives.
+pub(super) enum Got {
+    File(File),
+    /// Not part of the message (a contact's picture), or nothing in it: not counted.
+    Nothing,
+    /// Left out, for this reason.
+    Left(SkipReason),
+}
+
+/// An item's files as its attachments are read, and those left out.
+#[derive(Default)]
+pub(super) struct Files {
+    pub(super) files: Vec<File>,
+    pub(super) left_out: BTreeMap<SkipReason, usize>,
+}
+
+impl Files {
+    pub(super) fn add(&mut self, got: Got) {
+        match got {
+            Got::File(f) => self.files.push(f),
+            Got::Nothing => {}
+            Got::Left(reason) => {
+                let n = self.left_out.entry(reason).or_default();
+                *n = n.saturating_add(1);
+            }
+        }
+    }
 }
 
 pub(super) fn item(m: &dyn Message, files: Vec<File>, named: &crate::pst_pim::Named) -> Item {
@@ -240,46 +271,114 @@ pub(super) fn message_ids(s: &str) -> Vec<String> {
 
 /// An attachment's file, or the message it holds; its 8-bit strings are in `code_page` (the
 /// message's).
-pub(super) fn attachment(a: &dyn Attachment, nesting: usize, code_page: u32, named: &crate::pst_pim::Named) -> Option<File> {
+pub(super) fn attachment(a: &dyn Attachment, nesting: usize, code_page: u32, named: &crate::pst_pim::Named) -> Got {
     let props = a.properties();
     let p = |id: u16| props.get(id).map(|v| val(v, code_page));
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
-    // Hidden attachments (e.g. a contact picture) aren't part of the message.
-    if matches!(p(0x7FFE), Some(Val::Bool(true))) && s(0x3712).is_empty() {
-        return None;
+    if hidden(&p) {
+        return Got::Nothing;
     }
-    match a.data()? {
-        AttachmentData::Binary(b) => {
+    match a.data() {
+        Some(AttachmentData::Binary(b)) => {
             if b.buffer().len() > MAX_ATTACHMENT {
                 log::info!("an attachment of {} bytes was left out", b.buffer().len());
-                return None;
+                return Got::Left(SkipReason::AttachmentTooBig);
             }
-            let name = [s(0x3707), s(0x3704), s(0x3001)].into_iter().find(|n| !n.is_empty()).unwrap_or_else(|| "attachment".into());
-            Some(File::Data { name, mime: s(0x370E), cid: s(0x3712), data: b.buffer().to_vec() })
+            Got::File(File::Data { name: name_of(&s), mime: s(0x370E), cid: s(0x3712), data: b.buffer().to_vec() })
         }
-        AttachmentData::Message(m) if nesting < MAX_NESTING => {
+        Some(AttachmentData::Message(m)) if nesting < MAX_NESTING => {
             // The embedded message's own attachments need its concrete type: left out.
-            Some(File::Message(Box::new(item(&**m, Vec::new(), named))))
+            Got::File(File::Message(Box::new(item(&**m, Vec::new(), named))))
         }
-        AttachmentData::Message(_) => None,
+        Some(AttachmentData::Message(_)) => Got::Left(SkipReason::EmbeddedTooDeep),
+        None if link(&p) => Got::Left(SkipReason::AttachmentLink),
+        None => Got::Nothing,
     }
+}
+
+/// An attachment the reader couldn't read (`e`), from its row in the item's attachment table,
+/// read only then: a backstop for what the reader fails on. Outlook keeps a zero-byte file with
+/// no value at all, which a reader may take for an error (MailCraft's fork reads it as a file
+/// with no bytes, so it doesn't come here): that file comes in, empty. It is told from the error,
+/// not from the row's size (`0x0E20`), which counts the attachment's other properties too. A row
+/// may have no more than the file's short name (`0x3704`), and no type, which then comes from the
+/// name. An attached message the reader fails on is counted as one.
+pub(super) fn unread_attachment(e: &io::Error, table: &dyn TableContext, row: &TableRowData, code_page: u32) -> Got {
+    let values = row_values(table, row);
+    from_row(e, &|id| values.get(&id).map(|v| val(v, code_page)))
+}
+
+/// [`unread_attachment`] from the row's values (`p`).
+pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>) -> Got {
+    let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
+    // PidTagAttachMethod: 1 by value, 5 an attached message; a row may not say.
+    let method = match p(0x3705) {
+        Some(Val::Int(m)) => Some(m),
+        _ => None,
+    };
+    if hidden(p) {
+        Got::Nothing
+    } else if link(p) {
+        Got::Left(SkipReason::AttachmentLink)
+    } else if kept_empty(e, method) {
+        let name = name_of(&s);
+        let mime = Some(s(0x370E)).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&name).to_string());
+        Got::File(File::Data { name, mime, cid: s(0x3712), data: Vec::new() })
+    } else if method == Some(5) {
+        log::info!("an attached message could not be read: {e}");
+        Got::Left(SkipReason::AttachedMessageUnreadable)
+    } else {
+        log::info!("an attachment could not be read: {e}");
+        Got::Left(SkipReason::AttachmentUnreadable)
+    }
+}
+
+/// Whether the reader's error is a by-value attachment's data having no value (`PtypNull`). The
+/// error a reader gives for any attachment's data (an attached message's too) counts only when
+/// the row says by value (`method` 1); the one only a file's data gives, also when it doesn't say.
+fn kept_empty(e: &io::Error, method: Option<i64>) -> bool {
+    use outlook_pst::ltp::prop_type::PropertyType;
+    use outlook_pst::messaging::MessagingError;
+    match e.get_ref().and_then(|e| e.downcast_ref::<MessagingError>()) {
+        Some(MessagingError::InvalidMessageObjectData(PropertyType::Null)) => method == Some(1),
+        Some(MessagingError::InvalidAttachmentFileBinaryData(PropertyType::Null)) => matches!(method, None | Some(1)),
+        _ => false,
+    }
+}
+
+/// Hidden attachments (e.g. a contact picture) aren't part of the message; one the HTML shows by
+/// its `Content-ID` is.
+fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>) -> bool {
+    matches!(p(0x7FFE), Some(Val::Bool(true))) && p(0x3712).and_then(Val::into_text).is_none_or(|c| c.is_empty())
+}
+
+/// By reference, by reference only, or by web reference (PidTagAttachMethod 2, 4, 7): a path
+/// or an address, not the file.
+fn link<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>) -> bool {
+    matches!(p(0x3705), Some(Val::Int(2 | 4 | 7)))
+}
+
+/// A file's name: its long name, its short one, then its display name.
+fn name_of(s: &dyn Fn(u16) -> String) -> String {
+    [s(0x3707), s(0x3704), s(0x3001)].into_iter().find(|n| !n.is_empty()).unwrap_or_else(|| "attachment".into())
 }
 
 /// A table's rows as property maps.
 fn rows(table: &dyn TableContext) -> Vec<HashMap<u16, PropertyValue>> {
+    table.rows_matrix().map(|row| row_values(table, row)).collect()
+}
+
+/// One row's values by property id (none when the row can't be read).
+fn row_values(table: &dyn TableContext, row: &TableRowData) -> HashMap<u16, PropertyValue> {
     let context = table.context();
-    let mut out = Vec::new();
-    for row in table.rows_matrix() {
-        let Ok(values) = row.columns(context) else { continue };
-        let mut map = HashMap::new();
-        for (column, value) in context.columns().iter().zip(values) {
-            if let Some(v) = value
-                && let Ok(pv) = table.read_column(&v, column.prop_type())
-            {
-                map.insert(column.prop_id(), pv);
-            }
+    let mut map = HashMap::new();
+    let Ok(values) = row.columns(context) else { return map };
+    for (column, value) in context.columns().iter().zip(values) {
+        if let Some(v) = value
+            && let Ok(pv) = table.read_column(&v, column.prop_type())
+        {
+            map.insert(column.prop_id(), pv);
         }
-        out.push(map);
     }
-    out
+    map
 }

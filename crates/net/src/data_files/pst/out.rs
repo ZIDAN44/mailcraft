@@ -30,7 +30,7 @@ pub(super) struct Out<'a> {
     pub(super) states: HashMap<String, Open>,
     pub(super) imported: usize,
     /// Items left out, in all and by reason (`skips` also counts messages that came in with part
-    /// of them lost, which `skipped` doesn't).
+    /// of them lost, and the files left out of the messages that came in, which `skipped` doesn't).
     pub(super) skipped: usize,
     pub(super) skips: BTreeMap<SkipReason, usize>,
     pub(super) body_not_converted: usize,
@@ -210,6 +210,10 @@ impl Out<'_> {
         let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;
         self.lose(SkipReason::RecipientWithoutAddress, it.recipients_without_address);
+        // The message came in without these files: counted by reason, not as items skipped.
+        for (reason, n) in &it.left_out {
+            self.lose(*reason, *n);
+        }
         // Compressed here, so the data file is held only to store it.
         let raw_len = raw.len();
         let packs = self.store.packs(self.account);
