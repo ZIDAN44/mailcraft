@@ -349,7 +349,13 @@ impl Store {
         let root = root.into();
         private_dir(&root)?;
         let packs = packed::Packs::new(&root, files.as_ref())?;
-        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default(), reads: Arc::default() })
+        Ok(Store {
+            files: Routed::new(&root, Files::Packed(Arc::new(packs))),
+            root,
+            changes: Arc::default(),
+            reads: Arc::default(),
+            search_writers: Arc::default(),
+        })
     }
 
     /// A cache kept in memory only (clones share it).
