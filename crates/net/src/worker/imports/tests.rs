@@ -10,6 +10,7 @@ use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage
 
 use super::*;
 use crate::pst::Fault;
+use crate::space::Filling;
 
 /// Accounts whose imports a test puts a fault in: slowed down (each item, in milliseconds), or
 /// failing to plan a folder.
@@ -25,6 +26,24 @@ fn slow(account: &str, ms: u64) {
 /// The fault a test asked for in `account`'s import.
 pub(super) fn fault_for(account: &str) -> Option<Fault> {
     faults().lock().ok()?.get(account).copied()
+}
+
+/// Drives a test gave an account's import (by the account) or a look at a data file (by its path).
+fn spaces() -> &'static Mutex<HashMap<String, Arc<Filling>>> {
+    static SPACES: OnceLock<Mutex<HashMap<String, Arc<Filling>>>> = OnceLock::new();
+    SPACES.get_or_init(Mutex::default)
+}
+
+fn give_drive(key: &str, drive: Filling) -> Arc<Filling> {
+    let drive = Arc::new(drive);
+    spaces().lock().unwrap().insert(key.to_string(), drive.clone());
+    drive
+}
+
+/// The drive a test gave `key`'s import or look.
+pub(super) fn space_for(key: &str) -> Option<Arc<dyn crate::space::Space>> {
+    let drive = spaces().lock().ok()?.get(key).cloned()?;
+    Some(drive)
 }
 
 /// A data file with `inbox` messages in its Inbox and `projects` in a folder Projects, in a folder
@@ -487,4 +506,30 @@ fn a_paused_import_goes_on_where_it_stopped() {
     assert!(!seen.iter().any(ended), "nothing ends: it waits");
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&dir2);
+}
+
+/// A data file looked at says how big MailCraft's copy will be, the room asked for, and the room
+/// there is where the data files go (none when that can't be told).
+#[test]
+fn a_file_looked_at_says_the_room_for_its_copy() {
+    let (dir, pst, store, mut p) = setup("room", 30, 5, "r1", 0);
+    let drive = give_drive(&pst, Filling::new(0, 5 << 30));
+    p.submit(Job::InspectDataFile { path: pst.clone() });
+    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert_eq!(facts.error, None);
+    assert!(facts.estimate > 0 && facts.estimate <= facts.bytes, "{facts:?}");
+    assert!(facts.need > facts.estimate, "{facts:?}");
+    assert_eq!((facts.free, drive.asks()), (Some(5 << 30), 1));
+    assert_eq!(Path::new(&facts.destination), store.data_files_dir().unwrap());
+    // Not a data file at all: what can be told still is.
+    let junk = dir.join("junk.pst");
+    std::fs::write(&junk, b"not a data file").unwrap();
+    let junk = junk.to_string_lossy().into_owned();
+    p.submit(Job::InspectDataFile { path: junk });
+    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert!(facts.error.is_some() && !facts.destination.is_empty(), "{facts:?}");
+    assert!(facts.free.is_some(), "the drive's own room: {facts:?}");
+    let _ = std::fs::remove_dir_all(&dir);
 }

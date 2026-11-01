@@ -36,6 +36,8 @@ quick-xml = "0.42"
 outlook-pst = "1.2"
 # Writes them, for exporting (MIT; a fork of the reader with the same library name, so renamed).
 pst_rw = { package = "outlook-pst-rw", version = "1.2.14" }
+# The room left on a drive, before and while a data file is imported (MIT / Apache-2.0).
+fs4 = "1.1"
 # NTLM sign-in for on-premises Exchange (EWS): MD4, MD5 and HMAC (RustCrypto, MIT / Apache-2.0).
 md4 = "0.11"
 md-5 = "0.11"

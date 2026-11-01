@@ -196,7 +196,9 @@ written (`Compose`), preferences and status-bar notices.
   or snoozed, nor a move undone (`import_holds`, a `CmdError::Failed` the window shows), and what comes into its Inbox isn't new mail (no rules, nothing announced). A
   data file's account left with no folders and no record (from before this was kept, and with no
   note of its own import inside its file) is found at start as one to import again or remove.
-  `account.inspectDataFile` keeps the last four files looked at; a file already open as another
+  `account.inspectDataFile` keeps the last four files looked at (looked at on a thread of its
+  own, a panic said as a file that couldn't be looked at; the copy's expected size, the room
+  asked for and the room free in the data files' folder with them); a file already open as another
   account (the same path however written, or the same record key) is imported again only with
   `again`. Progress isn't said in notices: the window shows it (`account.importStatus` for the
   CLI and tests). In the window (`ui-egui/src/app/importing.rs`, its questions and summary in

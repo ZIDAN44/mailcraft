@@ -1711,6 +1711,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   message loop never held more than 23 ms (5,354 checks 20 ms apart, none over 50 ms; peak
   working set 999 MB). The folder pane's line names no folder while a `.pst` is read, since
   its folders are read a few at a time.
+- **Room for an import:** the window looked at a chosen `.pst` before importing it, but never
+  learnt how big MailCraft's copy would be or how much room the drive had, so it couldn't warn
+  that the copy wouldn't fit. A file looked at now says the size of
+  its copy (98% of its messages' own sizes: 38.65 GB for 39.5 GB on the 41 GB file), the room
+  asked for (130% of that and 2 GB besides, for the file's growth while it's written) and the
+  room free on the drive of the data files' folder (or the nearest folder above it that's
+  there); Import is offered only when it fits, and a room that can't be told doesn't stop it.
+  A file that makes the reader fail as it's looked at
+  is said to be one that couldn't be looked at.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

@@ -23,6 +23,14 @@ const FOLDERS_EVERY: Duration = Duration::from_millis(500);
 /// A data file that can't be removed at once (something letting go of it) is tried again this
 /// many times, a little later each time.
 const REMOVE_TRIES: u32 = 4;
+/// An Outlook data file's copy as a share of its messages' own sizes, in percent: 38.65 GB for
+/// 39.5 GB of messages, measured on a 41 GB file.
+const COPY_PCT: u64 = 98;
+/// The room asked for a copy, in percent of its size, and besides it: the file grows past its
+/// final size while it's written (pages freed under a reader are taken again only later), and
+/// the drive keeps some room after.
+const NEED_PCT: u64 = 130;
+const NEED_EXTRA: u64 = 2 << 30;
 
 /// The imports running, by account, and the data file looked at last, as planned.
 #[derive(Default)]
@@ -210,24 +218,22 @@ impl Pool {
 
     /// Look at a data file before it's imported, on a thread of its own (it may be on a slow
     /// drive): what kind it is, how big, when it last changed, and for an Outlook one what it
-    /// holds, planned as its import would bring it in. That plan is kept, and the file's import
-    /// goes by it when the file hasn't changed since.
+    /// holds, planned as its import would bring it in; and how big MailCraft's copy will be, and
+    /// the room for it where the data files go. That plan is kept, and the file's import goes by
+    /// it when the file hasn't changed since. A file that makes the reader panic is said to be
+    /// one that couldn't be looked at.
     pub(super) fn inspect_data_file(&mut self, path: String) {
         let (sink, asked, looked) = (self.sink.clone(), path.clone(), self.imports.looked.clone());
+        let destination = self.store.data_files_dir().unwrap_or_else(|| self.store.root().to_path_buf());
+        let space = drive_for(&path);
         let spawned = std::thread::Builder::new().name("mail-inspect".into()).spawn(move || {
-            let mut facts = facts_of(&path);
-            if facts.error.is_none() && facts.kind == "pst" {
-                match crate::pst::inspect(Path::new(&path)) {
-                    Ok(planned) => {
-                        (facts.messages, facts.folders, facts.pim_items, facts.bytes) =
-                            (planned.messages, planned.folders, planned.pim_items, planned.bytes);
-                        facts.record_key.clone_from(&planned.record_key);
-                        let planned = Arc::new(planned);
-                        *lock(&looked) = Some(Looked { path: path.clone(), size: facts.size, modified: facts.modified, planned });
-                    }
-                    Err(e) => facts.error = Some(e),
-                }
-            }
+            let looked_at = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| look_at(&path, &looked)));
+            let mut facts = looked_at.unwrap_or_else(|_| DataFileFacts {
+                path: path.clone(),
+                error: Some("the data file couldn't be looked at: it may be damaged".into()),
+                ..DataFileFacts::default()
+            });
+            room_for(&mut facts, &destination, space.as_ref());
             sink.emit(Event::DataFileInspected { path, facts: Box::new(facts) });
         });
         if let Err(e) = spawned {
@@ -235,6 +241,45 @@ impl Pool {
             self.sink.emit(Event::DataFileInspected { path: asked, facts: Box::new(facts) });
         }
     }
+}
+
+/// Where the room is asked for a data file looked at: the computer's own drives (a test's, in a
+/// test that gave one).
+fn drive_for(path: &str) -> Arc<dyn crate::space::Space> {
+    #[cfg(test)]
+    if let Some(drive) = tests::space_for(path) {
+        return drive;
+    }
+    let _ = path;
+    Arc::new(crate::space::Drives)
+}
+
+/// What the data file at `path` holds, planned (an Outlook one's plan kept in `looked`).
+fn look_at(path: &str, looked: &Mutex<Option<Looked>>) -> DataFileFacts {
+    let mut facts = facts_of(path);
+    if facts.error.is_none() && facts.kind == "pst" {
+        match crate::pst::inspect(Path::new(path)) {
+            Ok(planned) => {
+                (facts.messages, facts.folders, facts.pim_items, facts.bytes) = (planned.messages, planned.folders, planned.pim_items, planned.bytes);
+                facts.record_key.clone_from(&planned.record_key);
+                let planned = Arc::new(planned);
+                *lock(looked) = Some(Looked { path: path.to_string(), size: facts.size, modified: facts.modified, planned });
+            }
+            Err(e) => facts.error = Some(e),
+        }
+    }
+    facts
+}
+
+/// The size MailCraft's copy of a data file is expected to come to, the room asked for to write
+/// it, and the room there is in `destination` (on the drive of the nearest folder of it that's
+/// there; none when that can't be told). An Outlook file's copy is about [`COPY_PCT`] of its
+/// messages' own sizes; one of MailCraft's is copied as it is.
+fn room_for(facts: &mut DataFileFacts, destination: &Path, space: &dyn crate::space::Space) {
+    facts.estimate = if facts.kind == "mailcraft" { facts.size } else { facts.bytes / 100 * COPY_PCT };
+    facts.need = (facts.estimate / 100).saturating_mul(NEED_PCT).saturating_add(NEED_EXTRA);
+    facts.destination = destination.to_string_lossy().into_owned();
+    facts.free = space.free(destination);
 }
 
 /// Never waits for the imports: they are paused and let go (they end on their own, writing what
