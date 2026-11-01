@@ -207,8 +207,15 @@ impl Session {
         Ok(serde_json::json!({ "account": account, "importing": true }))
     }
 
-    /// How an import is going.
+    /// How an import is going. While the file is planned nothing has come in yet: said once
+    /// something has.
     pub(super) fn import_progress(&mut self, account: &str, p: &mailcraft_model::job::ImportProgress) {
+        if p.phase == mailcraft_model::job::ImportPhase::Planning {
+            if self.account(account).is_some() {
+                self.import_started(account);
+            }
+            return;
+        }
         self.imported(account, usize::try_from(p.imported).unwrap_or(usize::MAX), 0, false, None, None);
     }
 

@@ -12,6 +12,9 @@ use crate::VideoFrame;
 pub trait Backend {
     fn submit(&mut self, job: Job);
     fn poll(&mut self) -> Vec<Event>;
+    /// MailCraft is closing: work that writes to the data files (an import) is paused, and
+    /// waited for a few seconds at most.
+    fn shutdown(&mut self) {}
 }
 
 /// No network (the sample mailbox, tests).

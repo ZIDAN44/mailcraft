@@ -94,10 +94,20 @@ impl Store {
     /// renumbered as this account's; returns how many there are.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn import_data_file(&self, account: &str, path: &Path) -> Result<usize> {
+        self.import_data_file_until(account, path, &|| false)
+    }
+
+    /// [`Store::import_data_file`], asking `stop` before each batch: once it says to, nothing
+    /// more is read, the copy goes, and it ends in an error ("interrupted").
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn import_data_file_until(&self, account: &str, path: &Path, stop: &dyn Fn() -> bool) -> Result<usize> {
         let dir = self.account_dir(account);
         let tmp = self.root.join(format!(".import-{}.tmp", safe_segment(account)));
         let packs = self.packs(account);
         let read = packed::read_data_file(path, &tmp, &mut |batch| {
+            if stop() {
+                return Err(StoreError::Io { path: path.display().to_string(), source: io::Error::new(io::ErrorKind::Interrupted, "stopped") });
+            }
             // Paths come from a file: kept only when they stay inside the account. The old
             // account's changes still to make on its server, and its unsent mail, stay behind.
             // Compressed here, away from the writer, and written as a background import writes:

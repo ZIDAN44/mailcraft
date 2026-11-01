@@ -52,6 +52,12 @@ fn an_account_starts_from_an_existing_data_file() {
     assert!(file.exists(), "the file it came from stays");
     assert!(!t.join("app").join(".import-p7.tmp").exists(), "the copy read from is gone");
 
+    // Asked to stop: nothing more is read, and the copy read from goes all the same.
+    let stopped = s.import_data_file_until("p6", &file, &|| true).unwrap_err();
+    assert!(matches!(&stopped, crate::StoreError::Io { source, .. } if source.kind() == std::io::ErrorKind::Interrupted), "{stopped}");
+    assert!(s.load_folders("p6").unwrap().is_empty());
+    assert!(!t.join("app").join(".import-p6.tmp").exists(), "the copy read from is gone");
+
     // Junk: refused, and nothing written.
     let junk = t.join("junk.mailcraft");
     std::fs::write(&junk, b"not a database at all").unwrap();

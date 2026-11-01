@@ -1,14 +1,12 @@
 //! How an import runs: asked to stop part-way, what it measures of itself, and how it holds the
 //! data file.
 
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-
+use mailcraft_model::job::StopHow;
 use mailcraft_store::Store;
 use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+use std::path::PathBuf;
 
-use super::super::{ImportOptions, import, import_with};
+use super::super::{ImportOptions, Stop, import, import_with};
 
 /// One lane reads the items: what these tests count is one reader's.
 fn one_lane() -> ImportOptions {
@@ -52,32 +50,75 @@ fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
 fn an_import_asked_to_stop_keeps_what_it_read() {
     let (dir, pst) = data_file("stop", 700);
     let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
-    let cancel = Arc::new(AtomicBool::new(false));
-    let opts = ImportOptions { cancel: Some(cancel.clone()), ..ImportOptions::default() };
+    let stop = Stop::default();
+    let opts = ImportOptions { stop: stop.clone(), ..ImportOptions::default() };
     // Asked at the first word of progress (200 messages in).
-    let done = import_with(&pst, &store, "s1", &opts, &mut |_| cancel.store(true, Ordering::Relaxed)).unwrap();
-    assert_eq!((done.messages, done.cancelled), (200, true), "stopped at the next item, and says so");
+    let done = import_with(&pst, &store, "s1", &opts, &mut |_| stop.raise(StopHow::Cancel)).unwrap();
+    assert_eq!((done.messages, done.stopped), (200, Some(StopHow::Cancel)), "stopped at the next item, and says so");
+    assert_eq!(done.stopped_in.as_deref(), Some("INBOX"), "part-way through the Inbox");
     let inbox = done.folders.iter().find(|f| f.path == "INBOX").unwrap();
     let st = store.load_folder("s1", "INBOX").unwrap();
     assert_eq!((st.messages.len(), inbox.total), (200, 200), "what was read is listed and counted");
     assert!(st.messages.iter().all(|m| store.read_body(&m.key).is_some()), "and its sources written");
 
     let done = import_with(&pst, &store, "s2", &opts, &mut |_| {}).unwrap();
-    assert_eq!((done.messages, done.cancelled), (0, true));
+    assert_eq!((done.messages, done.stopped), (0, Some(StopHow::Cancel)));
     assert_eq!(done.folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["INBOX"]);
 
     // Not asked: the whole file, as `import` brings it in.
     let all = import(&pst, &store, "s3", &mut |_| {}).unwrap();
-    assert_eq!((all.messages, all.cancelled), (700, false));
+    assert_eq!((all.messages, all.stopped), (700, None));
     // Asked only once the last item is in: nothing was cut short.
-    let late = Arc::new(AtomicBool::new(false));
-    let opts = ImportOptions { cancel: Some(late.clone()), ..ImportOptions::default() };
+    let late = Stop::default();
+    let opts = ImportOptions { stop: late.clone(), ..ImportOptions::default() };
     let small = data_file("stop-late", 3).1;
     let done = import_with(&small, &store, "s4", &opts, &mut |_| {}).unwrap();
-    late.store(true, Ordering::Relaxed);
-    assert_eq!((done.messages, done.cancelled), (3, false));
+    late.raise(StopHow::Cancel);
+    assert_eq!((done.messages, done.stopped), (3, None));
     let _ = std::fs::remove_dir_all(small.parent().unwrap());
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Paused, an import writes what it read but leaves the folder it was part-way through out of
+/// the list (it goes on with it later, and nobody can change it meanwhile); thrown away, it
+/// writes nothing more at all, not even a folder.
+#[test]
+fn a_pause_hides_the_folder_part_way_and_a_discard_writes_nothing_more() {
+    let (dir, pst) = data_file("pause", 700);
+    let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
+    let stop = Stop::default();
+    let opts = ImportOptions { stop: stop.clone(), lanes: 1, ..ImportOptions::default() };
+    let done = import_with(&pst, &store, "p1", &opts, &mut |_| stop.raise(StopHow::Pause)).unwrap();
+    assert_eq!((done.stopped, done.stopped_in.as_deref()), (Some(StopHow::Pause), Some("INBOX")));
+    let listed: Vec<String> = store.load_folders("p1").unwrap().into_iter().map(|f| f.path).collect();
+    assert_eq!(listed, ["Deleted Items"], "the folder finished is, the Inbox part-way isn't, nor one made up");
+    assert_eq!(done.folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["Deleted Items"]);
+    assert_eq!(done.messages, 200, "what was read is written all the same");
+
+    let stop = Stop::default();
+    let opts = ImportOptions { stop: stop.clone(), lanes: 1, ..ImportOptions::default() };
+    let done = import_with(&pst, &store, "p2", &opts, &mut |_| stop.raise(StopHow::Discard)).unwrap();
+    assert_eq!(done.stopped, Some(StopHow::Discard));
+    assert!(done.folders.is_empty());
+    let listed: Vec<String> = store.load_folders("p2").unwrap().into_iter().map(|f| f.path).collect();
+    assert_eq!(listed, ["Deleted Items"], "only what was in before it was thrown away (the data file goes with it)");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A stop only ever goes further: MailCraft closing (a pause) while an account is removed (a
+/// discard) leaves the import thrown away.
+#[test]
+fn a_stop_is_never_lowered() {
+    let stop = Stop::default();
+    assert_eq!(stop.how(), None);
+    stop.raise(StopHow::Pause);
+    assert_eq!(stop.how(), Some(StopHow::Pause));
+    stop.raise(StopHow::Discard);
+    stop.raise(StopHow::Pause);
+    stop.raise(StopHow::Cancel);
+    assert_eq!(stop.how(), Some(StopHow::Discard));
+    let shared = stop.clone();
+    assert!(shared.raised());
 }
 
 /// An import says where its time went, how much it held and how much it wrote: the writer's

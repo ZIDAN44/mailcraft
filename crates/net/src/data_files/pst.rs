@@ -22,11 +22,11 @@ use std::io;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
-use mailcraft_model::job::SkipReason;
+use mailcraft_model::job::{SkipReason, StopHow};
 use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::{FolderState, Store};
@@ -58,6 +58,8 @@ mod tests;
 use chunked::Shared;
 use embedded::{Holder, Part, item_with_files};
 use item::{File, Item, attachment, item, message_class, message_code_page, unread_attachment};
+#[cfg(test)]
+pub(crate) use lanes::tests::Fault;
 use open::Recycle;
 use out::Out;
 #[doc(hidden)]
@@ -114,9 +116,11 @@ pub struct Imported {
     /// Messages whose only body was Rich Text that couldn't be read: imported without a body.
     /// Logged, and not in `skipped`, since the message itself came in.
     pub body_not_converted: usize,
-    /// Asked to stop before the file was read to its end ([`ImportOptions::cancel`]): what was
-    /// read is in, the rest isn't.
-    pub cancelled: bool,
+    /// Asked to stop before the file was read to its end ([`ImportOptions::stop`]), and how: what
+    /// was read is in, the rest isn't (thrown away, nothing more was written); and the folder it
+    /// was part-way through, when it was.
+    pub stopped: Option<StopHow>,
+    pub stopped_in: Option<String>,
     /// How long it took, and where the time went.
     pub stats: ImportStats,
     /// Why the folder list or the contacts and calendar couldn't be saved at the end, when they
@@ -138,6 +142,8 @@ pub struct Progress {
     pub total: usize,
     pub bytes_done: u64,
     pub bytes_total: u64,
+    /// Mail folders in the file (0 until it's known).
+    pub folders: usize,
 }
 
 /// Told how an import goes, as it goes.
@@ -306,9 +312,11 @@ pub struct ImportOptions {
     pub lanes: usize,
     /// Bytes read but not yet written that the import may hold (0: its own limit).
     pub budget_bytes: usize,
-    /// Set from another thread to stop: nothing more is read, and what was read is written and
-    /// kept, as when a file ends early.
-    pub cancel: Option<Arc<AtomicBool>>,
+    /// Raised from another thread to stop: nothing more is read. Cancelled, what was read is
+    /// written and kept, as when a file ends early; paused, the same, but a folder part-way
+    /// through isn't listed (the import goes on with it later); thrown away, nothing more is
+    /// written at all.
+    pub stop: Stop,
     /// The reader's chunk of the file, in KiB (0: its own), the items read between reopenings
     /// of the handle that reads them (0: only once its caches hold too much), and how much its
     /// caches may hold before that, in bytes (0: its own limit): for tests and measuring.
@@ -321,6 +329,38 @@ pub struct ImportOptions {
     /// A fault for a test to put in the import's threads.
     #[cfg(test)]
     pub(crate) fault: Option<lanes::tests::Fault>,
+}
+
+/// How far an import is asked to stop. It's raised from any thread and never lowered: paused,
+/// then cancelled, then thrown away, so a pause asked for after a discard (MailCraft closing
+/// while an account is removed) leaves it thrown away.
+#[derive(Clone, Debug, Default)]
+pub struct Stop(Arc<AtomicU8>);
+
+impl Stop {
+    /// Ask to stop as `how` says, unless already asked to stop further.
+    pub fn raise(&self, how: StopHow) {
+        let level = match how {
+            StopHow::Pause => 1,
+            StopHow::Cancel => 2,
+            StopHow::Discard => 3,
+        };
+        self.0.fetch_max(level, Ordering::AcqRel);
+    }
+
+    /// How it's asked to stop; none: it isn't.
+    pub fn how(&self) -> Option<StopHow> {
+        match self.0.load(Ordering::Acquire) {
+            0 => None,
+            1 => Some(StopHow::Pause),
+            2 => Some(StopHow::Cancel),
+            _ => Some(StopHow::Discard),
+        }
+    }
+
+    pub fn raised(&self) -> bool {
+        self.0.load(Ordering::Relaxed) != 0
+    }
 }
 
 /// Import the data file at `path` into `account`'s cache (an account with no server), as the app

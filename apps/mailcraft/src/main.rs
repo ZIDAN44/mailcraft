@@ -252,6 +252,9 @@ impl eframe::App for App {
             u.closing();
         }
         self.keep_state(None, true);
+        // An import running pauses: what it read is written before the data files are sealed
+        // below (waited for 10 seconds at most; an import stuck longer is let go).
+        self.app.backend.shutdown();
         // Issue #4: attachments handed to other apps, and pictures made of them, go with
         // MailCraft when it's portable or keeps an account online only (one still open in an
         // app stays until that app lets it go).

@@ -182,6 +182,8 @@ pub struct Pool {
     search: Arc<AtomicU64>,
     /// The search index kept up in the background.
     indexer: indexing::Indexer,
+    /// Data files being imported, by account, and the last one looked at (`imports.rs`).
+    imports: imports::Imports,
 }
 
 /// Drafts that couldn't be saved to the server (offline, or it failed), kept with the account
@@ -243,6 +245,7 @@ impl Pool {
             offline: false,
             search: Arc::new(AtomicU64::new(0)),
             indexer: indexing::Indexer::default(),
+            imports: imports::Imports::default(),
         }
     }
 
@@ -295,8 +298,7 @@ impl Pool {
             // An import starts from the beginning: nothing records where one stopped yet.
             Job::ImportPst { account, path, resume: _ } => self.import_pst(account, path),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
-            // An import runs to its end: nothing stops one yet, so there is nothing to answer.
-            Job::StopImport { account, how } => log::info!("import into {account}: can't be stopped yet ({how:?})"),
+            Job::StopImport { account, how } => self.stop_import(&account, how),
             // The desktop keeps keys in the system's keychain: nothing to keep unlocked.
             Job::KeepUnlocked { .. } => {}
             j @ (Job::ImportIdentity { .. }
@@ -376,6 +378,8 @@ impl Pool {
             Job::Remove { account } => {
                 self.stop(&account);
                 self.indexer.stop(&account);
+                // An import into it is thrown away, its data file with it.
+                self.stop_import(&account, mailcraft_model::job::StopHow::Discard);
                 if let Some(c) = self.configs.remove(&account) {
                     self.creds.delete(&c);
                     self.creds.delete_smtp(&c);
@@ -574,8 +578,8 @@ impl Pool {
         }
     }
 
-    pub fn shutdown(&mut self) {
-        self.indexer.shutdown();
+    /// Stop every account's threads.
+    fn stop_all(&mut self) {
         let ids: Vec<String> = self.workers.keys().cloned().collect();
         for id in ids {
             self.stop(&id);
@@ -583,15 +587,10 @@ impl Pool {
     }
 }
 
-impl Drop for Pool {
-    fn drop(&mut self) {
-        self.shutdown();
-    }
-}
-
 mod changes;
 mod connect;
 mod directory;
+mod imports;
 mod indexing;
 mod remote;
 mod send;

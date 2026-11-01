@@ -20,7 +20,7 @@ pub(super) struct Done {
 
 pub(super) enum Step {
     /// What the file holds, for the progress.
-    Totals { items: u64, bytes: u64 },
+    Totals { items: u64, bytes: u64, folders: usize },
     /// A mail folder begins (`index` in the plan), under the plan's folder `parent`.
     Folder { index: usize, parent: Option<usize>, name: String },
     /// …and is done.
@@ -99,7 +99,7 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
     }
     let path_of = |paths: &Vec<Option<String>>, i: usize| paths.get(i).cloned().flatten();
     match done.step {
-        Step::Totals { items, bytes } => out.totals(items, bytes),
+        Step::Totals { items, bytes, folders } => out.totals(items, bytes, folders),
         Step::Folder { index, parent, name } => {
             let parent = parent.and_then(|p| path_of(paths, p));
             let path = out.add_folder(parent.as_deref(), &name);

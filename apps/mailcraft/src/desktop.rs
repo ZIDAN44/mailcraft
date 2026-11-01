@@ -17,6 +17,9 @@ impl Backend for PoolBackend {
     fn poll(&mut self) -> Vec<Event> {
         self.0.poll()
     }
+    fn shutdown(&mut self) {
+        self.0.shutdown();
+    }
 }
 
 #[derive(Default)]

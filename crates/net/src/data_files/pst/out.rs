@@ -46,6 +46,7 @@ pub(super) struct Out<'a> {
     total: usize,
     bytes_total: u64,
     bytes_done: u64,
+    folders_total: usize,
     /// Contacts and calendar items read so far.
     pub(super) pim: Pim,
     /// Sources read (compressed already) but not yet written, and their size as kept.
@@ -56,9 +57,9 @@ pub(super) struct Out<'a> {
     pending_raw: usize,
     pub(super) pending_charge: u64,
     pub(super) budget: Arc<Budget>,
-    /// Set from elsewhere to stop reading, and whether it stopped the import.
-    cancel: Option<Arc<AtomicBool>>,
-    cancelled: bool,
+    /// Raised from elsewhere to stop reading, and whether the writer saw it before the end.
+    stop: Stop,
+    stopped: bool,
     /// When the import began, and where its time has gone since.
     pub(super) began: Instant,
     pub(super) tally: Arc<Tally>,
@@ -87,14 +88,15 @@ impl<'a> Out<'a> {
             total: 0,
             bytes_total: 0,
             bytes_done: 0,
+            folders_total: 0,
             pim: Pim::default(),
             pending: Vec::new(),
             pending_bytes: 0,
             pending_raw: 0,
             pending_charge: 0,
             budget: Arc::new(Budget::new(u64::try_from(opts.budget_bytes).unwrap_or(u64::MAX))),
-            cancel: opts.cancel.clone(),
-            cancelled: false,
+            stop: opts.stop.clone(),
+            stopped: false,
             began: Instant::now(),
             tally: Arc::default(),
             lanes: 1,
@@ -105,10 +107,16 @@ impl<'a> Out<'a> {
 }
 
 impl Out<'_> {
-    /// Whether the import was asked to stop: nothing more is read, and what was is kept.
+    /// Whether the import was asked to stop: nothing more is read.
     pub(super) fn stopped(&mut self) -> bool {
-        self.cancelled |= self.cancel.as_ref().is_some_and(|c| c.load(Ordering::Relaxed));
-        self.cancelled
+        self.stopped |= self.stop.raised();
+        self.stopped
+    }
+
+    /// How the import was stopped, when the writer saw it was: as asked by now (a pause may have
+    /// become a discard since).
+    fn stopped_as(&self) -> Option<StopHow> {
+        if self.stopped { self.stop.how() } else { None }
     }
 
     /// Count `n` items left out for `reason`.
@@ -127,10 +135,12 @@ impl Out<'_> {
         }
     }
 
-    /// What the file holds, before any of it is read: the progress goes by it.
-    pub(super) fn totals(&mut self, items: u64, bytes: u64) {
+    /// What the file holds (its items, their bytes, its mail folders), before any of it is
+    /// read: the progress goes by it.
+    pub(super) fn totals(&mut self, items: u64, bytes: u64, folders: usize) {
         self.total = usize::try_from(items).unwrap_or(usize::MAX);
         self.bytes_total = bytes;
+        self.folders_total = folders;
     }
 
     /// One more item read from the file, of `size` bytes as the file gives it, whatever became of
@@ -147,6 +157,7 @@ impl Out<'_> {
                 total: self.total,
                 bytes_done: self.bytes_done,
                 bytes_total: self.bytes_total,
+                folders: self.folders_total,
             };
             self.sink.progress(p);
         }
@@ -398,6 +409,10 @@ impl Out<'_> {
     /// The rest written out, and the data file sealed whatever happened: what went in without
     /// waiting for the disk is on it, and a crash after the import doesn't cost a check of the file.
     pub(super) fn finish(mut self) -> Imported {
+        // Thrown away: nothing more is written, its data file goes.
+        if self.stopped_as() == Some(StopHow::Discard) {
+            return self.thrown_away();
+        }
         let mut done = self.write_out();
         self.seal();
         done.stats = self.tally.snapshot(self.began.elapsed(), self.lanes);
@@ -413,14 +428,47 @@ impl Out<'_> {
         }
     }
 
+    /// What a discarded import came to: what it had read, none of it written out.
+    fn thrown_away(mut self) -> Imported {
+        let stopped_in = self.part_way();
+        self.budget.release(std::mem::take(&mut self.pending_charge));
+        Imported {
+            folders: Vec::new(),
+            messages: self.imported,
+            skipped: self.skipped,
+            skips: std::mem::take(&mut self.skips),
+            body_not_converted: self.body_not_converted,
+            stopped: Some(StopHow::Discard),
+            stopped_in,
+            stats: self.tally.snapshot(self.began.elapsed(), self.lanes),
+            ..Imported::default()
+        }
+    }
+
+    /// The folder the import was part-way through, when it was stopped in one (the first, in
+    /// the order the folders came).
+    fn part_way(&self) -> Option<String> {
+        self.stopped_as()?;
+        self.folders.iter().find(|f| self.states.contains_key(&f.path)).map(|f| f.path.clone())
+    }
+
     fn write_out(&mut self) -> Imported {
         self.flush();
-        // An Inbox to open, even when the file had none.
-        if !self.folders.iter().any(|f| f.role == FolderRole::Inbox) {
+        let stopped = self.stopped_as();
+        let stopped_in = self.part_way();
+        if stopped == Some(StopHow::Pause) {
+            // Paused: a folder part-way through stays out of the list, to be gone on with; it
+            // was never shown, so nothing in it was changed meanwhile.
+            let part_way: Vec<String> = self.states.keys().cloned().collect();
+            self.folders.retain(|f| !part_way.contains(&f.path));
+            self.states.clear();
+        } else if !self.folders.iter().any(|f| f.role == FolderRole::Inbox) {
+            // An Inbox to open, even when the file had none.
             let path = self.add_folder(None, "Inbox");
             self.save_folder(&path);
         }
-        // Folders left part-way (the file ended early) still get their list.
+        // Folders left part-way (the file ended early, or the import was cancelled) still get
+        // their list.
         let unsaved: Vec<String> = self.states.keys().cloned().collect();
         for p in unsaved {
             self.save_folder(&p);
@@ -449,7 +497,8 @@ impl Out<'_> {
             skipped: self.skipped,
             skips: std::mem::take(&mut self.skips),
             body_not_converted: self.body_not_converted,
-            cancelled: self.cancelled,
+            stopped,
+            stopped_in,
             stats: ImportStats::default(),
             last_save,
         }

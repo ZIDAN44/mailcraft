@@ -104,7 +104,7 @@ impl<'a> Ctx<'a> {
 
     /// Whether to stop: told to, or asked to by the user.
     pub(super) fn stopped(&self) -> bool {
-        self.halt.load(Ordering::Relaxed) || self.opts.cancel.as_ref().is_some_and(|c| c.load(Ordering::Relaxed))
+        self.halt.load(Ordering::Relaxed) || self.opts.stop.raised()
     }
 
     /// Stop every thread, waking the lanes waiting for room.
@@ -449,6 +449,9 @@ pub(super) mod tests {
         WriterAfter(u64),
         /// The file says every item is a byte.
         Understate,
+        /// Each item takes this many milliseconds longer to read (an import slow enough to be
+        /// stopped part-way).
+        Slow(u64),
     }
 
     /// A panic the test asked for, at the item `job` is (the items are counted as the lanes take
@@ -458,6 +461,7 @@ pub(super) mod tests {
         match ctx.opts.fault {
             Some(Fault::PanicAlways) => panic!("a test's reader fault"),
             Some(Fault::PanicAt(at)) if n == at => panic!("a test's reader fault"),
+            Some(Fault::Slow(ms)) => std::thread::sleep(Duration::from_millis(ms)),
             _ => {}
         }
     }

@@ -91,8 +91,12 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         matches!(s.take_jobs().as_slice(), [Job::ImportPst { account, path, resume: false }] if *account == id && path.ends_with("Archive 2024.pst"))
     );
 
-    // The import reports progress, then its folders, then that it's done: the Inbox opens.
-    let progress = mailcraft_model::job::ImportProgress { imported: 200, ..Default::default() };
+    // The import reports progress (nothing while it plans the file), then its folders, then that
+    // it's done: the Inbox opens.
+    let notices = s.notices.len();
+    s.apply(Event::ImportProgress { account: id.clone(), progress: Default::default() });
+    assert_eq!(s.notices.len(), notices, "no word of 0 messages imported");
+    let progress = mailcraft_model::job::ImportProgress { phase: mailcraft_model::job::ImportPhase::Importing, imported: 200, ..Default::default() };
     s.apply(Event::ImportProgress { account: id.clone(), progress });
     assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("200")));
     let inbox = mailcraft_model::Folder {

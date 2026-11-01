@@ -289,7 +289,8 @@ impl Feed {
 /// Hand out the work of `plan`, read from `store`, until it's done or the import stops.
 pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
     let stopped = || ctx.stopped();
-    if !feed.step(Step::Totals { items: plan.items, bytes: plan.bytes }) {
+    let folders = plan.folders.iter().filter(|f| f.kind == Kind::Mail).count();
+    if !feed.step(Step::Totals { items: plan.items, bytes: plan.bytes, folders }) {
         return;
     }
     for (reason, n) in &plan.lost {
