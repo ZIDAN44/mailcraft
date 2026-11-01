@@ -194,6 +194,23 @@ fn bulk_mail_is_recognised() {
     assert!(summary_from_header(b"From: noreply@shop.example\r\n\r\nx", key(), Flags::default(), 0, 0).bulk);
 }
 
+/// A conversation index comes in as its keys: a reply's parent is its original; a folded
+/// header reads, and one of the wrong length, with no GUID or past the longest an index can be
+/// gives none.
+#[test]
+fn thread_index_becomes_its_keys() {
+    let s = |index: &str| summary_from_header(format!("Thread-Index: {index}\r\nSubject: s\r\n\r\nb").as_bytes(), key(), Flags::default(), 0, 0);
+    let original = s("AdkBAgMEBwcHBwcHBwcHBwcHBwcHBw==");
+    let reply = s("AdkBAgMEBwcHBwcH\r\n BwcHBwcHBwcHBwEBAQEB");
+    assert!(original.thread_own != 0 && original.thread_parent == 0);
+    assert_eq!((reply.thread_parent, reply.thread_conversation), (original.thread_own, original.thread_own));
+    let long = format!("AdkBAgMEBwcHBwcHBwcHBwcHBwcHBw{}", "A".repeat(400));
+    for none in ["AdkBAgMEBwcHBwcHBwcHBwcHBwcHBwEBAQEBAA==", "AdkBAgMEAAAAAAAAAAAAAAAAAAAAAAEBAQEB", "not base64!", "", long.as_str()] {
+        let m = s(none);
+        assert_eq!((m.thread_own, m.thread_parent, m.thread_conversation), (0, 0, 0), "{none}");
+    }
+}
+
 #[test]
 fn garbage_never_panics() {
     for raw in [&b""[..], b"\xff\xfe\x00", b"Subject", b"Content-Type: multipart/mixed; boundary=\r\n\r\n--\r\n--", b"From: <<<@>>>\r\n\r\n"] {

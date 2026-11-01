@@ -196,6 +196,10 @@ pub struct Summary {
     /// Unix seconds (UTC) from the `Date` header, or the server's INTERNALDATE.
     #[serde(default)]
     pub date: i64,
+    /// Unix seconds (UTC) it was delivered, when that's known and isn't `date` (a data file's
+    /// delivery time); 0 otherwise. The list places a message by [`Summary::when`].
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub received: i64,
     #[serde(default)]
     pub size: u32,
     #[serde(default)]
@@ -218,6 +222,15 @@ pub struct Summary {
     /// and checked; an encrypted one may be signed inside too).
     #[serde(default, skip_serializing_if = "Smime::is_none")]
     pub smime: Smime,
+    /// Outlook's conversation index (`Thread-Index`, MS-OXOMSG 2.2.1.3) as hashes, so threading
+    /// never decodes it: the whole index, the index of the message it answers, and the
+    /// conversation's; 0 for none ([`thread::index_keys`]).
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub thread_own: u64,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub thread_parent: u64,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub thread_conversation: u64,
 }
 
 /// What a message's header says protects it (S/MIME, RFC 8551 §3.2).
@@ -258,16 +271,35 @@ fn is_zero(n: &i8) -> bool {
     *n == 0
 }
 
+fn is_zero_i64(n: &i64) -> bool {
+    *n == 0
+}
+
+fn is_zero_u64(n: &u64) -> bool {
+    *n == 0
+}
+
 impl Summary {
+    /// When the list places the message: when it was received, else its date.
+    pub fn when(&self) -> i64 {
+        if self.received > 0 { self.received } else { self.date }
+    }
+
+    /// Keep a conversation index as its [`thread::index_keys`].
+    pub fn set_thread_index(&mut self, index: &[u8]) {
+        let k = thread::index_keys(index);
+        (self.thread_own, self.thread_parent, self.thread_conversation) = (k.own, k.parent, k.conversation);
+    }
+
     /// The subject with reply and forward prefixes removed, for conversation grouping.
     pub fn base_subject(&self) -> String {
         thread::base_subject(&self.subject)
     }
 }
 
-/// Sort newest first, with the key as a tie-breaker so the order is stable.
+/// Sort newest first ([`Summary::when`]), with the key as a tie-breaker so the order is stable.
 pub fn sort_newest_first(list: &mut [Summary]) {
-    list.sort_by(|a, b| b.date.cmp(&a.date).then_with(|| b.key.cmp(&a.key)));
+    list.sort_by(|a, b| b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key)));
 }
 
 #[cfg(test)]
@@ -303,5 +335,28 @@ mod tests {
         assert_eq!(keyword_for("Café"), "caf=c3=a9");
         assert_eq!(keyword_for(" Café "), keyword_for("café"));
         assert!(is_keyword(&keyword_for("Projects: Film!")));
+    }
+
+    #[test]
+    fn received_places_a_message() {
+        let at = |uid: u32, date: i64, received: i64| Summary { key: MessageKey { uid, ..Default::default() }, date, received, ..Default::default() };
+        // Sent before the others, received after them.
+        let mut list = vec![at(1, 300, 0), at(2, 100, 500), at(3, 200, 0)];
+        sort_newest_first(&mut list);
+        assert_eq!(list.iter().map(|m| m.key.uid).collect::<Vec<_>>(), vec![2, 1, 3]);
+        assert_eq!((list[0].when(), list[1].when()), (500, 300));
+    }
+
+    #[test]
+    fn lists_from_before_the_new_fields_read() {
+        let old = r#"{"key":{"account":"a","folder":"INBOX","validity":1,"uid":2},"subject":"s","date":7}"#;
+        let m: Summary = serde_json::from_str(old).unwrap();
+        assert_eq!((m.received, m.thread_own, m.thread_parent, m.thread_conversation, m.when()), (0, 0, 0, 0, 7));
+        // Unset, they aren't written; set, they come back.
+        let json = serde_json::to_string(&m).unwrap();
+        assert!(!json.contains("received") && !json.contains("thread_"), "{json}");
+        let m = Summary { received: 9, thread_own: u64::MAX, thread_parent: 1, thread_conversation: 2, ..m };
+        let back: Summary = serde_json::from_str(&serde_json::to_string(&m).unwrap()).unwrap();
+        assert_eq!(back, m);
     }
 }

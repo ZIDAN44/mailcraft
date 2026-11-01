@@ -95,7 +95,7 @@ pub(super) fn size_group(size: u32) -> &'static str {
 /// Sort a list as `arrange` says (each one's natural order; `reverse` the other way), newest
 /// first among equals.
 pub fn arrange_list(list: &mut [Summary], arrange: Arrange, reverse: bool) {
-    let newest = |a: &Summary, b: &Summary| b.date.cmp(&a.date).then_with(|| b.key.cmp(&a.key));
+    let newest = |a: &Summary, b: &Summary| b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key));
     // By a name: each one's name lower-cased once (it was in every comparison, twice), over
     // the list already newest first, which the sort keeps among equal names.
     let text: Option<fn(&Summary) -> String> = match arrange {
@@ -118,7 +118,7 @@ pub fn arrange_list(list: &mut [Summary], arrange: Arrange, reverse: bool) {
             Arrange::Size => b.size.cmp(&a.size),
             Arrange::Flag => b.flags.flagged.cmp(&a.flags.flagged),
             Arrange::Attachments => b.has_attachments.cmp(&a.has_attachments),
-            Arrange::Date | Arrange::From | Arrange::To | Arrange::Subject => b.date.cmp(&a.date),
+            Arrange::Date | Arrange::From | Arrange::To | Arrange::Subject => b.when().cmp(&a.when()),
         };
         let primary = if reverse { primary.reverse() } else { primary };
         primary.then_with(|| newest(a, b))
@@ -181,7 +181,7 @@ impl Session {
         let (mut pinned_rows, mut pinned_of) = (Vec::new(), Vec::new());
         if self.prefs.conversations && !self.threads.is_empty() {
             for (ti, t) in self.threads.iter().enumerate() {
-                let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, |m| m.date)) else { continue };
+                let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, Summary::when)) else { continue };
                 let unread = t.messages.iter().filter(|&&i| self.list.get(i).is_some_and(|m| !m.flags.seen)).count();
                 if t.messages.iter().any(|&i| pinned(i)) {
                     pinned_rows.push(Row::Message { index: newest, count: t.messages.len(), unread });
@@ -197,7 +197,7 @@ impl Session {
                     pinned_rows.push(Row::Message { index: i, count: 1, unread: usize::from(!m.flags.seen) });
                     pinned_of.push(Stands::One(i));
                 } else {
-                    push(&mut out, i, 1, usize::from(!m.flags.seen), m.date);
+                    push(&mut out, i, 1, usize::from(!m.flags.seen), m.when());
                     out_of.push(Stands::One(i));
                 }
             }

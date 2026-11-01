@@ -13,6 +13,8 @@ pub(super) struct Item {
     pub(super) cc: Vec<EmailAddress>,
     pub(super) bcc: Vec<EmailAddress>,
     pub(super) date: i64,
+    /// When it was delivered (`PidTagMessageDeliveryTime`), 0 when the item doesn't say.
+    pub(super) received: i64,
     pub(super) body: String,
     pub(super) html: Option<String>,
     pub(super) message_id: String,
@@ -126,6 +128,7 @@ pub(super) fn item_of<'a>(
     let name = |ids: &[u16]| ids.iter().map(|id| clean_name(&s(*id))).find(|n| !n.is_empty()).unwrap_or_default();
     it.from = EmailAddress::new(name(&[0x0C1A, 0x0042]), email(&[0x5D01, 0x0C1F, 0x5D02, 0x0065]));
     it.date = [0x0E06, 0x0039, 0x3007].iter().find_map(|id| p(*id).and_then(|v| v.time())).unwrap_or(0);
+    it.received = p(0x0E06).and_then(|v| v.time()).unwrap_or(0);
     it.body = s(0x1000);
     it.html = p(0x1013).and_then(|v| match v {
         Val::Bin(b) => {

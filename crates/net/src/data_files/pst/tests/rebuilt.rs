@@ -54,6 +54,32 @@ fn the_summary_and_the_message_come_from_one_item() {
     assert!(!summary(Item { body: "x".into(), ..Default::default() }).has_attachments);
 }
 
+/// A received item keeps when it was sent as its date (its header's `Date:`) and is placed by
+/// when it was delivered; one delivered as it was dated keeps no second time. Its conversation
+/// index, its header's or the item's own, comes in as threading's keys.
+#[test]
+fn a_summary_is_placed_by_delivery_and_keeps_the_conversation() {
+    let mut index = vec![1, 0xD9, 1, 2, 3, 4];
+    index.extend([7; 16]);
+    let original = mailcraft_model::thread::index_keys(&index);
+    index.extend([1; 5]);
+    let header = Item {
+        headers: "From: Ana <ana@example.com>\r\nDate: Mon, 1 Jan 2024 00:00:00 +0000\r\nSubject: Plan\r\n".into(),
+        date: 1_704_070_800,
+        received: 1_704_070_800,
+        body: "b".into(),
+        thread_index: index.clone(),
+        ..Default::default()
+    };
+    let s = summary(header);
+    assert_eq!((s.date, s.received, s.when()), (1_704_067_200, 1_704_070_800, 1_704_070_800));
+    assert_eq!((s.thread_parent, s.thread_conversation), (original.own, original.own));
+    let own = Item { date: 1_704_067_200, received: 1_704_067_200, body: "b".into(), thread_index: index, ..Default::default() };
+    let s = summary(own);
+    assert_eq!((s.date, s.received, s.thread_parent), (1_704_067_200, 0, original.own));
+    assert_eq!(summary(Item { date: 5, body: "b".into(), ..Default::default() }).thread_own, 0);
+}
+
 /// A received message's header is put back in the built source's own buffer without doubling
 /// it: the source waits in its import batch in that buffer, and a file that won't compress is
 /// stored as it is.

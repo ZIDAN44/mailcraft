@@ -1575,3 +1575,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   read for it rather than read again. A command run meanwhile (reply, forward, save) finishes it
   first, so it acts on the message shown. Signed or encrypted mail, the command line and the
   start-up `--cmd`s still read it at once.
+- **Mail from a `.pst` is listed when it came:** the list placed a message by its `Date:`, when
+  it was sent; Outlook places received mail by when it was delivered, and 1,177 messages of a
+  41 GB file were more than an hour apart on the two. A `.pst` message now keeps its delivery
+  time beside its date: the list's order, its date column and headings, conversations, the
+  new-mail notice, `received:`, `after:` and `before:` go by it; the reading pane, `sent:` and
+  `date:` still go by when it was sent.
+  Lists written before read as they were (IMAP mail has no delivery time kept yet).
+- **Conversations by Outlook's conversation index:** a message the ids leave without a parent,
+  or hanging only from ids no listed message carries (Outlook keeps no Message-ID for sent mail,
+  so a reply names one the folder doesn't hold, or none), goes under the message
+  its `Thread-Index` answers, whatever its subject, or else joins the conversation that index
+  names when its subject is the conversation's. An index of the wrong length, of more than 50
+  replies or with no conversation GUID is passed over. It is kept with the list as three hashes,
+  so working out conversations never decodes it; mail already listed has none (a `.pst`
+  imported again gets them).

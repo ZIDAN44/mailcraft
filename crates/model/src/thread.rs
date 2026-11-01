@@ -6,8 +6,11 @@
 //! 2. Each message's `References` chain (with `In-Reply-To` appended when missing) links those
 //!    containers parent → child, never creating a loop; the message's own container takes the
 //!    last reference as its parent.
-//! 3. Empty containers (referenced, never seen) are dropped, promoting their children.
-//! 4. Roots whose base subjects match are merged when one of them is a reply or forward.
+//! 3. A message the ids left without a parent, or hanging only from ids never seen, goes under the message its conversation index
+//!    (Outlook's `Thread-Index`) answers, or else, when the subjects match, joins the
+//!    conversation that index names.
+//! 4. Empty containers (referenced, never seen) are dropped, promoting their children.
+//! 5. Roots whose base subjects match are merged when one of them is a reply or forward.
 
 pub mod cleanup;
 
@@ -57,6 +60,39 @@ pub fn is_reply_subject(subject: &str) -> bool {
 pub fn norm_id(id: &str) -> String {
     let id: String = id.chars().filter(|c| !c.is_control() && !c.is_whitespace()).take(998).collect();
     id.trim_start_matches('<').trim_end_matches('>').to_string()
+}
+
+/// The most 5-byte blocks a conversation index is read with (a reply adds one).
+pub const MAX_INDEX_BLOCKS: usize = 50;
+
+/// A conversation index as threading keeps it: hashes of the whole index, of the index of the
+/// message it answers (the whole less its last block) and of the conversation's (its 22-byte
+/// header). 0 is none.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct IndexKeys {
+    pub own: u64,
+    pub parent: u64,
+    pub conversation: u64,
+}
+
+/// The keys of a conversation index (MS-OXOMSG 2.2.1.3: a reserved byte, a 5-byte time and a
+/// 16-byte GUID, then a 5-byte block per reply). An index of any other length, of more than
+/// [`MAX_INDEX_BLOCKS`] blocks or with no GUID gives none: such an index would join mail that
+/// has nothing to do with each other.
+pub fn index_keys(index: &[u8]) -> IndexKeys {
+    let blocks = index.len().checked_sub(22).filter(|n| n % 5 == 0).map(|n| n / 5);
+    let guid = index.get(6..22).is_some_and(|g| g.iter().any(|&b| b != 0));
+    let (Some(blocks), true) = (blocks, guid) else { return IndexKeys::default() };
+    if blocks > MAX_INDEX_BLOCKS {
+        return IndexKeys::default();
+    }
+    let hash = |len: usize| index.get(..len).map_or(0, |b| fnv(b).max(1));
+    IndexKeys { own: hash(index.len()), parent: if blocks > 0 { hash(index.len().saturating_sub(5)) } else { 0 }, conversation: hash(22) }
+}
+
+/// FNV-1a: kept in the lists, so it must never change.
+fn fnv(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }
 
 #[derive(Default)]
@@ -132,6 +168,21 @@ impl Builder {
         self.nodes.get(n).and_then(|c| c.parent)
     }
 
+    /// What the ids left `n` hanging from when they reach no message: `n` itself when they gave
+    /// it no parent, or the top of its chain when every container above it was only referenced
+    /// (a reply to an original listed under another id). `None` once they reach a message.
+    fn unplaced_top(&self, n: usize) -> Option<usize> {
+        let mut cur = n;
+        for _ in 0..=self.nodes.len() {
+            match self.parent_of(cur) {
+                None => return Some(cur),
+                Some(p) if self.nodes.get(p).is_some_and(|c| c.msg.is_some()) => return None,
+                Some(p) => cur = p,
+            }
+        }
+        None
+    }
+
     /// All messages under `root`, depth-first.
     fn collect(&self, root: usize, out: &mut Vec<usize>) {
         let mut stack = vec![root];
@@ -155,8 +206,48 @@ impl Builder {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Thread {
     pub messages: Vec<usize>,
-    /// Newest date in the conversation.
+    /// When its newest message came ([`Summary::when`]).
     pub latest: i64,
+}
+
+/// Place by their conversation index the messages (`own[i]` holds message `i`) the ids left
+/// without a parent, or under ids no message listed carries: under the message whose index is theirs less its last block, or else
+/// under the conversation's first message (the one whose index is the conversation's alone, or
+/// the oldest) when its base subject is theirs. Ids stay first: they are what a reply names.
+fn place_by_index(b: &mut Builder, msgs: &[Summary], own: &[usize]) {
+    let mut by_own: HashMap<u64, usize> = HashMap::new();
+    let mut by_conversation: HashMap<u64, usize> = HashMap::new();
+    for (i, m) in msgs.iter().enumerate() {
+        if m.thread_own != 0
+            && let Some(&n) = own.get(i)
+        {
+            by_own.entry(m.thread_own).or_insert(n);
+        }
+        if m.thread_conversation != 0 {
+            let first = |&j: &usize| msgs.get(j).map_or((true, i64::MAX, j), |m| (m.thread_own != m.thread_conversation, m.when(), j));
+            by_conversation.entry(m.thread_conversation).and_modify(|j| *j = std::cmp::min_by_key(*j, i, first)).or_insert(i);
+        }
+    }
+    if by_own.is_empty() {
+        return;
+    }
+    for (i, m) in msgs.iter().enumerate() {
+        let Some(&n) = own.get(i) else { continue };
+        let Some(top) = b.unplaced_top(n).filter(|_| m.thread_own != 0) else { continue };
+        if let Some(&p) = by_own.get(&m.thread_parent).filter(|_| m.thread_parent != 0) {
+            b.link(p, top);
+            if b.parent_of(top).is_some() {
+                continue;
+            }
+        }
+        if let Some(&j) = by_conversation.get(&m.thread_conversation)
+            && j != i
+            && let (Some(first), Some(&fnode)) = (msgs.get(j), own.get(j))
+            && base_subject(&first.subject).to_lowercase() == base_subject(&m.subject).to_lowercase()
+        {
+            b.link(fnode, top);
+        }
+    }
 }
 
 /// Group messages into conversations. The result is sorted with the most recently active
@@ -200,6 +291,7 @@ pub fn threads(msgs: &[Summary]) -> Vec<Thread> {
             None => b.unlink(n),
         }
     }
+    place_by_index(&mut b, msgs, &own);
 
     // Roots, with empty containers resolved to their children.
     let mut roots: Vec<usize> = Vec::new();
@@ -222,7 +314,7 @@ pub fn threads(msgs: &[Summary]) -> Vec<Thread> {
     let mut by_subject: HashMap<String, usize> = HashMap::new();
     let mut merged: Vec<Vec<usize>> = Vec::new();
     let first_subject = |g: &Vec<usize>| -> (String, bool) {
-        let oldest = g.iter().copied().min_by_key(|&i| msgs.get(i).map_or(0, |m| m.date)).unwrap_or(0);
+        let oldest = g.iter().copied().min_by_key(|&i| msgs.get(i).map_or(0, Summary::when)).unwrap_or(0);
         let s = msgs.get(oldest).map(|m| m.subject.as_str()).unwrap_or_default();
         (base_subject(s).to_lowercase(), is_reply_subject(s))
     };
@@ -247,9 +339,9 @@ pub fn threads(msgs: &[Summary]) -> Vec<Thread> {
     let mut out: Vec<Thread> = merged
         .into_iter()
         .map(|mut v| {
-            v.sort_by_key(|&i| (msgs.get(i).map_or(0, |m| m.date), i));
+            v.sort_by_key(|&i| (msgs.get(i).map_or(0, Summary::when), i));
             v.dedup();
-            let latest = v.iter().filter_map(|&i| msgs.get(i)).map(|m| m.date).max().unwrap_or(0);
+            let latest = v.iter().filter_map(|&i| msgs.get(i)).map(Summary::when).max().unwrap_or(0);
             Thread { messages: v, latest }
         })
         .collect();
@@ -332,6 +424,101 @@ mod tests {
         let mut all: Vec<usize> = t.iter().flat_map(|t| t.messages.clone()).collect();
         all.sort();
         assert_eq!(all, vec![0, 1, 2, 3, 4]);
+    }
+
+    /// A conversation index: the header with `guid` (and a time), and `blocks` reply blocks.
+    fn index(guid: u8, blocks: &[u8]) -> Vec<u8> {
+        let mut v = vec![1, 0xD9, 1, 2, 3, 4];
+        v.extend([guid; 16]);
+        for &b in blocks {
+            v.extend([b; 5]);
+        }
+        v
+    }
+
+    fn indexed(subject: &str, date: i64, idx: &[u8]) -> Summary {
+        let mut s = m("", &[], "", subject, date);
+        s.set_thread_index(idx);
+        s
+    }
+
+    #[test]
+    fn index_keys_take_whole_indices_with_a_guid() {
+        let root = index_keys(&index(7, &[]));
+        let reply = index_keys(&index(7, &[1]));
+        assert!(root.own != 0 && root.parent == 0 && root.conversation == root.own);
+        assert_eq!((reply.parent, reply.conversation), (root.own, root.own));
+        assert_ne!(reply.own, root.own);
+        // Not 22 + 5k bytes, no GUID, too many blocks, nothing: no keys.
+        let mut odd = index(7, &[1]);
+        odd.pop();
+        for bad in [odd, index(0, &[1]), index(7, &[2; MAX_INDEX_BLOCKS + 1]), Vec::new(), vec![9; 21]] {
+            assert_eq!(index_keys(&bad), IndexKeys::default(), "{}", bad.len());
+        }
+        assert_ne!(index_keys(&index(7, &[2; MAX_INDEX_BLOCKS])), IndexKeys::default());
+    }
+
+    #[test]
+    fn the_index_places_a_reply_its_ids_dont() {
+        // A sent original (no id kept) and a reply whose subject was changed.
+        let msgs = vec![indexed("Plan", 1, &index(3, &[])), indexed("Other words", 5, &index(3, &[1])), indexed("Plan", 2, &index(4, &[]))];
+        let t = threads(&msgs);
+        assert_eq!(t.len(), 2);
+        assert_eq!((t[0].messages.as_slice(), t[0].latest), (&[0, 1][..], 5));
+    }
+
+    #[test]
+    fn the_index_places_a_reply_to_an_id_not_listed() {
+        // The sent original is listed under a fallback id; the replies name its real one.
+        let mut a = indexed("Plan", 1, &index(3, &[]));
+        a.message_id = "<pst.a.1.1@mailcraft.invalid>".into();
+        let mut b = indexed("Other words", 5, &index(3, &[1]));
+        (b.message_id, b.in_reply_to) = ("<b@x>".into(), "<real-a@x>".into());
+        let mut c = indexed("Re: Other words", 6, &index(3, &[1, 2]));
+        (c.message_id, c.references) = ("<c@x>".into(), vec!["<real-a@x>".into(), "<b@x>".into()]);
+        let t = threads(&[a, b, c, indexed("Else", 2, &index(4, &[]))]);
+        assert_eq!(t.len(), 2);
+        assert_eq!((t[0].messages.as_slice(), t[0].latest), (&[0, 1, 2][..], 6));
+    }
+
+    #[test]
+    fn a_conversation_joins_only_on_its_subject() {
+        // The message answered is missing: the conversation's first takes the replies whose
+        // subject is its own.
+        let msgs = vec![
+            indexed("Plan", 1, &index(3, &[])),
+            indexed("RE: Plan", 3, &index(3, &[1, 2])),
+            indexed("Something else", 4, &index(3, &[1, 3])),
+            indexed("Plan", 2, &index(0, &[])),
+        ];
+        let t = threads(&msgs);
+        let with = |i: usize| t.iter().position(|t| t.messages.contains(&i));
+        assert_eq!(with(0), with(1));
+        assert_ne!(with(0), with(2));
+        assert_ne!(with(0), with(3), "no GUID, no conversation");
+    }
+
+    #[test]
+    fn ids_come_before_the_index() {
+        // The reply names its parent by id; its index points elsewhere.
+        let mut a = indexed("A", 1, &index(5, &[]));
+        a.message_id = "<a@x>".into();
+        let b = indexed("B", 2, &index(6, &[]));
+        let mut c = indexed("Re: A", 3, &index(6, &[1]));
+        c.in_reply_to = "<a@x>".into();
+        let t = threads(&[a, b, c]);
+        let with = |i: usize| t.iter().position(|t| t.messages.contains(&i));
+        assert_eq!(with(0), with(2));
+        assert_ne!(with(1), with(2));
+    }
+
+    #[test]
+    fn received_orders_conversations() {
+        let mut late = m("<b@x>", &["<a@x>"], "", "Re: Q", 2);
+        late.received = 9;
+        let msgs = vec![m("<a@x>", &[], "", "Q", 1), late, m("<c@x>", &[], "", "Other", 5)];
+        let t = threads(&msgs);
+        assert_eq!((t[0].messages.as_slice(), t[0].latest), (&[0, 1][..], 9));
     }
 
     #[test]

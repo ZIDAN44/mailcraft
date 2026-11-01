@@ -168,7 +168,7 @@ impl Session {
         quiet.extend(self.run_rules(&rest));
         // Mail older than a day (a resync after a long time away) isn't "new" any more.
         let cutoff = self.clock.now - 86_400;
-        let fresh: Vec<Summary> = arrived.into_iter().filter(|m| !m.flags.seen && m.date >= cutoff && !quiet.contains(&m.key)).collect();
+        let fresh: Vec<Summary> = arrived.into_iter().filter(|m| !m.flags.seen && m.when() >= cutoff && !quiet.contains(&m.key)).collect();
         if self.prefs.notify {
             self.new_mail.extend(fresh.into_iter().rev());
             // A burst (a first sync, a long time offline) is summed up by the UI; keep it bounded.

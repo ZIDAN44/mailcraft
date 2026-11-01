@@ -231,8 +231,14 @@ the reader returns the damage instead of setting it aside under the writer.
 
 `model::thread` implements JWZ threading (as used by IMAP `THREAD=REFERENCES`): containers per
 Message-ID, parent links from `References`/`In-Reply-To` without creating loops, empty containers
-promoted away, then replies that lost their references grouped by base subject. Every message
-appears in exactly one conversation.
+promoted away. A message the ids left without a parent, or under ids no listed message carries,
+is then placed by Outlook's conversation index (`Thread-Index`, kept in the summary as hashes
+of the whole index, of the index it answers
+and of the conversation's 22-byte header): under the message it answers, or under the
+conversation's first message when the base subjects match. Then replies that lost their
+references are grouped by base subject. Every message appears in exactly one conversation;
+conversations and the list go by `Summary::when` (when the message was received, where that is
+known, else its date).
 
 ## Testing
 

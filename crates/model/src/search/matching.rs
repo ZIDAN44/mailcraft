@@ -346,8 +346,8 @@ fn clause(term: &Term, doc: &Doc<'_>) -> Tri {
         }
         Term::Size(true, b) => Tri::from(u64::from(m.size) > *b),
         Term::Size(false, b) => Tri::from(u64::from(m.size) < *b),
-        // `sent:` and `received:` both read the list's date for now.
-        Term::Date(spec) => spec.holds(m.date).map_or(Tri::Unknown, Tri::from),
+        // `received:` (`after:`, `before:`) reads when it came, `sent:` and `date:` its Date:.
+        Term::Date(spec) => spec.holds(if spec.sent { m.date } else { m.when() }).map_or(Tri::Unknown, Tri::from),
         Term::AnyOf(ts) => ts.iter().fold(Tri::No, |acc, t| acc.or(clause(t, doc))),
         Term::Words(f, ws) => ws.iter().fold(Tri::Yes, |acc, w| if acc == Tri::No { acc } else { acc.and(word(f, w, doc)) }),
         Term::Phrase(f, p) => phrase(f, p, doc),

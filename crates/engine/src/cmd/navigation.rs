@@ -367,6 +367,7 @@ pub(super) fn summary_json(m: &mailcraft_model::Summary) -> Value {
     json!({
         "key": m.key.to_id(),
         "date": m.date,
+        "received": m.when(),
         "from": m.from.to_string(),
         "subject": m.subject,
         "preview": m.preview,

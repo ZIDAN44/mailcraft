@@ -636,7 +636,7 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
                 p.text(
                     rect.right_center() - vec2(8.0, 0.0),
                     egui::Align2::RIGHT_CENTER,
-                    crate::i18n::date(&dates::list_time(m.date, &s.clock)),
+                    crate::i18n::date(&dates::list_time(m.when(), &s.clock)),
                     theme::regular(12.0),
                     t.dim,
                 );

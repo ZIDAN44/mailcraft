@@ -5,7 +5,7 @@ use mailcraft_model::dates::Clock;
 use mailcraft_model::job::{Eta, ImportProgress, Work, eta};
 use mailcraft_model::search::{Advanced, Doc, MAX_TOKEN_CHARS, Query, SummaryText, fold_word, tokens};
 use mailcraft_model::vcard::{self, Card, PostalAddress, Typed};
-use mailcraft_model::{EmailAddress, ical, lookalike, utf7};
+use mailcraft_model::{EmailAddress, Summary, ical, lookalike, thread, utf7};
 use proptest::prelude::*;
 
 /// Words the search box reads as plain words (no `field:`, no leading `-` or quote).
@@ -81,6 +81,28 @@ fn card() -> impl Strategy<Value = Card> {
             birthday: birthday.to_string(),
             extra: Vec::new(),
         })
+}
+
+/// A message with an id, references and a conversation index drawn from small sets, so they
+/// meet (and loop, and repeat).
+fn threaded() -> impl Strategy<Value = Summary> {
+    let id = || "[a-e]?".prop_map(|s| if s.is_empty() { s } else { format!("<{s}@x>") });
+    let index = (0u8..3, proptest::collection::vec(0u8..3, 0..4), any::<bool>()).prop_map(|(guid, blocks, odd)| {
+        let mut v = vec![1, 2, 3, 4, 5, 6];
+        v.extend([guid; 16]);
+        blocks.iter().for_each(|&b| v.extend([b; 5]));
+        if odd {
+            v.push(0);
+        }
+        v
+    });
+    (id(), proptest::collection::vec(id(), 0..4), id(), "(Re: )?[xy]?", 0i64..10, prop_oneof![Just(0i64), 0i64..20], index).prop_map(
+        |(message_id, references, in_reply_to, subject, date, received, index)| {
+            let mut m = Summary { message_id, references, in_reply_to, subject, date, received, ..Default::default() };
+            m.set_thread_index(&index);
+            m
+        },
+    )
 }
 
 proptest! {
@@ -220,5 +242,41 @@ proptest! {
             prop_assert!(last <= permille, "{last:?} then {permille:?}");
             last = permille;
         }
+    }
+
+    /// Every message lands in exactly one conversation, whatever its ids, conversation index
+    /// and dates; conversations come newest first, each oldest first.
+    #[test]
+    fn every_message_is_threaded_once(msgs in proptest::collection::vec(threaded(), 0..40)) {
+        let t = thread::threads(&msgs);
+        let mut all: Vec<usize> = t.iter().flat_map(|t| t.messages.iter().copied()).collect();
+        all.sort_unstable();
+        prop_assert_eq!(all, (0..msgs.len()).collect::<Vec<_>>());
+        for c in &t {
+            let whens: Vec<i64> = c.messages.iter().map(|&i| msgs[i].when()).collect();
+            prop_assert!(whens.windows(2).all(|w| w[0] <= w[1]));
+            prop_assert_eq!(whens.iter().copied().max(), Some(c.latest));
+        }
+        prop_assert!(t.windows(2).all(|w| w[0].latest >= w[1].latest));
+    }
+
+    /// A reply whose ids name only a message not listed (the original kept under another id)
+    /// joins the message its conversation index answers, whatever else is in the folder.
+    #[test]
+    fn a_reply_to_an_unlisted_id_joins_its_index_parent(mut msgs in proptest::collection::vec(threaded(), 0..40), refs in any::<bool>()) {
+        let root = [vec![1, 2, 3, 4, 5, 6], vec![9; 16]].concat();
+        let mut original = Summary { message_id: "<original@y>".into(), subject: "Plan".into(), ..Default::default() };
+        original.set_thread_index(&root);
+        let mut reply = Summary { message_id: "<reply@y>".into(), subject: "Other words".into(), date: 30, ..Default::default() };
+        if refs {
+            reply.references = vec!["<gone@y>".into(), "<absent@y>".into()];
+        } else {
+            reply.in_reply_to = "<absent@y>".into();
+        }
+        reply.set_thread_index(&[root, vec![7; 5]].concat());
+        let (o, r) = (msgs.len(), msgs.len() + 1);
+        msgs.extend([original, reply]);
+        let t = thread::threads(&msgs);
+        prop_assert!(t.iter().any(|c| c.messages.contains(&o) && c.messages.contains(&r)));
     }
 }

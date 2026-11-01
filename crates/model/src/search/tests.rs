@@ -381,6 +381,12 @@ fn received_is_a_period_in_the_local_zone() {
     m.date = local(2025, 1, 1, &c) - 1;
     assert_eq!((check("received:2024", &m), check("before:2025", &m), check("after:2025", &m)), (Tri::Yes, Tri::Yes, Tri::No));
     assert_eq!(eval(&Query::parse("received:2024"), &m, &""), Tri::Unknown, "not placed in a zone yet: can't tell");
+    // Sent late in 2023, it came in 2024: `received:` (and after/before) go by when it came,
+    // `sent:` and `date:` by its Date:.
+    m.date = local(2024, 1, 1, &c) - 3600;
+    m.received = local(2024, 1, 1, &c) + 3600;
+    assert_eq!((check("received:2024", &m), check("after:2024", &m), check("before:2024", &m)), (Tri::Yes, Tri::Yes, Tri::No));
+    assert_eq!((check("sent:2024", &m), check("sent:2023", &m), check("date:2023", &m)), (Tri::No, Tri::Yes, Tri::Yes));
     assert!(!Query::parse("received:2024").needs_text());
 }
 

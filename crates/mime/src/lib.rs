@@ -128,7 +128,7 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         .is_some_and(|c| c.ctype().eq_ignore_ascii_case("multipart") && c.subtype().is_some_and(|s| s.eq_ignore_ascii_case("mixed")));
     let has_attachments = has_real_attachments(m) || (m.attachment_count() == 0 && content_type_multipart_mixed && m.text_body_count() == 0);
     let text = m.body_text(0).map(|t| t.into_owned()).unwrap_or_default();
-    Summary {
+    let mut s = Summary {
         key,
         message_id: m.message_id().map(norm_id).unwrap_or_default(),
         in_reply_to: ids(m.in_reply_to()).into_iter().next().unwrap_or_default(),
@@ -154,7 +154,24 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
             )
         }),
         importance: importance(m),
+        ..Default::default()
+    };
+    if let Some(index) = thread_index(m) {
+        s.set_thread_index(&index);
     }
+    s
+}
+
+/// The conversation index a message's `Thread-Index` header holds (base64 of 22 + 5·k bytes,
+/// k ≤ [`mailcraft_model::thread::MAX_INDEX_BLOCKS`]); a longer header isn't decoded.
+fn thread_index(m: &Message<'_>) -> Option<Vec<u8>> {
+    let raw = m.header_raw("Thread-Index")?;
+    let longest = (22 + 5 * mailcraft_model::thread::MAX_INDEX_BLOCKS).div_ceil(3) * 4;
+    let clean: String = raw.chars().filter(|c| !c.is_ascii_whitespace()).take(longest + 1).collect();
+    if clean.is_empty() || clean.len() > longest {
+        return None;
+    }
+    mail_parser::decoders::base64::base64_decode(clean.as_bytes())
 }
 
 /// How important the sender marked a message: 1 high, -1 low, 0 normal. `Importance` (RFC 2156),

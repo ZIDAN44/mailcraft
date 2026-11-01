@@ -520,6 +520,39 @@ fn the_reading_pane_marks_mail_read_as_chosen() {
     );
 }
 
+/// Mail sent long before it came (a data file's) is listed, headed and threaded by when it came;
+/// alone or in its conversation, it goes under Today.
+#[test]
+fn received_mail_is_listed_when_it_came() {
+    let store = temp("received-order");
+    sample::seed_if_empty(&store, NOW).unwrap();
+    let mut st = store.load_folder("sample", "Projects").unwrap();
+    let m = |uid: u32, subject: &str, date: i64, received: i64| mailcraft_model::Summary {
+        key: mailcraft_model::MessageKey { account: "sample".into(), folder: "Projects".into(), validity: st.validity, uid },
+        message_id: format!("m{uid}@x"),
+        subject: subject.into(),
+        date,
+        received,
+        ..Default::default()
+    };
+    let mut late = m(1, "Late", NOW - 20 * 86_400, NOW - 60);
+    late.in_reply_to = "m3@x".into();
+    st.messages = vec![late, m(2, "Yesterday's", NOW - 86_400, 0), m(3, "First", NOW - 30 * 86_400, 0)];
+    store.save_folder("sample", "Projects", &st).unwrap();
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    let subjects: Vec<&str> = s.list.iter().map(|m| m.subject.as_str()).collect();
+    assert_eq!(subjects, ["Late", "Yesterday's", "First"]);
+    let rows = s.rows();
+    assert_eq!(rows[..2], [Row::Header("Today"), Row::Message { index: 0, count: 1, unread: 1 }]);
+    assert_eq!(rows[2], Row::Header("Yesterday"));
+    assert_eq!(s.run("list.messages", &json!({})).ok().and_then(|v| v["messages"][0]["received"].as_i64()), Some(NOW - 60));
+    s.run("view.conversations", &json!({"on": true})).unwrap();
+    let rows = s.rows();
+    assert_eq!(rows[..2], [Row::Header("Today"), Row::Message { index: 0, count: 2, unread: 2 }]);
+    assert_eq!(s.threads[0].latest, NOW - 60);
+}
+
 /// A big folder (tens of thousands of messages, as a 60 GB data file brings): selecting all and
 /// marking them read, then deleting them, takes moments, not minutes (per message, a delete read
 /// its whole folder again, and lookups went through whole lists: 8,000 took 65 s).

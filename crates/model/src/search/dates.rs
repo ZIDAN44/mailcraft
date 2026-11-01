@@ -61,6 +61,9 @@ pub struct DateSpec {
     pub to: Option<DateBound>,
     /// `[from, to)` in Unix seconds, once [resolved](Query::resolve).
     pub range: Option<(i64, i64)>,
+    /// Whether it reads when the mail was sent, its Date: (`sent:`, `date:`), rather than when
+    /// it came ([`Summary::when`](crate::Summary::when)).
+    pub sent: bool,
 }
 
 const DAY: i64 = 86_400;
@@ -69,7 +72,7 @@ const DAY: i64 = 86_400;
 pub(super) fn period(value: &str) -> Option<DateSpec> {
     let v = unquote(value);
     let bound = |p: DatePoint, edge| Some(DateBound { point: p, edge });
-    let spec = |from, to| Some(DateSpec { from, to, range: None });
+    let spec = |from, to| Some(DateSpec { from, to, range: None, sent: false });
     for (op, from_edge, to_edge) in
         [(">=", Some(Edge::Start), None), ("<=", None, Some(Edge::End)), (">", Some(Edge::End), None), ("<", None, Some(Edge::Start))]
     {
@@ -94,13 +97,13 @@ pub(super) fn period(value: &str) -> Option<DateSpec> {
 /// `after:X`: from X's start on.
 pub(super) fn after(value: &str) -> Option<DateSpec> {
     let p = point(&unquote(value))?;
-    Some(DateSpec { from: Some(DateBound { point: p, edge: Edge::Start }), to: None, range: None })
+    Some(DateSpec { from: Some(DateBound { point: p, edge: Edge::Start }), to: None, range: None, sent: false })
 }
 
 /// `before:X`: before X starts.
 pub(super) fn before(value: &str) -> Option<DateSpec> {
     let p = point(&unquote(value))?;
-    Some(DateSpec { from: None, to: Some(DateBound { point: p, edge: Edge::Start }), range: None })
+    Some(DateSpec { from: None, to: Some(DateBound { point: p, edge: Edge::Start }), range: None, sent: false })
 }
 
 /// Whether a value is one day written out (`2024-03-15`, `2024/3/15`, `20240315`): what the
