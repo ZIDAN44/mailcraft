@@ -109,6 +109,7 @@ fn a_big_message_goes_alone() {
         skipped: 0,
         skips: BTreeMap::new(),
         charset_unsupported: 0,
+        body_not_converted: 0,
         progress: &mut progress,
         pim: Pim::default(),
         pending: Vec::new(),
