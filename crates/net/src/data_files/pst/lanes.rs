@@ -14,6 +14,7 @@ use std::sync::{Mutex, PoisonError};
 use super::budget::{Budget, held};
 use super::chunked::Pages;
 use super::order::{Done, Step};
+use super::out::sent_ids::{self, Given, SentIds};
 use super::rebuild::{message, summary_of};
 use super::*;
 
@@ -33,6 +34,9 @@ pub(super) struct Job {
     pub(super) pim: bool,
     pub(super) folder_node: u32,
     pub(super) row: u64,
+    /// In the Sent Items folder, read last: the replies read before it, which give its items
+    /// with no id of their own theirs (`out/sent_ids.rs`).
+    pub(super) sent: Option<Arc<SentIds>>,
 }
 
 /// What became of an item.
@@ -62,6 +66,10 @@ pub(super) struct Built {
     pub(super) body_not_converted: bool,
     pub(super) without_address: usize,
     pub(super) left_out: BTreeMap<SkipReason, usize>,
+    /// The reply it is (its parent index's hash, and the id it answers), and the id it was
+    /// given as a sent item, for the writer to note.
+    pub(super) reply: Option<(u64, String)>,
+    pub(super) given: Option<Given>,
 }
 
 /// What an import's threads share.
@@ -243,11 +251,11 @@ impl Drop for Answer<'_> {
 }
 
 /// Reads an item of the file by its node.
-type ReadItem<'a> = dyn Fn(u32) -> io::Result<Item> + 'a;
+pub(super) type ReadItem<'a> = dyn Fn(u32) -> io::Result<Item> + 'a;
 
 /// The lane's loop over its jobs, from `first`: `read` reads an item, `reset` lets go of the
 /// handle it reads through (it's opened again for the next).
-fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &ReadItem<'_>, reset: &dyn Fn()) {
+pub(super) fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &ReadItem<'_>, reset: &dyn Fn()) {
     let mut next = Some(first);
     while let Some(job) = next.take().or_else(|| next_job(jobs)) {
         let mut answer = Answer::new(&job, results);
@@ -290,7 +298,7 @@ fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &R
 fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outcome {
     #[cfg(test)]
     tests::fault(ctx, job);
-    let it = match ctx.tally.time(Phase::Read, || read(job.node)) {
+    let mut it = match ctx.tally.time(Phase::Read, || read(job.node)) {
         Ok(it) => it,
         Err(e) => {
             log::info!("an item could not be read: {e}");
@@ -313,7 +321,17 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
         return Outcome::Pim(Box::new(it));
     }
     let fallback = format!("pst.{}.{}.{:x}@mailcraft.invalid", ctx.account, ctx.filetag, job.node);
-    build(it, &fallback, ctx.packs, ctx.index, &ctx.tally)
+    // A reply read before the sent items is noted; a sent item may be given the id one answered.
+    let (reply, given) = match job.sent.as_deref() {
+        None => (sent_ids::reply_of(&it), None),
+        Some(ids) => (None, sent_ids::give(&mut it, ids)),
+    };
+    let mut built = build(it, &fallback, ctx.packs, ctx.index, &ctx.tally);
+    if let Outcome::Built(b) = &mut built {
+        b.reply = reply;
+        b.given = given.map(|id| Given { id, fallback });
+    }
+    built
 }
 
 /// Whether an item of `class` comes in as mail: meeting requests and receipts are mail too, and so
@@ -362,7 +380,18 @@ pub(super) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tall
     let doc = index.then(|| tally.time(Phase::Index, || mailcraft_store::search::Ready::of(&mime::index_doc(&raw))));
     let raw_len = raw.len();
     let prepared = tally.time(Phase::Pack, || Store::prepare(packs, raw));
-    Outcome::Built(Box::new(Built { summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out }))
+    Outcome::Built(Box::new(Built {
+        summary,
+        prepared,
+        doc,
+        raw_len,
+        charset_unsupported,
+        body_not_converted,
+        without_address,
+        left_out,
+        reply: None,
+        given: None,
+    }))
 }
 
 macro_rules! lane {

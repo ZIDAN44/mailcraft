@@ -91,6 +91,33 @@ pub struct Spot {
     pub row: u64,
 }
 
+/// What the import has read of the replies to sent items (`out/sent_ids.rs`): each reply's
+/// parent index (a hash) and the id it answers ("" when replies to it answer two), and the real
+/// ids read (their hashes); `full` once past what's kept, when nothing is.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SentMap {
+    pub replies: Vec<SentReply>,
+    pub seen: Vec<u64>,
+    pub full: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SentReply {
+    pub key: u64,
+    pub id: String,
+}
+
+impl SentMap {
+    /// Whether it's one an import could have kept: no more entries than its bytes allow, and
+    /// ids no longer than one kept.
+    pub(super) fn sound(&self) -> bool {
+        let most = super::out::sent_ids::MAX_BYTES / 16;
+        self.replies.len() <= most && self.seen.len() <= most && self.replies.iter().all(|r| r.id.len() <= MAX_ID)
+    }
+}
+
 /// What the import has counted so far.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -114,6 +141,10 @@ pub struct Checkpoint {
     pub folders: Vec<Folder>,
     pub done: Vec<Placed>,
     pub current: Option<Current>,
+    /// The Sent Items folder, made in its place but read after every other (not read yet, or,
+    /// going on, read in part), and the replies read for it.
+    pub deferred: Option<Current>,
+    pub sent: SentMap,
     pub failed: Vec<Spot>,
     pub counts: Counts,
     /// The contacts, calendar and notes read so far are in the account's (written with this).
@@ -149,7 +180,21 @@ impl Checkpoint {
                 && (c.path.is_empty() || paths.contains(c.path.as_str()))
                 && c.tail.as_ref().is_none_or(|t| !c.path.is_empty() && t.is_sound())
         });
-        self.version == VERSION && folders_ok && done_ok && current_ok && self.failed.len() <= MAX_FAILED && self.counts.skips.len() <= 64
+        let deferred_ok = self.deferred.as_ref().is_none_or(|d| {
+            !nodes.contains(&d.node)
+                && self.current.as_ref().is_none_or(|c| c.node != d.node)
+                && d.uid_next >= 1
+                && paths.contains(d.path.as_str())
+                && d.tail.as_ref().is_none_or(ListTail::is_sound)
+        });
+        self.version == VERSION
+            && folders_ok
+            && done_ok
+            && current_ok
+            && deferred_ok
+            && self.sent.sound()
+            && self.failed.len() <= MAX_FAILED
+            && self.counts.skips.len() <= 64
     }
 
     /// What an import done came to, from its checkpoint alone (the data file isn't read again).
@@ -203,10 +248,12 @@ pub fn checkpoint_from_bytes(bytes: &[u8]) -> Option<bool> {
 }
 
 /// What the planner leaves out going on: the folders done, the rows of the one part-way through
-/// read already, and the rows the reader failed on; and the file it's to be.
+/// (and of the Sent Items folder put off, when it was) read already, and the rows the reader
+/// failed on; and the file it's to be.
 pub(super) struct Skip {
     done: HashSet<u32>,
     current: Option<(u32, u64)>,
+    deferred: Option<(u32, u64)>,
     failed: HashSet<Spot>,
     source: Source,
 }
@@ -216,6 +263,7 @@ impl Skip {
         Skip {
             done: cp.done.iter().map(|d| d.node).collect(),
             current: cp.current.as_ref().map(|c| (c.node, c.next_row)),
+            deferred: cp.deferred.as_ref().map(|c| (c.node, c.next_row)),
             failed: cp.failed.iter().copied().collect(),
             source: cp.source.clone(),
         }
@@ -227,8 +275,8 @@ impl Skip {
 
     /// The first row of the folder at `node` still to read.
     pub(super) fn start(&self, node: u32) -> u64 {
-        match self.current {
-            Some((n, row)) if n == node => row,
+        match (self.current, self.deferred) {
+            (Some((n, row)), _) | (_, Some((n, row))) if n == node => row,
             _ => 0,
         }
     }
@@ -297,6 +345,10 @@ pub(super) struct Note {
     placed: HashMap<u32, String>,
     resumed: Option<Current>,
     reconcile: Vec<Folder>,
+    /// The Sent Items folder, made in its place to be read last (`order::Step::Folder`); going
+    /// on, as the checkpoint left it, until it's made again.
+    deferred: Option<At>,
+    resumed_deferred: Option<Current>,
 }
 
 impl Note {
@@ -342,6 +394,8 @@ impl Out<'_> {
         note.reconcile = cp.folders.iter().filter(|f| done_paths.contains(f.path.as_str())).cloned().collect();
         note.done = cp.done;
         note.resumed = cp.current;
+        note.resumed_deferred = cp.deferred;
+        self.sent = super::out::sent_ids::SentIds::from_map(&cp.sent);
         self.folders = cp.folders;
         skip
     }
@@ -364,18 +418,37 @@ impl Out<'_> {
     }
 
     /// The mail folder for the file's folder at `node` (`name`, under `parent`): the one it went
-    /// to when it's done already, the one part-way through opened again, or a new one.
-    pub(super) fn begin_folder(&mut self, node: u32, parent: Option<&str>, name: &str) -> Option<String> {
+    /// to when it's done already, the one part-way through opened again, or a new one. One
+    /// `deferred` (the Sent Items folder in its place) is made, or opened again, but not read
+    /// until it begins again after every other.
+    pub(super) fn begin_folder(&mut self, node: u32, parent: Option<&str>, name: &str, deferred: bool) -> Option<String> {
+        if !deferred && let Some(at) = self.note.deferred.take_if(|d| d.node == node) {
+            let path = at.path.clone();
+            self.note.at = Some(at);
+            return path;
+        }
         if let Some(path) = self.note.placed.get(&node) {
             return Some(path.clone());
         }
-        if self.note.resumed.as_ref().is_some_and(|c| c.node == node) {
-            let current = self.note.resumed.take()?;
-            return self.reopen(current);
+        let resumed = match self.note.resumed.take_if(|c| c.node == node) {
+            Some(c) => Some(c),
+            None => self.note.resumed_deferred.take_if(|c| c.node == node),
+        };
+        let reading = self.note.at.take();
+        let path = match resumed {
+            Some(current) => self.reopen(current),
+            None => {
+                let path = self.add_folder(parent, name);
+                self.note.at = Some(At { node, path: Some(path.clone()), next_row: 0 });
+                Some(path)
+            }
+        };
+        if deferred {
+            // Made, not read: the folder being read (none, between folders) stays the one.
+            self.note.deferred = self.note.at.take();
+            self.note.at = reading;
         }
-        let path = self.add_folder(parent, name);
-        self.note.at = Some(At { node, path: Some(path.clone()), next_row: 0 });
-        Some(path)
+        path
     }
 
     /// The file's contacts, calendar, tasks, notes or journal folder at `node` begins.
@@ -480,18 +553,40 @@ impl Out<'_> {
         self.current(false).map(|c| c.path).filter(|p| !p.is_empty())
     }
 
+    /// The Sent Items folder made and not read yet, as the checkpoint says it.
+    pub(super) fn deferred_path(&self) -> Option<&str> {
+        match &self.note.deferred {
+            Some(d) => d.path.as_deref(),
+            None => self.note.resumed_deferred.as_ref().map(|c| c.path.as_str()),
+        }
+    }
+
+    /// The Sent Items folder made and not read yet (or, going on, read in part), for a
+    /// checkpoint, as the folder part-way through is.
+    fn deferred(&self) -> Option<Current> {
+        match self.note.deferred.as_ref() {
+            Some(d) => Some(self.current_of(d, true)),
+            None => self.note.resumed_deferred.clone(),
+        }
+    }
+
     /// The folder part-way through as it stands (with its list's tail when `tail`).
     fn current(&self, tail: bool) -> Option<Current> {
         // Going on, before the folder part-way through is reached again: as it was.
         let Some(at) = self.note.at.as_ref() else { return self.note.resumed.clone() };
+        Some(self.current_of(at, tail))
+    }
+
+    /// The folder `at` as it stands (with its list's tail when `tail`, and it isn't listed yet).
+    fn current_of(&self, at: &At, tail: bool) -> Current {
         let open = at.path.as_deref().and_then(|p| self.states.get(p));
-        Some(Current {
+        Current {
             node: at.node,
             path: at.path.clone().unwrap_or_default(),
             next_row: at.next_row,
             uid_next: open.map_or(1, |o| o.uid_next),
             tail: open.filter(|_| tail).map(|o| o.list.tail(&o.waiting)),
-        })
+        }
     }
 
     /// The checkpoint as things stand (every source handed to the store is written), and the
@@ -511,6 +606,8 @@ impl Out<'_> {
             folders: self.folders.iter().filter(|f| Some(f.path.as_str()) != invented).cloned().collect(),
             done: self.note.done.clone(),
             current,
+            deferred: self.deferred(),
+            sent: self.sent.to_map(),
             failed: self.note.failed.clone(),
             counts: Counts {
                 read: wide(self.read),

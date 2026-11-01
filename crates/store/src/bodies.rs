@@ -23,6 +23,12 @@ impl Prepared {
         self.bytes.len()
     }
 
+    /// The source itself, read back out of what was made ready (to be changed and made ready
+    /// again: rare, it undoes the compression).
+    pub fn source(&self) -> io::Result<Vec<u8>> {
+        self.clone().into_raw()
+    }
+
     /// The source itself again, for a store that keeps files as they are.
     pub(crate) fn into_raw(self) -> io::Result<Vec<u8>> {
         if !self.kept {

@@ -365,6 +365,9 @@ pub struct ImportOptions {
     /// How often a test's import writes its checkpoint (none: as the app's does).
     #[cfg(test)]
     pub(crate) checkpoint_every: Option<Duration>,
+    /// The folder a test's import takes for the file's Sent Items, by its name.
+    #[cfg(test)]
+    pub(crate) sent_folder: Option<&'static str>,
 }
 
 /// How far an import is asked to stop. It's raised from any thread and never lowered: paused,
@@ -467,7 +470,7 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
             }
         }
         let stop_all = StopAll(ctx);
-        let feed = plan::Feed { seq: 0, jobs: job_tx, results: tx.clone() };
+        let feed = plan::Feed { seq: 0, jobs: job_tx, results: tx.clone(), handed: 0, capped: false };
         let planner = std::thread::Builder::new()
             .spawn_scoped(s, move || std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| planner(ctx, feed))))
             .map_err(|e| log::warn!("import: the planner could not start: {e}"))

@@ -1757,6 +1757,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   replies or with no conversation GUID is passed over. It is kept with the list as three hashes,
   so working out conversations never decodes it; mail already listed has none (a `.pst`
   imported again gets them).
+- **Sent mail's own ids from a `.pst`:** Outlook keeps no Message-ID for the mail it sent, so a
+  sent item came in with one MailCraft made up, and the replies to it named a message the
+  account didn't hold. The Sent Items folder is now read after every other (it's still made in
+  its place, under its name, and read even when the reader failed on a folder before it): a
+  reply read before it whose conversation index is a sent item's and one block more gives that
+  item the id the reply answers, when the item has none of its own. Nothing is guessed: replies
+  answering two ids give none, an id a message read has already isn't given, and one is given
+  once. Up to 16 MB of replies and ids are kept, with the import's checkpoint (an import gone on
+  with gives the same ids); past that, sent items keep the ids made up for them. Replies in Sent
+  Items itself (to your own mail) aren't used, and drafts get none.
 - **Signed and encrypted mail from a `.pst`:** it came in with its signature or its encrypted
   content as a file, `smime.p7m`, that nothing could check or open. Outlook keeps that content
   whole; it is now put back as the message's content, under the message's own header fields, so

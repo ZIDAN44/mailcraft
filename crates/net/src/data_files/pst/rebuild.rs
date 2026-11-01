@@ -173,7 +173,7 @@ pub(super) fn header_text(s: &str, cap: usize) -> String {
 }
 
 /// Whether a header block has a line named `name` (a folded line's continuation names nothing).
-fn has_header(head: &str, name: &str) -> bool {
+pub(super) fn has_header(head: &str, name: &str) -> bool {
     head.lines().filter(|l| !l.starts_with([' ', '\t'])).any(|l| l.split_once(':').is_some_and(|(n, _)| n.trim_end().eq_ignore_ascii_case(name)))
 }
 

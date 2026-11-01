@@ -8,6 +8,7 @@ use super::resume::CheckState;
 use super::*;
 
 mod indexing;
+pub(super) mod sent_ids;
 
 /// Message sources written to the cache together (one transaction): at most this many…
 const BATCH_MESSAGES: usize = 2000;
@@ -81,6 +82,8 @@ pub(super) struct Out<'a> {
     indexed: u64,
     /// Where the import has got, for its checkpoints (`resume`).
     pub(super) note: super::resume::Note,
+    /// The replies and ids read, for the sent items read last (`sent_ids`).
+    pub(super) sent: sent_ids::SentIds,
 }
 
 impl<'a> Out<'a> {
@@ -118,6 +121,7 @@ impl<'a> Out<'a> {
             index: None,
             indexed: 0,
             note: super::resume::Note::every(checkpoint_every(opts)),
+            sent: sent_ids::SentIds::default(),
         }
     }
 }
@@ -316,7 +320,7 @@ impl Out<'_> {
             self.budget.release(charge);
             return;
         };
-        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out } = b;
+        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out, .. } = b;
         let uid = st.uid_next;
         st.uid_next = uid.saturating_add(1);
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
@@ -510,7 +514,9 @@ impl Out<'_> {
     /// the order the folders came).
     fn part_way(&self) -> Option<String> {
         self.stopped_as()?;
-        self.folders.iter().find(|f| self.states.contains_key(&f.path)).map(|f| f.path.clone())
+        // Not the Sent Items folder waiting to be read last.
+        let deferred = self.deferred_path();
+        self.folders.iter().find(|f| self.states.contains_key(&f.path) && Some(f.path.as_str()) != deferred).map(|f| f.path.clone())
     }
 
     fn write_out(&mut self) -> Imported {
@@ -526,6 +532,7 @@ impl Out<'_> {
             // Going on, one not reached again yet is part-way through still.
             let mut part_way: Vec<String> = self.states.keys().cloned().collect();
             part_way.extend(self.part_way_path());
+            part_way.extend(self.deferred_path().map(str::to_string));
             self.states.clear();
             let folders = self.folders.iter().filter(|f| !part_way.contains(&f.path)).cloned().collect();
             return self.came_to(folders, stopped, stopped_in, last_save);

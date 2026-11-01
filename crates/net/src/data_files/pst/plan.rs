@@ -9,10 +9,11 @@
 //! are capped. A folder the reader fails on (a panic) is left out, and the plan goes on.
 
 use std::collections::HashSet;
-use std::sync::mpsc::{Sender, SyncSender, TrySendError};
+use std::sync::mpsc::{RecvTimeoutError, Sender, SyncSender, TrySendError};
 
 use super::lanes::{Ctx, Job};
 use super::order::{Done, Step};
+use super::out::sent_ids::SentIds;
 use super::*;
 
 /// Jobs waiting for a lane, at most.
@@ -58,6 +59,8 @@ pub(super) struct Plan {
     full: bool,
     /// The file's own record key (PidTagRecordKey of its store), in hex.
     pub(super) record_key: String,
+    /// The Sent Items folder's node, read last (`stream`).
+    pub(super) sent: Option<u32>,
 }
 
 /// The folders a plan has taken, against the file going round in circles or on for ever.
@@ -132,6 +135,12 @@ pub(super) fn plan(store: &dyn PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
     let mut guard = Guard::default();
     let outbox = special_folder(store, 0x35E2);
     visit(store, &*top, None, 0, outbox, &mut guard, &mut plan, ctx);
+    plan.sent = special_folder(store, 0x35E4);
+    // A test's file has no Sent Items folder of its own: one is named.
+    #[cfg(test)]
+    if let Some(name) = ctx.opts.sent_folder {
+        plan.sent = plan.folders.iter().find(|f| f.name == name).map(|f| f.node);
+    }
     Ok(plan)
 }
 
@@ -278,6 +287,9 @@ pub(super) struct Feed {
     pub(super) seq: u64,
     pub(super) jobs: SyncSender<Job>,
     pub(super) results: Sender<Done>,
+    /// Items handed out so far, and whether that came to [`MAX_ITEMS`] (said once).
+    pub(super) handed: u64,
+    pub(super) capped: bool,
 }
 
 impl Feed {
@@ -288,14 +300,15 @@ impl Feed {
         self.results.send(Done { seq, step, charge: 0 }).is_ok()
     }
 
-    /// Hand a job to the lanes, waiting while they have [`JOBS`] waiting already; false once
-    /// they're gone, or the import is stopping (`stopped`).
-    fn job(&mut self, node: u32, size: u64, at: (usize, u32, u64), pim: bool, stopped: &dyn Fn() -> bool) -> bool {
+    /// Hand a job to the lanes (`sent`: one of the Sent Items folder, with the replies read
+    /// before it), waiting while they have [`JOBS`] waiting already; false once they're gone, or
+    /// the import is stopping (`stopped`).
+    fn job(&mut self, node: u32, size: u64, at: (usize, u32, u64), pim: bool, sent: Option<&Arc<SentIds>>, stopped: &dyn Fn() -> bool) -> bool {
         let seq = self.seq;
         self.seq = self.seq.saturating_add(1);
         let charge = budget::charge_for(i64::try_from(size).ok().filter(|s| *s > 0));
         let (folder, folder_node, row) = at;
-        let mut job = Job { seq, node, size, charge, folder, pim, folder_node, row };
+        let mut job = Job { seq, node, size, charge, folder, pim, folder_node, row, sent: sent.cloned() };
         loop {
             match self.jobs.try_send(job) {
                 Ok(()) => return true,
@@ -310,9 +323,11 @@ impl Feed {
     }
 }
 
-/// Hand out the work of `plan`, read from `store`, until it's done or the import stops.
+/// Hand out the work of `plan`, read from `store`, until it's done or the import stops. The
+/// Sent Items folder is made in its place, so the folders come out as they would, but read
+/// after every other, with the replies read before it (`out/sent_ids.rs`): even when the
+/// reader failed on a folder before it (a panic), which is raised again once it's read.
 pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
-    let stopped = || ctx.stopped();
     let skip = ctx.resume.as_ref();
     let folders = plan.folders.iter().filter(|f| f.kind == Kind::Mail).count();
     let totals = Step::Totals { items: plan.items, bytes: plan.bytes, folders, record_key: plan.record_key.clone(), fingerprint: plan.fingerprint() };
@@ -325,77 +340,120 @@ pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &C
             return;
         }
     }
-    let mut handed = 0u64;
-    for (index, f) in plan.folders.iter().enumerate() {
-        if stopped() {
-            return;
-        }
-        let folder = Step::Folder { index, node: f.node, parent: f.parent, name: f.name.clone(), pim: f.kind == Kind::Pim };
-        // Done already: a mail folder says only where it went.
-        if skip.is_some_and(|s| s.done(f.node)) {
-            if f.kind == Kind::Mail && !feed.step(folder) {
+    let mut deferred = None;
+    let walked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        for (index, f) in plan.folders.iter().enumerate() {
+            if ctx.stopped() {
                 return;
             }
-            continue;
-        }
-        match f.kind {
-            Kind::LeftOut => {
-                if !feed.step(Step::LeftOut { node: f.node, items: count(f.rows) }) {
+            let done = skip.is_some_and(|s| s.done(f.node));
+            if !done && deferred.is_none() && f.kind == Kind::Mail && plan.sent == Some(f.node) {
+                deferred = Some((index, f));
+                if !feed.step(begins(index, f, true)) {
                     return;
                 }
                 continue;
             }
-            Kind::Mail | Kind::Pim => {
-                if !feed.step(folder) {
-                    return;
-                }
+            if !folder(store, index, f, feed, ctx, None) {
+                return;
             }
         }
-        let start = skip.map_or(0, |s| s.start(f.node));
-        let began = Instant::now();
-        let opened = store.properties().make_entry_id(NodeId::from(f.node)).and_then(|e| store.open_folder(&e));
-        ctx.tally.since(Phase::Plan, began);
-        match opened {
-            Ok(sub) => {
-                if let Some(table) = sub.contents_table() {
-                    for (row, (node, size)) in sizes(&**table).enumerate() {
-                        if stopped() {
-                            return;
-                        }
-                        // Read already, or one the reader failed on.
-                        let row = u64::try_from(row).unwrap_or(u64::MAX);
-                        if row < start || skip.is_some_and(|s| s.failed(f.node, row)) {
-                            continue;
-                        }
-                        if handed >= MAX_ITEMS {
+    }));
+    let read = match deferred {
+        Some((index, f)) if !ctx.stopped() => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| sent_folder(store, index, f, feed, ctx))),
+        _ => Ok(()),
+    };
+    if let Err(panic) = walked.and(read) {
+        std::panic::resume_unwind(panic);
+    }
+}
+
+/// The step that begins the plan's folder `f` (its `index`th).
+fn begins(index: usize, f: &PlanFolder, deferred: bool) -> Step {
+    Step::Folder { index, node: f.node, parent: f.parent, name: f.name.clone(), pim: f.kind == Kind::Pim, deferred }
+}
+
+/// The Sent Items folder, read last: once the writer has applied everything before it, with
+/// the replies it read then.
+fn sent_folder(store: &dyn PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, ctx: &Ctx<'_>) {
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    if !feed.step(Step::Freeze { reply: tx }) {
+        return;
+    }
+    let ids = loop {
+        match rx.recv_timeout(Duration::from_millis(50)) {
+            Ok(ids) => break ids,
+            Err(RecvTimeoutError::Timeout) if !ctx.stopped() => {}
+            Err(_) => return,
+        }
+    };
+    folder(store, index, f, feed, ctx, Some(&ids));
+}
+
+/// Hand out the plan's folder `f` (its `index`th): its start, a job per item, its end (`sent`:
+/// the Sent Items folder's, with the replies read before it). False once the import stops, or
+/// nothing more is handed out.
+fn folder(store: &dyn PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, ctx: &Ctx<'_>, sent: Option<&Arc<SentIds>>) -> bool {
+    let stopped = || ctx.stopped();
+    let skip = ctx.resume.as_ref();
+    // Done already: a mail folder says only where it went.
+    if skip.is_some_and(|s| s.done(f.node)) {
+        return f.kind != Kind::Mail || feed.step(begins(index, f, false));
+    }
+    match f.kind {
+        Kind::LeftOut => return feed.step(Step::LeftOut { node: f.node, items: count(f.rows) }),
+        Kind::Mail | Kind::Pim => {
+            if !feed.step(begins(index, f, false)) {
+                return false;
+            }
+        }
+    }
+    let start = skip.map_or(0, |s| s.start(f.node));
+    let began = Instant::now();
+    let opened = store.properties().make_entry_id(NodeId::from(f.node)).and_then(|e| store.open_folder(&e));
+    ctx.tally.since(Phase::Plan, began);
+    match opened {
+        Ok(sub) => {
+            if let Some(table) = sub.contents_table() {
+                for (row, (node, size)) in sizes(&**table).enumerate() {
+                    if stopped() {
+                        return false;
+                    }
+                    // Read already, or one the reader failed on.
+                    let row = u64::try_from(row).unwrap_or(u64::MAX);
+                    if row < start || skip.is_some_and(|s| s.failed(f.node, row)) {
+                        continue;
+                    }
+                    if feed.handed >= MAX_ITEMS {
+                        if !feed.capped {
+                            feed.capped = true;
                             feed.step(Step::Lost { reason: SkipReason::StoppedEarly, n: 1, items: false });
-                            return;
                         }
-                        #[cfg(test)]
-                        let size = match ctx.opts.fault {
-                            Some(super::lanes::tests::Fault::PlannerAfter(n)) if handed == n => panic!("a test's planner fault"),
-                            // The file says every item is tiny.
-                            Some(super::lanes::tests::Fault::Understate) => 1,
-                            _ => size,
-                        };
-                        handed += 1;
-                        if !feed.job(node, size, (index, f.node, row), f.kind == Kind::Pim, &stopped) {
-                            return;
-                        }
+                        return false;
+                    }
+                    #[cfg(test)]
+                    let size = match ctx.opts.fault {
+                        // The walk fails; the Sent Items folder read after it doesn't.
+                        Some(super::lanes::tests::Fault::PlannerAfter(n)) if feed.handed == n && sent.is_none() => panic!("a test's planner fault"),
+                        // The file says every item is tiny.
+                        Some(super::lanes::tests::Fault::Understate) => 1,
+                        _ => size,
+                    };
+                    feed.handed += 1;
+                    if !feed.job(node, size, (index, f.node, row), f.kind == Kind::Pim, sent, &stopped) {
+                        return false;
                     }
                 }
             }
-            Err(e) => {
-                log::info!("a folder could not be read: {e}");
-                if !feed.step(Step::Lost { reason: SkipReason::FolderUnreadable, n: 1, items: false }) {
-                    return;
-                }
+        }
+        Err(e) => {
+            log::info!("a folder could not be read: {e}");
+            if !feed.step(Step::Lost { reason: SkipReason::FolderUnreadable, n: 1, items: false }) {
+                return false;
             }
         }
-        if !feed.step(Step::FolderEnd { index, node: f.node, pim: f.kind == Kind::Pim }) {
-            return;
-        }
     }
+    feed.step(Step::FolderEnd { index, node: f.node, pim: f.kind == Kind::Pim })
 }
 
 fn count(n: u64) -> usize {
@@ -410,8 +468,8 @@ fn record_key(store: &dyn PstStore) -> String {
     }
 }
 
-/// The node of one of the store's special folders (`0x35E2`: the Outbox), from its entry id
-/// (flags, the store's 16-byte key, then the node id).
+/// The node of one of the store's special folders (`0x35E2`: the Outbox, `0x35E4`: Sent Items),
+/// from its entry id (flags, the store's 16-byte key, then the node id).
 fn special_folder(store: &dyn PstStore, prop: u16) -> Option<u32> {
     let (_, v) = store.properties().iter().find(|(id, _)| **id == prop)?;
     let PropertyValue::Binary(b) = v else { return None };

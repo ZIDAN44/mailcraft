@@ -2,9 +2,10 @@
 //! it, whichever lane finished first. Messages get their numbers here, in that order, so an
 //! import comes out the same however many lanes read it.
 
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender};
 
 use super::lanes::{Ctx, Outcome};
+use super::out::sent_ids::SentIds;
 use super::*;
 
 /// The writer writes what it holds, and puts the folders finished in the folder list, at least
@@ -24,8 +25,13 @@ pub(super) enum Step {
     Totals { items: u64, bytes: u64, folders: usize, record_key: String, fingerprint: u64 },
     /// A folder of the file (its `node`) begins (`index` in the plan): a mail folder under the
     /// plan's folder `parent`, or contacts or a calendar (`pim`). Going on, a mail folder done
-    /// already begins only to say where it went (its folders under it go there too).
-    Folder { index: usize, node: u32, parent: Option<usize>, name: String, pim: bool },
+    /// already begins only to say where it went (its folders under it go there too). The Sent
+    /// Items folder begins twice: in its place, made but not read (`deferred`), and after every
+    /// other, to be read.
+    Folder { index: usize, node: u32, parent: Option<usize>, name: String, pim: bool, deferred: bool },
+    /// Everything before it is applied, and the sent items come next: the replies read are sent
+    /// back to the planner, for the lanes reading them.
+    Freeze { reply: SyncSender<Arc<SentIds>> },
     /// …and is done.
     FolderEnd { index: usize, node: u32, pim: bool },
     /// Things left out: items (`items`), or parts of the file that aren't.
@@ -121,9 +127,9 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
             out.source_known(ctx.path, record_key, fingerprint);
         }
         Step::Folder { node, pim: true, .. } => out.begin_pim_folder(node),
-        Step::Folder { index, node, parent, name, pim: false } => {
+        Step::Folder { index, node, parent, name, pim: false, deferred } => {
             let parent = parent.and_then(|p| path_of(paths, p));
-            let path = out.begin_folder(node, parent.as_deref(), &name);
+            let path = out.begin_folder(node, parent.as_deref(), &name, deferred);
             if paths.len() <= index {
                 paths.resize(index.saturating_add(1), None);
             }
@@ -136,6 +142,10 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
             if let Some(path) = path_of(paths, index) {
                 out.save_folder(&path);
             }
+        }
+        Step::Freeze { reply } => {
+            // The planner gone, nothing waits for it.
+            let _ = reply.send(out.freeze_sent());
         }
         Step::LeftOut { node, items } => {
             out.leave_out_folder(items);
@@ -152,7 +162,8 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
             let mut held = done.charge;
             let failed = matches!(outcome, Outcome::Failed);
             match outcome {
-                Outcome::Built(b) => {
+                Outcome::Built(mut b) => {
+                    out.sent_ids(&mut b);
                     if let Some(path) = path_of(paths, folder) {
                         out.add_built(&path, *b, held);
                         held = 0;

@@ -793,6 +793,7 @@ mod reader;
 mod rebuilt;
 mod report;
 mod resume;
+mod sent_ids;
 
 mod real_files {
     /// Import a real data file named by `MAILCRAFT_PST` (counts only).
