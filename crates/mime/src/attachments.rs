@@ -72,18 +72,14 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
 }
 
 /// Whether a message carries a file: the paperclip, "Has files" and `has:attachment` agree
-/// with search's count ([`index_doc`]) by sharing [`is_file`].
+/// with search's count ([`index_doc`]), and with a data file's import ([`draft_carries_files`]),
+/// by sharing [`carries_file`].
 pub(super) fn has_real_attachments(m: &Message<'_>) -> bool {
     let html = || m.html_bodies().filter(|p| p.is_text_html()).filter_map(|p| p.text_contents()).collect::<Vec<_>>().join("\n");
     let refs = HtmlRefs::new(&html);
     m.attachments().any(|p| {
-        // A `winmail.dat` is the files in it, as the reading pane and search list them.
-        if is_tnef(&mime_of(p).unwrap_or_default(), p.attachment_name())
-            && let Some(t) = read_tnef(p.contents()).filter(|t| !t.attachments.is_empty() || !t.body.is_empty())
-        {
-            return tnef_inline(&t).contains(&false);
-        }
-        is_file(p, &refs)
+        let shown = || may_be_shown(p).is_some_and(|(cid, location)| refs.shows(cid, location));
+        carries_file(&mime_of(p).unwrap_or_default(), p.attachment_name(), p.contents(), &shown)
     })
 }
 
@@ -103,7 +99,7 @@ const MAX_REFS: usize = 10_000;
 
 /// The pictures a message's HTML shows, by `cid:` or by the address a part's
 /// `Content-Location` gives it (RFC 2557): read from the HTML only when a part asks.
-pub(crate) struct HtmlRefs<'a> {
+pub struct HtmlRefs<'a> {
     refs: std::cell::OnceCell<Refs>,
     make: &'a dyn Fn() -> String,
 }
@@ -183,14 +179,24 @@ fn percent_decoded(s: &str) -> String {
 }
 
 impl<'a> HtmlRefs<'a> {
-    pub(crate) fn new(make: &'a dyn Fn() -> String) -> HtmlRefs<'a> {
+    /// The references of the HTML `make` gives, read the first time a part asks.
+    pub fn new(make: &'a dyn Fn() -> String) -> HtmlRefs<'a> {
         HtmlRefs { refs: std::cell::OnceCell::new(), make }
+    }
+
+    /// Whether the HTML refers to this `Content-ID` by a `cid:` (whatever its case). A file a
+    /// message is built with goes in its body only then: an address whose last segment is the
+    /// same (a link to `plan.pdf`, and a file whose Content-ID is `plan.pdf`) doesn't show it.
+    pub fn cites(&self, cid: &str) -> bool {
+        let r = self.refs.get_or_init(|| Refs::read(&(self.make)()));
+        let cid = cid.trim().trim_matches(['<', '>']).to_ascii_lowercase();
+        !cid.is_empty() && r.cids.contains(&cid)
     }
 
     /// Whether the HTML shows the part with this `Content-ID` or `Content-Location`, matched as
     /// the reading pane finds a picture ([`picture_attachment`]): the `cid:` exactly, the address
     /// exactly or by its last segment.
-    pub(crate) fn shows(&self, cid: Option<&str>, location: Option<&str>) -> bool {
+    pub fn shows(&self, cid: Option<&str>, location: Option<&str>) -> bool {
         let r = self.refs.get_or_init(|| Refs::read(&(self.make)()));
         let cid = cid.map(|c| c.trim().trim_matches(['<', '>']).to_ascii_lowercase()).filter(|c| !c.is_empty());
         let location = location.map(|l| l.trim().trim_matches(['<', '>', '"']).to_ascii_lowercase()).filter(|l| !l.is_empty());
@@ -217,12 +223,35 @@ pub(crate) fn may_be_shown<'p>(p: &'p mail_parser::MessagePart<'_>) -> Option<(O
     (inline && (cid.is_some() || location.is_some())).then_some((cid, location))
 }
 
-/// Whether one of a message's non-text parts is a file it carries: not S/MIME's own part, and not
-/// a picture the HTML shows (an inline part, or one with no disposition, whose `Content-ID` or
-/// `Content-Location` the real `text/html` bodies refer to). Whatever its name says: Outlook names
-/// its pictures `image001.png`, and Apple Mail's inline PDF has no `Content-ID` and is a file.
-pub(crate) fn is_file(p: &mail_parser::MessagePart<'_>, refs: &HtmlRefs<'_>) -> bool {
-    !is_smime(p) && may_be_shown(p).is_none_or(|(cid, location)| !refs.shows(cid, location))
+/// Whether one of a message's non-text parts, of type `mime` and named `name`, is a file it
+/// carries: not S/MIME's own part, and not a picture the HTML shows (`shown`: an inline part, or
+/// one with no disposition, whose `Content-ID` or `Content-Location` the real `text/html` bodies
+/// refer to). Whatever its name says: Outlook names its pictures `image001.png`, and Apple Mail's
+/// inline PDF has no `Content-ID` and is a file. A `winmail.dat` is the files in it, as the
+/// reading pane and search list them.
+fn carries_file(mime: &str, name: Option<&str>, data: &[u8], shown: &dyn Fn() -> bool) -> bool {
+    if is_tnef(mime, name)
+        && let Some(t) = read_tnef(data).filter(|t| !t.attachments.is_empty() || !t.body.is_empty())
+    {
+        return tnef_inline(&t).contains(&false);
+    }
+    !smime::is_smime_part(mime, name.unwrap_or_default()) && !shown()
+}
+
+/// Whether the message [`build`](crate::build) makes of `d` carries a file, as the paperclip,
+/// "Has files" and `has:attachment` read it back from the source ([`has_real_attachments`], by
+/// the same [`carries_file`]): a data file's import knows it before it writes the source, and
+/// doesn't parse it again. The files are files unless they are S/MIME's own part or a
+/// `winmail.dat` of pictures its body shows; the pictures go in only beside HTML, and are files
+/// when it doesn't show them.
+pub fn draft_carries_files(d: &Draft) -> bool {
+    let html = || d.html.clone().unwrap_or_default();
+    let refs = HtmlRefs::new(&html);
+    // A type as `build` gives it, the name the part is read back with, the bytes.
+    let file = carries_file;
+    let typed = |mime: &str, name: &str| if mime.is_empty() { mime_from_name(name).to_string() } else { mime.to_string() };
+    d.attachments.iter().any(|a| file(&typed(&a.mime, &a.name), Some(&sanitize_filename(&a.name)), &a.data, &|| false))
+        || (d.html.is_some() && d.inline.iter().any(|p| file(&typed(&p.mime, &p.name), None, &p.data, &|| refs.shows(Some(&p.cid), None))))
 }
 
 pub(super) trait InlinePart {

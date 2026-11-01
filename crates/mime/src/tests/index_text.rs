@@ -321,3 +321,34 @@ fn unusual_boundaries_keep_the_count() {
     let d = doc(&raw);
     assert_eq!(d.files, 1);
 }
+
+/// A draft's files, as [`draft_carries_files`] counts them before the message is built, and as
+/// the paperclip reads them back from the built source: the two agree, and say `expected`.
+pub(crate) fn assert_built_files(d: &Draft, expected: bool) {
+    let raw = build(d, &EmailAddress::new("Ana", "ana@studio.example"), 1_704_067_200, "built@studio.example").unwrap();
+    let read = summary_from_header(&raw, key(), Flags::default(), 0, 0).has_attachments;
+    assert_eq!((draft_carries_files(d), read), (expected, expected), "{:?}", d.attachments.iter().map(|a| &a.name).collect::<Vec<_>>());
+}
+
+/// A message about to be built says whether it carries a file as its source will: a picture
+/// the HTML shows by its `cid:` (whatever its case) isn't one, one whose Content-ID only starts
+/// a `cid:` the HTML has is; S/MIME's own part isn't; any other file, an empty one or an
+/// attached message is; a picture with no HTML to show it isn't written at all.
+#[test]
+fn a_draft_carries_the_files_its_source_will() {
+    let picture =
+        |cid: &str| InlinePicture { cid: cid.into(), name: "image001.png".into(), mime: "image/png".into(), data: b"\x89PNG\r\n\x1a\nfake".to_vec() };
+    let file = |name: &str, mime: &str, data: &[u8]| OutAttachment { name: name.into(), mime: mime.into(), data: data.to_vec() };
+    let html = Some("<p>Hi</p><img src=\"cid:LOGO@studio.example\"><img src='cid:image10'>".to_string());
+    let base = Draft { subject: "Logo".into(), body: "Hi".into(), html: html.clone(), ..Default::default() };
+    assert_built_files(&base, false);
+    assert_built_files(&Draft { inline: vec![picture("logo@studio.example")], ..base.clone() }, false);
+    assert_built_files(&Draft { inline: vec![picture("image1")], ..base.clone() }, true);
+    let signature = file("smime.p7s", "application/pkcs7-signature", b"0\x82sig");
+    assert_built_files(&Draft { inline: vec![picture("logo@studio.example")], attachments: vec![signature], ..base.clone() }, false);
+    assert_built_files(&Draft { attachments: vec![file("plan.pdf", "", b"%PDF-1.4")], ..base.clone() }, true);
+    assert_built_files(&Draft { attachments: vec![file("empty.txt", "text/plain", b"")], ..base.clone() }, true);
+    let eml = file("Old.eml", "message/rfc822", b"Subject: Old\r\n\r\nHi\r\n");
+    assert_built_files(&Draft { attachments: vec![eml], ..base.clone() }, true);
+    assert_built_files(&Draft { html: None, inline: vec![picture("image1")], ..base }, false);
+}

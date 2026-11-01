@@ -2,6 +2,7 @@
 //! left out are counted, and the paperclip is the one the rebuilt source gives.
 
 use super::super::item::{File, Files, Got, from_row};
+use super::super::rebuild::{summary_of, to_raw};
 use super::*;
 
 /// The reader's error for an attachment whose data has no value (`PtypNull`), as a reader that
@@ -107,4 +108,64 @@ fn files_left_out_are_counted_by_reason() {
 /// A file as the import holds it.
 fn data_file(name: &str, mime: &str, cid: &str) -> File {
     File::Data { name: name.into(), mime: mime.into(), cid: cid.into(), data: b"\x89PNG\r\n\x1a\nfake".to_vec() }
+}
+
+/// The paperclip an imported message gets is the one its source gives (`has:attachment` and
+/// "Has files" read it): a picture the HTML shows by its `cid:` and S/MIME's own part aren't
+/// files; a picture it doesn't show (`cid:image10` doesn't show `image1`), any other file and an
+/// attached message are. Counting the item's files gave every one of these a paperclip.
+#[test]
+fn the_paperclip_is_the_one_the_source_gives() {
+    let html = "<p>Hi</p><img src=\"cid:LOGO@studio.example\"><img src='cid:image10'>";
+    let cases = [
+        (vec![data_file("logo.png", "image/png", "<logo@studio.example>")], false),
+        (vec![data_file("logo.png", "image/png", "logo@studio.example"), data_file("smime.p7s", "application/pkcs7-signature", "")], false),
+        (vec![data_file("image1.png", "image/png", "image1")], true),
+        (vec![data_file("logo.png", "image/png", "logo@studio.example"), data_file("plan.pdf", "application/pdf", "")], true),
+        (vec![File::Message(Box::new(Item { subject: "Old".into(), body: "Hi".into(), ..Default::default() }))], true),
+        (Vec::new(), false),
+    ];
+    for (n, (files, has)) in cases.into_iter().enumerate() {
+        let it = Item {
+            subject: "Logo".into(),
+            from: EmailAddress::new("Ana", "ana@example.com"),
+            date: 1_704_067_200,
+            body: "Hi".into(),
+            html: Some(html.into()),
+            files,
+            ..Default::default()
+        };
+        let (raw, files) = to_raw(&it, "logo@x").unwrap();
+        let key = MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+        let s = summary_of(&raw, &it, key.clone(), 0, files);
+        let full = mime::summary_from_full(&raw, key, Flags::default(), 0, 0);
+        assert_eq!((s.has_attachments, full.has_attachments), (has, has), "case {n}");
+    }
+}
+
+/// A file whose Content-ID is the name of a file the HTML only links to (`plan.pdf`, and a link
+/// to `https://files.example/share/plan.pdf`) isn't shown by it: it stays a named file, listed,
+/// with a paperclip. Matching it as the reading pane matches an address moved it into the body,
+/// unnamed and hidden.
+#[test]
+fn a_file_named_by_a_link_stays_a_file() {
+    let html = "<p>Hi</p><a href=\"https://files.example/share/plan.pdf\">the plan</a><img src=\"cid:LOGO@studio.example\">";
+    let pdf = File::Data { name: "plan.pdf".into(), mime: "application/pdf".into(), cid: "plan.pdf".into(), data: b"%PDF-1.4".to_vec() };
+    let it = Item {
+        subject: "Plan".into(),
+        from: EmailAddress::new("Ana", "ana@example.com"),
+        date: 1_704_067_200,
+        body: "Hi".into(),
+        html: Some(html.into()),
+        files: vec![pdf, data_file("logo.png", "image/png", "logo@studio.example")],
+        ..Default::default()
+    };
+    let (raw, files) = to_raw(&it, "plan@x").unwrap();
+    let p = mime::parse(&raw).unwrap();
+    let parts: Vec<_> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect();
+    assert!(parts.contains(&("plan.pdf", false)), "{parts:?}");
+    assert!(p.attachments.iter().any(|a| a.inline && a.content_id.as_deref() == Some("logo@studio.example")), "{parts:?}");
+    let key = MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let full = mime::summary_from_full(&raw, key.clone(), Flags::default(), 0, 0);
+    assert_eq!((summary_of(&raw, &it, key, 0, files).has_attachments, full.has_attachments), (true, true));
 }

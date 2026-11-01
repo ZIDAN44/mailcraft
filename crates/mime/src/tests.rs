@@ -34,7 +34,7 @@ fn a_teams_invitations_join_link_survives_as_text() {
 use super::*;
 
 mod importance;
-mod index_text;
+pub(crate) mod index_text;
 mod one_parse;
 mod report;
 mod signature_code;

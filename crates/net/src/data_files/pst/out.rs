@@ -186,7 +186,7 @@ impl Out<'_> {
         let Some(st) = self.states.get_mut(path) else { return };
         let uid = st.uid_next;
         let fallback = format!("pst.{}.{}.{uid}@mailcraft.invalid", self.account, self.imported);
-        let raw = match self.tally.time(Phase::Build, || to_raw(&it, &fallback)) {
+        let (raw, files) = match self.tally.time(Phase::Build, || to_raw(&it, &fallback)) {
             Ok(r) => r,
             Err(e) => {
                 log::info!("a message could not be rebuilt: {e}");
@@ -205,7 +205,7 @@ impl Out<'_> {
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
         st.uid_next = uid.saturating_add(1);
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-        let summary = self.tally.time(Phase::Build, || summary_of(&raw, &it, key.clone(), size));
+        let summary = self.tally.time(Phase::Build, || summary_of(&raw, &it, key.clone(), size, files));
         st.waiting.push(summary);
         let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;

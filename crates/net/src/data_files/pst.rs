@@ -284,9 +284,9 @@ pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>])
     }
     let rows: Vec<_> = recipients.iter().map(|r| move |id: u16| find(r, id)).collect();
     let it = item::item_of(&|id| find(props, id), &rows, Vec::new(), &crate::pst_pim::Named::with_keywords(0x8000));
-    let raw = rebuild::to_raw(&it, "fuzz@mailcraft.invalid")?;
+    let (raw, files) = rebuild::to_raw(&it, "fuzz@mailcraft.invalid")?;
     let key = MessageKey { account: "f1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
-    let summary = rebuild::summary_of(&raw, &it, key, u32::try_from(raw.len()).unwrap_or(u32::MAX));
+    let summary = rebuild::summary_of(&raw, &it, key, u32::try_from(raw.len()).unwrap_or(u32::MAX), files);
     Ok((raw, summary))
 }
 

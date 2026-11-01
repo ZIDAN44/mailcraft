@@ -3,8 +3,9 @@
 use super::item::{File, Item};
 use super::*;
 
-/// The item as a standard message.
-pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<Vec<u8>, String> {
+/// The item as a standard message, and whether that message carries a file (for its summary:
+/// see [`summary_of`]).
+pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<(Vec<u8>, bool), String> {
     let html = it.html.clone().filter(|h| !h.trim().is_empty());
     let body = if it.body.trim().is_empty() { html.as_deref().map(mime::html_to_text).unwrap_or_default() } else { it.body.clone() };
     let mut d = Draft {
@@ -18,18 +19,23 @@ pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<Vec<u8>, String> {
         importance: it.importance,
         ..Default::default()
     };
+    // A file goes in the body when the HTML has its whole `cid:`, whatever its case, as the
+    // reading pane matches a picture; a link whose file name is its Content-ID doesn't show it,
+    // and it stays a named file.
+    let make = || html.clone().unwrap_or_default();
+    let refs = mime::HtmlRefs::new(&make);
     for f in &it.files {
         match f {
             File::Data { name, mime: m, cid, data } => {
                 let cid = cid.trim().trim_matches(|c| c == '<' || c == '>');
-                if !cid.is_empty() && html.as_deref().is_some_and(|h| h.contains(&format!("cid:{cid}"))) {
+                if !cid.is_empty() && html.is_some() && refs.cites(cid) {
                     d.inline.push(InlinePicture { cid: cid.to_string(), name: name.clone(), mime: m.clone(), data: data.clone() });
                 } else {
                     d.attachments.push(OutAttachment { name: name.clone(), mime: m.clone(), data: data.clone() });
                 }
             }
             File::Message(inner) => {
-                let raw = to_raw(inner, &format!("{fallback_id}.1"))?;
+                let (raw, _) = to_raw(inner, &format!("{fallback_id}.1"))?;
                 let subject = if inner.subject.trim().is_empty() { "message".to_string() } else { inner.subject.trim().to_string() };
                 d.attachments.push(OutAttachment { name: format!("{subject}.eml"), mime: "message/rfc822".into(), data: raw });
             }
@@ -39,7 +45,7 @@ pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<Vec<u8>, String> {
     let id = mailcraft_model::thread::norm_id(&it.message_id);
     let id = if id.is_empty() { fallback_id } else { &id };
     let built = mime::build(&d, &it.from, it.date, id)?;
-    Ok(with_headers(built, &it.headers, &it.bcc, &extra_headers(it)))
+    Ok((with_headers(built, &it.headers, &it.bcc, &extra_headers(it)), mime::draft_carries_files(&d)))
 }
 
 /// What the item's properties say that a header carries: Outlook's conversation index and
@@ -176,13 +182,14 @@ fn bcc_line(bcc: &[EmailAddress]) -> String {
     list.join(",\r\n ")
 }
 
-/// A message's summary from its rebuilt source's headers, with its preview and attachments
-/// from the item itself (parsing the whole source again, attachments and all, only to find them
-/// cost more than reading it).
-pub(super) fn summary_of(raw: &[u8], it: &Item, key: MessageKey, size: u32) -> mailcraft_model::Summary {
+/// A message's summary from its rebuilt source's headers, with its preview from the item itself
+/// and whether it carries a file (`files`) from what it was built of (parsing the whole source
+/// again, attachments and all, only to find them cost more than reading it). A picture the HTML
+/// shows isn't a file, as read from the source: counting the item's files counted those too.
+pub(super) fn summary_of(raw: &[u8], it: &Item, key: MessageKey, size: u32, files: bool) -> mailcraft_model::Summary {
     let end = raw.windows(4).position(|w| w == b"\r\n\r\n").map_or(raw.len(), |i| i + 4);
     let mut s = mime::summary_from_header(raw.get(..end).unwrap_or(raw), key, it.flags.clone(), size, it.date);
-    s.has_attachments = !it.files.is_empty();
+    s.has_attachments = files;
     let text = if it.body.trim().is_empty() {
         it.html
             .as_deref()

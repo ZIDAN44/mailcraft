@@ -681,3 +681,19 @@ fn outlooks_rich_text_reads_as_outlook_shows_it() {
     assert_eq!((eml.subject.as_str(), eml.images.as_slice()), ("Inner", &["cid:logo@x".to_string()][..]));
     assert!(eml.attachments.iter().all(|a| a.inline), "{:?}", eml.attachments);
 }
+
+/// A `winmail.dat` a message is about to be built with is a file when it holds one, not when it
+/// holds only its body, as the paperclip reads the source back.
+#[test]
+fn a_winmail_dat_in_a_draft_is_a_file_when_it_holds_one() {
+    let dat = |data: Vec<u8>| crate::Draft {
+        subject: "Storyboard".into(),
+        body: "Hi".into(),
+        attachments: vec![crate::OutAttachment { name: "winmail.dat".into(), mime: "application/ms-tnef".into(), data }],
+        ..Default::default()
+    };
+    crate::tests::index_text::assert_built_files(&dat(outlook_stream()), true);
+    let mut a = Vec::new();
+    attr(&mut a, 1, ATT_BODY, b"Only in the winmail.dat\0");
+    crate::tests::index_text::assert_built_files(&dat(stream(&a)), false);
+}

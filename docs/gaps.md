@@ -1444,6 +1444,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   name) and typed from the name. That row is a backstop: the reader MailCraft carries already
   reads such a file as one with no bytes, and the 7 zero-byte files of a 41 GB test file all
   come in that way, with no attachment the reader fails on.
+- **The paperclip on mail from a `.pst`:** an imported message got a paperclip (and matched
+  `has:attachment` and Has files) for any file the item held, the pictures its HTML shows and
+  S/MIME's signature included: 27,917 of the 34,691 messages of a 41 GB file. It now follows
+  the rule the reading pane and search read a source with, through the same test: a picture the
+  HTML shows by its `cid:` (matched whatever its case, as the reading pane matches it, so such a
+  picture also goes in the body rather than the list of files) and S/MIME's own part aren't
+  files; a `winmail.dat` is one when it holds a file. A file whose Content-ID is only the name of
+  a file the HTML links to stays a named file. That file now gives 12,696, the count its rebuilt
+  sources give read back one by one.
 - **Search reads accents and dates:** a word is found whatever its accents, typed or written
   (`resume` finds "Résumé", `résumé` finds "resume", `strasse` "Straße"; Cyrillic keeps й, and
   other scripts are looked for as written). `received:` (also `sent:`, `date:`) takes a day, a
