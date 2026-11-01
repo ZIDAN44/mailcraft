@@ -35,6 +35,9 @@ mod searching;
 mod security;
 mod writing;
 #[cfg(test)]
+pub(crate) use accounts::REMOVE_BACKSTOP;
+pub use accounts::{ImportState, Imports};
+#[cfg(test)]
 pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
 pub use searching::{IndexPass, SearchProgress, SearchStats};
@@ -502,8 +505,9 @@ pub struct Session {
     shown: u64,
     /// The open message's body, when it's got ready on another thread.
     pub(crate) body: opening::BodyLane,
-    /// Accounts a data file is being imported into: their index is brought up at the end.
-    importing: HashSet<String>,
+    /// Data files imported into accounts: running, waiting on the user, or done (`imports.json`).
+    /// While one is read, its account's folders' search words wait for the end.
+    importing: Imports,
     /// The search indexes kept up in the background.
     indexing: searching::Indexing,
     /// The message in the reading pane to mark read, and when (`ReadInPane::Shown` with a wait).
@@ -599,7 +603,7 @@ impl Session {
             search_state: Default::default(),
             shown: 0,
             body: Default::default(),
-            importing: HashSet::new(),
+            importing: Imports::default(),
             indexing: Default::default(),
             read_due: None,
             read_on_leave: None,

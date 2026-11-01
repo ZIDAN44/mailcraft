@@ -5,6 +5,9 @@ use super::*;
 impl Session {
     /// Apply an event from the network layer.
     pub fn apply(&mut self, e: Event) {
+        if !self.importing.running.is_empty() {
+            self.removal_backstop();
+        }
         match e {
             e @ (Event::Identity { .. } | Event::Protected { .. } | Event::Decrypted { .. } | Event::Revocation { .. } | Event::HeldKeys { .. }) => {
                 self.apply_smime(e)
@@ -119,18 +122,15 @@ impl Session {
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
             Event::ImportProgress { account, progress } => self.import_progress(&account, &progress),
-            // A discarded import is a removed account's (only removing one discards it): its id
-            // may be a newer account's by now, which this end isn't.
+            // A discarded import is a removed account's (only removing one discards it): the
+            // account being removed goes now; any other end of one is an account's long gone.
             Event::Imported { account, error, report: Some(r), .. } if r.stopped == Some(mailcraft_model::job::StopHow::Discard) => {
-                if let Some(e) = error {
-                    log::warn!("{account}: an import thrown away: {e}");
-                }
+                self.import_discarded(&account, error)
             }
             Event::Imported { account, messages, skipped, done, error, report } => {
                 self.imported(&account, messages, skipped, done, error, report.as_deref())
             }
-            // Nothing asks yet: the import's own dialog will.
-            Event::DataFileInspected { .. } => {}
+            Event::DataFileInspected { path, facts } => self.data_file_inspected(&path, facts),
             Event::Indexed { account, work, generation, failed, finished } => {
                 self.indexed(&account, IndexPass { work, generation, failed, finished })
             }

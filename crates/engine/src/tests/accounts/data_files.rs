@@ -91,14 +91,20 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         matches!(s.take_jobs().as_slice(), [Job::ImportPst { account, path, resume: false }] if *account == id && path.ends_with("Archive 2024.pst"))
     );
 
-    // The import reports progress (nothing while it plans the file), then its folders, then that
-    // it's done: the Inbox opens.
+    // The import reports progress (shown by the window, never said in a notice), then its
+    // folders, then that it's done: the Inbox opens.
     let notices = s.notices.len();
     s.apply(Event::ImportProgress { account: id.clone(), progress: Default::default() });
-    assert_eq!(s.notices.len(), notices, "no word of 0 messages imported");
-    let progress = mailcraft_model::job::ImportProgress { phase: mailcraft_model::job::ImportPhase::Importing, imported: 200, ..Default::default() };
+    let progress = mailcraft_model::job::ImportProgress {
+        phase: mailcraft_model::job::ImportPhase::Importing,
+        imported: 200,
+        folder: "INBOX".into(),
+        ..Default::default()
+    };
     s.apply(Event::ImportProgress { account: id.clone(), progress });
-    assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("200")));
+    assert_eq!(s.notices.len(), notices, "{:?}", s.notices.last());
+    assert_eq!(s.account(&id).unwrap().status, SyncStatus::Syncing { folder: "INBOX".into() });
+    assert_eq!(s.import_state(&id).map(|st| st.progress.imported), Some(200));
     let inbox = mailcraft_model::Folder {
         account: id.clone(),
         path: "INBOX".into(),
@@ -288,10 +294,14 @@ fn a_discarded_imports_end_never_reaches_the_next_account_with_its_id() {
     assert_eq!(s.notices.len(), notices, "{:?}", s.notices.last());
     assert_eq!(s.account(&id).unwrap().status, status);
 
-    // A file opened, removed while it imports, and another opened under the same id.
+    // A file opened, removed while it imports (gone once its import says it's thrown away), and
+    // another opened under the same id: a second word of the first one's end isn't the second's.
     s.run("account.remove", &json!({"account": id})).unwrap();
     let a = s.run("account.importPst", &json!({"path": r"C:\Users\me\One.pst"})).unwrap()["account"].as_str().unwrap().to_string();
     s.run("account.remove", &json!({"account": a})).unwrap();
+    assert!(s.account(&a).is_some(), "until its import has stopped");
+    s.apply(discarded(&a));
+    assert!(s.account(&a).is_none());
     let b = s.run("account.importPst", &json!({"path": r"C:\Users\me\Two.pst"})).unwrap()["account"].as_str().unwrap().to_string();
     assert_eq!(a, b);
     let notices = s.notices.len();

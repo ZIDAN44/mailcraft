@@ -28,6 +28,7 @@ impl Session {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
         let f = self.folder(account, path).cloned().ok_or_else(|| CmdError::Params(format!("no folder `{path}`")))?;
+        self.import_holds(account)?;
         if f.is_fixed() {
             return Err(CmdError::Failed(format!("{} can't be renamed, moved or deleted", f.display_name())));
         }
@@ -39,6 +40,7 @@ impl Session {
         if self.account(account).is_none() {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
+        self.import_holds(account)?;
         if let Some(p) = parent
             && self.folder(account, p).is_none()
         {
@@ -232,6 +234,10 @@ impl Session {
         let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
         for m in &sel {
             by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
+        }
+        // A data file's import writes its account's lists (and goes on writing them).
+        for a in by_account.keys() {
+            self.import_holds(a)?;
         }
         let mut moved = 0usize;
         let mut accounts: Vec<String> = by_account.keys().cloned().collect();

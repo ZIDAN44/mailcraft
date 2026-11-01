@@ -167,14 +167,14 @@ impl Session {
         self.search_state.background
     }
 
-    /// A data file import into `account` begins (or is under way).
+    /// A data file import into `account` is read now (begun, or under way).
     pub(super) fn import_started(&mut self, account: &str) {
-        self.importing.insert(account.to_string());
+        self.importing.set_live(account, true);
     }
 
     /// The import into `account` ended: its index is brought up to all it brought.
     pub(super) fn import_ended(&mut self, account: &str) {
-        self.importing.remove(account);
+        self.importing.set_live(account, false);
         self.want_index(account, None);
     }
 
@@ -198,7 +198,7 @@ impl Session {
     /// jobs wait to be taken are one: folders add up, every folder takes them all. Not while a
     /// data file is imported into the account (its end asks for every folder).
     pub(super) fn want_index(&mut self, account: &str, folder: Option<&str>) {
-        if !self.indexing.on || self.importing.contains(account) {
+        if !self.indexing.on || self.importing.live(account) {
             return;
         }
         let waiting = self.jobs.iter_mut().find_map(|j| match j {

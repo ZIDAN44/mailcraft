@@ -71,6 +71,7 @@ fn can_connect(s: &Session) -> Option<&'static str> {
 mod accounts;
 mod compose;
 pub use compose::insert_picture_at;
+mod data_files;
 mod files;
 mod home;
 mod meetings;
@@ -92,6 +93,7 @@ pub fn registry() -> Registry {
     all.extend(files::commands());
     all.extend(security::commands());
     all.extend(accounts::commands());
+    all.extend(data_files::commands());
     all.extend(signatures::commands());
     Registry::new(all)
 }

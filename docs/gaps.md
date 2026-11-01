@@ -1626,10 +1626,23 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   pauses an import and waits up to 10 seconds for it to write what it holds before the data
   files are sealed. The folder pane gets each folder as it finishes, not all of them at the end,
   and an Outlook data file looked at before it's imported is walked once, not again by its
-  import. Still open: the data file a removed account keeps holds what was imported before the
-  removal, until removal waits for the import to stop; the planned folders shown ahead as an
-  outline, once the window can show them as not yet open to changes; going on from where it
-  stopped; and the window's buttons for it.
+  import. Removing an account while its file is imported now waits for the import to stop and
+  then deletes what it brought in (a part of a file that's still there is worth nothing), so no
+  partial data file is left behind; the account stays listed meanwhile and its name isn't given
+  to the next file opened, and a removal MailCraft closed in the middle of is finished as it
+  opens. Where each account's mail came from is kept (`imports.json`): an import stopped, or
+  interrupted by MailCraft closing, is still known as it opens, and waits to be continued, kept
+  as it is, or started again; until then, as while it runs, the account's folders can't be
+  made, renamed, moved, deleted, emptied or cleaned up and its mail isn't moved, since the import
+  writes them. Opening a data file that's already
+  open as an account (the same path, however it's written, or the same file under another name)
+  is caught before it's imported a second time, unless another copy is asked for. An import no
+  longer says "N messages imported so far" in a notice every few seconds. A data file's account
+  left with nothing in it by an import that never ended (before this was kept) is found as one to
+  import again or remove. Still open: the planned folders shown ahead as an outline, once the
+  window can show them as not yet open to changes; going on from where it stopped (continuing
+  reads the file again from its start, the same messages coming out the same way); and the
+  window's buttons for it.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

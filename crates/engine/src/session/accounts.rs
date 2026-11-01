@@ -2,6 +2,11 @@
 
 use super::*;
 
+mod importing;
+#[cfg(test)]
+pub(crate) use importing::REMOVE_BACKSTOP;
+pub use importing::{ImportState, Imports};
+
 /// A local account with more messages than this keeps the counts it saved when it opens, rather
 /// than reading every folder to count them.
 const RECOUNT_MAX: u64 = 50_000;
@@ -43,6 +48,9 @@ impl Session {
                 self.jobs.push(Job::Start { account: a.config.clone(), password: None });
             }
         }
+        // Imports interrupted, stopped or being removed when MailCraft last closed.
+        self.load_imports();
+        let local: Vec<String> = local.into_iter().filter(|id| self.account(id).is_some()).collect();
         // Counted again on opening, unless big: a big data file's counts were kept as it came in
         // and with every change since (counting meant reading its every folder's list).
         for id in local {
@@ -113,41 +121,11 @@ impl Session {
 
     pub(super) fn new_account_id(&self) -> String {
         let mut n = self.accounts.len() + 1;
-        while self.accounts.iter().any(|a| a.config.id == format!("a{n}")) {
+        // Nor one a data file's record still names (an account whose removal didn't finish).
+        while self.accounts.iter().any(|a| a.config.id == format!("a{n}")) || self.importing.sources.contains_key(&format!("a{n}")) {
             n += 1;
         }
         format!("a{n}")
-    }
-
-    /// Open an Outlook data file (`.pst`): a new account on this computer, named after the file,
-    /// that the import fills.
-    pub fn import_pst(&mut self, path: &str) -> CmdResult {
-        let path = path.trim();
-        if path.is_empty() {
-            return Err(CmdError::Params("`path` is required".into()));
-        }
-        let file = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
-        let stem = file.rsplit_once('.').map_or(file.as_str(), |(s, _)| s).trim().to_string();
-        let id = self.new_account_id();
-        let config = AccountConfig {
-            id: id.clone(),
-            name: if stem.is_empty() { file.clone() } else { stem },
-            // Shown where an account's address would be; never an address, so never "me".
-            email: file,
-            color: u8::try_from(self.accounts.len() % usize::from(ACCOUNT_COLORS)).unwrap_or(0),
-            ..Default::default()
-        };
-        self.accounts.push(AccountState {
-            config,
-            folders: Vec::new(),
-            status: SyncStatus::Syncing { folder: String::new() },
-            quota: None,
-            vacation: VacationState::Unknown,
-        });
-        self.save_accounts();
-        self.import_started(&id);
-        self.jobs.push(Job::ImportPst { account: id.clone(), path: path.to_string(), resume: false });
-        Ok(serde_json::json!({ "account": id, "importing": true }))
     }
 
     /// Write an account's mail to an Outlook data file at `path`.
@@ -180,117 +158,6 @@ impl Session {
                 }
                 let more = if more.is_empty() { String::new() } else { format!(" ({})", more.join("; ")) };
                 self.notice(format!("{name}: {messages} messages exported{more}"), false);
-            }
-        }
-    }
-
-    /// Bring an existing data file's mail into a new account before it first connects (Outlook's
-    /// "use an existing data file" for POP accounts).
-    pub fn attach_data_file(&mut self, account: &str, path: &str) -> CmdResult {
-        let path = path.trim();
-        if path.is_empty() {
-            return Err(CmdError::Params("`path` is required".into()));
-        }
-        if self.account(account).is_none() {
-            return Err(CmdError::Params(format!("no account `{account}`")));
-        }
-        // Connecting waits for the file, so the two don't write the Inbox at once.
-        if let Some(i) = self.jobs.iter().position(|j| matches!(j, Job::Start { .. } | Job::SignIn { .. }) && j.account() == account) {
-            let start = self.jobs.remove(i);
-            self.held.insert(account.to_string(), start);
-        }
-        if let Some(a) = self.account_mut(account) {
-            a.status = SyncStatus::Syncing { folder: String::new() };
-        }
-        self.import_started(account);
-        self.jobs.push(Job::ImportPst { account: account.to_string(), path: path.to_string(), resume: false });
-        Ok(serde_json::json!({ "account": account, "importing": true }))
-    }
-
-    /// How an import is going. While the file is planned nothing has come in yet: said once
-    /// something has.
-    pub(super) fn import_progress(&mut self, account: &str, p: &mailcraft_model::job::ImportProgress) {
-        if p.phase == mailcraft_model::job::ImportPhase::Planning {
-            if self.account(account).is_some() {
-                self.import_started(account);
-            }
-            return;
-        }
-        self.imported(account, usize::try_from(p.imported).unwrap_or(usize::MAX), 0, false, None, None);
-    }
-
-    /// An import's end (`done`) or how far it got. An error with a `report` of messages that
-    /// came in (the last save failed) keeps the account and what came in.
-    pub(super) fn imported(
-        &mut self,
-        account: &str,
-        messages: usize,
-        skipped: usize,
-        done: bool,
-        error: Option<String>,
-        report: Option<&mailcraft_model::job::ImportReport>,
-    ) {
-        if done {
-            self.import_ended(account);
-        } else if self.account(account).is_some() {
-            self.import_started(account);
-        }
-        let Some(name) = self.account(account).map(|a| a.config.email.clone()) else { return };
-        if !done {
-            self.notice(format!("{name}: {messages} messages imported so far…"), false);
-            return;
-        }
-        if let Some(a) = self.account_mut(account) {
-            a.status = SyncStatus::Offline;
-        }
-        // Mail, or a file of contacts, calendar or notes only.
-        let came_in = report.is_some_and(|r| r.messages.saturating_add(r.contacts).saturating_add(r.events).saturating_add(r.notes) > 0);
-        // An account that was waiting for its data file connects now.
-        if let Some(start) = self.held.remove(account) {
-            self.jobs.push(start);
-            if let Some(e) = &error
-                && !came_in
-            {
-                self.notice(format!("{name}: the data file could not be opened: {e}"), true);
-                return;
-            }
-        }
-        match error {
-            Some(e) if !came_in => {
-                // Nothing came in: the account goes again, and the file it was starting.
-                let _ = self.drop_account(account, false);
-                self.notice(format!("{name} could not be opened: {e}"), true);
-            }
-            error => {
-                // The file's contacts and calendar came in too.
-                if let Some(store) = self.store.clone()
-                    && let Ok(mut p) = store.load_account_doc::<mailcraft_model::pim::Pim>(account, mailcraft_model::pim::PIM_DOC)
-                {
-                    p.ensure_defaults();
-                    self.pim.insert(account.to_string(), p);
-                    self.pim_unread.remove(account);
-                    self.contacts = None;
-                    self.pim_revision = self.pim_revision.wrapping_add(1);
-                }
-                let more = if skipped > 0 { format!(" ({skipped} could not be read)") } else { String::new() };
-                match error {
-                    Some(e) => {
-                        // The folder list came with the end and is held here: saved again, or
-                        // the next start would find none and the mail out of reach.
-                        let kept = match (&self.store, self.account(account)) {
-                            (Some(store), Some(a)) if !a.folders.is_empty() => {
-                                store.save_folders(account, &a.folders).inspect_err(|e| log::warn!("{account}: folders not saved: {e}")).is_ok()
-                            }
-                            _ => false,
-                        };
-                        let then = if kept { "" } else { " Import the file again to keep it." };
-                        self.notice(format!("{name}: {messages} messages imported{more}, but the last of it could not be saved: {e}.{then}"), true);
-                    }
-                    None => self.notice(format!("{name}: {messages} messages imported{more}"), false),
-                }
-                if let Some(inbox) = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()) {
-                    self.open_view(View::Folder { account: account.to_string(), folder: inbox });
-                }
             }
         }
     }
@@ -354,7 +221,12 @@ impl Session {
 
     /// Remove an account as Outlook does: gone from here, its data file kept (closed) where it
     /// is, so it can be opened again from File › Open & Export; nothing changes on the server.
+    /// One whose data file is being imported goes once the import has stopped, with what it
+    /// brought in (a part of a file that's still there is worth nothing).
     pub fn remove_account(&mut self, id: &str) -> CmdResult {
+        if let Some(removing) = self.remove_while_importing(id) {
+            return removing;
+        }
         self.drop_account(id, true)
     }
 
@@ -367,7 +239,11 @@ impl Session {
         self.accounts.retain(|a| a.config.id != id);
         self.cache.retain(|(a, _), _| a != id);
         self.search_folders_changed(id);
-        self.importing.remove(id);
+        self.importing.running.remove(id);
+        if self.importing.sources.remove(id).is_some() {
+            self.save_imports();
+        }
+        self.held.remove(id);
         self.pim.remove(id);
         // An account added later under the same id has its own calendar and contacts to save.
         self.pim_unread.remove(id);

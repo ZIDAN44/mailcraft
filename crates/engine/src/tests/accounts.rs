@@ -3,6 +3,7 @@
 use super::*;
 
 mod data_files;
+mod importing;
 
 #[test]
 fn jmap_accounts_need_no_imap_servers() {

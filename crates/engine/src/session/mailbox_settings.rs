@@ -6,7 +6,9 @@ impl Session {
     /// Delete everything in a folder for good (only Deleted Items and Junk Email).
     pub fn empty_folder(&mut self, account: &str, folder: &str) -> CmdResult {
         let f = self.folder(account, folder).ok_or_else(|| CmdError::Params(format!("no folder `{folder}`")))?;
-        if !matches!(f.role, FolderRole::Trash | FolderRole::Junk) {
+        let role = f.role;
+        self.import_holds(account)?;
+        if !matches!(role, FolderRole::Trash | FolderRole::Junk) {
             // Any other folder: everything goes to Deleted Items, as Outlook's Delete All.
             let trash = self
                 .account(account)

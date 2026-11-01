@@ -526,6 +526,9 @@ impl Session {
         let categories: Vec<String> = self.prefs.categories.iter().map(|c| c.keyword.clone()).collect();
         let mut gone: Vec<MessageKey> = Vec::new();
         let mut looked = 0usize;
+        for (a, _) in folders {
+            self.import_holds(a)?;
+        }
         for (a, f) in folders {
             // Deleted Items and Junk aren't cleaned up into Deleted Items.
             if self.folder(a, f).is_none_or(|x| matches!(x.role, FolderRole::Trash | FolderRole::Junk)) {
