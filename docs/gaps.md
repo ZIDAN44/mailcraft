@@ -1660,7 +1660,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   decides: an import the user cancelled isn't gone on with by itself even if MailCraft closed
   before it said so, and one whose record was lost is found from it. A MailCraft data file
   brought in leaves its own import's note behind. The checkpoint read back is checked (a fuzz
-  target, `import_checkpoint`).
+  target, `import_checkpoint`). Still open: keeping what a paused import brought in leaves the
+  folder it was part-way through out of the folder list, its messages kept in the data file but
+  shown nowhere; Keep is to finish that folder's list from the note (or let its messages go).
 - **Seeing an import go:** opening a `.pst` said "Opening {file}…" in the status bar for as long
   as it took (13.6 minutes on a 41 GB file), with no total, no percentage, no time left and no
   way to stop it, and the folder pane said "Loading folders…". A file chosen is now looked at

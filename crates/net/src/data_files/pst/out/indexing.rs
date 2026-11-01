@@ -102,6 +102,14 @@ impl Out<'_> {
         }
     }
 
+    /// The folder at `path` may hold messages the index hasn't got (going on with it after a
+    /// crash: what was written past the index's last write isn't in it): not marked when done.
+    pub(in super::super) fn index_missed(&mut self, path: &str) {
+        if let Some(ix) = &mut self.index {
+            ix.missed.insert(path.to_string());
+        }
+    }
+
     /// A folder is done, its list written: marked as brought up to the mail as it now is, so the
     /// next pass passes it over, unless a message of it isn't in the index.
     pub(super) fn index_folder_done(&mut self, path: &str) {

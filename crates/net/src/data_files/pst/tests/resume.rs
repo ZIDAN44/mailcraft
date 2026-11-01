@@ -3,10 +3,12 @@
 //! stopped. A file that changed since, or went, isn't gone on with; one Outlook only opened is.
 
 use std::path::Path;
+use std::time::Duration;
 
 use mailcraft_model::job::{Blocked, SkipReason, StopHow};
 use mailcraft_model::pim::{PIM_DOC, Pim};
 use mailcraft_store::Store;
+use mailcraft_store::search::{self, Writer as IndexWriter};
 use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
 use super::super::item::Item;
@@ -48,6 +50,27 @@ fn go_on(pst: &Path, store: &Store, fault: Option<Fault>) -> (Imported, usize) {
     (done, first.unwrap_or(0))
 }
 
+/// Options for an import whose checkpoints come every few milliseconds, with batches of a few
+/// messages between them: a cut lands part-way through a folder, past its last checkpoint.
+fn often(fault: Option<Fault>) -> ImportOptions {
+    ImportOptions { batch_bytes: 3000, checkpoint_every: Some(Duration::from_millis(15)), ..opts(2, fault) }
+}
+
+/// Every folder the search index has marked as brought up to the mail has every message it lists
+/// in the index (one that hasn't is left for the next pass, unmarked).
+fn indexed_where_marked(store: &Store) {
+    let w = IndexWriter::open(store, "a1").unwrap();
+    for f in store.load_folders("a1").unwrap() {
+        let rev = search::revision(store, "a1", &f.path);
+        if rev.is_none() || w.marked(&f.path) != rev {
+            continue;
+        }
+        let st = store.load_folder("a1", &f.path).unwrap();
+        let missing = st.messages.iter().filter(|m| w.find(&m.key).is_none()).count();
+        assert_eq!(missing, 0, "{}: marked as up to date with {missing} of {} not indexed", f.path, st.messages.len());
+    }
+}
+
 fn checkpoint(store: &Store) -> Checkpoint {
     match resume::load(store, "a1") {
         Found::Some(cp) => *cp,
@@ -83,30 +106,95 @@ fn paused_and_gone_on_with_is_the_same_import() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Cut off as if the process ended (after a checkpoint, and batches past it), the import goes on
-/// from its checkpoint: what was written past it is written again under the same numbers, and it
-/// comes out as the import that never stopped.
+/// Cut off as if the process ended (after a checkpoint part-way through a folder, and batches
+/// past it), the import goes on from its checkpoint: what was written past it goes and is written
+/// again under the same numbers, and it comes out as the import that never stopped, each message
+/// once, and searchable or left for the next pass to look at.
 #[test]
 fn cut_off_and_gone_on_with_is_the_same_import() {
     let (dir, pst) = data_file("resume-cut", 300, false);
     let whole = store_at(&dir, "whole");
     import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
-    for (n, at) in [150u64, 450, 899].into_iter().enumerate() {
+    let (mut part_way, mut written_past) = (0, 0);
+    for (n, at) in [150u64, 250, 450, 520, 899].into_iter().enumerate() {
         let name = format!("cut{n}");
         {
             let store = store_at(&dir, &name);
-            assert!(import_with(&pst, &store, "a1", &opts(2, Some(Fault::CutOffAfter(at))), &mut |_| {}).is_err());
+            assert!(import_with(&pst, &store, "a1", &often(Some(Fault::CutOffAfter(at))), &mut |_| {}).is_err());
         }
         let store = store_at(&dir, &name);
         // Cut off before its first checkpoint, it starts again from the beginning.
         match resume::load(&store, "a1") {
-            Found::Some(cp) => assert_eq!(cp.state, CheckState::Running, "cut off at {at}"),
+            Found::Some(cp) => {
+                assert_eq!(cp.state, CheckState::Running, "cut off at {at}");
+                if let Some(c) = cp.current.as_ref().filter(|c| c.tail.is_some()) {
+                    part_way += 1;
+                    written_past += store.cached_bodies("a1", &c.path, 1).into_iter().filter(|u| *u >= c.uid_next).count();
+                }
+            }
             _ => assert!(at < 300, "a folder done is in a checkpoint"),
         }
         let (done, _) = go_on(&pst, &store, None);
         assert_eq!((done.messages, done.skipped), (900, 0), "cut off at {at}");
         assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "cut off at {at}");
+        indexed_where_marked(&store);
     }
+    assert!(part_way >= 3, "only {part_way} cuts went on from part-way through a folder");
+    assert!(written_past > 0, "no source was written past a checkpoint");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Paused, gone on with and cut off part-way through, then gone on with again, the import is the
+/// one that never stopped: the checkpoints the second run wrote count each row once.
+#[test]
+fn paused_then_cut_off_and_gone_on_with_is_the_same_import() {
+    let (dir, pst) = data_file("resume-pause-cut", 300, false);
+    let whole = store_at(&dir, "whole");
+    import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
+    {
+        let store = store_at(&dir, "part");
+        stopped_at(&pst, &store, 100, StopHow::Pause, None);
+        let o = ImportOptions { resume: true, ..often(Some(Fault::CutOffAfter(280))) };
+        assert!(import_with(&pst, &store, "a1", &o, &mut |_| {}).is_err());
+    }
+    let store = store_at(&dir, "part");
+    let (done, _) = go_on(&pst, &store, None);
+    assert_eq!((done.messages, done.skipped), (900, 0));
+    assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
+    indexed_where_marked(&store);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Cancelled as it goes on from a pause, before the folder part-way through is reached again,
+/// the import keeps that folder's list as the pause left it: gone on with, it's the one that
+/// never stopped.
+#[test]
+fn cancelled_before_the_paused_folder_is_reached_keeps_its_list() {
+    let (dir, pst) = data_file("resume-pause-cancel", 300, false);
+    let whole = store_at(&dir, "whole");
+    import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
+    let store = store_at(&dir, "part");
+    stopped_at(&pst, &store, 200, StopHow::Pause, None);
+    let cp = checkpoint(&store);
+    assert!(cp.current.as_ref().is_some_and(|c| c.tail.is_some()), "paused part-way through a folder");
+    let source = cp.source.clone();
+    {
+        // Going on: the file is known, then the user cancels.
+        let stop = Stop::default();
+        let o = ImportOptions { stop: stop.clone(), ..opts(2, None) };
+        let mut sink = |_| {};
+        let mut out = Out::new(&store, "a1", &o, &mut sink);
+        out.resume_from(cp);
+        out.source_known(&pst, source.record_key, source.fingerprint);
+        stop.raise(StopHow::Cancel);
+        assert!(out.stopped());
+        out.finish();
+    }
+    let cp = checkpoint(&store);
+    assert_eq!(cp.state, CheckState::Cancelled);
+    let (done, _) = go_on(&pst, &store, None);
+    assert_eq!((done.messages, done.skipped), (900, 0));
+    assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -228,10 +316,10 @@ fn a_checkpoint_that_does_not_add_up_is_refused() {
     let good = serde_json::json!({"version": 1, "folders": [inbox], "done": [{"node": 1, "path": "INBOX"}], "current": {"node": 2, "nextRow": 3, "uidNext": 1}});
     let good = serde_json::to_vec(&good).unwrap();
     assert!(Checkpoint::parse(&good).is_some());
-    assert!(super::super::checkpoint_from_bytes(&good));
+    assert_eq!(super::super::checkpoint_from_bytes(&good), Some(true));
     // The fuzz target's seed is one an import would go on from.
     let seed = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fuzz/seeds/import_checkpoint/paused.json")).unwrap();
-    assert!(super::super::checkpoint_from_bytes(&seed));
+    assert_eq!(super::super::checkpoint_from_bytes(&seed), Some(true));
     for bad in [
         &br#"{"version":2}"#[..],
         br#"{"version":1,"folders":[{"path":"A"},{"path":"A"}]}"#,
@@ -244,6 +332,6 @@ fn a_checkpoint_that_does_not_add_up_is_refused() {
         br#"not json"#,
     ] {
         assert!(Checkpoint::parse(bad).is_none(), "{}", String::from_utf8_lossy(bad));
-        assert!(!super::super::checkpoint_from_bytes(bad));
+        assert_eq!(super::super::checkpoint_from_bytes(bad), None);
     }
 }

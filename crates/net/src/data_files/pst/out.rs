@@ -117,9 +117,20 @@ impl<'a> Out<'a> {
             batch_bytes: if opts.batch_bytes > 0 { opts.batch_bytes } else { BATCH_BYTES },
             index: None,
             indexed: 0,
-            note: super::resume::Note::default(),
+            note: super::resume::Note::every(checkpoint_every(opts)),
         }
     }
+}
+
+/// How often the import's checkpoint is written ([`super::resume::CHECKPOINT_EVERY`], or as a
+/// test says).
+fn checkpoint_every(opts: &ImportOptions) -> Duration {
+    #[cfg(test)]
+    if let Some(every) = opts.checkpoint_every {
+        return every;
+    }
+    let _ = opts;
+    super::resume::CHECKPOINT_EVERY
 }
 
 impl Out<'_> {
@@ -298,7 +309,8 @@ impl Out<'_> {
     }
 
     /// A message a lane made (holding `charge` of the budget until it's written), into the
-    /// folder at `path`, numbered next there.
+    /// folder at `path`, numbered next there. The batches it writes carry no checkpoint: its
+    /// row isn't done until the writer says so, and one written here would read it again.
     pub(super) fn add_built(&mut self, path: &str, b: Built, charge: u64) {
         let Some(st) = self.states.get_mut(path) else {
             self.budget.release(charge);
@@ -329,7 +341,7 @@ impl Out<'_> {
         }
         // One that would take the batch past its size goes into the next (a big one alone).
         if self.pending_bytes.saturating_add(prepared.kept_len()) > self.batch_bytes {
-            self.flush();
+            self.write_pending(false);
         }
         self.pending_bytes = self.pending_bytes.saturating_add(prepared.kept_len());
         self.pending_raw = self.pending_raw.saturating_add(raw_len);
@@ -338,7 +350,7 @@ impl Out<'_> {
         self.index_later(&key, msgid, size, doc);
         self.pending.push((key, prepared));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= self.batch_bytes {
-            self.flush();
+            self.write_pending(false);
         }
         // A page's worth whose sources are written: into the folder's list.
         if page_full {
@@ -346,11 +358,19 @@ impl Out<'_> {
         }
     }
 
-    /// Write the sources read so far, together. A batch that can't be written leaves its
-    /// messages out of their folders' lists (counted as skipped), as one failed write did.
+    /// Write the sources read so far, together, with the checkpoint when one is due (called
+    /// between items, where the checkpoint's note is whole).
     pub(super) fn flush(&mut self) {
+        let due = self.checkpoint_due();
+        self.write_pending(due);
+    }
+
+    /// Write the sources read so far, together, and the checkpoint with them when `checkpoint`;
+    /// returns whether a checkpoint was written. A batch that can't be written leaves its
+    /// messages out of their folders' lists (counted as skipped), as one failed write did.
+    pub(super) fn write_pending(&mut self, checkpoint: bool) -> bool {
         if self.pending.is_empty() {
-            return;
+            return false;
         }
         let batch = std::mem::take(&mut self.pending);
         self.pending_bytes = 0;
@@ -358,7 +378,7 @@ impl Out<'_> {
         let charge = std::mem::take(&mut self.pending_charge);
         let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
         // Every so often the checkpoint goes with the batch, naming it.
-        let wrote = if self.checkpoint_due() {
+        let wrote = if checkpoint {
             let docs = self.checkpoint_docs();
             let wrote = self.tally.time(Phase::Write, || self.store.write_batch(self.account, batch, docs));
             self.checkpointed(wrote.is_ok());
@@ -367,7 +387,8 @@ impl Out<'_> {
             self.tally.time(Phase::Write, || self.store.write_prepared(batch, false))
         };
         // Their words go into the index once their sources are in.
-        self.index_written(wrote.is_ok());
+        let ok = wrote.is_ok();
+        self.index_written(ok);
         if let Err(e) = wrote {
             log::warn!("import: {e}");
             for key in &keys {
@@ -380,6 +401,7 @@ impl Out<'_> {
         }
         // Written (or not): what they held of the budget goes back.
         self.budget.release(charge);
+        checkpoint && ok
     }
 
     /// Hand a folder's messages whose sources are written to its list (full pages go out).

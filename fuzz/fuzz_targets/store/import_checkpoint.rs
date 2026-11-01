@@ -7,5 +7,7 @@ use libfuzzer_sys::fuzz_target;
 use mailcraft_net::pst;
 
 fuzz_target!(|input: &[u8]| {
-    let _ = pst::checkpoint_from_bytes(input);
+    if let Some(same) = pst::checkpoint_from_bytes(input) {
+        assert!(same, "a checkpoint gone on from read back otherwise once written again");
+    }
 });

@@ -362,6 +362,9 @@ pub struct ImportOptions {
     /// A fault for a test to put in the import's threads.
     #[cfg(test)]
     pub(crate) fault: Option<lanes::tests::Fault>,
+    /// How often a test's import writes its checkpoint (none: as the app's does).
+    #[cfg(test)]
+    pub(crate) checkpoint_every: Option<Duration>,
 }
 
 /// How far an import is asked to stop. It's raised from any thread and never lowered: paused,

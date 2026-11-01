@@ -193,13 +193,13 @@ pub(super) fn load(store: &Store, account: &str) -> Found {
     }
 }
 
-/// A checkpoint read for the fuzz target: whether it's one that would be gone on from, and that
-/// it reads back the same once written again.
+/// A checkpoint read for the fuzz target: none when it isn't one that would be gone on from, or
+/// whether it reads back the same once written again.
 #[doc(hidden)]
-pub fn checkpoint_from_bytes(bytes: &[u8]) -> bool {
-    let Some(cp) = Checkpoint::parse(bytes) else { return false };
+pub fn checkpoint_from_bytes(bytes: &[u8]) -> Option<bool> {
+    let cp = Checkpoint::parse(bytes)?;
     let again = serde_json::to_vec(&cp).ok().and_then(|b| Checkpoint::parse(&b));
-    again.as_ref() == Some(&cp)
+    Some(again.as_ref() == Some(&cp))
 }
 
 /// What the planner leaves out going on: the folders done, the rows of the one part-way through
@@ -280,9 +280,11 @@ pub(super) struct Note {
     /// Earlier runs: how many, and the time they took.
     pub(super) runs: u32,
     pub(super) earlier_ms: u64,
-    /// When the last checkpoint was written (none: not yet), and whether one may be: not until
-    /// the file is known (what it holds, and, going on, that it's the same one).
+    /// When the last checkpoint was written (none: not yet), how often one is ([`CHECKPOINT_EVERY`],
+    /// but in a test), and whether one may be: not until the file is known (what it holds, and,
+    /// going on, that it's the same one).
     last: Option<Instant>,
+    every: Duration,
     ready: bool,
     /// Contacts or calendar items read since the last checkpoint.
     pim_dirty: bool,
@@ -294,8 +296,14 @@ pub(super) struct Note {
     /// through, until it's opened again; the folders to put back in the account's list.
     placed: HashMap<u32, String>,
     resumed: Option<Current>,
-    resumed_state: CheckState,
     reconcile: Vec<Folder>,
+}
+
+impl Note {
+    /// Nothing noted yet, with a checkpoint at least every `every`.
+    pub(super) fn every(every: Duration) -> Note {
+        Note { every, ..Note::default() }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -334,7 +342,6 @@ impl Out<'_> {
         note.reconcile = cp.folders.iter().filter(|f| done_paths.contains(f.path.as_str())).cloned().collect();
         note.done = cp.done;
         note.resumed = cp.current;
-        note.resumed_state = cp.state;
         self.folders = cp.folders;
         skip
     }
@@ -381,13 +388,15 @@ impl Out<'_> {
     }
 
     /// The folder part-way through opened again: its list from its tail when it was never
-    /// shown, or from what's listed when it was (stopped by the user: its numbers aren't given
-    /// again). Sources written past it go. `None` when its list can't be read: its items then go
-    /// nowhere, and the rest is left as it was.
+    /// shown (paused or cut off, whether or not a cancel came before it was reached again), or
+    /// from what's listed when it was (stopped by the user: its numbers aren't given again).
+    /// Sources written past it go. `None` when its list can't be read: its items then go
+    /// nowhere, and the rest is left as it was. Its messages written before a crash may not be
+    /// in the search index: the next pass looks at it.
     fn reopen(&mut self, c: Current) -> Option<String> {
         let path = c.path.clone();
-        let (uid_next, list) = match (self.note.resumed_state, c.tail) {
-            (CheckState::Running, Some(tail)) => (c.uid_next, self.store.resume_list_writer(self.account, &path, tail)),
+        let (uid_next, list) = match c.tail {
+            Some(tail) => (c.uid_next, self.store.resume_list_writer(self.account, &path, tail)),
             _ => match self.store.load_folder(self.account, &path) {
                 Ok(st) => {
                     let uid_next = st.free_uid(self.account, &path).unwrap_or(c.uid_next).max(c.uid_next);
@@ -409,6 +418,7 @@ impl Out<'_> {
         if let Err(e) = self.store.drop_bodies_from(self.account, &path, 1, uid_next) {
             log::warn!("import: {e}");
         }
+        self.index_missed(&path);
         self.states.insert(path.clone(), Open { uid_next, waiting: Vec::new(), list });
         self.note.at = Some(At { node: c.node, path: Some(path.clone()), next_row: c.next_row });
         Some(path)
@@ -462,7 +472,7 @@ impl Out<'_> {
 
     /// Whether a checkpoint is due with the next batch.
     pub(super) fn checkpoint_due(&self) -> bool {
-        self.note.ready && self.note.last.is_none_or(|t| t.elapsed() >= CHECKPOINT_EVERY)
+        self.note.ready && self.note.last.is_none_or(|t| t.elapsed() >= self.note.every)
     }
 
     /// The mail folder part-way through, as the checkpoint says it.
@@ -542,9 +552,9 @@ impl Out<'_> {
         if !self.note.ready {
             return;
         }
-        // Its list's tail names messages waiting for their sources: those go first.
-        if !self.pending.is_empty() {
-            self.flush();
+        // Its list's tail names messages waiting for their sources: it goes with them.
+        if self.write_pending(true) {
+            return;
         }
         let docs = self.checkpoint_docs();
         let wrote = self.tally.time(Phase::Commit, || self.store.write_batch(self.account, Vec::new(), docs));

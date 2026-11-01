@@ -79,6 +79,11 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
         if out.pending_charge > cap / 2 || (out.pending_charge >= cap / 8 && ctx.budget.waiting()) {
             out.flush();
         }
+        // A checkpoint due goes here, between items, with what's held (the batches an item
+        // fills as it's added carry none: its row isn't done yet).
+        if out.checkpoint_due() {
+            out.checkpoint();
+        }
         // Results coming without a pause: the second's flush all the same.
         if flushed.elapsed() >= FLUSH_EVERY {
             out.flush();
