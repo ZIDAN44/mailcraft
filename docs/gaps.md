@@ -1484,3 +1484,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   reached yet: the rows are still built for each step, and the message is still read in the
   frame. Landing on unread mail still costs about 0.2 s a step there, most of it saving the read
   mark.
+- **Text files saved as they came:** a text attachment (`.txt`, `.htm`, `.csv`…) was handed out
+  as the text the parser read from it, in the charset it named or, with none, as UTF-8 with
+  every other byte replaced, so a file in Latin-1 or Windows-1252 was saved, opened and
+  forwarded changed, from any kind of account (a `.pst`'s Rich Text items carry such `.htm`
+  files). Its bytes are now taken from the message's source, only the transfer encoding
+  (base64, quoted-printable) undone, in an attached message too; its preview is still read in
+  the charset it names. The size the list shows is still the text's.

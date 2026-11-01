@@ -431,8 +431,9 @@ pub(super) fn preview_attachment(s: &mut Session, v: &Value) -> CmdResult {
         return Err(CmdError::Failed(crate::session::STILL_COMING.into()));
     }
     let raw = s.readable_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
-    let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Failed("the attachment can't be read".into()))?;
+    let unreadable = || CmdError::Failed("the attachment can't be read".into());
     if kind == "message" {
+        let data = mailcraft_mime::attachment_data(&raw, index).ok_or_else(unreadable)?;
         let m = mailcraft_mime::parse(&data).ok_or_else(|| CmdError::Failed("the attached message can't be read".into()))?;
         let name = a.name.clone();
         let warning = s.sender_warning(&m.from);
@@ -441,10 +442,16 @@ pub(super) fn preview_attachment(s: &mut Session, v: &Value) -> CmdResult {
             "date": m.date, "text": m.text, "warning": warning,
         }));
     }
-    // At most 512 KB, cut on a character boundary.
+    // Read in the charset the file names (its saved bytes are as they came); at most 512 KB, cut
+    // on a character boundary.
     const MAX: usize = 512 << 10;
-    let text = String::from_utf8_lossy(data.get(..MAX).unwrap_or(&data)).to_string();
-    Ok(json!({"kind": "text", "name": a.name, "text": text, "truncated": data.len() > MAX}))
+    let mut text = mailcraft_mime::attachment_text(&raw, index).ok_or_else(unreadable)?;
+    let truncated = text.len() > MAX;
+    if truncated {
+        let cut = (0..=MAX).rev().find(|i| text.is_char_boundary(*i)).unwrap_or(0);
+        text.truncate(cut);
+    }
+    Ok(json!({"kind": "text", "name": a.name, "text": text, "truncated": truncated}))
 }
 
 /// The open message's source, as an `.eml` file.

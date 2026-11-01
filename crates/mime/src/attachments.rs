@@ -26,6 +26,8 @@ fn shown_size(p: &mail_parser::MessagePart<'_>) -> usize {
 pub(super) struct Attached<'a> {
     pub(super) info: AttachmentInfo,
     pub(super) data: Cow<'a, [u8]>,
+    /// The MIME part it is (none for a file in a `winmail.dat`), for [`sent_bytes`].
+    pub(super) part: Option<&'a mail_parser::MessagePart<'a>>,
 }
 
 /// A message's attachments in order, a `winmail.dat` given as the files in it (it stays one
@@ -46,7 +48,7 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
                 let index = out.len();
                 let name = attachment_name(Some(&f.name), &f.mime, &f.data, index);
                 let info = AttachmentInfo { index, name, mime: f.mime, size: f.data.len(), inline, content_id: f.content_id, content_location: None };
-                out.push(Attached { info, data: Cow::Owned(f.data) });
+                out.push(Attached { info, data: Cow::Owned(f.data), part: None });
             }
             if body.is_empty() {
                 body = t.body;
@@ -64,7 +66,7 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
             content_id: p.content_id().map(|c| c.trim().trim_matches(['<', '>']).to_string()),
             content_location: p.content_location().map(|c| c.trim().trim_matches(['<', '>', '"']).to_string()).filter(|c| !c.is_empty()),
         };
-        out.push(Attached { info, data: Cow::Borrowed(p.contents()) });
+        out.push(Attached { info, data: Cow::Borrowed(p.contents()), part: Some(p) });
     }
     (out, body)
 }
@@ -418,6 +420,34 @@ pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     attachments_data(raw, &[index], usize::MAX, usize::MAX).pop().map(|(_, d)| d)
 }
 
+/// Attachment `index` as text to show: a text file read in the charset it names (its bytes,
+/// saved as they came, are [`attachment_data`]'s).
+pub fn attachment_text(raw: &[u8], index: usize) -> Option<String> {
+    let m = MessageParser::default().parse(raw)?;
+    let a = attached(&m).0.into_iter().find(|a| a.info.index == index)?;
+    Some(String::from_utf8_lossy(&a.data).into_owned())
+}
+
+/// A text file's bytes as they were sent. The parser hands every `text/*` part out as text, read
+/// in its charset or, with none, as UTF-8 with any other byte replaced, so a file in Latin-1 or
+/// Windows-1252 was saved changed. They're taken again
+/// from the message's source, undoing only the transfer encoding, with the parser's own decoders
+/// (a part it could not decode is its source as it is). `None` for other parts, whose bytes are
+/// already these, and when the source has no such range.
+fn sent_bytes(m: &Message<'_>, p: &mail_parser::MessagePart<'_>) -> Option<Vec<u8>> {
+    if !matches!(p.body, mail_parser::PartType::Text(_) | mail_parser::PartType::Html(_)) {
+        return None;
+    }
+    let body = m.raw_message.get(p.offset_body as usize..p.offset_end as usize)?;
+    let mut s = mail_parser::parsers::MessageStream::new(body);
+    let (end, bytes) = match p.encoding {
+        mail_parser::Encoding::Base64 => s.decode_base64_mime(b""),
+        mail_parser::Encoding::QuotedPrintable => s.decode_quoted_printable_mime(b""),
+        mail_parser::Encoding::None => return Some(body.to_vec()),
+    };
+    (end != usize::MAX).then(|| bytes.into_owned())
+}
+
 /// Most attachments [`attachments_data`] looks for at once.
 pub const MAX_WANTED: usize = 256;
 
@@ -442,8 +472,12 @@ pub fn attachments_data(raw: &[u8], wanted: &[usize], max_each: usize, max_total
     let Some(m) = MessageParser::default().parse(raw) else { return Vec::new() };
     let mut sorted = order.clone();
     sorted.sort_unstable();
-    let mut found: Vec<(usize, Cow<'_, [u8]>)> =
-        attached(&m).0.into_iter().filter(|a| sorted.binary_search(&a.info.index).is_ok()).map(|a| (a.info.index, a.data)).collect();
+    let mut found: Vec<(usize, Cow<'_, [u8]>)> = attached(&m)
+        .0
+        .into_iter()
+        .filter(|a| sorted.binary_search(&a.info.index).is_ok())
+        .map(|a| (a.info.index, a.part.and_then(|p| sent_bytes(&m, p)).map_or(a.data, Cow::Owned)))
+        .collect();
     let mut out = Vec::new();
     let mut total = 0usize;
     for i in order {
