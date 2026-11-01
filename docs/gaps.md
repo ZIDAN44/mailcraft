@@ -1431,7 +1431,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   only a change from the server among them (or one the cache couldn't take) reads the folder
   again. A Down step on a made-up folder of 10,941 messages costs the window 0.4 ms (median;
   52 ms before). Closing MailCraft waits for the changes made so far to be on disk, and an
-  export to a data file starts with them.
+  export to a data file starts with them. That's for messages already downloaded: one whose
+  body is fetched on the way still says the folder changed once it's here, which reads the
+  folder again and builds the list (24 ms on that folder), until a body coming in changes only
+  its own row.
 - **A message with many pictures:** each thumbnail read and parsed the whole message again, in
   the frame drawing it (a 33 MB message with 36 pictures took 2.6 s to show), and past 64 the
   thumbnails were thrown away and made again every frame, so the window froze for as long as the

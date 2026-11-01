@@ -78,7 +78,8 @@ fn a_read_marks_echo_keeps_the_folder_and_the_list() {
 
 /// What a Down step costs the window on a big server folder (`--release -- --ignored
 /// --nocapture`): the step, its read mark and the mark's echo; the pool's write to disk is
-/// timed apart, as the window made it before, and so is the echo read as any other change.
+/// timed apart, as the window made it before, and so is the echo read as any other change (what a
+/// body downloaded on the way still costs: its `FolderChanged` reads the folder, docs/gaps.md).
 #[test]
 #[ignore]
 fn down_steps_on_a_big_server_folder() {
@@ -120,7 +121,7 @@ fn down_steps_on_a_big_server_folder() {
     let ((w, wmax), (p, pmax), (r, rmax)) = (median(window), median(pool), median(reread));
     println!("Down step, the window: median {w:?}, max {wmax:?}");
     println!("the read mark on disk (the pool's thread): median {p:?}, max {pmax:?}");
-    println!("the folder read again and the list built (an echo before): median {r:?}, max {rmax:?}");
+    println!("the folder read again and the list built (an echo before, a body downloaded now): median {r:?}, max {rmax:?}");
 }
 
 /// A sync changing the folder on disk while read marks wait for their echo: one more change is
@@ -164,6 +165,46 @@ fn an_echo_puts_the_change_in_a_folder_read_before_it() {
     assert!(s.summary(&k).unwrap().flags.flagged, "the change, in memory");
     assert_eq!(s.nav_structure(), built, "patched, not built again");
     assert_ne!(s.revision, revision);
+}
+
+/// Two changes waiting and the folder read from disk again before the pool made either: each
+/// echo puts its own change in (only the last one did, and the first was lost from memory).
+#[test]
+fn every_waiting_change_gets_into_a_folder_read_before_them() {
+    let (mut s, id) = server_inbox(300);
+    let rows = s.row_keys();
+    let (a, b) = (rows[3].clone(), rows[5].clone());
+    s.apply_op(&id, Op::SetFlag { keys: vec![a.clone()], flag: Flag::Flagged, on: true });
+    s.apply_op(&id, Op::SetFlag { keys: vec![b.clone()], flag: Flag::Flagged, on: true });
+    s.cache.remove(&(id.clone(), "INBOX".to_string()));
+    s.refresh_list();
+    let built = s.nav_structure();
+    assert_eq!(made_on_disk(&mut s).len(), 2);
+    inbox_changed(&mut s, &id);
+    assert!(s.summary(&a).unwrap().flags.flagged, "the first, as its echo comes");
+    inbox_changed(&mut s, &id);
+    assert!(s.summary(&a).unwrap().flags.flagged && s.summary(&b).unwrap().flags.flagged);
+    assert_eq!(s.nav_structure(), built, "patched, not built again");
+    assert_eq!(s.echoes.waiting(&id), 0);
+}
+
+/// A message flagged, the folder read again, then unflagged: the first echo doesn't flag it
+/// again, as the change after it says how it ends.
+#[test]
+fn a_later_waiting_change_says_how_it_ends() {
+    let (mut s, id) = server_inbox(30);
+    let k = s.row_keys()[2].clone();
+    s.apply_op(&id, Op::SetFlag { keys: vec![k.clone()], flag: Flag::Flagged, on: true });
+    s.cache.remove(&(id.clone(), "INBOX".to_string()));
+    s.refresh_list();
+    s.apply_op(&id, Op::SetFlag { keys: vec![k.clone()], flag: Flag::Flagged, on: false });
+    made_on_disk(&mut s);
+    inbox_changed(&mut s, &id);
+    assert!(!s.summary(&k).unwrap().flags.flagged, "not flagged again on the way");
+    inbox_changed(&mut s, &id);
+    assert!(!s.summary(&k).unwrap().flags.flagged);
+    let store = s.store.clone().unwrap();
+    assert!(!store.load_folder(&id, "INBOX").unwrap().messages.iter().any(|m| m.key == k && m.flags.flagged), "as disk has it");
 }
 
 /// A change the cache on disk couldn't take comes with a notice: the account's echoes are let go

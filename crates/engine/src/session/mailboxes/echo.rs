@@ -62,7 +62,9 @@ impl Session {
 
     /// Whether `folder` changing is the echo of one of the session's own changes, which the
     /// folder in memory has already: then it's kept as it is, the list with it. A folder in
-    /// memory read from disk again before the change was there gets it the way the list does.
+    /// memory read from disk again before the change was there gets it the way the list does,
+    /// each change as its echo comes (not where a later one waiting changes the same, which says
+    /// how it ends).
     pub(crate) fn own_echo(&mut self, account: &str, folder: &str) -> bool {
         let k = (account.to_string(), folder.to_string());
         let now = self.clock.now;
@@ -70,19 +72,19 @@ impl Session {
         while q.front().is_some_and(|(at, _)| now.saturating_sub(*at) > ECHO_WAIT) {
             q.pop_front();
         }
-        let echoed = q.pop_front();
-        // More of the folder's changes to come: the last of them says what it holds.
-        let later = !q.is_empty();
-        if !later {
+        let Some((_, op)) = q.pop_front() else {
+            self.echoes.0.remove(&k);
+            return false;
+        };
+        let in_folder = |m: &&MessageKey| m.account == account && m.folder == folder;
+        let superseded: HashSet<u32> =
+            q.iter().filter(|(_, o)| same_change(o, &op)).flat_map(|(_, o)| o.keys().iter().filter(in_folder).map(|m| m.uid)).collect();
+        if q.is_empty() {
             self.echoes.0.remove(&k);
         }
-        let Some((_, op)) = echoed else { return false };
         let Some(st) = self.cache.get_mut(&k) else { return false };
-        if later {
-            return true;
-        }
         let uids: HashSet<u32> =
-            op.keys().iter().filter(|m| m.account == account && m.folder == folder && m.validity == st.validity).map(|m| m.uid).collect();
+            op.keys().iter().filter(in_folder).filter(|m| m.validity == st.validity && !superseded.contains(&m.uid)).map(|m| m.uid).collect();
         let has = |f: &Flags| match &op {
             Op::SetFlag { flag, on, .. } => flag.get(f) == *on,
             Op::SetKeyword { keyword, on, .. } => f.has(keyword) == *on,
@@ -103,5 +105,14 @@ impl Session {
             self.refresh_list();
         }
         true
+    }
+}
+
+/// Whether `a` and `b` change the same flag or category (of the messages both name).
+fn same_change(a: &Op, b: &Op) -> bool {
+    match (a, b) {
+        (Op::SetFlag { flag: x, .. }, Op::SetFlag { flag: y, .. }) => x == y,
+        (Op::SetKeyword { keyword: x, .. }, Op::SetKeyword { keyword: y, .. }) => x.eq_ignore_ascii_case(y),
+        _ => false,
     }
 }
