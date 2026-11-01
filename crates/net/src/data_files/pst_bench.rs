@@ -13,19 +13,24 @@
 //! line (the process's bytes read and written, and its peak working set). With `MC_VERIFY=1` it then reads every listed message back from the cache and
 //! counts those present, those that parse and their attachments (counts only), with a digest of
 //! the folders, their lists and every source: two imports of the same file (one lane and many,
-//! say) came out the same when their digests are; and what a search index pass would still have
-//! to do (none to add, no folder read, when the import indexed as it went; `MC_NO_INDEX=1` imports
-//! without indexing, to compare).
+//! say) came out the same when their digests are (one each of the folders, the lists and the
+//! sources besides, and with `MC_VERIFY=folders` a line of them for each folder, to see where
+//! two differ; the folders go in the order the import gives them, and one done already gives
+//! them as the account keeps them, the Sent Items folder last); and what a search index pass
+//! would still have to do (none to add, no folder read, when the import indexed as it went;
+//! `MC_NO_INDEX=1` imports without indexing, to compare).
 //!
 //! A run read from start to end also prints a `fit:` line, what an item and a byte took, fitted
 //! over the run's progress (the item weight the bar should go by: `ITEM_WEIGHT`), and `eta:`
 //! lines, how far off the time left the window says would have been, with the app's weight, the
-//! fitted one and bytes alone. `MC_RESUME=1` (with `MC_KEEP`) goes on from where an import into
+//! fitted one, bytes alone and those in `MC_WEIGHTS` (`MC_TRACE`: what it said and what was
+//! true at every 5%). `MC_SAMPLES=<file>` keeps that progress, for `replay` to judge again with
+//! other weights without importing. `MC_RESUME=1` (with `MC_KEEP`) goes on from where an import into
 //! the cache stopped, after an `open:` line timing the data file's opening (one cut off by a kill
 //! is checked then); `MC_PAUSES=n` pauses it n times at random, going on each time, and prints how
-//! long each pause took to stop it (`MC_PAUSE_S`, `MC_SEED`). `MC_CHECKPOINT_S` writes a
-//! checkpoint that often instead of the app's every 10 s (a big number: almost none), to time
-//! what they cost.
+//! long each pause took to stop it, with that run's numbers (`MC_PAUSE_S`, `MC_SEED`).
+//! `MC_CHECKPOINT_S` writes a checkpoint that often instead of the app's every 10 s (a big
+//! number: only those at each folder's end), to time what they cost.
 //!
 //! Memory is watched from outside (the test process's working set), so the numbers are the
 //! process's, allocator and all.
@@ -259,7 +264,8 @@ fn import() {
         opts.resume = true;
         match (took, done.stopped) {
             (Some(ms), Some(StopHow::Pause)) => {
-                println!("paused: {} messages in, {ms} ms to stop", done.messages);
+                // With the run's own numbers, to see where a slow stop went.
+                println!("paused: {} messages in, {ms} ms to stop; {}", done.messages, serde_json::to_string(&done.stats).unwrap());
                 waits.push(ms);
             }
             // Done before it was asked to stop.
@@ -267,6 +273,7 @@ fn import() {
         }
     };
     let secs = began.elapsed().as_secs_f64();
+    let end_ms = u64::try_from(began.elapsed().as_millis()).unwrap_or(u64::MAX);
     if !waits.is_empty() {
         waits.sort_unstable();
         let at = |q: usize| waits.get((waits.len() * q / 100).min(waits.len() - 1)).copied().unwrap_or(0);
@@ -290,55 +297,62 @@ fn import() {
     // What an item and a byte cost, and how far off the time left the window says would have
     // been: for a run read from start to end only.
     if pauses == 0 && !opts.resume {
-        let end_ms = u64::try_from(began.elapsed().as_millis()).unwrap_or(u64::MAX);
-        let fitted = fit(&samples, FIT_SPAN_MS);
-        if let Some(f) = fitted {
-            println!(
-                "fit: {:.3} ms an item, {:.2} ns a byte, item weight {} bytes, r2 {:.3}, {} spans",
-                f.item_ms,
-                f.byte_ns,
-                f.weight(),
-                f.r2,
-                f.spans
-            );
+        // `MC_SAMPLES`: the progress kept in a file too (times and counts), for `replay`.
+        if let Some(to) = env("MC_SAMPLES") {
+            let mut text = format!("{},{},{end_ms}\n", totals.0, totals.1);
+            for s in &samples {
+                text.push_str(&format!("{},{},{}\n", s.ms, s.items, s.bytes));
+            }
+            std::fs::write(to, text).unwrap();
         }
-        let mut weights = vec![("app", ITEM_WEIGHT), ("bytes only", 0)];
-        weights.extend(fitted.map(|f| ("fitted", f.weight())));
-        for (name, weight) in weights {
-            let e = eta_error(&samples, totals, end_ms, weight);
-            println!(
-                "eta ({name}, item weight {weight}): worst {:.1}% off from 10% done, {:.1}% from 50%; first shown at {:.1}% done, {} s in",
-                e.from_10 * 100.0,
-                e.from_50 * 100.0,
-                e.first_permille as f64 / 10.0,
-                e.first_ms / 1000
-            );
-        }
+        judge(&samples, totals, end_ms);
     }
     if env("MC_VERIFY").is_some() {
         let (mut present, mut parsed, mut attachments) = (0usize, 0usize, 0usize);
-        // FNV-1a over what the import left: a number, nothing of the mail itself.
-        let mut digest: u64 = 0xcbf2_9ce4_8422_2325;
-        let mut mix = |bytes: &[u8]| {
-            for b in bytes {
-                digest = (digest ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
-            }
-        };
-        for f in &done.folders {
-            mix(&serde_json::to_vec(f).unwrap());
+        // Digests over what the import left: the whole, and the folders, their lists and the
+        // sources apart, to see where two imports differ; numbers, nothing of the mail itself.
+        let (mut digest, mut parts) = (Fnv::default(), [Fnv::default(), Fnv::default(), Fnv::default()]);
+        // `MC_VERIFY=folders`: a line for each folder too, by its place in the list.
+        let each = env("MC_VERIFY").as_deref() == Some("folders");
+        for (n, f) in done.folders.iter().enumerate() {
+            let json = serde_json::to_vec(f).unwrap();
+            digest.mix(&json);
+            parts[0].mix(&json);
             let Ok(st) = store.load_folder("d1", &f.path) else { continue };
+            let (mut list, mut sources) = (Fnv::default(), Fnv::default());
             for m in &st.messages {
-                mix(&serde_json::to_vec(m).unwrap());
+                let json = serde_json::to_vec(m).unwrap();
+                for d in [&mut digest, &mut parts[1], &mut list] {
+                    d.mix(&json);
+                }
                 let Some(raw) = store.read_body(&m.key) else { continue };
-                mix(&raw);
+                for d in [&mut digest, &mut parts[2], &mut sources] {
+                    d.mix(&raw);
+                }
                 present += 1;
                 if let Some(p) = mailcraft_mime::parse(&raw) {
                     parsed += 1;
                     attachments += p.attachments.len();
                 }
             }
+            if each {
+                println!(
+                    "  folder {n}: {} messages, folder {:016x}, list {:016x}, sources {:016x}",
+                    st.messages.len(),
+                    Fnv::of(&json),
+                    list.0,
+                    sources.0
+                );
+            }
         }
-        println!("verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {digest:016x}", present - parsed);
+        println!(
+            "verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {:016x} (folders {:016x}, lists {:016x}, sources {:016x})",
+            present - parsed,
+            digest.0,
+            parts[0].0,
+            parts[1].0,
+            parts[2].0
+        );
         // What a pass would still have to do for search, now the import is in.
         let reads = store.reads();
         let w = mailcraft_store::search::Writer::open(&store, "d1").unwrap();
@@ -352,6 +366,29 @@ fn import() {
             plan.total,
             store.reads() - reads
         );
+    }
+}
+
+/// FNV-1a, 64 bits.
+struct Fnv(u64);
+
+impl Default for Fnv {
+    fn default() -> Self {
+        Fnv(0xcbf2_9ce4_8422_2325)
+    }
+}
+
+impl Fnv {
+    fn mix(&mut self, bytes: &[u8]) {
+        for b in bytes {
+            self.0 = (self.0 ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+
+    fn of(bytes: &[u8]) -> u64 {
+        let mut f = Fnv::default();
+        f.mix(bytes);
+        f.0
     }
 }
 
@@ -455,6 +492,8 @@ fn eta_error(samples: &[Sample], totals: (u64, u64), end_ms: u64, weight: u64) -
     let mut eta = Eta::default();
     let mut out = EtaError::default();
     let mut shown = false;
+    // `MC_TRACE`: what was said and what was true at every 5% (by the bar).
+    let (trace, mut next_trace) = (env("MC_TRACE").is_some(), 0u16);
     for s in samples {
         let work = Work { done: s.items, total: totals.0, bytes_done: s.bytes, bytes_total: totals.1 };
         eta.sample(s.ms, work.weighted_done(weight), work.weighted_total(weight), 0, s.ms);
@@ -464,6 +503,10 @@ fn eta_error(samples: &[Sample], totals: (u64, u64), end_ms: u64, weight: u64) -
             (shown, out.first_permille, out.first_ms) = (true, permille, s.ms);
         }
         let truth = end_ms.saturating_sub(s.ms) as f64 / 1000.0;
+        if trace && permille >= next_trace {
+            println!("  {:.1}% done, {} s in: {left} s left said, {truth:.0} s true", permille as f64 / 10.0, s.ms / 1000);
+            next_trace = (permille / 50 + 1) * 50;
+        }
         let left = left as f64;
         if truth < JUDGED_FROM_S && left < JUDGED_FROM_S {
             continue;
@@ -477,6 +520,42 @@ fn eta_error(samples: &[Sample], totals: (u64, u64), end_ms: u64, weight: u64) -
         }
     }
     out
+}
+
+/// What an item and a byte cost over an import's progress, and how far off the time left would
+/// have been with the app's item weight, bytes alone, the fitted weight and those in `MC_WEIGHTS`
+/// (a list of bytes).
+fn judge(samples: &[Sample], totals: (u64, u64), end_ms: u64) {
+    let fitted = fit(samples, FIT_SPAN_MS);
+    if let Some(f) = fitted {
+        println!("fit: {:.3} ms an item, {:.2} ns a byte, item weight {} bytes, r2 {:.3}, {} spans", f.item_ms, f.byte_ns, f.weight(), f.r2, f.spans);
+    }
+    let mut weights = vec![("app".to_string(), ITEM_WEIGHT), ("bytes only".to_string(), 0)];
+    weights.extend(fitted.map(|f| ("fitted".to_string(), f.weight())));
+    let asked = env("MC_WEIGHTS").unwrap_or_default();
+    weights.extend(asked.split(',').filter_map(|w| w.trim().parse().ok()).map(|w| ("asked".to_string(), w)));
+    for (name, weight) in weights {
+        let e = eta_error(samples, totals, end_ms, weight);
+        println!(
+            "eta ({name}, item weight {weight}): worst {:.1}% off from 10% done, {:.1}% from 50%; first shown at {:.1}% done, {} s in",
+            e.from_10 * 100.0,
+            e.from_50 * 100.0,
+            e.first_permille as f64 / 10.0,
+            e.first_ms / 1000
+        );
+    }
+}
+
+/// Judge again the progress an import kept in `MC_SAMPLES` (made by `import` with it set), with
+/// `MC_WEIGHTS` and `MC_TRACE` as there.
+#[test]
+#[ignore]
+fn replay() {
+    let text = std::fs::read_to_string(env("MC_SAMPLES").expect("MC_SAMPLES: the progress an import kept")).unwrap();
+    let mut lines = text.lines().map(|l| l.split(',').map(|n| n.trim().parse::<u64>().unwrap()).collect::<Vec<_>>());
+    let head = lines.next().unwrap();
+    let samples: Vec<Sample> = lines.map(|l| Sample { ms: l[0], items: l[1], bytes: l[2] }).collect();
+    judge(&samples, (head[0], head[1]), head[2]);
 }
 
 /// Samples of an import every 200 items of `items` (sizes in bytes), where an item takes
