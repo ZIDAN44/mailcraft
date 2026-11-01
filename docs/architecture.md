@@ -181,7 +181,10 @@ written (`Compose`), preferences and status-bar notices.
   `Done`). `ImportOptions::resume` (`Job::ImportPst{resume}`) goes on from it: done folders are
   skipped, the part-way one reopened (sources past its number dropped, `Store::drop_bodies_from`),
   and a file not the same (`Blocked::SourceChanged`, `SourceMissing`, `Locked`) waits on the
-  user with nothing written; a `Done` note answers without reading the file. An import interrupted
+  user with nothing written; a `Done` note answers without reading the file. The note wins over
+  `imports.json` as MailCraft opens (`accounts/importing/note.rs`): a `Cancelled` one isn't gone
+  on with by itself, and a data file's account with a `Running` or `Cancelled` note and no record
+  gets one back. An import interrupted
   (still `Running` in `imports.json`) goes on as MailCraft opens; one stopped or blocked waits
   for `account.resumeImport`, `account.keepImported` or `account.restartImport` (a POP account's
   connection waits with either); until then, as while it runs, the account's folders aren't

@@ -9,6 +9,8 @@ use mailcraft_model::job::{Blocked, DataFileFacts, DataSource, Eta, ImportPhase,
 
 use super::*;
 
+mod note;
+
 /// Where each account's mail came from, and how far its import got (beside `rules.json`).
 pub(crate) const IMPORTS_DOC: &str = "imports.json";
 /// The import's own note of how far it got, kept inside the account's data file.
@@ -225,6 +227,8 @@ impl Session {
                 Err(e) => log::warn!("{a}: the data file of an account removed couldn't be removed yet: {e}"),
             }
         }
+        // The imports' own notes decide over the record kept apart from them.
+        self.imports_from_notes(&store);
         let unfinished: Vec<(String, String, bool)> = self
             .importing
             .sources

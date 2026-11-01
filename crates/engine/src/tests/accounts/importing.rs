@@ -441,6 +441,47 @@ fn a_data_file_account_with_nothing_in_it_is_found() {
     done(s);
 }
 
+/// The note an import keeps in its data file decides over `imports.json`: one recorded as running
+/// that its note says was cancelled waits on the user rather than going on by itself; a data
+/// file's account with no record whose note says its import is going on goes on, from the file
+/// the note names, and one cancelled waits; one done, or with a note that can't be read, is left.
+#[test]
+fn an_import_s_own_note_decides_over_the_record() {
+    let store = temp("import-notes");
+    let pst = |id: &str, file: &str| mailcraft_model::AccountConfig { id: id.into(), name: file.into(), email: file.into(), ..Default::default() };
+    let ids = ["a1", "a2", "a3", "a4", "a5"];
+    store.save_accounts(&ids.map(|a| pst(a, &format!("{a}.pst")))).unwrap();
+    for a in ids {
+        store.save_folders(a, &[inbox(a)]).unwrap();
+    }
+    let note = |state: &str, path: &str| json!({"version": 1, "state": state, "source": {"path": path}});
+    store.save_account_doc("a1", "import.json", &note("cancelled", "C:/Mail/a1.pst")).unwrap();
+    store.save_account_doc("a2", "import.json", &note("running", "C:/Mail/a2.pst")).unwrap();
+    store.save_account_doc("a3", "import.json", &note("cancelled", "C:/Mail/a3.pst")).unwrap();
+    store.save_account_doc("a4", "import.json", &note("done", "C:/Mail/a4.pst")).unwrap();
+    store.save_account_doc("a5", "import.json", &json!({"state": 7})).unwrap();
+    let row = |path: &str| DataSource { path: path.into(), stage: ImportStage::Running, ..Default::default() };
+    store.save_doc("imports.json", &std::collections::BTreeMap::from([("a1".to_string(), row("C:/Mail/a1.pst"))])).unwrap();
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    let going_on: Vec<(String, String)> = s
+        .take_jobs()
+        .into_iter()
+        .filter_map(|j| match j {
+            Job::ImportPst { account, path, resume: true } => Some((account, path)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(going_on, [("a2".to_string(), "C:/Mail/a2.pst".to_string())]);
+    assert_eq!(sources(&s)["a1"].stage, ImportStage::Stopped, "cancelled, not gone on with");
+    assert_eq!(sources(&s)["a3"].stage, ImportStage::Stopped);
+    for a in ["a1", "a3"] {
+        assert!(!s.import_state(a).unwrap().live, "{a} waits on the user");
+    }
+    assert!(s.import_state("a4").is_none() && s.import_state("a5").is_none());
+    assert!(!sources(&s).contains_key("a4") && !sources(&s).contains_key("a5"));
+    done(s);
+}
+
 /// What the window reads: the imports it shows, the time left by the session's clock, what a
 /// data file looked at holds and the account it's open as, and each import finished once (not
 /// one stopped, or one that failed), for the window to show what it came to.

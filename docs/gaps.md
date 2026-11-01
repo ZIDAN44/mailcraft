@@ -1656,7 +1656,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   and numbers. The file is checked first: the same size and time, or else the same record key
   and the same items and bytes in each folder (Outlook opening a file changes its time and
   nothing it holds), and one that changed or went waits on the user instead of being mixed in.
-  An import done answers at once without reading the file. A MailCraft data file
+  An import done answers at once without reading the file. The note in the data file is what
+  decides: an import the user cancelled isn't gone on with by itself even if MailCraft closed
+  before it said so, and one whose record was lost is found from it. A MailCraft data file
   brought in leaves its own import's note behind. The checkpoint read back is checked (a fuzz
   target, `import_checkpoint`).
 - **Seeing an import go:** opening a `.pst` said "Opening {file}…" in the status bar for as long
