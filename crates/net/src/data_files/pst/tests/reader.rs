@@ -142,9 +142,14 @@ fn heap_item(f: &[u8], (start, _): (usize, usize), hid: u32) -> usize {
 /// that node, in the attachment's own subnode tree, points at the outer message's own blocks
 /// (the attached message is a copy of the message it is attached to).
 fn with_an_attached_message(dir: &Path) -> PathBuf {
+    attached_in(dir, "Outer")
+}
+
+/// [`with_an_attached_message`], its message's subject `subject`.
+fn attached_in(dir: &Path, subject: &str) -> PathBuf {
     let path = dir.join("attached.pst");
     let files = [file("letter.bin", b"twelve bytes"), file("empty.txt", b"")];
-    drop(Writer::create_with_attachments(&path, &message("Outer"), &files).unwrap());
+    drop(Writer::create_with_attachments(&path, &message(subject), &files).unwrap());
     let mut f = std::fs::read(&path).unwrap();
     let all = blocks(&f);
     // The outer message's subnode block holds the attachment: its PC, its subnode block.
@@ -535,5 +540,68 @@ fn an_unreadable_attachment_and_a_link_are_counted() {
     let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
     let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
     assert!(p.attachments.is_empty(), "{:?}", p.attachments.iter().map(|a| &a.name).collect::<Vec<_>>());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Mark the attachment `nid` hidden (PidTagAttachmentHidden): its rendering position's record
+/// (0x370B) becomes a `PtypBoolean` 0x7FFE that is true; the reader keeps records by id, in any
+/// order.
+fn hide(f: &mut [u8], nid: u64) {
+    let all = blocks(f);
+    let (_, at) = sub_node_entry(f, &all, nid);
+    let attachment = all[&u64_at(f, at + 8)];
+    let position = record(f, attachment, 0x370B, 0x0003);
+    f[position..position + 4].copy_from_slice(&[0xFE, 0x7F, 0x0B, 0x00]);
+    put32(f, position + 4, 1);
+    seal(f, attachment);
+}
+
+/// Give the message the class its subject names: its class's record (0x001A) points at the
+/// subject's text.
+fn class_from_subject(f: &mut [u8]) {
+    let has = |f: &[u8], (start, size): (usize, usize), prop: u16| {
+        let pattern = [prop.to_le_bytes(), 0x001F_u16.to_le_bytes()].concat();
+        f[start..start + size].windows(4).any(|w| w == pattern)
+    };
+    let pc = *blocks(f).values().find(|&&b| has(f, b, 0x001A) && has(f, b, 0x0037)).unwrap();
+    let subject = u32_at(f, record(f, pc, 0x0037, 0x001F) + 4);
+    let class = record(f, pc, 0x001A, 0x001F);
+    put32(f, class + 4, subject);
+    seal(f, pc);
+}
+
+/// The import reads each item's class and leaves hidden files out by it: a message's hidden
+/// attached message comes in; a meeting request's (a recurring series' changed occurrence)
+/// doesn't, and its other files still do.
+#[test]
+fn hidden_files_are_left_out_by_the_items_class() {
+    use mailcraft_model::MessageKey;
+    use mailcraft_store::Store;
+    let names = |path: &Path, cache: &Path| {
+        let store = Store::open(cache).unwrap();
+        let done = super::import(path, &store, "a1", &mut |_| {}).unwrap();
+        assert_eq!((done.messages, done.skipped), (1, 0), "{done:?}");
+        let (folder, st) = done
+            .folders
+            .iter()
+            .find_map(|f| store.load_folder("a1", &f.path).ok().filter(|s| !s.messages.is_empty()).map(|s| (f.path.clone(), s)))
+            .unwrap();
+        let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
+        let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
+        p.attachments.iter().map(|a| a.name.clone()).collect::<Vec<_>>()
+    };
+    let dir = scratch("hidden-by-class");
+    for (subject, kept) in [("IPM.Note", true), ("IPM.Schedule.Meeting.Request", false)] {
+        let at = dir.join(subject);
+        std::fs::create_dir_all(&at).unwrap();
+        let path = attached_in(&at, subject);
+        let mut f = std::fs::read(&path).unwrap();
+        hide(&mut f, ATTACHMENT_NODE);
+        class_from_subject(&mut f);
+        std::fs::write(&path, &f).unwrap();
+        let names = names(&path, &at.join("cache"));
+        assert_eq!(names.iter().any(|n| n.ends_with(".eml")), kept, "{subject}: {names:?}");
+        assert!(names.iter().any(|n| n == "empty.txt"), "{subject}: {names:?}");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }

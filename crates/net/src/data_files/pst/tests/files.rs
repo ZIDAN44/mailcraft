@@ -22,11 +22,12 @@ fn no_file_value() -> io::Error {
 /// An attachment the reader couldn't read comes from its row: a zero-byte file comes in empty,
 /// named from its short name with its type from the name when the row has only that (the row's
 /// size counts its properties, so it isn't 0); a link is counted; an attached message is counted
-/// as one; anything else is counted as unreadable; a hidden one isn't part of the message. A row
-/// that doesn't say how it's attached is a file only by the error a file alone gives.
+/// as one; anything else is counted as unreadable; a hidden one comes in, except a contact's
+/// (its picture) and a recurring series' changed occurrence. A row that doesn't say how it's
+/// attached is a file only by the error a file alone gives.
 #[test]
 fn an_unreadable_attachment_comes_from_its_row() {
-    let get = |row: &HashMap<u16, Val<'static>>, e: &io::Error| from_row(e, &|id| row.get(&id).cloned());
+    let get = |row: &HashMap<u16, Val<'static>>, e: &io::Error| from_row(e, &|id| row.get(&id).cloned(), "IPM.Note");
     let short = HashMap::from([(0x0E20, Val::Int(165)), (0x3704, Val::Text("NOTES~1.TXT".into())), (0x3705, Val::Int(1)), (0x370B, Val::Int(-1))]);
     let Got::File(File::Data { name, mime, cid, data }) = get(&short, &no_value()) else { panic!("the empty file is kept") };
     assert_eq!((name.as_str(), mime.as_str(), cid.as_str(), data.len()), ("NOTES~1.TXT", "text/plain", "", 0));
@@ -63,7 +64,27 @@ fn an_unreadable_attachment_comes_from_its_row() {
     let other = io::Error::from(outlook_pst::messaging::MessagingError::AttachmentMethodNotFound);
     let mut hidden = short.clone();
     hidden.insert(0x7FFE, Val::Bool(true));
-    assert!(matches!(get(&hidden, &no_value()), Got::Nothing));
+    assert!(matches!(get(&hidden, &no_value()), Got::File(File::Data { ref name, .. }) if name == "NOTES~1.TXT"), "a message's hidden file");
+    for class in ["IPM.Contact", "ipm.contact.Custom"] {
+        assert!(matches!(from_row(&no_value(), &|id| hidden.get(&id).cloned(), class), Got::Nothing), "{class}");
+    }
+    let mut shown = hidden.clone();
+    shown.insert(0x3712, Val::Text("me@studio.example".into()));
+    assert!(matches!(from_row(&no_value(), &|id| shown.get(&id).cloned(), "IPM.Contact"), Got::File(_)), "one with a Content-ID");
+    // A recurring series' changed occurrence: a hidden attached message, marked afException or
+    // in a meeting or an appointment, is left out; a message's hidden attached message isn't.
+    let mut occurrence = hidden.clone();
+    occurrence.insert(0x3705, Val::Int(5));
+    let in_class = |row: &HashMap<u16, Val<'static>>, class: &str| from_row(&no_value(), &|id| row.get(&id).cloned(), class);
+    for class in ["IPM.Schedule.Meeting.Request", "IPM.Appointment"] {
+        assert!(matches!(in_class(&occurrence, class), Got::Nothing), "{class}");
+    }
+    assert!(matches!(in_class(&occurrence, "IPM.Note"), Got::Left(SkipReason::AttachedMessageUnreadable)));
+    occurrence.insert(0x7FFD, Val::Int(0x2));
+    assert!(matches!(in_class(&occurrence, "IPM.Note"), Got::Nothing), "afException");
+    let mut flagged = hidden.clone();
+    flagged.insert(0x7FFD, Val::Int(0x1));
+    assert!(matches!(in_class(&flagged, "IPM.Schedule.Meeting.Request"), Got::File(_)), "a meeting's hidden file");
     for method in [2, 4, 7] {
         let mut link = short.clone();
         link.insert(0x3705, Val::Int(method));
@@ -190,4 +211,40 @@ fn a_shown_picture_keeps_its_name() {
     let key = MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
     let full = mime::summary_from_full(&raw, key.clone(), Flags::default(), 0, 0);
     assert_eq!((summary_of(&raw, glance, key, 0).has_attachments, full.has_attachments), (false, false));
+}
+
+/// A file with a Content-ID the HTML doesn't show (or with no HTML at all) stays a file and keeps
+/// it: listed, not inline, with a paperclip, the import and the source read back agreeing. It went
+/// out without it.
+#[test]
+fn a_file_the_html_doesnt_show_keeps_its_content_id() {
+    for html in [Some("<p>Hi</p><img src=\"cid:other@studio.example\">"), None] {
+        let it = Item {
+            subject: "Chart".into(),
+            from: EmailAddress::new("Ana", "ana@example.com"),
+            date: 1_704_067_200,
+            body: "Hi".into(),
+            html: html.map(String::from),
+            files: vec![data_file("chart.png", "image/png", "<chart@studio.example>")],
+            ..Default::default()
+        };
+        let (raw, glance) = message(it, "chart@x").unwrap();
+        let p = mime::parse(&raw).unwrap();
+        let parts: Vec<_> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline, a.content_id.as_deref())).collect();
+        assert_eq!(parts, [("chart.png", false, Some("chart@studio.example"))], "{html:?}");
+        let key = MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+        let full = mime::summary_from_full(&raw, key.clone(), Flags::default(), 0, 0);
+        assert_eq!((summary_of(&raw, glance, key, 0).has_attachments, full.has_attachments), (true, true), "{html:?}");
+    }
+}
+
+/// A draft saved before files kept a Content-ID still reads, and one without it is saved as
+/// before.
+#[test]
+fn a_draft_file_reads_with_or_without_a_content_id() {
+    let old: mime::OutAttachment = serde_json::from_str(r#"{"name":"a.txt","mime":"text/plain","data":[104]}"#).unwrap();
+    assert_eq!((old.name.as_str(), old.content_id.as_str()), ("a.txt", ""));
+    assert!(!serde_json::to_string(&old).unwrap().contains("content_id"));
+    let kept = mime::OutAttachment { content_id: "a@studio.example".into(), ..old };
+    assert_eq!(serde_json::from_str::<mime::OutAttachment>(&serde_json::to_string(&kept).unwrap()).unwrap(), kept);
 }

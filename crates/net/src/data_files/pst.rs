@@ -43,7 +43,7 @@ mod rebuild;
 mod tests;
 
 use chunked::Shared;
-use item::{Files, Item, attachment, item, message_code_page, unread_attachment};
+use item::{Files, Item, attachment, item, message_class, message_code_page, unread_attachment};
 use open::Recycle;
 use out::Out;
 #[doc(hidden)]
@@ -382,14 +382,16 @@ macro_rules! reader {
                 };
                 let m = <$message>::read(store, entry, None)?;
                 let cp = message_code_page(&*m);
+                // Which hidden files are left out depends on what the item is.
+                let class = message_class(&*m, cp);
                 let mut files = Files::default();
                 if let Some(table) = m.attachment_table() {
                     for row in table.rows_matrix() {
                         let node = NodeId::from(u32::from(row.id()));
                         // The row itself is read only for an attachment the reader fails on.
                         files.add(match <$attachment>::read(m.clone(), node, None) {
-                            Ok(a) => attachment(&*a, 0, cp, &named),
-                            Err(e) => unread_attachment(&e, &**table, row, cp),
+                            Ok(a) => attachment(&*a, 0, cp, &class, &named),
+                            Err(e) => unread_attachment(&e, &**table, row, cp, &class),
                         });
                     }
                 }

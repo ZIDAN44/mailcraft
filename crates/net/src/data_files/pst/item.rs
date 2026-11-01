@@ -97,6 +97,11 @@ pub(super) fn message_code_page(m: &dyn Message) -> u32 {
     code_page(m.properties().get(0x3FFD))
 }
 
+/// A message's class (PidTagMessageClass; empty when not said), its 8-bit text in `code_page`.
+pub(super) fn message_class(m: &dyn Message, code_page: u32) -> String {
+    m.properties().get(0x001A).map(|v| val(v, code_page)).and_then(Val::into_text).unwrap_or_default()
+}
+
 /// An item from its properties (`p`) and its recipients' (one getter per recipient).
 pub(super) fn item_of<'a>(
     p: &dyn Fn(u16) -> Option<Val<'a>>,
@@ -273,12 +278,12 @@ pub(super) fn message_ids(s: &str) -> Vec<String> {
 }
 
 /// An attachment's file, or the message it holds; its 8-bit strings are in `code_page` (the
-/// message's).
-pub(super) fn attachment(a: &dyn Attachment, nesting: usize, code_page: u32, named: &crate::pst_pim::Named) -> Got {
+/// message's), and `class` is the message's class.
+pub(super) fn attachment(a: &dyn Attachment, nesting: usize, code_page: u32, class: &str, named: &crate::pst_pim::Named) -> Got {
     let props = a.properties();
     let p = |id: u16| props.get(id).map(|v| val(v, code_page));
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
-    if hidden(&p) {
+    if hidden(&p, class) {
         return Got::Nothing;
     }
     match a.data() {
@@ -306,20 +311,20 @@ pub(super) fn attachment(a: &dyn Attachment, nesting: usize, code_page: u32, nam
 /// not from the row's size (`0x0E20`), which counts the attachment's other properties too. A row
 /// may have no more than the file's short name (`0x3704`), and no type, which then comes from the
 /// name. An attached message the reader fails on is counted as one.
-pub(super) fn unread_attachment(e: &io::Error, table: &dyn TableContext, row: &TableRowData, code_page: u32) -> Got {
+pub(super) fn unread_attachment(e: &io::Error, table: &dyn TableContext, row: &TableRowData, code_page: u32, class: &str) -> Got {
     let values = row_values(table, row);
-    from_row(e, &|id| values.get(&id).map(|v| val(v, code_page)))
+    from_row(e, &|id| values.get(&id).map(|v| val(v, code_page)), class)
 }
 
-/// [`unread_attachment`] from the row's values (`p`).
-pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>) -> Got {
+/// [`unread_attachment`] from the row's values (`p`), in a message of class `class`.
+pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> Got {
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     // PidTagAttachMethod: 1 by value, 5 an attached message; a row may not say.
     let method = match p(0x3705) {
         Some(Val::Int(m)) => Some(m),
         _ => None,
     };
-    if hidden(p) {
+    if hidden(p, class) {
         Got::Nothing
     } else if link(p) {
         Got::Left(SkipReason::AttachmentLink)
@@ -349,10 +354,16 @@ fn kept_empty(e: &io::Error, method: Option<i64>) -> bool {
     }
 }
 
-/// Hidden attachments (e.g. a contact picture) aren't part of the message; one the HTML shows by
-/// its `Content-ID` is.
-fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>) -> bool {
-    matches!(p(0x7FFE), Some(Val::Bool(true))) && p(0x3712).and_then(Val::into_text).is_none_or(|c| c.is_empty())
+/// A contact's hidden attachment (its picture) isn't part of what comes in, unless it has a
+/// `Content-ID`; nor is a recurring series' changed occurrence, a hidden attached message
+/// (PidTagAttachmentFlags afException, or any hidden attached message of a meeting or an
+/// appointment): calendar bookkeeping, not a file. A message's other hidden files are: Outlook
+/// hides some files a message carries, and leaving them out lost them.
+fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> bool {
+    let is = |prefix: &str| class.get(..prefix.len()).is_some_and(|c| c.eq_ignore_ascii_case(prefix));
+    let exception = matches!(p(0x7FFD), Some(Val::Int(f)) if f & 0x2 != 0)
+        || ((is("ipm.schedule.meeting") || is("ipm.appointment")) && matches!(p(0x3705), Some(Val::Int(5))));
+    matches!(p(0x7FFE), Some(Val::Bool(true))) && p(0x3712).and_then(Val::into_text).is_none_or(|c| c.is_empty()) && (is("ipm.contact") || exception)
 }
 
 /// By reference, by reference only, or by web reference (PidTagAttachMethod 2, 4, 7): a path

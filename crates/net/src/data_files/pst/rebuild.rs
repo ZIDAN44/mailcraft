@@ -69,7 +69,8 @@ fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool
                 if !cid.is_empty() && html.is_some() && refs.cites(cid) {
                     d.inline.push(InlinePicture { cid: cid.to_string(), name, mime, data });
                 } else {
-                    d.attachments.push(OutAttachment { name, mime, data, ..Default::default() });
+                    // One the HTML doesn't show stays a file, with its Content-ID.
+                    d.attachments.push(OutAttachment { name, mime, data, content_id: cid.to_string() });
                 }
             }
             File::Message(inner) => {

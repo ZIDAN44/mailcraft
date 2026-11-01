@@ -1466,6 +1466,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   listed it as `attachment-1`. Sent mail, signatures and imported mail now write its name
   (`filename=` and `name=`, as Outlook does; a pasted picture gets its type's extension). It
   stays inline, and MailCraft gives it no paperclip while the HTML shows it.
+- **Files keep their Content-ID, and hidden ones come in:** a file from a `.pst` whose Content-ID
+  the HTML doesn't show (3,499 in a 41 GB file) went out without it; it now stays a listed file
+  with its Content-ID. A message's attachments Outlook marks hidden came in as nothing; they now
+  come in as files; only a contact's hidden picture, and the changed occurrences a recurring
+  meeting carries as hidden attached messages, are left out.
 - **Search reads accents and dates:** a word is found whatever its accents, typed or written
   (`resume` finds "Résumé", `résumé` finds "resume", `strasse` "Straße"; Cyrillic keeps й, and
   other scripts are looked for as written). `received:` (also `sent:`, `date:`) takes a day, a
