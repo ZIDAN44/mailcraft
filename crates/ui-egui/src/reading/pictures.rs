@@ -306,6 +306,9 @@ impl Batch {
                 seen.insert(*i) && !sources.map.contains_key(&(self.key.clone(), *i)) && (*i == index || tried.get(i).is_none_or(|n| *n < READS))
             });
         }
+        // One read looks for so many (`index` first): the others aren't looked for, so they
+        // aren't taken as not there either, and a later read looks for them.
+        wanted.truncate(mime::MAX_WANTED);
         let Some(raw) = self.store.read_body(&self.key) else { return };
         shared.stats.extractions.fetch_add(1, Ordering::Relaxed);
         let parts = mime::attachments_data(&raw, &wanted, MAX_EACH, self.sources_max);
@@ -475,20 +478,16 @@ impl Pictures {
     pub(crate) fn end_frame(&mut self, ctx: &egui::Context, store: Option<&Store>, open: Option<(&MessageKey, &[AttachmentInfo])>, fonts: &Fonts) {
         let open_key = open.map(|(k, _)| k);
         let shown = |k: &MessageKey, touched: &HashSet<MessageKey>| open_key == Some(k) || touched.contains(k);
-        // Work for a message no longer shown stops, and its pictures waiting (or failed) are
-        // forgotten: opened again, it tries them again.
-        let mut stopped: Vec<MessageKey> = Vec::new();
+        // Work for a message no longer shown stops, and its pictures waiting (or failed, whether
+        // or not its work had ended) are forgotten: opened again, it tries them again.
         self.batches.retain(|b| {
             let keep = shown(&b.key, &self.touched) && !b.cancelled.load(Ordering::Relaxed);
             if !keep {
                 b.cancelled.store(true, Ordering::Relaxed);
-                stopped.push(b.key.clone());
             }
             keep
         });
-        if !stopped.is_empty() {
-            self.slots.retain(|(k, _, _), s| !(matches!(s.state, State::Pending | State::Failed) && stopped.contains(k)));
-        }
+        self.slots.retain(|(k, _, _), s| !(matches!(s.state, State::Pending | State::Failed) && !shown(k, &self.touched)));
         lock(&self.shared.sources).remove_if(|k| !shown(k, &self.touched));
         if self.pages.len() > MAX_SLOTS {
             self.pages.retain(|(k, _), _| shown(k, &self.touched));
@@ -598,10 +597,12 @@ impl Pictures {
         }
         let state = match done.image {
             None => State::Failed,
+            // Bigger than all the room there is: nothing is let go for it.
+            Some(_) if bytes > self.budget => State::Over,
             Some((image, options)) => {
                 // Room is made among the textures not shown this frame.
                 self.evict_to(self.budget.saturating_sub(bytes));
-                if bytes > self.budget || self.bytes.saturating_add(bytes) > self.budget {
+                if self.bytes.saturating_add(bytes) > self.budget {
                     State::Over
                 } else {
                     self.bytes = self.bytes.saturating_add(bytes);

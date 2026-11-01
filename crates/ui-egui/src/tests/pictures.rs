@@ -474,3 +474,69 @@ fn many_web_pictures_are_kept_while_shown() {
     assert_eq!(a.ui.web_pictures.len(), 250, "all of them kept while shown");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// One read looks for 256 files at most: the pictures past them (an HTML message's 300) are
+/// looked for by a later read, not taken as not in the message.
+#[test]
+fn more_pictures_than_one_read_takes_show() {
+    use crate::reading::Want;
+    let (mut a, dir) = app("past-one-read");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9013, pictures(300));
+    let store = a.session.store.clone();
+    for _ in 0..700 {
+        if a.ui.pictures.ready() == 300 {
+            break;
+        }
+        for i in 0..300 {
+            let _ = a.ui.pictures.get(&k, i, Want::Body);
+        }
+        a.ui.pictures.end_frame(&ctx, store.as_ref(), None, &a.ui.fonts);
+    }
+    assert_eq!(a.ui.pictures.ready(), 300, "all of them");
+    assert_eq!(a.ui.pictures.counts(), (2, 300), "two reads, each picture decoded once");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A picture that can't be shown is tried again when its message is opened again, after its
+/// work ended (it was only when the work was still running).
+#[test]
+fn a_failed_picture_is_tried_again_when_opened_again() {
+    let (mut a, dir) = app("failed-again");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let broken = with_files(&mut a, 9014, vec![("broken.png".into(), "image/png", b"not a picture at all".to_vec())]);
+    let other = with_files(&mut a, 9015, pictures(1));
+    a.run("list.open", json!({"key": broken.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 10, |_| false);
+    assert_eq!((a.ui.pictures.counts(), a.ui.pictures.working()), ((1, 1), 0), "tried, and its work ended");
+    a.run("list.open", json!({"key": other.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 10, |_| false);
+    assert_eq!(a.ui.pictures.counts(), (2, 2));
+    a.run("list.open", json!({"key": broken.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 10, |_| false);
+    assert_eq!(a.ui.pictures.counts(), (3, 3), "read and tried again");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A picture bigger than all the room there is lets go of no other: the last message's
+/// thumbnails are kept (all of them went, for a picture then thrown away).
+#[test]
+fn a_picture_too_big_for_the_budget_evicts_nothing() {
+    let (mut a, dir) = app("too-big");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let small = with_files(&mut a, 9016, pictures(3));
+    let big = with_files(&mut a, 9017, vec![("poster.png".into(), "image/png", png(400, 400))]);
+    a.run("list.open", json!({"key": small.to_id()}));
+    let (frames, _) = pump(&ctx, &mut a, WINDOW, 20, |a| a.ui.pictures.ready() == 3);
+    assert!(frames < 20, "the three thumbnails");
+    // Room for the three, not for a thumbnail 160 pixels square.
+    a.ui.pictures.set_budget(64 << 10);
+    a.run("list.open", json!({"key": big.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 10, |_| false);
+    assert_eq!(a.ui.pictures.counts().1, 4, "the big one decoded");
+    assert_eq!(a.ui.pictures.ready(), 3, "and the three kept");
+    let _ = std::fs::remove_dir_all(dir);
+}
