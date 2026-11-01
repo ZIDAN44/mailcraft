@@ -6,6 +6,8 @@ use mailcraft_mime::{self as mime, Draft, OutAttachment};
 use mailcraft_model::{AccountConfig, EmailAddress, Flags, Folder, FolderRole, MessageKey, sort_newest_first};
 use mailcraft_store::{FolderState, Store, StoreError};
 
+pub mod big;
+
 pub const SAMPLE_ACCOUNT: &str = "sample";
 /// The sample's second calendar (the studio's), beside the personal one.
 pub const STUDIO_CALENDAR: &str = "studio";

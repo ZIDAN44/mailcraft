@@ -7,7 +7,8 @@
 //! ```
 //!
 //! Or `MC_DATA`, a data folder as the app's `--data` keeps it (a copy: Down marks mail read),
-//! whose first account is the big one.
+//! whose first account is the big one. With neither, the made-up mailbox of the search tests
+//! ([`crate::sample::big`], 50,000 messages), in memory.
 //!
 //! Each step prints how long it took; memory is watched from outside. Steps are a few seconds
 //! apart so the watcher sees each. `MC_DATA_CACHE_MB` opens the account's data file with that
@@ -31,6 +32,17 @@ fn step<T>(what: &str, f: impl FnOnce() -> T) -> T {
     r
 }
 
+/// The domain most of `folder`'s mail is from.
+fn common_domain(s: &mut Session, account: &str, folder: &str) -> String {
+    let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for m in &s.folder_state(account, folder).messages {
+        if let Some((_, d)) = m.from.email.rsplit_once('@') {
+            *counts.entry(d).or_default() += 1;
+        }
+    }
+    counts.into_iter().max_by_key(|(d, n)| (*n, *d)).map(|(d, _)| d.to_string()).unwrap_or_else(|| "example".into())
+}
+
 #[test]
 #[ignore]
 fn big_mailbox() {
@@ -39,13 +51,17 @@ fn big_mailbox() {
         let store = Store::open_packed(data.clone(), data.join("MailCraft Files")).unwrap();
         let account = store.load_accounts().unwrap().first().map(|a| a.id.clone()).expect("an account in MC_DATA");
         (store, account)
-    } else {
-        let cache = PathBuf::from(std::env::var("MC_CACHE").expect("MC_CACHE: a cache a data file was imported into"));
+    } else if let Ok(cache) = std::env::var("MC_CACHE") {
+        let cache = PathBuf::from(cache);
         let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
         store
             .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
             .unwrap();
         (store, "d1".to_string())
+    } else {
+        let store = Store::memory();
+        crate::sample::big::generate(&store, 1_800_000_000, crate::sample::big::Shape::default()).unwrap();
+        (store, crate::sample::big::ACCOUNT.to_string())
     };
     if let Some(mb) = std::env::var("MC_DATA_CACHE_MB").ok().and_then(|v| v.parse::<usize>().ok()) {
         // A bulk write's cache, held for the whole run: the way to give the file another one.
@@ -102,7 +118,15 @@ fn big_mailbox() {
     step("search everything again", || s.run_search("festival", crate::SearchScope::All));
     step("is:unread", || s.run_search("is:unread", crate::SearchScope::All));
     println!("found {}", s.list.len());
+    step("is:read", || s.run_search("is:read", crate::SearchScope::All));
+    println!("found {}", s.list.len());
     step("phrase", || s.run_search("\"budget review\"", crate::SearchScope::All));
+    step("a common phrase", || s.run_search("\"thank you\"", crate::SearchScope::All));
+    println!("found {}", s.list.len());
+    // The domain most of the biggest folder's mail is from (not printed: the file's own).
+    let domain = common_domain(&mut s, &account, &biggest);
+    step("a common domain", || s.run_search(&domain, crate::SearchScope::All));
+    println!("found {}", s.list.len());
     if let Some(k) = s.list.first().map(|m| m.key.clone()) {
         let _ = s.run("list.select", &json!({"key": k.to_id()}));
         step("search after mark-read", || drop(s.run("mail.markRead", &json!({}))));
