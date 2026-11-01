@@ -1,7 +1,8 @@
 //! Data files read into accounts, each on a thread of its own: one import at a time into an
 //! account, and each stopped as asked. Cancelled, it keeps what came in; paused (MailCraft
 //! closing), the same, less the folder it was part-way through; thrown away (the account
-//! removed), the data file it wrote goes once the import has let go of it.
+//! removed), the data file it wrote goes once the import has let go of it. A file looked at
+//! before it's imported is planned then, and its import goes by that plan.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -11,7 +12,7 @@ use mailcraft_model::job::{DataFileFacts, ImportPhase, ImportProgress, ImportRep
 use mailcraft_model::pim::{PIM_DOC, Pim};
 
 use super::*;
-use crate::pst::{ImportOptions, ImportSink, Imported, Progress, Stop};
+use crate::pst::{ImportOptions, ImportSink, Imported, Planned, Progress, Stop};
 
 /// How long closing MailCraft waits for its imports to pause: each finishes the item in hand and
 /// writes what it holds. One that takes longer (a reader stuck on a slow drive) is let go.
@@ -22,10 +23,11 @@ const FOLDERS_EVERY: Duration = Duration::from_millis(500);
 /// many times, a little later each time.
 const REMOVE_TRIES: u32 = 4;
 
-/// The imports running, by account.
+/// The imports running, by account, and the data file looked at last, as planned.
 #[derive(Default)]
 pub(super) struct Imports {
     running: HashMap<String, ImportCtl>,
+    looked: Arc<Mutex<Option<Looked>>>,
 }
 
 /// An account's import: how it's asked to stop (the one queued after it, once there is one), the
@@ -44,6 +46,14 @@ struct Queue {
     next: Option<(String, Stop)>,
     /// The thread is ending: nothing more is taken from here.
     ended: bool,
+}
+
+/// A data file as it was when it was looked at ([`Job::InspectDataFile`]), and its plan.
+struct Looked {
+    path: String,
+    size: u64,
+    modified: i64,
+    planned: Arc<Planned>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -74,7 +84,7 @@ impl Pool {
             self.let_go_of_import(&account);
         }
         let queue: Arc<Mutex<Queue>> = Arc::default();
-        let (sink, store, stop) = (self.sink.clone(), self.store.clone(), Stop::default());
+        let (sink, store, looked, stop) = (self.sink.clone(), self.store.clone(), self.imports.looked.clone(), Stop::default());
         let (id, asked, queued) = (account.clone(), stop.clone(), Arc::clone(&queue));
         // No index pass for the account until the import thread ends.
         let importing = self.indexer.importing(&account);
@@ -82,7 +92,8 @@ impl Pool {
             let _importing = importing;
             let (mut path, mut stop, mut left) = (path, asked, None);
             loop {
-                if let Some(file) = run(&store, &sink, &account, &path, &stop) {
+                let planned = planned_for(&looked, &path);
+                if let Some(file) = run(&store, &sink, &account, &path, &stop, planned) {
                     left = Some(file);
                 }
                 let mut q = lock(&queued);
@@ -187,12 +198,24 @@ impl Pool {
     }
 
     /// Look at a data file before it's imported, on a thread of its own (it may be on a slow
-    /// drive): what kind it is, how big, when it last changed. What it holds comes from a walk
-    /// over its folders, which the import does on its own for now.
+    /// drive): what kind it is, how big, when it last changed, and for an Outlook one what it
+    /// holds, planned as its import would bring it in. That plan is kept, and the file's import
+    /// goes by it when the file hasn't changed since.
     pub(super) fn inspect_data_file(&mut self, path: String) {
-        let (sink, asked) = (self.sink.clone(), path.clone());
+        let (sink, asked, looked) = (self.sink.clone(), path.clone(), self.imports.looked.clone());
         let spawned = std::thread::Builder::new().name("mail-inspect".into()).spawn(move || {
-            let facts = facts_of(&path);
+            let mut facts = facts_of(&path);
+            if facts.error.is_none() && facts.kind == "pst" {
+                match crate::pst::inspect(Path::new(&path)) {
+                    Ok(planned) => {
+                        (facts.messages, facts.folders, facts.pim_items, facts.bytes) =
+                            (planned.messages, planned.folders, planned.pim_items, planned.bytes);
+                        let planned = Arc::new(planned);
+                        *lock(&looked) = Some(Looked { path: path.clone(), size: facts.size, modified: facts.modified, planned });
+                    }
+                    Err(e) => facts.error = Some(e),
+                }
+            }
             sink.emit(Event::DataFileInspected { path, facts: Box::new(facts) });
         });
         if let Err(e) = spawned {
@@ -210,9 +233,16 @@ impl Drop for Pool {
     }
 }
 
+/// The plan made of the data file at `path` when it was looked at, while the file is as it was.
+fn planned_for(looked: &Mutex<Option<Looked>>, path: &str) -> Option<Arc<Planned>> {
+    let now = facts_of(path);
+    let looked = lock(looked);
+    looked.as_ref().filter(|l| l.path == path && now.error.is_none() && (l.size, l.modified) == (now.size, now.modified)).map(|l| l.planned.clone())
+}
+
 /// An import, start to end, on its thread. Returns the data file of one thrown away that
 /// couldn't be removed yet.
-fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop) -> Option<PathBuf> {
+fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, planned: Option<Arc<Planned>>) -> Option<PathBuf> {
     let began = Instant::now();
     // Stopped while it waited behind an import thrown away: it never began.
     if let Some(how) = stop.how() {
@@ -223,7 +253,7 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop) -> Op
     if path.to_ascii_lowercase().ends_with(".mailcraft") {
         return copy_in(&mut told, path);
     }
-    let opts = ImportOptions { stop: stop.clone(), ..ImportOptions::default() };
+    let opts = ImportOptions { stop: stop.clone(), planned, ..ImportOptions::default() };
     #[cfg(test)]
     let opts = ImportOptions { fault: tests::fault_for(account), ..opts };
     let result = crate::pst::import_into(Path::new(path), store, account, &opts, &mut told);

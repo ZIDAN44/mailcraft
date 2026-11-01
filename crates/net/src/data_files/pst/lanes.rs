@@ -102,6 +102,27 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// For a file only looked at ([`super::inspect`]): planned, and nothing written.
+    pub(super) fn looking(path: &'a Path, opts: &'a ImportOptions) -> Self {
+        Ctx {
+            path,
+            opts,
+            account: "",
+            filetag: String::new(),
+            packs: false,
+            budget: Arc::new(Budget::new(0)),
+            tally: Arc::default(),
+            halt: AtomicBool::new(false),
+            damaged: AtomicBool::new(false),
+            panics: AtomicUsize::new(0),
+            live: AtomicUsize::new(0),
+            orphaned: AtomicBool::new(false),
+            format: std::sync::atomic::AtomicU8::new(0),
+            #[cfg(test)]
+            items_taken: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
     /// Whether to stop: told to, or asked to by the user.
     pub(super) fn stopped(&self) -> bool {
         self.halt.load(Ordering::Relaxed) || self.opts.stop.raised()

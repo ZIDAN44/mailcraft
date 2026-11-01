@@ -317,6 +317,9 @@ pub struct ImportOptions {
     /// through isn't listed (the import goes on with it later); thrown away, nothing more is
     /// written at all.
     pub stop: Stop,
+    /// The file as planned when it was looked at ([`inspect`]), when it hasn't changed since:
+    /// its folders aren't walked again.
+    pub planned: Option<Arc<Planned>>,
     /// The reader's chunk of the file, in KiB (0: its own), the items read between reopenings
     /// of the handle that reads them (0: only once its caches hold too much), and how much its
     /// caches may hold before that, in bytes (0: its own limit): for tests and measuring.
@@ -362,6 +365,10 @@ impl Stop {
         self.0.load(Ordering::Relaxed) != 0
     }
 }
+
+/// Said when Windows refuses the file to be read (a sharing or lock violation): Outlook, or
+/// another program, has it open.
+const LOCKED: &str = "Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again";
 
 /// Import the data file at `path` into `account`'s cache (an account with no server), as the app
 /// does. Calls `progress` with how far it has got, every so often.
@@ -457,9 +464,7 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     let failed: Option<String> = match planned {
         Ok(Ok(())) => None,
         // Windows' sharing and lock violations: Outlook (or another program) has it open.
-        Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => {
-            Some("Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again".into())
-        }
+        Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => Some(LOCKED.into()),
         // Nothing found at all: say why; otherwise keep what was read.
         Ok(Err(e)) if out.folders.is_empty() => Some(format!("not an Outlook data file, or it is damaged ({e})")),
         Ok(Err(e)) => {
@@ -484,50 +489,91 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     }
 }
 
-/// The planner: opens the file (as the Unicode kind, else the older ANSI), plans it, and hands
-/// out its work.
+/// The planner: opens the file (as the Unicode kind, else the older ANSI), plans it (unless it
+/// was planned when it was looked at), and hands out its work.
 fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
     let began = Instant::now();
-    // Read only, and kept from writers while it's read. Locked by Outlook, this is what fails:
-    // said so above, rather than tried as the older format.
-    let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
-    let (walk, pages) = open::handle(&source);
-    let store: Rc<dyn PstStore> = match UnicodePstFile::read_from(walk) {
-        Ok(pst) => {
-            ctx.format.store(1, Ordering::Release);
-            pst.set_max_value_size(MAX_VALUE);
-            UnicodeStore::read(Rc::new(pst))?
-        }
-        Err(_) => {
-            ctx.tally.reading(&source, 0, 0);
-            drop(source);
-            // The older format, read from the start through a handle of its own.
-            let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
-            let (walk, pages) = open::handle(&source);
-            let pst = AnsiPstFile::read_from(walk)?;
-            ctx.format.store(2, Ordering::Release);
-            pst.set_max_value_size(MAX_VALUE);
-            let store: Rc<dyn PstStore> = AnsiStore::read(Rc::new(pst))?;
-            return run_plan(ctx, &*store, &mut feed, began, &source, &pages);
+    let (store, source, pages) = opened(ctx)?;
+    let fresh;
+    let planned = match ctx.opts.planned.as_deref() {
+        Some(p) => &p.plan,
+        None => {
+            let planning = plan::plan(&*store, ctx);
+            ctx.tally.since(Phase::Plan, began);
+            fresh = planning?;
+            &fresh
         }
     };
-    run_plan(ctx, &*store, &mut feed, began, &source, &pages)
+    plan::stream(&*store, planned, &mut feed, ctx);
+    ctx.tally.reading(&source, 0, pages.estimate());
+    Ok(())
 }
 
-fn run_plan(
-    ctx: &lanes::Ctx<'_>,
-    store: &dyn PstStore,
-    feed: &mut plan::Feed,
-    began: Instant,
-    source: &Shared,
-    pages: &chunked::Pages,
-) -> io::Result<()> {
-    let planned = plan::plan(store, ctx);
-    ctx.tally.since(Phase::Plan, began);
-    let planned = planned?;
-    plan::stream(store, &planned, feed, ctx);
-    ctx.tally.reading(source, 0, pages.estimate());
-    Ok(())
+/// The file opened to be planned and read: the Unicode kind, else the older ANSI (read from the
+/// start through a handle of its own). Read only, and kept from writers while it's read. Locked
+/// by Outlook, this is what fails: said so by the import, rather than tried as the older format.
+fn opened(ctx: &lanes::Ctx<'_>) -> io::Result<(Rc<dyn PstStore>, Shared, chunked::Pages)> {
+    let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
+    let (walk, pages) = open::handle(&source);
+    if let Ok(pst) = UnicodePstFile::read_from(walk) {
+        ctx.format.store(1, Ordering::Release);
+        pst.set_max_value_size(MAX_VALUE);
+        let store: Rc<dyn PstStore> = UnicodeStore::read(Rc::new(pst))?;
+        return Ok((store, source, pages));
+    }
+    ctx.tally.reading(&source, 0, 0);
+    drop(source);
+    let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
+    let (walk, pages) = open::handle(&source);
+    let pst = AnsiPstFile::read_from(walk)?;
+    ctx.format.store(2, Ordering::Release);
+    pst.set_max_value_size(MAX_VALUE);
+    let store: Rc<dyn PstStore> = AnsiStore::read(Rc::new(pst))?;
+    Ok((store, source, pages))
+}
+
+/// A data file planned when it was looked at, before it's imported ([`inspect`]): handed to its
+/// import ([`ImportOptions::planned`]), which then doesn't walk the file's folders a second time.
+/// Only for the file as it was then: the caller checks it hasn't changed since.
+pub struct Planned {
+    plan: plan::Plan,
+    /// Messages in its mail folders, those folders, and the items in its contacts, calendar,
+    /// tasks, notes and journal.
+    pub messages: u64,
+    pub folders: u32,
+    pub pim_items: u64,
+    /// The items' own sizes, summed (what the progress goes by).
+    pub bytes: u64,
+}
+
+impl std::fmt::Debug for Planned {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Planned")
+            .field("messages", &self.messages)
+            .field("folders", &self.folders)
+            .field("bytes", &self.bytes)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Plan the data file at `path` before it's imported: what it holds, as the import would bring
+/// it in. Read only; nothing is written anywhere.
+pub fn inspect(path: &Path) -> Result<Planned, String> {
+    let opts = ImportOptions::default();
+    let ctx = lanes::Ctx::looking(path, &opts);
+    let planned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| opened(&ctx).and_then(|(store, _, _)| plan::plan(&*store, &ctx))));
+    let plan = match planned {
+        Ok(Ok(plan)) => plan,
+        Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => {
+            return Err(LOCKED.into());
+        }
+        Ok(Err(e)) => return Err(format!("not an Outlook data file, or it is damaged ({e})")),
+        Err(_) => return Err("the data file is damaged".into()),
+    };
+    let rows = |kind: plan::Kind| plan.folders.iter().filter(|f| f.kind == kind).fold(0u64, |n, f| n.saturating_add(f.rows));
+    let (messages, pim_items) = (rows(plan::Kind::Mail), rows(plan::Kind::Pim));
+    let folders = u32::try_from(plan.folders.iter().filter(|f| f.kind == plan::Kind::Mail).count()).unwrap_or(u32::MAX);
+    Ok(Planned { messages, folders, pim_items, bytes: plan.bytes, plan })
 }
 
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the

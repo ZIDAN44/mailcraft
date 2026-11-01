@@ -1596,7 +1596,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   then. A file opened again at once into the same account waits for that, rather than being
   refused. Closing MailCraft pauses an import and waits up to 10 seconds for it to write what it
   holds before the data files are sealed. The folder pane gets each folder as it finishes, not
-  all of them at the end. Still open: what was imported before the account was removed
+  all of them at the end, and an Outlook data file looked at before it's imported is walked
+  once, not again by its import. Still open: what was imported before the account was removed
   stays in the data file a removed account keeps, until removal waits for the import to stop;
   going on from where it stopped; and the window's buttons for it.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an

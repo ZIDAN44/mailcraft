@@ -243,6 +243,35 @@ fn an_import_after_a_discard_runs_once_that_is_over() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A data file looked at before it's imported is planned then: what it holds is told, and its
+/// import goes by that plan (a fault planning its Inbox costs nothing) while the file is as it
+/// was; changed since, it's planned again.
+#[test]
+fn a_file_looked_at_is_imported_as_planned_then() {
+    let (dir, pst, store, mut p) = setup("looked", 30, 5, "l1", 0);
+    p.submit(Job::InspectDataFile { path: pst.clone() });
+    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert_eq!((facts.messages, facts.folders, facts.error.as_deref()), (35, 3, None), "{facts:?}");
+    assert!(facts.bytes > 0);
+    let fault = Fault::PlanAt(1);
+    faults().lock().unwrap().insert("l1".into(), fault);
+    p.submit(Job::ImportPst { account: "l1".into(), path: pst.clone(), resume: false });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    assert!(matches!(seen.last(), Some(Event::Imported { messages: 35, .. })), "{:?}", seen.last());
+
+    // The file changed since it was looked at: its plan is the file's own again, fault and all.
+    let mut bytes = std::fs::read(&pst).unwrap();
+    bytes.extend_from_slice(&[0; 512]);
+    std::fs::write(&pst, bytes).unwrap();
+    faults().lock().unwrap().insert("l2".into(), fault);
+    p.submit(Job::ImportPst { account: "l2".into(), path: pst, resume: false });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    assert!(matches!(seen.last(), Some(Event::Imported { messages, .. }) if *messages < 35), "{:?}", seen.last());
+    assert!(store.load_folders("l2").is_ok());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// One import at a time into an account: a second is refused, the first goes on.
 #[test]
 fn a_second_import_into_an_account_is_refused() {

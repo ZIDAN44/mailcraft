@@ -105,7 +105,34 @@ fn a_pause_hides_the_folder_part_way_and_a_discard_writes_nothing_more() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// A stop only ever goes further: MailCraft closing (a pause) while an account is removed (a
+/// A file looked at before it's imported is planned then: what it holds is told, and its import,
+/// handed that plan, doesn't walk the folders again (a fault in planning its Inbox costs it
+/// nothing), and brings in what an import planning for itself does.
+#[test]
+fn a_file_planned_when_looked_at_is_imported_without_planning_again() {
+    let (dir, pst) = data_file("planned", 30);
+    let planned = super::super::inspect(&pst).unwrap();
+    assert_eq!((planned.messages, planned.folders, planned.pim_items), (30, 2, 0), "{planned:?}");
+    assert!(planned.bytes > 0);
+    let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
+    let fault = Some(super::super::Fault::PlanAt(1));
+    let opts = ImportOptions { lanes: 1, fault, planned: Some(std::sync::Arc::new(planned)), ..ImportOptions::default() };
+    let done = import_with(&pst, &store, "w1", &opts, &mut |_| {}).unwrap();
+    assert_eq!(done.messages, 30);
+    assert_eq!(store.load_folder("w1", "INBOX").unwrap().messages.len(), 30);
+    // Planning for itself, the same fault loses the Inbox: the plan above was what spared it.
+    let opts = ImportOptions { lanes: 1, fault, ..ImportOptions::default() };
+    let replanned = import_with(&pst, &store, "w2", &opts, &mut |_| {}).unwrap();
+    assert_eq!(replanned.messages, 0);
+
+    let junk = dir.join("junk.pst");
+    std::fs::write(&junk, b"not a data file at all").unwrap();
+    assert!(super::super::inspect(&junk).is_err());
+    assert!(super::super::inspect(&dir.join("gone.pst")).is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A stop only ever goes further:MailCraft closing (a pause) while an account is removed (a
 /// discard) leaves the import thrown away.
 #[test]
 fn a_stop_is_never_lowered() {
