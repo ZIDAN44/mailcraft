@@ -420,3 +420,34 @@ fn damaged_files_are_errors() {
         }
     }
 }
+
+/// The fuzz target's seed (`fuzz/seeds/search_index/index`) is a whole index as
+/// [`hostile_index`] reads one: it opens, finds its words, takes a change. `MAILCRAFT_WRITE_SEED=1`
+/// writes it again first.
+#[test]
+fn the_fuzz_seed_is_an_index() {
+    let seed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/search_index/index");
+    if std::env::var_os("MAILCRAFT_WRITE_SEED").is_some() {
+        let s = Store::memory();
+        let mut w = Writer::open(&s, "a1").unwrap();
+        for i in 0..12 {
+            w.add(&mk("INBOX", i + 1), u64::from(i), 100, &text(&format!("common word{i} from ana@studio.example"), &["Q3 Plan.pdf"], 1)).unwrap();
+        }
+        w.remove(3);
+        w.flush(&s).unwrap();
+        let base = dir(&s, "a1");
+        let meta = load_meta(&s, "a1").unwrap().unwrap();
+        let mut bytes = s.files.read(&base.join("meta.bin")).unwrap();
+        for n in meta.uses() {
+            bytes.extend(s.files.read(&n.path(&base)).unwrap());
+        }
+        std::fs::write(&seed, bytes).unwrap();
+    }
+    let s = hostile_index(&std::fs::read(&seed).unwrap());
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(found(&mut r, &s, Field::Body, "common").len(), 11);
+    assert_eq!(found(&mut r, &s, Field::Address, "ana@").len(), 11);
+    exercise_index(&s);
+    assert!(r.refresh(&s).unwrap());
+    assert_eq!(found(&mut r, &s, Field::Body, "common").len(), 11, "one in, one out");
+}

@@ -202,9 +202,9 @@ when it next opens (only names the meta lets it work out). A message removed lea
 in that same commit; its words go when its segment is merged. `search::Reader` holds the doc table
 and the segments' heads, reads lexicon, postings and text pages as needed (a page cache keyed by
 the index's random epoch), looks words up a few pages at a time, and follows the writer by reading
-only what a newer generation changed. Every file is decoded with checks (`search/format.rs`); an
-index that doesn't read back is set aside (`meta.bin.bad`) and made again past its generation and
-segment numbers.
+only what a newer generation changed. Every file is decoded with checks (`search/format.rs`,
+fuzzed by `search_index`); an index that doesn't read back is set aside (`meta.bin.bad`) and made
+again past its generation and segment numbers.
 
 ## Threading
 

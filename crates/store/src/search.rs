@@ -399,3 +399,71 @@ pub(crate) fn load_docs(store: &Store, base: &Path, meta: &format::Meta) -> Resu
     }
     Ok(docs)
 }
+
+/// An index's files as one input (the fuzz target's, `fuzz/fuzz_targets/store/search_index.rs`):
+/// split where each file's four letters start (`MCSM` the meta, then the files it names, in the
+/// order [`Name`] sorts), put in a memory store as account `a1`'s index.
+#[doc(hidden)]
+pub fn hostile_index(input: &[u8]) -> Store {
+    let starts: Vec<usize> = (0..input.len())
+        .filter(|&i| input.get(i..i + 4).is_some_and(|m| m.starts_with(b"MCS") && m.get(3).is_some_and(|k| b"MDTHLP".contains(k))))
+        .collect();
+    let pieces: Vec<&[u8]> =
+        starts.iter().enumerate().filter_map(|(n, &s)| input.get(s..starts.get(n + 1).copied().unwrap_or(input.len()))).collect();
+    let store = Store::memory();
+    let base = dir(&store, "a1");
+    let Some((meta, rest)) = pieces.split_first() else { return store };
+    let _ = store.files.write(&base.join("meta.bin"), meta);
+    if let Ok(m) = format::decode_meta(meta) {
+        for (name, piece) in m.uses().into_iter().zip(rest) {
+            let _ = store.files.write(&name.path(&base), piece);
+        }
+    }
+    store
+}
+
+/// Read and change a [`hostile_index`] every way the app does: open, look words up (whole and a
+/// page at a time), read texts, follow a commit, write.
+#[doc(hidden)]
+pub fn exercise_index(store: &Store) {
+    let doc = mailcraft_model::search::IndexDoc {
+        text: "common ana@studio.example".into(),
+        names: vec!["a.pdf".into()],
+        files: 1,
+        truncated: false,
+        has_text: true,
+    };
+    let look = |r: &mut Reader| {
+        for (field, prefix) in [(Field::Body, "c"), (Field::Body, ""), (Field::Names, "a"), (Field::Address, "ana@")] {
+            let _ = r.word(store, field, prefix);
+            let (mut cur, mut out) = (ScanCursor::default(), Bits::new(r.len()));
+            for _ in 0..64 {
+                if r.scan_prefix(store, field, prefix, &mut cur, &mut out, 1).unwrap_or(true) {
+                    break;
+                }
+            }
+        }
+        for d in 0..r.len().min(64) {
+            let _ = (r.text(store, d), r.info(d), r.key(d));
+        }
+    };
+    let mut reader = Reader::open(store, "a1").ok().flatten();
+    if let Some(r) = reader.as_mut() {
+        look(r);
+    }
+    if let Ok(mut w) = Writer::open(store, "a1") {
+        let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+        let _ = w.add(&key, 1, 1, &doc);
+        w.remove(0);
+        let _ = w.retarget(1, &MessageKey { uid: 2, ..key });
+        let _ = w.flush(store);
+    }
+    if let Some(r) = reader.as_mut()
+        && r.refresh(store).is_ok()
+    {
+        look(r);
+    }
+    if let Ok(Some(mut r)) = Reader::open(store, "a1") {
+        look(&mut r);
+    }
+}

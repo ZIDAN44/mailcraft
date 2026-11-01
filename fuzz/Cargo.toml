@@ -20,6 +20,7 @@ bin = [
     { name = "pst_item", bench = false, test = false, doc = false, path = "fuzz_targets/pst_item.rs" }, # a .pst item rebuilt from its properties
     { name = "pst_props", bench = false, test = false, doc = false, path = "fuzz_targets/pst_props.rs" }, # text in a data file's properties, by code page
     { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
+    { name = "search_index", bench = false, test = false, doc = false, path = "fuzz_targets/store/search_index.rs" }, # the search index's files read back
     { name = "signature", bench = false, test = false, doc = false, path = "fuzz_targets/signature.rs" }, # signatures as HTML code and saved web pages
     { name = "smime", bench = false, test = false, doc = false, path = "fuzz_targets/smime.rs" }, # signatures, encrypted mail, certificates, .p12
     { name = "tnef", bench = false, test = false, doc = false, path = "fuzz_targets/tnef.rs" }, # Outlook's winmail.dat and compressed RTF
@@ -35,7 +36,7 @@ mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
 mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
 mailcraft-smime.path = "../crates/smime" # S/MIME
 rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
-mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to
+mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to, the search index
 
 # `cargo fuzz ... -O` builds with this profile. MailCraft's own code keeps its debug assertions and
 # overflow checks; mail-parser runs without debug assertions, as the main workspace sets it.

@@ -1,0 +1,18 @@
+# The search index's files (crates/store/src/search/format.rs): each one's four letters and version,
+# the field letters words are kept under, and numbers at the edges of what is read.
+"MCSM\x01"
+"MCSD\x01"
+"MCST\x01"
+"MCSB\x01"
+"MCSH\x01"
+"MCSL\x01"
+"MCSP\x01"
+"\x00\x10"
+"\xff\xff"
+"\xff\xff\xff\xff"
+"\x80\x80\x80\x80\x10"
+"\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01"
+"bcommon"
+"nplan"
+"aana@studio.example"
+"studio.example"
