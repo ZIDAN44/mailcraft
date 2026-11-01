@@ -262,3 +262,43 @@ fn a_removed_account_keeps_its_data_file() {
     drop(s);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// An import thrown away ends with its account already removed, and the pool says so even when
+/// nothing was importing; the next account given that id (another account added, or another file
+/// opened) isn't ended by it: no "0 messages imported", no status changed, its own import going on.
+#[test]
+fn a_discarded_imports_end_never_reaches_the_next_account_with_its_id() {
+    let mut s = sample_session("discard-reuse");
+    let discarded = |account: &str| Event::Imported {
+        account: account.to_string(),
+        messages: 0,
+        skipped: 0,
+        done: true,
+        error: None,
+        report: Some(Box::new(mailcraft_model::job::ImportReport { stopped: Some(mailcraft_model::job::StopHow::Discard), ..Default::default() })),
+    };
+    // An account added, removed, and another added in its place, under the same id.
+    let first = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.run("account.remove", &json!({"account": first})).unwrap();
+    let id = s.run("account.add", &json!({"email": "ana@two.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(id, first, "the id is given again");
+    s.take_jobs();
+    let (notices, status) = (s.notices.len(), s.account(&id).unwrap().status.clone());
+    s.apply(discarded(&id));
+    assert_eq!(s.notices.len(), notices, "{:?}", s.notices.last());
+    assert_eq!(s.account(&id).unwrap().status, status);
+
+    // A file opened, removed while it imports, and another opened under the same id.
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    let a = s.run("account.importPst", &json!({"path": r"C:\Users\me\One.pst"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.run("account.remove", &json!({"account": a})).unwrap();
+    let b = s.run("account.importPst", &json!({"path": r"C:\Users\me\Two.pst"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(a, b);
+    let notices = s.notices.len();
+    s.apply(discarded(&b));
+    assert_eq!(s.notices.len(), notices, "{:?}", s.notices.last());
+    assert!(matches!(s.account(&b).unwrap().status, SyncStatus::Syncing { .. }), "still importing");
+    s.apply(Event::Imported { account: b.clone(), messages: 3, skipped: 0, done: true, error: None, report: None });
+    assert!(s.notices.last().is_some_and(|n| n.text.contains("3 messages imported")));
+    assert_eq!(s.account(&b).unwrap().status, SyncStatus::Offline);
+}

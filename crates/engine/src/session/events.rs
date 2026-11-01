@@ -119,6 +119,13 @@ impl Session {
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
             Event::ImportProgress { account, progress } => self.import_progress(&account, &progress),
+            // A discarded import is a removed account's (only removing one discards it): its id
+            // may be a newer account's by now, which this end isn't.
+            Event::Imported { account, error, report: Some(r), .. } if r.stopped == Some(mailcraft_model::job::StopHow::Discard) => {
+                if let Some(e) = error {
+                    log::warn!("{account}: an import thrown away: {e}");
+                }
+            }
             Event::Imported { account, messages, skipped, done, error, report } => {
                 self.imported(&account, messages, skipped, done, error, report.as_deref())
             }

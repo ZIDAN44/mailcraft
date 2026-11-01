@@ -1592,14 +1592,19 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
 - **Stopping an import:** an import couldn't be stopped: removing its account let it go on
   writing. It can now be cancelled (what came in is kept, the folder it was part-way through
   too) or paused (the same, but that folder stays out of the list); removing the account stops
-  it within a second or two, writing nothing more, and removes the data file it was writing
-  then. A file opened again at once into the same account waits for that, rather than being
-  refused. Closing MailCraft pauses an import and waits up to 10 seconds for it to write what it
-  holds before the data files are sealed. The folder pane gets each folder as it finishes, not
-  all of them at the end, and an Outlook data file looked at before it's imported is walked
-  once, not again by its import. Still open: what was imported before the account was removed
-  stays in the data file a removed account keeps, until removal waits for the import to stop;
-  going on from where it stopped; and the window's buttons for it.
+  it within a second or two and it writes nothing more. A MailCraft data file brought in is
+  copied whole or not at all: stopped part-way, none of it is kept, and a big one stops while
+  it's still being copied, not only once it has been. A file opened again at once into the same
+  account waits for the import being stopped, rather than being refused, and the end of an
+  import thrown away is never taken for the next account given the same id (adding an account
+  right after removing one said "0 messages imported" and took it offline). Closing MailCraft
+  pauses an import and waits up to 10 seconds for it to write what it holds before the data
+  files are sealed. The folder pane gets each folder as it finishes, not all of them at the end,
+  and an Outlook data file looked at before it's imported is walked once, not again by its
+  import. Still open: the data file a removed account keeps holds what was imported before the
+  removal, until removal waits for the import to stop; the planned folders shown ahead as an
+  outline, once the window can show them as not yet open to changes; going on from where it
+  stopped; and the window's buttons for it.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

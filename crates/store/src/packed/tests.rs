@@ -57,6 +57,20 @@ fn an_account_starts_from_an_existing_data_file() {
     assert!(matches!(&stopped, crate::StoreError::Io { source, .. } if source.kind() == std::io::ErrorKind::Interrupted), "{stopped}");
     assert!(s.load_folders("p6").unwrap().is_empty());
     assert!(!t.join("app").join(".import-p6.tmp").exists(), "the copy read from is gone");
+    // …and while the file is still being copied to be read (a big one takes minutes): it stops
+    // part-way through the copy, which goes too.
+    let big = t.join("big.mailcraft");
+    std::fs::write(&big, vec![7u8; 3 * super::COPY_CHUNK]).unwrap();
+    let asked = std::cell::Cell::new(0);
+    let stop = || {
+        asked.set(asked.get() + 1);
+        asked.get() > 1
+    };
+    let tmp = t.join("app").join(".import-p5.tmp");
+    let stopped = super::read_data_file(&big, &tmp, &stop, &mut |_| panic!("nothing is read")).unwrap_err();
+    assert!(matches!(&stopped, crate::StoreError::Io { source, .. } if source.kind() == std::io::ErrorKind::Interrupted), "{stopped}");
+    assert_eq!(asked.get(), 2, "stopped after the first chunk, not at the end of the copy");
+    assert!(!tmp.exists(), "the copy part-way is gone");
 
     // Junk: refused, and nothing written.
     let junk = t.join("junk.mailcraft");
@@ -118,7 +132,7 @@ fn each_account_is_one_data_file_named_after_it() {
     assert!(kept.exists() && s.data_file("a1").is_none());
     // It still reads (as a file opened from Open & Export).
     let mut keys = Vec::new();
-    super::read_data_file(&kept, &t.join("read.tmp"), &mut |batch| {
+    super::read_data_file(&kept, &t.join("read.tmp"), &|| false, &mut |batch| {
         keys.extend(batch.into_iter().map(|(k, _)| k));
         Ok(())
     })

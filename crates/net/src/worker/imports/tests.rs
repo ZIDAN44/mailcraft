@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use mailcraft_model::Summary;
 use mailcraft_model::job::{ImportPhase, StopHow};
 use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
@@ -306,5 +307,128 @@ fn closing_pauses_imports_and_dropping_never_waits() {
     assert!(asked.elapsed() < Duration::from_secs(1), "{:?}", asked.elapsed());
     // Its thread ends by itself; give it the time before the folder goes.
     std::thread::sleep(Duration::from_secs(2));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The engine lets go of a removed account's data file before the pool hears of the removal,
+/// and may give its id to a new account at once: the import thrown away then removes nothing of
+/// the new account's (its data file stays, with its folders), and the removed one's file is kept,
+/// as a removed account's is.
+#[test]
+fn a_new_account_given_the_id_while_an_import_is_thrown_away_keeps_its_file() {
+    let (dir, pst, store, mut p) = setup("window", 200, 0, "w1", 400);
+    p.submit(Job::ImportPst { account: "w1".into(), path: pst, resume: false });
+    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    let kept = store.remove_account("w1").unwrap().expect("the import's data file, let go of");
+    let inbox = Folder { account: "w1".into(), path: "INBOX".into(), role: FolderRole::Inbox, ..Folder::default() };
+    store.save_folders("w1", std::slice::from_ref(&inbox)).unwrap();
+    let file = store.data_file("w1").expect("the new account's data file");
+    assert_ne!(file, kept);
+    p.submit(Job::Remove { account: "w1".into() });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    assert_eq!(seen.last().and_then(stopped_as), Some(StopHow::Discard), "{:?}", seen.last());
+    assert!(
+        !seen.iter().any(|e| matches!(e, Event::Folders { .. } | Event::FolderChanged { .. })),
+        "no folders said of the account once thrown away: {seen:?}"
+    );
+    p.shutdown();
+    assert!(file.exists(), "the new account's data file stays");
+    assert_eq!(store.data_file("w1"), Some(file));
+    assert!(store.load_folders("w1").unwrap().iter().any(|f| f.path == "INBOX"));
+    assert!(kept.exists(), "the removed account's file is kept");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An import queued behind one thrown away, and thrown away in its turn (the account removed
+/// again), never begins: another asked for then takes its place and runs to its end, and every
+/// import asked for is answered.
+#[test]
+fn an_import_queued_and_thrown_away_gives_way_to_the_next() {
+    let (dir, pst, store, mut p) = setup("requeue", 300, 0, "k1", 10);
+    p.submit(Job::ImportPst { account: "k1".into(), path: pst.clone(), resume: false });
+    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    p.submit(Job::Remove { account: "k1".into() });
+    p.submit(Job::ImportPst { account: "k1".into(), path: pst.clone(), resume: false });
+    p.submit(Job::Remove { account: "k1".into() });
+    faults().lock().unwrap().remove("k1");
+    p.submit(Job::ImportPst { account: "k1".into(), path: pst, resume: false });
+    let mut ends = Vec::new();
+    let mut seen = Vec::new();
+    while ends.len() < 3 {
+        let more = events_until(&p, Duration::from_secs(60), ended);
+        assert!(more.last().is_some_and(ended), "{more:?}");
+        ends.push(more.last().cloned().unwrap());
+        seen.extend(more);
+    }
+    assert!(!seen.iter().any(|e| matches!(e, Event::Notice { .. })), "none refused: {seen:?}");
+    assert_eq!(ends.iter().take(2).filter_map(stopped_as).collect::<Vec<_>>(), [StopHow::Discard, StopHow::Discard], "{ends:?}");
+    assert!(matches!(&ends[2], Event::Imported { messages: 300, error: None, report: Some(r), .. } if r.stopped.is_none()), "{:?}", ends[2]);
+    assert_eq!(store.load_folder("k1", "INBOX").unwrap().messages.len(), 300);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A MailCraft data file whose copy is cancelled, or paused, once part of it is in: none of it
+/// is kept (a part of a data file is folder lists naming messages not there, all of them another
+/// account's), and a cancel ends as a file that couldn't be opened.
+#[test]
+fn a_mailcraft_copy_stopped_part_way_keeps_nothing() {
+    let (dir, _pst, store, mut p) = setup("copy-stop", 0, 0, "m1", 200);
+    // A data file of more than one batch: big messages that don't compress, filed after the
+    // folder list, so the list comes in with the first batch.
+    let old = Store::open_packed(dir.join("old"), dir.join("Old Files")).unwrap();
+    let folder = Folder { account: "old".into(), path: "zz".into(), ..Folder::default() };
+    old.save_folders("old", std::slice::from_ref(&folder)).unwrap();
+    let mut st = old.load_folder("old", "zz").unwrap();
+    st.validity = 1;
+    let mut x = 0x9E37_79B9_7F4A_7C15u64;
+    for uid in 1..=4 {
+        let key = MessageKey { account: "old".into(), folder: "zz".into(), validity: 1, uid };
+        let body: Vec<u8> = (0..12 << 20)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x as u8
+            })
+            .collect();
+        old.write_body(&key, &body).unwrap();
+        st.messages.push(Summary { key, ..Summary::default() });
+    }
+    old.save_folder("old", "zz", &st).unwrap();
+    let source = old.data_file("old").unwrap();
+    drop(old);
+    let path = source.to_string_lossy().into_owned();
+
+    for (account, how) in [("m1", StopHow::Cancel), ("m2", StopHow::Pause)] {
+        slow(account, 200);
+        p.submit(Job::ImportPst { account: account.into(), path: path.clone(), resume: false });
+        // Its first batch is in once its data file is there.
+        let end = Instant::now() + Duration::from_secs(60);
+        while store.data_file(account).is_none_or(|f| !f.exists()) && Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        p.submit(Job::StopImport { account: account.into(), how });
+        let seen = if how == StopHow::Pause {
+            events_until(
+                &p,
+                Duration::from_secs(60),
+                |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused),
+            )
+        } else {
+            events_until(&p, Duration::from_secs(60), ended)
+        };
+        if how == StopHow::Cancel {
+            let end = seen.last().unwrap();
+            assert!(matches!(end, Event::Imported { messages: 0, error: Some(_), .. }), "{end:?}");
+            assert_eq!(stopped_as(end), Some(StopHow::Cancel));
+        } else {
+            assert!(seen.last().is_some_and(|e| matches!(e, Event::ImportProgress { .. })), "{seen:?}");
+        }
+        assert!(!seen.iter().any(|e| matches!(e, Event::Folders { .. })), "no folders said: {seen:?}");
+        assert!(store.load_folders(account).unwrap().is_empty(), "{account}: nothing kept");
+        assert!(store.load_folder(account, "zz").unwrap().messages.is_empty());
+        assert!(store.data_file(account).is_none(), "{account}: its data file went");
+    }
+    assert!(source.exists(), "the file copied from stays");
     let _ = std::fs::remove_dir_all(&dir);
 }

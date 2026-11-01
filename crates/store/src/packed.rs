@@ -500,17 +500,29 @@ impl Packs {
 
 /// Batches of a data file read for copying, at most this many bytes each.
 const BATCH: usize = 32 << 20;
+/// A data file is copied to be read this many bytes at a time, asked between them whether to stop
+/// (a big one takes minutes).
+const COPY_CHUNK: usize = 8 << 20;
 
 /// Every file in the data file at `path` (its path inside the account, its bytes), handed to
 /// `each` in batches. It's read from a copy at `tmp`, so the original is never changed (opening a
-/// database may write to it) and one another MailCraft has open can still be read.
-pub(crate) fn read_data_file(path: &Path, tmp: &Path, each: &mut dyn FnMut(Vec<(String, Vec<u8>)>) -> Result<()>) -> Result<usize> {
+/// database may write to it) and one another MailCraft has open can still be read. `stop` is
+/// asked as the copy is made: once it says to, the copy goes and it ends ("interrupted").
+pub(crate) fn read_data_file(
+    path: &Path,
+    tmp: &Path,
+    stop: &dyn Fn() -> bool,
+    each: &mut dyn FnMut(Vec<(String, Vec<u8>)>) -> Result<()>,
+) -> Result<usize> {
     let io_err = |source: io::Error| StoreError::Io { path: path.display().to_string(), source };
-    fs::copy(path, tmp).map_err(|e| match e.raw_os_error() {
-        // Windows' sharing and lock violations: an account here (or another copy) has it open.
-        Some(32 | 33) => io_err(io::Error::other("it's in use: an account in MailCraft has it open")),
-        _ => io_err(e),
-    })?;
+    if let Err(e) = copy_until(path, tmp, stop) {
+        let _ = fs::remove_file(tmp);
+        return Err(match e.raw_os_error() {
+            // Windows' sharing and lock violations: an account here (or another copy) has it open.
+            Some(32 | 33) => io_err(io::Error::other("it's in use: an account in MailCraft has it open")),
+            _ => io_err(e),
+        });
+    }
     let read = (|| -> Result<usize> {
         let not_ours = |e: &dyn std::fmt::Display| io_err(io::Error::new(io::ErrorKind::InvalidData, format!("not a MailCraft data file ({e})")));
         let db = Database::builder().set_cache_size(CACHE).open(tmp).map_err(|e| not_ours(&e))?;
@@ -539,6 +551,27 @@ pub(crate) fn read_data_file(path: &Path, tmp: &Path, each: &mut dyn FnMut(Vec<(
     })();
     let _ = fs::remove_file(tmp);
     read
+}
+
+/// The file at `path` copied to `to`, [`COPY_CHUNK`] at a time, asking `stop` before each.
+fn copy_until(path: &Path, to: &Path, stop: &dyn Fn() -> bool) -> io::Result<()> {
+    use std::io::{Read, Write};
+    let mut from = fs::File::open(path)?;
+    let mut out = fs::File::create(to)?;
+    let mut buf = vec![0u8; COPY_CHUNK];
+    loop {
+        if stop() {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "stopped"));
+        }
+        let n = match from.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        };
+        out.write_all(buf.get(..n).unwrap_or_default())?;
+    }
+    out.flush()
 }
 
 #[cfg(test)]
