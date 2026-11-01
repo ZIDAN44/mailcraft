@@ -534,3 +534,199 @@ fn the_external_tag_never_wraps() {
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
+
+/// Long text is cut in chunks at line ends, the break in neither, and a line longer than a
+/// chunk at a character's edge: put back together, it is the text.
+#[test]
+fn long_text_is_cut_at_line_ends_and_character_edges() {
+    use crate::reading::{CHUNK, chunks};
+    let text = format!("{}{}\nend", "ab\ncd\n".repeat(2000), "\u{e9}".repeat(5000));
+    let r = chunks(&text, CHUNK);
+    assert!(r.len() > 3);
+    assert!(r.iter().all(|c| !c.is_empty() && c.len() <= CHUNK && text.is_char_boundary(c.start) && text.is_char_boundary(c.end)));
+    let (mut back, mut at) = (String::new(), 0);
+    for c in &r {
+        if c.start > at {
+            assert_eq!(&text[at..c.start], "\n");
+            back.push('\n');
+        }
+        back.push_str(&text[c.clone()]);
+        at = c.end;
+    }
+    assert_eq!(back, text);
+    assert!(r.iter().any(|c| text[c.clone()].chars().all(|ch| ch == '\u{e9}')), "the long line is cut");
+    assert_eq!(chunks("short", CHUNK), vec![0..5]);
+    assert!(chunks("", CHUNK).is_empty());
+}
+
+/// A message of a few hundred thousand characters, its lines numbered.
+fn long_message(lines: usize) -> Vec<u8> {
+    let body: String = (0..lines).map(|i| format!("Line {i:05} of a long message, with words enough to wrap now and then.\n")).collect();
+    let d = mailcraft_engine::mime::Draft { subject: "Long".into(), body, ..Default::default() };
+    let from = mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example");
+    mailcraft_engine::mime::build(&d, &from, NOW, "<long@x>").unwrap()
+}
+
+/// `raw` as the body of the first message, opened; its text, and how many parts the first frame
+/// that showed it laid out.
+fn open_long(a: &mut MailApp, ctx: &egui::Context, raw: Vec<u8>) -> (String, usize) {
+    frame(ctx, a, vec![]);
+    let key = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.session.open_message(&key);
+    a.session.apply(MailEvent::Body { key, raw });
+    // Until it has come in (it fades up from a little below).
+    let mut first = None;
+    for _ in 0..30 {
+        frame(ctx, a, vec![]);
+        if first.is_none() && !a.ui.long_text.is_empty() {
+            first = Some(long_state(a).laid);
+        }
+    }
+    let text = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.text.clone()).unwrap();
+    (text, first.expect("laid out by what's in view"))
+}
+
+fn long_state(a: &MailApp) -> &crate::reading::LongText {
+    let mut all = a.ui.long_text.values();
+    let v = all.next().expect("laid out by what's in view");
+    assert!(all.next().is_none());
+    v
+}
+
+/// A frame with `events`; what it copied (the last copy, which is what the clipboard keeps).
+fn copied(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Option<String> {
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    out.platform_output
+        .commands
+        .into_iter()
+        .filter_map(|c| match c {
+            egui::OutputCommand::CopyText(t) => Some(t),
+            _ => None,
+        })
+        .next_back()
+}
+
+/// A click at `at`, with `modifiers` held.
+fn click(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2, modifiers: Modifiers) {
+    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers };
+    frame(ctx, a, vec![Event::PointerMoved(at), Event::ModifiersChanged(modifiers)]);
+    frame(ctx, a, vec![button(true)]);
+    frame(ctx, a, vec![button(false), Event::ModifiersChanged(Modifiers::NONE)]);
+}
+
+fn scroll_to_end(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
+    for _ in 0..60 {
+        let wheel = Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Page,
+            delta: egui::vec2(0.0, -3.0),
+            modifiers: Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+        };
+        frame(ctx, a, vec![Event::PointerMoved(at), wheel]);
+    }
+}
+
+/// A 300,000-character message (127,000 took a 179 ms frame, laid out whole): the first frame
+/// lays out at most 3 of its chunks, and scrolled to its end, the last one. A chunk's guessed
+/// height is the one it's laid out at, so the text in view stays put as those above are measured.
+#[test]
+fn a_long_message_lays_out_what_is_in_view() {
+    let (mut a, dir) = app("long-text");
+    let ctx = egui::Context::default();
+    let (text, first) = open_long(&mut a, &ctx, long_message(4400));
+    assert!(text.len() > 300_000, "{}", text.len());
+    let n = crate::reading::chunks(&text, crate::reading::CHUNK).len();
+    assert!((1..=3).contains(&first), "{first} of {n} chunks laid out in the first frame");
+    let v = long_state(&a);
+    let measured: Vec<(f32, f32)> = v.heights().filter_map(|(g, m)| Some((g, m?))).collect();
+    assert!(measured.len() > 3);
+    // The last chunk ends the text, which ends with a line break of its own.
+    for (g, m) in measured.iter().take(measured.len().min(n - 1)) {
+        assert!((g - m).abs() < 3.0, "guessed {g}, laid out at {m}");
+    }
+    let at = v.shown.first().map(|(_, r)| egui::pos2(r.left() + 20.0, 400.0)).unwrap();
+    scroll_to_end(&ctx, &mut a, at);
+    let v = long_state(&a);
+    assert!(v.shown.iter().any(|(i, _)| *i + 1 == n), "the last chunk, at the end: {:?}", v.shown);
+    assert!(v.laid < n / 4, "{} of {n}", v.laid);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A selection from the first chunk to one far below (scrolled to, Shift+clicked) copies all the
+/// text between, chunks passed over included; Ctrl+A in the text copies all of it.
+#[test]
+fn a_selection_over_chunks_passed_over_copies_them() {
+    let (mut a, dir) = app("long-select");
+    let ctx = egui::Context::default();
+    let (text, _) = open_long(&mut a, &ctx, long_message(4400));
+    let ranges = crate::reading::chunks(&text, crate::reading::CHUNK);
+    let first = long_state(&a).shown.first().map(|(_, r)| *r).unwrap();
+    click(&ctx, &mut a, first.left_top() + egui::vec2(2.0, 10.0), Modifiers::NONE);
+    scroll_to_end(&ctx, &mut a, egui::pos2(first.left() + 20.0, 400.0));
+    let (last, rect) = long_state(&a).shown.last().copied().unwrap();
+    assert!(last > 10);
+    let at = egui::pos2(rect.left() + 2.0, rect.center().y.clamp(300.0, 700.0));
+    assert!(rect.contains(at));
+    click(&ctx, &mut a, at, Modifiers::SHIFT);
+    let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
+    let before = ranges.get(last - 1).map(|r| r.end).unwrap();
+    assert!(got.len() > before, "from the start into the chunk clicked: {} of {before}", got.len());
+    assert!(text.starts_with(&got), "the text as it is");
+    // Ctrl+A, then a copy: the whole text, and the mail selection is left alone.
+    click(&ctx, &mut a, at, Modifiers::NONE);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    assert!(long_state(&a).all);
+    assert_eq!(a.session.selection.len(), 1);
+    let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
+    assert!(got == text, "{} of {}", got.len(), text.len());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Formatted mail of thousands of lines is laid out in blocks of lines in the same way.
+#[test]
+fn a_long_formatted_message_lays_out_what_is_in_view() {
+    let (mut a, dir) = app("long-rich");
+    let ctx = egui::Context::default();
+    let mut raw = b"From: Sam <sam@studio.example>\r\nSubject: Long\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><body>".to_vec();
+    for i in 0..3000 {
+        raw.extend_from_slice(format!("<div>Line {i:05} of a long <b>formatted</b> message.</div>\r\n").as_bytes());
+    }
+    raw.extend_from_slice(b"</body></html>\r\n");
+    let (_, first) = open_long(&mut a, &ctx, raw);
+    let lines = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map_or(0, |p| p.rich.len());
+    assert!(lines > 2_000 && a.session.prefs.show_html, "{lines} lines");
+    let n = lines.div_ceil(64);
+    assert!((1..=6).contains(&first), "{first} of {n} blocks laid out");
+    let v = long_state(&a);
+    let at = v.shown.first().map(|(_, r)| egui::pos2(r.left() + 20.0, 400.0)).unwrap();
+    scroll_to_end(&ctx, &mut a, at);
+    let v = long_state(&a);
+    assert!(v.shown.iter().any(|(i, _)| *i + 1 == n), "the last block, at the end: {:?}", v.shown);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Ctrl+A in the long text, then Ctrl+E to the search box: Ctrl+A and a copy there no longer
+/// copy the whole message (that copy came last, so it was the one kept). egui's own label
+/// selection, still there, copies what it holds as it does for any message.
+#[test]
+fn ctrl_a_in_the_search_box_after_a_long_message_does_not_copy_it_whole() {
+    let (mut a, dir) = app("long-select-all");
+    let ctx = egui::Context::default();
+    let (text, _) = open_long(&mut a, &ctx, long_message(4400));
+    let first = long_state(&a).shown.first().map(|(_, r)| *r).unwrap();
+    click(&ctx, &mut a, first.left_top() + egui::vec2(2.0, 10.0), Modifiers::NONE);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    assert!(long_state(&a).all);
+    frame(&ctx, &mut a, vec![key(Key::E, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.search_focused);
+    frame(&ctx, &mut a, vec![Event::Text("zebra".into())]);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    assert!(!long_state(&a).all);
+    let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
+    assert!(got.len() < text.len(), "{} of {}", got.len(), text.len());
+    let _ = std::fs::remove_dir_all(dir);
+}

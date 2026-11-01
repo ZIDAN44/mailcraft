@@ -314,6 +314,8 @@ pub struct UiState {
     cjk_loaded: Option<&'static str>,
     /// Shown text has Chinese characters none of the fonts has (`reading::han_missing`).
     pub(crate) han_missing: bool,
+    /// Long message texts laid out by what's in view: their parts' heights, and their selection.
+    pub(crate) long_text: HashMap<egui::Id, reading::LongText>,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
     pub title_base: String,
     /// This page is a message's own window (the browser): only that message is shown.
@@ -445,6 +447,7 @@ impl MailApp {
                 rtl_font: None,
                 cjk_loaded: None,
                 han_missing: false,
+                long_text: HashMap::new(),
                 title_base: "MailCraft".into(),
                 places: Default::default(),
                 page_message: None,

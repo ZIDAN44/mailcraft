@@ -1433,6 +1433,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   message stops the work on the last one's. A picture that breaks the decoder fails alone, and
   one that keeps it busy 30 s after its message was left no longer holds up the pictures after
   it. Thumbnails are made at 160 pixels (they're shown at 30 points), not 480.
+- **Long messages:** a message's text was laid out whole in the frame it opened, so a message of
+  127,655 characters took a frame of 179 ms to show. Text over 20,000 bytes now goes in chunks of
+  at most 4 KB (cut at a line's end, or inside a longer line at a character's edge), and formatted
+  mail of more than 2,000 lines in blocks of 64 lines (a newsletter's tables one by one): only
+  those near the view are laid out, the others keep their place by their height, guessed and then
+  measured a couple a frame so the scroll bar settles. A selection keeps both its ends laid out
+  wherever it's scrolled, so Shift+click far below extends it and a copy takes every line between;
+  Ctrl+A in the text, then a copy, takes the whole message. Long plain text no longer has a text
+  box's cursor: it's selected as formatted text is.
 - **Attached messages and empty files from `.pst` files:** a message attached to another one in
   an Outlook data file was left out (the reader stopped at its property type, looked for it in
   the wrong place, then would have waited on itself), and so was a zero-byte file. Both come in

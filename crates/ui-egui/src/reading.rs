@@ -16,6 +16,7 @@ use crate::{Action, UiState, widgets};
 mod attachments;
 pub(crate) mod body;
 mod compose;
+mod long_text;
 mod people;
 mod pictures;
 mod security;
@@ -28,6 +29,9 @@ pub use compose::compose_window;
 #[cfg(test)]
 pub(crate) use compose::parse_local;
 use compose::*;
+pub(crate) use long_text::LongText;
+#[cfg(test)]
+pub(crate) use long_text::{CHUNK, chunks};
 use people::*;
 pub(crate) use pictures::{Got, Pictures, Want};
 
@@ -435,6 +439,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             }
             if s.prefs.show_html && !p.rich.is_empty() {
                 rich_body(s, st, ui, &r.key, p, acts);
+            } else if p.text.len() > long_text::LONG {
+                // Laid out by what's in view: whole, a long one took a frame of its own to lay out.
+                long_text::plain(st, ui, ui.scope_id().with(("long-text", r.key.to_id())), &p.text);
             } else if crate::bidi::has_rtl(&p.text) {
                 // Right-to-left text, against the right edge where it starts; selected with the
                 // pointer as it reads, and right-click copies it as written too.
