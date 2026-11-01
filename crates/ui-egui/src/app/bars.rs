@@ -104,6 +104,10 @@ impl MailApp {
             }
             // A test build's next version: how far it's downloaded, then restart into it.
             restart = self.update_status(ui);
+            if let Some((text, permille, hover)) = background_work(s) {
+                ui.add_space(6.0);
+                progress::segment(ui, &t, &text, permille, &hover);
+            }
             ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
                 let dot = |ui: &mut Ui, color: egui::Color32| {
                     let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
@@ -253,6 +257,19 @@ pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
         }
         _ => false,
     }
+}
+
+/// The long work going on in the background the status bar shows, one job: the search index's
+/// build (a data file's import, then its compaction, go before it when they show here). Its
+/// words, how far it has come in thousandths, and what hovering it says.
+pub(crate) fn background_work(s: &Session) -> Option<(String, Option<u16>, String)> {
+    let work = s.indexing_work()?;
+    let permille = work.permille(mailcraft_engine::model::job::ITEM_WEIGHT);
+    let text = match permille {
+        Some(p) => tf!("Indexing {percent}%", percent = progress::percent(p)),
+        None => tl!("Indexing…").to_string(),
+    };
+    Some((text, permille, tf!("Making your mail searchable: {done} of {total} messages", done = work.done, total = work.total)))
 }
 
 /// An account's address, and what's wrong with it when something is (for hovering its status).

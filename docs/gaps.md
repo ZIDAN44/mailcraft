@@ -1748,3 +1748,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   files the index found, leaving out pictures the text shows (on mail indexed). The CLI and
   scripts still wait for a search, reading from its source what the index doesn't have yet
   (`search.run` takes `"background": true` to not wait).
+- **The search box says how a search is going:** a search takes 6 ms of each frame, the time
+  checked after each step of it, and starts a quarter of a second after the last key (0.3 s
+  before). The list says "Searching…" while it runs (over an empty list, rather than "No
+  results"), "Some results may be missing: still indexing (NN%)" while mail it may match isn't
+  indexed yet, and "Couldn't read the date …" for a date that isn't one (`received:2024-13`).
+  The status bar shows "Indexing NN%" while the search index is built, with how many messages on
+  hover. Advanced search has Received after and Received before (days, as `after:` and
+  `before:`). A search that fails part-way ends, and the index it was reading is left alone
+  until it's written again, so the next search can't fail on it too.

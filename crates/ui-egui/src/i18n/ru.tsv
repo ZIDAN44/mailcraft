@@ -1374,3 +1374,12 @@ month	May	Май
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft откроется без них; каждая учётная запись сообщит о проблеме, когда вы её откроете.
 	Continue	Продолжить
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft не удалось открыть файлы данных, поэтому в этот раз он работает без кэша почты.
+	Indexing {percent}%	Индексация {percent}%
+	Indexing…	Индексация…
+	Making your mail searchable: {done} of {total} messages	Подготовка почты к поиску: {done} из {total} сообщений
+	Searching…	Поиск…
+	Some results may be missing: still indexing ({percent}%)	Некоторые результаты могут отсутствовать: индексация ещё идёт ({percent}%)
+	Some results may be missing: still indexing	Некоторые результаты могут отсутствовать: индексация ещё идёт
+	Couldn't read the date “{value}”	Не удалось прочитать дату «{value}»
+	Received after	Получено после
+	Received before	Получено до

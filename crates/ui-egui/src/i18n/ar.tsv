@@ -1370,3 +1370,12 @@ month	May	مايو
 	MailCraft opens without them; each account says what's wrong when you use it.	يفتح MailCraft من دونها، وسيوضح كل حساب المشكلة عند استخدامه.
 	Continue	متابعة
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	تعذّر على MailCraft فتح ملفات البيانات، لذا يعمل هذه المرة دون ذاكرة البريد المؤقتة.
+	Indexing {percent}%	الفهرسة {percent}%
+	Indexing…	جارٍ الفهرسة…
+	Making your mail searchable: {done} of {total} messages	جارٍ تجهيز بريدك للبحث: {done} من {total} رسالة
+	Searching…	جارٍ البحث…
+	Some results may be missing: still indexing ({percent}%)	قد تنقص بعض النتائج: ما زالت الفهرسة جارية ({percent}%)
+	Some results may be missing: still indexing	قد تنقص بعض النتائج: ما زالت الفهرسة جارية
+	Couldn't read the date “{value}”	تعذّرت قراءة التاريخ «{value}»
+	Received after	مستلمة بعد
+	Received before	مستلمة قبل

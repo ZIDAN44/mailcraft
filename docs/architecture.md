@@ -52,7 +52,7 @@ file at most 1000 lines and every folder at most 16 Rust files (`cargo xtask siz
 | `engine/src/session.rs` + `session/` | `Session`'s state; its `impl` continued per area (`opening`, `changing`, `writing`, `outbox`, `searching`, `accounts`, `events`, `prefs`…; `organize/` for junk, Quick Steps, Search Folders) |
 | `engine/src/cmd.rs` + `cmd/` | the registry; each area (`home`, `navigation`, `compose`, `view`, `pim`, `accounts`) returns its commands |
 | `ui-egui/src/app.rs` + `app/` | `MailApp`, the window: `frame`, `ribbon`, `bars`, `search_box`, `keys`, `actions`, `windows` |
-| `ui-egui/src/panes/`, `dialogs/`, `reading/`, `rich_edit/`, `look/` | the panes, the dialogs by group, the reading pane and compose window, the editor, and theme/icons/motion/widgets |
+| `ui-egui/src/panes/`, `dialogs/`, `reading/`, `rich_edit/`, `look/` | the panes, the dialogs by group, the reading pane and compose window, the editor, and theme/icons/motion/widgets/progress |
 | `net/src/protocols/`, `exchange/`, `data_files/`, `fakes/`, `worker/` | IMAP/SMTP/POP/JMAP/DAV/Sieve; Graph/EWS/NTLM; `.pst`; the in-memory test servers; the worker pool |
 
 ## Transports
@@ -233,9 +233,14 @@ search (flags are never text), so a flag changed on a result is weighed again fo
 alone (`search_patched`). A message the index doesn't have yet may be missing (`missing`); a
 search that waits (the CLI, scripts, tests: the default) reads it from its source instead
 (`mime::index_doc`), so it finds what the index would. The window turns waiting off
-(`set_background_search`) and steps the search eight units a frame: what's found is merged into
-the list by date as it's found (`searching/publish.rs`), conversations and other arrangements at
-the end. Mail coming into or leaving a folder has that folder scanned again (what it found stays
+(`set_background_search`) and steps the search for 6 ms of each frame
+(`search_step_while`, which asks the window's clock after each unit; the engine reads none): what's
+found is merged into the list by date once a step (`searching/publish.rs`), conversations and other
+arrangements at the end. A step that panics ends the search, and the indexes it was reading are
+left unread until their writer writes them again. The list says "Searching…" while it runs, that
+results may be missing while mail isn't indexed yet (how far the passes under way have come,
+`indexing_work`, which the status bar shows too through `ui-egui/src/look/progress.rs`), and what
+couldn't be read of the query (`search_problems`). Mail coming into or leaving a folder has that folder scanned again (what it found stays
 shown until the scan says otherwise); a newer generation of an index (`Event::Indexed`, read again
 at most every 2 s, at once when the pass is over) has its account's words looked up again and its
 folders scanned again; folders appearing or going start the search again.

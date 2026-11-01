@@ -1370,3 +1370,12 @@ month	May	מאי
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft נפתח בלעדיהם; כל חשבון יציין מה הבעיה כשתשתמש בו.
 	Continue	המשך
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft לא הצליח לפתוח את קובצי הנתונים, ולכן הפעם הוא פועל ללא מטמון הדואר.
+	Indexing {percent}%	אינדוקס {percent}%
+	Indexing…	מאנדקס…
+	Making your mail searchable: {done} of {total} messages	הדואר שלך מוכן לחיפוש: {done} מתוך {total} הודעות
+	Searching…	מחפש…
+	Some results may be missing: still indexing ({percent}%)	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע ({percent}%)
+	Some results may be missing: still indexing	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע
+	Couldn't read the date “{value}”	לא ניתן לקרוא את התאריך „{value}”
+	Received after	התקבל אחרי
+	Received before	התקבל לפני

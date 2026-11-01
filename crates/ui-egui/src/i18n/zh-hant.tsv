@@ -1374,3 +1374,12 @@ month	May	5月
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft 會在沒有它們的情況下開啟；使用各個帳戶時會說明問題所在。
 	Continue	繼續
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft 無法開啟其資料檔案，因此這次將在沒有郵件快取的情況下執行。
+	Indexing {percent}%	正在建立索引 {percent}%
+	Indexing…	正在建立索引…
+	Making your mail searchable: {done} of {total} messages	正在讓你的郵件可供搜尋：{done}/{total} 封郵件
+	Searching…	正在搜尋…
+	Some results may be missing: still indexing ({percent}%)	可能缺少部分結果：仍在建立索引 ({percent}%)
+	Some results may be missing: still indexing	可能缺少部分結果：仍在建立索引
+	Couldn't read the date “{value}”	無法讀取日期「{value}」
+	Received after	接收日期晚於
+	Received before	接收日期早於

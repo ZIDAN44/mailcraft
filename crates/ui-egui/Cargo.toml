@@ -28,3 +28,5 @@ skrifa = "0.44"
 sys-locale = "0.3"
 # PDF attachment thumbnails: a pure-Rust rasterizer (no unsafe code).
 hayro = { version = "0.8", default-features = false }
+# A search's time each frame: std's clock panics in the browser (the version egui's winit uses).
+web-time = "1.1"

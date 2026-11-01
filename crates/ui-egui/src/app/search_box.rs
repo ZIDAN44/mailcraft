@@ -6,7 +6,14 @@ use mailcraft_engine::model::search::Advanced;
 use crate::*;
 
 /// How long the search box waits after the last key before searching, in seconds.
-const SEARCH_PAUSE: f64 = 0.3;
+const SEARCH_PAUSE: f64 = 0.25;
+/// Most of a frame a search's work takes (the rest draws it), checked after each unit of it.
+const SEARCH_BUDGET: web_time::Duration = web_time::Duration::from_millis(6);
+/// Units of a search's work at most a frame (each bounded: a page of a list, 512 summaries, a
+/// few index pages), however quick they are.
+const SEARCH_UNITS: u32 = 4096;
+/// What a date field of advanced search takes: a day, year first.
+const DAY_HINT: &str = "2025-03-15";
 
 /// The search box's menu's name for where it looks.
 pub(crate) fn scope_label(scope: SearchScope) -> &'static str {
@@ -28,6 +35,22 @@ pub(crate) enum SearchDrop {
 }
 
 impl MailApp {
+    /// Run the search's work for a part of the frame ([`SEARCH_BUDGET`]): what it finds shows
+    /// as it's found, and the window keeps drawing until it's done. Typing on meanwhile keeps
+    /// what's shown until the next search starts (it takes this one's place).
+    pub(crate) fn step_search(&mut self, ctx: &egui::Context) {
+        self.ui.search_spent = web_time::Duration::ZERO;
+        if !self.session.search_progress().is_some_and(|p| !p.done) {
+            return;
+        }
+        let began = web_time::Instant::now();
+        let p = self.session.search_step_while(SEARCH_UNITS, &mut || began.elapsed() < SEARCH_BUDGET);
+        self.ui.search_spent = began.elapsed();
+        if !p.done {
+            ctx.request_repaint();
+        }
+    }
+
     /// The mail search box itself, `width` wide.
     pub(crate) fn search_box(&mut self, ui: &mut Ui, width: f32, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
@@ -183,6 +206,13 @@ impl MailApp {
                     ] {
                         ui.label(RichText::new(label).color(t.dim));
                         let r = ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
+                        enter |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        ui.end_row();
+                    }
+                    // Days as `2024-03-15`: written to the query as `after:` and `before:`.
+                    for (label, value) in [(tl!("Received after"), &mut form.received_after), (tl!("Received before"), &mut form.received_before)] {
+                        ui.label(RichText::new(label).color(t.dim));
+                        let r = ui.add(egui::TextEdit::singleline(value).hint_text(DAY_HINT).desired_width(120.0));
                         enter |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                         ui.end_row();
                     }

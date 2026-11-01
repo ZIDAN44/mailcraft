@@ -1374,3 +1374,12 @@ month	May	5월
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft는 해당 파일 없이 열립니다. 각 계정을 사용할 때 문제가 표시됩니다.
 	Continue	계속
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft가 데이터 파일을 열 수 없어 이번에는 메일 캐시 없이 실행됩니다.
+	Indexing {percent}%	색인 작성 중 {percent}%
+	Indexing…	색인 작성 중…
+	Making your mail searchable: {done} of {total} messages	메일을 검색할 수 있게 준비하는 중: {total}개 중 {done}개
+	Searching…	검색하는 중…
+	Some results may be missing: still indexing ({percent}%)	일부 결과가 빠졌을 수 있습니다: 아직 색인 작성 중 ({percent}%)
+	Some results may be missing: still indexing	일부 결과가 빠졌을 수 있습니다: 아직 색인 작성 중
+	Couldn't read the date “{value}”	날짜 "{value}"을(를) 읽을 수 없습니다
+	Received after	받은 날짜 이후
+	Received before	받은 날짜 이전

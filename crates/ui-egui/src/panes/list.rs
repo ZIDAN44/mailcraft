@@ -3,11 +3,13 @@
 //! Only visible rows are laid out, so long folders scroll smoothly.
 
 use egui::{Color32, Rect, RichText, Sense, Ui, pos2, vec2};
+use mailcraft_engine::model::search::Problem;
 use mailcraft_engine::model::{FolderRole, MessageKey, Summary, addr, dates};
 use mailcraft_engine::{ListFilter, Row, SearchScope, Session};
 use serde_json::json;
 
 use crate::icons::{self, Icon};
+use crate::progress;
 use crate::theme;
 use crate::widgets;
 use crate::{Action, Dialog, UiState};
@@ -131,6 +133,42 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
             });
         }
     });
+    search_status(s, t, ui);
+}
+
+/// How the search is going, under the list's head: still searching; what may be missing (mail
+/// whose text the search index doesn't have yet); what couldn't be read of what was typed.
+fn search_status(s: &Session, t: &theme::Tokens, ui: &mut Ui) {
+    if s.search.is_none() {
+        return;
+    }
+    let progress = s.search_progress();
+    let running = progress.is_some_and(|p| !p.done);
+    let missing = progress.is_some_and(|p| p.missing > 0);
+    let problems = s.search_problems();
+    if !running && !missing && problems.is_empty() {
+        return;
+    }
+    ui.add_space(2.0);
+    ui.horizontal_wrapped(|ui| {
+        if running {
+            ui.spinner();
+            ui.label(RichText::new(tl!("Searching…")).color(t.dim).small());
+        }
+        if missing {
+            let text = match s.indexing_work().and_then(|w| w.permille(mailcraft_engine::model::job::ITEM_WEIGHT)) {
+                Some(p) => tf!("Some results may be missing: still indexing ({percent}%)", percent = progress::percent(p)),
+                None => tl!("Some results may be missing: still indexing").to_string(),
+            };
+            ui.label(RichText::new(text).color(t.warn).small());
+        }
+        for p in problems {
+            let text = match p {
+                Problem::Date(value) => tf!("Couldn't read the date “{value}”", value = value),
+            };
+            ui.label(RichText::new(text).color(t.warn).small());
+        }
+    });
 }
 
 /// The list's rows, under its head.
@@ -160,7 +198,9 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
             let (r, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
             icons::paint(ui.painter(), r, if s.search.is_some() { Icon::Search } else { Icon::Inbox }, t.faint);
             ui.add_space(8.0);
-            let msg = if s.search.as_ref().is_some_and(|(_, scope)| *scope == SearchScope::All) {
+            let msg = if s.search_progress().is_some_and(|p| !p.done) {
+                tl!("Searching…")
+            } else if s.search.as_ref().is_some_and(|(_, scope)| *scope == SearchScope::All) {
                 tl!("No results. Try fewer words.")
             } else if s.search.is_some() {
                 tl!("No results. Try fewer words, or search all folders.")

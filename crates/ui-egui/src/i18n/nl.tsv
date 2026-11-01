@@ -1370,3 +1370,12 @@ month	May	mei
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft opent zonder deze bestanden; elk account meldt het probleem wanneer u het gebruikt.
 	Continue	Doorgaan
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft kon zijn gegevensbestanden niet openen en werkt deze keer zonder e-mailcache.
+	Indexing {percent}%	Indexeren {percent}%
+	Indexing…	Indexeren…
+	Making your mail searchable: {done} of {total} messages	Je e-mail doorzoekbaar maken: {done} van {total} berichten
+	Searching…	Zoeken…
+	Some results may be missing: still indexing ({percent}%)	Er kunnen resultaten ontbreken: nog bezig met indexeren ({percent}%)
+	Some results may be missing: still indexing	Er kunnen resultaten ontbreken: nog bezig met indexeren
+	Couldn't read the date “{value}”	De datum “{value}” kon niet worden gelezen
+	Received after	Ontvangen na
+	Received before	Ontvangen voor

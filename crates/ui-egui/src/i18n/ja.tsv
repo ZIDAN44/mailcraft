@@ -1371,3 +1371,12 @@ month	May	5月
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft はそれらなしで開きます。各アカウントを使うときに問題が表示されます。
 	Continue	続行
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft はデータ ファイルを開けなかったため、今回はメール キャッシュなしで動作します。
+	Indexing {percent}%	インデックス作成中 {percent}%
+	Indexing…	インデックス作成中…
+	Making your mail searchable: {done} of {total} messages	メールを検索できるように準備しています: {total} 件中 {done} 件
+	Searching…	検索しています…
+	Some results may be missing: still indexing ({percent}%)	一部の結果が表示されていない可能性があります: インデックス作成中 ({percent}%)
+	Some results may be missing: still indexing	一部の結果が表示されていない可能性があります: インデックス作成中
+	Couldn't read the date “{value}”	日付「{value}」を読み取れませんでした
+	Received after	受信日 (以降)
+	Received before	受信日 (以前)

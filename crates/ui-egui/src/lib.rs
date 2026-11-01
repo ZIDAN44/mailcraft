@@ -34,7 +34,7 @@ mod services;
 use dialogs::pim_dialogs;
 pub use look::thumbs::VideoFrame;
 pub use look::{bidi, craft_fonts, icons, motion, theme};
-use look::{thumbs, widgets};
+use look::{progress, thumbs, widgets};
 pub use panes::backstage;
 use panes::{calendar, list, nav, notes, organize, people, reminders};
 
@@ -247,6 +247,8 @@ pub struct UiState {
     search_due: Option<f64>,
     /// The search box's recent searches or advanced search, when open.
     search_drop: SearchDrop,
+    /// The time the last frame spent on the search's work.
+    search_spent: web_time::Duration,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
     pub compose_alert: Option<String>,
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
@@ -419,6 +421,7 @@ impl MailApp {
                 search_cursor_end: false,
                 search_due: None,
                 search_drop: SearchDrop::None,
+                search_spent: web_time::Duration::ZERO,
                 compose_alert: None,
                 attachment_view: None,
                 attachment_selected: None,

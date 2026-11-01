@@ -1,6 +1,8 @@
-//! Typing: Alt+numpad character codes (issue #23).
+//! Typing: Alt+numpad character codes (issue #23), and a search as it's typed.
 
 use super::*;
+
+mod search_frames;
 
 /// A frame whose input goes through the Alt codes first, as the app's windows' does.
 fn alt_frame(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) {

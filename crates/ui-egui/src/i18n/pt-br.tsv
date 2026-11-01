@@ -1375,3 +1375,12 @@ month	May	maio
 	MailCraft opens without them; each account says what's wrong when you use it.	O MailCraft abre sem eles; cada conta informa o problema quando você a usa.
 	Continue	Continuar
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	O MailCraft não conseguiu abrir seus arquivos de dados, então desta vez ele funciona sem o cache de e-mail.
+	Indexing {percent}%	Indexando {percent}%
+	Indexing…	Indexando…
+	Making your mail searchable: {done} of {total} messages	Preparando seus e-mails para pesquisa: {done} de {total} mensagens
+	Searching…	Pesquisando…
+	Some results may be missing: still indexing ({percent}%)	Alguns resultados podem estar faltando: indexação em andamento ({percent}%)
+	Some results may be missing: still indexing	Alguns resultados podem estar faltando: indexação em andamento
+	Couldn't read the date “{value}”	Não foi possível ler a data “{value}”
+	Received after	Recebido depois de
+	Received before	Recebido antes de
