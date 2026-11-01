@@ -103,6 +103,43 @@ fn an_import_counts_where_its_time_went() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// What every folder holds, by subject and date: the same whichever way the file was read.
+fn contents(store: &Store, account: &str) -> Vec<(String, Vec<(String, i64)>)> {
+    store
+        .load_folders(account)
+        .unwrap()
+        .iter()
+        .map(|f| {
+            let mut list: Vec<(String, i64)> =
+                store.load_folder(account, &f.path).unwrap().messages.iter().map(|m| (m.subject.clone(), m.date)).collect();
+            list.sort();
+            (f.path.clone(), list)
+        })
+        .collect()
+}
+
+/// The handle that reads items opened again every 3 items (and every one) loses nothing and
+/// brings nothing in twice; and what was read of the file stays read, so a new handle doesn't
+/// read it again: every byte of this small file is read once, however often it's reopened.
+#[test]
+fn reopening_the_reader_loses_nothing_and_rereads_nothing() {
+    let (dir, pst) = data_file("recycle", 250);
+    let store = Store::memory();
+    let plain = import(&pst, &store, "r0", &mut |_| {}).unwrap();
+    assert_eq!((plain.messages, plain.stats.reopens), (250, 0), "a small file needs no reopening");
+    let len = std::fs::metadata(&pst).unwrap().len();
+    assert!(plain.stats.read_bytes > 0 && plain.stats.read_bytes <= len, "{:?}", plain.stats);
+    for (account, every) in [("r3", 3), ("r1", 1)] {
+        let opts = ImportOptions { recycle: every, ..ImportOptions::default() };
+        let done = import_with(&pst, &store, account, &opts, &mut |_| {}).unwrap();
+        assert_eq!((done.messages, done.skipped), (250, 0));
+        assert_eq!(done.stats.reopens as usize, 250usize.div_ceil(every) - 1, "{:?}", done.stats);
+        assert_eq!(contents(&store, account), contents(&store, "r0"));
+        assert!(done.stats.read_bytes <= len, "read again after reopening: {:?}", done.stats);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A data file that can't be written to imports: nothing asks to write it.
 #[test]
 fn a_read_only_data_file_imports() {

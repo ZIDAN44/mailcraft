@@ -7,12 +7,13 @@
 //! mostly lie in order), and any other reads exactly what was asked, so scattered pages don't
 //! read a chunk each for a few hundred bytes they use.
 //!
-//! The cache is the file's, not a handle's ([`Source`], shared through an `Rc`): every handle
-//! outlook-pst reads through starts with what the others read. A `BufReader` wouldn't do: it forgets its buffer
+//! The cache is the file's, not a handle's ([`Source`], shared through an `Rc`): the handles
+//! outlook-pst reads through are reopened to let go of their own caches (`open.rs`), and each
+//! new one starts with what the old ones read. A `BufReader` wouldn't do: it forgets its buffer
 //! at every seek, and outlook-pst seeks before every read.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::rc::Rc;
@@ -22,6 +23,12 @@ pub(super) const CHUNK: usize = 64 * 1024;
 const READ_AHEAD: usize = 4;
 /// The cache holds at most this many chunks' worth of ranges (4 MiB at the default chunk).
 const SLOTS: usize = 64;
+/// outlook-pst's B-tree pages: each one it reads (at an offset not read before) it keeps until
+/// its handle is dropped, at about this much memory a page.
+pub(super) const PAGE: usize = 512;
+pub(super) const PAGE_COST: u64 = 1024;
+/// Pages counted per handle: past this many, it's due to be reopened anyway.
+const MAX_COUNTED: usize = 1 << 16;
 
 /// A data file opened to read, and what has been read of it.
 pub(super) struct Source {
@@ -176,21 +183,47 @@ impl Source {
     }
 }
 
-/// One handle's view of a [`Source`]: its own position.
+/// One handle's view of a [`Source`]: its own position, and the pages it has read, which
+/// outlook-pst keeps for as long as the handle lives.
 pub(super) struct ChunkReader {
     source: Shared,
     pos: u64,
+    pages: Pages,
+}
+
+/// The offsets of the pages a handle has read.
+#[derive(Clone, Default)]
+pub(super) struct Pages(Rc<RefCell<HashSet<u64>>>);
+
+impl Pages {
+    /// About how much memory the handle's own caches hold.
+    pub(super) fn estimate(&self) -> u64 {
+        // Borrowed elsewhere (it never is): counted as full, so the handle is let go of.
+        let Ok(seen) = self.0.try_borrow() else { return u64::MAX };
+        u64::try_from(seen.len()).unwrap_or(u64::MAX).saturating_mul(PAGE_COST)
+    }
+
+    fn read(&self, pos: u64) {
+        let Ok(mut seen) = self.0.try_borrow_mut() else { return };
+        if seen.len() < MAX_COUNTED {
+            seen.insert(pos);
+        }
+    }
 }
 
 impl ChunkReader {
-    /// A new handle on `source`, at its start.
-    pub(super) fn new(source: &Shared) -> Self {
-        ChunkReader { source: source.clone(), pos: 0 }
+    /// A new handle on `source`, at its start, and the pages it will read.
+    pub(super) fn new(source: &Shared) -> (Self, Pages) {
+        let pages = Pages::default();
+        (ChunkReader { source: source.clone(), pos: 0, pages: pages.clone() }, pages)
     }
 }
 
 impl Read for ChunkReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.len() == PAGE {
+            self.pages.read(self.pos);
+        }
         let n = self.source.try_borrow_mut().map_err(io::Error::other)?.read_at(self.pos, buf)?;
         self.pos = self.pos.saturating_add(u64::try_from(n).unwrap_or(u64::MAX));
         Ok(n)

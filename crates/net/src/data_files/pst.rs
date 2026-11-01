@@ -10,6 +10,7 @@
 //! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
 //! can't be read are skipped and counted, and sizes are capped.
 
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::path::Path;
@@ -43,6 +44,7 @@ mod tests;
 
 use chunked::Shared;
 use item::{Files, Item, attachment, item, message_code_page, unread_attachment};
+use open::Recycle;
 use out::Out;
 #[doc(hidden)]
 pub use props::Val;
@@ -146,9 +148,11 @@ pub struct ImportStats {
     pub kept_bytes: u64,
     /// Items read at once.
     pub lanes: u64,
-    /// Bytes read from the data file, in so many reads.
+    /// Bytes read from the data file, in so many reads; and how many times the handle that reads
+    /// items was opened again to let go of its caches.
     pub read_bytes: u64,
     pub reads: u64,
+    pub reopens: u64,
 }
 
 /// A stage of an import, timed.
@@ -172,6 +176,7 @@ struct Tally {
     kept: AtomicU64,
     read_bytes: AtomicU64,
     reads: AtomicU64,
+    reopens: AtomicU64,
 }
 
 impl Tally {
@@ -198,12 +203,13 @@ impl Tally {
         self.peak.fetch_max(wide(held), Ordering::Relaxed);
     }
 
-    /// What was read of the data file through `source`.
-    fn reading(&self, source: &Shared) {
+    /// What was read of the data file through `source`, with the item handle reopened `reopens` times.
+    fn reading(&self, source: &Shared, reopens: u64) {
         if let Ok(s) = source.try_borrow() {
             self.read_bytes.fetch_add(s.bytes_read, Ordering::Relaxed);
             self.reads.fetch_add(s.reads, Ordering::Relaxed);
         }
+        self.reopens.fetch_add(reopens, Ordering::Relaxed);
     }
 
     fn snapshot(&self, total: Duration, lanes: u64) -> ImportStats {
@@ -224,6 +230,7 @@ impl Tally {
             lanes,
             read_bytes: self.read_bytes.load(Ordering::Relaxed),
             reads: self.reads.load(Ordering::Relaxed),
+            reopens: self.reopens.load(Ordering::Relaxed),
         }
     }
 }
@@ -243,7 +250,7 @@ pub struct ImportOptions {
     /// kept, as when a file ends early.
     pub cancel: Option<Arc<AtomicBool>>,
     /// The reader's chunk of the file, in KiB (0: its own), and the items read between reopenings
-    /// of the file (0: its own): for measuring.
+    /// of the handle that reads them (0: only once its caches hold too much): for measuring.
     #[doc(hidden)]
     pub chunk_kb: usize,
     #[doc(hidden)]
@@ -269,18 +276,19 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     {
         return Err("this is Outlook's offline copy of a server account (.ost), not a data file: add the account itself to see its mail".into());
     }
+    let recycle = Recycle::of(opts);
     let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<()> {
         // Read only, and kept from writers while it's read. Locked by Outlook, this is what fails:
         // said so below, rather than tried as the older format.
         let source = open::source(path, opts.chunk_kb)?;
-        match UnicodePstFile::read_from(open::handle(&source)) {
-            Ok(pst) => read_unicode(pst, &source, &mut out),
+        match UnicodePstFile::read_from(open::handle(&source).0) {
+            Ok(pst) => read_unicode(pst, &source, recycle, &mut out),
             Err(_) => {
-                out.tally.reading(&source);
+                out.tally.reading(&source, 0);
                 drop(source);
                 // The older format, read from the start through a handle of its own.
                 let source = open::source(path, opts.chunk_kb)?;
-                read_ansi(AnsiPstFile::read_from(open::handle(&source))?, &source, &mut out)
+                read_ansi(AnsiPstFile::read_from(open::handle(&source).0)?, &source, recycle, &mut out)
             }
         }
     }));
@@ -331,15 +339,36 @@ pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>])
 
 macro_rules! reader {
     ($name:ident, $file:ty, $store:ty, $message:ty, $attachment:ty) => {
-        fn $name(pst: $file, source: &Shared, out: &mut Out<'_>) -> io::Result<()> {
-            pst.set_max_value_size(MAX_VALUE);
-            let store = <$store>::read(Rc::new(pst))?;
+        fn $name(pst: $file, source: &Shared, recycle: Recycle, out: &mut Out<'_>) -> io::Result<()> {
+            let store_of = |pst: $file| {
+                pst.set_max_value_size(MAX_VALUE);
+                <$store>::read(Rc::new(pst))
+            };
+            // The handle that reads folders and their tables; items are read through another,
+            // opened again (with what was read of the file still cached) as its caches grow.
+            let store = store_of(pst)?;
             let any: Rc<dyn PstStore> = store.clone();
             let named = crate::pst_pim::Named::of(&*any);
             // From the start: the file opened, as either kind when the first wasn't it.
             out.tally.since(Phase::Plan, out.began);
+            let items: RefCell<Option<(Rc<$store>, chunked::Pages, usize)>> = RefCell::new(None);
+            let reopens = Cell::new(0u64);
             let read = |entry: &EntryId| -> io::Result<Item> {
-                let m = <$message>::read(store.clone(), entry, None)?;
+                let store = {
+                    let mut held = items.try_borrow_mut().map_err(io::Error::other)?;
+                    if held.as_ref().is_none_or(|(_, pages, n)| recycle.due(*n, pages)) {
+                        // The old handle, and its caches, go before the new one is made.
+                        if held.take().is_some() {
+                            reopens.set(reopens.get().saturating_add(1));
+                        }
+                        let (reader, pages) = open::handle(source);
+                        *held = Some((store_of(<$file>::read_from(reader)?)?, pages, 0));
+                    }
+                    let Some((store, _, n)) = held.as_mut() else { return Err(io::Error::other("no handle to read with")) };
+                    *n = n.saturating_add(1);
+                    store.clone()
+                };
+                let m = <$message>::read(store, entry, None)?;
                 let cp = message_code_page(&*m);
                 let mut files = Files::default();
                 if let Some(table) = m.attachment_table() {
@@ -355,7 +384,7 @@ macro_rules! reader {
                 Ok(Item { left_out: files.left_out, ..item(&*m, files.files, &named) })
             };
             let done = walk(&*any, &read, out);
-            out.tally.reading(source);
+            out.tally.reading(source, reopens.get());
             done
         }
     };

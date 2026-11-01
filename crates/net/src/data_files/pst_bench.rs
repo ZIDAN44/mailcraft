@@ -278,5 +278,13 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
     let key = st.messages[5].key.clone();
     store.save_folder("d1", "INBOX", &st).unwrap();
     assert!(store.load_folder("d1", "INBOX").unwrap().find(key.uid).unwrap().flags.seen);
+    // Its items read through a handle opened again every 3: the same list, every message once.
+    let opts = crate::pst::ImportOptions { recycle: 3, ..Default::default() };
+    let again = crate::pst::import_with(&pst, &store, "d2", &opts, &mut |_| {}).unwrap();
+    assert_eq!((again.messages, again.stats.reopens as usize), (n, n.div_ceil(3) - 1));
+    let listed = |account: &str| -> Vec<(String, u32)> {
+        store.load_folder(account, "INBOX").unwrap().messages.iter().map(|m| (m.subject.clone(), m.key.uid)).collect()
+    };
+    assert_eq!(listed("d2"), listed("d1"));
     let _ = std::fs::remove_dir_all(&dir);
 }

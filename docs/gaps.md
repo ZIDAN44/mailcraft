@@ -1537,7 +1537,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   only, and while it reads, Windows lets no other program write it (Outlook opened then can't
   change it under the import; a file Outlook has open is still refused, with the same message).
   Reads go through a 4 MiB cache: a page read again (the index's root) comes from it, reads in
-  order read ahead 256 KiB, and others read just what's asked. Not yet measured on the big file.
+  order read ahead 256 KiB, and others read just what's asked. outlook-pst also kept every index
+  page it read until the end (the reader grew from 38 to 210 MB over the big file): the handle
+  that reads items is now opened again once its pages are thought to hold 16 MiB, starting with
+  what the cache holds. Not yet measured on the big file.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened
