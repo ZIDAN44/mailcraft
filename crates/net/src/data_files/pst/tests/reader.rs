@@ -678,14 +678,11 @@ fn hide(f: &mut [u8], nid: u64) {
     seal(f, attachment);
 }
 
-/// Give the message the class its subject names: its class's record (0x001A) points at the
-/// subject's text.
-fn class_from_subject(f: &mut [u8]) {
-    let has = |f: &[u8], (start, size): (usize, usize), prop: u16| {
-        let pattern = [prop.to_le_bytes(), 0x001F_u16.to_le_bytes()].concat();
-        f[start..start + size].windows(4).any(|w| w == pattern)
-    };
-    let pc = *blocks(f).values().find(|&&b| has(f, b, 0x001A) && has(f, b, 0x0037)).unwrap();
+/// Give the message whose subject is `subject` the class that subject names: its class's record
+/// (0x001A) points at the subject's text.
+fn class_from_subject(f: &mut [u8], subject: &str) {
+    let all = blocks(f);
+    let pc = all[&message_blocks(f, &all, subject).0];
     let subject = u32_at(f, record(f, pc, 0x0037, 0x001F) + 4);
     let class = record(f, pc, 0x001A, 0x001F);
     put32(f, class + 4, subject);
@@ -702,24 +699,32 @@ fn hidden_files_are_left_out_by_the_items_class() {
     let names = |path: &Path, cache: &Path| {
         let store = Store::open(cache).unwrap();
         let done = super::import(path, &store, "a1", &mut |_| {}).unwrap();
-        assert_eq!((done.messages, done.skipped), (1, 0), "{done:?}");
-        let (folder, st) = done
-            .folders
-            .iter()
-            .find_map(|f| store.load_folder("a1", &f.path).ok().filter(|s| !s.messages.is_empty()).map(|s| (f.path.clone(), s)))
-            .unwrap();
-        let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
-        let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
-        p.attachments.iter().map(|a| a.name.clone()).collect::<Vec<_>>()
+        assert_eq!((done.messages, done.skipped), (2, 0), "{done:?}");
+        let mut names = Vec::new();
+        for f in &done.folders {
+            for m in store.load_folder("a1", &f.path).map(|s| s.messages).unwrap_or_default() {
+                let key = MessageKey { account: "a1".into(), folder: f.path.clone(), validity: 1, uid: m.key.uid };
+                let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
+                names.extend(p.attachments.iter().map(|a| a.name.clone()));
+            }
+        }
+        names
     };
     let dir = scratch("hidden-by-class");
     for (subject, kept) in [("IPM.Note", true), ("IPM.Schedule.Meeting.Request", false)] {
         let at = dir.join(subject);
         std::fs::create_dir_all(&at).unwrap();
-        let path = attached_in(&at, subject);
+        let path = at.join("hidden.pst");
+        let files = [file("letter.bin", b"twelve bytes"), file("empty.txt", b"")];
+        drop(Writer::create_with_attachments(&path, &with_id(subject, "<outer@example.com>"), &files).unwrap());
+        drop(Writer::append_with_attachments(&path, &with_id("Other", "<other@example.com>"), &[]).unwrap());
         let mut f = std::fs::read(&path).unwrap();
+        let all = blocks(&f);
+        // The first file becomes the other message, which isn't one holding the message.
+        let (holder, other) = (message_blocks(&f, &all, subject).1, message_blocks(&f, &all, "Other"));
+        attach(&mut f, holder, other);
         hide(&mut f, ATTACHMENT_NODE);
-        class_from_subject(&mut f);
+        class_from_subject(&mut f, subject);
         std::fs::write(&path, &f).unwrap();
         let names = names(&path, &at.join("cache"));
         assert_eq!(names.iter().any(|n| n.ends_with(".eml")), kept, "{subject}: {names:?}");
