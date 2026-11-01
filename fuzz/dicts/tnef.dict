@@ -35,6 +35,8 @@
 "\\u"
 "\\'"
 "\\par"
+"\\b"
+"\\b0"
 "\\bin"
 "{\\field{\\*\\fldinst HYPERLINK \""
 "{\\fldrslt"

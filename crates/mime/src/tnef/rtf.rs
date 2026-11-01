@@ -344,29 +344,30 @@ impl Out {
 
     fn raw(&mut self, s: &str, g: &Group) {
         self.flush(g);
+        if self.s.len() >= RTF_MAX {
+            return;
+        }
         if self.mode == Mode::Rich {
             self.format(g.fmt, &g.link);
         }
-        if self.s.len() < RTF_MAX {
-            self.s.push_str(s);
-        }
+        self.s.push_str(s);
     }
 
+    /// Close what's open and open `fmt` inside `link`, which is written again only when it
+    /// changes. Nothing is written once the HTML has [`RTF_MAX`] bytes: a link can be thousands
+    /// of bytes long, and RTF can change its formatting every few bytes.
     fn format(&mut self, fmt: Fmt, link: &Option<String>) {
-        if fmt == self.open && *link == self.open_link {
+        if (fmt == self.open && *link == self.open_link) || self.s.len() >= RTF_MAX {
             return;
         }
-        let close = [(self.open.strike, "</s>"), (self.open.underline, "</u>"), (self.open.italic, "</i>"), (self.open.bold, "</b>")];
-        for (on, tag) in close {
-            if on {
-                self.s.push_str(tag);
+        self.close_tags();
+        if *link != self.open_link {
+            if self.open_link.is_some() {
+                self.s.push_str("</a>");
             }
-        }
-        if self.open_link.is_some() {
-            self.s.push_str("</a>");
-        }
-        if let Some(l) = link {
-            self.s.push_str(&format!("<a href=\"{}\">", l.replace('"', "%22")));
+            if let Some(l) = link {
+                self.s.push_str(&format!("<a href=\"{}\">", l.replace('"', "%22")));
+            }
         }
         let open = [(fmt.bold, "<b>"), (fmt.italic, "<i>"), (fmt.underline, "<u>"), (fmt.strike, "<s>")];
         for (on, tag) in open {
@@ -376,6 +377,24 @@ impl Out {
         }
         self.open = fmt;
         self.open_link = link.clone();
+    }
+
+    fn close_tags(&mut self) {
+        let close = [(self.open.strike, "</s>"), (self.open.underline, "</u>"), (self.open.italic, "</i>"), (self.open.bold, "</b>")];
+        for (on, tag) in close {
+            if on {
+                self.s.push_str(tag);
+            }
+        }
+    }
+
+    /// Close what's still open, at the end: a few bytes, written past the cap too.
+    fn close(&mut self) {
+        self.close_tags();
+        if self.open_link.take().is_some() {
+            self.s.push_str("</a>");
+        }
+        self.open = Fmt::default();
     }
 }
 
@@ -496,6 +515,7 @@ fn read(rtf: &[u8], mode: Mode) -> String {
                         if let Some(c) = c.filter(|_| shows) {
                             out.char(c, &g);
                         } else if g.dest == Dest::FieldInst
+                            && inst.len() < 4096
                             && let Some(c) = c
                         {
                             inst.push(c);
@@ -549,7 +569,7 @@ fn read(rtf: &[u8], mode: Mode) -> String {
         out.flush(&g);
     }
     if mode == Mode::Rich {
-        out.format(Fmt::default(), &None);
+        out.close();
     }
     out.s
 }

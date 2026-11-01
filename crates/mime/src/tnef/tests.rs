@@ -215,6 +215,25 @@ A {\field{\*\fldinst{HYPERLINK "https://studio.example/a?b=1&c=2"}}{\fldrslt{lin
     assert_eq!(h, "here");
 }
 
+/// Formatting that changes every few bytes inside a long link: the link is written once, and the
+/// HTML stops at the cap (it once wrote the link again at each change, past the cap, some 8 KB
+/// for each 13 bytes of RTF).
+#[test]
+fn formatting_inside_a_link_stays_within_the_cap() {
+    let link = format!("https://{}", "a".repeat(4000));
+    let field = |body: &str| format!("{{\\rtf1\\ansi\\deff0 {{\\field{{\\*\\fldinst{{HYPERLINK \"{link}\"}}}}{{\\fldrslt{{{body}}}}}}}}}");
+    let TnefBody::Html(h) = rtf_body(field("one \\b two\\b0  three").as_bytes()) else { panic!() };
+    assert_eq!(h, format!("<a href=\"{link}\">one <b>two</b> three</a>"));
+    let rtf = field(&"\\b\\par\\b0\\par".repeat(5000));
+    let TnefBody::Html(h) = rtf_body(rtf.as_bytes()) else { panic!() };
+    assert_eq!(h.matches("<a href").count(), 1);
+    assert!(h.ends_with("</a>"), "{}", h.len());
+    // Without the link: still no more than the cap and the last few tags.
+    let rtf = format!("{{\\rtf1 {}}}", "\\b\\par\\b0\\par".repeat(2_000_000));
+    let TnefBody::Html(h) = rtf_body(rtf.as_bytes()) else { panic!() };
+    assert!(h.len() <= (16 << 20) + 64, "{}", h.len());
+}
+
 /// A `winmail.dat` as Outlook writes one: a subject, an RTF body wrapping HTML with a picture in
 /// it, a file, and an attached message with a file of its own.
 pub(crate) fn outlook_stream() -> Vec<u8> {
