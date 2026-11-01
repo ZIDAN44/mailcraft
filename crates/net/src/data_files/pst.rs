@@ -32,13 +32,16 @@ use outlook_pst::messaging::store::{AnsiStore, EntryId, Store as PstStore, Unico
 use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::{AnsiPstFile, UnicodePstFile};
 
+mod chunked;
 mod item;
+mod open;
 mod out;
 mod props;
 mod rebuild;
 #[cfg(test)]
 mod tests;
 
+use chunked::Shared;
 use item::{Files, Item, attachment, item, message_code_page, unread_attachment};
 use out::Out;
 #[doc(hidden)]
@@ -143,6 +146,9 @@ pub struct ImportStats {
     pub kept_bytes: u64,
     /// Items read at once.
     pub lanes: u64,
+    /// Bytes read from the data file, in so many reads.
+    pub read_bytes: u64,
+    pub reads: u64,
 }
 
 /// A stage of an import, timed.
@@ -164,6 +170,8 @@ struct Tally {
     peak: AtomicU64,
     raw: AtomicU64,
     kept: AtomicU64,
+    read_bytes: AtomicU64,
+    reads: AtomicU64,
 }
 
 impl Tally {
@@ -190,6 +198,14 @@ impl Tally {
         self.peak.fetch_max(wide(held), Ordering::Relaxed);
     }
 
+    /// What was read of the data file through `source`.
+    fn reading(&self, source: &Shared) {
+        if let Ok(s) = source.try_borrow() {
+            self.read_bytes.fetch_add(s.bytes_read, Ordering::Relaxed);
+            self.reads.fetch_add(s.reads, Ordering::Relaxed);
+        }
+    }
+
     fn snapshot(&self, total: Duration, lanes: u64) -> ImportStats {
         let ms = |phase: Phase| self.nanos.get(phase as usize).map_or(0, |n| n.load(Ordering::Relaxed) / 1_000_000);
         ImportStats {
@@ -206,6 +222,8 @@ impl Tally {
             raw_bytes: self.raw.load(Ordering::Relaxed),
             kept_bytes: self.kept.load(Ordering::Relaxed),
             lanes,
+            read_bytes: self.read_bytes.load(Ordering::Relaxed),
+            reads: self.reads.load(Ordering::Relaxed),
         }
     }
 }
@@ -252,11 +270,18 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
         return Err("this is Outlook's offline copy of a server account (.ost), not a data file: add the account itself to see its mail".into());
     }
     let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<()> {
-        match UnicodePstFile::open(path) {
-            Ok(pst) => read_unicode(pst, &mut out),
-            // Locked by Outlook: say so, rather than trying it as the older format.
-            Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => Err(e),
-            Err(_) => read_ansi(AnsiPstFile::open(path)?, &mut out),
+        // Read only, and kept from writers while it's read. Locked by Outlook, this is what fails:
+        // said so below, rather than tried as the older format.
+        let source = open::source(path, opts.chunk_kb)?;
+        match UnicodePstFile::read_from(open::handle(&source)) {
+            Ok(pst) => read_unicode(pst, &source, &mut out),
+            Err(_) => {
+                out.tally.reading(&source);
+                drop(source);
+                // The older format, read from the start through a handle of its own.
+                let source = open::source(path, opts.chunk_kb)?;
+                read_ansi(AnsiPstFile::read_from(open::handle(&source))?, &source, &mut out)
+            }
         }
     }));
     let failed: Option<String> = match read {
@@ -306,7 +331,7 @@ pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>])
 
 macro_rules! reader {
     ($name:ident, $file:ty, $store:ty, $message:ty, $attachment:ty) => {
-        fn $name(pst: $file, out: &mut Out<'_>) -> io::Result<()> {
+        fn $name(pst: $file, source: &Shared, out: &mut Out<'_>) -> io::Result<()> {
             pst.set_max_value_size(MAX_VALUE);
             let store = <$store>::read(Rc::new(pst))?;
             let any: Rc<dyn PstStore> = store.clone();
@@ -329,7 +354,9 @@ macro_rules! reader {
                 }
                 Ok(Item { left_out: files.left_out, ..item(&*m, files.files, &named) })
             };
-            walk(&*any, &read, out)
+            let done = walk(&*any, &read, out);
+            out.tally.reading(source);
+            done
         }
     };
 }

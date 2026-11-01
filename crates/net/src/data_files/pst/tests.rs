@@ -782,6 +782,7 @@ fn imports_a_data_file() {
 
 mod files;
 mod losses;
+mod chunked;
 mod options;
 mod reader;
 mod rebuilt;

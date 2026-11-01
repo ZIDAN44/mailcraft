@@ -1,4 +1,5 @@
-//! How an import runs: asked to stop part-way, and what it measures of itself.
+//! How an import runs: asked to stop part-way, what it measures of itself, and how it holds the
+//! data file.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -91,9 +92,50 @@ fn an_import_counts_where_its_time_went() {
     assert!(s.raw_bytes > 600 * 1400, "every source counted: {s:?}");
     assert!(s.kept_bytes > 0 && s.kept_bytes < s.raw_bytes / 2, "compressed: {s:?}");
     assert_eq!(s.peak_budget_bytes, s.raw_bytes, "{s:?}");
+    // The file read through the cache: every byte read at most once, far fewer reads than pages.
+    let len = std::fs::metadata(&pst).unwrap().len();
+    assert!(s.read_bytes > 0 && s.read_bytes <= len, "{s:?}");
+    assert!(s.reads > 0 && s.reads < len / 512, "{s:?}");
     // A store that doesn't compress keeps them as they are.
     let plain = Store::memory();
     let s = import(&pst, &plain, "t2", &mut |_| {}).unwrap().stats;
     assert_eq!(s.raw_bytes, s.kept_bytes);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A data file that can't be written to imports: nothing asks to write it.
+#[test]
+fn a_read_only_data_file_imports() {
+    let (dir, pst) = data_file("read-only", 5);
+    let mut perms = std::fs::metadata(&pst).unwrap().permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(&pst, perms.clone()).unwrap();
+    let done = import(&pst, &Store::memory(), "o1", &mut |_| {});
+    #[allow(clippy::permissions_set_readonly_false)]
+    perms.set_readonly(false);
+    std::fs::set_permissions(&pst, perms).unwrap();
+    assert_eq!(done.map(|d| d.messages), Ok(5));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// While it's read, no other program may open the data file to write (Windows' sharing
+/// violation, error 32), and the import leaves it as it was.
+#[cfg(windows)]
+#[test]
+fn nothing_writes_the_data_file_while_it_is_read() {
+    let (dir, pst) = data_file("shared", 450);
+    let before = std::fs::metadata(&pst).unwrap().modified().unwrap();
+    let mut tried = Vec::new();
+    let done = import(&pst, &Store::memory(), "w1", &mut |_| {
+        tried.push(std::fs::OpenOptions::new().write(true).open(&pst).map_err(|e| e.raw_os_error()).err());
+        // Reading it is fine.
+        assert!(std::fs::File::open(&pst).is_ok());
+    })
+    .unwrap();
+    assert_eq!(done.messages, 450);
+    assert!(!tried.is_empty() && tried.iter().all(|e| *e == Some(Some(32))), "{tried:?}");
+    assert_eq!(std::fs::metadata(&pst).unwrap().modified().unwrap(), before);
+    // Once it's done, the file is let go.
+    assert!(std::fs::OpenOptions::new().write(true).open(&pst).is_ok());
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -1531,6 +1531,13 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   (worked out from the copies, not measured on a big file yet). The text a message's preview
   reads is made once, for its text part and its preview both; the preview reads all of it, so
   words after more than 64K characters of quoted lines are found in a message made of HTML too.
+- **Reading a `.pst`:** the import asked to write the data file as well as read it, and read it a
+  block of at most 8 KiB at a time (about 4.5 million reads for the 47 GB file, one after
+  another), reading the index's root page again before every block. It now opens the file to read
+  only, and while it reads, Windows lets no other program write it (Outlook opened then can't
+  change it under the import; a file Outlook has open is still refused, with the same message).
+  Reads go through a 4 MiB cache: a page read again (the index's root) comes from it, reads in
+  order read ahead 256 KiB, and others read just what's asked. Not yet measured on the big file.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened
