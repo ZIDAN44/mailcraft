@@ -1431,9 +1431,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   now, the attached message as an attached `.eml` (the files inside it are still left out). The
   reader is built from MailCraft's fork of it with these fixes, and it no longer trusts
   a damaged file's trees: a value, a table's rows or a heap is read up to the size it declares
-  (blocks named over and over add nothing past it), a value the file says is over 256 MB is an
-  error before any of it is read, and a data, subnode or B-tree page that points back at itself
-  is an error rather than a crash.
+  (blocks named over and over add nothing past it), a value the file says is over 256 MB (a
+  message's, an attachment's, the store's, a folder's or the name map's) is an error before any
+  of it is read, a table's index levels can't be walked without end, and a data, subnode or
+  B-tree page that points back at itself is an error rather than a crash.
 - **Search reads accents and dates:** a word is found whatever its accents, typed or written
   (`resume` finds "Résumé", `résumé` finds "resume", `strasse` "Straße"; Cyrillic keeps й, and
   other scripts are looked for as written). `received:` (also `sent:`, `date:`) takes a day, a

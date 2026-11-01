@@ -47,4 +47,4 @@ package.mail-parser.debug-assertions = false
 
 # The .pst reader with MailCraft's fixes, the same revision of the fork as the main workspace's.
 [patch.crates-io]
-outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "33c52315b100bcfdb1b13c870a6a33b786d6228d" }
+outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "647f6fd151ef88ca19177cb03215be81ce443c49" }

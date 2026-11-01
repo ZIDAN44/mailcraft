@@ -115,7 +115,9 @@ fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
         return Err("it isn't an Outlook data file: choose another name to make a new one".into());
     }
     let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<HashSet<String>> {
-        let store = UnicodeStore::read(Rc::new(outlook_pst::UnicodePstFile::open(path)?))?;
+        let pst = outlook_pst::UnicodePstFile::open(path)?;
+        pst.set_max_value_size(super::pst::MAX_VALUE);
+        let store = UnicodeStore::read(Rc::new(pst))?;
         let mut ids = HashSet::new();
         let any: Rc<dyn PstStore> = store.clone();
         let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;

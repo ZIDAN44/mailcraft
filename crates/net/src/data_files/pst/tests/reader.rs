@@ -369,6 +369,79 @@ fn a_data_tree_that_names_one_block_over_and_over_reads_no_more_than_it_declares
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// The big file, with the binary property `prop` of node `nid` (a store, a folder, the
+/// name-to-id map) kept in the attachment's 20,000-byte data tree: the node's B-tree entry gets
+/// the attachment's subnode block, and the property's record names the data node.
+fn with_a_big_value(dir: &Path, nid: u64, prop: u16) -> PathBuf {
+    let (path, _) = with_a_big_file(dir);
+    let mut f = std::fs::read(&path).unwrap();
+    let all = blocks(&f);
+    let (own, _) = sub_node_entry(&f, &all, DATA_NODE);
+    let own_id = all.iter().find(|(_, b)| **b == own).map(|(id, _)| *id).unwrap();
+    // The node's entry in a leaf page of the node B-tree (ptype 0x81, cLevel 0): nid, data,
+    // subnodes. The writer may leave older copies of a page behind: each gets the change.
+    let entries: Vec<usize> = (0..f.len() - 32)
+        .step_by(32)
+        .filter(|&o| u64_at(&f, o) == nid && f.get(o / 512 * 512 + 496) == Some(&0x81) && f[o / 512 * 512 + 491] == 0)
+        .collect();
+    let pc = all[&u64_at(&f, entries[0] + 8)];
+    for entry in entries {
+        put64(&mut f, entry + 16, own_id);
+        let page = entry / 512 * 512;
+        let c = crc(&f[page..page + 496]);
+        put32(&mut f, page + 500, c);
+    }
+    let at = record(&f, pc, prop, 0x0102);
+    put32(&mut f, at + 4, DATA_NODE as u32);
+    seal(&mut f, pc);
+    std::fs::write(&path, &f).unwrap();
+    path
+}
+
+fn binary_len(value: Option<&outlook_pst::ltp::prop_context::PropertyValue>) -> Option<usize> {
+    match value {
+        Some(outlook_pst::ltp::prop_context::PropertyValue::Binary(b)) => Some(b.buffer().len()),
+        _ => None,
+    }
+}
+
+/// The file's limit holds for the values every import reads first, the store's and the
+/// name-to-id map's, and not only for messages and attachments: those once read whatever size
+/// their data tree declared (up to 4 GiB).
+#[test]
+fn a_store_or_name_map_value_is_held_to_the_file_limit() {
+    let dir = scratch("store-limit");
+    // The store's record key (0x0FF9).
+    let path = with_a_big_value(&dir, 0x21, 0x0FF9);
+    let store = |limit: Option<u64>| {
+        move |pst: UnicodePstFile| {
+            if let Some(limit) = limit {
+                pst.set_max_value_size(limit);
+            }
+            UnicodeStore::read(Rc::new(pst)).map(|s| binary_len(s.properties().get(0x0FF9))).map_err(|e| e.to_string())
+        }
+    };
+    assert_eq!(read_in_time(&path, store(None)), Ok(Some(20_000)));
+    let limited = read_in_time(&path, store(Some(10_000)));
+    assert!(limited.as_ref().is_err_and(|e| e.contains("over the limit")), "{limited:?}");
+    // The name-to-id map's GUID stream (0x0002).
+    std::fs::remove_file(&path).unwrap();
+    let path = with_a_big_value(&dir, 0x61, 0x0002);
+    let map = |limit: Option<u64>| {
+        move |pst: UnicodePstFile| {
+            if let Some(limit) = limit {
+                pst.set_max_value_size(limit);
+            }
+            let store = UnicodeStore::read(Rc::new(pst)).unwrap();
+            store.named_property_map().map(|m| binary_len(m.properties().get(0x0002))).map_err(|e| e.to_string())
+        }
+    };
+    assert_eq!(read_in_time(&path, map(None)), Ok(Some(20_000)));
+    let limited = read_in_time(&path, map(Some(10_000)));
+    assert!(limited.as_ref().is_err_and(|e| e.contains("over the limit")), "{limited:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// A node B-tree page whose entry names the page itself is an error, not a stack overflow:
 /// every read goes through that tree.
 #[test]
