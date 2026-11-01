@@ -440,3 +440,46 @@ fn a_data_file_account_with_nothing_in_it_is_found() {
     assert_eq!(sources(&s)["a1"].path, "C:/Mail/Lost.pst");
     done(s);
 }
+
+/// What the window reads: the imports it shows, the time left by the session's clock, what a
+/// data file looked at holds and the account it's open as, and each import finished once (not
+/// one stopped, or one that failed), for the window to show what it came to.
+#[test]
+fn the_window_is_handed_what_it_shows() {
+    let mut s = sample_session("import-window");
+    let id = import(&mut s, "C:/Mail/Archive.pst");
+    assert_eq!(s.imports().map(|(a, st)| (a.to_string(), st.live)).collect::<Vec<_>>(), [(id.clone(), true)]);
+    assert_eq!(s.import_eta_s(&id), None, "nothing to go by yet");
+    for (i, ms) in [(1u64, 0u64), (2, 25_000), (3, 50_000)] {
+        s.set_clock(NOW + i64::try_from(ms / 1000).unwrap(), 0);
+        s.apply(Event::ImportProgress { account: id.clone(), progress: progress(ImportPhase::Importing, i * 10, 100, ms) });
+    }
+    assert!(s.import_eta_s(&id).is_some_and(|left| left > 0));
+    assert_eq!(s.import_eta_s("sample"), None);
+
+    s.run("account.inspectDataFile", &json!({"path": "c:/mail/archive.pst"})).unwrap();
+    assert!(s.inspecting("c:/mail/archive.pst") && s.data_file_facts("c:/mail/archive.pst").is_none());
+    let facts = DataFileFacts { path: "c:/mail/archive.pst".into(), messages: 7, ..Default::default() };
+    s.apply(Event::DataFileInspected { path: "c:/mail/archive.pst".into(), facts: Box::new(facts) });
+    assert!(!s.inspecting("c:/mail/archive.pst"));
+    assert_eq!(s.data_file_facts("c:/mail/archive.pst").map(|f| f.messages), Some(7));
+    assert_eq!(s.data_file_open_as("c:/mail/archive.pst"), Some(id.clone()), "the same file");
+    assert_eq!(s.data_file_open_as("D:/Other.pst"), None);
+
+    // Stopped: nothing to show yet. Done: shown once.
+    s.run("account.stopImport", &json!({"account": id})).unwrap();
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(&id)] });
+    s.apply(ended(&id, 30, Some(StopHow::Cancel)));
+    assert_eq!(s.take_finished_import(), None);
+    s.run("account.resumeImport", &json!({"account": id})).unwrap();
+    s.apply(ended(&id, 100, None));
+    assert_eq!(s.take_finished_import(), Some(id.clone()));
+    assert_eq!(s.take_finished_import(), None, "taken once");
+    assert!(s.imports().next().is_none());
+
+    // One that failed with nothing in it says so in a notice instead.
+    let failed = import(&mut s, "C:/Mail/Broken.pst");
+    s.apply(Event::Imported { account: failed, messages: 0, skipped: 0, done: true, error: Some("damaged".into()), report: None });
+    assert_eq!(s.take_finished_import(), None);
+    done(s);
+}

@@ -15,6 +15,8 @@ pub(crate) const IMPORTS_DOC: &str = "imports.json";
 const CHECKPOINT_DOC: &str = "import.json";
 /// Data files looked at, kept with their answer.
 const INSPECTED_MAX: usize = 4;
+/// Imports finished whose report the window hasn't shown yet: the newest few.
+const FINISHED_MAX: usize = 8;
 /// `imports.json` read back: at most this many rows, a path at most this long.
 const SOURCES_MAX: usize = 1024;
 const PATH_MAX: usize = 4096;
@@ -33,6 +35,8 @@ pub struct Imports {
     pub sources: BTreeMap<String, DataSource>,
     /// Data files looked at, newest last; `None` while the answer is awaited.
     pub inspected: Vec<(String, Option<Box<DataFileFacts>>)>,
+    /// Imports finished, oldest first, whose report the window is still to show.
+    finished: Vec<String>,
     /// `imports.json` couldn't be read: never written over.
     unread: bool,
 }
@@ -97,6 +101,38 @@ impl Session {
     /// Where `account`'s mail came from, when a data file was imported into it.
     pub fn data_source(&self, account: &str) -> Option<&DataSource> {
         self.importing.sources.get(account)
+    }
+
+    /// Every import running or waiting on the user, by account.
+    pub fn imports(&self) -> impl Iterator<Item = (&str, &ImportState)> {
+        self.importing.running.iter().map(|(a, s)| (a.as_str(), s))
+    }
+
+    /// Seconds left of `account`'s import by the session's clock, once that can be told.
+    pub fn import_eta_s(&self, account: &str) -> Option<u64> {
+        let now = self.ui_ms();
+        self.importing.running.get(account).filter(|s| s.live).and_then(|s| s.eta.remaining_s(now))
+    }
+
+    /// What was found of the data file at `path`, once it has been looked at.
+    pub fn data_file_facts(&self, path: &str) -> Option<&DataFileFacts> {
+        self.facts_for(path)
+    }
+
+    /// Whether the data file at `path` is being looked at now.
+    pub fn inspecting(&self, path: &str) -> bool {
+        self.importing.inspected.iter().rev().find(|(p, _)| p == path).is_some_and(|(_, f)| f.is_none())
+    }
+
+    /// The account the data file at `path` is open as already (by its record key, once looked at).
+    pub fn data_file_open_as(&self, path: &str) -> Option<String> {
+        let key = self.facts_for(path).map(|f| f.record_key.clone()).unwrap_or_default();
+        self.duplicate_of(path.trim(), &key, None)
+    }
+
+    /// An import that has finished whose report the window hasn't shown: each is taken once.
+    pub fn take_finished_import(&mut self) -> Option<String> {
+        if self.importing.finished.is_empty() { None } else { Some(self.importing.finished.remove(0)) }
     }
 
     /// The interface's clock (ms) for the time left: the session's.
@@ -483,7 +519,14 @@ impl Session {
                         let then = if kept { "" } else { " Import the file again to keep it." };
                         self.notice(format!("{name}: {messages} messages imported{more}, but the last of it could not be saved: {e}.{then}"), true);
                     }
-                    None => self.notice(format!("{name}: {messages} messages imported{more}"), false),
+                    None => {
+                        self.notice(format!("{name}: {messages} messages imported{more}"), false);
+                        // The window shows what it came to.
+                        self.importing.finished.retain(|a| a != account);
+                        self.importing.finished.push(account.to_string());
+                        let excess = self.importing.finished.len().saturating_sub(FINISHED_MAX);
+                        self.importing.finished.drain(..excess);
+                    }
                 }
                 if let Some(inbox) = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()) {
                     self.open_view(View::Folder { account: account.to_string(), folder: inbox });
