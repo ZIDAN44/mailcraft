@@ -349,6 +349,50 @@ fn build_round_trips() {
     assert!(!String::from_utf8_lossy(&raw).contains("multipart"));
 }
 
+/// What `build` writes, byte for byte, for a message with every kind of part: three files (one
+/// an attached message with 8-bit text), two pictures its HTML shows, as written and as a
+/// signed message must be (7-bit). The digests were taken before `build` stopped copying its
+/// parts; the `X-Mailer` line, which carries the version, is left out.
+#[test]
+fn build_writes_the_same_bytes_as_before() {
+    let digest = |raw: &[u8]| {
+        let kept = raw.split_inclusive(|b| *b == b'\n').filter(|l| !l.starts_with(b"X-Mailer:"));
+        kept.flatten().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3))
+    };
+    let all_bytes: Vec<u8> = (0..=255u8).cycle().take(5000).collect();
+    let d = Draft {
+        to: vec![EmailAddress::new("Ann", "ann@studio.example")],
+        cc: vec![EmailAddress::new("", "kim@studio.example")],
+        subject: "Boards and notes ✏️".into(),
+        body: "Hi Ann,\r\nthe boards, the notes and the old thread.\r\n\r\n> earlier\r\n".into(),
+        in_reply_to: "m1@studio.example".into(),
+        references: vec!["m1@studio.example".into()],
+        html: Some("<p>Hi <b>Ann</b></p><img src=\"cid:a@x\"><img src=\"cid:b@x\">".into()),
+        attachments: vec![
+            OutAttachment { name: "board.pdf".into(), mime: String::new(), data: all_bytes.clone() },
+            OutAttachment { name: "notes.txt".into(), mime: "text/plain".into(), data: "café\r\n".repeat(40).into_bytes() },
+            OutAttachment { name: "old.eml".into(), mime: "message/rfc822".into(), data: "Subject: old\r\n\r\nnaïve\r\n".into() },
+        ],
+        inline: vec![
+            InlinePicture {
+                cid: "a@x".into(),
+                name: "a.png".into(),
+                mime: "image/png".into(),
+                data: all_bytes.get(..700).unwrap_or_default().to_vec(),
+            },
+            InlinePicture { cid: "b@x".into(), name: "b.gif".into(), mime: String::new(), data: vec![0x47, 0x49, 0x46, 0, 255] },
+        ],
+        importance: 1,
+        read_receipt: true,
+        ..Default::default()
+    };
+    let from = EmailAddress::new("Zoe Park", "zoe@studio.example");
+    let raw = build(&d, &from, 1_791_963_000, "g1@studio.example").unwrap();
+    let signed = build(&Draft { seven_bit: true, ..d.clone() }, &from, 1_791_963_000, "g1@studio.example").unwrap();
+    assert_eq!((raw.len(), digest(&raw)), (10059, 14_591_852_116_807_065_345));
+    assert_eq!((signed.len(), digest(&signed)), (10071, 18_382_107_805_992_298_373));
+}
+
 #[test]
 fn formatted_mail_with_inline_pictures() {
     let d = Draft {
