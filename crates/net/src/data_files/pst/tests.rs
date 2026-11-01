@@ -781,6 +781,7 @@ fn imports_a_data_file() {
 }
 
 mod chunked;
+mod embedded;
 mod files;
 mod losses;
 mod options;

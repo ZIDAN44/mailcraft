@@ -16,6 +16,8 @@ use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
 use pst_rw::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage};
 
+use mailcraft_model::job::SkipReason;
+
 use super::super::props::text_of;
 
 /// The writer's node for an attachment's bytes (`NID_TYPE_INTERNAL`, index 0x200 + n) and for
@@ -31,6 +33,11 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn message(subject: &str) -> UnicodePstMessage<'_> {
+    with_id(subject, "<outer@example.com>")
+}
+
+/// A message whose id (which the writer also makes its search key) is `message_id`.
+fn with_id<'a>(subject: &'a str, message_id: &'a str) -> UnicodePstMessage<'a> {
     UnicodePstMessage {
         subject,
         sender_name: "Riley Moreno",
@@ -38,7 +45,7 @@ fn message(subject: &str) -> UnicodePstMessage<'_> {
         recipients: &[],
         body: "See attached.",
         html_body: None,
-        message_id: "<outer@example.com>",
+        message_id,
         delivery_time: 133_485_408_000_000_000,
     }
 }
@@ -251,27 +258,142 @@ fn an_attached_message_and_an_empty_file_read() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// What the import makes of it: the attached message comes in as an attached .eml, and the
-/// zero-byte file comes in too (both were left out before).
+/// What the import makes of a message attached to itself: it finishes in time, the zero-byte
+/// file comes in, and the attached message, which holds the message it is attached to (its
+/// search key is that message's), is counted and left out rather than read again and again.
 #[test]
-fn the_import_keeps_an_attached_message_and_an_empty_file() {
-    use mailcraft_model::MessageKey;
-    use mailcraft_store::Store;
+fn the_import_of_a_message_attached_to_itself_ends() {
     let dir = scratch("attached-import");
     let path = with_an_attached_message(&dir);
-    let store = Store::open(dir.join("cache")).unwrap();
-    let done = super::import(&path, &store, "a1", &mut |_| {}).unwrap();
+    let (done, sources) = import_in_time(&path, &dir);
     assert_eq!((done.messages, done.skipped), (1, 0), "{done:?}");
-    let (folder, st) = done
-        .folders
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachedMessageUnreadable, 1)]);
+    assert_eq!(sources.iter().map(|s| tree(s)).collect::<Vec<_>>(), ["Outer[empty.txt]"]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A message of a data file whose subject is `subject`: its property context's block and its
+/// subnode block, from the node B-tree's leaf pages (ptype 0x81, cLevel 0) and the subject's
+/// UTF-16 in the block.
+fn message_blocks(f: &[u8], all: &HashMap<u64, (usize, usize)>, subject: &str) -> (u64, u64) {
+    let wide: Vec<u8> = subject.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    (0..f.len() - 32)
+        .step_by(32)
+        .filter(|&o| (u64_at(f, o) & 0x1F) == 0x04 && f.get(o / 512 * 512 + 496) == Some(&0x81) && f[o / 512 * 512 + 491] == 0)
+        .map(|o| (u64_at(f, o + 8), u64_at(f, o + 16)))
+        .find(|(pc, _)| all.get(pc).is_some_and(|&(start, size)| f[start..start + size].windows(wide.len()).any(|w| w == wide)))
+        .unwrap()
+}
+
+/// The entries of a subnode block (an SLBLOCK) whose node is of `kind`: node, data block,
+/// subnode block, and where the entry starts.
+fn entries_of(f: &[u8], (start, size): (usize, usize), kind: u64) -> Vec<(u64, u64, u64, usize)> {
+    assert_eq!((f[start], f[start + 1]), (0x02, 0), "an SLBLOCK");
+    let count = usize::from(u16_at(f, start + 2));
+    (0..count)
+        .map(|i| start + 8 + i * 24)
+        .filter(|&at| at + 24 <= start + size && (u64_at(f, at) & 0x1F) == kind)
+        .map(|at| (u64_at(f, at), u64_at(f, at + 8), u64_at(f, at + 16), at))
+        .collect()
+}
+
+/// The first attachment of the message whose subnode block is `holder` becomes one holding the
+/// message whose blocks are `target` (its property context's, its subnode block): its method
+/// becomes 5, its 0x3701 a `PtypObject` naming its own first subnode, which now points at the
+/// target's blocks.
+fn attach(f: &mut [u8], holder: u64, target: (u64, u64)) {
+    let all = blocks(f);
+    let (_, pc, own, _) = *entries_of(f, all[&holder], 0x05).iter().min_by_key(|e| e.0).unwrap();
+    let attachment = all[&pc];
+    let own = all[&own];
+    let (object, _, _, at) = entries_of(f, own, 0x01)[0];
+    put64(f, at + 8, target.0);
+    put64(f, at + 16, target.1);
+    seal(f, own);
+    let method = record(f, attachment, 0x3705, 0x0003);
+    put32(f, method + 4, 5);
+    let mime = u32_at(f, record(f, attachment, 0x370E, 0x001F) + 4);
+    let item = heap_item(f, attachment, mime);
+    put32(f, item, object as u32);
+    put32(f, item + 4, 0);
+    let value = record(f, attachment, 0x3701, 0x0102);
+    f[value + 2..value + 4].copy_from_slice(&0x000D_u16.to_le_bytes());
+    put32(f, value + 4, mime);
+    seal(f, attachment);
+}
+
+/// A data file of three messages, each with an id of its own: "Outer" holds "Middle", which
+/// holds "Deep", each beside a file of its own (attachments the writer made as files and these
+/// turn into attached messages).
+fn with_nested_messages(dir: &Path) -> PathBuf {
+    let path = dir.join("nested.pst");
+    let outer = [file("a.bin", b"one"), file("empty.txt", b"")];
+    drop(Writer::create_with_attachments(&path, &with_id("Outer", "<outer@example.com>"), &outer).unwrap());
+    let middle = [file("b.bin", b"two"), file("middle.txt", b"in the middle")];
+    drop(Writer::append_with_attachments(&path, &with_id("Middle", "<middle@example.com>"), &middle).unwrap());
+    let deep = [file("deep.txt", b"at the bottom")];
+    drop(Writer::append_with_attachments(&path, &with_id("Deep", "<deep@example.com>"), &deep).unwrap());
+    let mut f = std::fs::read(&path).unwrap();
+    let all = blocks(&f);
+    let outer = message_blocks(&f, &all, "Outer");
+    let middle = message_blocks(&f, &all, "Middle");
+    let deep = message_blocks(&f, &all, "Deep");
+    attach(&mut f, outer.1, middle);
+    attach(&mut f, middle.1, deep);
+    std::fs::write(&path, f).unwrap();
+    path
+}
+
+/// Import the file into a cache of its own on a thread with a time limit: what the import did,
+/// and each message's source.
+fn import_in_time(path: &Path, dir: &Path) -> (super::super::Imported, Vec<Vec<u8>>) {
+    use mailcraft_model::MessageKey;
+    use mailcraft_store::Store;
+    let (path, cache) = (path.to_path_buf(), dir.join("cache"));
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let store = Store::open(cache).unwrap();
+        let done = super::import(&path, &store, "a1", &mut |_| {}).unwrap();
+        let mut sources = Vec::new();
+        for f in &done.folders {
+            for m in store.load_folder("a1", &f.path).map(|s| s.messages).unwrap_or_default() {
+                let key = MessageKey { account: "a1".into(), folder: f.path.clone(), validity: 1, uid: m.key.uid };
+                sources.push(store.read_body(&key).unwrap());
+            }
+        }
+        let _ = tx.send((done, sources));
+    });
+    rx.recv_timeout(Duration::from_secs(20)).expect("the file was imported in time")
+}
+
+/// A message's subject and its attachments' names, an attached message's as its own tree:
+/// `Outer[Middle[…], empty.txt]`.
+fn tree(raw: &[u8]) -> String {
+    let p = mailcraft_mime::parse(raw).unwrap();
+    let parts: Vec<String> = p
+        .attachments
         .iter()
-        .find_map(|f| store.load_folder("a1", &f.path).ok().filter(|s| !s.messages.is_empty()).map(|s| (f.path.clone(), s)))
-        .unwrap();
-    let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
-    let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
-    let names: Vec<&str> = p.attachments.iter().map(|a| a.name.as_str()).collect();
-    assert!(names.iter().any(|n| n.ends_with(".eml")), "{names:?}");
-    assert!(names.contains(&"empty.txt"), "{names:?}");
+        .map(|a| match a.name.strip_suffix(".eml") {
+            Some(_) => tree(&mailcraft_mime::attachment_data(raw, a.index).unwrap()),
+            None => a.name.clone(),
+        })
+        .collect();
+    format!("{}[{}]", p.subject, parts.join(", "))
+}
+
+/// What the import makes of messages attached inside messages: each comes in as an attached
+/// .eml with its own files, the one attached inside it too, and the zero-byte file comes in.
+/// An attached message's own files were left out before.
+#[test]
+fn the_import_keeps_attached_messages_with_their_own_files() {
+    let dir = scratch("nested-import");
+    let path = with_nested_messages(&dir);
+    let (done, sources) = import_in_time(&path, &dir);
+    assert_eq!((done.messages, done.skipped), (3, 0), "{done:?}");
+    assert!(done.skips.is_empty(), "{:?}", done.skips);
+    let mut trees: Vec<String> = sources.iter().map(|s| tree(s)).collect();
+    trees.sort();
+    assert_eq!(trees, ["Deep[deep.txt]", "Middle[Deep[deep.txt], middle.txt]", "Outer[Middle[Deep[deep.txt], middle.txt], empty.txt]"]);
     let _ = std::fs::remove_dir_all(dir);
 }
 

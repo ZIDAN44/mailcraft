@@ -34,6 +34,7 @@ use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::{AnsiPstFile, UnicodePstFile};
 
 mod chunked;
+mod embedded;
 mod item;
 mod open;
 mod out;
@@ -43,7 +44,8 @@ mod rebuild;
 mod tests;
 
 use chunked::Shared;
-use item::{Files, Item, attachment, item, message_class, message_code_page, unread_attachment};
+use embedded::{Holder, Part, item_with_files};
+use item::{File, Item, attachment, item, message_class, message_code_page, unread_attachment};
 use open::Recycle;
 use out::Out;
 #[doc(hidden)]
@@ -62,6 +64,9 @@ pub(crate) const MAX_VALUE: u64 = 256 * 1024 * 1024;
 const MAX_HEADERS: usize = 256 * 1024;
 /// Embedded messages inside embedded messages… stop here.
 const MAX_NESTING: usize = 3;
+/// The files of one item, its attached messages' included, come to at most this; files past it
+/// are left out.
+pub(crate) const MAX_ITEM_BYTES: usize = 128 * 1024 * 1024;
 /// Message ids kept from an item's References (as many as threading reads).
 const MAX_IDS: usize = 256;
 /// Child blocks kept of an item's conversation index.
@@ -381,27 +386,64 @@ macro_rules! reader {
                     store.clone()
                 };
                 let m = <$message>::read(store, entry, None)?;
-                let cp = message_code_page(&*m);
-                // Which hidden files are left out depends on what the item is.
-                let class = message_class(&*m, cp);
-                let mut files = Files::default();
-                if let Some(table) = m.attachment_table() {
-                    for row in table.rows_matrix() {
-                        let node = NodeId::from(u32::from(row.id()));
-                        // The row itself is read only for an attachment the reader fails on.
-                        files.add(match <$attachment>::read(m.clone(), node, None) {
-                            Ok(a) => attachment(&*a, 0, cp, &class, &named),
-                            Err(e) => unread_attachment(&e, &**table, row, cp, &class),
-                        });
-                    }
-                }
-                Ok(Item { left_out: files.left_out, ..item(&*m, files.files, &named) })
+                Ok(item_with_files(&Held { m, named: &named }))
             };
             let done = walk(&*any, &read, out);
             out.tally.reading(source, reopens.get(), walked.estimate());
             done
         }
+
+        impl Holder for Held<'_, $message> {
+            fn attachments(&self, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
+                let cp = message_code_page(&*self.m);
+                // Which hidden files are left out depends on what the item is.
+                let class = message_class(&*self.m, cp);
+                let Some(table) = self.m.attachment_table() else { return };
+                for row in table.rows_matrix() {
+                    let read = || {
+                        let node = NodeId::from(u32::from(row.id()));
+                        // The row itself is read only for an attachment the reader fails on.
+                        match <$attachment>::read(self.m.clone(), node, None) {
+                            Ok(a) => match attachment(&*a, cp, &class) {
+                                Some(got) => Part::Got(got),
+                                None => match a.embedded_message() {
+                                    Some(m) => Part::Message(Held { m, named: self.named }),
+                                    None => Part::Got(item::Got::Left(SkipReason::AttachedMessageUnreadable)),
+                                },
+                            },
+                            Err(e) => Part::Got(unread_attachment(&e, &**table, row, cp, &class)),
+                        }
+                    };
+                    if !each(&read) {
+                        return;
+                    }
+                }
+            }
+
+            fn item(&self, files: Vec<File>) -> Item {
+                item(&*self.m, files, self.named)
+            }
+
+            fn key(&self) -> Option<Vec<u8>> {
+                search_key(&*self.m)
+            }
+        }
     };
+}
+
+/// A message of the file's own type (`M`), as the import reads it.
+struct Held<'a, M> {
+    m: Rc<M>,
+    named: &'a crate::pst_pim::Named,
+}
+
+/// A message's search key (`PidTagSearchKey`), which a copy of it keeps: an attached message
+/// with the key of one holding it holds itself.
+fn search_key(m: &dyn Message) -> Option<Vec<u8>> {
+    match m.properties().get(0x300B) {
+        Some(PropertyValue::Binary(b)) if !b.buffer().is_empty() => Some(b.buffer().to_vec()),
+        _ => None,
+    }
 }
 
 /// Bytes from a data file as the import reads them as text: an HTML body (`html`) in its internet

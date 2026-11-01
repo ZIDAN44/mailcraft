@@ -277,31 +277,28 @@ pub(super) fn message_ids(s: &str) -> Vec<String> {
     ids
 }
 
-/// An attachment's file, or the message it holds; its 8-bit strings are in `code_page` (the
-/// message's), and `class` is the message's class.
-pub(super) fn attachment(a: &dyn Attachment, nesting: usize, code_page: u32, class: &str, named: &crate::pst_pim::Named) -> Got {
+/// An attachment's file; its 8-bit strings are in `code_page` (the message's), and `class` is the
+/// message's class. `None` when it holds a message, which the caller reads with the file's own
+/// message type, so that the message's attachments can be read in turn (see `embedded`).
+pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str) -> Option<Got> {
     let props = a.properties();
     let p = |id: u16| props.get(id).map(|v| val(v, code_page));
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     if hidden(&p, class) {
-        return Got::Nothing;
+        return Some(Got::Nothing);
     }
-    match a.data() {
+    Some(match a.data() {
         Some(AttachmentData::Binary(b)) => {
             if b.buffer().len() > MAX_ATTACHMENT {
                 log::info!("an attachment of {} bytes was left out", b.buffer().len());
-                return Got::Left(SkipReason::AttachmentTooBig);
+                return Some(Got::Left(SkipReason::AttachmentTooBig));
             }
             Got::File(File::Data { name: name_of(&s), mime: s(0x370E), cid: s(0x3712), data: b.buffer().to_vec() })
         }
-        Some(AttachmentData::Message(m)) if nesting < MAX_NESTING => {
-            // The embedded message's own attachments need its concrete type: left out.
-            Got::File(File::Message(Box::new(item(&**m, Vec::new(), named))))
-        }
-        Some(AttachmentData::Message(_)) => Got::Left(SkipReason::EmbeddedTooDeep),
+        Some(AttachmentData::Message(_)) => return None,
         None if link(&p) => Got::Left(SkipReason::AttachmentLink),
         None => Got::Nothing,
-    }
+    })
 }
 
 /// An attachment the reader couldn't read (`e`), from its row in the item's attachment table,
