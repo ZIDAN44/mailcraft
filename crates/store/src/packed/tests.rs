@@ -335,6 +335,7 @@ fn packing_reserves_what_an_attachment_comes_to() {
         let kept = super::pack_owned(bytes.clone());
         if kept.starts_with(super::DEFLATED) && kept.len() * 10 > len * 8 {
             grown += 1;
+            assert!(kept.capacity() * 10 <= len * 9, "{} held for {len} bytes", kept.capacity());
             assert_eq!(super::unpack(kept).unwrap(), bytes, "{noisy}% noise");
         }
     }

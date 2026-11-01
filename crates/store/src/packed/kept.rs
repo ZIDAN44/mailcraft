@@ -52,6 +52,8 @@ pub(super) fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     let (mut read, mut at) = (0, DEFLATED.len());
     loop {
         if at >= out.len() && out.len() < limit {
+            // Exactly: resize alone would double the buffer, and truncate doesn't give it back.
+            out.reserve_exact(limit.saturating_sub(out.len()));
             out.resize(limit, 0);
         }
         let (Some(input), Some(room)) = (bytes.get(read..), out.get_mut(at..)) else { return bytes.into() };
