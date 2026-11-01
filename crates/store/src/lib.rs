@@ -70,6 +70,17 @@ pub struct FolderState {
 /// changes the last page only, and a flag one page).
 pub const PAGE_MESSAGES: usize = 4096;
 
+/// Memory for each open data file's cache.
+const CACHE: usize = 16 << 20;
+/// What a data file's write transaction holds in memory before it has to write pages out and read
+/// them back: half its cache (the database's rule).
+pub const WRITE_BUFFER: usize = CACHE / 2;
+/// The most a writer in the background (an import, the search index, a recompress) puts in one
+/// transaction, as kept (compressed, [`Store::prepare`]): a quarter of the write buffer, and never
+/// over 8 MiB. Each then holds the data file for a few milliseconds, so a write from the window
+/// (a message marked read) waits at most that long; a 16 MiB one took 119 ms on a 37 GB file.
+pub const BACKGROUND_COMMIT: usize = if WRITE_BUFFER / 4 < 8 << 20 { WRITE_BUFFER / 4 } else { 8 << 20 };
+
 /// A folder's `state.json`: the folder's sync state and its list, or for a big folder the hashes
 /// of the pages its list is kept in (`state-<n>.json`).
 #[derive(Default, Serialize, Deserialize)]
@@ -540,6 +551,7 @@ pub fn clear_scratch() {
 
 use atomic::private_dir;
 pub use atomic::write_atomic;
+pub use bodies::Prepared;
 use files::{Files, Routed};
 
 mod accounts;

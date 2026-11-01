@@ -97,12 +97,13 @@ impl Store {
         }
         writes.push((head.clone(), serde_json::to_vec(&file).map_err(json_err(&head))?));
         // The list and its pages together (one transaction in a data file).
-        self.write_files(&writes)?;
+        let written = writes.len();
+        self.write_files(writes)?;
         // Pages the list no longer has.
         for i in file.pages.len()..old.pages.len() {
             let _ = self.files.remove_file(&dir.join(format!("state-{i}.json")));
         }
-        Ok(writes.len())
+        Ok(written)
     }
 
     /// Write a folder's list a page at a time (importing a data file, the whole list needn't be
@@ -113,14 +114,14 @@ impl Store {
     }
 
     /// Several files at once (one transaction in a data file).
-    pub(super) fn write_files(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+    pub(super) fn write_files(&self, items: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.files.write_many(items)
         }
         #[cfg(target_arch = "wasm32")]
         {
-            for (p, bytes) in items {
+            for (p, bytes) in &items {
                 self.files.write(p, bytes)?;
             }
             Ok(())

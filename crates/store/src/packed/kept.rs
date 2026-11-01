@@ -61,8 +61,17 @@ pub(super) fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     out.into()
 }
 
+/// [`pack`] for a file the caller lets go of: what doesn't compress is kept as it is, not copied.
+pub(crate) fn pack_owned(raw: Vec<u8>) -> Vec<u8> {
+    let packed = match pack(&raw) {
+        std::borrow::Cow::Owned(v) => Some(v),
+        std::borrow::Cow::Borrowed(_) => None,
+    };
+    packed.unwrap_or(raw)
+}
+
 /// A file as kept, back as it was written.
-pub(super) fn unpack(kept: Vec<u8>) -> io::Result<Vec<u8>> {
+pub(crate) fn unpack(kept: Vec<u8>) -> io::Result<Vec<u8>> {
     use std::io::Read;
     let Some(stream) = kept.strip_prefix(DEFLATED) else { return Ok(kept) };
     let mut out = Vec::with_capacity(stream.len().saturating_mul(3).min(64 << 20));
@@ -112,9 +121,13 @@ impl Tables<'_> {
         self.put_kept(key, &pack(bytes))
     }
 
-    /// Keep bytes already as kept (compressed or not), whole or in pieces.
+    /// Keep bytes already as kept (compressed or not), whole or in pieces. The pieces of what was
+    /// there go first, looked for only when something was (a new key, most of an import, has
+    /// none: the range scan for them was 4.5 s of a 13-minute import).
     pub(super) fn put_kept(&mut self, key: &str, bytes: &[u8]) -> io::Result<()> {
-        self.drop_pieces(key)?;
+        if self.has(key)? {
+            self.drop_pieces(key)?;
+        }
         if bytes.len() <= WHOLE_MAX {
             self.files.insert(key, bytes).map_err(other)?;
             return Ok(());

@@ -104,7 +104,7 @@ impl Store {
                 .filter(|(k, _)| k != "ops.json" && !k.starts_with("outbox/"))
                 .filter_map(|(k, v)| inner_path(&k).map(|rel| (dir.join(rel), v)))
                 .collect();
-            self.files.write_many(&items)
+            self.files.write_many(items)
         })?;
         // Folders and messages name the account they belong to: this one now.
         let mut folders = self.load_folders(account)?;

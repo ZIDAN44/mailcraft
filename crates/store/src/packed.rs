@@ -19,17 +19,18 @@ use std::sync::{Arc, Mutex};
 
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
-use crate::{Result, StoreError, io_err, write_atomic};
+use crate::{CACHE, Prepared, Result, StoreError, io_err, write_atomic};
 
+mod commit;
 mod kept;
+use commit::*;
 use kept::*;
+pub(crate) use kept::{pack_owned, unpack};
 
 /// A data file's extension.
 pub const EXTENSION: &str = "mailcraft";
 /// Which data file is whose (in the root).
 const NAMES: &str = "datafiles.json";
-/// Memory for each open data file's cache.
-const CACHE: usize = 16 << 20;
 
 fn other(e: impl std::fmt::Display) -> io::Error {
     io::Error::other(e.to_string())
@@ -50,6 +51,8 @@ pub(crate) struct Packs {
     dir: PathBuf,
     open: Mutex<HashMap<String, Arc<Database>>>,
     names: Mutex<BTreeMap<String, String>>,
+    /// Data files written since they were sealed.
+    seals: Arc<Seals>,
 }
 
 impl std::fmt::Debug for Packs {
@@ -63,7 +66,7 @@ impl Packs {
     pub(crate) fn open(root: &Path, dir: &Path) -> Result<Packs> {
         fs::create_dir_all(dir).map_err(io_err(dir))?;
         let names = fs::read(root.join(NAMES)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        let p = Packs { root: root.to_path_buf(), dir: dir.to_path_buf(), open: Mutex::default(), names: Mutex::new(names) };
+        let p = Packs { root: root.to_path_buf(), dir: dir.to_path_buf(), open: Mutex::default(), names: Mutex::new(names), seals: Arc::default() };
         p.bring_in_folders()?;
         Ok(p)
     }
@@ -261,15 +264,9 @@ impl Packs {
         Ok(out)
     }
 
-    /// Change an account's data file in one transaction.
+    /// Change an account's data file in one transaction, durable at once (sealed once quiet).
     fn change(&self, account: &str, f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>) -> io::Result<()> {
-        let Some(db) = self.db(account, true)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
-        let tx = db.begin_write().map_err(other)?;
-        {
-            let mut tables = Tables { files: tx.open_table(FILES).map_err(other)?, pieces: tx.open_table(PIECES).map_err(other)? };
-            f(&mut tables)?;
-        }
-        tx.commit().map_err(other)
+        self.change_with(account, Commit::PLAIN, 0, f)
     }
 
     /// Write many files at once: one transaction per data file (a commit each was slow).

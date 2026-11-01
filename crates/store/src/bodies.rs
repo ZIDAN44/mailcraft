@@ -2,6 +2,44 @@
 
 use crate::*;
 
+/// A message source made ready for the store away from its writer ([`Store::prepare`]): as a data
+/// file keeps it (compressed when that helps), or as it is for other stores.
+#[derive(Clone, Debug)]
+pub struct Prepared {
+    pub(crate) bytes: Vec<u8>,
+    /// `bytes` are as a data file keeps them, not the source itself.
+    pub(crate) kept: bool,
+    raw_len: usize,
+}
+
+impl Prepared {
+    /// The source's own size.
+    pub fn raw_len(&self) -> usize {
+        self.raw_len
+    }
+
+    /// What the store will keep of it.
+    pub fn kept_len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    /// The source itself again, for a store that keeps files as they are.
+    pub(crate) fn into_raw(self) -> io::Result<Vec<u8>> {
+        if !self.kept {
+            return Ok(self.bytes);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            packed::unpack(self.bytes)
+        }
+        // Nothing is kept for a data file in the browser.
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(io::Error::new(io::ErrorKind::InvalidData, "kept for a data file"))
+        }
+    }
+}
+
 impl Store {
     pub fn read_body(&self, key: &MessageKey) -> Option<Vec<u8>> {
         self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -40,20 +78,46 @@ impl Store {
     }
 
     /// Many message sources at once: one transaction for all of them in a data file (importing
-    /// hundreds of thousands, a commit each spent most of the time waiting for the disk).
+    /// hundreds of thousands, a commit each spent most of the time waiting for the disk). Each is
+    /// compressed before the transaction starts, so the data file is held only to store them.
     pub fn write_bodies(&self, bodies: &[(MessageKey, Vec<u8>)]) -> Result<()> {
-        let items: Vec<(PathBuf, Vec<u8>)> = bodies.iter().map(|(k, raw)| (self.body_path(k), raw.clone())).collect();
+        let prepared = bodies.iter().map(|(k, raw)| (k.clone(), Store::prepare(self.packs(&k.account), raw.clone()))).collect();
+        self.write_prepared(prepared, true)
+    }
+
+    /// Whether `account`'s sources go into a data file (so are worth preparing off its writer).
+    pub fn packs(&self, account: &str) -> bool {
+        self.files.packs(&self.account_dir(account))
+    }
+
+    /// `raw` made ready for the store, on any thread and without touching the store: compressed
+    /// as a data file keeps it when `packs` ([`Store::packs`]), as it is otherwise.
+    pub fn prepare(packs: bool, raw: Vec<u8>) -> Prepared {
+        let raw_len = raw.len();
         #[cfg(not(target_arch = "wasm32"))]
-        {
-            self.files.write_many(&items)
+        if packs {
+            return Prepared { bytes: packed::pack_owned(raw), kept: true, raw_len };
         }
-        #[cfg(target_arch = "wasm32")]
-        {
-            for (p, raw) in &items {
-                self.files.write(p, raw)?;
-            }
-            Ok(())
-        }
+        let _ = packs;
+        Prepared { bytes: raw, kept: false, raw_len }
+    }
+
+    /// Sources made ready with [`Store::prepare`], written as they are (not copied) in one
+    /// transaction per data file. Not `durable`, the commit doesn't wait for the disk: the next
+    /// durable one (any other write) or the data file's closing makes it so, and a crash before
+    /// then loses it. An import's batches go so, and the folder lists naming them durably after.
+    pub fn write_prepared(&self, bodies: Vec<(MessageKey, Prepared)>, durable: bool) -> Result<()> {
+        let items = bodies.into_iter().map(|(k, p)| (self.body_path(&k), p)).collect();
+        self.files.write_prepared(items, durable)
+    }
+
+    /// Make an account's data file reopen at once after a crash, as it is now: a durable commit
+    /// that records where its free space is. Commits don't do that on their own (on a 37 GB file it
+    /// tripled a small one's time), so a crash after one costs a full check of the file when it
+    /// next opens. A data file is sealed when its writes go quiet for a moment and when it closes;
+    /// an import's end, and a checkpoint, seal at once. Nothing to do for other stores.
+    pub fn seal(&self, account: &str) -> Result<()> {
+        self.files.seal(&self.account_dir(account))
     }
 
     pub fn remove_body(&self, key: &MessageKey) {

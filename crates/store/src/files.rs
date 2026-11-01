@@ -114,6 +114,46 @@ impl Files {
         }
     }
 
+    /// Sources made ready for the store ([`Store::prepare`]), moved in: one transaction per data
+    /// file, durable or not; elsewhere each is written as it is.
+    pub(super) fn write_prepared(&self, items: Vec<(PathBuf, Prepared)>, durable: bool) -> Result<()> {
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.write_prepared(items, durable),
+            // Written as they come: as durable as anything else here.
+            _ => {
+                let _ = durable;
+                for (p, prepared) in items {
+                    let raw = prepared.into_raw().map_err(io_err(&p))?;
+                    self.write(&p, &raw)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Whether what goes under `dir` is kept in a data file.
+    pub(super) fn packs(&self, dir: &Path) -> bool {
+        let _ = dir;
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Seal the data file of the account at `dir` ([`Store::seal`]).
+    pub(super) fn seal(&self, dir: &Path) -> Result<()> {
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.seal(dir),
+            _ => {
+                let _ = dir;
+                Ok(())
+            }
+        }
+    }
+
     pub(super) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         match self {
             Files::Disk => atomic::rename(from, to),
@@ -315,13 +355,35 @@ impl Routed {
         self.at(p).write(p, bytes)
     }
 
+    /// Files split between memory and the store's own by moving them (they were copied: every
+    /// source of an import once more).
     #[cfg(not(target_arch = "wasm32"))]
-    pub(super) fn write_many(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
-        let (held, main): (Vec<_>, Vec<_>) = items.iter().cloned().partition(|(p, _)| std::ptr::eq(self.at(p), &self.held));
+    pub(super) fn write_many(&self, items: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        let (held, main): (Vec<_>, Vec<_>) = items.into_iter().partition(|(p, _)| self.is_held(p));
         if !held.is_empty() {
             self.held.write_many(&held)?;
         }
         if main.is_empty() { Ok(()) } else { self.main.write_many(&main) }
+    }
+
+    pub(super) fn write_prepared(&self, items: Vec<(PathBuf, Prepared)>, durable: bool) -> Result<()> {
+        let (held, main): (Vec<_>, Vec<_>) = items.into_iter().partition(|(p, _)| self.is_held(p));
+        if !held.is_empty() {
+            self.held.write_prepared(held, durable)?;
+        }
+        if main.is_empty() { Ok(()) } else { self.main.write_prepared(main, durable) }
+    }
+
+    fn is_held(&self, p: &Path) -> bool {
+        std::ptr::eq(self.at(p), &self.held)
+    }
+
+    pub(super) fn packs(&self, dir: &Path) -> bool {
+        self.at(dir).packs(dir)
+    }
+
+    pub(super) fn seal(&self, dir: &Path) -> Result<()> {
+        self.at(dir).seal(dir)
     }
 
     pub(super) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {

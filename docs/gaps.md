@@ -1457,3 +1457,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   all is still left out, and counted among what the import couldn't bring in. And mail keeps
   its categories from files where Outlook names that property by its name (`Keywords`, as in
   files from other people's Outlook) rather than by a number.
+- **Data files after a crash:** a data file is sealed (where its free space is, recorded) once its
+  writes have been quiet for two seconds, and when it closes; a crash after that opens it again at
+  once (25 ms on a copy of a 37 GB file whose full check took 305 s). Not every commit is sealed:
+  on that file it tripled a small one's time (4.6 to 15.6 ms), so a crash within two seconds of a
+  write still costs the full check.

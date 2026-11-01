@@ -74,6 +74,16 @@ in the app folder points at it, and a move asked for (`move-pending.json`) is ca
 next start, before anything opens the files, every file checked before the old ones go. The
 sample mailbox and the browser keep plain files and memory.
 
+How a data file commits (`crates/store/src/packed/commit.rs`): writes from the window are durable
+at once. Writers in the background prepare what they write away from the file (`Store::prepare`
+compresses it on their own thread) and commit batches of at most `BACKGROUND_COMMIT` (2 MiB, a
+quarter of the write buffer) that don't wait for the disk (`Store::write_prepared`); the next
+durable commit writes them out, and a batch that would leave more than 32 MiB unwritten is durable
+itself. A commit isn't sealed (redb's quick-repair, measured at three times a small commit's cost on
+a 37 GB file): a data file is sealed by an empty commit once its writes have been quiet for two
+seconds, where a writer asks (`Store::seal`) and by closing it, and a crash after a seal reopens at
+once; one between a write and its seal costs a full check of the file at the next open.
+
 ## The browser (`apps/mailcraft-web`)
 
 The same `MailApp` runs in eframe's web runner. The store is `Store::memory()`, loaded from
