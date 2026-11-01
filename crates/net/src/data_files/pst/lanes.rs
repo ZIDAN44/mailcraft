@@ -115,6 +115,7 @@ impl<'a> Ctx<'a> {
             account: "",
             filetag: String::new(),
             packs: false,
+            index: false,
             budget: Arc::new(Budget::new(0)),
             tally: Arc::default(),
             halt: AtomicBool::new(false),
