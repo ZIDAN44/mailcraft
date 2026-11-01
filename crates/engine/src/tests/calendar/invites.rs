@@ -245,3 +245,34 @@ fn an_invitation_in_another_charset_is_read_in_it() {
     assert_eq!(s.invite().unwrap().event.summary, "Caf\u{e9} review");
     done(s);
 }
+
+/// The card asks for the invitation on the first frame of every message opened: one with no
+/// calendar is looked at as it was parsed to be shown, and isn't read again (it was read and
+/// parsed a second time on the window's thread, 104 to 149 ms for a big one). One with an
+/// invitation is read once more for its calendar's bytes.
+#[test]
+fn a_message_without_an_invitation_is_not_read_again_for_one() {
+    let mut s = sample_session("invite-no-read");
+    let store = s.store.clone().unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let plain = s.list.first().map(|m| m.key.clone()).unwrap();
+    s.run("list.open", &json!({"key": plain.to_id()})).unwrap();
+    assert!(s.reading.as_ref().is_some_and(|r| r.parsed.is_some()));
+    let (reads, parsed) = (store.reads(), s.bodies_parsed_here());
+    assert!(s.invite().is_none());
+    assert_eq!((store.reads(), s.bodies_parsed_here()), (reads, parsed), "nothing read or parsed again");
+    let event = CalEvent {
+        uid: "card@soundlab.example".into(),
+        summary: "Card review".into(),
+        start: NOW + 86_400,
+        end: NOW + 86_400 + 3600,
+        organizer: Some(Attendee { email: ANA.1.into(), name: ANA.0.into(), ..Default::default() }),
+        attendees: vec![me("NEEDS-ACTION")],
+        ..Default::default()
+    };
+    deliver(&mut s, 1, ANA, "REQUEST", &[event], NOW);
+    let reads = store.reads();
+    assert_eq!(s.invite().unwrap().event.summary, "Card review");
+    assert_eq!(store.reads(), reads + 1, "read once for the calendar's bytes");
+    done(s);
+}

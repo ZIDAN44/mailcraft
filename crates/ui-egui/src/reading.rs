@@ -507,6 +507,10 @@ pub(crate) fn sender_warning(t: &Tokens, ui: &mut Ui, w: &mailcraft_engine::mode
 
 /// A meeting invitation (or an answer to one, or a cancellation) carried by the message.
 fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, acts: &mut Vec<Action>) {
+    // Its files still coming: looked for once they're here (what's shown, not read again).
+    if s.reading.as_ref().is_some_and(|r| &r.key == key && r.text_first) {
+        return;
+    }
     let fresh = st.invite.as_ref().is_some_and(|(k, rev, _)| k == key && *rev == s.pim_revision);
     if !fresh {
         st.invite = Some((key.clone(), s.pim_revision, s.invite()));

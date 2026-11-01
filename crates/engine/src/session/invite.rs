@@ -148,15 +148,31 @@ impl Session {
 
     /// The text of the calendar in a message (its `text/calendar` part or `.ics` file), and the
     /// address it's from.
+    /// The open message is looked at as it was parsed to be shown (on the body's thread): one
+    /// with no calendar part is neither read nor parsed again. Asked on the window's first frame
+    /// of every message, that read and parsed each of them a second time on the window's thread
+    /// (149 ms for a 33 MB message, 104 ms for one of 127,000 characters).
     fn message_ics(&self, key: &MessageKey) -> Option<(String, String)> {
-        let raw = self.readable_raw(key)?;
-        let parsed = mime::parse(&raw)?;
-        let att = parsed
-            .attachments
-            .iter()
-            .find(|a| a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))?;
+        let calendar = |p: &mime::Parsed| {
+            p.attachments
+                .iter()
+                .find(|a| a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))
+                .map(|a| (a.index, p.from.email.clone()))
+        };
+        let shown = self.reading.as_ref().filter(|r| &r.key == key && !r.text_first).and_then(|r| r.parsed.as_deref());
+        let (raw, (index, from)) = match shown {
+            Some(p) => {
+                let found = calendar(p)?;
+                (self.readable_raw(key)?, found)
+            }
+            None => {
+                let raw = self.readable_raw(key)?;
+                let found = calendar(&mime::parse(&raw)?)?;
+                (raw, found)
+            }
+        };
         // Read in the charset the part names: its bytes are as they came.
-        Some((mime::attachment_text(&raw, att.index)?, parsed.from.email))
+        Some((mime::attachment_text(&raw, index)?, from))
     }
 
     /// The account holding an event (the series or any occurrence of it), and its parts there.
@@ -223,7 +239,8 @@ impl Session {
 
     /// The invitation in the open message.
     pub fn invite(&self) -> Option<Invite> {
-        let r = self.reading.as_ref()?;
+        // Its files still coming: asked again once they're here.
+        let r = self.reading.as_ref().filter(|r| !r.text_first)?;
         let (cal, sender) = self.message_invitation(&r.key)?;
         let method = cal.method.clone().unwrap_or_else(|| "PUBLISH".into());
         if !matches!(method.as_str(), "REQUEST" | "REPLY" | "CANCEL") {
