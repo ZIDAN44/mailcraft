@@ -279,6 +279,31 @@ fn a_local_move_is_followed_without_reading() {
     assert_eq!(keys.iter().map(|k| k.folder.as_str()).collect::<Vec<_>>(), ["Archive"]);
 }
 
+/// The sources a pass reads at once are bounded by their size, not only by the threads: big ones
+/// (their summaries say 30 MB) are read one at a time on four threads, and every one is indexed.
+#[test]
+fn big_sources_are_read_one_at_a_time() {
+    let s = Store::memory();
+    fill(&s, 12);
+    let mut st = s.load_folder("a1", "INBOX").unwrap();
+    for m in &mut st.messages {
+        m.size = 30 << 20;
+    }
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let (now, most) = (AtomicUsize::new(0), AtomicUsize::new(0));
+    let extract = |raw: &[u8]| {
+        let n = now.fetch_add(1, Ordering::SeqCst) + 1;
+        most.fetch_max(n, Ordering::SeqCst);
+        std::thread::sleep(Duration::from_millis(15));
+        now.fetch_sub(1, Ordering::SeqCst);
+        mailcraft_mime::index_doc(raw)
+    };
+    let ended = index_with(&s, &AtomicBool::new(false), 4, &extract);
+    assert!(matches!(ended, Event::Indexed { work, finished: true, .. } if work.done == 12), "{ended:?}");
+    assert_eq!(most.load(Ordering::SeqCst), 1, "one big source at a time");
+    assert_eq!(found(&s, "common").len(), 12);
+}
+
 /// Stopped partway, a pass keeps what it added, and the index reads back; the next pass adds the
 /// rest and nothing twice.
 #[test]

@@ -28,6 +28,15 @@ const QUIET: Duration = Duration::from_millis(1500);
 const RETRY: Duration = Duration::from_secs(5);
 /// Messages read and not yet added, at most (each at most a source's text).
 const IN_FLIGHT: usize = 64;
+/// Bytes of sources (by their summaries' sizes) being read and taken apart at once, across the
+/// readers: one of 30 MB on each of eight threads at once held hundreds of megabytes (the pass
+/// over the 41 GB file peaked 545 MB above the window's own). A source bigger than this is read
+/// alone; small ones each count as [`LEAST_COST`].
+const READING_BYTES: u64 = 48 << 20;
+/// What a small source counts for in [`READING_BYTES`] (its reading's own buffers).
+const LEAST_COST: u64 = 64 << 10;
+/// How often a reader waiting for room looks whether the pass has stopped.
+const ROOM_WAIT: Duration = Duration::from_millis(50);
 /// How often a pass says how it's going, besides at each generation it writes.
 const PROGRESS_EVERY: Duration = Duration::from_millis(500);
 
@@ -254,6 +263,45 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
     }
 }
 
+/// Room for the sources being read at once ([`READING_BYTES`]).
+struct Room {
+    left: Mutex<u64>,
+    freed: std::sync::Condvar,
+}
+
+impl Room {
+    fn new() -> Room {
+        Room { left: Mutex::new(READING_BYTES), freed: std::sync::Condvar::new() }
+    }
+
+    /// What a source of `size` bytes counts for.
+    fn cost(size: u32) -> u64 {
+        u64::from(size).clamp(LEAST_COST, READING_BYTES)
+    }
+
+    /// Wait for room for `cost`; `false` when `done` says to stop meanwhile.
+    fn take(&self, cost: u64, done: &dyn Fn() -> bool) -> bool {
+        let mut left = lock(&self.left);
+        while *left < cost {
+            if done() {
+                return false;
+            }
+            left = match self.freed.wait_timeout(left, ROOM_WAIT) {
+                Ok((g, _)) => g,
+                Err(e) => e.into_inner().0,
+            };
+        }
+        *left = left.saturating_sub(cost);
+        true
+    }
+
+    fn give(&self, cost: u64) {
+        let mut left = lock(&self.left);
+        *left = left.saturating_add(cost).min(READING_BYTES);
+        self.freed.notify_all();
+    }
+}
+
 /// What a reader thread hands the pass: the message's place in the pass, and what search keeps
 /// of it (`Ok(None)`: its source has gone; `Err`: taking its text out panicked).
 type Read = (usize, std::thread::Result<Option<IndexDoc>>);
@@ -283,17 +331,24 @@ pub(super) fn pass(
     report(indexed(&p, false));
     settle_files(store, account, &mut p, report);
     let adds = p.adds().clone();
-    let (next, quit) = (AtomicUsize::new(0), AtomicBool::new(false));
+    let (next, quit, room) = (AtomicUsize::new(0), AtomicBool::new(false), Room::new());
     let mut failed = None;
     std::thread::scope(|s| {
         let (tx, rx) = mpsc::sync_channel::<Read>(IN_FLIGHT);
         for n in 0..readers.max(1) {
-            let (tx, adds, next, quit) = (tx.clone(), &adds, &next, &quit);
+            let (tx, adds, next, quit, room) = (tx.clone(), &adds, &next, &quit, &room);
             let read = move || {
-                while !quit.load(Ordering::Relaxed) && !stop.load(Ordering::Relaxed) {
+                let done = || quit.load(Ordering::Relaxed) || stop.load(Ordering::Relaxed);
+                while !done() {
                     let i = next.fetch_add(1, Ordering::Relaxed);
                     let Some(m) = adds.get(i) else { break };
+                    let cost = Room::cost(m.size);
+                    if !room.take(cost, &done) {
+                        break;
+                    }
                     let doc = catch_unwind(AssertUnwindSafe(|| store.read_body(&m.key).map(|raw| extract(&raw))));
+                    // The source is let go of: what's sent is its text.
+                    room.give(cost);
                     if tx.send((i, doc)).is_err() {
                         break;
                     }
