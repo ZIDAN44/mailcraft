@@ -214,6 +214,11 @@ pub struct ImportStats {
     /// What the handle that reads folders and their tables (never reopened) was thought to hold
     /// in its caches at the end.
     pub walk_cache_bytes: u64,
+    /// Sent items that came in with the id the replies to them answer, and those given one a
+    /// message before them had, which kept the id made up for them (`pst/out/sent_ids.rs`): this
+    /// run's.
+    pub ids_given: u64,
+    pub ids_taken_back: u64,
 }
 
 /// A stage of an import, timed.
@@ -314,6 +319,8 @@ impl Tally {
             reads: self.reads.load(Ordering::Relaxed),
             reopens: self.reopens.load(Ordering::Relaxed),
             walk_cache_bytes: self.walk_cache.load(Ordering::Relaxed),
+            ids_given: 0,
+            ids_taken_back: 0,
         }
     }
 }

@@ -1762,7 +1762,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   account didn't hold. The Sent Items folder is now read after every other (it's still made in
   its place, under its name, and read even when the reader failed on a folder before it): a
   reply read before it whose conversation index is a sent item's and one block more gives that
-  item the id the reply answers, when the item has none of its own. Nothing is guessed: replies
+  item the id the reply answers, when the item has none of its own (and no original header). Nothing is guessed: replies
   answering two ids give none, an id a message read has already isn't given, and one is given
   once. Up to 16 MB of replies and ids are kept, with the import's checkpoint (an import gone on
   with gives the same ids); past that, sent items keep the ids made up for them. Replies in Sent

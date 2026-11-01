@@ -480,6 +480,8 @@ impl Out<'_> {
         self.seal();
         done.stats = self.tally.snapshot(self.began.elapsed(), self.lanes);
         done.stats.indexed = self.indexed;
+        done.stats.ids_given = self.sent.given.saturating_sub(self.sent.taken_back);
+        done.stats.ids_taken_back = self.sent.taken_back;
         log::info!("import: {}", serde_json::to_string(&done.stats).unwrap_or_default());
         done
     }

@@ -9,7 +9,9 @@
 //! Nothing is guessed: only an id a reply used is given, an index replies answer with two ids
 //! gives none, and an id is given once (the writer takes back one an earlier message has, in
 //! the order the planner gave). What's kept is capped at [`MAX_BYTES`]: past it nothing more is,
-//! and no id is given at all, since a message read past it could carry the one given.
+//! and no id is given at all, since a message read past it could carry the one given. The sent
+//! items' own ids, and those given, are kept past it (the folder's rows bound them), so a
+//! checkpoint taken while they're read reads back as it was, and the import goes on the same.
 
 use std::collections::{HashMap, HashSet};
 
@@ -42,6 +44,9 @@ pub(in super::super) struct SentIds {
     full: bool,
     /// The sent items are being read: replies are kept no more.
     frozen: bool,
+    /// This run's sent items given an id, and those of them that had it taken back.
+    pub(in super::super) given: u64,
+    pub(in super::super) taken_back: u64,
 }
 
 /// An id a lane gave a sent item, and the one made up for it that it has without.
@@ -53,7 +58,7 @@ pub(in super::super) struct Given {
 impl SentIds {
     /// As a checkpoint kept them (hostile: an id too long or too many entries leaves it full).
     pub(in super::super) fn from_map(map: &SentMap) -> SentIds {
-        let mut ids = SentIds { full: map.full, ..SentIds::default() };
+        let mut ids = SentIds { full: map.full, frozen: map.frozen, ..SentIds::default() };
         if ids.full || !map.sound() {
             ids.fill();
             return ids;
@@ -68,7 +73,8 @@ impl SentIds {
                 ids.bytes = ids.bytes.saturating_add(SEEN_BYTES);
             }
         }
-        if ids.bytes > MAX_BYTES {
+        // Frozen, the sent items' ids were kept past it, as they are from here.
+        if !ids.frozen && ids.bytes > MAX_BYTES {
             ids.fill();
         }
         ids
@@ -80,7 +86,7 @@ impl SentIds {
         replies.sort_by_key(|r| r.key);
         let mut seen: Vec<u64> = self.seen.iter().copied().collect();
         seen.sort_unstable();
-        SentMap { replies, seen, full: self.full }
+        SentMap { replies, seen, full: self.full, frozen: self.frozen }
     }
 
     /// Past what's kept: let go of it all, and give nothing from here.
@@ -160,12 +166,11 @@ pub(in super::super) fn reply_of(it: &Item) -> Option<(u64, String)> {
     (parent != 0 && !it.in_reply_to.is_empty()).then(|| (parent, it.in_reply_to.clone()))
 }
 
-/// Give a sent item that has no id of its own (none kept, and no original header with one) the
-/// id the replies to it answer; the id given.
+/// Give a sent item that has no id of its own (none kept, and no original header, which the
+/// message keeps in place of the one built with the id) the id the replies to it answer; the id
+/// given.
 pub(in super::super) fn give(it: &mut Item, ids: &SentIds) -> Option<String> {
-    let has_own = !it.message_id.is_empty()
-        || (super::super::rebuild::usable_headers(&it.headers) && super::super::rebuild::has_header(&it.headers, "Message-ID"));
-    if has_own {
+    if !it.message_id.is_empty() || super::super::rebuild::usable_headers(&it.headers) {
         return None;
     }
     let own = mailcraft_model::thread::index_keys(&it.thread_index).own;
@@ -178,10 +183,12 @@ impl Out<'_> {
     /// A message about to be kept, in the planner's order: the reply it is and its id noted, and
     /// an id given to it that a message before it has taken back (it keeps the one made up).
     pub(in super::super) fn sent_ids(&mut self, b: &mut Built) {
-        if let Some(given) = b.given.take()
-            && !self.sent.claim(&given.id)
-        {
-            self.take_back(b, &given.fallback);
+        if let Some(given) = b.given.take() {
+            self.sent.given = self.sent.given.saturating_add(1);
+            if !self.sent.claim(&given.id) {
+                self.sent.taken_back = self.sent.taken_back.saturating_add(1);
+                self.take_back(b, &given.fallback);
+            }
         }
         let reply = b.reply.take();
         self.sent.note(reply, &b.summary.message_id);
@@ -196,7 +203,7 @@ impl Out<'_> {
     fn take_back(&mut self, b: &mut Built, fallback: &str) {
         match b.prepared.source() {
             Ok(raw) => {
-                let raw = with_id(raw, fallback);
+                let Some(raw) = with_id(raw, fallback) else { return };
                 b.raw_len = raw.len();
                 b.summary.size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
                 b.summary.message_id = fallback.to_string();
@@ -207,10 +214,10 @@ impl Out<'_> {
     }
 }
 
-/// `raw` with `id` for its Message-ID (the header's first, continuation lines and all); as it
-/// was when it has none.
-fn with_id(mut raw: Vec<u8>, id: &str) -> Vec<u8> {
-    let Some(end) = raw.windows(4).position(|w| w == b"\r\n\r\n") else { return raw };
+/// `raw` with `id` for its Message-ID (the header's first, continuation lines and all); none
+/// when it has no Message-ID.
+fn with_id(mut raw: Vec<u8>, id: &str) -> Option<Vec<u8>> {
+    let end = raw.windows(4).position(|w| w == b"\r\n\r\n")?;
     let head = raw.get(..end).unwrap_or_default();
     let mut found: Option<(usize, usize)> = None;
     let mut at = 0;
@@ -224,10 +231,9 @@ fn with_id(mut raw: Vec<u8>, id: &str) -> Vec<u8> {
         }
         at = next.saturating_add(2);
     }
-    if let Some((from, to)) = found {
-        raw.splice(from..to, format!("Message-ID: <{id}>").into_bytes());
-    }
-    raw
+    let (from, to) = found?;
+    raw.splice(from..to, format!("Message-ID: <{id}>").into_bytes());
+    Some(raw)
 }
 
 #[cfg(test)]
@@ -299,7 +305,38 @@ mod tests {
         assert!(n > 15_000, "{n}");
         assert_eq!(ids.freeze().lookup(key(&a)), None, "full: nothing given");
         assert!(!ids.claim("z@studio.example"));
-        assert_eq!(ids.to_map(), SentMap { full: true, ..SentMap::default() }, "and nothing kept");
+        assert_eq!(ids.to_map(), SentMap { full: true, frozen: true, ..SentMap::default() }, "and nothing kept");
+    }
+
+    /// Once the sent items are read, their ids are kept past the cap (the folder's rows bound
+    /// them): a checkpoint taken then reads back as it was, and gives what it gave.
+    #[test]
+    fn ids_kept_past_the_cap_once_frozen_read_back() {
+        let a = index(7, &[]);
+        let mut ids = SentIds::default();
+        ids.note(reply(&a, "a@studio.example"), "");
+        let id = "i".repeat(800);
+        for n in 1..19_500u64 {
+            ids.note(Some((n.saturating_add(100), format!("{n}{id}"))), "");
+        }
+        assert!(!ids.is_full() && ids.bytes > MAX_BYTES - 200_000, "{}", ids.bytes);
+        ids.freeze();
+        for n in 0..20_000 {
+            ids.note(None, &format!("s{n}@studio.example"));
+        }
+        assert!(ids.bytes > MAX_BYTES && !ids.is_full());
+        let map = ids.to_map();
+        assert!(map.sound());
+        let back = SentIds::from_map(&map);
+        assert!(!back.is_full());
+        assert_eq!(back.lookup(key(&a)), Some("a@studio.example"));
+        assert_eq!(back.to_map(), map);
+        // Past what the folder's rows could add, or so many before it, it doesn't add up.
+        let most = MAX_BYTES / 16;
+        let many = SentMap { seen: (0..=most as u64).collect(), ..SentMap::default() };
+        assert!(!many.sound());
+        assert!(SentMap { frozen: true, ..many.clone() }.sound());
+        assert!(SentIds::from_map(&many).is_full());
     }
 
     fn item(index_of: Vec<u8>, own: &str, headers: &str) -> Item {
@@ -323,7 +360,8 @@ mod tests {
         assert_eq!(sent.message_id, "a@studio.example");
         assert_eq!(give(&mut item(a.clone(), "own@studio.example", ""), &ids), None, "an id of its own");
         assert_eq!(give(&mut item(a.clone(), "", "From: a@studio.example\r\nMessage-Id: <h@studio.example>\r\n"), &ids), None, "one in its header");
-        assert!(give(&mut item(a.clone(), "", "From: a@studio.example\r\nSubject: x\r\n"), &ids).is_some(), "a header without one");
+        // The message keeps that header, not the one built with the id given.
+        assert_eq!(give(&mut item(a.clone(), "", "From: a@studio.example\r\nSubject: x\r\n"), &ids), None, "a header without one");
         let mut bad = a.clone();
         bad.push(0);
         assert_eq!(give(&mut item(bad, "", ""), &ids), None, "an index of the wrong length");
@@ -333,10 +371,10 @@ mod tests {
     #[test]
     fn an_id_taken_back_leaves_the_message() {
         let raw = b"From: a@studio.example\r\nMessage-ID:\r\n <a@studio.example>\r\nSubject: s\r\n\r\nMessage-ID: body\r\n".to_vec();
-        let out = with_id(raw, "pst.a1.x.1@mailcraft.invalid");
+        let out = with_id(raw, "pst.a1.x.1@mailcraft.invalid").unwrap();
         assert_eq!(out, b"From: a@studio.example\r\nMessage-ID: <pst.a1.x.1@mailcraft.invalid>\r\nSubject: s\r\n\r\nMessage-ID: body\r\n");
         let none = b"From: a@studio.example\r\n\r\nMessage-ID: body\r\n".to_vec();
-        assert_eq!(with_id(none.clone(), "x@mailcraft.invalid"), none);
+        assert_eq!(with_id(none, "x@mailcraft.invalid"), None);
 
         let dir = std::env::temp_dir().join(format!("mailcraft-pst-sent-ids-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);

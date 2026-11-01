@@ -93,13 +93,15 @@ pub struct Spot {
 
 /// What the import has read of the replies to sent items (`out/sent_ids.rs`): each reply's
 /// parent index (a hash) and the id it answers ("" when replies to it answer two), and the real
-/// ids read (their hashes); `full` once past what's kept, when nothing is.
+/// ids read (their hashes); `full` once past what's kept, when nothing is; `frozen` once the
+/// sent items are read, when the ids they have and are given are kept past that (one each).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SentMap {
     pub replies: Vec<SentReply>,
     pub seen: Vec<u64>,
     pub full: bool,
+    pub frozen: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,7 +116,15 @@ impl SentMap {
     /// ids no longer than one kept.
     pub(super) fn sound(&self) -> bool {
         let most = super::out::sent_ids::MAX_BYTES / 16;
-        self.replies.len() <= most && self.seen.len() <= most && self.replies.iter().all(|r| r.id.len() <= MAX_ID)
+        // Frozen, the Sent Items folder's rows add an id each at most.
+        let seen = if self.frozen { most.saturating_add(super::plan::MAX_ROWS) } else { most };
+        self.replies.len() <= most && self.seen.len() <= seen && self.replies.iter().all(|r| r.id.len() <= MAX_ID)
+    }
+
+    /// A checkpoint's without one (written before sent items were given ids): the replies read
+    /// aren't known, so none is given.
+    fn absent() -> SentMap {
+        SentMap { full: true, ..SentMap::default() }
     }
 }
 
@@ -144,6 +154,7 @@ pub struct Checkpoint {
     /// The Sent Items folder, made in its place but read after every other (not read yet, or,
     /// going on, read in part), and the replies read for it.
     pub deferred: Option<Current>,
+    #[serde(default = "SentMap::absent")]
     pub sent: SentMap,
     pub failed: Vec<Spot>,
     pub counts: Counts,

@@ -320,6 +320,10 @@ fn a_checkpoint_that_does_not_add_up_is_refused() {
     // The fuzz target's seed is one an import would go on from.
     let seed = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fuzz/seeds/import_checkpoint/paused.json")).unwrap();
     assert_eq!(super::super::checkpoint_from_bytes(&seed), Some(true));
+    let seed = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fuzz/seeds/import_checkpoint/sent_put_off.json")).unwrap();
+    let cp = Checkpoint::parse(&seed).unwrap();
+    assert_eq!((cp.deferred.is_some(), cp.sent.replies.len(), cp.sent.frozen), (true, 2, true));
+    assert_eq!(super::super::checkpoint_from_bytes(&seed), Some(true));
     for bad in [
         &br#"{"version":2}"#[..],
         br#"{"version":1,"folders":[{"path":"A"},{"path":"A"}]}"#,

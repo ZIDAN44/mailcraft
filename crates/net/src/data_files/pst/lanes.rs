@@ -305,6 +305,8 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
             return Outcome::Unreadable;
         }
     };
+    #[cfg(test)]
+    tests::touch(ctx, job, &mut it);
     if !job.pim && !is_mail(&it.class) {
         return Outcome::NotMail;
     }
@@ -530,6 +532,25 @@ pub(super) mod tests {
         /// Each item takes this many milliseconds longer to read (an import slow enough to be
         /// stopped part-way).
         Slow(u64),
+    }
+
+    /// What a test does to each item of a data file read (whether it's one of the Sent Items
+    /// folder's) before it's made: what the files its writer makes can't hold.
+    pub(in super::super) type Touch = fn(bool, &mut Item);
+    static TOUCH: std::sync::Mutex<Vec<(std::path::PathBuf, Touch)>> = std::sync::Mutex::new(Vec::new());
+
+    /// Items read from the data file at `path` are touched by `touch` from here.
+    pub(in super::super) fn touch_items(path: &Path, touch: Touch) {
+        if let Ok(mut t) = TOUCH.lock() {
+            t.push((path.to_path_buf(), touch));
+        }
+    }
+
+    pub(super) fn touch(ctx: &Ctx<'_>, job: &Job, it: &mut Item) {
+        let found = TOUCH.lock().ok().and_then(|t| t.iter().find(|(p, _)| p == ctx.path).map(|(_, f)| *f));
+        if let Some(touch) = found {
+            touch(job.sent.is_some(), it);
+        }
     }
 
     /// A panic the test asked for, at the item `job` is (the items are counted as the lanes take

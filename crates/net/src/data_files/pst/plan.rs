@@ -23,7 +23,7 @@ pub(super) const MAX_FOLDERS: usize = 100_000;
 /// Items handed out, at most.
 const MAX_ITEMS: u64 = 10_000_000;
 /// Items read of one folder, at most.
-const MAX_ROWS: usize = 1_000_000;
+pub(super) const MAX_ROWS: usize = 1_000_000;
 /// PidTagMessageSize: an item's size as the file gives it.
 const MESSAGE_SIZE: u16 = 0x0E08;
 

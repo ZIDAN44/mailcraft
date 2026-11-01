@@ -158,6 +158,106 @@ fn stopped_around_the_sent_folder_and_gone_on_with_is_the_same_import() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A data file's items made replies and sent items (`touch`): row `k` of the folders read before
+/// the Sent Items one answers, every fourth, the sent item at row `k` (Inbox and the folder
+/// under the Sent Items one agree, but on every twentieth, where they answer two ids); every
+/// twelfth from the eighth answers with an id the folder under it has (only some of its
+/// items have one). The sent items keep no id or header of their own, and every 24th from the
+/// first has the index of the one before it.
+fn touch(sent: bool, it: &mut Item) {
+    let Some((f, k)) = it.subject.strip_prefix("Report ").and_then(|s| s.split_once('-')) else { return };
+    let (Ok(f), Ok(k)) = (f.parse::<usize>(), k.parse::<usize>()) else { return };
+    let ix = |k: usize| {
+        let mut i = vec![1, 0, 0, 0, 0, 0, k as u8, (k >> 8) as u8];
+        i.extend([1; 14]);
+        i
+    };
+    if sent {
+        it.message_id.clear();
+        it.headers.clear();
+        it.thread_index = ix(if k % 24 == 1 { k - 1 } else { k });
+    } else if k % 4 == 0 {
+        it.thread_index = ix(k);
+        it.thread_index.extend([3; 5]);
+        it.in_reply_to = match (f, k) {
+            (2, k) if k % 20 == 0 => format!("t{k}@run.example"),
+            (_, k) if k % 12 == 8 => format!("r2-{k}@run.example"),
+            (_, k) => format!("s{k}@run.example"),
+        };
+    }
+}
+
+/// The id the sent item at row `k` gets back, as [`touch`] makes them.
+fn given(k: usize) -> Option<String> {
+    let answered = |k: usize| match k {
+        k if k % 4 != 0 || k % 20 == 0 => None,
+        // A message read has it (when it has an id: not every seventh from the third).
+        k if k % 12 == 8 => (k % 7 == 3).then(|| format!("r2-{k}@run.example")),
+        k => Some(format!("s{k}@run.example")),
+    };
+    // The one before it with the same index has it already.
+    if k % 24 == 1 { None } else { answered(k) }
+}
+
+/// The ids of the Sent Items folder's messages, by row (made up: none).
+fn sent_ids(store: &Store) -> Vec<(usize, Option<String>)> {
+    let mut ids: Vec<(usize, Option<String>)> = store
+        .load_folder("a1", SENT)
+        .unwrap()
+        .messages
+        .iter()
+        .map(|m| {
+            let k = m.subject.rsplit('-').next().unwrap().parse().unwrap();
+            (k, Some(m.message_id.clone()).filter(|id| !id.ends_with("@mailcraft.invalid")))
+        })
+        .collect();
+    ids.sort();
+    ids
+}
+
+/// Sent items get back the ids replies answer, in their sources, as the import tells: the same
+/// with one lane or four, and paused, cancelled or cut off before or while they're read and
+/// gone on with.
+#[test]
+fn sent_items_get_their_ids_back_whatever_stops_the_import() {
+    let (dir, pst) = data_file("sent-given", 300, false);
+    super::super::lanes::tests::touch_items(&pst, touch);
+    let want: Vec<(usize, Option<String>)> = (0..300).map(|k| (k, given(k))).collect();
+    let taken_back = (0..300).filter(|k| k % 24 == 1 && given(k - 1).is_some()).count() as u64;
+    let whole = store_at(&dir, "whole");
+    let done = import_with(&pst, &whole, "a1", &opts(1, true, None), &mut |_| {}).unwrap();
+    assert_eq!(sent_ids(&whole), want);
+    let n = want.iter().filter(|w| w.1.is_some()).count() as u64;
+    assert!(n > 40 && taken_back > 3, "{n} {taken_back}");
+    assert_eq!((done.stats.ids_given, done.stats.ids_taken_back), (n, taken_back));
+    let fourth = whole.load_folder("a1", SENT).unwrap().messages.into_iter().find(|m| m.subject == "Report 1-4").unwrap();
+    let source = whole.read_body(&fourth.key).unwrap();
+    assert_eq!(mailcraft_mime::parse(&source).unwrap().message_id, "s4@run.example");
+
+    let four = store_at(&dir, "four");
+    import_with(&pst, &four, "a1", &opts(4, true, None), &mut |_| {}).unwrap();
+    assert_eq!(kept(&four), kept(&whole), "4 lanes");
+    for (n, (at, how)) in [(400, StopHow::Pause), (800, StopHow::Pause), (700, StopHow::Cancel), (870, StopHow::Pause)].into_iter().enumerate() {
+        let store = store_at(&dir, &format!("part{n}"));
+        stopped_at(&pst, &store, at, how);
+        go_on(&pst, &store);
+        assert_eq!(kept(&store), kept(&whole), "{at} {how:?}");
+    }
+    for (n, at) in [450u64, 650, 750, 880].into_iter().enumerate() {
+        let name = format!("cut{n}");
+        {
+            let store = store_at(&dir, &name);
+            let o =
+                ImportOptions { batch_bytes: 3000, checkpoint_every: Some(Duration::from_millis(15)), ..opts(2, true, Some(Fault::CutOffAfter(at))) };
+            assert!(import_with(&pst, &store, "a1", &o, &mut |_| {}).is_err());
+        }
+        let store = store_at(&dir, &name);
+        go_on(&pst, &store);
+        assert_eq!(kept(&store), kept(&whole), "cut off at {at}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A conversation index: its header (GUID `g`) and `blocks` replies.
 fn index(g: u8, blocks: &[u8]) -> Vec<u8> {
     let mut i = vec![1, 0, 0, 0, 0, 0];
@@ -252,4 +352,19 @@ fn a_sent_folder_put_off_again_goes_on_from_its_row() {
     let cp = Checkpoint { deferred: Some(sent), ..Checkpoint::default() };
     let skip = out.resume_from(cp);
     assert_eq!((skip.start(0x8042), skip.start(0x8062)), (7, 0));
+}
+
+/// A checkpoint written before sent items were given ids has no map of what was read: going on
+/// from it, none is given.
+#[test]
+fn a_checkpoint_without_the_map_gives_no_id() {
+    let cp = Checkpoint::parse(br#"{"version":1}"#).unwrap();
+    assert!(cp.sent.full);
+    let store = Store::memory();
+    let mut sink = |_| {};
+    let mut out = Out::new(&store, "a1", &ImportOptions::default(), &mut sink);
+    out.resume_from(cp);
+    assert!(out.sent.is_full());
+    let with = Checkpoint::parse(br#"{"version":1,"sent":{}}"#).unwrap();
+    assert!(!with.sent.full);
 }
