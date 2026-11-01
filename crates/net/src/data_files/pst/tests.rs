@@ -809,22 +809,45 @@ mod real_files {
                     done.skipped,
                     t.elapsed()
                 );
+                eprintln!("skips {:?}", done.skips);
                 let (mut parsed, mut html, mut files, mut dated) = (0, 0, 0, 0);
+                // Attached messages by level (0 = attached to an item) and the files inside them.
+                let (mut attached, mut inner) = ([0usize; 4], 0);
                 for f in &done.folders {
                     eprintln!("  {:30} {:?} total {} unread {}", f.path, f.role, f.total, f.unread);
                     for m in store.load_folder("r1", &f.path).unwrap().messages {
                         dated += usize::from(m.date > 0);
-                        if let Some(p) = store.read_body(&m.key).and_then(|raw| mailcraft_mime::parse(&raw)) {
+                        let raw = store.read_body(&m.key).unwrap_or_default();
+                        if let Some(p) = mailcraft_mime::parse(&raw) {
                             parsed += 1;
                             html += usize::from(p.had_html);
                             files += p.attachments.len();
+                            count_attached(&raw, 0, &mut attached, &mut inner);
                         }
                     }
                 }
                 eprintln!("parsed {parsed} (html {html}, attachments {files}, dated {dated})");
+                eprintln!("attached messages by level {attached:?}, files inside them {inner}");
             }
             Err(e) => eprintln!("FAILED: {e}"),
         }
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Counts the attached messages in `raw`, `level` down, and the other files inside them.
+    fn count_attached(raw: &[u8], level: usize, attached: &mut [usize; 4], inner: &mut usize) {
+        let Some(p) = mailcraft_mime::parse(raw) else { return };
+        for a in &p.attachments {
+            if a.mime.eq_ignore_ascii_case("message/rfc822") {
+                if let Some(n) = attached.get_mut(level) {
+                    *n += 1;
+                }
+                if let Some(data) = mailcraft_mime::attachment_data(raw, a.index) {
+                    count_attached(&data, level + 1, attached, inner);
+                }
+            } else if level > 0 {
+                *inner += 1;
+            }
+        }
     }
 }

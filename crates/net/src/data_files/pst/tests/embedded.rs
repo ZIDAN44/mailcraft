@@ -17,11 +17,12 @@ enum Fake {
     Message(usize),
 }
 
-/// A made-up message: its subject, its search key and its attachments.
+/// A made-up message: its subject, its search key, its attachments and the bytes of its body.
 struct Node {
     subject: &'static str,
     key: Option<&'static [u8]>,
     parts: Vec<Fake>,
+    body: usize,
 }
 
 /// The message at `at` in a layout, counting the attachments read.
@@ -55,10 +56,11 @@ impl Holder for At<'_> {
     /// Through the properties' seam, as the file's are read.
     fn item(&self, files: Vec<File>) -> Item {
         let none: [fn(u16) -> Option<Val<'static>>; 0] = [];
-        let subject = self.layout[self.at].subject;
+        let Node { subject, body, .. } = self.layout[self.at];
         let props = |id: u16| match id {
             0x001A => Some(Val::Text("IPM.Note".into())),
             0x0037 => Some(Val::Text(subject.into())),
+            0x1000 if body > 0 => Some(Val::Text("x".repeat(body).into())),
             _ => None,
         };
         item_of(&props, &none, files, &crate::pst_pim::Named::default())
@@ -70,7 +72,7 @@ impl Holder for At<'_> {
 }
 
 fn node(subject: &'static str, key: Option<&'static [u8]>, parts: Vec<Fake>) -> Node {
-    Node { subject, key, parts }
+    Node { subject, key, parts, body: 0 }
 }
 
 /// An item's subject and its files, an attached message's as its own: `A[f3, B[f1]]`.
@@ -165,8 +167,25 @@ fn an_item_reads_at_most_a_thousand_attachments_of_attached_messages() {
 #[test]
 fn an_item_s_files_stop_at_its_limit() {
     use Fake::{File as F, Message as M};
-    let layout = [node("A", Some(b"a"), vec![F(6), F(6), M(1)]), node("B", Some(b"b"), vec![F(5), F(4)])];
+    let layout = [node("A", Some(b"a"), vec![F(6), F(6), M(1)]), node("B", Some(b"b"), vec![F(5), F(3)])];
     let (shape, left, _) = read(&layout, &mut Walk::with_room(10));
-    assert_eq!(shape, "A[f6, B[f4]]");
+    // B's own subject takes the last byte.
+    assert_eq!(shape, "A[f6, B[f3]]");
     assert_eq!(left, [(SkipReason::AttachmentTooBig, 2)]);
+}
+
+/// An attached message's text takes room as its files do, so attached messages with large
+/// bodies can't hold more than the item may: one that no longer fits is counted as too big and
+/// left out with its files, whose room goes to the attachments after it.
+#[test]
+fn attached_messages_text_counts_toward_the_item_s_limit() {
+    use Fake::{File as F, Message as M};
+    let mut parts = vec![M(1); 10];
+    parts.push(M(2));
+    let big = Node { body: 100, ..node("B", Some(b"b"), vec![F(10)]) };
+    let layout = [node("A", Some(b"a"), parts), big, node("C", Some(b"c"), vec![F(50)])];
+    // Each B takes 111 bytes: two fit in 300, and the 78 left still take C's 51.
+    let (shape, left, _) = read(&layout, &mut Walk::with_room(300));
+    assert_eq!(shape, "A[B[f10], B[f10], C[f50]]");
+    assert_eq!(left, [(SkipReason::AttachmentTooBig, 8)]);
 }

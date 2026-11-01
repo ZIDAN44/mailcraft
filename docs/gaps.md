@@ -1438,9 +1438,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the wrong place, then would have waited on itself), and so was a zero-byte file. Both come in
   now, the attached message as an attached `.eml` with the files inside it and the messages
   attached to it in turn, three levels deep (a fourth is counted as too deep). One item's files,
-  its attached messages' included, come to at most 128 MB, at most 1,000 attachments of its
-  attached messages are read, and an attached message that holds a message it is attached to
-  (a damaged file's loop) is counted and left out rather than read again. The
+  its attached messages' text and files included, come to at most 128 MB, at most 1,000
+  attachments of its attached messages are read, and an attached message that holds a message it
+  is attached to (a damaged file's loop) is counted and left out rather than read again. The
   reader is built from MailCraft's fork of it with these fixes, and it no longer trusts
   a damaged file's trees: a value, a table's rows or a heap is read up to the size it declares
   (blocks named over and over add nothing past it), a value the file says is over 256 MB (a

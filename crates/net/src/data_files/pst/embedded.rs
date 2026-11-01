@@ -1,8 +1,8 @@
 //! An item's attachments with the messages attached to it, and theirs in turn: each attached
 //! message comes in as an attached `.eml` with its own files, down to [`MAX_NESTING`] levels.
 //! What a damaged file can make of this is bounded for the whole item: at most [`MAX_NODES`]
-//! attachments of attached messages are read, the files kept come to at most
-//! [`MAX_ITEM_BYTES`], and an attached message that is one of the messages holding it (its
+//! attachments of attached messages are read, the files kept (an attached message's text
+//! counted with them) come to at most [`MAX_ITEM_BYTES`], and an attached message that is one of the messages holding it (its
 //! search key met again on the way down) isn't read again.
 
 use super::item::{File, Files, Got, Item};
@@ -38,7 +38,7 @@ pub(super) struct Walk {
     chain: Vec<Vec<u8>>,
     /// Attachments of attached messages read so far.
     nodes: usize,
-    /// Bytes the item's files may still come to.
+    /// Bytes the item's files, and its attached messages' text, may still come to.
     room: usize,
 }
 
@@ -106,7 +106,8 @@ fn files_of<M: Holder>(m: &M, nesting: usize, walk: &mut Walk) -> Files {
 }
 
 /// An attached message, `nesting` down, as a file of the message holding it; what its own files
-/// left out is counted in `files`, that message's.
+/// left out is counted in `files`, that message's. Its text takes room as its files do: one whose
+/// text no longer fits is counted as too big and left out, its files with it.
 fn attached<M: Holder>(m: &M, nesting: usize, walk: &mut Walk, files: &mut Files) -> Got {
     if nesting >= MAX_NESTING {
         return Got::Left(SkipReason::EmbeddedTooDeep);
@@ -120,13 +121,27 @@ fn attached<M: Holder>(m: &M, nesting: usize, walk: &mut Walk, files: &mut Files
     if let Some(key) = key {
         walk.chain.push(key);
     }
+    let room = walk.room;
     let inner = files_of(m, nesting.saturating_add(1), walk);
     if held {
         walk.chain.pop();
     }
+    let it = m.item(inner.files);
+    let text = text_bytes(&it);
+    if text > walk.room {
+        log::info!("an attached message with {text} bytes of text was left out: the item's files came to their limit");
+        walk.room = room;
+        return Got::Left(SkipReason::AttachmentTooBig);
+    }
+    walk.room = walk.room.saturating_sub(text);
     for (reason, n) in inner.left_out {
         let count = files.left_out.entry(reason).or_default();
         *count = count.saturating_add(n);
     }
-    Got::File(File::Message(Box::new(m.item(inner.files))))
+    Got::File(File::Message(Box::new(it)))
+}
+
+/// The bytes of an item's own text: the most of what it holds besides its files.
+fn text_bytes(it: &Item) -> usize {
+    [it.subject.len(), it.body.len(), it.html.as_ref().map_or(0, String::len), it.headers.len()].into_iter().fold(0, usize::saturating_add)
 }
