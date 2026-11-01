@@ -216,7 +216,7 @@ fn attachments(m: &Rc<UnicodeMessage>) -> Vec<String> {
 
 /// Read the file on a thread of its own: what `read` makes of it, or a failure when it hasn't
 /// finished in 20 s (the reader once hung on an attached message, waiting on its own lock).
-fn read_in_time<T: Send + 'static>(path: &Path, read: fn(UnicodePstFile) -> T) -> T {
+fn read_in_time<T: Send + 'static>(path: &Path, read: impl FnOnce(UnicodePstFile) -> T + Send + 'static) -> T {
     let bytes = std::fs::read(path).unwrap();
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
@@ -333,5 +333,90 @@ fn a_data_tree_that_points_at_itself_is_an_error() {
     std::fs::write(&path, &f).unwrap();
     let read = read_in_time(&path, first_attachment);
     assert!(read.as_ref().is_err_and(|e| e.contains("cLevel")), "{read:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// An XBLOCK whose entries all name the same data block reads no more than it declares, and
+/// stops naming blocks there: blocks named over and over (a thousand times a thousand under an
+/// XXBLOCK) can't make the reader hold gigabytes for one value.
+#[test]
+fn a_data_tree_that_names_one_block_over_and_over_reads_no_more_than_it_declares() {
+    let dir = scratch("repeat");
+    let (path, data) = with_a_big_file(&dir);
+    let mut f = std::fs::read(&path).unwrap();
+    let x = xblock(&f);
+    let first = u64_at(&f, x.0 + 8);
+    put64(&mut f, x.0 + 16, first);
+    put64(&mut f, x.0 + 24, first);
+    seal(&mut f, x);
+    std::fs::write(&path, &f).unwrap();
+    let read = read_in_time(&path, first_attachment).unwrap();
+    assert_eq!(read.len(), data.len());
+    assert_eq!(read[..8176], data[..8176]);
+    assert_eq!(read[8176..2 * 8176], data[..8176]);
+    // The same through the file's own block reader, which read to the end.
+    let id = blocks(&f).iter().find(|(_, b)| **b == x).map(|(id, _)| *id).unwrap();
+    let block = read_in_time(&path, move |pst| {
+        use outlook_pst::PstFile;
+        pst.read_block(outlook_pst::ndb::block_id::UnicodeBlockId::from(id)).map(|b| b.len()).map_err(|e| e.to_string())
+    });
+    assert_eq!(block, Ok(data.len()));
+    // It says it holds one block's worth: one block is read.
+    put32(&mut f, x.0 + 4, 8176);
+    seal(&mut f, x);
+    std::fs::write(&path, &f).unwrap();
+    assert_eq!(read_in_time(&path, first_attachment), Ok(data[..8176].to_vec()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A node B-tree page whose entry names the page itself is an error, not a stack overflow:
+/// every read goes through that tree.
+#[test]
+fn a_btree_page_that_points_at_itself_is_an_error() {
+    let dir = scratch("page-cycle");
+    let (path, _) = with_a_big_file(&dir);
+    let mut f = std::fs::read(&path).unwrap();
+    // The header's root (offset 180): the node B-tree's BREF (bid, ib) at 216.
+    let (bid, ib) = (u64_at(&f, 216), u64_at(&f, 224) as usize);
+    assert_eq!((f[ib + 496], u64_at(&f, ib + 504)), (0x81, bid), "the node B-tree's root page");
+    // One BTENTRY (key 0, then this page's BREF); cEnt 1, cEntMax 20, cbEnt 24, cLevel 1.
+    f[ib..ib + 488].fill(0);
+    put64(&mut f, ib + 8, bid);
+    put64(&mut f, ib + 16, ib as u64);
+    f[ib + 488..ib + 496].copy_from_slice(&[1, 20, 24, 1, 0, 0, 0, 0]);
+    let c = crc(&f[ib..ib + 496]);
+    put32(&mut f, ib + 500, c);
+    std::fs::write(&path, &f).unwrap();
+    let read = read_in_time(&path, |pst| UnicodeStore::read(Rc::new(pst)).map(|_| ()).map_err(|e| e.to_string()));
+    assert!(read.as_ref().is_err_and(|e| e.contains("cLevel")), "{read:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// An attachment whose own subnode tree can't be read finds its object in the message's
+/// subnode tree, the one place it was looked for before.
+#[test]
+fn an_attached_message_in_the_message_tree_reads_when_its_own_tree_is_damaged() {
+    let dir = scratch("own-damaged");
+    let path = with_an_attached_message(&dir);
+    let mut f = std::fs::read(&path).unwrap();
+    let all = blocks(&f);
+    // The object's entry, moved to the message's tree in place of the second attachment's.
+    let (own, at) = sub_node_entry(&f, &all, DATA_NODE);
+    let (outer, sub) = (u64_at(&f, at + 8), u64_at(&f, at + 16));
+    let (message, second) = sub_node_entry(&f, &all, ATTACHMENT_NODE + (1 << 5));
+    put64(&mut f, second, DATA_NODE);
+    put64(&mut f, second + 8, outer);
+    put64(&mut f, second + 16, sub);
+    seal(&mut f, message);
+    // The attachment's own tree: level 5, which no subnode tree has.
+    f[own.0 + 1] = 5;
+    seal(&mut f, own);
+    std::fs::write(&path, &f).unwrap();
+    let read = read_in_time(&path, |pst| {
+        let store = UnicodeStore::read(Rc::new(pst)).unwrap();
+        let m = first_message(&store);
+        attachments(&m).into_iter().next()
+    });
+    assert_eq!(read.as_deref(), Some("message Outer"));
     let _ = std::fs::remove_dir_all(dir);
 }

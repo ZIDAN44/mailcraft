@@ -1419,5 +1419,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the wrong place, then would have waited on itself), and so was a zero-byte file. Both come in
   now, the attached message as an attached `.eml` (the files inside it are still left out). The
   reader is built from MailCraft's fork of it with these fixes, and it no longer trusts
-  a damaged file's trees: a value is read up to the size it declares, and a tree that points
-  back at itself is an error rather than a crash.
+  a damaged file's trees: a value, a table's rows or a heap is read up to the size it declares
+  (blocks named over and over add nothing past it), a value the file says is over 256 MB is an
+  error before any of it is read, and a data, subnode or B-tree page that points back at itself
+  is an error rather than a crash.

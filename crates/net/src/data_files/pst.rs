@@ -44,6 +44,9 @@ pub(crate) use props::{Val, text_of};
 const MAX_DEPTH: usize = 32;
 /// Attachments larger than this are left out of the imported message.
 const MAX_ATTACHMENT: usize = 100 * 1024 * 1024;
+/// A value (a body, an attachment's bytes, a table's rows) the file says is larger than this
+/// is an error before any of it is read: a damaged size can't make the import run out of memory.
+const MAX_VALUE: u64 = 256 * 1024 * 1024;
 /// Original headers longer than this are not kept.
 const MAX_HEADERS: usize = 256 * 1024;
 /// Embedded messages inside embedded messages… stop here.
@@ -121,6 +124,7 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
 macro_rules! reader {
     ($name:ident, $file:ty, $store:ty, $message:ty, $attachment:ty) => {
         fn $name(pst: $file, out: &mut Out<'_>) -> io::Result<()> {
+            pst.set_max_value_size(MAX_VALUE);
             let store = <$store>::read(Rc::new(pst))?;
             let any: Rc<dyn PstStore> = store.clone();
             let named = crate::pst_pim::Named::of(&*any);
