@@ -18,8 +18,15 @@ pub(super) fn video_preview(
     a: &mime::AttachmentInfo,
 ) -> Option<egui::TextureHandle> {
     let id = (key.clone(), a.index);
-    if let Some(t) = st.video_thumbs.get(&id) {
+    let now = st.pictures.frame();
+    if let Some((t, used)) = st.video_thumbs.get_mut(&id) {
+        *used = now;
         return t.clone();
+    }
+    // As many shown in this frame as are kept: this chip shows its kind's icon (one past them
+    // was read, written and decoded again every frame).
+    if st.video_thumbs.len() >= VIDEO_THUMBS && st.video_thumbs.values().all(|(_, used)| *used == now) {
+        return None;
     }
     // The platform's decoder reads files, and the browser has none.
     if !st.has_files {
@@ -64,15 +71,21 @@ pub(super) fn video_preview(
     }
 }
 
-/// Most video thumbnails kept: the open message's (another's go first).
+/// Most video thumbnails kept (those shown least recently go first, never one shown in this
+/// frame).
 const VIDEO_THUMBS: usize = 64;
 
 fn keep_video_thumb(st: &mut UiState, id: (MessageKey, usize), tex: Option<egui::TextureHandle>) {
-    if st.video_thumbs.len() >= VIDEO_THUMBS {
-        st.video_thumbs.retain(|(k, _), _| *k == id.0);
+    let now = st.pictures.frame();
+    while st.video_thumbs.len() >= VIDEO_THUMBS {
+        let Some(oldest) = st.video_thumbs.iter().filter(|(_, (_, used))| *used < now).min_by_key(|(_, (_, used))| *used).map(|(k, _)| k.clone())
+        else {
+            break;
+        };
+        st.video_thumbs.remove(&oldest);
     }
     if st.video_thumbs.len() < VIDEO_THUMBS {
-        st.video_thumbs.insert(id, tex);
+        st.video_thumbs.insert(id, (tex, now));
     }
 }
 

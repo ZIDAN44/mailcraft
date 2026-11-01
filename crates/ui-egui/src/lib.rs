@@ -322,8 +322,9 @@ pub struct UiState {
     /// Video attachments written out for the platform to take a frame from, and the frames.
     pub(crate) video_files: HashMap<(MessageKey, usize), PathBuf>,
     pub(crate) video_frames: HashMap<PathBuf, VideoFrame>,
-    /// Video frames made thumbnails, kept apart from the pictures (a few, by attachment).
-    pub(crate) video_thumbs: HashMap<(MessageKey, usize), Option<egui::TextureHandle>>,
+    /// Video frames made thumbnails, kept apart from the pictures (a few, by attachment), and
+    /// the frame each was last shown in.
+    pub(crate) video_thumbs: HashMap<(MessageKey, usize), (Option<egui::TextureHandle>, u64)>,
     /// The File page, while it's open.
     pub backstage: Option<backstage::Backstage>,
     /// The month the calendar's small month shows (`year * 12 + month - 1`; `None`: the day on

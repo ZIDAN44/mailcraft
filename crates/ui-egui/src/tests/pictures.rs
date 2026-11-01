@@ -540,3 +540,49 @@ fn a_picture_too_big_for_the_budget_evicts_nothing() {
     assert_eq!(a.ui.pictures.ready(), 3, "and the three kept");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Services whose platform gives every video a frame.
+struct Frames;
+
+impl crate::Services for Frames {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn notify(&mut self, _: &str, _: &str) {}
+    fn video_frame(&mut self, _: &std::path::Path) -> crate::VideoFrame {
+        crate::VideoFrame::Ready(png(32, 18))
+    }
+}
+
+/// More videos in a message than video thumbnails are kept: those past them show their kind's
+/// icon, and no frame makes a texture once the others show (one past them was decoded again
+/// every frame).
+#[test]
+fn videos_past_those_kept_make_no_texture_each_frame() {
+    let (mut a, dir) = app("many-videos");
+    let ctx = egui::Context::default();
+    a.services = Box::new(Frames);
+    frame(&ctx, &mut a, vec![]);
+    let files = (0..70).map(|i| (format!("clip {i}.mp4"), "video/mp4", vec![i as u8; 64])).collect();
+    let k = with_files(&mut a, 9018, files);
+    a.run("list.open", json!({"key": k.to_id()}));
+    let input = || RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, WINDOW)), ..Default::default() };
+    for _ in 0..10 {
+        ctx.run_ui(input(), |ui| a.ui(ui)).textures_delta.clear();
+    }
+    assert_eq!(a.ui.video_thumbs.len(), 64);
+    for _ in 0..5 {
+        let out = ctx.run_ui(input(), |ui| a.ui(ui));
+        assert!(out.textures_delta.set.is_empty(), "{} textures made", out.textures_delta.set.len());
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
