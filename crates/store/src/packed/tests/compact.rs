@@ -148,6 +148,7 @@ fn an_old_data_file_is_compressed_again_and_reads_back_the_same() {
     assert_eq!(refused, Some(true), "a second run at once");
     assert!(r.finished);
     assert_eq!((r.files, r.stayed_raw, r.changed), (b64.len() as u64, pictures.len() as u64, 0));
+    assert_eq!((r.passed_over, r.passed_over_bytes), (1, 200_000), "the damaged file, counted");
     let b64_bytes: u64 = kept.iter().filter(|(k, _)| b64.contains(k)).map(|(_, v)| v.len() as u64).sum();
     assert_eq!(r.before, b64_bytes);
     assert!(r.after * 100 <= r.before * 80, "kept in {} of {}", r.after, r.before);
@@ -200,7 +201,8 @@ impl Target for Meddling<'_> {
     }
 
     fn commit(&self, step: Step, f: &mut dyn FnMut(&mut Tables<'_>, &redb::WriteTransaction) -> std::io::Result<()>) -> std::io::Result<()> {
-        if matches!(step, Step::Batch(_)) && !self.done.swap(true, Ordering::Relaxed) {
+        // The first batch's (the run's start is an empty one).
+        if matches!(step, Step::Batch(n) if n > 0) && !self.done.swap(true, Ordering::Relaxed) {
             self.inner.packs.change(self.inner.account, |t| {
                 t.put("A/1.eml", b"Subject: written again\r\n\r\nnew")?;
                 t.put_kept("A/2.eml", &base64(&noise(40_000, 77)))?;
@@ -209,6 +211,21 @@ impl Target for Meddling<'_> {
         }
         self.inner.commit(step, f)
     }
+
+    // As the store's: what's written meanwhile is seen as written, though the batch was read with
+    // nothing under way.
+    fn writes(&self) -> Option<u64> {
+        self.inner.writes()
+    }
+
+    fn none_since(&self, seen: u64) -> bool {
+        self.inner.none_since(seen)
+    }
+}
+
+/// Every write made, as for an account never removed.
+fn always(write: &mut dyn FnMut() -> std::io::Result<()>) -> Option<std::io::Result<()>> {
+    Some(write())
 }
 
 #[test]
@@ -224,7 +241,7 @@ fn a_file_written_while_it_is_compressed_is_left_as_written() {
     let s = old_store(&t, &kept);
     let mut before = read_back(&s);
     let p = packs(&s);
-    let target = Meddling { inner: Account { packs: p, account: "a1", reopened: p.reopened("a1") }, done: AtomicBool::new(false) };
+    let target = Meddling { inner: Account { packs: p, account: "a1", reopened: p.reopened("a1"), kept: &always }, done: AtomicBool::new(false) };
     let r = super::super::compact::recompress(&target, &AtomicBool::new(false), &mut |_| {}).unwrap();
     eprintln!("{r:?}");
     assert!(r.finished);
@@ -237,6 +254,161 @@ fn a_file_written_while_it_is_compressed_is_left_as_written() {
     assert!(kept_compressed(&s, "A/4.eml") && kept_compressed(&s, "B/1/39.eml"));
     drop(s);
     let _ = std::fs::remove_dir_all(&t);
+}
+
+/// A run whose account is removed between reading a batch and writing it back (`Removing`), or
+/// between two batches: the run stops, and neither brings back a data file for the account gone
+/// nor names one for it again.
+struct Removing<'a> {
+    inner: Account<'a>,
+    store: &'a Store,
+    commits: AtomicU32,
+}
+
+impl Target for Removing<'_> {
+    fn db(&self) -> std::io::Result<std::sync::Arc<redb::Database>> {
+        self.inner.db()
+    }
+
+    fn commit(&self, step: Step, f: &mut dyn FnMut(&mut Tables<'_>, &redb::WriteTransaction) -> std::io::Result<()>) -> std::io::Result<()> {
+        // The first batch's (after the run's start).
+        if self.commits.fetch_add(1, Ordering::Relaxed) == 1 {
+            self.store.remove_account("a1").unwrap();
+        }
+        self.inner.commit(step, f)
+    }
+}
+
+/// The data files in `Files/`.
+fn data_files(t: &std::path::Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(t.join("Files")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn a_recompress_never_brings_back_the_data_file_of_an_account_removed() {
+    let t = temp("recompress-removed");
+    let (kept, _, _) = an_old_file(80);
+    let s = old_store(&t, &kept);
+    let p = packs(&s);
+    let seen = s.removals("a1");
+    let kept_while = |w: &mut dyn FnMut() -> std::io::Result<()>| s.while_kept("a1", seen, w);
+    let target =
+        Removing { inner: Account { packs: p, account: "a1", reopened: p.reopened("a1"), kept: &kept_while }, store: &s, commits: AtomicU32::new(0) };
+    let r = super::super::compact::recompress(&target, &AtomicBool::new(false), &mut |_| {});
+    assert_eq!(r.map_err(|e| e.kind()).err(), Some(std::io::ErrorKind::NotFound), "stopped");
+    assert_eq!(data_files(&t), ["old.mailcraft"], "no file made");
+    assert_eq!(p.file("a1"), None, "none named");
+    drop(s);
+
+    // Through the store, removed between two batches: no run, no file.
+    let t2 = temp("recompress-removed-between");
+    let s = old_store(&t2, &kept);
+    let mut heard = 0;
+    let r = s
+        .recompress_data_file("a1", &AtomicBool::new(false), &mut |_| {
+            heard += 1;
+            if heard == 2 {
+                s.remove_account("a1").unwrap();
+            }
+        })
+        .unwrap();
+    assert_eq!(r, None);
+    assert_eq!(data_files(&t2), ["old.mailcraft"]);
+    assert_eq!(packs(&s).file("a1"), None);
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+    let _ = std::fs::remove_dir_all(&t2);
+}
+
+/// A run whose first batch is read, then files kept raw that it hasn't reached are moved behind
+/// where it is (to keys that batch covers, or before it), before the batch is written back.
+struct Moving<'a> {
+    inner: Account<'a>,
+    moves: Vec<(&'static str, &'static str)>,
+    done: AtomicBool,
+}
+
+impl Target for Moving<'_> {
+    fn db(&self) -> std::io::Result<std::sync::Arc<redb::Database>> {
+        self.inner.db()
+    }
+
+    fn commit(&self, step: Step, f: &mut dyn FnMut(&mut Tables<'_>, &redb::WriteTransaction) -> std::io::Result<()>) -> std::io::Result<()> {
+        if matches!(step, Step::Batch(n) if n > 0) && !self.done.swap(true, Ordering::Relaxed) {
+            let app = &self.inner.packs.root;
+            for (from, to) in &self.moves {
+                self.inner.packs.rename(&app.join("a1").join(from), &app.join("a1").join(to)).unwrap();
+            }
+        }
+        self.inner.commit(step, f)
+    }
+}
+
+/// Files kept raw moved during a run (mail moved from a folder it hasn't reached to one it has
+/// passed) are compressed all the same before the run says the file is done: moved as a batch is
+/// being written, between two batches, or while the run is stopped.
+#[test]
+fn a_file_moved_behind_a_recompress_is_compressed_too() {
+    let moves = [("Z/1/119.eml", "A/1/0b.eml"), ("Z/1/118.eml", "A/0/1.eml")];
+    let t = temp("recompress-moved");
+    let kept: Kept =
+        (0..120u32).map(|i| (format!("{}/1/{i}.eml", if i < 60 { "A" } else { "Z" }), base64(&noise(60_000, u64::from(i) + 1)))).collect();
+    let s = old_store(&t, &kept);
+    let mut before = read_back(&s);
+    let p = packs(&s);
+    // As a batch is written: a run under way (as `Packs::recompress` says it is).
+    Packs::lock(&p.recompressing).insert("a1".into());
+    let target = Moving {
+        inner: Account { packs: p, account: "a1", reopened: p.reopened("a1"), kept: &always },
+        moves: moves.to_vec(),
+        done: AtomicBool::new(false),
+    };
+    let r = super::super::compact::recompress(&target, &AtomicBool::new(false), &mut |_| {}).unwrap();
+    Packs::lock(&p.recompressing).remove("a1");
+    eprintln!("{r:?}");
+    assert!(r.finished);
+    for (from, to) in moves {
+        let v = before.remove(from).unwrap();
+        before.insert(to.to_string(), v);
+        assert!(kept_compressed(&s, to), "{to}");
+    }
+    assert_eq!(read_back(&s), before);
+    assert!(s.data_file_health("a1").unwrap().unwrap().recompressed);
+    drop(s);
+
+    // Between two batches, and while stopped: through the store.
+    let t2 = temp("recompress-moved-between");
+    let s = old_store(&t2, &kept);
+    let mut before = read_back(&s);
+    let app = t2.join("app").join("a1");
+    let stop = AtomicBool::new(false);
+    let mut heard = 0;
+    let first = s
+        .recompress_data_file("a1", &stop, &mut |_| {
+            heard += 1;
+            if heard == 3 {
+                packs(&s).rename(&app.join(moves[0].0), &app.join(moves[0].1)).unwrap();
+            }
+            stop.store(heard >= 3, Ordering::Relaxed);
+        })
+        .unwrap()
+        .unwrap();
+    assert!(!first.finished);
+    packs(&s).rename(&app.join(moves[1].0), &app.join(moves[1].1)).unwrap();
+    let rest = s.recompress_data_file("a1", &AtomicBool::new(false), &mut |_| {}).unwrap().unwrap();
+    assert!(rest.finished, "{rest:?}");
+    for (from, to) in moves {
+        let v = before.remove(from).unwrap();
+        before.insert(to.to_string(), v);
+        assert!(kept_compressed(&s, to), "{to}");
+    }
+    assert_eq!(read_back(&s), before);
+    assert!(s.data_file_health("a1").unwrap().unwrap().recompressed);
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+    let _ = std::fs::remove_dir_all(&t2);
 }
 
 /// A run stopped after its first batch says so (the file's health shows it, and offers to go on),
@@ -336,40 +508,63 @@ fn killed_during_recompress() {
 
 /// A write from the window (a message marked read) waits little for a recompress running beside
 /// it: each batch holds the file only to write what it compressed away from it. A measurement, as
-/// the one for a background writer: alone, p99 4 to 6 ms; with every test of the workspace running
-/// beside it, 80 ms.
+/// the one for a background writer, of each whole write (`took`) and of its wait for the writer,
+/// on a file of mail alone and on one with big attachments too, each a batch of its own (a few of
+/// 16 MiB and one of 60 MiB, as kept): the writes that wait for one of those are the slowest.
 #[test]
 #[ignore = "a measurement: run alone with --ignored --nocapture"]
 fn a_write_from_the_window_waits_little_for_a_recompress() {
-    let t = temp("recompress-latency");
-    let kept: Kept = (0..600u32).map(|i| (format!("INBOX/1/{i}.eml"), base64(&noise(90_000, u64::from(i) + 1)))).collect();
-    let s = old_store(&t, &kept);
-    s.write_body(&super::commits::inbox(1), b"Subject: x\r\n\r\nx").unwrap();
-    let running = {
-        let s = s.clone();
-        std::thread::spawn(move || {
+    let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+    let at = |v: &[f64], q: f64| v.get(((v.len() as f64 - 1.0) * q).round() as usize).copied().unwrap_or(0.0);
+    for big in [false, true] {
+        let t = temp(&format!("recompress-latency-{big}"));
+        let mut kept: Kept = (0..600u32).map(|i| (format!("INBOX/1/{i}.eml"), base64(&noise(90_000, u64::from(i) + 1)))).collect();
+        if big {
+            kept.extend((0..4u32).map(|i| (format!("INBOX/2/{i}.eml"), base64(&noise(12 << 20, u64::from(i) + 900)))));
+            kept.push(("INBOX/3/1.eml".into(), base64(&noise(45 << 20, 999))));
+        }
+        let files = kept.len() as u64;
+        let s = old_store(&t, &kept);
+        drop(kept);
+        s.write_body(&super::commits::inbox(1), b"Subject: x\r\n\r\nx").unwrap();
+        let running = {
+            let s = s.clone();
+            std::thread::spawn(move || {
+                let t0 = Instant::now();
+                let r = s.recompress_data_file("a1", &AtomicBool::new(false), &mut |_| {}).unwrap().unwrap();
+                (r, t0.elapsed())
+            })
+        };
+        let p = packs(&s);
+        p.seals.waits.lock().unwrap().clear();
+        let mut took = Vec::new();
+        while !running.is_finished() || took.len() < 10 {
             let t0 = Instant::now();
-            let r = s.recompress_data_file("a1", &AtomicBool::new(false), &mut |_| {}).unwrap().unwrap();
-            (r, t0.elapsed())
-        })
-    };
-    let p = packs(&s);
-    p.seals.waits.lock().unwrap().clear();
-    let mut writes = 0u32;
-    while !running.is_finished() || writes < 10 {
-        s.write_body(&super::commits::inbox(1), format!("Subject: x\r\n\r\nread {writes}").as_bytes()).unwrap();
-        writes += 1;
-        std::thread::sleep(Duration::from_millis(3));
+            s.write_body(&super::commits::inbox(1), format!("Subject: x\r\n\r\nread {}", took.len()).as_bytes()).unwrap();
+            took.push(ms(t0.elapsed()));
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        let (r, run) = running.join().unwrap();
+        let mut waits: Vec<f64> = p.seals.waits.lock().unwrap().drain(..).map(ms).collect();
+        waits.sort_by(f64::total_cmp);
+        took.sort_by(f64::total_cmp);
+        let (p50, p99, max) = (at(&took, 0.5), at(&took, 0.99), took.last().copied().unwrap_or(0.0));
+        eprintln!(
+            "{}: recompressed {} files in {run:?}; {} writes from the window took p50 {p50:.1} ms, p99 {p99:.1} ms, \
+             at most {max:.1} ms; their wait for the writer p99 {:.1} ms, at most {:.1} ms",
+            if big { "with big attachments" } else { "mail alone" },
+            r.files,
+            took.len(),
+            at(&waits, 0.99),
+            waits.last().copied().unwrap_or(0.0),
+        );
+        assert!(r.finished && r.files == files);
+        // With big attachments, the few writes that wait for one's batch are the slowest: measured,
+        // not held to the mark (a 60 MiB file's write is about 0.1 s, at most a few times a run).
+        assert!(big || p99 <= 60.0, "a write from the window took {p99:.1} ms beside the recompress (p99)");
+        drop(s);
+        let _ = std::fs::remove_dir_all(&t);
     }
-    let (r, took) = running.join().unwrap();
-    let mut waits: Vec<f64> = p.seals.waits.lock().unwrap().drain(..).map(|d| d.as_secs_f64() * 1000.0).collect();
-    waits.sort_by(f64::total_cmp);
-    let p99 = waits.get(((waits.len() as f64 - 1.0) * 0.99).round() as usize).copied().unwrap_or(0.0);
-    eprintln!("recompressed {} files in {took:?}; {writes} writes from the window waited at most {p99:.1} ms (p99)", r.files);
-    assert!(r.finished && r.files == 600);
-    assert!(p99 <= 60.0, "a write from the window waited {p99:.1} ms for the recompress (p99)");
-    drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A fuzz input of records (`fuzz_db`): a value in `FILES`, `PIECES` or `META`.

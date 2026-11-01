@@ -133,6 +133,8 @@ pub(crate) struct Packs {
     fresh: Mutex<HashSet<String>>,
     /// Accounts whose data file is being compressed again ([`Packs::recompress`]): one at a time.
     recompressing: Mutex<HashSet<String>>,
+    /// The writes to the data files, counted ([`Writes`]).
+    writes: Writes,
 }
 
 impl std::fmt::Debug for Packs {
@@ -165,6 +167,7 @@ impl Packs {
             full: Arc::default(),
             fresh: Mutex::default(),
             recompressing: Mutex::default(),
+            writes: Writes::default(),
         })
     }
 
@@ -380,15 +383,28 @@ impl Packs {
                 if moving.is_empty() {
                     return Err(io::Error::from(io::ErrorKind::NotFound));
                 }
-                self.change(&a, |t| {
+                self.change_in_tx(&a, Commit::PLAIN, 0, None, true, |t, tx| {
+                    // The first key a file kept raw that compresses may have moved to.
+                    let mut raw_to: Option<String> = None;
                     for old in &moving {
                         let new = format!("{k2}{}", old.strip_prefix(k.as_str()).unwrap_or(""));
                         // Moved as kept: not uncompressed and compressed again.
                         if let Some(v) = t.take_kept(old.as_str())? {
                             t.put_kept(new.as_str(), &v)?;
+                            if v.len() >= DEFLATE_MIN
+                                && !v.starts_with(DEFLATED)
+                                && !new.starts_with(SEARCH)
+                                && raw_to.as_ref().is_none_or(|r| new < *r)
+                            {
+                                raw_to = Some(new);
+                            }
                         }
                     }
-                    Ok(())
+                    // A recompress may have passed where it went: it goes back for it.
+                    match raw_to {
+                        Some(to) => pull_back(tx, &t.files, &to, Packs::lock(&self.recompressing).contains(&a)),
+                        None => Ok(()),
+                    }
                 })
             }
             (Place::Disk, Place::Disk) => crate::atomic::rename(from, to),

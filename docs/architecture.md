@@ -132,16 +132,23 @@ scaled to the files it's drawn from, not the search index, which a recompress pa
 A recompress (`crates/store/src/packed/compact.rs`, `Store::recompress_data_file`) compresses
 again what such a file keeps raw that compresses, the first half of compacting it. It goes through
 the list of files in key order, a batch at a time: read in a read transaction of its own (at most
-`BACKGROUND_COMMIT` as kept, a bigger file alone, files over 256 MiB left as they are), compressed
-away from the file up to eight ways at once, then written in a short transaction not waited for to
-the disk, with the last key it got to in `meta` (`recompress.cursor`), so a stopped or killed run
-goes on from there and a write from the window waits for one batch at most. A file is written back
-only if it's what was read (its length and a hash of every piece), so one written again meanwhile
-is left as written; the search index's files, those compressed already, small ones and damaged
-ones are passed over, and those tried that stayed as they were (pictures) are counted in `meta`
-with what the others saved. Its last commit is sealed: once stopped, to put the cursor on the disk;
-at the end, to say the file is all kept as this build keeps it. The `data_file` fuzz target builds
-a hostile file in memory from records and checks every file reads back the same after it.
+`BACKGROUND_COMMIT` as kept, a bigger file alone up to 64 MiB), compressed away from the file up
+to eight ways at once, then written in a short transaction not waited for to the disk, with the
+last key it got to in `meta` (`recompress.cursor`), so a stopped or killed run goes on from there
+and a write from the window waits for one batch at most. A file is written back only if it's what
+was read (its length and a hash of every piece), so one written again meanwhile is left as
+written; that's read again with the writer held only when something was written since the batch
+was read (the data files count their writes as they begin and end). A move that puts a file kept
+raw behind the cursor, while a run is under way or stopped, pulls it back (`recompress.back`), so
+nothing moved is left behind. The search index's files, those compressed already and small ones
+are passed over; those tried that stayed as they were (pictures) are counted in `meta` with what
+the others saved, and so are those kept raw it passed over (damaged, or over 64 MiB:
+`recompress.passed`). Each batch is written only while its account is kept (`Store::while_kept`)
+and never makes a data file, so removing the account stops the run without bringing its file
+back. Its last commit is sealed: once stopped, to put the cursor on the disk; at the end, to say
+every file was looked at (`deflate`: what's left raw doesn't compress, or was passed over). The
+`data_file` fuzz target builds a hostile file in memory from records and checks every file reads
+back the same after it.
 
 ## The browser (`apps/mailcraft-web`)
 

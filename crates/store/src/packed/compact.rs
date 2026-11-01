@@ -10,11 +10,16 @@
 //! file (several ways at once), then written in a short write transaction that also records the
 //! last key it got to (`recompress.cursor` in `META`), so a stopped or killed run goes on from
 //! there. A batch holds at most [`crate::BACKGROUND_COMMIT`] as kept, so a write from the window
-//! waits at most for one; a file bigger than that is a batch on its own. What was read is written
-//! back only if the file is still what it was (its length and a hash of every piece): one written
-//! again meanwhile, by a sync or a move, is left as written. The search index's files (packed
-//! already) are passed over. Once every file has been through it, `META` says the file is all kept
-//! as this build keeps it (`deflate`), and the health scan stops sampling it.
+//! waits at most for one; a file bigger than that is a batch on its own, up to [`BIGGEST`] (the
+//! plan's 64 MiB: a write from the window may wait for one such file's write, 0.1 to 0.18 s for
+//! one of 60 MiB), and one bigger still is passed over. What was read is written back only if the file is still what
+//! it was (its length and a hash of every piece): one written again meanwhile, by a sync or a
+//! move, is left as written. Nothing need be read again for that when nothing was written since
+//! the batch was read ([`Writes`]). A file kept raw that a move puts behind the cursor pulls it
+//! back (`recompress.back`), so it isn't left behind. The search index's files (packed already)
+//! are passed over. Once every file has been looked at, `META` says the file is kept as this build
+//! keeps it (`deflate`), and the health scan stops sampling it: what's left raw then doesn't
+//! compress, or was passed over (damaged, or too big) and is counted (`recompress.passed`).
 
 use std::borrow::Cow;
 use std::hash::Hasher;
@@ -31,9 +36,10 @@ const BATCH_BYTES: u64 = crate::BACKGROUND_COMMIT as u64;
 /// A batch looks at most at this many files: most are compressed already, or small, and the
 /// cursor is written after each batch, so a run stopped there doesn't look at them again.
 const BATCH_FILES: usize = 4096;
-/// Files bigger than this as kept are left as they are: one is read whole, and compressed, in
-/// memory (a crafted note can say anything up to the most a file may come to).
-const BIGGEST: u64 = 256 << 20;
+/// Files bigger than this as kept are passed over: one is read whole, and compressed, in memory (a
+/// crafted note can say anything up to the most a file may come to), and written in one
+/// transaction a write from the window waits for (0.5 s for 200 MiB).
+const BIGGEST: u64 = 64 << 20;
 /// Compressed at most this many ways at once.
 const WAYS: usize = 8;
 
@@ -61,6 +67,9 @@ struct Batch {
     /// Files looked at, and their bytes as kept.
     looked: u64,
     looked_bytes: u64,
+    /// Files kept raw passed over (damaged, or too big), and their bytes as kept.
+    passed: u64,
+    passed_bytes: u64,
     /// `FILES` ends with this batch.
     end: bool,
 }
@@ -80,6 +89,16 @@ pub(super) trait Target {
     fn db(&self) -> io::Result<Arc<Database>>;
     /// A write transaction, committed as `step` says.
     fn commit(&self, step: Step, f: &mut dyn FnMut(&mut Tables<'_>, &redb::WriteTransaction) -> io::Result<()>) -> io::Result<()>;
+    /// Where the writes to the file are, taken just before a batch is read ([`Writes::quiet`]):
+    /// `None`, not counted (or one under way), and each file is read again as it's written back.
+    fn writes(&self) -> Option<u64> {
+        None
+    }
+    /// Asked in a commit: nothing else was written since [`Target::writes`] said `seen`.
+    fn none_since(&self, seen: u64) -> bool {
+        let _ = seen;
+        false
+    }
 }
 
 /// A file's fingerprint from its value in `FILES` (a whole value, or the note of one in pieces,
@@ -167,7 +186,9 @@ fn read_batch(db: &Database, after: Option<&str>) -> io::Result<Batch> {
                 return Ok(b);
             }
             let kept = pieced_len(v).unwrap_or(v.len() as u64);
-            let wanted = (DEFLATE_MIN as u64..=BIGGEST).contains(&kept) && kept_raw(key, v, pieces.as_ref())? == Some(true);
+            // Raw (`None`: damaged, its first piece gone).
+            let raw = if kept >= DEFLATE_MIN as u64 { kept_raw(key, v, pieces.as_ref())? } else { Some(false) };
+            let wanted = raw == Some(true) && kept <= BIGGEST;
             // Full: this file starts the next batch.
             if wanted && !b.files.is_empty() && bytes.saturating_add(kept) > BATCH_BYTES {
                 return Ok(b);
@@ -175,12 +196,13 @@ fn read_batch(db: &Database, after: Option<&str>) -> io::Result<Batch> {
             b.looked = b.looked.saturating_add(1);
             b.looked_bytes = b.looked_bytes.saturating_add(kept.min(INFLATE_MAX));
             b.last = Some(key.to_string());
-            if !wanted {
-                continue;
-            }
-            if let Some((print, raw)) = print_of(key, v, pieces.as_ref(), true)? {
+            let read = if wanted { print_of(key, v, pieces.as_ref(), true)? } else { None };
+            if let Some((print, raw)) = read {
                 bytes = bytes.saturating_add(kept);
                 b.files.push(Raw { key: key.to_string(), bytes: raw, print });
+            } else if raw != Some(false) {
+                b.passed = b.passed.saturating_add(1);
+                b.passed_bytes = b.passed_bytes.saturating_add(kept);
             }
         }
         break;
@@ -252,16 +274,19 @@ fn count(db: &Database, cursor: Option<&str>) -> io::Result<Work> {
 /// `cancel` is set (looked at between batches). `progress` hears after each batch.
 pub(super) fn recompress(target: &dyn Target, cancel: &AtomicBool, progress: &mut dyn FnMut(Work)) -> io::Result<Recompressed> {
     let mut report = Recompressed::default();
-    let (meta, mut work) = {
-        let db = target.db()?;
-        let meta = read_meta(&db.begin_read().map_err(disk)?)?;
-        if meta.deflate >= DEFLATE_NOW {
-            return Ok(Recompressed { saved_in_all: meta.saved, finished: true, ..report });
-        }
-        let work = count(&db, meta.cursor.as_deref())?;
-        (meta, work)
-    };
-    let (mut cursor, mut stayed_raw, mut saved) = (meta.cursor, meta.stayed_raw, meta.saved);
+    let meta = read_meta(&target.db()?.begin_read().map_err(disk)?)?;
+    if meta.deflate >= DEFLATE_NOW {
+        return Ok(Recompressed { saved_in_all: meta.saved, finished: true, ..report });
+    }
+    // Where it goes on from, settled with the writer held: a move made before this sees the run
+    // (it pulled the cursor back, taken here), and one after it is in what the run reads.
+    let mut cursor = meta.cursor.clone();
+    target.commit(Step::Batch(0), &mut |_, tx| {
+        cursor = earlier(meta.cursor.clone(), take_back(tx)?);
+        put_cursor(tx, cursor.as_deref())
+    })?;
+    let mut work = count(&*target.db()?, cursor.as_deref())?;
+    let (mut stayed_raw, mut saved, mut passed) = (meta.stayed_raw, meta.saved, meta.passed);
     progress(work);
     loop {
         if cancel.load(Ordering::Relaxed) {
@@ -269,60 +294,90 @@ pub(super) fn recompress(target: &dyn Target, cancel: &AtomicBool, progress: &mu
             target.commit(Step::Last, &mut |_, _| Ok(()))?;
             return Ok(Recompressed { saved_in_all: saved, ..report });
         }
+        let seen = target.writes();
         let batch = read_batch(&*target.db()?, cursor.as_deref())?;
-        let Some(last) = batch.last.clone() else { break };
-        let out = compress(&batch.files);
-        let (mut run, mut written) = (report.clone(), 0usize);
-        let (mut run_raw, mut run_saved) = (stayed_raw, saved);
-        for (f, p) in batch.files.iter().zip(&out) {
-            match p {
-                Some(p) => written = written.saturating_add(p.len()),
-                None => {
-                    run.stayed_raw = run.stayed_raw.saturating_add(1);
-                    run.stayed_raw_bytes = run.stayed_raw_bytes.saturating_add(f.print.len);
-                    run_raw = run_raw.saturating_add(f.print.len);
-                }
-            }
-        }
-        target.commit(Step::Batch(written), &mut |t, tx| {
-            // Counted afresh each time it's tried (a commit that failed tried nothing).
-            let (mut r, mut s) = (run.clone(), run_saved);
+        if let Some(last) = batch.last.clone() {
+            let out = compress(&batch.files);
+            let (mut run, mut written) = (report.clone(), 0usize);
+            run.passed_over = run.passed_over.saturating_add(batch.passed);
+            run.passed_over_bytes = run.passed_over_bytes.saturating_add(batch.passed_bytes);
+            let (mut run_raw, mut run_saved, run_passed) = (stayed_raw, saved, passed.saturating_add(batch.passed_bytes));
             for (f, p) in batch.files.iter().zip(&out) {
-                let Some(p) = p else { continue };
-                let now = match t.files.get(f.key.as_str()).map_err(disk)? {
-                    Some(v) => print_of(&f.key, v.value(), Some(&t.pieces), false)?.map(|(print, _)| print),
-                    None => None,
-                };
-                if now != Some(f.print) {
-                    r.changed = r.changed.saturating_add(1);
-                    continue;
+                match p {
+                    Some(p) => written = written.saturating_add(p.len()),
+                    None => {
+                        run.stayed_raw = run.stayed_raw.saturating_add(1);
+                        run.stayed_raw_bytes = run.stayed_raw_bytes.saturating_add(f.print.len);
+                        run_raw = run_raw.saturating_add(f.print.len);
+                    }
                 }
-                t.put_kept(&f.key, p)?;
-                r.files = r.files.saturating_add(1);
-                r.before = r.before.saturating_add(f.print.len);
-                r.after = r.after.saturating_add(p.len() as u64);
-                s = s.saturating_add(f.print.len.saturating_sub(p.len() as u64));
             }
-            write_meta(tx, &[(CURSOR, last.as_bytes()), (STAYED_RAW, run_raw.to_le_bytes().as_slice()), (SAVED, s.to_le_bytes().as_slice())])?;
-            run = r;
-            run_saved = s;
-            Ok(())
-        })?;
-        (report, cursor, stayed_raw, saved) = (run, Some(last), run_raw, run_saved);
-        work.done = work.done.saturating_add(batch.looked).min(work.total);
-        work.bytes_done = work.bytes_done.saturating_add(batch.looked_bytes).min(work.bytes_total);
-        progress(work);
-        if batch.end {
-            break;
+            let mut next = None;
+            target.commit(Step::Batch(written), &mut |t, tx| {
+                // Counted afresh each time it's tried (a commit that failed tried nothing).
+                let (mut r, mut s) = (run.clone(), run_saved);
+                // Nothing written since the batch was read: each file is as read.
+                let quiet = seen.is_some_and(|n| target.none_since(n));
+                for (f, p) in batch.files.iter().zip(&out) {
+                    let Some(p) = p else { continue };
+                    let now = match quiet {
+                        true => Some(f.print),
+                        false => match t.files.get(f.key.as_str()).map_err(disk)? {
+                            Some(v) => print_of(&f.key, v.value(), Some(&t.pieces), false)?.map(|(print, _)| print),
+                            None => None,
+                        },
+                    };
+                    if now != Some(f.print) {
+                        r.changed = r.changed.saturating_add(1);
+                        continue;
+                    }
+                    t.put_kept(&f.key, p)?;
+                    r.files = r.files.saturating_add(1);
+                    r.before = r.before.saturating_add(f.print.len);
+                    r.after = r.after.saturating_add(p.len() as u64);
+                    s = s.saturating_add(f.print.len.saturating_sub(p.len() as u64));
+                }
+                next = earlier(Some(last.clone()), take_back(tx)?);
+                put_cursor(tx, next.as_deref())?;
+                write_meta(
+                    tx,
+                    &[
+                        (STAYED_RAW, run_raw.to_le_bytes().as_slice()),
+                        (SAVED, s.to_le_bytes().as_slice()),
+                        (PASSED, run_passed.to_le_bytes().as_slice()),
+                    ],
+                )?;
+                run = r;
+                run_saved = s;
+                Ok(())
+            })?;
+            // A move pulled the cursor back: what's after it is looked at again.
+            let pulled = next.as_deref() != Some(last.as_str());
+            (report, cursor, stayed_raw, saved, passed) = (run, next, run_raw, run_saved, run_passed);
+            work.done = work.done.saturating_add(batch.looked).min(work.total);
+            work.bytes_done = work.bytes_done.saturating_add(batch.looked_bytes).min(work.bytes_total);
+            progress(work);
+            if !batch.end || pulled {
+                // Between batches, the file is anyone's: a write from the window goes first.
+                std::thread::yield_now();
+                continue;
+            }
         }
-        // Between batches, the file is anyone's: a write from the window goes first.
-        std::thread::yield_now();
+        // Every file looked at: done, unless a move pulled the cursor back meanwhile.
+        let mut again = None;
+        target.commit(Step::Last, &mut |_, tx| {
+            again = take_back(tx)?;
+            match &again {
+                Some(b) => put_cursor(tx, Some(b.as_str()).filter(|b| !b.is_empty())),
+                None => {
+                    write_meta(tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice())])?;
+                    put_cursor(tx, None)
+                }
+            }
+        })?;
+        let Some(back) = again else { break };
+        cursor = (!back.is_empty()).then_some(back);
     }
-    target.commit(Step::Last, &mut |_, tx| {
-        write_meta(tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice())])?;
-        tx.open_table(META).map_err(disk)?.remove(CURSOR).map_err(disk)?;
-        Ok(())
-    })?;
     Ok(Recompressed { saved_in_all: saved, finished: true, ..report })
 }
 
@@ -334,7 +389,13 @@ pub(super) struct Account<'a> {
     /// not waited for to the disk may be gone once that changes, with the cursor it recorded,
     /// and the run stops rather than go on past it.
     pub(super) reopened: u64,
+    /// Each write made while the account is kept ([`crate::Store::while_kept`]): `None` once it's
+    /// removed, and the run stops rather than bring its data file back.
+    pub(super) kept: Kept<'a>,
 }
+
+/// A write made while an account is kept, `None` once it's removed ([`Account::kept`]).
+pub(crate) type Kept<'a> = &'a dyn Fn(&mut dyn FnMut() -> io::Result<()>) -> Option<io::Result<()>>;
 
 impl Target for Account<'_> {
     fn db(&self) -> io::Result<Arc<Database>> {
@@ -346,7 +407,17 @@ impl Target for Account<'_> {
             Step::Batch(n) => (Commit::BATCH, n),
             Step::Last => (Commit::SEALED, 0),
         };
-        self.packs.change_in_tx(self.account, how, bytes, Some(self.reopened), |t, tx| f(t, tx))
+        // Never makes the data file: one gone (the account removed) stays gone.
+        let mut write = || self.packs.change_in_tx(self.account, how, bytes, Some(self.reopened), false, |t, tx| f(t, tx));
+        (self.kept)(&mut write).unwrap_or_else(|| Err(io::Error::from(io::ErrorKind::NotFound)))
+    }
+
+    fn writes(&self) -> Option<u64> {
+        self.packs.writes.quiet()
+    }
+
+    fn none_since(&self, seen: u64) -> bool {
+        self.packs.writes.none_since(seen)
     }
 }
 
@@ -362,7 +433,14 @@ impl Drop for Running<'_> {
 impl Packs {
     /// What `account`'s data file keeps raw compressed again ([`crate::Store::recompress_data_file`]);
     /// `None` when it has none. One run at a time per file: another asking meanwhile is refused.
-    pub(crate) fn recompress(&self, account: &str, cancel: &AtomicBool, progress: &mut dyn FnMut(Work)) -> io::Result<Option<Recompressed>> {
+    /// Each batch is written through `kept`, which refuses once the account is removed.
+    pub(crate) fn recompress(
+        &self,
+        account: &str,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Work),
+        kept: Kept<'_>,
+    ) -> io::Result<Option<Recompressed>> {
         if self.file(account).is_none() || self.db(account, false)?.is_none() {
             return Ok(None);
         }
@@ -370,7 +448,7 @@ impl Packs {
             return Err(io::Error::new(io::ErrorKind::ResourceBusy, "the data file is being compressed again already"));
         }
         let _running = Running(self, account);
-        let target = Account { packs: self, account, reopened: self.reopened(account) };
+        let target = Account { packs: self, account, reopened: self.reopened(account), kept };
         recompress(&target, cancel, progress).map(Some)
     }
 }

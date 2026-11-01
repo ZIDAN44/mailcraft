@@ -19,6 +19,7 @@
 //! waiting is counted while the commit's writer still holds the file, so the count follows the
 //! order the commits were made in, and two writers can't both take the run past the cap.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Condvar, MutexGuard, PoisonError, Weak};
 use std::time::{Duration, Instant};
 
@@ -46,6 +47,47 @@ impl Commit {
     pub(super) const BATCH: Commit = Commit { durable: false, seal: false };
     /// Durable and sealed: every commit once MailCraft is closing, and a search index's meta.
     pub(super) const SEALED: Commit = Commit { durable: true, seal: true };
+}
+
+/// The writes to the data files (any account's: a count, not a lock), counted as each takes the
+/// writer and as it lets go: so a recompress can tell nothing was written between reading a batch
+/// and writing it back, and skip reading and hashing each file again with the writer held. Every
+/// write to `FILES` goes through [`Packs::change_in`]; a seal writes `META` only.
+#[derive(Debug, Default)]
+pub(super) struct Writes {
+    began: AtomicU64,
+    ended: AtomicU64,
+}
+
+impl Writes {
+    /// Where the writes are, taken just before a read: `None` while one is under way (it may
+    /// commit after the read began).
+    pub(super) fn quiet(&self) -> Option<u64> {
+        // Ended first: one that began before this and hasn't ended makes them differ.
+        let ended = self.ended.load(Ordering::SeqCst);
+        let began = self.began.load(Ordering::SeqCst);
+        (began == ended).then_some(began)
+    }
+
+    /// Asked by a writer holding the file: whether no other write began since [`Writes::quiet`]
+    /// said `seen` (only this one).
+    pub(super) fn none_since(&self, seen: u64) -> bool {
+        self.began.load(Ordering::SeqCst) == seen.saturating_add(1)
+    }
+
+    fn begin(&self) -> Writing<'_> {
+        self.began.fetch_add(1, Ordering::SeqCst);
+        Writing(self)
+    }
+}
+
+/// A write under way, counted as ended when it's dropped (committed or not).
+struct Writing<'a>(&'a Writes);
+
+impl Drop for Writing<'_> {
+    fn drop(&mut self) {
+        self.0.ended.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
 /// What each data file has had committed: what isn't on the disk yet, and what isn't sealed. Data
@@ -275,20 +317,23 @@ impl Packs {
         since: Option<u64>,
         f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
     ) -> io::Result<()> {
-        self.change_in_tx(account, how, undurable, since, |t, _| f(t))
+        self.change_in_tx(account, how, undurable, since, true, |t, _| f(t))
     }
 
     /// [`Packs::change_since`], `f` also given the transaction (to write `META` in the same
-    /// commit: a recompress's cursor goes in with the batch it's after).
+    /// commit: a recompress's cursor goes in with the batch it's after). The data file is made
+    /// when the account has none only when `create` (a recompress never makes one: its account
+    /// may have been removed meanwhile).
     pub(super) fn change_in_tx(
         &self,
         account: &str,
         how: Commit,
         undurable: usize,
         since: Option<u64>,
+        create: bool,
         f: impl FnOnce(&mut Tables<'_>, &redb::WriteTransaction) -> io::Result<()>,
     ) -> io::Result<()> {
-        let Some(db) = self.db(account, true)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
+        let Some(db) = self.db(account, create)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
         let done = self.change_in(&db, account, how, undurable, since, f);
         if let Err(e) = &done
             && from_disk(e)
@@ -316,6 +361,7 @@ impl Packs {
         #[cfg(test)]
         let start = Instant::now();
         let mut tx = db.begin_write().map_err(disk)?;
+        let _writing = self.writes.begin();
         // Let go of after a failed write meanwhile: what the writer counted on may be gone. A
         // file let go of since is a new one (opened after the count changed), and the old one
         // refuses its writers itself.

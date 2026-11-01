@@ -40,6 +40,13 @@ const CURSOR_MAX: usize = 1024;
 /// others came down by.
 pub(super) const STAYED_RAW: &str = "recompress.raw";
 pub(super) const SAVED: &str = "recompress.saved";
+/// Files kept raw that recompressing passed over, a u64 of their bytes as kept: damaged ones, and
+/// those bigger than a run takes. A file all kept as this build keeps it may still hold these.
+pub(super) const PASSED: &str = "recompress.passed";
+/// Where a file kept raw was moved to while a recompress was under way or stopped (a key it may
+/// have passed already): the key before it (UTF-8; empty, the start). The run goes on from there
+/// rather than from its cursor, so what was moved behind it is compressed too.
+pub(super) const BACK: &str = "recompress.back";
 
 /// One file in this many is sampled for whether it's kept raw (the first of them too).
 const SAMPLE_EVERY: u64 = 128;
@@ -57,6 +64,7 @@ pub(super) struct Meta {
     pub(super) cursor: Option<String>,
     pub(super) stayed_raw: u64,
     pub(super) saved: u64,
+    pub(super) passed: u64,
 }
 
 /// A u64 as kept (8 bytes, little-endian).
@@ -79,7 +87,61 @@ pub(super) fn read_meta(tx: &redb::ReadTransaction) -> io::Result<Meta> {
         cursor: value(CURSOR)?.filter(|c| !c.is_empty() && c.len() <= CURSOR_MAX).and_then(|c| String::from_utf8(c).ok()),
         stayed_raw: value(STAYED_RAW)?.as_deref().and_then(u64_of).unwrap_or(0),
         saved: value(SAVED)?.as_deref().and_then(u64_of).unwrap_or(0),
+        passed: value(PASSED)?.as_deref().and_then(u64_of).unwrap_or(0),
     })
+}
+
+/// A file kept raw moved to `key` (by `tx`, `files` its `FILES`): a recompress under way
+/// (`running`) or stopped goes on from before it ([`BACK`]), in a file not yet all kept as this
+/// build keeps it. A `META` that can't be opened (a crafted file) says nothing to do.
+pub(super) fn pull_back(
+    tx: &redb::WriteTransaction,
+    files: &redb::Table<'_, &'static str, &'static [u8]>,
+    key: &str,
+    running: bool,
+) -> io::Result<()> {
+    let (deflate, stopped, back) = match tx.open_table(META) {
+        Ok(t) => {
+            let value = |k: &str| -> io::Result<Option<Vec<u8>>> { Ok(t.get(k).map_err(disk)?.map(|g| g.value().to_vec())) };
+            (value(DEFLATE)?.as_deref().and_then(u64_of).unwrap_or(0), value(CURSOR)?.is_some(), value(BACK)?)
+        }
+        Err(_) => return Ok(()),
+    };
+    if deflate >= DEFLATE_NOW || !(running || stopped) {
+        return Ok(());
+    }
+    let before = files.range::<&str>(..key).map_err(disk)?.next_back().transpose().map_err(disk)?.map(|(k, _)| k.value().to_string());
+    let mut to = before.unwrap_or_default();
+    if let Some(b) = back.map(|b| String::from_utf8_lossy(&b).into_owned()).filter(|b| *b < to) {
+        to = b;
+    }
+    write_meta(tx, &[(BACK, to.as_bytes())])
+}
+
+/// [`BACK`] taken out of `META`, when a move put it there.
+pub(super) fn take_back(tx: &redb::WriteTransaction) -> io::Result<Option<String>> {
+    let mut table = tx.open_table(META).map_err(disk)?;
+    let back = table.remove(BACK).map_err(disk)?.map(|g| String::from_utf8_lossy(g.value()).into_owned());
+    Ok(back)
+}
+
+/// Where a run goes on from, after `cursor` (`None`: the start), once a move pulled it back to
+/// after `back` (empty: the start): whichever comes first.
+pub(super) fn earlier(cursor: Option<String>, back: Option<String>) -> Option<String> {
+    match (cursor, back) {
+        (c, None) => c,
+        (None, Some(_)) => None,
+        (Some(_), Some(b)) if b.is_empty() => None,
+        (Some(c), Some(b)) => Some(c.min(b)),
+    }
+}
+
+/// The cursor in `META` set to `cursor` (`None`: taken out, a run from the start).
+pub(super) fn put_cursor(tx: &redb::WriteTransaction, cursor: Option<&str>) -> io::Result<()> {
+    match cursor {
+        Some(c) => write_meta(tx, &[(CURSOR, c.as_bytes())]),
+        None => tx.open_table(META).map_err(disk)?.remove(CURSOR).map(drop).map_err(disk),
+    }
 }
 
 /// Values written to `META` in the transaction `tx` (a u64 as 8 bytes), with its version.

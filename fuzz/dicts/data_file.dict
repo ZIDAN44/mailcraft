@@ -12,6 +12,8 @@
 "recompress.cursor"
 "recompress.raw"
 "recompress.saved"
+"recompress.passed"
+"recompress.back"
 "F\x0d"
 "P\x0d"
 "M\x07"

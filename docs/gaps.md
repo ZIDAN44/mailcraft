@@ -1896,7 +1896,13 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   attachments uncompressed (34.9 GiB of a 47 GB file). The store can now compress them again in
   the background (`Store::recompress_data_file`): a batch of at most 2 MiB at a time, each
   compressed before it takes the file, stopped between any two and gone on with later (a kill
-  loses nothing), a message written again meanwhile left as written. On a made-up file the base64
-  came down to 0.76 of its size, and a write from the window waited at most 4 to 6 ms (p99) for it.
-  Not yet run by the app: compacting (at idle, and File › Info › Compact now) comes with it, and so
-  does giving the freed room back to the drive.
+  loses nothing), a message written again meanwhile left as written, one moved behind it
+  compressed too, and an account removed meanwhile left removed. On a made-up file the base64
+  came down to 0.76 of its size; beside it, a whole mark-read from the window took 9 to 12 ms at
+  p99 among 90 KB messages. An attachment over 2 MiB is a batch of its own, so a mark-read may wait
+  for one's write: 0.1 to 0.18 s at most for one of 60 MiB (p99 24 to 100 ms with a few of 16
+  MiB and one of 60 MiB); those over 64 MiB are left raw and counted. Not yet run by the app:
+  compacting (at idle, and File › Info › Compact now) comes with it, and so does giving the freed
+  room back to the drive. Open: the proof on a copy of the 47 GB data file (live data down by 8 to
+  11 GiB, every source the same by its sha256, a mark-read at most 60 ms), with the milestone's
+  verification.

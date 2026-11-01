@@ -58,7 +58,7 @@ impl Store {
     /// from the window waits at most for one. `cancel` stops it between batches; the next call goes
     /// on from where it got to. `progress` hears how far it has come after each batch. The file
     /// gets smaller only once compacted (the space freed is used again meanwhile). `None` when the
-    /// account has no data file.
+    /// account has no data file, or is removed while it runs (its file isn't made again).
     pub fn recompress_data_file(&self, account: &str, cancel: &AtomicBool, progress: &mut dyn FnMut(Work)) -> Result<Option<Recompressed>> {
         if self.is_online_only(account) {
             return Ok(None);
@@ -67,7 +67,13 @@ impl Store {
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => {
                 let a = safe_segment(account);
-                x.recompress(&a, cancel, progress).map_err(|source| StoreError::Io { path: a, source })
+                // A removal waits for the batch being written, and the run stops after it.
+                let seen = self.removals(account);
+                let kept = |write: &mut dyn FnMut() -> io::Result<()>| self.while_kept(account, seen, write);
+                match x.recompress(&a, cancel, progress, &kept) {
+                    Err(_) if self.removals(account) != seen => Ok(None),
+                    done => done.map_err(|source| StoreError::Io { path: a, source }),
+                }
             }
             _ => {
                 let _ = (cancel, progress);
@@ -331,10 +337,15 @@ pub struct Recompressed {
     pub stayed_raw_bytes: u64,
     /// Files written again while they were being compressed: left as written.
     pub changed: u64,
+    /// Files kept raw passed over, and their bytes as kept: damaged ones, and those bigger than a
+    /// run takes (64 MiB). The data file says what every run passed over (`recompress.passed`).
+    pub passed_over: u64,
+    pub passed_over_bytes: u64,
     /// What every run of it has saved, as the data file records it.
     pub saved_in_all: u64,
-    /// Everything was gone through: the data file says it's all kept as this build keeps it.
-    /// Otherwise it was stopped, and the next run goes on from where it got to.
+    /// Everything was looked at: the data file says it's kept as this build keeps it (what's left
+    /// raw doesn't compress, or was passed over). Otherwise it was stopped, and the next run goes
+    /// on from where it got to.
     pub finished: bool,
 }
 
