@@ -233,9 +233,12 @@ pub(crate) fn nav_line(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
         tl!("Counting items…").to_string()
     } else {
         let folder = s.folder(account, &p.folder).map_or_else(|| p.folder.clone(), i18n::folder);
-        match p.permille() {
-            Some(m) => tf!("Importing {folder}… {percent}%", folder = folder, percent = progress::percent(m)),
-            None => tf!("Importing {folder}…", folder = folder),
+        // A .pst is read a few folders at a time, none of them "the" folder: no name then.
+        match (p.permille(), folder.is_empty()) {
+            (Some(m), false) => tf!("Importing {folder}… {percent}%", folder = folder, percent = progress::percent(m)),
+            (Some(m), true) => tf!("Importing {percent}%", percent = progress::percent(m)),
+            (None, false) => tf!("Importing {folder}…", folder = folder),
+            (None, true) => tl!("Importing…").to_string(),
         }
     };
     ui.horizontal(|ui| {

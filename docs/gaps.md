@@ -1671,8 +1671,13 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   is looked at again, so room freed since lets it be imported. A bar without a total (a MailCraft data file
   brought in) slides at most ten frames a second, and stands still with animations off. The
   welcome screen offers "Open an Outlook data file…" beside adding an account, and sizes are
-  written in GB once they reach one. Not yet measured on the 41 GB file in the window: folders
-  shown as each finishes, the percentage from the first second, and no frame over 50 ms.
+  written in GB once they reach one. On the 41 GB file in the window (release build, scratch
+  data folder): "Counting items..." from the window's first frame, the percentage 2.2 s later
+  once the folders were counted, folders appearing in the pane as they finished (from 1 to 50
+  rows over the run), 34,691 messages in 46 folders in about 2.5 minutes, and the window's
+  message loop never held more than 23 ms (5,354 checks 20 ms apart, none over 50 ms; peak
+  working set 999 MB). The folder pane's line names no folder while a `.pst` is read, since
+  its folders are read a few at a time.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

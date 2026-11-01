@@ -224,6 +224,14 @@ fn an_import_is_shown_from_its_first_second() {
     let texts = drawn(&ctx, &mut a);
     assert!(texts.iter().any(|t| t.starts_with("Importing Archive.pst… 30% – About ") && t.ends_with(" min left")), "{texts:?}");
 
+    // Read a few folders at a time (a .pst), no folder is named: no empty name in the line.
+    let mut lanes = progress(ImportPhase::Importing, 30, 100, 50_000);
+    lanes.folder.clear();
+    going(&mut a, &id, lanes);
+    let texts = drawn(&ctx, &mut a);
+    assert!(!has(&texts, "Importing … 30%"), "{texts:?}");
+    going(&mut a, &id, progress(ImportPhase::Importing, 30, 100, 50_000));
+
     // A click on the line under the account: its details, beside the status bar.
     a.act(Action::ImportDetails(id.clone()));
     let texts = drawn(&ctx, &mut a);
