@@ -567,6 +567,7 @@ fn a_recipient_without_an_address_is_counted() {
         skipped: 0,
         skips: BTreeMap::new(),
         charset_unsupported: 0,
+        body_not_converted: 0,
         progress: &mut progress,
         pim: Pim::default(),
         pending: Vec::new(),
