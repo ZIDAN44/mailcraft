@@ -358,6 +358,25 @@ fn a_headerless_item_keeps_forwarded_importance_and_references() {
     assert!(text.contains("Importance: high"), "{text}");
 }
 
+/// An item's categories, a property named by a string, come in as its keywords: once each,
+/// none that would be a system keyword, and only from a list of texts.
+#[test]
+fn categories_named_by_a_string_become_keywords() {
+    let read = |v: Val<'static>| {
+        let props: HashMap<u16, Val<'static>> = HashMap::from([(0x8010, v)]);
+        let none: [fn(u16) -> Option<Val<'static>>; 0] = [];
+        item_of(&|id| props.get(&id).cloned(), &none, Vec::new(), &crate::pst_pim::Named::with_keywords(0x8010)).flags.keywords
+    };
+    let names = ["Work", "To do", "work", " ", "$Junk"].map(String::from).to_vec();
+    assert_eq!(read(Val::Texts(names)), ["work", "to=20do"]);
+    assert!(read(Val::Text("Work".into())).is_empty());
+    assert_eq!(read(Val::Texts((0..100).map(|i| format!("c{i}")).collect())).len(), 64);
+    // A file without the name knows no categories.
+    let props: HashMap<u16, Val<'static>> = HashMap::from([(0x8010, Val::Texts(vec!["Work".into()]))]);
+    let none: [fn(u16) -> Option<Val<'static>>; 0] = [];
+    assert!(item_of(&|id| props.get(&id).cloned(), &none, Vec::new(), &crate::pst_pim::Named::default()).flags.keywords.is_empty());
+}
+
 /// The header of a rebuilt message: its lines, each ASCII without control characters (but tab),
 /// at most 998 bytes.
 fn clean_header(raw: &[u8]) -> Vec<String> {

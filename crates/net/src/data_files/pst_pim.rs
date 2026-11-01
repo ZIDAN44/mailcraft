@@ -11,7 +11,7 @@ use mailcraft_model::EmailAddress;
 use mailcraft_model::dates::civil_from_days;
 use mailcraft_model::ical::{Attendee, CalEvent};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
-use outlook_pst::ltp::prop_context::GuidValue;
+use outlook_pst::ltp::prop_context::{GuidValue, PropertyValue};
 use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId, PS_MAPI, PS_PUBLIC_STRINGS};
 use outlook_pst::messaging::store::Store as PstStore;
 
@@ -35,18 +35,25 @@ fn key(g: &GuidValue) -> GuidKey {
     (g.data1(), g.data2(), g.data3(), *g.data4())
 }
 
-/// The data file's named properties: (property set, number) → property id.
+/// The data file's named properties: (property set, number) → property id; and the one named
+/// by a string that the import reads, the categories (`Keywords` in PS_PUBLIC_STRINGS).
 #[derive(Default)]
-pub(crate) struct Named(HashMap<(GuidKey, u32), u16>);
+pub(crate) struct Named {
+    ids: HashMap<(GuidKey, u32), u16>,
+    keywords: Option<u16>,
+}
 
 impl Named {
     pub(crate) fn of(store: &dyn PstStore) -> Named {
-        let mut ids = HashMap::new();
-        let Ok(map) = store.named_property_map() else { return Named(ids) };
+        let mut named = Named::default();
+        let Ok(map) = store.named_property_map() else { return named };
         let props = map.properties();
         let guids = props.stream_guid().unwrap_or_default();
+        let strings = match props.get(0x0004) {
+            Some(PropertyValue::Binary(b)) => b.buffer(),
+            _ => &[],
+        };
         for e in props.stream_entry().unwrap_or_default().into_iter().take(MAX_NAMES) {
-            let NamedPropertyId::Number(lid) = e.id() else { continue };
             let set = match e.guid() {
                 NamedPropertyGuid::None => continue,
                 NamedPropertyGuid::Mapi => key(&PS_MAPI),
@@ -56,14 +63,49 @@ impl Named {
                     None => continue,
                 },
             };
-            ids.insert((set, lid), e.prop_id());
+            match e.id() {
+                NamedPropertyId::Number(lid) => {
+                    named.ids.insert((set, lid), e.prop_id());
+                }
+                NamedPropertyId::StringOffset(at) => {
+                    if set == key(&PS_PUBLIC_STRINGS) && name_at(strings, at).is_some_and(|n| n.eq_ignore_ascii_case("Keywords")) {
+                        named.keywords = Some(e.prop_id());
+                    }
+                }
+            }
         }
-        Named(ids)
+        named
+    }
+
+    /// Only the categories' property known, at `id` (for tests and the fuzz target).
+    pub(crate) fn with_keywords(id: u16) -> Named {
+        Named { keywords: Some(id), ..Default::default() }
+    }
+
+    /// The property holding an item's categories.
+    pub(crate) fn keywords(&self) -> Option<u16> {
+        self.keywords
     }
 
     fn id(&self, set: GuidKey, lid: u32) -> Option<u16> {
-        self.0.get(&(set, lid)).copied()
+        self.ids.get(&(set, lid)).copied()
     }
+}
+
+/// A property's name in the name-to-id map's string stream (MS-PST 2.4.7.4): at byte `at`, a
+/// little-endian length in bytes, then the name in UTF-16. Names longer than 512 bytes aren't
+/// read.
+fn name_at(strings: &[u8], at: u32) -> Option<String> {
+    let at = usize::try_from(at).ok()?;
+    let len = strings.get(at..at.checked_add(4)?)?;
+    let len = usize::try_from(u32::from_le_bytes([*len.first()?, *len.get(1)?, *len.get(2)?, *len.get(3)?])).ok()?;
+    if len > 512 {
+        return None;
+    }
+    let start = at.checked_add(4)?;
+    let bytes = strings.get(start..start.checked_add(len)?)?;
+    let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
+    Some(String::from_utf16_lossy(&units))
 }
 
 /// What a contact or appointment adds to a mail item.
@@ -310,6 +352,25 @@ mod tests {
     use super::*;
     use mailcraft_model::dates::days_from_civil;
 
+    /// Names in the string stream are found by their offset; a damaged offset or length is no name.
+    #[test]
+    fn names_in_the_string_stream() {
+        let mut stream = vec![0xAA, 0xBB];
+        for name in ["Keywords", "x-custom"] {
+            let bytes: Vec<u8> = name.encode_utf16().flat_map(u16::to_le_bytes).collect();
+            stream.extend((bytes.len() as u32).to_le_bytes());
+            stream.extend(bytes);
+        }
+        assert_eq!(name_at(&stream, 2).as_deref(), Some("Keywords"));
+        assert_eq!(name_at(&stream, 22).as_deref(), Some("x-custom"));
+        for at in [0, 1, 3, 21, 23, 1000, u32::MAX] {
+            let _ = name_at(&stream, at);
+        }
+        assert_eq!(name_at(&stream, 39), None, "past the end");
+        let huge = [0xFF, 0xFF, 0xFF, 0xFF, b'a', 0];
+        assert_eq!(name_at(&huge, 0), None);
+    }
+
     fn minutes(y: i64, m: u32, d: u32) -> u32 {
         u32::try_from((days_from_civil(y, m, d) * 1440) + EPOCH_MINUTES).unwrap()
     }
@@ -370,7 +431,8 @@ mod tests {
     /// fall back to the plain start and end properties.
     #[test]
     fn a_mistyped_named_time_hides_the_fallback() {
-        let named = Named(HashMap::from([((PSETID_APPOINTMENT, 0x820D), 0x8001), ((PSETID_APPOINTMENT, 0x820E), 0x8002)]));
+        let ids = HashMap::from([((PSETID_APPOINTMENT, 0x820D), 0x8001), ((PSETID_APPOINTMENT, 0x820E), 0x8002)]);
+        let named = Named { ids, keywords: None };
         let props = HashMap::from([(0x8001, Val::Other), (0x8002, Val::Time(133_485_408_000_000_000)), (0x0060, Val::Time(133_485_408_000_000_000))]);
         let x = extract(&|id| props.get(&id).cloned(), &named);
         assert_eq!((x.start, x.end), (None, Some(1_704_067_200)));

@@ -19,6 +19,8 @@ pub enum Val<'a> {
     Bool(bool),
     /// A FILETIME: 100 ns since 1601.
     Time(i64),
+    /// Several texts (a multi-valued string: categories).
+    Texts(Vec<String>),
     Object,
     /// Present, of a type the import does not read (a 16- or 64-bit integer, a float, a GUID,
     /// an error code...): it still hides a fallback property.
@@ -52,6 +54,12 @@ pub(super) fn val(v: &PropertyValue, code_page: u32) -> Val<'_> {
         PropertyValue::Integer32(n) => Val::Int(i64::from(*n)),
         PropertyValue::Boolean(b) => Val::Bool(*b),
         PropertyValue::Time(t) => Val::Time(*t),
+        PropertyValue::MultipleUnicode(list) => {
+            Val::Texts(list.iter().map(|u| String::from_utf16_lossy(u.buffer()).trim_end_matches('\0').to_string()).collect())
+        }
+        PropertyValue::MultipleString8(list) => {
+            Val::Texts(list.iter().map(|s| decode(s.buffer(), code_page, false).trim_end_matches('\0').to_string()).collect())
+        }
         PropertyValue::Object(_) => Val::Object,
         _ => Val::Other,
     }

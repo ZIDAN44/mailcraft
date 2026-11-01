@@ -57,6 +57,8 @@ const MAX_NESTING: usize = 3;
 const MAX_IDS: usize = 256;
 /// Child blocks kept of an item's conversation index.
 const MAX_THREAD_BLOCKS: usize = 50;
+/// Categories kept on an item.
+const MAX_KEYWORDS: usize = 64;
 /// Longest Thread-Topic written, in characters.
 const MAX_TOPIC: usize = 512;
 
@@ -130,14 +132,15 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
 }
 
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the
-/// import writes it, with its summary: for the fuzz target, which hands it hostile values.
+/// import writes it, with its summary: for the fuzz target, which hands it hostile values. Its
+/// categories are property 0x8000.
 #[doc(hidden)]
 pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>]) -> Result<(Vec<u8>, mailcraft_model::Summary), String> {
     fn find<'a>(list: &[(u16, Val<'a>)], id: u16) -> Option<Val<'a>> {
         list.iter().find(|(i, _)| *i == id).map(|(_, v)| v.clone())
     }
     let rows: Vec<_> = recipients.iter().map(|r| move |id: u16| find(r, id)).collect();
-    let it = item::item_of(&|id| find(props, id), &rows, Vec::new(), &crate::pst_pim::Named::default());
+    let it = item::item_of(&|id| find(props, id), &rows, Vec::new(), &crate::pst_pim::Named::with_keywords(0x8000));
     let raw = rebuild::to_raw(&it, "fuzz@mailcraft.invalid")?;
     let key = MessageKey { account: "f1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
     let summary = rebuild::summary_of(&raw, &it, key, u32::try_from(raw.len()).unwrap_or(u32::MAX));
