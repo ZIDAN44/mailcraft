@@ -1412,11 +1412,14 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the frame drawing it (a 33 MB message with 36 pictures took 2.6 s to show), and past 64 the
   thumbnails were thrown away and made again every frame, so the window froze for as long as the
   message was open. The message's files are now taken out once, by one parse, kept while it's
-  open, and its pictures decoded one a frame; the picture opened big, a `cid:` picture in its
-  HTML and a PDF's pages come from that same read. What's kept is bounded (96 MB of pictures,
-  the least recently shown let go first), a PDF draws only the pages on screen, and moving to
-  another message stops the work on the last one's. A picture that breaks the decoder fails
-  alone. Thumbnails are made at 160 pixels (they're shown at 30 points), not 480.
+  open, and its pictures decoded on a thread of their own, each shown as soon as it's ready (in
+  the browser, one a frame); the picture opened big, a `cid:` picture in its HTML and a PDF's
+  pages come from that same read, and the picture opened big and the pages on screen are
+  decoded before the thumbnails waiting. What's kept is bounded (96 MB of pictures, the least
+  recently shown let go first), a PDF draws only the pages on screen, and moving to another
+  message stops the work on the last one's. A picture that breaks the decoder fails alone, and
+  one that keeps it busy 30 s after its message was left no longer holds up the pictures after
+  it. Thumbnails are made at 160 pixels (they're shown at 30 points), not 480.
 - **Attached messages and empty files from `.pst` files:** a message attached to another one in
   an Outlook data file was left out (the reader stopped at its property type, looked for it in
   the wrong place, then would have waited on itself), and so was a zero-byte file. Both come in

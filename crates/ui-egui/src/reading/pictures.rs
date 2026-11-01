@@ -4,21 +4,29 @@
 //! at a time. Before, a message with 36 pictures was read and parsed 36 times in one frame (2.6
 //! seconds), and one with more than 64 did it again every frame.
 //!
-//! The steps run a frame at a time here (no threads: the browser, the tests); results come
-//! back as pixels, and the window makes textures of so many bytes a frame. What's kept is
-//! bounded: textures by [`BUDGET`] (the least recently shown go first; those shown now never),
-//! results waiting by [`DONE_MAX`], files taken out by [`SOURCES_MAX`]. Pictures are hostile
-//! input: a step that panics fails the rest of its message's pictures and nothing else.
+//! A message's work goes to the pictures lane's thread ([`Services::background`]), which asks
+//! for a frame after each picture it decodes; where there are no threads (the browser, the
+//! tests) it's done a step a frame instead. Results come back as pixels, and the window makes
+//! textures of so many bytes a frame. What's kept is bounded: textures by [`BUDGET`] (the least
+//! recently shown go first; those shown now never), results waiting by [`DONE_MAX`], files
+//! taken out by [`SOURCES_MAX`]. Pictures are hostile input: a step that panics fails the rest
+//! of its message's pictures and nothing else.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::Duration;
 
 use mailcraft_engine::mime::{self, AttachmentInfo, AttachmentKind};
 use mailcraft_engine::model::MessageKey;
 use mailcraft_engine::store::Store;
 
+use crate::services::{Lane, Services, Work};
 use crate::thumbs::{self, Fit, Fonts};
+
+mod work;
+
+use work::{Batch, Shared};
 
 /// Most bytes of picture textures kept (RGBA).
 pub(crate) const BUDGET: usize = 96 << 20;
@@ -33,6 +41,12 @@ const MAX_EACH: usize = 40 << 20;
 /// Most thumbnails asked of one message; its other chips show their kind's icon (a picture
 /// opened, a `cid:` picture and a PDF's pages are always asked).
 const MAX_PER_MESSAGE: usize = 200;
+/// How often the window looks in on work given to a thread that's said nothing (so a lane
+/// caught on cancelled work is seen to).
+const LOOK_IN: Duration = Duration::from_secs(1);
+/// Longest the work waits for the window to take what's decoded before it looks again (at
+/// whether it was cancelled).
+const ROOM_WAIT: Duration = Duration::from_millis(100);
 /// Reads of a message that may leave a picture out (for room) before it's taken as not there.
 const READS: u8 = 2;
 /// Most pictures remembered (shown, failed or waiting).
@@ -141,209 +155,9 @@ impl Done {
     }
 }
 
-/// Decoded pictures waiting for the window, and their bytes.
-#[derive(Default)]
-struct Out {
-    queue: VecDeque<Done>,
-    bytes: usize,
-}
-
-/// Files taken out of their messages, by (message, attachment index).
-#[derive(Default)]
-struct Sources {
-    map: HashMap<(MessageKey, usize), Arc<Vec<u8>>>,
-    bytes: usize,
-}
-
-impl Sources {
-    fn remove_if(&mut self, mut drop: impl FnMut(&MessageKey) -> bool) {
-        let bytes = &mut self.bytes;
-        self.map.retain(|(k, _), d| {
-            let keep = !drop(k);
-            if !keep {
-                *bytes = bytes.saturating_sub(d.len());
-            }
-            keep
-        });
-    }
-}
-
-/// How much work was done (what the tests count).
-#[derive(Default)]
-struct Stats {
-    /// Messages read and parsed for their files.
-    extractions: AtomicUsize,
-    /// Pictures and PDF pages decoded.
-    decodes: AtomicUsize,
-}
-
-/// What the window and the work share.
-#[derive(Default)]
-struct Shared {
-    out: Mutex<Out>,
-    sources: Mutex<Sources>,
-    stats: Stats,
-}
-
 /// A lock that outlives a panic elsewhere (what it guards is whole between steps).
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// One message's pictures to decode, a step at a time.
-struct Batch {
-    key: MessageKey,
-    store: Store,
-    queue: Mutex<VecDeque<(usize, Want)>>,
-    /// Taken out with the first ones asked: the message's other pictures and PDFs, so a
-    /// picture opened big or a PDF's pages later need no other read.
-    also: Vec<usize>,
-    /// Reads that looked for an index and didn't take it out: past [`READS`] (or at once when
-    /// the message hasn't it) it isn't looked for again.
-    tried: Mutex<HashMap<usize, u8>>,
-    /// Most bytes of files kept taken out ([`SOURCES_MAX`]; less in a test).
-    sources_max: usize,
-    cancelled: AtomicBool,
-    /// A step panicked: the rest fail.
-    broken: AtomicBool,
-    /// The graphics card's largest texture side.
-    limit: u32,
-    fonts: Fonts,
-    /// A test's picture that panics as it's decoded.
-    #[cfg(test)]
-    panic_at: Option<usize>,
-}
-
-impl Batch {
-    /// One step: take the files out, or decode one picture. False when there's nothing left.
-    fn step(&self, shared: &Shared) -> bool {
-        if self.cancelled.load(Ordering::Relaxed) {
-            return false;
-        }
-        {
-            // The window hasn't taken what's waiting: wait (one waits, whatever its size).
-            let out = lock(&shared.out);
-            if out.bytes >= DONE_MAX && !out.queue.is_empty() {
-                return true;
-            }
-        }
-        let Some((index, want)) = lock(&self.queue).pop_front() else { return false };
-        let done = if self.broken.load(Ordering::Relaxed) {
-            Some(self.failed(index, want))
-        } else {
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.work(shared, index, want))) {
-                Ok(done) => done,
-                Err(_) => {
-                    log::warn!("a picture couldn't be decoded (the decoder failed); the message's others aren't tried");
-                    self.broken.store(true, Ordering::Relaxed);
-                    Some(self.failed(index, want))
-                }
-            }
-        };
-        if let Some(done) = done {
-            let mut out = lock(&shared.out);
-            out.bytes = out.bytes.saturating_add(done.bytes());
-            out.queue.push_back(done);
-        }
-        true
-    }
-
-    fn failed(&self, index: usize, want: Want) -> Done {
-        Done { key: self.key.clone(), index, want, image: None, pages: None }
-    }
-
-    /// Decode one picture; `None` when its file had to be taken out first (it goes back to
-    /// the front of the queue).
-    fn work(&self, shared: &Shared, index: usize, want: Want) -> Option<Done> {
-        #[cfg(test)]
-        if self.panic_at == Some(index) {
-            std::panic::resume_unwind(Box::new("a picture that breaks the decoder"));
-        }
-        let source = lock(&shared.sources).map.get(&(self.key.clone(), index)).cloned();
-        let Some(data) = source else {
-            if lock(&self.tried).get(&index).is_some_and(|n| *n >= READS) {
-                return Some(self.failed(index, want));
-            }
-            self.take_out(shared, index);
-            lock(&self.queue).push_front((index, want));
-            return None;
-        };
-        shared.stats.decodes.fetch_add(1, Ordering::Relaxed);
-        let fonts = || self.fonts.clone();
-        let (image, pages) = match want {
-            Want::PdfFirst => match thumbs::pdf_page(&data, 0, Fit::Longer(want.max_side()), self.limit, fonts()) {
-                Some((img, n)) => (Some((img, egui::TextureOptions::LINEAR)), Some(n)),
-                None => (None, None),
-            },
-            Want::PdfPage { n, px } => match thumbs::pdf_page(&data, n, Fit::Width(px), self.limit, fonts()) {
-                Some((img, count)) => (Some((img, egui::TextureOptions::LINEAR)), Some(count)),
-                None => (None, None),
-            },
-            Want::Thumb | Want::Body | Want::Big => (super::decode_pixels(&data, want.max_side(), self.limit), None),
-        };
-        Some(Done { key: self.key.clone(), index, want, image, pages })
-    }
-
-    /// Read the message and take out, in one parse, `index`, the others waiting and the
-    /// message's other pictures and PDFs (those not taken out already, or given up on). One
-    /// left out for room is looked for again by a later read, [`READS`] times in all.
-    fn take_out(&self, shared: &Shared, index: usize) {
-        let mut wanted = vec![index];
-        {
-            // `index` counts a read; those taken along with it don't (but aren't looked for
-            // again once given up on).
-            let mut tried = lock(&self.tried);
-            let n = tried.entry(index).or_insert(0);
-            *n = n.saturating_add(1);
-        }
-        wanted.extend(lock(&self.queue).iter().map(|(i, _)| *i));
-        wanted.extend(self.also.iter().copied());
-        {
-            let sources = lock(&shared.sources);
-            let tried = lock(&self.tried);
-            let mut seen = HashSet::new();
-            wanted.retain(|i| {
-                seen.insert(*i) && !sources.map.contains_key(&(self.key.clone(), *i)) && (*i == index || tried.get(i).is_none_or(|n| *n < READS))
-            });
-        }
-        // One read looks for so many (`index` first): the others aren't looked for, so they
-        // aren't taken as not there either, and a later read looks for them.
-        wanted.truncate(mime::MAX_WANTED);
-        let Some(raw) = self.store.read_body(&self.key) else { return };
-        shared.stats.extractions.fetch_add(1, Ordering::Relaxed);
-        let parts = mime::attachments_data(&raw, &wanted, MAX_EACH, self.sources_max);
-        drop(raw);
-        let needed: usize = parts.iter().map(|(_, d)| d.len()).fold(0, usize::saturating_add);
-        {
-            // Nothing was left out for room (any file that fits would have): those not taken out
-            // aren't in the message, or are too big, and aren't looked for again.
-            let mut tried = lock(&self.tried);
-            let cut = needed.saturating_add(MAX_EACH) > self.sources_max;
-            for i in &wanted {
-                if parts.iter().any(|(j, _)| j == i) {
-                    tried.remove(i);
-                } else if !cut {
-                    tried.insert(*i, READS);
-                }
-            }
-        }
-        let mut sources = lock(&shared.sources);
-        // Another message's files make room first, then this one's not wanted now (those can be
-        // read again; the ones asked can't wait on them).
-        if sources.bytes.saturating_add(needed) > self.sources_max {
-            sources.remove_if(|k| *k != self.key);
-        }
-        if sources.bytes.saturating_add(needed) > self.sources_max {
-            sources.remove_if(|_| true);
-        }
-        for (i, data) in parts {
-            if sources.bytes.saturating_add(data.len()) > self.sources_max {
-                break;
-            }
-            sources.bytes = sources.bytes.saturating_add(data.len());
-            sources.map.insert((self.key.clone(), i), Arc::new(data));
-        }
-    }
 }
 
 /// The pictures shown, kept as textures, and the work making them.
@@ -475,37 +289,68 @@ impl Pictures {
     /// make textures of what's decoded and let go of what isn't shown. `open` is the message
     /// in the reading pane and its attachments: its work goes on while it stays open (whether
     /// or not its pictures were drawn this frame); another message's stops when it isn't shown.
-    pub(crate) fn end_frame(&mut self, ctx: &egui::Context, store: Option<&Store>, open: Option<(&MessageKey, &[AttachmentInfo])>, fonts: &Fonts) {
+    /// The work goes to the pictures lane where `services` has one, a step a frame here otherwise.
+    pub(crate) fn end_frame(
+        &mut self,
+        ctx: &egui::Context,
+        store: Option<&Store>,
+        open: Option<(&MessageKey, &[AttachmentInfo])>,
+        fonts: &Fonts,
+        services: &mut dyn Services,
+    ) {
         let open_key = open.map(|(k, _)| k);
         let shown = |k: &MessageKey, touched: &HashSet<MessageKey>| open_key == Some(k) || touched.contains(k);
         // Work for a message no longer shown stops, and its pictures waiting (or failed, whether
         // or not its work had ended) are forgotten: opened again, it tries them again.
+        let mut stopped = false;
         self.batches.retain(|b| {
             let keep = shown(&b.key, &self.touched) && !b.cancelled.load(Ordering::Relaxed);
             if !keep {
                 b.cancelled.store(true, Ordering::Relaxed);
+                stopped = true;
             }
             keep
         });
+        if stopped {
+            // Work waiting for room sees it was cancelled.
+            self.shared.room.notify_all();
+        }
         self.slots.retain(|(k, _, _), s| !(matches!(s.state, State::Pending | State::Failed) && !shown(k, &self.touched)));
         lock(&self.shared.sources).remove_if(|k| !shown(k, &self.touched));
         if self.pages.len() > MAX_SLOTS {
             self.pages.retain(|(k, _), _| shown(k, &self.touched));
         }
-        self.start(ctx, store, open, fonts);
-        // One step of the oldest message's work.
-        if let Some(b) = self.batches.first().cloned()
-            && !b.step(&self.shared)
-        {
-            self.batches.retain(|x| !Arc::ptr_eq(x, &b));
+        for b in self.start(ctx, store, open, fonts) {
+            let work = Work {
+                run: Box::new({
+                    let (b, shared, ctx) = (b.clone(), self.shared.clone(), ctx.clone());
+                    move || b.run(shared, ctx)
+                }),
+                cancelled: b.cancelled.clone(),
+                first: lock(&b.queue).front().is_some_and(|(_, w)| w.first()),
+            };
+            if services.background(Lane::Pictures, work).is_err() {
+                b.inline.store(true, Ordering::Relaxed);
+            }
         }
+        // One step of the oldest message's work done here.
+        if let Some(b) = self.batches.iter().find(|b| b.inline.load(Ordering::Relaxed)) {
+            self.shared.stats.inline.fetch_add(1, Ordering::Relaxed);
+            b.step(&self.shared);
+        }
+        self.batches.retain(|b| !b.ended.load(Ordering::Relaxed));
         self.upload(ctx);
         // Pictures too big for the room left are tried again when next asked.
         let frame = self.frame;
         self.slots.retain(|_, s| !(matches!(s.state, State::Over) && s.used < frame));
         self.evict_to(self.budget);
-        if !self.batches.is_empty() || !lock(&self.shared.out).queue.is_empty() {
+        if self.batches.iter().any(|b| b.inline.load(Ordering::Relaxed)) || !lock(&self.shared.out).queue.is_empty() {
             ctx.request_repaint();
+        } else if !self.batches.is_empty() {
+            // On a thread, which asks for a frame as it makes each picture; looked in on now
+            // and then (the lane may be caught on cancelled work).
+            services.has_background();
+            ctx.request_repaint_after(LOOK_IN);
         }
         self.frame = self.frame.wrapping_add(1);
         self.frame_bytes = 0;
@@ -513,21 +358,31 @@ impl Pictures {
     }
 
     /// The pictures asked for this frame go to their message's batch (a new one for a message
-    /// with none running).
-    fn start(&mut self, ctx: &egui::Context, store: Option<&Store>, open: Option<(&MessageKey, &[AttachmentInfo])>, fonts: &Fonts) {
+    /// with none running); the new batches.
+    fn start(
+        &mut self,
+        ctx: &egui::Context,
+        store: Option<&Store>,
+        open: Option<(&MessageKey, &[AttachmentInfo])>,
+        fonts: &Fonts,
+    ) -> Vec<Arc<Batch>> {
+        let mut new = Vec::new();
         if self.wanted.is_empty() {
-            return;
+            return new;
         }
         let limit = ctx.input(|i| i.max_texture_side).try_into().unwrap_or(u32::MAX);
         for (key, index, want) in std::mem::take(&mut self.wanted) {
-            if let Some(b) = self.batches.iter().find(|b| b.key == key) {
+            if let Some(b) = self.batches.iter().find(|b| b.key == key && !b.ended.load(Ordering::Relaxed)) {
                 let mut q = lock(&b.queue);
-                if want.first() {
-                    q.push_front((index, want))
-                } else {
-                    q.push_back((index, want))
+                // (Its queue may have run out since, on its thread: then a new batch.)
+                if !b.ended.load(Ordering::Relaxed) {
+                    if want.first() {
+                        q.push_front((index, want))
+                    } else {
+                        q.push_back((index, want))
+                    }
+                    continue;
                 }
-                continue;
             }
             let Some(store) = store else {
                 if let Some(s) = self.slots.get_mut(&(key, index, want)) {
@@ -544,21 +399,26 @@ impl Pictures {
                     .collect(),
                 _ => Vec::new(),
             };
-            self.batches.push(Arc::new(Batch {
+            let batch = Arc::new(Batch {
                 key,
                 store: store.clone(),
                 queue: Mutex::new(VecDeque::from([(index, want)])),
                 also,
                 tried: Mutex::new(HashMap::new()),
                 sources_max: self.sources_max,
-                cancelled: AtomicBool::new(false),
+                cancelled: Arc::new(AtomicBool::new(false)),
+                ended: AtomicBool::new(false),
+                inline: AtomicBool::new(false),
                 broken: AtomicBool::new(false),
                 limit,
                 fonts: fonts.clone(),
                 #[cfg(test)]
                 panic_at: self.panic_at,
-            }));
+            });
+            self.batches.push(batch.clone());
+            new.push(batch);
         }
+        new
     }
 
     /// Textures of the pictures decoded: so many bytes a frame, at least one.
@@ -581,6 +441,9 @@ impl Pictures {
                 }
             };
             self.land(ctx, done);
+        }
+        if count > 0 {
+            self.shared.room.notify_all();
         }
     }
 
@@ -649,6 +512,16 @@ impl Pictures {
     /// Messages read for their files, and pictures decoded, so far.
     pub(crate) fn counts(&self) -> (usize, usize) {
         (self.shared.stats.extractions.load(Ordering::Relaxed), self.shared.stats.decodes.load(Ordering::Relaxed))
+    }
+
+    /// Steps done on the window's thread, and frames asked for by work on a thread.
+    pub(crate) fn steps(&self) -> (usize, usize) {
+        (self.shared.stats.inline.load(Ordering::Relaxed), self.shared.stats.wakes.load(Ordering::Relaxed))
+    }
+
+    /// The pictures decoded and waiting for the window, in the order they were made.
+    pub(crate) fn waiting(&self) -> Vec<(usize, Want)> {
+        lock(&self.shared.out).queue.iter().map(|d| (d.index, d.want)).collect()
     }
 
     /// Bytes of the textures kept.

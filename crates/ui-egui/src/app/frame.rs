@@ -84,7 +84,7 @@ impl MailApp {
     /// The pictures this frame drew ask for their work, and what's done of it becomes textures.
     fn pictures_drawn(&mut self, ctx: &egui::Context) {
         let open = self.session.reading.as_ref().map(|r| (&r.key, r.parsed.as_ref().map_or(&[][..], |p| &p.attachments[..])));
-        self.ui.pictures.end_frame(ctx, self.session.store.as_ref(), open, &self.ui.fonts);
+        self.ui.pictures.end_frame(ctx, self.session.store.as_ref(), open, &self.ui.fonts, &mut *self.services);
     }
 
     /// The whole window.
