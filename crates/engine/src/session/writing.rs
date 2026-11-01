@@ -248,8 +248,8 @@ impl Session {
             // Pictures the quote shows go in it; any other, inline or not, as a file (a picture
             // sent inline beside plain text was lost).
             for a in parsed.attachments.iter().filter(|a| !quoted.contains(&a.index)) {
-                if let Some(data) = mime::attachment_data(raw, a.index) {
-                    attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
+                if let Some(out) = mime::attachment_out(raw, a.index) {
+                    attachments.push(OutAttachment { name: a.name.clone(), ..out });
                 }
             }
         }

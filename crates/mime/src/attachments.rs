@@ -428,6 +428,32 @@ pub fn attachment_text(raw: &[u8], index: usize) -> Option<String> {
     Some(String::from_utf8_lossy(&a.data).into_owned())
 }
 
+/// Attachment `index` to send again (a forward, an Outbox message taken back to change): its
+/// bytes as they came ([`attachment_data`]'s), and a text file's type with the charset it names
+/// (`text/plain; charset=windows-1252`), so the copy is read as the original was; without it, a
+/// file in Latin-1 went out as bare `text/plain` and was read as UTF-8.
+pub fn attachment_out(raw: &[u8], index: usize) -> Option<crate::OutAttachment> {
+    let m = MessageParser::default().parse(raw)?;
+    let a = attached(&m).0.into_iter().find(|a| a.info.index == index)?;
+    let sent = a.part.and_then(|p| sent_bytes(&m, p));
+    let charset =
+        a.part.filter(|_| sent.is_some() && a.info.mime.starts_with("text/")).and_then(|p| charset_token(p.content_type()?.attribute("charset")?));
+    let mime = match charset {
+        Some(c) => format!("{}; charset={c}", a.info.mime),
+        None => a.info.mime.clone(),
+    };
+    let data = sent.unwrap_or_else(|| a.data.into_owned());
+    Some(crate::OutAttachment { name: a.info.name, mime, data })
+}
+
+/// A charset's name as it can go into a `Content-Type`: a token (RFC 2045 §5.1) of at most 64
+/// bytes, so it can't add to the header it goes into.
+fn charset_token(c: &str) -> Option<&str> {
+    let c = c.trim().trim_matches('"');
+    let ok = |b: u8| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`{|}~".contains(&b);
+    (!c.is_empty() && c.len() <= 64 && c.bytes().all(ok)).then_some(c)
+}
+
 /// A text file's bytes as they were sent. The parser hands every `text/*` part out as text, read
 /// in its charset or, with none, as UTF-8 with any other byte replaced, so a file in Latin-1 or
 /// Windows-1252 was saved changed. They're taken again

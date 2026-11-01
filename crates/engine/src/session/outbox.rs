@@ -121,8 +121,8 @@ impl Session {
         let p = mime::parse(&raw).ok_or_else(|| CmdError::Failed("the message can't be read".into()))?;
         let mut attachments = Vec::new();
         for a in &p.attachments {
-            if let Some(data) = mime::attachment_data(&raw, a.index) {
-                attachments.push(OutAttachment { name: a.name.clone(), mime: a.mime.clone(), data });
+            if let Some(out) = mime::attachment_out(&raw, a.index) {
+                attachments.push(OutAttachment { name: a.name.clone(), ..out });
             }
         }
         // Bcc isn't written into a message: it's the envelope recipients not in To or Cc.

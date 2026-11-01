@@ -651,3 +651,31 @@ Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/p
     assert!(s.compose.as_ref().unwrap().attachments.is_empty(), "a reply leaves files out, as Outlook's");
     done(s);
 }
+
+/// A forwarded text file in Windows-1252 goes as it came and keeps its charset: it went out as
+/// bare `text/plain`, so the copy read as UTF-8, with replacement characters.
+#[test]
+fn a_forward_keeps_a_text_files_charset() {
+    let mut s = sample_session("forward-charset");
+    let raw = b"From: Sam Okafor <sam@studio.example>\r\nTo: riley@studio.example\r\nSubject: Menu\r\nDate: Thu, 29 Oct 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/plain\r\n\r\nThe menu.\r\n\
+--M\r\nContent-Type: text/plain; charset=windows-1252\r\nContent-Disposition: attachment; filename=\"menu.txt\"\r\n\r\nCaf\xe9 au lait\r\n--M--\r\n";
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9302 };
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, raw).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    s.run("mail.forward", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    let a = &c.attachments[0];
+    assert_eq!((c.attachments.len(), a.name.as_str(), a.mime.as_str()), (1, "menu.txt", "text/plain; charset=windows-1252"));
+    assert!(a.data.starts_with(b"Caf\xe9 au lait"));
+    let d = mailcraft_mime::Draft { subject: c.subject.clone(), body: c.body.clone(), attachments: c.attachments.clone(), ..Default::default() };
+    let sent = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Riley", "riley@studio.example"), NOW, "<fwd@x>").unwrap();
+    assert!(mailcraft_mime::attachment_text(&sent, 0).is_some_and(|t| t.starts_with("Caf\u{e9} au lait")));
+    done(s);
+}

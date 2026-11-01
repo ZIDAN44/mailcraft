@@ -108,6 +108,29 @@ fn a_text_file_inside_an_attached_message_is_saved_byte_for_byte() {
     assert_eq!(attachment_data(&eml, 0).as_deref(), Some(LATIN));
 }
 
+/// Sent again (a forward, the Outbox), a text file keeps the charset it names, so the copy reads
+/// as the original did; one without a charset stays without, and a charset that isn't a token
+/// is left off rather than written into the header.
+#[test]
+fn a_text_file_sent_again_keeps_its_charset() {
+    let raw = message(&[
+        (file("text/plain; charset=windows-1252", "latin.txt", "quoted-printable"), quoted_printable(LATIN).into_bytes()),
+        (file("text/plain", "plain.txt", "8bit"), LATIN.to_vec()),
+        (file("text/plain; charset=\"x\\r\\nBcc: a@b\"", "odd.txt", "8bit"), b"odd\r\n".to_vec()),
+    ]);
+    let out: Vec<crate::OutAttachment> = (0..3).map(|i| attachment_out(&raw, i).unwrap()).collect();
+    assert_eq!(out[0].mime, "text/plain; charset=windows-1252");
+    assert_eq!(out[0].data, LATIN);
+    assert_eq!((out[1].mime.as_str(), out[1].name.as_str()), ("text/plain", "plain.txt"));
+    assert_eq!(out[2].mime, "text/plain");
+    assert_eq!(attachment_out(&raw, 9), None);
+    let d = crate::Draft { subject: "Fwd: Files".into(), body: "Here.".into(), attachments: out, ..Default::default() };
+    let again = crate::build(&d, &EmailAddress::new("Lee", "lee@studio.example"), 0, "<again@x>").unwrap();
+    assert_eq!(attachment_data(&again, 0).as_deref(), Some(LATIN));
+    assert!(attachment_text(&again, 0).is_some_and(|t| t.starts_with("Caf\u{e9} au lait")));
+    assert!(!String::from_utf8_lossy(&again).contains("Bcc:"));
+}
+
 /// UTF-8 text, a file with an empty body and a part whose base64 the parser can't read are
 /// what they were.
 #[test]

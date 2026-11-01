@@ -1489,5 +1489,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   every other byte replaced, so a file in Latin-1 or Windows-1252 was saved, opened and
   forwarded changed, from any kind of account (a `.pst`'s Rich Text items carry such `.htm`
   files). Its bytes are now taken from the message's source, only the transfer encoding
-  (base64, quoted-printable) undone, in an attached message too; its preview is still read in
-  the charset it names. The size the list shows is still the text's.
+  (base64, quoted-printable) undone, in an attached message too; its preview (in the reading
+  pane, and the invitation card's calendar file) is still read in the charset it names, and a
+  forward, or an Outbox message taken back to change, sends it with that charset on its type.
+  The size the list shows is still the text's.
