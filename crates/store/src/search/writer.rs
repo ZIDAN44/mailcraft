@@ -112,18 +112,16 @@ fn other(what: &str) -> io::Error {
 /// Returns the bytes the words took.
 pub(super) fn add_words(words: &mut BTreeMap<Vec<u8>, Vec<u32>>, doc: u32, text: &str, names: &[String]) -> usize {
     let mut added = 0usize;
+    each_word(text, names, &mut |k| added = added.saturating_add(file_word(words, doc, k)));
+    added
+}
+
+/// A doc's words, each handed to `each` (one may come more than once): the text's, the names',
+/// and both's addresses. A word longer than [`MAX_KEY`] isn't kept.
+fn each_word(text: &str, names: &[String], each: &mut dyn FnMut(Vec<u8>)) {
     let mut add = |k: Vec<u8>| {
-        if k.len() > MAX_KEY {
-            return;
-        }
-        let len = k.len();
-        let list = words.entry(k).or_insert_with(|| {
-            added += len + 48;
-            Vec::new()
-        });
-        if list.last() != Some(&doc) {
-            list.push(doc);
-            added += 4;
+        if k.len() <= MAX_KEY {
+            each(k);
         }
     };
     for w in tokens(text) {
@@ -142,7 +140,51 @@ pub(super) fn add_words(words: &mut BTreeMap<Vec<u8>, Vec<u32>>, doc: u32, text:
     for a in addresses {
         add(key(Field::Address, &a));
     }
+}
+
+/// A word of `doc` added to the words to write; the bytes it took.
+fn file_word(words: &mut BTreeMap<Vec<u8>, Vec<u32>>, doc: u32, k: Vec<u8>) -> usize {
+    let mut added = 0usize;
+    let len = k.len();
+    let list = words.entry(k).or_insert_with(|| {
+        added = len + 48;
+        Vec::new()
+    });
+    if list.last() != Some(&doc) {
+        list.push(doc);
+        added += 4;
+    }
     added
+}
+
+/// What [`Writer::add`] makes of a message before it files it, made on any thread: its words,
+/// each once, and its text as kept. A data file's import makes it on the threads that read the
+/// items, so its writer, which keeps them in order, only files the words.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Ready {
+    words: Vec<Vec<u8>>,
+    blob: Vec<u8>,
+    bits: u8,
+    files: u16,
+}
+
+impl Ready {
+    /// What search keeps of `doc`. A text longer than a text page keeps is cut (the doc marked
+    /// truncated).
+    pub fn of(doc: &IndexDoc) -> Ready {
+        let (blob, cut) = encode_blob(doc);
+        let bits = if doc.has_text { HAS_TEXT } else { 0 } | if doc.truncated || cut { TRUNCATED } else { 0 };
+        let mut words = BTreeSet::new();
+        each_word(format::kept_text(&doc.text), &doc.names, &mut |k| {
+            words.insert(k);
+        });
+        Ready { words: words.into_iter().collect(), blob, bits, files: u16::try_from(doc.files).unwrap_or(u16::MAX) }
+    }
+
+    /// The bytes it holds.
+    pub fn bytes(&self) -> usize {
+        self.words.iter().map(|w| w.len().saturating_add(24)).fold(self.blob.len(), usize::saturating_add)
+    }
 }
 
 impl Writer {
@@ -305,13 +347,17 @@ impl Writer {
     /// (the doc marked truncated). An error when the index has no room left (ids, folders): it
     /// must be made again; or when the folder's name is too long to keep (not added).
     pub fn add(&mut self, key: &MessageKey, msgid_hash: u64, size: u32, doc: &IndexDoc) -> Result<u32> {
+        self.add_ready(key, msgid_hash, size, Ready::of(doc))
+    }
+
+    /// [`add`](Writer::add) a message whose words were made ready elsewhere ([`Ready::of`]).
+    pub fn add_ready(&mut self, key: &MessageKey, msgid_hash: u64, size: u32, ready: Ready) -> Result<u32> {
         let (folder, id) = self.make_room(key)?;
-        let (blob, cut) = encode_blob(doc);
-        let bits = if doc.has_text { HAS_TEXT } else { 0 } | if doc.truncated || cut { TRUNCATED } else { 0 };
-        let files = u16::try_from(doc.files).unwrap_or(u16::MAX);
+        let Ready { words, blob, bits, files } = ready;
         self.docs.push(DocRec { folder, validity: key.validity, uid: key.uid, text: NO_TEXT, files, bits, msgid_hash, size });
         self.by_key.insert((folder, key.uid), id);
-        self.word_bytes = self.word_bytes.saturating_add(add_words(&mut self.words, id, format::kept_text(&doc.text), &doc.names));
+        let added = words.into_iter().map(|k| file_word(&mut self.words, id, k)).fold(0, usize::saturating_add);
+        self.word_bytes = self.word_bytes.saturating_add(added);
         self.word_docs = self.word_docs.saturating_add(1);
         self.text_bytes = self.text_bytes.saturating_add(blob.len());
         self.texts.push((id, blob));

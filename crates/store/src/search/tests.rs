@@ -708,3 +708,38 @@ fn an_index_commit_seals_its_data_file() {
     drop((w, s));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Words made ready on another thread ([`Ready`]) and filed by the writer give the index that
+/// adding the docs themselves gives: the same words, texts, files and flags, and the same bytes
+/// held for the flush.
+#[test]
+fn words_made_ready_elsewhere_are_the_same_index() {
+    let docs = [
+        text("Alpha beta beta ana@studio.example", &["Plan.PDF", "beta.txt"], 2),
+        IndexDoc { truncated: true, ..text("gamma", &[], 0) },
+        text("", &["only-a-name.zip"], 1),
+        text(&"long ".repeat(400_000), &[], 0),
+    ];
+    let (direct, ready) = (Store::memory(), Store::memory());
+    let mut a = Writer::open(&direct, "a1").unwrap();
+    let mut b = Writer::open(&ready, "a1").unwrap();
+    let made: Vec<Ready> = std::thread::scope(|t| t.spawn(|| docs.iter().map(Ready::of).collect()).join().unwrap());
+    for (uid, (doc, r)) in (1..).zip(docs.iter().zip(made)) {
+        assert_eq!(a.add(&mk("INBOX", uid), u64::from(uid), 9, doc).unwrap(), b.add_ready(&mk("INBOX", uid), u64::from(uid), 9, r).unwrap());
+    }
+    assert_eq!(a.pending_bytes(), b.pending_bytes());
+    a.flush(&direct).unwrap();
+    b.flush(&ready).unwrap();
+    let (mut ra, mut rb) = (Reader::open(&direct, "a1").unwrap().unwrap(), Reader::open(&ready, "a1").unwrap().unwrap());
+    for (field, prefix) in
+        [(Field::Body, "beta"), (Field::Body, "long"), (Field::Body, "g"), (Field::Names, "plan"), (Field::Address, "studio.example")]
+    {
+        let want = found(&mut ra, &direct, field, prefix);
+        assert!(!want.is_empty(), "{prefix}");
+        assert_eq!(found(&mut rb, &ready, field, prefix), want, "{prefix}");
+    }
+    for d in 0..4 {
+        assert_eq!(rb.info(d), ra.info(d));
+        assert_eq!(rb.text(&ready, d).unwrap(), ra.text(&direct, d).unwrap());
+    }
+}

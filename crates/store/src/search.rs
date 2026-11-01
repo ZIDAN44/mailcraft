@@ -57,7 +57,7 @@ pub use format::Blob;
 pub use pass::Pass;
 pub use reader::{DocInfo, Reader, ScanCursor};
 pub use reconcile::{Message, Plan, msgid_hash, plan, revision};
-pub use writer::{Flush, Indexed, RENUMBER_SLACK, TOMBSTONE_AGE, Writer};
+pub use writer::{Flush, Indexed, RENUMBER_SLACK, Ready, TOMBSTONE_AGE, Writer};
 
 /// The doc table's page size, in docs: a doc's id is its page × this + its slot.
 pub const DOCS_PER_PAGE: u32 = 4096;
