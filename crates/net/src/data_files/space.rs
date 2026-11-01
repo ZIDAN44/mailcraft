@@ -3,11 +3,40 @@
 //! full, rather than failing every write after and counting the messages as lost).
 
 use std::fmt::Debug;
-use std::path::Path;
+use std::io;
+use std::path::{Path, PathBuf};
 
-/// Below this much room an import stops itself, to go on once there's more: enough for the
-/// batch in hand, the folder lists and the checkpoint that end it.
+use mailcraft_store::{Store, StoreError};
+
+/// Below this much room (besides what the data file can grow by in one step) an import stops
+/// itself, to go on once there's more: enough for the batch in hand, the folder lists and the
+/// checkpoint that end it.
 pub const LOW_SPACE: u64 = 1 << 30;
+
+/// The room left in `dir`, when it's short of what writing on in the data file `file` (none: not
+/// made yet) needs: [`LOW_SPACE`], and the most the file can take in one step as it grows (a
+/// drive with more than `LOW_SPACE` free but not that fails the next write that grows it). One
+/// that can't be told isn't.
+pub(crate) fn short(space: &dyn Space, dir: &Path, file: Option<&Path>) -> Option<u64> {
+    let len = file.and_then(|f| std::fs::metadata(f).ok()).map_or(0, |m| m.len());
+    let needs = LOW_SPACE.saturating_add(mailcraft_store::data_file_growth(len));
+    space.free(dir).filter(|free| *free < needs)
+}
+
+/// Where `account`'s data file is, or goes: its folder, else the data files' folder, else the
+/// store's own (a cache not kept in data files).
+pub(crate) fn data_dir(store: &Store, account: &str) -> PathBuf {
+    store
+        .data_file(account)
+        .and_then(|f| f.parent().map(Path::to_path_buf))
+        .or_else(|| store.data_files_dir())
+        .unwrap_or_else(|| store.root().to_path_buf())
+}
+
+/// Whether a write failed for want of room on the drive.
+pub(crate) fn for_want_of_room(e: &StoreError) -> bool {
+    matches!(e, StoreError::Io { source, .. } if matches!(source.kind(), io::ErrorKind::StorageFull | io::ErrorKind::QuotaExceeded))
+}
 
 /// Where the room left on a drive is asked (the drive itself; a test's full one).
 pub trait Space: Debug + Send + Sync {

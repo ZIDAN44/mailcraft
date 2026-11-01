@@ -344,16 +344,19 @@ fn a_checkpoint_that_does_not_add_up_is_refused() {
 
 /// The drive filling up part-way: the import stops itself as a pause does (nothing counted as
 /// left out, the checkpoint saying where it got) and says why; gone on with once there's room,
-/// it's the import that never stopped. Too full to begin, it reads and writes nothing.
+/// it's the import that never stopped. Too full to begin, it reads and writes nothing. "Full" is
+/// less than [`LOW_SPACE`] and what the data file can grow by in one step: a drive with more than
+/// `LOW_SPACE` but not that is full already.
 #[test]
 fn a_full_drive_pauses_and_room_again_goes_on() {
     let (dir, pst) = data_file("resume-full", 300, false);
     let whole = store_at(&dir, "whole");
     import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
     let store = store_at(&dir, "part");
-    let o = ImportOptions { space: Some(Arc::new(Filling::new(4, 1 << 20))), ..often(None) };
+    let left = LOW_SPACE + (32 << 20);
+    let o = ImportOptions { space: Some(Arc::new(Filling::new(4, left))), ..often(None) };
     let part = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
-    assert_eq!(part.blocked, Some(Blocked::DiskFull { free: 1 << 20 }));
+    assert_eq!(part.blocked, Some(Blocked::DiskFull { free: left }));
     assert_eq!((part.stopped, part.skipped), (Some(StopHow::Pause), 0));
     assert!(part.skips.is_empty(), "{:?}", part.skips);
     assert!(part.messages > 0 && part.messages < 900, "stopped part-way: {}", part.messages);
@@ -364,10 +367,44 @@ fn a_full_drive_pauses_and_room_again_goes_on() {
 
     // Too full to begin: nothing is read, and no data file is made.
     let empty = store_at(&dir, "empty");
-    let o = ImportOptions { space: Some(Arc::new(Filling::new(0, LOW_SPACE - 1))), ..opts(2, None) };
+    let o = ImportOptions { space: Some(Arc::new(Filling::new(0, left))), ..opts(2, None) };
     let mut told = 0;
     let none = import_with(&pst, &empty, "a1", &o, &mut |_| told += 1).unwrap();
-    assert_eq!((none.blocked, none.messages, told), (Some(Blocked::DiskFull { free: LOW_SPACE - 1 }), 0, 0));
+    assert_eq!((none.blocked, none.messages, told), (Some(Blocked::DiskFull { free: left }), 0, 0));
     assert!(empty.data_file("a1").is_none_or(|f| !f.exists()), "no data file");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The drive filling up between two looks at it (something else wrote to it meanwhile): the
+/// write it refuses stops the import as a full drive does, nothing more is written and nothing
+/// is counted as left out; it says the messages its last checkpoint had, and gone on with once
+/// there's room, it's the import that never stopped.
+#[test]
+fn a_write_the_full_drive_refuses_pauses_and_room_again_goes_on() {
+    let (dir, pst) = data_file("resume-refused", 300, false);
+    let whole = Store::failing();
+    import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
+    let roomy = || Some(Arc::new(Filling::new(usize::MAX, 0)) as Arc<dyn crate::space::Space>);
+    for at in [200, 450] {
+        let store = Store::failing();
+        let o = ImportOptions { space: roomy(), ..often(None) };
+        let part = import_with(&pst, &store, "a1", &o, &mut |p| {
+            if p.read >= at {
+                store.fail(None, Some("#.eml"));
+            }
+        })
+        .unwrap();
+        assert!(matches!(part.blocked, Some(Blocked::DiskFull { .. })), "{at}: {:?}", part.blocked);
+        assert_eq!((part.stopped, part.skipped), (Some(StopHow::Pause), 0), "{at}");
+        assert!(!part.skips.contains_key(&SkipReason::NotWritten), "{at}: {:?}", part.skips);
+        let cp = checkpoint(&store);
+        assert_eq!((cp.state, part.messages), (CheckState::Running, usize::try_from(cp.counts.imported).unwrap()), "{at}");
+        assert!(part.messages < 900, "{at}: stopped part-way: {}", part.messages);
+        store.fail(None, None);
+        let o = ImportOptions { resume: true, space: roomy(), ..opts(2, None) };
+        let done = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
+        assert_eq!((done.messages, done.skipped, done.runs, done.blocked), (900, 0, 2, None), "{at}");
+        assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "{at}");
+    }
     let _ = std::fs::remove_dir_all(&dir);
 }

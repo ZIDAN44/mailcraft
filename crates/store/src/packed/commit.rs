@@ -236,12 +236,12 @@ impl Seals {
 /// An empty sealed commit of `account`'s data file (durable: it also writes out the batches
 /// before it).
 pub(super) fn seal(db: &Database, seals: &Seals, account: &str) -> io::Result<()> {
-    let mut tx = db.begin_write().map_err(other)?;
+    let mut tx = db.begin_write().map_err(disk)?;
     tx.set_quick_repair(true);
     let before = seals.count(account, None);
     tx.commit().map_err(|e| {
         seals.restore(account, before);
-        other(e)
+        disk(e)
     })
 }
 
@@ -256,9 +256,32 @@ impl Packs {
         f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
     ) -> io::Result<()> {
         let Some(db) = self.db(account, true)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
+        let done = self.change_in(&db, account, how, undurable, f);
+        if let Err(e) = &done
+            && from_disk(e)
+        {
+            // The database refuses everything after a write the disk failed (a full drive) until
+            // it's opened again: let go of it, and the next use opens it again, checked as after
+            // a crash (back to its last durable commit).
+            log::warn!("{account}: its data file failed to be written ({e}); it will be opened again");
+            drop(db);
+            self.close(account);
+            self.seals.forget(account);
+        }
+        done
+    }
+
+    fn change_in(
+        &self,
+        db: &Arc<Database>,
+        account: &str,
+        how: Commit,
+        undurable: usize,
+        f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
+    ) -> io::Result<()> {
         #[cfg(test)]
         let start = Instant::now();
-        let mut tx = db.begin_write().map_err(other)?;
+        let mut tx = db.begin_write().map_err(disk)?;
         // Writes from the window only (a background batch names its size).
         #[cfg(test)]
         if how.durable && undurable == 0 {
@@ -279,7 +302,7 @@ impl Packs {
         }
         tx.set_quick_repair(how.seal);
         {
-            let mut tables = Tables { files: tx.open_table(FILES).map_err(other)?, pieces: tx.open_table(PIECES).map_err(other)? };
+            let mut tables = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)? };
             f(&mut tables)?;
         }
         let before = self.seals.count(account, (!how.durable).then_some(undurable));
@@ -287,12 +310,12 @@ impl Packs {
         let at = Instant::now();
         if let Err(e) = tx.commit() {
             self.seals.restore(account, before);
-            return Err(other(e));
+            return Err(disk(e));
         }
         if how.seal {
             self.seals.sealed(account, at);
         } else {
-            self.seals.written(account, &db);
+            self.seals.written(account, db);
         }
         Ok(())
     }

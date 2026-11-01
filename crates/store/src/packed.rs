@@ -39,6 +39,52 @@ fn other(e: impl std::fmt::Display) -> io::Error {
     io::Error::other(e.to_string())
 }
 
+/// A database error as an I/O one, keeping the disk's own error when that's what it was: a full
+/// drive stays one ([`io::ErrorKind::StorageFull`]), for a writer that stops for want of room.
+fn disk(e: impl Into<redb::Error>) -> io::Error {
+    match e.into() {
+        redb::Error::Io(e) => e,
+        redb::Error::PreviousIo => io::Error::other(Refusing),
+        e => other(e),
+    }
+}
+
+/// The database refusing everything after an earlier write the disk failed (made by another
+/// thread: the seal, a reader).
+#[derive(Debug)]
+struct Refusing;
+
+impl std::fmt::Display for Refusing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the data file failed to be written earlier, and is opened again")
+    }
+}
+
+impl std::error::Error for Refusing {}
+
+/// Whether a write failed at the disk itself (a full drive, a failing one), now or before, rather
+/// than over what was written: the database then refuses everything until it's opened again.
+fn from_disk(e: &io::Error) -> bool {
+    e.raw_os_error().is_some() || e.kind() == io::ErrorKind::StorageFull || e.get_ref().is_some_and(|i| i.is::<Refusing>())
+}
+
+/// The room a data file of `len` bytes can take from the drive in one step as it's written: the
+/// database grows it by doubling up to one region ([`REGION`]), then to the end of the region it
+/// ends in, or past the next one when there's too little left in that. A writer that leaves this
+/// much free as well as what it needs never meets a full drive part-way through a write.
+pub fn growth(len: u64) -> u64 {
+    if len < REGION {
+        return len.max(64 << 20);
+    }
+    let gap = REGION - len % REGION;
+    if gap < 1 << 30 { gap.saturating_add(REGION) } else { gap }
+}
+
+/// How far a data file grows at most in one step, past its first: a region of the database, at
+/// its default (the data files are opened with no region size of their own, `open.rs`): 2^20
+/// pages of 4 KiB.
+const REGION: u64 = 4 << 30;
+
 /// Where a store path lives.
 enum Place {
     /// An ordinary file (directly in the root, or outside it).
@@ -60,6 +106,9 @@ pub(crate) struct Packs {
     seals: Arc<Seals>,
     /// How opening the data files goes (and a check of one, whoever opens it).
     pub(crate) progress: Arc<OpenProgress>,
+    /// A test's drive: full while it's set (growing a data file fails as on a full drive).
+    #[cfg(test)]
+    pub(super) full: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl std::fmt::Debug for Packs {
@@ -88,6 +137,8 @@ impl Packs {
             names: Mutex::new(names),
             seals: Arc::default(),
             progress: Arc::default(),
+            #[cfg(test)]
+            full: Arc::default(),
         })
     }
 

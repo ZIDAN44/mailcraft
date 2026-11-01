@@ -25,6 +25,8 @@ mod packed;
 pub mod search;
 #[cfg(not(target_arch = "wasm32"))]
 pub use packed::EXTENSION as DATA_FILE_EXTENSION;
+#[cfg(not(target_arch = "wasm32"))]
+pub use packed::growth as data_file_growth;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -473,8 +475,8 @@ impl Store {
 
     /// From now on, a [`Store::failing`] cache fails to read the files whose path ends with
     /// `reads` (`state.json`, `.eml`), and to write, rename or remove those ending with `writes`;
-    /// `None` lets them work again; a leading `!` makes them damaged rather than failing. Other
-    /// caches ignore it.
+    /// `None` lets them work again; a leading `!` makes them damaged rather than failing, and a
+    /// leading `#` fails them as a full drive would. Other caches ignore it.
     #[doc(hidden)]
     pub fn fail(&self, reads: Option<&str>, writes: Option<&str>) {
         if let Files::Failing(f) = &self.files.main {

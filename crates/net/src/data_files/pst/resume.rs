@@ -408,6 +408,7 @@ impl Out<'_> {
         note.resumed_deferred = cp.deferred;
         self.sent = super::out::sent_ids::SentIds::from_map(&cp.sent);
         self.folders = cp.folders;
+        self.room_kept();
         skip
     }
 
@@ -652,16 +653,20 @@ impl Out<'_> {
         self.note.last = Some(Instant::now());
         if ok {
             self.note.pim_dirty = false;
+            self.room_kept();
         }
     }
 
     /// Write a checkpoint now, on its own (every source handed to the store is written).
     pub(super) fn checkpoint(&mut self) {
-        if !self.note.ready {
+        // Not before the file is known, nor once writing stopped for want of room: the last one
+        // written is where the import goes on from.
+        if !self.note.ready || self.writes_stopped() {
             return;
         }
         // Its list's tail names messages waiting for their sources: it goes with them.
-        if self.write_pending(true) {
+        // A batch refused for want of room stops writing: no checkpoint goes past it.
+        if self.write_pending(true) || self.writes_stopped() {
             return;
         }
         let docs = self.checkpoint_docs();

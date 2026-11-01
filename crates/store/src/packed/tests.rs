@@ -4,6 +4,7 @@ use crate::Store;
 
 mod bulk;
 mod commits;
+pub(super) mod full;
 mod opening;
 
 fn temp(name: &str) -> std::path::PathBuf {

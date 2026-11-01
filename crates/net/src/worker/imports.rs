@@ -5,11 +5,11 @@
 //! still has it. A MailCraft data file is copied in whole or not at all. A file looked at before
 //! it's imported is planned then, and its import goes by that plan.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::sync::PoisonError;
 
-use mailcraft_model::job::{DataFileFacts, ImportPhase, ImportProgress, ImportReport, StopHow, Work};
+use mailcraft_model::job::{Blocked, DataFileFacts, ImportPhase, ImportProgress, ImportReport, StopHow, Work};
 use mailcraft_model::pim::{PIM_DOC, Pim};
 
 use super::*;
@@ -31,6 +31,8 @@ const COPY_PCT: u64 = 98;
 /// the drive keeps some room after.
 const NEED_PCT: u64 = 130;
 const NEED_EXTRA: u64 = 2 << 30;
+/// How often a copy of MailCraft's own data file asks the room left as it goes.
+const ROOM_EVERY: Duration = Duration::from_millis(250);
 
 /// The imports running, by account, and the data file looked at last, as planned.
 #[derive(Default)]
@@ -243,8 +245,8 @@ impl Pool {
     }
 }
 
-/// Where the room is asked for a data file looked at: the computer's own drives (a test's, in a
-/// test that gave one).
+/// Where the room is asked for a data file looked at, or for an account's copy (by the account):
+/// the computer's own drives (a test's, in a test that gave one).
 fn drive_for(path: &str) -> Arc<dyn crate::space::Space> {
     #[cfg(test)]
     if let Some(drive) = tests::space_for(path) {
@@ -378,9 +380,18 @@ fn never_began(sink: &Sink, account: &str, path: &str, how: StopHow) -> Option<P
 /// MailCraft's own data file copied in, asked as it's copied whether to stop. Stopped part-way,
 /// nothing of it is kept: a part of a data file, copied in the order it keeps its files, is no
 /// account's mail (folder lists naming messages not there, all of them still the old account's).
+/// The room left is asked as it begins and every [`ROOM_EVERY`] as it goes: short of what writing
+/// on needs, or with a write the drive refuses, it stops as a pause does and waits on the user
+/// (gone on with, it's copied from the start).
 fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
     let (store, sink, account, stop) = (told.store, told.sink, told.account, told.stop);
+    let (space, dir) = (drive_for(account), crate::space::data_dir(store, account));
+    if let Some(free) = crate::space::short(space.as_ref(), &dir, store.data_file(account).as_deref()) {
+        copy_blocked(told, free);
+        return None;
+    }
     let file = RefCell::new(told.file.clone());
+    let (full, asked) = (Cell::new(None), Cell::new(None::<Instant>));
     let copied = store.import_data_file_until(account, Path::new(path), &|| {
         #[cfg(test)]
         if let Some(crate::pst::Fault::Slow(ms)) = tests::fault_for(account) {
@@ -390,7 +401,14 @@ fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
         if file.borrow().is_none() && stop.how() != Some(StopHow::Discard) {
             *file.borrow_mut() = store.data_file(account);
         }
-        stop.raised()
+        if stop.raised() || full.get().is_some() {
+            return true;
+        }
+        if asked.get().is_none_or(|t: Instant| t.elapsed() >= ROOM_EVERY) {
+            asked.set(Some(Instant::now()));
+            full.set(crate::space::short(space.as_ref(), &dir, file.borrow().as_deref()));
+        }
+        full.get().is_some()
     });
     told.file = file.into_inner();
     if stop.how() == Some(StopHow::Discard) {
@@ -398,8 +416,19 @@ fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
     }
     let messages = match copied {
         Ok(n) => n,
+        // A stop asked for wins over a full drive.
         Err(mailcraft_store::StoreError::Io { source, .. }) if source.kind() == std::io::ErrorKind::Interrupted && stop.raised() => {
             return stopped_copy(told, path);
+        }
+        Err(e) if full.get().is_some() || crate::space::for_want_of_room(&e) => {
+            let free = full.get().or_else(|| space.free(&dir)).unwrap_or(0);
+            log::warn!("{account}: the drive is full ({} MiB left); the copy stopped until there's more", free >> 20);
+            let (error, left) = remove_written(told, false);
+            if let Some(e) = error {
+                log::warn!("{account}: {e}");
+            }
+            copy_blocked(told, free);
+            return left;
         }
         // Any other error is said, whatever was asked meanwhile.
         Err(e) => {
@@ -437,6 +466,12 @@ fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
     }
     sink.emit(Event::Imported { account: account.to_string(), messages, skipped: 0, done: true, error: None, report: Some(Box::new(report)) });
     None
+}
+
+/// A copy that can't go on for want of room (`free` left): it waits on the user, saying why.
+fn copy_blocked(told: &Told<'_>, free: u64) {
+    let progress = ImportProgress { blocked: Some(Blocked::DiskFull { free }), ..told.progress(ImportPhase::Blocked) };
+    told.sink.emit(Event::ImportProgress { account: told.account.to_string(), progress });
 }
 
 /// A copy cancelled, or paused as MailCraft closes, part-way: what came in goes (the account is

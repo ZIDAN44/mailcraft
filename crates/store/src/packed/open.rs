@@ -225,7 +225,7 @@ impl Packs {
         }
         let checked = Arc::new(AtomicBool::new(false));
         let _over = CheckOver(&self.progress);
-        let db = match self.builder(&name, &checked, cache).create(&path) {
+        let db = match self.create(&self.builder(&name, &checked, cache), &path) {
             Ok(db) => db,
             Err(redb::DatabaseError::DatabaseAlreadyOpen) => {
                 return Err(other(format!("{} is open in another copy of MailCraft", path.display())));
@@ -255,6 +255,18 @@ impl Packs {
             open.caches.insert(account.to_string(), cache);
         }
         Ok(Some(db))
+    }
+
+    /// The data file at `path` opened as `b` says (made when it isn't there).
+    #[cfg(not(test))]
+    fn create(&self, b: &redb::Builder, path: &Path) -> std::result::Result<Database, redb::DatabaseError> {
+        b.create(path)
+    }
+
+    /// …on a drive a test can fill ([`Packs::full`]).
+    #[cfg(test)]
+    fn create(&self, b: &redb::Builder, path: &Path) -> std::result::Result<Database, redb::DatabaseError> {
+        super::tests::full::create(b, path, &self.full)
     }
 
     /// How a data file named `name` opens: its cache of `cache` bytes, and its check (if it needs

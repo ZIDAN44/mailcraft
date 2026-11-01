@@ -27,10 +27,15 @@ pub(super) struct Faults {
 
 impl Faults {
     /// An error when `rule` names how `p` ends: never "not found", which the store reads as an
-    /// empty file. A rule starting with `!` is a damaged file (invalid data), not a failing disk.
+    /// empty file. A rule starting with `!` is a damaged file (invalid data), and one starting
+    /// with `#` a full drive, not a failing disk.
     fn check(rule: &Mutex<Option<String>>, p: &Path) -> io::Result<()> {
         let rule = rule.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some(rule) = rule.as_deref() else { return Ok(()) };
+        if let Some(end) = rule.strip_prefix('#') {
+            let full = p.to_string_lossy().replace('\\', "/").ends_with(end);
+            return if full { Err(io::Error::new(io::ErrorKind::StorageFull, "full on purpose")) } else { Ok(()) };
+        }
         let (damaged, end) = match rule.strip_prefix('!') {
             Some(end) => (true, end),
             None => (false, rule),

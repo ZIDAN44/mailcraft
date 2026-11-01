@@ -188,8 +188,14 @@ written (`Compose`), preferences and status-bar notices.
   user with nothing written; a `Done` note answers without reading the file. The room left where
   the data file is written (`net::space`, `fs4` on the nearest folder there) is asked as the
   import begins, with every checkpoint and every 64 MiB written (`pst/out/room.rs`): under
-  `LOW_SPACE` (1 GiB) it stops itself as a pause does and waits as `Blocked::DiskFull`, nothing
-  counted as left out. The note wins over
+  `LOW_SPACE` (1 GiB) plus what the data file can grow by in one step (`store::data_file_growth`:
+  redb grows it by doubling, then a 4 GiB region at a time) it stops itself as a pause does and
+  waits as `Blocked::DiskFull`, nothing counted as left out. A write that fails at the disk makes
+  the store let go of the data file (redb refuses everything after one until it's opened again,
+  back at its last durable commit) and keeps the drive's own error, so a full drive stays
+  `StorageFull`: the import then writes nothing more and stops at its last checkpoint. A
+  `.mailcraft` copied in asks the same every 250 ms and, short of room, waits with nothing kept.
+  The note wins over
   `imports.json` as MailCraft opens (`accounts/importing/note.rs`): a `Cancelled` one isn't gone
   on with by itself, and a data file's account with a `Running` or `Cancelled` note and no record
   gets one back. An import interrupted

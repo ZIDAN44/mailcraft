@@ -1720,10 +1720,14 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   room free on the drive of the data files' folder (or the nearest folder above it that's
   there); Import is offered only when it fits, and a room that can't be told doesn't stop it.
   An import asks for the room as it begins, with every checkpoint and every 64 MB it writes:
-  with less than 1 GB left it stops as a pause does, keeping and listing what came in, nothing
-  counted as left out, and waits saying the drive is too full; Continue asks again, and goes on
-  from where it stopped once there's room. A file that makes the reader fail as it's looked at
-  is said to be one that couldn't be looked at.
+  with less than 1 GB left, besides what the data file can grow by in one step (up to 4 GB once
+  it's past 4 GB), it stops as a pause does, keeping and listing what came in, nothing counted as
+  left out, and waits saying the drive is too full; Continue asks again, and goes on from where
+  it stopped once there's room. A write the drive refuses all the same (something else filled
+  it) stops it the same way, going on from its last checkpoint, where it used to count every
+  batch after as lost; and a MailCraft data file copied in asks for the room too, waiting with
+  none of it kept when the drive fills. A file that makes the reader fail as it's looked at is
+  said to be one that couldn't be looked at.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

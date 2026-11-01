@@ -392,30 +392,7 @@ fn an_import_queued_and_thrown_away_gives_way_to_the_next() {
 #[test]
 fn a_mailcraft_copy_stopped_part_way_keeps_nothing() {
     let (dir, _pst, store, mut p) = setup("copy-stop", 0, 0, "m1", 200);
-    // A data file of more than one batch: big messages that don't compress, filed after the
-    // folder list, so the list comes in with the first batch.
-    let old = Store::open_packed(dir.join("old"), dir.join("Old Files")).unwrap();
-    let folder = Folder { account: "old".into(), path: "zz".into(), ..Folder::default() };
-    old.save_folders("old", std::slice::from_ref(&folder)).unwrap();
-    let mut st = old.load_folder("old", "zz").unwrap();
-    st.validity = 1;
-    let mut x = 0x9E37_79B9_7F4A_7C15u64;
-    for uid in 1..=4 {
-        let key = MessageKey { account: "old".into(), folder: "zz".into(), validity: 1, uid };
-        let body: Vec<u8> = (0..12 << 20)
-            .map(|_| {
-                x ^= x << 13;
-                x ^= x >> 7;
-                x ^= x << 17;
-                x as u8
-            })
-            .collect();
-        old.write_body(&key, &body).unwrap();
-        st.messages.push(Summary { key, ..Summary::default() });
-    }
-    old.save_folder("old", "zz", &st).unwrap();
-    let source = old.data_file("old").unwrap();
-    drop(old);
+    let source = big_data_file(&dir);
     let path = source.to_string_lossy().into_owned();
 
     for (account, how) in [("m1", StopHow::Cancel), ("m2", StopHow::Pause)] {
@@ -450,6 +427,79 @@ fn a_mailcraft_copy_stopped_part_way_keeps_nothing() {
     }
     assert!(source.exists(), "the file copied from stays");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A MailCraft data file whose copy finds the drive full: as it begins, it waits on the user with
+/// nothing copied; part-way, none of it is kept (as when paused) and it waits the same. Gone on
+/// with once there's room, it's copied whole.
+#[test]
+fn a_mailcraft_copy_onto_a_full_drive_waits_with_nothing_kept() {
+    let (dir, _pst, store, mut p) = setup("copy-full", 0, 0, "c1", 0);
+    let source = big_data_file(&dir);
+    let path = source.to_string_lossy().into_owned();
+    let blocked = |e: &Event| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Blocked);
+    let full = |seen: &[Event], free: u64| matches!(seen.last(), Some(Event::ImportProgress { progress, .. }) if progress.blocked == Some(mailcraft_model::job::Blocked::DiskFull { free }));
+    let wait = |p: &Pool| {
+        let end = Instant::now() + Duration::from_secs(10);
+        while p.importing("c1") && Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    };
+    // Too full to begin: asked once, nothing copied.
+    let drive = give_drive("c1", Filling::new(0, LOW_SPACE - 1));
+    p.submit(Job::ImportPst { account: "c1".into(), path: path.clone(), resume: false });
+    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    assert!(full(&seen, LOW_SPACE - 1), "{seen:?}");
+    assert_eq!(drive.asks(), 1);
+    assert!(store.data_file("c1").is_none_or(|f| !f.exists()), "no data file");
+    wait(&p);
+    // Roomy as it begins, full as it goes: none of it kept.
+    slow("c1", 100);
+    give_drive("c1", Filling::new(2, 300 << 20));
+    p.submit(Job::ImportPst { account: "c1".into(), path: path.clone(), resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    assert!(full(&seen, 300 << 20), "{seen:?}");
+    assert!(!seen.iter().any(|e| matches!(e, Event::Folders { .. })), "no folders said: {seen:?}");
+    assert!(store.load_folders("c1").unwrap().is_empty(), "nothing kept");
+    assert!(store.data_file("c1").is_none(), "its data file went");
+    wait(&p);
+    // Room again: copied whole.
+    slow("c1", 0);
+    give_drive("c1", Filling::new(usize::MAX, 0));
+    p.submit(Job::ImportPst { account: "c1".into(), path, resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    assert!(matches!(seen.last(), Some(Event::Imported { messages: 4, error: None, .. })), "{seen:?}");
+    assert_eq!(store.load_folder("c1", "zz").unwrap().messages.len(), 4);
+    assert!(source.exists(), "the file copied from stays");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A MailCraft data file of more than one batch, in `dir`: big messages that don't compress, filed
+/// after the folder list, so the list comes in with the first batch.
+fn big_data_file(dir: &Path) -> PathBuf {
+    let old = Store::open_packed(dir.join("old"), dir.join("Old Files")).unwrap();
+    let folder = Folder { account: "old".into(), path: "zz".into(), ..Folder::default() };
+    old.save_folders("old", std::slice::from_ref(&folder)).unwrap();
+    let mut st = old.load_folder("old", "zz").unwrap();
+    st.validity = 1;
+    let mut x = 0x9E37_79B9_7F4A_7C15u64;
+    for uid in 1..=4 {
+        let key = MessageKey { account: "old".into(), folder: "zz".into(), validity: 1, uid };
+        let body: Vec<u8> = (0..12 << 20)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x as u8
+            })
+            .collect();
+        old.write_body(&key, &body).unwrap();
+        st.messages.push(Summary { key, ..Summary::default() });
+    }
+    old.save_folder("old", "zz", &st).unwrap();
+    let source = old.data_file("old").unwrap();
+    drop(old);
+    source
 }
 
 /// Paused as MailCraft closes, an import asked to go on does, from where it stopped: it ends with

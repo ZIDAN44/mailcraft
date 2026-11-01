@@ -125,7 +125,7 @@ pub(super) struct Tables<'t> {
 
 impl Tables<'_> {
     pub(super) fn has(&self, key: &str) -> io::Result<bool> {
-        Ok(self.files.get(key).map_err(other)?.is_some())
+        Ok(self.files.get(key).map_err(disk)?.is_some())
     }
 
     /// Keep `bytes` at `key` (replacing what was there), compressed when that helps.
@@ -141,16 +141,16 @@ impl Tables<'_> {
             self.drop_pieces(key)?;
         }
         if bytes.len() <= WHOLE_MAX {
-            self.files.insert(key, bytes).map_err(other)?;
+            self.files.insert(key, bytes).map_err(disk)?;
             return Ok(());
         }
         let mut note = PIECED.to_vec();
         note.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
-        self.files.insert(key, note.as_slice()).map_err(other)?;
+        self.files.insert(key, note.as_slice()).map_err(disk)?;
         let mut at = 0;
         for (i, n) in piece_sizes(bytes.len()).into_iter().enumerate() {
             let piece = bytes.get(at..at + n).ok_or_else(|| other("piece out of range"))?;
-            self.pieces.insert((key, u32::try_from(i).map_err(other)?), piece).map_err(other)?;
+            self.pieces.insert((key, u32::try_from(i).map_err(other)?), piece).map_err(disk)?;
             at += n;
         }
         Ok(())
@@ -158,10 +158,10 @@ impl Tables<'_> {
 
     /// Take the file at `key` out: its bytes as kept (still compressed), when it was there.
     pub(super) fn take_kept(&mut self, key: &str) -> io::Result<Option<Vec<u8>>> {
-        let Some(v) = self.files.remove(key).map_err(other)?.map(|g| g.value().to_vec()) else { return Ok(None) };
+        let Some(v) = self.files.remove(key).map_err(disk)?.map(|g| g.value().to_vec()) else { return Ok(None) };
         let Some(len) = pieced_len(&v) else { return Ok(Some(v)) };
         let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(1 << 30));
-        for (_, piece) in self.pieces.extract_from_if((key, 0)..=(key, u32::MAX), |_, _| true).map_err(other)?.flatten() {
+        for (_, piece) in self.pieces.extract_from_if((key, 0)..=(key, u32::MAX), |_, _| true).map_err(disk)?.flatten() {
             out.extend_from_slice(piece.value());
         }
         Ok(Some(out))
@@ -169,7 +169,7 @@ impl Tables<'_> {
 
     /// Take the file at `key` out without reading it (nothing to do when it isn't there).
     pub(super) fn remove(&mut self, key: &str) -> io::Result<()> {
-        let pieced = self.files.remove(key).map_err(other)?.is_some_and(|g| pieced_len(g.value()).is_some());
+        let pieced = self.files.remove(key).map_err(disk)?.is_some_and(|g| pieced_len(g.value()).is_some());
         if pieced {
             self.drop_pieces(key)?;
         }
@@ -177,7 +177,7 @@ impl Tables<'_> {
     }
 
     fn drop_pieces(&mut self, key: &str) -> io::Result<()> {
-        self.pieces.retain_in((key, 0)..=(key, u32::MAX), |_, _| false).map_err(other)
+        self.pieces.retain_in((key, 0)..=(key, u32::MAX), |_, _| false).map_err(disk)
     }
 }
 

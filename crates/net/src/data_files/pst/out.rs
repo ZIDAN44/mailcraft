@@ -375,9 +375,22 @@ impl Out<'_> {
 
     /// Write the sources read so far, together, and the checkpoint with them when `checkpoint`;
     /// returns whether a checkpoint was written. A batch that can't be written leaves its
-    /// messages out of their folders' lists (counted as skipped), as one failed write did.
+    /// messages out of their folders' lists (counted as skipped), as one failed write did; one
+    /// refused for want of room stops the writing ([`Out::out_of_room`]) and isn't counted:
+    /// its messages are read again going on. Once writing has stopped, a batch goes nowhere.
     pub(super) fn write_pending(&mut self, checkpoint: bool) -> bool {
         if self.pending.is_empty() {
+            return false;
+        }
+        if self.writes_stopped() {
+            let batch = std::mem::take(&mut self.pending);
+            self.pending_bytes = 0;
+            self.pending_raw = 0;
+            let keys: Vec<MessageKey> = batch.into_iter().map(|(k, _)| k).collect();
+            self.unlist(&keys);
+            self.index_written(false);
+            let charge = std::mem::take(&mut self.pending_charge);
+            self.budget.release(charge);
             return false;
         }
         self.mind_room(self.pending_bytes, checkpoint);
@@ -398,23 +411,38 @@ impl Out<'_> {
         // Their words go into the index once their sources are in.
         let ok = wrote.is_ok();
         self.index_written(ok);
-        if let Err(e) = wrote {
-            log::warn!("import: {e}");
-            for key in &keys {
-                if let Some(st) = self.states.get_mut(&key.folder) {
-                    st.waiting.retain(|m| m.key.uid != key.uid);
-                }
+        match wrote {
+            Err(e) if room::for_want_of_room(&e) => {
+                self.unlist(&keys);
+                self.out_of_room();
             }
-            self.imported = self.imported.saturating_sub(keys.len());
-            self.skip(SkipReason::NotWritten, keys.len());
+            Err(e) => {
+                log::warn!("import: {e}");
+                self.unlist(&keys);
+                self.imported = self.imported.saturating_sub(keys.len());
+                self.skip(SkipReason::NotWritten, keys.len());
+            }
+            Ok(()) => {}
         }
         // Written (or not): what they held of the budget goes back.
         self.budget.release(charge);
         checkpoint && ok
     }
 
+    /// Messages whose sources weren't written, kept out of their folders' lists.
+    fn unlist(&mut self, keys: &[MessageKey]) {
+        for key in keys {
+            if let Some(st) = self.states.get_mut(&key.folder) {
+                st.waiting.retain(|m| m.key.uid != key.uid);
+            }
+        }
+    }
+
     /// Hand a folder's messages whose sources are written to its list (full pages go out).
     fn list_out(&mut self, path: &str) {
+        if self.writes_stopped() {
+            return;
+        }
         let Some(st) = self.states.get_mut(path) else { return };
         let ready = std::mem::take(&mut st.waiting);
         if let Err(e) = self.tally.time(Phase::Commit, || st.list.push(self.store, ready)) {
@@ -428,6 +456,10 @@ impl Out<'_> {
     /// comes in.
     pub(super) fn save_folder(&mut self, path: &str) {
         self.flush();
+        // Nothing more is written: the folder is read again going on.
+        if self.writes_stopped() {
+            return;
+        }
         self.list_out(path);
         let Some(st) = self.states.remove(path) else { return };
         let head = FolderState { validity: 1, uid_next: st.uid_next, ..Default::default() };
@@ -460,6 +492,10 @@ impl Out<'_> {
         }
         self.published = Some(Instant::now());
         self.checkpoint();
+        // The checkpoint naming them done wasn't written: they're read again going on.
+        if self.writes_stopped() {
+            return None;
+        }
         match self.tally.time(Phase::Commit, || self.store.upsert_folders(self.account, &self.finished)) {
             Ok(()) => {
                 for f in std::mem::take(&mut self.finished) {
@@ -494,6 +530,12 @@ impl Out<'_> {
     /// What went in so far made durable, its words written to the search index, and the data
     /// file sealed: the end of every import, finished or given up on.
     pub(super) fn seal(&mut self) {
+        // Writing stopped for want of room: the data file is opened again when it's next used,
+        // and what the index holds unwritten goes (its messages are read again going on).
+        if self.writes_stopped() {
+            self.index = None;
+            return;
+        }
         self.index_end();
         if let Err(e) = self.tally.time(Phase::Commit, || self.store.seal(self.account)) {
             log::warn!("import: {e}");
@@ -566,7 +608,7 @@ impl Out<'_> {
         // failed as it finished, too) are added as they stand: what the window changed meanwhile
         // stays.
         let mut last_save = self.publish(true);
-        if self.pim.cards.len() + self.pim.events.len() + self.pim.notes.len() > 0 {
+        if !self.writes_stopped() && self.pim.cards.len() + self.pim.events.len() + self.pim.notes.len() > 0 {
             self.pim.ensure_defaults();
             if let Err(e) = self.tally.time(Phase::Commit, || self.store.save_account_doc(self.account, PIM_DOC, &self.pim)) {
                 last_save.get_or_insert(e.to_string());
@@ -585,13 +627,18 @@ impl Out<'_> {
 
     /// What the import came to, with `folders`.
     fn came_to(&mut self, folders: Vec<Folder>, stopped: Option<StopHow>, stopped_in: Option<String>, last_save: Option<String>) -> Imported {
+        // Writing stopped for want of room: the run comes to its last checkpoint, whose folders
+        // done are listed already.
+        let kept = self.kept_when_refused();
+        let folders = if kept.is_some() { Vec::new() } else { folders };
+        let (imported, skipped) = kept.unwrap_or((self.imported, self.skipped));
         Imported {
             folders,
-            messages: self.imported,
+            messages: imported,
             contacts: self.pim.cards.len(),
             events: self.pim.events.len(),
             notes: self.pim.notes.len(),
-            skipped: self.skipped,
+            skipped,
             skips: std::mem::take(&mut self.skips),
             body_not_converted: self.body_not_converted,
             stopped,
