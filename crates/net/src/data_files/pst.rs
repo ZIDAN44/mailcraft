@@ -9,6 +9,11 @@
 //!
 //! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
 //! can't be read are skipped and counted, and sizes are capped.
+//!
+//! An import runs on several threads at once: a planner reads the folders and hands out their
+//! items (`plan`), lanes read the items and make their messages, each through a handle on the
+//! file of its own (`lanes`), within a budget of bytes held at once (`budget`), and the writer,
+//! the thread that called, keeps them in the order the planner gave (`order`).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
@@ -29,15 +34,19 @@ use outlook_pst::ltp::table_context::{TableContext, TableRowData};
 use outlook_pst::messaging::attachment::{AnsiAttachment, Attachment, AttachmentData, UnicodeAttachment};
 use outlook_pst::messaging::folder::Folder as PstFolder;
 use outlook_pst::messaging::message::{AnsiMessage, Message, UnicodeMessage};
-use outlook_pst::messaging::store::{AnsiStore, EntryId, Store as PstStore, UnicodeStore};
+use outlook_pst::messaging::store::{AnsiStore, Store as PstStore, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::{AnsiPstFile, UnicodePstFile};
 
+mod budget;
 mod chunked;
 mod embedded;
 mod item;
+mod lanes;
 mod open;
+mod order;
 mod out;
+mod plan;
 mod props;
 mod rebuild;
 mod report;
@@ -57,6 +66,8 @@ pub(crate) use props::text_of;
 const MAX_DEPTH: usize = 32;
 /// Attachments larger than this are left out of the imported message.
 const MAX_ATTACHMENT: usize = 100 * 1024 * 1024;
+/// The most an item is charged for before it's read, whatever the file says it weighs.
+const MAX_CHARGE: u64 = 128 * 1024 * 1024;
 /// A value (a body, an attachment's bytes, a table's rows, a store's, folder's or the name map's
 /// properties) the file says is larger than this is an error before any of it is read: a damaged
 /// size can't make the import, or an export that reads the file it adds to, run out of memory.
@@ -120,6 +131,26 @@ pub struct Progress {
     /// Messages written so far, and items left out.
     pub imported: usize,
     pub skipped: usize,
+    /// Items in the file (0 until it's known), and the bytes it gives the items read so far,
+    /// and all of them.
+    pub total: usize,
+    pub bytes_done: u64,
+    pub bytes_total: u64,
+}
+
+/// Told how an import goes, as it goes.
+pub trait ImportSink {
+    /// How far it has got, every so often.
+    fn progress(&mut self, p: Progress);
+    /// A folder is done: written, listed, counted and in the account's folder list. Each is
+    /// said once, after the folder it's in.
+    fn folder(&mut self, _done: &Folder) {}
+}
+
+impl<F: FnMut(Progress)> ImportSink for F {
+    fn progress(&mut self, p: Progress) {
+        self(p);
+    }
 }
 
 /// Where an import's time went, and how much it held and wrote: numbers only, for measuring.
@@ -173,13 +204,17 @@ enum Phase {
     Pack,
     Write,
     Commit,
+    /// The writer waiting for something to apply.
+    Idle,
+    /// Lanes waiting for room in the budget.
+    Wait,
 }
 
 /// An import's running counts, which any of its threads may add to.
 #[derive(Default)]
 struct Tally {
     /// Nanoseconds in each [`Phase`].
-    nanos: [AtomicU64; 6],
+    nanos: [AtomicU64; 8],
     peak: AtomicU64,
     raw: AtomicU64,
     kept: AtomicU64,
@@ -203,6 +238,16 @@ impl Tally {
         if let Some(n) = self.nanos.get(phase as usize) {
             n.fetch_add(nanos(began.elapsed()), Ordering::Relaxed);
         }
+    }
+
+    /// The writer waited since `began`.
+    fn idle(&self, began: Instant) {
+        self.since(Phase::Idle, began);
+    }
+
+    /// A lane waited for room since `began`.
+    fn waited(&self, began: Instant) {
+        self.since(Phase::Wait, began);
     }
 
     /// A source of `raw` bytes kept in `kept`, with `held` bytes (as rebuilt) now waiting to be written.
@@ -234,8 +279,8 @@ impl Tally {
             pack_ms: ms(Phase::Pack),
             write_ms: ms(Phase::Write),
             commit_ms: ms(Phase::Commit),
-            writer_idle_ms: 0,
-            budget_wait_ms: 0,
+            writer_idle_ms: ms(Phase::Idle),
+            budget_wait_ms: ms(Phase::Wait),
             peak_budget_bytes: self.peak.load(Ordering::Relaxed),
             raw_bytes: self.raw.load(Ordering::Relaxed),
             kept_bytes: self.kept.load(Ordering::Relaxed),
@@ -271,6 +316,9 @@ pub struct ImportOptions {
     pub recycle: usize,
     #[doc(hidden)]
     pub handle_cache_bytes: u64,
+    /// A fault for a test to put in the import's threads.
+    #[cfg(test)]
+    pub(crate) fault: Option<lanes::tests::Fault>,
 }
 
 /// Import the data file at `path` into `account`'s cache (an account with no server), as the app
@@ -279,10 +327,14 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
     import_with(path, store, account, &ImportOptions::default(), progress)
 }
 
-/// [`import`], run as `opts` say. The reader is one lane for now, holding at most a batch of
-/// sources: `lanes`, `budget_bytes`, `chunk_kb` and `recycle` are taken for when it's more.
+/// [`import`], run as `opts` say.
 pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptions, progress: &mut dyn FnMut(Progress)) -> Result<Imported, String> {
-    let mut out = Out::new(store, account, opts, progress);
+    import_into(path, store, account, opts, &mut |p| progress(p))
+}
+
+/// [`import_with`], telling `sink` how it goes and of each folder as it's done.
+pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptions, sink: &mut dyn ImportSink) -> Result<Imported, String> {
+    let mut out = Out::new(store, account, opts, sink);
     // `!BDN` then the client magic: `SM` a data file, `SO` Outlook's offline copy of a server
     // account (MS-PST 2.2.2.6).
     let mut head = [0u8; 10];
@@ -292,25 +344,52 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     {
         return Err("this is Outlook's offline copy of a server account (.ost), not a data file: add the account itself to see its mail".into());
     }
-    let recycle = Recycle::of(opts);
-    let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<()> {
-        // Read only, and kept from writers while it's read. Locked by Outlook, this is what fails:
-        // said so below, rather than tried as the older format.
-        let source = open::source(path, opts.chunk_kb)?;
-        let (walk, pages) = open::handle(&source);
-        match UnicodePstFile::read_from(walk) {
-            Ok(pst) => read_unicode(pst, &pages, &source, recycle, &mut out),
-            Err(_) => {
-                out.tally.reading(&source, 0, 0);
-                drop(source);
-                // The older format, read from the start through a handle of its own.
-                let source = open::source(path, opts.chunk_kb)?;
-                let (walk, pages) = open::handle(&source);
-                read_ansi(AnsiPstFile::read_from(walk)?, &pages, &source, recycle, &mut out)
+    let ctx = lanes::Ctx::new(path, opts, account, &out);
+    let lanes = ctx.lanes();
+    out.lanes = u64::try_from(lanes).unwrap_or(u64::MAX);
+    let (job_tx, job_rx) = std::sync::mpsc::sync_channel(plan::JOBS);
+    let jobs: lanes::Jobs = std::sync::Mutex::new(job_rx);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (planned, wrote) = std::thread::scope(|s| {
+        let feed = plan::Feed { seq: 0, jobs: job_tx, results: tx.clone() };
+        let (ctx, jobs) = (&ctx, &jobs);
+        let planner = s.spawn(move || std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| planner(ctx, feed))));
+        ctx.live.store(lanes, Ordering::Relaxed);
+        for _ in 0..lanes {
+            let tx = tx.clone();
+            s.spawn(move || {
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lanes::run(ctx, jobs, &tx)));
+                // The last lane gone (every one could fail to open the file): nothing would
+                // take the planner's jobs, so it stops.
+                if ctx.live.fetch_sub(1, Ordering::Relaxed) == 1 {
+                    ctx.stop();
+                }
+            });
+        }
+        drop(tx);
+        // Whatever becomes of the writer, every other thread stops when it does.
+        struct StopAll<'c, 'a>(&'c lanes::Ctx<'a>);
+        impl Drop for StopAll<'_, '_> {
+            fn drop(&mut self) {
+                self.0.stop();
             }
         }
-    }));
-    let failed: Option<String> = match read {
+        let stop_all = StopAll(ctx);
+        let wrote = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| order::write(&mut out, ctx, &rx)));
+        drop(stop_all);
+        drop(rx);
+        let planned = planner.join().unwrap_or_else(Err);
+        (planned, wrote)
+    });
+    if wrote.is_err() {
+        log::warn!("{}: the import stopped writing; what was written is kept", path.display());
+        out.lose(SkipReason::StoppedEarly, 1);
+    }
+    if ctx.damaged.load(Ordering::Relaxed) {
+        log::warn!("{}: the data file is damaged; stopped reading", path.display());
+        out.lose(SkipReason::StoppedEarly, 1);
+    }
+    let failed: Option<String> = match planned {
         Ok(Ok(())) => None,
         // Windows' sharing and lock violations: Outlook (or another program) has it open.
         Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => {
@@ -325,6 +404,7 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
         Err(_) if out.folders.is_empty() => Some("the data file is damaged".into()),
         Err(_) => {
             log::warn!("{}: the data file is damaged; stopped reading", path.display());
+            out.lose(SkipReason::StoppedEarly, 1);
             None
         }
     };
@@ -337,6 +417,53 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
         }
         None => Ok(out.finish()),
     }
+}
+
+/// The planner: opens the file (as the Unicode kind, else the older ANSI), plans it, and hands
+/// out its work.
+fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
+    let began = Instant::now();
+    // Read only, and kept from writers while it's read. Locked by Outlook, this is what fails:
+    // said so above, rather than tried as the older format.
+    let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
+    let (walk, pages) = open::handle(&source);
+    let store: Rc<dyn PstStore> = match UnicodePstFile::read_from(walk) {
+        Ok(pst) => {
+            ctx.format.store(1, Ordering::Release);
+            pst.set_max_value_size(MAX_VALUE);
+            UnicodeStore::read(Rc::new(pst))?
+        }
+        Err(_) => {
+            ctx.tally.reading(&source, 0, 0);
+            drop(source);
+            // The older format, read from the start through a handle of its own.
+            let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
+            let (walk, pages) = open::handle(&source);
+            let pst = AnsiPstFile::read_from(walk)?;
+            ctx.format.store(2, Ordering::Release);
+            pst.set_max_value_size(MAX_VALUE);
+            let store: Rc<dyn PstStore> = AnsiStore::read(Rc::new(pst))?;
+            return run_plan(ctx, &*store, &mut feed, began, &source, &pages);
+        }
+    };
+    run_plan(ctx, &*store, &mut feed, began, &source, &pages)
+}
+
+fn run_plan(
+    ctx: &lanes::Ctx<'_>,
+    store: &dyn PstStore,
+    feed: &mut plan::Feed,
+    began: Instant,
+    source: &Shared,
+    pages: &chunked::Pages,
+) -> io::Result<()> {
+    let stopped = || ctx.stopped();
+    let planned = plan::plan(store, &stopped);
+    ctx.tally.since(Phase::Plan, began);
+    let planned = planned?;
+    plan::stream(store, &planned, feed, ctx);
+    ctx.tally.reading(source, 0, pages.estimate());
+    Ok(())
 }
 
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the
@@ -355,211 +482,9 @@ pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>])
     Ok((raw, summary))
 }
 
-macro_rules! reader {
-    ($name:ident, $file:ty, $store:ty, $message:ty, $attachment:ty) => {
-        fn $name(pst: $file, walked: &chunked::Pages, source: &Shared, recycle: Recycle, out: &mut Out<'_>) -> io::Result<()> {
-            let store_of = |pst: $file| {
-                pst.set_max_value_size(MAX_VALUE);
-                <$store>::read(Rc::new(pst))
-            };
-            // The handle that reads folders and their tables; items are read through another,
-            // opened again (with what was read of the file still cached) as its caches grow.
-            let store = store_of(pst)?;
-            let any: Rc<dyn PstStore> = store.clone();
-            let named = crate::pst_pim::Named::of(&*any);
-            // From the start: the file opened, as either kind when the first wasn't it.
-            out.tally.since(Phase::Plan, out.began);
-            let items: RefCell<Option<(Rc<$store>, chunked::Pages, usize)>> = RefCell::new(None);
-            let reopens = Cell::new(0u64);
-            let read = |entry: &EntryId| -> io::Result<Item> {
-                let store = {
-                    let mut held = items.try_borrow_mut().map_err(io::Error::other)?;
-                    if held.as_ref().is_none_or(|(_, pages, n)| recycle.due(*n, pages)) {
-                        // The old handle, and its caches, go before the new one is made.
-                        if held.take().is_some() {
-                            reopens.set(reopens.get().saturating_add(1));
-                        }
-                        let (reader, pages) = open::handle(source);
-                        *held = Some((store_of(<$file>::read_from(reader)?)?, pages, 0));
-                    }
-                    let Some((store, _, n)) = held.as_mut() else { return Err(io::Error::other("no handle to read with")) };
-                    *n = n.saturating_add(1);
-                    store.clone()
-                };
-                let m = <$message>::read(store, entry, None)?;
-                Ok(item_with_files(&Held { m, named: &named }))
-            };
-            let done = walk(&*any, &read, out);
-            out.tally.reading(source, reopens.get(), walked.estimate());
-            done
-        }
-
-        impl Holder for Held<'_, $message> {
-            fn attachments(&self, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
-                let cp = message_code_page(&*self.m);
-                // Which hidden files are left out depends on what the item is.
-                let class = message_class(&*self.m, cp);
-                let Some(table) = self.m.attachment_table() else { return };
-                for row in table.rows_matrix() {
-                    let read = || {
-                        let node = NodeId::from(u32::from(row.id()));
-                        // The row itself is read only for an attachment the reader fails on.
-                        match <$attachment>::read(self.m.clone(), node, None) {
-                            Ok(a) => match attachment(&*a, cp, &class) {
-                                Some(got) => Part::Got(got),
-                                None => match a.embedded_message() {
-                                    Some(m) => Part::Message(Held { m, named: self.named }),
-                                    None => Part::Got(item::Got::Left(SkipReason::AttachedMessageUnreadable)),
-                                },
-                            },
-                            Err(e) => Part::Got(unread_attachment(&e, &**table, row, cp, &class)),
-                        }
-                    };
-                    if !each(&read) {
-                        return;
-                    }
-                }
-            }
-
-            fn item(&self, files: Vec<File>) -> Item {
-                item(&*self.m, files, self.named)
-            }
-
-            fn key(&self) -> Option<Vec<u8>> {
-                search_key(&*self.m)
-            }
-        }
-    };
-}
-
-/// A message of the file's own type (`M`), as the import reads it.
-struct Held<'a, M> {
-    m: Rc<M>,
-    named: &'a crate::pst_pim::Named,
-}
-
-/// A message's search key (`PidTagSearchKey`), which a copy of it keeps: an attached message
-/// with the key of one holding it holds itself.
-fn search_key(m: &dyn Message) -> Option<Vec<u8>> {
-    match m.properties().get(0x300B) {
-        Some(PropertyValue::Binary(b)) if !b.buffer().is_empty() => Some(b.buffer().to_vec()),
-        _ => None,
-    }
-}
-
 /// Bytes from a data file as the import reads them as text: an HTML body (`html`) in its internet
 /// code page, or an 8-bit string in its message's. For the fuzz target.
 #[doc(hidden)]
 pub fn text_from_bytes(bytes: &[u8], code_page: u32, html: bool) -> String {
     props::decode(bytes, code_page, html)
-}
-
-reader!(read_unicode, UnicodePstFile, UnicodeStore, UnicodeMessage, UnicodeAttachment);
-reader!(read_ansi, AnsiPstFile, AnsiStore, AnsiMessage, AnsiAttachment);
-
-type ReadItem<'a> = dyn Fn(&EntryId) -> io::Result<Item> + 'a;
-
-fn walk(store: &dyn PstStore, read: &ReadItem<'_>, out: &mut Out<'_>) -> io::Result<()> {
-    let top = out.tally.time(Phase::Plan, || store.properties().ipm_sub_tree_entry_id().and_then(|e| store.open_folder(&e)))?;
-    visit(store, &*top, None, 0, read, out);
-    Ok(())
-}
-
-fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, depth: usize, read: &ReadItem<'_>, out: &mut Out<'_>) {
-    if depth >= MAX_DEPTH {
-        return;
-    }
-    let Some(table) = folder.hierarchy_table() else { return };
-    for row in table.rows_matrix() {
-        if out.stopped() {
-            return;
-        }
-        // Opening a folder reads its tables, so it's timed with the plan.
-        let opened =
-            out.tally.time(Phase::Plan, || store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| store.open_folder(&e)));
-        let sub = match opened {
-            Ok(f) => f,
-            Err(e) => {
-                log::info!("a folder could not be read: {e}");
-                continue;
-            }
-        };
-        // Mail folders (no class means mail, in old files), contacts and calendars.
-        let class = sub.properties().get(0x3613).and_then(text_of).unwrap_or_default();
-        let mail = (class.is_empty() || class.starts_with("IPF.Note") || class.starts_with("IPF.Imap"))
-            // Outlook's RSS Feeds folder is its own bookkeeping, not mail.
-            && !class.starts_with("IPF.Note.OutlookHomepage");
-        // Outlook's own Outbox, when it has nothing waiting (MailCraft has an Outbox of its own).
-        let outbox = out.tally.time(Phase::Plan, || {
-            sub.contents_table().is_none_or(|t| t.rows_matrix().next().is_none()) && special_folder(store, 0x35E2) == Some(u32::from(row.id()))
-        });
-        if outbox {
-            continue;
-        }
-        if !mail {
-            if class.starts_with("IPF.Contact")
-                || class.starts_with("IPF.Appointment")
-                || class.starts_with("IPF.Task")
-                || class.starts_with("IPF.StickyNote")
-            {
-                read_items(store, &*sub, read, out);
-                visit(store, &*sub, parent, depth + 1, read, out);
-            } else {
-                // A kind MailCraft has no place for (a journal, RSS feeds…): counted when it
-                // holds anything. The folders under it are read as any others: mail comes in
-                // beside it, and ones of its kind are counted too.
-                let items = out.tally.time(Phase::Plan, || sub.contents_table().map_or(0, |t| t.rows_matrix().count()));
-                out.leave_out_folder(items);
-                visit(store, &*sub, parent, depth + 1, read, out);
-            }
-            continue;
-        }
-        let name = sub.properties().get(0x3001).and_then(text_of).unwrap_or_default();
-        let path = out.add_folder(parent, &name);
-        if let Some(contents) = sub.contents_table() {
-            for row in contents.rows_matrix() {
-                if out.stopped() {
-                    break;
-                }
-                let item = out.tally.time(Phase::Read, || store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e)));
-                match item {
-                    Ok(i) => out.add_message(&path, i),
-                    Err(e) => {
-                        log::info!("a message could not be read: {e}");
-                        out.skip(SkipReason::MessageUnreadable, 1);
-                    }
-                }
-                out.item_read();
-            }
-        }
-        out.save_folder(&path);
-        visit(store, &*sub, Some(&path), depth + 1, read, out);
-    }
-}
-
-/// The node of one of the store's special folders (`0x35E2`: the Outbox), from its entry id
-/// (flags, the store's 16-byte key, then the node id).
-fn special_folder(store: &dyn PstStore, prop: u16) -> Option<u32> {
-    let (_, v) = store.properties().iter().find(|(id, _)| **id == prop)?;
-    let PropertyValue::Binary(b) = v else { return None };
-    let id = b.buffer().get(20..24)?;
-    Some(u32::from_le_bytes([*id.first()?, *id.get(1)?, *id.get(2)?, *id.get(3)?]))
-}
-
-/// A contacts or calendar folder's items.
-fn read_items(store: &dyn PstStore, folder: &dyn PstFolder, read: &ReadItem<'_>, out: &mut Out<'_>) {
-    let Some(contents) = folder.contents_table() else { return };
-    for row in contents.rows_matrix() {
-        if out.stopped() {
-            return;
-        }
-        match out.tally.time(Phase::Read, || store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e))) {
-            Ok(i) => out.add_pim(i),
-            Err(e) => {
-                log::info!("an item could not be read: {e}");
-                out.skip(SkipReason::ItemUnreadable, 1);
-            }
-        }
-        out.item_read();
-    }
 }

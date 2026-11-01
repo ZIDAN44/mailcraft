@@ -785,6 +785,7 @@ mod embedded;
 mod files;
 mod losses;
 mod options;
+mod pipeline;
 mod reader;
 mod rebuilt;
 mod report;

@@ -1,7 +1,8 @@
 //! What an import has written so far: folders, their lists, message sources and contacts.
 
+use super::budget::Budget;
 use super::item::Item;
-use super::rebuild::{message, summary_of};
+use super::lanes::Built;
 use super::*;
 
 /// Message sources written to the cache together (one transaction): at most this many…
@@ -36,25 +37,35 @@ pub(super) struct Out<'a> {
     pub(super) skipped: usize,
     pub(super) skips: BTreeMap<SkipReason, usize>,
     pub(super) body_not_converted: usize,
-    pub(super) progress: &'a mut dyn FnMut(Progress),
+    /// Told how the import goes, and of each folder as it's done.
+    sink: &'a mut dyn ImportSink,
+    /// What the file holds (its items and their bytes), and the bytes of the items read so far.
+    total: usize,
+    bytes_total: u64,
+    bytes_done: u64,
     /// Contacts and calendar items read so far.
     pub(super) pim: Pim,
     /// Sources read (compressed already) but not yet written, and their size as kept.
     pub(super) pending: Vec<(MessageKey, mailcraft_store::Prepared)>,
     pub(super) pending_bytes: usize,
-    /// The same sources' bytes as rebuilt, before compression.
+    /// The same sources' bytes as rebuilt, before compression, and what they hold of the budget
+    /// (given back once they're written).
     pending_raw: usize,
+    pub(super) pending_charge: u64,
+    pub(super) budget: Arc<Budget>,
     /// Set from elsewhere to stop reading, and whether it stopped the import.
     cancel: Option<Arc<AtomicBool>>,
     cancelled: bool,
     /// When the import began, and where its time has gone since.
     pub(super) began: Instant,
-    pub(super) tally: Tally,
+    pub(super) tally: Arc<Tally>,
+    /// The lanes that read the items.
+    pub(super) lanes: u64,
 }
 
 impl<'a> Out<'a> {
     /// Nothing written yet, into `account`'s cache.
-    pub(super) fn new(store: &'a Store, account: &'a str, opts: &ImportOptions, progress: &'a mut dyn FnMut(Progress)) -> Self {
+    pub(super) fn new(store: &'a Store, account: &'a str, opts: &ImportOptions, sink: &'a mut dyn ImportSink) -> Self {
         Out {
             store,
             account,
@@ -65,15 +76,21 @@ impl<'a> Out<'a> {
             skipped: 0,
             skips: BTreeMap::new(),
             body_not_converted: 0,
-            progress,
+            sink,
+            total: 0,
+            bytes_total: 0,
+            bytes_done: 0,
             pim: Pim::default(),
             pending: Vec::new(),
             pending_bytes: 0,
             pending_raw: 0,
+            pending_charge: 0,
+            budget: Arc::new(Budget::new(u64::try_from(opts.budget_bytes).unwrap_or(u64::MAX))),
             cancel: opts.cancel.clone(),
             cancelled: false,
             began: Instant::now(),
-            tally: Tally::default(),
+            tally: Arc::default(),
+            lanes: 1,
         }
     }
 }
@@ -101,13 +118,28 @@ impl Out<'_> {
         }
     }
 
-    /// One more item read from the file, whatever became of it (call it once the item is dealt
-    /// with): how far the import has got is said every 200, so a run of items left out or of
-    /// contacts moves the bar as mail does.
-    pub(super) fn item_read(&mut self) {
+    /// What the file holds, before any of it is read: the progress goes by it.
+    pub(super) fn totals(&mut self, items: u64, bytes: u64) {
+        self.total = usize::try_from(items).unwrap_or(usize::MAX);
+        self.bytes_total = bytes;
+    }
+
+    /// One more item read from the file, of `size` bytes as the file gives it, whatever became of
+    /// it (call it once the item is dealt with): how far the import has got is said every 200,
+    /// so a run of items left out or of contacts moves the bar as mail does.
+    pub(super) fn item_read(&mut self, size: u64) {
         self.read = self.read.saturating_add(1);
+        self.bytes_done = self.bytes_done.saturating_add(size);
         if self.read.is_multiple_of(200) {
-            (self.progress)(Progress { read: self.read, imported: self.imported, skipped: self.skipped });
+            let p = Progress {
+                read: self.read,
+                imported: self.imported,
+                skipped: self.skipped,
+                total: self.total,
+                bytes_done: self.bytes_done,
+                bytes_total: self.bytes_total,
+            };
+            self.sink.progress(p);
         }
     }
 
@@ -198,28 +230,35 @@ impl Out<'_> {
         }
     }
 
-    pub(super) fn add_message(&mut self, path: &str, mut it: Item) {
-        // Mail only: meeting requests and receipts are mail too; appointments, contacts and
-        // tasks in a mail folder aren't.
-        let class = it.class.to_ascii_lowercase();
-        if !(class.is_empty() || class.starts_with("ipm.note") || class.starts_with("ipm.schedule") || class.starts_with("report.")) {
+    /// An item made into a message (in a test, as a lane would), into the folder at `path`.
+    #[cfg(test)]
+    pub(super) fn add_message(&mut self, path: &str, it: Item) {
+        if !super::lanes::is_mail(&it.class) {
             return;
         }
-        let Some(st) = self.states.get_mut(path) else { return };
-        let uid = st.uid_next;
-        let fallback = format!("pst.{}.{}.{uid}@mailcraft.invalid", self.account, self.imported);
-        // What the report counts, read before the item goes into its message.
-        let (charset_unsupported, body_not_converted, without_address) =
-            (it.charset_unsupported, it.body_not_converted, it.recipients_without_address);
-        let left_out = std::mem::take(&mut it.left_out);
-        let (raw, glance) = match self.tally.time(Phase::Build, || message(it, &fallback)) {
-            Ok(r) => r,
-            Err(e) => {
-                log::info!("a message could not be rebuilt: {e}");
-                self.skip(SkipReason::MessageNotRebuilt, 1);
-                return;
-            }
+        let fallback = format!("pst.{}.test.{}@mailcraft.invalid", self.account, self.read);
+        let packs = self.store.packs(self.account);
+        match super::lanes::build(it, &fallback, packs, &self.tally) {
+            super::lanes::Outcome::Built(b) => self.add_built(path, *b, 0),
+            super::lanes::Outcome::NotRebuilt => self.skip(SkipReason::MessageNotRebuilt, 1),
+            _ => {}
+        }
+    }
+
+    /// A message a lane made (holding `charge` of the budget until it's written), into the
+    /// folder at `path`, numbered next there.
+    pub(super) fn add_built(&mut self, path: &str, b: Built, charge: u64) {
+        let Some(st) = self.states.get_mut(path) else {
+            self.budget.release(charge);
+            return;
         };
+        let Built { mut summary, prepared, raw_len, charset_unsupported, body_not_converted, without_address, left_out } = b;
+        let uid = st.uid_next;
+        st.uid_next = uid.saturating_add(1);
+        let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
+        summary.key = key.clone();
+        st.waiting.push(summary);
+        let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         if charset_unsupported {
             // A loss in the report, though the message comes in: not among the items left out.
             let c = self.skips.entry(SkipReason::CharsetUnsupported).or_default();
@@ -228,28 +267,19 @@ impl Out<'_> {
         if body_not_converted {
             self.body_not_converted += 1;
         }
-        let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
-        st.uid_next = uid.saturating_add(1);
-        let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-        let summary = self.tally.time(Phase::Build, || summary_of(&raw, glance, key.clone(), size));
-        st.waiting.push(summary);
-        let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;
         self.lose(SkipReason::RecipientWithoutAddress, without_address);
         // The message came in without these files: counted by reason, not as items skipped.
         for (reason, n) in &left_out {
             self.lose(*reason, *n);
         }
-        // Compressed here, so the data file is held only to store it.
-        let raw_len = raw.len();
-        let packs = self.store.packs(self.account);
-        let prepared = self.tally.time(Phase::Pack, || Store::prepare(packs, raw));
         // One that would take the batch past its size goes into the next (a big one alone).
         if self.pending_bytes.saturating_add(prepared.kept_len()) > BATCH_BYTES {
             self.flush();
         }
         self.pending_bytes = self.pending_bytes.saturating_add(prepared.kept_len());
         self.pending_raw = self.pending_raw.saturating_add(raw_len);
+        self.pending_charge = self.pending_charge.saturating_add(charge);
         self.tally.source(raw_len, prepared.kept_len(), self.pending_raw);
         self.pending.push((key, prepared));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {
@@ -263,13 +293,14 @@ impl Out<'_> {
 
     /// Write the sources read so far, together. A batch that can't be written leaves its
     /// messages out of their folders' lists (counted as skipped), as one failed write did.
-    fn flush(&mut self) {
+    pub(super) fn flush(&mut self) {
         if self.pending.is_empty() {
             return;
         }
         let batch = std::mem::take(&mut self.pending);
         self.pending_bytes = 0;
         self.pending_raw = 0;
+        let charge = std::mem::take(&mut self.pending_charge);
         let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
         if let Err(e) = self.tally.time(Phase::Write, || self.store.write_prepared(batch, false)) {
             log::warn!("import: {e}");
@@ -281,6 +312,8 @@ impl Out<'_> {
             self.imported = self.imported.saturating_sub(keys.len());
             self.skip(SkipReason::NotWritten, keys.len());
         }
+        // Written (or not): what they held of the budget goes back.
+        self.budget.release(charge);
     }
 
     /// Hand a folder's messages whose sources are written to its list (full pages go out).
@@ -293,7 +326,8 @@ impl Out<'_> {
     }
 
     /// Write a finished folder's list and counts, then let go of it (only the counts are needed
-    /// from here).
+    /// from here). It goes into the account's folder list, and the sink is told: the window
+    /// can show it while the rest of the file comes in.
     pub(super) fn save_folder(&mut self, path: &str) {
         self.flush();
         self.list_out(path);
@@ -306,9 +340,14 @@ impl Out<'_> {
                 (0, 0)
             }
         };
-        if let Some(f) = self.folders.iter_mut().find(|f| f.path == path) {
-            f.unread = unread;
-            f.total = total;
+        let Some(f) = self.folders.iter_mut().find(|f| f.path == path) else { return };
+        f.unread = unread;
+        f.total = total;
+        let f = f.clone();
+        match self.tally.time(Phase::Commit, || self.store.upsert_folder(self.account, &f)) {
+            Ok(()) => self.sink.folder(&f),
+            // Added again by the save at the end.
+            Err(e) => log::warn!("import: {e}"),
         }
     }
 
@@ -317,8 +356,7 @@ impl Out<'_> {
     pub(super) fn finish(mut self) -> Imported {
         let mut done = self.write_out();
         self.seal();
-        // One lane reads, for now.
-        done.stats = self.tally.snapshot(self.began.elapsed(), 1);
+        done.stats = self.tally.snapshot(self.began.elapsed(), self.lanes);
         log::info!("import: {}", serde_json::to_string(&done.stats).unwrap_or_default());
         done
     }
@@ -344,8 +382,14 @@ impl Out<'_> {
             self.save_folder(&p);
         }
         // A last save that fails doesn't take back what came in before it: it's said, with the
-        // counts, and the account is kept.
-        let mut last_save = self.tally.time(Phase::Commit, || self.store.save_folders(self.account, &self.folders)).err().map(|e| e.to_string());
+        // counts, and the account is kept. Each folder is added to the list as it stands (one
+        // whose save failed as it finished, too): what the window changed meanwhile stays.
+        let mut last_save = None;
+        for f in &self.folders {
+            if let Err(e) = self.tally.time(Phase::Commit, || self.store.upsert_folder(self.account, f)) {
+                last_save.get_or_insert(e.to_string());
+            }
+        }
         let (contacts, events, notes) = (self.pim.cards.len(), self.pim.events.len(), self.pim.notes.len());
         if contacts + events + notes > 0 {
             self.pim.ensure_defaults();

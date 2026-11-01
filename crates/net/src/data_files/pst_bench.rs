@@ -9,7 +9,9 @@
 //! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB`, `MC_RECYCLE` and `MC_HANDLE_CACHE_KB`
 //! (unset: the app's), and it ends with one `stats:` line of numbers (`pst::ImportStats`), where
 //! its time went. With `MC_VERIFY=1` it then reads every listed message back from the cache and
-//! counts those present, those that parse and their attachments (counts only).
+//! counts those present, those that parse and their attachments (counts only), with a digest of
+//! the folders, their lists and every source: two imports of the same file (one lane and many,
+//! say) came out the same when their digests are.
 //!
 //! Memory is watched from outside (the test process's working set), so the numbers are the
 //! process's, allocator and all.
@@ -206,10 +208,20 @@ fn import() {
     println!("stats: {}", serde_json::to_string(&done.stats).unwrap());
     if env("MC_VERIFY").is_some() {
         let (mut present, mut parsed, mut attachments) = (0usize, 0usize, 0usize);
+        // FNV-1a over what the import left: a number, nothing of the mail itself.
+        let mut digest: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut mix = |bytes: &[u8]| {
+            for b in bytes {
+                digest = (digest ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
+            }
+        };
         for f in &done.folders {
+            mix(&serde_json::to_vec(f).unwrap());
             let Ok(st) = store.load_folder("d1", &f.path) else { continue };
             for m in &st.messages {
+                mix(&serde_json::to_vec(m).unwrap());
                 let Some(raw) = store.read_body(&m.key) else { continue };
+                mix(&raw);
                 present += 1;
                 if let Some(p) = mailcraft_mime::parse(&raw) {
                     parsed += 1;
@@ -217,7 +229,7 @@ fn import() {
                 }
             }
         }
-        println!("verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments", present - parsed);
+        println!("verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {digest:016x}", present - parsed);
     }
 }
 
@@ -280,7 +292,7 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
     store.save_folder("d1", "INBOX", &st).unwrap();
     assert!(store.load_folder("d1", "INBOX").unwrap().find(key.uid).unwrap().flags.seen);
     // Its items read through a handle opened again every 3: the same list, every message once.
-    let opts = crate::pst::ImportOptions { recycle: 3, ..Default::default() };
+    let opts = crate::pst::ImportOptions { recycle: 3, lanes: 1, ..Default::default() };
     let again = crate::pst::import_with(&pst, &store, "d2", &opts, &mut |_| {}).unwrap();
     assert_eq!((again.messages, again.stats.reopens as usize), (n, n.div_ceil(3) - 1));
     let listed = |account: &str| -> Vec<(String, u32)> {

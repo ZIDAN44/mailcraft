@@ -10,6 +10,11 @@ use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage
 
 use super::super::{ImportOptions, import, import_with};
 
+/// One lane reads the items: what these tests count is one reader's.
+fn one_lane() -> ImportOptions {
+    ImportOptions { lanes: 1, ..ImportOptions::default() }
+}
+
 /// A data file of `n` messages in its Inbox, in a folder of its own.
 fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-{name}-{}", std::process::id()));
@@ -75,26 +80,27 @@ fn an_import_asked_to_stop_keeps_what_it_read() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// An import says where its time went, how much it held and how much it wrote: its stages fit
-/// in its whole (one lane, one thread), its sources shrank as the data file keeps them, and what
-/// it held at once is counted as rebuilt (here one batch held them all, a megabyte compressed to
-/// far less).
+/// An import says where its time went, how much it held and how much it wrote: the writer's
+/// stages and its waiting fit in its whole, as each of the other threads' stages does, its
+/// sources shrank as the data file keeps them, and what it held at once is counted as rebuilt
+/// (here one batch held them all, a megabyte compressed to far less).
 #[test]
 fn an_import_counts_where_its_time_went() {
     let (dir, pst) = data_file("stats", 600);
     let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
-    let done = import(&pst, &store, "t1", &mut |_| {}).unwrap();
+    let done = import_with(&pst, &store, "t1", &one_lane(), &mut |_| {}).unwrap();
     let s = done.stats;
     assert_eq!((done.messages, s.lanes), (600, 1));
-    let stages = [s.plan_ms, s.read_ms, s.build_ms, s.pack_ms, s.write_ms, s.commit_ms];
-    assert!(stages.iter().sum::<u64>() <= s.total_ms, "{s:?}");
+    assert!(s.write_ms + s.commit_ms + s.writer_idle_ms <= s.total_ms, "{s:?}");
+    assert!([s.plan_ms, s.read_ms, s.build_ms, s.pack_ms].iter().all(|t| *t <= s.total_ms), "{s:?}");
     assert!(s.total_ms > 0, "{s:?}");
     assert!(s.raw_bytes > 600 * 1400, "every source counted: {s:?}");
     assert!(s.kept_bytes > 0 && s.kept_bytes < s.raw_bytes / 2, "compressed: {s:?}");
     assert_eq!(s.peak_budget_bytes, s.raw_bytes, "{s:?}");
-    // The file read through the cache: every byte read at most once, far fewer reads than pages.
+    // The file read through the cache: every byte read at most once by each of the two handles
+    // (the planner's and the lane's), far fewer reads than pages.
     let len = std::fs::metadata(&pst).unwrap().len();
-    assert!(s.read_bytes > 0 && s.read_bytes <= len, "{s:?}");
+    assert!(s.read_bytes > 0 && s.read_bytes <= 2 * len, "{s:?}");
     assert!(s.reads > 0 && s.reads < len / 512, "{s:?}");
     // The folder handle's pages are counted too, and are a few: it reads no items.
     assert!(s.walk_cache_bytes > 0 && s.walk_cache_bytes < 64 * 1024, "{s:?}");
@@ -127,12 +133,13 @@ fn contents(store: &Store, account: &str) -> Vec<(String, Vec<(String, i64)>)> {
 fn reopening_the_reader_loses_nothing_and_rereads_nothing() {
     let (dir, pst) = data_file("recycle", 250);
     let store = Store::memory();
-    let plain = import(&pst, &store, "r0", &mut |_| {}).unwrap();
+    let plain = import_with(&pst, &store, "r0", &one_lane(), &mut |_| {}).unwrap();
     assert_eq!((plain.messages, plain.stats.reopens), (250, 0), "a small file needs no reopening");
-    let len = std::fs::metadata(&pst).unwrap().len();
+    // Each of the two handles (the planner's and the lane's) reads it at most once.
+    let len = 2 * std::fs::metadata(&pst).unwrap().len();
     assert!(plain.stats.read_bytes > 0 && plain.stats.read_bytes <= len, "{:?}", plain.stats);
     for (account, every) in [("r3", 3), ("r1", 1)] {
-        let opts = ImportOptions { recycle: every, ..ImportOptions::default() };
+        let opts = ImportOptions { recycle: every, ..one_lane() };
         let done = import_with(&pst, &store, account, &opts, &mut |_| {}).unwrap();
         assert_eq!((done.messages, done.skipped), (250, 0));
         assert_eq!(done.stats.reopens as usize, 250usize.div_ceil(every) - 1, "{:?}", done.stats);
@@ -149,10 +156,10 @@ fn reopening_the_reader_loses_nothing_and_rereads_nothing() {
 fn the_reader_is_reopened_once_its_pages_hold_too_much() {
     let (dir, pst) = data_file("page-limit", 250);
     let store = Store::memory();
-    let plain = import(&pst, &store, "p0", &mut |_| {}).unwrap();
+    let plain = import_with(&pst, &store, "p0", &one_lane(), &mut |_| {}).unwrap();
     assert_eq!(plain.stats.reopens, 0);
-    let len = std::fs::metadata(&pst).unwrap().len();
-    let opts = ImportOptions { handle_cache_bytes: 8 * 1024, ..ImportOptions::default() };
+    let len = 2 * std::fs::metadata(&pst).unwrap().len();
+    let opts = ImportOptions { handle_cache_bytes: 8 * 1024, ..one_lane() };
     let done = import_with(&pst, &store, "p1", &opts, &mut |_| {}).unwrap();
     assert_eq!((done.messages, done.skipped), (250, 0));
     assert!(done.stats.reopens > 0, "the pages read were counted: {:?}", done.stats);

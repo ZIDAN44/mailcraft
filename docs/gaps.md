@@ -1572,6 +1572,23 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   its peak, the reader alone growing 38 → 210 MB). Reading items still took 373–437 s of the
   1,015–1,112 s, short of the 160 s aimed at for attachments; what's read is to come within 1.1
   times the file.
+- **Importing on every core:** a `.pst` was read one item at a time on one thread (69% of one
+  core on the 41 GB file), each item read, rebuilt, compressed and written before the next was
+  read. A planner now reads the file's folders first (their items and the bytes the file gives
+  them, so the progress has its totals from the start) and hands the items out to lanes, as many
+  as the computer has cores less one, up to 12, each reading through a handle of its own and
+  making the message, its summary and its compressed source; the writer keeps them in the
+  file's order, so an import comes out byte for byte the same whatever the number of lanes,
+  and an item with no message id gets one from the file and its place in it, the same when the
+  file is imported again. What the lanes hold at once is bounded (384 MB, charged by the size
+  the file gives an item and again by what it is once read, given back once it's written);
+  the item the writer needs next always goes ahead, so the import can't wait on itself. Each
+  folder goes into the account's folder list as it finishes, and the window's own count saves
+  change only counts in that list, so neither takes out what the other added. The reader
+  panicking on an item costs that item (counted as unreadable, the lane's handle opened
+  again); 32 in a row stop the import as a damaged file, keeping what came in; a fault in the
+  planner or the writer stops every thread and keeps what was written. A folder listed under
+  itself is read once, and the folders and items planned are capped.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

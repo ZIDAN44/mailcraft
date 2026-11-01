@@ -196,13 +196,13 @@ impl Pool {
                 }
                 return;
             }
-            // No totals yet: the bar has none to go by.
+            // The totals are the file's own, found before any item is read.
             let mut progress = |t: crate::pst::Progress| {
                 let run_ms = ms(began);
                 let progress = ImportProgress {
                     phase: ImportPhase::Importing,
                     // Items read, which only go up: a batch that can't be written is still read.
-                    work: Work { done: count(t.read), ..Work::default() },
+                    work: Work { done: count(t.read), total: count(t.total), bytes_done: t.bytes_done, bytes_total: t.bytes_total },
                     imported: count(t.imported),
                     skipped: count(t.skipped),
                     elapsed_ms: run_ms,

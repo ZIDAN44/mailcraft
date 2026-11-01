@@ -5,9 +5,11 @@
 //! the input read as five-byte patches (a little-endian offset, then the byte to put there).
 //! An input that starts like a data file (`!BDN`) is read as one, whole.
 //!
-//! `pst::import` fences the reader with `catch_unwind` and calls a file that panics it damaged,
-//! so a panic inside outlook-pst (an overflow on a damaged block count, say) is the expected
-//! answer here, not a crash. A panic in MailCraft's own code still aborts the run.
+//! The import runs as the app's does, with its planner (which reads the folders and hands out
+//! their items) and one lane, so a run is the same each time; the lanes' coordination has unit
+//! tests of its own. Each thread fences the reader with `catch_unwind` and calls a file that
+//! panics it damaged, so a panic inside outlook-pst (an overflow on a damaged block count, say)
+//! is the expected answer here, not a crash. A panic in MailCraft's own code still aborts the run.
 #![no_main]
 
 use std::path::PathBuf;
@@ -108,5 +110,6 @@ fuzz_target!(init: only_our_panics_abort(), |data: &[u8]| {
         return;
     }
     let store = Store::memory();
-    let _ = pst::import(&path, &store, "d1", &mut |_| {});
+    let opts = pst::ImportOptions { lanes: 1, ..Default::default() };
+    let _ = pst::import_with(&path, &store, "d1", &opts, &mut |_| {});
 });

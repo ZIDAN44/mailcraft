@@ -32,21 +32,24 @@ fn progress_never_goes_back_when_a_batch_is_not_written() {
     store.fail(None, Some(".eml"));
     for n in 0..200 {
         out.add_message(&inbox, mail(n));
-        out.item_read();
+        out.item_read(0);
     }
     out.save_folder(&inbox);
     store.fail(None, None);
     let archive = out.add_folder(None, "Archive");
     for n in 200..400 {
         out.add_message(&archive, mail(n));
-        out.item_read();
+        out.item_read(0);
     }
     let done = out.finish();
     assert_eq!((done.messages, done.skipped), (200, 200));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::NotWritten, 200)]);
     assert_eq!(
         seen,
-        [Progress { read: 200, imported: 200, skipped: 0 }, Progress { read: 400, imported: 200, skipped: 200 }],
+        [
+            Progress { read: 200, imported: 200, skipped: 0, ..Progress::default() },
+            Progress { read: 400, imported: 200, skipped: 200, ..Progress::default() }
+        ],
         "the first 200 went from written to left out, and stayed read"
     );
 }
@@ -60,10 +63,16 @@ fn progress_goes_on_through_items_left_out() {
     let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
     for _ in 0..400 {
         out.skip(SkipReason::MessageUnreadable, 1);
-        out.item_read();
+        out.item_read(0);
     }
     out.finish();
-    assert_eq!(seen, [Progress { read: 200, imported: 0, skipped: 200 }, Progress { read: 400, imported: 0, skipped: 400 }]);
+    assert_eq!(
+        seen,
+        [
+            Progress { read: 200, imported: 0, skipped: 200, ..Progress::default() },
+            Progress { read: 400, imported: 0, skipped: 400, ..Progress::default() }
+        ]
+    );
 }
 
 /// A last save that fails says why, and keeps the counts of what came in before it.
