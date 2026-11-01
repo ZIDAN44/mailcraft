@@ -331,7 +331,7 @@ fn an_rtf_only_body_comes_in_with_its_pictures_inline() {
     let it = item_with(&props, vec![logo]);
     let html = it.html.as_deref().unwrap_or_default();
     assert!(html.contains("<b>storyboard</b>") && html.contains("cid:logo@studio.example"), "{html}");
-    let raw = to_raw(&it, "rtf@x").unwrap().0;
+    let raw = to_raw(it, "rtf@x").unwrap();
     let p = mime::parse(&raw).unwrap();
     assert!(p.had_html && p.text.contains("storyboard"), "{}", p.text);
     let inline: Vec<_> = p.attachments.iter().map(|a| (a.inline, a.content_id.as_deref())).collect();
@@ -345,7 +345,7 @@ fn an_rtf_only_body_comes_in_with_its_pictures_inline() {
     ];
     let it = item_with(&HashMap::from([(0x1009, Val::Bin(&compressed[..]))]), Vec::new());
     assert!(it.html.as_deref().is_some_and(|h| h.contains("hello world")), "{:?}", it.html);
-    let p = mime::parse(&to_raw(&it, "lzfu@x").unwrap().0).unwrap();
+    let p = mime::parse(&to_raw(it, "lzfu@x").unwrap()).unwrap();
     assert!(p.text.contains("hello world"), "{}", p.text);
 }
 
@@ -393,7 +393,7 @@ fn rtf_fills_in_only_what_is_missing() {
         let it = with(&[], junk);
         assert!(it.body.is_empty() && it.html.is_none(), "{junk:?}");
         assert!(it.body_not_converted, "{junk:?}");
-        assert!(to_raw(&it, "junk@x").is_ok());
+        assert!(to_raw(it, "junk@x").is_ok());
         let it = with(&[(0x1000, Val::Text("Plain text".into()))], junk);
         assert!(it.body == "Plain text" && !it.body_not_converted, "{junk:?}");
     }
@@ -431,7 +431,7 @@ fn a_headerless_item_keeps_forwarded_importance_and_references() {
 
     // …and they reach the message and its summary.
     let it = Item { subject: "Fwd".into(), body: "x".into(), date: 1_704_067_200, ..read(&[(0x1081, Val::Int(0x0068)), (0x0017, Val::Int(2))]) };
-    let raw = to_raw(&Item { references: vec!["a@x".into(), "b@x".into()], ..it }, "id@x").unwrap().0;
+    let raw = to_raw(Item { references: vec!["a@x".into(), "b@x".into()], ..it }, "id@x").unwrap();
     let text = String::from_utf8_lossy(&raw);
     assert!(text.contains("References: <a@x> <b@x>"), "{text}");
     assert!(text.contains("Importance: high"), "{text}");
@@ -531,7 +531,7 @@ fn names_addresses_and_ids_stay_inside_their_lines() {
     let rows = [&hidden, &named, &quoted, &broken, &to].map(|r| move |id| get(r, id));
     let it = item_of(&|id| get(&props, id), &rows, Vec::new(), &crate::pst_pim::Named::default());
     assert_eq!(it.bcc.len(), 3, "an address with a line break is none");
-    let raw = to_raw(&it, "f@x").unwrap().0;
+    let raw = to_raw(it, "f@x").unwrap();
     let lines = clean_header(&raw);
     assert!(!lines.iter().any(|l| l.to_ascii_lowercase().starts_with("x-injected")), "{lines:#?}");
     let bcc: Vec<&String> = lines.iter().skip_while(|l| !l.starts_with("Bcc: ")).take(3).collect();
@@ -541,7 +541,7 @@ fn names_addresses_and_ids_stay_inside_their_lines() {
     assert_eq!((p.from.email.as_str(), p.from.name.as_str()), ("me@example.com", "Me X-Injected: 6"));
     // A blank line in an original header doesn't end the message's header there.
     let it = Item { headers: "From: a@example.com\r\n\r\nX-Later: 1\r\n".into(), thread_topic: "T".into(), ..Default::default() };
-    let head = String::from_utf8_lossy(&to_raw(&it, "f@x").unwrap().0).split("\r\n\r\n").next().unwrap_or_default().to_string();
+    let head = String::from_utf8_lossy(&to_raw(it, "f@x").unwrap()).split("\r\n\r\n").next().unwrap_or_default().to_string();
     assert!(head.contains("X-Later: 1") && head.contains("Thread-Topic: T") && head.contains("Content-Type"), "{head}");
 }
 
@@ -556,7 +556,7 @@ fn mailparse_header(raw: &[u8], name: &str) -> String {
 /// An item with its own header gets only the lines that header lacks.
 #[test]
 fn an_original_header_gets_only_what_it_lacks() {
-    let it = Item {
+    let it = || Item {
         subject: "Hello".into(),
         from: EmailAddress::new("Ana", "ana@example.com"),
         date: 1_704_067_200,
@@ -567,7 +567,7 @@ fn an_original_header_gets_only_what_it_lacks() {
         sensitivity: 2,
         ..Default::default()
     };
-    let raw = to_raw(&it, "f@x").unwrap().0;
+    let raw = to_raw(it(), "f@x").unwrap();
     let lines = clean_header(&raw);
     let named = |n: &str| lines.iter().filter(|l| l.to_ascii_lowercase().starts_with(&n.to_ascii_lowercase())).count();
     assert_eq!((named("thread-topic:"), named("thread-index:"), named("sensitivity:")), (1, 1, 1), "{lines:#?}");
@@ -575,7 +575,7 @@ fn an_original_header_gets_only_what_it_lacks() {
     assert!(lines.contains(&"Sensitivity: Private".to_string()));
     // A signature's folded list of names is no line of those names.
     let folded = "DKIM-Signature: v=1; h=From:To:Subject:\r\n Thread-Index:Thread-Topic:Date; b=x\r\nSubject: s\r\n";
-    let raw = to_raw(&Item { headers: folded.into(), ..it }, "f@x").unwrap().0;
+    let raw = to_raw(Item { headers: folded.into(), ..it() }, "f@x").unwrap();
     let lines = clean_header(&raw);
     assert!(lines.contains(&"Thread-Topic: Ours".to_string()) && lines.iter().any(|l| l.starts_with("Thread-Index: ")), "{lines:#?}");
 }
@@ -594,7 +594,7 @@ fn an_unusual_address_still_comes_in() {
     let it = item_of(&|id| get(&props, id), &rows, Vec::new(), &crate::pst_pim::Named::default());
     assert_eq!(it.to.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["\"a b\"@x.example"]);
     assert_eq!(it.cc.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["first.last+tag@x.example."]);
-    let raw = to_raw(&Item { subject: "s".into(), body: "b".into(), date: 1_704_067_200, ..it }, "f@x").unwrap().0;
+    let raw = to_raw(Item { subject: "s".into(), body: "b".into(), date: 1_704_067_200, ..it }, "f@x").unwrap();
     let lines = clean_header(&raw);
     assert!(lines.iter().any(|l| l.contains("\"a b\"@x.example")) && lines.iter().any(|l| l.contains("first.last+tag@x.example.")), "{lines:#?}");
 }
@@ -647,7 +647,7 @@ fn original_headers_are_kept_over_the_rebuilt_body() {
             .into(),
         ..Default::default()
     };
-    let raw = to_raw(&it, "fallback@x").unwrap().0;
+    let raw = to_raw(it, "fallback@x").unwrap();
     let text = String::from_utf8_lossy(&raw);
     assert!(text.contains("List-Id: <l.example.com>"));
     assert!(text.contains("Received: from x\r\n by y"));
@@ -668,7 +668,7 @@ fn a_sent_item_keeps_its_bcc_and_gets_an_id() {
         body: "Hi".into(),
         ..Default::default()
     };
-    let raw = to_raw(&it, "fallback@x").unwrap().0;
+    let raw = to_raw(it, "fallback@x").unwrap();
     let text = String::from_utf8_lossy(&raw);
     assert!(text.starts_with("Bcc: secret@example.com\r\n"));
     assert!(text.contains("<fallback@x>"));
@@ -782,6 +782,7 @@ fn imports_a_data_file() {
 mod files;
 mod options;
 mod reader;
+mod rebuilt;
 
 mod real_files {
     /// Import a real data file named by `MAILCRAFT_PST` (counts only).

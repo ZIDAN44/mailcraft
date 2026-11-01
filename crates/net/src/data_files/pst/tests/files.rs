@@ -2,7 +2,7 @@
 //! left out are counted, and the paperclip is the one the rebuilt source gives.
 
 use super::super::item::{File, Files, Got, from_row};
-use super::super::rebuild::{summary_of, to_raw};
+use super::super::rebuild::{message, summary_of};
 use super::*;
 
 /// The reader's error for an attachment whose data has no value (`PtypNull`), as a reader that
@@ -135,9 +135,9 @@ fn the_paperclip_is_the_one_the_source_gives() {
             files,
             ..Default::default()
         };
-        let (raw, files) = to_raw(&it, "logo@x").unwrap();
+        let (raw, glance) = message(it, "logo@x").unwrap();
         let key = MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
-        let s = summary_of(&raw, &it, key.clone(), 0, files);
+        let s = summary_of(&raw, glance, key.clone(), 0);
         let full = mime::summary_from_full(&raw, key, Flags::default(), 0, 0);
         assert_eq!((s.has_attachments, full.has_attachments), (has, has), "case {n}");
     }
@@ -160,12 +160,12 @@ fn a_file_named_by_a_link_stays_a_file() {
         files: vec![pdf, data_file("logo.png", "image/png", "logo@studio.example")],
         ..Default::default()
     };
-    let (raw, files) = to_raw(&it, "plan@x").unwrap();
+    let (raw, glance) = message(it, "plan@x").unwrap();
     let p = mime::parse(&raw).unwrap();
     let parts: Vec<_> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect();
     assert!(parts.contains(&("plan.pdf", false)), "{parts:?}");
     assert!(p.attachments.iter().any(|a| a.inline && a.content_id.as_deref() == Some("logo@studio.example")), "{parts:?}");
     let key = MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
     let full = mime::summary_from_full(&raw, key.clone(), Flags::default(), 0, 0);
-    assert_eq!((summary_of(&raw, &it, key, 0, files).has_attachments, full.has_attachments), (true, true));
+    assert_eq!((summary_of(&raw, glance, key, 0).has_attachments, full.has_attachments), (true, true));
 }

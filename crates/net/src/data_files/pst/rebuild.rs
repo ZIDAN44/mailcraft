@@ -3,19 +3,63 @@
 use super::item::{File, Item};
 use super::*;
 
-/// The item as a standard message, and whether that message carries a file (for its summary:
-/// see [`summary_of`]).
-pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<(Vec<u8>, bool), String> {
-    let html = it.html.clone().filter(|h| !h.trim().is_empty());
-    let body = if it.body.trim().is_empty() { html.as_deref().map(mime::html_to_text).unwrap_or_default() } else { it.body.clone() };
+/// The most of a message's text its preview reads: a reply's quoted lines are skipped, so the
+/// first words of its own can come well after the start.
+const PREVIEW_TEXT_CHARS: usize = 64 * 1024;
+
+/// What a message's summary takes from its item, read before the item goes into its rebuilt
+/// source (which takes the item apart).
+pub(super) struct Glance {
+    flags: Flags,
+    date: i64,
+    has_files: bool,
+    preview: String,
+}
+
+/// The item as a standard message.
+pub(super) fn to_raw(mut it: Item, fallback_id: &str) -> Result<Vec<u8>, String> {
+    let text = take_text(&mut it);
+    Ok(build(it, text, fallback_id)?.0)
+}
+
+/// The item as a standard message, and what its summary takes from the item (whether the message
+/// carries a file is read from what it is built of: a picture the HTML shows isn't one). Its
+/// text is made once, for the message's text part and the preview both.
+pub(super) fn message(mut it: Item, fallback_id: &str) -> Result<(Vec<u8>, Glance), String> {
+    let text = take_text(&mut it);
+    let cut = text.char_indices().nth(PREVIEW_TEXT_CHARS).map_or(text.len(), |(i, _)| i);
+    let mut glance = Glance {
+        flags: std::mem::take(&mut it.flags),
+        date: it.date,
+        has_files: false,
+        preview: mime::preview(text.get(..cut).unwrap_or_default()),
+    };
+    let (raw, files) = build(it, text, fallback_id)?;
+    glance.has_files = files;
+    Ok((raw, glance))
+}
+
+/// The item's text, taken out of it: its own, or its HTML's made text when it has none.
+fn take_text(it: &mut Item) -> String {
+    if it.body.trim().is_empty() {
+        it.html.as_deref().filter(|h| !h.trim().is_empty()).map(mime::html_to_text).unwrap_or_default()
+    } else {
+        std::mem::take(&mut it.body)
+    }
+}
+
+/// The message, from an item whose text is `text`. The item's parts move into the message: its
+/// files are not copied, and are let go of once the message is written. With it, whether the
+/// message carries a file.
+fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool), String> {
+    let html = it.html.take().filter(|h| !h.trim().is_empty());
     let mut d = Draft {
-        to: it.to.clone(),
-        cc: it.cc.clone(),
-        subject: it.subject.clone(),
-        body,
-        in_reply_to: it.in_reply_to.clone(),
-        references: it.references.clone(),
-        html: html.clone(),
+        to: std::mem::take(&mut it.to),
+        cc: std::mem::take(&mut it.cc),
+        subject: std::mem::take(&mut it.subject),
+        body: text,
+        in_reply_to: std::mem::take(&mut it.in_reply_to),
+        references: std::mem::take(&mut it.references),
         importance: it.importance,
         ..Default::default()
     };
@@ -24,28 +68,31 @@ pub(super) fn to_raw(it: &Item, fallback_id: &str) -> Result<(Vec<u8>, bool), St
     // and it stays a named file.
     let make = || html.clone().unwrap_or_default();
     let refs = mime::HtmlRefs::new(&make);
-    for f in &it.files {
+    for f in std::mem::take(&mut it.files) {
         match f {
-            File::Data { name, mime: m, cid, data } => {
+            File::Data { name, mime, cid, data } => {
                 let cid = cid.trim().trim_matches(|c| c == '<' || c == '>');
                 if !cid.is_empty() && html.is_some() && refs.cites(cid) {
-                    d.inline.push(InlinePicture { cid: cid.to_string(), name: name.clone(), mime: m.clone(), data: data.clone() });
+                    d.inline.push(InlinePicture { cid: cid.to_string(), name, mime, data });
                 } else {
-                    d.attachments.push(OutAttachment { name: name.clone(), mime: m.clone(), data: data.clone() });
+                    d.attachments.push(OutAttachment { name, mime, data });
                 }
             }
             File::Message(inner) => {
-                let (raw, _) = to_raw(inner, &format!("{fallback_id}.1"))?;
                 let subject = if inner.subject.trim().is_empty() { "message".to_string() } else { inner.subject.trim().to_string() };
+                let raw = to_raw(*inner, &format!("{fallback_id}.1"))?;
                 d.attachments.push(OutAttachment { name: format!("{subject}.eml"), mime: "message/rfc822".into(), data: raw });
             }
         }
     }
+    d.html = html;
     // An id from the file goes into a header line: no spaces or line breaks.
     let id = mailcraft_model::thread::norm_id(&it.message_id);
     let id = if id.is_empty() { fallback_id } else { &id };
     let built = mime::build(&d, &it.from, it.date, id)?;
-    Ok((with_headers(built, &it.headers, &it.bcc, &extra_headers(it)), mime::draft_carries_files(&d)))
+    let files = mime::draft_carries_files(&d);
+    drop(d);
+    Ok((with_headers(built, &it.headers, &it.bcc, &extra_headers(&it)), files))
 }
 
 /// What the item's properties say that a header carries: Outlook's conversation index and
@@ -111,11 +158,12 @@ pub(super) fn usable_headers(original: &str) -> bool {
 }
 
 /// Keep the item's original headers (when it came in by mail) above the rebuilt body; a sent
-/// item's Bcc goes back in, and the `extra` lines the header lacks are added.
-fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(&str, String)]) -> Vec<u8> {
+/// item's Bcc goes back in, and the `extra` lines the header lacks are added. The new header
+/// takes the built one's place in `built` itself: the body (attachments and all) is moved along
+/// in place, not copied into a second message.
+fn with_headers(mut built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(&str, String)]) -> Vec<u8> {
     let Some(split) = built.windows(4).position(|w| w == b"\r\n\r\n") else { return built };
-    let (head, body) = built.split_at(split);
-    let head = String::from_utf8_lossy(head);
+    let head = String::from_utf8_lossy(built.get(..split).unwrap_or_default()).into_owned();
     let mime_header = |line: &str| {
         let l = line.to_ascii_lowercase();
         l.starts_with("content-") || l.starts_with("mime-version:")
@@ -159,10 +207,10 @@ fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(
         out.push_str(&head);
         out.push_str("\r\n");
     }
-    let mut raw = out.into_bytes();
-    // `body` starts with the blank line ending the header.
-    raw.extend_from_slice(body.get(2..).unwrap_or_default());
-    raw
+    // The built header and the line end after it go; the blank line ending the header stays.
+    let end = split.saturating_add(2).min(built.len());
+    built.splice(..end, out.into_bytes());
+    built
 }
 
 /// A Bcc header's value from the item's: the addresses that are one, each name cleaned and
@@ -182,22 +230,13 @@ fn bcc_line(bcc: &[EmailAddress]) -> String {
     list.join(",\r\n ")
 }
 
-/// A message's summary from its rebuilt source's headers, with its preview from the item itself
-/// and whether it carries a file (`files`) from what it was built of (parsing the whole source
-/// again, attachments and all, only to find them cost more than reading it). A picture the HTML
-/// shows isn't a file, as read from the source: counting the item's files counted those too.
-pub(super) fn summary_of(raw: &[u8], it: &Item, key: MessageKey, size: u32, files: bool) -> mailcraft_model::Summary {
+/// A message's summary from its rebuilt source's headers, with its preview and attachments
+/// from the item it was built of (parsing the whole source again, attachments and all, only to
+/// find them cost more than reading it).
+pub(super) fn summary_of(raw: &[u8], glance: Glance, key: MessageKey, size: u32) -> mailcraft_model::Summary {
     let end = raw.windows(4).position(|w| w == b"\r\n\r\n").map_or(raw.len(), |i| i + 4);
-    let mut s = mime::summary_from_header(raw.get(..end).unwrap_or(raw), key, it.flags.clone(), size, it.date);
-    s.has_attachments = files;
-    let text = if it.body.trim().is_empty() {
-        it.html
-            .as_deref()
-            .map(|h| mime::html_to_text(h.get(..h.char_indices().nth(64 * 1024).map_or(h.len(), |(i, _)| i)).unwrap_or(h)))
-            .unwrap_or_default()
-    } else {
-        it.body.replace("\r\n", "\n")
-    };
-    s.preview = mime::preview(&text);
+    let mut s = mime::summary_from_header(raw.get(..end).unwrap_or(raw), key, glance.flags, size, glance.date);
+    s.has_attachments = glance.has_files;
+    s.preview = glance.preview;
     s
 }

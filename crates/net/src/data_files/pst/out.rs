@@ -1,7 +1,7 @@
 //! What an import has written so far: folders, their lists, message sources and contacts.
 
 use super::item::Item;
-use super::rebuild::{summary_of, to_raw};
+use super::rebuild::{message, summary_of};
 use super::*;
 
 /// Message sources written to the cache together (one transaction): at most this many…
@@ -176,7 +176,7 @@ impl Out<'_> {
         }
     }
 
-    pub(super) fn add_message(&mut self, path: &str, it: Item) {
+    pub(super) fn add_message(&mut self, path: &str, mut it: Item) {
         // Mail only: meeting requests and receipts are mail too; appointments, contacts and
         // tasks in a mail folder aren't.
         let class = it.class.to_ascii_lowercase();
@@ -186,7 +186,11 @@ impl Out<'_> {
         let Some(st) = self.states.get_mut(path) else { return };
         let uid = st.uid_next;
         let fallback = format!("pst.{}.{}.{uid}@mailcraft.invalid", self.account, self.imported);
-        let (raw, files) = match self.tally.time(Phase::Build, || to_raw(&it, &fallback)) {
+        // What the report counts, read before the item goes into its message.
+        let (charset_unsupported, body_not_converted, without_address) =
+            (it.charset_unsupported, it.body_not_converted, it.recipients_without_address);
+        let left_out = std::mem::take(&mut it.left_out);
+        let (raw, glance) = match self.tally.time(Phase::Build, || message(it, &fallback)) {
             Ok(r) => r,
             Err(e) => {
                 log::info!("a message could not be rebuilt: {e}");
@@ -194,24 +198,24 @@ impl Out<'_> {
                 return;
             }
         };
-        if it.charset_unsupported {
+        if charset_unsupported {
             // A loss in the report, though the message comes in: not among the items left out.
             let c = self.skips.entry(SkipReason::CharsetUnsupported).or_default();
             *c = c.saturating_add(1);
         }
-        if it.body_not_converted {
+        if body_not_converted {
             self.body_not_converted += 1;
         }
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
         st.uid_next = uid.saturating_add(1);
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-        let summary = self.tally.time(Phase::Build, || summary_of(&raw, &it, key.clone(), size, files));
+        let summary = self.tally.time(Phase::Build, || summary_of(&raw, glance, key.clone(), size));
         st.waiting.push(summary);
         let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;
-        self.lose(SkipReason::RecipientWithoutAddress, it.recipients_without_address);
+        self.lose(SkipReason::RecipientWithoutAddress, without_address);
         // The message came in without these files: counted by reason, not as items skipped.
-        for (reason, n) in &it.left_out {
+        for (reason, n) in &left_out {
             self.lose(*reason, *n);
         }
         // Compressed here, so the data file is held only to store it.

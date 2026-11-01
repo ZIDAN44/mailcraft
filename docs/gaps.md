@@ -1500,6 +1500,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   disk the import keeps busy: it took 7 to 11 ms by median, but its p99 was 45 to 230 ms on a busy
   machine (13 ms with no import), over the 60 ms aimed at. Still open: making a background batch
   durable while a write from the window waits, or a smaller run left waiting.
+- **Big attachments from a data file:** an imported message's files were copied on their way in
+  (into the message being built, again into its parts, its source written out twice to put the
+  original header back, and the item kept until it was compressed), so a message with an
+  attachment of A bytes held about 4.7 A at its peak. The item's files now move into the message,
+  whose parts read them where they are, the header is put back in the source's own buffer, the
+  item is let go of once the message is written, and the compressed copy starts at 0.8 of the
+  source (what base64 attachments come to) rather than 0.9: about 2.4 A (worked out from the
+  copies, not measured on a big file yet). The text a message's preview reads is made once, for
+  its text part and its preview both, and the preview still looks through its first 64K
+  characters for words past the quoted ones.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened
