@@ -198,7 +198,9 @@ written (`Compose`), preferences and status-bar notices.
   (`Store::data_file_reopened`): an import that sees the count change stops the same way, and a
   checkpoint's write made past it is refused, so no checkpoint names batches that went. Only the
   failed handle is let go of, and opening the file again waits for whoever still holds it. A
-  `.mailcraft` copied in asks the same every 250 ms and, short of room, waits with nothing kept.
+  `.mailcraft` copied in is read from a copy made beside the data files, so it asks for room for
+  both before it begins, and the same as an import every 250 ms; short of room, it waits with
+  nothing kept.
   The note wins over
   `imports.json` as MailCraft opens (`accounts/importing/note.rs`): a `Cancelled` one isn't gone
   on with by itself, and a data file's account with a `Running` or `Cancelled` note and no record

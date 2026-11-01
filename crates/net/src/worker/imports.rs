@@ -276,12 +276,25 @@ fn look_at(path: &str, looked: &Mutex<Option<Looked>>) -> DataFileFacts {
 /// The size MailCraft's copy of a data file is expected to come to, the room asked for to write
 /// it, and the room there is in `destination` (on the drive of the nearest folder of it that's
 /// there; none when that can't be told). An Outlook file's copy is about [`COPY_PCT`] of its
-/// messages' own sizes; one of MailCraft's is copied as it is.
+/// messages' own sizes; one of MailCraft's is copied as it is, and read from a copy of it made on
+/// that drive first ([`copy_need`]).
 fn room_for(facts: &mut DataFileFacts, destination: &Path, space: &dyn crate::space::Space) {
     facts.estimate = if facts.kind == "mailcraft" { facts.size } else { facts.bytes / 100 * COPY_PCT };
-    facts.need = (facts.estimate / 100).saturating_mul(NEED_PCT).saturating_add(NEED_EXTRA);
+    facts.need = if facts.kind == "mailcraft" { copy_need(facts.size) } else { need(facts.estimate) };
     facts.destination = destination.to_string_lossy().into_owned();
     facts.free = space.free(destination);
+}
+
+/// The room asked for a copy of `estimate` bytes.
+fn need(estimate: u64) -> u64 {
+    (estimate / 100).saturating_mul(NEED_PCT).saturating_add(NEED_EXTRA)
+}
+
+/// The room asked for a MailCraft data file of `size` bytes copied in: it's read from a copy of
+/// it made beside the data files (the whole file, until the end), as the account's own is
+/// written there, so about twice its size at the peak.
+fn copy_need(size: u64) -> u64 {
+    need(size).saturating_add(size)
 }
 
 /// Never waits for the imports: they are paused and let go (they end on their own, writing what
@@ -386,7 +399,11 @@ fn never_began(sink: &Sink, account: &str, path: &str, how: StopHow) -> Option<P
 fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
     let (store, sink, account, stop) = (told.store, told.sink, told.account, told.stop);
     let (space, dir) = (drive_for(account), crate::space::data_dir(store, account));
-    if let Some(free) = crate::space::short(space.as_ref(), &dir, store.data_file(account).as_deref()) {
+    // Room for the copy read from and the data file it fills (both on that drive), asked once: a
+    // copy that can't fit isn't begun, to fill the drive and be thrown away at every Continue.
+    let size = std::fs::metadata(path).map_or(0, |m| m.len());
+    let needs = crate::space::needs(store.data_file(account).as_deref()).max(copy_need(size));
+    if let Some(free) = space.free(&dir).filter(|free| *free < needs) {
         copy_blocked(told, free);
         return None;
     }

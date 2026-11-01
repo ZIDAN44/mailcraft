@@ -100,11 +100,15 @@ impl Store {
     /// [`Store::import_data_file`], asking `stop` as the file is copied to be read and before each
     /// batch: once it says to, nothing more is read, the copy goes, and it ends in an error
     /// ("interrupted"). What came in before is left as it was, not yet this account's (a part of
-    /// a data file, in no order a folder list keeps): the caller removes it.
+    /// a data file, in no order a folder list keeps): the caller removes it. The copy it's read
+    /// from is made beside the account's data file (in the data files' folder before it has one),
+    /// so the room a copy in takes, the copy read from and the data file it fills, is all on the
+    /// drive the data files are on.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn import_data_file_until(&self, account: &str, path: &Path, stop: &dyn Fn() -> bool) -> Result<usize> {
         let dir = self.account_dir(account);
-        let tmp = self.root.join(format!(".import-{}.tmp", safe_segment(account)));
+        let beside = self.data_file(account).and_then(|f| f.parent().map(Path::to_path_buf)).or_else(|| self.data_files_dir());
+        let tmp = beside.unwrap_or_else(|| self.root.clone()).join(format!(".import-{}.tmp", safe_segment(account)));
         let packs = self.packs(account);
         let read = packed::read_data_file(path, &tmp, stop, &mut |batch| {
             if stop() {

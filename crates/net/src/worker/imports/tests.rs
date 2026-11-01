@@ -453,6 +453,26 @@ fn a_mailcraft_copy_onto_a_full_drive_waits_with_nothing_kept() {
     assert_eq!(drive.asks(), 1);
     assert!(store.data_file("c1").is_none_or(|f| !f.exists()), "no data file");
     wait(&p);
+    // Room for the data file it fills but not also for the copy it's read from (made on the same
+    // drive): looked at, it's said not to fit; imported, it waits at once, nothing copied, rather
+    // than filling the drive and throwing the copy away at every Continue.
+    let size = std::fs::metadata(&source).unwrap().len();
+    let short = NEED_EXTRA + size;
+    give_drive(&path, Filling::new(0, short));
+    p.submit(Job::InspectDataFile { path: path.clone() });
+    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert_eq!((facts.kind.as_str(), facts.size, facts.free), ("mailcraft", size, Some(short)), "{facts:?}");
+    assert!(facts.need > 2 * size + NEED_EXTRA && facts.need > short, "{facts:?}");
+    let drive = give_drive("c1", Filling::new(0, short));
+    p.submit(Job::ImportPst { account: "c1".into(), path: path.clone(), resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    assert!(full(&seen, short), "{seen:?}");
+    assert_eq!(drive.asks(), 1);
+    assert!(store.data_file("c1").is_none_or(|f| !f.exists()), "no data file");
+    let tmp = store.data_files_dir().unwrap().join(".import-c1.tmp");
+    assert!(!tmp.exists() && !store.root().join(".import-c1.tmp").exists(), "nothing copied");
+    wait(&p);
     // Roomy as it begins, full as it goes: none of it kept.
     slow("c1", 100);
     give_drive("c1", Filling::new(2, 300 << 20));

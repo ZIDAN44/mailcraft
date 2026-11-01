@@ -55,13 +55,20 @@ fn an_account_starts_from_an_existing_data_file() {
     assert_eq!(s.load_account_doc::<serde_json::Value>("p7", "pim.json").unwrap(), serde_json::json!({"notes": []}));
     assert_eq!(s.load_account_doc::<Option<serde_json::Value>>("p7", "import.json").unwrap(), None, "an import's note stays behind");
     assert!(file.exists(), "the file it came from stays");
-    assert!(!t.join("app").join(".import-p7.tmp").exists(), "the copy read from is gone");
+    assert!(!t.join("MailCraft Files").join(".import-p7.tmp").exists(), "the copy read from is gone");
 
-    // Asked to stop: nothing more is read, and the copy read from goes all the same.
-    let stopped = s.import_data_file_until("p6", &file, &|| true).unwrap_err();
+    // Asked to stop: nothing more is read, and the copy read from goes all the same. That copy
+    // is made in the data files' folder, on the drive whose room was asked for.
+    let beside = std::cell::Cell::new(false);
+    let stop = || {
+        beside.set(t.join("MailCraft Files").join(".import-p6.tmp").exists());
+        true
+    };
+    let stopped = s.import_data_file_until("p6", &file, &stop).unwrap_err();
+    assert!(beside.get(), "copied beside the data files");
     assert!(matches!(&stopped, crate::StoreError::Io { source, .. } if source.kind() == std::io::ErrorKind::Interrupted), "{stopped}");
     assert!(s.load_folders("p6").unwrap().is_empty());
-    assert!(!t.join("app").join(".import-p6.tmp").exists(), "the copy read from is gone");
+    assert!(!t.join("MailCraft Files").join(".import-p6.tmp").exists(), "the copy read from is gone");
     // …and while the file is still being copied to be read (a big one takes minutes): it stops
     // part-way through the copy, which goes too.
     let big = t.join("big.mailcraft");

@@ -18,9 +18,14 @@ pub const LOW_SPACE: u64 = 1 << 30;
 /// drive with more than `LOW_SPACE` free but not that fails the next write that grows it). One
 /// that can't be told isn't.
 pub(crate) fn short(space: &dyn Space, dir: &Path, file: Option<&Path>) -> Option<u64> {
-    let len = file.and_then(|f| std::fs::metadata(f).ok()).map_or(0, |m| m.len());
-    let needs = LOW_SPACE.saturating_add(mailcraft_store::data_file_growth(len));
+    let needs = needs(file);
     space.free(dir).filter(|free| *free < needs)
+}
+
+/// The room writing on in the data file `file` needs ([`short`]).
+pub(crate) fn needs(file: Option<&Path>) -> u64 {
+    let len = file.and_then(|f| std::fs::metadata(f).ok()).map_or(0, |m| m.len());
+    LOW_SPACE.saturating_add(mailcraft_store::data_file_growth(len))
 }
 
 /// Where `account`'s data file is, or goes: its folder, else the data files' folder, else the

@@ -1727,8 +1727,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   it) stops it the same way, going on from its last checkpoint, where it used to count every
   batch after as lost; so does any other write to that account's data file failing at the disk
   meanwhile, rather than going on and losing what it had written since its last checkpoint. A
-  MailCraft data file copied in asks for the room too, waiting with none of it kept when the
-  drive fills. A file that makes the reader fail as it's looked at is said to be one that couldn't be
+  MailCraft data file copied in asks for the room too, counting the copy it's read from (made on
+  the same drive, so about twice the file's size), and waits with none of it kept when the drive
+  fills. A file that makes the reader fail as it's looked at is said to be one that couldn't be
   looked at.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
