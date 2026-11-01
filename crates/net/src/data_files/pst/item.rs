@@ -1,6 +1,6 @@
 //! An item as read from the file: its properties, recipients and attachments.
 
-use super::props::{Val, code_page, read, val};
+use super::props::{Val, code_page, one_off_address, read, val};
 use super::*;
 
 /// A mail item, as read.
@@ -146,9 +146,15 @@ pub(super) fn item_of<'a>(
     it.flags = Flags { seen: flags & 0x1 != 0, draft: flags & 0x8 != 0, flagged: follow_up, answered: replied, forwarded, ..Default::default() };
     for row in recipients {
         let get = |id: u16| row(id).and_then(Val::into_text).unwrap_or_default();
-        let address = [get(0x39FE), get(0x3003)].into_iter().find(|e| e.contains('@'));
-        let Some(address) = address else { continue };
-        let a = EmailAddress::new(get(0x3001), address);
+        // The SMTP address, the address, or the one in the recipient's one-off entry id.
+        let one_off = || match row(0x0FFF) {
+            Some(Val::Bin(b)) => one_off_address(b),
+            _ => None,
+        };
+        let found = [get(0x39FE), get(0x3003)].into_iter().find(|e| e.contains('@')).map(|e| (String::new(), e)).or_else(one_off);
+        let Some((one_off_name, address)) = found else { continue };
+        let name = get(0x3001);
+        let a = EmailAddress::new(if name.is_empty() { one_off_name } else { name }, address);
         match row(0x0C15) {
             Some(Val::Int(2)) => it.cc.push(a),
             Some(Val::Int(3)) => it.bcc.push(a),

@@ -18,7 +18,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
 | `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files |
 | `pst` | an Outlook data file: a good exported file with the input as byte patches, or a whole file |
-| `pst_item` | a `.pst` mail item rebuilt as a message from hostile property values: the headers made from them (Thread-Index, Thread-Topic, Sensitivity) stay on clean lines of their own |
+| `pst_item` | a `.pst` mail item rebuilt as a message from hostile property values: the headers made from them (Thread-Index, Thread-Topic, Sensitivity) stay on clean lines of their own; recipients' one-off entry ids |
 | `pst_props` | text in a data file's properties: an HTML body or an 8-bit string in its code page (a declared charset, byte-order marks), and the bytes in every code page MailCraft reads |
 | `signature` | a signature as HTML code or a saved web page (Outlook's `.htm`): made harmless, its pictures out and back, its text, as sent |
 | `tnef` | Outlook's `winmail.dat`: its files, body and attached messages, compressed RTF and the HTML or text in it, and as a message's attachment |

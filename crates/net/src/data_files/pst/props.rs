@@ -74,6 +74,39 @@ pub(super) fn code_page(v: Option<&PropertyValue>) -> u32 {
     }
 }
 
+/// The provider of a one-off entry id: an address written into the item itself.
+const ONE_OFF: [u8; 16] = [0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D, 0x6E, 0x00, 0xDD, 0x01, 0x0F, 0x54, 0x02];
+/// Longest one-off entry id read.
+const MAX_ONE_OFF: usize = 1024;
+
+/// The display name and email address in a one-off entry id (MS-OXCDATA 2.2.5.1): four flag
+/// bytes, the one-off provider, a version and flags (0x8000: its strings are UTF-16), then the
+/// display name, the address type and the address, each ending in a NUL. `None` unless it is one
+/// and the address has an `@` (an Exchange address is a directory path).
+pub(super) fn one_off_address(b: &[u8]) -> Option<(String, String)> {
+    if b.len() > MAX_ONE_OFF || b.get(4..20)? != ONE_OFF {
+        return None;
+    }
+    let unicode = u16::from_le_bytes([*b.get(22)?, *b.get(23)?]) & 0x8000 != 0;
+    let mut rest = b.get(24..)?;
+    let mut next = || -> String {
+        if unicode {
+            let units: Vec<u16> = rest.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).take_while(|u| *u != 0).collect();
+            rest = rest.get((units.len() + 1) * 2..).unwrap_or_default();
+            String::from_utf16_lossy(&units)
+        } else {
+            let end = rest.iter().position(|c| *c == 0).unwrap_or(rest.len());
+            let s = decode(rest.get(..end).unwrap_or_default(), 0, false);
+            rest = rest.get(end + 1..).unwrap_or_default();
+            s
+        }
+    };
+    let name = next();
+    let _kind = next();
+    let address = next().trim().to_string();
+    address.contains('@').then(|| (name.trim().to_string(), address))
+}
+
 /// Bytes from the file as text in `code_page`: an 8-bit string in the message's code page, or
 /// the HTML body (`html`) in its internet code page.
 ///

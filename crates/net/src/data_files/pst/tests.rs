@@ -1,7 +1,53 @@
 use super::item::{File, item_of};
-use super::props::{decode, val};
+use super::props::{decode, one_off_address, val};
 use super::rebuild::to_raw;
 use super::*;
+
+/// A one-off entry id holding `name`, `kind` and `address`, in UTF-16 or 8-bit.
+fn one_off(name: &str, kind: &str, address: &str, unicode: bool) -> Vec<u8> {
+    let mut b = vec![0, 0, 0, 0, 0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D, 0x6E, 0x00, 0xDD, 0x01, 0x0F, 0x54, 0x02, 0, 0];
+    b.extend_from_slice(&(if unicode { 0x8000u16 } else { 0 }).to_le_bytes());
+    for s in [name, kind, address] {
+        if unicode {
+            b.extend(s.encode_utf16().chain([0]).flat_map(u16::to_le_bytes));
+        } else {
+            b.extend(s.bytes().chain([0]));
+        }
+    }
+    b
+}
+
+/// A recipient with no address but in its one-off entry id still comes in, by that address;
+/// anything else in that property is no address.
+#[test]
+fn a_recipient_s_address_from_its_one_off_entry_id() {
+    let got = |b: &[u8]| one_off_address(b);
+    let pair = |n: &str, a: &str| Some((n.to_string(), a.to_string()));
+    assert_eq!(got(&one_off("Cy Lima", "SMTP", "cy@example.com", true)), pair("Cy Lima", "cy@example.com"));
+    assert_eq!(got(&one_off("Dee", "SMTP", "dee@example.com", false)), pair("Dee", "dee@example.com"));
+    assert_eq!(got(&one_off("Ex", "EX", "/o=Org/cn=Recipients/cn=ex", true)), None, "a directory path is no address");
+    let good = one_off("Cy", "SMTP", "cy@example.com", true);
+    for n in 0..good.len() {
+        let _ = got(&good[..n]);
+    }
+    // No NUL at the end: the address runs to the end.
+    assert_eq!(got(&good[..good.len() - 2]), pair("Cy", "cy@example.com"));
+    let mut other = good.clone();
+    other[4] = 0;
+    assert_eq!(got(&other), None, "another provider");
+    let mut big = good.clone();
+    big.resize(2000, b'a');
+    assert_eq!(got(&big), None, "too long");
+
+    let props: HashMap<u16, Val<'static>> = HashMap::from([(0x001A, Val::Text("IPM.Note".into()))]);
+    let entry = one_off("Cy Lima", "SMTP", "cy@example.com", true);
+    let cy = HashMap::from([(0x3001, Val::Text("".into())), (0x0FFF, Val::Bin(&entry)), (0x0C15, Val::Int(2))]);
+    fn get<'a>(m: &HashMap<u16, Val<'a>>, id: u16) -> Option<Val<'a>> {
+        m.get(&id).cloned()
+    }
+    let it = item_of(&|id| get(&props, id), &[|id| get(&cy, id)], Vec::new(), &crate::pst_pim::Named::default());
+    assert_eq!(it.cc.iter().map(|a| (a.name.as_str(), a.email.as_str())).collect::<Vec<_>>(), [("Cy Lima", "cy@example.com")]);
+}
 
 /// Outlook's notes come in as notes: their text, colour and time; an empty one doesn't.
 #[test]
