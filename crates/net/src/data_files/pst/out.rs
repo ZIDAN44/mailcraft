@@ -377,7 +377,8 @@ impl Out<'_> {
     /// returns whether a checkpoint was written. A batch that can't be written leaves its
     /// messages out of their folders' lists (counted as skipped), as one failed write did; one
     /// refused for want of room stops the writing ([`Out::out_of_room`]) and isn't counted:
-    /// its messages are read again going on. Once writing has stopped, a batch goes nowhere.
+    /// its messages are read again going on, as are those of one whose failure had the data file
+    /// opened again ([`Out::writes_stopped`]). Once writing has stopped, a batch goes nowhere.
     pub(super) fn write_pending(&mut self, checkpoint: bool) -> bool {
         if self.pending.is_empty() {
             return false;
@@ -402,7 +403,8 @@ impl Out<'_> {
         // Every so often the checkpoint goes with the batch, naming it.
         let wrote = if checkpoint {
             let docs = self.checkpoint_docs();
-            let wrote = self.tally.time(Phase::Write, || self.store.write_batch(self.account, batch, docs));
+            let reopened = self.reopened();
+            let wrote = self.tally.time(Phase::Write, || self.store.write_batch(self.account, batch, docs, reopened));
             self.checkpointed(wrote.is_ok());
             wrote
         } else {
@@ -419,8 +421,12 @@ impl Out<'_> {
             Err(e) => {
                 log::warn!("import: {e}");
                 self.unlist(&keys);
-                self.imported = self.imported.saturating_sub(keys.len());
-                self.skip(SkipReason::NotWritten, keys.len());
+                // The data file opened again at its last durable commit: they're read again going
+                // on, from the last checkpoint.
+                if !self.writes_stopped() {
+                    self.imported = self.imported.saturating_sub(keys.len());
+                    self.skip(SkipReason::NotWritten, keys.len());
+                }
             }
             Ok(()) => {}
         }
@@ -447,6 +453,8 @@ impl Out<'_> {
         let ready = std::mem::take(&mut st.waiting);
         if let Err(e) = self.tally.time(Phase::Commit, || st.list.push(self.store, ready)) {
             log::warn!("import: {e}");
+            // Failed at the disk, the data file is opened again: nothing more is written.
+            self.writes_stopped();
         }
     }
 
@@ -470,6 +478,9 @@ impl Out<'_> {
             }
             Err(e) => {
                 log::warn!("import: {e}");
+                if self.writes_stopped() {
+                    return;
+                }
                 (0, 0)
             }
         };
@@ -505,7 +516,8 @@ impl Out<'_> {
             }
             Err(e) => {
                 log::warn!("import: {e}");
-                Some(e.to_string())
+                // Failed at the disk: the folders are read again going on, not said lost.
+                (!self.writes_stopped()).then(|| e.to_string())
             }
         }
     }
@@ -631,6 +643,8 @@ impl Out<'_> {
         // done are listed already.
         let kept = self.kept_when_refused();
         let folders = if kept.is_some() { Vec::new() } else { folders };
+        // Stopped as it ended (its last writes refused): it's paused all the same.
+        let stopped = if kept.is_some() { self.stopped_as().or(stopped) } else { stopped };
         let (imported, skipped) = kept.unwrap_or((self.imported, self.skipped));
         Imported {
             folders,

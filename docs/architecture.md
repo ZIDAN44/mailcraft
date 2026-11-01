@@ -193,7 +193,11 @@ written (`Compose`), preferences and status-bar notices.
   waits as `Blocked::DiskFull`, nothing counted as left out. A write that fails at the disk makes
   the store let go of the data file (redb refuses everything after one until it's opened again,
   back at its last durable commit) and keeps the drive's own error, so a full drive stays
-  `StorageFull`: the import then writes nothing more and stops at its last checkpoint. A
+  `StorageFull`: the import then writes nothing more and stops at its last checkpoint. Whoever's
+  write failed (the window's, the seal's), the store counts the file let go of
+  (`Store::data_file_reopened`): an import that sees the count change stops the same way, and a
+  checkpoint's write made past it is refused, so no checkpoint names batches that went. Only the
+  failed handle is let go of, and opening the file again waits for whoever still holds it. A
   `.mailcraft` copied in asks the same every 250 ms and, short of room, waits with nothing kept.
   The note wins over
   `imports.json` as MailCraft opens (`accounts/importing/note.rs`): a `Cancelled` one isn't gone

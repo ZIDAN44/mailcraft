@@ -1,85 +1,15 @@
 //! A drive that fills up as a data file is written: the write fails saying the drive is full,
 //! and once there's room again the file is written to as before, nothing written before lost.
 
-use std::fs::OpenOptions;
 use std::io;
-use std::ops::Bound;
-use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
-use redb::backends::FileBackend;
-use redb::{BackendError, Database, DatabaseError, StorageBackend};
+use redb::Database;
 
 use super::super::{disk, from_disk, growth};
 use super::commits::inbox;
 use super::*;
-
-/// A data file on a drive that is full while `full` is set: growing it fails as the disk would.
-#[derive(Debug)]
-struct Filling {
-    file: FileBackend,
-    full: Arc<AtomicBool>,
-}
-
-/// The data file at `path` opened as `b` says, on a drive full while `full` is set.
-pub(in super::super) fn create(b: &redb::Builder, path: &Path, full: &Arc<AtomicBool>) -> Result<Database, DatabaseError> {
-    let file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
-    b.create_with_backend(Filling { file: FileBackend::new(file)?, full: full.clone() })
-}
-
-impl StorageBackend for Filling {
-    fn len(&self) -> io::Result<u64> {
-        self.file.len()
-    }
-
-    fn read(&self, offset: u64, out: &mut [u8]) -> io::Result<()> {
-        self.file.read(offset, out)
-    }
-
-    fn set_len(&self, len: u64) -> io::Result<()> {
-        if self.full.load(Ordering::Relaxed) && len > self.file.len()? {
-            return Err(io::Error::from(io::ErrorKind::StorageFull));
-        }
-        self.file.set_len(len)
-    }
-
-    fn sync_data(&self) -> io::Result<()> {
-        self.file.sync_data()
-    }
-
-    fn write(&self, offset: u64, data: &[u8]) -> io::Result<()> {
-        self.file.write(offset, data)
-    }
-
-    fn close(&self) -> io::Result<()> {
-        self.file.close()
-    }
-
-    fn try_lock_range(&self, start: Bound<u64>, end: Bound<u64>) -> Result<bool, BackendError> {
-        self.file.try_lock_range(start, end)
-    }
-
-    fn try_lock_shared_range(&self, start: Bound<u64>, end: Bound<u64>) -> Result<bool, BackendError> {
-        self.file.try_lock_shared_range(start, end)
-    }
-
-    fn lock_range(&self, start: Bound<u64>, end: Bound<u64>) -> Result<(), BackendError> {
-        self.file.lock_range(start, end)
-    }
-
-    fn lock_shared_range(&self, start: Bound<u64>, end: Bound<u64>) -> Result<(), BackendError> {
-        self.file.lock_shared_range(start, end)
-    }
-
-    fn unlock_range(&self, start: Bound<u64>, end: Bound<u64>) -> Result<(), BackendError> {
-        self.file.unlock_range(start, end)
-    }
-
-    fn query_lock_range(&self, start: Bound<u64>, end: Bound<u64>) -> Result<bool, BackendError> {
-        self.file.query_lock_range(start, end)
-    }
-}
 
 /// `n` bytes that don't compress (a data file keeps what it's given compressed).
 fn noise(n: usize, mut x: u64) -> Vec<u8> {
@@ -142,4 +72,53 @@ fn a_database_refusing_after_a_failed_write_is_opened_again() {
     assert!(from_disk(&disk(redb::Error::PreviousIo)));
     assert!(from_disk(&disk(redb::Error::Io(io::Error::from(io::ErrorKind::StorageFull)))));
     assert!(!from_disk(&disk(redb::Error::ValueTooLarge(1))));
+}
+
+/// A data file let go of after a failed write while another thread still holds it (a writer
+/// waiting its turn, a reader): the next use waits for that one to let go, then opens it again,
+/// and it isn't said to be open in another copy of MailCraft while it can't. A second failure on
+/// the old file doesn't let go of the one opened since. The file is counted as let go of once,
+/// and a checkpoint counting on what came before is refused with nothing written.
+#[test]
+fn a_data_file_let_go_after_a_failed_write_waits_for_its_holders() {
+    let t = temp("full-held");
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    s.write_body(&inbox(1), b"one").unwrap();
+    s.seal("a1").unwrap();
+    assert_eq!(s.data_file_reopened("a1"), 0);
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let held = packs.db("a1", false).unwrap().unwrap();
+    packs.full.store(true, Ordering::Relaxed);
+    let big = noise(64 << 20, 5);
+    s.write_body(&inbox(2), &big).unwrap_err();
+    packs.full.store(false, Ordering::Relaxed);
+    assert_eq!(s.data_file_reopened("a1"), 1);
+    // Held all along: said as what it is, not as another copy's.
+    let e = s.write_body(&inbox(3), b"x").unwrap_err().to_string();
+    assert!(e.contains("opened again") && !e.contains("another copy"), "{e}");
+    // The old file failing again on another thread lets go of nothing more.
+    assert!(!packs.let_go_failed("a1", &held));
+    // Let go of a moment later: waited for, then opened again and written to.
+    std::thread::scope(|sc| {
+        sc.spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            drop(held);
+        });
+        s.write_body(&inbox(3), b"three").unwrap();
+    });
+    assert_eq!(s.read_body(&inbox(1)).as_deref(), Some(&b"one"[..]));
+    let now = packs.db("a1", false).unwrap().unwrap();
+    let stale = Arc::new(Database::create(t.join("stale.redb")).unwrap());
+    assert!(!packs.let_go_failed("a1", &stale), "only the file that failed is let go of");
+    assert!(Arc::ptr_eq(&now, &packs.db("a1", false).unwrap().unwrap()));
+    assert_eq!(s.data_file_reopened("a1"), 1);
+    // A checkpoint counting on the file before it was let go of: refused, nothing written.
+    let doc = || vec![("import.json", br#"{"next":7}"#.to_vec())];
+    s.write_batch("a1", Vec::new(), doc(), 0).unwrap_err();
+    assert_eq!(s.load_account_doc::<Option<serde_json::Value>>("a1", "import.json").unwrap(), None);
+    s.write_batch("a1", Vec::new(), doc(), 1).unwrap();
+    assert!(s.load_account_doc::<Option<serde_json::Value>>("a1", "import.json").unwrap().is_some());
+    drop((now, stale, s));
+    let _ = std::fs::remove_dir_all(&t);
 }

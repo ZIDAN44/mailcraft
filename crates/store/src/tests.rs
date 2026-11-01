@@ -543,7 +543,7 @@ fn sources_past_a_number_are_dropped_by_number() {
         let mut bodies: Vec<_> = batch.collect();
         bodies.push((key("INBOX", 2, 50), Store::prepare(s.packs("a1"), b"Subject: v2\r\n\r\nx".to_vec())));
         bodies.push((key("Sent", 1, 50), Store::prepare(s.packs("a1"), b"Subject: sent\r\n\r\nx".to_vec())));
-        s.write_batch("a1", bodies, vec![("import.json", br#"{"version":1}"#.to_vec())]).unwrap();
+        s.write_batch("a1", bodies, vec![("import.json", br#"{"version":1}"#.to_vec())], 0).unwrap();
         assert_eq!(s.load_account_doc::<serde_json::Value>("a1", "import.json").unwrap(), serde_json::json!({"version": 1}));
         assert_eq!(s.load_account_doc_bytes("a1", "import.json").unwrap().as_deref(), Some(&br#"{"version":1}"#[..]));
         assert_eq!(s.load_account_doc_bytes("a1", "gone.json").unwrap(), None);

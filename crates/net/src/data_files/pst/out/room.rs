@@ -4,7 +4,10 @@
 //! grow by in one go), the import stops itself as a pause does (what's in is kept and listed, the
 //! checkpoint says where it got) and waits for the user, instead of failing every write after and
 //! counting the messages as lost. A write the drive refuses all the same (something else filled it
-//! meanwhile) stops it too: nothing more is written, and it goes on from its last checkpoint.
+//! meanwhile) stops it too: nothing more is written, and it goes on from its last checkpoint. So
+//! does the data file being opened again after any write to it failed at the disk (the import's,
+//! the window's, the seal's): it's back at its last durable commit, and what the import wrote
+//! without waiting for the disk since may be gone, so no checkpoint may name it.
 
 use std::path::PathBuf;
 
@@ -24,8 +27,12 @@ pub(super) struct Room {
     since: Option<usize>,
     /// The room left when the import stopped itself for want of it.
     full: Option<u64>,
-    /// A write was refused for want of room: nothing more is written in this run.
+    /// A write was refused for want of room, or the data file was opened again after a failed
+    /// write: nothing more is written in this run.
     refused: bool,
+    /// How many times the data file had been opened again after a failed write as the import
+    /// began ([`Store::data_file_reopened`]).
+    reopened: u64,
     /// The messages in, and the items left out, as the last checkpoint written says.
     kept: (usize, usize),
 }
@@ -33,7 +40,8 @@ pub(super) struct Room {
 impl Room {
     pub(super) fn new(store: &Store, account: &str, opts: &ImportOptions) -> Room {
         let space: Arc<dyn Space> = opts.space.clone().unwrap_or_else(|| Arc::new(Drives));
-        Room { space, dir: data_dir(store, account), since: None, full: None, refused: false, kept: (0, 0) }
+        let reopened = store.data_file_reopened(account);
+        Room { space, dir: data_dir(store, account), since: None, full: None, refused: false, reopened, kept: (0, 0) }
     }
 
     /// The room left, when it's short of what writing on in the data file `file` needs.
@@ -92,9 +100,28 @@ impl Out<'_> {
         self.stop.raise(StopHow::Pause);
     }
 
-    /// Whether writing has stopped for want of room: nothing more goes to the store.
-    pub(in super::super) fn writes_stopped(&self) -> bool {
+    /// Whether writing has stopped: for want of room, or because the data file was opened again
+    /// after a failed write since the import began (whoever's write it was). Then nothing more
+    /// goes to the store, and the import stops as if paused, to go on from its last checkpoint
+    /// (said as a full drive when the drive is short of room).
+    pub(in super::super) fn writes_stopped(&mut self) -> bool {
+        if !self.room.refused && self.store.data_file_reopened(self.account) != self.room.reopened {
+            match self.short_of_room() {
+                Some(_) => self.out_of_room(),
+                None => {
+                    log::warn!("import: its data file was opened again after a write failed; stopped, to go on from the last checkpoint");
+                    self.room.refused = true;
+                    self.stop.raise(StopHow::Pause);
+                }
+            }
+        }
         self.room.refused
+    }
+
+    /// The data file's count of times opened again after a failed write as the import began: a
+    /// checkpoint is written only while it's still that ([`Store::write_batch`]).
+    pub(in super::super) fn reopened(&self) -> u64 {
+        self.room.reopened
     }
 
     /// A checkpoint was written, or one gone on from: what it counts is what the run comes to

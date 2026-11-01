@@ -11,10 +11,16 @@
 //! by ahead of its contents: 8.6 GB came down to 6.9 GB at once, rather than when MailCraft closed.
 
 use std::collections::HashSet;
+use std::sync::Weak;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use super::*;
 use crate::CacheUse;
+
+/// How long a data file let go of after a failed write is waited for, while something still
+/// holds it, before it's opened again.
+const LET_GO_WAIT: Duration = Duration::from_secs(2);
 
 /// The data files open, and the accounts whose file is being opened.
 #[derive(Debug, Default)]
@@ -29,6 +35,12 @@ pub(super) struct Open {
     /// How the caches of the files let go of to change theirs were used (so a count over an
     /// import keeps what its file did before it was opened again).
     spent: HashMap<String, CacheUse>,
+    /// How many times each account's data file was let go of after a write the disk failed (to
+    /// open again at its last durable commit: what wasn't durable yet is gone).
+    reopened: HashMap<String, u64>,
+    /// The data file let go of so, while something may still hold it (a writer waiting its turn,
+    /// a reader): it can't be opened again until that lets go too.
+    failed: HashMap<String, Weak<Database>>,
 }
 
 impl CacheUse {
@@ -97,6 +109,53 @@ impl Packs {
         let mut open = self.settled(account);
         open.caches.remove(account);
         open.dbs.remove(account).is_some()
+    }
+
+    /// Let go of `account`'s data file `db` after a write the disk failed, so the next use opens
+    /// it again (checked as after a crash, back at its last durable commit), and count it
+    /// ([`Packs::reopened`]). Only that file: one let go of already (another thread's write failed
+    /// on it too) or opened again since stays. Returns whether it was let go of now.
+    pub(super) fn let_go_failed(&self, account: &str, db: &Arc<Database>) -> bool {
+        let mut open = self.settled(account);
+        if !open.dbs.get(account).is_some_and(|d| Arc::ptr_eq(d, db)) {
+            return false;
+        }
+        open.dbs.remove(account);
+        open.caches.remove(account);
+        let n = open.reopened.entry(account.to_string()).or_default();
+        *n = n.saturating_add(1);
+        open.failed.insert(account.to_string(), Arc::downgrade(db));
+        true
+    }
+
+    /// How many times `account`'s data file was let go of after a write the disk failed: a writer
+    /// that sees it change knows what it wrote without waiting for the disk may be gone.
+    pub(crate) fn reopened(&self, account: &str) -> u64 {
+        Packs::lock(&self.open).reopened.get(account).copied().unwrap_or(0)
+    }
+
+    /// Whether the data file let go of after a failed write is still held, waiting
+    /// [`LET_GO_WAIT`] at most for whoever holds it (a writer waiting its turn fails at once, a
+    /// reader ends) before it opens again: the file can't be opened twice.
+    fn still_held(&self, account: &str) -> bool {
+        let end = Instant::now().checked_add(LET_GO_WAIT);
+        loop {
+            {
+                let mut open = Packs::lock(&self.open);
+                match open.failed.get(account).map(Weak::strong_count) {
+                    None => return false,
+                    Some(0) => {
+                        open.failed.remove(account);
+                        return false;
+                    }
+                    Some(_) => {}
+                }
+            }
+            if end.is_none_or(|end| Instant::now() >= end) {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
 
     /// `account` takes a bulk write (an import): its data file has a cache of `cache_bytes` until
@@ -225,8 +284,13 @@ impl Packs {
         }
         let checked = Arc::new(AtomicBool::new(false));
         let _over = CheckOver(&self.progress);
+        let held = self.still_held(account);
         let db = match self.create(&self.builder(&name, &checked, cache), &path) {
             Ok(db) => db,
+            // Let go of after a failed write, and still held here: not another copy's.
+            Err(redb::DatabaseError::DatabaseAlreadyOpen) if held => {
+                return Err(other(format!("{} is being opened again after a write that failed; try again", path.display())));
+            }
             Err(redb::DatabaseError::DatabaseAlreadyOpen) => {
                 return Err(other(format!("{} is open in another copy of MailCraft", path.display())));
             }
@@ -258,15 +322,15 @@ impl Packs {
     }
 
     /// The data file at `path` opened as `b` says (made when it isn't there).
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "test-drive")))]
     fn create(&self, b: &redb::Builder, path: &Path) -> std::result::Result<Database, redb::DatabaseError> {
         b.create(path)
     }
 
     /// …on a drive a test can fill ([`Packs::full`]).
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-drive"))]
     fn create(&self, b: &redb::Builder, path: &Path) -> std::result::Result<Database, redb::DatabaseError> {
-        super::tests::full::create(b, path, &self.full)
+        super::filling::create(b, path, &self.full)
     }
 
     /// How a data file named `name` opens: its cache of `cache` bytes, and its check (if it needs

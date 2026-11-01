@@ -139,11 +139,12 @@ impl Files {
 
     /// Sources and the documents describing them ([`Store::write_batch`]): in a data file one
     /// sealed transaction; elsewhere the sources first, then the documents.
-    pub(super) fn write_batch(&self, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+    pub(super) fn write_batch(&self, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>, reopened: u64) -> Result<()> {
         match self {
             #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.write_batch(items, docs),
+            Files::Packed(x) => x.write_batch(items, docs, reopened),
             _ => {
+                let _ = reopened;
                 self.write_prepared(items, true)?;
                 for (p, bytes) in &docs {
                     self.write(p, bytes)?;
@@ -429,8 +430,8 @@ impl Routed {
     }
 
     /// [`Files::write_batch`] for an account's files, all under its folder `dir`.
-    pub(super) fn write_batch(&self, dir: &Path, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
-        self.at(dir).write_batch(items, docs)
+    pub(super) fn write_batch(&self, dir: &Path, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>, reopened: u64) -> Result<()> {
+        self.at(dir).write_batch(items, docs, reopened)
     }
 
     /// [`Files::replace`] for files all under `dir`.

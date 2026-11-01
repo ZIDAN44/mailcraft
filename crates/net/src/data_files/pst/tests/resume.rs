@@ -408,3 +408,54 @@ fn a_write_the_full_drive_refuses_pauses_and_room_again_goes_on() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A write to the account's data file failing at the disk while the import runs (one from the
+/// window, on a drive that filled for a moment): the store opens the file again at its last
+/// durable commit, so the batches the import wrote without waiting for the disk since may be
+/// gone. The import's next write sees it and stops as a pause does, writing nothing more: no
+/// checkpoint names what went, nothing is counted as left out, and gone on with it's the import
+/// that never stopped. Going on regardless, it named sources that were gone.
+#[test]
+fn a_data_file_opened_again_after_a_failed_write_stops_the_import() {
+    let (dir, pst) = data_file("resume-reopened", 300, false);
+    let whole = store_at(&dir, "whole");
+    import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
+    let roomy = || Some(Arc::new(Filling::new(usize::MAX, 0)) as Arc<dyn crate::space::Space>);
+    let mut x = 0x2545_F491_4F6C_DD1Du64;
+    let big: Vec<u8> = (0..64 << 20)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x as u8
+        })
+        .collect();
+    let elsewhere = mailcraft_model::MessageKey { account: "a1".into(), folder: "Elsewhere".into(), validity: 1, uid: 1 };
+    for at in [200, 450] {
+        let store = store_at(&dir, &format!("part-{at}"));
+        let o = ImportOptions { batch_bytes: 3000, space: roomy(), ..opts(2, None) };
+        let mut failed = false;
+        let part = import_with(&pst, &store, "a1", &o, &mut |p| {
+            if p.read >= at && !failed {
+                failed = true;
+                store.fill_drive(true);
+                assert!(store.write_body(&elsewhere, &big).is_err(), "{at}: the drive is full");
+                store.fill_drive(false);
+            }
+        })
+        .unwrap();
+        assert!(failed, "{at}");
+        assert_eq!(store.data_file_reopened("a1"), 1, "{at}");
+        assert_eq!((part.stopped, part.skipped, part.blocked), (Some(StopHow::Pause), 0, None), "{at}");
+        assert!(!part.skips.contains_key(&SkipReason::NotWritten), "{at}: {:?}", part.skips);
+        assert!(part.messages < 900, "{at}: stopped part-way: {}", part.messages);
+        if let Found::Some(cp) = resume::load(&store, "a1") {
+            assert_eq!((cp.state, part.messages), (CheckState::Running, usize::try_from(cp.counts.imported).unwrap()), "{at}");
+        }
+        let o = ImportOptions { resume: true, space: roomy(), ..opts(2, None) };
+        let done = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
+        assert_eq!((done.messages, done.skipped, done.blocked), (900, 0, None), "{at}");
+        assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "{at}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

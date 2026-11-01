@@ -255,17 +255,31 @@ impl Packs {
         undurable: usize,
         f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
     ) -> io::Result<()> {
+        self.change_since(account, how, undurable, None, f)
+    }
+
+    /// [`Packs::change_with`], refused with nothing written ([`RolledBack`]) when `since` is
+    /// given and the data file was let go of after a failed write since then
+    /// ([`Packs::reopened`]): asked with the writer held, so no commit comes in between.
+    pub(super) fn change_since(
+        &self,
+        account: &str,
+        how: Commit,
+        undurable: usize,
+        since: Option<u64>,
+        f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
+    ) -> io::Result<()> {
         let Some(db) = self.db(account, true)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
-        let done = self.change_in(&db, account, how, undurable, f);
+        let done = self.change_in(&db, account, how, undurable, since, f);
         if let Err(e) = &done
             && from_disk(e)
+            && self.let_go_failed(account, &db)
         {
             // The database refuses everything after a write the disk failed (a full drive) until
-            // it's opened again: let go of it, and the next use opens it again, checked as after
-            // a crash (back to its last durable commit).
+            // it's opened again: let go of, the next use opens it again, checked as after a crash
+            // (back to its last durable commit).
             log::warn!("{account}: its data file failed to be written ({e}); it will be opened again");
             drop(db);
-            self.close(account);
             self.seals.forget(account);
         }
         done
@@ -277,11 +291,18 @@ impl Packs {
         account: &str,
         how: Commit,
         undurable: usize,
+        since: Option<u64>,
         f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
     ) -> io::Result<()> {
         #[cfg(test)]
         let start = Instant::now();
         let mut tx = db.begin_write().map_err(disk)?;
+        // Let go of after a failed write meanwhile: what the writer counted on may be gone. A
+        // file let go of since is a new one (opened after the count changed), and the old one
+        // refuses its writers itself.
+        if since.is_some_and(|n| n != self.reopened(account)) {
+            return Err(io::Error::other(RolledBack));
+        }
         // Writes from the window only (a background batch names its size).
         #[cfg(test)]
         if how.durable && undurable == 0 {
@@ -387,7 +408,9 @@ impl Packs {
 
     /// Sources and the documents saying what they are (an import's checkpoint), in one durable,
     /// sealed transaction per data file: a crash leaves both or neither, and reopens at once.
-    pub(crate) fn write_batch(&self, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+    /// Refused with nothing written once the file was let go of after a failed write since it
+    /// was let go of `reopened` times ([`Packs::reopened`]).
+    pub(crate) fn write_batch(&self, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>, reopened: u64) -> Result<()> {
         let mut by_account: BTreeMap<String, (Vec<(String, Prepared)>, Vec<(String, Vec<u8>)>)> = BTreeMap::new();
         for (p, prepared) in items {
             match self.place(&p) {
@@ -402,7 +425,7 @@ impl Packs {
             }
         }
         for (a, (files, docs)) in by_account {
-            self.change_with(&a, Commit::SEALED, 0, |t| {
+            self.change_since(&a, Commit::SEALED, 0, Some(reopened), |t| {
                 for (k, prepared) in &files {
                     if prepared.kept {
                         t.put_kept(k, &prepared.bytes)?;

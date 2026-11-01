@@ -23,6 +23,8 @@ use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use crate::{CACHE, OpenProgress, Prepared, Result, StoreError, io_err, write_atomic};
 
 mod commit;
+#[cfg(any(test, feature = "test-drive"))]
+mod filling;
 mod kept;
 mod open;
 use commit::*;
@@ -61,6 +63,19 @@ impl std::fmt::Display for Refusing {
 }
 
 impl std::error::Error for Refusing {}
+
+/// A write refused because the data file was let go of after a failed write since the writer
+/// last looked ([`Packs::reopened`]): what it wrote without waiting for the disk may be gone.
+#[derive(Debug)]
+struct RolledBack;
+
+impl std::fmt::Display for RolledBack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the data file was opened again after a write that failed, at its last durable commit")
+    }
+}
+
+impl std::error::Error for RolledBack {}
 
 /// Whether a write failed at the disk itself (a full drive, a failing one), now or before, rather
 /// than over what was written: the database then refuses everything until it's opened again.
@@ -107,7 +122,7 @@ pub(crate) struct Packs {
     /// How opening the data files goes (and a check of one, whoever opens it).
     pub(crate) progress: Arc<OpenProgress>,
     /// A test's drive: full while it's set (growing a data file fails as on a full drive).
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-drive"))]
     pub(super) full: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -137,7 +152,7 @@ impl Packs {
             names: Mutex::new(names),
             seals: Arc::default(),
             progress: Arc::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-drive"))]
             full: Arc::default(),
         })
     }

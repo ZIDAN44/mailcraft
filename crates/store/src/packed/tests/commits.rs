@@ -294,7 +294,7 @@ fn a_checkpoint_and_its_batch_are_one_sealed_commit() {
     assert!(packs.seals.undurable("a1").0 > 0 && packs.seals.waiting_for("a1"));
     let batch = background_batch(&mut uid);
     let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
-    s.write_batch("a1", batch, vec![("import.json", br#"{"next":7}"#.to_vec())]).unwrap();
+    s.write_batch("a1", batch, vec![("import.json", br#"{"next":7}"#.to_vec())], 0).unwrap();
     assert_eq!(packs.seals.undurable("a1").0, 0, "the batches before it are on the disk");
     assert!(!packs.seals.waiting_for("a1"), "and it's sealed");
     assert!(keys.iter().all(|k| s.has_body(k)));

@@ -122,12 +122,40 @@ impl Store {
     /// documents saying what the sources are: an import's checkpoint. In a data file it's one
     /// transaction, durable and sealed (it makes the batches before it durable too, and a crash
     /// after it reopens at once); elsewhere the sources go first and the documents last, so a
-    /// document never names a source that isn't there.
-    pub fn write_batch(&self, account: &str, bodies: Vec<(MessageKey, Prepared)>, docs: Vec<(&str, Vec<u8>)>) -> Result<()> {
+    /// document never names a source that isn't there. A data file let go of after a failed write
+    /// since [`Store::data_file_reopened`] said `reopened` refuses it, writing nothing: the
+    /// batches before it that didn't wait for the disk may be gone, and the documents would name
+    /// them.
+    pub fn write_batch(&self, account: &str, bodies: Vec<(MessageKey, Prepared)>, docs: Vec<(&str, Vec<u8>)>, reopened: u64) -> Result<()> {
         let dir = self.account_dir(account);
         let items = bodies.into_iter().map(|(k, p)| (self.body_path(&k), p)).collect();
         let docs = docs.into_iter().map(|(name, bytes)| (dir.join(safe_doc(name)), bytes)).collect();
-        self.files.write_batch(&dir, items, docs)
+        self.files.write_batch(&dir, items, docs, reopened)
+    }
+
+    /// How many times `account`'s data file was let go of after a write the disk failed (a full
+    /// drive), to open again at its last durable commit: what was written without waiting for the
+    /// disk before then may be gone. A writer that sees it change since it began (an import)
+    /// writes nothing more that counts on that. Always 0 for other stores.
+    pub fn data_file_reopened(&self, account: &str) -> u64 {
+        if self.is_online_only(account) {
+            return 0;
+        }
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.reopened(&safe_segment(account)),
+            _ => 0,
+        }
+    }
+
+    /// The drive of a store's data files full (`true`: growing one fails as on a full drive) or
+    /// not, for tests. Other stores ignore it.
+    #[doc(hidden)]
+    #[cfg(feature = "test-drive")]
+    pub fn fill_drive(&self, full: bool) {
+        if let Files::Packed(x) = &self.files.main {
+            x.full.store(full, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     /// Remove the sources kept for `folder` (as numbered under `validity`) numbered `uid_next` or
