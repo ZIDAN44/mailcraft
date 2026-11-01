@@ -400,6 +400,8 @@ pub struct Store {
     search_writers: Arc<Mutex<search::Writers>>,
     /// How many times each account was removed ([`Store::while_kept`]).
     removals: Arc<RwLock<HashMap<String, u64>>>,
+    /// Read marks kept on a thread of their own ([`Store::mark_later`]).
+    marking: Arc<marking::Marking>,
 }
 
 impl Store {
@@ -414,6 +416,7 @@ impl Store {
             reads: Arc::default(),
             search_writers: Arc::default(),
             removals: Arc::default(),
+            marking: Arc::default(),
         })
     }
 
@@ -432,6 +435,7 @@ impl Store {
             reads: Arc::default(),
             search_writers: Arc::default(),
             removals: Arc::default(),
+            marking: Arc::default(),
         })
     }
 
@@ -450,6 +454,7 @@ impl Store {
             reads: Arc::default(),
             search_writers: Arc::default(),
             removals: Arc::default(),
+            marking: Arc::default(),
         })
     }
 
@@ -463,6 +468,7 @@ impl Store {
             reads: Arc::default(),
             search_writers: Arc::default(),
             removals: Arc::default(),
+            marking: Arc::default(),
         }
     }
 
@@ -479,6 +485,7 @@ impl Store {
             reads: Arc::default(),
             search_writers: Arc::default(),
             removals: Arc::default(),
+            marking: Arc::default(),
         }
     }
 
@@ -633,7 +640,16 @@ impl Store {
         self.write_json(&self.root.join("accounts.json"), accounts)
     }
 
+    /// An account's folder list, once the read marks handed over before (and their counts) are
+    /// on disk ([`Store::mark_later`]).
     pub fn load_folders(&self, account: &str) -> Result<Vec<Folder>> {
+        self.flush_marks();
+        self.read_folders(account)
+    }
+
+    /// [`Store::load_folders`] without waiting for the marks: with the lock held, which their
+    /// thread takes.
+    pub(crate) fn read_folders(&self, account: &str) -> Result<Vec<Folder>> {
         self.read_json(&self.account_dir(account).join("folders.json"))
     }
 
@@ -641,6 +657,7 @@ impl Store {
     /// [`Store::upsert_folder`] and [`Store::update_folder_counts`], so a list read before one of
     /// those and written after can't be half of each.
     pub fn save_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
+        self.flush_marks();
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         self.write_folders(account, folders)
     }
@@ -718,6 +735,7 @@ pub use atomic::write_atomic;
 pub use bodies::Prepared;
 use files::{Files, Routed};
 pub use folders::FolderLoad;
+pub use marking::{FolderMarks, MarksAfter};
 pub use opening::{OpenProgress, OpenStage};
 
 mod accounts;
@@ -725,6 +743,7 @@ mod atomic;
 mod bodies;
 mod files;
 mod folders;
+mod marking;
 mod opening;
 
 #[cfg(test)]

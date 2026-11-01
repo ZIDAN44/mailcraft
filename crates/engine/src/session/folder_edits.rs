@@ -211,6 +211,31 @@ impl Session {
         counts
     }
 
+    /// What came of the read marks the store kept behind the window ([`Store::mark_later`]): one
+    /// that couldn't be kept is said, and its folders read again as the disk has them; an account
+    /// whose folder list on disk had none of the folders counted gets the window's written whole.
+    pub(super) fn marks_kept(&mut self) {
+        let Some(store) = self.store.clone() else { return };
+        for after in store.take_marks_failed() {
+            match after {
+                MarksAfter::Failed { account, folders, message } => {
+                    self.notice(message, true);
+                    for folder in folders {
+                        self.apply(Event::FolderChanged { account: account.clone(), folder });
+                    }
+                    self.recount_local(&account, None);
+                }
+                MarksAfter::Unlisted { account } => {
+                    if let Some(a) = self.account(&account).filter(|a| !a.folders.is_empty())
+                        && let Err(e) = store.save_folders(&account, &a.folders)
+                    {
+                        self.notice(e.to_string(), true);
+                    }
+                }
+            }
+        }
+    }
+
     /// The counts were kept in the list on disk (`found`: how many of their folders it has). A
     /// list on disk that has none of them (it was damaged and set aside) is written again from
     /// here.

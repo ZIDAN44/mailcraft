@@ -140,6 +140,7 @@ impl Session {
     /// headings on a new day). Called often (each frame, each CLI run): cheap when nothing is due.
     pub fn tick(&mut self) {
         self.let_go_some();
+        self.marks_kept();
         self.flush_due_outbox();
         self.read_when_due();
         self.web_calendars_due();

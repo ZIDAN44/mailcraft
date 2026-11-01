@@ -131,25 +131,28 @@ impl Session {
         }
         touched.sort();
         touched.dedup();
-        // A flag or category: the lists in memory have it already (`apply_op_memory`), so they're
-        // saved as they are (a big folder's changed page only), not read from disk, changed and
-        // read again. One not in memory is changed on disk.
+        // A flag or category: the lists in memory have it already (`apply_op_memory`), so the
+        // flags they have now are handed to the store's thread for marks with the folders'
+        // counts, written there in one commit (`store/src/marking.rs`): not in the window's frame.
+        // One not in memory is changed on disk.
         if matches!(op, Op::SetFlag { .. } | Op::SetKeyword { .. })
             && touched.iter().all(|f| self.cache.contains_key(&(account.to_string(), f.clone())))
         {
-            // The lists and the folders' counts in one write: for a big folder, only the marks
-            // kept beside its pages.
-            let changed: HashSet<u32> = op.keys().iter().map(|k| k.uid).collect();
             let counts = self.count_local(account, Some(&touched));
-            let lists: Vec<(&str, &FolderState)> =
-                touched.iter().filter_map(|f| self.cache.get(&(account.to_string(), f.clone())).map(|st| (f.as_str(), st))).collect();
-            let saved = store.save_marks(account, &lists, &changed, &counts);
-            match saved {
-                Ok(found) => self.counts_kept(account, &counts, Ok(found)),
-                Err(e) => self.notice(e.to_string(), true),
-            }
+            let lists: Vec<FolderMarks> = touched
+                .iter()
+                .filter_map(|f| {
+                    let st = self.cache.get(&(account.to_string(), f.clone()))?;
+                    let uids: HashSet<u32> = op.keys().iter().filter(|k| k.folder == *f && k.validity == st.validity).map(|k| k.uid).collect();
+                    let flags = st.messages.iter().filter(|m| uids.contains(&m.key.uid)).map(|m| (m.key.uid, m.flags.clone())).collect();
+                    Some(FolderMarks { folder: f.clone(), validity: st.validity, flags })
+                })
+                .collect();
+            store.mark_later(account, lists, counts);
             return Ok(());
         }
+        // Anything else reads the lists from disk: the marks handed over before are there first.
+        store.flush_marks();
         if let Op::Move { keys, to } = op {
             // Not filed in the destination: the messages stay where they were (taken from the
             // sources after all, they were lost), and the lists in memory are read again.

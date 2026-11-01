@@ -146,9 +146,9 @@ fn a_mark_in_a_big_folder_writes_a_few_bytes() {
         for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
             m.flags.seen = true;
         }
-        let changed: std::collections::HashSet<u32> = uids.iter().copied().collect();
+        let flags = st.messages.iter().filter(|m| uids.contains(&m.key.uid)).map(|m| (m.key.uid, m.flags.clone())).collect();
         let unread = u32::try_from(st.messages.iter().filter(|m| !m.flags.seen).count()).unwrap();
-        s.save_marks("a1", &[("INBOX", &*st)], &changed, &[("INBOX".into(), unread, n)]).unwrap()
+        s.save_flags("a1", &[FolderMarks { folder: "INBOX".into(), validity: 3, flags }], &[("INBOX".into(), unread, n)]).unwrap()
     };
     assert_eq!(mark(&mut st, &[5000]), 1, "the folder is in the account's list");
     let written = s.take_changes();
@@ -190,6 +190,82 @@ fn a_mark_in_a_big_folder_writes_a_few_bytes() {
     w.push(&s, fresh).unwrap();
     w.finish(&s, &st).unwrap();
     assert!(!s.load_folder("a1", "INBOX").unwrap().find(9).unwrap().flags.seen);
+}
+
+/// Marks handed to the store's thread ([`Store::mark_later`]) are in the list whoever reads it
+/// next (a reader waits for them), the counts with them; a small list is written whole, a list
+/// made anew since (another validity) isn't marked, and a mark that can't be written is told.
+#[test]
+fn marks_kept_later_are_there_for_the_next_reader() {
+    let s = Store::failing();
+    let mut st = FolderState { validity: 3, uid_next: 11, messages: (1..=10).map(|uid| msg(uid, false)).collect(), ..Default::default() };
+    sort_newest_first(&mut st.messages);
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    s.save_folders("a1", &[Folder { account: "a1".into(), path: "INBOX".into(), unread: 10, total: 10, ..Default::default() }]).unwrap();
+    let seen = Flags { seen: true, ..Default::default() };
+    let marks = |validity, uid| vec![FolderMarks { folder: "INBOX".into(), validity, flags: vec![(uid, seen.clone())] }];
+    {
+        let _paused = s.pause_marks();
+        s.mark_later("a1", marks(3, 4), vec![("INBOX".into(), 9, 10)]);
+        assert!(s.marks_waiting(), "not written while the thread waits");
+    }
+    assert!(s.load_folder("a1", "INBOX").unwrap().find(4).unwrap().flags.seen, "the reader waited for it");
+    assert_eq!(s.load_folders("a1").unwrap()[0].unread, 9);
+    s.mark_later("a1", marks(2, 5), vec![("INBOX".into(), 8, 10)]);
+    assert!(!s.load_folder("a1", "INBOX").unwrap().find(5).unwrap().flags.seen, "another list's");
+    s.fail(None, Some("state.json"));
+    s.mark_later("a1", marks(3, 6), Vec::new());
+    assert!(s.flush_marks());
+    s.fail(None, None);
+    let after = s.take_marks_failed();
+    assert!(matches!(after.as_slice(), [MarksAfter::Failed { account, folders, .. }] if account == "a1" && folders == &["INBOX"]), "{after:?}");
+    assert!(!s.load_folder("a1", "INBOX").unwrap().find(6).unwrap().flags.seen);
+}
+
+/// A big list saved after only flags changed, with a newer modseq: the few marks beside its
+/// pages, and its head with the modseq (it was dropped, the marks alone written).
+#[test]
+fn a_flag_save_keeps_a_newer_head() {
+    let s = Store::memory();
+    let n = PAGE_MESSAGES as u32 * 2 + 9;
+    let mut st = FolderState {
+        validity: 3,
+        uid_next: n + 1,
+        highest_modseq: 40,
+        messages: (1..=n).map(|uid| msg(uid, false)).collect(),
+        ..Default::default()
+    };
+    sort_newest_first(&mut st.messages);
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 7) {
+        m.flags.seen = true;
+    }
+    st.highest_modseq = 41;
+    s.track_changes();
+    s.save_folder_changed("a1", "INBOX", &st, &[7].into_iter().collect()).unwrap();
+    let mut names: Vec<String> = s.take_changes().into_iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default().to_string()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["state-marks.json", "state.json"], "no page");
+    assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
+}
+
+/// The marks' thread lets the store go once its last handle has: the data file it holds is
+/// closed, and a store opened again on the folder reads it (it was "open in another copy").
+#[test]
+fn the_marks_thread_lets_the_store_go() {
+    let s = Store::memory();
+    let st = FolderState { validity: 3, uid_next: 2, messages: vec![msg(1, false)], ..Default::default() };
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let seen = Flags { seen: true, ..Default::default() };
+    s.mark_later("a1", vec![FolderMarks { folder: "INBOX".into(), validity: 3, flags: vec![(1, seen)] }], Vec::new());
+    assert!(s.flush_marks());
+    let (marking, changes) = (Arc::downgrade(&s.marking), Arc::downgrade(&s.changes));
+    drop(s);
+    let gone = (0..200).any(|_| {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        marking.upgrade().is_none() && changes.upgrade().is_none()
+    });
+    assert!(gone, "the thread still holds the store");
 }
 
 fn msg(uid: u32, seen: bool) -> Summary {

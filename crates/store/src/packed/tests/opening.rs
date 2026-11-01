@@ -201,3 +201,35 @@ fn a_data_file_that_cant_be_opened_is_told() {
     drop((s, holder));
     let _ = std::fs::remove_dir_all(t);
 }
+
+/// A store that handed read marks to its thread, dropped, lets its data file go: the folder
+/// opened again in the same process reads it (the thread held it, "open in another copy").
+#[test]
+fn a_data_file_marked_on_its_thread_opens_again() {
+    let t = temp("marked-reopen");
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let k = inbox(7);
+    let st = crate::FolderState {
+        validity: k.validity,
+        uid_next: 8,
+        messages: vec![Summary { key: k.clone(), ..Default::default() }],
+        ..Default::default()
+    };
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let seen = Flags { seen: true, ..Default::default() };
+    s.mark_later("a1", vec![crate::FolderMarks { folder: "INBOX".into(), validity: k.validity, flags: vec![(7, seen)] }], Vec::new());
+    assert!(s.flush_marks());
+    drop(s);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let back = loop {
+        let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+        match s.load_folder("a1", "INBOX") {
+            Ok(back) => break back,
+            Err(e) if Instant::now() > deadline => panic!("{e}"),
+            Err(_) => std::thread::sleep(Duration::from_millis(20)),
+        }
+    };
+    assert!(back.find(7).unwrap().flags.seen);
+    let _ = std::fs::remove_dir_all(&t);
+}

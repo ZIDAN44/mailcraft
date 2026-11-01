@@ -192,6 +192,8 @@ impl Store {
     /// its file reopening at once). Called on the way out by the app and the CLI: the threads
     /// that also hold the store are let go rather than waited for, so the files aren't closed.
     pub fn seal_all(&self) -> Result<()> {
+        // The read marks handed over first: they're sealed with the rest.
+        self.flush_marks();
         self.files.seal_all()
     }
 

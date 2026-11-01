@@ -1906,3 +1906,13 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   room back to the drive. Open: the proof on a copy of the 47 GB data file (live data down by 8 to
   11 GiB, every source the same by its sha256, a mark-read at most 60 ms), with the milestone's
   verification.
+- **Down in a big folder of a data file:** a read mark on a `.pst` account's message saved the
+  page of 4,096 summaries it's in (about 2 MB) and then the folder counts, two durable commits
+  of the 38 GB data file in the window's frame: 24 ms by median, up to 1.4 s when the disk was
+  slow, every Down that landed on an unread message. A list kept in pages now keeps the flags
+  marked since its pages were written beside them (512 at most), and the marks and counts go in
+  one commit, written on a thread of the store's own in the order they were made: still saved at
+  once, but not while the window waits. What reads a folder's list from disk, a move included,
+  and closing wait for the marks handed over before, so a message marked read and deleted at once
+  keeps its mark. In a made-up folder of 10,941 messages a mark writes under 64 KB and nothing on
+  the window's thread.

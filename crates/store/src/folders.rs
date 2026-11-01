@@ -11,8 +11,21 @@ impl Store {
         Ok(load.finish())
     }
 
-    /// Start reading a folder's list a page at a time ([`FolderLoad`]): its head is read now.
+    /// Start reading a folder's list a page at a time ([`FolderLoad`]): its head is read now,
+    /// once the read marks handed over before are on disk ([`Store::mark_later`]).
     pub fn folder_load(&self, account: &str, folder: &str) -> Result<FolderLoad> {
+        self.flush_marks();
+        self.list_load(account, folder)
+    }
+
+    /// [`Store::load_folder`] without waiting for the marks (their own thread's).
+    pub(crate) fn list_from_disk(&self, account: &str, folder: &str) -> Result<FolderState> {
+        let mut load = self.list_load(account, folder)?;
+        while !load.step(self)? {}
+        Ok(load.finish())
+    }
+
+    fn list_load(&self, account: &str, folder: &str) -> Result<FolderLoad> {
         let dir = self.folder_dir(account, folder);
         let file: StateFile = self.read_json(&dir.join("state.json"))?;
         let st = FolderState {
@@ -125,6 +138,8 @@ impl Store {
         state: &FolderState,
         changed: Option<&std::collections::HashSet<u32>>,
     ) -> Result<usize> {
+        // A list written whole after the marks handed over before, never under them.
+        self.flush_marks();
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let (writes, stale) = self.list_writes(account, folder, state, changed)?;
         // The list and its pages together (one transaction in a data file).
@@ -134,44 +149,13 @@ impl Store {
         Ok(written)
     }
 
-    /// Keep what marking flags (read, flagged, a category) changed: each of `lists` after only
-    /// `changed`'s flags changed ([`Store::save_folder_changed`]), and the account's folder counts
-    /// ([`Store::update_folder_counts`]), all in one write (one durable commit in a data file,
-    /// not one for each, made while the window waits). Says how many of the counts' folders the
-    /// account's list has.
-    pub fn save_marks(
-        &self,
-        account: &str,
-        lists: &[(&str, &FolderState)],
-        changed: &std::collections::HashSet<u32>,
-        counts: &[(String, u32, u32)],
-    ) -> Result<usize> {
-        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (mut writes, mut stale) = (Vec::new(), Vec::new());
-        for (folder, state) in lists {
-            let (w, s) = self.list_writes(account, folder, state, Some(changed))?;
-            writes.extend(w);
-            stale.extend(s);
-        }
-        let mut list = self.load_folders(account)?;
-        let (found, recounted) = set_counts(&mut list, counts);
-        if recounted {
-            let path = self.account_dir(account).join("folders.json");
-            let bytes = serde_json::to_vec(&list).map_err(|source| StoreError::Json { path: path.display().to_string(), source })?;
-            writes.push((path, bytes));
-        }
-        self.write_files(writes)?;
-        self.remove_stale(stale);
-        Ok(found)
-    }
-
     /// Whether the marks beside a list's pages ([`MARKS`]) have any.
     pub(crate) fn has_marks(&self, path: &Path) -> bool {
         self.files.read(path).is_ok_and(|b| b.as_slice() != b"[]")
     }
 
     /// Pages a list no longer has, gone once it's written without them.
-    fn remove_stale(&self, stale: Vec<PathBuf>) {
+    pub(crate) fn remove_stale(&self, stale: Vec<PathBuf>) {
         for p in stale {
             let _ = self.files.remove_file(&p);
         }
@@ -179,8 +163,8 @@ impl Store {
 
     /// What keeping a folder's list writes (with the lock held), and the pages it no longer has.
     /// Told only flags changed, and with few marked since its pages were written: the marks alone
-    /// ([`MARKS`]). Otherwise the pages that changed and the head, and the marks emptied.
-    fn list_writes(
+    /// ([`MARKS`]), with the head when its numbers changed. Otherwise the pages that changed and the head, and the marks emptied.
+    pub(crate) fn list_writes(
         &self,
         account: &str,
         folder: &str,
@@ -222,7 +206,17 @@ impl Store {
                 if marks.len() <= MARKS_MAX {
                     let list: Vec<(u32, &Flags)> = marks.into_iter().collect();
                     let bytes = serde_json::to_vec(&list).map_err(json_err(&marks_path))?;
-                    return Ok((vec![(marks_path, bytes)], Vec::new()));
+                    let mut writes = vec![(marks_path, bytes)];
+                    // A head that says more than the one on disk (a newer modseq) written too,
+                    // naming the same pages.
+                    if (old.validity, old.uid_next, old.highest_modseq, old.window)
+                        != (file.validity, file.uid_next, file.highest_modseq, file.window)
+                    {
+                        file.pages.clone_from(&old.pages);
+                        file.count = old.count;
+                        writes.push((head.clone(), serde_json::to_vec(&file).map_err(json_err(&head))?));
+                    }
+                    return Ok((writes, Vec::new()));
                 }
                 // Too many: their pages are written again (as the list has them now), and the
                 // marks emptied.
@@ -452,7 +446,7 @@ impl Store {
     /// goes, for a deleted folder). Returns the folders whose contents should be shown afresh.
     pub(super) fn apply_folder_op(&self, account: &str, op: &Op) -> Result<Vec<String>> {
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut list = self.load_folders(account)?;
+        let mut list = self.read_folders(account)?;
         let delimiter = list.iter().find_map(|f| f.delimiter);
         let changed = match op {
             Op::CreateFolder { path } => {
@@ -513,11 +507,12 @@ impl Store {
     /// [`Store::upsert_folder`] for each of `folders`, in one write of the list: an import's
     /// folders finished together cost one write, however many there are.
     pub fn upsert_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
+        self.flush_marks();
         if folders.is_empty() {
             return Ok(());
         }
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut list = self.load_folders(account)?;
+        let mut list = self.read_folders(account)?;
         let mut at: std::collections::HashMap<String, usize> = list.iter().enumerate().map(|(i, f)| (f.path.clone(), i)).collect();
         for folder in folders {
             match at.get(&folder.path).and_then(|i| list.get_mut(*i)) {
@@ -538,8 +533,9 @@ impl Store {
     /// the list stands now: a list held elsewhere (the window's) written whole would drop the
     /// folders an import added since it was read. Says how many of them the list has.
     pub fn update_folder_counts(&self, account: &str, counts: &[(String, u32, u32)]) -> Result<usize> {
+        self.flush_marks();
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut list = self.load_folders(account)?;
+        let mut list = self.read_folders(account)?;
         let (found, changed) = set_counts(&mut list, counts);
         if changed {
             self.write_folders(account, &list)?;
@@ -550,7 +546,7 @@ impl Store {
 
 /// Set the counts (`path`, unread, total) of the folders `list` has: how many it has, and
 /// whether any count changed.
-fn set_counts(list: &mut [Folder], counts: &[(String, u32, u32)]) -> (usize, bool) {
+pub(crate) fn set_counts(list: &mut [Folder], counts: &[(String, u32, u32)]) -> (usize, bool) {
     let (mut found, mut changed) = (0, false);
     for (path, unread, total) in counts {
         if let Some(f) = list.iter_mut().find(|f| f.path == *path) {

@@ -150,6 +150,18 @@ every file was looked at (`deflate`: what's left raw doesn't compress, or was pa
 `data_file` fuzz target builds a hostile file in memory from records and checks every file reads
 back the same after it.
 
+A local account's read marks, flags and categories don't commit in the window's frame (each was a
+durable commit of the data file, 24 ms by median on a 38 GB file, up to 1.4 s when the disk was
+slow). The window changes its lists in memory and hands the flags its messages have now, with the
+folders' counts, to the store's `mail-marks` thread (`Store::mark_later`, `store/src/marking.rs`),
+which writes each in one durable commit, in the order they were made: a list kept in pages takes
+them in `state-marks.json` beside its pages (512 at most; more go into the pages, and any save of
+the whole list empties it), a small list is written whole. Whatever reads a folder's list or the
+folder list from disk (`folder_load`, `load_folders`), writes one whole, and `seal_all` first
+waits for the marks handed over before, so a move files a message with its mark and closing seals
+it; the thread's own store waits on nothing. A mark that couldn't be written comes back through
+`Store::take_marks_failed`, and the session's `tick` says so and reads the folders again.
+
 ## The browser (`apps/mailcraft-web`)
 
 The same `MailApp` runs in eframe's web runner. The store is `Store::memory()`, loaded from
