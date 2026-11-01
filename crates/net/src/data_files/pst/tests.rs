@@ -68,7 +68,7 @@ fn notes_come_in_as_notes() {
     out.add_pim(note("Poster\r\nAsk about 170 gsm", Some(1)));
     out.add_pim(note("Plain", None));
     out.add_pim(note("  ", Some(2)));
-    let done = out.finish().unwrap();
+    let done = out.finish();
     assert_eq!((done.notes, done.skipped), (2, 1));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::ItemNotUsable, 1)], "an empty note isn't an unreadable message");
     let pim: Pim = store.load_account_doc("d1", PIM_DOC).unwrap();
@@ -91,7 +91,7 @@ fn a_big_message_goes_alone() {
     let mail = |body: String| Item { class: "IPM.Note".into(), subject: "s".into(), date: 1_704_067_200, body, ..Default::default() };
     out.add_message(&inbox, mail("small".into()));
     out.add_message(&inbox, mail("x".repeat(mailcraft_store::BACKGROUND_COMMIT)));
-    let done = out.finish().unwrap();
+    let done = out.finish();
     assert_eq!((done.messages, done.skipped), (1, 1), "the small one was written in a batch of its own");
 }
 
@@ -249,7 +249,7 @@ fn an_unsupported_charset_is_in_the_report() {
     };
     out.add_message(&inbox, mail(true));
     out.add_message(&inbox, mail(false));
-    let done = out.finish().unwrap();
+    let done = out.finish();
     assert_eq!((done.messages, done.skipped), (2, 0));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::CharsetUnsupported, 1)]);
     let _ = std::fs::remove_dir_all(&dir);
@@ -628,7 +628,7 @@ fn a_recipient_without_an_address_is_counted() {
     let mut out = Out::new(&store, "r1", &ImportOptions::default(), &mut progress);
     let path = out.add_folder(None, "Inbox");
     out.add_message(&path, Item { subject: "s".into(), body: "b".into(), date: 1_704_067_200, ..read("") });
-    let done = out.finish().unwrap();
+    let done = out.finish();
     let _ = std::fs::remove_dir_all(&dir);
     assert_eq!((done.messages, done.skipped), (1, 0));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::RecipientWithoutAddress, 2)]);
@@ -780,6 +780,7 @@ fn imports_a_data_file() {
 }
 
 mod files;
+mod losses;
 mod options;
 mod reader;
 mod rebuilt;

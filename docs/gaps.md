@@ -1553,3 +1553,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   sent as `application/octet-stream`, named in its Content-Type or only in its
   Content-Disposition. The message shown is parsed once for the reading pane and its own window
   together, and drawing them no longer copies it every frame; a reply takes its own copy.
+- **An import whose last save fails:** when the folder list or the contacts and calendar
+  couldn't be saved at the very end of a `.pst` import, the account was removed with the data
+  file it had written, mail and all. What came in is now kept (the folder list is saved again,
+  so it's there after a restart; if that fails too, the notice says to import the file again)
+  and the error is said with the count. The import also counts what it leaves out that it used
+  to skip silently: a journal or another kind of folder MailCraft has no place for, with its
+  items (folders under it are still read), and a contact or calendar item that couldn't be read
+  is told apart from one that was read but can't be used. The progress bar moves through items
+  left out and contacts as it does through mail.

@@ -29,12 +29,14 @@ pub(super) struct Out<'a> {
     /// (a folder of hundreds of thousands isn't held whole; written ones keep only their counts).
     pub(super) states: HashMap<String, Open>,
     pub(super) imported: usize,
+    /// Items read from the file, whatever became of them.
+    pub(super) read: usize,
     /// Items left out, in all and by reason (`skips` also counts messages that came in with part
     /// of them lost, and the files left out of the messages that came in, which `skipped` doesn't).
     pub(super) skipped: usize,
     pub(super) skips: BTreeMap<SkipReason, usize>,
     pub(super) body_not_converted: usize,
-    pub(super) progress: &'a mut dyn FnMut(usize),
+    pub(super) progress: &'a mut dyn FnMut(Progress),
     /// Contacts and calendar items read so far.
     pub(super) pim: Pim,
     /// Sources read (compressed already) but not yet written, and their size as kept.
@@ -52,13 +54,14 @@ pub(super) struct Out<'a> {
 
 impl<'a> Out<'a> {
     /// Nothing written yet, into `account`'s cache.
-    pub(super) fn new(store: &'a Store, account: &'a str, opts: &ImportOptions, progress: &'a mut dyn FnMut(usize)) -> Self {
+    pub(super) fn new(store: &'a Store, account: &'a str, opts: &ImportOptions, progress: &'a mut dyn FnMut(Progress)) -> Self {
         Out {
             store,
             account,
             folders: Vec::new(),
             states: HashMap::new(),
             imported: 0,
+            read: 0,
             skipped: 0,
             skips: BTreeMap::new(),
             body_not_converted: 0,
@@ -95,6 +98,25 @@ impl Out<'_> {
         if n > 0 {
             let c = self.skips.entry(reason).or_default();
             *c = c.saturating_add(n);
+        }
+    }
+
+    /// One more item read from the file, whatever became of it (call it once the item is dealt
+    /// with): how far the import has got is said every 200, so a run of items left out or of
+    /// contacts moves the bar as mail does.
+    pub(super) fn item_read(&mut self) {
+        self.read = self.read.saturating_add(1);
+        if self.read.is_multiple_of(200) {
+            (self.progress)(Progress { read: self.read, imported: self.imported, skipped: self.skipped });
+        }
+    }
+
+    /// A folder of a kind that isn't brought in, holding `items` (one holding nothing loses
+    /// nothing): its items are left out, and the folder is in the report.
+    pub(super) fn leave_out_folder(&mut self, items: usize) {
+        if items > 0 {
+            self.lose(SkipReason::FolderLeftOut, 1);
+            self.skip(SkipReason::ItemInFolderLeftOut, items);
         }
     }
 
@@ -237,9 +259,6 @@ impl Out<'_> {
         if page_full {
             self.list_out(path);
         }
-        if self.imported.is_multiple_of(200) {
-            (self.progress)(self.imported);
-        }
     }
 
     /// Write the sources read so far, together. A batch that can't be written leaves its
@@ -295,14 +314,12 @@ impl Out<'_> {
 
     /// The rest written out, and the data file sealed whatever happened: what went in without
     /// waiting for the disk is on it, and a crash after the import doesn't cost a check of the file.
-    pub(super) fn finish(mut self) -> Result<Imported, String> {
+    pub(super) fn finish(mut self) -> Imported {
         let mut done = self.write_out();
         self.seal();
-        if let Ok(d) = &mut done {
-            // One lane reads, for now.
-            d.stats = self.tally.snapshot(self.began.elapsed(), 1);
-            log::info!("import: {}", serde_json::to_string(&d.stats).unwrap_or_default());
-        }
+        // One lane reads, for now.
+        done.stats = self.tally.snapshot(self.began.elapsed(), 1);
+        log::info!("import: {}", serde_json::to_string(&done.stats).unwrap_or_default());
         done
     }
 
@@ -314,7 +331,7 @@ impl Out<'_> {
         }
     }
 
-    fn write_out(&mut self) -> Result<Imported, String> {
+    fn write_out(&mut self) -> Imported {
         self.flush();
         // An Inbox to open, even when the file had none.
         if !self.folders.iter().any(|f| f.role == FolderRole::Inbox) {
@@ -326,16 +343,20 @@ impl Out<'_> {
         for p in unsaved {
             self.save_folder(&p);
         }
-        self.tally.time(Phase::Commit, || self.store.save_folders(self.account, &self.folders)).map_err(|e| e.to_string())?;
+        // A last save that fails doesn't take back what came in before it: it's said, with the
+        // counts, and the account is kept.
+        let mut last_save = self.tally.time(Phase::Commit, || self.store.save_folders(self.account, &self.folders)).err().map(|e| e.to_string());
         let (contacts, events, notes) = (self.pim.cards.len(), self.pim.events.len(), self.pim.notes.len());
         if contacts + events + notes > 0 {
             self.pim.ensure_defaults();
-            self.tally.time(Phase::Commit, || self.store.save_account_doc(self.account, PIM_DOC, &self.pim)).map_err(|e| e.to_string())?;
+            if let Err(e) = self.tally.time(Phase::Commit, || self.store.save_account_doc(self.account, PIM_DOC, &self.pim)) {
+                last_save.get_or_insert(e.to_string());
+            }
         }
         if self.body_not_converted > 0 {
             log::info!("{} messages kept their body only as Rich Text that couldn't be read: they came in without one", self.body_not_converted);
         }
-        Ok(Imported {
+        Imported {
             folders: std::mem::take(&mut self.folders),
             messages: self.imported,
             contacts,
@@ -346,6 +367,7 @@ impl Out<'_> {
             body_not_converted: self.body_not_converted,
             cancelled: self.cancelled,
             stats: ImportStats::default(),
-        })
+            last_save,
+        }
     }
 }

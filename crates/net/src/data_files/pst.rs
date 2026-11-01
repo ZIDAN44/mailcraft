@@ -95,6 +95,20 @@ pub struct Imported {
     pub cancelled: bool,
     /// How long it took, and where the time went.
     pub stats: ImportStats,
+    /// Why the folder list or the contacts and calendar couldn't be saved at the end, when they
+    /// couldn't: the messages above came in all the same.
+    pub last_save: Option<String>,
+}
+
+/// How far an import has got, as it goes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Progress {
+    /// Items read from the file: it only goes up (a batch that can't be written moves its
+    /// messages from `imported` to `skipped`, not out of this).
+    pub read: usize,
+    /// Messages written so far, and items left out.
+    pub imported: usize,
+    pub skipped: usize,
 }
 
 /// Where an import's time went, and how much it held and wrote: numbers only, for measuring.
@@ -219,14 +233,14 @@ pub struct ImportOptions {
 }
 
 /// Import the data file at `path` into `account`'s cache (an account with no server), as the app
-/// does. Calls `progress` with the number of messages imported so far, every so often.
-pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(usize)) -> Result<Imported, String> {
+/// does. Calls `progress` with how far it has got, every so often.
+pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(Progress)) -> Result<Imported, String> {
     import_with(path, store, account, &ImportOptions::default(), progress)
 }
 
 /// [`import`], run as `opts` say. The reader is one lane for now, holding at most a batch of
 /// sources: `lanes`, `budget_bytes`, `chunk_kb` and `recycle` are taken for when it's more.
-pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptions, progress: &mut dyn FnMut(usize)) -> Result<Imported, String> {
+pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptions, progress: &mut dyn FnMut(Progress)) -> Result<Imported, String> {
     let mut out = Out::new(store, account, opts, progress);
     // `!BDN` then the client magic: `SM` a data file, `SO` Outlook's offline copy of a server
     // account (MS-PST 2.2.2.6).
@@ -270,7 +284,7 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
             out.seal();
             Err(e)
         }
-        None => out.finish(),
+        None => Ok(out.finish()),
     }
 }
 
@@ -377,6 +391,13 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
             {
                 read_items(store, &*sub, read, out);
                 visit(store, &*sub, parent, depth + 1, read, out);
+            } else {
+                // A kind MailCraft has no place for (a journal, RSS feeds…): counted when it
+                // holds anything. The folders under it are read as any others: mail comes in
+                // beside it, and ones of its kind are counted too.
+                let items = out.tally.time(Phase::Plan, || sub.contents_table().map_or(0, |t| t.rows_matrix().count()));
+                out.leave_out_folder(items);
+                visit(store, &*sub, parent, depth + 1, read, out);
             }
             continue;
         }
@@ -395,6 +416,7 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
                         out.skip(SkipReason::MessageUnreadable, 1);
                     }
                 }
+                out.item_read();
             }
         }
         out.save_folder(&path);
@@ -422,8 +444,9 @@ fn read_items(store: &dyn PstStore, folder: &dyn PstFolder, read: &ReadItem<'_>,
             Ok(i) => out.add_pim(i),
             Err(e) => {
                 log::info!("an item could not be read: {e}");
-                out.skip(SkipReason::ItemNotUsable, 1);
+                out.skip(SkipReason::ItemUnreadable, 1);
             }
         }
+        out.item_read();
     }
 }

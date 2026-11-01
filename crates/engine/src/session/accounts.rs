@@ -209,10 +209,20 @@ impl Session {
 
     /// How an import is going.
     pub(super) fn import_progress(&mut self, account: &str, p: &mailcraft_model::job::ImportProgress) {
-        self.imported(account, usize::try_from(p.imported).unwrap_or(usize::MAX), 0, false, None);
+        self.imported(account, usize::try_from(p.imported).unwrap_or(usize::MAX), 0, false, None, None);
     }
 
-    pub(super) fn imported(&mut self, account: &str, messages: usize, skipped: usize, done: bool, error: Option<String>) {
+    /// An import's end (`done`) or how far it got. An error with a `report` of messages that
+    /// came in (the last save failed) keeps the account and what came in.
+    pub(super) fn imported(
+        &mut self,
+        account: &str,
+        messages: usize,
+        skipped: usize,
+        done: bool,
+        error: Option<String>,
+        report: Option<&mailcraft_model::job::ImportReport>,
+    ) {
         if done {
             self.import_ended(account);
         } else if self.account(account).is_some() {
@@ -226,21 +236,25 @@ impl Session {
         if let Some(a) = self.account_mut(account) {
             a.status = SyncStatus::Offline;
         }
+        // Mail, or a file of contacts, calendar or notes only.
+        let came_in = report.is_some_and(|r| r.messages.saturating_add(r.contacts).saturating_add(r.events).saturating_add(r.notes) > 0);
         // An account that was waiting for its data file connects now.
         if let Some(start) = self.held.remove(account) {
             self.jobs.push(start);
-            if let Some(e) = &error {
+            if let Some(e) = &error
+                && !came_in
+            {
                 self.notice(format!("{name}: the data file could not be opened: {e}"), true);
                 return;
             }
         }
         match error {
-            Some(e) => {
+            Some(e) if !came_in => {
                 // Nothing came in: the account goes again, and the file it was starting.
                 let _ = self.drop_account(account, false);
                 self.notice(format!("{name} could not be opened: {e}"), true);
             }
-            None => {
+            error => {
                 // The file's contacts and calendar came in too.
                 if let Some(store) = self.store.clone()
                     && let Ok(mut p) = store.load_account_doc::<mailcraft_model::pim::Pim>(account, mailcraft_model::pim::PIM_DOC)
@@ -252,7 +266,21 @@ impl Session {
                     self.pim_revision = self.pim_revision.wrapping_add(1);
                 }
                 let more = if skipped > 0 { format!(" ({skipped} could not be read)") } else { String::new() };
-                self.notice(format!("{name}: {messages} messages imported{more}"), false);
+                match error {
+                    Some(e) => {
+                        // The folder list came with the end and is held here: saved again, or
+                        // the next start would find none and the mail out of reach.
+                        let kept = match (&self.store, self.account(account)) {
+                            (Some(store), Some(a)) if !a.folders.is_empty() => {
+                                store.save_folders(account, &a.folders).inspect_err(|e| log::warn!("{account}: folders not saved: {e}")).is_ok()
+                            }
+                            _ => false,
+                        };
+                        let then = if kept { "" } else { " Import the file again to keep it." };
+                        self.notice(format!("{name}: {messages} messages imported{more}, but the last of it could not be saved: {e}.{then}"), true);
+                    }
+                    None => self.notice(format!("{name}: {messages} messages imported{more}"), false),
+                }
                 if let Some(inbox) = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()) {
                     self.open_view(View::Folder { account: account.to_string(), folder: inbox });
                 }

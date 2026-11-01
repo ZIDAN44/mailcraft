@@ -110,6 +110,20 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     });
     assert!(s.account(&bad).is_none());
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("notes.txt could not be opened")));
+    // Mail came in, then the last save failed: the account and its mail stay, and it's said.
+    let late = s.run("account.importPst", &json!({"path": "C:/Mail/late.pst"})).unwrap()["account"].as_str().unwrap().to_string();
+    let report = mailcraft_model::job::ImportReport { messages: 30, ..Default::default() };
+    s.apply(Event::Imported {
+        account: late.clone(),
+        messages: 30,
+        skipped: 0,
+        done: true,
+        error: Some("disk full".into()),
+        report: Some(Box::new(report)),
+    });
+    assert!(s.account(&late).is_some(), "what came in is kept");
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("30 messages imported") && n.text.contains("disk full")));
+    assert_eq!(s.account(&late).unwrap().status, SyncStatus::Offline);
 
     // Exporting: the current account, or the one asked for, to the file given.
     s.take_jobs();
@@ -126,6 +140,46 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     s.apply(Event::Exported { account: id.clone(), messages: 0, skipped: 0, already: 0, done: true, error: Some("disk full".into()) });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("disk full")));
     done(s);
+}
+
+/// An import whose last save failed keeps what came in past the next start: the folder list the
+/// end brought is saved again. When that fails too, the notice says to import again; and a file
+/// of contacts only is kept like one of mail.
+#[test]
+fn a_failed_last_save_is_kept_across_a_restart() {
+    use mailcraft_model::job::ImportReport;
+    let store = Store::failing();
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let import = |s: &mut Session, file: &str, report: ImportReport| {
+        let id = s.run("account.importPst", &json!({"path": file})).unwrap()["account"].as_str().unwrap().to_string();
+        let inbox =
+            mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+        s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+        let messages = usize::try_from(report.messages).unwrap();
+        s.apply(Event::Imported {
+            account: id.clone(),
+            messages,
+            skipped: 0,
+            done: true,
+            error: Some("disk full".into()),
+            report: Some(Box::new(report)),
+        });
+        id
+    };
+    let late = import(&mut s, "C:/Mail/late.pst", ImportReport { messages: 30, ..Default::default() });
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("disk full") && !n.text.contains("again")));
+    let cards = import(&mut s, "C:/Mail/cards.pst", ImportReport { contacts: 3, ..Default::default() });
+    assert!(s.account(&cards).is_some(), "contacts came in: the account stays");
+    store.fail(None, Some("folders.json"));
+    let lost = import(&mut s, "C:/Mail/lost.pst", ImportReport { messages: 5, ..Default::default() });
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("Import the file again")));
+    store.fail(None, None);
+
+    let again = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    for id in [&late, &cards] {
+        assert!(again.account(id).is_some_and(|a| a.folder(FolderRole::Inbox).is_some()), "{id} lists its folders after a restart");
+    }
+    assert!(again.account(&lost).is_some_and(|a| a.folders.is_empty()));
 }
 
 /// An account whose folders were kept under another account's name (a data file brought in from

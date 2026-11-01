@@ -175,7 +175,8 @@ fn import() {
     let store = mailcraft_store::Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
     let began = Instant::now();
     let mut last = Instant::now();
-    let mut progress = |n: usize| {
+    let mut progress = |t: crate::pst::Progress| {
+        let n = t.imported;
         if last.elapsed().as_secs_f64() >= 5.0 {
             last = Instant::now();
             println!("{n} messages, {:.0} s, {:.0}/s", began.elapsed().as_secs_f64(), n as f64 / began.elapsed().as_secs_f64());

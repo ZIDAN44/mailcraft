@@ -2,6 +2,7 @@
 //! a message's pictures, and Outlook data files looked at, read or written.
 
 use mailcraft_model::job::{DataFileFacts, ImportPhase, ImportProgress, ImportReport, Work};
+use mailcraft_model::pim::{PIM_DOC, Pim};
 
 use super::*;
 
@@ -171,18 +172,24 @@ impl Pool {
                     Ok(messages) => {
                         let folders = store.load_folders(&account).unwrap_or_default();
                         let paths: Vec<String> = folders.iter().map(|f| f.path.clone()).collect();
-                        sink.emit(Event::Folders { account: account.clone(), folders });
-                        for folder in paths {
-                            sink.emit(Event::FolderChanged { account: account.clone(), folder });
-                        }
+                        // Its contacts, calendar and notes came with it.
+                        let pim = store.load_account_doc::<Pim>(&account, PIM_DOC).unwrap_or_default();
                         let report = ImportReport {
                             file: path,
                             data_file: data_file(&store),
                             messages: count(messages),
+                            folders: u32::try_from(paths.len()).unwrap_or(u32::MAX),
+                            contacts: count(pim.cards.len()),
+                            events: count(pim.events.len()),
+                            notes: count(pim.notes.len()),
                             runs: 1,
                             elapsed_ms: ms(began),
                             ..Default::default()
                         };
+                        sink.emit(Event::Folders { account: account.clone(), folders });
+                        for folder in paths {
+                            sink.emit(Event::FolderChanged { account: account.clone(), folder });
+                        }
                         sink.emit(Event::Imported { account, messages, skipped: 0, done: true, error: None, report: Some(Box::new(report)) });
                     }
                     Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e.to_string()), report: None }),
@@ -190,13 +197,14 @@ impl Pool {
                 return;
             }
             // No totals yet: the bar has none to go by.
-            let mut progress = |messages| {
-                let done = count(messages);
+            let mut progress = |t: crate::pst::Progress| {
                 let run_ms = ms(began);
                 let progress = ImportProgress {
                     phase: ImportPhase::Importing,
-                    work: Work { done, ..Work::default() },
-                    imported: done,
+                    // Items read, which only go up: a batch that can't be written is still read.
+                    work: Work { done: count(t.read), ..Work::default() },
+                    imported: count(t.imported),
+                    skipped: count(t.skipped),
                     elapsed_ms: run_ms,
                     run_ms,
                     ..ImportProgress::default()
@@ -226,8 +234,9 @@ impl Pool {
                     for folder in paths {
                         sink.emit(Event::FolderChanged { account: account.clone(), folder });
                     }
-                    let (messages, skipped) = (done.messages, done.skipped);
-                    sink.emit(Event::Imported { account, messages, skipped, done: true, error: None, report: Some(Box::new(report)) });
+                    // A last save that failed is said with what came in (the account stays).
+                    let (messages, skipped, error) = (done.messages, done.skipped, done.last_save);
+                    sink.emit(Event::Imported { account, messages, skipped, done: true, error, report: Some(Box::new(report)) });
                 }
                 Err(e) => sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(e), report: None }),
             }

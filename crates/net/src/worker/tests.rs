@@ -82,6 +82,9 @@ fn a_mailcraft_data_file_is_imported() {
     let mut st = old.load_folder("a1", "INBOX").unwrap();
     st.messages.push(mailcraft_model::Summary { key: k, subject: "Kept".into(), ..Default::default() });
     old.save_folder("a1", "INBOX", &st).unwrap();
+    let mut pim = mailcraft_model::pim::Pim::default();
+    pim.notes.push(mailcraft_model::pim::StoredNote::default());
+    old.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
     let file = old.data_file("a1").unwrap();
     drop(old);
     let store = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
@@ -109,7 +112,7 @@ fn a_mailcraft_data_file_is_imported() {
     }
     assert!(seen.iter().any(|e| matches!(e, Event::Imported { messages: 1, done: true, error: None, .. })), "{seen:?}");
     assert!(
-        seen.iter().any(|e| matches!(e, Event::Imported { report: Some(r), .. } if r.messages == 1 && r.runs == 1 && r.skips.is_empty() && !r.data_file.is_empty())),
+        seen.iter().any(|e| matches!(e, Event::Imported { report: Some(r), .. } if r.messages == 1 && r.folders == 1 && (r.contacts, r.notes) == (0, 1) && r.runs == 1 && r.skips.is_empty() && !r.data_file.is_empty())),
         "with what it came to"
     );
     assert!(seen.iter().any(|e| matches!(e, Event::Folders { folders, .. } if folders.len() == 1)));
