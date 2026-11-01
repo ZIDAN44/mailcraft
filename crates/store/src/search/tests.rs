@@ -3,6 +3,8 @@ use mailcraft_model::search::IndexDoc;
 use super::format::*;
 use super::*;
 
+mod maint;
+
 /// The three layouts, each in a folder of its own: memory, the folder layout, data files.
 fn layouts(name: &str) -> Vec<(&'static str, PathBuf, Store)> {
     let base = std::env::temp_dir().join(format!("mailcraft-search-{name}-{}", std::process::id()));

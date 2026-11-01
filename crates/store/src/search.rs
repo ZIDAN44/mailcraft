@@ -27,6 +27,10 @@
 //! hostile input (`format.rs`), and the writer never writes what its reader would refuse: an index
 //! that doesn't read back is set aside (`meta.bin.bad`) and made again.
 //!
+//! Removed docs and the segments
+//! of many flushes are merged away a step at a time ([`Writer::merge_step`]); a removed message's
+//! words leave the file within [`TOMBSTONE_AGE`] of it.
+//!
 //! One writer an account at a time, within a process ([`Held`]). Across processes (the CLI and
 //! the app on one folder layout) nothing stops a second yet: the `search/v1/lock` lease comes with
 //! the CLI's `--index`, when the CLI first writes an index.
@@ -46,7 +50,7 @@ mod tests;
 
 pub use format::Blob;
 pub use reader::{DocInfo, Reader, ScanCursor};
-pub use writer::{Flush, Writer};
+pub use writer::{Flush, RENUMBER_SLACK, TOMBSTONE_AGE, Writer};
 
 /// The doc table's page size, in docs: a doc's id is its page × this + its slot.
 pub const DOCS_PER_PAGE: u32 = 4096;
@@ -211,7 +215,7 @@ pub(crate) struct DocRec {
     pub(crate) text: u32,
     /// Its files (`has:attachment`).
     pub(crate) files: u16,
-    /// [`HAS_TEXT`], [`TRUNCATED`].
+    /// [`HAS_TEXT`], [`TRUNCATED`], [`PURGED`].
     pub(crate) bits: u8,
     /// Its Message-ID's hash and its size: a message moved is known by them.
     pub(crate) msgid_hash: u64,
@@ -226,6 +230,8 @@ pub(crate) const NO_TEXT: u32 = u32::MAX;
 pub(crate) const HAS_TEXT: u8 = 1;
 /// Something of it was left out (too long, nested too deep).
 pub(crate) const TRUNCATED: u8 = 2;
+/// Removed, and its words gone from every segment.
+pub(crate) const PURGED: u8 = 8;
 
 impl DocRec {
     pub(crate) fn live(&self) -> bool {
@@ -433,7 +439,7 @@ pub fn hostile_index(input: &[u8]) -> Store {
 }
 
 /// Read and change a [`hostile_index`] every way the app does: open, look words up (whole and a
-/// page at a time), read texts, follow a commit, write.
+/// page at a time), read texts, follow a commit, write, merge.
 #[doc(hidden)]
 pub fn exercise_index(store: &Store) {
     let doc = mailcraft_model::search::IndexDoc {
@@ -467,6 +473,14 @@ pub fn exercise_index(store: &Store) {
         w.remove(0);
         let _ = w.retarget(1, &MessageKey { uid: 2, ..key });
         let _ = w.flush(store);
+        // Merged as soon as merges are due, then once the removed docs' words are old.
+        for now in [1, 1 + TOMBSTONE_AGE] {
+            for _ in 0..8 {
+                if !w.merge_step(store, 0, now).unwrap_or(false) {
+                    break;
+                }
+            }
+        }
     }
     if let Some(r) = reader.as_mut()
         && r.refresh(store).is_ok()

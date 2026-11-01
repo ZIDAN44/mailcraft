@@ -227,6 +227,15 @@ again past its generation and segment numbers. A page missing counts as damage o
 meta still names it (a newer commit removing it is read again), and while a writer holds the index
 the reader returns the damage instead of setting it aside under the writer.
 
+`search::Writer::merge_step` keeps the segments few, one step at a time: it gives the ids again (the
+index made anew from its kept texts, a new epoch) once there are more than twice the live docs and
+4,096; merges the segments holding words of a doc removed a day ago or more (the meta keeps since
+when); merges eight segments of one size (powers of 4 docs); and past 24 segments, the smallest
+eight. A merge streams each segment a lexicon page at a time and writes the merged pages as they
+fill, in transactions nothing names yet, then one meta switches to it: it holds a lexicon and a
+postings page of each segment, the pages being written and the longest list of docs, never the
+segments.
+
 ## Threading
 
 `model::thread` implements JWZ threading (as used by IMAP `THREAD=REFERENCES`): containers per

@@ -27,3 +27,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 miniz_oxide = "0.9"
 # The Documents folder (where "MailCraft Files" goes), wherever the system has put it.
 dirs = "7"
+
+[dev-dependencies]
+# Model-based tests of the search index (src/search/tests/maint.rs).
+proptest = "1"

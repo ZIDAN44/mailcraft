@@ -3718,6 +3718,7 @@ dependencies = [
  "log",
  "mailcraft-model",
  "miniz_oxide 0.9.1",
+ "proptest",
  "redb",
  "serde",
  "serde_json",

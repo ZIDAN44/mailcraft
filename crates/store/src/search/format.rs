@@ -7,6 +7,10 @@ use mailcraft_model::search::IndexDoc;
 
 use super::*;
 
+mod seg;
+
+pub(crate) use seg::{LexEntry, LexStream, Postings, SegBuilder, SegFiles, SegPage, decode_head, decode_lex, decode_post_page, decode_postings};
+
 /// What was wrong, for the error.
 pub(crate) type R<T> = std::result::Result<T, &'static str>;
 
@@ -38,9 +42,6 @@ pub(crate) const MAX_NAME_BYTES: usize = 4096;
 /// Most segments a meta names (the writer makes its words again before it gets there).
 pub(crate) const MAX_SEGMENTS: usize = 4096;
 const MAX_PAGES: usize = 1 << 20;
-/// A lexicon entry's postings kept in it, up to this many docs.
-const INLINE: usize = 8;
-
 /// Bytes read from the front, every read checked.
 pub(crate) struct Rd<'a>(&'a [u8]);
 
@@ -158,6 +159,9 @@ pub(crate) struct SegInfo {
     pub(crate) lex_pages: u32,
     pub(crate) post_pages: u32,
     pub(crate) bytes: u64,
+    /// The lowest and highest doc its words name: a doc outside them isn't in it.
+    pub(crate) lo: u32,
+    pub(crate) hi: u32,
 }
 
 impl SegInfo {
@@ -191,6 +195,8 @@ pub(crate) struct Meta {
     /// Files this generation no longer uses: removed after it's written (and again later, when
     /// that didn't happen).
     pub(crate) gone: Vec<Name>,
+    /// Since when (Unix seconds) a doc removed has had its words still in a segment; 0: none has.
+    pub(crate) dead_since: u64,
 }
 
 impl Meta {
@@ -270,11 +276,14 @@ pub(crate) fn encode_meta(m: &Meta) -> Vec<u8> {
             put_var(&mut out, u64::from(n));
         }
         put_var(&mut out, s.bytes);
+        put_var(&mut out, u64::from(s.lo));
+        put_var(&mut out, u64::from(s.hi));
     }
     put_len(&mut out, m.gone.len());
     for n in &m.gone {
         put_name(&mut out, n);
     }
+    put_var(&mut out, m.dead_since);
     out
 }
 
@@ -315,9 +324,25 @@ pub(crate) fn decode_meta(b: &[u8]) -> R<Meta> {
         m.folders.push(r.string(len)?);
     }
     let mut ids = BTreeSet::new();
-    for _ in 0..r.count(MAX_SEGMENTS, 6)? {
-        let s = SegInfo { id: r.var32()?, docs: r.var32()?, terms: r.var32()?, lex_pages: r.var32()?, post_pages: r.var32()?, bytes: r.var()? };
-        if s.id >= m.next_seg || !ids.insert(s.id) || s.lex_pages == 0 || s.lex_pages as usize > MAX_PAGES || s.post_pages as usize > MAX_PAGES {
+    for _ in 0..r.count(MAX_SEGMENTS, 8)? {
+        let s = SegInfo {
+            id: r.var32()?,
+            docs: r.var32()?,
+            terms: r.var32()?,
+            lex_pages: r.var32()?,
+            post_pages: r.var32()?,
+            bytes: r.var()?,
+            lo: r.var32()?,
+            hi: r.var32()?,
+        };
+        if s.id >= m.next_seg
+            || !ids.insert(s.id)
+            || s.lex_pages == 0
+            || s.lex_pages as usize > MAX_PAGES
+            || s.post_pages as usize > MAX_PAGES
+            || s.lo > s.hi
+            || s.hi >= m.next_doc
+        {
             return Err("segment out of range");
         }
         m.segments.push(s);
@@ -325,6 +350,7 @@ pub(crate) fn decode_meta(b: &[u8]) -> R<Meta> {
     for _ in 0..r.count(MAX_PAGES, 3)? {
         m.gone.push(get_name(&mut r)?);
     }
+    m.dead_since = r.var()?;
     r.end()?;
     Ok(m)
 }
@@ -491,283 +517,6 @@ pub(crate) fn decode_text_page(b: &[u8], next_doc: u32) -> R<Vec<(u32, &[u8])>> 
             return Err("text of a doc out of order");
         }
         out.push((doc, r.take(len)?));
-    }
-    r.end()?;
-    Ok(out)
-}
-
-/// A segment written: its head, lexicon pages and postings pages.
-#[derive(Debug, Default)]
-pub(crate) struct SegFiles {
-    pub(crate) head: Vec<u8>,
-    pub(crate) lex: Vec<Vec<u8>>,
-    pub(crate) post: Vec<Vec<u8>>,
-    pub(crate) terms: u32,
-}
-
-impl SegFiles {
-    pub(crate) fn bytes(&self) -> u64 {
-        let all = self.lex.iter().chain(&self.post).map(Vec::len).fold(self.head.len(), usize::saturating_add);
-        all as u64
-    }
-}
-
-/// Makes a segment from words in rising order.
-#[derive(Default)]
-pub(crate) struct SegBuilder {
-    done: SegFiles,
-    /// Each lexicon page's first word and how many it has.
-    firsts: Vec<(Vec<u8>, u32)>,
-    page: Vec<u8>,
-    count: u16,
-    prev: Vec<u8>,
-    post: Vec<u8>,
-}
-
-fn page_start(magic: &[u8; 4]) -> Vec<u8> {
-    let mut p = Vec::with_capacity(64 << 10);
-    p.extend_from_slice(magic);
-    p.push(VERSION);
-    p
-}
-
-impl SegBuilder {
-    /// A word (field letter first, at most [`MAX_KEY`] bytes) and its docs, rising.
-    pub(crate) fn push(&mut self, key: &[u8], docs: &[u32]) {
-        if key.is_empty() || key.len() > MAX_KEY || docs.is_empty() {
-            return;
-        }
-        let mut list = Vec::with_capacity(docs.len() * 2);
-        let mut last = None;
-        for &d in docs {
-            put_var(&mut list, u64::from(last.map_or(d, |l: u32| d.wrapping_sub(l))));
-            last = Some(d);
-        }
-        let mut payload = Vec::with_capacity(16);
-        if docs.len() <= INLINE {
-            payload.push(0);
-            payload.extend_from_slice(&list);
-        } else {
-            if self.post.is_empty() {
-                self.post = page_start(POST);
-            }
-            payload.push(1);
-            put_len(&mut payload, self.done.post.len());
-            put_len(&mut payload, self.post.len() - 5);
-            put_len(&mut payload, list.len());
-            let mut rest = list.as_slice();
-            while !rest.is_empty() {
-                let room = (POST_PAGE + 5).saturating_sub(self.post.len()).max(1);
-                let (now, later) = rest.split_at(room.min(rest.len()));
-                self.post.extend_from_slice(now);
-                rest = later;
-                if self.post.len() >= POST_PAGE + 5 {
-                    self.done.post.push(std::mem::replace(&mut self.post, page_start(POST)));
-                }
-            }
-        }
-        let entry = |prev: &[u8]| {
-            let shared = prev.iter().zip(key).take_while(|(a, b)| a == b).count();
-            let mut e = Vec::with_capacity(key.len() + payload.len() + 8);
-            put_len(&mut e, shared);
-            put_len(&mut e, key.len() - shared);
-            e.extend_from_slice(key.get(shared..).unwrap_or_default());
-            put_len(&mut e, docs.len());
-            e.extend_from_slice(&payload);
-            e
-        };
-        let mut e = entry(&self.prev);
-        if self.count > 0 && (self.page.len() + e.len() > LEX_PAGE || self.count == u16::MAX) {
-            self.close_page();
-            e = entry(&[]);
-        }
-        if self.count == 0 {
-            self.page = page_start(LEX);
-            self.page.extend_from_slice(&[0, 0]);
-            self.firsts.push((key.to_vec(), 0));
-        }
-        self.page.extend_from_slice(&e);
-        self.count += 1;
-        if let Some(f) = self.firsts.last_mut() {
-            f.1 += 1;
-        }
-        self.prev = key.to_vec();
-        self.done.terms = self.done.terms.saturating_add(1);
-    }
-
-    fn close_page(&mut self) {
-        if self.count == 0 {
-            return;
-        }
-        let count = self.count.to_le_bytes();
-        if let Some(c) = self.page.get_mut(5..7) {
-            c.copy_from_slice(&count);
-        }
-        self.done.lex.push(std::mem::take(&mut self.page));
-        self.count = 0;
-        self.prev.clear();
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.done.terms == 0
-    }
-
-    pub(crate) fn finish(mut self) -> SegFiles {
-        self.close_page();
-        if self.post.len() > 5 {
-            self.done.post.push(std::mem::take(&mut self.post));
-        }
-        let mut head = page_start(HEAD);
-        put_len(&mut head, self.done.lex.len());
-        put_len(&mut head, self.done.post.len());
-        put_var(&mut head, u64::from(self.done.terms));
-        for (k, n) in &self.firsts {
-            head.push(u8::try_from(k.len()).unwrap_or(u8::MAX));
-            head.extend_from_slice(k);
-            put_var(&mut head, u64::from(*n));
-        }
-        self.done.head = head;
-        self.done
-    }
-}
-
-/// A segment's head: each lexicon page's first word.
-pub(crate) fn decode_head(b: &[u8], s: &SegInfo) -> R<Vec<Vec<u8>>> {
-    let mut r = Rd::new(b);
-    r.header(HEAD)?;
-    let (lex, post) = (r.var32()?, r.var32()?);
-    let _terms = r.var32()?;
-    if lex != s.lex_pages || post != s.post_pages {
-        return Err("head of another segment");
-    }
-    let mut out: Vec<Vec<u8>> = Vec::with_capacity((lex as usize).min(r.left()));
-    for _ in 0..lex {
-        let len = usize::from(r.u8()?);
-        let k = r.take(len)?;
-        if k.is_empty() || len > MAX_KEY || out.last().is_some_and(|p| p.as_slice() >= k) {
-            return Err("head's words out of order");
-        }
-        out.push(k.to_vec());
-        r.var32()?;
-    }
-    r.end()?;
-    Ok(out)
-}
-
-/// Where a word's docs are.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Postings {
-    Inline(Vec<u32>),
-    /// From `offset` in postings page `page`, `len` bytes, going on into the next pages.
-    At {
-        page: u32,
-        offset: u32,
-        len: u32,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LexEntry {
-    pub(crate) key: Vec<u8>,
-    pub(crate) df: u32,
-    pub(crate) at: Postings,
-}
-
-/// A lexicon page of a segment with `post_pages` postings pages, in an index of `next_doc` docs.
-pub(crate) fn decode_lex(b: &[u8], next_doc: u32, post_pages: u32) -> R<Vec<LexEntry>> {
-    if b.len() > LEX_PAGE + MAX_KEY + 64 {
-        return Err("too big");
-    }
-    let mut r = Rd::new(b);
-    r.header(LEX)?;
-    let n = usize::from(r.u16()?);
-    if n == 0 || n.saturating_mul(4) > r.left() {
-        return Err("words past what's there");
-    }
-    let mut out: Vec<LexEntry> = Vec::with_capacity(n);
-    let mut prev: Vec<u8> = Vec::new();
-    for _ in 0..n {
-        let shared = r.count(MAX_KEY, 0)?;
-        let suffix = r.count(MAX_KEY, 1)?;
-        if shared > prev.len() || shared + suffix > MAX_KEY || shared + suffix == 0 {
-            return Err("word out of range");
-        }
-        let mut key = prev.get(..shared).unwrap_or_default().to_vec();
-        key.extend_from_slice(r.take(suffix)?);
-        if !out.is_empty() && key <= prev {
-            return Err("words out of order");
-        }
-        let df = r.var32()?;
-        if df == 0 || df > next_doc {
-            return Err("word in no docs");
-        }
-        let at = match r.u8()? {
-            0 => {
-                if df as usize > INLINE {
-                    return Err("too many docs inline");
-                }
-                let mut docs = Vec::with_capacity(df as usize);
-                let mut last: Option<u32> = None;
-                for _ in 0..df {
-                    let d = r.var32()?;
-                    let doc = match last {
-                        None => d,
-                        Some(l) if d > 0 => l.checked_add(d).ok_or("doc past the ids")?,
-                        Some(_) => return Err("docs out of order"),
-                    };
-                    if doc >= next_doc {
-                        return Err("doc past the ids");
-                    }
-                    docs.push(doc);
-                    last = Some(doc);
-                }
-                Postings::Inline(docs)
-            }
-            1 => {
-                let at = Postings::At { page: r.var32()?, offset: r.var32()?, len: r.var32()? };
-                if let Postings::At { page, offset, len } = at
-                    && (page >= post_pages || offset as usize > POST_PAGE || (len as usize) < df as usize || u64::from(len) > u64::from(df) * 5)
-                {
-                    return Err("postings out of range");
-                }
-                at
-            }
-            _ => return Err("unknown postings kind"),
-        };
-        prev.clone_from(&key);
-        out.push(LexEntry { key, df, at });
-    }
-    r.end()?;
-    Ok(out)
-}
-
-/// A postings page's own bytes.
-pub(crate) fn decode_post_page(b: &[u8]) -> R<&[u8]> {
-    if b.len() > POST_PAGE + 5 {
-        return Err("too big");
-    }
-    let mut r = Rd::new(b);
-    r.header(POST)?;
-    r.take(r.left())
-}
-
-/// `df` docs from their varint deltas, rising and below `next_doc`.
-pub(crate) fn decode_postings(b: &[u8], df: u32, next_doc: u32) -> R<Vec<u32>> {
-    let mut r = Rd::new(b);
-    let mut out = Vec::with_capacity((df as usize).min(b.len()));
-    let mut last: Option<u32> = None;
-    for _ in 0..df {
-        let d = r.var32()?;
-        let doc = match last {
-            None => d,
-            Some(l) if d > 0 => l.checked_add(d).ok_or("doc past the ids")?,
-            Some(_) => return Err("docs out of order"),
-        };
-        if doc >= next_doc {
-            return Err("doc past the ids");
-        }
-        out.push(doc);
-        last = Some(doc);
     }
     r.end()?;
     Ok(out)
