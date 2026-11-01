@@ -114,10 +114,19 @@ impl Store {
     /// Make an account's data file reopen at once after a crash, as it is now: a durable commit
     /// that records where its free space is. Commits don't do that on their own (on a 37 GB file it
     /// tripled a small one's time), so a crash after one costs a full check of the file when it
-    /// next opens. A data file is sealed when its writes go quiet for a moment and when it closes;
-    /// an import's end, and a checkpoint, seal at once. Nothing to do for other stores.
+    /// next opens. A data file is sealed when its writes go quiet for a moment and as MailCraft
+    /// closes ([`Store::seal_all`]); an import's end, and a checkpoint, seal at once. Nothing to do
+    /// for other stores.
     pub fn seal(&self, account: &str) -> Result<()> {
         self.files.seal(&self.account_dir(account))
+    }
+
+    /// MailCraft is closing: every data file sealed now, and every commit after this one sealed
+    /// as it's made (slower, but a sync or an import still writing when the process ends leaves
+    /// its file reopening at once). Called on the way out by the app and the CLI: the threads
+    /// that also hold the store are let go rather than waited for, so the files aren't closed.
+    pub fn seal_all(&self) -> Result<()> {
+        self.files.seal_all()
     }
 
     pub fn remove_body(&self, key: &MessageKey) {

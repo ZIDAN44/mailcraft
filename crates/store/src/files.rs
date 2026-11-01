@@ -154,6 +154,15 @@ impl Files {
         }
     }
 
+    /// Seal every data file, and each commit from here on ([`Store::seal_all`]).
+    pub(super) fn seal_all(&self) -> Result<()> {
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.seal_all(),
+            _ => Ok(()),
+        }
+    }
+
     pub(super) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         match self {
             Files::Disk => atomic::rename(from, to),
@@ -384,6 +393,11 @@ impl Routed {
 
     pub(super) fn seal(&self, dir: &Path) -> Result<()> {
         self.at(dir).seal(dir)
+    }
+
+    /// The held files are memory: only the store's own have data files to seal.
+    pub(super) fn seal_all(&self) -> Result<()> {
+        self.main.seal_all()
     }
 
     pub(super) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {

@@ -235,12 +235,14 @@ fn repairs_on_open(t: &std::path::Path, file: &std::path::Path) -> (u32, bool) {
     (calls.load(std::sync::atomic::Ordering::Relaxed), s.read_body(&inbox(1)).is_some())
 }
 
-/// A data file is sealed once its writes go quiet, and where a writer asks (an import's end): a
-/// crash after that reopens with no repair. A crash right after a plain write needs one (each
-/// commit isn't sealed: that tripled a small one's time on a big file), and still loses nothing.
+/// A data file is sealed once its writes go quiet, where a writer asks (an import's end), and as
+/// MailCraft closes, which also seals any write after it (a thread still syncing as the process
+/// ends, with the store never dropped): a crash after that reopens with no repair. A crash right
+/// after a plain write needs one (each commit isn't sealed: that tripled a small one's time on a
+/// big file), and still loses nothing.
 #[test]
 fn a_data_file_is_sealed_once_quiet_and_when_asked() {
-    for (mode, sealed) in [("now", false), ("quiet", true), ("asked", true)] {
+    for (mode, sealed) in [("now", false), ("quiet", true), ("asked", true), ("closing", true), ("closed", true)] {
         let t = temp(&format!("seal-{mode}"));
         let s = packed_store(&t);
         s.write_body(&inbox(99), b"Subject: first\r\n\r\nx").unwrap();
@@ -257,21 +259,56 @@ fn a_data_file_is_sealed_once_quiet_and_when_asked() {
 }
 
 /// The child of [`a_data_file_is_sealed_once_quiet_and_when_asked`]: one write, then killed at once
-/// (`now`), once the file has been quiet a while (`quiet`), or after asking for a seal (`asked`).
+/// (`now`), once the file has been quiet a while (`quiet`), after asking for a seal (`asked`), or
+/// after the closing seal (`closing`); or the closing seal, then the write, then killed (`closed`).
 #[test]
 #[ignore = "run by a_data_file_is_sealed_once_quiet_and_when_asked"]
 fn killed_after_a_write() {
     let Some(dir) = std::env::var_os("MC_CHILD_DIR").map(std::path::PathBuf::from) else { return };
     let mode = std::env::var("MC_CHILD_MODE").unwrap_or_default();
     let s = Store::open_packed(dir.join("app"), dir.join("Files")).unwrap();
+    // The process ending with a thread still writing: what it writes after the closing seal.
+    if mode == "closed" {
+        s.seal_all().unwrap();
+    }
     s.write_body(&inbox(1), b"Subject: kept\r\n\r\nx").unwrap();
     match mode.as_str() {
         "quiet" => std::thread::sleep(super::super::commit::QUIET + Duration::from_millis(1500)),
         "asked" => s.seal("a1").unwrap(),
+        "closing" => s.seal_all().unwrap(),
         _ => {}
     }
     println!("written");
     std::process::abort();
+}
+
+/// An account removed lets go of its data file for good: a seal under way ends first (it held the
+/// file open, so it couldn't be opened again or deleted), and none is left waiting for it.
+#[test]
+fn a_data_file_let_go_is_not_held_by_a_seal() {
+    let t = temp("let-go");
+    let s = packed_store(&t);
+    s.write_prepared(vec![(inbox(1), Store::prepare(true, b"Subject: x\r\n\r\nx".to_vec()))], false).unwrap();
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    assert!(packs.seals.waiting_for("a1"));
+    packs.seals.pretend_sealing(Some("a1"));
+    let gone = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let remover = {
+        let (s, gone) = (s.clone(), gone.clone());
+        std::thread::spawn(move || {
+            let file = s.remove_account("a1").unwrap();
+            gone.store(true, std::sync::atomic::Ordering::SeqCst);
+            file
+        })
+    };
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(!gone.load(std::sync::atomic::Ordering::SeqCst), "let go of while a seal held it");
+    packs.seals.pretend_sealing(None);
+    let file = remover.join().unwrap().expect("the data file is kept");
+    assert!(!packs.seals.waiting_for("a1"), "a seal still waits for a file let go of");
+    drop(redb::Database::create(&file).expect("nothing holds it open"));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// Batch `n` of [`killed_after_batches`]: 2 MiB that doesn't compress.
@@ -289,7 +326,7 @@ fn a_long_run_of_batches_is_made_durable() {
     let out = child("packed::tests::commits::killed_after_batches", &[("MC_CHILD_DIR", t.display().to_string())]).wait_with_output().unwrap();
     assert!(!out.status.success() && String::from_utf8_lossy(&out.stdout).contains("written"), "the child was to write, then be killed");
     let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    let cap = (4 * crate::WRITE_BUFFER) as u32 / (2 << 20);
+    let cap = super::super::commit::UNDURABLE_MAX as u32 / (2 << 20);
     for n in 0..=cap {
         for (k, raw) in undurable_batch(n) {
             assert_eq!(s.read_body(&k).as_ref(), Some(&raw), "batch {n} of a run past the cap was lost");
@@ -315,38 +352,25 @@ fn killed_after_batches() {
 }
 
 /// Writes from the window (a message marked read: a small durable commit) while another thread
-/// writes capped batches as an import does, as fast as it can: none waits long for the data file.
-/// What's timed is the wait for its writer, what the store decides; the whole write also waits
-/// for the disk, which a busy machine can hold up for a long time with no writer at all, so it's
-/// only shown.
+/// writes capped batches as an import does, as fast as it can. The wait for the writer is what
+/// the store decides, and stays short. The whole write also waits for the disk, which that writer
+/// keeps busy: measured on a busy machine, its p99 was 35 to 134 ms (7 to 11 ms median) whether
+/// the batches waited for the disk or not, and 13 ms with no writer. That misses the 60 ms aimed
+/// at, so it's held to a bound a busy machine keeps, and what it writes out of the batches before
+/// it is held to 60 ms on its own ([`a_write_from_the_window_writes_out_little_of_a_backlog`]).
 #[test]
 fn a_write_from_the_window_waits_little_for_a_background_writer() {
     const { assert!(crate::BACKGROUND_COMMIT <= crate::WRITE_BUFFER / 4 && crate::BACKGROUND_COMMIT <= 8 << 20) };
     let t = temp("latency");
     let s = packed_store(&t);
-    s.write_body(
-        &inbox(0),
-        b"Subject: x
-
-x",
-    )
-    .unwrap();
+    s.write_body(&inbox(0), b"Subject: x\r\n\r\nx").unwrap();
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let writer = {
         let (s, stop) = (s.clone(), stop.clone());
         std::thread::spawn(move || {
-            // Noise, prepared once: what each batch holds the file for is storing it.
-            let one = noise(100 << 10, 5);
-            let per = crate::BACKGROUND_COMMIT / one.len();
             let (mut uid, mut batches) = (1000u32, 0u32);
             while !stop.load(std::sync::atomic::Ordering::Relaxed) {
-                let batch = (0..per)
-                    .map(|_| {
-                        uid += 1;
-                        (inbox(uid), Store::prepare(true, one.clone()))
-                    })
-                    .collect();
-                s.write_prepared(batch, false).unwrap();
+                s.write_prepared(background_batch(&mut uid), false).unwrap();
                 batches += 1;
             }
             batches
@@ -358,27 +382,14 @@ x",
     let mut whole = Vec::new();
     for i in 0..100u32 {
         let t0 = Instant::now();
-        s.write_body(
-            &inbox(1),
-            format!(
-                "Subject: x
-
-read {i}"
-            )
-            .as_bytes(),
-        )
-        .unwrap();
+        s.write_body(&inbox(1), format!("Subject: x\r\n\r\nread {i}").as_bytes()).unwrap();
         whole.push(ms(t0.elapsed()));
         std::thread::sleep(Duration::from_millis(10));
     }
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let batches = writer.join().unwrap();
     let waits: Vec<f64> = packs.seals.waits.lock().unwrap().drain(..).map(ms).collect();
-    assert!(waits.len() >= 100, "{} durable writes timed", waits.len());
-    let p99 = |mut v: Vec<f64>| {
-        v.sort_by(f64::total_cmp);
-        v[v.len() * 99 / 100 - 1]
-    };
+    assert_eq!(waits.len(), 100, "only the writes from the window are timed");
     let (wait, write) = (spread(waits.clone()), spread(whole.clone()));
     let (wait99, write99) = (p99(waits), p99(whole));
     eprintln!(
@@ -387,8 +398,60 @@ read {i}"
     );
     assert!(batches >= 5, "the background writer wrote {batches} batches");
     assert!(wait99 <= 60.0, "a write from the window waited {wait99:.1} ms for the writer (p99)");
+    assert!(write99 <= 250.0, "a write from the window took {write99:.1} ms (p99)");
     drop(s);
     let _ = std::fs::remove_dir_all(&t);
+}
+
+/// What a write from the window costs when background batches as far as the cap haven't gone to
+/// the disk yet (it writes them out with its own): little more than with none.
+#[test]
+fn a_write_from_the_window_writes_out_little_of_a_backlog() {
+    let t = temp("backlog");
+    let s = packed_store(&t);
+    s.write_body(&inbox(0), b"Subject: x\r\n\r\nx").unwrap();
+    let per = crate::BACKGROUND_COMMIT;
+    let (mut uid, mut alone, mut after) = (1000u32, Vec::new(), Vec::new());
+    for i in 0..12u32 {
+        let t0 = Instant::now();
+        s.write_body(&inbox(1), format!("Subject: x\r\n\r\nalone {i}").as_bytes()).unwrap();
+        alone.push(ms(t0.elapsed()));
+        // Up to the cap, not over it: none of these is made durable itself.
+        for _ in 0..super::super::commit::UNDURABLE_MAX / per {
+            s.write_prepared(background_batch(&mut uid), false).unwrap();
+        }
+        let t0 = Instant::now();
+        s.write_body(&inbox(1), format!("Subject: x\r\n\r\nafter {i}").as_bytes()).unwrap();
+        after.push(ms(t0.elapsed()));
+    }
+    let (alone, after) = (spread(alone), spread(after));
+    eprintln!(
+        "a write from the window: median {:.1} ms alone, {:.1} ms after {} MiB of batches",
+        alone.0,
+        after.0,
+        super::super::commit::UNDURABLE_MAX >> 20
+    );
+    assert!(after.0 <= 60.0, "a write after the batches took {:.1} ms (median)", after.0);
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// A background batch of [`crate::BACKGROUND_COMMIT`]: noise, kept as it is (what each batch holds
+/// the file for is storing it).
+fn background_batch(uid: &mut u32) -> Vec<(MessageKey, crate::Prepared)> {
+    let one = noise(100 << 10, 5);
+    (0..crate::BACKGROUND_COMMIT / one.len())
+        .map(|_| {
+            *uid += 1;
+            (inbox(*uid), Store::prepare(true, one.clone()))
+        })
+        .collect()
+}
+
+/// The 99th percentile of `v`.
+fn p99(mut v: Vec<f64>) -> f64 {
+    v.sort_by(f64::total_cmp);
+    v.get((v.len() * 99 / 100).saturating_sub(1)).copied().unwrap_or(0.0)
 }
 
 /// One commit of `items` (as kept) into `db`, timed.

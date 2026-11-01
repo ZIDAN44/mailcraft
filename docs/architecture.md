@@ -79,11 +79,15 @@ at once. Writers in the background (an import) prepare what they write away from
 (`Store::prepare` compresses it on their own thread) and commit batches of at most
 `BACKGROUND_COMMIT` (2 MiB, a quarter of the write buffer) that don't wait for the disk
 (`Store::write_prepared`); the folder lists naming them are written durably after them, and a
-batch that would leave more than 32 MiB unwritten is durable itself. A commit isn't sealed (redb's
-quick-repair, measured at three times a small commit's cost on a 37 GB file): a data file is sealed
-by an empty commit once its writes have been quiet for two seconds, at an import's end
-(`Store::seal`) and by closing it, and a crash after a seal reopens at once; one between a write
-and its seal costs a full check of the file at the next open.
+batch that would leave more than 8 MiB unwritten is durable itself (a write from the window writes
+out what's waiting with its own: 8 MiB added about 9 ms to it in a test). A commit isn't sealed
+(redb's quick-repair, measured at three times a small commit's cost on a 37 GB file): a data file
+is sealed by an empty commit once its writes have been quiet for two seconds, at an import's end
+or when it gives up (`Store::seal`), and as the app or the CLI exits (`Store::seal_all`, which also
+seals every commit after it: the threads holding the store are let go, not waited for, so the files
+are seldom closed). A crash after a seal reopens at once; one between a write and its seal costs a
+full check of the file at the next open. Removing an account waits for a seal under way on its
+file, so nothing still holds the file open.
 
 ## The browser (`apps/mailcraft-web`)
 

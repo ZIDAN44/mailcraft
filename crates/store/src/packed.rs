@@ -348,6 +348,7 @@ impl Packs {
     /// the same address added again gets a file of its own beside it. Returns the file.
     pub(crate) fn let_go(&self, account: &str) -> Option<PathBuf> {
         Packs::lock(&self.open).remove(account);
+        self.seals.forget(account);
         let name = Packs::lock(&self.names).remove(account);
         if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
             let _ = write_atomic(&self.root.join(NAMES), &json);
@@ -360,6 +361,7 @@ impl Packs {
             // The account goes: its data file with it.
             Place::Account(a) => {
                 let had = Packs::lock(&self.open).remove(&a).is_some();
+                self.seals.forget(&a);
                 let name = Packs::lock(&self.names).remove(&a);
                 if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
                     let _ = write_atomic(&self.root.join(NAMES), &json);
@@ -494,6 +496,7 @@ impl Packs {
                 Err(e) => {
                     if !had_file {
                         Packs::lock(&self.open).remove(&name);
+                        self.seals.forget(&name);
                         if let Some(f) = self.file(&name) {
                             let _ = fs::remove_file(f);
                         }

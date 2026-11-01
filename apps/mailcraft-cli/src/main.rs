@@ -179,6 +179,17 @@ fn version_line() -> String {
     }
 }
 
+/// The data files sealed as the command ends ([`Store::seal_all`]), so they reopen at once.
+struct SealOnExit(Store);
+
+impl Drop for SealOnExit {
+    fn drop(&mut self) {
+        if let Err(e) = self.0.seal_all() {
+            errln!("{e}");
+        }
+    }
+}
+
 fn run() -> Result<(), String> {
     // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
     let raw: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
@@ -196,6 +207,8 @@ fn run() -> Result<(), String> {
         _ => root.join(mailcraft_engine::store::location::FILES_FOLDER),
     };
     let store = Store::open_packed(&root, &files).map_err(|e| e.to_string())?;
+    // Last out, however the command ends: the sync threads that hold the store are let go.
+    let _sealed = SealOnExit(store.clone());
     let cmd = args.positional(0).unwrap_or_else(|| "help".into());
     if cmd == "sample" {
         let c = clock();

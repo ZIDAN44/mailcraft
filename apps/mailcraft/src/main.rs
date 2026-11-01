@@ -260,6 +260,14 @@ impl eframe::App for App {
         if s.portable || s.accounts.iter().any(|a| a.config.keeps_online()) {
             mailcraft_engine::store::clear_scratch();
         }
+        // The data files sealed, so quitting just after a write (a message marked read) or
+        // during an import doesn't cost a full check of the file at the next start. Closing them
+        // would, but the accounts' threads hold the store too and are let go, not waited for.
+        if let Some(store) = &s.store
+            && let Err(e) = store.seal_all()
+        {
+            log::warn!("closing: {e}");
+        }
         // macOS: end here, before eframe tears the window down. AccessKit's macOS adapter
         // subclasses the window's content view and puts its class back on teardown; AppKit's
         // Touch Bar support observes that view, so in the next display cycle it throws ("not

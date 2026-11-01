@@ -4,8 +4,12 @@
 //! crash after it reopens at once. It costs every commit that does it: on a copy of a 37 GB data
 //! file a one-key commit took 15.6 ms sealed against 4.6 ms (medians), and a 16 MiB one 173 ms
 //! against 119 ms. So commits aren't sealed one by one: a data file is sealed by an empty commit
-//! once its writes have gone quiet for [`QUIET`], by closing it, and at once where a writer asks
-//! ([`Store::seal`](crate::Store::seal): an import's end). A crash between a write and its seal
+//! once its writes have gone quiet for [`QUIET`], and at once where a writer asks
+//! ([`Store::seal`](crate::Store::seal): an import's end). As MailCraft closes,
+//! [`Store::seal_all`](crate::Store::seal_all) seals every one and makes each commit after it
+//! sealed: closing a file would seal it, but the threads holding the store (an account's worker, an
+//! import) are let go rather than waited for, so the process seldom ends with the files closed.
+//! A crash between a write and its seal
 //! costs a full check of the file when it next opens (305 s for that file), which the window shows.
 //!
 //! Writers in the background commit batches that don't wait for the disk; the next durable commit
@@ -19,8 +23,9 @@ use super::*;
 
 /// How long a data file's writes have to stop before it's sealed.
 pub(super) const QUIET: Duration = Duration::from_secs(2);
-/// The most a data file holds in batches not yet on the disk.
-const UNDURABLE_MAX: usize = 4 * crate::WRITE_BUFFER;
+/// The most a data file holds in batches not yet on the disk: what a write from the window may
+/// have to write out with its own commit (a few background batches).
+pub(super) const UNDURABLE_MAX: usize = 4 * crate::BACKGROUND_COMMIT;
 
 /// How a write transaction commits.
 #[derive(Clone, Copy, Debug)]
@@ -36,6 +41,8 @@ impl Commit {
     pub(super) const PLAIN: Commit = Commit { durable: true, seal: false };
     /// A batch in the background (an import's sources): durable with the next durable commit.
     pub(super) const BATCH: Commit = Commit { durable: false, seal: false };
+    /// Durable and sealed: every commit once MailCraft is closing.
+    const SEALED: Commit = Commit { durable: true, seal: true };
 }
 
 /// What each data file has had committed: what isn't on the disk yet, and what isn't sealed. Data
@@ -44,7 +51,9 @@ impl Commit {
 pub(super) struct Seals {
     state: Mutex<Waiting>,
     wake: Condvar,
-    /// How long each durable write waited for the writer.
+    /// A seal by the thread ended.
+    sealed: Condvar,
+    /// How long each write from the window waited for the writer.
     #[cfg(test)]
     pub(super) waits: Mutex<Vec<Duration>>,
 }
@@ -55,8 +64,12 @@ struct Waiting {
     due: HashMap<String, (Weak<Database>, Instant)>,
     /// Bytes each account's data file has in batches not yet on the disk.
     undurable: HashMap<String, usize>,
+    /// The account whose data file the thread is sealing now (it holds the file meanwhile).
+    sealing: Option<String>,
     running: bool,
     stop: bool,
+    /// MailCraft is closing ([`Packs::seal_all`]): every commit is sealed.
+    closing: bool,
 }
 
 impl Seals {
@@ -96,37 +109,63 @@ impl Seals {
         self.lock().undurable.get(account).copied().unwrap_or(0).saturating_add(bytes) > UNDURABLE_MAX
     }
 
-    /// The thread: each data file sealed once it has been quiet for [`QUIET`].
+    /// The thread: each data file sealed once it has been quiet for [`QUIET`], one at a time.
     fn run(&self) {
         let mut w = self.lock();
         while !w.stop {
             let now = Instant::now();
             let quiet = |at: &Instant| now.saturating_duration_since(*at) >= QUIET;
-            let ready: Vec<String> = w.due.iter().filter(|(_, (_, at))| quiet(at)).map(|(a, _)| a.clone()).collect();
-            if ready.is_empty() {
+            let ready = w.due.iter().find(|(_, (_, at))| quiet(at)).map(|(a, _)| a.clone());
+            let Some((account, db)) = ready.and_then(|a| w.due.remove(&a).map(|(db, _)| (a, db))) else {
                 let next = w.due.values().map(|(_, at)| QUIET.saturating_sub(now.saturating_duration_since(*at))).min();
                 w = match next {
                     Some(wait) => self.wake.wait_timeout(w, wait).map(|(g, _)| g).unwrap_or_else(|e| e.into_inner().0),
                     None => self.wake.wait(w).unwrap_or_else(PoisonError::into_inner),
                 };
                 continue;
-            }
-            let files: Vec<(String, Weak<Database>)> = ready.into_iter().filter_map(|a| w.due.remove(&a).map(|(db, _)| (a, db))).collect();
+            };
+            w.sealing = Some(account.clone());
             drop(w);
-            for (account, db) in files {
-                // A file let go of since closed itself, sealed.
-                if let Some(db) = db.upgrade() {
-                    match seal(&db) {
-                        Ok(()) => {
-                            self.lock().undurable.remove(&account);
-                        }
-                        Err(e) => log::warn!("{account}'s data file couldn't be sealed: {e}"),
-                    }
-                }
-            }
+            // A file let go of since closed itself, sealed. This thread lets go of the file before
+            // anyone waiting for the seal to end ([`Seals::forget`]) hears of it.
+            let done = db.upgrade().map(|db| seal(&db));
             w = self.lock();
+            match done {
+                Some(Ok(())) => {
+                    w.undurable.remove(&account);
+                }
+                Some(Err(e)) => log::warn!("{account}'s data file couldn't be sealed: {e}"),
+                None => {}
+            }
+            w.sealing = None;
+            self.sealed.notify_all();
         }
         w.running = false;
+    }
+
+    /// `account`'s data file is being let go of (closed, to be opened again or deleted): no seal
+    /// waits for it any more, and one under way has ended, so nothing here holds it open.
+    pub(super) fn forget(&self, account: &str) {
+        let mut w = self.lock();
+        w.due.remove(account);
+        w.undurable.remove(account);
+        while w.sealing.as_deref() == Some(account) {
+            w = self.sealed.wait(w).unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+
+    /// As if the thread were sealing `account`'s data file (`None`: it has ended).
+    #[cfg(test)]
+    pub(super) fn pretend_sealing(&self, account: Option<&str>) {
+        self.lock().sealing = account.map(str::to_string);
+        self.sealed.notify_all();
+    }
+
+    /// Whether `account`'s data file waits for a seal, or has batches not on the disk.
+    #[cfg(test)]
+    pub(super) fn waiting_for(&self, account: &str) -> bool {
+        let w = self.lock();
+        w.due.contains_key(account) || w.undurable.contains_key(account)
     }
 
     /// No more sealing (the data files are closing, which seals them).
@@ -157,10 +196,14 @@ impl Packs {
         #[cfg(test)]
         let start = Instant::now();
         let mut tx = db.begin_write().map_err(other)?;
+        // Writes from the window only (a background batch names its size).
         #[cfg(test)]
-        if how.durable {
+        if how.durable && undurable == 0 {
             self.seals.waits.lock().unwrap_or_else(PoisonError::into_inner).push(start.elapsed());
         }
+        // Asked once this writer has the file: whatever began before the closing seal committed
+        // before it, and whatever begins after is sealed itself.
+        let how = if self.seals.lock().closing { Commit::SEALED } else { how };
         if !how.durable {
             tx.set_durability(redb::Durability::None).map_err(other)?;
         }
@@ -211,6 +254,32 @@ impl Packs {
         seal(&db).map_err(io_err(dir))?;
         self.seals.lock().undurable.remove(&a);
         Ok(())
+    }
+
+    /// MailCraft is closing: every open data file sealed, and every commit from here on sealed
+    /// too (a thread still writing as the process ends leaves its file reopening at once).
+    pub(crate) fn seal_all(&self) -> Result<()> {
+        {
+            let mut w = self.seals.lock();
+            w.closing = true;
+            w.due.clear();
+        }
+        let open: Vec<(String, Arc<Database>)> = Packs::lock(&self.open).iter().map(|(a, db)| (a.clone(), db.clone())).collect();
+        let mut done = Ok(());
+        for (a, db) in open {
+            match seal(&db) {
+                Ok(()) => {
+                    self.seals.lock().undurable.remove(&a);
+                }
+                Err(e) => {
+                    log::warn!("{a}'s data file couldn't be sealed: {e}");
+                    if done.is_ok() {
+                        done = Err(StoreError::Io { path: a, source: e });
+                    }
+                }
+            }
+        }
+        done
     }
 }
 
