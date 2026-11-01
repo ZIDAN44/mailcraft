@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod search_big;
 mod search_frames;
 
 /// A frame whose input goes through the Alt codes first, as the app's windows' does.
