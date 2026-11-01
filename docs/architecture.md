@@ -75,12 +75,16 @@ next start, before anything opens the files, every file checked before the old o
 sample mailbox and the browser keep plain files and memory.
 
 How a data file commits (`crates/store/src/packed/commit.rs`): writes from the window are durable
-at once. Writers in the background (an import) prepare what they write away from the file
-(`Store::prepare` compresses it on their own thread) and commit batches of at most
-`BACKGROUND_COMMIT` (2 MiB, a quarter of the write buffer) that don't wait for the disk
-(`Store::write_prepared`); the folder lists naming them are written durably after them, and a
-batch that would leave more than 8 MiB unwritten is durable itself (a write from the window writes
-out what's waiting with its own: 8 MiB added about 9 ms to it in a test). A commit isn't sealed
+at once. Writers in the background (a `.pst` import, a MailCraft data file brought in) prepare
+what they write away from the file (`Store::prepare` compresses it on their own thread) and
+commit batches of at most `BACKGROUND_COMMIT` (2 MiB, a quarter of the write buffer) that don't
+wait for the disk (`Store::write_prepared`); the folder lists naming them are written durably
+after them, and a batch that would leave more than 8 MiB unwritten is durable itself. What's
+waiting is counted with the file's writer held, so the count follows the order of the commits. A
+write from the window writes out what's waiting with its own: in tests 8 MiB added 10 to 30 ms to
+it, and against an import going flat out its p99 reached 45 to 230 ms on a busy machine (13 ms
+with nothing else writing), over the 60 ms aimed at; those timings are measurements run on their
+own (`--ignored`), as they swing too far for the test suite. A commit isn't sealed
 (redb's quick-repair, measured at three times a small commit's cost on a 37 GB file): a data file
 is sealed by an empty commit once its writes have been quiet for two seconds, at an import's end
 or when it gives up (`Store::seal`), and as the app or the CLI exits (`Store::seal_all`, which also

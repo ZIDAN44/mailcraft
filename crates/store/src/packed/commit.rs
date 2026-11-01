@@ -9,12 +9,15 @@
 //! [`Store::seal_all`](crate::Store::seal_all) seals every one and makes each commit after it
 //! sealed: closing a file would seal it, but the threads holding the store (an account's worker, an
 //! import) are let go rather than waited for, so the process seldom ends with the files closed.
-//! A crash between a write and its seal
-//! costs a full check of the file when it next opens (305 s for that file), which the window shows.
+//! A crash between a write and its seal costs a full check of the file when it next opens (305 s
+//! for that file). Nothing shows that check yet: the account's first read waits for it (the boot
+//! screen that will show it is still to come).
 //!
 //! Writers in the background commit batches that don't wait for the disk; the next durable commit
 //! writes them out. So that a write from the window isn't the one left writing out a long run of
-//! them, a batch that would take the run past [`UNDURABLE_MAX`] is made durable itself.
+//! them, a batch that would take the run past [`UNDURABLE_MAX`] is made durable itself. What's
+//! waiting is counted while the commit's writer still holds the file, so the count follows the
+//! order the commits were made in, and two writers can't both take the run past the cap.
 
 use std::sync::{Condvar, MutexGuard, PoisonError, Weak};
 use std::time::{Duration, Instant};
@@ -70,6 +73,9 @@ struct Waiting {
     stop: bool,
     /// MailCraft is closing ([`Packs::seal_all`]): every commit is sealed.
     closing: bool,
+    /// The most any data file has had waiting, and the biggest batch.
+    #[cfg(test)]
+    peak: (usize, usize),
 }
 
 impl Seals {
@@ -77,18 +83,49 @@ impl Seals {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// `account`'s data file had a commit that wasn't sealed, of `undurable` bytes not waited for.
-    fn written(self: &Arc<Self>, account: &str, db: &Arc<Database>, undurable: Option<usize>) {
+    /// What `account`'s data file has waiting, as a commit about to be made changes it: a batch of
+    /// `Some(bytes)` not waited for adds to it, a durable commit (`None`) writes it all out. Called
+    /// with the file's writer held, so these come in the order of the commits; returns what was
+    /// waiting before, to put back if the commit fails ([`Seals::restore`]).
+    fn count(&self, account: &str, undurable: Option<usize>) -> usize {
         let mut w = self.lock();
+        let before = w.undurable.get(account).copied().unwrap_or(0);
         match undurable {
             Some(n) => {
-                let run = w.undurable.entry(account.to_string()).or_default();
-                *run = run.saturating_add(n);
+                let run = before.saturating_add(n);
+                w.undurable.insert(account.to_string(), run);
+                #[cfg(test)]
+                {
+                    w.peak = (w.peak.0.max(run), w.peak.1.max(n));
+                }
             }
             None => {
                 w.undurable.remove(account);
             }
         }
+        before
+    }
+
+    /// A commit counted with [`Seals::count`] failed: what was waiting before it still is (its
+    /// writer is still held, so nothing was counted since).
+    fn restore(&self, account: &str, before: usize) {
+        let mut w = self.lock();
+        if before == 0 {
+            w.undurable.remove(account);
+        } else {
+            w.undurable.insert(account.to_string(), before);
+        }
+    }
+
+    /// Whether `bytes` more would take `account`'s run of batches not on the disk past the cap.
+    /// Asked with the file's writer held, so no other batch comes in between.
+    fn too_far(&self, account: &str, bytes: usize) -> bool {
+        self.lock().undurable.get(account).copied().unwrap_or(0).saturating_add(bytes) > UNDURABLE_MAX
+    }
+
+    /// `account`'s data file had a commit that wasn't sealed: it's sealed once quiet.
+    fn written(self: &Arc<Self>, account: &str, db: &Arc<Database>) {
+        let mut w = self.lock();
         if w.stop {
             return;
         }
@@ -102,11 +139,6 @@ impl Seals {
         }
         drop(w);
         self.wake.notify_one();
-    }
-
-    /// Whether `bytes` more would take `account`'s run of batches not on the disk too far.
-    fn too_far(&self, account: &str, bytes: usize) -> bool {
-        self.lock().undurable.get(account).copied().unwrap_or(0).saturating_add(bytes) > UNDURABLE_MAX
     }
 
     /// The thread: each data file sealed once it has been quiet for [`QUIET`], one at a time.
@@ -128,14 +160,10 @@ impl Seals {
             drop(w);
             // A file let go of since closed itself, sealed. This thread lets go of the file before
             // anyone waiting for the seal to end ([`Seals::forget`]) hears of it.
-            let done = db.upgrade().map(|db| seal(&db));
+            let done = db.upgrade().map(|db| seal(&db, self, &account));
             w = self.lock();
-            match done {
-                Some(Ok(())) => {
-                    w.undurable.remove(&account);
-                }
-                Some(Err(e)) => log::warn!("{account}'s data file couldn't be sealed: {e}"),
-                None => {}
+            if let Some(Err(e)) = done {
+                log::warn!("{account}'s data file couldn't be sealed: {e}");
             }
             w.sealing = None;
             self.sealed.notify_all();
@@ -168,6 +196,14 @@ impl Seals {
         w.due.contains_key(account) || w.undurable.contains_key(account)
     }
 
+    /// What `account`'s data file has waiting now, the most any file has had, and the biggest
+    /// batch any had.
+    #[cfg(test)]
+    pub(super) fn undurable(&self, account: &str) -> (usize, usize, usize) {
+        let w = self.lock();
+        (w.undurable.get(account).copied().unwrap_or(0), w.peak.0, w.peak.1)
+    }
+
     /// No more sealing (the data files are closing, which seals them).
     pub(super) fn stop(&self) {
         self.lock().stop = true;
@@ -175,11 +211,16 @@ impl Seals {
     }
 }
 
-/// An empty sealed commit (durable: it also writes out the batches before it).
-fn seal(db: &Database) -> io::Result<()> {
+/// An empty sealed commit of `account`'s data file (durable: it also writes out the batches
+/// before it).
+fn seal(db: &Database, seals: &Seals, account: &str) -> io::Result<()> {
     let mut tx = db.begin_write().map_err(other)?;
     tx.set_quick_repair(true);
-    tx.commit().map_err(other)
+    let before = seals.count(account, None);
+    tx.commit().map_err(|e| {
+        seals.restore(account, before);
+        other(e)
+    })
 }
 
 impl Packs {
@@ -202,8 +243,15 @@ impl Packs {
             self.seals.waits.lock().unwrap_or_else(PoisonError::into_inner).push(start.elapsed());
         }
         // Asked once this writer has the file: whatever began before the closing seal committed
-        // before it, and whatever begins after is sealed itself.
-        let how = if self.seals.lock().closing { Commit::SEALED } else { how };
+        // before it, and whatever begins after is sealed itself. Likewise, no other batch can
+        // come in between this one's look at the run waiting and its commit.
+        let how = if self.seals.lock().closing {
+            Commit::SEALED
+        } else if !how.durable && self.seals.too_far(account, undurable) {
+            Commit::PLAIN
+        } else {
+            how
+        };
         if !how.durable {
             tx.set_durability(redb::Durability::None).map_err(other)?;
         }
@@ -212,9 +260,13 @@ impl Packs {
             let mut tables = Tables { files: tx.open_table(FILES).map_err(other)?, pieces: tx.open_table(PIECES).map_err(other)? };
             f(&mut tables)?;
         }
-        tx.commit().map_err(other)?;
+        let before = self.seals.count(account, (!how.durable).then_some(undurable));
+        if let Err(e) = tx.commit() {
+            self.seals.restore(account, before);
+            return Err(other(e));
+        }
         if !how.seal {
-            self.seals.written(account, &db, (!how.durable).then_some(undurable));
+            self.seals.written(account, &db);
         }
         Ok(())
     }
@@ -231,7 +283,7 @@ impl Packs {
         }
         for (a, files) in by_account {
             let bytes = files.iter().map(|(_, p)| p.kept_len()).fold(0usize, usize::saturating_add);
-            let how = if durable || self.seals.too_far(&a, bytes) { Commit::PLAIN } else { Commit::BATCH };
+            let how = if durable { Commit::PLAIN } else { Commit::BATCH };
             self.change_with(&a, how, bytes, |t| {
                 for (k, prepared) in &files {
                     if prepared.kept {
@@ -251,9 +303,7 @@ impl Packs {
     pub(crate) fn seal(&self, dir: &Path) -> Result<()> {
         let Place::Account(a) = self.place(dir) else { return Ok(()) };
         let Some(db) = self.db(&a, false).map_err(io_err(dir))? else { return Ok(()) };
-        seal(&db).map_err(io_err(dir))?;
-        self.seals.lock().undurable.remove(&a);
-        Ok(())
+        seal(&db, &self.seals, &a).map_err(io_err(dir))
     }
 
     /// MailCraft is closing: every open data file sealed, and every commit from here on sealed
@@ -267,15 +317,10 @@ impl Packs {
         let open: Vec<(String, Arc<Database>)> = Packs::lock(&self.open).iter().map(|(a, db)| (a.clone(), db.clone())).collect();
         let mut done = Ok(());
         for (a, db) in open {
-            match seal(&db) {
-                Ok(()) => {
-                    self.seals.lock().undurable.remove(&a);
-                }
-                Err(e) => {
-                    log::warn!("{a}'s data file couldn't be sealed: {e}");
-                    if done.is_ok() {
-                        done = Err(StoreError::Io { path: a, source: e });
-                    }
+            if let Err(e) = seal(&db, &self.seals, &a) {
+                log::warn!("{a}'s data file couldn't be sealed: {e}");
+                if done.is_ok() {
+                    done = Err(StoreError::Io { path: a, source: e });
                 }
             }
         }

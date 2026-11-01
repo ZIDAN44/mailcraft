@@ -96,16 +96,32 @@ impl Store {
     pub fn import_data_file(&self, account: &str, path: &Path) -> Result<usize> {
         let dir = self.account_dir(account);
         let tmp = self.root.join(format!(".import-{}.tmp", safe_segment(account)));
-        packed::read_data_file(path, &tmp, &mut |batch| {
+        let packs = self.packs(account);
+        let read = packed::read_data_file(path, &tmp, &mut |batch| {
             // Paths come from a file: kept only when they stay inside the account. The old
             // account's changes still to make on its server, and its unsent mail, stay behind.
-            let items: Vec<(PathBuf, Vec<u8>)> = batch
-                .into_iter()
-                .filter(|(k, _)| k != "ops.json" && !k.starts_with("outbox/"))
-                .filter_map(|(k, v)| inner_path(&k).map(|rel| (dir.join(rel), v)))
-                .collect();
-            self.files.write_many(items)
-        })?;
+            // Compressed here, away from the writer, and written as a background import writes:
+            // in short batches that don't wait for the disk (the seal below makes them durable).
+            let mut items: Vec<(PathBuf, Prepared)> = Vec::new();
+            let mut bytes = 0usize;
+            for (k, v) in batch {
+                if k == "ops.json" || k.starts_with("outbox/") {
+                    continue;
+                }
+                let Some(rel) = inner_path(&k) else { continue };
+                let prepared = Store::prepare(packs, v);
+                if bytes.saturating_add(prepared.kept_len()) > crate::BACKGROUND_COMMIT && !items.is_empty() {
+                    self.files.write_prepared(std::mem::take(&mut items), false)?;
+                    bytes = 0;
+                }
+                bytes = bytes.saturating_add(prepared.kept_len());
+                items.push((dir.join(rel), prepared));
+            }
+            if items.is_empty() { Ok(()) } else { self.files.write_prepared(items, false) }
+        });
+        let sealed = self.seal(account);
+        read?;
+        sealed?;
         // Folders and messages name the account they belong to: this one now.
         let mut folders = self.load_folders(account)?;
         if folders.iter().any(|f| f.account != account) {
