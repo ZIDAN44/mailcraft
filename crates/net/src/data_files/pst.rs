@@ -40,6 +40,7 @@ mod open;
 mod out;
 mod props;
 mod rebuild;
+mod report;
 #[cfg(test)]
 mod tests;
 

@@ -53,3 +53,4 @@ ipconfig = "0.3"
 [dev-dependencies]
 # The S/MIME round trip reads the test certificates (PEM).
 der = { version = "0.7", features = ["pem"] }
+proptest = "1"

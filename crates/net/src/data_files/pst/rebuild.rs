@@ -62,6 +62,7 @@ fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool
     // and it stays a named file.
     let make = || html.clone().unwrap_or_default();
     let refs = mime::HtmlRefs::new(&make);
+    let report = super::report::report_type(&it.headers, &mut it.files);
     for f in std::mem::take(&mut it.files) {
         match f {
             File::Data { name, mime, cid, data } => {
@@ -84,7 +85,10 @@ fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool
     // An id from the file goes into a header line: no spaces or line breaks.
     let id = mailcraft_model::thread::norm_id(&it.message_id);
     let id = if id.is_empty() { fallback_id } else { &id };
-    let built = mime::build(&d, &it.from, it.date, id)?;
+    let mut built = mime::build(&d, &it.from, it.date, id)?;
+    if let Some(kind) = report {
+        built = super::report::as_report(built, &kind);
+    }
     let files = mime::draft_carries_files(&d);
     drop(d);
     Ok((with_headers(built, &it.headers, &it.bcc, &extra_headers(&it)), files))

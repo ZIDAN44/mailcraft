@@ -20,3 +20,6 @@
 ">"
 ","
 "\x0d\x0a"
+"Content-Type: multipart/report;"
+"report-type="
+"delivery-status"

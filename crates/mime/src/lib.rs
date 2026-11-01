@@ -580,7 +580,11 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
                     .attachment(sanitize_filename(&a.name))
                     .header("Content-Transfer-Encoding", mail_builder::headers::raw::Raw::new(cte));
             }
+            // A report's status goes as it is when it can (RFC 3464 §2.1: 7bit, so it stays
+            // readable); one that can't is encoded as any other file.
+            let as_is = REPORT_STATUS.iter().any(|s| mime.eq_ignore_ascii_case(s)) && seven_bit(&a.data);
             let part = MimePart::new(mime, a.data.as_slice()).attachment(sanitize_filename(&a.name));
+            let part = if as_is { part.header("Content-Transfer-Encoding", mail_builder::headers::raw::Raw::new("7bit")) } else { part };
             // A kept Content-ID goes into a header line as it is: one with spaces, line breaks or
             // brackets inside, or too long for the line, is left off.
             let cid = a.content_id.trim().trim_start_matches('<').trim_end_matches('>');
@@ -621,6 +625,33 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
 /// Longest `Content-ID` an attachment keeps, in bytes: its header line stays within RFC 5322's
 /// 998 characters.
 const MAX_CID: usize = 900;
+
+/// The machine-readable part of a `multipart/report` (RFC 6522): a delivery status (RFC 3464),
+/// a read receipt (RFC 8098) or a feedback report (RFC 5965).
+pub const REPORT_STATUS: [&str; 3] = ["message/delivery-status", "message/disposition-notification", "message/feedback-report"];
+
+/// Whether `data` is 7bit data as RFC 2045 §2.7 says: ASCII without NUL, CR and LF only together,
+/// lines of at most 998 characters. A line that starts with `--` could close the message's
+/// multipart early (RFC 2046 §5.1.1), so data with one isn't sent as it is either.
+fn seven_bit(data: &[u8]) -> bool {
+    let mut line = 0usize;
+    for (i, &b) in data.iter().enumerate() {
+        match b {
+            b'\r' if data.get(i.saturating_add(1)) != Some(&b'\n') => return false,
+            b'\n' if i.checked_sub(1).and_then(|j| data.get(j)) != Some(&b'\r') => return false,
+            b'\r' | b'\n' => line = 0,
+            0 | 0x80.. => return false,
+            b'-' if line == 1 && i.checked_sub(1).and_then(|j| data.get(j)) == Some(&b'-') => return false,
+            _ => {
+                line += 1;
+                if line > 998 {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
 
 /// FNV-1a, for boundaries.
 fn fnv(s: &str) -> u64 {

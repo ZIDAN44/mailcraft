@@ -38,6 +38,7 @@ pub(crate) mod index_text;
 mod kept_cid;
 mod one_parse;
 mod report;
+mod report_status;
 mod signature_code;
 mod text_attach;
 

@@ -3660,6 +3660,7 @@ dependencies = [
  "md4",
  "outlook-pst",
  "outlook-pst-rw",
+ "proptest",
  "quick-xml 0.42.0",
  "rand_core 0.6.4",
  "ring",

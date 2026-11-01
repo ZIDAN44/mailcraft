@@ -1484,6 +1484,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   with its Content-ID. A message's attachments Outlook marks hidden came in as nothing; they now
   come in as files; only a contact's hidden picture, and the changed occurrences a recurring
   meeting carries as hidden attached messages, are left out.
+- **Bounces and receipts from a `.pst` stay reports:** a delivery report, read receipt or
+  feedback report that came in by mail (`multipart/report`, 11 in a 41 GB file) was rebuilt as
+  `multipart/mixed`. When its original header says `multipart/report` and its files are the
+  status and at most one returned message or header, it is a report of its `report-type` again,
+  status first; anything else stays mixed with every part. A report's status now goes as 7bit
+  text when it is (RFC 3464), not base64.
 - **Search reads accents and dates:** a word is found whatever its accents, typed or written
   (`resume` finds "Résumé", `résumé` finds "resume", `strasse` "Straße"; Cyrillic keeps й, and
   other scripts are looked for as written). `received:` (also `sent:`, `date:`) takes a day, a
