@@ -1,8 +1,10 @@
 //! S/MIME as it arrives: BER rewritten as DER, a signature checked (detached, and carrying its
-//! content), encrypted mail opened with a test key, a certificate read and checked for a sender.
+//! content), encrypted mail opened with a test key, a certificate read and checked for a sender;
+//! a message told signed or encrypted from its header alone, never wrongly told it isn't.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
+use mailcraft_mime::smime::{Protection, is_protected, protection};
 use mailcraft_smime as smime;
 
 /// A small RSA test identity (the crate's test CA's Riley), read once.
@@ -21,4 +23,8 @@ fuzz_target!(|input: &[u8]| {
         let _ = smime::decrypt(input, id, &mut rand_core::OsRng);
     }
     let _ = smime::read_p12(input, "secret");
+    // The input as a message: one its header says isn't protected is not, whatever its body.
+    if !is_protected(input) {
+        assert_eq!(protection(input), Protection::None);
+    }
 });

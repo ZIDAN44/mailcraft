@@ -1,0 +1,7 @@
+From: a@b.example
+Content-Type: application/octet-stream
+Content-Disposition: attachment;
+ filename="smime.p7m"
+Content-Transfer-Encoding: base64
+
+AQID

@@ -16,7 +16,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `jmap` | a JMAP server's answers (split at form feeds) through sign-in, folder list and folder sync; push events; URLs |
 | `search` | the search box: the query language, its dates on any clock, a query checked against a message and its text, folding, the Advanced form, JMAP filters, modified UTF-7; lookalike senders, known names on other addresses, External |
 | `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
-| `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files |
+| `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files; a message told signed or encrypted from its header alone, never wrongly told it isn't |
 | `pst` | an Outlook data file: a good exported file with the input as byte patches, or a whole file |
 | `pst_item` | a `.pst` mail item rebuilt as a message from hostile property values: the headers made from them (Thread-Index, Thread-Topic, Sensitivity) stay on clean lines of their own; recipients' one-off entry ids; categories as keywords |
 | `pst_props` | text in a data file's properties: an HTML body or an 8-bit string in its code page (a declared charset, byte-order marks), and the bytes in a code page of each kind MailCraft reads (the input names any other) |
