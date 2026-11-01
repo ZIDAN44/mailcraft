@@ -79,8 +79,9 @@ pub struct FolderState {
 /// changes the last page only, and a flag one page).
 pub const PAGE_MESSAGES: usize = 4096;
 
-/// Memory for each open data file's cache.
-const CACHE: usize = 16 << 20;
+/// Memory for each open data file's cache. Imports measured with 32 and 48 MiB wrote and read
+/// what they did with 16 (within 1%), so the memory isn't spent on every open file.
+pub const CACHE: usize = 16 << 20;
 /// What a data file's write transaction holds in memory before it has to write pages out and read
 /// them back: half its cache (the database's rule).
 pub const WRITE_BUFFER: usize = CACHE / 2;
@@ -89,6 +90,26 @@ pub const WRITE_BUFFER: usize = CACHE / 2;
 /// over 8 MiB. Each then holds the data file for a few milliseconds, so a write from the window
 /// (a message marked read) waits at most that long; a 16 MiB one took 119 ms on a 37 GB file.
 pub const BACKGROUND_COMMIT: usize = if WRITE_BUFFER / 4 < 8 << 20 { WRITE_BUFFER / 4 } else { 8 << 20 };
+/// The cache of a data file taking a bulk write (an import, [`Store::bulk_begin`]). Importing a
+/// file of 600,000 messages, 32 MiB had 58% fewer pages read back by its transactions than 16 MiB,
+/// for about 22 MB more at its peak; 48, 64, 128 and 192 MiB took from 1 to 5 points more off
+/// that for up to 225 MB more. Its batches stay at [`BACKGROUND_COMMIT`]: 4 and 8 MiB ones with
+/// this cache read back 1.7 and 4 times as many pages, and wrote no less.
+pub const BULK_CACHE: usize = 32 << 20;
+
+/// How a data file's cache has been used, as the database counts it: numbers only, for measuring,
+/// and zeros (but `used_bytes`) unless the store is built with its `cache-metrics` feature.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct CacheUse {
+    /// Pages put out of the cache to make room.
+    pub evictions: u64,
+    /// Pages read from the file, not found in the cache.
+    pub read_misses: u64,
+    /// Pages changed in a transaction that had been written out of it already and were read back.
+    pub write_misses: u64,
+    /// Bytes in the cache now.
+    pub used_bytes: u64,
+}
 
 /// A folder's `state.json`: the folder's sync state and its list, or for a big folder the hashes
 /// of the pages its list is kept in (`state-<n>.json`).

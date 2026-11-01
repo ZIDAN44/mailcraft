@@ -28,6 +28,10 @@ miniz_oxide = "0.9"
 # The Documents folder (where "MailCraft Files" goes), wherever the system has put it.
 dirs = "7"
 
+[features]
+# The data files' caches count their use (`Store::cache_use`), for measuring: the import bench.
+cache-metrics = ["redb/cache_metrics"]
+
 [dev-dependencies]
 # Model-based tests of the search index (src/search/tests/maint.rs).
 proptest = "1"

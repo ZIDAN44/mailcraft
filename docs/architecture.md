@@ -90,7 +90,11 @@ waiting is counted with the file's writer held, so the count follows the order o
 write from the window writes out what's waiting with its own: in tests 8 MiB added 10 to 30 ms to
 it, and against an import going flat out its p99 reached 45 to 230 ms on a busy machine (13 ms
 with nothing else writing), over the 60 ms aimed at; those timings are measurements run on their
-own (`--ignored`), as they swing too far for the test suite. A commit isn't sealed
+own (`--ignored`), as they swing too far for the test suite. A data file's cache is 16 MiB
+(`CACHE`), half of it the write buffer a transaction holds its changes in; while an import writes,
+its account's file has 32 MiB (`Store::bulk_begin` / `bulk_end`, `packed/open.rs`): the file is
+closed and opened again with the other cache when nobody holds it, at once or the next time it's
+asked for, and never under someone using it. A commit isn't sealed
 (redb's quick-repair, measured at three times a small commit's cost on a 37 GB file): a data file
 is sealed by an empty commit once its writes have been quiet for two seconds, at an import's end
 or when it gives up (`Store::seal`), and as the app or the CLI exits (`Store::seal_all`, which also

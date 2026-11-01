@@ -129,6 +129,63 @@ impl Store {
         self.files.seal_all()
     }
 
+    /// `account` takes a bulk write (an import): until [`Store::bulk_end`] its data file has a
+    /// cache of `cache_bytes` ([`BULK_CACHE`]), so a transaction holds what it changes in memory
+    /// instead of writing pages out and reading them back. The file is opened again with it at
+    /// once if nobody's using it, or as soon as nobody is. Nothing to do for other stores.
+    pub fn bulk_begin(&self, account: &str, cache_bytes: usize) {
+        if self.is_online_only(account) {
+            return;
+        }
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.bulk_begin(&safe_segment(account), cache_bytes),
+            _ => {
+                let _ = cache_bytes;
+            }
+        }
+    }
+
+    /// `account`'s bulk write is over: its data file's cache goes back to its usual size, letting
+    /// go of the memory (a clean close and an open, at once if nobody's using it, otherwise as
+    /// soon as nobody is).
+    pub fn bulk_end(&self, account: &str) {
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.bulk_end(&safe_segment(account)),
+            _ => {
+                let _ = account;
+            }
+        }
+    }
+
+    /// The cache `account`'s data file is open with, in bytes (none: it isn't open, or the store
+    /// keeps no data files).
+    #[doc(hidden)]
+    pub fn data_file_cache(&self, account: &str) -> Option<usize> {
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.cache_of(&safe_segment(account)),
+            _ => {
+                let _ = account;
+                None
+            }
+        }
+    }
+
+    /// How `account`'s data file's cache has been used since the store opened ([`CacheUse`]):
+    /// for measuring. Default for other stores.
+    pub fn cache_use(&self, account: &str) -> CacheUse {
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.cache_use(&safe_segment(account)),
+            _ => {
+                let _ = account;
+                CacheUse::default()
+            }
+        }
+    }
+
     pub fn remove_body(&self, key: &MessageKey) {
         let _ = self.files.remove_file(&self.body_path(key));
     }

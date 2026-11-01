@@ -1,11 +1,20 @@
 //! Opening an account's data file, which can be a long check of it after MailCraft wasn't closed
 //! properly: only that account waits for it, never the others (nothing is locked meanwhile but
 //! the account's place in [`Open::opening`]), and [`Packs::progress`] says how it goes.
+//!
+//! A data file opens with a cache of [`CACHE`], or of more while its account takes a bulk write
+//! (an import: [`Packs::bulk_begin`]). A write transaction holds what it changes in half the
+//! cache; past that, pages are written out, and read back when changed again. A file open with
+//! the other cache is closed and opened again the next time it's asked for while nobody else holds
+//! it (on a 6.9 GB file the close took 16 ms, the open 6-9 ms); one in use meanwhile goes on with
+//! the cache it has. The close at an import's end also gives back the room the file had grown
+//! by ahead of its contents: 8.6 GB came down to 6.9 GB at once, rather than when MailCraft closed.
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::*;
+use crate::CacheUse;
 
 /// The data files open, and the accounts whose file is being opened.
 #[derive(Debug, Default)]
@@ -13,6 +22,34 @@ pub(super) struct Open {
     pub(super) dbs: HashMap<String, Arc<Database>>,
     /// Being opened, by a thread holding no lock: others asking for it wait ([`Packs::opened`]).
     opening: HashSet<String>,
+    /// The cache each open data file was opened with, when not [`CACHE`].
+    caches: HashMap<String, usize>,
+    /// Accounts taking a bulk write, and the cache their data file has meanwhile.
+    bulk: HashMap<String, usize>,
+    /// How the caches of the files let go of to change theirs were used (so a count over an
+    /// import keeps what its file did before it was opened again).
+    spent: HashMap<String, CacheUse>,
+}
+
+impl CacheUse {
+    fn of(db: &Database) -> CacheUse {
+        let s = db.cache_stats();
+        CacheUse {
+            evictions: s.evictions(),
+            read_misses: s.read_misses(),
+            write_misses: s.write_misses(),
+            used_bytes: u64::try_from(s.used_bytes()).unwrap_or(u64::MAX),
+        }
+    }
+
+    fn add(self, o: CacheUse) -> CacheUse {
+        CacheUse {
+            evictions: self.evictions.saturating_add(o.evictions),
+            read_misses: self.read_misses.saturating_add(o.read_misses),
+            write_misses: self.write_misses.saturating_add(o.write_misses),
+            used_bytes: o.used_bytes,
+        }
+    }
 }
 
 /// An account no longer being opened, however that ends (a panic included): those waiting on it
@@ -38,6 +75,13 @@ impl Drop for CheckOver<'_> {
     }
 }
 
+impl Open {
+    /// The cache `account`'s data file should have.
+    fn wanted(&self, account: &str) -> usize {
+        self.bulk.get(account).copied().unwrap_or(CACHE)
+    }
+}
+
 impl Packs {
     /// The open files, once no thread is opening `account`'s.
     fn settled(&self, account: &str) -> std::sync::MutexGuard<'_, Open> {
@@ -50,7 +94,83 @@ impl Packs {
 
     /// Let go of an account's data file (once it's done opening): whether it was open.
     pub(super) fn close(&self, account: &str) -> bool {
-        self.settled(account).dbs.remove(account).is_some()
+        let mut open = self.settled(account);
+        open.caches.remove(account);
+        open.dbs.remove(account).is_some()
+    }
+
+    /// `account` takes a bulk write (an import): its data file has a cache of `cache_bytes` until
+    /// [`Packs::bulk_end`], opened again with it now if nobody holds it (otherwise as soon as
+    /// nobody does). A cache no bigger than [`CACHE`] changes nothing.
+    pub(crate) fn bulk_begin(&self, account: &str, cache_bytes: usize) {
+        let mut open = self.settled(account);
+        if cache_bytes > CACHE {
+            open.bulk.insert(account.to_string(), cache_bytes);
+        } else {
+            open.bulk.remove(account);
+        }
+        drop(open);
+        if !self.recache(account) && self.cache_of(account).is_some_and(|c| c != cache_bytes.max(CACHE)) {
+            log::info!("{account}: its data file is in use; the bulk write starts with the cache it has");
+        }
+    }
+
+    /// `account`'s bulk write is over: its data file goes back to [`CACHE`], letting go of the
+    /// rest, now if nobody holds it (a clean close: it opens again at once), otherwise the next
+    /// time it's asked for once nobody does.
+    pub(crate) fn bulk_end(&self, account: &str) {
+        self.settled(account).bulk.remove(account);
+        self.recache(account);
+    }
+
+    /// `account`'s data file, open with another cache than it should have, closed if nobody else
+    /// holds it, to be opened again with that cache. It's closed with the account marked as
+    /// opening, so nobody gets it meanwhile, and with no lock held (closing writes out what waits).
+    /// Whether it was.
+    fn recache(&self, account: &str) -> bool {
+        let mut open = self.settled(account);
+        if open.caches.get(account).copied().unwrap_or(CACHE) == open.wanted(account)
+            || open.dbs.get(account).is_none_or(|db| Arc::strong_count(db) > 1)
+        {
+            return false;
+        }
+        let Some(db) = open.dbs.remove(account) else { return false };
+        // Taken only when this is the last hold of it: nobody (the sealing thread included, whose
+        // hold is weak) can take it up again meanwhile.
+        let db = match Arc::try_unwrap(db) {
+            Ok(db) => db,
+            Err(db) => {
+                open.dbs.insert(account.to_string(), db);
+                return false;
+            }
+        };
+        let used = CacheUse::of(&db);
+        let spent = open.spent.get(account).copied().unwrap_or_default().add(used);
+        open.spent.insert(account.to_string(), spent);
+        open.caches.remove(account);
+        open.opening.insert(account.to_string());
+        drop(open);
+        let _opening = Opening { packs: self, account };
+        drop(db);
+        // Closing made what waited durable, and recorded where the free space is.
+        self.seals.forget(account);
+        true
+    }
+
+    /// How `account`'s data file's cache has been used since the store opened ([`CacheUse`]).
+    pub(crate) fn cache_use(&self, account: &str) -> CacheUse {
+        let open = self.settled(account);
+        let spent = open.spent.get(account).copied().unwrap_or_default();
+        match open.dbs.get(account) {
+            Some(db) => spent.add(CacheUse::of(db)),
+            None => CacheUse { used_bytes: 0, ..spent },
+        }
+    }
+
+    /// The cache `account`'s data file is open with (none: it isn't open).
+    pub(crate) fn cache_of(&self, account: &str) -> Option<usize> {
+        let open = self.settled(account);
+        open.dbs.contains_key(account).then(|| open.caches.get(account).copied().unwrap_or(CACHE))
     }
 
     /// An account's open data file; `create` makes it when there's none. Looked up and named with
@@ -64,8 +184,19 @@ impl Packs {
     pub(super) fn db(&self, account: &str, create: bool) -> io::Result<Option<Arc<Database>>> {
         let mut open = self.settled(account);
         if let Some(db) = open.dbs.get(account) {
-            return Ok(Some(db.clone()));
+            if open.caches.get(account).copied().unwrap_or(CACHE) == open.wanted(account) {
+                return Ok(Some(db.clone()));
+            }
+            // Open with another cache than it should have (a bulk write began or ended while it
+            // was in use): opened again with that one, once nobody holds it.
+            drop(open);
+            self.recache(account);
+            open = self.settled(account);
+            if let Some(db) = open.dbs.get(account) {
+                return Ok(Some(db.clone()));
+            }
         }
+        let cache = open.wanted(account);
         let known = Packs::lock(&self.names).contains_key(account);
         if !create && !known {
             return Ok(None);
@@ -80,7 +211,7 @@ impl Packs {
         }
         let checked = Arc::new(AtomicBool::new(false));
         let _over = CheckOver(&self.progress);
-        let db = match self.builder(&name, &checked).create(&path) {
+        let db = match self.builder(&name, &checked, cache).create(&path) {
             Ok(db) => db,
             Err(redb::DatabaseError::DatabaseAlreadyOpen) => {
                 return Err(other(format!("{} is open in another copy of MailCraft", path.display())));
@@ -92,7 +223,7 @@ impl Packs {
                 let aside = path.with_extension(format!("{EXTENSION}.damaged"));
                 log::warn!("{}: {e}; set aside as {}", path.display(), aside.display());
                 fs::rename(&path, &aside)?;
-                self.builder(&name, &checked).create(&path).map_err(other)?
+                self.builder(&name, &checked, cache).create(&path).map_err(other)?
             }
         };
         if checked.load(Ordering::Acquire) {
@@ -102,16 +233,22 @@ impl Packs {
             }
         }
         let db = Arc::new(db);
-        Packs::lock(&self.open).dbs.insert(account.to_string(), db.clone());
+        let mut open = Packs::lock(&self.open);
+        open.dbs.insert(account.to_string(), db.clone());
+        if cache == CACHE {
+            open.caches.remove(account);
+        } else {
+            open.caches.insert(account.to_string(), cache);
+        }
         Ok(Some(db))
     }
 
-    /// How a data file named `name` opens: its cache, and its check (if it needs one) told to
-    /// [`Packs::progress`] and marked in `checked`.
-    fn builder(&self, name: &str, checked: &Arc<AtomicBool>) -> redb::Builder {
+    /// How a data file named `name` opens: its cache of `cache` bytes, and its check (if it needs
+    /// one) told to [`Packs::progress`] and marked in `checked`.
+    fn builder(&self, name: &str, checked: &Arc<AtomicBool>, cache: usize) -> redb::Builder {
         let mut b = Database::builder();
         let (progress, name, checked) = (self.progress.clone(), name.to_string(), checked.clone());
-        b.set_cache_size(CACHE).set_repair_callback(move |s| {
+        b.set_cache_size(cache).set_repair_callback(move |s| {
             checked.store(true, Ordering::Release);
             progress.checking(&name, s.progress());
         });

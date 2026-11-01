@@ -2,6 +2,7 @@ use mailcraft_model::{AccountConfig, Flags, MessageKey, Summary};
 
 use crate::Store;
 
+mod bulk;
 mod commits;
 mod opening;
 
