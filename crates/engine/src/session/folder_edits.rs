@@ -289,6 +289,10 @@ impl Session {
         for m in &sel {
             by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
         }
+        // Gone from an account its import writes, it would come back as the import goes on.
+        for a in by_account.keys() {
+            self.import_holds(a)?;
+        }
         let n = sel.len();
         for (a, keys) in by_account {
             self.apply_op(&a, Op::Expunge { keys });
@@ -387,6 +391,10 @@ impl Session {
                 Ok(serde_json::json!({ "undone": "changes" }))
             }
             Undo::Move { account, to, back } => {
+                if let Err(e) = self.import_holds(&account) {
+                    self.undo.push(Undo::Move { account, to, back });
+                    return Err(e);
+                }
                 // Where each one is now: the destination's messages with that Message-ID.
                 let here = self.folder_state(&account, &to).messages.clone();
                 let mut by_folder: std::collections::BTreeMap<String, Vec<MessageKey>> = std::collections::BTreeMap::new();

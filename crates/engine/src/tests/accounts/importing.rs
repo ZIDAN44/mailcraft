@@ -42,11 +42,12 @@ fn sources(s: &Session) -> BTreeMap<String, DataSource> {
     s.store.as_ref().unwrap().load_doc("imports.json").unwrap()
 }
 
-/// Why a command was refused: a disabled one's reason as given.
+/// Why a command was refused: a failure's reason as given (the window shows it; a disabled
+/// command's reason it doesn't), anything else marked as what it is.
 fn refusal(e: CmdError) -> String {
     match e {
-        CmdError::Disabled(why) => why,
-        e => e.to_string(),
+        CmdError::Failed(why) => why,
+        e => format!("{e:?}"),
     }
 }
 
@@ -115,26 +116,55 @@ fn an_import_is_followed_from_start_to_end() {
     done(s);
 }
 
-/// An import paused as MailCraft closed, and one stopped, wait on the user the next time it
-/// opens: their accounts' folders aren't changed until they're gone on with or kept.
+/// An import paused as MailCraft closed (or cut short) goes on by itself the next time it opens,
+/// a POP account's connection still waiting for it; one the user stopped, or one blocked, waits
+/// on them: its account's folders aren't changed until it's gone on with or kept.
 #[test]
-fn imports_paused_or_stopped_wait_on_the_user_after_a_restart() {
+fn an_import_interrupted_goes_on_and_one_stopped_waits_after_a_restart() {
     let mut s = sample_session("import-restart");
+    let facts = DataFileFacts { path: "C:/Mail/Paused.pst".into(), size: 4096, record_key: "00bb".into(), ..Default::default() };
+    s.apply(Event::DataFileInspected { path: "C:/Mail/Paused.pst".into(), facts: Box::new(facts) });
     let paused = import(&mut s, "C:/Mail/Paused.pst");
     let stopped = import(&mut s, "C:/Mail/Stopped.pst");
-    for a in [&paused, &stopped] {
+    let blocked = import(&mut s, "C:/Mail/Blocked.pst");
+    let pop = json!({"email": "ana@example.org", "password": "pw", "pop": true, "pst": "C:/Mail/old.pst"});
+    let pop = s.run("account.add", &pop).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    for a in [&paused, &stopped, &blocked] {
         s.apply(Event::Folders { account: a.clone(), folders: vec![inbox(a)] });
     }
     s.apply(Event::ImportProgress { account: paused.clone(), progress: progress(ImportPhase::Paused, 5, 10, 9_000) });
     assert!(!s.import_state(&paused).unwrap().live);
     assert_eq!(sources(&s)[&paused].stage, ImportStage::Running, "to go on the next time");
     s.apply(ended(&stopped, 3, Some(StopHow::Cancel)));
+    let mut stuck = progress(ImportPhase::Blocked, 1, 10, 1_000);
+    stuck.blocked = Some(Blocked::SourceMissing);
+    s.apply(Event::ImportProgress { account: blocked.clone(), progress: stuck });
+    assert_eq!(sources(&s)[&blocked].stage, ImportStage::Stopped, "waits on the user");
     let store = s.store.clone().unwrap();
     drop(s);
 
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
-    assert!(s.take_jobs().is_empty(), "nothing goes on by itself yet");
-    for a in [&paused, &stopped] {
+    let mut going_on: Vec<(String, String)> = s
+        .take_jobs()
+        .into_iter()
+        .map(|j| match j {
+            Job::ImportPst { account, path, resume: true } => (account, path),
+            j => panic!("only the imports interrupted go on: {j:?}"),
+        })
+        .collect();
+    going_on.sort();
+    let mut want = vec![(paused.clone(), "C:/Mail/Paused.pst".to_string()), (pop.clone(), "C:/Mail/old.pst".to_string())];
+    want.sort();
+    assert_eq!(going_on, want, "the POP account's connection waits for its file");
+    assert!(s.import_state(&paused).unwrap().live);
+    let row = &sources(&s)[&paused];
+    assert_eq!((row.stage, row.size, row.record_key.as_str()), (ImportStage::Running, 4096, "00bb"), "what was known of the file stays");
+    assert_eq!(
+        s.run("folder.create", &json!({"account": paused, "name": "New"})).map_err(refusal),
+        Err("wait until the data file is imported".into())
+    );
+    for a in [&stopped, &blocked] {
         let st = s.import_state(a).unwrap();
         assert!(!st.live && st.progress.phase == ImportPhase::Paused, "{a}");
         assert_eq!(
@@ -143,12 +173,15 @@ fn imports_paused_or_stopped_wait_on_the_user_after_a_restart() {
         );
     }
     // Kept as it is: the account is any other from then on.
-    s.run("account.keepImported", &json!({"account": paused})).unwrap();
-    assert!(s.import_state(&paused).is_none());
-    assert_eq!(sources(&s)[&paused].stage, ImportStage::Done);
-    s.run("folder.create", &json!({"account": paused, "name": "New"})).unwrap();
-    s.run("account.resumeImport", &json!({"account": stopped})).unwrap();
-    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { account, resume: true, .. }] if *account == stopped));
+    s.run("account.keepImported", &json!({"account": stopped})).unwrap();
+    assert!(s.import_state(&stopped).is_none());
+    assert_eq!(sources(&s)[&stopped].stage, ImportStage::Done);
+    s.run("folder.create", &json!({"account": stopped, "name": "New"})).unwrap();
+    s.run("account.resumeImport", &json!({"account": blocked})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { account, resume: true, .. }] if *account == blocked));
+    // The POP account connects once its file is in.
+    s.apply(ended(&pop, 3, None));
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.id == pop));
     done(s);
 }
 
@@ -208,8 +241,11 @@ fn a_removal_left_waiting_is_finished() {
     assert!(!sources(&s).contains_key(&id));
     assert_eq!(s.take_jobs(), [Job::Remove { account: id.clone() }]);
 
-    // Waiting while other events come: gone after the last one counted.
+    // Waiting while other events come: gone from the list after the last one counted. The
+    // file is still the import's (Windows wouldn't let it go): it stays, and so does its
+    // record, keeping the id.
     let id = import(&mut s, "C:/Mail/Stuck.pst");
+    store.save_folders(&id, &[inbox(&id)]).unwrap();
     s.run("account.remove", &json!({"account": id})).unwrap();
     let quota = || Event::Quota { account: "sample".into(), used: 1, limit: 2 };
     for _ in 1..REMOVE_BACKSTOP {
@@ -217,7 +253,15 @@ fn a_removal_left_waiting_is_finished() {
     }
     assert!(s.account(&id).is_some(), "still waiting");
     s.apply(quota());
-    assert!(s.account(&id).is_none());
+    assert!(s.account(&id).is_none() && s.import_state(&id).is_none());
+    assert_eq!(sources(&s)[&id].stage, ImportStage::Removing);
+    assert!(store.account_path(&id).exists(), "the import still holds it");
+    assert!(s.take_jobs().contains(&Job::Remove { account: id.clone() }));
+    assert_ne!(import(&mut s, "C:/Mail/Next.pst"), id, "its id isn't given again yet");
+    drop(s);
+    // The next start removes it, and only then forgets it.
+    let s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert!(!store.account_path(&id).exists());
     assert!(!sources(&s).contains_key(&id));
     done(s);
 }
@@ -240,10 +284,14 @@ fn an_importing_accounts_folders_dont_change() {
             ("folder.cleanUp", json!({"account": "sample", "folder": "INBOX"})),
             ("mail.move", json!({"folder": "Archive"})),
             ("mail.delete", json!({})),
+            ("mail.delete", json!({"permanent": true})),
+            ("mail.snooze", json!({"until": NOW + 3600})),
+            ("mail.unsnooze", json!({})),
         ];
         for (id, v) in tries {
-            assert_eq!(s.run(id, &v).map_err(refusal), Err(why.to_string()), "{id}");
+            assert_eq!(s.run(id, &v).map_err(refusal), Err(why.to_string()), "{id} {v}");
         }
+        assert_eq!(s.selected().len(), 7, "nothing went");
     };
     refused(&mut s, "wait until the data file is imported");
     s.run("account.stopImport", &json!({"account": "sample"})).unwrap();
@@ -253,6 +301,33 @@ fn an_importing_accounts_folders_dont_change() {
     s.run("account.keepImported", &json!({"account": "sample"})).unwrap();
     s.run("folder.create", &json!({"account": "sample", "name": "New"})).unwrap();
     s.run("mail.move", &json!({"folder": "Archive"})).unwrap();
+    done(s);
+}
+
+/// What was asked before an import began doesn't move its account's mail while it runs: Undo of
+/// a move waits (and stays to be done), and snoozed mail comes back only once the import is over.
+#[test]
+fn undo_and_snoozes_wait_for_an_import() {
+    let mut s = sample_session("import-holds-later");
+    let moved = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.select", &moved).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    let snoozed = key_of(&s, "Character turnarounds");
+    s.run("list.select", &snoozed).unwrap();
+    s.run("mail.snooze", &json!({"until": NOW + 3600})).unwrap();
+    s.attach_data_file("sample", "C:/Mail/old.pst").unwrap();
+    s.take_jobs();
+    let in_inbox = |s: &mut Session, subject: &str| s.folder_state("sample", "INBOX").messages.iter().any(|m| m.subject == subject);
+
+    assert_eq!(s.run("edit.undo", &json!({})).map_err(refusal), Err("wait until the data file is imported".into()));
+    s.set_clock(NOW + 3601, 0);
+    s.tick();
+    assert!(!in_inbox(&mut s, "Character turnarounds"), "still snoozed");
+    s.apply(ended("sample", 3, None));
+    s.tick();
+    assert!(in_inbox(&mut s, "Character turnarounds"), "back once the import is over");
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(in_inbox(&mut s, "Storyboard review on Thursday"), "the move undone");
     done(s);
 }
 

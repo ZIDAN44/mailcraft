@@ -105,12 +105,13 @@ impl Session {
     }
 
     /// Why `account`'s folders can't be changed now: its import writes them, or waits to go on.
+    /// A failure, not a disabled command: the window says why (it says nothing of a disabled one).
     pub(crate) fn import_holds(&self, account: &str) -> Result<(), CmdError> {
         match self.importing.running.get(account) {
             None => Ok(()),
-            Some(s) if s.removing => Err(CmdError::Disabled("this account is being removed".into())),
-            Some(s) if s.live => Err(CmdError::Disabled("wait until the data file is imported".into())),
-            Some(_) => Err(CmdError::Disabled("continue importing the data file, or keep what's imported, first".into())),
+            Some(s) if s.removing => Err(CmdError::Failed("this account is being removed".into())),
+            Some(s) if s.live => Err(CmdError::Failed("wait until the data file is imported".into())),
+            Some(_) => Err(CmdError::Failed("continue importing the data file, or keep what's imported, first".into())),
         }
     }
 
@@ -131,10 +132,11 @@ impl Session {
         self.importing.inspected.iter().rev().find(|(p, _)| p == path).and_then(|(_, f)| f.as_deref())
     }
 
-    /// `imports.json` read at start. A removal that didn't end is finished; an import interrupted
-    /// or stopped waits on the user (a POP account's connection with it); a data file's account
-    /// left with no folders, no record and no note of its own (from before this was kept) is
-    /// one to import again or remove.
+    /// `imports.json` read at start. A removal that didn't end is finished (the data file of one
+    /// whose account already went, too); an import interrupted (MailCraft closed or stopped while
+    /// it ran) goes on by itself, and one the user stopped waits on them (a POP account's
+    /// connection with either); a data file's account left with no folders, no record and no
+    /// note of its own (from before this was kept) is one to import again or remove.
     pub(super) fn load_imports(&mut self) {
         let Some(store) = self.store.clone() else { return };
         let mut sources: BTreeMap<String, DataSource> = match store.load_doc(IMPORTS_DOC) {
@@ -164,19 +166,41 @@ impl Session {
             .map(|(a, _)| a.clone())
             .collect();
         for a in removing {
-            let _ = self.drop_account(&a, false);
+            let _ = self.drop_account(&a, Leaves::Nothing);
         }
-        let waiting: Vec<(String, String)> = self
+        // Gone from the list while its import still held the file: the file goes now, and the
+        // record (keeping the id from being given again) once it has.
+        let left: Vec<String> = self
+            .importing
+            .sources
+            .iter()
+            .filter(|(a, s)| s.stage == ImportStage::Removing && self.account(a).is_none())
+            .map(|(a, _)| a.clone())
+            .collect();
+        for a in left {
+            match store.delete_account(&a) {
+                Ok(()) => {
+                    self.importing.sources.remove(&a);
+                    self.save_imports();
+                }
+                Err(e) => log::warn!("{a}: the data file of an account removed couldn't be removed yet: {e}"),
+            }
+        }
+        let unfinished: Vec<(String, String, bool)> = self
             .importing
             .sources
             .iter()
             .filter(|(a, s)| matches!(s.stage, ImportStage::Running | ImportStage::Stopped) && self.account(a).is_some())
-            .map(|(a, s)| (a.clone(), s.path.clone()))
+            .map(|(a, s)| (a.clone(), s.path.clone(), s.stage == ImportStage::Running))
             .collect();
-        for (a, path) in waiting {
+        for (a, path, interrupted) in unfinished {
+            self.hold_start(&a);
+            if interrupted && !path.is_empty() {
+                self.queue_import(&a, &path, true);
+                continue;
+            }
             let progress = ImportProgress { phase: ImportPhase::Paused, ..ImportProgress::default() };
             self.importing.running.insert(a.clone(), ImportState { file: file_name(&path), path, progress, ..ImportState::default() });
-            self.hold_start(&a);
         }
         let orphans: Vec<(String, String)> = self
             .accounts
@@ -220,11 +244,13 @@ impl Session {
     /// noting where it came from.
     fn queue_import(&mut self, account: &str, path: &str, resume: bool) {
         let mut row = DataSource { path: path.to_string(), stage: ImportStage::Running, ..DataSource::default() };
+        // Gone on with: what was known of the file, and its report so far, stay.
+        if resume && let Some(was) = self.importing.sources.get(account) {
+            (row.size, row.modified, row.record_key) = (was.size, was.modified, was.record_key.clone());
+            row.report.clone_from(&was.report);
+        }
         if let Some(f) = self.facts_for(path) {
             (row.size, row.modified, row.record_key) = (f.size, f.modified, f.record_key.clone());
-        }
-        if resume && let Some(was) = self.importing.sources.get(account) {
-            row.report.clone_from(&was.report);
         }
         self.importing.sources.insert(account.to_string(), row);
         self.save_imports();
@@ -288,7 +314,7 @@ impl Session {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
         if self.importing.held(account) {
-            return Err(CmdError::Disabled("a data file is being imported into this account already".into()));
+            return Err(CmdError::Failed("a data file is being imported into this account already".into()));
         }
         // Connecting waits for the file, so the two don't write the Inbox at once.
         self.hold_start(account);
@@ -345,7 +371,8 @@ impl Session {
     }
 
     /// How an import is going. Nothing is said: the window shows it. Paused (MailCraft closing),
-    /// it's over for this run, and goes on from the record kept.
+    /// it's over for this run, and goes on from the record kept the next time MailCraft opens.
+    /// Blocked, it waits on the user, then too.
     pub(crate) fn import_progress(&mut self, account: &str, p: &ImportProgress) {
         let now = self.ui_ms();
         // One the network side is reading that wasn't asked for here: followed all the same.
@@ -365,6 +392,13 @@ impl Session {
             self.import_ended(account);
             if let Some(a) = self.account_mut(account) {
                 a.status = SyncStatus::Offline;
+            }
+            if p.phase == ImportPhase::Blocked
+                && let Some(row) = self.importing.sources.get_mut(account)
+                && row.stage == ImportStage::Running
+            {
+                row.stage = ImportStage::Stopped;
+                self.save_imports();
             }
             return;
         }
@@ -408,7 +442,7 @@ impl Session {
         if self.importing.running.get(account).is_some_and(|s| s.removing) {
             // It ended (on its own, or stopped as asked before) as it was being thrown away: the
             // account goes now.
-            self.finish_removal(account);
+            self.finish_removal(account, Leaves::Nothing);
             return;
         }
         if report.is_some_and(|r| r.stopped == Some(StopHow::Cancel)) && (error.is_none() || came_in) {
@@ -429,7 +463,7 @@ impl Session {
         match error {
             Some(e) if !came_in => {
                 // Nothing came in: the account goes again, and the file it was starting.
-                let _ = self.drop_account(account, false);
+                let _ = self.drop_account(account, Leaves::Nothing);
                 self.notice(format!("{name} could not be opened: {e}"), true);
             }
             error => {
@@ -504,7 +538,7 @@ impl Session {
             log::warn!("{account}: an import thrown away: {e}");
         }
         if self.importing.running.get(account).is_some_and(|s| s.removing) {
-            self.finish_removal(account);
+            self.finish_removal(account, Leaves::Nothing);
         }
     }
 
@@ -526,10 +560,11 @@ impl Session {
         Some(Ok(serde_json::json!({ "removing": account, "dataFile": null })))
     }
 
-    /// The account being removed goes, with what its import wrote.
-    fn finish_removal(&mut self, account: &str) {
+    /// The account being removed goes, with what its import wrote (`leaves`: or, the import
+    /// still holding it, once the import has let go).
+    fn finish_removal(&mut self, account: &str, leaves: Leaves) {
         self.importing.running.remove(account);
-        if self.drop_account(account, false).is_err() {
+        if self.drop_account(account, leaves).is_err() {
             // Gone already: only its record is left.
             if self.importing.sources.remove(account).is_some() {
                 self.save_imports();
@@ -538,7 +573,10 @@ impl Session {
     }
 
     /// Every event applied counts toward the removals waiting on their import: one that has
-    /// waited [`REMOVE_BACKSTOP`] events goes without it.
+    /// waited [`REMOVE_BACKSTOP`] events goes from the list without it. Its data file, still the
+    /// import's, isn't touched (on Windows it couldn't go, and would be forgotten): the import
+    /// removes it when it ends, and its record, kept as being removed, has it removed the next
+    /// time MailCraft opens otherwise.
     pub(crate) fn removal_backstop(&mut self) {
         let mut due = Vec::new();
         for (a, s) in self.importing.running.iter_mut().filter(|(_, s)| s.removing) {
@@ -549,7 +587,7 @@ impl Session {
         }
         for a in due {
             log::warn!("{a}: its import didn't say it stopped; removed without it");
-            self.finish_removal(&a);
+            self.finish_removal(&a, Leaves::ForImport);
         }
     }
 
@@ -579,8 +617,8 @@ impl Session {
         }
         match self.importing.running.get(account) {
             None => Err(CmdError::Params("no import of this account is waiting".into())),
-            Some(s) if s.removing => Err(CmdError::Disabled("this account is being removed".into())),
-            Some(s) if s.live => Err(CmdError::Disabled("the data file is being imported".into())),
+            Some(s) if s.removing => Err(CmdError::Failed("this account is being removed".into())),
+            Some(s) if s.live => Err(CmdError::Failed("the data file is being imported".into())),
             Some(s) => Ok(s),
         }
     }

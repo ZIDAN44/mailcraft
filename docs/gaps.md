@@ -1630,11 +1630,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   then deletes what it brought in (a part of a file that's still there is worth nothing), so no
   partial data file is left behind; the account stays listed meanwhile and its name isn't given
   to the next file opened, and a removal MailCraft closed in the middle of is finished as it
-  opens. Where each account's mail came from is kept (`imports.json`): an import stopped, or
-  interrupted by MailCraft closing, is still known as it opens, and waits to be continued, kept
-  as it is, or started again; until then, as while it runs, the account's folders can't be
-  made, renamed, moved, deleted, emptied or cleaned up and its mail isn't moved, since the import
-  writes them. The mail an import brings into an Inbox, stopped and continued too, is never taken
+  opens. Where each account's mail came from is kept (`imports.json`): an import interrupted by
+  MailCraft closing goes on by itself as it opens (a POP account connecting once it's in), and
+  one stopped waits to be continued, kept as it is, or started again; until then, as while it
+  runs, the account's folders can't be made, renamed, moved, deleted, emptied or cleaned up and
+  its mail isn't moved, deleted or snoozed (snoozed mail comes back once it's done), since the
+  import writes them, and the window says so instead of doing nothing. The mail an import brings into an Inbox, stopped and continued too, is never taken
   for new mail (no rules ran on it, nothing was announced). Opening a data file that's already
   open as an account (the same path, however it's written, or the same file under another name)
   is caught before it's imported a second time, unless another copy is asked for. An import no

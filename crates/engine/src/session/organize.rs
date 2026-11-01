@@ -80,6 +80,10 @@ impl Session {
         let mut accounts: Vec<String> = sel.iter().map(|m| m.key.account.clone()).collect();
         accounts.sort();
         accounts.dedup();
+        // A data file's import writes its account's lists: nothing is moved out of them.
+        for a in &accounts {
+            self.import_holds(a)?;
+        }
         for a in accounts {
             let folder = self.snoozed_folder(&a)?;
             let mine: Vec<&Summary> = sel.iter().filter(|m| m.key.account == a && m.key.folder != folder).collect();
@@ -107,6 +111,9 @@ impl Session {
     /// Bring snoozed messages back now.
     pub fn unsnooze_selection(&mut self) -> CmdResult {
         let sel = self.selected();
+        for m in &sel {
+            self.import_holds(&m.key.account)?;
+        }
         let mut n = 0;
         for m in &sel {
             if let Some(i) = self.snoozes.iter().position(|s| s.account == m.key.account && s.message_id == m.message_id) {
@@ -150,6 +157,10 @@ impl Session {
             if self.account(&s.account).is_none() {
                 self.snoozes.retain(|x| x != &s);
                 changed = true;
+                continue;
+            }
+            // Its account's import writes the folders: it comes back once that's done.
+            if self.importing.held(&s.account) {
                 continue;
             }
             let found = self.folder_state(&s.account, &s.folder).messages.iter().find(|m| m.message_id == s.message_id).map(|m| m.key.clone());

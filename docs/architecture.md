@@ -169,12 +169,14 @@ written (`Compose`), preferences and status-bar notices.
   import got (`DataSource`: written as an import is asked for, as it ends, stops or is kept, and
   as its account is removed). An account removed while its file is read stays, its import told
   to throw it away (`Job::StopImport{Discard}`, its id not given again), and goes with what came
-  in once the import says so; when that never comes it goes after `REMOVE_BACKSTOP` events, and a
-  removal not finished when MailCraft closed is finished as it opens. An import stopped or
-  interrupted waits for `account.resumeImport` (a POP account's connection with it),
-  `account.keepImported` or `account.restartImport`; until then, as while it runs, the account's
-  folders aren't made, renamed, moved, deleted, emptied or cleaned up and its mail isn't moved
-  (`import_holds`), and what comes into its Inbox isn't new mail (no rules, nothing announced). A
+  in once the import says so; when that never comes it leaves the list after `REMOVE_BACKSTOP` events, its data
+  file and record left to the import (which removes the file as it ends) or to the next start,
+  and a removal not finished when MailCraft closed is finished as it opens. An import interrupted
+  (still `Running` in `imports.json`) goes on as MailCraft opens; one stopped or blocked waits
+  for `account.resumeImport`, `account.keepImported` or `account.restartImport` (a POP account's
+  connection waits with either); until then, as while it runs, the account's folders aren't
+  made, renamed, moved, deleted, emptied or cleaned up and its mail isn't moved, deleted for good
+  or snoozed, nor a move undone (`import_holds`, a `CmdError::Failed` the window shows), and what comes into its Inbox isn't new mail (no rules, nothing announced). A
   data file's account left with no folders and no record (from before this was kept, and with no
   note of its own import inside its file) is found at start as one to import again or remove.
   `account.inspectDataFile` keeps the last four files looked at; a file already open as another

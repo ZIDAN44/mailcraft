@@ -11,6 +11,18 @@ pub use importing::{ImportState, Imports};
 /// than reading every folder to count them.
 const RECOUNT_MAX: u64 = 50_000;
 
+/// What a removed account leaves on this computer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Leaves {
+    /// Its data file, closed where it is (an account the user removes).
+    DataFile,
+    /// Nothing: the file goes too (one that never held anyone's mail, or starting again).
+    Nothing,
+    /// Its data file and the record of it, while an import still holds the file: the import
+    /// removes the file when it ends, or the next start does.
+    ForImport,
+}
+
 impl Session {
     /// The accounts the cache keeps, with their folders. Remote ones get a `Start` job (password
     /// from the keychain); local ones are counted again, unless big; what's already cached isn't new.
@@ -227,12 +239,11 @@ impl Session {
         if let Some(removing) = self.remove_while_importing(id) {
             return removing;
         }
-        self.drop_account(id, true)
+        self.drop_account(id, Leaves::DataFile)
     }
 
-    /// An account gone; `keep` keeps its data file (an account the user removes), otherwise the
-    /// file goes too (one that never held anyone's mail, or an account starting again).
-    pub(super) fn drop_account(&mut self, id: &str, keep: bool) -> CmdResult {
+    /// An account gone, leaving what `leaves` says.
+    pub(super) fn drop_account(&mut self, id: &str, leaves: Leaves) -> CmdResult {
         let Some(email) = self.account(id).map(|a| a.config.email.clone()) else {
             return Err(CmdError::Params(format!("no account `{id}`")));
         };
@@ -240,7 +251,7 @@ impl Session {
         self.cache.retain(|(a, _), _| a != id);
         self.search_folders_changed(id);
         self.importing.running.remove(id);
-        if self.importing.sources.remove(id).is_some() {
+        if leaves != Leaves::ForImport && self.importing.sources.remove(id).is_some() {
             self.save_imports();
         }
         self.held.remove(id);
@@ -249,7 +260,11 @@ impl Session {
         self.pim_unread.remove(id);
         let mut kept = None;
         if let Some(store) = &self.store {
-            let gone = if keep { store.remove_account(id).map(|f| kept = f) } else { store.delete_account(id) };
+            let gone = match leaves {
+                Leaves::DataFile => store.remove_account(id).map(|f| kept = f),
+                Leaves::Nothing => store.delete_account(id),
+                Leaves::ForImport => Ok(()),
+            };
             if let Err(e) = gone {
                 self.notice(e.to_string(), true);
             }
@@ -306,7 +321,7 @@ impl Session {
         }
         let at = self.accounts.iter().position(|x| x.config.id == id).unwrap_or(0);
         // Starting again from the server: its old file isn't kept beside the new one.
-        self.drop_account(id, false)?;
+        self.drop_account(id, Leaves::Nothing)?;
         let config = AccountConfig {
             name: c.name,
             email: c.email,
