@@ -46,6 +46,15 @@ impl Out<'_> {
         *c = c.saturating_add(n);
     }
 
+    /// Count `n` parts of an item that came in all the same (a recipient) left out for
+    /// `reason`: in the report, not among the items left out.
+    pub(super) fn lose(&mut self, reason: SkipReason, n: usize) {
+        if n > 0 {
+            let c = self.skips.entry(reason).or_default();
+            *c = c.saturating_add(n);
+        }
+    }
+
     /// A folder for `name` under `parent`, with a role when it's a usual top-level one.
     pub(super) fn add_folder(&mut self, parent: Option<&str>, name: &str) -> String {
         let name = name.trim().replace('/', "∕");
@@ -145,6 +154,7 @@ impl Out<'_> {
         st.waiting.push(summary_of(&raw, &it, key.clone(), size));
         let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;
+        self.lose(SkipReason::RecipientWithoutAddress, it.recipients_without_address);
         self.pending_bytes += raw.len();
         self.pending.push((key, raw));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {

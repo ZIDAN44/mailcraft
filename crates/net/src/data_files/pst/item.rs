@@ -33,6 +33,8 @@ pub(super) struct Item {
     /// Text of the item's, or of a message attached to it, is in a code page MailCraft can't read
     /// and lost all but its ASCII.
     pub(super) charset_unsupported: bool,
+    /// Recipients of a header-less item left out for having no address anywhere.
+    pub(super) recipients_without_address: usize,
 }
 
 pub(super) enum File {
@@ -158,6 +160,7 @@ pub(super) fn item_of<'a>(
             }
         }
     }
+    let headers = super::rebuild::usable_headers(&it.headers);
     for row in recipients {
         let get = |id: u16| row(id).and_then(Val::into_text).unwrap_or_default();
         // The SMTP address, the address, or the one in the recipient's one-off entry id.
@@ -167,10 +170,14 @@ pub(super) fn item_of<'a>(
         };
         let found =
             [get(0x39FE), get(0x3003)].into_iter().map(|e| e.trim().to_string()).find(|e| is_address(e)).map(|e| (String::new(), e)).or_else(one_off);
-        // Left out without an address. Not counted yet: the import's loss report counts it
-        // (SkipReason::RecipientWithoutAddress) for a header-less item only, as a header
-        // item's own To and Cc still carry the address.
-        let Some((one_off_name, address)) = found else { continue };
+        // Left out without an address: counted for a header-less item only, as a header item's
+        // own To and Cc still carry the address.
+        let Some((one_off_name, address)) = found else {
+            if !headers {
+                it.recipients_without_address = it.recipients_without_address.saturating_add(1);
+            }
+            continue;
+        };
         let name = clean_name(&get(0x3001));
         let a = EmailAddress::new(if name.is_empty() { one_off_name } else { name }, address);
         match row(0x0C15) {

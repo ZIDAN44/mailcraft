@@ -1444,6 +1444,6 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   its own header no longer ends it early, so a damaged file can't add header lines. A recipient
   Outlook kept with only a name, its address inside the item's own record of it (a one-off
   entry id), now comes in with that address instead of being left out; one with no address at
-  all is still left out. And mail keeps its categories from files where Outlook names that
-  property by its name (`Keywords`, as in files from other people's Outlook) rather than by a
-  number.
+  all is still left out, and counted among what the import couldn't bring in. And mail keeps
+  its categories from files where Outlook names that property by its name (`Keywords`, as in
+  files from other people's Outlook) rather than by a number.

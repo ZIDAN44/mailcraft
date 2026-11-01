@@ -520,6 +520,54 @@ fn an_unusual_address_still_comes_in() {
     assert!(lines.iter().any(|l| l.contains("\"a b\"@x.example")) && lines.iter().any(|l| l.contains("first.last+tag@x.example.")), "{lines:#?}");
 }
 
+/// A header-less item's recipient with no address anywhere is counted among what the import
+/// couldn't bring in; a header item's own To and Cc still have it.
+#[test]
+fn a_recipient_without_an_address_is_counted() {
+    let rows = [
+        HashMap::from([(0x3001, Val::Text("Only a name".into()))]),
+        HashMap::from([(0x39FE, Val::Text("/o=Org/cn=Recipients/cn=ex".into()))]),
+        HashMap::from([(0x39FE, Val::Text("cy@x.example".into()))]),
+    ];
+    fn get<'a>(m: &HashMap<u16, Val<'a>>, id: u16) -> Option<Val<'a>> {
+        m.get(&id).cloned()
+    }
+    let read = |headers: &str| {
+        let props: HashMap<u16, Val<'_>> = HashMap::from([(0x001A, Val::Text("IPM.Note".into())), (0x007D, Val::Text(headers.into()))]);
+        let rows = rows.each_ref().map(|r| move |id| get(r, id));
+        item_of(&|id| get(&props, id), &rows, Vec::new(), &crate::pst_pim::Named::default())
+    };
+    let it = read("");
+    assert_eq!((it.recipients_without_address, it.to.len()), (2, 1));
+    assert_eq!(read("From: a@x.example\r\nTo: b@x.example\r\n").recipients_without_address, 0);
+
+    // The report counts them, not as items left out.
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-recipients-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let mut progress = |_| {};
+    let mut out = Out {
+        store: &store,
+        account: "r1",
+        folders: Vec::new(),
+        states: HashMap::new(),
+        imported: 0,
+        skipped: 0,
+        skips: BTreeMap::new(),
+        charset_unsupported: 0,
+        progress: &mut progress,
+        pim: Pim::default(),
+        pending: Vec::new(),
+        pending_bytes: 0,
+    };
+    let path = out.add_folder(None, "Inbox");
+    out.add_message(&path, Item { subject: "s".into(), body: "b".into(), date: 1_704_067_200, ..read("") });
+    let done = out.finish().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!((done.messages, done.skipped), (1, 0));
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::RecipientWithoutAddress, 2)]);
+}
+
 #[test]
 fn original_headers_are_kept_over_the_rebuilt_body() {
     let it = Item {
