@@ -4,12 +4,14 @@
 //! found is what the mailbox was made with. How long they take is measured in a release build,
 //! by hand (an ignored test, as `bench.rs`).
 
+use std::collections::HashSet;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use super::*;
 use crate::sample::big::{self, Shape, Truth};
 use crate::session::SearchStats;
+use mailcraft_model::MessageKey;
 
 /// The mailbox, made and indexed once for all the tests here (none of them changes it).
 fn mailbox() -> &'static (Store, Truth) {
@@ -145,6 +147,29 @@ fn a_common_phrase_doesnt_build_the_list_each_step() {
     // What's found still shows as it's found, not only at the end.
     let shown = steps.iter().filter(|st| st.rebuilt > 0).count();
     assert!(shown > 20, "built {shown} times");
+}
+
+/// A phrase's candidates are checked in the index's order (each page of texts read once), the
+/// folder on view still first (one whose mail was indexed late, a third of it with the phrase):
+/// what's on screen is found first of what's checked against its text.
+#[test]
+fn a_phrase_checks_the_folder_on_view_first() {
+    let (mut s, t) = cold();
+    s.run("folder.open", &json!({"account": big::ACCOUNT, "folder": "Folder 37"})).unwrap();
+    s.run("search.run", &json!({"query": format!("\"{}\"", big::PHRASE), "scope": "all"})).unwrap();
+    let found = |s: &Session| -> HashSet<MessageKey> { s.list.iter().map(|m| m.key.clone()).chain(s.search_unshown()).collect() };
+    // Every folder scanned (what their summaries say found): the texts checked from here.
+    while s.search_stats().texts == 0 {
+        assert!(!s.search_step(1).done);
+    }
+    let before = found(&s);
+    let mut checked = HashSet::new();
+    while checked.len() < 20 && !s.search_step(1).done {
+        checked.extend(found(&s).difference(&before).cloned());
+    }
+    assert!(!checked.is_empty() && checked.iter().all(|k| k.folder == "Folder 37"), "{} checked first", checked.len());
+    while !s.search_step(8).done {}
+    assert_eq!(s.list.len(), t.phrase);
 }
 
 /// Nothing in the cache: a search of the mailbox reads each folder's list a page a unit (the

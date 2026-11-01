@@ -114,6 +114,8 @@ pub(crate) struct SearchRun {
     /// The words to look up in each index.
     words: Vec<(Field, String)>,
     pub(crate) folders: Vec<(String, String)>,
+    /// How many of `folders` (the first) are on view.
+    on_view: usize,
     /// Folders still to scan (indices into `folders`), in order.
     pending: VecDeque<usize>,
     cur: Option<Cursor>,
@@ -195,6 +197,7 @@ impl SearchRun {
             recheck: HashSet::new(),
             verify: VecDeque::new(),
             verify_sorted: true,
+            on_view: 0,
             verifying: None,
             fallback: VecDeque::new(),
             known: HashMap::new(),
@@ -326,7 +329,9 @@ impl Session {
         // The folders on view first: what's on screen is found first.
         let shown = self.view_folders();
         folders.sort_by_key(|k| !shown.contains(k));
+        let on_view = folders.iter().filter(|k| shown.contains(k)).count();
         let mut run = SearchRun::new(q, scope, query, folders, wait);
+        run.on_view = on_view;
         if run.query.is_empty() {
             run.pending.clear();
         } else if run.query.clauses.iter().any(|c| asks_awaiting(&c.term)) {
@@ -669,8 +674,14 @@ impl Session {
                 if !run.verify_sorted {
                     // Checked in the folders' order, a message after another read a page of texts
                     // afresh (a common phrase over 50,000 messages: 1,015 pages read, each 256 KiB
-                    // unpacked); in the docs' order each page is read once (103).
-                    run.verify.make_contiguous().sort_by(|a, b| a.m.key.account.cmp(&b.m.key.account).then(a.doc.cmp(&b.doc)));
+                    // unpacked); in the docs' order each page is read once (103). The folders on
+                    // view still come first, as they're scanned first: what's on screen is found
+                    // first. (What's sorted already stays a run the sort takes as it is.)
+                    let view = run.folders.get(..run.on_view).unwrap_or_default().to_vec();
+                    let off = |c: &Candidate| !view.iter().any(|(a, f)| *a == c.m.key.account && *f == c.m.key.folder);
+                    run.verify
+                        .make_contiguous()
+                        .sort_by(|a, b| off(a).cmp(&off(b)).then(a.m.key.account.cmp(&b.m.key.account)).then(a.doc.cmp(&b.doc)));
                     run.verify_sorted = true;
                 }
                 let Some(c) = run.verify.pop_front() else { return 0 };
