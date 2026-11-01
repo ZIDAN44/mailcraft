@@ -186,6 +186,26 @@ one range scan) over summaries, cached bodies and attachment names for the chose
 candidates are verified against the full query, so the index may over-approximate but never
 misses. The index is rebuilt lazily after changes.
 
+The index that replaces it is kept with each account's mail (`store/src/search.rs` + `search/`,
+under `<account>/search/v1/`, so in the account's data file, on disk, or in memory like the rest of
+it; a data file from before has none and opens unchanged). A meta (`meta.bin`) names what the index
+is: a doc table of 32-byte records in pages of 4,096, copied on write under the generation that
+changed them; the texts and files' names kept for each message (versioned records in text pages
+of up to 256 KiB, what phrases are checked against and words made again from when the tokenizer
+changes, with no message read); and immutable segments of words (field letter + folded word: `b`
+text, `n` names, `a` whole addresses and domains), each a head, front-coded lexicon pages and
+varint postings pages. `search::Writer` adds, removes and moves docs in memory and flushes a new
+generation in two steps: `prepare` encodes and compresses its files, `commit` writes them in
+short transactions under names the current meta doesn't use, then the meta, sealed; a crash or a
+failed batch before the meta leaves the generation before, and the writer removes what it wrote
+when it next opens (only names the meta lets it work out). A message removed leaves its text page
+in that same commit; its words go when its segment is merged. `search::Reader` holds the doc table
+and the segments' heads, reads lexicon, postings and text pages as needed (a page cache keyed by
+the index's random epoch), looks words up a few pages at a time, and follows the writer by reading
+only what a newer generation changed. Every file is decoded with checks (`search/format.rs`); an
+index that doesn't read back is set aside (`meta.bin.bad`) and made again past its generation and
+segment numbers.
+
 ## Threading
 
 `model::thread` implements JWZ threading (as used by IMAP `THREAD=REFERENCES`): containers per

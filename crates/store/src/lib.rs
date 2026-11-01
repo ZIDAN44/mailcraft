@@ -22,6 +22,7 @@
 pub mod location;
 #[cfg(not(target_arch = "wasm32"))]
 mod packed;
+pub mod search;
 #[cfg(not(target_arch = "wasm32"))]
 pub use packed::EXTENSION as DATA_FILE_EXTENSION;
 
@@ -41,6 +42,14 @@ pub enum StoreError {
     Io { path: String, source: io::Error },
     #[error("{path}: {source}")]
     Json { path: String, source: serde_json::Error },
+    /// A file MailCraft wrote that doesn't read back as it should (the search index's): set
+    /// aside and made again, never trusted.
+    #[error("{path}: damaged ({what})")]
+    Damaged { path: String, what: String },
+    /// Something only one may do at a time is being done already (an account's search index
+    /// written by an import and the indexer).
+    #[error("{path}: in use")]
+    Busy { path: String },
 }
 
 pub type Result<T> = std::result::Result<T, StoreError>;
@@ -303,6 +312,8 @@ pub struct Store {
     changes: Arc<Mutex<()>>,
     /// How many message sources were read ([`Store::reads`]).
     reads: Arc<std::sync::atomic::AtomicU64>,
+    /// The accounts whose search index is being written ([`search::Writer`]).
+    search_writers: Arc<Mutex<HashSet<String>>>,
 }
 
 impl Store {
@@ -310,7 +321,7 @@ impl Store {
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
         private_dir(&root)?;
-        Ok(Store { files: Routed::new(&root, Files::Disk), root, changes: Arc::default(), reads: Arc::default() })
+        Ok(Store { files: Routed::new(&root, Files::Disk), root, changes: Arc::default(), reads: Arc::default(), search_writers: Arc::default() })
     }
 
     /// A cache whose accounts are each one data file in `files` (as Outlook keeps a `.pst` per
@@ -321,7 +332,13 @@ impl Store {
         let root = root.into();
         private_dir(&root)?;
         let packs = packed::Packs::open(&root, files.as_ref())?;
-        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default(), reads: Arc::default() })
+        Ok(Store {
+            files: Routed::new(&root, Files::Packed(Arc::new(packs))),
+            root,
+            changes: Arc::default(),
+            reads: Arc::default(),
+            search_writers: Arc::default(),
+        })
     }
 
     /// [`Store::open_packed`]'s cache with nothing opened yet: no data file, and no folder from
@@ -338,7 +355,13 @@ impl Store {
     /// A cache kept in memory only (clones share it).
     pub fn memory() -> Store {
         let root = PathBuf::from("memory");
-        Store { files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())), root, changes: Arc::default(), reads: Arc::default() }
+        Store {
+            files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())),
+            root,
+            changes: Arc::default(),
+            reads: Arc::default(),
+            search_writers: Arc::default(),
+        }
     }
 
     /// A memory cache whose files can be made to fail ([`Store::fail`]), for tests of what a
@@ -347,7 +370,13 @@ impl Store {
     pub fn failing() -> Store {
         let root = PathBuf::from("memory");
         let faults = files::Faults { files: Files::Memory(Arc::default(), Arc::default()), reads: Mutex::default(), writes: Mutex::default() };
-        Store { files: Routed::new(&root, Files::Failing(Arc::new(faults))), root, changes: Arc::default(), reads: Arc::default() }
+        Store {
+            files: Routed::new(&root, Files::Failing(Arc::new(faults))),
+            root,
+            changes: Arc::default(),
+            reads: Arc::default(),
+            search_writers: Arc::default(),
+        }
     }
 
     /// From now on, a [`Store::failing`] cache fails to read the files whose path ends with
