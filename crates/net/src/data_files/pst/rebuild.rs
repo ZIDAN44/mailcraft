@@ -3,10 +3,6 @@
 use super::item::{File, Item};
 use super::*;
 
-/// The most of a message's text its preview reads: a reply's quoted lines are skipped, so the
-/// first words of its own can come well after the start.
-const PREVIEW_TEXT_CHARS: usize = 64 * 1024;
-
 /// What a message's summary takes from its item, read before the item goes into its rebuilt
 /// source (which takes the item apart).
 pub(super) struct Glance {
@@ -24,16 +20,12 @@ pub(super) fn to_raw(mut it: Item, fallback_id: &str) -> Result<Vec<u8>, String>
 
 /// The item as a standard message, and what its summary takes from the item (whether the message
 /// carries a file is read from what it is built of: a picture the HTML shows isn't one). Its
-/// text is made once, for the message's text part and the preview both.
+/// text is made once, for the message's text part and the preview both. The preview reads all of
+/// it, as it read a plain body before: a reply's quoted lines are skipped, so the first words of
+/// its own can come well after the start, and it stops once it has its words.
 pub(super) fn message(mut it: Item, fallback_id: &str) -> Result<(Vec<u8>, Glance), String> {
     let text = take_text(&mut it);
-    let cut = text.char_indices().nth(PREVIEW_TEXT_CHARS).map_or(text.len(), |(i, _)| i);
-    let mut glance = Glance {
-        flags: std::mem::take(&mut it.flags),
-        date: it.date,
-        has_files: false,
-        preview: mime::preview(text.get(..cut).unwrap_or_default()),
-    };
+    let mut glance = Glance { flags: std::mem::take(&mut it.flags), date: it.date, has_files: false, preview: mime::preview(&text) };
     let (raw, files) = build(it, text, fallback_id)?;
     glance.has_files = files;
     Ok((raw, glance))
@@ -209,6 +201,9 @@ fn with_headers(mut built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra:
     }
     // The built header and the line end after it go; the blank line ending the header stays.
     let end = split.saturating_add(2).min(built.len());
+    // Room made exactly first: splice would grow the buffer to twice its size for a header longer
+    // than the built one (most received mail's), and the message waits in its batch in it.
+    built.reserve_exact(out.len().saturating_sub(end));
     built.splice(..end, out.into_bytes());
     built
 }

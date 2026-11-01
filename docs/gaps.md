@@ -1506,10 +1506,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   attachment of A bytes held about 4.7 A at its peak. The item's files now move into the message,
   whose parts read them where they are, the header is put back in the source's own buffer, the
   item is let go of once the message is written, and the compressed copy starts at 0.8 of the
-  source (what base64 attachments come to) rather than 0.9: about 2.4 A (worked out from the
-  copies, not measured on a big file yet). The text a message's preview reads is made once, for
-  its text part and its preview both, and the preview still looks through its first 64K
-  characters for words past the quoted ones.
+  source (what base64 attachments come to) rather than 0.9, each buffer grown only by what it
+  needs (not doubled) and kept at that while the message waits in its batch: about 2.5 A while
+  it's compressed, and 2.7 A for a moment while a received message's longer header is put back
+  (worked out from the copies, not measured on a big file yet). The text a message's preview
+  reads is made once, for its text part and its preview both; the preview reads all of it, so
+  words after more than 64K characters of quoted lines are found in a message made of HTML too.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

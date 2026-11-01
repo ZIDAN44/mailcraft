@@ -25,9 +25,9 @@ fn a_preview_behind_ten_kib_of_quoted_text() {
     let lines = "<p>&gt; The plan for the week, as it was agreed on Monday.</p>".repeat(200);
     let html = Item { html: Some(format!("<html><body>{lines}<p>Sounds <span>good</span>.</p></body></html>")), ..Default::default() };
     assert_eq!(summary(html).preview, "Sounds good.");
-    // Today's limit stays: words past the first 64K characters of the text aren't looked for.
+    // A plain body is read through, as before: words past 64K characters of quoted text are found.
     let far = Item { body: format!("{}Too far in.", "> quoted\r\n".repeat(7000)), ..Default::default() };
-    assert_eq!(summary(far).preview, "");
+    assert_eq!(summary(far).preview, "Too far in.");
 }
 
 /// The summary takes the item's flags, date and files, and the message is the one `to_raw`
@@ -52,4 +52,30 @@ fn the_summary_and_the_message_come_from_one_item() {
     let p = mime::parse(&raw).unwrap();
     assert_eq!(p.attachments.len(), 1);
     assert!(!summary(Item { body: "x".into(), ..Default::default() }).has_attachments);
+}
+
+/// A received message's header is put back in the built source's own buffer without doubling
+/// it: the source waits in its import batch in that buffer, and a file that won't compress is
+/// stored as it is.
+#[test]
+fn the_original_header_goes_back_without_doubling_the_source() {
+    let mut x = 0x9e37_79b9_7f4a_7c15u64;
+    let data: Vec<u8> = (0..2 << 20)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x as u8
+        })
+        .collect();
+    let received = "Received: from relay.example.com by mx.example.org; Mon, 1 Jan 2024 00:00:00 +0000\r\n".repeat(80);
+    let item = Item {
+        headers: format!("{received}From: Ana <ana@example.com>\r\nSubject: Scans\r\nContent-Type: multipart/mixed\r\n"),
+        body: "The scans.".into(),
+        files: vec![File::Data { name: "scans.bin".into(), mime: "application/octet-stream".into(), cid: String::new(), data }],
+        ..Default::default()
+    };
+    let raw = to_raw(item, "s@x").unwrap();
+    assert!(raw.starts_with(b"Received: "), "the original header is back");
+    assert!(raw.capacity() - raw.len() <= raw.len() / 100, "{} held for {} bytes", raw.capacity(), raw.len());
 }
