@@ -177,3 +177,51 @@ fn the_menu_of_several_has_no_reply() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Down held: the presses queued in one frame (faster than frames were drawn) are one step of
+/// as many rows, so one message is read and marked read; those passed over stay unread, as in
+/// Outlook's list. More presses than rows stop at the last. J is Down too; Shift+Down after
+/// them is a step of its own.
+#[test]
+fn queued_downs_read_only_the_message_landed_on() {
+    let (mut a, dir) = app("queued-downs");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    a.session.run("list.selectAll", &json!({})).unwrap();
+    a.session.run("mail.markUnread", &json!({})).unwrap();
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    let keys = a.session.row_keys();
+    assert!(keys.len() >= 6, "{}", keys.len());
+    let unread = |a: &MailApp, i: usize| a.session.summary(&keys[i]).is_some_and(|m| !m.flags.seen);
+    let shown = a.session.messages_shown();
+    let downs = |n: usize| {
+        (0..n).map(|i| Event::Key { key: Key::ArrowDown, physical_key: None, pressed: true, repeat: i > 0, modifiers: Modifiers::NONE }).collect()
+    };
+    frame(&ctx, &mut a, downs(4));
+    assert_eq!(a.session.reading.as_ref().map(|r| &r.key), Some(&keys[4]), "four rows on");
+    assert_eq!(a.session.messages_shown(), shown + 1, "one message shown for four presses");
+    assert!((1..4).all(|i| unread(&a, i)), "passed over: still unread");
+    assert!(!unread(&a, 4), "the one landed on is read");
+    // 20 presses, more than the list has rows: the last, and still one message shown.
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    let shown = a.session.messages_shown();
+    frame(&ctx, &mut a, downs(20));
+    let last = keys.len() - 1;
+    assert!(last < 20);
+    assert_eq!(a.session.reading.as_ref().map(|r| &r.key), Some(&keys[last]));
+    assert_eq!(a.session.messages_shown(), shown + 1, "one message shown for 20 presses");
+    assert!((5..last).all(|i| unread(&a, i)), "passed over: still unread");
+    // From the top, Down, J (a Down too) and Down: one step of 3; then Up, and Shift+Down twice
+    // after it, a step of 2 from there.
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    let shown = a.session.messages_shown();
+    frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE), key(Key::J, Modifiers::NONE), key(Key::ArrowDown, Modifiers::NONE)]);
+    assert_eq!(a.session.focus.as_ref(), Some(&keys[3]));
+    assert_eq!(a.session.messages_shown(), shown + 1);
+    frame(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::NONE), key(Key::ArrowDown, Modifiers::SHIFT), key(Key::ArrowDown, Modifiers::SHIFT)]);
+    assert_eq!(a.session.anchor.as_ref(), Some(&keys[2]));
+    assert_eq!(a.session.focus.as_ref(), Some(&keys[4]));
+    assert_eq!(a.session.selection.len(), 3);
+    let _ = std::fs::remove_dir_all(dir);
+}

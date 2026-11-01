@@ -1399,3 +1399,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   run keeps its last characters. ISO-2022-KR has no decoder: its ASCII is kept, and the import
   logs how many messages (counting attached ones) lost text that way. A new fuzz target,
   `pst_props`, reads property text in every page.
+- **Down held in a big folder:** every press queued while a frame was drawn read, parsed and
+  marked read a message of its own, so holding Down in a folder of 10,941 messages drew a frame
+  every 727 ms (median) and marked read every message it passed. The presses of Down or Up (J,
+  K, with Shift too) queued in one frame are now one step of so many messages (`list.next
+  {"by": n}`): only the message landed on is read and marked read, as in Outlook's list, and
+  those passed over keep their flags.
