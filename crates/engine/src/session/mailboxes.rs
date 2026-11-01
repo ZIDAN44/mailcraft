@@ -150,6 +150,12 @@ impl Session {
         let st = self.folder_state(account, folder);
         let (validity, max) = (st.validity, st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0));
         let k = (account.to_string(), folder.to_string());
+        // A data file's mail coming in (or its import waiting to go on) isn't new: no rules,
+        // nothing announced; what it brought is the backlog from then on.
+        if self.importing.held(account) {
+            self.seen_uid.insert(k, max);
+            return;
+        }
         let arrived: Vec<Summary> = match self.seen_uid.get(&k) {
             Some(&seen) => {
                 self.folder_state(account, folder).messages.iter().filter(|m| m.key.uid > seen && m.key.validity == validity).cloned().collect()

@@ -256,6 +256,52 @@ fn an_importing_accounts_folders_dont_change() {
     done(s);
 }
 
+/// A data file's mail coming into the Inbox isn't new mail: stopped part-way and gone on with,
+/// the rest of the Inbox isn't announced or filed by rules. Mail after the import is.
+#[test]
+fn no_notices_or_rules_after_a_cancel_and_continue() {
+    let mut s = sample_session("import-quiet");
+    s.run(
+        "rules.add",
+        &json!({"rule": {"name": "Zoe to Archive", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "moveToRole", "value": "archive"}]}}),
+    )
+    .unwrap();
+    let id = import(&mut s, "C:/Mail/Zoe.pst");
+    let archive =
+        mailcraft_model::Folder { account: id.clone(), path: "Archive".into(), role: FolderRole::Archive, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(&id), archive] });
+    let store = s.store.clone().unwrap();
+    let m = |uid: u32| mailcraft_model::Summary {
+        key: mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid },
+        subject: format!("m{uid}"),
+        from: mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example"),
+        date: NOW,
+        ..Default::default()
+    };
+    let save = |uids: std::ops::RangeInclusive<u32>| {
+        let messages = uids.rev().map(m).collect();
+        store.save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 1, uid_next: 99, highest_modseq: 0, messages, window: 0 }).unwrap();
+    };
+    let came_in = |s: &mut Session| s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    // The first part of the Inbox, then stopped and gone on with: the rest comes in.
+    save(1..=2);
+    came_in(&mut s);
+    s.run("account.stopImport", &json!({"account": id})).unwrap();
+    s.apply(ended(&id, 2, Some(StopHow::Cancel)));
+    s.run("account.resumeImport", &json!({"account": id})).unwrap();
+    save(1..=4);
+    came_in(&mut s);
+    assert!(s.take_new_mail().is_empty(), "the file's mail isn't news");
+    assert_eq!(store.load_folder(&id, "INBOX").unwrap().messages.len(), 4, "no rule ran");
+    s.apply(ended(&id, 4, None));
+    // Mail that comes after the import is new, and rules file it.
+    save(1..=5);
+    came_in(&mut s);
+    assert_eq!(s.take_new_mail().into_iter().map(|m| m.subject).collect::<Vec<_>>(), ["m5"]);
+    assert_eq!(store.load_folder(&id, "INBOX").unwrap().messages.len(), 4, "filed by the rule");
+    done(s);
+}
+
 /// A data file looked at before it's imported, and one already open as an account: caught by
 /// its path (however it's written) or its record key, unless asked to import another copy.
 #[test]

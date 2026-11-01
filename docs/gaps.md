@@ -1634,7 +1634,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   interrupted by MailCraft closing, is still known as it opens, and waits to be continued, kept
   as it is, or started again; until then, as while it runs, the account's folders can't be
   made, renamed, moved, deleted, emptied or cleaned up and its mail isn't moved, since the import
-  writes them. Opening a data file that's already
+  writes them. The mail an import brings into an Inbox, stopped and continued too, is never taken
+  for new mail (no rules ran on it, nothing was announced). Opening a data file that's already
   open as an account (the same path, however it's written, or the same file under another name)
   is caught before it's imported a second time, unless another copy is asked for. An import no
   longer says "N messages imported so far" in a notice every few seconds. A data file's account

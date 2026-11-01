@@ -174,7 +174,7 @@ written (`Compose`), preferences and status-bar notices.
   interrupted waits for `account.resumeImport` (a POP account's connection with it),
   `account.keepImported` or `account.restartImport`; until then, as while it runs, the account's
   folders aren't made, renamed, moved, deleted, emptied or cleaned up and its mail isn't moved
-  (`import_holds`). A
+  (`import_holds`), and what comes into its Inbox isn't new mail (no rules, nothing announced). A
   data file's account left with no folders and no record (from before this was kept, and with no
   note of its own import inside its file) is found at start as one to import again or remove.
   `account.inspectDataFile` keeps the last four files looked at; a file already open as another

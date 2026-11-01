@@ -3,7 +3,7 @@
 //! thrown away with its account. Where each account's mail came from is kept in `imports.json`,
 //! so an import interrupted, stopped or being removed is still known the next time MailCraft
 //! opens. While an account imports, or its import waits on the user, its folders aren't changed
-//! (the import writes them).
+//! (the import writes them), and what comes in isn't new mail.
 
 use mailcraft_model::job::{Blocked, DataFileFacts, DataSource, Eta, ImportPhase, ImportProgress, ImportReport, ImportStage, StopHow};
 
