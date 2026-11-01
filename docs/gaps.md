@@ -355,7 +355,7 @@ tester's does, a contact as Exchange keeps it, Outlook's clipboard), then fixed 
   - A local account's change recounted every folder (reading all of them): now the folders it
     touched; a big one keeps the counts it saved when it opens.
   - The message list's rows (and their date headings) were made again every frame: now once per
-    change of the list.
+    change of the list, in the engine, which each step through the list used to build again too.
 - **Still to do for big mailboxes:** the first search of everything reads every body to build its
   index (75 s for 800,000 messages; an index kept on disk would save it); the reading library
   holds a big folder's table of contents while importing it (about 400 MB for 440,000 messages);
@@ -1410,7 +1410,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   K, with Shift too) queued in one frame are now one step of so many messages (`list.next
   {"by": n}`): only the message landed on is read and marked read, as in Outlook's list, and
   those passed over keep their flags. With nothing focused, such a step lands where as many
-  single Downs would; Page Down still goes to the top row.
+  single Downs would; Page Down still goes to the top row. A step also built every row of the
+  list again to find where it was (1.5 to 11 ms on 20,000 messages, by the arrangement); the
+  rows are now kept with the list and a step looks its row up.
 - **A message with many pictures:** each thumbnail read and parsed the whole message again, in
   the frame drawing it (a 33 MB message with 36 pictures took 2.6 s to show), and past 64 the
   thumbnails were thrown away and made again every frame, so the window froze for as long as the

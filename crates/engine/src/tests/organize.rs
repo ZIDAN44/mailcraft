@@ -107,7 +107,7 @@ fn flags_filters_and_conversations() {
     assert!(turnaround(&s).flags.flagged && s.follow_up_due(&turnaround(&s)).is_none());
 
     s.run("view.conversations", &json!({"on": true})).unwrap();
-    let msgs = s.rows().into_iter().filter(|r| matches!(r, Row::Message { .. })).count();
+    let msgs = s.rows().iter().filter(|r| matches!(r, Row::Message { .. })).count();
     assert_eq!(msgs, 6, "the reply folds into its conversation");
     assert!(s.rows().iter().any(|r| matches!(r, Row::Message { count: 2, .. })));
     s.run("list.next", &json!({})).unwrap();

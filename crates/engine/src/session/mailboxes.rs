@@ -6,7 +6,6 @@ mod nav;
 mod rows;
 pub(crate) use nav::ListNav;
 pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
-use rows::{person, size_group};
 
 impl Session {
     pub fn account(&self, id: &str) -> Option<&AccountState> {
@@ -397,6 +396,7 @@ impl Session {
             self.reading = None;
         }
         self.list = list;
+        self.rebuild_rows();
         self.revision = self.revision.wrapping_add(1);
     }
 
@@ -414,64 +414,6 @@ impl Session {
                 !me.is_empty() && m.to.iter().chain(&m.cc).any(|r| r.email.trim().eq_ignore_ascii_case(me))
             }),
         }
-    }
-
-    /// The list as rows with date headings (and conversations, when on).
-    pub fn rows(&self) -> Vec<Row> {
-        let mut out = Vec::with_capacity(self.list.len() + 8);
-        let mut last: Option<Row> = None;
-        let arrange = self.prefs.arrange;
-        let mut push = |out: &mut Vec<Row>, index: usize, count: usize, unread: usize, date: i64| {
-            // The heading this message goes under, as the list is arranged.
-            let m = self.list.get(index);
-            let heading = match arrange {
-                Arrange::Date => Row::Header(DateGroup::of(date, &self.clock).label()),
-                Arrange::From => Row::Group(m.map(|m| person(Some(&m.from))).unwrap_or_default()),
-                Arrange::To => Row::Group(m.map(|m| person(m.to.first())).unwrap_or_default()),
-                Arrange::Subject => Row::Group(m.map(Summary::base_subject).unwrap_or_default()),
-                Arrange::Size => Row::Header(size_group(m.map_or(0, |m| m.size))),
-                Arrange::Flag => Row::Header(if m.is_some_and(|m| m.flags.flagged) { "Flagged" } else { "Not flagged" }),
-                Arrange::Attachments => Row::Header(if m.is_some_and(|m| m.has_attachments) { "With attachments" } else { "Without attachments" }),
-            };
-            let heading = match heading {
-                Row::Group(g) if g.trim().is_empty() => Row::Header(if arrange == Arrange::Subject { "(no subject)" } else { "(nobody)" }),
-                h => h,
-            };
-            if last.as_ref() != Some(&heading) {
-                out.push(heading.clone());
-                last = Some(heading);
-            }
-            out.push(Row::Message { index, count, unread });
-        };
-        // Pinned mail first, under its own heading (searches keep plain date order).
-        let pins = self.search.is_none();
-        let pinned = |i: usize| pins && self.list.get(i).is_some_and(|m| m.flags.pinned());
-        let mut pinned_rows = Vec::new();
-        if self.prefs.conversations && !self.threads.is_empty() {
-            for t in &self.threads {
-                let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, |m| m.date)) else { continue };
-                let unread = t.messages.iter().filter(|&&i| self.list.get(i).is_some_and(|m| !m.flags.seen)).count();
-                if t.messages.iter().any(|&i| pinned(i)) {
-                    pinned_rows.push(Row::Message { index: newest, count: t.messages.len(), unread });
-                } else {
-                    push(&mut out, newest, t.messages.len(), unread, t.latest);
-                }
-            }
-        } else {
-            for (i, m) in self.list.iter().enumerate() {
-                if pinned(i) {
-                    pinned_rows.push(Row::Message { index: i, count: 1, unread: usize::from(!m.flags.seen) });
-                } else {
-                    push(&mut out, i, 1, usize::from(!m.flags.seen), m.date);
-                }
-            }
-        }
-        if !pinned_rows.is_empty() {
-            pinned_rows.insert(0, Row::Header("Pinned"));
-            pinned_rows.extend(out);
-            return pinned_rows;
-        }
-        out
     }
 
     /// The open message's conversation again (conversations turned on or off).

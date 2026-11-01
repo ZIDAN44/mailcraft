@@ -18,38 +18,16 @@ pub enum Toward {
 
 impl Session {
     /// The key of each message row, in the order the list shows them (a conversation's: its
-    /// newest message's).
+    /// newest message's). A copy of every key: for tests and the command line, not each step.
     pub fn row_keys(&self) -> Vec<MessageKey> {
-        self.rows()
-            .iter()
-            .filter_map(|r| match r {
-                Row::Message { index, .. } => self.list.get(*index).map(|m| m.key.clone()),
-                _ => None,
-            })
-            .collect()
+        (0..self.row_count()).filter_map(|p| self.row_key(p).cloned()).collect()
     }
 
-    /// The row a message is on: its own, or its conversation's (one read from the conversation
-    /// shown above it in the reading pane has no row of its own). A pass over the rows, which
-    /// are built afresh for each step until the engine keeps them.
-    fn row_of(&self, rows: &[MessageKey], key: &MessageKey) -> Option<usize> {
-        if let Some(i) = rows.iter().position(|k| k == key) {
-            return Some(i);
-        }
-        // Only a list grouped by conversation has rows that stand for others.
-        if self.threads.is_empty() {
-            return None;
-        }
-        let t = self.thread_at(self.index_of(key)?)?;
-        let members: HashSet<&MessageKey> = t.messages.iter().filter_map(|&i| self.list.get(i)).map(|m| &m.key).collect();
-        rows.iter().position(|k| members.contains(k))
-    }
-
-    /// The row the focus goes to from where it is (no focus: a page goes to the top row, n single
-    /// steps from the top, the first of them landing on the first row).
-    fn row_toward(&self, rows: &[MessageKey], toward: Toward) -> Option<usize> {
-        let last = rows.len().checked_sub(1)?;
-        let cur = self.focus.as_ref().and_then(|k| self.row_of(rows, k));
+    /// The message row the focus goes to from where it is (no focus: a page goes to the top
+    /// row, n single steps from the top, the first of them landing on the first row).
+    fn row_toward(&self, toward: Toward) -> Option<usize> {
+        let last = self.row_count().checked_sub(1)?;
+        let cur = self.focus.as_ref().and_then(|k| self.msg_row_of(k));
         Some(match (toward, cur) {
             (Toward::First, _) | (Toward::By(_), None) => 0,
             (Toward::Last, _) => last,
@@ -62,9 +40,9 @@ impl Session {
     }
 
     /// Down, Up, Home, End, Page Down, Page Up: the message there is selected alone and read.
+    /// A lookup in the rows kept with the list: one key is copied, whatever the list's length.
     pub fn move_focus(&mut self, toward: Toward) -> CmdResult {
-        let rows = self.row_keys();
-        let Some(key) = self.row_toward(&rows, toward).and_then(|i| rows.get(i)).cloned() else {
+        let Some(key) = self.row_toward(toward).and_then(|p| self.row_key(p)).cloned() else {
             return Ok(serde_json::json!({"key": null}));
         };
         self.open_message(&key);
@@ -74,15 +52,14 @@ impl Session {
     /// The same with Shift: the focus moves and everything from the anchor to it is selected
     /// (going back toward the anchor selects less), as in Outlook's list.
     pub fn extend_selection(&mut self, toward: Toward) -> CmdResult {
-        let rows = self.row_keys();
         // Nothing chosen yet: n steps start where the first of n single steps lands, the top (a
         // page selects the top row alone, as it did before).
-        let placed = |k: &Option<MessageKey>| k.as_ref().and_then(|k| self.row_of(&rows, k)).is_some();
+        let placed = |k: &Option<MessageKey>| k.as_ref().and_then(|k| self.msg_row_of(k)).is_some();
         if matches!(toward, Toward::Steps(_)) && !placed(&self.anchor) && !placed(&self.focus) {
-            self.anchor = rows.first().cloned();
+            self.anchor = self.row_key(0).cloned();
         }
-        match self.row_toward(&rows, toward) {
-            Some(to) => self.select_to(&rows, to, false),
+        match self.row_toward(toward) {
+            Some(to) => self.select_to(to, false),
             None => Ok(serde_json::json!({"selected": self.selection.len(), "key": null})),
         }
     }
@@ -91,9 +68,8 @@ impl Session {
     /// first, a conversation as its one row); `add` (Ctrl+Shift+click) keeps what else was
     /// selected.
     pub fn select_range(&mut self, key: &MessageKey, add: bool) -> CmdResult {
-        let rows = self.row_keys();
-        let to = self.row_of(&rows, key).ok_or_else(|| CmdError::Params(format!("`{}` is not in the list", key.to_id())))?;
-        self.select_to(&rows, to, add)
+        let to = self.msg_row_of(key).ok_or_else(|| CmdError::Params(format!("`{}` is not in the list", key.to_id())))?;
+        self.select_to(to, add)
     }
 
     /// Ctrl+click: a message in or out of the selection; the focus and the anchor go to it.
@@ -118,19 +94,21 @@ impl Session {
         }
     }
 
-    fn select_to(&mut self, rows: &[MessageKey], to: usize, add: bool) -> CmdResult {
+    /// From the anchor to message row `to`: as many keys copied as rows in the range.
+    fn select_to(&mut self, to: usize, add: bool) -> CmdResult {
         // No anchor (nothing was chosen yet, or it left the list): where the focus is, else here.
         let from =
-            self.anchor.as_ref().and_then(|k| self.row_of(rows, k)).or_else(|| self.focus.as_ref().and_then(|k| self.row_of(rows, k))).unwrap_or(to);
-        let range = rows.get(from.min(to)..=from.max(to)).unwrap_or_default();
+            self.anchor.as_ref().and_then(|k| self.msg_row_of(k)).or_else(|| self.focus.as_ref().and_then(|k| self.msg_row_of(k))).unwrap_or(to);
+        let range: Vec<MessageKey> = (from.min(to)..=from.max(to)).filter_map(|p| self.row_key(p).cloned()).collect();
+        let (anchor, focus) = (self.row_key(from).cloned(), self.row_key(to).cloned());
         if add {
             let have: HashSet<MessageKey> = self.selection.iter().cloned().collect();
-            self.selection.extend(range.iter().filter(|k| !have.contains(*k)).cloned());
+            self.selection.extend(range.into_iter().filter(|k| !have.contains(k)));
         } else {
-            self.selection = range.to_vec();
+            self.selection = range;
         }
-        self.anchor = rows.get(from).cloned();
-        self.focus = rows.get(to).cloned();
+        self.anchor = anchor;
+        self.focus = focus;
         self.after_selecting();
         Ok(serde_json::json!({"selected": self.selection.len(), "key": self.focus.as_ref().map(MessageKey::to_id)}))
     }

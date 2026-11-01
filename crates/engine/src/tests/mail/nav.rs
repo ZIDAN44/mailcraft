@@ -90,6 +90,22 @@ fn conversations_survive_direct_list_edits() {
     done(s);
 }
 
+/// A list changed by hand since its rows were built still finds an older message of a
+/// conversation (no row of its own) on its conversation's row, so a step goes on from there.
+#[test]
+fn conversation_rows_survive_direct_list_edits() {
+    let mut s = sample_session("nav-rows-edited");
+    s.run("view.conversations", &json!({"on": true})).unwrap();
+    let own: Vec<MessageKey> = (0..s.row_count()).filter_map(|p| s.row_key(p).cloned()).collect();
+    let older = s.list.iter().map(|m| m.key.clone()).find(|k| !own.contains(k)).expect("a message without a row of its own");
+    let (row, at) = (s.msg_row_of(&older), s.row_index_of(&older));
+    assert!(row.is_some() && at.is_some(), "its conversation's row");
+    s.list.push(message(1));
+    assert_eq!(s.msg_row_of(&older), row, "after an edit by hand");
+    assert_eq!(s.row_index_of(&older), at, "after an edit by hand");
+    done(s);
+}
+
 /// What's drawn each frame finds the selection without copying it, in list order where it says
 /// so; `selected` copies, and counts what it copied.
 #[test]
@@ -191,6 +207,118 @@ fn rebuilding_a_list_without_conversations_shown_works_none_out() {
     s.apply(Event::FolderChanged { account, folder });
     assert_eq!(s.nav.threadings(), built + 1);
     assert!(!s.threads.is_empty());
+    done(s);
+}
+
+/// A folder of `n` read messages over a day and more, in conversations of three, some pinned,
+/// from a handful of senders and sizes, listed by a session over a store in memory.
+fn big_folder(n: u32) -> Session {
+    let mut s = Session::open(Some(mailcraft_store::Store::memory()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let messages: Vec<Summary> = (0..n)
+        .map(|uid| {
+            let mut m = message(uid);
+            m.key.folder = "INBOX".into();
+            m.date = NOW - i64::from(uid) * 37;
+            m.message_id = format!("<m{uid}@x>");
+            if uid % 3 != 0 {
+                m.in_reply_to = format!("<m{}@x>", uid - uid % 3);
+                m.subject = format!("Re: Plan {}", uid / 3);
+            } else {
+                m.subject = format!("Plan {}", uid / 3);
+            }
+            m.from = EmailAddress::new(format!("Person {}", uid % 7), format!("p{}@x", uid % 7));
+            m.size = (uid % 5) * 40_000;
+            m.flags.seen = true;
+            m.flags.flagged = uid % 11 == 0;
+            m.has_attachments = uid % 4 == 0;
+            m.flags.set_keyword(mailcraft_model::PINNED, uid % 997 == 5);
+            m
+        })
+        .collect();
+    let st = mailcraft_store::FolderState { messages, ..Default::default() };
+    s.cache.insert(("a".into(), "INBOX".into()), st);
+    s.open_view(View::Folder { account: "a".into(), folder: "INBOX".into() });
+    s
+}
+
+/// Each message's row is its own, or its conversation's when the list shows conversations.
+fn rows_hold_their_messages(s: &Session, when: &str) {
+    let rows = s.rows();
+    let mut thread_of = vec![usize::MAX; s.list.len()];
+    for (t, thread) in s.threads.iter().enumerate() {
+        for &i in &thread.messages {
+            thread_of[i] = t;
+        }
+    }
+    for (i, m) in s.list.iter().enumerate() {
+        let r = s.row_index_of(&m.key).unwrap_or_else(|| panic!("{when}: no row for {i}"));
+        let Some(Row::Message { index, .. }) = rows.get(r) else { panic!("{when}: row {r} is not a message") };
+        assert!(*index == i || (thread_of[i] != usize::MAX && thread_of[i] == thread_of[*index]), "{when}: {i} on {index}'s row");
+    }
+}
+
+/// Down through a big folder looks its rows up: they're built with the list, not again for
+/// each step (each Down built every row and copied every key), however the list is arranged,
+/// with conversations on or off; and it visits the rows in the order the list shows them.
+#[test]
+fn move_focus_never_rebuilds_rows() {
+    let mut s = big_folder(20_000);
+    for conversations in [false, true] {
+        s.run("view.conversations", &json!({"on": conversations})).unwrap();
+        for arrange in Arrange::ALL {
+            s.run("view.arrange", &json!({"by": arrange.code()})).unwrap();
+            let when = format!("{arrange:?}, conversations {conversations}");
+            s.focus = None;
+            let order = s.row_keys();
+            assert!(order.len() > 500, "{when}");
+            rows_hold_their_messages(&s, &when);
+            let (built, revision) = (s.nav_structure(), s.revision);
+            let mut visited = Vec::new();
+            let started = std::time::Instant::now();
+            for _ in 0..500 {
+                s.run("list.next", &json!({})).unwrap();
+                visited.extend(s.focus.clone());
+            }
+            let stepped = started.elapsed();
+            let started = std::time::Instant::now();
+            drop(s.build_rows());
+            eprintln!("{when}: 500 Downs in {stepped:?}; building the rows (each Down's share before) {:?}", started.elapsed());
+            assert_eq!(s.nav_structure(), built, "{when}: no rows built");
+            assert_eq!(s.revision, revision, "{when}");
+            assert_eq!(visited, order[..500].to_vec(), "{when}");
+            // Shift+Up back over them selects as many rows, in a range that's looked up too.
+            for _ in 0..99 {
+                s.run("list.extendPrev", &json!({})).unwrap();
+            }
+            assert_eq!(s.selection.len(), 100, "{when}");
+            assert_eq!(s.focus.as_ref(), order.get(400), "{when}");
+            assert_eq!(s.nav_structure(), built, "{when}: no rows built");
+        }
+    }
+}
+
+/// The date headings follow the day: past midnight the list's Today is Yesterday, though
+/// nothing else changed and no snoozed mail is due (`tick` returned early for those).
+#[test]
+fn rows_follow_the_day() {
+    let mut s = sample_session("nav-day");
+    assert_eq!(s.rows()[0], Row::Header("Today"));
+    let (built, revision) = (s.nav_structure(), s.revision);
+    s.tick();
+    assert_eq!(s.nav_structure(), built, "the same day builds nothing");
+    assert_eq!(s.revision, revision, "the same day builds nothing");
+    let today = mailcraft_model::dates::today(&s.clock);
+    let midnight = (today + 1) * 86_400 - i64::from(s.clock.offset);
+    s.set_clock(midnight + 60, s.clock.offset);
+    assert_eq!(s.rows()[0], Row::Header("Today"), "until the next tick");
+    s.tick();
+    assert_eq!(s.rows()[0], Row::Header("Yesterday"));
+    assert!(!s.rows().contains(&Row::Header("Today")));
+    assert_ne!(s.nav_structure(), built);
+    assert_ne!(s.revision, revision, "the interface lays the rows out again");
+    let built = s.nav_structure();
+    s.tick();
+    assert_eq!(s.nav_structure(), built, "once a day");
     done(s);
 }
 

@@ -121,7 +121,11 @@ written (`Compose`), preferences and status-bar notices.
 - The list is indexed as it's built (`refresh_list` → `ListNav` in `session/mailboxes/nav.rs`):
   `index_of`, `summary`, `selected_iter` and `first_selected` are lookups, not passes over the
   list, and a message's conversation is worked out with the list. What's drawn each frame uses
-  them; `selected()` copies and is for commands.
+  them; `selected()` copies and is for commands. The list's rows (headings, conversations,
+  pinned mail) are built with it too, and again by `tick()` when the day turns: `rows()` lends
+  them, Up, Down and Shift+click look their row up (a step copies one key, a Shift range as
+  many as it selects), and the interface lays the rows out again only when `nav_structure()`
+  changes.
 
 - `run(id, params)` dispatches a command from the registry (`cmd.rs`), checking `enabled` first and
   catching panics.
