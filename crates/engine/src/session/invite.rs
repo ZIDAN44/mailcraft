@@ -155,8 +155,8 @@ impl Session {
             .attachments
             .iter()
             .find(|a| a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))?;
-        let data = mime::attachment_data(&raw, att.index)?;
-        Some((String::from_utf8_lossy(&data).into_owned(), parsed.from.email))
+        // Read in the charset the part names: its bytes are as they came.
+        Some((mime::attachment_text(&raw, att.index)?, parsed.from.email))
     }
 
     /// The account holding an event (the series or any occurrence of it), and its parts there.

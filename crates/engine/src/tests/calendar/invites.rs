@@ -13,15 +13,17 @@ const ANA: (&str, &str) = ("Ana Lima", "ana@soundlab.example");
 /// Put a message carrying a calendar in the sample Inbox and open it.
 pub(super) fn deliver(s: &mut Session, n: u32, from: (&str, &str), method: &str, events: &[CalEvent], stamp: i64) {
     let ics = mailcraft_model::ical::write(events, Some(method), stamp);
+    deliver_ics(s, n, from, method, &format!("text/calendar; method={method}"), ics.into_bytes());
+}
+
+/// Put a message carrying this calendar file (its type and bytes), with the method in its subject,
+/// in the sample Inbox and open it.
+fn deliver_ics(s: &mut Session, n: u32, from: (&str, &str), method: &str, mime: &str, data: Vec<u8>) {
     let d = mailcraft_mime::Draft {
         to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
         subject: format!("{method} {n}"),
         body: "See the calendar.".into(),
-        attachments: vec![mailcraft_mime::OutAttachment {
-            name: "invite.ics".into(),
-            mime: format!("text/calendar; method={method}"),
-            data: ics.into_bytes(),
-        }],
+        attachments: vec![mailcraft_mime::OutAttachment { name: "invite.ics".into(), mime: mime.into(), data }],
         ..Default::default()
     };
     let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(from.0, from.1), NOW, &format!("<i{n}@x>")).unwrap();
@@ -218,5 +220,28 @@ fn invitations_from_others_or_out_of_date_are_not_applied() {
     assert_eq!(s.invite().unwrap().problem, None, "the address is compared without case");
     s.run("invite.apply", &json!({})).unwrap();
     assert_eq!(zoe(&s), "DECLINED");
+    done(s);
+}
+
+/// An invitation in a charset other than UTF-8 is read in it (the calendar file's bytes come as
+/// they were sent, since attachments are saved that way).
+#[test]
+fn an_invitation_in_another_charset_is_read_in_it() {
+    let mut s = sample_session("invite-charset");
+    let event = CalEvent {
+        uid: "latin@soundlab.example".into(),
+        summary: "Caf\u{e9} review".into(),
+        start: NOW + 86_400,
+        end: NOW + 86_400 + 3600,
+        organizer: Some(Attendee { email: ANA.1.into(), name: ANA.0.into(), ..Default::default() }),
+        attendees: vec![me("NEEDS-ACTION")],
+        ..Default::default()
+    };
+    let ics = mailcraft_model::ical::write(&[event], Some("REQUEST"), NOW);
+    // In Windows-1252 the accent is the one byte 0xE9, which isn't UTF-8.
+    let latin: Vec<u8> = ics.chars().map(|c| u8::try_from(u32::from(c)).unwrap()).collect();
+    assert!(latin.contains(&0xe9));
+    deliver_ics(&mut s, 1, ANA, "REQUEST", "text/calendar; method=REQUEST; charset=windows-1252", latin);
+    assert_eq!(s.invite().unwrap().event.summary, "Caf\u{e9} review");
     done(s);
 }
