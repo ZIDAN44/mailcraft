@@ -37,6 +37,7 @@ mod writing;
 #[cfg(test)]
 pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
+pub use searching::IndexPass;
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::{Compose, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
@@ -527,6 +528,8 @@ pub struct Session {
     pub(crate) body: opening::BodyLane,
     /// Accounts a data file is being imported into: their folders' search words wait for the end.
     importing: HashSet<String>,
+    /// The search indexes kept up in the background.
+    indexing: searching::Indexing,
     /// The message in the reading pane to mark read, and when (`ReadInPane::Shown` with a wait).
     read_due: Option<(MessageKey, i64)>,
     /// The message to mark read once another is chosen (`ReadInPane::Left`).
@@ -628,6 +631,7 @@ impl Session {
             shown: 0,
             body: Default::default(),
             importing: HashSet::new(),
+            indexing: Default::default(),
             read_due: None,
             read_on_leave: None,
             body_words: HashMap::new(),

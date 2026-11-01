@@ -177,6 +177,8 @@ impl Worker {
             | Job::ImportPst { .. }
             | Job::InspectDataFile { .. }
             | Job::StopImport { .. }
+            | Job::Index { .. }
+            | Job::StopIndex { .. }
             | Job::ExportPst { .. }
             | Job::ImportIdentity { .. }
             | Job::ForgetIdentity { .. }

@@ -379,6 +379,8 @@ impl MailApp {
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
         let mut session = session;
         session.set_zone(services.zone().as_deref());
+        // The window's network side keeps each account's search index up.
+        session.set_indexing(true);
         match services.take_data_moved() {
             Some(Ok(to)) => session.notice(tf!("Your mail is now kept in {folder}", folder = to.display().to_string()), false),
             Some(Err(e)) => session.notice(tf!("Your mail couldn't be moved, so it stays where it was: {error}", error = e), true),

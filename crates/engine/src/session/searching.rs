@@ -9,6 +9,26 @@ pub const RECENT_SEARCHES: usize = 10;
 pub const AWAITING_AFTER_DAYS: i64 = 2;
 pub const AWAITING_WITHIN_DAYS: i64 = 30;
 
+/// How an account's last pass of its search index went ([`Event::Indexed`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct IndexPass {
+    /// The messages read of those it found to add.
+    pub work: mailcraft_model::job::Work,
+    /// The index's generation it wrote last.
+    pub generation: u64,
+    /// Messages that couldn't be read for search.
+    pub failed: u64,
+    pub finished: bool,
+}
+
+/// The search indexes kept up in the background, as the session asks for them and hears of them.
+#[derive(Debug, Default)]
+pub(crate) struct Indexing {
+    /// Something keeps the indexes ([`Session::set_indexing`]).
+    on: bool,
+    passes: HashMap<String, IndexPass>,
+}
+
 impl Session {
     /// The folders a search looks in: the one on view, it and the folders inside it, its
     /// account's (every account's from a unified view), or every account's.
@@ -167,6 +187,52 @@ impl Session {
         if self.importing.remove(account) {
             self.index.retain(|(a, _), ix| a != account || !ix.stale);
         }
+        self.want_index(account, None);
+    }
+
+    /// Keep each account's search index up to its mail in the background ([`Job::Index`] asked
+    /// as mail changes; the window's network side runs them). Off, the default, none is asked
+    /// for (the CLI and tests). Turned on, every account is brought up.
+    pub fn set_indexing(&mut self, on: bool) {
+        self.indexing.on = on;
+        let ids: Vec<String> = self.accounts.iter().map(|a| a.config.id.clone()).collect();
+        for id in ids {
+            self.want_index(&id, None);
+        }
+    }
+
+    /// How `account`'s last index pass went, as far as it was heard of.
+    pub fn index_pass(&self, account: &str) -> Option<IndexPass> {
+        self.indexing.passes.get(account).copied()
+    }
+
+    /// Ask for `account`'s index to be brought up to `folder` (`None`: every folder). Asks while
+    /// jobs wait to be taken are one: folders add up, every folder takes them all. Not while a
+    /// data file is imported into the account (its end asks for every folder).
+    pub(super) fn want_index(&mut self, account: &str, folder: Option<&str>) {
+        if !self.indexing.on || self.importing.contains(account) {
+            return;
+        }
+        let waiting = self.jobs.iter_mut().find_map(|j| match j {
+            Job::Index { account: a, folders } if a == account => Some(folders),
+            _ => None,
+        });
+        match (waiting, folder) {
+            // Every folder already.
+            (Some(folders), _) if folders.is_empty() => {}
+            (Some(folders), None) => folders.clear(),
+            (Some(folders), Some(f)) => {
+                if !folders.iter().any(|x| x == f) {
+                    folders.push(f.to_string());
+                }
+            }
+            (None, folder) => self.jobs.push(Job::Index { account: account.to_string(), folders: folder.map(str::to_string).into_iter().collect() }),
+        }
+    }
+
+    /// How an index pass is going, heard.
+    pub(super) fn indexed(&mut self, account: &str, pass: IndexPass) {
+        self.indexing.passes.insert(account.to_string(), pass);
     }
 
     /// How many times search words were read for some folder (one search reading several folders

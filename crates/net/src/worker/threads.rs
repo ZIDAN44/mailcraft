@@ -163,7 +163,10 @@ impl Pool {
         let sink = self.sink.clone();
         let store = self.store.clone();
         let id = account.clone();
+        // No index pass for the account until the import ends.
+        let importing = self.indexer.importing(&account);
         let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
+            let _importing = importing;
             let began = Instant::now();
             // The file the account's mail was copied into ("" for a cache that isn't kept in one).
             let data_file = |store: &Store| store.data_file(&account).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();

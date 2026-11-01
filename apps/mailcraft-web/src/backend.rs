@@ -15,6 +15,7 @@ use mailcraft_ui_egui::Backend;
 
 use crate::fetch::{Fetch, events, sleep};
 
+mod indexing;
 mod smime;
 
 /// How often the Inbox is checked for new mail, and every how many checks everything is.
@@ -70,6 +71,8 @@ struct Shared {
     /// The passwords that opened them, for keeping them unlocked when that's asked (gap 7):
     /// in memory, and sealed with the browser's key only then.
     smime_passwords: HashMap<String, Vec<String>>,
+    /// The search indexes asked to be brought up to the mail.
+    indexing: indexing::Indexing,
 }
 
 type Rcs = Rc<RefCell<Shared>>;
@@ -91,6 +94,7 @@ impl WebBackend {
                 search: 0,
                 smime: HashMap::new(),
                 smime_passwords: HashMap::new(),
+                indexing: indexing::Indexing::default(),
             })),
         }
     }
@@ -545,7 +549,9 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::StopImport { .. }
         | Job::ExportPst { .. }
         | Job::WorkOffline { .. }
-        | Job::SetSync { .. } => {}
+        | Job::SetSync { .. }
+        | Job::Index { .. }
+        | Job::StopIndex { .. } => {}
     }
 }
 
@@ -726,8 +732,10 @@ impl Backend for WebBackend {
             }
             Job::Remove { account } => {
                 sh.borrow_mut().accounts.remove(&account);
+                indexing::job(sh, Job::StopIndex { account });
             }
             Job::StopSearch => sh.borrow_mut().search = 0,
+            j @ (Job::Index { .. } | Job::StopIndex { .. }) => indexing::job(sh, j),
             other => {
                 if let Job::SearchServer { search, .. } = &other {
                     sh.borrow_mut().search = *search;

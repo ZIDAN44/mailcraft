@@ -96,6 +96,10 @@ struct Sink {
 impl Sink {
     fn emit(&self, e: Event) {
         let _ = self.tx.send(e);
+        self.wake();
+    }
+
+    fn wake(&self) {
         if let Ok(w) = self.wake.lock()
             && let Some(f) = w.as_ref()
         {
@@ -176,6 +180,8 @@ pub struct Pool {
     /// The server search still wanted ([`Job::SearchServer`]'s `search`; 0: none), shared with
     /// every worker so a search running stops when it's no longer wanted.
     search: Arc<AtomicU64>,
+    /// The search index kept up in the background.
+    indexer: indexing::Indexer,
 }
 
 /// Drafts that couldn't be saved to the server (offline, or it failed), kept with the account
@@ -236,6 +242,7 @@ impl Pool {
             fetcher: None,
             offline: false,
             search: Arc::new(AtomicU64::new(0)),
+            indexer: indexing::Indexer::default(),
         }
     }
 
@@ -254,6 +261,8 @@ impl Pool {
             Job::FetchUrl { url } => self.fetch_url(url),
             Job::FetchCalendar { account, calendar, url, etag, modified } => self.fetch_calendar(account, calendar, url, etag, modified),
             Job::StopSearch => self.search.store(0, Ordering::Relaxed),
+            Job::Index { account, folders } => self.indexer.ask(&self.store, &self.sink, account, folders),
+            Job::StopIndex { account } => self.indexer.stop(&account),
             Job::CheckUpdates => {
                 let sink = self.sink.clone();
                 let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
@@ -366,6 +375,7 @@ impl Pool {
             }
             Job::Remove { account } => {
                 self.stop(&account);
+                self.indexer.stop(&account);
                 if let Some(c) = self.configs.remove(&account) {
                     self.creds.delete(&c);
                     self.creds.delete_smtp(&c);
@@ -482,14 +492,29 @@ impl Pool {
         }
     }
 
-    /// Events reported since the last call.
+    /// Events reported since the last call (of how a pass of the search index is going, the
+    /// newest for each account).
     pub fn poll(&self) -> Vec<Event> {
-        self.rx.try_iter().collect()
+        let mut events: Vec<Event> = self.rx.try_iter().collect();
+        events.extend(self.indexer.latest());
+        events
     }
 
     /// Block until an event arrives or `timeout` passes (for the CLI).
     pub fn wait(&self, timeout: Duration) -> Option<Event> {
-        self.rx.recv_timeout(timeout).ok()
+        let end = Instant::now() + timeout;
+        loop {
+            if let Some(e) = self.indexer.next_latest() {
+                return Some(e);
+            }
+            // The indexer's news isn't sent on the channel: looked at between slices.
+            let left = end.saturating_duration_since(Instant::now());
+            match self.rx.recv_timeout(left.min(Duration::from_millis(50))) {
+                Ok(e) => return Some(e),
+                Err(RecvTimeoutError::Timeout) if !left.is_zero() => {}
+                Err(_) => return None,
+            }
+        }
     }
 
     fn start(&mut self, account: AccountConfig, password: Option<Secret>) {
@@ -550,6 +575,7 @@ impl Pool {
     }
 
     pub fn shutdown(&mut self) {
+        self.indexer.shutdown();
         let ids: Vec<String> = self.workers.keys().cloned().collect();
         for id in ids {
             self.stop(&id);
@@ -566,6 +592,7 @@ impl Drop for Pool {
 mod changes;
 mod connect;
 mod directory;
+mod indexing;
 mod remote;
 mod send;
 mod smime;

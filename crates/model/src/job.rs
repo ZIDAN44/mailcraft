@@ -98,6 +98,12 @@ pub enum Job {
     SearchServer { account: String, folders: Vec<String>, query: String, search: u64 },
     /// Stop the servers' searches (the search box cleared, issue #4): what's found so far stays.
     StopSearch,
+    /// Bring the account's search index up to its mail in these folders (none: every folder),
+    /// in the background; asks close together are one pass. Progress and the end come as
+    /// [`Event::Indexed`].
+    Index { account: String, folders: Vec<String> },
+    /// Stop the account's index pass (what it added is kept) and forget what was asked of it.
+    StopIndex { account: String },
     /// Download a message's full source.
     FetchBody { key: MessageKey },
     /// Apply a mailbox change on the server.
@@ -227,6 +233,8 @@ impl Job {
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
             | Job::StopImport { account, .. }
+            | Job::Index { account, .. }
+            | Job::StopIndex { account }
             | Job::ExportPst { account, .. } => account,
             Job::FetchUrl { .. }
             | Job::InspectDataFile { .. }
@@ -406,6 +414,26 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         report: Option<Box<ImportReport>>,
     },
+    /// How a [`Job::Index`] pass is going (the newest replaces the ones before): the messages
+    /// read of those it found to add, the index's generation now (a search reads again past
+    /// it), and `finished` at its end, stopped or not. `failed`: messages that couldn't be read
+    /// for search (kept as having no words).
+    Indexed {
+        account: String,
+        work: Work,
+        generation: u64,
+        #[serde(default)]
+        failed: u64,
+        finished: bool,
+    },
+    /// The index found which of a folder's messages carry files (`with`) and which only
+    /// pictures their text shows (`without`), by uid, where their summaries said otherwise.
+    AttachmentsKnown {
+        account: String,
+        folder: String,
+        with: Vec<u32>,
+        without: Vec<u32>,
+    },
     /// What [`Job::InspectDataFile`] found (its `error` says why it couldn't look).
     DataFileInspected {
         path: String,
@@ -508,6 +536,12 @@ mod tests {
         assert_eq!(v["job"], "syncFolder");
         assert_eq!(serde_json::from_value::<Job>(v).unwrap(), j);
         assert_eq!(j.account(), "a1");
+        let j = Job::Index { account: "a1".into(), folders: vec!["INBOX".into()] };
+        assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
+        assert_eq!(Job::StopIndex { account: "a1".into() }.account(), "a1");
+        let e =
+            Event::Indexed { account: "a1".into(), work: Work { done: 1, total: 2, ..Work::default() }, generation: 3, failed: 0, finished: false };
+        assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
     }
 
     #[test]

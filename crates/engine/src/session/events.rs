@@ -66,6 +66,7 @@ impl Session {
                 }
                 self.mark_junk(&account);
                 self.index_folders_listed(&account);
+                self.want_index(&account, None);
             }
             Event::FolderChanged { account, folder } => {
                 if self.showing_more.as_ref().is_some_and(|(a, f)| *a == account && *f == folder) {
@@ -73,6 +74,7 @@ impl Session {
                 }
                 self.reload_folder(&account, &folder);
                 self.note_new_mail(&account, &folder);
+                self.want_index(&account, Some(&folder));
                 let visible = self.search.is_some() || self.view_folders().iter().any(|(a, f)| *a == account && *f == folder);
                 if visible {
                     self.refresh_list();
@@ -122,6 +124,11 @@ impl Session {
             }
             // Nothing asks yet: the import's own dialog will.
             Event::DataFileInspected { .. } => {}
+            Event::Indexed { account, work, generation, failed, finished } => {
+                self.indexed(&account, IndexPass { work, generation, failed, finished })
+            }
+            // Not sent yet: summaries are put right from what the index found in a later step.
+            Event::AttachmentsKnown { .. } => {}
             Event::Exported { account, messages, skipped, already, done, error } => {
                 self.exported(&account, messages, (skipped, already), done, error)
             }
@@ -157,6 +164,8 @@ impl Session {
                 }
                 self.index_body(&key, &raw);
                 self.invitation_body(&key);
+                // Downloaded now, or read from the cache: a pass finds which.
+                self.want_index(&key.account, Some(&key.folder));
             }
             Event::BodyFailed { key, error } => {
                 self.source_failed(&key, &error);

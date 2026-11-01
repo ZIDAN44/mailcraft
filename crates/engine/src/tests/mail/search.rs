@@ -526,3 +526,52 @@ fn server_finds_are_checked_against_the_dates() {
     }
     done(s);
 }
+
+/// The search index kept up in the background: asked for as mail changes, once while jobs wait
+/// to be taken (the folders adding up, every folder taking them all); nothing asked while it's
+/// off (the CLI) or while a data file is imported; how a pass goes is kept.
+#[test]
+fn index_asks_are_one_while_they_wait() {
+    let mut s = sample_session("index-asks");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    let key = |folder: &str| mailcraft_model::MessageKey { account: a.clone(), folder: folder.into(), validity: 1, uid: 1 };
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    assert!(s.take_jobs().is_empty(), "off: nothing asked");
+
+    s.set_indexing(true);
+    assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: Vec::new() }], "every account brought up");
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    s.apply(Event::Body { key: key("Sent Items"), raw: b"Subject: x\r\n\r\nx".to_vec() });
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: vec!["INBOX".into(), "Sent Items".into()] }]);
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    let folders = s.account(&a).unwrap().folders.clone();
+    s.apply(Event::Folders { account: a.clone(), folders });
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "Drafts".into() });
+    assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: Vec::new() }], "the folder list: every folder");
+
+    let work = mailcraft_model::job::Work { done: 3, total: 9, ..Default::default() };
+    s.apply(Event::Indexed { account: a.clone(), work, generation: 4, failed: 1, finished: false });
+    assert_eq!(s.index_pass(&a), Some(crate::session::IndexPass { work, generation: 4, failed: 1, finished: false }));
+    assert_eq!(s.index_pass("other"), None);
+    done(s);
+}
+
+/// No index pass is asked for an account a data file is being imported into; its end asks for
+/// every folder.
+#[test]
+fn an_import_asks_for_the_index_at_its_end() {
+    let mut s = sample_session("index-import");
+    s.set_indexing(true);
+    s.take_jobs();
+    s.import_pst("C:/Mail/old.pst").unwrap();
+    let id = match s.take_jobs().as_slice() {
+        [Job::ImportPst { account, .. }] => account.clone(),
+        jobs => panic!("{jobs:?}"),
+    };
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert!(s.take_jobs().is_empty(), "not while it imports");
+    s.apply(Event::Imported { account: id.clone(), messages: 2, skipped: 0, done: true, error: None, report: None });
+    assert!(s.take_jobs().contains(&Job::Index { account: id, folders: Vec::new() }));
+    done(s);
+}

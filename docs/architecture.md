@@ -250,6 +250,22 @@ be stopped partway (it reads every kept text). A plan's doc ids are those of the
 in: `Plan::apply` refuses a plan made before the ids were given again, and makes its moves
 together, so two messages swapping uids under a new validity keep their docs.
 
+The index is built by `Job::Index { account, folders }`, which the session asks for as mail
+changes (`want_index`: a folder changed, a body arrived, the folder list, an import's end; asks
+waiting to be taken are one) once the window turns it on (`Session::set_indexing`; the CLI
+doesn't). Both sides run the same `search::Pass`: it holds the writer, plans, makes the changes
+that read nothing, is handed each message to add, writes a generation whenever it holds enough,
+marks the folders only when it read all it planned, and merges. On the desktop
+(`net/src/worker/indexing.rs`) one "mail-index" thread runs a pass at a time, once an account's
+asks have stopped for 1.5 s; the messages are read and taken apart (`mime::index_doc`) on all but
+two of the machine's threads (1 to 8), each under `catch_unwind` (one that panics is kept with no
+words and counted), through a channel of 64 to the pass thread. No pass runs for an account a
+data file is being imported into, and `Job::StopIndex` (or the account's removal) stops one
+between two messages. Its progress, `Event::Indexed`, isn't sent on the pool's channel: only the
+newest for each account is kept until `Pool::poll` takes it. In the browser
+(`apps/mailcraft-web/src/backend/indexing.rs`) the pass gives the page back every 16 messages
+or 1 MiB read, and between merge steps.
+
 ## Threading
 
 `model::thread` implements JWZ threading (as used by IMAP `THREAD=REFERENCES`): containers per

@@ -1,5 +1,5 @@
-//! How far a long piece of background work has come (a data file's import, and later the search
-//! index's build and a data file's compaction): one shape for all of them, so the status bar
+//! How far a long piece of background work has come (a data file's import, the search index's
+//! build, and later a data file's compaction): one shape for all of them, so the status bar
 //! shows each the same way.
 
 use serde::{Deserialize, Serialize};

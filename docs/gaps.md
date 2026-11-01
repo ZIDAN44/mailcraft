@@ -1663,3 +1663,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   their categories, Show As, privacy and reminder. Changed occurrences of a repeating meeting,
   and the files of contacts and calendar items, still don't come in. The 41 GB file measured has
   none of these, so they're tried on made-up items only.
+- **The search index is built in the background:** each account's mail is now indexed for
+  search as it comes (a sync, a message downloaded, a move, an import's end), on a thread of its
+  own, with the messages read and their text taken out on all but two of the computer's
+  processor threads (at most eight); asks close together wait a second and a half and make one
+  pass. A pass reads only what changed (a folder whose list and kept mail are as they were is
+  passed over, a moved message isn't read again), writes the index into the account's data file
+  in short transactions, so a message marked read meanwhile waits little for it (in a
+  measurement on 20,000 messages, indexed in 9.5 s, a mark-read took 59 ms by median against 49
+  ms with nothing running), and stops between two messages when an import starts or the account
+  goes, what it did kept. A message whose text can't be taken out is counted and kept with no
+  words. No pass runs for an account a data file is being imported into. The browser builds its
+  index the same way, a few messages a frame. The search box doesn't read the index yet.
