@@ -86,10 +86,7 @@ impl Session {
                 Some(s) => s.load_folder(account, folder)?,
                 None => FolderState::default(),
             };
-            self.cache.insert(k.clone(), st);
-            self.cache_order.retain(|o| *o != k);
-            self.cache_order.push(k.clone());
-            self.trim_cache(&k);
+            self.keep_cached(k, st);
         } else if self.cache_order.last() != Some(&k) {
             self.cache_order.retain(|o| *o != k);
             self.cache_order.push(k);
@@ -97,9 +94,18 @@ impl Session {
         Ok(())
     }
 
+    /// Keep a folder's list, read, in the cache (the most recently used).
+    pub(super) fn keep_cached(&mut self, k: (String, String), st: FolderState) {
+        self.cache.insert(k.clone(), st);
+        self.cache_order.retain(|o| *o != k);
+        self.cache_order.push(k.clone());
+        self.trim_cache(&k);
+    }
+
     /// Keep the cached lists under `cache_limit` summaries: the least recently used folders
-    /// go first (read again when wanted), never the ones on screen nor `keep`. Looking through a
-    /// big mailbox (the address book, a search of everything) no longer leaves all of it in memory.
+    /// go first (read again when wanted), never the ones on screen, those a search reads, nor
+    /// `keep`. Looking through a big mailbox (the address book, a search of everything) no
+    /// longer leaves all of it in memory.
     pub(super) fn trim_cache(&mut self, keep: &(String, String)) {
         let mut total: usize = self.cache.values().map(|st| st.messages.len()).sum();
         if total <= self.cache_limit {
@@ -109,7 +115,7 @@ impl Session {
         let mut i = 0;
         while total > self.cache_limit && i < self.cache_order.len() {
             let k = self.cache_order.get(i).cloned().unwrap_or_default();
-            if k == *keep || shown.contains(&k) {
+            if k == *keep || shown.contains(&k) || self.search_state.pinned.contains(&k) {
                 i += 1;
                 continue;
             }
@@ -130,7 +136,7 @@ impl Session {
     pub(super) fn reload_folder(&mut self, account: &str, folder: &str) {
         let k = (account.to_string(), folder.to_string());
         self.cache.remove(&k);
-        self.index_changed(account, folder);
+        self.search_folder_changed(account, folder);
         self.contacts = None;
     }
 
@@ -332,23 +338,27 @@ impl Session {
     }
 
     /// Rebuild the list from the view, search and filter, keeping the selection where possible.
+    /// A search's list is what it found so far (a waiting search is settled first).
     pub fn refresh_list(&mut self) {
         // What the list shows about senders (issue #29) is ready as it's drawn.
         self.keep_senders();
-        let mut list: Vec<Summary> = if let Some((q, scope)) = self.search.clone() {
-            let mut found = self.search_results(&q, scope);
-            // What the servers found: its words may be in mail not downloaded here.
-            let hits: Vec<MessageKey> = self.server_search.iter().filter(|ss| ss.query == q).flat_map(|ss| ss.found.iter().cloned()).collect();
-            let have: HashSet<MessageKey> = found.iter().map(|m| m.key.clone()).collect();
-            let hits: Vec<MessageKey> = hits.into_iter().filter(|k| !have.contains(k)).collect();
-            // The servers can't tell dates or what's waiting for a reply: checked here.
-            found.extend(self.server_hits(&q, &hits));
-            // A Search Folder leaves out Deleted Items and Junk, as Outlook's.
-            if self.open_search_folder_name().is_some() {
-                found.retain(|m| self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk)));
+        if self.search.is_some() && self.settle_search() {
+            return;
+        }
+        let list: Vec<Summary> = if self.search.is_some() {
+            match self.search_state.run.take() {
+                Some(mut run) => {
+                    let found = self.search_list(&run);
+                    // All of it shown now: nothing left to stream in.
+                    run.fresh.clear();
+                    run.gone.clear();
+                    // What its end had gathered is older than this.
+                    run.gather_again();
+                    self.search_state.run = Some(run);
+                    found
+                }
+                None => Vec::new(),
             }
-            sort_newest_first(&mut found);
-            found
         } else if self.view == View::Outbox {
             self.outbox_summaries()
         } else {
@@ -358,28 +368,40 @@ impl Session {
             }
             v
         };
+        let mut list = self.filtered(list);
+        arrange_list(&mut list, self.prefs.arrange, self.prefs.reverse_sort);
+        self.take_list(list);
+    }
+
+    /// What of `list` the filter (and the Focused/Other split) shows.
+    pub(super) fn filtered(&mut self, mut list: Vec<Summary>) -> Vec<Summary> {
         let filter = self.filter;
         // The message being read stays where it was though it no longer passes (marked read
         // under Unread, say), as Outlook's: it goes once another is chosen (`show_message`).
-        let reading = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| self.list.iter().any(|m| &m.key == k));
+        let reading = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| self.index_of(k).is_some());
         list.retain(|m| self.filter_keeps(filter, m) || reading.as_ref() == Some(&m.key));
         if self.focus_split() {
             self.ensure_contacts();
             let other = self.focus_other;
             list.retain(|m| self.is_focused(m) != other);
         }
-        arrange_list(&mut list, self.prefs.arrange, self.prefs.reverse_sort);
-        self.take_list(list);
+        list
     }
 
     /// Show `list`, as filtered and arranged: its conversations, its index and its rows built
     /// with it, and the selection kept where it's still in it.
     pub(super) fn take_list(&mut self, list: Vec<Summary>) {
+        self.take_list_with(list, true);
+    }
+
+    /// [`Session::take_list`]; `threads`: its conversations worked out now when the list shows
+    /// them (a search still streaming leaves them for its end).
+    pub(super) fn take_list_with(&mut self, list: Vec<Summary>, threads_now: bool) {
         // Conversations are worked out once here when the list shows them (arranged by date);
         // arranged otherwise, the reading pane still shows the open message's, worked out once
         // with the first message opened (`thread_at`) rather than with every rebuild.
         let conversations = self.prefs.conversations;
-        let shown = conversations && self.prefs.arrange == Arrange::Date;
+        let shown = threads_now && conversations && self.prefs.arrange == Arrange::Date;
         let all = if shown {
             self.nav.threaded();
             threads(&list)

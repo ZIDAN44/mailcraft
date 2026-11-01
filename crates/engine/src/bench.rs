@@ -84,11 +84,29 @@ fn big_mailbox() {
     if let Some(store) = &s.store {
         println!("cache before searching: {}", serde_json::to_string(&store.cache_use(&account)).unwrap());
     }
+    // The account's search index, as the indexer brings it up (one thread here).
+    step("indexing pass", || {
+        let Some(store) = s.store.clone() else { return };
+        let Ok(mut p) = crate::store::search::Pass::start(&store, &account, &[]) else { return };
+        let adds = p.adds().clone();
+        for (i, m) in adds.iter().enumerate() {
+            let doc = store.read_body(&m.key).map(|raw| crate::mime::index_doc(&raw));
+            let _ = p.add(&store, i, doc.as_ref());
+        }
+        let _ = p.finish(&store, true);
+    });
     step("search this folder", || s.run_search("budget review", crate::SearchScope::Current));
     println!("found {}", s.list.len());
     step("search everything", || s.run_search("storyboard deadline", crate::SearchScope::All));
     println!("found {}", s.list.len());
     step("search everything again", || s.run_search("festival", crate::SearchScope::All));
+    step("is:unread", || s.run_search("is:unread", crate::SearchScope::All));
+    println!("found {}", s.list.len());
+    step("phrase", || s.run_search("\"budget review\"", crate::SearchScope::All));
+    if let Some(k) = s.list.first().map(|m| m.key.clone()) {
+        let _ = s.run("list.select", &json!({"key": k.to_id()}));
+        step("search after mark-read", || drop(s.run("mail.markRead", &json!({}))));
+    }
     step("address book", || s.address_book("all", "zo").len());
     step("rest", || std::thread::sleep(Duration::from_secs(2)));
     if let Some(store) = &s.store {

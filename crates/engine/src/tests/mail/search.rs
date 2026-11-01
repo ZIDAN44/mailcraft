@@ -2,6 +2,27 @@
 
 use super::*;
 
+mod run;
+
+/// Bring `account`'s search index up to its mail at once, as the indexer does in the
+/// background: its generation.
+pub(super) fn index_now(s: &Session, account: &str) -> u64 {
+    let store = s.store.clone().unwrap();
+    let mut p = mailcraft_store::search::Pass::start(&store, account, &[]).unwrap();
+    let adds = p.adds().clone();
+    for (i, m) in adds.iter().enumerate() {
+        let doc = store.read_body(&m.key).map(|raw| mailcraft_mime::index_doc(&raw));
+        p.add(&store, i, doc.as_ref()).unwrap();
+    }
+    p.finish(&store, true).unwrap();
+    p.generation()
+}
+
+/// Tell the session a pass over `account`'s index is over.
+pub(super) fn indexed(s: &mut Session, account: &str, generation: u64) {
+    s.apply(Event::Indexed { account: account.into(), work: Default::default(), generation, failed: 0, finished: true });
+}
+
 /// Issue #4: the search box looks in the folder, it and its subfolders, its mailbox (at first)
 /// or every mailbox, the one picked kept for the next searches; the recent searches are kept,
 /// newest first, once each, ten of them, and can be cleared.
@@ -113,16 +134,16 @@ fn search_folds_accents_and_reads_dates() {
     assert_eq!(all(&mut s, &format!("before:{day}")), before);
     assert_eq!(all(&mut s, &format!("-received:{day}")), counted(&mut s, |m| !(start..start + 86_400).contains(&m.date)));
     assert_eq!(s.store.as_ref().unwrap().reads(), reads, "dates are the summaries': no message was read");
-    assert_eq!(s.index_builds(), 1, "only the word searches read search words");
     assert_eq!(all(&mut s, "received:2026-13"), 0, "not a date: left out, nothing to search");
     done(s);
 }
 
-/// Typing in the search box stays quick on a big mailbox: a search after mail changes (which
-/// rebuilds the index) doesn't parse every message again.
+/// Typing in the search box on a big indexed mailbox reads no message: the index answers words,
+/// and mail changing in a folder (a sync taking a message away) has that folder scanned again
+/// with its index, still reading none.
 #[test]
-fn searching_a_big_mailbox_stays_quick() {
-    let store = temp("big-search");
+fn searching_a_big_mailbox_reads_no_message() {
+    let store = Store::memory();
     store.save_accounts(&[mailcraft_model::AccountConfig { id: "a1".into(), email: "me@studio.example".into(), ..Default::default() }]).unwrap();
     store
         .save_folders(
@@ -137,9 +158,12 @@ fn searching_a_big_mailbox_stays_quick() {
         )
         .unwrap();
     let mut st = store.load_folder("a1", "INBOX").unwrap();
+    st.validity = 1;
     for uid in 1..=3000u32 {
         let key = mailcraft_model::MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
-        let html = format!("<html><body><table><tr><td><h1>Report {uid}</h1></td><td>{}</td></tr></table></body></html>", "word ".repeat(400));
+        let word = if uid == 1234 { "zeppelin" } else { "word" };
+        let html =
+            format!("<html><body><table><tr><td><h1>Report {uid}</h1></td><td>{}</td></tr></table></body></html>", format!("{word} ").repeat(400));
         let raw = format!("From: a@x.example\r\nSubject: Report {uid}\r\nContent-Type: text/html\r\n\r\n{html}\r\n");
         store.write_body(&key, raw.as_bytes()).unwrap();
         st.messages.push(mailcraft_model::Summary { key, subject: format!("Report {uid}"), ..Default::default() });
@@ -148,20 +172,18 @@ fn searching_a_big_mailbox_stays_quick() {
     store.save_folder("a1", "INBOX", &st).unwrap();
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
     s.take_jobs();
-    let t = std::time::Instant::now();
+    index_now(&s, "a1");
+    let reads = store.reads();
     assert_eq!(s.run("search.run", &json!({"query": "needle"})).unwrap()["results"], 1);
-    let first = t.elapsed();
-    // Mail changes (as a sync does: a message goes), and the next key is typed: the folder's
-    // index is built again.
+    assert_eq!(s.run("search.run", &json!({"query": "zeppelin"})).unwrap()["results"], 1, "a word of the text, from the index");
+    // Mail changes (as a sync does: a message goes), and the next key is typed.
     st.messages.pop();
     store.save_folder("a1", "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: "a1".into(), folder: "INBOX".into() });
-    let t = std::time::Instant::now();
+    assert_eq!(s.run("search.run", &json!({"query": "zeppeli"})).unwrap()["results"], 1);
     assert_eq!(s.run("search.run", &json!({"query": "needl"})).unwrap()["results"], 1);
-    let again = t.elapsed();
-    println!("first {first:?}, again {again:?}");
-    assert!(again < first / 2 || again < std::time::Duration::from_millis(300), "first {first:?}, again {again:?}");
-    let _ = std::fs::remove_dir_all(store.root());
+    assert_eq!(store.reads(), reads, "no message was read");
+    assert_eq!(s.search_stats().sources, 0);
 }
 
 /// Issue #4: mail past what is kept. A folder with more on its server says how many and shows
@@ -277,93 +299,119 @@ fn summary_searches_read_no_message() {
     s.run("searchFolder.create", &json!({"name": "Unread", "query": "is:unread"})).unwrap();
     assert!(!s.list.is_empty());
     assert_eq!(s.store.as_ref().unwrap().reads(), reads, "no message was read");
-    assert_eq!(s.index_builds(), 0, "no search words were read");
-    // Words anywhere need the text: those still read it.
+    assert_eq!((s.search_stats().reader_pages, s.search_stats().sources), (0, 0), "nor any index");
+    // Words anywhere need the text: with no index, a search that waits reads it.
     assert_eq!(all(&mut s, "projector"), 1);
-    assert_eq!(s.index_builds(), 1);
+    assert!(s.search_stats().sources > 0);
+    // With one, it's the index that's read.
+    index_now(&s, sample::SAMPLE_ACCOUNT);
+    let (reads, sources) = (s.store.as_ref().unwrap().reads(), s.search_stats().sources);
+    assert_eq!(all(&mut s, "projector"), 1);
+    assert_eq!(all(&mut s, "is:unread from:zoe received:>=1970"), counted(&mut s, |m| !m.flags.seen && m.from.email.contains("zoe")));
+    assert_eq!((s.store.as_ref().unwrap().reads(), s.search_stats().sources), (reads, sources), "no message read");
     done(s);
 }
 
-/// Marking a result read keeps the search words: flags aren't among them.
+/// Marking a result read (opening it), unread or flagged weighs that message again, alone: the
+/// search isn't run again and nothing is read for it. Mail moving has its two folders scanned
+/// again, not the others.
 #[test]
-fn marking_a_result_read_keeps_the_search_words() {
+fn marking_a_result_read_weighs_it_alone() {
     let mut s = sample_session("search-mark-read");
+    index_now(&s, sample::SAMPLE_ACCOUNT);
     s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
     let found = s.list.len();
-    let builds = s.index_builds();
-    assert_eq!(builds, 1);
+    assert!(found > 1);
+    let before = s.search_stats();
     let unread = s.list.iter().find(|m| !m.flags.seen).map(|m| json!({"key": m.key.to_id()})).expect("an unread result");
     s.run("list.open", &unread).unwrap();
     assert!(s.reading.as_ref().is_some_and(|r| s.list.iter().any(|m| m.key == r.key && m.flags.seen)), "marked read");
     s.run("mail.markUnread", &json!({})).unwrap();
     s.run("mail.flag", &json!({})).unwrap();
     assert_eq!(s.list.len(), found, "the same results");
-    assert_eq!(s.index_builds(), builds, "not read again");
-    // Mail moving: the two folders are read again (in one search), the others aren't. Deleted,
-    // it's still found, in Deleted Items.
+    let after = s.search_stats();
+    assert_eq!(
+        (after.summaries, after.reader_pages, after.sources, after.texts),
+        (before.summaries, before.reader_pages, 0, 0),
+        "nothing scanned or read again"
+    );
+    // Unread only: marked read, it goes from the results (the one being read stays).
+    s.run("search.run", &json!({"query": "storyboard is:unread", "scope": "all"})).unwrap();
+    let n = s.list.len();
+    let k = s.list[0].key.clone();
+    s.run("list.select", &json!({"key": k.to_id()})).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    assert_eq!(s.list.len(), n - 1);
+    assert!(!s.list.iter().any(|m| m.key == k));
+    // Mail moving: the two folders scanned again, the others not. Deleted, it's still found,
+    // in Deleted Items.
+    s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
+    let k = s.list[0].key.clone();
+    let from = s.folder_state(&k.account, &k.folder).messages.len();
+    let trash = s.account(&k.account).and_then(|a| a.folder(FolderRole::Trash)).map(|f| f.path.clone()).unwrap();
+    let to = s.folder_state(&k.account, &trash).messages.len();
+    s.run("list.select", &json!({"key": k.to_id()})).unwrap();
+    let before = s.search_stats().summaries;
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(s.list.len(), found);
-    assert_eq!(s.index_builds(), builds + 1);
+    assert!(s.search_stats().summaries - before <= (from + to + 1) as u64, "only its two folders");
     done(s);
 }
 
-/// Going to another folder and searching again uses the words already read.
+/// Going to another folder and searching again folds no summary again: the texts are kept by
+/// folder, whatever is on view. A folder read again with other mail has its own made again.
 #[test]
-fn another_view_keeps_the_search_words() {
+fn another_view_keeps_the_summary_texts() {
     let mut s = sample_session("search-views");
     let a = sample::SAMPLE_ACCOUNT.to_string();
-    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "mailbox"})).unwrap()["results"], 1);
-    assert_eq!(s.index_builds(), 1);
-    let reads = s.store.as_ref().unwrap().reads();
+    assert_eq!(s.run("search.run", &json!({"query": "from:zoe", "scope": "mailbox"})).unwrap()["results"], 2);
+    let made = s.search_stats().summary_texts;
+    assert!(made > 0);
     s.open_view(View::Folder { account: a.clone(), folder: "Projects".into() });
-    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "mailbox"})).unwrap()["results"], 1);
+    assert_eq!(s.run("search.run", &json!({"query": "from:zoe", "scope": "mailbox"})).unwrap()["results"], 2);
     s.open_view(View::Unified { role: FolderRole::Inbox });
-    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
-    assert_eq!(s.index_builds(), 1, "the folders' words are kept whatever is on view");
-    assert_eq!(s.store.as_ref().unwrap().reads(), reads);
-    // A folder read again with the same mail keeps its words; one with other mail is read
-    // again, alone.
-    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
-    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
-    assert_eq!(s.index_builds(), 1);
+    assert_eq!(s.run("search.run", &json!({"query": "subject:storyboard", "scope": "all"})).unwrap()["results"].as_u64().map(|n| n > 0), Some(true));
+    assert_eq!(s.search_stats().summary_texts, made, "the folders' texts are kept whatever is on view");
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder(&a, "INBOX").unwrap();
     st.messages.pop();
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
-    assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "all"})).unwrap()["results"], 1);
-    assert_eq!(s.index_builds(), 2);
+    assert_eq!(s.run("search.run", &json!({"query": "from:zoe", "scope": "all"})).unwrap()["results"], 2);
+    assert_eq!(s.search_stats().summary_texts, made + st.messages.len() as u64, "the Inbox's alone made again");
     done(s);
 }
 
 /// An account whose edits go to a server: marking a result read is recorded in the cache, and
-/// the folder read again from it (`FolderChanged`). The same mail, the words are kept.
+/// the folder read again from it (`FolderChanged`): scanned again, the same results, nothing read.
 #[test]
-fn a_mark_read_sent_to_the_server_keeps_the_search_words() {
+fn a_mark_read_sent_to_the_server_keeps_the_results() {
     let mut s = sample_session("search-remote-read");
     let a = sample::SAMPLE_ACCOUNT.to_string();
+    index_now(&s, &a);
     s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
     let found = s.list.len();
-    assert_eq!(s.index_builds(), 1);
     let unread = s.list.iter().find(|m| !m.flags.seen).map(|m| m.key.clone()).expect("an unread result");
+    let reads = s.store.as_ref().unwrap().reads();
     // What the worker does with the edit, then tells.
     let store = s.store.clone().unwrap();
     let op = mailcraft_model::Op::SetFlag { keys: vec![unread.clone()], flag: mailcraft_model::Flag::Seen, on: true };
     for folder in store.apply_op(&a, &op).unwrap() {
         s.apply(Event::FolderChanged { account: a.clone(), folder });
     }
-    assert_eq!(s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap()["results"].as_u64(), Some(found as u64));
+    assert_eq!(s.list.len(), found);
     assert!(s.list.iter().any(|m| m.key == unread && m.flags.seen), "read");
-    assert_eq!(s.index_builds(), 1, "not read again");
+    assert_eq!(store.reads(), reads, "nothing read");
     done(s);
 }
 
-/// A body downloaded ahead with no word to the search (a sync's, its folder changed): its words
-/// are found at the next search, without reading the folder again.
+/// A body downloaded after a search found nothing in it: once the index has it (a pass over,
+/// `Event::Indexed`), the search shows it without being run again.
 #[test]
-fn a_body_downloaded_ahead_is_searched() {
+fn a_body_indexed_later_joins_the_results() {
     let mut s = sample_session("search-ahead");
     let a = sample::SAMPLE_ACCOUNT.to_string();
+    index_now(&s, &a);
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder(&a, "INBOX").unwrap();
     let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
@@ -372,23 +420,23 @@ fn a_body_downloaded_ahead_is_searched() {
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     assert_eq!(s.run("search.run", &json!({"query": "zeppelin", "scope": "all"})).unwrap()["results"], 0);
-    assert_eq!(s.index_builds(), 1);
     store.write_body(&key, b"From: a@x.example\r\nSubject: Headers only\r\n\r\nThe zeppelin lands at noon.\r\n").unwrap();
-    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
-    assert_eq!(s.run("search.run", &json!({"query": "zeppelin", "scope": "all"})).unwrap()["results"], 1);
-    assert_eq!(s.index_builds(), 1, "the folder's words kept, the new body's added");
+    let generation = index_now(&s, &a);
+    indexed(&mut s, &a, generation);
+    assert_eq!(s.list.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), [key], "found as the index has it");
     done(s);
 }
 
-/// A data file import ends folder after folder: a search open meanwhile doesn't read the
-/// account's mail again for each one, but once, after the import.
+/// A data file import ends folder after folder: a search open meanwhile scans each folder that
+/// changes again, and what came in is found; what it read of other messages' text it doesn't
+/// read again.
 #[test]
-fn an_import_reads_search_words_again_once() {
+fn a_search_during_an_import_follows_it() {
     let mut s = sample_session("search-import");
     let a = sample::SAMPLE_ACCOUNT.to_string();
     s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
     let before = s.list.len();
-    assert_eq!(s.index_builds(), 1);
+    let sources = s.search_stats().sources;
     s.apply(Event::ImportProgress { account: a.clone(), progress: Default::default() });
     // A message comes into the Inbox as the import goes on.
     let store = s.store.clone().unwrap();
@@ -402,37 +450,10 @@ fn an_import_reads_search_words_again_once() {
     for n in 0..50 {
         let folder = folders[n % folders.len()].clone();
         s.apply(Event::FolderChanged { account: a.clone(), folder });
-        s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
     }
-    assert_eq!(s.index_builds(), 1, "not read again while the import goes on");
-    assert_eq!(s.list.len(), before, "what was found stays found");
-    // What came in meanwhile is found by its summary until then.
-    assert_eq!(s.run("search.run", &json!({"query": "imported", "scope": "all"})).unwrap()["results"], 1);
-    s.apply(Event::Imported { account: a.clone(), messages: 1, skipped: 0, done: true, error: None, report: None });
-    assert_eq!(s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap()["results"].as_u64(), Some(before as u64 + 1));
-    assert_eq!(s.index_builds(), 2, "read again once, after it");
-    s.run("search.run", &json!({"query": "storyboard imported", "scope": "all"})).unwrap();
-    assert_eq!(s.index_builds(), 2);
-    done(s);
-}
-
-/// An import into an account whose folders have no search words yet: a search reads them once
-/// (mail already in is found by its text, not just its summary), not again for each folder the
-/// import finishes. The import failing (its thread couldn't start, say) ends it all the same.
-#[test]
-fn a_search_during_an_import_reads_the_words_once() {
-    let mut s = sample_session("search-import-first");
-    let a = sample::SAMPLE_ACCOUNT.to_string();
-    s.apply(Event::ImportProgress { account: a.clone(), progress: Default::default() });
-    assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 1, "found in a message's text");
-    assert_eq!(s.index_builds(), 1);
-    let folders: Vec<String> = s.account(&a).unwrap().folders.iter().map(|f| f.path.clone()).collect();
-    for folder in folders {
-        s.apply(Event::FolderChanged { account: a.clone(), folder });
-        s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap();
-    }
-    assert_eq!(s.index_builds(), 1);
-    // Nothing came in: the account goes, and its search words with it.
+    assert_eq!(s.list.len(), before + 1, "what came in is found");
+    assert_eq!(s.search_stats().sources, sources + 1, "only what came in was read");
+    // Nothing came in after all: the account goes, and the search finds nothing of it.
     s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: true, error: Some("no thread".into()), report: None });
     assert!(s.account(&a).is_none());
     assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 0);

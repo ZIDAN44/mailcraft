@@ -65,7 +65,7 @@ impl Session {
                     self.refresh_list();
                 }
                 self.mark_junk(&account);
-                self.index_folders_listed(&account);
+                self.search_folders_changed(&account);
                 self.want_index(&account, None);
             }
             Event::FolderChanged { account, folder } => {
@@ -169,7 +169,6 @@ impl Session {
                 if !self.defer_arrived(&key, &raw) {
                     self.show_body(&key, &raw);
                 }
-                self.index_body(&key, &raw);
                 self.invitation_body(&key);
                 // Downloaded now, or read from the cache: a pass finds which. A local account's
                 // (a data file's) is always read from it, nothing new to index.

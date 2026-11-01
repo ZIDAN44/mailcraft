@@ -149,9 +149,10 @@ written (`Compose`), preferences and status-bar notices.
   changes. A flag or category changed on mail in the list is taken into the list as it stands
   (`patch_list` in `session/mailboxes/patch.rs`) rather than by building it again, where that
   gives the same list: a read mark counts its row's unread again, mail the filter now leaves out
-  goes, a list arranged by flag is arranged again and a pin lays the rows out again; a search,
-  the Outbox, deleted and junk marks, and mail the filter lets in are built again. The proptest
-  `patched_list_equals_refresh` holds it to `refresh_list`.
+  goes, a list arranged by flag is arranged again and a pin lays the rows out again; with a
+  search, the changed messages alone are weighed against it again (built again only when what
+  it finds changed); the Outbox, deleted and junk marks, and mail the filter lets in are built
+  again. The proptest `patched_list_equals_refresh` holds it to `refresh_list`.
 
 - `run(id, params)` dispatches a command from the registry (`cmd.rs`), checking `enabled` first and
   catching panics.
@@ -193,13 +194,32 @@ sides, from a table `cargo xtask fold` generates from Unicode's decompositions (
 `fold --check` in `xtask ci`), so no normalizer is carried at run time. A query is checked with
 `Query::eval` (`search/matching.rs`), which answers yes, no or unknown (Kleene logic): the summary's
 clauses come from a folded `SummaryText`, the text's from a `TextSource` (the index, or the text
-itself), which answers unknown for a word it lacks when the text was cut short or had none. The
-session builds an inverted index (`search/index.rs`: `BTreeMap<word, docs>`, so a word prefix is
-one range scan) over summaries, cached bodies and attachment names for the chosen scope;
-candidates are verified against the full query, so the index may over-approximate but never
-misses. The index is rebuilt lazily after changes.
+itself), which answers unknown for a word it lacks when the text was cut short or had none.
 
-The index that replaces it is kept with each account's mail (`store/src/search.rs` + `search/`,
+The session runs a search a bounded unit of work at a time (`session/searching/run.rs`:
+`start_search`, then `search_step(units)`), no clock and no network in it: a unit is a page of a
+folder's list read (`Store::folder_load`), an account's index opened, up to two of its pages looked
+through for a query word (`Reader::scan_prefix`), 512 summaries checked, a message's kept text
+read or 256 KiB of it checked (a phrase across two slices is in the second, which starts 4 KiB
+back), or a step of putting the list together at the end (gathered and filtered, arranged, shown
+with its conversations). The folders a search reads stay in the cache while it lasts, and their
+summaries' folded text is kept between searches (`searching/folder_text.rs`, 48 MiB, forgotten
+with the folder's list). The summary settles flags, dates, senders and subjects; the index's
+words settle the text (`searching/matching.rs`: `has:attachment` takes the files the index counted,
+pictures the text shows left out); a phrase, an address the index can't look up, or a text cut
+short is checked against the text the index keeps. What a message's text said is kept for the
+search (flags are never text), so a flag changed on a result is weighed again for that message
+alone (`search_patched`). A message the index doesn't have yet may be missing (`missing`); a
+search that waits (the CLI, scripts, tests: the default) reads it from its source instead
+(`mime::index_doc`), so it finds what the index would. The window turns waiting off
+(`set_background_search`) and steps the search eight units a frame: what's found is merged into
+the list by date as it's found (`searching/publish.rs`), conversations and other arrangements at
+the end. Mail coming into or leaving a folder has that folder scanned again (what it found stays
+shown until the scan says otherwise); a newer generation of an index (`Event::Indexed`, read again
+at most every 2 s, at once when the pass is over) has its account's words looked up again and its
+folders scanned again; folders appearing or going start the search again.
+
+The index is kept with each account's mail (`store/src/search.rs` + `search/`,
 under `<account>/search/v1/`, so in the account's data file, on disk, or in memory like the rest of
 it; a data file from before has none and opens unchanged). A meta (`meta.bin`) names what the index
 is: a doc table of 32-byte records in pages of 4,096, copied on write under the generation that

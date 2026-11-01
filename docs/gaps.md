@@ -1717,4 +1717,19 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   messages when an import starts or the account goes, what it did kept and nothing written for
   an account removed. A message whose text can't be taken out is counted and kept with no
   words. No pass runs for an account a data file is being imported into. The browser builds its
-  index the same way, a few messages a frame. The search box doesn't read the index yet.
+  index the same way, a few messages a frame.
+- **Search never waits on the mail:** the search box read and parsed every message in the folders
+  it looked in (every attachment decoded with it) on the window's thread, and threw that away when
+  a message was marked read, a folder changed or another view opened: 2½ minutes on a 41 GB
+  `.pst`'s mailbox, again after opening an unread result. It now reads the index: the summaries
+  answer flags, dates, senders and subjects, the index the words, the text it keeps the phrases,
+  and no message is read for a search in the window. It runs a few bounded steps a frame (a page
+  of a folder's list, 512 summaries, two pages of the index, 256 KiB of a text), so typing and
+  moving about never wait for it; what's found shows as it's found, newest first, and is put into
+  conversations at the end. Mail the index doesn't have yet may be missing (counted, for the
+  search box to say) and comes in by itself once a pass has indexed it, without searching again. Marking a
+  result read or flagging it weighs that message alone; mail coming into a folder has that folder
+  looked at again; another view keeps each folder's folded text. `has:attachment` counts the
+  files the index found, leaving out pictures the text shows (on mail indexed). The CLI and
+  scripts still wait for a search, reading from its source what the index doesn't have yet
+  (`search.run` takes `"background": true` to not wait).

@@ -39,22 +39,22 @@ impl Session {
     }
 
     pub(super) fn apply_op_memory(&mut self, account: &str, op: &Op) {
-        // Search words hold no flags or categories: those keep them; mail leaving or coming
-        // into a folder doesn't.
+        // Search reads no flags or categories as text: those keep what it read; mail leaving or
+        // coming into a folder has the folder scanned again.
         match op {
             Op::Move { keys, to } => {
                 let folders: HashSet<&str> = keys.iter().map(|k| k.folder.as_str()).chain([to.as_str()]).collect();
                 for f in folders {
-                    self.index_changed(account, f);
+                    self.search_folder_changed(account, f);
                 }
             }
             Op::Expunge { keys } => {
                 let folders: HashSet<&str> = keys.iter().map(|k| k.folder.as_str()).collect();
                 for f in folders {
-                    self.index_changed(account, f);
+                    self.search_folder_changed(account, f);
                 }
             }
-            Op::EmptyFolder { path } => self.index_changed(account, path),
+            Op::EmptyFolder { path } => self.search_folder_changed(account, path),
             Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {}
         }
         if op.is_folder_op() {
@@ -304,6 +304,6 @@ impl Session {
             }
             Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
         }
-        self.forget_account_index(account);
+        self.search_folders_changed(account);
     }
 }

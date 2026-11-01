@@ -12,10 +12,11 @@ impl Session {
     /// as it stands; false when it must be built again ([`Session::refresh_list`]), the same
     /// list either way.
     ///
-    /// Built again: for a search (it may test the flag, `is:unread`) and the Outbox; for deleted
-    /// mail and junk marks (junk moves, and what's focused can change); for a list changed by
-    /// hand since it was built; and when the change lets mail in that the filter left out
-    /// (marked unread, shown Unread only). Mail the filter now leaves out goes from the list
+    /// With a search, the changed messages are weighed against it again, alone: built again
+    /// only when what it finds changed (`is:unread` and a message marked read). Built again: for
+    /// the Outbox; for deleted mail and junk marks (junk moves, and what's focused can change);
+    /// for a list changed by hand since it was built; and when the change lets mail in that the
+    /// filter left out (marked unread, shown Unread only). Mail the filter now leaves out goes from the list
     /// (but for the message being read, kept as `refresh_list` keeps it); a list arranged by
     /// the flag is arranged again; a pin lays the rows out again; a read mark changes the
     /// unread count of its row only.
@@ -36,12 +37,15 @@ impl Session {
             Op::SetKeyword { keys, keyword, .. } => (keys, filter == ListFilter::Categorized, false, keyword.eq_ignore_ascii_case(PINNED), false),
             _ => return false,
         };
-        if self.search.is_some() || self.view == View::Outbox || !self.nav_fresh() {
+        if self.view == View::Outbox || !self.nav_fresh() || (self.search.is_some() && !self.search_patched(keys)) {
             return false;
         }
         // The changed messages as the cache has them, each folder shown looked through once (a
         // select-all marks every message of a big folder at once).
-        let shown = self.view_folders();
+        let shown = match (&self.search, &self.search_state.run) {
+            (Some(_), Some(run)) => run.folders.clone(),
+            _ => self.view_folders(),
+        };
         let mut uids: HashMap<(&str, &str), HashSet<u32>> = HashMap::new();
         for k in keys {
             if shown.iter().any(|(a, f)| *a == k.account && *f == k.folder) {

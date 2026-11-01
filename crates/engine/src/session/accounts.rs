@@ -366,7 +366,7 @@ impl Session {
         };
         self.accounts.retain(|a| a.config.id != id);
         self.cache.retain(|(a, _), _| a != id);
-        self.forget_account_index(id);
+        self.search_folders_changed(id);
         self.importing.remove(id);
         self.pim.remove(id);
         // An account added later under the same id has its own calendar and contacts to save.

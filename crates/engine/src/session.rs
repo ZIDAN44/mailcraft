@@ -8,7 +8,7 @@ use mailcraft_mime::{self as mime, OutAttachment, Parsed, ReplyMode};
 use mailcraft_model::contacts::{Contact, ContactBook};
 use mailcraft_model::dates::{Clock, DateGroup};
 use mailcraft_model::job::{Secret, Vacation};
-use mailcraft_model::search::{Doc, Index, Query, SummaryText, TextField, TextSource, Tri, summary_text};
+use mailcraft_model::search::{Doc, Query, SummaryText, TextField, TextSource, Tri};
 use mailcraft_model::thread::{Thread, threads};
 use mailcraft_model::{
     AccountConfig, EmailAddress, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,
@@ -37,7 +37,7 @@ mod writing;
 #[cfg(test)]
 pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
-pub use searching::IndexPass;
+pub use searching::{IndexPass, SearchProgress, SearchStats};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::{Compose, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
@@ -352,25 +352,6 @@ pub struct Notice {
     pub error: bool,
 }
 
-/// One folder's search words: kept until that folder's mail changes, whatever is on view.
-struct SearchIndex {
-    index: Index,
-    keys: Vec<MessageKey>,
-    /// Whether each message's body words are in the index (the words themselves aren't kept: a
-    /// big mailbox's would fill the memory; they're read again for the messages a search finds).
-    has_body: Vec<bool>,
-    /// A hash of each message's summary words: a message whose summary changed (its preview
-    /// filled in by its download) has its new words added.
-    texts: Vec<u64>,
-    /// The folder's list was read again (a sync, an edit the cache recorded): checked at the
-    /// next search, and kept when it holds the same messages (a flag changed), with the words
-    /// of what was downloaded since.
-    recheck: bool,
-    /// The folder changed while its account was importing: still used, built again once the
-    /// import is done (not once per folder the import finishes).
-    stale: bool,
-}
-
 /// File for the Replied/Forwarded flags still owed by replies and forwards in the Outbox.
 const PENDING_MARKS: &str = "pending-marks.json";
 /// The mail rules, and the snoozed mail to bring back.
@@ -380,9 +361,6 @@ const SNOOZES_DOC: &str = "snoozes.json";
 /// Message summaries kept in memory at most, besides the folders on screen (a big data file's
 /// whole mailbox is several times this).
 const CACHE_MESSAGES: usize = 300_000;
-
-/// Body words kept for search at most (bytes): enough for the messages a search looks at again.
-const BODY_WORDS_BYTES: usize = 48 << 20;
 
 /// How many command panics [`Session::run`] has caught in this process: none is the only right
 /// number, so tests that drive the whole window check it (a caught panic is otherwise only a
@@ -518,15 +496,13 @@ pub struct Session {
     pub cal_mode: pim::CalMode,
     /// The local day the calendar shows (`None`: today).
     pub cal_day: Option<i64>,
-    /// Each folder's search words, by (account, folder).
-    index: HashMap<(String, String), SearchIndex>,
-    /// How many times search words were read for some folder ([`Session::index_builds`]).
-    index_builds: u64,
+    /// Search: the one running (or done and shown), and what it keeps between searches.
+    search_state: searching::SearchState,
     /// How many times a message was shown in the reading pane ([`Session::messages_shown`]).
     shown: u64,
     /// The open message's body, when it's got ready on another thread.
     pub(crate) body: opening::BodyLane,
-    /// Accounts a data file is being imported into: their folders' search words wait for the end.
+    /// Accounts a data file is being imported into: their index is brought up at the end.
     importing: HashSet<String>,
     /// The search indexes kept up in the background.
     indexing: searching::Indexing,
@@ -534,12 +510,6 @@ pub struct Session {
     read_due: Option<(MessageKey, i64)>,
     /// The message to mark read once another is chosen (`ReadInPane::Left`).
     read_on_leave: Option<MessageKey>,
-    /// Each downloaded message's words for search (its text and attachment names), read from
-    /// the cache once: a folder's index is built again when its mail changes, and parsing every
-    /// message again each time made typing in the search box hang.
-    body_words: HashMap<MessageKey, Arc<str>>,
-    /// Their size, kept under [`BODY_WORDS_BYTES`].
-    body_words_bytes: usize,
     registry: Arc<Registry>,
     next_id: u64,
     seed: u64,
@@ -626,16 +596,13 @@ impl Session {
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,
             cal_day: None,
-            index: HashMap::new(),
-            index_builds: 0,
+            search_state: Default::default(),
             shown: 0,
             body: Default::default(),
             importing: HashSet::new(),
             indexing: Default::default(),
             read_due: None,
             read_on_leave: None,
-            body_words: HashMap::new(),
-            body_words_bytes: 0,
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
             next_id: u64::try_from(clock.now.max(0)).unwrap_or(0).saturating_mul(1000),

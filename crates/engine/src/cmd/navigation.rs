@@ -146,7 +146,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"on"?: bool}"#),
         // Search
         CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(
-            r#"{"query": string, "scope"?: "current"|"subfolders"|"mailbox"|"all" (kept for the next searches; default: the last one), "remember"?: bool (among the recent searches)}"#,
+            r#"{"query": string, "scope"?: "current"|"subfolders"|"mailbox"|"all" (kept for the next searches; default: the last one), "remember"?: bool (among the recent searches), "background"?: bool (found as the window steps it, `pending` until done; default: as searches run, settled for the CLI and scripts)}"#,
         ),
         CommandSpec::new("search.remember", "Remember a search", "Search box (left with a search in it)", |s, v| {
             s.remember_search(p::req_str(v, "query")?);
@@ -438,6 +438,8 @@ pub(super) fn search(s: &mut Session, v: &Value) -> CmdResult {
     if p::bool(v, "remember").unwrap_or(false) {
         s.remember_search(&q);
     }
-    let n = s.run_search(&q, scope);
-    Ok(json!({"results": n, "scope": scope.code()}))
+    let background = p::bool(v, "background").unwrap_or(s.background_search());
+    let n = s.run_search_with(&q, scope, background);
+    let pending = s.search_progress().is_some_and(|p| !p.done);
+    Ok(json!({"results": n, "scope": scope.code(), "pending": pending}))
 }
