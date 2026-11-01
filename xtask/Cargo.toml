@@ -10,3 +10,6 @@ publish = false
 serde_json = { workspace = true }
 # PNG encoding for `cargo xtask icons`.
 png = "0.18"
+# Unicode decompositions for `cargo xtask fold` (search's fold table); xtask only, so the
+# model and the browser build carry no normalizer.
+icu_normalizer = { version = "2", default-features = false, features = ["compiled_data"] }
