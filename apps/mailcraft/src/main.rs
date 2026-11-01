@@ -11,7 +11,6 @@
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-use mailcraft_ui_egui::backstage::{Backstage, Page};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -21,9 +20,9 @@ use mailcraft_engine::Session;
 use mailcraft_engine::model::AccountConfig;
 use mailcraft_engine::model::dates::Clock;
 use mailcraft_engine::model::{Event, Job};
-use mailcraft_engine::store::{Store, location};
+use mailcraft_engine::store::{OpenProgress, Store, location};
 use mailcraft_net::worker::{Credentials, Pool};
-use mailcraft_ui_egui::{Backend, MailApp, Services, VideoFrame};
+use mailcraft_ui_egui::{Backend, BootCard, MailApp, Services, VideoFrame};
 use secrets::Keychain;
 #[cfg(all(test, windows))]
 use secrets::SERVICE;
@@ -355,8 +354,8 @@ fn main() -> eframe::Result {
     let (now, offset) = Desktop::default().clock();
     let store = root.as_ref().and_then(|r| {
         let opened = match &files {
-            Some(f) => Store::open_packed(r, f).or_else(|e| {
-                // Folders from before that couldn't come into data files stay as they are.
+            // Nothing opened here: the data files open behind the window (`desktop/boot.rs`).
+            Some(f) => Store::packed(r, f).or_else(|e| {
                 moved = Some(Err(e.to_string()));
                 Store::open(r)
             }),
@@ -376,28 +375,33 @@ fn main() -> eframe::Result {
     {
         say(&format!("the sample mailbox couldn't be created: {e}"));
     }
-    let mut session = Session::open(store.clone(), Clock::new(now, offset));
-    let desktop_data = store.as_ref().and_then(Store::data_files_dir);
-    session.oauth_available = mailcraft_net::oauth::available();
-    // S/MIME signers are trusted through the roots this computer trusts.
-    session.set_trust_roots(mailcraft_net::trust_roots());
-    session.set_card_modules(mailcraft_net::card_modules());
-    session.portable = portable.dir.is_some();
     // A release build's commit, so File › About can tell its test build from a later one.
-    session.build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);
+    let build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);
+    let made = (Clock::new(now, offset), portable.dir.is_some(), build_sha.clone());
+    // The data files open on a thread of their own, and the session is made there from them,
+    // while the window shows how that goes (a file not closed properly is checked: minutes).
+    let opening = {
+        let made = made.clone();
+        desktop::boot::open(store, root.clone(), moved, move |store| desktop::start::session(store, made))
+    };
     let state_path = root.as_ref().map(|r| r.join("ui.json"));
     // Test builds update themselves (`self_update.rs`); not the sample mailbox's run, unless it's
     // trying the updater out.
-    let updater =
-        root.clone().filter(|_| !sample || self_update::trying_out()).and_then(|r| self_update::Updater::start(r, session.build_sha.clone()));
+    let updater = root.clone().filter(|_| !sample || self_update::trying_out()).and_then(|r| self_update::Updater::start(r, build_sha));
 
+    let saved_ui = state_path.as_ref().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
     // The main window opens where it was, at the size it was, maximized if it was.
-    let main_place: Option<mailcraft_ui_egui::WindowPlace> = state_path
-        .as_ref()
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-        .and_then(|v| v.get("windows")?.get("main").cloned())
-        .and_then(|m| serde_json::from_value(m).ok());
+    let main_place: Option<mailcraft_ui_egui::WindowPlace> =
+        saved_ui.as_ref().and_then(|v| v.get("windows")?.get("main").cloned()).and_then(|m| serde_json::from_value(m).ok());
+    // Until MailCraft is in it, the window is in the language and the light or dark chosen.
+    let dark = if args.iter().any(|a| a == "--light") {
+        Some(false)
+    } else if args.iter().any(|a| a == "--dark") {
+        Some(true)
+    } else {
+        saved_ui.as_ref().and_then(|v| v.get("dark")?.as_bool())
+    };
+    let card = BootCard::new(saved_ui.as_ref().and_then(|v| v.get("language")?.as_str()).unwrap_or(mailcraft_ui_egui::i18n::AUTO), dark);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(if sample { "MailCraft – Sample mailbox" } else { "MailCraft" })
@@ -435,7 +439,7 @@ fn main() -> eframe::Result {
     // A window that can't open says why, rather than the app leaving without a word (or
     // staying in the background); a panic on the way is caught for that too.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run(options, sample, store, session, desktop_data, base, moved, state_path, (cmd_args, handed), instance, updater)
+        run(options, sample, (opening, card, made), base, state_path, (cmd_args, handed), instance, updater)
     }));
     let failed = match ran {
         Ok(Ok(())) => return Ok(()),
@@ -516,16 +520,18 @@ fn cant_open(why: &str) -> String {
     format!("MailCraft's window couldn't open:\n{why}\n\nThis is usually the graphics driver. {help}\n\nThe details are in {log}.")
 }
 
-/// Open the window and run the app until it closes.
+/// The data files opening (`desktop/boot.rs`), what the window shows meanwhile, and what the
+/// session is made with if they couldn't be.
+type Opening = ((Arc<OpenProgress>, std::sync::mpsc::Receiver<desktop::boot::Opened>), BootCard, desktop::start::Made);
+
+/// Open the window and run the app until it closes: the boot card while the data files open,
+/// then MailCraft.
 #[allow(clippy::too_many_arguments)]
 fn run(
     options: eframe::NativeOptions,
     sample: bool,
-    store: Option<Store>,
-    session: Session,
-    desktop_data: Option<PathBuf>,
+    ((progress, opened), card, made): Opening,
     base: Option<PathBuf>,
-    moved: Option<Result<PathBuf, String>>,
     state_path: Option<PathBuf>,
     (cmd_args, handed): (Vec<String>, Vec<String>),
     instance: Option<single_instance::Server>,
@@ -538,20 +544,7 @@ fn run(
         "MailCraft",
         options,
         Box::new(move |cc| {
-            let args = cmd_args;
-            let app_portable = session.portable;
-            let backend: Box<dyn Backend> = match store {
-                Some(store) => {
-                    // Portable: passwords and sign-ins in memory only, never the system's keychain.
-                    let creds: Arc<dyn Credentials> =
-                        if app_portable { Arc::new(mailcraft_net::worker::MemoryCredentials::default()) } else { Arc::new(Keychain) };
-                    let pool = Pool::new(store, creds);
-                    let ctx = cc.egui_ctx.clone();
-                    pool.set_waker(Arc::new(move || ctx.request_repaint()));
-                    Box::new(PoolBackend(pool))
-                }
-                None => Box::new(mailcraft_ui_egui::NullBackend),
-            };
+            // What the window needs from the start, before MailCraft is in it.
             // The updater wakes the window as the update downloads and is ready.
             if let Some(u) = &updater {
                 let ctx = cc.egui_ctx.clone();
@@ -563,74 +556,8 @@ fn run(
                 let ctx = cc.egui_ctx.clone();
                 dark.follow(move || ctx.request_repaint());
             }
-            let mut app = MailApp::new(
-                session,
-                backend,
-                Box::new(Desktop {
-                    dark,
-                    data: desktop_data,
-                    base,
-                    moved,
-                    #[cfg(windows)]
-                    portable: app_portable,
-                    updater: updater.clone(),
-                    ..Default::default()
-                }),
-            );
-            if sample {
-                app.ui.title_base = "MailCraft – Sample mailbox".into();
-            }
             let (regular, bold) = system_fonts();
-            // PDFs (print, save as PDF) embed the same font.
-            if let Some(r) = &regular {
-                app.session.print_fonts = Some((r.clone(), bold.clone()));
-            }
-            app.install_fonts(&cc.egui_ctx, regular, bold);
-            if let Some(v) = state_path.as_ref().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()) {
-                app.restore_state(&v);
-            }
-            if args.iter().any(|a| a == "--light") {
-                app.ui.dark = Some(false);
-            } else if args.iter().any(|a| a == "--dark") {
-                app.ui.dark = Some(true);
-            }
-            for c in args.windows(2).filter(|w| w.first().is_some_and(|a| a == "--cmd")).filter_map(|w| w.get(1)) {
-                let (id, params) = c.split_once('=').unwrap_or((c.as_str(), "{}"));
-                match id {
-                    "ui.addAccount" => {
-                        let p: serde_json::Value = serde_json::from_str(params).unwrap_or_default();
-                        let mut d = mailcraft_ui_egui::Dialog::add_account_with(
-                            p.get("email").and_then(|v| v.as_str()).unwrap_or_default(),
-                            p.get("advanced").and_then(|v| v.as_bool()).unwrap_or(false),
-                        );
-                        if let mailcraft_ui_egui::Dialog::AddAccount(f) = &mut d {
-                            f.graph = p.get("graph").and_then(|v| v.as_bool()).unwrap_or(false);
-                            f.pop = p.get("pop").and_then(|v| v.as_bool()).unwrap_or(false);
-                        }
-                        app.ui.dialog = Some(d);
-                    }
-                    "ui.file" | "ui.settings" => app.ui.backstage = Some(Backstage::new(Page::Info)),
-                    "ui.options" => app.ui.backstage = Some(Backstage::new(Page::Options)),
-                    "ui.openExport" => app.ui.backstage = Some(Backstage::new(Page::Open)),
-                    "ui.about" => app.ui.backstage = Some(Backstage::new(Page::About)),
-                    "ui.newEvent" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_event(&app.session, None)),
-                    "ui.newContact" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_contact()),
-                    "ui.signature" => app.ui.dialog = mailcraft_ui_egui::Dialog::signature(&app.session),
-                    "ui.categories" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::Categories),
-                    "ui.nameKeyword" => {
-                        let p: serde_json::Value = serde_json::from_str(params).unwrap_or_default();
-                        let k = p.get("keyword").and_then(|v| v.as_str()).unwrap_or_default();
-                        app.ui.dialog = Some(mailcraft_ui_egui::Dialog::name_keyword(k));
-                    }
-                    _ => match serde_json::from_str(params) {
-                        Ok(p) => app.run(id, p),
-                        Err(e) => say(&format!("--cmd {id}: bad JSON: {e}")),
-                    },
-                }
-            }
-            for h in &handed {
-                app.open_handed(h);
-            }
+            mailcraft_ui_egui::theme::install_fonts(&cc.egui_ctx, regular.clone(), bold.clone());
             let gpu = cc.wgpu_render_state.as_ref().map(|rs| rs.device.clone());
             if let Some(server) = &instance {
                 server.connect(&cc.egui_ctx);
@@ -639,27 +566,96 @@ fn run(
             let native_wayland = cfg!(all(unix, not(target_os = "macos")))
                 && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty())
                 && display::choose_from_env() != display::Choice::X11;
-            Ok(Box::new(App {
-                app,
-                state_path,
-                gpu,
-                frames: 0,
-                instance,
-                #[cfg(target_os = "macos")]
-                finder: {
-                    apple_events::repaint_on_arrival(&finder, &cc.egui_ctx);
-                    // ⌘Q asks before what's being written is lost; without the menu it still
-                    // runs, quitting as winit's does.
-                    if let Err(e) = apple_events::install_menu(&cc.egui_ctx) {
-                        log::warn!("the app menu wasn't put in place, so Quit won't ask first: {e}");
+            #[cfg(target_os = "macos")]
+            {
+                apple_events::repaint_on_arrival(&finder, &cc.egui_ctx);
+                // ⌘Q asks before what's being written is lost; without the menu it still runs,
+                // quitting as winit's does.
+                if let Err(e) = apple_events::install_menu(&cc.egui_ctx) {
+                    log::warn!("the app menu wasn't put in place, so Quit won't ask first: {e}");
+                }
+            }
+            let booting_updater = updater.clone();
+            // MailCraft, once its data files are open.
+            let start: desktop::boot::Start = Box::new(move |ctx, opened, instance| {
+                let args = cmd_args;
+                let desktop::boot::Opened { store, session: made_session, moved } = opened;
+                // The store opened with: the plain cache when folders from before couldn't come
+                // into data files, none if opening failed altogether.
+                let desktop_data = store.as_ref().and_then(Store::data_files_dir);
+                let app_portable = made.1;
+                let session = made_session.unwrap_or_else(|| desktop::start::session(None, made));
+                let backend: Box<dyn Backend> = match store {
+                    Some(store) => {
+                        // Portable: passwords and sign-ins in memory only, never the system's keychain.
+                        let creds: Arc<dyn Credentials> =
+                            if app_portable { Arc::new(mailcraft_net::worker::MemoryCredentials::default()) } else { Arc::new(Keychain) };
+                        let pool = Pool::new(store, creds);
+                        let ctx = ctx.clone();
+                        pool.set_waker(Arc::new(move || ctx.request_repaint()));
+                        Box::new(PoolBackend(pool))
                     }
-                    finder
-                },
+                    None => Box::new(mailcraft_ui_egui::NullBackend),
+                };
+                let mut app = MailApp::new(
+                    session,
+                    backend,
+                    Box::new(Desktop {
+                        dark,
+                        data: desktop_data,
+                        base,
+                        moved,
+                        #[cfg(windows)]
+                        portable: app_portable,
+                        updater: updater.clone(),
+                        ..Default::default()
+                    }),
+                );
+                if sample {
+                    app.ui.title_base = "MailCraft – Sample mailbox".into();
+                }
+                // PDFs (print, save as PDF) embed the same font.
+                if let Some(r) = &regular {
+                    app.session.print_fonts = Some((r.clone(), bold.clone()));
+                }
+                app.install_fonts(ctx, regular, bold);
+                if let Some(v) = state_path.as_ref().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()) {
+                    app.restore_state(&v);
+                }
+                if args.iter().any(|a| a == "--light") {
+                    app.ui.dark = Some(false);
+                } else if args.iter().any(|a| a == "--dark") {
+                    app.ui.dark = Some(true);
+                }
+                desktop::start::commands(&mut app, &args);
+                for h in &handed {
+                    app.open_handed(h);
+                }
+                App {
+                    app,
+                    state_path,
+                    gpu,
+                    frames: 0,
+                    instance,
+                    #[cfg(target_os = "macos")]
+                    finder,
+                    native_wayland,
+                    updater,
+                    saved: Vec::new(),
+                    looked: std::time::Instant::now(),
+                }
+            });
+            Ok(Box::new(desktop::boot::Window::Booting(Box::new(desktop::boot::Booting {
+                card,
+                progress,
+                opened,
+                came: None,
+                start: Some(start),
+                instance,
+                updater: booting_updater,
+                handed: Vec::new(),
                 native_wayland,
-                updater,
-                saved: Vec::new(),
-                looked: std::time::Instant::now(),
-            }))
+            }))))
         }),
     )
 }

@@ -1362,3 +1362,11 @@ month	May	מאי
 	Calendar and contacts couldn't be read: changes to them won't be saved	לא ניתן היה לקרוא את לוח השנה ואנשי הקשר: שינויים בהם לא יישמרו
 	Your rules couldn't be read: changes to them won't be saved	לא ניתן היה לקרוא את הכללים שלך: שינויים בהם לא יישמרו
 	Snoozed mail couldn't be read: changes to it won't be saved	לא ניתן היה לקרוא את הדואר שנדחה: שינויים בו לא יישמרו
+	Checking your data file	בודק את קובץ הנתונים
+	Opening your mail…	פותח את הדואר…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} לא נסגר כראוי בפעם הקודמת. MailCraft בודק אותו; בקובץ גדול זה עשוי להימשך דקה או שתיים.
+	{done} of {total} data files	{done} מתוך {total} קובצי נתונים
+	Some of your mail couldn't be opened	לא ניתן היה לפתוח חלק מהדואר שלך
+	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft נפתח בלעדיהם; כל חשבון יציין מה הבעיה כשתשתמש בו.
+	Continue	המשך
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft לא הצליח לפתוח את קובצי הנתונים, ולכן הפעם הוא פועל ללא מטמון הדואר.

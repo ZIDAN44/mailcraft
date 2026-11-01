@@ -1362,3 +1362,11 @@ month	May	مايو
 	Calendar and contacts couldn't be read: changes to them won't be saved	تعذّرت قراءة التقويم وجهات الاتصال: لن تُحفظ التغييرات عليها
 	Your rules couldn't be read: changes to them won't be saved	تعذّرت قراءة القواعد: لن تُحفظ التغييرات عليها
 	Snoozed mail couldn't be read: changes to it won't be saved	تعذّرت قراءة البريد المؤجَّل: لن تُحفظ التغييرات عليه
+	Checking your data file	جارٍ فحص ملف البيانات
+	Opening your mail…	جارٍ فتح البريد…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	لم يُغلق {file} بشكل صحيح في المرة السابقة. يفحصه MailCraft الآن؛ وقد يستغرق الملف الكبير دقيقة أو اثنتين.
+	{done} of {total} data files	{done} من {total} من ملفات البيانات
+	Some of your mail couldn't be opened	تعذّر فتح جزء من بريدك
+	MailCraft opens without them; each account says what's wrong when you use it.	يفتح MailCraft من دونها، وسيوضح كل حساب المشكلة عند استخدامه.
+	Continue	متابعة
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	تعذّر على MailCraft فتح ملفات البيانات، لذا يعمل هذه المرة دون ذاكرة البريد المؤقتة.

@@ -1362,3 +1362,11 @@ month	May	mei
 	Calendar and contacts couldn't be read: changes to them won't be saved	Agenda en contactpersonen konden niet worden gelezen: wijzigingen daarin worden niet opgeslagen
 	Your rules couldn't be read: changes to them won't be saved	Je regels konden niet worden gelezen: wijzigingen daarin worden niet opgeslagen
 	Snoozed mail couldn't be read: changes to it won't be saved	Uitgestelde e-mail kon niet worden gelezen: wijzigingen daarin worden niet opgeslagen
+	Checking your data file	Uw gegevensbestand wordt gecontroleerd
+	Opening your mail…	Uw e-mail wordt geopend…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} is de vorige keer niet goed afgesloten. MailCraft controleert het bestand; bij een groot bestand kan dat een minuut of twee duren.
+	{done} of {total} data files	{done} van {total} gegevensbestanden
+	Some of your mail couldn't be opened	Een deel van uw e-mail kon niet worden geopend
+	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft opent zonder deze bestanden; elk account meldt het probleem wanneer u het gebruikt.
+	Continue	Doorgaan
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft kon zijn gegevensbestanden niet openen en werkt deze keer zonder e-mailcache.

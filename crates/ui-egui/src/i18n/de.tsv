@@ -1367,3 +1367,11 @@ month	May	Mai
 	Calendar and contacts couldn't be read: changes to them won't be saved	Kalender und Kontakte konnten nicht gelesen werden: Änderungen daran werden nicht gespeichert
 	Your rules couldn't be read: changes to them won't be saved	Deine Regeln konnten nicht gelesen werden: Änderungen daran werden nicht gespeichert
 	Snoozed mail couldn't be read: changes to it won't be saved	Zurückgestellte E-Mails konnten nicht gelesen werden: Änderungen daran werden nicht gespeichert
+	Checking your data file	Ihre Datendatei wird geprüft
+	Opening your mail…	Ihre E-Mails werden geöffnet…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} wurde beim letzten Mal nicht richtig geschlossen. MailCraft prüft die Datei; bei einer großen Datei kann das ein, zwei Minuten dauern.
+	{done} of {total} data files	{done} von {total} Datendateien
+	Some of your mail couldn't be opened	Ein Teil Ihrer E-Mails konnte nicht geöffnet werden
+	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft startet ohne sie; jedes Konto nennt das Problem, wenn Sie es verwenden.
+	Continue	Weiter
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft konnte seine Datendateien nicht öffnen und läuft diesmal ohne seinen E-Mail-Cache.

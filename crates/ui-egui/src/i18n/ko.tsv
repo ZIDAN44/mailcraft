@@ -1366,3 +1366,11 @@ month	May	5월
 	Calendar and contacts couldn't be read: changes to them won't be saved	일정과 연락처를 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
 	Your rules couldn't be read: changes to them won't be saved	규칙을 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
 	Snoozed mail couldn't be read: changes to it won't be saved	다시 알림으로 미룬 메일을 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
+	Checking your data file	데이터 파일을 확인하는 중
+	Opening your mail…	메일을 여는 중…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file}이(가) 지난번에 제대로 닫히지 않았습니다. MailCraft에서 확인하고 있습니다. 큰 파일은 1~2분 정도 걸릴 수 있습니다.
+	{done} of {total} data files	데이터 파일 {done}/{total}
+	Some of your mail couldn't be opened	일부 메일을 열 수 없습니다
+	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft는 해당 파일 없이 열립니다. 각 계정을 사용할 때 문제가 표시됩니다.
+	Continue	계속
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft가 데이터 파일을 열 수 없어 이번에는 메일 캐시 없이 실행됩니다.

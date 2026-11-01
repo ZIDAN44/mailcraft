@@ -1363,3 +1363,11 @@ month	May	5月
 	Calendar and contacts couldn't be read: changes to them won't be saved	无法读取日历和联系人：对它们的更改不会保存
 	Your rules couldn't be read: changes to them won't be saved	无法读取你的规则：对它们的更改不会保存
 	Snoozed mail couldn't be read: changes to it won't be saved	无法读取已暂停提醒的邮件：对它们的更改不会保存
+	Checking your data file	正在检查数据文件
+	Opening your mail…	正在打开邮件…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} 上次未正常关闭。MailCraft 正在检查它；大文件可能需要一两分钟。
+	{done} of {total} data files	数据文件 {done}/{total}
+	Some of your mail couldn't be opened	部分邮件无法打开
+	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft 将在没有它们的情况下打开；使用各个帐户时会说明问题所在。
+	Continue	继续
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft 无法打开其数据文件，因此本次将在没有邮件缓存的情况下运行。

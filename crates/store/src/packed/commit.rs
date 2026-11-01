@@ -10,8 +10,8 @@
 //! sealed: closing a file would seal it, but the threads holding the store (an account's worker, an
 //! import) are let go rather than waited for, so the process seldom ends with the files closed.
 //! A crash between a write and its seal costs a full check of the file when it next opens (305 s
-//! for that file). Nothing shows that check yet: the account's first read waits for it (the boot
-//! screen that will show it is still to come).
+//! for that file): the app opens its data files behind its window, which shows the check
+//! (`Store::open_data_files`).
 //!
 //! Writers in the background commit batches that don't wait for the disk; the next durable commit
 //! writes them out. So that a write from the window isn't the one left writing out a long run of

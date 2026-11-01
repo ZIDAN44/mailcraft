@@ -1489,8 +1489,14 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   (and anything still being written as it quits is sealed as it goes in); a crash after that opens
   it again at once (25 ms on a copy of a 37 GB file whose full check took 305 s). Not every commit
   is sealed: on that file it tripled a small one's time (4.6 to 15.6 ms), so a crash within two
-  seconds of a write still costs the full check (nothing shows it yet: the first read of the
-  account waits for it).
+  seconds of a write still costs the full check.
+- **The window comes at once:** the data files open on a thread of their own, so MailCraft's
+  window shows straight away, even while a data file not closed properly is checked (that took
+  minutes with no window at all). A check, or opening that takes longer than a moment, is shown
+  in the window (which file, how far, and of how many); a start with nothing to check shows
+  nothing extra. A data file that can't be opened is said there, with Continue, and the others
+  open; a check holds up only its own account. The CLI opens a data file when a command first
+  uses it (`help` waits for none) and says "Checking" on standard error when that is a check.
 - **Importing while reading:** an import (a `.pst`, or a MailCraft data file brought in) compresses
   each message before it takes the data file, and writes them in batches of at most 2 MiB (a
   bigger message alone) that don't wait for the disk (the folder lists written after them do, and
