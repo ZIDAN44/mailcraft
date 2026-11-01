@@ -91,6 +91,12 @@ impl Packs {
         })
     }
 
+    /// Whether `account`'s data file waits for a seal.
+    #[cfg(test)]
+    pub(crate) fn seal_due(&self, account: &str) -> bool {
+        self.seals.seal_due(account)
+    }
+
     pub(crate) fn dir(&self) -> &Path {
         &self.dir
     }

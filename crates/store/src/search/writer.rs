@@ -13,7 +13,10 @@ use std::collections::{BTreeMap, HashMap};
 
 use mailcraft_model::search::{IndexDoc, TOKENIZER_VERSION, tokens};
 
-use super::format::{Meta, SegBuilder, SegFiles, SegInfo, TextPage, encode_blob, encode_docs, encode_meta, encode_text_page};
+use super::format::{
+    MAX_META, MAX_NAME_BYTES, MAX_SEGMENTS, MAX_TEXT_PAGE, Meta, SegBuilder, SegFiles, SegInfo, TextPage, encode_blob, encode_docs, encode_meta,
+    encode_text_page,
+};
 use super::*;
 
 /// One account's index being written. One at a time per account: another
@@ -29,6 +32,8 @@ pub struct Writer {
     docs: Vec<DocRec>,
     folders: Vec<String>,
     folder_ix: HashMap<String, u16>,
+    /// The folders' names' bytes, all told.
+    folder_bytes: usize,
     /// Each live doc by (folder, uid).
     by_key: HashMap<(u16, u32), u32>,
     /// Doc pages changed since the meta.
@@ -51,6 +56,9 @@ pub struct Writer {
     /// Stop a commit after its files, before its meta (a crash there).
     #[cfg(test)]
     pub(crate) stop_before_meta: bool,
+    /// Fewer segments than a meta names, to reach the limit sooner.
+    #[cfg(test)]
+    pub(crate) max_segments: usize,
     _held: Held,
 }
 
@@ -155,6 +163,7 @@ impl Writer {
 
     fn with(store: &Store, account: &str, base: PathBuf, meta: Meta, docs: Vec<DocRec>, held: Held) -> Writer {
         let folders = meta.folders.clone();
+        let folder_bytes = folders.iter().map(String::len).fold(0, usize::saturating_add);
         let folder_ix = folders.iter().enumerate().filter_map(|(i, f)| Some((f.clone(), u16::try_from(i).ok()?))).collect();
         let mut by_key = HashMap::with_capacity(docs.len());
         for (i, d) in docs.iter().enumerate() {
@@ -172,6 +181,7 @@ impl Writer {
             docs,
             folders,
             folder_ix,
+            folder_bytes,
             by_key,
             dirty: BTreeSet::new(),
             words: BTreeMap::new(),
@@ -184,6 +194,8 @@ impl Writer {
             orphans: false,
             #[cfg(test)]
             stop_before_meta: false,
+            #[cfg(test)]
+            max_segments: MAX_SEGMENTS,
             _held: held,
         }
     }
@@ -200,9 +212,15 @@ impl Writer {
 
     /// The doc a message is, when it's in.
     pub fn find(&self, key: &MessageKey) -> Option<u32> {
+        self.holder(key).filter(|&doc| self.docs.get(doc as usize).is_some_and(|d| d.validity == key.validity))
+    }
+
+    /// The live doc at a message's folder and uid, whatever its folder's validity: under another
+    /// validity it's another message, which a message added there replaces.
+    fn holder(&self, key: &MessageKey) -> Option<u32> {
         let f = self.folder_ix.get(&key.folder)?;
         let doc = *self.by_key.get(&(*f, key.uid))?;
-        self.docs.get(doc as usize).filter(|d| d.live() && d.validity == key.validity).map(|_| doc)
+        self.docs.get(doc as usize).filter(|d| d.live()).map(|_| doc)
     }
 
     /// The message `doc` is, with its Message-ID's hash and size (how a move is recognised).
@@ -223,12 +241,23 @@ impl Writer {
         self.pending_bytes() >= IN_FLIGHT_BYTES / 2
     }
 
+    /// A folder's number, a new folder given the next. A name longer than the meta keeps is
+    /// refused (the message isn't indexed); past the folders, or the bytes of their names, the
+    /// meta can hold, the index is to be made again (the folders no message is in left out).
     fn folder(&mut self, name: &str) -> Result<u16> {
         if let Some(f) = self.folder_ix.get(name) {
             return Ok(*f);
         }
+        if name.len() > MAX_NAME_BYTES {
+            return Err(io_err(&self.base)(io::Error::new(io::ErrorKind::InvalidInput, "a folder name too long to index")));
+        }
         let f = u16::try_from(self.folders.len()).ok().filter(|f| usize::from(*f) < MAX_FOLDERS);
         let Some(f) = f else { return Err(damaged(&self.base, "more folders than it can name")) };
+        let bytes = self.folder_bytes.saturating_add(name.len());
+        if bytes > MAX_FOLDER_BYTES {
+            return Err(damaged(&self.base, "more folder names than it can hold"));
+        }
+        self.folder_bytes = bytes;
         self.folders.push(name.to_string());
         self.folder_ix.insert(name.to_string(), f);
         Ok(f)
@@ -240,21 +269,23 @@ impl Writer {
     }
 
     /// Add a message: `key`, its Message-ID's hash and size, and what search reads of it. Its
-    /// doc's id; an index already holding the message drops the doc it had. An error when the
-    /// index has no room left (ids, folders): it must be made again.
+    /// doc's id; an index already holding the message (or another at its folder and uid, under
+    /// an older validity) drops the doc it had. A text longer than a text page keeps is cut
+    /// (the doc marked truncated). An error when the index has no room left (ids, folders): it
+    /// must be made again; or when the folder's name is too long to keep (not added).
     pub fn add(&mut self, key: &MessageKey, msgid_hash: u64, size: u32, doc: &IndexDoc) -> Result<u32> {
-        if let Some(old) = self.find(key) {
-            self.remove(old);
-        }
         let folder = self.folder(&key.folder)?;
         let id = u32::try_from(self.docs.len()).ok().filter(|id| *id < u32::MAX - 1).ok_or_else(|| damaged(&self.base, "no doc ids left"))?;
-        let bits = if doc.has_text { HAS_TEXT } else { 0 } | if doc.truncated { TRUNCATED } else { 0 };
+        if let Some(old) = self.holder(key) {
+            self.remove(old);
+        }
+        let (blob, cut) = encode_blob(doc);
+        let bits = if doc.has_text { HAS_TEXT } else { 0 } | if doc.truncated || cut { TRUNCATED } else { 0 };
         let files = u16::try_from(doc.files).unwrap_or(u16::MAX);
         self.docs.push(DocRec { folder, validity: key.validity, uid: key.uid, text: NO_TEXT, files, bits, msgid_hash, size });
         self.by_key.insert((folder, key.uid), id);
-        self.word_bytes = self.word_bytes.saturating_add(add_words(&mut self.words, id, &doc.text, &doc.names));
+        self.word_bytes = self.word_bytes.saturating_add(add_words(&mut self.words, id, format::kept_text(&doc.text), &doc.names));
         self.word_docs = self.word_docs.saturating_add(1);
-        let blob = encode_blob(doc);
         self.text_bytes = self.text_bytes.saturating_add(blob.len());
         self.texts.push((id, blob));
         self.live = self.live.saturating_add(1);
@@ -290,10 +321,10 @@ impl Writer {
         if self.docs.get(doc as usize).is_none_or(|d| !d.live()) {
             return Ok(());
         }
-        if let Some(other) = self.find(key).filter(|o| *o != doc) {
+        let folder = self.folder(&key.folder)?;
+        if let Some(other) = self.holder(key).filter(|o| *o != doc) {
             self.remove(other);
         }
-        let folder = self.folder(&key.folder)?;
         let Some(d) = self.docs.get_mut(doc as usize) else { return Ok(()) };
         let old = (d.folder, d.uid);
         (d.folder, d.validity, d.uid) = (folder, key.validity, key.uid);
@@ -356,8 +387,15 @@ impl Writer {
             }
             files.push(self.file(Name::Docs { generation: meta.generation, page: page_no }, encode_docs(&recs)));
         }
-        // The words added: a segment.
-        if !self.words.is_empty() {
+        // The words added: a segment. With as many as a meta names, none: the words are made
+        // again from the texts as the meta is in (marked to be, should that not finish).
+        #[cfg(not(test))]
+        let max_segments = MAX_SEGMENTS;
+        #[cfg(test)]
+        let max_segments = self.max_segments.min(MAX_SEGMENTS);
+        if self.meta.segments.len() >= max_segments {
+            meta.tokenizer = 0;
+        } else if !self.words.is_empty() {
             let mut b = SegBuilder::default();
             for (k, docs) in &self.words {
                 b.push(k, docs);
@@ -416,7 +454,9 @@ impl Writer {
             let mut size = pages.get(&at).map_or(0, |r| r.iter().map(|(_, b)| b.len() + 8).sum::<usize>());
             let mut count = pages.get(&at).map_or(0, Vec::len);
             for (doc, blob) in &self.texts {
-                if size >= TEXT_PAGE || count >= usize::from(u16::MAX) {
+                // A full page, or one this text would take past what a page may be, is ended.
+                let over = size > 0 && size.saturating_add(blob.len() + 8) > MAX_TEXT_PAGE - 64;
+                if size >= TEXT_PAGE || over || count >= usize::from(u16::MAX) {
                     at = at.checked_add(1).ok_or_else(|| damaged(&self.base, "too many text pages"))?;
                     (size, count) = (0, 0);
                 }
@@ -450,15 +490,16 @@ impl Writer {
     fn read_text_page(&self, store: &Store, p: u32) -> Result<Vec<(u32, Vec<u8>)>> {
         let Some(t) = self.meta.text_pages.get(p as usize).filter(|t| t.generation != 0) else { return Ok(Vec::new()) };
         let path = Name::Text { generation: t.generation, page: p }.path(&self.base);
-        let bytes = need_file(store, &path)?;
+        // The writer is held: a page the meta names and isn't there is damage.
+        let bytes = need_file(store, &path).map_err(|e| if is_gone(&e) { damaged(&path, "a text page is missing") } else { e })?;
         let recs = format::decode_text_page(&bytes, self.meta.next_doc).map_err(|what| damaged(&path, what))?;
         Ok(recs.into_iter().map(|(d, b)| (d, b.to_vec())).collect())
     }
 
-    /// Write a prepared flush: its files in short transactions, then its meta (sealed); then the
-    /// files it no longer uses are removed. The new generation, or `None` when the flush had
-    /// nothing. A flush prepared before a later change is refused (prepare it again); one that
-    /// fails leaves the generation before it, its files removed by the next commit.
+    /// Write a prepared flush: its files in short transactions, then its meta with the files it
+    /// no longer uses removed, in one sealed transaction. The new generation, or `None` when the
+    /// flush had nothing. A flush prepared before a later change is refused (prepare it again);
+    /// one that fails leaves the generation before it, its files removed by the next commit.
     pub fn commit(&mut self, store: &Store, flush: Flush) -> Result<Option<u64>> {
         if flush.stamp != self.stamp {
             return Err(io_err(&self.base)(other("the index changed after this flush was made")));
@@ -471,15 +512,14 @@ impl Writer {
         }
         self.orphans = true;
         self.write_batches(store, flush.files)?;
-        // What the meta now in no longer uses (removed after it, or not, if that failed).
-        self.remove_files(store, &self.meta.gone);
         #[cfg(test)]
         if self.stop_before_meta {
             return Err(io_err(&self.base)(other("stopped before the meta")));
         }
-        self.write_meta(store, &flush.meta)?;
+        // What the meta now in no longer used, should it not all have gone with it, too.
+        let gone: Vec<Name> = self.meta.gone.iter().chain(&flush.meta.gone).copied().collect();
+        self.write_meta(store, &flush.meta, &gone)?;
         self.orphans = false;
-        self.remove_files(store, &flush.meta.gone);
         let generation = flush.meta.generation;
         for (doc, page) in flush.placed {
             if let Some(d) = self.docs.get_mut(doc as usize) {
@@ -494,6 +534,10 @@ impl Writer {
         self.drop_texts.clear();
         self.dirty.clear();
         self.stamp = self.stamp.wrapping_add(1);
+        // Segments up to what a meta names: their words made into few again.
+        if self.meta.tokenizer != TOKENIZER_VERSION {
+            self.rebuild(store)?;
+        }
         Ok(Some(generation))
     }
 
@@ -516,24 +560,27 @@ impl Writer {
         Ok(())
     }
 
-    /// The meta: the commit point, durable and sealed.
-    fn write_meta(&self, store: &Store, meta: &Meta) -> Result<()> {
-        store.files.write(&self.base.join("meta.bin"), &encode_meta(meta))?;
-        if let Err(e) = store.seal(&self.account) {
-            log::warn!("{}'s data file wasn't sealed after its search index: {e}", self.account);
+    /// The meta, the commit point, and the files `gone` (those already gone are no matter): one
+    /// transaction, durable and sealed, so a crash after it costs the data file no repair. A meta
+    /// that wouldn't read back is never written: the index is to be made again.
+    fn write_meta(&self, store: &Store, meta: &Meta, gone: &[Name]) -> Result<()> {
+        let path = self.base.join("meta.bin");
+        let bytes = encode_meta(meta);
+        if bytes.len() > MAX_META || format::decode_meta(&bytes).is_err() {
+            return Err(damaged(&path, "a meta it couldn't read back"));
         }
-        Ok(())
+        let gone: Vec<PathBuf> = gone.iter().map(|n| n.path(&self.base)).collect();
+        store.files.replace(&self.base, Some((&path, &bytes)), &gone, true)
     }
 
-    /// Remove files (those already gone are no matter).
+    /// Remove files (those already gone are no matter), in one transaction not waited for.
     fn remove_files(&self, store: &Store, names: &[Name]) {
-        for n in names {
-            let p = n.path(&self.base);
-            if let Err(e) = store.files.remove_file(&p)
-                && e.kind() != io::ErrorKind::NotFound
-            {
-                log::warn!("{}: not removed: {e}", p.display());
-            }
+        if names.is_empty() {
+            return;
+        }
+        let paths: Vec<PathBuf> = names.iter().map(|n| n.path(&self.base)).collect();
+        if let Err(e) = store.files.replace(&self.base, None, &paths, false) {
+            log::warn!("{}'s search index: files not removed: {e}", self.account);
         }
     }
 
@@ -582,10 +629,9 @@ impl Writer {
             }
         }
         self.write_segment(store, &mut meta, words, docs)?;
-        self.remove_files(store, &self.meta.gone);
-        self.write_meta(store, &meta)?;
+        let gone: Vec<Name> = self.meta.gone.iter().chain(&meta.gone).copied().collect();
+        self.write_meta(store, &meta, &gone)?;
         self.orphans = false;
-        self.remove_files(store, &meta.gone);
         self.meta = meta;
         Ok(())
     }
@@ -597,6 +643,9 @@ impl Writer {
         }
         if b.is_empty() {
             return Ok(());
+        }
+        if meta.segments.len() >= MAX_SEGMENTS {
+            return Err(damaged(&self.base, "more words than its segments hold"));
         }
         let id = meta.next_seg;
         meta.next_seg = id.checked_add(1).ok_or_else(|| damaged(&self.base, "no segment ids left"))?;

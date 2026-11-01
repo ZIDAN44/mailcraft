@@ -44,8 +44,8 @@ impl Commit {
     pub(super) const PLAIN: Commit = Commit { durable: true, seal: false };
     /// A batch in the background (an import's sources): durable with the next durable commit.
     pub(super) const BATCH: Commit = Commit { durable: false, seal: false };
-    /// Durable and sealed: every commit once MailCraft is closing.
-    const SEALED: Commit = Commit { durable: true, seal: true };
+    /// Durable and sealed: every commit once MailCraft is closing, and a search index's meta.
+    pub(super) const SEALED: Commit = Commit { durable: true, seal: true };
 }
 
 /// What each data file has had committed: what isn't on the disk yet, and what isn't sealed. Data
@@ -171,6 +171,17 @@ impl Seals {
         w.running = false;
     }
 
+    /// `account`'s data file was just sealed by a commit of its own: nothing waits for a seal.
+    fn sealed(&self, account: &str) {
+        self.lock().due.remove(account);
+    }
+
+    /// Whether `account`'s data file waits for a seal (written since it was last sealed).
+    #[cfg(test)]
+    pub(crate) fn seal_due(&self, account: &str) -> bool {
+        self.lock().due.contains_key(account)
+    }
+
     /// `account`'s data file is being let go of (closed, to be opened again or deleted): no seal
     /// waits for it any more, and one under way has ended, so nothing here holds it open.
     pub(super) fn forget(&self, account: &str) {
@@ -265,8 +276,47 @@ impl Packs {
             self.seals.restore(account, before);
             return Err(other(e));
         }
-        if !how.seal {
+        if how.seal {
+            self.seals.sealed(account);
+        } else {
             self.seals.written(account, &db);
+        }
+        Ok(())
+    }
+
+    /// Files written and removed together (a search index's meta and what it no longer uses): one
+    /// transaction per data file, sealed when `seal` (otherwise a batch not waited for). What
+    /// isn't in a data file is written first, then removed.
+    pub(crate) fn replace(&self, put: Option<(&Path, &[u8])>, gone: &[PathBuf], seal: bool) -> Result<()> {
+        let mut by_account: BTreeMap<String, (Option<(String, &[u8])>, Vec<String>)> = BTreeMap::new();
+        if let Some((p, bytes)) = put {
+            match self.place(p) {
+                Place::In(a, k) => by_account.entry(a).or_default().0 = Some((k, bytes)),
+                Place::Account(_) | Place::Disk => write_atomic(p, bytes)?,
+            }
+        }
+        for p in gone {
+            match self.place(p) {
+                Place::In(a, k) => by_account.entry(a).or_default().1.push(k),
+                Place::Account(_) => {}
+                Place::Disk => match fs::remove_file(p) {
+                    Err(e) if e.kind() != io::ErrorKind::NotFound => log::warn!("{}: not removed: {e}", p.display()),
+                    _ => {}
+                },
+            }
+        }
+        for (a, (put, gone)) in by_account {
+            let how = if seal { Commit::SEALED } else { Commit::BATCH };
+            self.change_with(&a, how, put.as_ref().map_or(0, |(_, b)| b.len()), |t| {
+                if let Some((k, bytes)) = &put {
+                    t.put(k, bytes)?;
+                }
+                for k in &gone {
+                    t.remove(k)?;
+                }
+                Ok(())
+            })
+            .map_err(|source| StoreError::Io { path: a.clone(), source })?;
         }
         Ok(())
     }

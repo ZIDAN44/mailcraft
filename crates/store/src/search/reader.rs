@@ -18,8 +18,8 @@ use super::*;
 
 /// What the reader caches of the pages it reads.
 const CACHE_BYTES: usize = 8 << 20;
-/// Times a reader opens again when a commit removed what it was reading.
-const RETRIES: usize = 3;
+/// Times a reader opens again when commits keep removing what it was reading.
+const RETRIES: usize = 16;
 
 /// What the index knows of a doc besides its words.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -90,26 +90,40 @@ pub struct Reader {
 impl Reader {
     /// `account`'s index, read; `None` when it has none yet, or none to use: words read with
     /// another tokenizer (the writer makes them again), or an index that doesn't read back (set
-    /// aside, to be made again).
+    /// aside, to be made again). While its writer is held that's the writer's to do: the
+    /// damage is the error ([`is_damaged`]). Commits that keep removing what it reads, faster
+    /// than it reads it, are an error that says so ([`is_gone`]): try again later.
     pub fn open(store: &Store, account: &str) -> Result<Option<Reader>> {
         let mut tries = 0;
         loop {
-            match Reader::read(store, account) {
+            let meta = match load_meta(store, account) {
+                Ok(Some(m)) => m,
+                Ok(None) => return Ok(None),
+                Err(e) if is_damaged(&e) => return damage(store, account, e),
+                Err(e) => return Err(e),
+            };
+            let at = (meta.epoch, meta.generation);
+            match Reader::read(store, account, meta) {
                 // A commit removed a page between the meta and it: read the new one. A page the
-                // meta names that stays missing is damage.
-                Err(e) if is_gone(&e) && tries < RETRIES => tries += 1,
-                Err(e) if is_damaged(&e) || is_gone(&e) => {
-                    set_aside(store, account)?;
-                    return Ok(None);
+                // same meta still names and isn't there is damage.
+                Err(e) if is_gone(&e) => {
+                    let now = load_meta(store, account).ok().flatten().map(|m| (m.epoch, m.generation));
+                    if now == Some(at) {
+                        return damage(store, account, missing(e));
+                    }
+                    tries += 1;
+                    if tries >= RETRIES {
+                        return Err(e);
+                    }
                 }
+                Err(e) if is_damaged(&e) => return damage(store, account, e),
                 other => return other,
             }
         }
     }
 
-    fn read(store: &Store, account: &str) -> Result<Option<Reader>> {
+    fn read(store: &Store, account: &str, meta: Meta) -> Result<Option<Reader>> {
         let base = dir(store, account);
-        let Some(meta) = load_meta(store, account)? else { return Ok(None) };
         if meta.tokenizer != TOKENIZER_VERSION {
             return Ok(None);
         }
@@ -175,12 +189,27 @@ impl Reader {
             *self = r;
             return Ok(true);
         }
+        // All read and checked before anything changes: a refresh that fails leaves the reader
+        // as it was, at the generation before.
+        let mut pages = Vec::new();
+        let mut live = self.docs.iter().filter(|d| d.live()).count();
+        let mut len = self.docs.len();
         for p in 0..meta.doc_pages.len() {
             if self.meta.doc_pages.get(p) == meta.doc_pages.get(p) {
                 continue;
             }
             let recs = load_doc_page(store, &self.base, &meta, p)?;
             let start = p.saturating_mul(DOCS_PER_PAGE as usize);
+            let had = self.docs.get(start..).unwrap_or_default().iter().take(recs.len()).filter(|d| d.live()).count();
+            live = live.saturating_sub(had).saturating_add(recs.iter().filter(|d| d.live()).count());
+            len = len.max(start.saturating_add(recs.len()));
+            pages.push((start, recs));
+        }
+        if len != meta.next_doc as usize || live != meta.live as usize {
+            return Err(damaged(&self.base.join("meta.bin"), "counts not the doc table's"));
+        }
+        let heads = self.load_heads(store, &meta)?;
+        for (start, recs) in pages {
             for (i, d) in recs.into_iter().enumerate() {
                 let doc = u32::try_from(start + i).unwrap_or(u32::MAX);
                 if let Some(old) = self.docs.get(start + i).copied()
@@ -198,11 +227,7 @@ impl Reader {
                 }
             }
         }
-        let live = self.docs.iter().filter(|d| d.live()).count();
-        if self.docs.len() != meta.next_doc as usize || live != meta.live as usize {
-            return Err(damaged(&self.base.join("meta.bin"), "counts not the doc table's"));
-        }
-        self.heads = self.load_heads(store, &meta)?;
+        self.heads = heads;
         self.set_meta(meta);
         Ok(true)
     }
@@ -363,5 +388,24 @@ impl Reader {
         let Ok(i) = recs.binary_search_by_key(&doc, |(d, _)| *d) else { return Ok(None) };
         let Some((_, blob)) = recs.get(i) else { return Ok(None) };
         decode_blob(blob).map(Some).map_err(|what| damaged(&path, what))
+    }
+}
+
+/// The index doesn't read back: set aside to be made again, `None`. While its writer is held,
+/// the error instead, for the writer's holder to set it aside (a writer would put back the meta
+/// renamed under it).
+fn damage(store: &Store, account: &str, e: StoreError) -> Result<Option<Reader>> {
+    if writer_held(store, account) {
+        return Err(e);
+    }
+    set_aside(store, account)?;
+    Ok(None)
+}
+
+/// A page the meta names that stays missing: damage.
+fn missing(e: StoreError) -> StoreError {
+    match e {
+        StoreError::Io { path, .. } => StoreError::Damaged { path, what: "a page the meta names is missing".into() },
+        e => e,
     }
 }

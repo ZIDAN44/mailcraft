@@ -132,6 +132,30 @@ impl Files {
         }
     }
 
+    /// Files written and removed together (a search index's meta and what it no longer uses): in a
+    /// data file one transaction, sealed when `seal` (otherwise a batch not waited for);
+    /// elsewhere `put` written first, then `gone` removed (one not there is no matter).
+    pub(super) fn replace(&self, put: Option<(&Path, &[u8])>, gone: &[PathBuf], seal: bool) -> Result<()> {
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.replace(put, gone, seal),
+            _ => {
+                let _ = seal;
+                if let Some((p, bytes)) = put {
+                    self.write(p, bytes)?;
+                }
+                for p in gone {
+                    if let Err(e) = self.remove_file(p)
+                        && e.kind() != io::ErrorKind::NotFound
+                    {
+                        log::warn!("{}: not removed: {e}", p.display());
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+
     /// Whether what goes under `dir` is kept in a data file.
     pub(super) fn packs(&self, dir: &Path) -> bool {
         let _ = dir;
@@ -381,6 +405,11 @@ impl Routed {
             self.held.write_prepared(held, durable)?;
         }
         if main.is_empty() { Ok(()) } else { self.main.write_prepared(main, durable) }
+    }
+
+    /// [`Files::replace`] for files all under `dir`.
+    pub(super) fn replace(&self, dir: &Path, put: Option<(&Path, &[u8])>, gone: &[PathBuf], seal: bool) -> Result<()> {
+        self.at(dir).replace(put, gone, seal)
     }
 
     fn is_held(&self, p: &Path) -> bool {

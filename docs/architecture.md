@@ -196,15 +196,24 @@ changes, with no message read); and immutable segments of words (field letter + 
 text, `n` names, `a` whole addresses and domains), each a head, front-coded lexicon pages and
 varint postings pages. `search::Writer` adds, removes and moves docs in memory and flushes a new
 generation in two steps: `prepare` encodes and compresses its files, `commit` writes them in
-short transactions under names the current meta doesn't use, then the meta, sealed; a crash or a
+short transactions under names the current meta doesn't use, then the meta with the files it no
+longer uses removed, in one sealed transaction (the data file's last commit, so a crash after it
+costs no repair); a crash or a
 failed batch before the meta leaves the generation before, and the writer removes what it wrote
 when it next opens (only names the meta lets it work out). A message removed leaves its text page
-in that same commit; its words go when its segment is merged. `search::Reader` holds the doc table
+in that same commit; its words go when its segment is merged. The writer never writes what its
+reader would refuse: a folder name over 4 KiB is refused (that message isn't indexed), a text is
+cut at 7 MiB (marked truncated), and at 4,096 segments the words are made again from the texts.
+One writer per account at a time within a process; across processes (the CLI and the app on one
+folder layout) nothing stops a second yet: the `search/v1/lock` lease comes with the CLI's
+`--index`, when the CLI first writes an index. `search::Reader` holds the doc table
 and the segments' heads, reads lexicon, postings and text pages as needed (a page cache keyed by
 the index's random epoch), looks words up a few pages at a time, and follows the writer by reading
 only what a newer generation changed. Every file is decoded with checks (`search/format.rs`,
 fuzzed by `search_index`); an index that doesn't read back is set aside (`meta.bin.bad`) and made
-again past its generation and segment numbers.
+again past its generation and segment numbers. A page missing counts as damage only when the same
+meta still names it (a newer commit removing it is read again), and while a writer holds the index
+the reader returns the damage instead of setting it aside under the writer.
 
 ## Threading
 

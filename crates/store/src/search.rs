@@ -22,8 +22,13 @@
 //! its files under names the current meta doesn't use, in short transactions, then the meta: a
 //! crash before the meta leaves the generation before it, and what was written for the new one
 //! is found by its names and removed when the writer next opens. Files a generation no longer
-//! uses are named in its meta and removed after it. Every file is read as hostile input
-//! (`format.rs`): an index that doesn't read back is set aside (`meta.bin.bad`) and made again.
+//! uses are named in its meta and removed in the same transaction as it. Every file is read as
+//! hostile input (`format.rs`), and the writer never writes what its reader would refuse: an index
+//! that doesn't read back is set aside (`meta.bin.bad`) and made again.
+//!
+//! One writer an account at a time, within a process ([`Held`]). Across processes (the CLI and
+//! the app on one folder layout) nothing stops a second yet: the `search/v1/lock` lease comes with
+//! the CLI's `--index`, when the CLI first writes an index.
 
 use std::collections::BTreeSet;
 use std::hash::BuildHasher;
@@ -58,6 +63,9 @@ pub const IN_FLIGHT_BYTES: usize = 64 << 20;
 /// Most folders an index can name (the doc table keeps a folder as a 16-bit number); past it,
 /// the index is made again.
 pub const MAX_FOLDERS: usize = 0xFFFE;
+/// Most bytes of folder names an index keeps, all told (its meta must stay readable); past it,
+/// the index is made again.
+pub const MAX_FOLDER_BYTES: usize = 8 << 20;
 /// Most address words (addresses and their domains) kept for one message.
 const MAX_ADDRESS_WORDS: usize = 256;
 
@@ -333,6 +341,11 @@ impl Held {
         }
         Ok(Held { writers: store.search_writers.clone(), account: account.to_string() })
     }
+}
+
+/// Whether `account`'s index is held by a writer of this store.
+pub(crate) fn writer_held(store: &Store, account: &str) -> bool {
+    store.search_writers.lock().unwrap_or_else(std::sync::PoisonError::into_inner).contains(account)
 }
 
 impl Drop for Held {

@@ -23,13 +23,18 @@ pub(crate) const VERSION: u8 = 1;
 const REC_VERSION: u8 = 1;
 /// A doc record's bytes.
 pub(crate) const REC: usize = 32;
-const MAX_META: usize = 32 << 20;
+pub(crate) const MAX_META: usize = 32 << 20;
 /// Most bytes in a text page: one text alone (4 MB at most) and its names.
 pub(crate) const MAX_TEXT_PAGE: usize = 8 << 20;
+/// Most bytes of a message's text kept: a page's worth, less room for its names and the page's
+/// other texts (a text over a page's room ends a page; [`encode_blob`] cuts one past this).
+pub(crate) const MAX_BLOB_TEXT: usize = MAX_TEXT_PAGE - (1 << 20);
 /// Most bytes of a message's files' names kept.
 const MAX_NAMES_BYTES: usize = 64 << 10;
-const MAX_NAME_BYTES: usize = 4096;
-const MAX_SEGMENTS: usize = 4096;
+/// Longest folder or file name kept (the writer takes no longer folder name).
+pub(crate) const MAX_NAME_BYTES: usize = 4096;
+/// Most segments a meta names (the writer makes its words again before it gets there).
+pub(crate) const MAX_SEGMENTS: usize = 4096;
 const MAX_PAGES: usize = 1 << 20;
 /// A lexicon entry's postings kept in it, up to this many docs.
 const INLINE: usize = 8;
@@ -390,8 +395,19 @@ pub struct Blob {
     pub text: String,
 }
 
-/// A text kept for a message (at most [`MAX_NAMES_BYTES`] of names).
-pub(crate) fn encode_blob(doc: &IndexDoc) -> Vec<u8> {
+/// What is kept of a message's text: at most [`MAX_BLOB_TEXT`] bytes, cut where a character
+/// starts.
+pub(crate) fn kept_text(text: &str) -> &str {
+    let mut end = text.len().min(MAX_BLOB_TEXT);
+    while !text.is_char_boundary(end) {
+        end = end.saturating_sub(1);
+    }
+    text.get(..end).unwrap_or_default()
+}
+
+/// A text kept for a message (at most [`MAX_NAMES_BYTES`] of names and [`MAX_BLOB_TEXT`] of
+/// text), and whether some of it was left out.
+pub(crate) fn encode_blob(doc: &IndexDoc) -> (Vec<u8>, bool) {
     let mut names: Vec<&str> = Vec::new();
     let mut room = MAX_NAMES_BYTES;
     for n in &doc.names {
@@ -406,14 +422,8 @@ pub(crate) fn encode_blob(doc: &IndexDoc) -> Vec<u8> {
         room -= n.len();
         names.push(n);
     }
-    let mut text = doc.text.as_str();
-    if text.len() > u32::MAX as usize {
-        let mut end = u32::MAX as usize;
-        while !text.is_char_boundary(end) {
-            end = end.saturating_sub(1);
-        }
-        text = text.get(..end).unwrap_or_default();
-    }
+    let text = kept_text(&doc.text);
+    let cut = text.len() < doc.text.len() || names.len() < doc.names.len();
     let mut out = Vec::with_capacity(16 + room + text.len());
     out.extend_from_slice(BLOB);
     out.push(VERSION);
@@ -424,7 +434,7 @@ pub(crate) fn encode_blob(doc: &IndexDoc) -> Vec<u8> {
     }
     out.extend_from_slice(&u32::try_from(text.len()).unwrap_or(u32::MAX).to_le_bytes());
     out.extend_from_slice(text.as_bytes());
-    out
+    (out, cut)
 }
 
 pub(crate) fn decode_blob(b: &[u8]) -> R<Blob> {

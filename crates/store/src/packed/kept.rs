@@ -167,6 +167,15 @@ impl Tables<'_> {
         Ok(Some(out))
     }
 
+    /// Take the file at `key` out without reading it (nothing to do when it isn't there).
+    pub(super) fn remove(&mut self, key: &str) -> io::Result<()> {
+        let pieced = self.files.remove(key).map_err(other)?.is_some_and(|g| pieced_len(g.value()).is_some());
+        if pieced {
+            self.drop_pieces(key)?;
+        }
+        Ok(())
+    }
+
     fn drop_pieces(&mut self, key: &str) -> io::Result<()> {
         self.pieces.retain_in((key, 0)..=(key, u32::MAX), |_, _| false).map_err(other)
     }

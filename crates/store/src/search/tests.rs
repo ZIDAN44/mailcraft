@@ -451,3 +451,162 @@ fn the_fuzz_seed_is_an_index() {
     assert!(r.refresh(&s).unwrap());
     assert_eq!(found(&mut r, &s, Field::Body, "common").len(), 11, "one in, one out");
 }
+
+/// A folder name longer than the meta keeps is refused, the message not indexed: the index
+/// still reads back and keeps what it had (it was set aside and made again forever).
+#[test]
+fn a_folder_name_too_long_to_keep_is_refused() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let kept = w.add(&mk("INBOX", 1), 1, 1, &text("kept words", &[], 0)).unwrap();
+    let long = "x".repeat(MAX_NAME_BYTES + 1);
+    let e = w.add(&mk(&long, 1), 1, 1, &text("never", &[], 0)).unwrap_err();
+    assert!(!is_damaged(&e) && !is_gone(&e), "{e}");
+    assert!(w.retarget(kept, &mk(&long, 2)).is_err());
+    assert_eq!(w.flush(&s).unwrap(), Some(1));
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!((r.live(), r.key(kept)), (1, Some(mk("INBOX", 1))));
+    assert_eq!(found(&mut r, &s, Field::Body, "kept"), [kept]);
+    w.add(&mk(&"y".repeat(MAX_NAME_BYTES), 1), 1, 1, &text("longest", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    assert!(r.refresh(&s).unwrap(), "the longest name kept reads back");
+}
+
+/// Flush after flush never names more segments than a meta may: at the limit the words are
+/// made again from the texts, into few segments, and everything still reads back. (The limit
+/// lowered from [`MAX_SEGMENTS`]: 4,100 flushes took 30 s.)
+#[test]
+fn segments_never_pass_what_a_meta_names() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    w.max_segments = 40;
+    let n = 100;
+    for i in 0..n {
+        w.add(&mk("INBOX", i + 1), 1, 1, &text(&format!("common word{i}"), &[], 0)).unwrap();
+        w.flush(&s).unwrap();
+    }
+    let meta = load_meta(&s, "a1").unwrap().unwrap();
+    assert!(meta.segments.len() <= 40 && meta.next_seg > 80, "{} segments of {}", meta.segments.len(), meta.next_seg);
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.live(), n);
+    assert_eq!(found(&mut r, &s, Field::Body, "common").len(), n as usize);
+    assert_eq!(found(&mut r, &s, Field::Body, &format!("word{}", n - 1)), [n - 1]);
+    drop(w);
+    assert_eq!(files(&s).1, BTreeSet::new(), "the old segments are gone");
+}
+
+/// A text longer than a text page keeps is cut (marked truncated) and reads back; the index
+/// and the other docs stay.
+#[test]
+fn a_text_too_long_for_a_page_is_cut() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let small = w.add(&mk("INBOX", 2), 1, 1, &text("keepme", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let big = w.add(&mk("INBOX", 1), 1, 1, &text(&"word \u{e9} ".repeat(1_500_000), &["a.pdf"], 1)).unwrap();
+    let after = w.add(&mk("INBOX", 3), 1, 1, &text("after", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.live(), 3);
+    assert_eq!((found(&mut r, &s, Field::Body, "keepme"), found(&mut r, &s, Field::Body, "after")), (vec![small], vec![after]));
+    assert!(r.info(big).unwrap().truncated && !r.info(small).unwrap().truncated);
+    let blob = r.text(&s, big).unwrap().unwrap();
+    assert!(blob.text.len() <= MAX_BLOB_TEXT && blob.text.starts_with("word \u{e9}") && blob.names == ["a.pdf"]);
+    assert!(load_meta(&s, "a1").unwrap().unwrap().text_pages.iter().all(|t| (t.bytes as usize) <= MAX_TEXT_PAGE));
+}
+
+/// A message added at a folder and uid another doc holds under an older validity replaces it:
+/// it is another message now, and the old one leaves the index.
+#[test]
+fn a_new_validity_replaces_the_old_doc() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let old = w.add(&mk("INBOX", 1), 1, 1, &text("hello old", &[], 0)).unwrap();
+    let new = w.add(&MessageKey { validity: 8, ..mk("INBOX", 1) }, 2, 2, &text("hello new", &[], 0)).unwrap();
+    let moved = w.add(&mk("Archive", 5), 3, 3, &text("hello moved", &[], 0)).unwrap();
+    w.retarget(moved, &MessageKey { validity: 9, ..mk("INBOX", 1) }).unwrap();
+    w.flush(&s).unwrap();
+    assert_eq!(w.live(), 1);
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.live(), 1);
+    assert_eq!(found(&mut r, &s, Field::Body, "hello"), [moved]);
+    assert_eq!((r.key(old), r.key(new)), (None, None));
+    assert_eq!(r.key(moved), Some(MessageKey { validity: 9, ..mk("INBOX", 1) }));
+}
+
+/// A text page the writer's meta names and isn't there is damage (to be made again), not an
+/// error every flush and every open repeats.
+#[test]
+fn a_missing_text_page_is_damage_to_the_writer() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let d = w.add(&mk("INBOX", 1), 1, 1, &text("words", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let meta = load_meta(&s, "a1").unwrap().unwrap();
+    s.files.remove_file(&Name::Text { generation: meta.text_pages[0].generation, page: 0 }.path(&dir(&s, "a1"))).unwrap();
+    w.remove(d);
+    let e = w.flush(&s).unwrap_err();
+    assert!(is_damaged(&e), "{e}");
+    drop(w);
+    // An older tokenizer's: its words are made again from the texts, and that one isn't there.
+    let mut meta = load_meta(&s, "a1").unwrap().unwrap();
+    meta.tokenizer = 0;
+    s.files.write(&meta_path(&s, "a1"), &encode_meta(&meta)).unwrap();
+    assert_eq!(Writer::open(&s, "a1").unwrap().live(), 0, "set aside and made again");
+}
+
+/// A page the same meta still names and isn't there is damage; while the writer is held that's
+/// the reader's error, and the meta is left for the writer's holder to set aside.
+#[test]
+fn a_reader_leaves_a_held_index_to_its_writer() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    w.add(&mk("INBOX", 1), 1, 1, &text("words", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let meta = load_meta(&s, "a1").unwrap().unwrap();
+    s.files.remove_file(&Name::Docs { generation: meta.doc_pages[0], page: 0 }.path(&dir(&s, "a1"))).unwrap();
+    let e = Reader::open(&s, "a1").unwrap_err();
+    assert!(is_damaged(&e), "{e}");
+    assert!(s.files.is_file(&meta_path(&s, "a1")), "not set aside under its writer");
+    drop(w);
+    assert!(Reader::open(&s, "a1").unwrap().is_none(), "set aside once let go");
+    assert!(s.files.is_file(&meta_path(&s, "a1").with_extension("bin.bad")));
+}
+
+/// A refresh that fails part way leaves the reader at the generation it had, whole.
+#[test]
+fn a_failed_refresh_leaves_the_reader_as_it_was() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let a = w.add(&mk("INBOX", 1), 1, 1, &text("alpha", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    w.remove(a);
+    w.add(&mk("Other", 2), 2, 2, &text("beta", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let meta = load_meta(&s, "a1").unwrap().unwrap();
+    s.files.remove_file(&Name::SegHead(meta.segments.last().unwrap().id).path(&dir(&s, "a1"))).unwrap();
+    assert!(r.refresh(&s).is_err());
+    assert_eq!((r.generation(), r.live(), r.len()), (1, 1, 1));
+    assert_eq!((r.doc(&mk("INBOX", 1)), r.key(a)), (Some(a), Some(mk("INBOX", 1))));
+    assert_eq!(found(&mut r, &s, Field::Body, "alpha"), [a]);
+}
+
+/// An index commit is the data file's last, and sealed: a crash after it costs no repair, and
+/// nothing is left waiting for a seal.
+#[test]
+fn an_index_commit_seals_its_data_file() {
+    let (_, dir, s) = layouts("sealed").pop().unwrap();
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let d = w.add(&mk("INBOX", 1), 1, 1, &text("words", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    assert!(!packs.seal_due("a1"), "sealed with its meta");
+    w.remove(d);
+    w.add(&mk("INBOX", 2), 1, 1, &text("more", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    assert!(!packs.seal_due("a1"), "the files it no longer uses removed in the sealed commit");
+    assert_eq!(files(&s).1, BTreeSet::new());
+    drop((w, s));
+    let _ = std::fs::remove_dir_all(&dir);
+}
