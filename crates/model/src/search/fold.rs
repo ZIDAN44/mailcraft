@@ -13,8 +13,9 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use super::fold_table::FOLD;
 
-/// Changes whenever what [`tokens`] gives changes: what was indexed with another is read again.
-pub const TOKENIZER_VERSION: u32 = 1;
+/// Changes whenever what [`index_tokens`] gives changes: what was indexed with another is read
+/// again (2: the parts of words joined by `.`, `:`, `'`, `_`).
+pub const TOKENIZER_VERSION: u32 = 2;
 /// Longer "words" (base64 debris, long links) aren't indexed: they only bloat it.
 pub const MAX_TOKEN_CHARS: usize = 40;
 
@@ -52,6 +53,55 @@ pub fn tokens(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
 /// A text's words, folded, long ones too (what a message's own fields are checked against).
 pub(super) fn all_words(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
     text.unicode_words().map(fold_word).filter(|w| !w.is_empty())
+}
+
+/// A text's [`tokens`], each followed by its [`parts`]: the words search indexes, so `word` finds
+/// "site.word".
+pub fn index_tokens(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
+    with_parts(all_words(text)).filter(|w| w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS)
+}
+
+/// Words, each followed by its [`parts`].
+pub(super) fn with_parts<'a>(words: impl Iterator<Item = Cow<'a, str>>) -> impl Iterator<Item = Cow<'a, str>> {
+    words.flat_map(|w| {
+        let parts: Vec<Cow<'a, str>> = parts(&w).map(|p| Cow::Owned(p.to_string())).collect();
+        std::iter::once(w).chain(parts)
+    })
+}
+
+/// Whether UAX #29 keeps `c` inside a word, between letters (MidLetter, MidNumLet) or joining
+/// its pieces (ExtendNumLet): "site.word", "l'avion", "ratio:word" and "snake_case" are each
+/// one word. Between digits only (MidNum: `10,000`) isn't split.
+fn joins(c: char) -> bool {
+    matches!(
+        c,
+        '.' | ':'
+            | '\''
+            | '_'
+            | '\u{b7}'
+            | '\u{387}'
+            | '\u{55f}'
+            | '\u{5f4}'
+            | '\u{2018}'
+            | '\u{2019}'
+            | '\u{2024}'
+            | '\u{2027}'
+            | '\u{203f}'
+            | '\u{2040}'
+            | '\u{2054}'
+            | '\u{fe13}'
+            | '\u{fe33}'
+            | '\u{fe34}'
+            | '\u{fe4d}'..='\u{fe4f}' | '\u{fe52}' | '\u{fe55}' | '\u{ff07}' | '\u{ff0e}' | '\u{ff1a}' | '\u{ff3f}'
+    )
+}
+
+/// The pieces of a folded word that joins them ([`joins`]), each found by itself too: a word
+/// seen only as "xx.word" was never found by `word` (nine messages of the 41 GB file). None for
+/// a word that doesn't, and none of one letter (the `t` of "don't", the `l` of "l'avion").
+pub fn parts(w: &str) -> impl Iterator<Item = &str> {
+    let split = w.contains(joins);
+    w.split(joins).filter(move |p| split && p.chars().nth(1).is_some())
 }
 
 /// A text's [`tokens`] joined by spaces, added to `out`.

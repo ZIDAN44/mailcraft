@@ -495,3 +495,33 @@ fn a_word_folding_to_nothing_is_no_word() {
     let m = Summary { subject: "Beta\u{345} notes".into(), ..Default::default() };
     assert_eq!(eval(&Query::parse("beta\u{345}"), &m, &""), Tri::Yes);
 }
+
+/// UAX #29 keeps "site.word" one word: its parts are indexed and found too (`word` and `site`),
+/// in the index, in a whole text and in a summary, and the whole as typed still finds it. A
+/// phrase isn't found across the parts kept after a summary's words, and one letter isn't a part.
+#[test]
+fn the_parts_of_a_dotted_word_are_words() {
+    let words: Vec<String> = index_tokens("See xx.word and l'avion, snake_case. Don't").map(std::borrow::Cow::into_owned).collect();
+    for w in ["xx", "word", "xx.word", "avion", "l'avion", "snake", "case", "snake_case", "don't"] {
+        assert!(words.iter().any(|x| x == w), "{w} in {words:?}");
+    }
+    assert!(!words.iter().any(|x| x == "l" || x == "t"), "{words:?}");
+    assert_eq!(parts("plain").count(), 0);
+    let mut ix = Index::new();
+    ix.add(1, "the site.word kept");
+    ix.add(2, "the site kept");
+    assert_eq!(ix.prefix("word").into_iter().collect::<Vec<_>>(), [1]);
+    assert_eq!(ix.prefix("site").into_iter().collect::<Vec<_>>(), [1, 2]);
+    assert_eq!(ix.prefix("site.word").into_iter().collect::<Vec<_>>(), [1]);
+    let m = sample();
+    let doc = IndexDoc { text: "Report at site.word today".into(), has_text: true, ..Default::default() };
+    let t = |q: &str| eval(&Query::parse(q), &m, &doc);
+    assert_eq!((t("word"), t("site"), t("site.word"), t("-word")), (Tri::Yes, Tri::Yes, Tri::Yes, Tri::No));
+    let mut subject = sample();
+    subject.subject = "Notes on xx.word today".into();
+    let st = SummaryText::of(&subject);
+    let empty = IndexDoc { has_text: true, ..Default::default() };
+    let s = |q: &str| Query::parse(q).eval(&Doc { summary: &subject, summary_text: &st, awaiting: false, files: None, text: &empty });
+    assert_eq!((s("subject:word"), s("subject:xx.word"), s("\"xx.word today\"")), (Tri::Yes, Tri::Yes, Tri::Yes));
+    assert_eq!(s("\"today xx\""), Tri::No, "not across the parts");
+}

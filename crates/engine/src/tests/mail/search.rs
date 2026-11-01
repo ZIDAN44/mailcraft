@@ -43,7 +43,7 @@ fn search_scopes_and_recent_searches() {
     assert_eq!(folders(&s, SearchScope::Current), ["Projects"]);
     assert_eq!(folders(&s, SearchScope::Subfolders), ["Projects", "Projects/Short film"], "not a folder whose name only starts the same");
     assert_eq!(folders(&s, SearchScope::Mailbox).len(), 9);
-    // "shot list" is in Projects/Short film.
+    // "shot list" is in Projects/Short film, twice (one as "shot_list_v2").
     let found = |s: &mut Session, scope: Option<&str>| {
         let mut v = json!({"query": "shot list"});
         if let Some(sc) = scope {
@@ -54,9 +54,9 @@ fn search_scopes_and_recent_searches() {
     assert_eq!(found(&mut s, Some("current")), 0);
     assert_eq!(s.prefs.search_scope, SearchScope::Current, "kept for the next searches");
     assert_eq!(found(&mut s, None), 0);
-    assert_eq!(found(&mut s, Some("subfolders")), 1);
-    assert_eq!(found(&mut s, Some("mailbox")), 1);
-    assert_eq!(found(&mut s, Some("all")), 1);
+    assert_eq!(found(&mut s, Some("subfolders")), 2);
+    assert_eq!(found(&mut s, Some("mailbox")), 2);
+    assert_eq!(found(&mut s, Some("all")), 2);
     assert_eq!(s.search.as_ref().map(|x| x.1), Some(SearchScope::All));
     assert!(s.run("search.run", &json!({"query": "x", "scope": "everywhere"})).is_err());
     // From a unified view, the mailbox is every account's.
@@ -101,7 +101,8 @@ fn search_finds_bodies_fields_and_attachment_names() {
     assert_eq!(s.list[0].subject, "Re: Storyboard review on Thursday");
     assert_eq!(s.run("search.run", &json!({"query": "from:zoe"})).unwrap()["results"], 2);
     assert_eq!(s.run("search.run", &json!({"query": "turnaround"})).unwrap()["results"], 1);
-    assert_eq!(s.run("search.run", &json!({"query": "shot list"})).unwrap()["results"], 1, "other folders are searched too");
+    // The parts of "shot_list_v2" are words too.
+    assert_eq!(s.run("search.run", &json!({"query": "shot list"})).unwrap()["results"], 2, "other folders are searched too");
     assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "current"})).unwrap()["results"], 0);
     assert_eq!(s.run("search.run", &json!({"query": "has:attachment from:jun"})).unwrap()["results"], 1);
     assert!(s.view_title().contains("turnaround") || s.view_title().contains("jun"));

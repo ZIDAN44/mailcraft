@@ -9,7 +9,7 @@
 
 use std::borrow::Cow;
 
-use super::fold::{all_words, has_phrase, has_prefix, join};
+use super::fold::{all_words, has_phrase, has_prefix, join, parts, with_parts};
 use super::*;
 
 /// Kleene's three values: a message matches, doesn't, or can't be told yet.
@@ -93,8 +93,9 @@ pub fn indexed(found: bool, field: TextField, truncated: bool, has_text: bool) -
 /// and names [joined](IndexDoc::joined)).
 impl TextSource for &str {
     fn word(&self, _: TextField, prefix: &str) -> Tri {
-        // An address is also found inside a word (`ana@studio.example` in `<ana@studio.example>`).
-        Tri::from(all_words(self).any(|w| w.starts_with(prefix)) || (prefix.contains(['@', '.']) && self.to_lowercase().contains(prefix)))
+        // An address is also found inside a word (`ana@studio.example` in `<ana@studio.example>`);
+        // a word, as one of the parts of one (`word` in "site.word"), as the index has it.
+        Tri::from(with_parts(all_words(self)).any(|w| w.starts_with(prefix)) || (prefix.contains(['@', '.']) && self.to_lowercase().contains(prefix)))
     }
 
     fn phrase(&self, _: TextField, phrase: &[String], raw: &str) -> Tri {
@@ -197,6 +198,13 @@ impl SummaryText {
         for (i, text) in [subject, &from, &to, preview].into_iter().enumerate() {
             let mut part = String::new();
             join(all_words(text), &mut part);
+            // The parts of words that join them ("site.word"), found as words too: after a mark
+            // no phrase has, so a phrase isn't found across them.
+            let pieces: Vec<String> = part.split(' ').flat_map(parts).map(str::to_string).collect();
+            if !pieces.is_empty() {
+                part.push_str(" \u{1}");
+                join(pieces.into_iter().map(Cow::Owned), &mut part);
+            }
             st.folded.push_str(&part);
             if let Some(end) = st.ends.get_mut(i) {
                 *end = st.folded.len();

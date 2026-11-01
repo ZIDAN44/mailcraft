@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{Query, tokens};
+use super::{Query, index_tokens};
 
 /// Words → documents. Document ids are the caller's (positions in its message table).
 #[derive(Clone, Debug, Default)]
@@ -27,10 +27,11 @@ impl Index {
     }
 
     /// Add a document's text (call again with more text, e.g. the body once fetched). Its words
-    /// are [folded](super::fold_word), and long ones (base64 debris) left out: they only bloat it.
+    /// are [folded](super::fold_word), with their [parts](super::parts), and long ones (base64
+    /// debris) left out: they only bloat it.
     pub fn add(&mut self, doc: u32, text: &str) {
         self.docs.insert(doc);
-        for w in tokens(text) {
+        for w in index_tokens(text) {
             let list = self.postings.entry(w.into_owned()).or_default();
             // Documents mostly come in order: appended; one added later goes in its place.
             match list.last() {

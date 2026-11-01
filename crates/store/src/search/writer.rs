@@ -11,7 +11,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use mailcraft_model::search::{IndexDoc, TOKENIZER_VERSION, tokens};
+use mailcraft_model::search::{IndexDoc, TOKENIZER_VERSION, index_tokens};
 
 use super::format::{
     MAX_META, MAX_NAME_BYTES, MAX_SEGMENTS, Meta, SegBuilder, SegFiles, SegInfo, TextPage, encode_blob, encode_docs, encode_meta, encode_text_page,
@@ -124,11 +124,11 @@ fn each_word(text: &str, names: &[String], each: &mut dyn FnMut(Vec<u8>)) {
             each(k);
         }
     };
-    for w in tokens(text) {
+    for w in index_tokens(text) {
         add(key(Field::Body, &w));
     }
     for n in names {
-        for w in tokens(n) {
+        for w in index_tokens(n) {
             add(key(Field::Names, &w));
         }
     }
