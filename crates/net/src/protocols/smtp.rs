@@ -27,7 +27,15 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
         return Err(NetError::Smtp("no recipients".into()));
     }
     let envelope = Envelope::new(Some(from), to).map_err(|e| NetError::Smtp(e.to_string()))?;
-    let tls = |host: &str| TlsParameters::new_rustls(host.to_string()).map_err(|e| NetError::Tls(e.to_string()));
+    let tls = |host: &str| {
+        let mut p = TlsParameters::builder(host.to_string());
+        for der in crate::trust_roots() {
+            if let Ok(c) = lettre::transport::smtp::client::Certificate::from_der(der) {
+                p = p.add_root_certificate(c);
+            }
+        }
+        p.build_rustls().map_err(|e| NetError::Tls(e.to_string()))
+    };
     let mut b = SmtpTransport::builder_dangerous(server.host.as_str()).port(server.port).timeout(Some(Duration::from_secs(60)));
     b = match server.security {
         Security::Tls => b.tls(Tls::Wrapper(tls(&server.host)?)),

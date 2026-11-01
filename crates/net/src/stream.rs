@@ -75,6 +75,10 @@ fn tls_config() -> Result<Arc<ClientConfig>> {
         .get_or_init(|| {
             let mut roots = RootCertStore::empty();
             roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+            // Also trust the system's store (Windows cert store, macOS Keychain, Linux bundle),
+            // so an internal CA deployed by IT (e.g. for on-prem Exchange) is accepted.
+            let (added, _ignored) = roots.add_parsable_certificates(rustls_native_certs::load_native_certs().certs);
+            log::info!("TLS: {added} system root certificates added");
             ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
                 .with_safe_default_protocol_versions()
                 .map(|b| Arc::new(b.with_root_certificates(roots).with_no_client_auth()))
