@@ -99,7 +99,7 @@ fn files_left_out_are_counted_by_reason() {
     out.add_message(&path, mail(vec![link(), link(), Got::Nothing]));
     out.add_message(&path, mail(vec![link(), Got::Left(SkipReason::AttachmentUnreadable), Got::File(data_file("plan.pdf", "application/pdf", ""))]));
     out.add_message(&path, Item { class: "IPM.Contact".into(), ..mail(vec![link()]) });
-    let done = out.finish().unwrap();
+    let done = out.finish();
     assert_eq!((done.messages, done.skipped), (2, 0));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentUnreadable, 1), (SkipReason::AttachmentLink, 3)]);
     let _ = std::fs::remove_dir_all(&dir);
