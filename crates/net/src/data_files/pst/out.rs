@@ -29,10 +29,10 @@ pub(super) struct Out<'a> {
     /// (a folder of hundreds of thousands isn't held whole; written ones keep only their counts).
     pub(super) states: HashMap<String, Open>,
     pub(super) imported: usize,
-    /// Items left out, in all and by reason.
+    /// Items left out, in all and by reason (`skips` also counts messages that came in with part
+    /// of them lost, which `skipped` doesn't).
     pub(super) skipped: usize,
     pub(super) skips: BTreeMap<SkipReason, usize>,
-    pub(super) charset_unsupported: usize,
     pub(super) body_not_converted: usize,
     pub(super) progress: &'a mut dyn FnMut(usize),
     /// Contacts and calendar items read so far.
@@ -150,7 +150,9 @@ impl Out<'_> {
             }
         };
         if it.charset_unsupported {
-            self.charset_unsupported += 1;
+            // A loss in the report, though the message comes in: not among the items left out.
+            let c = self.skips.entry(SkipReason::CharsetUnsupported).or_default();
+            *c = c.saturating_add(1);
         }
         if it.body_not_converted {
             self.body_not_converted += 1;
@@ -266,9 +268,6 @@ impl Out<'_> {
             self.pim.ensure_defaults();
             self.store.save_account_doc(self.account, PIM_DOC, &self.pim).map_err(|e| e.to_string())?;
         }
-        if self.charset_unsupported > 0 {
-            log::info!("{} messages are in a code page MailCraft can't read (ISO-2022-KR): only their ASCII was kept", self.charset_unsupported);
-        }
         if self.body_not_converted > 0 {
             log::info!("{} messages kept their body only as Rich Text that couldn't be read: they came in without one", self.body_not_converted);
         }
@@ -280,7 +279,6 @@ impl Out<'_> {
             notes,
             skipped: self.skipped,
             skips: std::mem::take(&mut self.skips),
-            charset_unsupported: self.charset_unsupported,
             body_not_converted: self.body_not_converted,
         })
     }

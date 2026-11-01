@@ -72,6 +72,8 @@ pub(crate) fn text_of(v: &PropertyValue) -> Option<String> {
 /// The charset an HTML body declares counts only in its first this many bytes (where a `<meta>`
 /// tag is).
 const DECLARED_WITHIN: usize = 4096;
+/// The longest `<meta>` tag read for its charset.
+const MAX_META_TAG: usize = 1024;
 
 /// A code page property (`PidTagMessageCodepage`, `PidTagInternetCodepage`); 0 when there is
 /// none.
@@ -134,10 +136,12 @@ pub(super) fn clean_name(s: &str) -> String {
 /// the HTML body (`html`) in its internet code page.
 ///
 /// An HTML body's byte-order mark says what its bytes are (a string's bytes are its page's, even
-/// when they start like one). UTF-16 is read as UTF-16. With no page, US-ASCII, UTF-8 or one this
-/// doesn't know, the bytes are UTF-8 when they're valid, else Windows-1252. Otherwise valid UTF-8
-/// that isn't plain ASCII is UTF-8 (Outlook labels some UTF-8 mail with the sender's code page)
-/// unless an HTML body declares another charset near its top; anything else is in the page.
+/// when they start like one). An HTML body in UTF-16 is read as UTF-16; a string labelled UTF-16
+/// or UTF-7 is read as with no page. With no page, US-ASCII, UTF-8 or one this doesn't know, the
+/// bytes are UTF-8 when they're valid, else Windows-1252. Otherwise valid UTF-8 that isn't plain
+/// ASCII is UTF-8 (Outlook labels some UTF-8 mail with the sender's code page) unless an HTML
+/// body declares another 8-bit charset in a `<meta>` tag near its top; anything else is in the
+/// page.
 pub(super) fn decode(bytes: &[u8], code_page: u32, html: bool) -> String {
     read(bytes, code_page, html).0
 }
@@ -145,6 +149,9 @@ pub(super) fn decode(bytes: &[u8], code_page: u32, html: bool) -> String {
 /// [`decode`], and whether text was lost to a page MailCraft can't read (ISO-2022-KR: only its
 /// ASCII is kept, so a shift or a byte beyond ASCII is lost).
 pub(super) fn read(bytes: &[u8], code_page: u32, html: bool) -> (String, bool) {
+    // An 8-bit string is never UTF-16 or UTF-7, whatever its message's page: it reads as with
+    // no page.
+    let code_page = if html || mime::byte_code_page(code_page) { code_page } else { 0 };
     if html {
         if let Some(rest) = bytes.strip_prefix(b"\xEF\xBB\xBF") {
             return (String::from_utf8_lossy(rest).into_owned(), false);
@@ -173,7 +180,7 @@ pub(super) fn read(bytes: &[u8], code_page: u32, html: bool) -> (String, bool) {
     }
     if let Some(s) = utf8
         && !s.is_ascii()
-        && (!html || declared_charset(bytes).is_none_or(|c| c.eq_ignore_ascii_case(b"utf-8") || c.eq_ignore_ascii_case(b"utf8")))
+        && (!html || !declares_other_charset(bytes))
     {
         return (s.to_string(), false);
     }
@@ -181,30 +188,58 @@ pub(super) fn read(bytes: &[u8], code_page: u32, html: bool) -> (String, bool) {
     (mime::decode_code_page(bytes, code_page), lost)
 }
 
-/// The charset an HTML body declares near its top (`charset=…`, quoted or not, any case).
-fn declared_charset(html: &[u8]) -> Option<&[u8]> {
-    let head = html.get(..html.len().min(DECLARED_WITHIN))?;
+/// Whether an HTML body declares, in a `<meta>` tag that starts in its first 4 KB, a charset
+/// that says what bytes beyond ASCII are and isn't UTF-8 (`charset=…`, quoted or not, any case).
+/// `charset=` elsewhere (a comment, quoted text, a link) isn't a declaration, and neither is one
+/// that can't be 8-bit text's: US-ASCII, or the "unicode" (UTF-16) Word writes in its HTML.
+fn declares_other_charset(html: &[u8]) -> bool {
+    let head = html.get(..html.len().min(DECLARED_WITHIN.saturating_add(4))).unwrap_or_default();
     let mut from = 0;
-    while let Some(at) = head.get(from..)?.windows(7).position(|w| w.eq_ignore_ascii_case(b"charset")) {
+    while let Some(at) = head.get(from..).and_then(|h| h.windows(5).position(|w| w.eq_ignore_ascii_case(b"<meta"))) {
+        let start = from.saturating_add(at);
+        if start >= DECLARED_WITHIN {
+            break;
+        }
+        from = start.saturating_add(5);
+        // The whole tag, read past 4 KB if it crosses it; one that doesn't end soon doesn't count.
+        let rest = html.get(start..).unwrap_or_default();
+        let rest = rest.get(..rest.len().min(MAX_META_TAG)).unwrap_or_default();
+        let Some(end) = rest.iter().position(|c| *c == b'>') else { continue };
+        if let Some(charset) = rest.get(..end).and_then(charset_in) {
+            let c = charset.to_ascii_lowercase();
+            let says_nothing =
+                c.starts_with(b"utf") || c.starts_with(b"unicode") || c.starts_with(b"ucs") || matches!(c.as_slice(), b"us-ascii" | b"ascii");
+            if !says_nothing {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// The value of `charset=` in a tag.
+fn charset_in(tag: &[u8]) -> Option<&[u8]> {
+    let mut from = 0;
+    while let Some(at) = tag.get(from..)?.windows(7).position(|w| w.eq_ignore_ascii_case(b"charset")) {
         let mut i = from.saturating_add(at).saturating_add(7);
         from = i;
         let skip = |i: &mut usize, set: &[u8]| {
-            while head.get(*i).is_some_and(|c| set.contains(c)) {
+            while tag.get(*i).is_some_and(|c| set.contains(c)) {
                 *i += 1;
             }
         };
         skip(&mut i, b" \t\r\n");
-        if head.get(i) != Some(&b'=') {
+        if tag.get(i) != Some(&b'=') {
             continue;
         }
         i += 1;
         skip(&mut i, b" \t\r\n\"'");
         let start = i;
-        while head.get(i).is_some_and(|c| c.is_ascii_alphanumeric() || b"-_.:".contains(c)) {
+        while tag.get(i).is_some_and(|c| c.is_ascii_alphanumeric() || b"-_.:".contains(c)) {
             i += 1;
         }
         if i > start {
-            return head.get(start..i);
+            return tag.get(start..i);
         }
     }
     None

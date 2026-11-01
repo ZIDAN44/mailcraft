@@ -76,15 +76,14 @@ pub struct Imported {
     pub contacts: usize,
     pub events: usize,
     pub notes: usize,
-    /// Items that couldn't be read or written, and how many for each reason.
+    /// Items that couldn't be read or written; and how many for each reason, with messages that
+    /// came in with part of them lost (`CharsetUnsupported`: text, or an attached message's, in a
+    /// code page MailCraft can't read, ISO-2022-KR, of which only the ASCII was kept), which
+    /// `skipped` doesn't count.
     pub skipped: usize,
     pub skips: BTreeMap<SkipReason, usize>,
-    /// Messages with text (or an attached message with text) in a code page MailCraft can't read
-    /// (ISO-2022-KR): imported with only its ASCII. Logged, and not in `skips`, since the message
-    /// itself came in.
-    pub charset_unsupported: usize,
     /// Messages whose only body was Rich Text that couldn't be read: imported without a body.
-    /// Logged, and not in `skips`, for the same reason.
+    /// Logged, and not in `skipped`, since the message itself came in.
     pub body_not_converted: usize,
 }
 
@@ -99,7 +98,6 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
         imported: 0,
         skipped: 0,
         skips: BTreeMap::new(),
-        charset_unsupported: 0,
         body_not_converted: 0,
         progress,
         pim: Pim::default(),

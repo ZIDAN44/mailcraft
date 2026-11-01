@@ -1,6 +1,6 @@
 //! Text in an Outlook data file's properties: an HTML body in its internet code page and an
-//! 8-bit string in its message's, as the `.pst` import reads them, and the bytes in every code
-//! page MailCraft knows.
+//! 8-bit string in its message's, as the `.pst` import reads them, and the bytes in a page of
+//! each kind MailCraft reads (other pages are reached through the input's own).
 //!
 //! The input is a little-endian code page, a byte saying whether the bytes are an HTML body, then
 //! the bytes.
@@ -10,7 +10,8 @@ use libfuzzer_sys::fuzz_target;
 use mailcraft_mime as mime;
 use mailcraft_net::pst;
 
-/// The pages with a reader of their own, and ones that read as another.
+/// A page of each kind: one per decoder family, the ones read here (UTF-16 both ways, UTF-7,
+/// Windows-1252, US-ASCII, ISO-2022-JP and the unsupported ISO-2022-KR), and an unknown one.
 const PAGES: [u32; 18] = [0, 932, 936, 949, 1200, 1201, 1251, 1252, 20127, 50220, 50225, 51932, 54936, 65000, 65001, 10007, 28606, 99_999];
 
 fuzz_target!(|input: &[u8]| {

@@ -64,7 +64,6 @@ fn notes_come_in_as_notes() {
         imported: 0,
         skipped: 0,
         skips: BTreeMap::new(),
-        charset_unsupported: 0,
         body_not_converted: 0,
         progress: &mut progress,
         pim: Pim::default(),
@@ -108,7 +107,6 @@ fn a_big_message_goes_alone() {
         imported: 0,
         skipped: 0,
         skips: BTreeMap::new(),
-        charset_unsupported: 0,
         body_not_converted: 0,
         progress: &mut progress,
         pim: Pim::default(),
@@ -165,8 +163,19 @@ fn utf16_is_never_taken_for_utf8() {
     let be: Vec<u8> = "<p>스요</p>".encode_utf16().flat_map(u16::to_be_bytes).collect();
     assert_eq!(decode(&be, 1201, true), "<p>스요</p>");
     assert_eq!(decode(b"\x00<\x00p\x00>", 1201, true), "<p>", "all ASCII bytes");
-    assert_eq!(decode(b"\xfe\xff\x00h\x00\xe9", 1201, false), "hé", "a mark of the page's own");
-    assert_eq!(decode(b"\xff\xfeh\x00", 1200, false), "h");
+    assert_eq!(decode(b"\xfe\xff\x00h\x00\xe9", 1201, true), "hé", "a mark of the page's own");
+}
+
+/// An 8-bit string is never UTF-16 or UTF-7, whatever its message's page says: it reads as with
+/// no page (it came out as CJK, short of its last letter, or without its pluses).
+#[test]
+fn an_8_bit_string_is_never_utf16_or_utf7() {
+    for cp in [1200, 1201, 65000] {
+        assert_eq!(decode(b"Hello", cp, false), "Hello", "code page {cp}");
+        assert_eq!(decode(b"C++ tips", cp, false), "C++ tips", "code page {cp}");
+        assert_eq!(decode("café".as_bytes(), cp, false), "café", "code page {cp}");
+        assert_eq!(decode(b"caf\xe9", cp, false), "café", "code page {cp}");
+    }
 }
 
 /// Valid UTF-8 that isn't plain ASCII is UTF-8 (Outlook labels some UTF-8 mail with the
@@ -189,6 +198,34 @@ fn utf8_is_utf8_unless_another_charset_is_declared() {
     assert_eq!(decode(html.as_bytes(), 1252, true), html);
     let html = format!("{}<meta charset=windows-1252>{body}", " ".repeat(5000));
     assert_eq!(decode(html.as_bytes(), 1252, true), html);
+    // A declaration that starts in the first 4 KB is read whole, past them (it was cut to "utf").
+    for pad in [4070, 4080, 4085, 4094] {
+        let html = format!("{}<meta charset=utf-8>{body}", " ".repeat(pad));
+        assert_eq!(decode(html.as_bytes(), 1252, true), html, "padded by {pad}");
+    }
+    let html = format!("{}<meta charset=windows-1252>{body}", " ".repeat(4090));
+    assert_ne!(decode(html.as_bytes(), 1252, true), html, "a declaration across the 4 KB still counts");
+    // A charset that can't say what bytes beyond ASCII are declares nothing: US-ASCII, and the
+    // "unicode" Word writes in its HTML.
+    for meta in [
+        "<meta http-equiv=Content-Type content=\"text/html; charset=unicode\">",
+        "<meta charset=\"us-ascii\">",
+        "<meta charset=ascii>",
+        "<meta charset=utf-16le>",
+        "<meta charset=UCS-2>",
+        "<meta charset=utf-7>",
+    ] {
+        let html = format!("{meta}{body}");
+        assert_eq!(decode(html.as_bytes(), 1252, true), html, "{meta}");
+    }
+    // `charset=` outside a `<meta>` tag isn't a declaration: in a comment, text or a link.
+    for html in [
+        format!("{body}<!-- charset=iso-8859-1 -->"),
+        format!("<p>set charset=latin1 in the file</p>{body}"),
+        format!("<a href=\"https://studio.example/?charset=windows-1252\">link</a>{body}"),
+    ] {
+        assert_eq!(decode(html.as_bytes(), 28591, true), html, "{html}");
+    }
     // Plain ASCII and bytes that aren't UTF-8 are in the page.
     assert_eq!(decode(b"caf\xe9", 1252, true), "café");
 }
@@ -216,6 +253,45 @@ fn an_unsupported_charset_is_counted() {
     let props: HashMap<u16, Val<'static>> = HashMap::from([(0x001A, Val::Text("IPM.Note".into()))]);
     let it = item_of(&|id| props.get(&id).cloned(), &none, vec![item::File::Message(Box::new(lost))], &named);
     assert!(it.charset_unsupported);
+}
+
+/// A message whose text was in ISO-2022-KR is in the import's losses (it was only logged), and
+/// still came in: it isn't among the items left out.
+#[test]
+fn an_unsupported_charset_is_in_the_report() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-charset-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let mut progress = |_| {};
+    let mut out = Out {
+        store: &store,
+        account: "d1",
+        folders: Vec::new(),
+        states: HashMap::new(),
+        imported: 0,
+        skipped: 0,
+        skips: BTreeMap::new(),
+        body_not_converted: 0,
+        progress: &mut progress,
+        pim: Pim::default(),
+        pending: Vec::new(),
+        pending_bytes: 0,
+    };
+    let inbox = out.add_folder(None, "Inbox");
+    let mail = |lost: bool| Item {
+        class: "IPM.Note".into(),
+        subject: "Hi".into(),
+        html: Some("<p>Hi \u{e}0!\u{f}</p>".into()),
+        date: 1_700_000_000,
+        charset_unsupported: lost,
+        ..Default::default()
+    };
+    out.add_message(&inbox, mail(true));
+    out.add_message(&inbox, mail(false));
+    let done = out.finish().unwrap();
+    assert_eq!((done.messages, done.skipped), (2, 0));
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::CharsetUnsupported, 1)]);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -596,7 +672,6 @@ fn a_recipient_without_an_address_is_counted() {
         imported: 0,
         skipped: 0,
         skips: BTreeMap::new(),
-        charset_unsupported: 0,
         body_not_converted: 0,
         progress: &mut progress,
         pim: Pim::default(),

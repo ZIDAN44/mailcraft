@@ -1392,15 +1392,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   in the code page the item names (`PidTagInternetCodepage`), with GB18030, EUC-JP/KR,
   ISO-2022-JP, UTF-7, UTF-16BE, KOI8-U, Mac Cyrillic, DOS Latin 1 (850) and more ISO-8859 pages
   added to the table winmail.dat already used; every page in it is tested with its own bytes.
-  A body that is valid UTF-8 stays UTF-8 unless it declares another charset near its top
-  (Outlook labels some UTF-8 mail with the sender's code page), though UTF-16 is always read as
+  A body that is valid UTF-8 stays UTF-8 unless a `<meta>` tag near its top declares another
+  8-bit charset (Outlook labels some UTF-8 mail with the sender's code page; `charset=` in a
+  comment or a link, US-ASCII and Word's "unicode" don't count), though UTF-16 is always read as
   UTF-16; an HTML body's byte-order mark decides first. An older (ANSI) data file's subjects,
   names and file names are read in the message's code page (`PidTagMessageCodepage`) rather than
-  as Windows-1252. Windows-1252's five undefined bytes still come through as the C1 controls they
-  number rather than U+FFFD, and UTF-7 is read by MailCraft itself, so text ending inside a base64
-  run keeps its last characters. ISO-2022-KR has no decoder: its ASCII is kept, and the import
-  logs how many messages (counting attached ones) lost text that way. A new fuzz target,
-  `pst_props`, reads property text in every page.
+  as Windows-1252, except UTF-16 and UTF-7, which 8-bit text can't be in (RTF's `\ansicpg` too).
+  Windows-1252's five undefined bytes still come through as the C1 controls they number rather
+  than U+FFFD, and UTF-7 is read by MailCraft itself, so text ending inside a base64 run keeps
+  its last characters, and a `+` that starts no character (`C++`, `1 + 1`) is kept. ISO-2022-KR
+  has no decoder: its ASCII is kept, and the import report counts the messages (with attached
+  ones) that lost text that way. A new fuzz target, `pst_props`, reads property text in a page
+  of each kind.
 - **Down held in a big folder:** every press queued while a frame was drawn read, parsed and
   marked read a message of its own, so holding Down in a folder of 10,941 messages drew a frame
   every 727 ms (median) and marked read every message it passed. The presses of Down or Up (J,
