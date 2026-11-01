@@ -163,6 +163,9 @@ pub struct IndexDoc {
     pub files: u32,
     /// Something was left out: text past the limit, parts nested too deep, too many parts.
     pub truncated: bool,
+    /// Some of its parts weren't read (nested too deep, too many, too big): `files` may miss
+    /// some. Only text cut at the limit leaves `truncated` without this, and the count whole.
+    pub parts_cut: bool,
     /// The message has text of its own (or a `winmail.dat`'s), not only files.
     pub has_text: bool,
 }

@@ -330,7 +330,8 @@ What disagrees is put right in the folder's list by `Store::set_has_files` (the 
 one rewritten, under the lock every save of a list takes) and sent as
 `Event::AttachmentsKnown`, which the session takes into the summaries it holds
 (`mailboxes/patch.rs`), so the paperclip, Has files and `has:attachment` agree; a doc that couldn't
-be read leaves the summary to say (`DocInfo::files_known`). In the browser
+be read, or whose parts were cut with no file found (`IndexDoc::parts_cut`: a file may be nested
+past the walk's limits), leaves the summary to say (`DocInfo::files_known`). In the browser
 (`apps/mailcraft-web/src/backend/indexing.rs`) the pass gives the page back every 16 messages
 or 1 MiB read, and between merge steps.
 

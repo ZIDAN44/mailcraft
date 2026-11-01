@@ -30,6 +30,8 @@ pub struct DocInfo {
     pub has_text: bool,
     /// Something of it was left out: a word not found may still be in it.
     pub truncated: bool,
+    /// Some of its parts went unread: a file may be among them.
+    pub parts_cut: bool,
     /// Its source isn't kept here: only its summary can be searched (no word is in it, and it's
     /// not waiting to be indexed either).
     pub no_source: bool,
@@ -42,7 +44,10 @@ impl DocInfo {
     /// isn't kept or it couldn't be read (its summary says, then). `has:attachment` and the
     /// summaries put right by a pass ([`Pass::take_files`]) read it alike.
     pub fn files_known(&self) -> Option<bool> {
-        let bits = if self.has_text { HAS_TEXT } else { 0 } | if self.truncated { TRUNCATED } else { 0 } | if self.no_source { NO_SOURCE } else { 0 };
+        let bits = if self.has_text { HAS_TEXT } else { 0 }
+            | if self.truncated { TRUNCATED } else { 0 }
+            | if self.no_source { NO_SOURCE } else { 0 }
+            | if self.parts_cut { 0 } else { WHOLE };
         files_known(self.files, bits)
     }
 }
@@ -297,6 +302,8 @@ impl Reader {
             files: d.files,
             has_text: d.bits & HAS_TEXT != 0,
             truncated: d.bits & TRUNCATED != 0,
+            // Docs from before [`WHOLE`] lack it: one cut is taken as cut anywhere.
+            parts_cut: d.bits & TRUNCATED != 0 && d.bits & WHOLE == 0,
             no_source: d.bits & NO_SOURCE != 0,
             msgid_hash: d.msgid_hash,
             size: d.size,

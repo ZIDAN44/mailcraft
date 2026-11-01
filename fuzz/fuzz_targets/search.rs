@@ -21,7 +21,14 @@ fuzz_target!(|data: &[u8]| {
     q.resolve(&Clock::new(now, 3600));
     let m = mailcraft_model::Summary { subject: text.to_string(), date: now, ..Default::default() };
     let st = SummaryText::of(&m);
-    let body = IndexDoc { text: text.to_string(), names: vec![text.to_string()], files: 1, truncated: data.len() % 2 == 0, has_text: true };
+    let body = IndexDoc {
+        text: text.to_string(),
+        names: vec![text.to_string()],
+        files: 1,
+        truncated: data.len() % 2 == 0,
+        parts_cut: data.len() % 3 == 0,
+        has_text: true,
+    };
     let _ = q.eval(&Doc { summary: &m, summary_text: &st, awaiting: false, files: None, text: &body });
     let _ = q.eval(&Doc { summary: &m, summary_text: &st, awaiting: true, files: Some(true), text: &&*text });
     let _ = tokens(&fold_word(&text)).count();

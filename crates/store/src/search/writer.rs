@@ -173,7 +173,7 @@ impl Ready {
     /// truncated).
     pub fn of(doc: &IndexDoc) -> Ready {
         let (blob, cut) = encode_blob(doc);
-        let bits = if doc.has_text { HAS_TEXT } else { 0 } | if doc.truncated || cut { TRUNCATED } else { 0 };
+        let bits = doc_bits(doc, cut);
         let mut words = BTreeSet::new();
         each_word(format::kept_text(&doc.text), &doc.names, &mut |k| {
             words.insert(k);

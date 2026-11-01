@@ -167,11 +167,13 @@ impl Walk {
     /// others their files and pictures. `false` when its boundary never comes.
     fn multipart<'b>(&mut self, mime: &str, boundary: &[u8], body: &'b [u8], depth: usize, text_on: bool, scope: &mut Scope<'b>) -> bool {
         if depth >= MAX_DEPTH || boundary.len() > MAX_BOUNDARY {
-            self.doc.truncated = true;
+            self.parts_cut();
             return true;
         }
         let Some((parts, cut)) = split_parts(body, boundary, MAX_PARTS.saturating_sub(self.stats.parts)) else { return false };
-        self.doc.truncated |= cut;
+        if cut {
+            self.parts_cut();
+        }
         let default = if mime == "multipart/digest" { "message/rfc822" } else { "text/plain" };
         let heads: Vec<(&[u8], &[u8], Option<mail_parser::Message<'_>>)> = parts
             .iter()
@@ -191,7 +193,7 @@ impl Walk {
         });
         for (i, (whole, body, head)) in heads.iter().enumerate() {
             if self.stats.parts >= MAX_PARTS {
-                self.doc.truncated = true;
+                self.parts_cut();
                 return true;
             }
             let part = head.as_ref().and_then(|m| m.parts.first());
@@ -225,13 +227,23 @@ impl Walk {
         self.file(name);
         match inner {
             Some(m) if depth < MAX_DEPTH => self.message(&m, depth + 1, text_on, true),
-            _ => self.doc.truncated = true,
+            _ => self.parts_cut(),
         }
+    }
+
+    /// Parts left unread: their text and files with them ([`IndexDoc::parts_cut`]).
+    fn parts_cut(&mut self) {
+        self.doc.truncated = true;
+        self.doc.parts_cut = true;
     }
 
     /// A `winmail.dat`: the files in it (pictures its body shows left out), and its body for
     /// a message with no text of its own. One that can't be read is a file.
     fn tnef(&mut self, whole: &[u8], name: Option<String>) {
+        if whole.len() > MAX_TNEF {
+            // Read only so far: files past it aren't counted.
+            self.parts_cut();
+        }
         let Some(data) = self.decode_bytes(whole, MAX_TNEF) else { return self.file(name) };
         let Some(t) = read_tnef(&data).filter(|t| !t.attachments.is_empty() || !t.body.is_empty()) else { return self.file(name) };
         for (f, inline) in t.attachments.iter().zip(tnef_inline(&t)) {

@@ -326,7 +326,7 @@ fn a_message_with_no_source_is_known_as_such() {
     drop(w);
     let mut r = Reader::open(&s, "a1").unwrap().unwrap();
     assert_eq!(r.doc(&mk("INBOX", 1)), Some(d));
-    assert_eq!(r.info(d), Some(DocInfo { files: 0, has_text: false, truncated: false, no_source: true, msgid_hash: 9, size: 99 }));
+    assert_eq!(r.info(d), Some(DocInfo { files: 0, has_text: false, truncated: false, parts_cut: false, no_source: true, msgid_hash: 9, size: 99 }));
     assert_eq!(r.text(&s, d).unwrap(), None);
     assert!(found(&mut r, &s, Field::Body, "").is_empty());
 }
@@ -600,4 +600,43 @@ fn a_pass_finds_summaries_wrong_about_files() {
     assert_eq!(again.files.get("INBOX"), Some(&FilesFound { validity: 7, with: vec![2], without: vec![1] }));
     assert!(again.add.is_empty());
     assert_eq!(s.reads(), reads, "no message read");
+}
+
+/// A doc whose parts were cut (a file nested too deep, or past the thousandth part) with no
+/// file found doesn't take a summary's paperclip away, though text was found: neither as it's
+/// added nor from the index later. One whose text alone was cut does; so does a doc written
+/// before the two were told apart only when nothing was cut.
+#[test]
+fn a_doc_cut_in_its_parts_leaves_the_paperclip() {
+    let s = Store::memory();
+    let with = |uid: u32| Summary { has_attachments: true, ..summary("INBOX", uid, &format!("{uid}@x"), 10, i64::from(uid)) };
+    mail(&s, &[("INBOX", vec![with(2), with(1)])], &[("INBOX", 1), ("INBOX", 2)]);
+    let mut pass = Pass::start(&s, "a1", &[]).unwrap();
+    let parts_cut = IndexDoc { truncated: true, parts_cut: true, ..text("hello", &[], 0) };
+    let text_cut = IndexDoc { truncated: true, ..text("hello", &[], 0) };
+    pass.add(&s, 0, Some(&parts_cut)).unwrap();
+    pass.add(&s, 1, Some(&text_cut)).unwrap();
+    let found = pass.take_files();
+    assert_eq!(found.get("INBOX"), Some(&FilesFound { validity: 7, with: vec![], without: vec![1] }));
+    pass.finish(&s, true).unwrap();
+    drop(pass);
+
+    let r = Reader::open(&s, "a1").unwrap().unwrap();
+    let info = |uid| r.doc(&mk("INBOX", uid)).and_then(|d| r.info(d)).unwrap();
+    assert_eq!((info(2).parts_cut, info(2).files_known()), (true, None));
+    assert_eq!((info(1).parts_cut, info(1).files_known()), (false, Some(false)));
+    // The list changed (a message marked read): the plan reads the docs, and finds only 1.
+    let w = Writer::open(&s, "a1").unwrap();
+    let mut st = s.load_folder("a1", "INBOX").unwrap();
+    st.messages.iter_mut().for_each(|m| m.flags.seen = true);
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    assert_eq!(plan_of(&s, &w).files.get("INBOX"), Some(&FilesFound { validity: 7, with: vec![], without: vec![1] }));
+
+    // Written before WHOLE: cut and no file is unknown, text or not; whole, or a file, known.
+    assert_eq!(files_known(0, HAS_TEXT | TRUNCATED), None);
+    assert_eq!(files_known(0, TRUNCATED), None);
+    assert_eq!(files_known(0, HAS_TEXT), Some(false));
+    assert_eq!(files_known(1, TRUNCATED), Some(true));
+    assert_eq!(files_known(0, HAS_TEXT | TRUNCATED | WHOLE), Some(false));
+    assert_eq!(files_known(1, WHOLE | NO_SOURCE), None);
 }

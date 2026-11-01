@@ -119,7 +119,14 @@ fn matching() {
 #[test]
 fn the_text_answers_body_and_names() {
     let m = sample();
-    let doc = IndexDoc { text: "The budget for the shoot".into(), names: vec!["Q3 Plan.pdf".into()], files: 1, truncated: false, has_text: true };
+    let doc = IndexDoc {
+        text: "The budget for the shoot".into(),
+        names: vec!["Q3 Plan.pdf".into()],
+        files: 1,
+        truncated: false,
+        parts_cut: false,
+        has_text: true,
+    };
     let t = |s: &str| eval(&Query::parse(s), &m, &doc);
     assert_eq!(t("budget"), Tri::Yes);
     assert_eq!(t("body:budget"), Tri::Yes);
@@ -186,7 +193,7 @@ fn a_truncated_or_textless_doc_is_unknown_when_a_word_is_missing() {
     let m = sample(); // unread
     let whole = IndexDoc { text: "storyboard notes".into(), has_text: true, ..Default::default() };
     let cut = IndexDoc { truncated: true, ..whole.clone() };
-    let files_only = IndexDoc { text: String::new(), names: vec!["scan.pdf".into()], files: 1, truncated: false, has_text: false };
+    let files_only = IndexDoc { text: String::new(), names: vec!["scan.pdf".into()], files: 1, truncated: false, parts_cut: false, has_text: false };
     let t = |s: &str, d: &IndexDoc| eval(&Query::parse(s), &m, d);
     assert_eq!((t("budget", &whole), t("-budget", &whole)), (Tri::No, Tri::Yes));
     assert_eq!((t("budget", &cut), t("-budget", &cut)), (Tri::Unknown, Tri::Unknown), "past the cut, it may be there");

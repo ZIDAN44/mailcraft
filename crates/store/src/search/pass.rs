@@ -78,8 +78,7 @@ impl Pass {
         self.done = self.done.saturating_add(1);
         self.bytes_done = self.bytes_done.saturating_add(u64::from(m.size));
         if let Some(doc) = doc {
-            let bits = if doc.has_text { HAS_TEXT } else { 0 } | if doc.truncated { TRUNCATED } else { 0 };
-            if let Some(files) = files_known(u16::try_from(doc.files).unwrap_or(u16::MAX), bits).filter(|f| *f != m.has_files) {
+            if let Some(files) = files_known(u16::try_from(doc.files).unwrap_or(u16::MAX), doc_bits(doc, false)).filter(|f| *f != m.has_files) {
                 // A folder's messages all come from one reading of its list: one validity.
                 let found =
                     self.files.entry(m.key.folder.clone()).or_insert_with(|| FilesFound { validity: m.key.validity, ..FilesFound::default() });
@@ -103,7 +102,7 @@ impl Pass {
     /// rather than read it again, and counted.
     pub fn add_unreadable(&mut self, store: &Store, i: usize) -> Result<Option<u64>> {
         self.failed = self.failed.saturating_add(1);
-        self.add(store, i, Some(&IndexDoc { truncated: true, ..IndexDoc::default() }))
+        self.add(store, i, Some(&IndexDoc { truncated: true, parts_cut: true, ..IndexDoc::default() }))
     }
 
     /// Write what's held. `complete`: every message to add was handed back, so the folders

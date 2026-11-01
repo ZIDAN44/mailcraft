@@ -175,7 +175,7 @@ fn long_bodies_are_kept_to_a_million_characters() {
     let body = "é".repeat(1_500_000);
     let d = index_doc(&message("text/plain; charset=utf-8", &body));
     assert_eq!(d.text.chars().count(), mailcraft_model::search::MAX_INDEX_CHARS);
-    assert!(d.truncated);
+    assert!(d.truncated && !d.parts_cut, "every part read: the file count stands");
 }
 
 /// A part a hundred multiparts deep is cut off at the depth limit, without a panic or an
@@ -187,7 +187,7 @@ fn hostile_structures_are_bounded() {
         body = format!("Content-Type: multipart/mixed; boundary=\"b{i}\"\r\n\r\n{}", parts(&format!("b{i}"), &[body]));
     }
     let d = index_doc(format!("{HEAD}{body}").as_bytes());
-    assert!(d.truncated && !d.text.contains("deepest"), "{d:?}");
+    assert!(d.truncated && d.parts_cut && !d.text.contains("deepest"), "{d:?}");
 
     let raw = message("multipart/mixed; boundary=\"mix\"", &format!("--mix\r\n{}\r\n--mix\r\n{}", text("first"), pdf("unclosed.pdf", "attachment")));
     let d = doc(&raw);
@@ -195,7 +195,7 @@ fn hostile_structures_are_bounded() {
 
     let many: Vec<String> = (0..2000).map(|i| pdf(&format!("f{i}.pdf"), "attachment")).collect();
     let d = index_doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &many)));
-    assert!(d.truncated && d.files < 1000, "{} files", d.files);
+    assert!(d.truncated && d.parts_cut && d.files < 1000, "{} files", d.files);
 
     for junk in [
         &b""[..],
@@ -206,6 +206,29 @@ fn hostile_structures_are_bounded() {
     ] {
         let _ = index_doc(junk);
     }
+}
+
+/// A file past the depth limit, or past the thousandth part, isn't counted: the walk says its
+/// parts were cut, even with text found before, so a summary's paperclip isn't taken away
+/// because of it (the summary sees the file).
+#[test]
+fn files_past_a_cut_leave_the_count_unknown() {
+    let mut inner = pdf("deep.pdf", "attachment");
+    for i in 0..9 {
+        inner = format!("Content-Type: multipart/mixed; boundary=\"d{i}\"\r\n\r\n{}", parts(&format!("d{i}"), &[inner]));
+    }
+    let raw = message("multipart/mixed; boundary=\"top\"", &parts("top", &[text("Hello"), inner]));
+    let d = index_doc(&raw);
+    assert_eq!((d.text.as_str(), d.files), ("Hello", 0));
+    assert!(d.has_text && d.truncated && d.parts_cut, "{d:?}");
+    assert!(summary_from_header(&raw, key(), Flags::default(), 0, 0).has_attachments);
+
+    let mut many = vec![text("Hello")];
+    many.extend((0..1000).map(|i| text(&format!("line {i}"))));
+    many.push(pdf("last.pdf", "attachment"));
+    let d = index_doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &many)));
+    assert_eq!(d.files, 0);
+    assert!(d.has_text && d.parts_cut, "{d:?}");
 }
 
 /// The first delimiter at the body's very start (no preamble), and an inner boundary that starts

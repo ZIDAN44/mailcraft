@@ -222,7 +222,7 @@ pub(crate) struct DocRec {
     pub(crate) text: u32,
     /// Its files (`has:attachment`).
     pub(crate) files: u16,
-    /// [`HAS_TEXT`], [`TRUNCATED`], [`NO_SOURCE`], [`PURGED`].
+    /// [`HAS_TEXT`], [`TRUNCATED`], [`NO_SOURCE`], [`PURGED`], [`WHOLE`].
     pub(crate) bits: u8,
     /// Its Message-ID's hash and its size: a message moved is known by them.
     pub(crate) msgid_hash: u64,
@@ -241,6 +241,14 @@ pub(crate) const TRUNCATED: u8 = 2;
 pub(crate) const NO_SOURCE: u8 = 4;
 /// Removed, and its words gone from every segment.
 pub(crate) const PURGED: u8 = 8;
+/// Every part of it was read: its file count is whole even when its text was cut. Docs written
+/// before it came lack it, so a doc cut somewhere is taken as not knowing its files.
+pub(crate) const WHOLE: u8 = 16;
+
+/// A doc's flags from what search read of it (`cut`: its text was cut again to fit a page).
+pub(crate) fn doc_bits(doc: &mailcraft_model::search::IndexDoc, cut: bool) -> u8 {
+    (if doc.has_text { HAS_TEXT } else { 0 }) | if doc.truncated || cut { TRUNCATED } else { 0 } | if doc.parts_cut { 0 } else { WHOLE }
+}
 
 impl DocRec {
     pub(crate) fn live(&self) -> bool {
@@ -254,10 +262,10 @@ impl DocRec {
 }
 
 /// Whether a doc's message carries files (`files` of them, `bits` its flags), as far as the
-/// index knows: not when its source isn't kept, nor when it couldn't be read (something left
-/// out, and neither text nor a file found). The summary says, then.
+/// index knows: not when its source isn't kept, nor when parts of it went unread and no file was
+/// found (a file may be past the cut: nested too deep, one part too many). The summary says, then.
 pub(crate) fn files_known(files: u16, bits: u8) -> Option<bool> {
-    let unread = files == 0 && bits & TRUNCATED != 0 && bits & HAS_TEXT == 0;
+    let unread = files == 0 && bits & TRUNCATED != 0 && bits & WHOLE == 0;
     (bits & NO_SOURCE == 0 && !unread).then_some(files > 0)
 }
 
@@ -502,6 +510,7 @@ pub fn exercise_index(store: &Store) {
         names: vec!["a.pdf".into()],
         files: 1,
         truncated: false,
+        parts_cut: false,
         has_text: true,
     };
     let look = |r: &mut Reader| {

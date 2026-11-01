@@ -1776,4 +1776,5 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   The search index now puts those summaries right as it reads the mail, once for mail already
   indexed (every folder is looked at again by the first pass), and the list shows it at once, so
   the three agree. Only the pages of a folder's list holding a message put right are written. A
-  message the index couldn't read keeps what its summary says, for `has:attachment` too.
+  message the index couldn't read, or couldn't read all the parts of (a file nested past its
+  limits), keeps what its summary says, for `has:attachment` too.
