@@ -500,7 +500,7 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
 }
 
 /// An account's bulk write ([`Store::bulk_begin`]), ended when dropped, on every way out of an
-/// import (a panic included).
+/// import (a panic included: the file then keeps its cache until it's next asked for).
 struct Bulk<'a> {
     store: &'a Store,
     account: &'a str,

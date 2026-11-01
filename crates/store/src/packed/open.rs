@@ -120,7 +120,12 @@ impl Packs {
     /// time it's asked for once nobody does.
     pub(crate) fn bulk_end(&self, account: &str) {
         self.settled(account).bulk.remove(account);
-        self.recache(account);
+        // Ended by a panic: closed now, the file would write nothing (the database doesn't while
+        // a thread panics) and need its full check when opened next; the next ask for it, from an
+        // ordinary moment, gives it its usual cache.
+        if !std::thread::panicking() {
+            self.recache(account);
+        }
     }
 
     /// `account`'s data file, open with another cache than it should have, closed if nobody else
@@ -144,15 +149,24 @@ impl Packs {
                 return false;
             }
         };
-        let used = CacheUse::of(&db);
-        let spent = open.spent.get(account).copied().unwrap_or_default().add(used);
-        open.spent.insert(account.to_string(), spent);
-        open.caches.remove(account);
         open.opening.insert(account.to_string());
         drop(open);
         let _opening = Opening { packs: self, account };
+        // Sealed before it's closed, rather than trusting the close (which says nothing of how it
+        // went): what waited is made durable, or the file stays open and its seal still due.
+        if let Err(e) = seal(&db, &self.seals, account) {
+            log::warn!("{account}: its data file couldn't be sealed to change its cache: {e}");
+            Packs::lock(&self.open).dbs.insert(account.to_string(), Arc::new(db));
+            return false;
+        }
+        let used = CacheUse::of(&db);
+        let mut open = Packs::lock(&self.open);
+        let spent = open.spent.get(account).copied().unwrap_or_default().add(used);
+        open.spent.insert(account.to_string(), spent);
+        open.caches.remove(account);
+        drop(open);
         drop(db);
-        // Closing made what waited durable, and recorded where the free space is.
+        // Sealed and closed: nothing waits for a seal, and the free space is recorded.
         self.seals.forget(account);
         true
     }

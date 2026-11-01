@@ -89,6 +89,41 @@ fn a_held_data_file_keeps_its_cache_until_let_go() {
     let _ = std::fs::remove_dir_all(&t);
 }
 
+/// A bulk write ended by a panic leaves the file open: closed then, it would write nothing and
+/// need its full check when opened next. The next ask gives it its usual cache, sealed first.
+#[test]
+fn a_panic_ends_the_bulk_write_without_closing_the_file() {
+    struct Ends<'a>(&'a Store);
+    impl Drop for Ends<'_> {
+        fn drop(&mut self) {
+            self.0.bulk_end("a1");
+        }
+    }
+    let t = temp("bulk-panic");
+    let s = store(&t);
+    s.write_body(&inbox(1), &source(1)).unwrap();
+    s.bulk_begin("a1", BULK_CACHE);
+    let batch: Vec<_> = (2..40).map(|i| (inbox(i), Store::prepare(true, source(i)))).collect();
+    s.write_prepared(batch, false).unwrap();
+    let ended = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ends = Ends(&s);
+        panic!("an import fails");
+    }));
+    assert!(ended.is_err());
+    assert_eq!(s.data_file_cache("a1"), Some(BULK_CACHE), "left open by the panic");
+    assert_eq!(s.read_body(&inbox(39)), Some(source(39)));
+    assert_eq!(s.data_file_cache("a1"), Some(CACHE), "the bulk write is over: shrunk on the next use");
+    assert!(!packs(&s).seal_due("a1"));
+    drop(s);
+    let s = store(&t);
+    for i in 1..40 {
+        assert_eq!(s.read_body(&inbox(i)), Some(source(i)), "source {i}");
+    }
+    assert_eq!(packs(&s).progress.checked(), 0, "closed cleanly: no check");
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// Bulk writes beginning and ending while other threads write and read the file (the sealing
 /// thread among them): nothing fails (no "open in another copy"), nothing is lost.
 #[test]
