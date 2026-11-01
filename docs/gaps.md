@@ -1562,3 +1562,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   items (folders under it are still read), and a contact or calendar item that couldn't be read
   is told apart from one that was read but can't be used. The progress bar moves through items
   left out and contacts as it does through mail.
+- **Reading while moving down the list:** the message shown was read from the cache and parsed in
+  the frame that showed it, so the biggest messages (0.1 s) and the longest ones held the window
+  up each time one was landed on. Where the app has a thread for it, that work now goes to the
+  reading lane: the pane shows the subject and a spinner for the frame or two it takes, only the
+  message landed on is read (not each one passed), and its pictures are taken out of the source
+  read for it rather than read again. A command run meanwhile (reply, forward, save) finishes it
+  first, so it acts on the message shown. Signed or encrypted mail, the command line and the
+  start-up `--cmd`s still read it at once.

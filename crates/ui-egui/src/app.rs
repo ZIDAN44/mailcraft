@@ -3,6 +3,7 @@
 mod actions;
 mod alt_code;
 mod bars;
+mod bodies;
 pub(crate) mod boot;
 mod dropped;
 mod frame;
@@ -14,6 +15,7 @@ mod updates;
 mod windows;
 
 pub use alt_code::{alt_code_pages, alt_codes};
+pub(crate) use bodies::Bodies;
 pub use boot::BootCard;
 pub use dropped::{ClipboardRead, clipboard_keys};
 pub(crate) use ribbon::junk_menu;

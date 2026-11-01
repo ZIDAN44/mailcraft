@@ -110,6 +110,7 @@ impl MailApp {
             ctx.options_mut(|o| o.quit_shortcuts.clear());
         }
         self.pump();
+        self.take_body();
         self.settle_composes(&ctx);
         self.announce(&ctx);
         self.follow_update(&ctx);
@@ -153,6 +154,7 @@ impl MailApp {
             for a in acts {
                 self.act(a);
             }
+            self.send_body_work(&ctx);
             self.flush_jobs();
             return;
         }
@@ -380,6 +382,7 @@ impl MailApp {
         for a in acts {
             self.act(a);
         }
+        self.send_body_work(&ctx);
         self.flush_jobs();
         if std::mem::take(&mut self.ui.focus_main) {
             ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);

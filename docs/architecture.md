@@ -35,8 +35,8 @@
 `cargo xtask layers` enforces this, including that `egui` stays in L6 and network crates stay in `net`.
 `cargo xtask wasm` checks that every crate but `net`, and the web app, build for `wasm32`.
 
-Threads stay out of the portable crates. Slow work in the window (decoding a message's pictures)
-goes through `Services::background` to a lane: the desktop app runs one thread per lane
+Threads stay out of the portable crates. Slow work in the window (decoding a message's pictures,
+reading and parsing the open message) goes through `Services::background` to a lane: the desktop app runs one thread per lane
 (`apps/mailcraft/src/desktop/lanes.rs`), each piece of work under `catch_unwind`, and gives a
 lane caught on cancelled work for 30 seconds a new thread. Where the work is given back (the
 browser, the tests) the UI does it a step a frame.
@@ -125,6 +125,15 @@ JMAP.
 across all accounts such as *All Inboxes*), the filter and search, the message list, selection and
 focus, the open message (`Reading`, parsed on demand from the cached source), the message being
 written (`Compose`), preferences and status-bar notices.
+
+- The open message's body can be got ready away from the window's thread
+  (`session/opening/prepare.rs`): once the app turns it on (`defer_bodies`, after the start-up
+  `--cmd`s, where there is a reading lane), showing a message queues a `BodyWork` (read from the
+  cache, or as it arrived, then parsed) that the window runs on the reading lane, latest only,
+  and hands back to `finish_body`; a result for a message the pane moved on from is let go.
+  Signed or encrypted mail is still unwrapped on the session's thread (it needs its keys).
+  `Session::run` finishes the waiting body before any command but moving about the list, so a
+  command acts on the message as shown; the CLI and the tests never defer.
 
 - The list is indexed as it's built (`refresh_list` → `ListNav` in `session/mailboxes/nav.rs`):
   `index_of`, `summary`, `selected_iter` and `first_selected` are lookups, not passes over the

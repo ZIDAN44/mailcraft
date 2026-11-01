@@ -269,6 +269,8 @@ pub struct UiState {
     /// The pictures of the messages shown: attachment thumbnails, pictures in HTML, a picture or
     /// a PDF's pages at the pane's size ([`reading::Pictures`]).
     pub(crate) pictures: reading::Pictures,
+    /// The open message's body on its way back from the reading lane.
+    pub(crate) bodies: app::Bodies,
     /// Decoded web pictures, by address, and the frame each was last shown in (the oldest go
     /// when there are too many).
     web_pictures: HashMap<String, (Option<egui::TextureHandle>, u64)>,
@@ -420,6 +422,7 @@ impl MailApp {
                 ribbon_icons_from: usize::MAX,
                 dialog: None,
                 pictures: reading::Pictures::default(),
+                bodies: app::Bodies::default(),
                 web_pictures: HashMap::new(),
                 toast: None,
                 seen_notices: seen,

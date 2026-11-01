@@ -75,6 +75,8 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     let t = st.tokens;
     let Some(r) = s.reading.clone() else { return };
     let summary = s.summary(&r.key).cloned();
+    // Being read and parsed on the reading lane (a frame or a few): its subject and a spinner.
+    let getting_ready = s.body_waiting(&r.key);
     // An attachment shown in place of the text (its chip clicked); Escape goes back.
     let viewing = st
         .attachment_view
@@ -89,7 +91,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", in_window, r.key.to_id(), viewing)).show(ui, |ui| {
         egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: 18, bottom: 24 }).show(ui, |ui| {
             let Some(p) = &r.parsed else {
-                ui.add_space(30.0);
+                if !getting_ready {
+                    ui.add_space(30.0);
+                }
                 match &r.error {
                     Some(e) => {
                         ui.horizontal(|ui| {
@@ -100,6 +104,14 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                         if ui.button(tl!("Try again")).clicked() {
                             acts.push(Action::Open(r.key.clone()));
                         }
+                    }
+                    None if getting_ready => {
+                        if let Some(m) = &summary {
+                            let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+                            crate::bidi::label(ui, subject, theme::bold(21.0), t.text);
+                            ui.add_space(8.0);
+                        }
+                        ui.spinner();
                     }
                     None => {
                         ui.horizontal(|ui| {

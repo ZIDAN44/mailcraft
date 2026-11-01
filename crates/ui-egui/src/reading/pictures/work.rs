@@ -35,6 +35,8 @@ impl Sources {
 pub(super) struct Stats {
     /// Messages read and parsed for their files.
     pub(super) extractions: AtomicUsize,
+    /// Of those, the ones read from the cache (not given, read already to be shown).
+    pub(super) reads: AtomicUsize,
     /// Pictures and PDF pages decoded.
     pub(super) decodes: AtomicUsize,
     /// Steps done on the window's thread.
@@ -80,6 +82,8 @@ pub(super) enum Step {
 pub(super) struct Batch {
     pub(super) key: MessageKey,
     pub(super) store: Store,
+    /// The message's source, read already to show it: the first read takes it.
+    pub(super) given: Mutex<Option<Arc<[u8]>>>,
     pub(super) queue: Mutex<VecDeque<(usize, Want)>>,
     /// Taken out with the first ones asked: the message's other pictures and PDFs, so a
     /// picture opened big or a PDF's pages later need no other read.
@@ -223,10 +227,22 @@ impl Batch {
         // One read looks for so many (`index` first): the others aren't looked for, so they
         // aren't taken as not there either, and a later read looks for them.
         wanted.truncate(mime::MAX_WANTED);
-        let Some(raw) = self.store.read_body(&self.key) else { return };
-        shared.stats.extractions.fetch_add(1, Ordering::Relaxed);
-        let parts = mime::attachments_data(&raw, &wanted, MAX_EACH, self.sources_max);
-        drop(raw);
+        // (The source is let go once its files are out.)
+        let parts = {
+            let given = lock(&self.given).take();
+            let read;
+            let raw: &[u8] = match &given {
+                Some(raw) => raw,
+                None => {
+                    let Some(r) = self.store.read_body(&self.key) else { return };
+                    shared.stats.reads.fetch_add(1, Ordering::Relaxed);
+                    read = r;
+                    &read
+                }
+            };
+            shared.stats.extractions.fetch_add(1, Ordering::Relaxed);
+            mime::attachments_data(raw, &wanted, MAX_EACH, self.sources_max)
+        };
         let needed: usize = parts.iter().map(|(_, d)| d.len()).fold(0, usize::saturating_add);
         {
             // Nothing was left out for room (any file that fits would have): those not taken out

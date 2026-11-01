@@ -4,6 +4,8 @@
 use super::*;
 use crate::rich_edit::{FIT_WIDTH, own_size};
 
+mod bodies;
+
 fn pointer(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) {
     frame(ctx, a, events);
     frame(ctx, a, vec![]);

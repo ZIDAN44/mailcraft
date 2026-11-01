@@ -631,6 +631,9 @@ fn run(
                 for h in &handed {
                     app.open_handed(h);
                 }
+                // From here the open message's body is read and parsed on a thread of its own (the
+                // commands above answered at once, as they do in the CLI).
+                app.defer_bodies();
                 App {
                     app,
                     state_path,
