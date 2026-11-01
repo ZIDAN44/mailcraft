@@ -123,21 +123,33 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
             Err(_) => read_ansi(AnsiPstFile::open(path)?, &mut out),
         }
     }));
-    match read {
-        Ok(Ok(())) => {}
+    let failed: Option<String> = match read {
+        Ok(Ok(())) => None,
         // Windows' sharing and lock violations: Outlook (or another program) has it open.
         Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => {
-            return Err(
-                "Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again".into()
-            );
+            Some("Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again".into())
         }
         // Nothing found at all: say why; otherwise keep what was read.
-        Ok(Err(e)) if out.folders.is_empty() => return Err(format!("not an Outlook data file, or it is damaged ({e})")),
-        Ok(Err(e)) => log::warn!("{}: the rest of the data file could not be read: {e}", path.display()),
-        Err(_) if out.folders.is_empty() => return Err("the data file is damaged".into()),
-        Err(_) => log::warn!("{}: the data file is damaged; stopped reading", path.display()),
+        Ok(Err(e)) if out.folders.is_empty() => Some(format!("not an Outlook data file, or it is damaged ({e})")),
+        Ok(Err(e)) => {
+            log::warn!("{}: the rest of the data file could not be read: {e}", path.display());
+            None
+        }
+        Err(_) if out.folders.is_empty() => Some("the data file is damaged".into()),
+        Err(_) => {
+            log::warn!("{}: the data file is damaged; stopped reading", path.display());
+            None
+        }
+    };
+    match failed {
+        // Batches may have gone in already (a lock met part-way): on the disk and sealed all the
+        // same, as at the end.
+        Some(e) => {
+            out.seal();
+            Err(e)
+        }
+        None => out.finish(),
     }
-    out.finish()
 }
 
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the

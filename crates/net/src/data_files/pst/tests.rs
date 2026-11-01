@@ -93,6 +93,35 @@ fn notes_come_in_as_notes() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A message too big for the batch being gathered goes into a transaction of its own, not on top
+/// of the batch (which made one far over the cap): a write of it that fails costs only it.
+#[test]
+fn a_big_message_goes_alone() {
+    let store = Store::failing();
+    store.fail(None, Some("2.eml"));
+    let mut progress = |_| {};
+    let mut out = Out {
+        store: &store,
+        account: "d1",
+        folders: Vec::new(),
+        states: HashMap::new(),
+        imported: 0,
+        skipped: 0,
+        skips: BTreeMap::new(),
+        charset_unsupported: 0,
+        progress: &mut progress,
+        pim: Pim::default(),
+        pending: Vec::new(),
+        pending_bytes: 0,
+    };
+    let inbox = out.add_folder(None, "Inbox");
+    let mail = |body: String| Item { class: "IPM.Note".into(), subject: "s".into(), date: 1_704_067_200, body, ..Default::default() };
+    out.add_message(&inbox, mail("small".into()));
+    out.add_message(&inbox, mail("x".repeat(mailcraft_store::BACKGROUND_COMMIT)));
+    let done = out.finish().unwrap();
+    assert_eq!((done.messages, done.skipped), (1, 1), "the small one was written in a batch of its own");
+}
+
 #[test]
 fn windows_1252_and_utf8() {
     assert_eq!(decode(b"caf\xe9 \x80 \x93q\x94", 1252, false), "café € “q”");

@@ -164,7 +164,11 @@ impl Out<'_> {
         self.lose(SkipReason::RecipientWithoutAddress, it.recipients_without_address);
         // Compressed here, so the data file is held only to store it.
         let prepared = Store::prepare(self.store.packs(self.account), raw);
-        self.pending_bytes += prepared.kept_len();
+        // One that would take the batch past its size goes into the next (a big one alone).
+        if self.pending_bytes.saturating_add(prepared.kept_len()) > BATCH_BYTES {
+            self.flush();
+        }
+        self.pending_bytes = self.pending_bytes.saturating_add(prepared.kept_len());
         self.pending.push((key, prepared));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {
             self.flush();
@@ -232,10 +236,16 @@ impl Out<'_> {
     /// waiting for the disk is on it, and a crash after the import doesn't cost a check of the file.
     pub(super) fn finish(mut self) -> Result<Imported, String> {
         let done = self.write_out();
+        self.seal();
+        done
+    }
+
+    /// What went in so far made durable, and the data file sealed: the end of every import,
+    /// finished or given up on.
+    pub(super) fn seal(&self) {
         if let Err(e) = self.store.seal(self.account) {
             log::warn!("import: {e}");
         }
-        done
     }
 
     fn write_out(&mut self) -> Result<Imported, String> {
