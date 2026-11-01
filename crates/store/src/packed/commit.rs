@@ -171,9 +171,20 @@ impl Seals {
         w.running = false;
     }
 
-    /// `account`'s data file was just sealed by a commit of its own: nothing waits for a seal.
-    fn sealed(&self, account: &str) {
-        self.lock().due.remove(account);
+    /// `account`'s data file was sealed by a commit of its own, begun to commit `at` (its writer
+    /// still held): nothing written before waits for a seal. A write after it, which may come in
+    /// as soon as the writer is let go, still does.
+    pub(super) fn sealed(&self, account: &str, at: Instant) {
+        let mut w = self.lock();
+        if w.due.get(account).is_some_and(|(_, written)| *written <= at) {
+            w.due.remove(account);
+        }
+    }
+
+    /// As [`Seals::written`], without the thread or a file: for the tests.
+    #[cfg(test)]
+    pub(super) fn written_at(&self, account: &str, at: Instant) {
+        self.lock().due.insert(account.to_string(), (Weak::new(), at));
     }
 
     /// Whether `account`'s data file waits for a seal (written since it was last sealed).
@@ -272,12 +283,14 @@ impl Packs {
             f(&mut tables)?;
         }
         let before = self.seals.count(account, (!how.durable).then_some(undurable));
+        // Taken with the writer held: a write noted after it began once this commit let go.
+        let at = Instant::now();
         if let Err(e) = tx.commit() {
             self.seals.restore(account, before);
             return Err(other(e));
         }
         if how.seal {
-            self.seals.sealed(account);
+            self.seals.sealed(account, at);
         } else {
             self.seals.written(account, &db);
         }

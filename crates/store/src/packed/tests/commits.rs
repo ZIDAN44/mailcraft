@@ -282,6 +282,24 @@ fn killed_after_a_write() {
     std::process::abort();
 }
 
+/// A sealed commit (a search index's meta) clears only the writes before it: one that came in as
+/// soon as it let go of the file still waits for its seal.
+#[test]
+fn a_sealed_commit_leaves_a_later_write_waiting_for_its_seal() {
+    let t = temp("sealed-race");
+    let s = packed_store(&t);
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let at = Instant::now();
+    packs.seals.written_at("a1", at.checked_sub(Duration::from_millis(5)).unwrap_or(at));
+    packs.seals.sealed("a1", at);
+    assert!(!packs.seals.waiting_for("a1"), "a write before the seal waits no more");
+    packs.seals.written_at("a1", at + Duration::from_millis(5));
+    packs.seals.sealed("a1", at);
+    assert!(packs.seals.waiting_for("a1"), "a write after the seal began lost its seal");
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// An account removed lets go of its data file for good: a seal under way ends first (it held the
 /// file open, so it couldn't be opened again or deleted), and none is left waiting for it.
 #[test]
