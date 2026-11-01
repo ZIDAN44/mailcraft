@@ -28,7 +28,8 @@
 //! that doesn't read back is set aside (`meta.bin.bad`) and made again.
 //!
 //! The index is kept up by comparing it with the mail ([`plan`]), not by each place mail changes:
-//! a folder unchanged since it was last compared is passed over. Removed docs and the segments
+//! a folder unchanged since it was last compared is passed over; a [`Pass`] plans and makes the
+//! changes, the reading of each message to add left to its caller. Removed docs and the segments
 //! of many flushes are merged away a step at a time ([`Writer::merge_step`]); a removed message's
 //! words leave the file within [`TOMBSTONE_AGE`] of it.
 //!
@@ -43,6 +44,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use super::*;
 
 mod format;
+mod pass;
 mod reader;
 mod reconcile;
 mod writer;
@@ -51,6 +53,7 @@ mod writer;
 mod tests;
 
 pub use format::Blob;
+pub use pass::Pass;
 pub use reader::{DocInfo, Reader, ScanCursor};
 pub use reconcile::{Message, Plan, msgid_hash, plan, revision};
 pub use writer::{Flush, Indexed, RENUMBER_SLACK, TOMBSTONE_AGE, Writer};

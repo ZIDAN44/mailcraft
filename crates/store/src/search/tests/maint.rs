@@ -514,3 +514,39 @@ fn a_removed_message_with_no_source_needs_no_merge() {
     let meta = load_meta(&s, "a1").unwrap().unwrap();
     assert_eq!((meta.segments, meta.dead_since), (segments, 0), "the segment left as it was");
 }
+
+/// A pass stopped partway keeps what it added and marks no folder, so the next plans only what's
+/// left; one that couldn't read a message keeps it as read with no words (a search says it may
+/// be missing) and counts it, and its next plan has nothing.
+#[test]
+fn a_pass_stopped_partway_leaves_the_rest_to_the_next() {
+    let s = Store::memory();
+    let inbox = vec![summary("INBOX", 3, "c@x", 30, 300), summary("INBOX", 2, "b@x", 20, 200), summary("INBOX", 1, "a@x", 10, 100)];
+    mail(&s, &[("INBOX", inbox)], &[("INBOX", 1), ("INBOX", 2), ("INBOX", 3)]);
+    let mut pass = Pass::start(&s, "a1", &[]).unwrap();
+    assert_eq!((pass.work().done, pass.work().total, pass.work().bytes_total), (0, 3, 60));
+    assert!(matches!(Pass::start(&s, "a1", &[]), Err(StoreError::Busy { .. })), "one pass an account");
+    pass.add(&s, 0, Some(&text("first", &[], 0))).unwrap();
+    pass.add(&s, 9, Some(&text("nowhere", &[], 0))).unwrap();
+    assert_eq!((pass.work().done, pass.work().bytes_done), (1, 30), "a place past the adds counts for nothing");
+    assert!(pass.finish(&s, false).unwrap().is_some());
+    drop(pass);
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(found(&mut r, &s, Field::Body, "first").len(), 1);
+
+    let mut pass = Pass::start(&s, "a1", &[]).unwrap();
+    assert_eq!(pass.adds().iter().map(|m| m.key.uid).collect::<Vec<_>>(), [2, 1], "only what's left");
+    pass.add_unreadable(&s, 0).unwrap();
+    // Its source let go since the plan.
+    s.remove_body(&mk("INBOX", 1));
+    pass.add(&s, 1, None).unwrap();
+    assert_eq!(pass.failed(), 1);
+    pass.finish(&s, true).unwrap();
+    drop(pass);
+    assert!(r.refresh(&s).unwrap());
+    let doc = r.doc(&mk("INBOX", 2)).unwrap();
+    assert!(r.info(doc).unwrap().truncated && !r.info(doc).unwrap().has_text, "kept with no words, something left out");
+    assert_eq!(r.doc(&mk("INBOX", 1)), None, "its source gone: not added");
+    let pass = Pass::start(&s, "a1", &[]).unwrap();
+    assert_eq!((pass.adds().len(), pass.work().total), (0, 0), "nothing left to read");
+}
