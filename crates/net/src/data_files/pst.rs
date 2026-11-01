@@ -153,6 +153,9 @@ pub struct ImportStats {
     pub read_bytes: u64,
     pub reads: u64,
     pub reopens: u64,
+    /// What the handle that reads folders and their tables (never reopened) was thought to hold
+    /// in its caches at the end.
+    pub walk_cache_bytes: u64,
 }
 
 /// A stage of an import, timed.
@@ -177,6 +180,7 @@ struct Tally {
     read_bytes: AtomicU64,
     reads: AtomicU64,
     reopens: AtomicU64,
+    walk_cache: AtomicU64,
 }
 
 impl Tally {
@@ -203,13 +207,15 @@ impl Tally {
         self.peak.fetch_max(wide(held), Ordering::Relaxed);
     }
 
-    /// What was read of the data file through `source`, with the item handle reopened `reopens` times.
-    fn reading(&self, source: &Shared, reopens: u64) {
+    /// What was read of the data file through `source`, with the item handle reopened `reopens`
+    /// times and the folder handle's caches thought to hold `walk_cache` bytes.
+    fn reading(&self, source: &Shared, reopens: u64, walk_cache: u64) {
         if let Ok(s) = source.try_borrow() {
             self.read_bytes.fetch_add(s.bytes_read, Ordering::Relaxed);
             self.reads.fetch_add(s.reads, Ordering::Relaxed);
         }
         self.reopens.fetch_add(reopens, Ordering::Relaxed);
+        self.walk_cache.fetch_max(walk_cache, Ordering::Relaxed);
     }
 
     fn snapshot(&self, total: Duration, lanes: u64) -> ImportStats {
@@ -231,6 +237,7 @@ impl Tally {
             read_bytes: self.read_bytes.load(Ordering::Relaxed),
             reads: self.reads.load(Ordering::Relaxed),
             reopens: self.reopens.load(Ordering::Relaxed),
+            walk_cache_bytes: self.walk_cache.load(Ordering::Relaxed),
         }
     }
 }
@@ -249,12 +256,15 @@ pub struct ImportOptions {
     /// Set from another thread to stop: nothing more is read, and what was read is written and
     /// kept, as when a file ends early.
     pub cancel: Option<Arc<AtomicBool>>,
-    /// The reader's chunk of the file, in KiB (0: its own), and the items read between reopenings
-    /// of the handle that reads them (0: only once its caches hold too much): for measuring.
+    /// The reader's chunk of the file, in KiB (0: its own), the items read between reopenings
+    /// of the handle that reads them (0: only once its caches hold too much), and how much its
+    /// caches may hold before that, in bytes (0: its own limit): for tests and measuring.
     #[doc(hidden)]
     pub chunk_kb: usize,
     #[doc(hidden)]
     pub recycle: usize,
+    #[doc(hidden)]
+    pub handle_cache_bytes: u64,
 }
 
 /// Import the data file at `path` into `account`'s cache (an account with no server), as the app
@@ -281,14 +291,16 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
         // Read only, and kept from writers while it's read. Locked by Outlook, this is what fails:
         // said so below, rather than tried as the older format.
         let source = open::source(path, opts.chunk_kb)?;
-        match UnicodePstFile::read_from(open::handle(&source).0) {
-            Ok(pst) => read_unicode(pst, &source, recycle, &mut out),
+        let (walk, pages) = open::handle(&source);
+        match UnicodePstFile::read_from(walk) {
+            Ok(pst) => read_unicode(pst, &pages, &source, recycle, &mut out),
             Err(_) => {
-                out.tally.reading(&source, 0);
+                out.tally.reading(&source, 0, 0);
                 drop(source);
                 // The older format, read from the start through a handle of its own.
                 let source = open::source(path, opts.chunk_kb)?;
-                read_ansi(AnsiPstFile::read_from(open::handle(&source).0)?, &source, recycle, &mut out)
+                let (walk, pages) = open::handle(&source);
+                read_ansi(AnsiPstFile::read_from(walk)?, &pages, &source, recycle, &mut out)
             }
         }
     }));
@@ -339,7 +351,7 @@ pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>])
 
 macro_rules! reader {
     ($name:ident, $file:ty, $store:ty, $message:ty, $attachment:ty) => {
-        fn $name(pst: $file, source: &Shared, recycle: Recycle, out: &mut Out<'_>) -> io::Result<()> {
+        fn $name(pst: $file, walked: &chunked::Pages, source: &Shared, recycle: Recycle, out: &mut Out<'_>) -> io::Result<()> {
             let store_of = |pst: $file| {
                 pst.set_max_value_size(MAX_VALUE);
                 <$store>::read(Rc::new(pst))
@@ -384,7 +396,7 @@ macro_rules! reader {
                 Ok(Item { left_out: files.left_out, ..item(&*m, files.files, &named) })
             };
             let done = walk(&*any, &read, out);
-            out.tally.reading(source, reopens.get());
+            out.tally.reading(source, reopens.get(), walked.estimate());
             done
         }
     };

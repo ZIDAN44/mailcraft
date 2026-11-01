@@ -96,6 +96,8 @@ fn an_import_counts_where_its_time_went() {
     let len = std::fs::metadata(&pst).unwrap().len();
     assert!(s.read_bytes > 0 && s.read_bytes <= len, "{s:?}");
     assert!(s.reads > 0 && s.reads < len / 512, "{s:?}");
+    // The folder handle's pages are counted too, and are a few: it reads no items.
+    assert!(s.walk_cache_bytes > 0 && s.walk_cache_bytes < 64 * 1024, "{s:?}");
     // A store that doesn't compress keeps them as they are.
     let plain = Store::memory();
     let s = import(&pst, &plain, "t2", &mut |_| {}).unwrap().stats;
@@ -140,7 +142,28 @@ fn reopening_the_reader_loses_nothing_and_rereads_nothing() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// A data file that can't be written to imports: nothing asks to write it.
+/// What sets the reopening off in the app is the pages a handle has read, not a count of items:
+/// let hold only a few KiB, the handle that reads items is opened again as it reads, and the
+/// import is the same as with no reopening, every byte of the file still read at most once.
+#[test]
+fn the_reader_is_reopened_once_its_pages_hold_too_much() {
+    let (dir, pst) = data_file("page-limit", 250);
+    let store = Store::memory();
+    let plain = import(&pst, &store, "p0", &mut |_| {}).unwrap();
+    assert_eq!(plain.stats.reopens, 0);
+    let len = std::fs::metadata(&pst).unwrap().len();
+    let opts = ImportOptions { handle_cache_bytes: 8 * 1024, ..ImportOptions::default() };
+    let done = import_with(&pst, &store, "p1", &opts, &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.skipped), (250, 0));
+    assert!(done.stats.reopens > 0, "the pages read were counted: {:?}", done.stats);
+    assert!(done.stats.reopens < 250, "and not every item set it off: {:?}", done.stats);
+    assert_eq!(contents(&store, "p1"), contents(&store, "p0"));
+    assert!(done.stats.read_bytes <= len, "{:?}", done.stats);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A data file that can't be written to imports: nothing asks to write it. (outlook-pst's own
+/// `open` already went on without write access; this keeps the read-only opening honest.)
 #[test]
 fn a_read_only_data_file_imports() {
     let (dir, pst) = data_file("read-only", 5);

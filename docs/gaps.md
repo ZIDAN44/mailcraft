@@ -1540,7 +1540,14 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   order read ahead 256 KiB, and others read just what's asked. outlook-pst also kept every index
   page it read until the end (the reader grew from 38 to 210 MB over the big file): the handle
   that reads items is now opened again once its pages are thought to hold 16 MiB, starting with
-  what the cache holds. Not yet measured on the big file.
+  what the cache holds. On the 41 GB file, one lane, on a machine busy with other work: 1.8
+  million reads instead of 4.5 million, 52.9 GB read (1.29 times the file: reading ahead 256 KiB
+  overshoots; 16 KiB chunks read 45.3 GB in 2.8 million reads, in the same time), the item handle
+  reopened 23 times, and the folder handle, never reopened, held about 12 MB at the end. The
+  whole process stayed at 60–190 MB, rising and falling with the messages read (it was 546 MB at
+  its peak, the reader alone growing 38 → 210 MB). Reading items still took 373–437 s of the
+  1,015–1,112 s, short of the 160 s aimed at for attachments; what's read is to come within 1.1
+  times the file.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

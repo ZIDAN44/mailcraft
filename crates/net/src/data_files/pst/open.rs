@@ -51,7 +51,8 @@ pub(super) struct Recycle {
 
 impl Recycle {
     pub(super) fn of(opts: &ImportOptions) -> Self {
-        Recycle { every: opts.recycle, limit: HANDLE_CACHE }
+        let limit = if opts.handle_cache_bytes > 0 { opts.handle_cache_bytes } else { HANDLE_CACHE };
+        Recycle { every: opts.recycle, limit }
     }
 
     /// Whether a handle that has read `items` items and these `pages` is due to be reopened.

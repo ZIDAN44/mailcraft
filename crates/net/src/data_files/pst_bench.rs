@@ -6,7 +6,7 @@
 //! MC_PST=D:\big.pst MC_CACHE=D:\cache cargo test -p mailcraft-net --release --lib pst_bench::import -- --ignored --nocapture
 //! ```
 //!
-//! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB` and `MC_RECYCLE`
+//! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB`, `MC_RECYCLE` and `MC_HANDLE_CACHE_KB`
 //! (unset: the app's), and it ends with one `stats:` line of numbers (`pst::ImportStats`), where
 //! its time went. With `MC_VERIFY=1` it then reads every listed message back from the cache and
 //! counts those present, those that parse and their attachments (counts only).
@@ -188,6 +188,7 @@ fn import() {
         budget_bytes: knob("MC_BUDGET_MB").saturating_mul(1024 * 1024),
         chunk_kb: knob("MC_CHUNK_KB"),
         recycle: knob("MC_RECYCLE"),
+        handle_cache_bytes: u64::try_from(knob("MC_HANDLE_CACHE_KB")).unwrap_or(0).saturating_mul(1024),
         ..Default::default()
     };
     let done = crate::pst::import_with(&path, &store, "d1", &opts, &mut progress).unwrap();
