@@ -780,9 +780,9 @@ fn imports_a_data_file() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+mod chunked;
 mod files;
 mod losses;
-mod chunked;
 mod options;
 mod reader;
 mod rebuilt;
