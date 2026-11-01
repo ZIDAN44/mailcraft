@@ -5,7 +5,10 @@
 //! the pass thread adds them, writing a generation in short background transactions whenever it
 //! holds enough, so a mark-read from the window waits for one of them at most. No pass runs for
 //! an account a data file is being imported into, and [`Job::StopIndex`] stops one between two
-//! messages, what it added kept.
+//! messages, what it added kept. Summaries a pass finds to say otherwise than the index about a
+//! message's files (pictures the text shows counted as files) are put right in the folder's list
+//! and the window told ([`Event::AttachmentsKnown`]), so the paperclip, the Has files filter and
+//! `has:attachment` agree.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -224,9 +227,13 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
             continue;
         };
         let folders: Vec<String> = folders.map(|f| f.into_iter().collect()).unwrap_or_default();
-        let mut report = |e: Event| {
-            shared.latest.put(&account, e);
-            sink.wake();
+        let mut report = |e: Event| match e {
+            // Each of these counts: never one in place of another.
+            e @ Event::AttachmentsKnown { .. } => sink.emit(e),
+            e => {
+                shared.latest.put(&account, e);
+                sink.wake();
+            }
         };
         let result = pass(store, &account, &folders, &stop, readers(), &mailcraft_mime::index_doc, &mut report);
         *lock(&shared.running) = None;
@@ -253,8 +260,9 @@ type Read = (usize, std::thread::Result<Option<IndexDoc>>);
 
 /// One pass over `account`'s index in `folders` (none: all): planned, its messages read on
 /// `readers` threads and taken apart by `extract`, added, merged. `report` hears how it's going
-/// ([`Event::Indexed`]), and its end unless it couldn't start. Stops between two messages when
-/// `stop` is set: what was added is written, no folder marked.
+/// ([`Event::Indexed`]), and its end unless it couldn't start, and of the summaries it put right
+/// ([`Event::AttachmentsKnown`]). Stops between two messages when `stop` is set: what was added
+/// is written, no folder marked.
 pub(super) fn pass(
     store: &Store,
     account: &str,
@@ -273,6 +281,7 @@ pub(super) fn pass(
         finished,
     };
     report(indexed(&p, false));
+    settle_files(store, account, &mut p, report);
     let adds = p.adds().clone();
     let (next, quit) = (AtomicUsize::new(0), AtomicBool::new(false));
     let mut failed = None;
@@ -309,6 +318,9 @@ pub(super) fn pass(
             };
             match added {
                 Ok(flushed) if flushed.is_some() || told.elapsed() >= PROGRESS_EVERY => {
+                    if flushed.is_some() {
+                        settle_files(store, account, &mut p, report);
+                    }
                     report(indexed(&p, false));
                     told = Instant::now();
                 }
@@ -326,8 +338,22 @@ pub(super) fn pass(
         Some(e) => Err(e),
         None => finish(store, &mut p, stop),
     };
+    // What it found holds whether the pass ended well or not: the messages were read.
+    settle_files(store, account, &mut p, report);
     report(indexed(&p, true));
     ended
+}
+
+/// Put right in their folders' lists the summaries the pass found to say otherwise than the
+/// index about carrying files, and tell the window of each folder changed.
+fn settle_files(store: &Store, account: &str, p: &mut Pass, report: &mut dyn FnMut(Event)) {
+    for (folder, found) in p.take_files() {
+        match store.set_has_files(account, &folder, &found) {
+            Ok(0) => {}
+            Ok(_) => report(Event::AttachmentsKnown { account: account.to_string(), folder, with: found.with, without: found.without }),
+            Err(e) => log::warn!("{account}: whether {} messages carry files wasn't kept: {e}", found.with.len().saturating_add(found.without.len())),
+        }
+    }
 }
 
 /// The end of a pass: what's held written, the folders marked when it read all it planned, then

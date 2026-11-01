@@ -1770,3 +1770,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   pass of 157 s it no longer needs; the aim, within 5%, isn't met. The extra time is the index's own
   writes into the account's data file, which the import's writes wait for: an index filed and
   written on a thread of its own, its writes sealed or not, measured no faster.
+- **The paperclip on mail kept from before:** a `.pst` imported before its paperclips followed
+  the source (and any mail whose summary says otherwise than its source) kept the old flag, so
+  Has files and the paperclip still counted pictures the text shows while `has:attachment` didn't.
+  The search index now puts those summaries right as it reads the mail, once for mail already
+  indexed (every folder is looked at again by the first pass), and the list shows it at once, so
+  the three agree. Only the pages of a folder's list holding a message put right are written. A
+  message the index couldn't read keeps what its summary says, for `has:attachment` too.

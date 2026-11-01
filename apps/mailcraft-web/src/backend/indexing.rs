@@ -1,7 +1,8 @@
 //! The search index kept up in the browser ([`Job::Index`]): the desktop's pass
 //! ([`search::Pass`]), run a few messages at a time between frames, one account after another.
 //! It gives the page back after [`UNITS`] messages or [`BYTES`] of them read, and between merge
-//! steps; [`Job::StopIndex`] stops it there, what it added kept.
+//! steps; [`Job::StopIndex`] stops it there, what it added kept. Summaries it finds to say
+//! otherwise than the index about a message's files are put right, as on the desktop.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -100,9 +101,23 @@ async fn pass(sh: &Rcs, account: &str, folders: &[String]) -> StoreResult<()> {
     let store = store(sh);
     let mut p = Pass::start(&store, account, folders)?;
     emit(sh, indexed(account, &p, false));
+    settle_files(sh, &store, account, &mut p);
     let ended = walk(sh, &store, account, &mut p).await;
+    settle_files(sh, &store, account, &mut p);
     emit(sh, indexed(account, &p, true));
     ended
+}
+
+/// Put right in their folders' lists the summaries the pass found to say otherwise than the
+/// index about carrying files, and tell the window of each folder changed.
+fn settle_files(sh: &Rcs, store: &Store, account: &str, p: &mut Pass) {
+    for (folder, found) in p.take_files() {
+        match store.set_has_files(account, &folder, &found) {
+            Ok(0) => {}
+            Ok(_) => emit(sh, Event::AttachmentsKnown { account: account.to_string(), folder, with: found.with, without: found.without }),
+            Err(e) => log::warn!("{account}: whether {} messages carry files wasn't kept: {e}", found.with.len().saturating_add(found.without.len())),
+        }
+    }
 }
 
 /// A pass's messages read and added, then written and merged, until a stop.

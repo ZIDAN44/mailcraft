@@ -134,8 +134,7 @@ impl Session {
             Event::Indexed { account, work, generation, failed, finished } => {
                 self.indexed(&account, IndexPass { work, generation, failed, finished })
             }
-            // Not sent yet: summaries are put right from what the index found in a later step.
-            Event::AttachmentsKnown { .. } => {}
+            Event::AttachmentsKnown { account, folder, with, without } => self.files_known(&account, &folder, &with, &without),
             Event::Exported { account, messages, skipped, already, done, error } => {
                 self.exported(&account, messages, (skipped, already), done, error)
             }

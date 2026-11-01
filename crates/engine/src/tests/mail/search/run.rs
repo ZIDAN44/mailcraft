@@ -264,6 +264,56 @@ fn a_picture_shown_in_the_text_is_no_attachment() {
     done(s);
 }
 
+/// A summary that said a picture the text shows was a file (an old `.pst` import's) is put
+/// right once a pass finds it: in the folder's list kept, and in what the window holds, so the
+/// Has files filter, the paperclip and `has:attachment` agree; a list shown otherwise is patched
+/// where it stands.
+#[test]
+fn the_has_files_filter_agrees_with_has_attachment() {
+    let mut s = sample_session("search-files-known");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
+    let raw = "From: a@x.example\r\nSubject: Logo inside\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>Our logo <img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
+    store.write_body(&key, raw.as_bytes()).unwrap();
+    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Logo inside".into(), has_attachments: true, ..Default::default() });
+    store.save_folder(&a, "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    s.run("list.filter", &json!({"value": "attachments"})).unwrap();
+    assert!(s.list.iter().any(|m| m.key == key), "as its summary says");
+    // A pass, as the indexer runs it: what it found put right in the list kept, then told.
+    let mut p = mailcraft_store::search::Pass::start(&store, &a, &[]).unwrap();
+    let adds = p.adds().clone();
+    for (i, m) in adds.iter().enumerate() {
+        let doc = store.read_body(&m.key).map(|raw| mailcraft_mime::index_doc(&raw));
+        p.add(&store, i, doc.as_ref()).unwrap();
+    }
+    let found = p.take_files();
+    let inbox = found.get("INBOX").cloned().unwrap_or_default();
+    assert_eq!(inbox.without, [uid], "{found:?}");
+    assert_eq!(store.set_has_files(&a, "INBOX", &inbox).unwrap(), 1);
+    p.finish(&store, true).unwrap();
+    let generation = p.generation();
+    drop(p);
+    s.apply(Event::AttachmentsKnown { account: a.clone(), folder: "INBOX".into(), with: inbox.with, without: inbox.without });
+    assert!(!s.list.iter().any(|m| m.key == key), "the filter reads it as the index did");
+    assert!(!s.folder_state(&a, "INBOX").find(uid).unwrap().has_attachments);
+    indexed(&mut s, &a, generation);
+    let has: std::collections::HashSet<_> = s.list.iter().map(|m| m.key.clone()).collect();
+    s.run("search.run", &json!({"query": "has:attachment", "scope": "current"})).unwrap();
+    let searched: std::collections::HashSet<_> = s.list.iter().map(|m| m.key.clone()).collect();
+    assert_eq!(has, searched, "Has files and has:attachment find the same mail");
+    s.run("search.clear", &json!({})).unwrap();
+    // Shown unfiltered: its row patched where it stands.
+    s.run("list.filter", &json!({"value": "all"})).unwrap();
+    let revision = s.revision;
+    s.apply(Event::AttachmentsKnown { account: a.clone(), folder: "INBOX".into(), with: vec![uid], without: Vec::new() });
+    assert!(s.summary(&key).unwrap().has_attachments && s.revision != revision);
+    done(s);
+}
+
 /// A word past the first 50,000 characters of a message is found, from the index and from the
 /// source; a phrase across the slices a long text is checked in is found too, the text checked
 /// over several units.

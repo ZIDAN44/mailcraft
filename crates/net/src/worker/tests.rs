@@ -406,6 +406,57 @@ fn an_imported_file_leaves_nothing_to_index() {
     let _ = std::fs::remove_dir_all(&t);
 }
 
+/// Summaries that said a message carries files where its source shows only a picture in its
+/// text (an old `.pst` import's), or none where it carries one, are put right by the pool's
+/// pass: in the folder's list, and told to the window as one event that isn't merged away.
+#[test]
+fn a_pass_puts_right_what_summaries_say_of_files() {
+    let s = Store::memory();
+    let picture = concat!(
+        "Subject: pic\r\nMessage-ID: <1@x>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"b\"\r\n\r\n",
+        "--b\r\nContent-Type: text/html\r\n\r\n<p>see <img src=\"cid:pic1\"></p>\r\n",
+        "--b\r\nContent-Type: image/png; name=\"image001.png\"\r\nContent-Disposition: inline; filename=\"image001.png\"\r\n",
+        "Content-ID: <pic1>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n",
+    );
+    let file = concat!(
+        "Subject: plan\r\nMessage-ID: <2@x>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n",
+        "--b\r\nContent-Type: text/plain\r\n\r\nthe plan\r\n",
+        "--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\nContent-Disposition: attachment; filename=\"plan.pdf\"\r\n",
+        "Content-Transfer-Encoding: base64\r\n\r\nJVBERi0=\r\n--b--\r\n",
+    );
+    let summary = |uid: u32, files: bool| mailcraft_model::Summary {
+        key: MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid },
+        message_id: format!("{uid}@x"),
+        size: 40,
+        date: i64::from(uid),
+        has_attachments: files,
+        ..Default::default()
+    };
+    let inbox = Folder { account: "a1".into(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.save_folders("a1", &[inbox]).unwrap();
+    let messages = vec![summary(2, false), summary(1, true)];
+    s.save_folder("a1", "INBOX", &mailcraft_store::FolderState { validity: 7, uid_next: 3, messages, ..Default::default() }).unwrap();
+    for (uid, raw) in [(1, picture), (2, file)] {
+        s.write_body(&MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid }, raw.as_bytes()).unwrap();
+    }
+    let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
+    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
+    let mut known = Vec::new();
+    until(&pool, |e| {
+        if let Event::AttachmentsKnown { folder, with, without, .. } = e {
+            known.push((folder.clone(), with.clone(), without.clone()));
+        }
+        matches!(e, Event::Indexed { finished: true, .. })
+    });
+    assert_eq!(known, [("INBOX".to_string(), vec![2], vec![1])]);
+    let st = s.load_folder("a1", "INBOX").unwrap();
+    assert_eq!((st.find(1).unwrap().has_attachments, st.find(2).unwrap().has_attachments), (false, true));
+    // The next pass finds them right: nothing to tell.
+    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
+    let seen = until(&pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
+    assert!(!seen.iter().any(|e| matches!(e, Event::AttachmentsKnown { .. })), "{seen:?}");
+}
+
 /// A pass's end isn't hidden by the next pass starting before the window looks: both are
 /// heard, the end first; a later report of the next only replaces the one before it.
 #[test]

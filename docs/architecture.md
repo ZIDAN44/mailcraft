@@ -320,8 +320,17 @@ and each folder is marked as brought up as it is finished, so the pass at the im
 nothing and passes every folder over. A write of the index that fails lets it go for the rest
 of the import and costs the import nothing: the next pass adds what it lacks. Indexing as it
 goes costs the import time all the same (about a fifth on a 41 GB file, against a 157 s pass
-after it): the index's writes share the data file with the import's, which wait for them. Its progress, `Event::Indexed`, isn't sent on the pool's channel: only the
-newest for each account is kept until `Pool::poll` takes it. In the browser
+after it): the index's writes share the data file with the import's, which wait for them.
+Its progress, `Event::Indexed`, isn't sent on the pool's channel: only the
+newest for each account is kept until `Pool::poll` takes it. A pass also compares what a message's
+summary says about files with what its doc counted (pictures the text shows aren't files): the
+plan for the docs it already has (a folder unchanged since it was marked is passed over, so the
+marks carry a kind, bumped once to have every folder looked at again), each add as it comes.
+What disagrees is put right in the folder's list by `Store::set_has_files` (the pages holding
+one rewritten, under the lock every save of a list takes) and sent as
+`Event::AttachmentsKnown`, which the session takes into the summaries it holds
+(`mailboxes/patch.rs`), so the paperclip, Has files and `has:attachment` agree; a doc that couldn't
+be read leaves the summary to say (`DocInfo::files_known`). In the browser
 (`apps/mailcraft-web/src/backend/indexing.rs`) the pass gives the page back every 16 messages
 or 1 MiB read, and between merge steps.
 

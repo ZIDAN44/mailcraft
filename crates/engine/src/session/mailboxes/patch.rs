@@ -104,6 +104,50 @@ impl Session {
         true
     }
 
+    /// The index found which of a folder's messages carry files (`with`) and which only show
+    /// pictures in their text (`without`), where their summaries said otherwise; the folder's
+    /// list on disk is put right already ([`Event::AttachmentsKnown`]). The summaries the
+    /// window holds are put right too, so the paperclip, the Has files filter and
+    /// `has:attachment` agree, and a save of the folder from the window keeps it right. The list
+    /// is built again only when what it shows depends on files (filtered or arranged by them);
+    /// otherwise its rows are patched as they stand.
+    pub(crate) fn files_known(&mut self, account: &str, folder: &str, with: &[u32], without: &[u32]) {
+        let with: HashSet<u32> = with.iter().copied().collect();
+        let without: HashSet<u32> = without.iter().copied().collect();
+        // Whether `m` is one of them, and if so whether it changed.
+        let set = |m: &mut Summary| {
+            let files = if with.contains(&m.key.uid) {
+                true
+            } else if without.contains(&m.key.uid) {
+                false
+            } else {
+                return false;
+            };
+            let changed = m.has_attachments != files;
+            m.has_attachments = files;
+            changed
+        };
+        if let Some(st) = self.cache.get_mut(&(account.to_string(), folder.to_string())) {
+            for m in &mut st.messages {
+                set(m);
+            }
+        }
+        let mut shown = false;
+        for m in self.list.iter_mut().filter(|m| m.key.account == account && m.key.folder == folder) {
+            shown |= set(m);
+        }
+        let folders = match (&self.search, &self.search_state.run) {
+            (Some(_), Some(run)) => run.folders.clone(),
+            _ => self.view_folders(),
+        };
+        let visible = folders.iter().any(|(a, f)| a == account && f == folder);
+        if visible && (self.filter == ListFilter::Attachments || self.prefs.arrange == Arrange::Attachments) {
+            self.refresh_list();
+        } else if shown {
+            self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
     /// Count the unread mail of the row the message at `i` in the list is on again (its own, or
     /// its conversation's); false when it has none to count.
     fn patch_unread(&mut self, i: usize) -> bool {
