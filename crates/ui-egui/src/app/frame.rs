@@ -4,6 +4,10 @@ use crate::*;
 
 use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_vertical};
 
+/// Units of a search's work run each frame (each bounded: a page of a list, 512 summaries, a
+/// few index pages); the search status bar's frame budget comes with it.
+const SEARCH_UNITS: u32 = 8;
+
 impl MailApp {
     /// Every frame, the window minimized or hidden too: eframe runs only `logic` then, and closes
     /// the window unless `logic` cancels, so the close is decided here, not in `ui` alone (craft-libs'
@@ -110,6 +114,12 @@ impl MailApp {
             ctx.options_mut(|o| o.quit_shortcuts.clear());
         }
         self.pump();
+        // A search runs a few units of its work a frame, and the window keeps drawing until
+        // it's done (what it finds shows as it's found).
+        if self.session.search_progress().is_some_and(|p| !p.done) {
+            self.session.search_step(SEARCH_UNITS);
+            ctx.request_repaint();
+        }
         self.take_body();
         self.settle_composes(&ctx);
         self.announce(&ctx);
