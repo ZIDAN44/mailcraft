@@ -1916,3 +1916,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   and closing wait for the marks handed over before, so a message marked read and deleted at once
   keeps its mark. In a made-up folder of 10,941 messages a mark writes under 64 KB and nothing on
   the window's thread.
+- **A search step that held the window:** typing a query into the search box on the 41 GB file
+  once held one frame for 2.9 s inside a search's step, though a step runs its units for 6 ms a
+  frame; it wasn't seen again in three tries, nor in 60 queries typed a character at a time
+  since (the window answered within 100 ms throughout, 4 of 14,033 samples over 50 ms). Each
+  part of a step now says what it was as it ends (a page of a folder's list, an index opened, a
+  word looked up, summaries checked, a kept text checked, the list put together, what's found
+  shown), and the window logs any that takes over 50 ms with its kind, so the next one is named.
+  A folder's list isn't read while read marks wait to be written (the read would wait for them
+  on the window's thread): the step goes on and reads it once they're on disk.

@@ -12,6 +12,9 @@ const SEARCH_BUDGET: web_time::Duration = web_time::Duration::from_millis(6);
 /// Units of a search's work at most a frame (each bounded: a page of a list, 512 summaries, a
 /// few index pages), however quick they are.
 const SEARCH_UNITS: u32 = 4096;
+/// A part of a search's step that takes longer is logged with its kind: a unit is meant to take
+/// well under a frame, and one once held the window for 2.9 s.
+const SLOW_SEARCH_WORK: web_time::Duration = web_time::Duration::from_millis(50);
 /// What a date field of advanced search takes: a day, year first.
 const DAY_HINT: &str = "2025-03-15";
 
@@ -44,7 +47,16 @@ impl MailApp {
             return;
         }
         let began = web_time::Instant::now();
-        let p = self.session.search_step_while(SEARCH_UNITS, &mut || began.elapsed() < SEARCH_BUDGET);
+        let mut last = began;
+        let mut timed = |work: mailcraft_engine::SearchWork| {
+            let now = web_time::Instant::now();
+            let took = now.saturating_duration_since(last);
+            last = now;
+            if took >= SLOW_SEARCH_WORK {
+                log::warn!("search: {} took {} ms", work.name(), took.as_millis());
+            }
+        };
+        let p = self.session.search_step_timed(SEARCH_UNITS, &mut || began.elapsed() < SEARCH_BUDGET, &mut timed);
         self.ui.search_spent = began.elapsed();
         if !p.done {
             ctx.request_repaint();

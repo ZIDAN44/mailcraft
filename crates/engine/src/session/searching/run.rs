@@ -21,6 +21,7 @@ use mailcraft_store::search::{Bits, Field, ScanCursor};
 
 use super::finish::Finish;
 use super::matching::{Answers, Candidate, Index, Recorder, Verdict, Verifying, classify, from_source};
+use super::work::SearchWork;
 use super::*;
 
 /// Summaries checked in one unit.
@@ -148,6 +149,8 @@ pub(crate) struct SearchRun {
     /// change since merged in: its end needs only what's left to show.
     pub(crate) owns_list: bool,
     pub(super) finish: Finish,
+    /// What the unit under way is doing ([`SearchWork`]).
+    pub(super) work: SearchWork,
 }
 
 impl SearchRun {
@@ -210,6 +213,7 @@ impl SearchRun {
             cut_short: HashSet::new(),
             owns_list: false,
             finish: Finish::Due,
+            work: SearchWork::Summaries,
         }
     }
 
@@ -358,54 +362,6 @@ impl Session {
         self.search_state.run = Some(run);
     }
 
-    /// Do at most `units` units of the search's work: no clock, no network, each unit bounded
-    /// (see the module's notes). What's found is in the list when it returns.
-    pub fn search_step(&mut self, units: u32) -> SearchProgress {
-        self.search_step_while(units, &mut || true)
-    }
-
-    /// [`Session::search_step`], asking `more` after each unit whether to go on (the window
-    /// asks its clock: the engine reads none). What's found is shown once, at the end.
-    pub fn search_step_while(&mut self, units: u32, more: &mut dyn FnMut() -> bool) -> SearchProgress {
-        self.let_go_some();
-        let Some(mut run) = self.search_state.run.take() else { return SearchProgress { done: true, ..Default::default() } };
-        let before = self.revision;
-        let went = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.follow_indexes(&mut run);
-            // What earlier steps found, shown before this one's units (where the window's
-            // clock counts it); then what this one found, if that's cheap.
-            self.publish_due(&mut run, true);
-            self.run_units(&mut run, units, more);
-            self.publish_due(&mut run, false);
-        }));
-        if went.is_err() {
-            // The search goes. What it was reading may be what's wrong: each index it read is
-            // left unread (damaged) until its writer writes it again.
-            log::error!("a search stopped: something it read couldn't be searched");
-            PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let accounts: HashSet<&String> = run.folders.iter().map(|(a, _)| a).collect();
-            for (account, slot) in &mut self.search_state.readers {
-                if accounts.contains(account) {
-                    *slot = ReaderSlot { reader: None, checked: self.clock.now, behind: false, damaged: true };
-                }
-            }
-            self.search_state.readers.retain(|_, slot| slot.damaged);
-            self.search_state.pinned.clear();
-            return SearchProgress { done: true, ..Default::default() };
-        }
-        if run.done() {
-            run.fresh.clear();
-            run.gone.clear();
-            // Shown in full: its folders may leave the cache (read again when it scans again).
-            self.search_state.pinned.clear();
-        } else if self.search_state.pinned.is_empty() {
-            self.search_state.pinned = run.folders.iter().cloned().collect();
-        }
-        let progress = run.progress(self.revision != before);
-        self.search_state.run = Some(run);
-        progress
-    }
-
     /// How the search is going (`None`: no search).
     pub fn search_progress(&self) -> Option<SearchProgress> {
         self.search_state.run.as_ref().map(|r| r.progress(false))
@@ -427,24 +383,33 @@ impl Session {
         true
     }
 
-    fn run_units(&mut self, run: &mut SearchRun, units: u32, more: &mut dyn FnMut() -> bool) {
+    /// At most `units` units, asking `more` after each whether to go on, and telling `done`
+    /// what each was ([`SearchWork`]).
+    pub(super) fn run_units(&mut self, run: &mut SearchRun, units: u32, more: &mut dyn FnMut() -> bool, done: &mut dyn FnMut(SearchWork)) {
         #[cfg(test)]
         self.search_test_fault();
         let mut left = units.max(1);
         while left > 0 {
             let spent = if run.awaiting.is_some() {
+                run.work = SearchWork::Awaiting;
                 self.awaiting_unit(run)
             } else if run.cur.is_some() || !run.pending.is_empty() {
+                // Which of its parts: said by the unit.
+                run.work = SearchWork::Summaries;
                 self.folder_unit(run)
             } else if run.verifying.is_some() || !run.verify.is_empty() {
+                run.work = SearchWork::Verify;
                 self.verify_unit(run)
             } else if !run.fallback.is_empty() {
+                run.work = SearchWork::Source;
                 self.fallback_unit(run)
             } else if !run.done() {
+                run.work = SearchWork::Finish;
                 self.finish_unit(run)
             } else {
                 break;
             };
+            done(run.work);
             self.search_state.stats.units = self.search_state.stats.units.saturating_add(u64::from(spent));
             left = left.saturating_sub(spent);
             if !more() {
@@ -476,6 +441,9 @@ impl Session {
         };
         let step = match load {
             None if self.cache.contains_key(k) => return Loaded::Ready,
+            // Read marks still being written: read once they are, not waited for here (the window's
+            // thread).
+            None if store.marks_waiting() => return Loaded::Read,
             None => store.folder_load(&k.0, &k.1).map(|l| {
                 let done = l.done();
                 *load = Some(l);
@@ -549,6 +517,7 @@ impl Session {
         let Some(k) = run.folders.get(cur.fi).cloned() else { return 0 };
         match self.load_unit(&k, &mut cur.load) {
             Loaded::Read => {
+                run.work = SearchWork::ListPage;
                 run.cur = Some(cur);
                 return 1;
             }
@@ -562,6 +531,7 @@ impl Session {
         if run.uses_index() && !cur.indexed {
             cur.indexed = true;
             if self.open_reader(&account) {
+                run.work = SearchWork::OpenIndex;
                 run.cur = Some(cur);
                 return 1;
             }
@@ -570,6 +540,7 @@ impl Session {
             && !run.terms.get(&account).is_some_and(Terms::ready)
             && self.search_state.readers.get(&account).is_some_and(|s| s.reader.is_some())
         {
+            run.work = SearchWork::LookUp;
             self.terms_unit(run, &account);
             run.cur = Some(cur);
             return 1;

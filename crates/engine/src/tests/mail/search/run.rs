@@ -1,7 +1,9 @@
 //! Engine tests: a search run a step at a time, on its index (search.md §10, the engine's).
 
 use super::*;
-use crate::session::SearchStats;
+use std::collections::HashSet;
+
+use crate::session::{SearchStats, SearchWork};
 
 /// A mailbox of `folders` folders of `per` messages each (the first `big` more), in memory: every
 /// message's text holds common words, every seventh "zanzibar" and every eleventh the phrase
@@ -552,4 +554,46 @@ fn indexing_under_way_and_what_a_search_couldnt_read() {
     s.start_search("notes", SearchScope::All, false);
     assert!(s.search_problems().is_empty());
     drop(s);
+}
+
+/// A step tells what each part of it was (the window times them by kind), and a folder's list
+/// isn't read while read marks wait to be written: the step goes on and reads it once they are,
+/// rather than wait for them on the window's thread.
+#[test]
+fn a_step_tells_its_work_and_never_waits_for_marks() {
+    let mut s = generated(4, 600, 0, true);
+    s.set_background_search(true);
+    s.run("folder.open", &json!({"account": "a1", "folder": "INBOX"})).unwrap();
+    let store = s.store.clone().unwrap();
+    let k = s.list[0].key.clone();
+    // The other folders' lists not in memory: a search reads them.
+    s.cache.retain(|(_, f), _| f == "INBOX");
+    let paused = store.pause_marks();
+    s.apply_op("a1", Op::SetFlag { keys: vec![k], flag: Flag::Flagged, on: true });
+    assert!(store.marks_waiting());
+    let began = std::time::Instant::now();
+    s.start_search("zanzibar", SearchScope::All, false);
+    let mut kinds = HashSet::new();
+    for _ in 0..50 {
+        s.search_step_timed(64, &mut || true, &mut |w| {
+            kinds.insert(w);
+        });
+    }
+    assert!(began.elapsed() < std::time::Duration::from_secs(5), "waited {:?}", began.elapsed());
+    assert!(!s.search_progress().unwrap().done, "the other folders not read yet");
+    drop(paused);
+    let mut steps = 0;
+    while !s
+        .search_step_timed(64, &mut || true, &mut |w| {
+            kinds.insert(w);
+        })
+        .done
+    {
+        steps += 1;
+        assert!(steps < 10_000);
+    }
+    assert_eq!(s.list.len(), 2400 / 7);
+    for w in [SearchWork::FollowIndexes, SearchWork::Show, SearchWork::ListPage, SearchWork::LookUp, SearchWork::Summaries, SearchWork::Finish] {
+        assert!(kinds.contains(&w), "{w:?} in {kinds:?}");
+    }
 }

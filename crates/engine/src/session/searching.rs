@@ -14,8 +14,10 @@ mod folder_text;
 mod matching;
 mod publish;
 mod run;
+mod work;
 
 pub use run::{SearchProgress, SearchStats};
+pub use work::SearchWork;
 
 /// How many searches the search box remembers.
 pub const RECENT_SEARCHES: usize = 10;
