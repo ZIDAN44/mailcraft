@@ -165,11 +165,12 @@ impl MailApp {
                     f.pst = path.to_string_lossy().into_owned();
                 }
             }
-            // What the file holds, and where its copy goes, are shown before it's imported.
+            // What the file holds, and where its copy goes, are shown before it's imported. Looked
+            // at afresh each time it's picked: the room freed, or the file changed, since.
             Action::OpenDataFile => {
                 if let Some(path) = self.services.pick_data_file() {
-                    let path = path.to_string_lossy().into_owned();
-                    match self.session.run("account.inspectDataFile", &json!({"path": path})) {
+                    let path = path.to_string_lossy().trim().to_string();
+                    match self.session.run("account.inspectDataFile", &json!({"path": path, "again": true})) {
                         Ok(_) => {
                             self.ui.backstage = None;
                             self.ui.dialog = Some(Dialog::OpenDataFile { path });

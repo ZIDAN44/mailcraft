@@ -1397,6 +1397,8 @@ month	May	5월
 	Go to it	이동
 	Import another copy	다른 사본 가져오기
 	Import paused	가져오기 일시 중지됨
+	Import paused: {done} of {total}	가져오기 일시 중지됨: {done} / {total}
+	Import paused: {file}	가져오기 일시 중지됨: {file}
 	Import report…	가져오기 보고서…
 	Import stopped	가져오기 중지됨
 	Import stopped: {done} of {total}	가져오기 중지됨: {done} / {total}

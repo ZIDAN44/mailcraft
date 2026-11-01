@@ -1393,6 +1393,8 @@ month	May	mei
 	Go to it	Ernaartoe gaan
 	Import another copy	Nog een kopie importeren
 	Import paused	Importeren gepauzeerd
+	Import paused: {done} of {total}	Importeren gepauzeerd: {done} van {total}
+	Import paused: {file}	Importeren gepauzeerd: {file}
 	Import report…	Importrapport…
 	Import stopped	Importeren gestopt
 	Import stopped: {done} of {total}	Importeren gestopt: {done} van {total}

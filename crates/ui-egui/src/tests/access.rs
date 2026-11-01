@@ -83,11 +83,17 @@ fn a_question_is_read_as_an_alert_by_its_title() {
         let mut out = ctx.run_ui(input, |ui| a.ui(ui));
         out.textures_delta.clear();
         let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
-        // The dialog's own node: modal (egui's area around it can carry the role too).
-        let dialog = nodes.iter().find(|(_, n)| n.role() == role && n.is_modal()).map(|(_, n)| n.clone()).unwrap_or_else(|| {
-            panic!("no {role:?} for {title}: {:?}", nodes.iter().map(|(_, n)| n.role()).collect::<std::collections::BTreeSet<_>>())
-        });
-        assert!(dialog.is_modal(), "{title}");
+        // The dialog's own node, the one modal node with its role: egui gives the area of every
+        // `Modal` the Dialog role too (`UiKind::Modal`), not modal, and the map's order puts
+        // either first.
+        let modal: Vec<_> = nodes.iter().filter(|(_, n)| n.role() == role && n.is_modal()).map(|(_, n)| n.clone()).collect();
+        assert_eq!(
+            modal.len(),
+            1,
+            "one modal {role:?} for {title}: {:?}",
+            nodes.iter().map(|(_, n)| n.role()).collect::<std::collections::BTreeSet<_>>()
+        );
+        let dialog = &modal[0];
         let named: Vec<String> = dialog
             .labelled_by()
             .iter()

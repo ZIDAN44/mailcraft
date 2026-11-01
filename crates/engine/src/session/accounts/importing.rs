@@ -121,6 +121,7 @@ impl Session {
 
     /// Whether the data file at `path` is being looked at now.
     pub fn inspecting(&self, path: &str) -> bool {
+        let path = path.trim();
         self.importing.inspected.iter().rev().find(|(p, _)| p == path).is_some_and(|(_, f)| f.is_none())
     }
 
@@ -163,8 +164,10 @@ impl Session {
             .map(|(a, _)| a.clone())
     }
 
-    /// The facts found for the data file at `path`, when it was looked at.
+    /// The facts found for the data file at `path`, when it was looked at (kept by the path
+    /// trimmed, as `inspect_data_file` asks for it).
     fn facts_for(&self, path: &str) -> Option<&DataFileFacts> {
+        let path = path.trim();
         self.importing.inspected.iter().rev().find(|(p, _)| p == path).and_then(|(_, f)| f.as_deref())
     }
 

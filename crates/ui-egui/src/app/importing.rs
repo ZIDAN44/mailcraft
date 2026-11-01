@@ -46,13 +46,26 @@ pub(crate) fn ask_on_close(s: &Session) -> bool {
     s.imports().any(|(_, st)| st.live && !st.removing && st.stopping.is_none())
 }
 
+/// An import waiting on the user is paused when something stopped it (the file gone, the drive
+/// full), and stopped when the user did, or MailCraft closed: said so in the status bar, the
+/// folder pane and the account's status alike.
+fn paused(st: &ImportState) -> bool {
+    st.progress.blocked.is_some()
+}
+
+/// Whether an import waiting on the user can go on: where its data file is is known (not one
+/// found at start whose record was lost).
+fn can_go_on(s: &Session, account: &str, st: &ImportState) -> bool {
+    !st.path.is_empty() || s.data_source(account).is_some_and(|d| !d.path.is_empty())
+}
+
 /// What the status bar says of an import: its words (with the time left, once known), how far
 /// it is in thousandths, and what hovering it says.
 pub(crate) fn status_words(s: &Session, account: &str, st: &ImportState) -> (String, Option<u16>, String) {
     let p = &st.progress;
     let permille = p.permille();
     let mut text = if !st.live {
-        tf!("Import stopped: {file}", file = st.file)
+        if paused(st) { tf!("Import paused: {file}", file = st.file) } else { tf!("Import stopped: {file}", file = st.file) }
     } else if st.stopping.is_some() || p.phase == ImportPhase::Stopping {
         tf!("Stopping the import of {file}…", file = st.file)
     } else {
@@ -149,7 +162,20 @@ fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportSt
         }
     }
     if p.skipped > 0 {
-        line(ui, tf!("Not brought in so far: {n}", n = p.skipped));
+        // Why, on hover, once a run has stopped and said (a run going on only counts them).
+        let why: Vec<String> = s
+            .data_source(account)
+            .and_then(|d| d.report.as_ref())
+            .map(|r| r.skips.iter().map(|k| dialogs::skip_line(k.reason, k.count)).collect())
+            .unwrap_or_default();
+        let words = tf!("Not brought in so far: {n}", n = p.skipped);
+        let shown = ui.add(egui::Label::new(RichText::new(words).color(t.dim).small()).wrap());
+        if !why.is_empty() {
+            shown.on_hover_text(why.join(
+                "
+",
+            ));
+        }
     }
     if let Some(b) = &p.blocked {
         ui.add(egui::Label::new(RichText::new(blocked_words(b)).color(t.warn)).wrap());
@@ -170,13 +196,14 @@ fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportSt
             return;
         }
         // Waiting on the user: go on, keep it as it is, read the file again, or let it go.
-        if !(st.path.is_empty() && s.data_source(account).is_none_or(|d| d.path.is_empty())) && ui.button(tl!("Continue importing")).clicked() {
+        let known = can_go_on(s, account, st);
+        if known && ui.button(tl!("Continue importing")).clicked() {
             acts.push(Action::Run("account.resumeImport", json!({"account": account})));
         }
         if ui.button(tl!("Keep what's imported")).clicked() {
             acts.push(Action::Run("account.keepImported", json!({"account": account})));
         }
-        if ui.button(tl!("Start again")).on_hover_text(tl!("What came in goes, and the data file is read from its start.")).clicked() {
+        if known && ui.button(tl!("Start again")).on_hover_text(tl!("What came in goes, and the data file is read from its start.")).clicked() {
             acts.push(Action::Run("account.restartImport", json!({"account": account})));
         }
         let email = s.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
@@ -194,10 +221,11 @@ pub(crate) fn nav_line(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
     let text = if st.removing {
         tl!("Removing…").to_string()
     } else if !st.live {
-        if p.work.total > 0 {
-            tf!("Import stopped: {done} of {total}", done = p.work.done, total = p.work.total)
-        } else {
-            tl!("Import stopped").to_string()
+        match (paused(st), p.work.total > 0) {
+            (true, true) => tf!("Import paused: {done} of {total}", done = p.work.done, total = p.work.total),
+            (true, false) => tl!("Import paused").to_string(),
+            (false, true) => tf!("Import stopped: {done} of {total}", done = p.work.done, total = p.work.total),
+            (false, false) => tl!("Import stopped").to_string(),
         }
     } else if st.stopping.is_some() || p.phase == ImportPhase::Stopping {
         tl!("Stopping…").to_string()
@@ -226,7 +254,7 @@ pub(crate) fn nav_line(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                 acts.push(Action::ImportDetails(account.to_string()));
             }
             // Stopped: going on is one click away.
-            if !st.live && !st.removing && !st.path.is_empty() && ui.link(RichText::new(tl!("Continue")).small()).clicked() {
+            if !st.live && !st.removing && can_go_on(s, account, st) && ui.link(RichText::new(tl!("Continue")).small()).clicked() {
                 acts.push(Action::Run("account.resumeImport", json!({"account": account})));
             }
         });
@@ -245,8 +273,10 @@ pub(crate) fn menu(ui: &mut Ui, s: &Session, account: &str, acts: &mut Vec<Actio
                 ui.close();
             }
         }
-        Some(_) => {
-            if ui.button(tl!("Continue importing")).clicked() {
+        Some(st) => {
+            // Not when where its data file is isn't known (lost at start): kept as it is, or
+            // removed (the menu's own Remove account…).
+            if can_go_on(s, account, st) && ui.button(tl!("Continue importing")).clicked() {
                 acts.push(Action::Run("account.resumeImport", json!({"account": account})));
                 ui.close();
             }
@@ -276,10 +306,10 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, account: &str) -> Option<(
             Some(m) => (t.accent, tf!("Importing {percent}%", percent = progress::percent(m))),
             None => (t.accent, tl!("Importing…").to_string()),
         }
-    } else if st.progress.blocked.is_some() {
-        (t.warn, tl!("Import stopped").to_string())
+    } else if paused(st) {
+        (t.warn, tl!("Import paused").to_string())
     } else {
-        (t.faint, tl!("Import paused").to_string())
+        (t.faint, tl!("Import stopped").to_string())
     })
 }
 

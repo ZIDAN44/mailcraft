@@ -1394,6 +1394,8 @@ month	May	5月
 	Go to it	そこへ移動
 	Import another copy	別のコピーとして取り込む
 	Import paused	取り込みを一時停止中
+	Import paused: {done} of {total}	取り込みを一時停止中: {done} / {total}
+	Import paused: {file}	取り込みを一時停止中: {file}
 	Import report…	取り込みの結果…
 	Import stopped	取り込みを停止しました
 	Import stopped: {done} of {total}	取り込みを停止しました: {done} / {total}

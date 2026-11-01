@@ -1398,6 +1398,8 @@ month	May	Mai
 	Go to it	Dorthin wechseln
 	Import another copy	Weitere Kopie importieren
 	Import paused	Import angehalten
+	Import paused: {done} of {total}	Import angehalten: {done} von {total}
+	Import paused: {file}	Import angehalten: {file}
 	Import report…	Importbericht…
 	Import stopped	Import beendet
 	Import stopped: {done} of {total}	Import beendet: {done} von {total}

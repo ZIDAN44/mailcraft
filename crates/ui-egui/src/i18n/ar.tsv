@@ -1393,6 +1393,8 @@ month	May	مايو
 	Go to it	الانتقال إليه
 	Import another copy	استيراد نسخة أخرى
 	Import paused	الاستيراد متوقف مؤقتًا
+	Import paused: {done} of {total}	الاستيراد متوقف مؤقتًا: {done} من {total}
+	Import paused: {file}	الاستيراد متوقف مؤقتًا: {file}
 	Import report…	تقرير الاستيراد…
 	Import stopped	توقف الاستيراد
 	Import stopped: {done} of {total}	توقف الاستيراد: {done} من {total}

@@ -1397,6 +1397,8 @@ month	May	Май
 	Go to it	Перейти к нему
 	Import another copy	Импортировать ещё одну копию
 	Import paused	Импорт приостановлен
+	Import paused: {done} of {total}	Импорт приостановлен: {done} из {total}
+	Import paused: {file}	Импорт приостановлен: {file}
 	Import report…	Отчёт об импорте…
 	Import stopped	Импорт остановлен
 	Import stopped: {done} of {total}	Импорт остановлен: {done} из {total}

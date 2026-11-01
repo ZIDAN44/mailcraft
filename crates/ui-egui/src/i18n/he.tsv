@@ -1393,6 +1393,8 @@ month	May	מאי
 	Go to it	מעבר אליו
 	Import another copy	לייבא עותק נוסף
 	Import paused	הייבוא מושהה
+	Import paused: {done} of {total}	הייבוא מושהה: {done} מתוך {total}
+	Import paused: {file}	הייבוא מושהה: {file}
 	Import report…	דוח ייבוא…
 	Import stopped	הייבוא נעצר
 	Import stopped: {done} of {total}	הייבוא נעצר: {done} מתוך {total}

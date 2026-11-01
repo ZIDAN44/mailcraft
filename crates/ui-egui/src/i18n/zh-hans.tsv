@@ -1394,6 +1394,8 @@ month	May	5月
 	Go to it	转到该账户
 	Import another copy	再导入一份
 	Import paused	导入已暂停
+	Import paused: {done} of {total}	导入已暂停: {done} / {total}
+	Import paused: {file}	导入已暂停: {file}
 	Import report…	导入报告…
 	Import stopped	导入已停止
 	Import stopped: {done} of {total}	导入已停止: {done} / {total}

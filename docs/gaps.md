@@ -1663,7 +1663,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   then pauses it; removing its account asks whether to stop and delete the part imported. At the
   end a summary says how many messages came into how many folders, with the contacts, calendar
   items and notes, how long it took, and one line for each reason something was left out; it's
-  there again as the account's Import report. A bar without a total (a MailCraft data file
+  there again as the account's Import report. An import that waits is "paused" when something
+  stopped it (the file gone or changed, the drive full) and "stopped" when the user did, alike
+  in the status bar, the folder pane and the account's status; one whose data file's place was
+  lost isn't offered Continue. What couldn't be brought in so far shows its reasons on hover
+  once a run has stopped and said them (a run going on only counts them). A file picked again
+  is looked at again, so room freed since lets it be imported. A bar without a total (a MailCraft data file
   brought in) slides at most ten frames a second, and stands still with animations off. The
   welcome screen offers "Open an Outlook data file…" beside adding an account, and sizes are
   written in GB once they reach one. Not yet measured on the 41 GB file in the window: folders

@@ -25,7 +25,6 @@ mod writing;
 
 pub use accounts::*;
 pub use dav::DavForm;
-#[cfg(test)]
 pub(crate) use importing::skip_line;
 pub use mailbox::*;
 pub use organize::*;

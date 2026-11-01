@@ -1398,6 +1398,8 @@ month	May	mai
 	Go to it	Y aller
 	Import another copy	Importer une autre copie
 	Import paused	Importation en pause
+	Import paused: {done} of {total}	Importation en pause : {done} sur {total}
+	Import paused: {file}	Importation en pause : {file}
 	Import report…	Rapport d’importation…
 	Import stopped	Importation arrêtée
 	Import stopped: {done} of {total}	Importation arrêtée : {done} sur {total}

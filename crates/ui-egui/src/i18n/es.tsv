@@ -1398,6 +1398,8 @@ month	May	mayo
 	Go to it	Ir a él
 	Import another copy	Importar otra copia
 	Import paused	Importación en pausa
+	Import paused: {done} of {total}	Importación en pausa: {done} de {total}
+	Import paused: {file}	Importación en pausa: {file}
 	Import report…	Informe de importación…
 	Import stopped	Importación detenida
 	Import stopped: {done} of {total}	Importación detenida: {done} de {total}

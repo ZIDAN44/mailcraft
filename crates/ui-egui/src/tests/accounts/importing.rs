@@ -344,6 +344,133 @@ fn a_data_file_is_looked_at_before_it_is_imported() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Services whose file picker hands over one data file.
+struct Picks(&'static str);
+
+impl crate::Services for Picks {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn notify(&mut self, _: &str, _: &str) {}
+    fn pick_data_file(&mut self) -> Option<std::path::PathBuf> {
+        Some(self.0.into())
+    }
+}
+
+/// The data files asked to be looked at since the last frame.
+fn inspections(a: &mut MailApp) -> Vec<String> {
+    a.session
+        .take_jobs()
+        .into_iter()
+        .filter_map(|j| match j {
+            Job::InspectDataFile { path } => Some(path),
+            _ => None,
+        })
+        .collect()
+}
+
+fn facts(free: u64) -> DataFileFacts {
+    DataFileFacts {
+        messages: 34_000,
+        folders: 120,
+        estimate: 38 << 30,
+        need: 40 << 30,
+        free: Some(free),
+        destination: "C:/Files".into(),
+        ..Default::default()
+    }
+}
+
+/// A file picked again is looked at afresh: room freed since a "no room" answer lets it be
+/// imported without restarting MailCraft (the first answer was kept for the session).
+#[test]
+fn a_data_file_picked_again_is_looked_at_again() {
+    let (mut a, dir) = app("import-again");
+    a.services = Box::new(Picks("E:/Big.pst"));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.act(Action::OpenDataFile);
+    assert_eq!(inspections(&mut a), ["E:/Big.pst"]);
+    a.session.apply(MailEvent::DataFileInspected { path: "E:/Big.pst".into(), facts: Box::new(facts(2 << 30)) });
+    let texts = drawn(&ctx, &mut a);
+    assert!(has(&texts, "There isn't room for the copy"), "{texts:?}");
+
+    // Room freed, the same file picked: asked again, and the new answer shown.
+    a.ui.dialog = None;
+    a.act(Action::OpenDataFile);
+    assert_eq!(inspections(&mut a), ["E:/Big.pst"], "looked at again");
+    assert!(has(&drawn(&ctx, &mut a), "Counting items…"), "the old answer isn't shown meanwhile");
+    a.session.apply(MailEvent::DataFileInspected { path: "E:/Big.pst".into(), facts: Box::new(facts(400 << 30)) });
+    let texts = drawn(&ctx, &mut a);
+    assert!(has(&texts, "Free there: 400.0 GB") && !has(&texts, "There isn't room"), "{texts:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A path with spaces at its ends is looked at by the path trimmed, and the dialog finds the
+/// answer by it (it asked again on every frame, and stayed on "Counting items…").
+#[test]
+fn a_data_file_path_with_spaces_at_its_ends_is_answered() {
+    let (mut a, dir) = app("import-trim");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::OpenDataFile { path: " E:/Big.pst ".into() });
+    drawn(&ctx, &mut a);
+    assert!(a.session.inspecting(" E:/Big.pst ") && a.session.inspecting("E:/Big.pst"), "asked");
+    a.session.apply(MailEvent::DataFileInspected { path: "E:/Big.pst".into(), facts: Box::new(facts(400 << 30)) });
+    let texts = drawn(&ctx, &mut a);
+    assert!(has(&texts, "34000 items in 120 folders") && !has(&texts, "Counting items"), "{texts:?}");
+    assert!(a.session.data_file_open_as(" E:/Big.pst ").is_none());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// An import stopped by something (a full drive) is paused, one the user stopped is stopped:
+/// said the same in the status bar, the folder pane and the account's status.
+#[test]
+fn a_paused_import_and_a_stopped_one_are_told_apart() {
+    let (mut a, dir) = app("import-paused");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let id = import(&mut a);
+    let mut blocked = progress(ImportPhase::Blocked, 40, 100, 61_000);
+    blocked.blocked = Some(Blocked::DiskFull { free: 300 << 20 });
+    going(&mut a, &id, blocked);
+    let status = |a: &MailApp| crate::app::importing::account_status(&a.session, &a.ui.tokens, &id).map(|s| s.1);
+    let texts = drawn(&ctx, &mut a);
+    assert!(has(&texts, "Import paused: Archive.pst") && has(&texts, "Import paused: 40 of 100"), "{texts:?}");
+    assert!(!has(&texts, "Import stopped"), "{texts:?}");
+    assert_eq!(status(&a).as_deref(), Some("Import paused"));
+
+    // Gone on with, then stopped by the user.
+    a.session.run("account.resumeImport", &json!({"account": id})).unwrap();
+    a.session.run("account.stopImport", &json!({"account": id})).unwrap();
+    a.session.take_jobs();
+    going(&mut a, &id, progress(ImportPhase::Importing, 50, 100, 70_000));
+    a.session.apply(MailEvent::Imported {
+        account: id.clone(),
+        messages: 50,
+        skipped: 0,
+        done: true,
+        error: None,
+        report: Some(Box::new(ImportReport { messages: 50, stopped: Some(StopHow::Cancel), ..Default::default() })),
+    });
+    let st = a.session.import_state(&id).unwrap();
+    assert!(!st.live && st.progress.blocked.is_none(), "{:?}", st.progress);
+    let texts = drawn(&ctx, &mut a);
+    assert!(has(&texts, "Import stopped: Archive.pst") && has(&texts, "Import stopped: "), "{texts:?}");
+    assert!(!has(&texts, "Import paused"), "{texts:?}");
+    assert_eq!(status(&a).as_deref(), Some("Import stopped"));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Every state and question of an import drawn in Arabic and Hebrew, light and dark (mirrored
 /// windows): nothing panics, and the import's words are in the language.
 #[test]
