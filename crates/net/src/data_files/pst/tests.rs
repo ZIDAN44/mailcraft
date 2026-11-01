@@ -786,6 +786,7 @@ mod files;
 mod losses;
 mod options;
 mod pipeline;
+mod protected;
 mod reader;
 mod rebuilt;
 mod report;

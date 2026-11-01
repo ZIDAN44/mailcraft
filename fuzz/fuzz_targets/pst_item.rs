@@ -3,7 +3,8 @@
 //!
 //! The input is a list of properties, each a little-endian id (two bytes), a kind (text, bytes,
 //! number, yes/no, time, UTF-16 text, texts; 5 starts the next recipient's properties), a little-endian
-//! length (two bytes) and the value. Every header line the import writes (all but an original
+//! length (two bytes) and the value; 0x3701 is the item's one file (an S/MIME item's content),
+//! 0x370E its type. Every header line the import writes (all but an original
 //! header's own) must stay a line of its own: no control characters, at most 998 bytes; those
 //! it adds from the properties (Thread-Index, Thread-Topic, Sensitivity) ASCII too.
 #![no_main]

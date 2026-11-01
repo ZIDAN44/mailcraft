@@ -111,6 +111,30 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
     assert!(is_smime_part("application/pkcs7-signature", "x") && is_smime_part("application/octet-stream", "smime.p7m"));
 }
 
+/// A CMS blob's S/MIME type is read from the content type that starts it, with its length in any
+/// form; anything else is none, and junk never a crash. Its message reads back as that type.
+#[test]
+fn a_cms_says_what_it_is() {
+    let pkcs7 = |last: u8| [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, last];
+    let signed = [&[0x30, 0x82, 0x01, 0x00][..], &pkcs7(2), &[0xA0, 0x00]].concat();
+    assert_eq!(smime_type_of(&signed), Some("signed-data"));
+    assert_eq!(smime_type_of(&[&[0x30, 0x80][..], &pkcs7(3)].concat()), Some("enveloped-data"));
+    assert_eq!(smime_type_of(&[&[0x30, 0x20][..], &pkcs7(3)].concat()), Some("enveloped-data"));
+    let auth = [0x30, 0x81, 0x40, 0x06, 0x0B, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x10, 0x01, 0x17];
+    assert_eq!(smime_type_of(&auth), Some("authEnveloped-data"));
+    // Data (7.1), compressed data (9.16.1.9), another tag, cut short.
+    for junk in [&[0x30, 0x10][..], &[0x31, 0x10], &[0x30, 0x85, 1, 2, 3, 4, 5], &[], &[0x30]] {
+        assert_eq!(smime_type_of(junk), None);
+    }
+    assert_eq!(smime_type_of(&[&[0x30, 0x20][..], &pkcs7(1)].concat()), None);
+    assert_eq!(smime_type_of(&[&auth[..15], &[9]].concat()), None);
+    for n in 0..signed.len() {
+        let _ = smime_type_of(&signed[..n]);
+    }
+    let message = pkcs7_message(b"Subject: Proof\r\n", &signed, "signed-data");
+    assert_eq!(protection(&message), Protection::Opaque(signed.clone()));
+}
+
 /// What MailCraft writes for a signed message is 7-bit, short-lined and without trailing
 /// spaces, whatever it holds: accented text, trailing spaces, a long line, an attached message
 /// with 8-bit text.

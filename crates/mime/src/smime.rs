@@ -504,15 +504,43 @@ pub fn signed_message(outer: &[u8], entity: &[u8], signature: &[u8], boundary: &
 /// An encrypted message: `outer` header fields, then `cms` (DER) as `smime.p7m`; `authenticated`
 /// for `AuthEnvelopedData`.
 pub fn encrypted_message(outer: &[u8], cms: &[u8], authenticated: bool) -> Vec<u8> {
-    let kind = if authenticated { "authEnveloped-data" } else { "enveloped-data" };
+    pkcs7_message(outer, cms, if authenticated { "authEnveloped-data" } else { "enveloped-data" })
+}
+
+/// A message that is `outer` header fields, then `cms` (DER) as `smime.p7m` of S/MIME type
+/// `smime_type` (`signed-data`, `enveloped-data`, `authEnveloped-data`: [`smime_type_of`]).
+pub fn pkcs7_message(outer: &[u8], cms: &[u8], smime_type: &str) -> Vec<u8> {
+    let description = if smime_type == "signed-data" { "S/MIME Signed Message" } else { "S/MIME Encrypted Message" };
     let mut out = outer.to_vec();
     out.extend_from_slice(b"MIME-Version: 1.0\r\n");
-    out.extend_from_slice(format!("Content-Type: application/pkcs7-mime; smime-type={kind}; name=\"smime.p7m\"\r\n").as_bytes());
+    out.extend_from_slice(format!("Content-Type: application/pkcs7-mime; smime-type={smime_type}; name=\"smime.p7m\"\r\n").as_bytes());
     out.extend_from_slice(b"Content-Transfer-Encoding: base64\r\n");
     out.extend_from_slice(b"Content-Disposition: attachment; filename=\"smime.p7m\"\r\n");
-    out.extend_from_slice(b"Content-Description: S/MIME Encrypted Message\r\n\r\n");
+    out.extend_from_slice(format!("Content-Description: {description}\r\n\r\n").as_bytes());
     out.extend(base64_lines(cms));
     out
+}
+
+/// The S/MIME type of a CMS `ContentInfo` (RFC 5652 §3) from the content type that starts it:
+/// `signed-data`, `enveloped-data`, or `authEnveloped-data` (RFC 5083); `None` for anything else.
+pub fn smime_type_of(cms: &[u8]) -> Option<&'static str> {
+    // pkcs7 (1.2.840.113549.1.7) and S/MIME's content types (1.2.840.113549.1.9.16.1), as DER.
+    const PKCS7: [u8; 10] = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07];
+    const SMIME: [u8; 12] = [0x06, 0x0B, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x10, 0x01];
+    // A SEQUENCE, its length in its own byte, in up to four more, or left open (BER).
+    let rest = match cms {
+        [0x30, n, rest @ ..] if *n <= 0x80 => rest,
+        [0x30, n @ 0x81..=0x84, rest @ ..] => rest.get(usize::from(*n - 0x80)..)?,
+        _ => return None,
+    };
+    if let Some(kind) = rest.strip_prefix(&PKCS7) {
+        return match kind.first() {
+            Some(2) => Some("signed-data"),
+            Some(3) => Some("enveloped-data"),
+            _ => None,
+        };
+    }
+    (rest.strip_prefix(&SMIME)?.first() == Some(&23)).then_some("authEnveloped-data")
 }
 
 /// Whether an attachment is S/MIME's own (the signature or the encrypted content), not the

@@ -48,6 +48,7 @@ mod order;
 mod out;
 mod plan;
 mod props;
+mod protected;
 mod rebuild;
 mod report;
 #[cfg(test)]
@@ -490,14 +491,22 @@ fn run_plan(
 
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the
 /// import writes it, with its summary: for the fuzz target, which hands it hostile values. Its
-/// categories are property 0x8000.
+/// categories are property 0x8000; its one file, when it has one, the bytes of 0x3701 (an
+/// attachment's data), of the type 0x370E says.
 #[doc(hidden)]
 pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>]) -> Result<(Vec<u8>, mailcraft_model::Summary), String> {
     fn find<'a>(list: &[(u16, Val<'a>)], id: u16) -> Option<Val<'a>> {
         list.iter().find(|(i, _)| *i == id).map(|(_, v)| v.clone())
     }
     let rows: Vec<_> = recipients.iter().map(|r| move |id: u16| find(r, id)).collect();
-    let it = item::item_of(&|id| find(props, id), &rows, Vec::new(), &crate::pst_pim::Named::with_keywords(0x8000));
+    let files = match find(props, 0x3701) {
+        Some(Val::Bin(data)) => {
+            let mime = find(props, 0x370E).and_then(Val::into_text).unwrap_or_default();
+            vec![File::Data { name: "smime.p7m".into(), mime, cid: String::new(), data: data.to_vec() }]
+        }
+        _ => Vec::new(),
+    };
+    let it = item::item_of(&|id| find(props, id), &rows, files, &crate::pst_pim::Named::with_keywords(0x8000));
     let (raw, glance) = rebuild::message(it, "fuzz@mailcraft.invalid")?;
     let key = MessageKey { account: "f1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
     let summary = rebuild::summary_of(&raw, glance, key, u32::try_from(raw.len()).unwrap_or(u32::MAX));

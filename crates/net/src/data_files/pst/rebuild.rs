@@ -46,6 +46,8 @@ fn take_text(it: &mut Item) -> String {
 /// files are not copied, and are let go of once the message is written. With it, whether the
 /// message carries a file.
 fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool), String> {
+    // An S/MIME item's content, kept aside to go back in once its header fields are made.
+    let protected = super::protected::kind(&it.class).and_then(|kind| Some((kind, super::protected::content(&it.files)?.to_vec())));
     let html = it.html.take().filter(|h| !h.trim().is_empty());
     let mut d = Draft {
         to: std::mem::take(&mut it.to),
@@ -91,7 +93,16 @@ fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool
     }
     let files = mime::draft_carries_files(&d);
     drop(d);
-    Ok((with_headers(built, &it.headers, &it.bcc, &extra_headers(&it)), files))
+    let raw = with_headers(built, &it.headers, &it.bcc, &extra_headers(&it));
+    match protected.and_then(|(kind, content)| Some((kind, super::protected::message(&raw, kind, &content)?))) {
+        // What a signed message carries is inside it; an encrypted one's isn't known.
+        Some((kind, raw)) => {
+            let files = kind == super::protected::Kind::Signed
+                && mime::summary_from_full(&raw, MessageKey::default(), Flags::default(), 0, 0).has_attachments;
+            Ok((raw, files))
+        }
+        None => Ok((raw, files)),
+    }
 }
 
 /// What the item's properties say that a header carries: Outlook's conversation index and
