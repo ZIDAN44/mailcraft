@@ -510,6 +510,33 @@ fn every_code_page_reads_its_own_bytes() {
     }
 }
 
+#[test]
+fn text_labelled_utf7_keeps_its_pluses() {
+    // A `+` no character follows is kept, as is a run too short to hold one.
+    assert_eq!(decode_code_page(b"<p>1 + 1 = 2</p>", 65000), "<p>1 + 1 = 2</p>");
+    assert_eq!(decode_code_page(b"<p>C++ a+b</p>", 65000), "<p>C++ a+b</p>");
+    assert_eq!(decode_code_page(b"a+b", 65000), "a+b");
+    assert_eq!(decode_code_page(b"a+", 65000), "a+");
+    // A run that stops part-way through a character says so.
+    assert_eq!(decode_code_page(b"caf+AOkA-", 65000), "café\u{FFFD}");
+    assert_eq!(decode_code_page(b"caf+AOl-", 65000), "café\u{FFFD}", "bits left over that aren't zero");
+    assert_eq!(decode_code_page(b"caf+AOk-+AOk.", 65000), "caféé.");
+}
+
+#[test]
+fn eight_bit_text_is_never_read_as_utf16_or_utf7() {
+    assert!(!byte_code_page(1200) && !byte_code_page(1201) && !byte_code_page(65000));
+    assert!(byte_code_page(1252) && byte_code_page(65001) && byte_code_page(50220) && byte_code_page(99999));
+    for cp in [1200, 1201, 65000] {
+        assert_eq!(decode(b"C++ caf\xe9", cp), "C++ café", "code page {cp}");
+        // RTF's text in such a page keeps its letters (it lost them all in 1201).
+        let rtf = format!("{{\\rtf1\\ansi\\ansicpg{cp}\\deff0{{\\fonttbl{{\\f0 Arial;}}}}\\f0 C++ a+b hello\\par}}");
+        assert_eq!(rtf_body(rtf.as_bytes()), TnefBody::Html("C++ a+b hello<br>\n".into()), "\\ansicpg{cp}");
+        let rtf = format!("{{\\rtf1\\ansi\\deff0{{\\fonttbl{{\\f0\\cpg{cp} Arial;}}}}\\f0 C++ hello\\par}}");
+        assert_eq!(rtf_body(rtf.as_bytes()), TnefBody::Html("C++ hello<br>\n".into()), "\\cpg{cp}");
+    }
+}
+
 /// A message as Outlook sends one in Rich Text Format: a plain-text part and a `winmail.dat`.
 pub(crate) fn outlook_message(dat: Vec<u8>) -> Vec<u8> {
     MessageBuilder::new()

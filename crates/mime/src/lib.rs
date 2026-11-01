@@ -50,8 +50,8 @@ use html::*;
 pub use html::*;
 pub use photos::without_location;
 pub use tnef::{
-    Tnef, TnefBody, TnefFile, decode_code_page, decompress_rtf, known_code_page, read_tnef, rtf_body, rtf_wraps_html, unsupported_code_page,
-    utf16_code_page,
+    Tnef, TnefBody, TnefFile, byte_code_page, decode_code_page, decompress_rtf, known_code_page, read_tnef, rtf_body, rtf_wraps_html,
+    unsupported_code_page, utf16_code_page,
 };
 pub use trackers::{Trackers, clean_link, trackers, tracks_click};
 

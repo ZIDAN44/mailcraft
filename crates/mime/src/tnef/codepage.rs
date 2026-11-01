@@ -94,6 +94,18 @@ pub fn utf16_code_page(cp: u32) -> bool {
     matches!(page(cp), Page::Utf16Le | Page::Utf16Be)
 }
 
+/// Whether `cp` can be the page of 8-bit text (an RTF document's, a `PT_STRING8` property's):
+/// UTF-16 (1200, 1201) and UTF-7 (65000) can't, and 8-bit text read as either loses its letters.
+pub fn byte_code_page(cp: u32) -> bool {
+    !matches!(page(cp), Page::Utf16Le | Page::Utf16Be | Page::Utf7)
+}
+
+/// 8-bit text in code page `cp`: [`decode_code_page`], with a page that can't be one
+/// ([`byte_code_page`]) read as Windows-1252, like a page this doesn't know.
+pub(super) fn decode_bytes(b: &[u8], cp: u32) -> String {
+    decode_code_page(b, if byte_code_page(cp) { cp } else { 1252 })
+}
+
 /// Bytes in a Windows code page as text (Windows-1252 for pages this doesn't know).
 pub fn decode_code_page(b: &[u8], cp: u32) -> String {
     let name = match page(cp) {
@@ -138,44 +150,48 @@ fn windows_1252(b: &[u8]) -> String {
 
 /// UTF-7 (RFC 2152) as text: `+-` is a plus, `+` starts a base64 run of UTF-16, and any other
 /// character or the end of the text ends one (mail-parser's decoder drops a run left open at the
-/// end, and keeps `+-` as it is).
+/// end, and keeps `+-` as it is). Text that only claims to be UTF-7 keeps what it says: a `+` that
+/// no character follows, as in `1 + 1`, `C++` or `a+b` (a run too short to hold one), is kept as
+/// written, and a run that stops part-way through a character ends in U+FFFD, not silently.
 fn utf7(b: &[u8]) -> String {
     let mut out = String::with_capacity(b.len());
-    let mut run: Option<Vec<u16>> = None;
-    let (mut bits, mut held) = (0u32, 0u32);
-    let flush = |out: &mut String, units: Vec<u16>| out.extend(char::decode_utf16(units).map(|c| c.unwrap_or('\u{FFFD}')));
     let mut i = 0;
     while let Some(&c) = b.get(i) {
         i += 1;
-        if let Some(units) = run.as_mut() {
-            if let Some(v) = base64_value(c) {
-                bits = ((bits << 6) | u32::from(v)) & 0x003F_FFFF;
-                held += 6;
-                if held >= 16 {
-                    held -= 16;
-                    units.push(u16::try_from((bits >> held) & 0xFFFF).unwrap_or(0xFFFD));
-                }
-                continue;
-            }
-            if let Some(units) = run.take() {
-                flush(&mut out, units);
-            }
-            (bits, held) = (0, 0);
-            if c == b'-' {
-                continue;
+        if c != b'+' {
+            out.push(if c.is_ascii() { char::from(c) } else { '\u{FFFD}' });
+            continue;
+        }
+        if b.get(i) == Some(&b'-') {
+            out.push('+');
+            i += 1;
+            continue;
+        }
+        let start = i;
+        let (mut units, mut bits, mut held) = (Vec::new(), 0u32, 0u32);
+        while let Some(v) = b.get(i).copied().and_then(base64_value) {
+            i += 1;
+            bits = ((bits << 6) | u32::from(v)) & 0x003F_FFFF;
+            held += 6;
+            if held >= 16 {
+                held -= 16;
+                units.push(u16::try_from((bits >> held) & 0xFFFF).unwrap_or(0xFFFD));
             }
         }
-        match c {
-            b'+' if b.get(i) == Some(&b'-') => {
-                out.push('+');
-                i += 1;
-            }
-            b'+' => run = Some(Vec::new()),
-            _ => out.push(if c.is_ascii() { char::from(c) } else { '\u{FFFD}' }),
+        if units.is_empty() {
+            out.push('+');
+            out.extend(b.get(start..i).unwrap_or_default().iter().map(|c| char::from(*c)));
+            continue;
         }
-    }
-    if let Some(units) = run {
-        flush(&mut out, units);
+        out.extend(char::decode_utf16(units).map(|c| c.unwrap_or('\u{FFFD}')));
+        // A run ends on a whole character: fewer than six bits over, all of them zero.
+        if held >= 6 || bits & ((1u32 << held) - 1) != 0 {
+            out.push('\u{FFFD}');
+        }
+        // The `-` that ends a run isn't text.
+        if b.get(i) == Some(&b'-') {
+            i += 1;
+        }
     }
     out
 }
@@ -193,7 +209,7 @@ fn base64_value(c: u8) -> Option<u8> {
 }
 
 /// UTF-16 (little-endian) as text, without its NULs.
-pub(crate) fn utf16(b: &[u8]) -> String {
+pub(super) fn utf16(b: &[u8]) -> String {
     utf16_with(b, u16::from_le_bytes)
 }
 
