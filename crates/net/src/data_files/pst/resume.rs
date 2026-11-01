@@ -669,9 +669,11 @@ impl Out<'_> {
         if self.write_pending(true) || self.writes_stopped() {
             return;
         }
+        let began = Instant::now();
         let docs = self.checkpoint_docs();
         let reopened = self.reopened();
         let wrote = self.tally.time(Phase::Commit, || self.store.write_batch(self.account, Vec::new(), docs, reopened));
+        self.tally.wrote(began, true);
         if let Err(e) = &wrote {
             log::warn!("import: the checkpoint couldn't be written: {e}");
             // Failed at the disk, or refused once the data file was opened again: nothing more is

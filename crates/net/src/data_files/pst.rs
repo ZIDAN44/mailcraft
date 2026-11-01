@@ -220,6 +220,13 @@ pub struct ImportStats {
     /// run's.
     pub ids_given: u64,
     pub ids_taken_back: u64,
+    /// Batches of sources written without a checkpoint, and the time they took; and checkpoints
+    /// written (each durable and sealed, most with a batch of sources), and the time they took,
+    /// their batch's included: what checkpoints cost, by the two.
+    pub batches: u64,
+    pub batch_ms: u64,
+    pub checkpoints: u64,
+    pub checkpoint_ms: u64,
 }
 
 /// A stage of an import, timed.
@@ -244,6 +251,9 @@ enum Phase {
 struct Tally {
     /// Nanoseconds in each [`Phase`].
     nanos: [AtomicU64; 9],
+    /// Writes without a checkpoint and with one: how many, and their nanoseconds.
+    batches: [AtomicU64; 2],
+    checkpoints: [AtomicU64; 2],
     peak: AtomicU64,
     raw: AtomicU64,
     kept: AtomicU64,
@@ -267,6 +277,13 @@ impl Tally {
         if let Some(n) = self.nanos.get(phase as usize) {
             n.fetch_add(nanos(began.elapsed()), Ordering::Relaxed);
         }
+    }
+
+    /// A write since `began`: a batch of sources, or a checkpoint (with its batch, if any).
+    fn wrote(&self, began: Instant, checkpoint: bool) {
+        let [count, time] = if checkpoint { &self.checkpoints } else { &self.batches };
+        count.fetch_add(1, Ordering::Relaxed);
+        time.fetch_add(nanos(began.elapsed()), Ordering::Relaxed);
     }
 
     /// The writer waited since `began`.
@@ -322,6 +339,10 @@ impl Tally {
             walk_cache_bytes: self.walk_cache.load(Ordering::Relaxed),
             ids_given: 0,
             ids_taken_back: 0,
+            batches: self.batches[0].load(Ordering::Relaxed),
+            batch_ms: self.batches[1].load(Ordering::Relaxed) / 1_000_000,
+            checkpoints: self.checkpoints[0].load(Ordering::Relaxed),
+            checkpoint_ms: self.checkpoints[1].load(Ordering::Relaxed) / 1_000_000,
         }
     }
 }

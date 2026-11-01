@@ -401,6 +401,7 @@ impl Out<'_> {
         let charge = std::mem::take(&mut self.pending_charge);
         let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
         // Every so often the checkpoint goes with the batch, naming it.
+        let began = Instant::now();
         let wrote = if checkpoint {
             let docs = self.checkpoint_docs();
             let reopened = self.reopened();
@@ -410,6 +411,7 @@ impl Out<'_> {
         } else {
             self.tally.time(Phase::Write, || self.store.write_prepared(batch, false))
         };
+        self.tally.wrote(began, checkpoint);
         // Their words go into the index once their sources are in.
         let ok = wrote.is_ok();
         self.index_written(ok);
