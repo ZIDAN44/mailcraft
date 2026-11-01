@@ -1,8 +1,10 @@
 //! The desktop's side of the window: the network (the worker pool) and the platform's
 //! services (`mailcraft_ui_egui::Services`): file dialogs, opening files and links, video frames,
-//! notifications, the data folder, the updater, Craft apps.
+//! notifications, the data folder, the updater, Craft apps, threads for slow work.
 
 use super::*;
+
+mod lanes;
 
 pub(crate) struct PoolBackend(pub(crate) Pool);
 
@@ -37,6 +39,8 @@ pub(crate) struct Desktop {
     /// The folder of the last file picked or saved: the next file dialog opens there (attaching
     /// several files from one folder, saving attachments beside each other), as figcraft's do.
     pub(crate) last_dir: Option<PathBuf>,
+    /// The threads slow work runs on (decoding pictures).
+    pub(crate) lanes: lanes::Lanes,
 }
 
 impl Desktop {
@@ -255,6 +259,12 @@ impl Services for Desktop {
             return VideoFrame::Unavailable;
         }
         VideoFrame::Pending
+    }
+    fn background(&mut self, lane: mailcraft_ui_egui::Lane, work: mailcraft_ui_egui::Work) -> Result<(), mailcraft_ui_egui::Work> {
+        self.lanes.submit(lane, work)
+    }
+    fn has_background(&self) -> bool {
+        self.lanes.available()
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {
         let folder = self.dialog("Save attachments to").pick_folder();

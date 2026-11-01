@@ -50,7 +50,7 @@ pub use app::{ClipboardRead, WindowPlace, after_open, alt_code_pages, alt_codes,
 pub(crate) use app::{SearchDrop, junk_menu, scope_label};
 pub use dialogs::Dialog;
 use icons::Icon;
-pub use services::{Backend, NullBackend, NullServices, Services, UpdateState};
+pub use services::{Backend, Lane, NullBackend, NullServices, Services, UpdateState, Work};
 use theme::Tokens;
 
 /// Whether the message being written shows in the reading pane: when it isn't popped out, or

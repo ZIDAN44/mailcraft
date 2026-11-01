@@ -1,6 +1,8 @@
 //! What the window needs from where it runs: the network side (`Backend`) and the platform's services.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use mailcraft_engine::model::{Event, Job};
 
@@ -42,6 +44,27 @@ impl UpdateState {
             _ => None,
         }
     }
+}
+
+/// Where slow work runs without holding up the window ([`Services::background`]): each lane
+/// does its work in order, one at a time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Lane {
+    /// Decoding a message's pictures and PDF pages.
+    Pictures,
+    /// Getting a message ready to read.
+    Reading,
+}
+
+/// Work handed to a lane.
+pub struct Work {
+    pub run: Box<dyn FnOnce() + Send + 'static>,
+    /// Set when what it makes is no longer wanted (the work looks at it between its steps).
+    /// Work that goes on 30 seconds after (a decoder caught in a loop) is left to finish alone,
+    /// and the lane carries on in a new thread.
+    pub cancelled: Arc<AtomicBool>,
+    /// Goes before the lane's work waiting (a picture opened big, a PDF's pages on screen).
+    pub first: bool,
 }
 
 /// Platform services the UI needs.
@@ -160,6 +183,16 @@ pub trait Services {
     /// [`VideoFrame::Pending`], so slow work belongs on another thread.
     fn video_frame(&mut self, _path: &std::path::Path) -> VideoFrame {
         VideoFrame::Unavailable
+    }
+    /// Run `work` on `lane`'s thread. `Err` gives it back (no threads here: the browser, the
+    /// tests, a thread that couldn't start), and the caller does it a step a frame instead.
+    fn background(&mut self, _lane: Lane, work: Work) -> Result<(), Work> {
+        Err(work)
+    }
+    /// Whether [`Services::background`] takes work. Asked each frame that work is out there,
+    /// which is when a lane caught on cancelled work is given a new thread.
+    fn has_background(&self) -> bool {
+        false
     }
     /// Whether files can be dragged out of the window to other apps (see
     /// [`MailApp::take_drag_out`]).

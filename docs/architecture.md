@@ -35,6 +35,12 @@
 `cargo xtask layers` enforces this, including that `egui` stays in L6 and network crates stay in `net`.
 `cargo xtask wasm` checks that every crate but `net`, and the web app, build for `wasm32`.
 
+Threads stay out of the portable crates. Slow work in the window (decoding a message's pictures)
+goes through `Services::background` to a lane: the desktop app runs one thread per lane
+(`apps/mailcraft/src/desktop/lanes.rs`), each piece of work under `catch_unwind`, and gives a
+lane caught on cancelled work for 30 seconds a new thread. Where the work is given back (the
+browser, the tests) the UI does it a step a frame.
+
 ## Source layout
 
 Modules use the 2018+ layout (`foo.rs` beside `foo/`, no `mod.rs`), split by topic, with every
