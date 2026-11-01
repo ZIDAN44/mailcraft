@@ -1383,7 +1383,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   RTF wrapped. The compressed RTF (`PidTagRtfCompressed`) is now read when an item has no HTML,
   the same way as in a `winmail.dat`: as the HTML it wraps, or, when there's no plain text, its
   own formatting or its text; the pictures its HTML shows are in the body instead of listed as
-  files. A plain body stays over RTF of its own, whose tables and pictures the text keeps better.
+  files. A plain body stays over RTF of its own, whose tables and pictures the text keeps better,
+  and over RTF the item says is older than its text (`PidTagRtfInSync`). Rich Text that can't be
+  read is counted in the import's log, and its simple HTML stops at the same 16 MB as the RTF.
 - **Outlook data files in their own code pages:** an imported `.pst` message's HTML body was
   read as UTF-8 or Windows-1252 only, so Cyrillic, Greek, Chinese, Korean and Japanese mail
   came in as mojibake (and Japanese mail with its ISO-2022-JP escapes showing). It is now read

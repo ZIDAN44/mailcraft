@@ -65,6 +65,7 @@ fn notes_come_in_as_notes() {
         skipped: 0,
         skips: BTreeMap::new(),
         charset_unsupported: 0,
+        body_not_converted: 0,
         progress: &mut progress,
         pim: Pim::default(),
         pending: Vec::new(),
@@ -295,6 +296,13 @@ fn rtf_fills_in_only_what_is_missing() {
     let it = with(&[(0x1000, Val::Text("Plain text".into()))], &wrapped);
     assert_eq!(it.body, "Plain text");
     assert!(it.html.as_deref().is_some_and(|h| h.contains("From the RTF")), "{:?}", it.html);
+    let it = with(&[(0x1000, Val::Text("Plain text".into())), (0x0E1F, Val::Bool(true))], &wrapped);
+    assert!(it.html.as_deref().is_some_and(|h| h.contains("From the RTF")), "{:?}", it.html);
+    // The plain text was changed after the RTF: the HTML the RTF wraps is older, and left out.
+    let it = with(&[(0x1000, Val::Text("Plain text".into())), (0x0E1F, Val::Bool(false))], &wrapped);
+    assert_eq!((it.body.as_str(), it.html.as_deref()), ("Plain text", None));
+    let it = with(&[(0x0E1F, Val::Bool(false))], &wrapped);
+    assert!(it.html.as_deref().is_some_and(|h| h.contains("From the RTF")), "the only body: {:?}", it.html);
 
     let it = with(&[(0x1013, Val::Text("<p>From the HTML</p>".into()))], &wrapped);
     assert_eq!(it.html.as_deref(), Some("<p>From the HTML</p>"));
@@ -317,8 +325,12 @@ fn rtf_fills_in_only_what_is_missing() {
     for junk in [&b""[..], b"0123456789abcdefghij", &stored_rtf(b"not rtf at all"), &wrapped[..20]] {
         let it = with(&[], junk);
         assert!(it.body.is_empty() && it.html.is_none(), "{junk:?}");
+        assert!(it.body_not_converted, "{junk:?}");
         assert!(to_raw(&it, "junk@x").is_ok());
+        let it = with(&[(0x1000, Val::Text("Plain text".into()))], junk);
+        assert!(it.body == "Plain text" && !it.body_not_converted, "{junk:?}");
     }
+    assert!(!with(&[], &wrapped).body_not_converted && !with(&[], &text).body_not_converted);
 }
 
 /// An item with no headers of its own keeps that it was forwarded, its importance and the ids

@@ -83,6 +83,9 @@ pub struct Imported {
     /// (ISO-2022-KR): imported with only its ASCII. Logged, and not in `skips`, since the message
     /// itself came in.
     pub charset_unsupported: usize,
+    /// Messages whose only body was Rich Text that couldn't be read: imported without a body.
+    /// Logged, and not in `skips`, for the same reason.
+    pub body_not_converted: usize,
 }
 
 /// Import the data file at `path` into `account`'s cache (an account with no server). Calls
@@ -97,6 +100,7 @@ pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMu
         skipped: 0,
         skips: BTreeMap::new(),
         charset_unsupported: 0,
+        body_not_converted: 0,
         progress,
         pim: Pim::default(),
         pending: Vec::new(),
