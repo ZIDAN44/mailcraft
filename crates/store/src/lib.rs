@@ -26,11 +26,11 @@ pub mod search;
 #[cfg(not(target_arch = "wasm32"))]
 pub use packed::EXTENSION as DATA_FILE_EXTENSION;
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use mailcraft_model::{AccountConfig, Folder, MessageKey, Op, Summary, sort_newest_first};
 use serde::de::DeserializeOwned;
@@ -387,6 +387,8 @@ pub struct Store {
     /// The accounts whose search index is being written ([`search::Writer`]), and whether the
     /// account has gone meanwhile.
     search_writers: Arc<Mutex<search::Writers>>,
+    /// How many times each account was removed ([`Store::while_kept`]).
+    removals: Arc<RwLock<HashMap<String, u64>>>,
 }
 
 impl Store {
@@ -394,7 +396,14 @@ impl Store {
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
         private_dir(&root)?;
-        Ok(Store { files: Routed::new(&root, Files::Disk), root, changes: Arc::default(), reads: Arc::default(), search_writers: Arc::default() })
+        Ok(Store {
+            files: Routed::new(&root, Files::Disk),
+            root,
+            changes: Arc::default(),
+            reads: Arc::default(),
+            search_writers: Arc::default(),
+            removals: Arc::default(),
+        })
     }
 
     /// A cache whose accounts are each one data file in `files` (as Outlook keeps a `.pst` per
@@ -411,6 +420,7 @@ impl Store {
             changes: Arc::default(),
             reads: Arc::default(),
             search_writers: Arc::default(),
+            removals: Arc::default(),
         })
     }
 
@@ -428,6 +438,7 @@ impl Store {
             changes: Arc::default(),
             reads: Arc::default(),
             search_writers: Arc::default(),
+            removals: Arc::default(),
         })
     }
 
@@ -440,6 +451,7 @@ impl Store {
             changes: Arc::default(),
             reads: Arc::default(),
             search_writers: Arc::default(),
+            removals: Arc::default(),
         }
     }
 
@@ -455,6 +467,7 @@ impl Store {
             changes: Arc::default(),
             reads: Arc::default(),
             search_writers: Arc::default(),
+            removals: Arc::default(),
         }
     }
 

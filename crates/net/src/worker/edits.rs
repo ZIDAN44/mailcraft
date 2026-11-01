@@ -21,8 +21,9 @@ const FLUSH_WAIT: Duration = Duration::from_secs(10);
 pub(super) static APPLIED_ON: Mutex<Vec<(String, Option<String>)>> = Mutex::new(Vec::new());
 
 enum Edit {
-    /// A change to make, and the account's thread to wake after (none when it isn't running).
-    Apply { account: String, op: Op, wake: Option<Sender<Job>> },
+    /// A change to make, and the account's thread to wake after (none when it isn't running);
+    /// how many times the account had been removed when it was made ([`Store::while_kept`]).
+    Apply { account: String, op: Op, wake: Option<Sender<Job>>, seen: u64 },
     /// Answered once every change before it is on disk.
     Flush(Sender<()>),
 }
@@ -41,7 +42,10 @@ impl Edits {
         if self.tx.is_none() {
             self.start(store, sink);
         }
-        let edit = Edit::Apply { account, op, wake };
+        // The account's files go at once on the window's thread when it's removed, before the
+        // pool hears of it: a change queued before that isn't made after.
+        let seen = store.removals(&account);
+        let edit = Edit::Apply { account, op, wake, seen };
         let edit = match self.tx.as_ref() {
             Some(tx) => match tx.send(edit) {
                 Ok(()) => return,
@@ -53,8 +57,8 @@ impl Edits {
             },
             None => edit,
         };
-        if let Edit::Apply { account, op, wake } = edit {
-            apply(store, sink, &account, op, wake);
+        if let Edit::Apply { account, op, wake, seen } = edit {
+            apply(store, sink, &account, op, wake, seen);
         }
     }
 
@@ -64,10 +68,10 @@ impl Edits {
         let spawned = std::thread::Builder::new().name("mail-edits".into()).spawn(move || {
             for edit in rx {
                 match edit {
-                    Edit::Apply { account, op, wake } => {
+                    Edit::Apply { account, op, wake, seen } => {
                         // A change that panics is lost, never the ones after it.
                         let folders = op.keys().iter().map(|k| k.folder.clone()).collect::<Vec<_>>();
-                        if catch_unwind(AssertUnwindSafe(|| apply(&store, &sink, &account, op, wake))).is_err() {
+                        if catch_unwind(AssertUnwindSafe(|| apply(&store, &sink, &account, op, wake, seen))).is_err() {
                             log::error!("{account}: a change to mail failed unexpectedly");
                             echo_failed(&sink, &account, folders, "a change to mail failed unexpectedly".into());
                         }
@@ -107,13 +111,25 @@ impl Edits {
 }
 
 /// Make the change in the cache, queue it for the server and wake the account's thread to send
-/// it; each folder it changed is said to have changed.
-fn apply(store: &Store, sink: &Sink, account: &str, op: Op, wake: Option<Sender<Job>>) {
+/// it; each folder it changed is said to have changed. Nothing, for an account removed since.
+fn apply(store: &Store, sink: &Sink, account: &str, op: Op, wake: Option<Sender<Job>>, seen: u64) {
     #[cfg(test)]
     if let Ok(mut on) = APPLIED_ON.lock() {
         on.push((account.to_string(), std::thread::current().name().map(str::to_string)));
     }
-    match store.apply_op(account, &op) {
+    let made = store.while_kept(account, seen, || make(store, sink, account, &op));
+    if made.is_none() {
+        log::info!("{account}: a change to mail dropped, the account removed");
+        return;
+    }
+    if let Some(tx) = wake {
+        let _ = tx.send(Job::Apply { account: account.to_string(), op });
+    }
+}
+
+/// [`apply`]'s change made in the cache and queued for the server.
+fn make(store: &Store, sink: &Sink, account: &str, op: &Op) {
+    match store.apply_op(account, op) {
         Ok(changed) => {
             if op.is_folder_op() {
                 let folders = store.load_folders(account).unwrap_or_default();
@@ -130,9 +146,6 @@ fn apply(store: &Store, sink: &Sink, account: &str, op: Op, wake: Option<Sender<
             let folders = op.keys().iter().map(|k| k.folder.clone()).collect();
             echo_failed(sink, account, folders, e.to_string());
         }
-    }
-    if let Some(tx) = wake {
-        let _ = tx.send(Job::Apply { account: account.to_string(), op });
     }
 }
 

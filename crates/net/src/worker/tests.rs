@@ -655,6 +655,31 @@ fn changes_keep_their_order_and_outlive_the_pool() {
     assert_eq!(s.load_ops("a1").unwrap().len(), 82);
 }
 
+/// An account removed while changes to its mail wait on the pool's thread: its files go at
+/// once, on the window's thread, and the changes queued before aren't made after, which wrote
+/// its folder and its queue for the server back.
+#[test]
+fn changes_waiting_for_a_removed_account_are_dropped() {
+    let s = indexed_mail(2000);
+    let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
+    for uid in 1..=2000 {
+        let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid };
+        pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key], flag: Flag::Seen, on: true } });
+    }
+    s.delete_account("a1").unwrap();
+    pool.submit(Job::Remove { account: "a1".into() });
+    pool.shutdown();
+    assert_eq!(s.account_size("a1"), 0, "nothing of it written back");
+    assert!(s.load_ops("a1").unwrap_or_default().is_empty());
+    // Added again under the same id: its changes are made.
+    fill(&s, 3);
+    let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid: 2 };
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key], flag: Flag::Seen, on: true } });
+    pool.shutdown();
+    assert!(s.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.key.uid == 2 && m.flags.seen));
+}
+
 /// A change the cache can't take is said, and its folder said changed all the same: the window
 /// shows it already, and reads the folder again to show what's really kept.
 #[test]

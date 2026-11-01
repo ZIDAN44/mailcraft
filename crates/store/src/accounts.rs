@@ -166,6 +166,7 @@ impl Store {
     /// An account removed, as Outlook removes one: its data file stays where it is, closed and
     /// no one's (returned, when there is one), and what's kept outside data files goes.
     pub fn remove_account(&self, account: &str) -> Result<Option<PathBuf>> {
+        let _gone = self.removing(account);
         // Its search index, being written in the background, isn't written back after.
         self.search_gone(account);
         if self.forget_online(account) {
@@ -178,12 +179,18 @@ impl Store {
             let _ = fs::remove_dir_all(self.account_dir(account));
             return Ok(kept);
         }
-        self.delete_account(account).map(|()| None)
+        self.delete_files(account).map(|()| None)
     }
 
     /// Forget everything about an account, its data file too (one that never held anyone's mail:
     /// a file that failed to open, an account starting again).
     pub fn delete_account(&self, account: &str) -> Result<()> {
+        let _gone = self.removing(account);
+        self.delete_files(account)
+    }
+
+    /// [`Store::delete_account`] once it's counted as removed.
+    fn delete_files(&self, account: &str) -> Result<()> {
         self.search_gone(account);
         if self.forget_online(account) {
             return Ok(());
@@ -193,5 +200,30 @@ impl Store {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&dir)(e)),
             _ => Ok(()),
         }
+    }
+
+    /// How many times `account` has been removed (or deleted): taken when a change for it is
+    /// handed to another thread, to make it there with [`Store::while_kept`].
+    pub fn removals(&self, account: &str) -> u64 {
+        self.removals.read().unwrap_or_else(std::sync::PoisonError::into_inner).get(account).copied().unwrap_or(0)
+    }
+
+    /// `write` run unless `account` was removed since [`Store::removals`] said `seen`: a removal
+    /// waits for one running, so what a change queued before it writes doesn't bring back the
+    /// files of an account gone.
+    pub fn while_kept<T>(&self, account: &str, seen: u64, write: impl FnOnce() -> T) -> Option<T> {
+        let removals = self.removals.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if removals.get(account).copied().unwrap_or(0) != seen {
+            return None;
+        }
+        Some(write())
+    }
+
+    /// `account` counted as removed, held until its files are gone.
+    fn removing(&self, account: &str) -> std::sync::RwLockWriteGuard<'_, HashMap<String, u64>> {
+        let mut removals = self.removals.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let n = removals.entry(account.to_string()).or_insert(0);
+        *n = n.saturating_add(1);
+        removals
     }
 }

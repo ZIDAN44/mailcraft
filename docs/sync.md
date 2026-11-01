@@ -66,7 +66,9 @@ server answers) and appended to `<account>/ops.json` by the pool on a thread of 
 (`worker/edits.rs`, one for every account, so they keep their order), not by the account thread,
 which may be busy for minutes, nor on the UI's; a store-wide mutex guards the file's
 read-modify-write. The account thread is woken once the change is on disk, closing waits for the
-changes queued, and an export to a data file starts after them.
+changes queued, and an export to a data file starts after them. An account removed meanwhile
+(its files go at once, on the UI's thread) has its queued changes dropped, not written back
+(`Store::while_kept`).
 When connected, the worker replays them oldest first, deleting each entry once the server accepts
 or rejects it, also between folders of a full sync. After a folder is re-read from the server,
 queued ops that touch it are applied to the new cache again:
