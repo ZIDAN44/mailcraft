@@ -1473,3 +1473,14 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   disk the import keeps busy: it took 7 to 11 ms by median, but its p99 was 45 to 230 ms on a busy
   machine (13 ms with no import), over the 60 ms aimed at. Still open: making a background batch
   durable while a write from the window waits, or a smaller run left waiting.
+- **Long folders:** moving through a folder of thousands of messages finds each one through an
+  index built with the list, instead of walking the list several times a step; the conversation
+  shown above a message is worked out once with the list, not again for every message opened
+  (with conversations on and the list arranged by sender, each Down cost about 46 ms on a
+  made-up folder of 10,941 messages, now about 6 ms; on an imported folder of that size, mail
+  already read, a Down takes 18–60 ms with the message read in, about 10 ms of it the list's and
+  the rest reading and parsing the message); and every message selected (Ctrl+A) is no longer
+  copied three times a frame to draw the ribbon and menus. The 25 ms a step aimed for isn't
+  reached yet: the rows are still built for each step, and the message is still read in the
+  frame. Landing on unread mail still costs about 0.2 s a step there, most of it saving the read
+  mark.

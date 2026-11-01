@@ -19,7 +19,7 @@ pub fn dot(ui: &mut Ui, color: u8, dark: bool) {
 /// keywords that aren't in the list (another program's tags) too, by their keyword; make a new
 /// one, or see them all (Outlook's All Categories).
 pub fn categorize_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
-    let first = s.selected().into_iter().next();
+    let first = s.first_selected();
     for c in &s.prefs.categories {
         let on = first.as_ref().is_some_and(|m| m.flags.has(&c.keyword));
         let clicked = ui
@@ -104,7 +104,7 @@ pub fn follow_up_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Actio
         ui.close();
     }
     ui.separator();
-    let flagged = s.selected().iter().any(|m| m.flags.flagged);
+    let flagged = s.selected_iter().any(|m| m.flags.flagged);
     if ui.add_enabled(flagged, egui::Button::new(tl!("Mark complete"))).clicked() {
         acts.push(Action::Run("mail.flag", json!({"complete": true})));
         ui.close();
@@ -130,7 +130,7 @@ pub fn context_items(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action
             ui.close();
         }
     }
-    if let Some(m) = s.selected().into_iter().next()
+    if let Some(m) = s.first_selected()
         && ui.button(tl!("Create rule…")).clicked()
     {
         acts.push(Action::Dialog(Dialog::rule_from(&m.from.email, &m.subject)));

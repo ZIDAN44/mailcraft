@@ -177,7 +177,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         return;
     }
 
-    let focus_index = s.focus.as_ref().and_then(|k| s.list.iter().position(|m| &m.key == k));
+    let focus_index = s.focus.as_ref().and_then(|k| s.index_of(k));
     let scroll_to = if st.scroll_to_focus {
         st.scroll_to_focus = false;
         focus_index.and_then(|fi| rows.iter().position(|r| matches!(r, Row::Message { index, .. } if *index == fi)))

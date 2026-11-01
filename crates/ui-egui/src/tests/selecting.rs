@@ -257,3 +257,41 @@ fn twenty_queued_downs_land_twenty_rows_on() {
     assert_eq!(a.session.messages_shown(), shown + 1, "one message shown for 20 presses");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Every message of a long folder selected (Ctrl+A): drawing the window copies none of them. The
+/// ribbon, the menus and the Delete check each copied the whole selection, every frame.
+#[test]
+fn a_long_selection_is_drawn_without_copies() {
+    let (mut a, dir) = app("select-all-long");
+    let store = a.session.store.clone().unwrap();
+    let messages: Vec<Summary> = (1..=20_000u32)
+        .rev()
+        .map(|uid| Summary {
+            key: MessageKey { account: "sample".into(), folder: "Archive".into(), validity: 1, uid },
+            subject: format!("Message {uid}"),
+            date: NOW - i64::from(20_000 - uid) * 60,
+            ..Default::default()
+        })
+        .collect();
+    store.save_folder("sample", "Archive", &FolderState { validity: 1, uid_next: 20_001, highest_modseq: 0, messages, window: 0 }).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+    assert_eq!(a.session.list.len(), 20_000);
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.run("list.selectAll", json!({}));
+    assert_eq!(a.session.selection.len(), 20_000);
+    let copies = a.session.summary_clones();
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    // The context menu of the selection, and the Delete key's check.
+    let rows = list_rows(&ctx, &mut a);
+    click(&ctx, &mut a, rows[1].1.center(), egui::PointerButton::Secondary, Modifiers::NONE);
+    frame(&ctx, &mut a, vec![]);
+    assert!(!a.needs_delete_confirm(), "not in Deleted Items");
+    assert_eq!(a.session.selection.len(), 20_000, "still all of them");
+    assert_eq!(a.session.summary_clones(), copies, "no message copied to draw them");
+    let _ = std::fs::remove_dir_all(dir);
+}

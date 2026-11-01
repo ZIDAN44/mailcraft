@@ -25,7 +25,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             title(ui, t, "Move to folder");
             let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
             r.request_focus();
-            let mut accounts: Vec<String> = s.selected().into_iter().map(|m| m.key.account).collect();
+            let mut accounts: Vec<String> = s.selected_iter().map(|m| m.key.account.clone()).collect();
             accounts.sort_unstable();
             accounts.dedup();
             let Some(account) = accounts.first().and_then(|a| s.account(a)) else {
