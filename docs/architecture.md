@@ -126,10 +126,18 @@ scripts (the main font's coverage, read with `skrifa`).
 
 ## Search
 
-`model::search` parses the query language into clauses. The session builds an inverted index
-(`BTreeMap<word, docs>`, so a word prefix is one range scan) over summaries, cached bodies and
-attachment names for the chosen scope; candidates are verified against the full query, so the index
-may over-approximate but never misses. The index is rebuilt lazily after changes.
+`model::search` parses the query language into clauses (`search/parse.rs`; dates in
+`search/dates.rs`, placed in the local zone by `Query::resolve` from the clock the caller passes).
+Words are read folded (`search/fold.rs`: lower-case, accents dropped, ß → ss and the like) on both
+sides, from a table `cargo xtask fold` generates from Unicode's decompositions (`fold_table.rs`;
+`fold --check` in `xtask ci`), so no normalizer is carried at run time. A query is checked with
+`Query::eval` (`search/matching.rs`), which answers yes, no or unknown (Kleene logic): the summary's
+clauses come from a folded `SummaryText`, the text's from a `TextSource` (the index, or the text
+itself), which answers unknown for a word it lacks when the text was cut short or had none. The
+session builds an inverted index (`search/index.rs`: `BTreeMap<word, docs>`, so a word prefix is
+one range scan) over summaries, cached bodies and attachment names for the chosen scope;
+candidates are verified against the full query, so the index may over-approximate but never
+misses. The index is rebuilt lazily after changes.
 
 ## Threading
 

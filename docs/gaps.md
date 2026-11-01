@@ -1423,3 +1423,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   (blocks named over and over add nothing past it), a value the file says is over 256 MB is an
   error before any of it is read, and a data, subnode or B-tree page that points back at itself
   is an error rather than a crash.
+- **Search reads accents and dates:** a word is found whatever its accents, typed or written
+  (`resume` finds "Résumé", `résumé` finds "resume", `strasse` "Straße"; Cyrillic keeps й, and
+  other scripts are looked for as written). `received:` (also `sent:`, `date:`) takes a day, a
+  month, a year, `today`, `yesterday`, `"last week"` and the like, a range
+  (`2024-01-01..2024-03-31`) or a comparison (`>=2024-03-01`), in the user's time zone;
+  `after:` and `before:` take the same dates (from its start on, and before it starts).
+  `received:2024` was two words that matched nearly everything; a date that isn't one
+  (`2024-13`) is now left out rather than looked for. `attachment:` asks
+  for a word in the files' names (for now the message's text is looked through with them).

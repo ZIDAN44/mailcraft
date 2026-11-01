@@ -200,7 +200,8 @@ impl Session {
         }
     }
 
-    pub(super) fn search_results(&mut self, q: &str, scope: SearchScope) -> Vec<Summary> {
+    /// A query as typed, made the user's: categories named, dates where the user is.
+    fn query_of(&self, q: &str) -> Query {
         let mut query = Query::parse(q);
         // `category:Work` means the Work category's keyword (`$label2`).
         // `is:categorized` means one of the categories.
@@ -214,6 +215,13 @@ impl Session {
                 *ks = self.prefs.categories.iter().map(|c| c.keyword.clone()).collect();
             }
         }
+        // `received:2024` is the year where the user is.
+        query.resolve(&self.clock);
+        query
+    }
+
+    pub(super) fn search_results(&mut self, q: &str, scope: SearchScope) -> Vec<Summary> {
+        let query = self.query_of(q);
         if query.is_empty() {
             return Vec::new();
         }
@@ -224,24 +232,18 @@ impl Session {
         if summary_only(&query) {
             for (a, f) in &folders {
                 let st = self.folder_state(a, f);
-                let found = st
-                    .messages
-                    .iter()
-                    .filter(|m| query.matches(&Doc { summary: m, body: None, indexed: false, awaiting: awaiting.contains(&m.key) }));
+                let found = st.messages.iter().filter(|m| matches(&query, m, Known::Summary, awaiting.contains(&m.key)));
                 out.extend(found.cloned());
             }
             return out;
         }
         self.ensure_index(&folders);
-        let needs_body = query.needs_body();
+        let needs_body = needs_body(&query);
         for (a, f) in folders {
             let Some(ix) = self.index.remove(&(a.clone(), f.clone())) else {
                 // No words for it (not expected): its summaries alone answer.
                 let st = self.folder_state(&a, &f);
-                let found = st
-                    .messages
-                    .iter()
-                    .filter(|m| query.matches(&Doc { summary: m, body: None, indexed: false, awaiting: awaiting.contains(&m.key) }));
+                let found = st.messages.iter().filter(|m| matches(&query, m, Known::Summary, awaiting.contains(&m.key)));
                 out.extend(found.cloned());
                 continue;
             };
@@ -250,9 +252,7 @@ impl Session {
             if ix.stale {
                 let known: HashSet<&MessageKey> = ix.keys.iter().collect();
                 let st = self.folder_state(&a, &f);
-                let found = st.messages.iter().filter(|m| {
-                    !known.contains(&m.key) && query.matches(&Doc { summary: m, body: None, indexed: false, awaiting: awaiting.contains(&m.key) })
-                });
+                let found = st.messages.iter().filter(|m| !known.contains(&m.key) && matches(&query, m, Known::Summary, awaiting.contains(&m.key)));
                 out.extend(found.cloned());
             }
             let docs = ix.index.candidates(&query);
@@ -266,7 +266,13 @@ impl Session {
                     let Some(m) = self.folder_state(&a, &f).messages.get(at).filter(|m| m.key == *key).cloned() else { continue };
                     // The body read again only when the index can't settle the query.
                     let body = if needs_body && ix.has_body.get(doc as usize) == Some(&true) { self.words_of(key) } else { None };
-                    if query.matches(&Doc { summary: &m, body: body.as_deref(), indexed: true, awaiting: awaiting.contains(&m.key) }) {
+                    // Found by the index for its words: they're there, unless the body is wanted.
+                    let text = match body.as_deref() {
+                        Some(b) => Known::Body(b),
+                        None if needs_body => Known::Summary,
+                        None => Known::Found,
+                    };
+                    if matches(&query, &m, text, awaiting.contains(&m.key)) {
                         out.push(m);
                     }
                 }
@@ -361,6 +367,27 @@ impl Session {
         recent.truncate(RECENT_SEARCHES);
     }
 
+    /// What the servers found for a search, here: each checked against what its summary can
+    /// tell (dates, flags, senders, waiting for a reply), which the servers weren't all asked;
+    /// its words, which they were, are taken on trust.
+    pub(super) fn server_hits(&mut self, q: &str, keys: &[MessageKey]) -> Vec<Summary> {
+        if keys.is_empty() {
+            return Vec::new();
+        }
+        let query = self.query_of(q);
+        let awaiting = if query.clauses.iter().any(|c| asks_awaiting(&c.term)) { self.awaiting_replies() } else { HashSet::new() };
+        let mut out = Vec::new();
+        for key in keys {
+            let st = self.folder_state(&key.account, &key.folder);
+            if let Some(m) = st.messages.iter().find(|m| m.key.uid == key.uid)
+                && eval(&query, m, Known::Unread, awaiting.contains(&m.key)) != Tri::No
+            {
+                out.push(m.clone());
+            }
+        }
+        out
+    }
+
     pub fn run_search(&mut self, query: &str, scope: SearchScope) -> usize {
         self.search_as(query, scope, None)
     }
@@ -382,12 +409,6 @@ impl Session {
     }
 }
 
-/// Whether a search asks for mail waiting for a reply (`Some(true)`), or for mail that isn't
-/// (`Some(false)`, `-is:awaiting`), as one of the terms that must all match.
-pub(super) fn awaiting_wanted(q: &str) -> Option<bool> {
-    Query::parse(q).clauses.iter().find(|c| c.term == mailcraft_model::search::Term::Awaiting).map(|c| !c.negated)
-}
-
 /// Whether the summaries alone answer a query: it looks for no words anywhere or in the text
 /// (flags, categories, sizes, senders, recipients, subjects, waiting for a reply).
 pub(super) fn summary_only(q: &Query) -> bool {
@@ -397,7 +418,7 @@ pub(super) fn summary_only(q: &Query) -> bool {
 fn summary_term(t: &mailcraft_model::search::Term) -> bool {
     use mailcraft_model::search::{Field, Term};
     match t {
-        Term::Words(f, _) | Term::Phrase(f, _) => !matches!(f, Field::Any | Field::Body),
+        Term::Words(f, _) | Term::Phrase(f, _) => !matches!(f, Field::Any | Field::Body | Field::Attachment),
         Term::AnyOf(any) => any.iter().all(summary_term),
         Term::HasAttachment(_)
         | Term::Unread(_)
@@ -406,8 +427,71 @@ fn summary_term(t: &mailcraft_model::search::Term) -> bool {
         | Term::Important
         | Term::Categorized(_)
         | Term::Size(..)
+        | Term::Date(_)
         | Term::Awaiting => true,
     }
+}
+
+/// Whether checking a message found through the index needs its body: a phrase, words in the
+/// body or the files' names alone, words that must be missing, addresses (matched inside
+/// words), or text among others (`attachment:a,b`: the index doesn't narrow by those). Plain
+/// words looked for anywhere are settled by the index.
+fn needs_body(q: &Query) -> bool {
+    use mailcraft_model::search::{Field, Term};
+    fn text(t: &Term) -> bool {
+        match t {
+            Term::Words(f, _) | Term::Phrase(f, _) => matches!(f, Field::Any | Field::Body | Field::Attachment),
+            Term::AnyOf(any) => any.iter().any(text),
+            _ => false,
+        }
+    }
+    q.clauses.iter().any(|c| match &c.term {
+        Term::Phrase(Field::Any | Field::Body | Field::Attachment, _) | Term::Words(Field::Body | Field::Attachment, _) => true,
+        Term::Words(Field::Any, ws) => c.negated || ws.iter().any(|w| w.contains(['@', '.'])),
+        Term::AnyOf(any) => any.iter().any(text),
+        _ => false,
+    })
+}
+
+/// What's known of a message's text while the index is the session's: its body's words, read;
+/// that the index found every word asked for; nothing past its summary; or (a server's find)
+/// nothing here, though the server has it.
+enum Known<'a> {
+    Body(&'a str),
+    Found,
+    Summary,
+    Unread,
+}
+
+impl TextSource for Known<'_> {
+    fn word(&self, field: TextField, prefix: &str) -> Tri {
+        match self {
+            Known::Body(b) => b.word(field, prefix),
+            Known::Found => Tri::Yes,
+            Known::Summary => Tri::No,
+            Known::Unread => Tri::Unknown,
+        }
+    }
+
+    fn phrase(&self, field: TextField, phrase: &[String], raw: &str) -> Tri {
+        match self {
+            Known::Body(b) => b.phrase(field, phrase, raw),
+            Known::Found | Known::Unread => Tri::Unknown,
+            Known::Summary => Tri::No,
+        }
+    }
+}
+
+/// Whether a message surely matches a query, with what's known of its text.
+fn matches(query: &Query, m: &Summary, text: Known<'_>, awaiting: bool) -> bool {
+    eval(query, m, text, awaiting) == Tri::Yes
+}
+
+/// Whether a message matches a query, with what's known of its text: yes, no or can't tell.
+fn eval(query: &Query, m: &Summary, text: Known<'_>, awaiting: bool) -> Tri {
+    // A query of flags, sizes and dates reads no word of the summary: none is folded for it.
+    let st = if query.clauses.iter().any(|c| asks_words(&c.term)) { SummaryText::of(m) } else { SummaryText::default() };
+    query.eval(&Doc { summary: m, summary_text: &st, awaiting, files: None, text: &text })
 }
 
 /// A hash of a message's summary words, to tell when they change.
@@ -416,6 +500,16 @@ fn text_hash(text: &str) -> u64 {
     let mut h = std::hash::DefaultHasher::new();
     text.hash(&mut h);
     h.finish()
+}
+
+/// Whether a search term looks for words (in any field).
+fn asks_words(t: &mailcraft_model::search::Term) -> bool {
+    use mailcraft_model::search::Term;
+    match t {
+        Term::Words(..) | Term::Phrase(..) => true,
+        Term::AnyOf(any) => any.iter().any(asks_words),
+        _ => false,
+    }
 }
 
 /// Whether a search term asks for mail waiting for a reply (on its own or among others).

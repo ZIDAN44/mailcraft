@@ -8,7 +8,7 @@ use mailcraft_mime::{self as mime, OutAttachment, Parsed, ReplyMode};
 use mailcraft_model::contacts::{Contact, ContactBook};
 use mailcraft_model::dates::{Clock, DateGroup};
 use mailcraft_model::job::{Secret, Vacation};
-use mailcraft_model::search::{Doc, Index, Query, summary_text};
+use mailcraft_model::search::{Doc, Index, Query, SummaryText, TextField, TextSource, Tri, summary_text};
 use mailcraft_model::thread::{Thread, threads};
 use mailcraft_model::{
     AccountConfig, EmailAddress, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,

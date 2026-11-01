@@ -14,7 +14,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `http` | an HTTP answer read whole and streamed to a file (lengths, chunks, to the end), a download's `Content-Range`; GitHub's release list, `SHA256SUMS.txt`, its quota header and tags |
 | `imap` | everything an IMAP server sends through a session (greeting to MOVE, with a folder sync) |
 | `jmap` | a JMAP server's answers (split at form feeds) through sign-in, folder list and folder sync; push events; URLs |
-| `search` | the search box: the query language, the Advanced form, JMAP filters, modified UTF-7; lookalike senders, known names on other addresses, External |
+| `search` | the search box: the query language, its dates on any clock, a query checked against a message and its text, folding, the Advanced form, JMAP filters, modified UTF-7; lookalike senders, known names on other addresses, External |
 | `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
 | `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files |
 | `pst` | an Outlook data file: a good exported file with the input as byte patches, or a whole file |

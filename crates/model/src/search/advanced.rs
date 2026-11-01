@@ -1,5 +1,6 @@
-//! Advanced search: the search box's query as a form (words, From, To, Subject, the body, and
-//! what a message is), and back. What the form has no field for stays as it was written.
+//! Advanced search: the search box's query as a form (words, From, To, Subject, the body, when
+//! it came, and what a message is), and back. What the form has no field for stays as it was
+//! written.
 
 use super::*;
 
@@ -17,6 +18,10 @@ pub struct Advanced {
     pub unread: bool,
     pub flagged: bool,
     pub important: bool,
+    /// Received on or after this day (`YYYY-MM-DD`; `after:`).
+    pub received_after: String,
+    /// Received before this day (`before:`).
+    pub received_before: String,
     /// The rest of the query (`larger:`, `category:`, words left out with `-`, a second
     /// `from:`…), kept as written.
     pub rest: String,
@@ -42,6 +47,9 @@ impl Advanced {
                     ("to", _) => field(&mut a.to, v),
                     ("subject", _) => field(&mut a.subject, v),
                     ("body", _) => field(&mut a.body, v),
+                    // A day the form can show; `after:lastweek` stays in the rest.
+                    ("after", _) if dates::is_day(v) => field(&mut a.received_after, v),
+                    ("before", _) if dates::is_day(v) => field(&mut a.received_before, v),
                     ("has", "attachment" | "attachments") | ("hasattachment" | "hasattachments", "yes" | "true") => {
                         a.attachments = true;
                         true
@@ -106,6 +114,12 @@ impl Advanced {
                 out.push(term.to_string());
             }
         }
+        for (key, v) in [("after", &self.received_after), ("before", &self.received_before)] {
+            let v: String = v.chars().filter(|c| !c.is_whitespace() && *c != '"').collect();
+            if !v.is_empty() {
+                out.push(format!("{key}:{v}"));
+            }
+        }
         if !self.rest.trim().is_empty() {
             out.push(self.rest.trim().to_string());
         }
@@ -155,6 +169,22 @@ mod tests {
         assert_eq!(parsed.clauses.first().map(|c| &c.term), Some(&Term::Phrase(Field::From, "ana park".into())));
         assert_eq!(Advanced::default().to_query(), "");
         assert_eq!(Advanced::from_query(""), Advanced::default());
+    }
+
+    /// The dates received after and before: days the form shows, and back; other dates (and
+    /// words that aren't) stay as typed.
+    #[test]
+    fn dates_fill_the_form_and_back() {
+        let a = Advanced::from_query("plan after:2024-03-01 before:2024/04/01 after:lastweek");
+        assert_eq!((a.received_after.as_str(), a.received_before.as_str()), ("2024-03-01", "2024/04/01"));
+        assert_eq!(a.rest, "after:lastweek");
+        let q = a.to_query();
+        assert_eq!(q, "plan after:2024-03-01 before:2024/04/01 after:lastweek");
+        assert_eq!(Advanced::from_query(&q), a);
+        let b = Advanced { received_before: "2025-01-01".into(), ..Default::default() };
+        assert_eq!(b.to_query(), "before:2025-01-01");
+        assert!(matches!(&Query::parse(&b.to_query()).clauses[0].term, Term::Date(_)));
+        assert_eq!(Advanced::from_query("after:2024-13-01").rest, "after:2024-13-01", "no day: left as typed");
     }
 
     /// An unclosed quote stays where it was (found by tests/properties.rs): moved ahead of the

@@ -1,8 +1,9 @@
 //! Round trips that must hold for any input, not only the examples the unit tests pick:
 //! what MailCraft writes it reads back the same.
 
+use mailcraft_model::dates::Clock;
 use mailcraft_model::job::{Eta, ImportProgress, Work, eta};
-use mailcraft_model::search::{Advanced, Query};
+use mailcraft_model::search::{Advanced, Doc, MAX_TOKEN_CHARS, Query, SummaryText, fold_word, tokens};
 use mailcraft_model::vcard::{self, Card, PostalAddress, Typed};
 use mailcraft_model::{EmailAddress, ical, lookalike, utf7};
 use proptest::prelude::*;
@@ -12,18 +13,27 @@ fn words() -> impl Strategy<Value = String> {
     prop::collection::vec("[a-zA-Z0-9à-ÿ]{1,8}", 0..4).prop_map(|w| w.join(" "))
 }
 
+/// A day as the Advanced form's date fields hold it, or none.
+fn day() -> impl Strategy<Value = String> {
+    prop_oneof![Just(String::new()), (1970u32..=9999, 1u32..=12, 1u32..=28).prop_map(|(y, m, d)| format!("{y:04}-{m:02}-{d:02}"))]
+}
+
 fn advanced() -> impl Strategy<Value = Advanced> {
-    (words(), words(), words(), words(), words(), any::<[bool; 4]>()).prop_map(|(w, from, to, subject, body, b)| Advanced {
-        words: w,
-        from,
-        to,
-        subject,
-        body,
-        attachments: b[0],
-        unread: b[1],
-        flagged: b[2],
-        important: b[3],
-        rest: String::new(),
+    (words(), words(), words(), words(), words(), any::<[bool; 4]>(), day(), day()).prop_map(|(w, from, to, subject, body, b, after, before)| {
+        Advanced {
+            words: w,
+            from,
+            to,
+            subject,
+            body,
+            attachments: b[0],
+            unread: b[1],
+            flagged: b[2],
+            important: b[3],
+            received_after: after,
+            received_before: before,
+            rest: String::new(),
+        }
     })
 }
 
@@ -88,6 +98,29 @@ proptest! {
         let twice = Advanced::from_query(&once.to_query());
         prop_assert_eq!(&Advanced::from_query(&twice.to_query()), &twice);
         let _ = Query::parse(&once.to_query());
+    }
+
+    /// Folding a word twice changes nothing more than once, whatever its letters.
+    #[test]
+    fn folding_is_idempotent(w in r"\PC{0,30}|[a-zA-Zà-ɏͰ-ϿḀ-ỿἀ-῿！-～Ѐ-ӿ\u{300}-\u{36f}]{0,20}") {
+        let once = fold_word(&w).into_owned();
+        prop_assert_eq!(fold_word(&once).into_owned(), once.clone());
+        for t in tokens(&w) {
+            prop_assert!(!t.is_empty() && t.chars().count() <= MAX_TOKEN_CHARS);
+            prop_assert_eq!(fold_word(&t).into_owned(), t.to_string());
+        }
+    }
+
+    /// Whatever is typed, reading it, placing its dates on any clock and checking it against
+    /// any summary never panics.
+    #[test]
+    fn any_query_reads_and_checks(q in r#"[a-z:"<>=./ 0-9-]{0,40}|\PC{0,60}"#, now in any::<i64>(), offset in any::<i32>(), subject in r"\PC{0,30}") {
+        let mut query = Query::parse(&q);
+        query.resolve(&Clock::new(now, offset));
+        let m = mailcraft_model::Summary { subject, date: now, ..Default::default() };
+        let st = SummaryText::of(&m);
+        let _ = query.eval(&Doc { summary: &m, summary_text: &st, awaiting: false, files: None, text: &q.as_str() });
+        let _ = (query.text_words(), query.index_words(), query.needs_text());
     }
 
     /// A contact written as a vCard reads back as the same contact.

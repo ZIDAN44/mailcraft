@@ -338,14 +338,9 @@ impl Session {
             // What the servers found: its words may be in mail not downloaded here.
             let hits: Vec<MessageKey> = self.server_search.iter().filter(|ss| ss.query == q).flat_map(|ss| ss.found.iter().cloned()).collect();
             let have: HashSet<MessageKey> = found.iter().map(|m| m.key.clone()).collect();
-            // The servers can't tell what's waiting for a reply: checked here.
-            let awaiting = super::searching::awaiting_wanted(&q).map(|on| (on, self.awaiting_replies()));
-            let hits = hits.into_iter().filter(|k| awaiting.as_ref().is_none_or(|(on, set)| set.contains(k) == *on));
-            for key in hits.filter(|k| !have.contains(k)) {
-                if let Some(m) = self.folder_state(&key.account, &key.folder).messages.iter().find(|m| m.key.uid == key.uid).cloned() {
-                    found.push(m);
-                }
-            }
+            let hits: Vec<MessageKey> = hits.into_iter().filter(|k| !have.contains(k)).collect();
+            // The servers can't tell dates or what's waiting for a reply: checked here.
+            found.extend(self.server_hits(&q, &hits));
             // A Search Folder leaves out Deleted Items and Junk, as Outlook's.
             if self.open_search_folder_name().is_some() {
                 found.retain(|m| self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk)));

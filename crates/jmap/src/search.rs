@@ -16,6 +16,8 @@ pub fn search_filter(query: &str) -> Option<Value> {
         Field::To => "to",
         Field::Subject => "subject",
         Field::Body => "body",
+        // JMAP has no filter for the files' names: the text, which holds them (and the body).
+        Field::Attachment => "text",
     };
     let keyword = |k: &str, has: bool| if has { json!({"hasKeyword": k}) } else { json!({"notKeyword": k}) };
     for c in q.clauses.iter().take(16) {

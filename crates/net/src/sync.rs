@@ -213,6 +213,8 @@ pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
             Field::To => "TO",
             Field::Subject => "SUBJECT",
             Field::Body => "BODY",
+            // IMAP has no key for the files' names, which are in the parts' headers.
+            Field::Attachment => "TEXT",
         };
         match &c.term {
             Term::Words(f, words) => {
@@ -299,6 +301,7 @@ pub fn word_query(query: &str) -> Option<WordQuery> {
         Field::To => "to:",
         Field::Subject => "subject:",
         Field::Body => "body:",
+        Field::Attachment => "attachment:",
     };
     // A word as written when it's plain (a prefix match, as the list's own search), quoted
     // otherwise; quotes and backslashes can't be asked for and are dropped.

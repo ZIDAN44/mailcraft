@@ -91,6 +91,33 @@ fn search_finds_bodies_fields_and_attachment_names() {
     done(s);
 }
 
+/// Search reads accents away (both ways round), places `received:` days where the user is from
+/// the session's clock and answers them from the summaries alone, and leaves a date that isn't
+/// one out rather than looking for its digits.
+#[test]
+fn search_folds_accents_and_reads_dates() {
+    let mut s = sample_session("search-fold");
+    let all = |s: &mut Session, q: &str| s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap()["results"].as_u64().unwrap() as usize;
+    assert_eq!(all(&mut s, "PRÓJECTOR"), 1, "an accent typed finds the word written without");
+    assert_eq!(all(&mut s, "projector"), 1);
+    assert_eq!(all(&mut s, "turnaróunds -fóx"), 0, "a word left out, folded too");
+    let c = mailcraft_model::dates::civil(s.clock.now, &s.clock);
+    let day = format!("{:04}-{:02}-{:02}", c.year, c.month, c.day);
+    let start = crate::parse_local(&day, &s.clock).map(|(t, _)| t).unwrap();
+    let today = counted(&mut s, |m| (start..start + 86_400).contains(&m.date));
+    let before = counted(&mut s, |m| m.date < start);
+    assert!(today > 0 && before > 0, "the sample has mail today and before");
+    let reads = s.store.as_ref().unwrap().reads();
+    assert_eq!(all(&mut s, "received:today"), today);
+    assert_eq!(all(&mut s, &format!("received:{day}")), today);
+    assert_eq!(all(&mut s, &format!("before:{day}")), before);
+    assert_eq!(all(&mut s, &format!("-received:{day}")), counted(&mut s, |m| !(start..start + 86_400).contains(&m.date)));
+    assert_eq!(s.store.as_ref().unwrap().reads(), reads, "dates are the summaries': no message was read");
+    assert_eq!(s.index_builds(), 1, "only the word searches read search words");
+    assert_eq!(all(&mut s, "received:2026-13"), 0, "not a date: left out, nothing to search");
+    done(s);
+}
+
 /// Typing in the search box stays quick on a big mailbox: a search after mail changes (which
 /// rebuilds the index) doesn't parse every message again.
 #[test]
@@ -425,5 +452,60 @@ fn search_survives_junk_events_and_queries() {
     s.apply(Event::Imported { account: "nobody".into(), messages: 1, skipped: 0, done: true, error: None, report: None });
     s.apply(Event::Imported { account: sample::SAMPLE_ACCOUNT.into(), messages: 0, skipped: 0, done: true, error: None, report: None });
     assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 1);
+    done(s);
+}
+
+/// A list of file names (`attachment:a,b`) is one of them in the names: each message the index
+/// offers is read for it, not taken as found (all of them matched, and `-attachment:a,b` none).
+#[test]
+fn a_list_of_file_names_reads_the_names() {
+    let mut s = sample_session("names-list");
+    let all = |s: &mut Session, q: &str| s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap()["results"].as_u64().unwrap();
+    let every = all(&mut s, "received:>=1970");
+    assert!(every > 1);
+    assert_eq!(all(&mut s, "attachment:order"), 1);
+    assert_eq!(all(&mut s, "attachment:order,zzqqxx"), 1);
+    assert_eq!(all(&mut s, "attachment:zzqqxx,yyqqww"), 0);
+    assert_eq!(all(&mut s, "-attachment:zzqqxx,yyqqww"), every);
+    assert_eq!(all(&mut s, "-attachment:order,zzqqxx"), every - 1);
+    done(s);
+}
+
+/// The servers are asked for words, not dates: what they find outside a search's dates (or
+/// other summary terms) isn't listed.
+#[test]
+fn server_finds_are_checked_against_the_dates() {
+    use mailcraft_model::{Folder, FolderRole, MessageKey, Summary};
+    let mut s = sample_session("server-dates");
+    let a = s
+        .run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org", "smtpHost": "mail.example.org"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.apply(Event::Folders {
+        account: a.clone(),
+        folders: vec![Folder { account: a.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() }],
+    });
+    let store = s.store.clone().unwrap();
+    let key = |uid| MessageKey { account: a.clone(), folder: "INBOX".into(), validity: 1, uid };
+    let now = s.clock.now;
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    st.validity = 1;
+    st.messages = vec![
+        Summary { key: key(7), subject: "Old one".into(), date: 86_400, ..Default::default() },
+        Summary { key: key(8), subject: "New one".into(), date: now, ..Default::default() },
+    ];
+    store.save_folder(&a, "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    let shown = |s: &Session| s.list.iter().map(|m| m.subject.clone()).collect::<Vec<_>>();
+    for (q, want) in [("needle received:today", ["New one"]), ("needle -received:today", ["Old one"])] {
+        s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
+        s.run("search.server", &json!({})).unwrap();
+        s.take_jobs();
+        let sent = s.server_search.as_ref().map(|x| x.sent.clone()).unwrap_or_default();
+        s.apply(Event::ServerSearched { account: a.clone(), query: sent, keys: vec![key(7), key(8)], error: None, done: true });
+        assert_eq!(shown(&s), want, "{q}");
+    }
     done(s);
 }
