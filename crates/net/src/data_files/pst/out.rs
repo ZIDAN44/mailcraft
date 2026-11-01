@@ -6,8 +6,11 @@ use super::*;
 
 /// Message sources written to the cache together (one transaction): at most this many…
 const BATCH_MESSAGES: usize = 2000;
-/// …or this many bytes.
-const BATCH_BYTES: usize = 16 << 20;
+/// …or this many bytes as kept: a transaction short enough that a write from the window (a
+/// message marked read in a folder already in) waits a few milliseconds for it, not a tenth of a
+/// second. They're committed without waiting for the disk; each folder list, written after the
+/// sources it names, makes them durable.
+const BATCH_BYTES: usize = mailcraft_store::BACKGROUND_COMMIT;
 
 /// A folder being read.
 pub(super) struct Open {
@@ -34,8 +37,8 @@ pub(super) struct Out<'a> {
     pub(super) progress: &'a mut dyn FnMut(usize),
     /// Contacts and calendar items read so far.
     pub(super) pim: Pim,
-    /// Sources read but not yet written, and their size.
-    pub(super) pending: Vec<(MessageKey, Vec<u8>)>,
+    /// Sources read (compressed already) but not yet written, and their size as kept.
+    pub(super) pending: Vec<(MessageKey, mailcraft_store::Prepared)>,
     pub(super) pending_bytes: usize,
 }
 
@@ -159,8 +162,10 @@ impl Out<'_> {
         let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;
         self.lose(SkipReason::RecipientWithoutAddress, it.recipients_without_address);
-        self.pending_bytes += raw.len();
-        self.pending.push((key, raw));
+        // Compressed here, so the data file is held only to store it.
+        let prepared = Store::prepare(self.store.packs(self.account), raw);
+        self.pending_bytes += prepared.kept_len();
+        self.pending.push((key, prepared));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {
             self.flush();
         }
@@ -181,15 +186,16 @@ impl Out<'_> {
         }
         let batch = std::mem::take(&mut self.pending);
         self.pending_bytes = 0;
-        if let Err(e) = self.store.write_bodies(&batch) {
+        let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
+        if let Err(e) = self.store.write_prepared(batch, false) {
             log::warn!("import: {e}");
-            for (key, _) in &batch {
+            for key in &keys {
                 if let Some(st) = self.states.get_mut(&key.folder) {
                     st.waiting.retain(|m| m.key.uid != key.uid);
                 }
             }
-            self.imported = self.imported.saturating_sub(batch.len());
-            self.skip(SkipReason::NotWritten, batch.len());
+            self.imported = self.imported.saturating_sub(keys.len());
+            self.skip(SkipReason::NotWritten, keys.len());
         }
     }
 
@@ -222,7 +228,17 @@ impl Out<'_> {
         }
     }
 
+    /// The rest written out, and the data file sealed whatever happened: what went in without
+    /// waiting for the disk is on it, and a crash after the import doesn't cost a check of the file.
     pub(super) fn finish(mut self) -> Result<Imported, String> {
+        let done = self.write_out();
+        if let Err(e) = self.store.seal(self.account) {
+            log::warn!("import: {e}");
+        }
+        done
+    }
+
+    fn write_out(&mut self) -> Result<Imported, String> {
         self.flush();
         // An Inbox to open, even when the file had none.
         if !self.folders.iter().any(|f| f.role == FolderRole::Inbox) {
@@ -247,13 +263,13 @@ impl Out<'_> {
             log::info!("{} messages kept their body only as Rich Text that couldn't be read: they came in without one", self.body_not_converted);
         }
         Ok(Imported {
-            folders: self.folders,
+            folders: std::mem::take(&mut self.folders),
             messages: self.imported,
             contacts,
             events,
             notes,
             skipped: self.skipped,
-            skips: self.skips,
+            skips: std::mem::take(&mut self.skips),
             charset_unsupported: self.charset_unsupported,
             body_not_converted: self.body_not_converted,
         })

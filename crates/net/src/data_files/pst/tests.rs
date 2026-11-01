@@ -714,6 +714,15 @@ fn imports_a_data_file() {
     let names: Vec<&str> = p.attachments.iter().map(|a| a.name.as_str()).collect();
     assert!(names.contains(&"notes.txt"), "{names:?}");
     assert!(!names.contains(&"chart.png"), "the picture goes inline: {names:?}");
+
+    // Into a data file, each source compressed before the writer takes it, and the file sealed at
+    // the end: the same folders and mail.
+    let packed = Store::open_packed(dir.join("app"), dir.join("Files")).unwrap();
+    let again = import(&file, &packed, "a1", &mut |_| {}).unwrap();
+    assert_eq!((again.messages, again.skipped), (2, 0));
+    assert_eq!(packed.load_folders("a1").unwrap(), all);
+    assert_eq!(packed.read_body(&key), Some(raw));
+    drop(packed);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

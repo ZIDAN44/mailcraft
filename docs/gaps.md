@@ -1458,7 +1458,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   its categories from files where Outlook names that property by its name (`Keywords`, as in
   files from other people's Outlook) rather than by a number.
 - **Data files after a crash:** a data file is sealed (where its free space is, recorded) once its
-  writes have been quiet for two seconds, and when it closes; a crash after that opens it again at
-  once (25 ms on a copy of a 37 GB file whose full check took 305 s). Not every commit is sealed:
-  on that file it tripled a small one's time (4.6 to 15.6 ms), so a crash within two seconds of a
-  write still costs the full check.
+  writes have been quiet for two seconds, when an import ends, and when it closes; a crash after
+  that opens it again at once (25 ms on a copy of a 37 GB file whose full check took 305 s). Not
+  every commit is sealed: on that file it tripled a small one's time (4.6 to 15.6 ms), so a crash
+  within two seconds of a write still costs the full check.
+- **Importing while reading:** an import compresses each message before it takes the data file,
+  and writes them in batches of 2 MiB that don't wait for the disk (the folder lists written after
+  them do, and so does a batch once 32 MiB are waiting). A message marked read during an import
+  waits a few milliseconds for the writer, where a 16 MiB batch held it for about a tenth of a
+  second.
