@@ -202,3 +202,39 @@ fn a_body_downloaded_is_parsed_on_the_other_thread() {
     assert!(std::sync::Arc::ptr_eq(&pane, s.windows[0].parsed.as_ref().unwrap()));
     done(s);
 }
+
+/// A body that arrives while the cache is still being read for it wins: the cache read's
+/// result, handed out before, is let go, so the arrived body isn't downloaded again (cache
+/// empty) or hidden behind the text-first copy (cache holding that).
+#[test]
+fn a_body_arriving_during_the_cache_read_wins() {
+    let mut s = sample_session("deferred-race");
+    s.defer_bodies(true);
+    let k = s.list[0].key.clone();
+    s.store.as_ref().unwrap().remove_body(&k);
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    let read = s.take_body_work().unwrap().run();
+    s.apply(Event::Body { key: k.clone(), raw: NO_DATE.to_vec() });
+    let arrived = s.take_body_work().unwrap();
+    s.finish_body(read);
+    assert!(s.take_jobs().is_empty(), "not downloaded again");
+    assert!(s.body_waiting(&k), "still waits for the arrived body");
+    s.finish_body(arrived.run());
+    assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().subject, "Undated");
+    done(s);
+
+    // The cache holds the text-first copy; the full message arrives while it's read.
+    let (mut s, keys) = with_kinds("deferred-race-text-first");
+    s.defer_bodies(true);
+    let k = keys[2].clone();
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    let read = s.take_body_work().unwrap().run();
+    s.apply(Event::Body { key: k.clone(), raw: HTML.to_vec() });
+    let arrived = s.take_body_work().unwrap();
+    s.finish_body(read);
+    assert!(s.body_waiting(&k) && s.reading.as_ref().unwrap().parsed.is_none());
+    s.finish_body(arrived.run());
+    let r = s.reading.as_ref().unwrap();
+    assert!(!r.text_first && r.parsed.as_ref().unwrap().subject == "Colour notes", "the full body is shown");
+    done(s);
+}
