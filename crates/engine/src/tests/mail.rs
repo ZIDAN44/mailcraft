@@ -3,6 +3,7 @@
 use super::*;
 
 mod deferred;
+mod echo;
 mod nav;
 mod search;
 mod search_big;

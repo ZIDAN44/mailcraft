@@ -1,0 +1,190 @@
+//! Engine tests: a read mark or category changed on a server account's mail, said back by the
+//! pool once the cache on disk has it (`FolderChanged`), keeps the folder in memory and the list.
+
+use mailcraft_model::{Folder, MessageKey, Summary};
+use mailcraft_store::FolderState;
+
+use super::*;
+
+/// A session over a server account (an IMAP one, as added) whose Inbox of `n` unread messages is
+/// on disk and shown.
+fn server_inbox(n: u32) -> (Session, String) {
+    let mut s = Session::open(Some(Store::memory()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert!(!s.account(&id).unwrap().is_local());
+    let messages = (1..=n)
+        .map(|uid| Summary {
+            key: MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid },
+            date: NOW - i64::from(uid) * 37,
+            message_id: format!("<m{uid}@x>"),
+            subject: format!("Plan {}", uid / 3),
+            ..Default::default()
+        })
+        .collect();
+    let store = s.store.clone().unwrap();
+    store.save_folder(&id, "INBOX", &FolderState { validity: 1, uid_next: n + 1, messages, ..Default::default() }).unwrap();
+    let inbox = Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    s.open_view(View::Folder { account: id.clone(), folder: "INBOX".into() });
+    // Read from disk (the account, added, showed it empty).
+    inbox_changed(&mut s, &id);
+    s.take_jobs();
+    (s, id)
+}
+
+/// The changes the session sent, made in the cache on disk as the pool makes them; not yet said.
+fn made_on_disk(s: &mut Session) -> Vec<Op> {
+    let store = s.store.clone().unwrap();
+    s.take_jobs()
+        .into_iter()
+        .filter_map(|j| match j {
+            Job::Apply { account, op } => {
+                store.apply_op(&account, &op).unwrap();
+                Some(op)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn inbox_changed(s: &mut Session, id: &str) {
+    s.apply(Event::FolderChanged { account: id.to_string(), folder: "INBOX".into() });
+}
+
+/// Down after Down on a big server folder: each read mark's echo keeps the folder in memory and
+/// the list (each read all of the folder from disk again and built the list again).
+#[test]
+fn a_read_marks_echo_keeps_the_folder_and_the_list() {
+    let (mut s, id) = server_inbox(10_941);
+    let keys: Vec<MessageKey> = s.row_keys().into_iter().take(50).collect();
+    let (built, threadings) = (s.nav_structure(), s.nav.threadings());
+    let started = std::time::Instant::now();
+    for k in &keys {
+        s.open_message(k);
+        assert_eq!(made_on_disk(&mut s).len(), 1);
+        inbox_changed(&mut s, &id);
+    }
+    eprintln!("50 opened, marked read and said back in {:?}", started.elapsed());
+    assert!(keys.iter().all(|k| s.summary(k).is_some_and(|m| m.flags.seen)), "read");
+    assert_eq!(s.nav_structure(), built, "no rows built");
+    assert_eq!(s.nav.threadings(), threadings, "no conversations worked out");
+    assert_eq!(s.echoes.waiting(&id), 0);
+    // What memory holds is what disk holds.
+    let shown: Vec<Summary> = s.list.clone();
+    s.cache.remove(&(id.clone(), "INBOX".to_string()));
+    s.refresh_list();
+    assert_eq!(s.list, shown);
+}
+
+/// What a Down step costs the window on a big server folder (`--release -- --ignored
+/// --nocapture`): the step, its read mark and the mark's echo; the pool's write to disk is
+/// timed apart, as the window made it before, and so is the echo read as any other change.
+#[test]
+#[ignore]
+fn down_steps_on_a_big_server_folder() {
+    use std::time::{Duration, Instant};
+    let (mut s, id) = server_inbox(10_941);
+    s.defer_bodies(true);
+    let store = s.store.clone().unwrap();
+    let first = s.row_keys()[0].to_id();
+    s.run("list.open", &json!({"key": first})).unwrap();
+    made_on_disk(&mut s);
+    inbox_changed(&mut s, &id);
+    let (mut window, mut pool, mut reread) = (Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..100 {
+        let t = Instant::now();
+        s.run("list.next", &json!({})).unwrap();
+        drop(s.take_body_work());
+        let jobs = s.take_jobs();
+        let stepped = t.elapsed();
+        let t = Instant::now();
+        for j in jobs {
+            if let Job::Apply { account, op } = j {
+                store.apply_op(&account, &op).unwrap();
+                store.add_op(&account, op).unwrap();
+            }
+        }
+        pool.push(t.elapsed());
+        let t = Instant::now();
+        inbox_changed(&mut s, &id);
+        window.push(stepped + t.elapsed());
+        // The same change said by a sync: the folder read from disk and the list built again.
+        let t = Instant::now();
+        inbox_changed(&mut s, &id);
+        reread.push(t.elapsed());
+    }
+    let median = |mut v: Vec<Duration>| {
+        v.sort();
+        (v[v.len() / 2], v[v.len() - 1])
+    };
+    let ((w, wmax), (p, pmax), (r, rmax)) = (median(window), median(pool), median(reread));
+    println!("Down step, the window: median {w:?}, max {wmax:?}");
+    println!("the read mark on disk (the pool's thread): median {p:?}, max {pmax:?}");
+    println!("the folder read again and the list built (an echo before): median {r:?}, max {rmax:?}");
+}
+
+/// A sync changing the folder on disk while read marks wait for their echo: one more change is
+/// said than waited for, and the last is read from disk, the new mail with it.
+#[test]
+fn a_change_from_the_server_among_echoes_is_read() {
+    let (mut s, id) = server_inbox(30);
+    let keys: Vec<MessageKey> = s.row_keys().into_iter().take(2).collect();
+    s.open_message(&keys[0]);
+    s.open_message(&keys[1]);
+    // New mail synced, and said, before the pool makes the read marks.
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&id, "INBOX").unwrap();
+    let new = MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid: 31 };
+    st.messages.insert(0, Summary { key: new.clone(), date: NOW, subject: "Arrived".into(), ..Default::default() });
+    store.save_folder(&id, "INBOX", &st).unwrap();
+    inbox_changed(&mut s, &id);
+    assert_eq!(made_on_disk(&mut s).len(), 2);
+    inbox_changed(&mut s, &id);
+    assert!(s.index_of(&new).is_none(), "one echo still to come");
+    inbox_changed(&mut s, &id);
+    assert!(s.index_of(&new).is_some(), "read from disk");
+    assert!(keys.iter().all(|k| s.summary(k).is_some_and(|m| m.flags.seen)));
+}
+
+/// The folder read from disk again before the pool made the change (let go of meanwhile): its
+/// echo puts the change in it, as the list has it, without reading it again.
+#[test]
+fn an_echo_puts_the_change_in_a_folder_read_before_it() {
+    let (mut s, id) = server_inbox(300);
+    let k = s.row_keys()[3].clone();
+    s.apply_op(&id, Op::SetFlag { keys: vec![k.clone()], flag: Flag::Flagged, on: true });
+    assert!(s.summary(&k).unwrap().flags.flagged);
+    // Read from disk again, where it isn't flagged yet.
+    s.cache.remove(&(id.clone(), "INBOX".to_string()));
+    s.refresh_list();
+    assert!(!s.summary(&k).unwrap().flags.flagged);
+    let (built, revision) = (s.nav_structure(), s.revision);
+    made_on_disk(&mut s);
+    inbox_changed(&mut s, &id);
+    assert!(s.summary(&k).unwrap().flags.flagged, "the change, in memory");
+    assert_eq!(s.nav_structure(), built, "patched, not built again");
+    assert_ne!(s.revision, revision);
+}
+
+/// A change the cache on disk couldn't take comes with a notice: the account's echoes are let go
+/// of, and what it says changed is read from disk (the read mark there isn't). So is an echo
+/// waited for too long (a front end that never says).
+#[test]
+fn a_notice_or_a_long_wait_lets_go_of_echoes() {
+    let (mut s, id) = server_inbox(30);
+    let keys: Vec<MessageKey> = s.row_keys().into_iter().take(2).collect();
+    s.open_message(&keys[0]);
+    s.take_jobs();
+    assert_eq!(s.echoes.waiting(&id), 1);
+    s.apply(Event::Notice { account: id.clone(), message: "the list couldn't be saved".into() });
+    assert_eq!(s.echoes.waiting(&id), 0);
+    inbox_changed(&mut s, &id);
+    assert!(!s.summary(&keys[0]).unwrap().flags.seen, "as disk has it");
+
+    s.open_message(&keys[1]);
+    s.take_jobs();
+    s.clock.now += 61;
+    inbox_changed(&mut s, &id);
+    assert!(!s.summary(&keys[1]).unwrap().flags.seen, "as disk has it");
+    assert_eq!(s.echoes.waiting(&id), 0);
+}

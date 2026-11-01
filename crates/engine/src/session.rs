@@ -432,6 +432,9 @@ pub struct Session {
     pub(crate) cache: HashMap<(String, String), FolderState>,
     /// The cached folders, the least recently used first.
     pub(crate) cache_order: Vec<(String, String)>,
+    /// Flag and category changes sent for a server account's mail, their echo still to come
+    /// (`mailboxes/echo.rs`).
+    pub(crate) echoes: mailboxes::Echoes,
     /// Flags owed to originals, keyed by the Outbox id of the reply or forward that earns them:
     /// set when the server accepts that message. Saved to disk so a restart keeps them.
     pending_marks: BTreeMap<u64, (MessageKey, Flag)>,
@@ -565,6 +568,7 @@ impl Session {
             jobs: Vec::new(),
             cache: HashMap::new(),
             cache_order: Vec::new(),
+            echoes: mailboxes::Echoes::default(),
             pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,
             contacts: None,

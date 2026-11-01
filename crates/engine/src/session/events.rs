@@ -71,6 +71,8 @@ impl Session {
                 self.search_folders_changed(&account);
                 self.want_index(&account, None);
             }
+            // The echo of a flag or category changed here: the folder in memory has it already.
+            Event::FolderChanged { account, folder } if self.own_echo(&account, &folder) => {}
             Event::FolderChanged { account, folder } => {
                 if self.showing_more.as_ref().is_some_and(|(a, f)| *a == account && *f == folder) {
                     self.showing_more = None;
@@ -265,6 +267,8 @@ impl Session {
                 self.pictures.insert(url, p);
             }
             Event::Notice { account, message } => {
+                // A change that failed among them: what the account says changed next is read.
+                self.forget_echoes(&account);
                 let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or(account);
                 self.notice(format!("{who}: {message}"), true);
             }

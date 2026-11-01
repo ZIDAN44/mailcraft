@@ -1422,6 +1422,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the list again only when it's arranged by flag. Opening and marking read 100 messages in a
   made-up folder of 10,941 took 2.1 s, now 0.5 s. With a search open the list is still built
   again.
+- **Down in a big folder of a server account:** each read mark was then written to the cache on
+  the window's thread (the folder's whole list read and written, 28 ms on 10,941 messages), and
+  when the cache said the folder had changed, the window read all of it again and built the list
+  again (24 ms more), for a change it had made itself. The change is now written on a thread of
+  the pool's own, in the order changes were made, and the session knows its own read marks,
+  flags and categories coming back: the folder in memory and the list are kept as they are, and
+  only a change from the server among them (or one the cache couldn't take) reads the folder
+  again. A Down step on a made-up folder of 10,941 messages costs the window 0.4 ms (median;
+  52 ms before). Closing MailCraft waits for the changes made so far to be on disk, and an
+  export to a data file starts with them.
 - **A message with many pictures:** each thumbnail read and parsed the whole message again, in
   the frame drawing it (a 33 MB message with 36 pictures took 2.6 s to show), and past 64 the
   thumbnails were thrown away and made again every frame, so the window froze for as long as the

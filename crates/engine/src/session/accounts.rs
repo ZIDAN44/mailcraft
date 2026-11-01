@@ -249,6 +249,7 @@ impl Session {
         };
         self.accounts.retain(|a| a.config.id != id);
         self.cache.retain(|(a, _), _| a != id);
+        self.forget_echoes(id);
         self.search_folders_changed(id);
         self.importing.running.remove(id);
         if leaves != Leaves::ForImport && self.importing.sources.remove(id).is_some() {

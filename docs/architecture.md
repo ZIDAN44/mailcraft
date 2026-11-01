@@ -159,7 +159,10 @@ written (`Compose`), preferences and status-bar notices.
 - `take_jobs()` hands queued work to the network layer; `apply(event)` folds results back in.
 - Changes are optimistic: `apply_op` updates the in-memory list immediately, then the worker applies
   it to the cache and server and reports `FolderChanged`, which reloads from the cache (the single
-  source of truth).
+  source of truth). A flag or category change's own echo doesn't (`session/mailboxes/echo.rs`): the
+  changes sent are counted per folder, and a `FolderChanged` while one waits keeps the folder in
+  memory (patching in the change if the folder was read again before it reached the cache); one
+  more than were sent, a notice from the account, or a minute's wait reads the folder again.
 - Local-only accounts (the sample mailbox) apply changes to the cache directly, including moves
   (new UIDs in the destination) and sending (filed in Sent).
 - Data files imported into accounts (`session/accounts/importing.rs`, commands in

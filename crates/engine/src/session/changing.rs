@@ -33,6 +33,7 @@ impl Session {
             self.refresh_list();
         }
         if !local {
+            self.expect_echo(account, &op);
             self.jobs.push(Job::Apply { account: account.to_string(), op });
         }
         done
