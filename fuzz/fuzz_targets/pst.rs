@@ -77,11 +77,15 @@ fn good_file() -> Vec<u8> {
 
 static GOOD: OnceLock<Vec<u8>> = OnceLock::new();
 
-/// Abort on a panic in MailCraft's code; let one in a dependency reach `import`'s fence. (One
-/// that escapes the fence is still caught by libfuzzer-sys, which aborts.)
+/// Where third-party code is built from: the registry, and the reader fork's git checkout.
+const THIRD_PARTY: [&str; 3] = [".cargo/registry", ".cargo/git/checkouts/outlook-pst-rs-", ".cargo\\git\\checkouts\\outlook-pst-rs-"];
+
+/// Abort on a panic in MailCraft's code; let one in a dependency (the forked reader too)
+/// reach `import`'s fence. (One that escapes the fence is still caught by libfuzzer-sys, which
+/// aborts.)
 fn only_our_panics_abort() {
     std::panic::set_hook(Box::new(|info| {
-        if info.location().is_none_or(|l| !l.file().contains(".cargo/registry")) {
+        if info.location().is_none_or(|l| !THIRD_PARTY.iter().any(|p| l.file().contains(p))) {
             eprintln!("{info}");
             std::process::abort();
         }
