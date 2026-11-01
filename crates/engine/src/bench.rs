@@ -10,7 +10,9 @@
 //! whose first account is the big one.
 //!
 //! Each step prints how long it took; memory is watched from outside. Steps are a few seconds
-//! apart so the watcher sees each.
+//! apart so the watcher sees each. `MC_DATA_CACHE_MB` opens the account's data file with that
+//! cache instead of the usual one; built with `-F mailcraft-store/cache-metrics`, `cache` lines
+//! say how it was used before the searches and at the end.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -45,6 +47,10 @@ fn big_mailbox() {
             .unwrap();
         (store, "d1".to_string())
     };
+    if let Some(mb) = std::env::var("MC_DATA_CACHE_MB").ok().and_then(|v| v.parse::<usize>().ok()) {
+        // A bulk write's cache, held for the whole run: the way to give the file another one.
+        store.bulk_begin(&account, mb << 20);
+    }
     let mut s = step("open", || Session::open(Some(store), Clock::new(1_800_000_000, 0)));
     let folders: Vec<(String, u32)> = s.account(&account).map(|a| a.folders.iter().map(|f| (f.path.clone(), f.total)).collect()).unwrap_or_default();
     println!("folders: {}", folders.len());
@@ -75,6 +81,9 @@ fn big_mailbox() {
         let _ = s.run("list.select", &json!({"key": k.to_id()}));
         step("mark one read", || drop(s.run("mail.markRead", &json!({}))));
     }
+    if let Some(store) = &s.store {
+        println!("cache before searching: {}", serde_json::to_string(&store.cache_use(&account)).unwrap());
+    }
     step("search this folder", || s.run_search("budget review", crate::SearchScope::Current));
     println!("found {}", s.list.len());
     step("search everything", || s.run_search("storyboard deadline", crate::SearchScope::All));
@@ -82,4 +91,7 @@ fn big_mailbox() {
     step("search everything again", || s.run_search("festival", crate::SearchScope::All));
     step("address book", || s.address_book("all", "zo").len());
     step("rest", || std::thread::sleep(Duration::from_secs(2)));
+    if let Some(store) = &s.store {
+        println!("cache: {}", serde_json::to_string(&store.cache_use(&account)).unwrap());
+    }
 }

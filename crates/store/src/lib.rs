@@ -79,8 +79,12 @@ pub struct FolderState {
 /// changes the last page only, and a flag one page).
 pub const PAGE_MESSAGES: usize = 4096;
 
-/// Memory for each open data file's cache. Imports measured with 32 and 48 MiB wrote and read
-/// what they did with 16 (within 1%), so the memory isn't spent on every open file.
+/// Memory for each open data file's cache (an import's is [`BULK_CACHE`]). Outside an import a
+/// transaction is small, so nothing is written out and read back whatever the cache: on the
+/// 41 GB file's data file, opening its biggest folder, 40 Downs and a mark-read had no page read
+/// back with 16, 32 or 48 MiB, and 2,745, 2,395 and 2,111 pages read from the file, in the same
+/// time; the first search, which reads every message once, read within 1% as many with each. So
+/// the memory isn't spent on every open file.
 pub const CACHE: usize = 16 << 20;
 /// What a data file's write transaction holds in memory before it has to write pages out and read
 /// them back: half its cache (the database's rule).
@@ -93,8 +97,10 @@ pub const BACKGROUND_COMMIT: usize = if WRITE_BUFFER / 4 < 8 << 20 { WRITE_BUFFE
 /// The cache of a data file taking a bulk write (an import, [`Store::bulk_begin`]). Importing a
 /// file of 600,000 messages, 32 MiB had 58% fewer pages read back by its transactions than 16 MiB,
 /// for about 22 MB more at its peak; 48, 64, 128 and 192 MiB took from 1 to 5 points more off
-/// that for up to 225 MB more. Its batches stay at [`BACKGROUND_COMMIT`]: 4 and 8 MiB ones with
-/// this cache read back 1.7 and 4 times as many pages, and wrote no less.
+/// that for up to 225 MB more. On the 41 GB file, 74% fewer, and the import wrote 40.1 GB instead
+/// of 45.3 for a 37.7 GB data file, for 4 to 26 MB more at its peak. Its batches stay at
+/// [`BACKGROUND_COMMIT`]: 4 and 8 MiB ones with this cache read back 1.7 and 4 times as many
+/// pages, and wrote no less.
 pub const BULK_CACHE: usize = 32 << 20;
 
 /// How a data file's cache has been used, as the database counts it: numbers only, for measuring,

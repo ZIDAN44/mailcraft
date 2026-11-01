@@ -1552,9 +1552,22 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   600,000 messages (7.9 GB): 7.17 GB written for a 6.87 GB data file (1.04 times), against
   7.22 GB with the small cache; pages read back by a transaction 58% fewer, for about 22 MB more
   at the peak. 48, 64, 128 and 192 MiB took 1 to 5 points more off for up to 225 MB more, and
-  4 or 8 MiB batches read back 1.7 and 4 times as many pages. The close at the end (16 ms, the next open 6 to 9 ms) also gives back the room the
-  file grew by ahead of its contents: 8.59 GB came down to 6.87 GB at once, rather than when
-  MailCraft closed. Not measured on the 47 GB file yet.
+  4 or 8 MiB batches read back 1.7 and 4 times as many pages. The close at the end (16 ms, the
+  next open 6 to 9 ms) also gives back the room the file grew by ahead of its contents: 8.59 GB
+  came down to 6.87 GB at once, rather than when MailCraft closed. On the 41 GB file (34,691
+  messages), twice each way: 40.05 GB written for a 37.69 GB data file (1.06 times, against
+  45.30 GB with the small cache), 58.45 GB read where the reader itself read 56.50 GB (1.03
+  times, against 63.7 GB), 74% fewer pages read back, a peak 4 to 26 MB higher (751 MB against
+  725 to 747), and the same time (213 to 222 s; one 172 s run with the small cache, on a
+  machine busy with other work). In the app, a new account's import of it took 189 s to its
+  end, wrote 40.05 GB and peaked at 1.05 GB, against 198 s, 45.30 GB and 1.03 GB built with the
+  small cache, whose data file stayed 38.65 GB instead of 37.69 GB until MailCraft closed. The
+  app had nothing holding the new file as the import began, so its cache changed at once.
+  Outside an import the cache stays 16 MiB: opening the biggest folder, 40 Downs and a
+  mark-read read back no page with 16, 32 or 48 MiB, read 2,745, 2,395 and 2,111 from the file
+  in the same time, and the first search, reading every message, within 1% as many. An import
+  ended by a panic leaves the file open with its cache until it's next asked for: closed while
+  a thread panics, the database writes nothing, and the file would need its full check.
 - **Big attachments from a data file:** an imported message's files were copied on their way in
   (into the message being built, again into its parts, its source written out twice to put the
   original header back, and the item kept until it was compressed), so a message with an
