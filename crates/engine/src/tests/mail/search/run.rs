@@ -365,3 +365,88 @@ fn a_done_search_lets_its_folders_go() {
     assert!(s.search_pinned() == 0);
     drop(s);
 }
+
+/// The window stops a step when its time is up: asked after each unit, it goes no further, and
+/// what was found by then is in the list.
+#[test]
+fn a_step_stops_when_asked() {
+    let mut s = generated(4, 600, 0, true);
+    s.set_background_search(true);
+    s.start_search("zanzibar", SearchScope::All, false);
+    let units = s.search_stats().units;
+    let mut asked = 0;
+    let p = s.search_step_while(64, &mut || {
+        asked += 1;
+        false
+    });
+    assert_eq!((asked, s.search_stats().units - units), (1, 1), "one unit, then asked and stopped");
+    assert!(!p.done);
+    let mut steps = 0;
+    while !s.search_step_while(64, &mut || true).done {
+        steps += 1;
+        assert!(steps < 1000);
+    }
+    assert_eq!(s.list.len(), 2400 / 7);
+    drop(s);
+}
+
+/// A search that stops part-way (a bug) goes, and the indexes it was reading are left unread,
+/// so the next search can't stop on them again: what they would find may be missing, until
+/// their writer writes them again.
+#[test]
+fn a_search_that_fails_goes_and_leaves_its_index_alone() {
+    let mut s = generated(2, 300, 0, true);
+    s.set_background_search(true);
+    s.start_search("zanzibar", SearchScope::All, false);
+    s.search_step(2);
+    let caught = crate::PANICS_CAUGHT.load(std::sync::atomic::Ordering::Relaxed);
+    s.fail_next_search_step();
+    assert!(s.search_step(8).done, "it's over");
+    assert!(crate::PANICS_CAUGHT.load(std::sync::atomic::Ordering::Relaxed) > caught);
+    assert_eq!(s.search_progress(), None, "the search went");
+    s.start_search("zanzibar", SearchScope::All, false);
+    settle(&mut s, 8);
+    let p = s.search_progress().unwrap();
+    assert_eq!((p.found, p.missing), (0, 600), "the index isn't read");
+    // Written again: read again, and the search running finds what it has.
+    let generation = index_now(&s, "a1");
+    indexed(&mut s, "a1", generation + 1);
+    settle(&mut s, 8);
+    let p = s.search_progress().unwrap();
+    assert_eq!((p.found, p.missing), (600 / 7, 0));
+    drop(s);
+}
+
+/// The index passes under way, all told, for the status bar and the "may be missing" banner:
+/// none once each is over; a date that isn't one is a problem the search says.
+#[test]
+fn indexing_under_way_and_what_a_search_couldnt_read() {
+    use mailcraft_model::job::Work;
+    let mut s = generated(1, 10, 0, false);
+    assert_eq!(s.indexing_work(), None);
+    let pass = |done, total, finished| Event::Indexed {
+        account: "a1".into(),
+        work: Work { done, total, ..Work::default() },
+        generation: 1,
+        failed: 0,
+        finished,
+    };
+    s.apply(pass(3, 10, false));
+    assert_eq!(s.indexing_work().map(|w| (w.done, w.total)), Some((3, 10)));
+    s.apply(Event::Indexed {
+        account: "gone".into(),
+        work: Work { done: 1, total: 5, ..Work::default() },
+        generation: 1,
+        failed: 0,
+        finished: false,
+    });
+    assert_eq!(s.indexing_work().map(|w| (w.done, w.total)), Some((3, 10)), "no account, no pass");
+    s.apply(pass(10, 10, true));
+    assert_eq!(s.indexing_work(), None);
+    s.start_search("received:2024-13 notes after:soon", SearchScope::All, false);
+    use mailcraft_model::search::Problem;
+    assert_eq!(s.search_problems(), [Problem::Date("received:2024-13".into()), Problem::Date("after:soon".into())]);
+    s.start_search("notes", SearchScope::All, false);
+    assert!(s.search_problems().is_empty());
+    drop(s);
+}

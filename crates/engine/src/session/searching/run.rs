@@ -332,30 +332,44 @@ impl Session {
             run.asks_awaiting = true;
         }
         self.search_state.pinned = run.folders.iter().cloned().collect();
-        // An account that had no index (or one that couldn't be read) is looked at again.
-        self.search_state.readers.retain(|_, slot| slot.reader.is_some());
+        // An account that had no index (or one that couldn't be read) is looked at again; one a
+        // search stopped on, once its writer writes it again.
+        self.search_state.readers.retain(|_, slot| slot.reader.is_some() || slot.damaged);
         self.search_state.run = Some(run);
     }
 
     /// Do at most `units` units of the search's work: no clock, no network, each unit bounded
     /// (see the module's notes). What's found is in the list when it returns.
     pub fn search_step(&mut self, units: u32) -> SearchProgress {
+        self.search_step_while(units, &mut || true)
+    }
+
+    /// [`Session::search_step`], asking `more` after each unit whether to go on (the window
+    /// asks its clock: the engine reads none). What's found is shown once, at the end.
+    pub fn search_step_while(&mut self, units: u32, more: &mut dyn FnMut() -> bool) -> SearchProgress {
         let Some(mut run) = self.search_state.run.take() else { return SearchProgress { done: true, ..Default::default() } };
         let before = self.revision;
         let went = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.follow_indexes(&mut run);
-            self.run_units(&mut run, units);
+            self.run_units(&mut run, units, more);
+            if !run.done() && !run.wait && (!run.fresh.is_empty() || !run.gone.is_empty()) {
+                self.publish_stream(&mut run);
+            }
         }));
         if went.is_err() {
-            // What it was reading may be what's wrong: read afresh by the next search.
+            // The search goes. What it was reading may be what's wrong: each index it read is
+            // left unread (damaged) until its writer writes it again.
             log::error!("a search stopped: something it read couldn't be searched");
             PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            self.search_state.readers.clear();
+            let accounts: HashSet<&String> = run.folders.iter().map(|(a, _)| a).collect();
+            for (account, slot) in &mut self.search_state.readers {
+                if accounts.contains(account) {
+                    *slot = ReaderSlot { reader: None, checked: self.clock.now, behind: false, damaged: true };
+                }
+            }
+            self.search_state.readers.retain(|_, slot| slot.damaged);
             self.search_state.pinned.clear();
             return SearchProgress { done: true, ..Default::default() };
-        }
-        if !run.done() && !run.wait && (!run.fresh.is_empty() || !run.gone.is_empty()) {
-            self.publish_stream(&mut run);
         }
         if run.done() {
             run.fresh.clear();
@@ -391,7 +405,9 @@ impl Session {
         true
     }
 
-    fn run_units(&mut self, run: &mut SearchRun, units: u32) {
+    fn run_units(&mut self, run: &mut SearchRun, units: u32, more: &mut dyn FnMut() -> bool) {
+        #[cfg(test)]
+        self.search_test_fault();
         let mut left = units.max(1);
         while left > 0 {
             let spent = if run.awaiting.is_some() {
@@ -409,6 +425,22 @@ impl Session {
             };
             self.search_state.stats.units = self.search_state.stats.units.saturating_add(u64::from(spent));
             left = left.saturating_sub(spent);
+            if !more() {
+                break;
+            }
+        }
+    }
+
+    /// A test's: the next step of the search stops part-way, as a bug would.
+    #[cfg(test)]
+    pub(crate) fn fail_next_search_step(&mut self) {
+        self.search_state.fault = true;
+    }
+
+    #[cfg(test)]
+    fn search_test_fault(&mut self) {
+        if std::mem::take(&mut self.search_state.fault) {
+            panic!("a test's search fault");
         }
     }
 
@@ -589,7 +621,7 @@ impl Session {
             },
             None => None,
         };
-        self.search_state.readers.insert(account.to_string(), ReaderSlot { reader, checked: self.clock.now, behind: false });
+        self.search_state.readers.insert(account.to_string(), ReaderSlot { reader, checked: self.clock.now, behind: false, damaged: false });
         true
     }
 

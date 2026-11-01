@@ -59,6 +59,8 @@ pub(crate) struct ReaderSlot {
     pub(crate) checked: i64,
     /// A newer generation was heard of ([`Event::Indexed`]).
     pub(crate) behind: bool,
+    /// A search stopped while reading it: not read again until its writer writes it again.
+    pub(crate) damaged: bool,
 }
 
 /// What search keeps between searches, and the one running.
@@ -75,6 +77,9 @@ pub(crate) struct SearchState {
     /// Searches don't wait: the window steps them each frame ([`Session::set_background_search`]).
     background: bool,
     pub(crate) stats: SearchStats,
+    /// A test's: the next step stops part-way, as a bug would.
+    #[cfg(test)]
+    pub(crate) fault: bool,
 }
 
 /// Working out which of the user's messages wait for a reply ([`Session::awaiting_replies`]),
@@ -192,6 +197,32 @@ impl Session {
     /// How `account`'s last index pass went, as far as it was heard of.
     pub fn index_pass(&self, account: &str) -> Option<IndexPass> {
         self.indexing.passes.get(account).copied()
+    }
+
+    /// The index passes under way, all told (`None`: none is): what the status bar shows, and
+    /// how far a search that may be missing mail has to wait. An account being imported into
+    /// has none (its import's end asks for one).
+    pub fn indexing_work(&self) -> Option<mailcraft_model::job::Work> {
+        let mut under_way = self
+            .indexing
+            .passes
+            .iter()
+            .filter(|(id, p)| !p.finished && !self.importing.contains(*id) && self.account(id).is_some())
+            .map(|(_, p)| p.work)
+            .peekable();
+        under_way.peek()?;
+        Some(under_way.fold(mailcraft_model::job::Work::default(), |all, w| mailcraft_model::job::Work {
+            done: all.done.saturating_add(w.done),
+            total: all.total.saturating_add(w.total),
+            bytes_done: all.bytes_done.saturating_add(w.bytes_done),
+            bytes_total: all.bytes_total.saturating_add(w.bytes_total),
+        }))
+    }
+
+    /// What the search couldn't read of what was typed (a date that isn't one), in the order
+    /// typed: left out of it, and said under the search box.
+    pub fn search_problems(&self) -> &[mailcraft_model::search::Problem] {
+        self.search_state.run.as_ref().map_or(&[], |r| r.query.problems.as_slice())
     }
 
     /// Ask for `account`'s index to be brought up to `folder` (`None`: every folder). Asks while
@@ -430,6 +461,7 @@ impl Session {
             }
             slot.behind = false;
             slot.checked = now;
+            slot.damaged = false;
             let changed = match slot.reader.as_mut() {
                 Some(r) => match r.refresh(&store) {
                     Ok(changed) => changed,
