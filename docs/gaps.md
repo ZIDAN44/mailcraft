@@ -1866,6 +1866,33 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   pass of 157 s it no longer needs; the aim, within 5%, isn't met. The extra time is the index's own
   writes into the account's data file, which the import's writes wait for: an index filed and
   written on a thread of its own, its writes sealed or not, measured no faster.
+- **The import measured whole:** on the 41 GB file (34,691 messages), every aim of the import
+  work was measured again in one sitting (`pst_bench::import`, which now also pauses an import
+  at random, goes on after a kill, and judges the time left the window would have said). In the
+  app a new account's import took 172 s, the window answering within 12 ms all along (none of
+  the 50 ms frames aimed at), its folders shown as each finished and its percentage from the
+  first seconds, for a 37.75 GB data file. By the benchmark it took 173–214 s with indexing,
+  most runs over the 180 s aimed at (154 s without), wrote 40.3 GB (1.07 times the data file), and read
+  58.5 GB where the reader read 56.5 GB (1.04 times); one thread took 611 s, 326 s of it
+  reading. Twelve threads and one came out the same byte for byte (a digest of the folders,
+  their lists and the sources), and so did an import paused 30 times at random and one
+  killed 5 times at random, gone on with each time: 34,691 messages, every one parsing, with
+  107,328 attachments. A pause took 0.3 s to stop by median and 2 s at most of 62 (5 of an
+  earlier 37 took 10 to 17 s at one place, not seen since). The checkpoints cost under 1%: 29
+  to 42 of them took 1.2–1.9 s, the batches they went with included, and one every 10 s
+  besides those at each folder's end changed nothing by the clock. Still short of the aims: its
+  peak was 1.17–1.22 GB with indexing (0.76 GB without), its working set growing by a third
+  from a fifth of the way to nine tenths, where 1 GB and flat were aimed at; opening the data
+  file after a kill took 1.7 to 22 s (the file checked whole), over the 5 s aimed at; after an
+  import paused and gone on with, the next index pass looks at the lists of most folders again
+  (30,342 messages' worth, none of them read); and the time left. An
+  item costs nothing of its own on the parallel import by a fit over its progress (a big one
+  costs more for each byte, holding up the others), but no weight from 0 to 256 KB judged the
+  time left better over seven imports, so an item still weighs 128 KB. From half done the time
+  said was 4–26% off (10% aimed at), and before that up to twice the time it took (20% aimed
+  at): the first folders, of big messages, go at about two thirds of the speed of the rest,
+  which no estimate from the speed so far can foresee (13% done after 30 s said about 5 min for
+  2.4 left).
 - **The paperclip on mail kept from before:** a `.pst` imported before its paperclips followed
   the source (and any mail whose summary says otherwise than its source) kept the old flag, so
   Has files and the paperclip still counted pictures the text shows while `has:attachment` didn't.

@@ -31,9 +31,12 @@ fn known_stage<'de, D: Deserializer<'de>>(d: D) -> Result<ImportStage, D::Error>
     known_or(d, ImportStage::Stopped)
 }
 
-/// What one item weighs in an import's progress besides its own bytes: reading an item costs
-/// about as long as reading this many bytes (measured on a large `.pst`: ~2 ms an item, ~18 ns a
-/// byte), so a folder of many small messages isn't shown as nearly free.
+/// What one item weighs in an import's progress besides its own bytes, so a folder of many small
+/// messages isn't shown as nearly free. Read one at a time, an item cost about as long as this
+/// many bytes (~2 ms an item, ~18 ns a byte on a large `.pst`). On the parallel import an item
+/// costs nothing of its own by a fit over its progress (a big one costs more for each byte, as
+/// it holds up the others), but no weight from 0 to 256 KiB judged the time left better over
+/// seven imports of that file (`pst_bench`), so it stays.
 pub const ITEM_WEIGHT: u64 = 128 * 1024;
 
 /// Where an import is.
