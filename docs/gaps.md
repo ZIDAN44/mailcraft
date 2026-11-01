@@ -20,6 +20,7 @@ _Status: v0.32, 2026-10-31._
 | 6 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store (Chrome's Web Smart Card API is for Isolated Web Apps only). Its certificates are locked again after a reload unless *Keep unlocked in this browser* is on. |
 | 7 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 | 8 | **Search index: one writer across processes** | Each account's search index has one writer at a time within a process. The CLI and the app on one folder layout could both write it; the `search/v1/lock` lease that stops a second comes with the CLI's `--index`, when the CLI first writes an index. |
+| 9 | **Searches that find tens of thousands: not yet as fast as aimed** | Measured on the made-up mailbox of 50,000 messages (`sample::big`; release build, `search_big::how_long_searches_take`, which fails if a budget met slips). Met: a word, 25 ms all told and 2 ms a step warm; a one-letter word, 180–270 ms all told; every step reads at most 16 store pages. Not yet: a search in a session just opened makes its summaries' text, 11–15 ms a step against the 4 ms aimed for; `is:unread` over 50,000 takes 35 ms against 15 ms; the common phrase's 16,667 found, each checked against its text, 0.3–0.4 s against 150 ms; a one-letter word's steps 16–24 ms against 6 ms; and the frame that shows 35,000–47,000 found builds the list at once, 10–12 ms against 8 ms. |
 
 ## Done
 
@@ -1834,7 +1835,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   40 folders (the Inbox 12,000; `sample::big`, for the tests and `bench.rs`), a search finding a
   few messages a step rebuilt the whole list each step, and each one found was first looked for
   over the whole list: a common phrase took 14 s from a session just opened, and showing 35,000
-  found held frames for 30â€“65 ms. A long list now takes what's found every so many steps (one
+  found held frames for 30–65 ms. A long list now takes what's found every so many steps (one
   for each 2,048 messages it holds; a short one at once), at the start of a step where the
   window's clock counts it; its index keeps the keys' hashes rather than hashing them again;
   the end of a search adds what's left to the list it streamed into rather than copying every
@@ -1842,9 +1843,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   rather than 1,015); the list a search replaces is let go of a slice a frame; and the search
   command takes 4 units rather than 16 before the window's frames take over. In the window
   (release build) a word takes 25 ms warm and 130 ms just opened (its summaries' text made),
-  the common phrase 0.3â€“0.4 s, `is:read`'s 35,000 70â€“80 ms and a one-letter word's 47,000
-  180â€“270 ms, a word's frames spending at most 8 ms on the search; Down through the 12,000
-  builds no rows (8 ms a frame at p99). Not met: the frame that shows 35,000â€“47,000 found
-  builds the list at once, 10â€“12 ms; `is:unread` over 50,000 takes 35 ms against the 15 ms
+  the common phrase 0.3–0.4 s, `is:read`'s 35,000 70–80 ms and a one-letter word's 47,000
+  180–270 ms, a word's frames spending at most 8 ms on the search; Down through the 12,000
+  builds no rows (8 ms a frame at p99). Not met: the frame that shows 35,000–47,000 found
+  builds the list at once, 10–12 ms; `is:unread` over 50,000 takes 35 ms against the 15 ms
   aimed for over 35,000; the common phrase's 16,667 found, each checked against its text, take
-  longer than the 150 ms aimed for a phrase.
+  longer than the 150 ms aimed for a phrase (Open, 9).

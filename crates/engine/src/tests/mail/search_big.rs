@@ -100,10 +100,10 @@ fn search_by(s: &mut Session, q: &str, scope: &str, by: &mut dyn FnMut(&mut Sess
     panic!("{q}: a search that never ends");
 }
 
-/// Every query over every mailbox, as the window runs it: each `search_step(8)` reads at most 8
-/// pages of folders' lists and 16 of the index, checks at most 8 × 512 summaries and 8 texts
-/// (the command's first 4 units, half that), and reads no message; flags read nothing of the
-/// index; and each finds what the mailbox holds, the list newest first.
+/// Every query over every mailbox, as the window runs it: each `search_step(8)` reads at most
+/// 16 store pages (folders' lists and the index together), checks at most 8 × 512 summaries and
+/// 8 texts (the command's first 4 units, half that), and reads no message; flags read nothing of
+/// the index; and each finds what the mailbox holds, the list newest first.
 #[test]
 fn each_step_is_bounded_over_fifty_thousand_messages() {
     let (mut s, t) = cold();
@@ -112,8 +112,7 @@ fn each_step_is_bounded_over_fifty_thousand_messages() {
         let steps = search(&mut s, &q, "all");
         for (i, st) in steps.iter().enumerate() {
             let (d, n) = (st.read, if i == 0 { 4 } else { 8 });
-            assert!(d.folder_pages <= n, "{q}: folder pages {}", d.folder_pages);
-            assert!(d.reader_pages <= 2 * n, "{q}: index pages {}", d.reader_pages);
+            assert!(d.folder_pages + d.reader_pages <= 2 * n, "{q}: store pages {} + {}", d.folder_pages, d.reader_pages);
             assert!(d.summaries <= 512 * n, "{q}: summaries {}", d.summaries);
             assert!(d.texts <= n, "{q}: texts {}", d.texts);
             assert!(d.units <= n, "{q}: units {}", d.units);
@@ -252,7 +251,12 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// Hand-run, in release (`cargo test -p mailcraft-engine --release --lib search_big -- --ignored
 /// --nocapture`; `MC_QUERY` for one query): how long each query takes over the mailbox, all
 /// told and step by step, from a session just opened and again: in steps of 8 units, and in
-/// frames as the window takes them (as many units as fit in 6 ms).
+/// frames as the window takes them (as many units as fit in 6 ms). It holds the budgets the
+/// searches meet (search.md §11), so a slower one fails it: a word, warm, 50 ms all told and
+/// 4 ms a step at p99, each frame at most 8 ms; a one-letter word, warm, 300 ms all told. Not
+/// met yet, and only printed (docs/gaps.md, Open): a step in a session just opened (its
+/// summaries' text made), `is:unread`'s 15 ms, a phrase's 150 ms, a one-letter word's 6 ms a
+/// step, and the frame that shows tens of thousands found.
 #[test]
 #[ignore]
 fn how_long_searches_take() {
@@ -283,6 +287,14 @@ fn how_long_searches_take() {
                 s.list.len(),
                 times.len(),
             );
+            let word = [big::RARE, "zurich", big::CJK, big::FAR].contains(&q.as_str());
+            let ms = Duration::from_millis;
+            match cache {
+                "warm" if word => assert!(all <= ms(50) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
+                "warm, frames" if word => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
+                "warm" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
+                _ => {}
+            }
         }
     }
 }

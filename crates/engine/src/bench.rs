@@ -22,6 +22,7 @@ use serde_json::json;
 
 use crate::Session;
 use crate::model::dates::Clock;
+use crate::sample::big;
 use crate::store::Store;
 
 fn step<T>(what: &str, f: impl FnOnce() -> T) -> T {
@@ -60,9 +61,15 @@ fn big_mailbox() {
         (store, "d1".to_string())
     } else {
         let store = Store::memory();
-        crate::sample::big::generate(&store, 1_800_000_000, crate::sample::big::Shape::default()).unwrap();
-        (store, crate::sample::big::ACCOUNT.to_string())
+        big::generate(&store, 1_800_000_000, big::Shape::default()).unwrap();
+        (store, big::ACCOUNT.to_string())
     };
+    // The words searched for: on the made-up mailbox, words it was made with (an everyday word
+    // there finds nothing, measuring nothing).
+    let made_up = account == big::ACCOUNT;
+    let pick = |real: &str, made: &str| if made_up { made.to_string() } else { real.to_string() };
+    let (here, everywhere, again) = (pick("budget review", big::RARE), pick("storyboard deadline", big::FAR), pick("festival", "zurich"));
+    let phrase = pick("\"budget review\"", &format!("\"{}\"", big::PHRASE));
     if let Some(mb) = std::env::var("MC_DATA_CACHE_MB").ok().and_then(|v| v.parse::<usize>().ok()) {
         // A bulk write's cache, held for the whole run: the way to give the file another one.
         store.bulk_begin(&account, mb << 20);
@@ -111,16 +118,16 @@ fn big_mailbox() {
         }
         let _ = p.finish(&store, true);
     });
-    step("search this folder", || s.run_search("budget review", crate::SearchScope::Current));
+    step("search this folder", || s.run_search(&here, crate::SearchScope::Current));
     println!("found {}", s.list.len());
-    step("search everything", || s.run_search("storyboard deadline", crate::SearchScope::All));
+    step("search everything", || s.run_search(&everywhere, crate::SearchScope::All));
     println!("found {}", s.list.len());
-    step("search everything again", || s.run_search("festival", crate::SearchScope::All));
+    step("search everything again", || s.run_search(&again, crate::SearchScope::All));
     step("is:unread", || s.run_search("is:unread", crate::SearchScope::All));
     println!("found {}", s.list.len());
     step("is:read", || s.run_search("is:read", crate::SearchScope::All));
     println!("found {}", s.list.len());
-    step("phrase", || s.run_search("\"budget review\"", crate::SearchScope::All));
+    step("phrase", || s.run_search(&phrase, crate::SearchScope::All));
     step("a common phrase", || s.run_search("\"thank you\"", crate::SearchScope::All));
     println!("found {}", s.list.len());
     // The domain most of the biggest folder's mail is from (not printed: the file's own).

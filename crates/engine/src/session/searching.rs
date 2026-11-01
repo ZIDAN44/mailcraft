@@ -82,7 +82,7 @@ pub(crate) struct SearchState {
     background: bool,
     pub(crate) stats: SearchStats,
     /// The list a search started over, let go of [`LET_GO`] summaries a step: letting go of tens
-    /// of thousands at once (each with its strings) held the frame that searched for 10â€“20 ms.
+    /// of thousands at once (each with its strings) held the frame that searched for 10–20 ms.
     letting_go: Vec<Summary>,
     /// A test's: the next step stops part-way, as a bug would.
     #[cfg(test)]
