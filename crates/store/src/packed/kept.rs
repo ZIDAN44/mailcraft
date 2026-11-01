@@ -18,6 +18,9 @@ pub(super) const WHOLE_MAX: usize = PAGE - PAGE_SLACK;
 pub(super) const DEFLATED: &[u8] = b"\0MailCraft:deflate\0";
 /// Files smaller than this aren't worth compressing.
 const DEFLATE_MIN: usize = 1024;
+/// What [`pack`]'s buffer starts at, as a fraction of the file (eight tenths): base64
+/// attachments, most of an imported message, come to about 0.76.
+const DEFLATE_ROOM: (usize, usize) = (8, 10);
 /// The most a compressed file may come to (a crafted data file can't fill the memory).
 pub(super) const INFLATE_MAX: u64 = 1 << 30;
 
@@ -30,6 +33,9 @@ pub(super) const INFLATE_MAX: u64 = 1 << 30;
 ///
 /// The stream is written straight after the prefix into a buffer that holds no more than would
 /// be kept, so there's no second copy, and a file that won't compress stops as soon as it fills it.
+/// The buffer starts at [`DEFLATE_ROOM`] of the file, what an attachment comes to, and grows to
+/// the most that would be kept only for a stream that needs it: an imported message waits in its
+/// batch in this buffer, and its unused end was a tenth of the message more.
 pub(super) fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     use miniz_oxide::deflate::core::{CompressorOxide, TDEFLFlush, TDEFLStatus, compress, create_comp_flags_from_zip_params};
     if bytes.len() < DEFLATE_MIN || bytes.starts_with(DEFLATED) {
@@ -37,13 +43,17 @@ pub(super) fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     }
     // Kept compressed only when it comes to less than this.
     let limit = bytes.len() - bytes.len() / 10;
-    let mut out = vec![0; limit];
+    let room = (bytes.len() / DEFLATE_ROOM.1).saturating_mul(DEFLATE_ROOM.0).max(DEFLATED.len()).min(limit);
+    let mut out = vec![0; room];
     let Some(prefix) = out.get_mut(..DEFLATED.len()) else { return bytes.into() };
     prefix.copy_from_slice(DEFLATED);
     // Level 1, raw deflate (window bits 0), the default strategy: as `compress_to_vec(bytes, 1)`.
     let mut deflate = CompressorOxide::new(create_comp_flags_from_zip_params(1, 0, 0));
     let (mut read, mut at) = (0, DEFLATED.len());
     loop {
+        if at >= out.len() && out.len() < limit {
+            out.resize(limit, 0);
+        }
         let (Some(input), Some(room)) = (bytes.get(read..), out.get_mut(at..)) else { return bytes.into() };
         if room.is_empty() {
             return bytes.into();
