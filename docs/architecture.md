@@ -185,7 +185,7 @@ appears in exactly one conversation.
   (`fake_graph.rs`), Exchange Web Services with NTLM (`fake_ews.rs`; NTLM also against the
   MS-NLMP test vectors), CalDAV/CardDAV (`fake_dav.rs`) and ManageSieve servers driving accounts
   through the same pool. Outlook data files are exported with `outlook-pst-rw` and read back
-  by the importer; contact and appointment mapping and recurrence patterns are tested on their own. HTTP, DNS, autoconfig and OAuth run against local stubs. `serve_for_the_browser` (ignored)
+  by the importer; contact and appointment mapping and recurrence patterns are tested on their own. An import counts where its time went (`pst::ImportStats`: opening, reading, rebuilding, compressing, writing and committing, and the bytes it held and wrote), logs it at the end, and `pst_bench::import` (ignored) runs one on a big file as `pst::import_with` lets it be tuned, printing those numbers. HTTP, DNS, autoconfig and OAuth run against local stubs. `serve_for_the_browser` (ignored)
   keeps a JMAP server with CORS running for trying the web app by hand.
 - `jmap`: the session, URLs and paths against canned answers.
 - `engine`: commands against the sample mailbox and scripted network events; every command with junk params.

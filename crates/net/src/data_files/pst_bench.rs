@@ -6,6 +6,10 @@
 //! MC_PST=D:\big.pst MC_CACHE=D:\cache cargo test -p mailcraft-net --release --lib pst_bench::import -- --ignored --nocapture
 //! ```
 //!
+//! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB` and `MC_RECYCLE`
+//! (unset: the app's), and it ends with one `stats:` line of numbers (`pst::ImportStats`), where
+//! its time went.
+//!
 //! Memory is watched from outside (the test process's working set), so the numbers are the
 //! process's, allocator and all.
 
@@ -157,7 +161,7 @@ fn make() {
 }
 
 /// Import the data file at `MC_PST` into a fresh packed cache at `MC_CACHE` (as the app keeps
-/// accounts), printing progress with the time.
+/// accounts), printing progress with the time, then where it went.
 #[test]
 #[ignore]
 fn import() {
@@ -176,7 +180,15 @@ fn import() {
             println!("{n} messages, {:.0} s, {:.0}/s", began.elapsed().as_secs_f64(), n as f64 / began.elapsed().as_secs_f64());
         }
     };
-    let done = crate::pst::import(&path, &store, "d1", &mut progress).unwrap();
+    let knob = |name: &str| env(name).and_then(|v| v.parse::<usize>().ok()).unwrap_or(0);
+    let opts = crate::pst::ImportOptions {
+        lanes: knob("MC_LANES"),
+        budget_bytes: knob("MC_BUDGET_MB").saturating_mul(1024 * 1024),
+        chunk_kb: knob("MC_CHUNK_KB"),
+        recycle: knob("MC_RECYCLE"),
+        ..Default::default()
+    };
+    let done = crate::pst::import_with(&path, &store, "d1", &opts, &mut progress).unwrap();
     let secs = began.elapsed().as_secs_f64();
     let listed: usize = done.folders.iter().map(|f| store.load_folder("d1", &f.path).map(|st| st.messages.len()).unwrap_or(0)).sum();
     assert_eq!(listed, done.messages, "every imported message listed once");
@@ -188,6 +200,7 @@ fn import() {
         done.messages as f64 / secs,
         dir_size(&cache) as f64 / 1e9
     );
+    println!("stats: {}", serde_json::to_string(&done.stats).unwrap());
 }
 
 fn dir_size(p: &Path) -> u64 {

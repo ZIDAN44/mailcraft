@@ -65,3 +65,26 @@ fn an_import_asked_to_stop_keeps_what_it_read() {
     assert_eq!(all.messages, 700);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// An import says where its time went, how much it held and how much it wrote: its stages fit
+/// in its whole (one lane, one thread), its sources shrank as the data file keeps them, and what
+/// it held at once was at most a batch.
+#[test]
+fn an_import_counts_where_its_time_went() {
+    let (dir, pst) = data_file("stats", 600);
+    let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
+    let done = import(&pst, &store, "t1", &mut |_| {}).unwrap();
+    let s = done.stats;
+    assert_eq!((done.messages, s.lanes), (600, 1));
+    let stages = [s.plan_ms, s.read_ms, s.build_ms, s.pack_ms, s.write_ms, s.commit_ms];
+    assert!(stages.iter().sum::<u64>() <= s.total_ms, "{s:?}");
+    assert!(s.total_ms > 0, "{s:?}");
+    assert!(s.raw_bytes > 600 * 1400, "every source counted: {s:?}");
+    assert!(s.kept_bytes > 0 && s.kept_bytes < s.raw_bytes / 2, "compressed: {s:?}");
+    assert!(s.peak_budget_bytes > 0 && s.peak_budget_bytes <= mailcraft_store::BACKGROUND_COMMIT as u64, "{s:?}");
+    // A store that doesn't compress keeps them as they are.
+    let plain = Store::memory();
+    let s = import(&pst, &plain, "t2", &mut |_| {}).unwrap().stats;
+    assert_eq!(s.raw_bytes, s.kept_bytes);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -15,7 +15,8 @@ use std::io;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
 use mailcraft_model::job::SkipReason;
@@ -87,6 +88,108 @@ pub struct Imported {
     /// Messages whose only body was Rich Text that couldn't be read: imported without a body.
     /// Logged, and not in `skipped`, since the message itself came in.
     pub body_not_converted: usize,
+    /// How long it took, and where the time went.
+    pub stats: ImportStats,
+}
+
+/// Where an import's time went, and how much it held and wrote: numbers only, for measuring.
+/// Times are summed over the threads that did the work; with one lane they all run on one, and
+/// nothing waits for another.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct ImportStats {
+    /// The whole import, from opening the file to the seal at its end.
+    pub total_ms: u64,
+    /// Opening the file and finding its folders and named properties.
+    pub plan_ms: u64,
+    /// Reading items (their properties, recipients and attachments) from the file.
+    pub read_ms: u64,
+    /// Rebuilding them as messages, with their summaries, and as contacts and events.
+    pub build_ms: u64,
+    /// Compressing the sources for the data file.
+    pub pack_ms: u64,
+    /// Writing the sources.
+    pub write_ms: u64,
+    /// Writing the folder lists, the folders, the contacts and events, and sealing the file.
+    pub commit_ms: u64,
+    /// The writer waiting for items to be read, and readers waiting for room in the budget.
+    pub writer_idle_ms: u64,
+    pub budget_wait_ms: u64,
+    /// The most bytes read and not yet written at once.
+    pub peak_budget_bytes: u64,
+    /// The sources' bytes as rebuilt, and as kept in the cache.
+    pub raw_bytes: u64,
+    pub kept_bytes: u64,
+    /// Items read at once.
+    pub lanes: u64,
+}
+
+/// A stage of an import, timed.
+#[derive(Clone, Copy)]
+enum Phase {
+    Plan,
+    Read,
+    Build,
+    Pack,
+    Write,
+    Commit,
+}
+
+/// An import's running counts, which any of its threads may add to.
+#[derive(Default)]
+struct Tally {
+    /// Nanoseconds in each [`Phase`].
+    nanos: [AtomicU64; 6],
+    peak: AtomicU64,
+    raw: AtomicU64,
+    kept: AtomicU64,
+}
+
+impl Tally {
+    /// `f`, its time counted to `phase`.
+    fn time<T>(&self, phase: Phase, f: impl FnOnce() -> T) -> T {
+        let began = Instant::now();
+        let r = f();
+        self.since(phase, began);
+        r
+    }
+
+    /// The time since `began`, counted to `phase`.
+    fn since(&self, phase: Phase, began: Instant) {
+        if let Some(n) = self.nanos.get(phase as usize) {
+            n.fetch_add(nanos(began.elapsed()), Ordering::Relaxed);
+        }
+    }
+
+    /// A source of `raw` bytes kept in `kept`, with `held` bytes now waiting to be written.
+    fn source(&self, raw: usize, kept: usize, held: usize) {
+        let wide = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
+        self.raw.fetch_add(wide(raw), Ordering::Relaxed);
+        self.kept.fetch_add(wide(kept), Ordering::Relaxed);
+        self.peak.fetch_max(wide(held), Ordering::Relaxed);
+    }
+
+    fn snapshot(&self, total: Duration, lanes: u64) -> ImportStats {
+        let ms = |phase: Phase| self.nanos.get(phase as usize).map_or(0, |n| n.load(Ordering::Relaxed) / 1_000_000);
+        ImportStats {
+            total_ms: nanos(total) / 1_000_000,
+            plan_ms: ms(Phase::Plan),
+            read_ms: ms(Phase::Read),
+            build_ms: ms(Phase::Build),
+            pack_ms: ms(Phase::Pack),
+            write_ms: ms(Phase::Write),
+            commit_ms: ms(Phase::Commit),
+            writer_idle_ms: 0,
+            budget_wait_ms: 0,
+            peak_budget_bytes: self.peak.load(Ordering::Relaxed),
+            raw_bytes: self.raw.load(Ordering::Relaxed),
+            kept_bytes: self.kept.load(Ordering::Relaxed),
+            lanes,
+        }
+    }
+}
+
+fn nanos(d: Duration) -> u64 {
+    u64::try_from(d.as_nanos()).unwrap_or(u64::MAX)
 }
 
 /// How an import runs; the default is how the app imports.
@@ -186,6 +289,8 @@ macro_rules! reader {
             let store = <$store>::read(Rc::new(pst))?;
             let any: Rc<dyn PstStore> = store.clone();
             let named = crate::pst_pim::Named::of(&*any);
+            // From the start: the file opened, as either kind when the first wasn't it.
+            out.tally.since(Phase::Plan, out.began);
             let read = |entry: &EntryId| -> io::Result<Item> {
                 let m = <$message>::read(store.clone(), entry, None)?;
                 let cp = message_code_page(&*m);
@@ -269,7 +374,7 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
                 if out.stopped() {
                     break;
                 }
-                let item = store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e));
+                let item = out.tally.time(Phase::Read, || store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e)));
                 match item {
                     Ok(i) => out.add_message(&path, i),
                     Err(e) => {
@@ -300,7 +405,7 @@ fn read_items(store: &dyn PstStore, folder: &dyn PstFolder, read: &ReadItem<'_>,
         if out.stopped() {
             return;
         }
-        match store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e)) {
+        match out.tally.time(Phase::Read, || store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e))) {
             Ok(i) => out.add_pim(i),
             Err(e) => {
                 log::info!("an item could not be read: {e}");

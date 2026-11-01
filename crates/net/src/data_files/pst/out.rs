@@ -42,6 +42,9 @@ pub(super) struct Out<'a> {
     pub(super) pending_bytes: usize,
     /// Set from elsewhere to stop reading.
     cancel: Option<Arc<AtomicBool>>,
+    /// When the import began, and where its time has gone since.
+    pub(super) began: Instant,
+    pub(super) tally: Tally,
 }
 
 impl<'a> Out<'a> {
@@ -61,6 +64,8 @@ impl<'a> Out<'a> {
             pending: Vec::new(),
             pending_bytes: 0,
             cancel: opts.cancel.clone(),
+            began: Instant::now(),
+            tally: Tally::default(),
         }
     }
 }
@@ -123,6 +128,12 @@ impl Out<'_> {
 
     /// A contact, calendar item or note (anything else in their folders is left out).
     pub(super) fn add_pim(&mut self, it: Item) {
+        let began = Instant::now();
+        self.pim_of(it);
+        self.tally.since(Phase::Build, began);
+    }
+
+    fn pim_of(&mut self, it: Item) {
         let Some(x) = &it.extra else { return };
         let n = self.pim.events.len() + self.pim.cards.len() + self.pim.notes.len();
         let uid = format!("pst-{}-{n}@mailcraft.invalid", self.account);
@@ -169,7 +180,7 @@ impl Out<'_> {
         let Some(st) = self.states.get_mut(path) else { return };
         let uid = st.uid_next;
         let fallback = format!("pst.{}.{}.{uid}@mailcraft.invalid", self.account, self.imported);
-        let raw = match to_raw(&it, &fallback) {
+        let raw = match self.tally.time(Phase::Build, || to_raw(&it, &fallback)) {
             Ok(r) => r,
             Err(e) => {
                 log::info!("a message could not be rebuilt: {e}");
@@ -188,17 +199,21 @@ impl Out<'_> {
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
         st.uid_next = uid.saturating_add(1);
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-        st.waiting.push(summary_of(&raw, &it, key.clone(), size));
+        let summary = self.tally.time(Phase::Build, || summary_of(&raw, &it, key.clone(), size));
+        st.waiting.push(summary);
         let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         self.imported += 1;
         self.lose(SkipReason::RecipientWithoutAddress, it.recipients_without_address);
         // Compressed here, so the data file is held only to store it.
-        let prepared = Store::prepare(self.store.packs(self.account), raw);
+        let raw_len = raw.len();
+        let packs = self.store.packs(self.account);
+        let prepared = self.tally.time(Phase::Pack, || Store::prepare(packs, raw));
         // One that would take the batch past its size goes into the next (a big one alone).
         if self.pending_bytes.saturating_add(prepared.kept_len()) > BATCH_BYTES {
             self.flush();
         }
         self.pending_bytes = self.pending_bytes.saturating_add(prepared.kept_len());
+        self.tally.source(raw_len, prepared.kept_len(), self.pending_bytes);
         self.pending.push((key, prepared));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {
             self.flush();
@@ -221,7 +236,7 @@ impl Out<'_> {
         let batch = std::mem::take(&mut self.pending);
         self.pending_bytes = 0;
         let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
-        if let Err(e) = self.store.write_prepared(batch, false) {
+        if let Err(e) = self.tally.time(Phase::Write, || self.store.write_prepared(batch, false)) {
             log::warn!("import: {e}");
             for key in &keys {
                 if let Some(st) = self.states.get_mut(&key.folder) {
@@ -237,7 +252,7 @@ impl Out<'_> {
     fn list_out(&mut self, path: &str) {
         let Some(st) = self.states.get_mut(path) else { return };
         let ready = std::mem::take(&mut st.waiting);
-        if let Err(e) = st.list.push(self.store, ready) {
+        if let Err(e) = self.tally.time(Phase::Commit, || st.list.push(self.store, ready)) {
             log::warn!("import: {e}");
         }
     }
@@ -249,7 +264,7 @@ impl Out<'_> {
         self.list_out(path);
         let Some(st) = self.states.remove(path) else { return };
         let head = FolderState { validity: 1, uid_next: st.uid_next, ..Default::default() };
-        let (unread, total) = match st.list.finish(self.store, &head) {
+        let (unread, total) = match self.tally.time(Phase::Commit, || st.list.finish(self.store, &head)) {
             Ok(c) => c,
             Err(e) => {
                 log::warn!("import: {e}");
@@ -265,15 +280,20 @@ impl Out<'_> {
     /// The rest written out, and the data file sealed whatever happened: what went in without
     /// waiting for the disk is on it, and a crash after the import doesn't cost a check of the file.
     pub(super) fn finish(mut self) -> Result<Imported, String> {
-        let done = self.write_out();
+        let mut done = self.write_out();
         self.seal();
+        if let Ok(d) = &mut done {
+            // One lane reads, for now.
+            d.stats = self.tally.snapshot(self.began.elapsed(), 1);
+            log::info!("import: {}", serde_json::to_string(&d.stats).unwrap_or_default());
+        }
         done
     }
 
     /// What went in so far made durable, and the data file sealed: the end of every import,
     /// finished or given up on.
     pub(super) fn seal(&self) {
-        if let Err(e) = self.store.seal(self.account) {
+        if let Err(e) = self.tally.time(Phase::Commit, || self.store.seal(self.account)) {
             log::warn!("import: {e}");
         }
     }
@@ -290,11 +310,11 @@ impl Out<'_> {
         for p in unsaved {
             self.save_folder(&p);
         }
-        self.store.save_folders(self.account, &self.folders).map_err(|e| e.to_string())?;
+        self.tally.time(Phase::Commit, || self.store.save_folders(self.account, &self.folders)).map_err(|e| e.to_string())?;
         let (contacts, events, notes) = (self.pim.cards.len(), self.pim.events.len(), self.pim.notes.len());
         if contacts + events + notes > 0 {
             self.pim.ensure_defaults();
-            self.store.save_account_doc(self.account, PIM_DOC, &self.pim).map_err(|e| e.to_string())?;
+            self.tally.time(Phase::Commit, || self.store.save_account_doc(self.account, PIM_DOC, &self.pim)).map_err(|e| e.to_string())?;
         }
         if self.body_not_converted > 0 {
             log::info!("{} messages kept their body only as Rich Text that couldn't be read: they came in without one", self.body_not_converted);
@@ -308,6 +328,7 @@ impl Out<'_> {
             skipped: self.skipped,
             skips: std::mem::take(&mut self.skips),
             body_not_converted: self.body_not_converted,
+            stats: ImportStats::default(),
         })
     }
 }
