@@ -1461,6 +1461,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   files; a `winmail.dat` is one when it holds a file. A file whose Content-ID is only the name of
   a file the HTML links to stays a named file. That file now gives 12,696, the count its rebuilt
   sources give read back one by one.
+- **Pictures in the body keep their names:** a picture the HTML shows went out with no name
+  (76,712 of them in a 41 GB `.pst`'s import), so another client, or a saved copy of the message,
+  listed it as `attachment-1`. Sent mail, signatures and imported mail now write its name
+  (`filename=` and `name=`, as Outlook does; a pasted picture gets its type's extension). It
+  stays inline, and MailCraft gives it no paperclip while the HTML shows it.
 - **Search reads accents and dates:** a word is found whatever its accents, typed or written
   (`resume` finds "Résumé", `résumé` finds "resume", `strasse` "Straße"; Cyrillic keeps й, and
   other scripts are looked for as written). `received:` (also `sent:`, `date:`) takes a day, a

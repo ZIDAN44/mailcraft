@@ -575,7 +575,15 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
             let mut related = vec![alt];
             for p in &d.inline {
                 let mime = if p.mime.is_empty() { mime_from_name(&p.name).to_string() } else { p.mime.clone() };
-                related.push(MimePart::new(mime, p.data.as_slice()).inline().cid(p.cid.clone()));
+                // A named picture keeps its name (`filename=` and `name=`, as Outlook writes them), so a
+                // saved copy or another client's list shows it: still inline, and not a file while the
+                // HTML shows it.
+                let part = match files::picture_name(&p.name, &mime) {
+                    Some(name) => MimePart::new(ContentType::new(mime).attribute("name", name.clone()), p.data.as_slice())
+                        .header("Content-Disposition", ContentType::new("inline").attribute("filename", name)),
+                    None => MimePart::new(mime, p.data.as_slice()).inline(),
+                };
+                related.push(part.cid(p.cid.clone()));
             }
             let root = if related.len() == 1 { related.remove(0) } else { multipart("multipart/related", 2, related) };
             if files.is_empty() { root } else { multipart("multipart/mixed", 1, std::iter::once(root).chain(files).collect()) }

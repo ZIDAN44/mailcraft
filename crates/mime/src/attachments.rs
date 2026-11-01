@@ -251,7 +251,11 @@ pub fn draft_carries_files(d: &Draft) -> bool {
     let file = carries_file;
     let typed = |mime: &str, name: &str| if mime.is_empty() { mime_from_name(name).to_string() } else { mime.to_string() };
     d.attachments.iter().any(|a| file(&typed(&a.mime, &a.name), Some(&sanitize_filename(&a.name)), &a.data, &|| false))
-        || (d.html.is_some() && d.inline.iter().any(|p| file(&typed(&p.mime, &p.name), None, &p.data, &|| refs.shows(Some(&p.cid), None))))
+        || (d.html.is_some()
+            && d.inline.iter().any(|p| {
+                let mime = typed(&p.mime, &p.name);
+                file(&mime, crate::files::picture_name(&p.name, &mime).as_deref(), &p.data, &|| refs.shows(Some(&p.cid), None))
+            }))
 }
 
 pub(super) trait InlinePart {

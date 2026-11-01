@@ -766,7 +766,8 @@ fn imports_a_data_file() {
     assert!(p.had_html && p.text.contains("the plan"), "{}", p.text);
     let names: Vec<&str> = p.attachments.iter().map(|a| a.name.as_str()).collect();
     assert!(names.contains(&"notes.txt"), "{names:?}");
-    assert!(!names.contains(&"chart.png"), "the picture goes inline: {names:?}");
+    // The picture goes inline, under its own name.
+    assert!(p.attachments.iter().any(|a| a.name == "chart.png" && a.inline), "{names:?}");
 
     // Into a data file, each source compressed before the writer takes it, and the file sealed at
     // the end: the same folders and mail.

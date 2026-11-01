@@ -352,7 +352,8 @@ fn build_round_trips() {
 /// What `build` writes, byte for byte, for a message with every kind of part: three files (one
 /// an attached message with 8-bit text), two pictures its HTML shows, as written and as a
 /// signed message must be (7-bit). The digests were taken before `build` stopped copying its
-/// parts; the `X-Mailer` line, which carries the version, is left out.
+/// parts, and again when the pictures went out under their names; the `X-Mailer` line, which
+/// carries the version, is left out.
 #[test]
 fn build_writes_the_same_bytes_as_before() {
     let digest = |raw: &[u8]| {
@@ -389,8 +390,8 @@ fn build_writes_the_same_bytes_as_before() {
     let from = EmailAddress::new("Zoe Park", "zoe@studio.example");
     let raw = build(&d, &from, 1_791_963_000, "g1@studio.example").unwrap();
     let signed = build(&Draft { seven_bit: true, ..d.clone() }, &from, 1_791_963_000, "g1@studio.example").unwrap();
-    assert_eq!((raw.len(), digest(&raw)), (10059, 14_591_852_116_807_065_345));
-    assert_eq!((signed.len(), digest(&signed)), (10071, 18_382_107_805_992_298_373));
+    assert_eq!((raw.len(), digest(&raw)), (10123, 7_850_003_861_301_803_885));
+    assert_eq!((signed.len(), digest(&signed)), (10135, 17_852_924_195_389_485_945));
 }
 
 #[test]
@@ -413,6 +414,44 @@ fn formatted_mail_with_inline_pictures() {
     let pic = p.attachments.iter().find(|a| a.content_id.as_deref() == Some("pic1@mailcraft")).unwrap();
     assert!(pic.inline);
     assert_eq!(attachment_data(&raw, pic.index).unwrap(), vec![9, 9]);
+}
+
+/// A picture the HTML shows goes out under its name (`filename=` and `name=`, as Outlook writes
+/// them; one pasted in, `local3`, with its type's extension, and one in another script encoded),
+/// so another client and a saved copy have it, and it stays inline with no paperclip; shown by
+/// nothing, the same picture is a file. One without a name is written as before.
+#[test]
+fn a_named_inline_picture_keeps_its_name_and_no_paperclip() {
+    let png = b"\x89PNG\r\n\x1a\nfake".to_vec();
+    let pic = |cid: &str, name: &str| InlinePicture { cid: cid.into(), name: name.into(), mime: "image/png".into(), data: png.clone() };
+    let d = Draft {
+        to: vec![EmailAddress::new("", "ann@studio.example")],
+        subject: "Logo".into(),
+        body: "Hi".into(),
+        html: Some("<p>Hi</p><img src=\"cid:a@x\"><img src=\"cid:b@x\"><img src=\"cid:c@x\">".into()),
+        inline: vec![pic("a@x", "logo.png"), pic("b@x", "local3"), pic("c@x", "café.png")],
+        ..Default::default()
+    };
+    let raw = build(&d, &EmailAddress::new("", "z@studio.example"), 0, "n@x").unwrap();
+    let text = String::from_utf8_lossy(&raw);
+    assert!(text.contains("filename=\"logo.png\"") && text.contains("name=\"logo.png\""), "{text}");
+    let p = parse(&raw).unwrap();
+    let parts: Vec<_> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline, a.content_id.as_deref().unwrap_or_default())).collect();
+    assert_eq!(parts, [("logo.png", true, "a@x"), ("local3.png", true, "b@x"), ("café.png", true, "c@x")]);
+    assert!(!draft_carries_files(&d));
+    assert!(!summary_from_full(&raw, key(), Flags::default(), 0, 0).has_attachments);
+    let doc = index_doc(&raw);
+    assert_eq!((doc.files, doc.names.len()), (0, 0), "{:?}", doc.names);
+
+    let unshown = Draft { html: Some("<p>Hi</p>".into()), ..d.clone() };
+    let raw = build(&unshown, &EmailAddress::new("", "z@studio.example"), 0, "n@x").unwrap();
+    assert!(draft_carries_files(&unshown));
+    assert!(summary_from_full(&raw, key(), Flags::default(), 0, 0).has_attachments);
+
+    let unnamed = Draft { inline: vec![pic("a@x", " ")], ..d };
+    let raw = build(&unnamed, &EmailAddress::new("", "z@studio.example"), 0, "n@x").unwrap();
+    let text = String::from_utf8_lossy(&raw);
+    assert!(text.contains("Content-Disposition: inline\r\n") && !text.contains("filename"), "{text}");
 }
 
 #[test]

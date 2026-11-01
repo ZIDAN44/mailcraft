@@ -169,3 +169,25 @@ fn a_file_named_by_a_link_stays_a_file() {
     let full = mime::summary_from_full(&raw, key.clone(), Flags::default(), 0, 0);
     assert_eq!((summary_of(&raw, glance, key, 0).has_attachments, full.has_attachments), (true, true));
 }
+
+/// A picture the HTML shows comes in under its own name, still inline, and gives no paperclip:
+/// the import and the source read back agree. It went out unnamed, and showed as `attachment-1`.
+#[test]
+fn a_shown_picture_keeps_its_name() {
+    let it = Item {
+        subject: "Logo".into(),
+        from: EmailAddress::new("Ana", "ana@example.com"),
+        date: 1_704_067_200,
+        body: "Hi".into(),
+        html: Some("<p>Hi</p><img src=\"cid:logo@studio.example\">".into()),
+        files: vec![data_file("image001.png", "image/png", "logo@studio.example")],
+        ..Default::default()
+    };
+    let (raw, glance) = message(it, "logo@x").unwrap();
+    let p = mime::parse(&raw).unwrap();
+    let parts: Vec<_> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect();
+    assert_eq!(parts, [("image001.png", true)]);
+    let key = MessageKey { account: "d1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let full = mime::summary_from_full(&raw, key.clone(), Flags::default(), 0, 0);
+    assert_eq!((summary_of(&raw, glance, key, 0).has_attachments, full.has_attachments), (false, false));
+}

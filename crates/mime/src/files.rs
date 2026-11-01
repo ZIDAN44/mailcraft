@@ -243,6 +243,20 @@ pub(crate) fn ext_for_mime(mime: &str) -> &'static str {
     TYPES.iter().find(|(_, m)| *m == mime).map_or("", |(e, _)| e)
 }
 
+/// The name a picture the HTML shows goes out under: its own, made safe to save under, with the
+/// extension of its type when it has none (a picture pasted in is named `local3`); none when it
+/// has no name.
+pub(crate) fn picture_name(name: &str, mime: &str) -> Option<String> {
+    if name.trim().is_empty() {
+        return None;
+    }
+    let mut name = sanitize_filename(name);
+    if !has_extension(&name) {
+        name.push_str(ext_for_mime(mime));
+    }
+    Some(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
