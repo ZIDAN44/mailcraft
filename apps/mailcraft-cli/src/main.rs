@@ -190,6 +190,26 @@ impl Drop for SealOnExit {
     }
 }
 
+/// Say on standard error when a data file is checked as it opens (it wasn't closed properly,
+/// which can take minutes for a big one). Data files open when a command first uses them, so
+/// `help` and `commands` wait for none; this watches for as long as the command runs.
+fn tell_checks(store: &Store) {
+    use mailcraft_engine::store::OpenStage;
+    let watch = store.open_progress();
+    // No thread for it: the command still runs, untold.
+    let _ = std::thread::Builder::new().name("checks".into()).spawn(move || {
+        let mut told = String::new();
+        loop {
+            let file = watch.file();
+            if watch.stage() == OpenStage::Checking && file != told {
+                errln!("Checking {file}: it wasn't closed properly last time (a large file can take a minute or two)…");
+                told = file;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    });
+}
+
 fn run() -> Result<(), String> {
     // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
     let raw: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
@@ -207,6 +227,7 @@ fn run() -> Result<(), String> {
         _ => root.join(mailcraft_engine::store::location::FILES_FOLDER),
     };
     let store = Store::open_packed(&root, &files).map_err(|e| e.to_string())?;
+    tell_checks(&store);
     // Last out, however the command ends: the sync threads that hold the store are let go.
     let _sealed = SealOnExit(store.clone());
     let cmd = args.positional(0).unwrap_or_else(|| "help".into());

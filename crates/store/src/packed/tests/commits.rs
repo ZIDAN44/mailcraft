@@ -10,7 +10,7 @@ use super::*;
 /// This test binary again, running only `test` (an ignored one that does nothing unless `env`
 /// is set): a process that can be killed part-way. What it prints starts on the test harness's
 /// own line.
-fn child(test: &str, env: &[(&str, String)]) -> std::process::Child {
+pub(super) fn child(test: &str, env: &[(&str, String)]) -> std::process::Child {
     let mut cmd = std::process::Command::new(std::env::current_exe().unwrap());
     cmd.args(["--ignored", "--exact", test, "--nocapture", "--test-threads=1"])
         .stdout(std::process::Stdio::piped())
@@ -32,7 +32,7 @@ fn spread(mut v: Vec<f64>) -> (f64, f64, f64) {
     (at(0.5), v.iter().sum::<f64>() / v.len().max(1) as f64, at(0.9))
 }
 
-fn inbox(uid: u32) -> MessageKey {
+pub(super) fn inbox(uid: u32) -> MessageKey {
     MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid }
 }
 
@@ -221,7 +221,7 @@ fn killed_during_write_bodies() {
 }
 
 /// How many times opening `file` had to repair it, and whether `inbox(1)` then reads back.
-fn repairs_on_open(t: &std::path::Path, file: &std::path::Path) -> (u32, bool) {
+pub(super) fn repairs_on_open(t: &std::path::Path, file: &std::path::Path) -> (u32, bool) {
     let calls = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
     let seen = calls.clone();
     let db = redb::Database::builder()

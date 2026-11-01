@@ -9,23 +9,26 @@
 //! Data files are hostile input like everything else: one that can't be read is set aside
 //! (`.damaged`) and a new one started, never a crash. Folders from before (an account's folder
 //! of files in `<root>`) are brought into its data file when the store opens, and removed only
-//! once every file is in and read back.
+//! once every file is in and read back. The app opens its data files on a thread of its own
+//! (`open.rs`), as one not closed properly is checked as it opens, which can take minutes.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
-use crate::{CACHE, Prepared, Result, StoreError, io_err, write_atomic};
+use crate::{CACHE, OpenProgress, Prepared, Result, StoreError, io_err, write_atomic};
 
 mod commit;
 mod kept;
+mod open;
 use commit::*;
 use kept::*;
 pub(crate) use kept::{pack_owned, unpack};
+use open::*;
 
 /// A data file's extension.
 pub const EXTENSION: &str = "mailcraft";
@@ -49,10 +52,14 @@ enum Place {
 pub(crate) struct Packs {
     root: PathBuf,
     dir: PathBuf,
-    open: Mutex<HashMap<String, Arc<Database>>>,
+    open: Mutex<Open>,
+    /// An account's data file opened (or not), for those waiting on it.
+    opened: Condvar,
     names: Mutex<BTreeMap<String, String>>,
     /// Data files written since they were sealed.
     seals: Arc<Seals>,
+    /// How opening the data files goes (and a check of one, whoever opens it).
+    pub(crate) progress: Arc<OpenProgress>,
 }
 
 impl std::fmt::Debug for Packs {
@@ -64,11 +71,24 @@ impl std::fmt::Debug for Packs {
 impl Packs {
     /// Data files for the store at `root`, kept in `dir`; folders from before are brought in.
     pub(crate) fn open(root: &Path, dir: &Path) -> Result<Packs> {
-        fs::create_dir_all(dir).map_err(io_err(dir))?;
-        let names = fs::read(root.join(NAMES)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        let p = Packs { root: root.to_path_buf(), dir: dir.to_path_buf(), open: Mutex::default(), names: Mutex::new(names), seals: Arc::default() };
+        let p = Packs::new(root, dir)?;
         p.bring_in_folders()?;
         Ok(p)
+    }
+
+    /// Data files for the store at `root`, kept in `dir`, none of them opened yet.
+    pub(crate) fn new(root: &Path, dir: &Path) -> Result<Packs> {
+        fs::create_dir_all(dir).map_err(io_err(dir))?;
+        let names = fs::read(root.join(NAMES)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        Ok(Packs {
+            root: root.to_path_buf(),
+            dir: dir.to_path_buf(),
+            open: Mutex::default(),
+            opened: Condvar::new(),
+            names: Mutex::new(names),
+            seals: Arc::default(),
+            progress: Arc::default(),
+        })
     }
 
     pub(crate) fn dir(&self) -> &Path {
@@ -128,43 +148,6 @@ impl Packs {
             let _ = write_atomic(&self.root.join(NAMES), &json);
         }
         name
-    }
-
-    /// An account's open data file; `create` makes it when there's none. Looked up, named and
-    /// opened under one lock: an account's connections start together, and two threads opening
-    /// the file at once had the second refused by the first's lock on it ("open in another copy
-    /// of MailCraft") on Unix, or naming a second file beside it.
-    fn db(&self, account: &str, create: bool) -> io::Result<Option<Arc<Database>>> {
-        let mut open = Packs::lock(&self.open);
-        if let Some(db) = open.get(account) {
-            return Ok(Some(db.clone()));
-        }
-        let known = Packs::lock(&self.names).contains_key(account);
-        if !create && !known {
-            return Ok(None);
-        }
-        let path = self.dir.join(self.name(account));
-        if !create && !path.exists() {
-            return Ok(None);
-        }
-        let db = match Database::builder().set_cache_size(CACHE).create(&path) {
-            Ok(db) => db,
-            Err(redb::DatabaseError::DatabaseAlreadyOpen) => {
-                return Err(other(format!("{} is open in another copy of MailCraft", path.display())));
-            }
-            // The disk failing isn't damage (a file that isn't a data file is: InvalidData).
-            Err(redb::DatabaseError::Storage(redb::StorageError::Io(e))) if e.kind() != io::ErrorKind::InvalidData => return Err(e),
-            Err(e) => {
-                // Damaged: set aside, and start again (the server has the mail of most accounts).
-                let aside = path.with_extension(format!("{EXTENSION}.damaged"));
-                log::warn!("{}: {e}; set aside as {}", path.display(), aside.display());
-                fs::rename(&path, &aside)?;
-                Database::builder().set_cache_size(CACHE).create(&path).map_err(other)?
-            }
-        };
-        let db = Arc::new(db);
-        open.insert(account.to_string(), db.clone());
-        Ok(Some(db))
     }
 
     fn get(&self, account: &str, key: &str) -> io::Result<Option<Vec<u8>>> {
@@ -347,7 +330,7 @@ impl Packs {
     /// `.pst`: closed and no longer anyone's, so it can be opened again (File › Open & Export) and
     /// the same address added again gets a file of its own beside it. Returns the file.
     pub(crate) fn let_go(&self, account: &str) -> Option<PathBuf> {
-        Packs::lock(&self.open).remove(account);
+        self.close(account);
         self.seals.forget(account);
         let name = Packs::lock(&self.names).remove(account);
         if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
@@ -360,7 +343,7 @@ impl Packs {
         match self.place(p) {
             // The account goes: its data file with it.
             Place::Account(a) => {
-                let had = Packs::lock(&self.open).remove(&a).is_some();
+                let had = self.close(&a);
                 self.seals.forget(&a);
                 let name = Packs::lock(&self.names).remove(&a);
                 if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
@@ -495,7 +478,7 @@ impl Packs {
                 }
                 Err(e) => {
                     if !had_file {
-                        Packs::lock(&self.open).remove(&name);
+                        self.close(&name);
                         self.seals.forget(&name);
                         if let Some(f) = self.file(&name) {
                             let _ = fs::remove_file(f);

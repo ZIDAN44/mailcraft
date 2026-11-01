@@ -213,7 +213,7 @@ impl Seals {
 
 /// An empty sealed commit of `account`'s data file (durable: it also writes out the batches
 /// before it).
-fn seal(db: &Database, seals: &Seals, account: &str) -> io::Result<()> {
+pub(super) fn seal(db: &Database, seals: &Seals, account: &str) -> io::Result<()> {
     let mut tx = db.begin_write().map_err(other)?;
     tx.set_quick_repair(true);
     let before = seals.count(account, None);
@@ -314,7 +314,7 @@ impl Packs {
             w.closing = true;
             w.due.clear();
         }
-        let open: Vec<(String, Arc<Database>)> = Packs::lock(&self.open).iter().map(|(a, db)| (a.clone(), db.clone())).collect();
+        let open: Vec<(String, Arc<Database>)> = Packs::lock(&self.open).dbs.iter().map(|(a, db)| (a.clone(), db.clone())).collect();
         let mut done = Ok(());
         for (a, db) in open {
             if let Err(e) = seal(&db, &self.seals, &a) {

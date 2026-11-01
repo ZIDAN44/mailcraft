@@ -324,6 +324,17 @@ impl Store {
         Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default(), reads: Arc::default() })
     }
 
+    /// [`Store::open_packed`]'s cache with nothing opened yet: no data file, and no folder from
+    /// before brought in. [`Store::open_data_files`] does both, on a thread of its own, while the
+    /// window shows how it goes (an account's file opens when first used otherwise).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn packed(root: impl Into<PathBuf>, files: impl AsRef<Path>) -> Result<Store> {
+        let root = root.into();
+        private_dir(&root)?;
+        let packs = packed::Packs::new(&root, files.as_ref())?;
+        Ok(Store { files: Routed::new(&root, Files::Packed(Arc::new(packs))), root, changes: Arc::default(), reads: Arc::default() })
+    }
+
     /// A cache kept in memory only (clones share it).
     pub fn memory() -> Store {
         let root = PathBuf::from("memory");
@@ -553,12 +564,14 @@ use atomic::private_dir;
 pub use atomic::write_atomic;
 pub use bodies::Prepared;
 use files::{Files, Routed};
+pub use opening::{OpenProgress, OpenStage};
 
 mod accounts;
 mod atomic;
 mod bodies;
 mod files;
 mod folders;
+mod opening;
 
 #[cfg(test)]
 mod tests;

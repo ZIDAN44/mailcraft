@@ -3,6 +3,7 @@ use mailcraft_model::{AccountConfig, Flags, MessageKey, Summary};
 use crate::Store;
 
 mod commits;
+mod opening;
 
 fn temp(name: &str) -> std::path::PathBuf {
     let d = std::env::temp_dir().join(format!("mailcraft-packed-{name}-{}", std::process::id()));
