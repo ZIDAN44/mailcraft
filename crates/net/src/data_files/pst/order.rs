@@ -7,7 +7,8 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use super::lanes::{Ctx, Outcome};
 use super::*;
 
-/// The writer writes what it holds at least this often, whatever comes.
+/// The writer writes what it holds, and puts the folders finished in the folder list, at least
+/// this often, whatever comes.
 const FLUSH_EVERY: Duration = Duration::from_secs(1);
 
 /// One numbered thing for the writer to apply, with what it holds of the budget.
@@ -39,6 +40,7 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
     let mut next = 0u64;
     let mut paths: Vec<Option<String>> = Vec::new();
     let cap = ctx.budget.cap();
+    let mut flushed = Instant::now();
     loop {
         let began = Instant::now();
         let got = results.recv_timeout(FLUSH_EVERY);
@@ -49,6 +51,8 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
             }
             Err(RecvTimeoutError::Timeout) => {
                 out.flush();
+                out.publish(false);
+                flushed = Instant::now();
                 continue;
             }
             Err(RecvTimeoutError::Disconnected) => break,
@@ -65,6 +69,12 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
         // for room (not item by item, unless the budget is that small).
         if out.pending_charge > cap / 2 || (out.pending_charge >= cap / 8 && ctx.budget.waiting()) {
             out.flush();
+        }
+        // Results coming without a pause: the second's flush all the same.
+        if flushed.elapsed() >= FLUSH_EVERY {
+            out.flush();
+            out.publish(false);
+            flushed = Instant::now();
         }
     }
     // Everyone is gone: the rest in order. A number never sent is an item lost with its lane.

@@ -12,6 +12,9 @@ const BATCH_MESSAGES: usize = 2000;
 /// second. They're committed without waiting for the disk; each folder list, written after the
 /// sources it names, makes them durable.
 const BATCH_BYTES: usize = mailcraft_store::BACKGROUND_COMMIT;
+/// Finished folders go into the account's folder list together, at most this often: a write of
+/// the list for each would cost an import of many folders a time that grows with their square.
+const PUBLISH_EVERY: Duration = Duration::from_secs(1);
 
 /// A folder being read.
 pub(super) struct Open {
@@ -61,6 +64,10 @@ pub(super) struct Out<'a> {
     pub(super) tally: Arc<Tally>,
     /// The lanes that read the items.
     pub(super) lanes: u64,
+    /// Folders finished but not yet in the account's folder list, and when the list was last
+    /// written (none: not yet).
+    finished: Vec<Folder>,
+    published: Option<Instant>,
 }
 
 impl<'a> Out<'a> {
@@ -91,6 +98,8 @@ impl<'a> Out<'a> {
             began: Instant::now(),
             tally: Arc::default(),
             lanes: 1,
+            finished: Vec::new(),
+            published: None,
         }
     }
 }
@@ -326,8 +335,9 @@ impl Out<'_> {
     }
 
     /// Write a finished folder's list and counts, then let go of it (only the counts are needed
-    /// from here). It goes into the account's folder list, and the sink is told: the window
-    /// can show it while the rest of the file comes in.
+    /// from here). It goes into the account's folder list, with the others finished within a
+    /// second of it, and the sink is told: the window can show it while the rest of the file
+    /// comes in.
     pub(super) fn save_folder(&mut self, path: &str) {
         self.flush();
         self.list_out(path);
@@ -344,10 +354,29 @@ impl Out<'_> {
         f.unread = unread;
         f.total = total;
         let f = f.clone();
-        match self.tally.time(Phase::Commit, || self.store.upsert_folder(self.account, &f)) {
-            Ok(()) => self.sink.folder(&f),
-            // Added again by the save at the end.
-            Err(e) => log::warn!("import: {e}"),
+        self.finished.push(f);
+        self.publish(false);
+    }
+
+    /// The folders finished so far put in the account's folder list in one write, and said to
+    /// the sink, unless the list was written less than [`PUBLISH_EVERY`] ago (`now`: whenever).
+    /// A write that fails keeps them for the next, and says why.
+    pub(super) fn publish(&mut self, now: bool) -> Option<String> {
+        if self.finished.is_empty() || (!now && self.published.is_some_and(|t| t.elapsed() < PUBLISH_EVERY)) {
+            return None;
+        }
+        self.published = Some(Instant::now());
+        match self.tally.time(Phase::Commit, || self.store.upsert_folders(self.account, &self.finished)) {
+            Ok(()) => {
+                for f in std::mem::take(&mut self.finished) {
+                    self.sink.folder(&f);
+                }
+                None
+            }
+            Err(e) => {
+                log::warn!("import: {e}");
+                Some(e.to_string())
+            }
         }
     }
 
@@ -382,14 +411,10 @@ impl Out<'_> {
             self.save_folder(&p);
         }
         // A last save that fails doesn't take back what came in before it: it's said, with the
-        // counts, and the account is kept. Each folder is added to the list as it stands (one
-        // whose save failed as it finished, too): what the window changed meanwhile stays.
-        let mut last_save = None;
-        for f in &self.folders {
-            if let Err(e) = self.tally.time(Phase::Commit, || self.store.upsert_folder(self.account, f)) {
-                last_save.get_or_insert(e.to_string());
-            }
-        }
+        // counts, and the account is kept. The folders not in the list yet (one whose write
+        // failed as it finished, too) are added as they stand: what the window changed meanwhile
+        // stays.
+        let mut last_save = self.publish(true);
         let (contacts, events, notes) = (self.pim.cards.len(), self.pim.events.len(), self.pim.notes.len());
         if contacts + events + notes > 0 {
             self.pim.ensure_defaults();

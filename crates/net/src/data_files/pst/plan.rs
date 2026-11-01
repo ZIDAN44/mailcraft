@@ -5,7 +5,8 @@
 //! the order the writer applies them.
 //!
 //! The file's tables are hostile: a folder listed under itself (or under one below it) is read
-//! once, nesting stops at [`MAX_DEPTH`], and the folders and items planned are capped.
+//! once, nesting stops at [`MAX_DEPTH`], and the folders, the items of each and the items in all
+//! are capped. A folder the reader fails on (a panic) is left out, and the plan goes on.
 
 use std::collections::HashSet;
 use std::sync::mpsc::{Sender, SyncSender, TrySendError};
@@ -20,6 +21,8 @@ pub(super) const JOBS: usize = 1024;
 const MAX_FOLDERS: usize = 100_000;
 /// Items handed out, at most.
 const MAX_ITEMS: u64 = 10_000_000;
+/// Items read of one folder, at most.
+const MAX_ROWS: usize = 1_000_000;
 /// PidTagMessageSize: an item's size as the file gives it.
 const MESSAGE_SIZE: u16 = 0x0E08;
 
@@ -50,6 +53,8 @@ pub(super) struct Plan {
     pub(super) bytes: u64,
     /// Folders the plan left out, by reason.
     pub(super) lost: BTreeMap<SkipReason, usize>,
+    /// Past [`MAX_FOLDERS`] or [`MAX_ITEMS`]: nothing more is planned.
+    full: bool,
 }
 
 /// The folders a plan has taken, against the file going round in circles or on for ever.
@@ -86,16 +91,35 @@ impl Plan {
         let n = self.lost.entry(reason).or_default();
         *n = n.saturating_add(1);
     }
+
+    /// Nothing more is planned, said once.
+    fn fill(&mut self) {
+        if !self.full {
+            self.full = true;
+            self.lose(SkipReason::StoppedEarly);
+        }
+    }
 }
 
-/// The plan of the file `store` reads (stopping early, with what was planned, when `stopped`).
-pub(super) fn plan(store: &dyn PstStore, stopped: &dyn Fn() -> bool) -> io::Result<Plan> {
+/// The plan of the file `store` reads (stopping early, with what was planned, when the import
+/// stops).
+pub(super) fn plan(store: &dyn PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
     let top = store.properties().ipm_sub_tree_entry_id().and_then(|e| store.open_folder(&e))?;
     let mut plan = Plan::default();
     let mut guard = Guard::default();
     let outbox = special_folder(store, 0x35E2);
-    visit(store, &*top, None, 0, outbox, &mut guard, &mut plan, stopped);
+    visit(store, &*top, None, 0, outbox, &mut guard, &mut plan, ctx);
     Ok(plan)
+}
+
+/// What a folder is and holds, read under `catch_unwind`: the reader may panic on a damaged
+/// table.
+struct Looked {
+    sub: Rc<dyn PstFolder>,
+    rows: u64,
+    bytes: u64,
+    kind: Kind,
+    name: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -107,14 +131,23 @@ fn visit(
     outbox: Option<u32>,
     guard: &mut Guard,
     plan: &mut Plan,
-    stopped: &dyn Fn() -> bool,
+    ctx: &Ctx<'_>,
 ) {
-    let Some(table) = folder.hierarchy_table() else { return };
-    for row in table.rows_matrix() {
-        if stopped() {
+    let listed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        folder.hierarchy_table().map(|t| t.rows_matrix().take(MAX_FOLDERS).map(|row| u32::from(row.id())).collect::<Vec<_>>())
+    }));
+    let nodes = match listed {
+        Ok(nodes) => nodes.unwrap_or_default(),
+        Err(_) => {
+            log::info!("a folder's subfolders could not be read: the reader failed on them");
+            plan.lose(SkipReason::FolderUnreadable);
             return;
         }
-        let node = u32::from(row.id());
+    };
+    for node in nodes {
+        if ctx.stopped() || plan.full {
+            return;
+        }
         match guard.admit(node, depth) {
             Ok(()) => {}
             Err(Refused::Again) => {
@@ -127,36 +160,59 @@ fn visit(
                 continue;
             }
             Err(Refused::TooMany) => {
-                plan.lose(SkipReason::StoppedEarly);
+                plan.fill();
                 return;
             }
         }
-        let sub = match store.properties().make_entry_id(NodeId::from(node)).and_then(|e| store.open_folder(&e)) {
-            Ok(f) => f,
-            Err(e) => {
+        let looked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| look(store, node, plan.folders.len(), ctx)));
+        let Looked { sub, rows, bytes, kind, name } = match looked {
+            Ok(Ok(l)) => l,
+            Ok(Err(e)) => {
                 log::info!("a folder could not be read: {e}");
                 plan.lose(SkipReason::FolderUnreadable);
                 continue;
             }
+            Err(_) => {
+                log::info!("a folder could not be read: the reader failed on it");
+                plan.lose(SkipReason::FolderUnreadable);
+                continue;
+            }
         };
-        let (rows, bytes) = sub.contents_table().map_or((0, 0), |t| sizes(&**t).fold((0u64, 0u64), |(n, b), (_, s)| (n + 1, b.saturating_add(s))));
         // Outlook's own Outbox, when it has nothing waiting (MailCraft has an Outbox of its own).
         if rows == 0 && outbox == Some(node) {
             continue;
         }
-        let kind = classify(&sub.properties().get(0x3613).and_then(text_of).unwrap_or_default());
-        let name = sub.properties().get(0x3001).and_then(text_of).unwrap_or_default();
         let index = plan.folders.len();
         plan.folders.push(PlanFolder { node, parent, name, kind, rows });
         if kind != Kind::LeftOut {
             plan.items = plan.items.saturating_add(rows);
             plan.bytes = plan.bytes.saturating_add(bytes);
+            if plan.items >= MAX_ITEMS {
+                plan.fill();
+                return;
+            }
         }
         // The folders under a mail folder go in it; those under any other, beside it (mail
         // comes in, and ones of its kind are read too).
         let under = if kind == Kind::Mail { Some(index) } else { parent };
-        visit(store, &*sub, under, depth + 1, outbox, guard, plan, stopped);
+        visit(store, &*sub, under, depth + 1, outbox, guard, plan, ctx);
     }
+}
+
+/// The folder at `node` (the plan's `index`th) opened, with what it is and holds.
+fn look(store: &dyn PstStore, node: u32, index: usize, ctx: &Ctx<'_>) -> io::Result<Looked> {
+    #[cfg(test)]
+    if let Some(super::lanes::tests::Fault::PlanAt(n)) = ctx.opts.fault
+        && index == n
+    {
+        panic!("a test's plan fault");
+    }
+    let _ = (index, ctx);
+    let sub = store.properties().make_entry_id(NodeId::from(node)).and_then(|e| store.open_folder(&e))?;
+    let (rows, bytes) = sub.contents_table().map_or((0, 0), |t| sizes(&**t).fold((0u64, 0u64), |(n, b), (_, s)| (n + 1, b.saturating_add(s))));
+    let kind = classify(&sub.properties().get(0x3613).and_then(text_of).unwrap_or_default());
+    let name = sub.properties().get(0x3001).and_then(text_of).unwrap_or_default();
+    Ok(Looked { sub, rows, bytes, kind, name })
 }
 
 /// What a folder of class `class` comes in as: no class is mail, in old files.
@@ -173,12 +229,12 @@ fn classify(class: &str) -> Kind {
     }
 }
 
-/// A contents table's items: each one's node and the size the file gives it (0 when it gives
-/// none, or one that isn't a size).
+/// A contents table's items, the first [`MAX_ROWS`]: each one's node and the size the file gives
+/// it (0 when it gives none, or one that isn't a size).
 fn sizes<'a>(table: &'a dyn TableContext) -> impl Iterator<Item = (u32, u64)> + 'a {
     let context = table.context();
     let column = context.columns().iter().position(|c| c.prop_id() == MESSAGE_SIZE);
-    table.rows_matrix().map(move |row| {
+    table.rows_matrix().take(MAX_ROWS).map(move |row| {
         let size = column
             .and_then(|i| {
                 let values = row.columns(context).ok()?;

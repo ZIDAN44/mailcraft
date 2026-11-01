@@ -14,6 +14,7 @@ use pst_rw::{
 
 use super::super::lanes::MAX_PANICS;
 use super::super::lanes::tests::Fault;
+use super::super::out::Out;
 use super::super::{ImportOptions, ImportSink, Imported, Progress, SkipReason, import_into, import_with};
 
 /// A data file with mail in three folders, two nested: plain and HTML messages, some with a file
@@ -221,6 +222,25 @@ fn a_planner_panic_keeps_the_folders_read() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The reader failing on a folder as the file is planned, before any item is read: that folder
+/// (and those under it) are left out and counted, and the ones planned before and after it come
+/// in, rather than the import failing as a damaged file.
+#[test]
+fn a_panic_while_planning_keeps_the_other_folders() {
+    let (dir, pst) = data_file("plan", 30, false);
+    let store = Store::memory();
+    let (path, s) = (pst.clone(), store.clone());
+    let opts = ImportOptions { lanes: 4, fault: Some(Fault::PlanAt(2)), ..ImportOptions::default() };
+    let done = within_a_minute(move || run(&path, &s, "x5", &opts));
+    let paths: Vec<&str> = done.folders.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(paths, ["Deleted Items", "INBOX"], "{done:?}");
+    assert_eq!(done.messages, 30);
+    assert_eq!(store.load_folder("x5", "INBOX").unwrap().messages.len(), 30);
+    assert_eq!(done.skips.get(&SkipReason::FolderUnreadable), Some(&1), "{done:?}");
+    assert_eq!(store.load_folders("x5").unwrap(), done.folders);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The writer panicking part-way: the import comes back (the lanes and the planner are told to
 /// stop, and nothing waits on the writer), with what was written kept.
 #[test]
@@ -273,4 +293,34 @@ fn each_folder_is_said_once_as_it_finishes() {
     assert_eq!((last.read, last.total), (600, 630));
     assert!(last.bytes_done <= last.bytes_total);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Folders finished close together go into the account's folder list in one write, not one
+/// each: a file of thousands of folders doesn't cost a time that grows with their square.
+#[test]
+fn folders_finished_together_are_listed_in_one_write() {
+    /// The length of the folder list on disk each time a folder is said.
+    struct Lengths<'s>(&'s Store, Vec<usize>);
+    impl ImportSink for Lengths<'_> {
+        fn progress(&mut self, _: Progress) {}
+        fn folder(&mut self, _: &Folder) {
+            self.1.push(self.0.load_folders("f1").unwrap().len());
+        }
+    }
+    let store = Store::memory();
+    let mut sink = Lengths(&store, Vec::new());
+    let began = std::time::Instant::now();
+    let mut out = Out::new(&store, "f1", &ImportOptions::default(), &mut sink);
+    for n in 0..500 {
+        let path = out.add_folder(None, &format!("Folder {n}"));
+        out.save_folder(&path);
+    }
+    let done = out.finish();
+    let secs = usize::try_from(began.elapsed().as_secs()).unwrap();
+    assert_eq!(done.last_save, None);
+    assert_eq!(store.load_folders("f1").unwrap().len(), 501, "with an Inbox");
+    let mut writes = sink.1.clone();
+    assert_eq!(writes.len(), 501, "each said once");
+    writes.dedup();
+    assert!(writes.len() <= secs + 2, "{} writes in {secs} s", writes.len());
 }

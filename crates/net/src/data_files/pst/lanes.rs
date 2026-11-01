@@ -7,7 +7,7 @@
 
 use std::cell::OnceCell;
 use std::sync::atomic::AtomicUsize;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Mutex, PoisonError};
 
 use super::budget::{Budget, held};
@@ -71,8 +71,9 @@ pub(super) struct Ctx<'a> {
     pub(super) halt: AtomicBool,
     pub(super) damaged: AtomicBool,
     panics: AtomicUsize,
-    /// Lanes still reading.
+    /// Lanes still reading, and whether the last went with work left to read.
     pub(super) live: AtomicUsize,
+    pub(super) orphaned: AtomicBool,
     /// Which kind of file it is, once the planner has opened it: 1 Unicode, 2 the older ANSI.
     pub(super) format: std::sync::atomic::AtomicU8,
     /// Items the lanes have taken, for a test's faults.
@@ -94,6 +95,7 @@ impl<'a> Ctx<'a> {
             damaged: AtomicBool::new(false),
             panics: AtomicUsize::new(0),
             live: AtomicUsize::new(0),
+            orphaned: AtomicBool::new(false),
             format: std::sync::atomic::AtomicU8::new(0),
             #[cfg(test)]
             items_taken: std::sync::atomic::AtomicU64::new(0),
@@ -162,6 +164,19 @@ pub(super) fn run(ctx: &Ctx<'_>, jobs: &Jobs, results: &Sender<Done>) {
     }
 }
 
+/// `n` lanes are gone. The last (every one could fail to open the file, or not start): nothing
+/// would take the planner's jobs, so the import stops, and if the planner had more to hand out
+/// (it hasn't said it's done), the file wasn't read to its end.
+pub(super) fn gone(ctx: &Ctx<'_>, jobs: &Jobs, n: usize) {
+    if ctx.live.fetch_sub(n, Ordering::AcqRel) == n {
+        let done = matches!(jobs.lock().unwrap_or_else(PoisonError::into_inner).try_recv(), Err(TryRecvError::Disconnected));
+        if !done && !ctx.stopped() {
+            ctx.orphaned.store(true, Ordering::Relaxed);
+        }
+        ctx.stop();
+    }
+}
+
 /// Answers a job when dropped, unless it was answered: a lane that unwinds with a job in hand
 /// still answers it, so the writer, which applies items in order, never waits for one.
 struct Answer<'a> {
@@ -216,9 +231,11 @@ fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &R
                 Outcome::Unreadable
             }
         };
-        // What the writer holds from here is the source as kept: the rest goes back now.
+        // What the writer holds from here is the source as kept, or the contact or calendar item
+        // as read (until it's added): the rest goes back now.
         let kept = match &outcome {
             Outcome::Built(b) => u64::try_from(b.prepared.kept_len()).unwrap_or(u64::MAX).min(charge),
+            Outcome::Pim(it) => weight(it).min(charge),
             _ => 0,
         };
         ctx.budget.release(charge.saturating_sub(kept));
@@ -237,10 +254,7 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
             return Outcome::Unreadable;
         }
     };
-    if job.pim {
-        return Outcome::Pim(Box::new(it));
-    }
-    if !is_mail(&it.class) {
+    if !job.pim && !is_mail(&it.class) {
         return Outcome::NotMail;
     }
     // An item bigger than the file said waits for room for what it is (unless it's the one the
@@ -251,6 +265,9 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
             return Outcome::Stopped;
         }
         *charge = need;
+    }
+    if job.pim {
+        return Outcome::Pim(Box::new(it));
     }
     let fallback = format!("pst.{}.{}.{:x}@mailcraft.invalid", ctx.account, ctx.filetag, job.node);
     build(it, &fallback, ctx.packs, &ctx.tally)
@@ -421,6 +438,8 @@ pub(super) mod tests {
         PanicAlways,
         /// The planner panics once it has handed out this many items.
         PlannerAfter(u64),
+        /// …or as it plans the folder that is this many into the file (from 0).
+        PlanAt(usize),
         /// The writer panics on applying this many items.
         WriterAfter(u64),
         /// The file says every item is a byte.

@@ -344,6 +344,10 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     {
         return Err("this is Outlook's offline copy of a server account (.ost), not a data file: add the account itself to see its mail".into());
     }
+    // Kept from writers from here until the import is done, whichever handles are reading it
+    // meanwhile (they all go before the writer is). A file this can't open, the planner can't
+    // either, and says why.
+    let _held = open::open_read(path).ok();
     let ctx = lanes::Ctx::new(path, opts, account, &out);
     let lanes = ctx.lanes();
     out.lanes = u64::try_from(lanes).unwrap_or(u64::MAX);
@@ -351,23 +355,9 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     let jobs: lanes::Jobs = std::sync::Mutex::new(job_rx);
     let (tx, rx) = std::sync::mpsc::channel();
     let (planned, wrote) = std::thread::scope(|s| {
-        let feed = plan::Feed { seq: 0, jobs: job_tx, results: tx.clone() };
         let (ctx, jobs) = (&ctx, &jobs);
-        let planner = s.spawn(move || std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| planner(ctx, feed))));
-        ctx.live.store(lanes, Ordering::Relaxed);
-        for _ in 0..lanes {
-            let tx = tx.clone();
-            s.spawn(move || {
-                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lanes::run(ctx, jobs, &tx)));
-                // The last lane gone (every one could fail to open the file): nothing would
-                // take the planner's jobs, so it stops.
-                if ctx.live.fetch_sub(1, Ordering::Relaxed) == 1 {
-                    ctx.stop();
-                }
-            });
-        }
-        drop(tx);
-        // Whatever becomes of the writer, every other thread stops when it does.
+        // Whatever becomes of the writer (or of starting the threads), every other thread stops
+        // when it does.
         struct StopAll<'c, 'a>(&'c lanes::Ctx<'a>);
         impl Drop for StopAll<'_, '_> {
             fn drop(&mut self) {
@@ -375,14 +365,47 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
             }
         }
         let stop_all = StopAll(ctx);
+        let feed = plan::Feed { seq: 0, jobs: job_tx, results: tx.clone() };
+        let planner = std::thread::Builder::new()
+            .spawn_scoped(s, move || std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| planner(ctx, feed))))
+            .map_err(|e| log::warn!("import: the planner could not start: {e}"))
+            .ok();
+        ctx.live.store(lanes, Ordering::Relaxed);
+        let mut started = 0;
+        if planner.is_some() {
+            for _ in 0..lanes {
+                let tx = tx.clone();
+                let lane = std::thread::Builder::new().spawn_scoped(s, move || {
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lanes::run(ctx, jobs, &tx)));
+                    lanes::gone(ctx, jobs, 1);
+                });
+                if let Err(e) = lane {
+                    log::warn!("import: a reader could not start: {e}");
+                    break;
+                }
+                started += 1;
+            }
+        }
+        // The lanes that didn't start are gone too: none at all, and the import stops.
+        if started < lanes {
+            lanes::gone(ctx, jobs, lanes - started);
+        }
+        drop(tx);
         let wrote = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| order::write(&mut out, ctx, &rx)));
         drop(stop_all);
         drop(rx);
-        let planned = planner.join().unwrap_or_else(Err);
-        (planned, wrote)
+        (planner.map(|p| p.join().unwrap_or_else(Err)), wrote)
     });
+    let Some(planned) = planned else {
+        out.seal();
+        return Err("the import could not start: the computer is short of resources; try again".into());
+    };
     if wrote.is_err() {
         log::warn!("{}: the import stopped writing; what was written is kept", path.display());
+        out.lose(SkipReason::StoppedEarly, 1);
+    }
+    if ctx.orphaned.load(Ordering::Relaxed) {
+        log::warn!("{}: no reader was left to read the data file; stopped reading", path.display());
         out.lose(SkipReason::StoppedEarly, 1);
     }
     if ctx.damaged.load(Ordering::Relaxed) {
@@ -457,8 +480,7 @@ fn run_plan(
     source: &Shared,
     pages: &chunked::Pages,
 ) -> io::Result<()> {
-    let stopped = || ctx.stopped();
-    let planned = plan::plan(store, &stopped);
+    let planned = plan::plan(store, ctx);
     ctx.tally.since(Phase::Plan, began);
     let planned = planned?;
     plan::stream(store, &planned, feed, ctx);

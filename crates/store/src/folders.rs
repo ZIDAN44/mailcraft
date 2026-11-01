@@ -265,14 +265,29 @@ impl Store {
     /// that one's counts: an import adds each folder as it finishes, and what the window changed
     /// meanwhile (a folder renamed, another's counts) stays. Nothing is ever taken out.
     pub fn upsert_folder(&self, account: &str, folder: &Folder) -> Result<()> {
+        self.upsert_folders(account, std::slice::from_ref(folder))
+    }
+
+    /// [`Store::upsert_folder`] for each of `folders`, in one write of the list: an import's
+    /// folders finished together cost one write, however many there are.
+    pub fn upsert_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
+        if folders.is_empty() {
+            return Ok(());
+        }
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut list = self.load_folders(account)?;
-        match list.iter_mut().find(|f| f.path == folder.path) {
-            Some(f) => {
-                f.unread = folder.unread;
-                f.total = folder.total;
+        let mut at: std::collections::HashMap<String, usize> = list.iter().enumerate().map(|(i, f)| (f.path.clone(), i)).collect();
+        for folder in folders {
+            match at.get(&folder.path).and_then(|i| list.get_mut(*i)) {
+                Some(f) => {
+                    f.unread = folder.unread;
+                    f.total = folder.total;
+                }
+                None => {
+                    at.insert(folder.path.clone(), list.len());
+                    list.push(Folder { account: account.to_string(), ..folder.clone() });
+                }
             }
-            None => list.push(Folder { account: account.to_string(), ..folder.clone() }),
         }
         self.write_folders(account, &list)
     }
