@@ -91,6 +91,37 @@ fn msg(uid: u32, seen: bool) -> Summary {
     }
 }
 
+/// An import adding folders as they finish while the window writes counts: every folder is
+/// kept, with the counts last set for it.
+#[test]
+fn folder_upserts_and_counts_interleaved_lose_nothing() {
+    let s = temp_store("upserts");
+    let folder = |i: usize| Folder { account: "a1".into(), path: format!("F{i}"), delimiter: Some('/'), total: 1, ..Default::default() };
+    s.save_folders("a1", &[folder(0)]).unwrap();
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            for i in 1..120 {
+                s.upsert_folder("a1", &folder(i)).unwrap();
+            }
+        });
+        scope.spawn(|| {
+            for n in 0..120u32 {
+                s.update_folder_counts("a1", &[("F0".into(), n % 3, n + 1)]).unwrap();
+            }
+        });
+    });
+    let list = s.load_folders("a1").unwrap();
+    assert_eq!(list.len(), 120, "{:?}", list.iter().map(|f| &f.path).collect::<Vec<_>>());
+    assert_eq!((list[0].unread, list[0].total), (119 % 3, 120));
+    // Upserted again (a folder the import finished twice): only its counts change.
+    s.upsert_folder("a1", &Folder { total: 7, unread: 2, role: mailcraft_model::FolderRole::Trash, ..folder(5) }).unwrap();
+    let f5 = s.load_folders("a1").unwrap().into_iter().find(|f| f.path == "F5").unwrap();
+    assert_eq!((f5.total, f5.unread, f5.role), (7, 2, mailcraft_model::FolderRole::Other));
+    // Counts for a folder the list doesn't have add nothing.
+    s.update_folder_counts("a1", &[("Gone".into(), 1, 1)]).unwrap();
+    assert_eq!(s.load_folders("a1").unwrap().len(), 120);
+}
+
 #[test]
 fn accounts_folders_and_state_round_trip() {
     let s = temp_store("rt");

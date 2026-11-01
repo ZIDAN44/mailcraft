@@ -185,23 +185,26 @@ impl Session {
             let st = self.folder_state(account, &p);
             counts.push((p, st.unread(), u32::try_from(st.messages.len()).unwrap_or(u32::MAX)));
         }
-        let mut changed = false;
         if let Some(a) = self.account_mut(account) {
-            for (p, unread, total) in counts {
-                if let Some(f) = a.folders.iter_mut().find(|f| f.path == p)
-                    && (f.unread != unread || f.total != total)
-                {
-                    f.unread = unread;
-                    f.total = total;
-                    changed = true;
+            for (p, unread, total) in &counts {
+                if let Some(f) = a.folders.iter_mut().find(|f| f.path == *p) {
+                    f.unread = *unread;
+                    f.total = *total;
                 }
             }
         }
-        // Local accounts have no server to report counts: keep them on disk.
-        if changed
-            && let (Some(store), Some(a)) = (&self.store, self.account(account))
-            && let Err(e) = store.save_folders(account, &a.folders)
-        {
+        // Local accounts have no server to report counts: keep them on disk. Only the counts, in
+        // the list as it is there (written only when they differ): an import adds its folders
+        // to it as they finish, and the list held here may not have them yet. Compared with
+        // the disk, not with the list here, which a flag change has counted already. A list on
+        // disk that has none of them (it was damaged and set aside) is written again from here.
+        let Some(store) = &self.store else { return };
+        let saved = match store.update_folder_counts(account, &counts) {
+            Ok(0) if !counts.is_empty() => self.account(account).filter(|a| !a.folders.is_empty()).map(|a| store.save_folders(account, &a.folders)),
+            Ok(_) => None,
+            Err(e) => Some(Err(e)),
+        };
+        if let Some(Err(e)) = saved {
             log::warn!("{account}: folder counts not saved: {e}");
         }
     }

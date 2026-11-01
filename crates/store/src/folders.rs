@@ -209,6 +209,7 @@ impl Store {
     /// Folder-list changes: `folders.json` is updated and each folder's cache moves with it (or
     /// goes, for a deleted folder). Returns the folders whose contents should be shown afresh.
     pub(super) fn apply_folder_op(&self, account: &str, op: &Op) -> Result<Vec<String>> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut list = self.load_folders(account)?;
         let delimiter = list.iter().find_map(|f| f.delimiter);
         let changed = match op {
@@ -256,7 +257,44 @@ impl Store {
             Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => Vec::new(),
         };
         mailcraft_model::sort_folders(&mut list);
-        self.save_folders(account, &list)?;
+        self.write_folders(account, &list)?;
         Ok(changed)
+    }
+
+    /// Add `folder` to the account's list, or, when the list has a folder at its path, set only
+    /// that one's counts: an import adds each folder as it finishes, and what the window changed
+    /// meanwhile (a folder renamed, another's counts) stays. Nothing is ever taken out.
+    pub fn upsert_folder(&self, account: &str, folder: &Folder) -> Result<()> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut list = self.load_folders(account)?;
+        match list.iter_mut().find(|f| f.path == folder.path) {
+            Some(f) => {
+                f.unread = folder.unread;
+                f.total = folder.total;
+            }
+            None => list.push(Folder { account: account.to_string(), ..folder.clone() }),
+        }
+        self.write_folders(account, &list)
+    }
+
+    /// Set the counts (`path`, unread, total) of the account's folders that are in its list, as
+    /// the list stands now: a list held elsewhere (the window's) written whole would drop the
+    /// folders an import added since it was read. Says how many of them the list has.
+    pub fn update_folder_counts(&self, account: &str, counts: &[(String, u32, u32)]) -> Result<usize> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut list = self.load_folders(account)?;
+        let (mut found, mut changed) = (0, false);
+        for (path, unread, total) in counts {
+            if let Some(f) = list.iter_mut().find(|f| f.path == *path) {
+                found += 1;
+                changed |= f.unread != *unread || f.total != *total;
+                f.unread = *unread;
+                f.total = *total;
+            }
+        }
+        if changed {
+            self.write_folders(account, &list)?;
+        }
+        Ok(found)
     }
 }

@@ -529,7 +529,16 @@ impl Store {
         self.read_json(&self.account_dir(account).join("folders.json"))
     }
 
+    /// Keep an account's folder list as it is now. It's written under the same lock as
+    /// [`Store::upsert_folder`] and [`Store::update_folder_counts`], so a list read before one of
+    /// those and written after can't be half of each.
     pub fn save_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.write_folders(account, folders)
+    }
+
+    /// [`Store::save_folders`] with the lock held already.
+    fn write_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
         self.write_json(&self.account_dir(account).join("folders.json"), folders)
     }
 }

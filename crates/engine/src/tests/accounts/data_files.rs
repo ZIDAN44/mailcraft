@@ -57,6 +57,27 @@ fn pop_accounts_download_and_can_start_from_a_data_file() {
     let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
 }
 
+/// A local account's counts saved while an import adds folders to its list: the folders the
+/// window doesn't know yet stay in the list on disk.
+#[test]
+fn counts_saved_during_an_import_keep_its_folders() {
+    let mut s = sample_session("recount-upsert");
+    let store = s.store.clone().unwrap();
+    let added = mailcraft_model::Folder { account: "sample".into(), path: "Imported".into(), delimiter: Some('/'), total: 3, ..Default::default() };
+    store.upsert_folder("sample", &added).unwrap();
+    s.run("list.selectAll", &json!({})).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    let on_disk = store.load_folders("sample").unwrap();
+    assert!(on_disk.iter().any(|f| f.path == "Imported" && f.total == 3), "{:?}", on_disk.iter().map(|f| &f.path).collect::<Vec<_>>());
+    // The counts saved all the same: as the window has them.
+    let View::Folder { folder, .. } = s.view.clone() else { panic!("{:?}", s.view) };
+    let held = s.folder("sample", &folder).unwrap();
+    assert_eq!(held.unread, 0);
+    let saved = on_disk.iter().find(|f| f.path == folder).unwrap();
+    assert_eq!((saved.unread, saved.total), (held.unread, held.total));
+    done(s);
+}
+
 #[test]
 fn outlook_data_files_open_as_accounts_on_this_computer() {
     let mut s = sample_session("pst");
