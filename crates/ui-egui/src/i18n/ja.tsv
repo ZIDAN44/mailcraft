@@ -503,7 +503,6 @@ month	May	5月
 	Outlook data file	Outlook データ ファイル
 	Opened from an Outlook data file, kept on this computer only	Outlook データ ファイルから開いたもので、このコンピューターにのみ保存されています
 	Not available: a data file has no server.	利用できません: データ ファイルにはサーバーがありません。
-	Opening {file}…	{file} を開いています…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	サーバー: {url} (Microsoft Graph)
@@ -1380,3 +1379,86 @@ month	May	5月
 	Couldn't read the date “{value}”	日付「{value}」を読み取れませんでした
 	Received after	受信日 (以降)
 	Received before	受信日 (以前)
+	About {h} h {m} min left	残り約 {h} 時間 {m} 分
+	About {n} min left	残り約 {n} 分
+	Another program is using the data file.	別のプログラムがデータ ファイルを使用しています。
+	Calendar items: {n}	予定表のアイテム: {n}
+	Close MailCraft	MailCraft を閉じる
+	Contacts: {n}	連絡先: {n}
+	Continue importing	取り込みを続ける
+	Counting items…	アイテムを数えています…
+	Data: {done} of {total}	データ: {done} / {total}
+	Folder: {folder} ({n} of {total})	フォルダー: {folder} ({n} / {total})
+	Free there: {free}	そこの空き容量: {free}
+	Go to Inbox	受信トレイへ移動
+	Go to it	そこへ移動
+	Import another copy	別のコピーとして取り込む
+	Import paused	取り込みを一時停止中
+	Import report…	取り込みの結果…
+	Import stopped	取り込みを停止しました
+	Import stopped: {done} of {total}	取り込みを停止しました: {done} / {total}
+	Import stopped: {file}	取り込みを停止しました: {file}
+	Imported {file}	{file} を取り込みました
+	Importing {file}…	{file} を取り込んでいます…
+	Importing {file}… {percent}%	{file} を取り込んでいます… {percent}%
+	Importing {folder}…	{folder} を取り込んでいます…
+	Importing {folder}… {percent}%	{folder} を取り込んでいます… {percent}%
+	Importing {percent}%	取り込み中 {percent}%
+	Importing…	取り込んでいます…
+	Keep importing	取り込みを続ける
+	Keep what's imported	取り込んだ分を残す
+	Less than a minute left	残り 1 分未満
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft は {file} を取り込んでいます ({percent}%)。今閉じると、次に MailCraft を開いたときに取り込みが続きます。
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft は {file} を取り込んでいます。今閉じると、次に MailCraft を開いたときに取り込みが続きます。
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft は約 {size} の独自のコピーを {folder} に作成します。
+	Messages: {done} of {total}	メッセージ: {done} / {total}
+	Not brought in	取り込めなかったもの
+	Not brought in so far: {n}	これまでに取り込めなかったもの: {n}
+	Notes: {n}	メモ: {n}
+	Open an Outlook data file…	Outlook データ ファイルを開く…
+	Removing…	削除しています…
+	Saved in: {path}	保存先: {path}
+	Show how the import is going	取り込みの状況を表示
+	Start again	最初からやり直す
+	Stop	停止
+	Stop importing and remove {file}?	取り込みを停止して {file} を削除しますか?
+	Stop importing {file}?	{file} の取り込みを停止しますか?
+	Stop importing…	取り込みを停止…
+	Stopping the import of {file}…	{file} の取り込みを停止しています…
+	Stopping…	停止しています…
+	The data file changed after the import began.	取り込みの開始後にデータ ファイルが変更されました。
+	The data file isn't where it was.	データ ファイルが元の場所にありません。
+	The file is damaged: reading stopped early ({n})	ファイルが破損しています: 途中で読み込みを停止しました ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	これまでに取り込んだ部分は削除されます。データ ファイル自体は変更されません。
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	コピーを置く空き容量がありません。空き容量を増やすか、MailCraft のデータ フォルダーを移動してください (ファイル › オプション)。
+	There's too little room left on the drive ({free} free).	ドライブの空き容量が足りません (空き {free})。
+	This data file is already open as {name}.	このデータ ファイルは既に {name} として開いています。
+	This file couldn't be looked at: {error}	このファイルを調べられませんでした: {error}
+	What came in goes, and the data file is read from its start.	取り込んだ分は削除され、データ ファイルを最初から読み込みます。
+	What's imported so far is kept. You can continue later.	これまでに取り込んだ分は残ります。後で続けることができます。
+	{h} h {m} min	{h} 時間 {m} 分
+	{items} items in {folders} folders	{folders} 個のフォルダーに {items} 個のアイテム
+	{messages} messages in {folders} folders ({time})	{folders} 個のフォルダーに {messages} 件のメッセージ ({time})
+	{n} attached messages couldn't be read	添付されたメッセージ {n} 件を読み込めませんでした
+	{n} attached messages lost some of their files	添付されたメッセージ {n} 件で一部のファイルが失われました
+	{n} attachments couldn't be read	添付ファイル {n} 個を読み込めませんでした
+	{n} attachments were only links to files elsewhere	添付ファイル {n} 個は別の場所のファイルへのリンクだけでした
+	{n} attachments were too big to bring in	添付ファイル {n} 個は大きすぎて取り込めませんでした
+	{n} contacts, calendar items, tasks or notes couldn't be read	連絡先、予定、タスク、メモ {n} 件を読み込めませんでした
+	{n} folders couldn't be read	フォルダー {n} 個を読み込めませんでした
+	{n} folders of a kind MailCraft has no place for	MailCraft に置き場所のない種類のフォルダー {n} 個
+	{n} folders were nested too deep	フォルダー {n} 個は階層が深すぎました
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	フォルダー {n} 個の一覧を保存できませんでした (メールは一覧なしで残っています)
+	{n} items couldn't be used (such as an empty note)	{n} 件のアイテムは使えませんでした (空のメモなど)
+	{n} items for other reasons	その他の理由によるアイテム {n} 件
+	{n} items in those folders	それらのフォルダー内のアイテム {n} 件
+	{n} message texts couldn't be converted	メッセージ {n} 件の本文を変換できませんでした
+	{n} message texts were in a character set MailCraft can't read	メッセージ {n} 件の本文は MailCraft が読めない文字セットでした
+	{n} messages couldn't be put back together	メッセージ {n} 件を組み立て直せませんでした
+	{n} messages couldn't be read	メッセージ {n} 件を読み込めませんでした
+	{n} messages couldn't be saved	メッセージ {n} 件を保存できませんでした
+	{n} messages were attached too deep inside others	メッセージ {n} 件は他のメッセージの奥深くに添付されていました
+	{n} min	{n} 分
+	{n} recipients had no address	宛先 {n} 件にアドレスがありませんでした
+	{n} s	{n} 秒
+	{time} so far	ここまで {time}

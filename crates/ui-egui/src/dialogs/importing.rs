@@ -1,0 +1,214 @@
+//! Dialogs: a data file's import. What a chosen file holds and where its copy goes, before it's
+//! imported; stopping an import; removing an account while its file is imported; and what an
+//! import came to, every loss by its reason.
+
+use mailcraft_engine::model::job::{ImportReport, SkipReason};
+
+use super::*;
+use crate::app::importing::{duration, inbox_of};
+use crate::progress;
+
+/// The sentence for `n` items left out for `reason`.
+pub(crate) fn skip_line(reason: SkipReason, n: u64) -> String {
+    match reason {
+        SkipReason::MessageUnreadable => tf!("{n} messages couldn't be read", n = n),
+        SkipReason::MessageNotRebuilt => tf!("{n} messages couldn't be put back together", n = n),
+        SkipReason::NotWritten => tf!("{n} messages couldn't be saved", n = n),
+        SkipReason::ListsUnwritten => tf!("{n} folders' lists couldn't be saved (their mail is kept, unlisted)", n = n),
+        SkipReason::AttachmentUnreadable => tf!("{n} attachments couldn't be read", n = n),
+        SkipReason::AttachmentTooBig => tf!("{n} attachments were too big to bring in", n = n),
+        SkipReason::AttachmentLink => tf!("{n} attachments were only links to files elsewhere", n = n),
+        SkipReason::AttachedMessageUnreadable => tf!("{n} attached messages couldn't be read", n = n),
+        SkipReason::AttachedMessageFilesLeftOut => tf!("{n} attached messages lost some of their files", n = n),
+        SkipReason::EmbeddedTooDeep => tf!("{n} messages were attached too deep inside others", n = n),
+        SkipReason::RecipientWithoutAddress => tf!("{n} recipients had no address", n = n),
+        SkipReason::BodyNotConverted => tf!("{n} message texts couldn't be converted", n = n),
+        SkipReason::CharsetUnsupported => tf!("{n} message texts were in a character set MailCraft can't read", n = n),
+        SkipReason::FolderUnreadable => tf!("{n} folders couldn't be read", n = n),
+        SkipReason::FolderTooDeep => tf!("{n} folders were nested too deep", n = n),
+        SkipReason::FolderLeftOut => tf!("{n} folders of a kind MailCraft has no place for", n = n),
+        SkipReason::ItemInFolderLeftOut => tf!("{n} items in those folders", n = n),
+        SkipReason::ItemUnreadable => tf!("{n} contacts, calendar items, tasks or notes couldn't be read", n = n),
+        SkipReason::ItemNotUsable => tf!("{n} items couldn't be used (such as an empty note)", n = n),
+        SkipReason::StoppedEarly => tf!("The file is damaged: reading stopped early ({n})", n = n),
+        SkipReason::Other => tf!("{n} items for other reasons", n = n),
+    }
+}
+
+/// A note in the dialog's own colour, wrapped.
+fn say(ui: &mut Ui, words: String, color: egui::Color32) {
+    ui.add(egui::Label::new(RichText::new(words).color(color)).wrap());
+}
+
+/// The data file's name at the end of `path`.
+fn file_name(path: &str) -> &str {
+    path.rsplit(['/', '\\']).next().unwrap_or(path)
+}
+
+pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    match d {
+        Dialog::OpenDataFile { path } => open_data_file(ui, path, s, t, acts),
+        Dialog::StopImport { account, file } => {
+            ui.set_width(400.0);
+            title(ui, t, &tf!("Stop importing {file}?", file = file));
+            say(ui, tl!("What's imported so far is kept. You can continue later.").to_string(), t.dim);
+            ui.add_space(10.0);
+            let mut keep = true;
+            button_row(ui, |ui| {
+                if ui.button(tl!("Keep importing")).clicked() {
+                    keep = false;
+                }
+                if widgets::accent_button(ui, Icon::Close, "Stop", t, true).clicked() {
+                    acts.push(Action::Run("account.stopImport", json!({"account": account})));
+                    keep = false;
+                }
+            });
+            keep
+        }
+        // Removing an account whose data file is being imported: the part imported goes.
+        Dialog::RemoveAccount { account, email } => {
+            ui.set_width(400.0);
+            title(ui, t, &tf!("Stop importing and remove {file}?", file = email));
+            say(ui, tl!("The part imported so far is deleted. The data file itself isn't changed.").to_string(), t.dim);
+            let (ok, cancel) = buttons(ui, t, "Remove", true);
+            if ok {
+                acts.push(Action::Run("account.remove", json!({"account": account})));
+                return false;
+            }
+            !cancel
+        }
+        Dialog::ImportDone { account, report } => import_done(ui, account, report, s, t, acts),
+        _ => true,
+    }
+}
+
+/// The data file chosen to open, before it's imported: what it holds, where MailCraft's copy goes
+/// and whether there's room for it, and the account it's open as already, if any.
+fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.set_width(460.0);
+    title(ui, t, "Open Outlook data file");
+    ui.label(RichText::new(file_name(path)).strong().color(t.text));
+    ui.add_space(4.0);
+    let mut can_import = false;
+    match s.data_file_facts(path) {
+        None => {
+            // Not looked at (or forgotten since): asked for, once.
+            if !s.inspecting(path) {
+                acts.push(Action::Run("account.inspectDataFile", json!({"path": path})));
+            }
+            say(ui, tl!("Counting items…").to_string(), t.dim);
+            progress::bar(ui, t, None, vec2(ui.available_width(), 4.0));
+        }
+        Some(f) if f.error.is_some() => {
+            let error = f.error.clone().unwrap_or_default();
+            say(ui, tf!("This file couldn't be looked at: {error}", error = error), t.warn);
+            can_import = true;
+        }
+        Some(f) => {
+            if f.size > 0 {
+                say(ui, widgets::human_bytes(f.size), t.dim);
+            }
+            let items = f.messages.saturating_add(f.pim_items);
+            say(ui, tf!("{items} items in {folders} folders", items = items, folders = f.folders), t.text);
+            if f.estimate > 0 && !f.destination.is_empty() {
+                let about = widgets::human_bytes(f.estimate);
+                say(ui, tf!("MailCraft makes its own copy, about {size}, in {folder}.", size = about, folder = f.destination), t.dim);
+            }
+            if let Some(free) = f.free {
+                say(ui, tf!("Free there: {free}", free = widgets::human_bytes(free)), t.dim);
+            }
+            let short = f.free.is_some_and(|free| free < f.need);
+            if short {
+                ui.add_space(4.0);
+                say(ui, tl!("There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).").to_string(), t.danger);
+            }
+            can_import = !short;
+        }
+    }
+    // Open as an account already: go to it, go on with it, or import another copy.
+    if let Some(other) = s.data_file_open_as(path) {
+        let name = s.account(&other).map(|a| a.config.name.clone()).unwrap_or_default();
+        ui.add_space(6.0);
+        say(ui, tf!("This data file is already open as {name}.", name = name), t.warn);
+        let mut keep = true;
+        ui.add_space(6.0);
+        button_row(ui, |ui| {
+            if ui.button(tl!("Cancel")).clicked() {
+                keep = false;
+            }
+            if ui.add_enabled(can_import, egui::Button::new(tl!("Import another copy"))).clicked() {
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: true });
+                keep = false;
+            }
+            if s.import_state(&other).is_some_and(|st| !st.live && !st.removing) && ui.button(tl!("Continue importing")).clicked() {
+                acts.push(Action::Run("account.resumeImport", json!({"account": other})));
+                keep = false;
+            }
+            if widgets::accent_button(ui, Icon::Inbox, "Go to it", t, true).clicked() {
+                if let Some(inbox) = inbox_of(s, &other) {
+                    acts.push(Action::Run("folder.open", json!({"account": other, "folder": inbox})));
+                }
+                keep = false;
+            }
+        });
+        return keep;
+    }
+    let (ok, cancel) = buttons(ui, t, "Import", can_import);
+    if ok {
+        acts.push(Action::ImportDataFile { path: path.to_string(), again: false });
+        return false;
+    }
+    !cancel
+}
+
+/// What an import came to: messages and folders, the contacts, calendar and notes, the time it
+/// took, and what it couldn't bring in, a line for each reason.
+fn import_done(ui: &mut Ui, account: &str, report: &ImportReport, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.set_width(440.0);
+    let file = if report.file.is_empty() {
+        s.account(account).map(|a| a.config.email.clone()).unwrap_or_default()
+    } else {
+        file_name(&report.file).to_string()
+    };
+    title(ui, t, &tf!("Imported {file}", file = file));
+    say(
+        ui,
+        tf!(
+            "{messages} messages in {folders} folders ({time})",
+            messages = report.messages,
+            folders = report.folders,
+            time = duration(report.elapsed_ms)
+        ),
+        t.text,
+    );
+    if report.contacts > 0 {
+        say(ui, tf!("Contacts: {n}", n = report.contacts), t.dim);
+    }
+    if report.events > 0 {
+        say(ui, tf!("Calendar items: {n}", n = report.events), t.dim);
+    }
+    if report.notes > 0 {
+        say(ui, tf!("Notes: {n}", n = report.notes), t.dim);
+    }
+    if !report.skips.is_empty() {
+        ui.add_space(8.0);
+        ui.label(RichText::new(tl!("Not brought in")).strong().color(t.text));
+        for skip in &report.skips {
+            say(ui, skip_line(skip.reason, skip.count), t.dim);
+        }
+    }
+    ui.add_space(10.0);
+    let mut keep = true;
+    button_row(ui, |ui| {
+        if ui.button(tl!("Close")).clicked() {
+            keep = false;
+        }
+        if let Some(inbox) = inbox_of(s, account)
+            && widgets::accent_button(ui, Icon::Inbox, "Go to Inbox", t, true).clicked()
+        {
+            acts.push(Action::Run("folder.open", json!({"account": account, "folder": inbox})));
+            keep = false;
+        }
+    });
+    keep
+}

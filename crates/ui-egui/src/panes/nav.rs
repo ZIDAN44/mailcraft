@@ -233,6 +233,8 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Dialog(Dialog::new_folder(&config.id, here)));
                     ui.close();
                 }
+                // Its data file's import: stop it, go on with it, or what it came to.
+                crate::app::importing::menu(ui, s, &config.id, acts);
                 // Its place among the mailboxes, as Outlook moves a mailbox up or down.
                 move_items(ui, &sections, at, acts);
                 ui.separator();
@@ -245,7 +247,9 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let parents: std::collections::HashSet<String> = a.folders.iter().flat_map(ancestors).collect();
             let hidden = |f: &Folder| ancestors(f).iter().any(|up| s.prefs.collapsed.contains(&folder_key(&f.account, up)));
             if open {
-                if a.folders.is_empty() {
+                // A data file being imported says how far it is; its folders come as each is done.
+                let importing = crate::app::importing::nav_line(s, t, ui, acts, &a.config.id);
+                if a.folders.is_empty() && !importing {
                     ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
                 }
                 for f in a.folders.iter().filter(|f| f.mailbox.is_none()) {

@@ -500,7 +500,6 @@
 	Outlook data file	Файл данных Outlook
 	Opened from an Outlook data file, kept on this computer only	Открыт из файла данных Outlook, хранится только на этом компьютере
 	Not available: a data file has no server.	Недоступно: у файла данных нет сервера.
-	Opening {file}…	Открытие {file}…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	Сервер: {url} (Microsoft Graph)
@@ -1383,3 +1382,86 @@ month	May	Май
 	Couldn't read the date “{value}”	Не удалось прочитать дату «{value}»
 	Received after	Получено после
 	Received before	Получено до
+	About {h} h {m} min left	Осталось около {h} ч {m} мин
+	About {n} min left	Осталось около {n} мин
+	Another program is using the data file.	Файл данных используется другой программой.
+	Calendar items: {n}	Элементов календаря: {n}
+	Close MailCraft	Закрыть MailCraft
+	Contacts: {n}	Контактов: {n}
+	Continue importing	Продолжить импорт
+	Counting items…	Подсчёт элементов…
+	Data: {done} of {total}	Данные: {done} из {total}
+	Folder: {folder} ({n} of {total})	Папка: {folder} ({n} из {total})
+	Free there: {free}	Свободно там: {free}
+	Go to Inbox	Перейти во «Входящие»
+	Go to it	Перейти к нему
+	Import another copy	Импортировать ещё одну копию
+	Import paused	Импорт приостановлен
+	Import report…	Отчёт об импорте…
+	Import stopped	Импорт остановлен
+	Import stopped: {done} of {total}	Импорт остановлен: {done} из {total}
+	Import stopped: {file}	Импорт остановлен: {file}
+	Imported {file}	Импортирован файл {file}
+	Importing {file}…	Импорт файла {file}…
+	Importing {file}… {percent}%	Импорт файла {file}… {percent}%
+	Importing {folder}…	Импорт папки {folder}…
+	Importing {folder}… {percent}%	Импорт папки {folder}… {percent}%
+	Importing {percent}%	Импорт {percent}%
+	Importing…	Импорт…
+	Keep importing	Продолжить импорт
+	Keep what's imported	Оставить импортированное
+	Less than a minute left	Осталось меньше минуты
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft импортирует файл {file} ({percent}%). Если закрыть его сейчас, импорт продолжится при следующем запуске MailCraft.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft импортирует файл {file}. Если закрыть его сейчас, импорт продолжится при следующем запуске MailCraft.
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft создаст собственную копию размером около {size} в папке {folder}.
+	Messages: {done} of {total}	Сообщения: {done} из {total}
+	Not brought in	Не перенесено
+	Not brought in so far: {n}	Пока не перенесено: {n}
+	Notes: {n}	Заметок: {n}
+	Open an Outlook data file…	Открыть файл данных Outlook…
+	Removing…	Удаление…
+	Saved in: {path}	Сохраняется в: {path}
+	Show how the import is going	Показать ход импорта
+	Start again	Начать заново
+	Stop	Остановить
+	Stop importing and remove {file}?	Остановить импорт и удалить {file}?
+	Stop importing {file}?	Остановить импорт файла {file}?
+	Stop importing…	Остановить импорт…
+	Stopping the import of {file}…	Остановка импорта файла {file}…
+	Stopping…	Остановка…
+	The data file changed after the import began.	Файл данных изменился после начала импорта.
+	The data file isn't where it was.	Файла данных больше нет на прежнем месте.
+	The file is damaged: reading stopped early ({n})	Файл повреждён: чтение остановлено раньше времени ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	Импортированная часть будет удалена. Сам файл данных не изменится.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	Для копии не хватает места. Освободите место или перенесите папку данных MailCraft (Файл › Параметры).
+	There's too little room left on the drive ({free} free).	На диске осталось слишком мало места (свободно {free}).
+	This data file is already open as {name}.	Этот файл данных уже открыт как {name}.
+	This file couldn't be looked at: {error}	Не удалось проверить этот файл: {error}
+	What came in goes, and the data file is read from its start.	Импортированное удаляется, и файл данных читается с начала.
+	What's imported so far is kept. You can continue later.	Уже импортированное сохраняется. Продолжить можно позже.
+	{h} h {m} min	{h} ч {m} мин
+	{items} items in {folders} folders	Элементов: {items}, папок: {folders}
+	{messages} messages in {folders} folders ({time})	Сообщений: {messages}, папок: {folders} ({time})
+	{n} attached messages couldn't be read	Не удалось прочитать вложенные сообщения: {n}
+	{n} attached messages lost some of their files	Вложенные сообщения, потерявшие часть файлов: {n}
+	{n} attachments couldn't be read	Не удалось прочитать вложения: {n}
+	{n} attachments were only links to files elsewhere	Вложения, которые были лишь ссылками на файлы в другом месте: {n}
+	{n} attachments were too big to bring in	Слишком большие вложения: {n}
+	{n} contacts, calendar items, tasks or notes couldn't be read	Не удалось прочитать контакты, элементы календаря, задачи или заметки: {n}
+	{n} folders couldn't be read	Не удалось прочитать папки: {n}
+	{n} folders of a kind MailCraft has no place for	Папки того вида, которому нет места в MailCraft: {n}
+	{n} folders were nested too deep	Слишком глубоко вложенные папки: {n}
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	Не удалось сохранить списки папок: {n} (их почта сохранена, но не показана в списке)
+	{n} items couldn't be used (such as an empty note)	Непригодные элементы (например, пустая заметка): {n}
+	{n} items for other reasons	Элементы по другим причинам: {n}
+	{n} items in those folders	Элементы в этих папках: {n}
+	{n} message texts couldn't be converted	Не удалось преобразовать текст сообщений: {n}
+	{n} message texts were in a character set MailCraft can't read	Текст сообщений в кодировке, которую MailCraft не читает: {n}
+	{n} messages couldn't be put back together	Не удалось собрать сообщения заново: {n}
+	{n} messages couldn't be read	Не удалось прочитать сообщения: {n}
+	{n} messages couldn't be saved	Не удалось сохранить сообщения: {n}
+	{n} messages were attached too deep inside others	Сообщения, вложенные слишком глубоко в другие: {n}
+	{n} min	{n} мин
+	{n} recipients had no address	Получатели без адреса: {n}
+	{n} s	{n} с
+	{time} so far	Прошло {time}

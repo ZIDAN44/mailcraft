@@ -1642,9 +1642,32 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   longer says "N messages imported so far" in a notice every few seconds. A data file's account
   left with nothing in it by an import that never ended (before this was kept) is found as one to
   import again or remove. Still open: the planned folders shown ahead as an outline, once the
-  window can show them as not yet open to changes; going on from where it stopped (continuing
-  reads the file again from its start, the same messages coming out the same way); and the
-  window's buttons for it.
+  window can show them as not yet open to changes; and going on from where it stopped (continuing
+  reads the file again from its start, the same messages coming out the same way).
+- **Seeing an import go:** opening a `.pst` said "Opening {file}…" in the status bar for as long
+  as it took (13.6 minutes on a 41 GB file), with no total, no percentage, no time left and no
+  way to stop it, and the folder pane said "Loading folders…". A file chosen is now looked at
+  first: how many items in how many folders, the size of MailCraft's copy and where it goes, the
+  room free there (no Import when it won't fit), and the account it's already open as (go to it,
+  continue it, or import another copy). While it's read the status bar has its bar, from the
+  folders' item counts and sizes, so an item weighs its bytes plus as much as 128 KB would (a
+  folder of small messages isn't shown as nearly free), with the percentage from the first
+  progress and "About 40 min left" once 20 s and 2% are behind it, smoothed over about 30 s and
+  revised only when off by more than 10% or 15 s (under a minute, minutes up to an hour and a
+  half, then hours and minutes to five). A click shows its details: messages and data done of
+  their totals, the folder being read, the time so far, what couldn't be brought in so far,
+  where the copy is (Open file location), and Stop importing, which asks first and keeps what
+  came in. The account's line in the folder pane has a thin bar and the folder being read; its
+  menu stops, continues or keeps a stopped import, and a stopped one can be continued from that
+  line. Closing MailCraft while a file is read says it goes on the next time MailCraft opens,
+  then pauses it; removing its account asks whether to stop and delete the part imported. At the
+  end a summary says how many messages came into how many folders, with the contacts, calendar
+  items and notes, how long it took, and one line for each reason something was left out; it's
+  there again as the account's Import report. A bar without a total (a MailCraft data file
+  brought in) slides at most ten frames a second, and stands still with animations off. The
+  welcome screen offers "Open an Outlook data file…" beside adding an account, and sizes are
+  written in GB once they reach one. Not yet measured on the 41 GB file in the window: folders
+  shown as each finishes, the percentage from the first second, and no frame over 50 ms.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation
   shown above a message is worked out once with the list, not again for every message opened

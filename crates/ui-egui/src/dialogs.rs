@@ -15,6 +15,7 @@ mod categories;
 mod closing;
 mod dav;
 mod folders;
+mod importing;
 mod mailbox;
 mod organize;
 mod other;
@@ -24,6 +25,8 @@ mod writing;
 
 pub use accounts::*;
 pub use dav::DavForm;
+#[cfg(test)]
+pub(crate) use importing::skip_line;
 pub use mailbox::*;
 pub use organize::*;
 pub use signatures::SignatureForm;
@@ -55,6 +58,26 @@ pub enum Dialog {
     },
     /// Closing with an update about to be installed, or still downloading: what becomes of it.
     UpdateOnClose(crate::UpdateState),
+    /// Closing while a data file is imported (`permille`: how far, when that's known): it goes
+    /// on the next time MailCraft opens.
+    ImportOnClose {
+        file: String,
+        permille: Option<u16>,
+    },
+    /// A data file chosen to open: what it holds and where its copy goes, before it's imported.
+    OpenDataFile {
+        path: String,
+    },
+    /// Stopping the import of `file` into `account`.
+    StopImport {
+        account: String,
+        file: String,
+    },
+    /// What an import came to.
+    ImportDone {
+        account: String,
+        report: Box<mailcraft_engine::model::job::ImportReport>,
+    },
     /// Confirmation before `contact.delete`, which can't be undone.
     ConfirmDeleteContact {
         uid: String,
@@ -223,6 +246,7 @@ impl Dialog {
                     | Dialog::ConfirmEmpty { .. }
                     | Dialog::DeleteFolder { .. }
                     | Dialog::RemoveAccount { .. }
+                    | Dialog::StopImport { .. }
                     | Dialog::MailboxClosed { .. }
                     | Dialog::EmptySubject
                     | Dialog::SaveChanges
@@ -232,7 +256,7 @@ impl Dialog {
 
     /// A question asked as MailCraft closes.
     pub fn about_closing(&self) -> bool {
-        matches!(self, Dialog::SaveOnClose(_) | Dialog::LostOnClose { .. } | Dialog::UpdateOnClose(_))
+        matches!(self, Dialog::SaveOnClose(_) | Dialog::LostOnClose { .. } | Dialog::UpdateOnClose(_) | Dialog::ImportOnClose { .. })
     }
 
     pub fn for_compose(&self) -> bool {
@@ -529,7 +553,12 @@ pub(crate) fn show(
 fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     // Each kind is drawn by its group; listing them all here keeps the match exhaustive.
     match d {
-        Dialog::LostOnClose { .. } | Dialog::SaveOnClose(..) | Dialog::UpdateOnClose(..) => closing::draw(ui, d, s, t, acts),
+        Dialog::LostOnClose { .. } | Dialog::SaveOnClose(..) | Dialog::UpdateOnClose(..) | Dialog::ImportOnClose { .. } => {
+            closing::draw(ui, d, s, t, acts)
+        }
+        // Removing an account whose data file is being imported asks its own question.
+        Dialog::RemoveAccount { account, .. } if s.import_state(account).is_some_and(|st| st.live) => importing::draw(ui, d, s, t, acts),
+        Dialog::OpenDataFile { .. } | Dialog::StopImport { .. } | Dialog::ImportDone { .. } => importing::draw(ui, d, s, t, acts),
         Dialog::AddAccount(..)
         | Dialog::Password { .. }
         | Dialog::RemoveAccount { .. }

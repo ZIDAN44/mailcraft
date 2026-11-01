@@ -182,7 +182,15 @@ written (`Compose`), preferences and status-bar notices.
   `account.inspectDataFile` keeps the last four files looked at; a file already open as another
   account (the same path however written, or the same record key) is imported again only with
   `again`. Progress isn't said in notices: the window shows it (`account.importStatus` for the
-  CLI and tests).
+  CLI and tests). In the window (`ui-egui/src/app/importing.rs`, its questions and summary in
+  `dialogs/importing.rs`) an import is the status bar's background segment, ahead of the search
+  index's build: its bar from `ImportProgress::permille` (items and bytes weighed by
+  `ITEM_WEIGHT`), the time left from `Session::import_eta_s`, its details beside it; the folder
+  pane has a line under the account, and its menu stops, continues or keeps it. A bar whose total
+  isn't known slides a segment at most ten times a second (`look/progress.rs`). A file chosen is
+  looked at (`account.inspectDataFile`) before `account.importPst`; closing while one is read
+  says it goes on next time and pauses it (`account.stopImport {"how":"pause"}`); an import that
+  finishes is handed to the window once (`Session::take_finished_import`) for its summary.
 
 ## Languages
 

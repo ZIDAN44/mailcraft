@@ -85,6 +85,8 @@ impl MailApp {
         let s = &self.session;
         let mut again: Option<String> = None;
         let mut restart = false;
+        let mut details = self.ui.import_details.clone();
+        let mut acts = Vec::new();
         ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
             // The items of what's shown: the list's mail, or (in People) the contacts.
             if s.module == Module::People {
@@ -104,7 +106,10 @@ impl MailApp {
             }
             // A test build's next version: how far it's downloaded, then restart into it.
             restart = self.update_status(ui);
-            if let Some((text, permille, hover)) = background_work(s) {
+            // The most important background work: a data file's import, else the search index.
+            if !super::importing::status_segment(ui, s, &t, &mut details, &mut acts)
+                && let Some((text, permille, hover)) = background_work(s)
+            {
                 ui.add_space(6.0);
                 progress::segment(ui, &t, &text, permille, &hover);
             }
@@ -188,6 +193,10 @@ impl MailApp {
                 }
             });
         });
+        self.ui.import_details = details;
+        for a in acts {
+            self.act(a);
+        }
         if let Some(id) = again {
             self.sign_in_again(&id);
         }
@@ -259,9 +268,10 @@ pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
     }
 }
 
-/// The long work going on in the background the status bar shows, one job: the search index's
-/// build (a data file's import, then its compaction, go before it when they show here). Its
-/// words, how far it has come in thousandths, and what hovering it says.
+/// The long work going on in the background the status bar shows when no data file is being
+/// imported (that goes first, `app/importing.rs`): the search index's build (a data file's
+/// compaction will go before it). Its words, how far it has come in thousandths, and what
+/// hovering it says.
 pub(crate) fn background_work(s: &Session) -> Option<(String, Option<u16>, String)> {
     let work = s.indexing_work()?;
     let permille = work.permille(mailcraft_engine::model::job::ITEM_WEIGHT);
@@ -284,6 +294,10 @@ pub(crate) fn why(a: &mailcraft_engine::AccountState) -> String {
 
 /// An account's status for the status bar: its colour and words.
 pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::AccountState) -> (egui::Color32, String) {
+    // A data file being imported, or one waiting on the user.
+    if let Some(words) = super::importing::account_status(s, t, &a.config.id) {
+        return words;
+    }
     match &a.status {
         SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS) => {
             (t.danger, tl!("Sign in with Microsoft").to_string())
@@ -292,7 +306,6 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
             (t.danger, tl!("Mailbox won't open").to_string())
         }
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
-        SyncStatus::Syncing { .. } if a.is_data_file() => (t.accent, tf!("Opening {file}…", file = a.config.email)),
         SyncStatus::Syncing { folder } => {
             (t.accent, tf!("Updating {folder}…", folder = s.folder(&a.config.id, folder).map(i18n::folder).unwrap_or_default()))
         }

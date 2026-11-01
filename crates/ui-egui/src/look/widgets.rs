@@ -519,13 +519,22 @@ pub fn avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: C
 }
 
 pub fn human_size(bytes: usize) -> String {
+    human_bytes(u64::try_from(bytes).unwrap_or(u64::MAX))
+}
+
+/// A size as people read it: bytes, KB, MB, or GB (a data file's tens of gigabytes; `usize`
+/// can't hold them in the browser).
+pub fn human_bytes(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
     let b = bytes as f64;
-    if b < 1024.0 {
+    if b < KB {
         format!("{bytes} B")
-    } else if b < 1024.0 * 1024.0 {
-        format!("{:.0} KB", b / 1024.0)
+    } else if b < KB * KB {
+        format!("{:.0} KB", b / KB)
+    } else if b < KB * KB * KB {
+        format!("{:.1} MB", b / KB / KB)
     } else {
-        format!("{:.1} MB", b / 1024.0 / 1024.0)
+        format!("{:.1} GB", b / KB / KB / KB)
     }
 }
 
@@ -555,6 +564,13 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>)
                 ui.add_space(18.0);
                 if accent_button(ui, Icon::Plus, "Add an account", t, true).clicked() {
                     acts.push(Action::Dialog(Dialog::add_account()));
+                }
+                // Or begin from what Outlook kept: there are no data files in the browser.
+                if !jmap_only {
+                    ui.add_space(6.0);
+                    if ui.button(tl!("Open an Outlook data file…")).clicked() {
+                        acts.push(Action::OpenDataFile);
+                    }
                 }
             });
         });

@@ -98,9 +98,14 @@ impl MailApp {
                 } else {
                     tf!("Downloading MailCraft {version}…", version = version)
                 };
-                ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(tl!(
-                    "If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft."
-                ));
+                let permille = mailcraft_engine::model::job::progress::permille(*done, *total);
+                progress::segment(
+                    ui,
+                    &t,
+                    &text,
+                    permille,
+                    tl!("If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft."),
+                );
                 false
             }
             UpdateState::Ready { version, .. } => {

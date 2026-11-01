@@ -188,8 +188,15 @@ pub enum Action {
     Backstage(backstage::Page),
     /// An attachment is being dragged out of the window: hand it to the system as a file.
     DragOut(usize),
-    /// Choose an Outlook data file and open it.
+    /// Choose an Outlook data file and look at it before it's imported.
     OpenDataFile,
+    /// Import the data file at `path` (`again`: though it's open as another account already).
+    ImportDataFile {
+        path: String,
+        again: bool,
+    },
+    /// Show how an account's import is going, beside the status bar.
+    ImportDetails(String),
     /// Choose an existing data file for the account being added (its mail comes in first).
     PickAccountDataFile,
     /// An action from a message's own window, on that message (its attachments, Save As, Print).
@@ -365,6 +372,8 @@ pub struct UiState {
     drag_out: Option<PathBuf>,
     /// The platform can drag files out.
     pub(crate) can_drag_out: bool,
+    /// The account whose import's details are shown, beside the status bar.
+    pub(crate) import_details: Option<String>,
 }
 
 pub struct MailApp {
@@ -480,6 +489,7 @@ impl MailApp {
                 invite: None,
                 drag_out: None,
                 can_drag_out: false,
+                import_details: None,
             },
         };
         app.ui.craft_apps = craft_apps;

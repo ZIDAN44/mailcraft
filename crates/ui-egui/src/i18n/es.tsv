@@ -501,7 +501,6 @@
 	Outlook data file	Archivo de datos de Outlook
 	Opened from an Outlook data file, kept on this computer only	Abierto desde un archivo de datos de Outlook, guardado solo en este equipo
 	Not available: a data file has no server.	No disponible: un archivo de datos no tiene servidor.
-	Opening {file}…	Abriendo {file}…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	Servidor: {url} (Microsoft Graph)
@@ -1384,3 +1383,86 @@ month	May	mayo
 	Couldn't read the date “{value}”	No se pudo leer la fecha «{value}»
 	Received after	Recibido después del
 	Received before	Recibido antes del
+	About {h} h {m} min left	Quedan unas {h} h {m} min
+	About {n} min left	Quedan unos {n} min
+	Another program is using the data file.	Otro programa está usando el archivo de datos.
+	Calendar items: {n}	Elementos de calendario: {n}
+	Close MailCraft	Cerrar MailCraft
+	Contacts: {n}	Contactos: {n}
+	Continue importing	Continuar la importación
+	Counting items…	Contando los elementos…
+	Data: {done} of {total}	Datos: {done} de {total}
+	Folder: {folder} ({n} of {total})	Carpeta: {folder} ({n} de {total})
+	Free there: {free}	Libre allí: {free}
+	Go to Inbox	Ir a la Bandeja de entrada
+	Go to it	Ir a él
+	Import another copy	Importar otra copia
+	Import paused	Importación en pausa
+	Import report…	Informe de importación…
+	Import stopped	Importación detenida
+	Import stopped: {done} of {total}	Importación detenida: {done} de {total}
+	Import stopped: {file}	Importación detenida: {file}
+	Imported {file}	Se importó {file}
+	Importing {file}…	Importando {file}…
+	Importing {file}… {percent}%	Importando {file}… {percent}%
+	Importing {folder}…	Importando {folder}…
+	Importing {folder}… {percent}%	Importando {folder}… {percent}%
+	Importing {percent}%	Importando {percent}%
+	Importing…	Importando…
+	Keep importing	Seguir importando
+	Keep what's imported	Conservar lo importado
+	Less than a minute left	Queda menos de un minuto
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft está importando {file} ({percent}%). Si lo cierras ahora, la importación continuará la próxima vez que abras MailCraft.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft está importando {file}. Si lo cierras ahora, la importación continuará la próxima vez que abras MailCraft.
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft hace su propia copia, de unos {size}, en {folder}.
+	Messages: {done} of {total}	Mensajes: {done} de {total}
+	Not brought in	No se importó
+	Not brought in so far: {n}	Sin importar hasta ahora: {n}
+	Notes: {n}	Notas: {n}
+	Open an Outlook data file…	Abrir un archivo de datos de Outlook…
+	Removing…	Quitando…
+	Saved in: {path}	Guardado en: {path}
+	Show how the import is going	Ver cómo va la importación
+	Start again	Empezar de nuevo
+	Stop	Detener
+	Stop importing and remove {file}?	¿Detener la importación y quitar {file}?
+	Stop importing {file}?	¿Detener la importación de {file}?
+	Stop importing…	Detener la importación…
+	Stopping the import of {file}…	Deteniendo la importación de {file}…
+	Stopping…	Deteniendo…
+	The data file changed after the import began.	El archivo de datos cambió después de empezar la importación.
+	The data file isn't where it was.	El archivo de datos ya no está donde estaba.
+	The file is damaged: reading stopped early ({n})	El archivo está dañado: la lectura se detuvo antes de tiempo ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	Se elimina la parte importada hasta ahora. El archivo de datos en sí no cambia.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	No hay espacio para la copia. Libera espacio o mueve la carpeta de datos de MailCraft (Archivo › Opciones).
+	There's too little room left on the drive ({free} free).	Queda muy poco espacio en la unidad ({free} libres).
+	This data file is already open as {name}.	Este archivo de datos ya está abierto como {name}.
+	This file couldn't be looked at: {error}	No se pudo examinar este archivo: {error}
+	What came in goes, and the data file is read from its start.	Lo importado se elimina y el archivo de datos se lee desde el principio.
+	What's imported so far is kept. You can continue later.	Lo importado hasta ahora se conserva. Puedes continuar más tarde.
+	{h} h {m} min	{h} h {m} min
+	{items} items in {folders} folders	{items} elementos en {folders} carpetas
+	{messages} messages in {folders} folders ({time})	{messages} mensajes en {folders} carpetas ({time})
+	{n} attached messages couldn't be read	No se pudieron leer {n} mensajes adjuntos
+	{n} attached messages lost some of their files	{n} mensajes adjuntos perdieron algunos de sus archivos
+	{n} attachments couldn't be read	No se pudieron leer {n} archivos adjuntos
+	{n} attachments were only links to files elsewhere	{n} archivos adjuntos solo eran vínculos a archivos de otro lugar
+	{n} attachments were too big to bring in	{n} archivos adjuntos eran demasiado grandes para importarlos
+	{n} contacts, calendar items, tasks or notes couldn't be read	No se pudieron leer {n} contactos, elementos de calendario, tareas o notas
+	{n} folders couldn't be read	No se pudieron leer {n} carpetas
+	{n} folders of a kind MailCraft has no place for	{n} carpetas de un tipo para el que MailCraft no tiene lugar
+	{n} folders were nested too deep	{n} carpetas estaban anidadas a demasiada profundidad
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	No se pudieron guardar las listas de {n} carpetas (su correo se conserva, sin listar)
+	{n} items couldn't be used (such as an empty note)	No se pudieron usar {n} elementos (como una nota vacía)
+	{n} items for other reasons	{n} elementos por otros motivos
+	{n} items in those folders	{n} elementos en esas carpetas
+	{n} message texts couldn't be converted	No se pudo convertir el texto de {n} mensajes
+	{n} message texts were in a character set MailCraft can't read	El texto de {n} mensajes estaba en un juego de caracteres que MailCraft no sabe leer
+	{n} messages couldn't be put back together	No se pudieron reconstruir {n} mensajes
+	{n} messages couldn't be read	No se pudieron leer {n} mensajes
+	{n} messages couldn't be saved	No se pudieron guardar {n} mensajes
+	{n} messages were attached too deep inside others	{n} mensajes estaban adjuntos a demasiada profundidad dentro de otros
+	{n} min	{n} min
+	{n} recipients had no address	{n} destinatarios no tenían dirección
+	{n} s	{n} s
+	{time} so far	{time} hasta ahora

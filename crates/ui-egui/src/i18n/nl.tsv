@@ -500,7 +500,6 @@
 	Outlook data file	Outlook-gegevensbestand
 	Opened from an Outlook data file, kept on this computer only	Geopend vanuit een Outlook-gegevensbestand, alleen op deze computer bewaard
 	Not available: a data file has no server.	Niet beschikbaar: een gegevensbestand heeft geen server.
-	Opening {file}…	{file} openen…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	Server: {url} (Microsoft Graph)
@@ -1379,3 +1378,86 @@ month	May	mei
 	Couldn't read the date “{value}”	De datum “{value}” kon niet worden gelezen
 	Received after	Ontvangen na
 	Received before	Ontvangen voor
+	About {h} h {m} min left	Nog ongeveer {h} u {m} min
+	About {n} min left	Nog ongeveer {n} min
+	Another program is using the data file.	Een ander programma gebruikt het gegevensbestand.
+	Calendar items: {n}	Agenda-items: {n}
+	Close MailCraft	MailCraft sluiten
+	Contacts: {n}	Contactpersonen: {n}
+	Continue importing	Importeren hervatten
+	Counting items…	Items tellen…
+	Data: {done} of {total}	Gegevens: {done} van {total}
+	Folder: {folder} ({n} of {total})	Map: {folder} ({n} van {total})
+	Free there: {free}	Vrij daar: {free}
+	Go to Inbox	Naar Postvak IN
+	Go to it	Ernaartoe gaan
+	Import another copy	Nog een kopie importeren
+	Import paused	Importeren gepauzeerd
+	Import report…	Importrapport…
+	Import stopped	Importeren gestopt
+	Import stopped: {done} of {total}	Importeren gestopt: {done} van {total}
+	Import stopped: {file}	Importeren gestopt: {file}
+	Imported {file}	{file} geïmporteerd
+	Importing {file}…	{file} importeren…
+	Importing {file}… {percent}%	{file} importeren… {percent}%
+	Importing {folder}…	{folder} importeren…
+	Importing {folder}… {percent}%	{folder} importeren… {percent}%
+	Importing {percent}%	Importeren {percent}%
+	Importing…	Importeren…
+	Keep importing	Doorgaan met importeren
+	Keep what's imported	Geïmporteerde items houden
+	Less than a minute left	Nog minder dan een minuut
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft importeert {file} ({percent}%). Als je het nu sluit, gaat het importeren verder wanneer je MailCraft weer opent.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft importeert {file}. Als je het nu sluit, gaat het importeren verder wanneer je MailCraft weer opent.
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft maakt een eigen kopie van ongeveer {size} in {folder}.
+	Messages: {done} of {total}	Berichten: {done} van {total}
+	Not brought in	Niet overgenomen
+	Not brought in so far: {n}	Tot nu toe niet overgenomen: {n}
+	Notes: {n}	Notities: {n}
+	Open an Outlook data file…	Een Outlook-gegevensbestand openen…
+	Removing…	Verwijderen…
+	Saved in: {path}	Opgeslagen in: {path}
+	Show how the import is going	Laten zien hoe het importeren gaat
+	Start again	Opnieuw beginnen
+	Stop	Stoppen
+	Stop importing and remove {file}?	Importeren stoppen en {file} verwijderen?
+	Stop importing {file}?	Importeren van {file} stoppen?
+	Stop importing…	Importeren stoppen…
+	Stopping the import of {file}…	Importeren van {file} wordt gestopt…
+	Stopping…	Stoppen…
+	The data file changed after the import began.	Het gegevensbestand is gewijzigd nadat het importeren begon.
+	The data file isn't where it was.	Het gegevensbestand staat niet meer waar het stond.
+	The file is damaged: reading stopped early ({n})	Het bestand is beschadigd: het lezen stopte vroegtijdig ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	Het deel dat tot nu toe is geïmporteerd, wordt verwijderd. Het gegevensbestand zelf verandert niet.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	Er is geen ruimte voor de kopie. Maak ruimte vrij, of verplaats de gegevensmap van MailCraft (Bestand › Opties).
+	There's too little room left on the drive ({free} free).	Er is te weinig ruimte over op het station ({free} vrij).
+	This data file is already open as {name}.	Dit gegevensbestand is al geopend als {name}.
+	This file couldn't be looked at: {error}	Dit bestand kon niet worden bekeken: {error}
+	What came in goes, and the data file is read from its start.	Wat binnengekomen is, verdwijnt, en het gegevensbestand wordt vanaf het begin gelezen.
+	What's imported so far is kept. You can continue later.	Wat tot nu toe is geïmporteerd, blijft bewaard. Je kunt later verdergaan.
+	{h} h {m} min	{h} u {m} min
+	{items} items in {folders} folders	{items} items in {folders} mappen
+	{messages} messages in {folders} folders ({time})	{messages} berichten in {folders} mappen ({time})
+	{n} attached messages couldn't be read	{n} bijgevoegde berichten konden niet worden gelezen
+	{n} attached messages lost some of their files	{n} bijgevoegde berichten zijn een deel van hun bestanden kwijt
+	{n} attachments couldn't be read	{n} bijlagen konden niet worden gelezen
+	{n} attachments were only links to files elsewhere	{n} bijlagen waren alleen koppelingen naar bestanden elders
+	{n} attachments were too big to bring in	{n} bijlagen waren te groot om over te nemen
+	{n} contacts, calendar items, tasks or notes couldn't be read	{n} contactpersonen, agenda-items, taken of notities konden niet worden gelezen
+	{n} folders couldn't be read	{n} mappen konden niet worden gelezen
+	{n} folders of a kind MailCraft has no place for	{n} mappen van een soort waar MailCraft geen plek voor heeft
+	{n} folders were nested too deep	{n} mappen waren te diep genest
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	De lijsten van {n} mappen konden niet worden opgeslagen (hun e-mail blijft bewaard, zonder lijst)
+	{n} items couldn't be used (such as an empty note)	{n} items waren niet bruikbaar (zoals een lege notitie)
+	{n} items for other reasons	{n} items om andere redenen
+	{n} items in those folders	{n} items in die mappen
+	{n} message texts couldn't be converted	De tekst van {n} berichten kon niet worden omgezet
+	{n} message texts were in a character set MailCraft can't read	De tekst van {n} berichten stond in een tekenset die MailCraft niet kan lezen
+	{n} messages couldn't be put back together	{n} berichten konden niet opnieuw worden samengesteld
+	{n} messages couldn't be read	{n} berichten konden niet worden gelezen
+	{n} messages couldn't be saved	{n} berichten konden niet worden opgeslagen
+	{n} messages were attached too deep inside others	{n} berichten waren te diep in andere bijgevoegd
+	{n} min	{n} min
+	{n} recipients had no address	{n} ontvangers hadden geen adres
+	{n} s	{n} s
+	{time} so far	{time} tot nu toe

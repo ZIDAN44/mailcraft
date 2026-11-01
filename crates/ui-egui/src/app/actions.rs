@@ -78,9 +78,12 @@ impl MailApp {
                 }
             }
             Action::CloseAnyway => {
-                // What becomes of an update is still said before MailCraft goes; its answer closes
-                // (and Cancel there leaves the next close asking everything again).
-                if self.ask_about_update() {
+                // A data file being imported, then what becomes of an update, are still said
+                // before MailCraft goes; the answer closes (and Cancel there leaves the next
+                // close asking everything again).
+                if super::importing::ask_on_close(&self.session) {
+                    self.ask_import_on_close();
+                } else if self.ask_about_update() {
                     self.ask_update_on_close();
                 } else {
                     self.ui.closing_anyway = true;
@@ -162,17 +165,25 @@ impl MailApp {
                     f.pst = path.to_string_lossy().into_owned();
                 }
             }
+            // What the file holds, and where its copy goes, are shown before it's imported.
             Action::OpenDataFile => {
                 if let Some(path) = self.services.pick_data_file() {
-                    match self.session.run("account.importPst", &json!({"path": path.to_string_lossy()})) {
+                    let path = path.to_string_lossy().into_owned();
+                    match self.session.run("account.inspectDataFile", &json!({"path": path})) {
                         Ok(_) => {
                             self.ui.backstage = None;
-                            self.session.notice(tf!("Opening {file}…", file = path.file_name().unwrap_or_default().to_string_lossy()), false);
+                            self.ui.dialog = Some(Dialog::OpenDataFile { path });
                         }
                         Err(e) => self.session.notice(e.to_string(), true),
                     }
                 }
             }
+            // The status bar and the folder pane show how it goes from here.
+            Action::ImportDataFile { path, again } => match self.session.run("account.importPst", &json!({"path": path, "again": again})) {
+                Ok(_) => self.ui.backstage = None,
+                Err(e) => self.session.notice(e.to_string(), true),
+            },
+            Action::ImportDetails(account) => self.ui.import_details = Some(account),
             Action::ExportDataFile(account) => {
                 // Named after the account's address, as Outlook names a data file.
                 let name = self

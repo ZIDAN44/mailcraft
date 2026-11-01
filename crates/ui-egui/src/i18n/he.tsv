@@ -500,7 +500,6 @@
 	Outlook data file	קובץ נתונים של Outlook
 	Opened from an Outlook data file, kept on this computer only	נפתח מקובץ נתונים של Outlook, שמור רק במחשב הזה
 	Not available: a data file has no server.	לא זמין: לקובץ נתונים אין שרת.
-	Opening {file}…	פותח את {file}…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	שרת: {url} (Microsoft Graph)
@@ -1379,3 +1378,86 @@ month	May	מאי
 	Couldn't read the date “{value}”	לא ניתן לקרוא את התאריך „{value}”
 	Received after	התקבל אחרי
 	Received before	התקבל לפני
+	About {h} h {m} min left	נותרו כ־{h} שע׳ {m} דק׳
+	About {n} min left	נותרו כ־{n} דק׳
+	Another program is using the data file.	תוכנה אחרת משתמשת בקובץ הנתונים.
+	Calendar items: {n}	פריטי לוח שנה: {n}
+	Close MailCraft	לסגור את MailCraft
+	Contacts: {n}	אנשי קשר: {n}
+	Continue importing	להמשיך בייבוא
+	Counting items…	סופרים פריטים…
+	Data: {done} of {total}	נתונים: {done} מתוך {total}
+	Folder: {folder} ({n} of {total})	תיקייה: {folder} ({n} מתוך {total})
+	Free there: {free}	פנוי שם: {free}
+	Go to Inbox	מעבר לדואר הנכנס
+	Go to it	מעבר אליו
+	Import another copy	לייבא עותק נוסף
+	Import paused	הייבוא מושהה
+	Import report…	דוח ייבוא…
+	Import stopped	הייבוא נעצר
+	Import stopped: {done} of {total}	הייבוא נעצר: {done} מתוך {total}
+	Import stopped: {file}	הייבוא נעצר: {file}
+	Imported {file}	{file} יובא
+	Importing {file}…	מייבאים את {file}…
+	Importing {file}… {percent}%	מייבאים את {file}… {percent}%
+	Importing {folder}…	מייבאים את {folder}…
+	Importing {folder}… {percent}%	מייבאים את {folder}… {percent}%
+	Importing {percent}%	ייבוא {percent}%
+	Importing…	מייבאים…
+	Keep importing	להמשיך לייבא
+	Keep what's imported	לשמור את מה שיובא
+	Less than a minute left	נותרה פחות מדקה
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft מייבא את {file} ‏({percent}%). אם תסגרו אותו עכשיו, הייבוא ימשיך בפעם הבאה שתפתחו את MailCraft.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft מייבא את {file}. אם תסגרו אותו עכשיו, הייבוא ימשיך בפעם הבאה שתפתחו את MailCraft.
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft יוצר עותק משלו, בגודל של כ־{size}, ב־{folder}.
+	Messages: {done} of {total}	הודעות: {done} מתוך {total}
+	Not brought in	מה שלא יובא
+	Not brought in so far: {n}	לא יובאו עד כה: {n}
+	Notes: {n}	פתקים: {n}
+	Open an Outlook data file…	פתיחת קובץ נתונים של Outlook…
+	Removing…	מסירים…
+	Saved in: {path}	נשמר ב: {path}
+	Show how the import is going	להציג את התקדמות הייבוא
+	Start again	להתחיל מחדש
+	Stop	לעצור
+	Stop importing and remove {file}?	לעצור את הייבוא ולהסיר את {file}?
+	Stop importing {file}?	לעצור את הייבוא של {file}?
+	Stop importing…	לעצור את הייבוא…
+	Stopping the import of {file}…	עוצרים את הייבוא של {file}…
+	Stopping…	עוצרים…
+	The data file changed after the import began.	קובץ הנתונים השתנה אחרי שהייבוא התחיל.
+	The data file isn't where it was.	קובץ הנתונים כבר לא נמצא במקומו.
+	The file is damaged: reading stopped early ({n})	הקובץ פגום: הקריאה נעצרה מוקדם ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	החלק שיובא עד כה יימחק. קובץ הנתונים עצמו לא משתנה.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	אין מקום לעותק. פנו מקום, או העבירו את תיקיית הנתונים של MailCraft (קובץ › אפשרויות).
+	There's too little room left on the drive ({free} free).	נשאר מעט מדי מקום בכונן (‏{free} פנויים).
+	This data file is already open as {name}.	קובץ הנתונים הזה כבר פתוח בשם {name}.
+	This file couldn't be looked at: {error}	לא ניתן היה לבדוק את הקובץ: {error}
+	What came in goes, and the data file is read from its start.	מה שיובא יוסר, וקובץ הנתונים ייקרא מההתחלה.
+	What's imported so far is kept. You can continue later.	מה שיובא עד כה נשמר. אפשר להמשיך אחר כך.
+	{h} h {m} min	{h} שע׳ {m} דק׳
+	{items} items in {folders} folders	{items} פריטים ב־{folders} תיקיות
+	{messages} messages in {folders} folders ({time})	{messages} הודעות ב־{folders} תיקיות ({time})
+	{n} attached messages couldn't be read	לא ניתן היה לקרוא {n} הודעות מצורפות
+	{n} attached messages lost some of their files	{n} הודעות מצורפות איבדו חלק מהקבצים שלהן
+	{n} attachments couldn't be read	לא ניתן היה לקרוא {n} קבצים מצורפים
+	{n} attachments were only links to files elsewhere	{n} קבצים מצורפים היו רק קישורים לקבצים במקום אחר
+	{n} attachments were too big to bring in	{n} קבצים מצורפים היו גדולים מכדי לייבא אותם
+	{n} contacts, calendar items, tasks or notes couldn't be read	לא ניתן היה לקרוא {n} אנשי קשר, פריטי לוח שנה, משימות או פתקים
+	{n} folders couldn't be read	לא ניתן היה לקרוא {n} תיקיות
+	{n} folders of a kind MailCraft has no place for	{n} תיקיות מסוג שאין לו מקום ב־MailCraft
+	{n} folders were nested too deep	{n} תיקיות היו מקוננות עמוק מדי
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	לא ניתן היה לשמור את הרשימות של {n} תיקיות (הדואר שלהן נשמר, בלי רשימה)
+	{n} items couldn't be used (such as an empty note)	לא ניתן היה להשתמש ב־{n} פריטים (כמו פתק ריק)
+	{n} items for other reasons	{n} פריטים מסיבות אחרות
+	{n} items in those folders	{n} פריטים בתיקיות האלה
+	{n} message texts couldn't be converted	לא ניתן היה להמיר את הטקסט של {n} הודעות
+	{n} message texts were in a character set MailCraft can't read	הטקסט של {n} הודעות היה בקידוד ש־MailCraft לא יודע לקרוא
+	{n} messages couldn't be put back together	לא ניתן היה להרכיב מחדש {n} הודעות
+	{n} messages couldn't be read	לא ניתן היה לקרוא {n} הודעות
+	{n} messages couldn't be saved	לא ניתן היה לשמור {n} הודעות
+	{n} messages were attached too deep inside others	{n} הודעות היו מצורפות עמוק מדי בתוך הודעות אחרות
+	{n} min	{n} דק׳
+	{n} recipients had no address	ל־{n} נמענים לא הייתה כתובת
+	{n} s	{n} שנ׳
+	{time} so far	{time} עד כה

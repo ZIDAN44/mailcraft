@@ -399,7 +399,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
 
     // Mailbox: space used on the server and here, where the data file is, emptying.
     let cached = *b.cached.entry(id.clone()).or_insert_with(|| s.cache_size(&id));
-    let size = |n: u64| widgets::human_size(usize::try_from(n).unwrap_or(usize::MAX));
+    let size = widgets::human_bytes;
     card(ui, t, tl!("Mailbox settings"), Some(tl!("See how much space your mail takes, and empty Deleted Items and Junk Email.")), |ui| {
         let mut first = true;
         if !a.is_local() {

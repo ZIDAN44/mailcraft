@@ -503,7 +503,6 @@ month	May	5月
 	Outlook data file	Outlook 数据文件
 	Opened from an Outlook data file, kept on this computer only	从 Outlook 数据文件打开，仅保存在这台电脑上
 	Not available: a data file has no server.	不可用：数据文件没有服务器。
-	Opening {file}…	正在打开 {file}…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	服务器：{url} (Microsoft Graph)
@@ -1380,3 +1379,86 @@ month	May	5月
 	Couldn't read the date “{value}”	无法读取日期“{value}”
 	Received after	接收日期晚于
 	Received before	接收日期早于
+	About {h} h {m} min left	大约还剩 {h} 小时 {m} 分钟
+	About {n} min left	大约还剩 {n} 分钟
+	Another program is using the data file.	另一个程序正在使用该数据文件。
+	Calendar items: {n}	日历项目: {n}
+	Close MailCraft	关闭 MailCraft
+	Contacts: {n}	联系人: {n}
+	Continue importing	继续导入
+	Counting items…	正在统计项目…
+	Data: {done} of {total}	数据: {done} / {total}
+	Folder: {folder} ({n} of {total})	文件夹: {folder} ({n} / {total})
+	Free there: {free}	那里的可用空间: {free}
+	Go to Inbox	转到收件箱
+	Go to it	转到该账户
+	Import another copy	再导入一份
+	Import paused	导入已暂停
+	Import report…	导入报告…
+	Import stopped	导入已停止
+	Import stopped: {done} of {total}	导入已停止: {done} / {total}
+	Import stopped: {file}	导入已停止: {file}
+	Imported {file}	已导入 {file}
+	Importing {file}…	正在导入 {file}…
+	Importing {file}… {percent}%	正在导入 {file}… {percent}%
+	Importing {folder}…	正在导入 {folder}…
+	Importing {folder}… {percent}%	正在导入 {folder}… {percent}%
+	Importing {percent}%	正在导入 {percent}%
+	Importing…	正在导入…
+	Keep importing	继续导入
+	Keep what's imported	保留已导入的内容
+	Less than a minute left	还剩不到一分钟
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft 正在导入 {file} ({percent}%)。如果现在关闭，导入会在下次打开 MailCraft 时继续。
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft 正在导入 {file}。如果现在关闭，导入会在下次打开 MailCraft 时继续。
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft 会在 {folder} 中创建自己的副本，大约 {size}。
+	Messages: {done} of {total}	邮件: {done} / {total}
+	Not brought in	未导入的内容
+	Not brought in so far: {n}	目前未导入: {n}
+	Notes: {n}	便笺: {n}
+	Open an Outlook data file…	打开 Outlook 数据文件…
+	Removing…	正在移除…
+	Saved in: {path}	保存位置: {path}
+	Show how the import is going	查看导入进度
+	Start again	重新开始
+	Stop	停止
+	Stop importing and remove {file}?	停止导入并移除 {file}?
+	Stop importing {file}?	停止导入 {file}?
+	Stop importing…	停止导入…
+	Stopping the import of {file}…	正在停止导入 {file}…
+	Stopping…	正在停止…
+	The data file changed after the import began.	导入开始后数据文件发生了变化。
+	The data file isn't where it was.	数据文件已不在原来的位置。
+	The file is damaged: reading stopped early ({n})	文件已损坏: 读取提前停止 ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	已导入的部分将被删除。数据文件本身不会改变。
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	没有足够的空间存放副本。请释放空间，或移动 MailCraft 的数据文件夹 (文件 › 选项)。
+	There's too little room left on the drive ({free} free).	驱动器上剩余空间太少 (可用 {free})。
+	This data file is already open as {name}.	此数据文件已作为 {name} 打开。
+	This file couldn't be looked at: {error}	无法检查此文件: {error}
+	What came in goes, and the data file is read from its start.	已导入的内容将被移除，并从头读取数据文件。
+	What's imported so far is kept. You can continue later.	已导入的内容会保留。你可以稍后继续。
+	{h} h {m} min	{h} 小时 {m} 分钟
+	{items} items in {folders} folders	{folders} 个文件夹中的 {items} 个项目
+	{messages} messages in {folders} folders ({time})	{folders} 个文件夹中的 {messages} 封邮件 ({time})
+	{n} attached messages couldn't be read	{n} 封附带的邮件无法读取
+	{n} attached messages lost some of their files	{n} 封附带的邮件丢失了部分文件
+	{n} attachments couldn't be read	{n} 个附件无法读取
+	{n} attachments were only links to files elsewhere	{n} 个附件只是指向别处文件的链接
+	{n} attachments were too big to bring in	{n} 个附件太大，无法导入
+	{n} contacts, calendar items, tasks or notes couldn't be read	{n} 个联系人、日历项目、任务或便笺无法读取
+	{n} folders couldn't be read	{n} 个文件夹无法读取
+	{n} folders of a kind MailCraft has no place for	{n} 个 MailCraft 无处安放的文件夹
+	{n} folders were nested too deep	{n} 个文件夹嵌套过深
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	{n} 个文件夹的列表无法保存 (其邮件已保留，但未列出)
+	{n} items couldn't be used (such as an empty note)	{n} 个项目无法使用 (例如空白便笺)
+	{n} items for other reasons	{n} 个项目，因其他原因
+	{n} items in those folders	这些文件夹中的 {n} 个项目
+	{n} message texts couldn't be converted	{n} 封邮件的正文无法转换
+	{n} message texts were in a character set MailCraft can't read	{n} 封邮件的正文使用了 MailCraft 无法读取的字符集
+	{n} messages couldn't be put back together	{n} 封邮件无法重新组合
+	{n} messages couldn't be read	{n} 封邮件无法读取
+	{n} messages couldn't be saved	{n} 封邮件无法保存
+	{n} messages were attached too deep inside others	{n} 封邮件在其他邮件中附带得太深
+	{n} min	{n} 分钟
+	{n} recipients had no address	{n} 个收件人没有地址
+	{n} s	{n} 秒
+	{time} so far	已用时 {time}

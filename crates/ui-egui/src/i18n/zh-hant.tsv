@@ -500,7 +500,6 @@
 	Outlook data file	Outlook 資料檔
 	Opened from an Outlook data file, kept on this computer only	從 Outlook 資料檔開啟，僅保存在這台電腦上
 	Not available: a data file has no server.	無法使用：資料檔沒有伺服器。
-	Opening {file}…	正在開啟 {file}…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	伺服器：{url} (Microsoft Graph)
@@ -1383,3 +1382,86 @@ month	May	5月
 	Couldn't read the date “{value}”	無法讀取日期「{value}」
 	Received after	接收日期晚於
 	Received before	接收日期早於
+	About {h} h {m} min left	大約還剩 {h} 小時 {m} 分鐘
+	About {n} min left	大約還剩 {n} 分鐘
+	Another program is using the data file.	另一個程式正在使用該資料檔案。
+	Calendar items: {n}	行事曆項目: {n}
+	Close MailCraft	關閉 MailCraft
+	Contacts: {n}	連絡人: {n}
+	Continue importing	繼續匯入
+	Counting items…	正在計算項目…
+	Data: {done} of {total}	資料: {done} / {total}
+	Folder: {folder} ({n} of {total})	資料夾: {folder} ({n} / {total})
+	Free there: {free}	該處可用空間: {free}
+	Go to Inbox	前往收件匣
+	Go to it	前往該帳戶
+	Import another copy	再匯入一份
+	Import paused	匯入已暫停
+	Import report…	匯入報告…
+	Import stopped	匯入已停止
+	Import stopped: {done} of {total}	匯入已停止: {done} / {total}
+	Import stopped: {file}	匯入已停止: {file}
+	Imported {file}	已匯入 {file}
+	Importing {file}…	正在匯入 {file}…
+	Importing {file}… {percent}%	正在匯入 {file}… {percent}%
+	Importing {folder}…	正在匯入 {folder}…
+	Importing {folder}… {percent}%	正在匯入 {folder}… {percent}%
+	Importing {percent}%	正在匯入 {percent}%
+	Importing…	正在匯入…
+	Keep importing	繼續匯入
+	Keep what's imported	保留已匯入的內容
+	Less than a minute left	還剩不到一分鐘
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft 正在匯入 {file} ({percent}%)。如果現在關閉，匯入會在下次開啟 MailCraft 時繼續。
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft 正在匯入 {file}。如果現在關閉，匯入會在下次開啟 MailCraft 時繼續。
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft 會在 {folder} 中建立自己的副本，大約 {size}。
+	Messages: {done} of {total}	郵件: {done} / {total}
+	Not brought in	未匯入的內容
+	Not brought in so far: {n}	目前未匯入: {n}
+	Notes: {n}	便箋: {n}
+	Open an Outlook data file…	開啟 Outlook 資料檔案…
+	Removing…	正在移除…
+	Saved in: {path}	儲存位置: {path}
+	Show how the import is going	檢視匯入進度
+	Start again	重新開始
+	Stop	停止
+	Stop importing and remove {file}?	停止匯入並移除 {file}?
+	Stop importing {file}?	停止匯入 {file}?
+	Stop importing…	停止匯入…
+	Stopping the import of {file}…	正在停止匯入 {file}…
+	Stopping…	正在停止…
+	The data file changed after the import began.	匯入開始後資料檔案發生了變更。
+	The data file isn't where it was.	資料檔案已不在原來的位置。
+	The file is damaged: reading stopped early ({n})	檔案已損毀: 讀取提前停止 ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	已匯入的部分將被刪除。資料檔案本身不會變更。
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	沒有足夠的空間存放副本。請釋放空間，或移動 MailCraft 的資料資料夾 (檔案 › 選項)。
+	There's too little room left on the drive ({free} free).	磁碟機上剩餘空間太少 (可用 {free})。
+	This data file is already open as {name}.	此資料檔案已作為 {name} 開啟。
+	This file couldn't be looked at: {error}	無法檢查此檔案: {error}
+	What came in goes, and the data file is read from its start.	已匯入的內容將被移除，並從頭讀取資料檔案。
+	What's imported so far is kept. You can continue later.	已匯入的內容會保留。你可以稍後繼續。
+	{h} h {m} min	{h} 小時 {m} 分鐘
+	{items} items in {folders} folders	{folders} 個資料夾中的 {items} 個項目
+	{messages} messages in {folders} folders ({time})	{folders} 個資料夾中的 {messages} 封郵件 ({time})
+	{n} attached messages couldn't be read	{n} 封附加的郵件無法讀取
+	{n} attached messages lost some of their files	{n} 封附加的郵件遺失了部分檔案
+	{n} attachments couldn't be read	{n} 個附件無法讀取
+	{n} attachments were only links to files elsewhere	{n} 個附件只是指向別處檔案的連結
+	{n} attachments were too big to bring in	{n} 個附件太大，無法匯入
+	{n} contacts, calendar items, tasks or notes couldn't be read	{n} 個連絡人、行事曆項目、工作或便箋無法讀取
+	{n} folders couldn't be read	{n} 個資料夾無法讀取
+	{n} folders of a kind MailCraft has no place for	{n} 個 MailCraft 無處安放的資料夾
+	{n} folders were nested too deep	{n} 個資料夾巢狀過深
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	{n} 個資料夾的清單無法儲存 (其郵件已保留，但未列出)
+	{n} items couldn't be used (such as an empty note)	{n} 個項目無法使用 (例如空白便箋)
+	{n} items for other reasons	{n} 個項目，因其他原因
+	{n} items in those folders	這些資料夾中的 {n} 個項目
+	{n} message texts couldn't be converted	{n} 封郵件的內文無法轉換
+	{n} message texts were in a character set MailCraft can't read	{n} 封郵件的內文使用了 MailCraft 無法讀取的字元集
+	{n} messages couldn't be put back together	{n} 封郵件無法重新組合
+	{n} messages couldn't be read	{n} 封郵件無法讀取
+	{n} messages couldn't be saved	{n} 封郵件無法儲存
+	{n} messages were attached too deep inside others	{n} 封郵件在其他郵件中附加得太深
+	{n} min	{n} 分鐘
+	{n} recipients had no address	{n} 個收件者沒有地址
+	{n} s	{n} 秒
+	{time} so far	已用時 {time}

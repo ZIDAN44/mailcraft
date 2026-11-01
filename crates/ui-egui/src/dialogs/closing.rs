@@ -1,5 +1,6 @@
 //! Dialogs: what closing MailCraft would leave behind (messages being written, what online-only
-//! accounts hold in memory, an update about to be installed or still downloading).
+//! accounts hold in memory, a data file being imported, an update about to be installed or
+//! still downloading).
 
 use super::*;
 use crate::UpdateState;
@@ -74,6 +75,34 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             });
             keep
         }
+        // An import pauses as MailCraft closes, and goes on as it opens again.
+        Dialog::ImportOnClose { file, permille } => {
+            ui.set_width(440.0);
+            title(ui, t, "Close MailCraft?");
+            let about = match permille {
+                Some(p) => tf!(
+                    "MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.",
+                    file = file,
+                    percent = crate::progress::percent(*p)
+                ),
+                None => tf!("MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.", file = file),
+            };
+            ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
+            ui.add_space(10.0);
+            let mut keep = true;
+            button_row(ui, |ui| {
+                if ui.button(tl!("Keep importing")).clicked() {
+                    keep = false;
+                }
+                if widgets::accent_button(ui, Icon::Close, "Close MailCraft", t, true).clicked() {
+                    // Paused, its place kept: it goes on from there as MailCraft opens.
+                    acts.push(Action::Run("account.stopImport", json!({"all": true, "how": "pause"})));
+                    acts.push(Action::CloseAnyway);
+                    keep = false;
+                }
+            });
+            keep
+        }
         // Closing never installs an update, or drops a download, without a word.
         Dialog::UpdateOnClose(state) => match state {
             UpdateState::Ready { version, admin } => {
@@ -109,8 +138,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
                     tf!(
                         "MailCraft {version} is downloading ({done} of {total}).",
                         version = version,
-                        done = widgets::human_size(usize::try_from(*done).unwrap_or(usize::MAX)),
-                        total = widgets::human_size(usize::try_from(*total).unwrap_or(usize::MAX))
+                        done = widgets::human_bytes(*done),
+                        total = widgets::human_bytes(*total)
                     )
                 } else {
                     tf!("MailCraft {version} is downloading.", version = version)

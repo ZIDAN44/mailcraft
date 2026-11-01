@@ -80,6 +80,7 @@ pub(crate) fn tour() {
         backstage_tour(&mut a, &ctx);
         pim_tour(&mut a, &ctx);
         updates::tour(&mut a, &ctx);
+        accounts::importing::tour(&mut a, &ctx);
         crate::app::boot::tests::tour(&ctx);
         let projects = a.session.folder("sample", "Projects").cloned().unwrap();
         a.session.oauth_available = vec!["google".into()];

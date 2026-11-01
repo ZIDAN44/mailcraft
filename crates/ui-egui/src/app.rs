@@ -7,6 +7,7 @@ mod bodies;
 pub(crate) mod boot;
 mod dropped;
 mod frame;
+pub(crate) mod importing;
 mod keys;
 mod ribbon;
 mod search_box;

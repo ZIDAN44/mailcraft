@@ -500,7 +500,6 @@
 	Outlook data file	Outlook 데이터 파일
 	Opened from an Outlook data file, kept on this computer only	Outlook 데이터 파일에서 열었으며 이 컴퓨터에만 보관됩니다
 	Not available: a data file has no server.	사용할 수 없음: 데이터 파일에는 서버가 없습니다.
-	Opening {file}…	{file} 여는 중…
 	Exchange (Microsoft 365)	Exchange(Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange(Microsoft Graph)
 	Server: {url} (Microsoft Graph)	서버: {url}(Microsoft Graph)
@@ -1383,3 +1382,86 @@ month	May	5월
 	Couldn't read the date “{value}”	날짜 "{value}"을(를) 읽을 수 없습니다
 	Received after	받은 날짜 이후
 	Received before	받은 날짜 이전
+	About {h} h {m} min left	약 {h}시간 {m}분 남음
+	About {n} min left	약 {n}분 남음
+	Another program is using the data file.	다른 프로그램이 데이터 파일을 사용하고 있습니다.
+	Calendar items: {n}	일정 항목: {n}
+	Close MailCraft	MailCraft 닫기
+	Contacts: {n}	연락처: {n}
+	Continue importing	가져오기 계속
+	Counting items…	항목 수를 세는 중…
+	Data: {done} of {total}	데이터: {done} / {total}
+	Folder: {folder} ({n} of {total})	폴더: {folder} ({n} / {total})
+	Free there: {free}	남은 공간: {free}
+	Go to Inbox	받은 편지함으로 이동
+	Go to it	이동
+	Import another copy	다른 사본 가져오기
+	Import paused	가져오기 일시 중지됨
+	Import report…	가져오기 보고서…
+	Import stopped	가져오기 중지됨
+	Import stopped: {done} of {total}	가져오기 중지됨: {done} / {total}
+	Import stopped: {file}	가져오기 중지됨: {file}
+	Imported {file}	{file} 가져오기 완료
+	Importing {file}…	{file} 가져오는 중…
+	Importing {file}… {percent}%	{file} 가져오는 중… {percent}%
+	Importing {folder}…	{folder} 가져오는 중…
+	Importing {folder}… {percent}%	{folder} 가져오는 중… {percent}%
+	Importing {percent}%	가져오는 중 {percent}%
+	Importing…	가져오는 중…
+	Keep importing	계속 가져오기
+	Keep what's imported	가져온 항목 유지
+	Less than a minute left	1분 미만 남음
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft가 {file}을(를) 가져오는 중입니다({percent}%). 지금 닫으면 다음에 MailCraft를 열 때 가져오기가 이어집니다.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft가 {file}을(를) 가져오는 중입니다. 지금 닫으면 다음에 MailCraft를 열 때 가져오기가 이어집니다.
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft가 약 {size} 크기의 자체 사본을 {folder}에 만듭니다.
+	Messages: {done} of {total}	메시지: {done} / {total}
+	Not brought in	가져오지 못한 항목
+	Not brought in so far: {n}	지금까지 가져오지 못한 항목: {n}
+	Notes: {n}	메모: {n}
+	Open an Outlook data file…	Outlook 데이터 파일 열기…
+	Removing…	제거하는 중…
+	Saved in: {path}	저장 위치: {path}
+	Show how the import is going	가져오기 진행 상황 보기
+	Start again	처음부터 다시
+	Stop	중지
+	Stop importing and remove {file}?	가져오기를 중지하고 {file}을(를) 제거하시겠습니까?
+	Stop importing {file}?	{file} 가져오기를 중지하시겠습니까?
+	Stop importing…	가져오기 중지…
+	Stopping the import of {file}…	{file} 가져오기를 중지하는 중…
+	Stopping…	중지하는 중…
+	The data file changed after the import began.	가져오기가 시작된 뒤 데이터 파일이 바뀌었습니다.
+	The data file isn't where it was.	데이터 파일이 원래 위치에 없습니다.
+	The file is damaged: reading stopped early ({n})	파일이 손상되었습니다: 읽기가 일찍 멈췄습니다({n})
+	The part imported so far is deleted. The data file itself isn't changed.	지금까지 가져온 부분은 삭제됩니다. 데이터 파일 자체는 바뀌지 않습니다.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	사본을 둘 공간이 없습니다. 공간을 확보하거나 MailCraft 데이터 폴더를 옮기세요(파일 › 옵션).
+	There's too little room left on the drive ({free} free).	드라이브에 남은 공간이 너무 적습니다(여유 공간 {free}).
+	This data file is already open as {name}.	이 데이터 파일은 이미 {name}(으)로 열려 있습니다.
+	This file couldn't be looked at: {error}	이 파일을 살펴볼 수 없습니다: {error}
+	What came in goes, and the data file is read from its start.	가져온 항목은 지워지고 데이터 파일을 처음부터 다시 읽습니다.
+	What's imported so far is kept. You can continue later.	지금까지 가져온 항목은 유지됩니다. 나중에 계속할 수 있습니다.
+	{h} h {m} min	{h}시간 {m}분
+	{items} items in {folders} folders	폴더 {folders}개에 항목 {items}개
+	{messages} messages in {folders} folders ({time})	폴더 {folders}개에 메시지 {messages}개({time})
+	{n} attached messages couldn't be read	첨부된 메시지 {n}개를 읽을 수 없습니다
+	{n} attached messages lost some of their files	첨부된 메시지 {n}개에서 일부 파일이 빠졌습니다
+	{n} attachments couldn't be read	첨부 파일 {n}개를 읽을 수 없습니다
+	{n} attachments were only links to files elsewhere	첨부 파일 {n}개는 다른 곳에 있는 파일의 링크일 뿐이었습니다
+	{n} attachments were too big to bring in	첨부 파일 {n}개는 너무 커서 가져올 수 없었습니다
+	{n} contacts, calendar items, tasks or notes couldn't be read	연락처, 일정, 작업 또는 메모 {n}개를 읽을 수 없습니다
+	{n} folders couldn't be read	폴더 {n}개를 읽을 수 없습니다
+	{n} folders of a kind MailCraft has no place for	MailCraft에 둘 곳이 없는 종류의 폴더 {n}개
+	{n} folders were nested too deep	폴더 {n}개가 너무 깊게 중첩되어 있었습니다
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	폴더 {n}개의 목록을 저장할 수 없습니다(메일은 목록 없이 남아 있습니다)
+	{n} items couldn't be used (such as an empty note)	항목 {n}개는 사용할 수 없었습니다(빈 메모 등)
+	{n} items for other reasons	기타 이유로 항목 {n}개
+	{n} items in those folders	해당 폴더의 항목 {n}개
+	{n} message texts couldn't be converted	메시지 {n}개의 본문을 변환할 수 없습니다
+	{n} message texts were in a character set MailCraft can't read	메시지 {n}개의 본문은 MailCraft가 읽을 수 없는 문자 집합이었습니다
+	{n} messages couldn't be put back together	메시지 {n}개를 다시 조립할 수 없습니다
+	{n} messages couldn't be read	메시지 {n}개를 읽을 수 없습니다
+	{n} messages couldn't be saved	메시지 {n}개를 저장할 수 없습니다
+	{n} messages were attached too deep inside others	메시지 {n}개가 다른 메시지 안에 너무 깊게 첨부되어 있었습니다
+	{n} min	{n}분
+	{n} recipients had no address	받는 사람 {n}명에게 주소가 없었습니다
+	{n} s	{n}초
+	{time} so far	지금까지 {time}

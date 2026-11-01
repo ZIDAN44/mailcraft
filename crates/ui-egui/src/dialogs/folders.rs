@@ -156,7 +156,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     (tl!("Location"), location.clone()),
                     (tl!("Messages"), total.to_string()),
                     (tl!("Unread"), unread.to_string()),
-                    (tl!("Size on this computer"), widgets::human_size(usize::try_from(*size).unwrap_or(usize::MAX))),
+                    (tl!("Size on this computer"), widgets::human_bytes(*size)),
                 ];
                 for (label, value) in rows {
                     ui.label(RichText::new(label).color(t.dim));

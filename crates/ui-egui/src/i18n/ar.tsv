@@ -500,7 +500,6 @@
 	Outlook data file	ملف بيانات Outlook
 	Opened from an Outlook data file, kept on this computer only	فُتح من ملف بيانات Outlook، محفوظ على هذا الكمبيوتر فقط
 	Not available: a data file has no server.	غير متاح: ملف البيانات بلا خادم.
-	Opening {file}…	جارٍ فتح {file}…
 	Exchange (Microsoft 365)	Exchange (Microsoft 365)
 	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
 	Server: {url} (Microsoft Graph)	الخادم: {url} (Microsoft Graph)
@@ -1379,3 +1378,86 @@ month	May	مايو
 	Couldn't read the date “{value}”	تعذّرت قراءة التاريخ «{value}»
 	Received after	مستلمة بعد
 	Received before	مستلمة قبل
+	About {h} h {m} min left	يتبقى نحو {h} س {m} د
+	About {n} min left	يتبقى نحو {n} د
+	Another program is using the data file.	برنامج آخر يستخدم ملف البيانات.
+	Calendar items: {n}	عناصر التقويم: {n}
+	Close MailCraft	إغلاق MailCraft
+	Contacts: {n}	جهات الاتصال: {n}
+	Continue importing	متابعة الاستيراد
+	Counting items…	جارٍ عدّ العناصر…
+	Data: {done} of {total}	البيانات: {done} من {total}
+	Folder: {folder} ({n} of {total})	المجلد: {folder} ({n} من {total})
+	Free there: {free}	المساحة الحرة هناك: {free}
+	Go to Inbox	الانتقال إلى علبة الوارد
+	Go to it	الانتقال إليه
+	Import another copy	استيراد نسخة أخرى
+	Import paused	الاستيراد متوقف مؤقتًا
+	Import report…	تقرير الاستيراد…
+	Import stopped	توقف الاستيراد
+	Import stopped: {done} of {total}	توقف الاستيراد: {done} من {total}
+	Import stopped: {file}	توقف الاستيراد: {file}
+	Imported {file}	تم استيراد {file}
+	Importing {file}…	جارٍ استيراد {file}…
+	Importing {file}… {percent}%	جارٍ استيراد {file}… {percent}%
+	Importing {folder}…	جارٍ استيراد {folder}…
+	Importing {folder}… {percent}%	جارٍ استيراد {folder}… {percent}%
+	Importing {percent}%	الاستيراد {percent}%
+	Importing…	جارٍ الاستيراد…
+	Keep importing	مواصلة الاستيراد
+	Keep what's imported	الاحتفاظ بما تم استيراده
+	Less than a minute left	يتبقى أقل من دقيقة
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	يستورد MailCraft الملف {file} ({percent}%). إذا أغلقته الآن، فسيتابع الاستيراد في المرة التالية التي تفتح فيها MailCraft.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	يستورد MailCraft الملف {file}. إذا أغلقته الآن، فسيتابع الاستيراد في المرة التالية التي تفتح فيها MailCraft.
+	MailCraft makes its own copy, about {size}, in {folder}.	ينشئ MailCraft نسخته الخاصة، بحجم {size} تقريبًا، في {folder}.
+	Messages: {done} of {total}	الرسائل: {done} من {total}
+	Not brought in	ما لم يُستورد
+	Not brought in so far: {n}	ما لم يُستورد حتى الآن: {n}
+	Notes: {n}	الملاحظات: {n}
+	Open an Outlook data file…	فتح ملف بيانات Outlook…
+	Removing…	جارٍ الإزالة…
+	Saved in: {path}	محفوظ في: {path}
+	Show how the import is going	عرض تقدم الاستيراد
+	Start again	البدء من جديد
+	Stop	إيقاف
+	Stop importing and remove {file}?	إيقاف الاستيراد وإزالة {file}؟
+	Stop importing {file}?	إيقاف استيراد {file}؟
+	Stop importing…	إيقاف الاستيراد…
+	Stopping the import of {file}…	جارٍ إيقاف استيراد {file}…
+	Stopping…	جارٍ الإيقاف…
+	The data file changed after the import began.	تغيّر ملف البيانات بعد بدء الاستيراد.
+	The data file isn't where it was.	ملف البيانات لم يعد في مكانه.
+	The file is damaged: reading stopped early ({n})	الملف تالف: توقفت القراءة مبكرًا ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	يُحذف الجزء الذي تم استيراده حتى الآن. ولا يتغير ملف البيانات نفسه.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	لا توجد مساحة كافية للنسخة. حرّر بعض المساحة، أو انقل مجلد بيانات MailCraft (ملف › خيارات).
+	There's too little room left on the drive ({free} free).	المساحة المتبقية على محرك الأقراص قليلة جدًا ({free} حرة).
+	This data file is already open as {name}.	ملف البيانات هذا مفتوح بالفعل باسم {name}.
+	This file couldn't be looked at: {error}	تعذّر فحص هذا الملف: {error}
+	What came in goes, and the data file is read from its start.	يُحذف ما تم استيراده، ويُقرأ ملف البيانات من بدايته.
+	What's imported so far is kept. You can continue later.	يُحتفظ بما تم استيراده حتى الآن. يمكنك المتابعة لاحقًا.
+	{h} h {m} min	{h} س {m} د
+	{items} items in {folders} folders	{items} عنصرًا في {folders} مجلدًا
+	{messages} messages in {folders} folders ({time})	{messages} رسالة في {folders} مجلدًا ({time})
+	{n} attached messages couldn't be read	تعذّرت قراءة {n} من الرسائل المرفقة
+	{n} attached messages lost some of their files	فقدت {n} من الرسائل المرفقة بعض ملفاتها
+	{n} attachments couldn't be read	تعذّرت قراءة {n} من المرفقات
+	{n} attachments were only links to files elsewhere	كانت {n} من المرفقات مجرد روابط لملفات في مكان آخر
+	{n} attachments were too big to bring in	كانت {n} من المرفقات أكبر من أن تُستورد
+	{n} contacts, calendar items, tasks or notes couldn't be read	تعذّرت قراءة {n} من جهات الاتصال أو عناصر التقويم أو المهام أو الملاحظات
+	{n} folders couldn't be read	تعذّرت قراءة {n} من المجلدات
+	{n} folders of a kind MailCraft has no place for	{n} من المجلدات من نوع ليس له مكان في MailCraft
+	{n} folders were nested too deep	كانت {n} من المجلدات متداخلة بعمق كبير
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	تعذّر حفظ قوائم {n} من المجلدات (بريدها محفوظ دون أن يُدرج)
+	{n} items couldn't be used (such as an empty note)	تعذّر استخدام {n} من العناصر (مثل ملاحظة فارغة)
+	{n} items for other reasons	{n} من العناصر لأسباب أخرى
+	{n} items in those folders	{n} من العناصر في تلك المجلدات
+	{n} message texts couldn't be converted	تعذّر تحويل نصوص {n} من الرسائل
+	{n} message texts were in a character set MailCraft can't read	كانت نصوص {n} من الرسائل بمجموعة أحرف لا يستطيع MailCraft قراءتها
+	{n} messages couldn't be put back together	تعذّر إعادة تجميع {n} من الرسائل
+	{n} messages couldn't be read	تعذّرت قراءة {n} من الرسائل
+	{n} messages couldn't be saved	تعذّر حفظ {n} من الرسائل
+	{n} messages were attached too deep inside others	كانت {n} من الرسائل مرفقة داخل رسائل أخرى بعمق كبير
+	{n} min	{n} د
+	{n} recipients had no address	لم يكن لدى {n} من المستلمين عنوان
+	{n} s	{n} ث
+	{time} so far	{time} حتى الآن
