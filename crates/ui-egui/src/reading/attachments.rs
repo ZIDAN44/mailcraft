@@ -331,7 +331,7 @@ pub(super) fn attachment_preview(s: &Session, st: &mut UiState, ui: &mut Ui, key
             // A picture or a PDF is read with the message's others (`Pictures`), not here.
             let data = match a.kind() {
                 AttachmentKind::Image | AttachmentKind::Pdf => None,
-                _ => s.store.as_ref().and_then(|st| st.read_body(key)).and_then(|raw| mime::attachment_data(&raw, a.index)),
+                _ => s.store.as_ref().and_then(|st| st.read_body(key)).and_then(|raw| shown_data(&raw, a)),
             };
             let x = std::sync::Arc::new(read_shown(a, data.as_deref()));
             ui.ctx().data_mut(|d| d.insert_temp(id, x.clone()));
@@ -375,6 +375,25 @@ pub(super) fn attachment_preview(s: &Session, st: &mut UiState, ui: &mut Ui, key
         }
         Shown::Office(p) => office_preview(&t, ui, p, a.index),
         Shown::Nothing => no_preview(&t, ui, a, acts),
+    }
+}
+
+/// The bytes an attachment is previewed from: a text file read in the charset it names, as UTF-8
+/// (its bytes as they came, which Open and Save take, would show a file in Windows-1252 with
+/// replacement characters), anything else as it came.
+pub(super) fn shown_data(raw: &[u8], a: &mime::AttachmentInfo) -> Option<Vec<u8>> {
+    match mime::text_preview_kind(&a.mime, &a.name) {
+        Some("text") => mime::attachment_text(raw, a.index).map(String::into_bytes),
+        _ => mime::attachment_data(raw, a.index),
+    }
+}
+
+/// The text the reading pane previews an attachment of the message `raw` with, if it shows one.
+#[cfg(test)]
+pub(crate) fn previewed_text(raw: &[u8], a: &mime::AttachmentInfo) -> Option<String> {
+    match read_shown(a, shown_data(raw, a).as_deref()) {
+        Shown::Text { text, .. } => Some(text),
+        _ => None,
     }
 }
 

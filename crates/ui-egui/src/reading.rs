@@ -20,6 +20,8 @@ mod people;
 mod pictures;
 mod security;
 pub(crate) use attachments::decode;
+#[cfg(test)]
+pub(crate) use attachments::previewed_text;
 use attachments::*;
 use body::*;
 pub use compose::compose_window;
