@@ -236,8 +236,14 @@ impl Seals {
 /// An empty sealed commit of `account`'s data file (durable: it also writes out the batches
 /// before it).
 pub(super) fn seal(db: &Database, seals: &Seals, account: &str) -> io::Result<()> {
+    seal_with(db, seals, account, |_| Ok(()))
+}
+
+/// A sealed commit of `account`'s data file that makes only the changes `f` makes (to `META`).
+pub(super) fn seal_with(db: &Database, seals: &Seals, account: &str, f: impl FnOnce(&redb::WriteTransaction) -> io::Result<()>) -> io::Result<()> {
     let mut tx = db.begin_write().map_err(disk)?;
     tx.set_quick_repair(true);
+    f(&tx)?;
     let before = seals.count(account, None);
     tx.commit().map_err(|e| {
         seals.restore(account, before);
@@ -322,6 +328,13 @@ impl Packs {
             tx.set_durability(redb::Durability::None).map_err(other)?;
         }
         tx.set_quick_repair(how.seal);
+        // A file made new that couldn't say so as it was made says in its writes that everything
+        // in it is kept as this build keeps it (none of it needs compressing again), until one of
+        // them reaches the disk: one that doesn't is lost to a crash or a full drive.
+        let fresh = Packs::lock(&self.fresh).contains(account);
+        if fresh {
+            write_meta(&tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice())])?;
+        }
         {
             let mut tables = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)? };
             f(&mut tables)?;
@@ -332,6 +345,9 @@ impl Packs {
         if let Err(e) = tx.commit() {
             self.seals.restore(account, before);
             return Err(disk(e));
+        }
+        if fresh && how.durable {
+            Packs::lock(&self.fresh).remove(account);
         }
         if how.seal {
             self.seals.sealed(account, at);

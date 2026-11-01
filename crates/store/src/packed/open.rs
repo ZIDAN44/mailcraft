@@ -285,6 +285,8 @@ impl Packs {
         let checked = Arc::new(AtomicBool::new(false));
         let _over = CheckOver(&self.progress);
         let held = self.still_held(account);
+        // Made new: it says how it's kept (`META`).
+        let mut fresh = !path.exists();
         let db = match self.create(&self.builder(&name, &checked, cache), &path) {
             Ok(db) => db,
             // Let go of after a failed write, and still held here: not another copy's.
@@ -301,6 +303,7 @@ impl Packs {
                 let aside = path.with_extension(format!("{EXTENSION}.damaged"));
                 log::warn!("{}: {e}; set aside as {}", path.display(), aside.display());
                 fs::rename(&path, &aside)?;
+                fresh = true;
                 self.builder(&name, &checked, cache).create(&path).map_err(other)?
             }
         };
@@ -308,6 +311,19 @@ impl Packs {
             // Not sealed, it's checked again next time; it opened all the same.
             if let Err(e) = seal(&db, &self.seals, account) {
                 log::warn!("{}: checked, but couldn't be sealed: {e}", path.display());
+            }
+        }
+        // Made new: it says at once, sealed, that everything in it is kept as this build keeps it
+        // (a first commit not waited for to the disk would be lost to a crash or a full drive,
+        // and the file would read as one from before for good). Not sealed, its writes say so
+        // until one of them reaches the disk.
+        if fresh {
+            match seal_with(&db, &self.seals, account, |tx| write_meta(tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice())])) {
+                Ok(()) => {}
+                Err(e) => {
+                    log::warn!("{}: made, but couldn't say how it's kept yet: {e}", path.display());
+                    Packs::lock(&self.fresh).insert(account.to_string());
+                }
             }
         }
         let db = Arc::new(db);

@@ -703,6 +703,7 @@ pub fn clear_scratch() {
     }
 }
 
+pub use accounts::DataFileHealth;
 use atomic::private_dir;
 pub use atomic::write_atomic;
 pub use bodies::Prepared;

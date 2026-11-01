@@ -12,7 +12,7 @@
 //! once every file is in and read back. The app opens its data files on a thread of its own
 //! (`open.rs`), as one not closed properly is checked as it opens, which can take minutes.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -25,9 +25,11 @@ use crate::{CACHE, OpenProgress, Prepared, Result, StoreError, io_err, write_ato
 mod commit;
 #[cfg(any(test, feature = "test-drive"))]
 mod filling;
+mod health;
 mod kept;
 mod open;
 use commit::*;
+use health::*;
 use kept::*;
 pub(crate) use kept::{pack_owned, unpack};
 use open::*;
@@ -124,6 +126,9 @@ pub(crate) struct Packs {
     /// A test's drive: full while it's set (growing a data file fails as on a full drive).
     #[cfg(any(test, feature = "test-drive"))]
     pub(super) full: Arc<std::sync::atomic::AtomicBool>,
+    /// Data files made new that couldn't say how they're kept (`META`) as they were made: their
+    /// writes say so until one of them reaches the disk.
+    fresh: Mutex<HashSet<String>>,
 }
 
 impl std::fmt::Debug for Packs {
@@ -154,6 +159,7 @@ impl Packs {
             progress: Arc::default(),
             #[cfg(any(test, feature = "test-drive"))]
             full: Arc::default(),
+            fresh: Mutex::default(),
         })
     }
 
@@ -403,6 +409,7 @@ impl Packs {
     /// the same address added again gets a file of its own beside it. Returns the file.
     pub(crate) fn let_go(&self, account: &str) -> Option<PathBuf> {
         self.close(account);
+        Packs::lock(&self.fresh).remove(account);
         self.seals.forget(account);
         let name = Packs::lock(&self.names).remove(account);
         if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
@@ -416,6 +423,7 @@ impl Packs {
             // The account goes: its data file with it.
             Place::Account(a) => {
                 let had = self.close(&a);
+                Packs::lock(&self.fresh).remove(&a);
                 self.seals.forget(&a);
                 let name = Packs::lock(&self.names).remove(&a);
                 if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {

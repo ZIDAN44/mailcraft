@@ -111,6 +111,24 @@ calls it on a `data-open` thread and makes the session there (`apps/mailcraft/sr
 its window draws ui-egui's `BootCard` until then, which shows nothing for the first 300 ms, so a
 start with nothing to check has no flash of it.
 
+How a data file is doing (`crates/store/src/packed/health.rs`, `Store::data_file_health`) is
+measured without reading any mail: one read of its list of files, its pages counted as the
+database counts them (whole values and the notes of files in pieces) and each file in pieces as
+the page runs its pieces fill, comes within 2% of the pages the database has in use (0.4% in the
+tests against redb's own walk of every page, on a file of mixed sizes and on one of small messages
+only; that walk needs a write transaction and takes minutes on a cold 37 GB file, where this one
+took 0.32 s cold, opening the file included, 6 ms warm and 34 MB at most for its 34,741 files),
+and the file's size over that is what compacting would give
+back, less what the file had over the count just after its last compaction
+(`Store::data_file_compacted`; 2% until then). One file in 128 is sampled: one kept raw has up to
+64 KiB of its first piece compressed for real, so attachments a build before 0.32 kept raw are
+found and pictures that don't compress aren't counted. A `meta` table, which old files lack and old
+builds never open, says how the file was written, each value read on its own and one that can't be
+read ignored: a file this build makes says, sealed as it's made, that everything in it is kept
+compressed as it keeps it (so it isn't sampled, even after a crash or a full drive before anything
+else reached the disk), and a recompress keeps the last key it did there. What a sample finds is
+scaled to the files it's drawn from, not the search index, which a recompress passes over.
+
 ## The browser (`apps/mailcraft-web`)
 
 The same `MailApp` runs in eframe's web runner. The store is `Store::memory()`, loaded from

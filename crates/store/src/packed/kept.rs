@@ -17,7 +17,7 @@ pub(super) const WHOLE_MAX: usize = PAGE - PAGE_SLACK;
 /// A file kept compressed starts with this, then its deflate stream.
 pub(super) const DEFLATED: &[u8] = b"\0MailCraft:deflate\0";
 /// Files smaller than this aren't worth compressing.
-const DEFLATE_MIN: usize = 1024;
+pub(super) const DEFLATE_MIN: usize = 1024;
 /// What [`pack`]'s buffer starts at, as a fraction of the file (eight tenths): base64
 /// attachments, most of an imported message, come to about 0.76.
 const DEFLATE_ROOM: (usize, usize) = (8, 10);

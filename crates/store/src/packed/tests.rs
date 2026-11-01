@@ -5,6 +5,7 @@ use crate::Store;
 mod bulk;
 mod commits;
 mod full;
+mod health;
 mod opening;
 
 fn temp(name: &str) -> std::path::PathBuf {
@@ -406,6 +407,9 @@ fn a_damaged_data_file_is_set_aside() {
     assert!(s.read_body(&k).is_none());
     s.write_body(&k, b"x").unwrap();
     assert!(files.join("zoe@studio.example.mailcraft.damaged").exists());
+    // Started again, it's a file this build made: everything in it is kept as this build keeps it.
+    assert!(s.data_file_health("a1").unwrap().unwrap().recompressed);
+    drop(s);
     let _ = std::fs::remove_dir_all(t);
 }
 

@@ -15,6 +15,39 @@ impl Store {
         }
     }
 
+    /// How an account's data file is doing: how much of it is kept mail, and what compacting it
+    /// would give back. Only read, and quick (one walk of the file's list of what it keeps, not
+    /// of the mail); `None` when the account has no data file.
+    pub fn data_file_health(&self, account: &str) -> Result<Option<DataFileHealth>> {
+        if self.is_online_only(account) {
+            return Ok(None);
+        }
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => {
+                let a = safe_segment(account);
+                x.health(&a).map_err(|source| StoreError::Io { path: a, source })
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// An account's data file was just compacted: it's sealed, and what it has over its kept mail
+    /// now is taken as the least it can have, so [`DataFileHealth::reclaimable`] counts from it.
+    pub fn data_file_compacted(&self, account: &str) -> Result<()> {
+        if self.is_online_only(account) {
+            return Ok(());
+        }
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => {
+                let a = safe_segment(account);
+                x.compacted(&a).map_err(|source| StoreError::Io { path: a, source })
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// The folder the data files are in, when the cache keeps them so.
     pub fn data_files_dir(&self) -> Option<PathBuf> {
         match &self.files.main {
@@ -229,5 +262,54 @@ impl Store {
         let n = removals.entry(account.to_string()).or_insert(0);
         *n = n.saturating_add(1);
         removals
+    }
+}
+
+/// How a data file is doing ([`Store::data_file_health`]), measured without reading any mail.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct DataFileHealth {
+    /// The file's size on disk.
+    pub file_bytes: u64,
+    /// What what it keeps takes in it, pages and all.
+    pub live_bytes: u64,
+    /// What compacting it would give back: its size over what it keeps, less what the file has
+    /// over that just after a compaction (2% until one has measured it).
+    pub reclaimable: u64,
+    /// How many files (messages, lists, documents) it keeps, and their bytes as kept.
+    pub files: u64,
+    pub kept_bytes: u64,
+    /// Of what was sampled, the share kept raw that would compress (a build before 0.32 kept
+    /// base64 attachments raw), 0 to 1.
+    pub raw_fraction: f32,
+    /// About what compressing those again would save.
+    pub recompress_gain: u64,
+    /// Everything in it is kept compressed as this build keeps it (a file made by this build, or
+    /// compressed again); nothing was sampled then.
+    pub recompressed: bool,
+    /// A recompress was stopped part way: there's more to do.
+    pub recompress_stopped: bool,
+}
+
+impl DataFileHealth {
+    /// Compacting is offered (File › Info) from this much to give back.
+    pub const OFFER_FROM: u64 = 64 << 20;
+    /// Compacted without being asked from this much to give back, and at least
+    /// [`DataFileHealth::AUTO_SHARE`] of the file.
+    pub const AUTO_FROM: u64 = 1 << 30;
+    pub const AUTO_SHARE: f64 = 0.20;
+    /// Compressed again without being asked from this share of it kept raw.
+    pub const AUTO_RAW: f32 = 0.10;
+
+    /// Worth compacting when MailCraft is idle: a gigabyte and a fifth of the file to give back,
+    /// or a gigabyte to save by compressing what's kept raw.
+    pub fn needs_compacting(&self) -> bool {
+        let share = (self.file_bytes as f64 * Self::AUTO_SHARE) as u64;
+        self.reclaimable >= Self::AUTO_FROM.max(share)
+            || (!self.recompressed && self.raw_fraction >= Self::AUTO_RAW && self.recompress_gain >= Self::AUTO_FROM)
+    }
+
+    /// Worth offering to compact.
+    pub fn can_compact(&self) -> bool {
+        self.reclaimable >= Self::OFFER_FROM || self.recompress_stopped || (!self.recompressed && self.recompress_gain >= Self::OFFER_FROM)
     }
 }
