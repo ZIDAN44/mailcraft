@@ -80,7 +80,7 @@ fn an_index_reads_back_on_every_layout() {
         assert_eq!(r.doc(&mk("INBOX", 2)), Some(shoot));
         assert_eq!(r.doc(&MessageKey { validity: 8, ..mk("INBOX", 2) }), None, "another validity");
         assert_eq!(r.key(moved), Some(mk("Archive", 3)));
-        assert_eq!(r.info(resume), Some(DocInfo { files: 1, has_text: true, truncated: false, msgid_hash: 11, size: 900 }));
+        assert_eq!(r.info(resume), Some(DocInfo { files: 1, has_text: true, truncated: false, no_source: false, msgid_hash: 11, size: 900 }));
         let blob = r.text(&s, resume).unwrap().unwrap();
         assert_eq!((blob.text.as_str(), blob.names), ("Your Résumé, from Ana <ana@studio.example>", vec!["Q3 Plan.pdf".to_string()]));
 

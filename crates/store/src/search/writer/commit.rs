@@ -12,7 +12,7 @@ impl Writer {
 
     /// Whether a flush has anything to write (a rebuild left to finish is the commit's).
     pub(super) fn has_changes(&self) -> bool {
-        !self.dirty.is_empty() || !self.words.is_empty() || !self.texts.is_empty() || !self.drop_texts.is_empty()
+        !self.dirty.is_empty() || !self.words.is_empty() || !self.texts.is_empty() || !self.drop_texts.is_empty() || self.marks_changed
     }
 
     pub(super) fn file(&self, name: Name, bytes: Vec<u8>) -> (PathBuf, Prepared) {
@@ -80,6 +80,7 @@ impl Writer {
         meta.live = self.live;
         meta.dead = self.dead;
         meta.folders.clone_from(&self.folders);
+        meta.marks = self.marks.iter().map(|(f, r)| (*f, *r)).collect();
         Ok(Flush { stamp: self.stamp, nothing: false, meta, files, placed })
     }
 
@@ -224,6 +225,7 @@ impl Writer {
         self.drop_texts.clear();
         self.drop_bytes = 0;
         self.dirty.clear();
+        self.marks_changed = false;
         self.stamp = self.stamp.wrapping_add(1);
         // Segments up to what a meta names: their words made into few again. The generation is
         // in whatever comes of it: one that doesn't finish is tried again by the next flush (the

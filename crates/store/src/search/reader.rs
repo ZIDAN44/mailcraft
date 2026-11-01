@@ -30,6 +30,9 @@ pub struct DocInfo {
     pub has_text: bool,
     /// Something of it was left out: a word not found may still be in it.
     pub truncated: bool,
+    /// Its source isn't kept here: only its summary can be searched (no word is in it, and it's
+    /// not waiting to be indexed either).
+    pub no_source: bool,
     pub msgid_hash: u64,
     pub size: u32,
 }
@@ -271,7 +274,14 @@ impl Reader {
 
     pub fn info(&self, doc: u32) -> Option<DocInfo> {
         let d = self.docs.get(doc as usize).filter(|d| d.live())?;
-        Some(DocInfo { files: d.files, has_text: d.bits & HAS_TEXT != 0, truncated: d.bits & TRUNCATED != 0, msgid_hash: d.msgid_hash, size: d.size })
+        Some(DocInfo {
+            files: d.files,
+            has_text: d.bits & HAS_TEXT != 0,
+            truncated: d.bits & TRUNCATED != 0,
+            no_source: d.bits & NO_SOURCE != 0,
+            msgid_hash: d.msgid_hash,
+            size: d.size,
+        })
     }
 
     /// Set in `out` the live docs with a word of `field` starting with `prefix` (folded as

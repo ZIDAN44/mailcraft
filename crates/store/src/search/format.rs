@@ -197,6 +197,9 @@ pub(crate) struct Meta {
     pub(crate) gone: Vec<Name>,
     /// Since when (Unix seconds) a doc removed has had its words still in a segment; 0: none has.
     pub(crate) dead_since: u64,
+    /// Each folder reconciled, by its place in `folders`, and the revision of its list and
+    /// sources it was reconciled at.
+    pub(crate) marks: Vec<(u16, u64)>,
 }
 
 impl Meta {
@@ -284,6 +287,11 @@ pub(crate) fn encode_meta(m: &Meta) -> Vec<u8> {
         put_name(&mut out, n);
     }
     put_var(&mut out, m.dead_since);
+    put_len(&mut out, m.marks.len());
+    for (f, rev) in &m.marks {
+        put_var(&mut out, u64::from(*f));
+        out.extend_from_slice(&rev.to_le_bytes());
+    }
     out
 }
 
@@ -351,6 +359,14 @@ pub(crate) fn decode_meta(b: &[u8]) -> R<Meta> {
         m.gone.push(get_name(&mut r)?);
     }
     m.dead_since = r.var()?;
+    let mut marked = BTreeSet::new();
+    for _ in 0..r.count(MAX_FOLDERS, 9)? {
+        let f = u16::try_from(r.var()?).map_err(|_| "number too big")?;
+        if usize::from(f) >= m.folders.len() || !marked.insert(f) {
+            return Err("mark of no folder");
+        }
+        m.marks.push((f, r.u64()?));
+    }
     r.end()?;
     Ok(m)
 }

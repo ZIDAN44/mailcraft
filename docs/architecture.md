@@ -227,14 +227,28 @@ again past its generation and segment numbers. A page missing counts as damage o
 meta still names it (a newer commit removing it is read again), and while a writer holds the index
 the reader returns the damage instead of setting it aside under the writer.
 
-`search::Writer::merge_step` keeps the segments few, one step at a time: it gives the ids again (the
-index made anew from its kept texts, a new epoch) once there are more than twice the live docs and
-4,096; merges the segments holding words of a doc removed a day ago or more (the meta keeps since
-when); merges eight segments of one size (powers of 4 docs); and past 24 segments, the smallest
-eight. A merge streams each segment a lexicon page at a time and writes the merged pages as they
-fill, in transactions nothing names yet, then one meta switches to it: it holds a lexicon and a
-postings page of each segment, the pages being written and the longest list of docs, never the
-segments.
+The index keeps up with the mail by reconciliation, not by hooks in each place mail changes:
+`search::plan` compares a folder's list and kept sources with the docs the index has for it. A
+message with a source and no doc is to add (newest first); one with no source kept is recorded as
+such (`add_no_source`: a search settles it from its summary, and it isn't counted as waiting); a
+doc whose message is gone, or whose Message-ID hash and size no longer match, is removed; a doc
+going and a message coming with the same hash and size, each the only one so, is a move (the doc
+goes along, nothing read). The plan reads no message, and passes over a folder whose revision (a
+hash of its list's head and its sources' names) is the one the index was marked with when that
+folder was last brought up; the marks are in the meta. `Writer::merge_step` keeps the segments
+few, one step at a time: it gives the ids again (the index made anew from its kept texts, a new
+epoch) once there are more than twice the live docs and 4,096; merges the segments holding words
+of a doc removed a day ago or more (the meta keeps since when); merges eight segments of one size
+(powers of 4 docs); and past 24 segments, the smallest eight. A merge streams each segment a
+lexicon page at a time and writes the merged pages as they fill, in transactions nothing names
+yet, then one meta switches to it: it holds a lexicon and a postings page of each segment, the
+pages being written and the longest list of docs, never the segments. Which segments hold a
+removed doc's words is known from each segment's span of doc ids only, so the large segment a
+merge or new ids leave is merged again, whole, a day after any removal in its span (a removed doc
+with no source never had words and needs none); and giving the ids again is one step that can't
+be stopped partway (it reads every kept text). A plan's doc ids are those of the epoch it was made
+in: `Plan::apply` refuses a plan made before the ids were given again, and makes its moves
+together, so two messages swapping uids under a new validity keep their docs.
 
 ## Threading
 

@@ -1,8 +1,9 @@
 //! Keeping the index up: merges (against a model of what it should find), ids given again, a
-//! removed message's words leaving the file.
+//! removed message's words leaving the file, and plans that bring it up to the mail.
 
 use std::collections::BTreeMap;
 
+use mailcraft_model::{Folder, Summary};
 use proptest::prelude::*;
 
 use super::*;
@@ -287,6 +288,7 @@ fn ids_are_given_again() {
     for uid in 1..=20 {
         w.add(&mk("INBOX", uid), u64::from(uid), uid, &text(&format!("common u{uid}"), &[&format!("f{uid}.pdf")], 1)).unwrap();
     }
+    w.add_no_source(&mk("INBOX", 21), 21, 21).unwrap();
     w.flush(&s).unwrap();
     let mut r = Reader::open(&s, "a1").unwrap().unwrap();
     for uid in 1..=16 {
@@ -295,7 +297,7 @@ fn ids_are_given_again() {
     let epoch = load_meta(&s, "a1").unwrap().unwrap().epoch;
     assert!(!w.merge_step(&s, 0, 1).unwrap());
     let meta = load_meta(&s, "a1").unwrap().unwrap();
-    assert_eq!((meta.next_doc, meta.live, meta.dead), (4, 4, 0));
+    assert_eq!((meta.next_doc, meta.live, meta.dead), (5, 5, 0));
     assert_ne!(meta.epoch, epoch);
     assert!(r.refresh(&s).unwrap());
     let common: Vec<u32> = found(&mut r, &s, Field::Body, "common");
@@ -303,11 +305,212 @@ fn ids_are_given_again() {
     let d = r.doc(&mk("INBOX", 19)).unwrap();
     assert_eq!(r.text(&s, d).unwrap().unwrap().names, ["f19.pdf"]);
     assert_eq!(found(&mut r, &s, Field::Names, "f19"), [d]);
+    let none = r.doc(&mk("INBOX", 21)).unwrap();
+    assert!(r.info(none).unwrap().no_source && r.text(&s, none).unwrap().is_none());
     assert_eq!(w.find(&mk("INBOX", 20)), r.doc(&mk("INBOX", 20)), "the writer goes on with the new ids");
     w.add(&mk("INBOX", 30), 30, 30, &text("later", &[], 0)).unwrap();
     w.flush(&s).unwrap();
     assert!(r.refresh(&s).unwrap());
-    assert_eq!(found(&mut r, &s, Field::Body, "later"), [4]);
+    assert_eq!(found(&mut r, &s, Field::Body, "later"), [5]);
     drop(w);
     assert_eq!(files(&s).1, BTreeSet::new(), "nothing left over");
+}
+
+/// A message with no source kept is in the index, with nothing of it but that, read back.
+#[test]
+fn a_message_with_no_source_is_known_as_such() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let d = w.add_no_source(&mk("INBOX", 1), 9, 99).unwrap();
+    w.flush(&s).unwrap();
+    drop(w);
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.doc(&mk("INBOX", 1)), Some(d));
+    assert_eq!(r.info(d), Some(DocInfo { files: 0, has_text: false, truncated: false, no_source: true, msgid_hash: 9, size: 99 }));
+    assert_eq!(r.text(&s, d).unwrap(), None);
+    assert!(found(&mut r, &s, Field::Body, "").is_empty());
+}
+
+// Plans.
+
+fn summary(folder: &str, uid: u32, id: &str, size: u32, date: i64) -> Summary {
+    Summary { key: mk(folder, uid), message_id: id.into(), size, date, ..Summary::default() }
+}
+
+/// An account with these folders and messages, the sources of those `kept`.
+fn mail(s: &Store, lists: &[(&str, Vec<Summary>)], kept: &[(&str, u32)]) {
+    let folders: Vec<Folder> =
+        lists.iter().map(|(f, _)| Folder { account: "a1".into(), path: f.to_string(), selectable: true, ..Folder::default() }).collect();
+    s.save_folders("a1", &folders).unwrap();
+    for (f, messages) in lists {
+        s.save_folder("a1", f, &FolderState { validity: 7, uid_next: 100, messages: messages.clone(), ..FolderState::default() }).unwrap();
+    }
+    for &(f, uid) in kept {
+        s.write_body(&mk(f, uid), b"Subject: x\r\n\r\nbody\r\n").unwrap();
+    }
+}
+
+/// A plan carried out as the indexer does: what reads nothing, the adds, the marks.
+fn carry_out(s: &Store, w: &mut Writer, plan: &Plan) {
+    plan.apply(w).unwrap();
+    for m in &plan.add {
+        w.add(&m.key, m.msgid_hash, m.size, &text(&format!("text of {}", m.key.uid), &[], 0)).unwrap();
+    }
+    for (f, rev) in &plan.marks {
+        w.mark(f, *rev).unwrap();
+    }
+    w.flush(s).unwrap();
+}
+
+/// Messages with a source are to add (newest first), those without recorded as such; the plan
+/// reads no message; carried out, the next plan has nothing, and passes the folders over.
+#[test]
+fn a_plan_adds_what_has_a_source_and_records_what_hasnt() {
+    let s = Store::memory();
+    let inbox = vec![summary("INBOX", 3, "c@x", 30, 300), summary("INBOX", 2, "b@x", 20, 200), summary("INBOX", 1, "a@x", 10, 100)];
+    mail(&s, &[("INBOX", inbox), ("Archive", vec![])], &[("INBOX", 1), ("INBOX", 3)]);
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let reads = s.reads();
+    let plan = plan(&s, &w, "a1", &[]).unwrap();
+    assert_eq!(s.reads(), reads, "no message read");
+    assert_eq!(plan.add.iter().map(|m| m.key.uid).collect::<Vec<_>>(), [3, 1], "newest first");
+    assert_eq!(plan.add.first().map(|m| (m.msgid_hash, m.size)), Some((msgid_hash("c@x"), 30)));
+    assert_eq!(plan.no_source.iter().map(|m| m.key.uid).collect::<Vec<_>>(), [2]);
+    assert_eq!((plan.remove.len(), plan.retarget.len(), plan.total), (0, 0, 3));
+    assert_eq!(plan.marks.iter().map(|(f, _)| f.as_str()).collect::<Vec<_>>(), ["Archive", "INBOX"]);
+    carry_out(&s, &mut w, &plan);
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert!(r.info(r.doc(&mk("INBOX", 2)).unwrap()).unwrap().no_source);
+    assert_eq!(found(&mut r, &s, Field::Body, "text").len(), 2);
+    drop(w);
+
+    // Marked: passed over, its list not read again, across a reopen.
+    let w = Writer::open(&s, "a1").unwrap();
+    assert_eq!(plan_of(&s, &w), Plan { epoch: w.epoch(), ..Plan::default() });
+    // Its list changing, or a source kept, brings a folder back.
+    s.write_body(&mk("INBOX", 2), b"Subject: y\r\n\r\nbody\r\n").unwrap();
+    let again = plan_of(&s, &w);
+    assert_eq!((again.total, again.add.len(), again.remove.len()), (3, 1, 1), "the doc with no source goes, the message comes");
+    assert_eq!(again.marks.iter().map(|(f, _)| f.as_str()).collect::<Vec<_>>(), ["INBOX"], "the other passed over");
+}
+
+fn plan_of(s: &Store, w: &Writer) -> Plan {
+    plan(s, w, "a1", &[]).unwrap()
+}
+
+/// A message moved (gone from one folder, in another under a new uid, the same Message-ID and
+/// size) takes its doc along; one replaced at its uid by another, or one of two alike, is
+/// removed and added; a folder gone takes its docs.
+#[test]
+fn a_plan_moves_removes_and_adds() {
+    let s = Store::memory();
+    let inbox = vec![summary("INBOX", 1, "a@x", 10, 1), summary("INBOX", 2, "b@x", 20, 2), summary("INBOX", 3, "same@x", 5, 3)];
+    let old = vec![summary("Old", 1, "o@x", 1, 1), summary("Old", 2, "same@x", 5, 2)];
+    mail(&s, &[("INBOX", inbox), ("Archive", vec![]), ("Old", old)], &[("INBOX", 1), ("INBOX", 2), ("INBOX", 3), ("Old", 1), ("Old", 2)]);
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let first = plan_of(&s, &w);
+    carry_out(&s, &mut w, &first);
+    let a = w.find(&mk("INBOX", 1)).unwrap();
+    let b = w.find(&mk("INBOX", 2)).unwrap();
+
+    // a moves to Archive; b's uid now holds another message; Old is gone, and its "same@x"
+    // matches INBOX's, which moves to Archive too (two alike: no move).
+    let inbox = vec![summary("INBOX", 2, "new@x", 20, 4)];
+    let archive = vec![summary("Archive", 9, "a@x", 10, 1), summary("Archive", 10, "same@x", 5, 3)];
+    mail(&s, &[("INBOX", inbox), ("Archive", archive)], &[("INBOX", 2), ("Archive", 9), ("Archive", 10)]);
+    let reads = s.reads();
+    let plan = plan_of(&s, &w);
+    assert_eq!(s.reads(), reads);
+    assert_eq!(plan.retarget, [(a, mk("Archive", 9))]);
+    assert_eq!(plan.add.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), [mk("INBOX", 2), mk("Archive", 10)]);
+    assert_eq!(plan.remove.len(), 4, "b, both same@x, and Old's other: {:?}", plan.remove);
+    assert!(plan.remove.contains(&b));
+    assert!(plan.marks.contains(&("Old".to_string(), 0)), "a folder gone is forgotten");
+    carry_out(&s, &mut w, &plan);
+    assert_eq!(w.marked("Old"), None);
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.doc(&mk("Archive", 9)), Some(a), "the same doc");
+    assert_eq!(r.live(), 3);
+    assert_eq!(
+        found(&mut r, &s, Field::Body, "text").iter().filter_map(|&d| r.key(d)).map(|k| k.uid).collect::<BTreeSet<_>>(),
+        BTreeSet::from([9, 2, 10])
+    );
+    assert_eq!(plan_of(&s, &w), Plan { epoch: w.epoch(), ..Plan::default() }, "up to date");
+}
+
+/// A plan of some folders looks at those only.
+#[test]
+fn a_plan_of_some_folders() {
+    let s = Store::memory();
+    mail(&s, &[("INBOX", vec![summary("INBOX", 1, "a@x", 1, 1)]), ("Archive", vec![summary("Archive", 1, "b@x", 1, 1)])], &[]);
+    let w = Writer::open(&s, "a1").unwrap();
+    let plan = plan(&s, &w, "a1", &["Archive".to_string()]).unwrap();
+    assert_eq!(plan.no_source.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), [mk("Archive", 1)]);
+    assert_eq!(plan.total, 1);
+}
+
+/// Two messages swapping uids under a new validity (the server numbered them again): each doc
+/// goes to its message's new uid, neither lost.
+#[test]
+fn a_plan_swapping_uids_keeps_both() {
+    let s = Store::memory();
+    mail(&s, &[("INBOX", vec![summary("INBOX", 1, "a@x", 10, 1), summary("INBOX", 2, "b@x", 20, 2)])], &[("INBOX", 1), ("INBOX", 2)]);
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let first = plan_of(&s, &w);
+    carry_out(&s, &mut w, &first);
+    let (a, b) = (w.find(&mk("INBOX", 1)).unwrap(), w.find(&mk("INBOX", 2)).unwrap());
+    let at = |uid, id: &str, size| Summary { key: MessageKey { validity: 8, ..mk("INBOX", uid) }, ..summary("INBOX", uid, id, size, 1) };
+    let st = FolderState { validity: 8, uid_next: 100, messages: vec![at(1, "b@x", 20), at(2, "a@x", 10)], ..FolderState::default() };
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    for (uid, id) in [(1, "b@x"), (2, "a@x")] {
+        s.write_body(&MessageKey { validity: 8, ..mk("INBOX", uid) }, id.as_bytes()).unwrap();
+    }
+    let plan = plan_of(&s, &w);
+    assert_eq!((plan.retarget.len(), plan.add.len(), plan.remove.len()), (2, 0, 0), "{plan:?}");
+    carry_out(&s, &mut w, &plan);
+    assert_eq!(w.live(), 2);
+    assert_eq!(w.find(&MessageKey { validity: 8, ..mk("INBOX", 1) }), Some(b));
+    assert_eq!(w.find(&MessageKey { validity: 8, ..mk("INBOX", 2) }), Some(a));
+    let r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.live(), 2);
+    assert_eq!(r.key(a).map(|k| (k.validity, k.uid)), Some((8, 2)));
+}
+
+/// A plan made before the ids were given again is refused, nothing changed.
+#[test]
+fn a_plan_from_before_new_ids_is_refused() {
+    let s = Store::memory();
+    mail(&s, &[("INBOX", vec![summary("INBOX", 1, "a@x", 10, 1)])], &[("INBOX", 1)]);
+    let mut w = Writer::open(&s, "a1").unwrap();
+    w.renumber_slack = 0;
+    for uid in 10..14 {
+        w.add(&mk("INBOX", uid), 0, uid, &text("old", &[], 0)).unwrap();
+    }
+    w.flush(&s).unwrap();
+    let plan = plan_of(&s, &w);
+    assert_eq!(plan.remove.len(), 4);
+    for uid in 10..13 {
+        w.remove(w.find(&mk("INBOX", uid)).unwrap());
+    }
+    merge_all(&mut w, &s, 1);
+    assert_ne!(w.epoch(), plan.epoch, "the ids were given again");
+    let live = w.live();
+    assert!(plan.apply(&mut w).is_err());
+    assert_eq!(w.live(), live, "nothing changed");
+}
+
+/// A removed message that had no source never had words: no merge is due for it.
+#[test]
+fn a_removed_message_with_no_source_needs_no_merge() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    w.add(&mk("INBOX", 1), 1, 1, &text("kept", &[], 0)).unwrap();
+    let none = w.add_no_source(&mk("INBOX", 2), 2, 2).unwrap();
+    w.flush(&s).unwrap();
+    w.remove(none);
+    let segments = load_meta(&s, "a1").unwrap().unwrap().segments;
+    assert!(!w.merge_step(&s, 0, 1000).unwrap());
+    assert!(!w.merge_step(&s, 0, 1000 + TOMBSTONE_AGE).unwrap());
+    let meta = load_meta(&s, "a1").unwrap().unwrap();
+    assert_eq!((meta.segments, meta.dead_since), (segments, 0), "the segment left as it was");
 }

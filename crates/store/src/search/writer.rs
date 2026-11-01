@@ -51,6 +51,9 @@ pub struct Writer {
     text_bytes: usize,
     /// Texts to take out of their pages, by page.
     drop_texts: BTreeMap<u32, BTreeSet<u32>>,
+    /// The folders reconciled, as of now ([`Meta::marks`]).
+    marks: BTreeMap<u16, u64>,
+    marks_changed: bool,
     /// The bytes of those pages, each read and written again by the next flush.
     drop_bytes: usize,
     live: u32,
@@ -183,6 +186,7 @@ impl Writer {
         let folder_bytes = folders.iter().map(String::len).fold(0, usize::saturating_add);
         let folder_ix = folders.iter().enumerate().filter_map(|(i, f)| Some((f.clone(), u16::try_from(i).ok()?))).collect();
         let by_key = by_key(&docs);
+        let marks = meta.marks.iter().copied().collect();
         Writer {
             account: account.to_string(),
             base,
@@ -203,6 +207,8 @@ impl Writer {
             text_bytes: 0,
             drop_texts: BTreeMap::new(),
             drop_bytes: 0,
+            marks,
+            marks_changed: false,
             stamp: 0,
             orphans: false,
             #[cfg(test)]
@@ -324,6 +330,59 @@ impl Writer {
         Ok((folder, id))
     }
 
+    /// Add a message whose source isn't kept here: only its summary can be searched, so a search
+    /// settles it from that (never "not indexed yet"), and nothing is read for it. Its source
+    /// kept later makes it a message to add ([`plan`](super::plan)).
+    pub fn add_no_source(&mut self, key: &MessageKey, msgid_hash: u64, size: u32) -> Result<u32> {
+        let (folder, id) = self.make_room(key)?;
+        self.docs.push(DocRec { folder, validity: key.validity, uid: key.uid, text: NO_TEXT, files: 0, bits: NO_SOURCE, msgid_hash, size });
+        self.by_key.insert((folder, key.uid), id);
+        self.live = self.live.saturating_add(1);
+        self.touch(id);
+        Ok(id)
+    }
+
+    /// Note that a folder's docs are its list's and sources' as of `revision` (0: forget it), so
+    /// a [`plan`](super::plan) passes it over while they're unchanged. Kept with the next flush.
+    pub fn mark(&mut self, folder: &str, revision: u64) -> Result<()> {
+        if revision == 0 {
+            let Some(f) = self.folder_ix.get(folder) else { return Ok(()) };
+            if self.marks.remove(f).is_none() {
+                return Ok(());
+            }
+        } else {
+            let f = self.folder(folder)?;
+            if self.marks.insert(f, revision) == Some(revision) {
+                return Ok(());
+            }
+        }
+        self.marks_changed = true;
+        self.stamp = self.stamp.wrapping_add(1);
+        Ok(())
+    }
+
+    /// The revision a folder was last [marked](Writer::mark) at.
+    pub fn marked(&self, folder: &str) -> Option<u64> {
+        self.marks.get(self.folder_ix.get(folder)?).copied()
+    }
+
+    /// The folders the index names.
+    pub fn folders(&self) -> &[String] {
+        &self.folders
+    }
+
+    /// The live docs, by folder and uid (one pass over the doc table for every folder).
+    pub fn docs_by_folder(&self) -> HashMap<String, HashMap<u32, Indexed>> {
+        let mut out: HashMap<String, HashMap<u32, Indexed>> = HashMap::new();
+        for (i, d) in self.docs.iter().enumerate().filter(|(_, d)| d.live()) {
+            let Some(folder) = self.folders.get(usize::from(d.folder)) else { continue };
+            let doc = u32::try_from(i).unwrap_or(u32::MAX);
+            let indexed = Indexed { doc, validity: d.validity, msgid_hash: d.msgid_hash, size: d.size, source: d.bits & NO_SOURCE == 0 };
+            out.entry(folder.clone()).or_default().insert(d.uid, indexed);
+        }
+        out
+    }
+
     /// Take a doc out: it no longer matches, and its text leaves the index with the next flush.
     /// Its words go when its segment is next merged.
     pub fn remove(&mut self, doc: u32) {
@@ -331,6 +390,10 @@ impl Writer {
         let (folder, uid, text) = (d.folder, d.uid, d.text);
         d.folder = DEAD;
         d.text = NO_TEXT;
+        if d.bits & NO_SOURCE != 0 {
+            // It never had words: no segment is to be merged for it.
+            d.bits |= PURGED;
+        }
         if self.by_key.get(&(folder, uid)) == Some(&doc) {
             self.by_key.remove(&(folder, uid));
         }
@@ -371,6 +434,46 @@ impl Writer {
         self.touch(doc);
         Ok(())
     }
+
+    /// Docs' messages moved, together: one moving to where another moved from (two messages
+    /// swapping uids under a new validity) doesn't take that one's place before it has left.
+    pub fn retarget_all(&mut self, moves: &[(u32, MessageKey)]) -> Result<()> {
+        for (_, key) in moves {
+            self.folder(&key.folder)?;
+        }
+        for &(doc, _) in moves {
+            let Some(d) = self.docs.get(doc as usize).filter(|d| d.live()) else { continue };
+            let old = (d.folder, d.uid);
+            if self.by_key.get(&old) == Some(&doc) {
+                self.by_key.remove(&old);
+            }
+        }
+        for (doc, key) in moves {
+            self.retarget(*doc, key)?;
+        }
+        Ok(())
+    }
+
+    /// The ids' epoch: a new one when they are given again (a doc id from before means nothing).
+    pub fn epoch(&self) -> u64 {
+        self.meta.epoch
+    }
+
+    /// An error when the ids are no longer those of `epoch`.
+    pub(crate) fn same_epoch(&self, epoch: u64) -> Result<()> {
+        if epoch == self.meta.epoch { Ok(()) } else { Err(io_err(&self.base)(other("the index's ids were given again after this plan was made"))) }
+    }
+}
+
+/// A live doc as [`Writer::docs_by_folder`] gives it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Indexed {
+    pub doc: u32,
+    pub validity: u32,
+    pub msgid_hash: u64,
+    pub size: u32,
+    /// Its source was kept when it was added (not [`Writer::add_no_source`]).
+    pub source: bool,
 }
 
 /// Each live doc by its folder and uid.
