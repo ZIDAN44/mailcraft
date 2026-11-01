@@ -207,7 +207,7 @@ impl Session {
             .indexing
             .passes
             .iter()
-            .filter(|(id, p)| !p.finished && !self.importing.contains(*id) && self.account(id).is_some())
+            .filter(|(id, p)| !p.finished && !self.importing.running.contains_key(*id) && self.account(id).is_some())
             .map(|(_, p)| p.work)
             .peekable();
         under_way.peek()?;
