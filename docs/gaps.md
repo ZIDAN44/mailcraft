@@ -1933,3 +1933,25 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   source is read alone), and a pass's writer writes at a quarter of what an import's holds: the
   build peaks at 563 MB (170 MB above the window's own, against the 150 MB aimed for) in 110 s,
   as before (40 to 90 s is aimed for; the readers spend most of it waiting for the data file).
+- **The invitation card read every message twice:** each message opened spent 20 to 37 ms of
+  its first frame in the reading pane's header, 149 ms for a 33 MB message with 36 pictures and
+  104 to 117 ms for one of 127,655 characters, though their bodies are parsed off the window's
+  thread: the meeting card read the message's source again and parsed all of it on the window's
+  thread to look for a calendar. It now looks in the message as parsed to be shown; one without a
+  calendar is neither read nor parsed again, and while a big message's files are still coming,
+  the card waits for them.
+- **Words after a dot:** nine messages of a 41 GB file hold a word only as "xx.word", and the word
+  found none of them: UAX #29 keeps letters joined by `.`, `:`, an apostrophe or `_` as one word,
+  and only that was indexed. Their parts of two letters or more are now indexed and matched as
+  words too ("site.word" gives "site" and "word", "l'avion" "avion", "shot_list_v2" "shot" and
+  "list"; "10,000" isn't split); a phrase isn't found across the parts kept after a summary's
+  words. The index is made again from the texts it keeps, reading no message. On that file the
+  20 measured queries now match a ground truth that splits words the same way, all 9 found.
+- **Searches said "still indexing" with the index complete:** a message of pictures and files
+  only, read whole, was taken as unknown for any word, so `-word` missed 658 of them on a 41 GB
+  file (31,930 of 32,588) and every word search said "Some results may be missing: still
+  indexing" (658 to 1,031 counted). Such a message now has no word. A message too long to index
+  whole (past 1,000,000 characters, or parts left unread) is still unknown past its cut, but its
+  kept text, which its words were indexed from, isn't read again for every word searched: it's
+  counted apart, and the list says "Some long messages were searched only in part" instead, more
+  quietly. `-word` now finds 32,574, matching that ground truth.

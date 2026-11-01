@@ -309,7 +309,10 @@ sides, from a table `cargo xtask fold` generates from Unicode's decompositions (
 `fold --check` in `xtask ci`), so no normalizer is carried at run time. A query is checked with
 `Query::eval` (`search/matching.rs`), which answers yes, no or unknown (Kleene logic): the summary's
 clauses come from a folded `SummaryText`, the text's from a `TextSource` (the index, or the text
-itself), which answers unknown for a word it lacks when the text was cut short or had none.
+itself), which answers unknown for a word it lacks when the text was cut short (a message read
+whole with no text has no word: no). A word UAX #29 keeps joined by `.`, `:`, an apostrophe or
+`_` ("site.word") has its parts of two letters or more indexed and read as words beside it
+(`fold::index_tokens`, `parts`; `TOKENIZER_VERSION` 2).
 
 The session runs a search a bounded unit of work at a time (`session/searching/run.rs`:
 `start_search`, then `search_step(units)`), no clock and no network in it: a unit is a page of a
@@ -324,14 +327,19 @@ texts is read once. The folders a search reads stay in the cache while it lasts,
 summaries' folded text is kept between searches (`searching/folder_text.rs`, 48 MiB, forgotten
 with the folder's list). The summary settles flags, dates, senders and subjects; the index's
 words settle the text (`searching/matching.rs`: `has:attachment` takes the files the index counted,
-pictures the text shows left out); a phrase, an address the index can't look up, or a text cut
-short is checked against the text the index keeps. What a message's text said is kept for the
+pictures the text shows left out); a phrase, or an address the index can't look up, is checked
+against the text the index keeps. A word the index doesn't find in a text cut short isn't: its
+words are in the index as they are in that text, so the message is counted apart (`cut_short`),
+not as missing. What a message's text said is kept for the
 search (flags are never text), so a flag changed on a result is weighed again for that message
 alone (`search_patched`). A message the index doesn't have yet may be missing (`missing`); a
 search that waits (the CLI, scripts, tests: the default) reads it from its source instead
 (`mime::index_doc`), so it finds what the index would. The window turns waiting off
 (`set_background_search`) and steps the search for 6 ms of each frame
-(`search_step_while`, which asks the window's clock after each unit; the engine reads none): what's
+(`search_step_timed`, which asks the window's clock after each unit and tells it what each part
+of the step was, `SearchWork`, `searching/work.rs`: the window logs a part over 50 ms by its kind;
+the engine reads no clock). A folder's list isn't read while read marks wait to be written (the
+read would wait for them): the step goes on and reads it once they're on disk. What's
 found is merged into the list by date (`searching/publish.rs`): at the step's end while the list
 holds at most 4,096 messages, else at the start of a later step (where the window's clock counts it)
 once a step has gone by for each 2,048 messages it holds, so a long list isn't built again every
@@ -341,7 +349,8 @@ come at the end. `sample::big` makes a mailbox of 50,000 messages in 40 folders,
 search should find counted as it's made, for `tests/mail/search_big.rs`, the window's frame test
 and `bench.rs`. A step that panics ends the search, and the indexes it was reading are
 left unread until their writer writes them again. The list says "Searching…" while it runs, that
-results may be missing while mail isn't indexed yet (how far the passes under way have come,
+results may be missing while mail isn't indexed yet (only then; mail too long to index whole gets
+a quieter note: how far the passes under way have come,
 `indexing_work`, which the status bar shows too through `ui-egui/src/look/progress.rs`), and what
 couldn't be read of the query (`search_problems`). Mail coming into or leaving a folder has that folder scanned again (what it found stays
 shown until the scan says otherwise); a newer generation of an index (`Event::Indexed`, read again
