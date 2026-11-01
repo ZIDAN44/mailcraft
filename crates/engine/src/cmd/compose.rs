@@ -177,7 +177,7 @@ pub(super) fn attach(s: &mut Session, v: &Value) -> CmdResult {
     }
     let name = sanitize_filename(&name);
     let mime = mime_from_name(&name).to_string();
-    c.attachments.push(OutAttachment { name: name.clone(), mime, data });
+    c.attachments.push(OutAttachment { name: name.clone(), mime, data, ..Default::default() });
     Ok(json!({"attached": name, "count": c.attachments.len()}))
 }
 

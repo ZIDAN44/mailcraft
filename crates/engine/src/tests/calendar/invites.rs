@@ -23,7 +23,7 @@ fn deliver_ics(s: &mut Session, n: u32, from: (&str, &str), method: &str, mime: 
         to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
         subject: format!("{method} {n}"),
         body: "See the calendar.".into(),
-        attachments: vec![mailcraft_mime::OutAttachment { name: "invite.ics".into(), mime: mime.into(), data }],
+        attachments: vec![mailcraft_mime::OutAttachment { name: "invite.ics".into(), mime: mime.into(), data, ..Default::default() }],
         ..Default::default()
     };
     let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(from.0, from.1), NOW, &format!("<i{n}@x>")).unwrap();

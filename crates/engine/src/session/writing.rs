@@ -293,7 +293,7 @@ impl Session {
             c.set_text(String::new());
             c.signature = String::new();
             c.inline.clear();
-            c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw }];
+            c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw, ..Default::default() }];
         }
         self.put_signature(sig.as_ref(), None)?;
         Ok(out)

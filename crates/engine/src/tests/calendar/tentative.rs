@@ -155,6 +155,7 @@ fn an_invitation_whose_body_comes_later_is_taken_then() {
             name: "invite.ics".into(),
             mime: "text/calendar; method=REQUEST".into(),
             data: ics.into_bytes(),
+            ..Default::default()
         }],
         ..Default::default()
     };

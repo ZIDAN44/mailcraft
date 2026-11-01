@@ -689,7 +689,7 @@ fn a_winmail_dat_in_a_draft_is_a_file_when_it_holds_one() {
     let dat = |data: Vec<u8>| crate::Draft {
         subject: "Storyboard".into(),
         body: "Hi".into(),
-        attachments: vec![crate::OutAttachment { name: "winmail.dat".into(), mime: "application/ms-tnef".into(), data }],
+        attachments: vec![crate::OutAttachment { name: "winmail.dat".into(), mime: "application/ms-tnef".into(), data, ..Default::default() }],
         ..Default::default()
     };
     crate::tests::index_text::assert_built_files(&dat(outlook_stream()), true);

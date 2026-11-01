@@ -476,7 +476,7 @@ pub fn attachment_out(raw: &[u8], index: usize) -> Option<crate::OutAttachment> 
         None => a.info.mime.clone(),
     };
     let data = sent.unwrap_or_else(|| a.data.into_owned());
-    Some(crate::OutAttachment { name: a.info.name, mime, data })
+    Some(crate::OutAttachment { name: a.info.name, mime, data, ..Default::default() })
 }
 
 /// A charset's name as it can go into a `Content-Type`: a token (RFC 2045 §5.1) of at most 64

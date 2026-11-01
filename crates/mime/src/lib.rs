@@ -413,6 +413,10 @@ pub struct OutAttachment {
     pub name: String,
     pub mime: String,
     pub data: Vec<u8>,
+    /// The `Content-ID` it had where it came from (a data file's attachment), kept on the file:
+    /// it stays an attachment, listed, and whatever refers to it by that id still finds it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub content_id: String,
 }
 
 /// An outgoing message being written.
@@ -576,7 +580,12 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
                     .attachment(sanitize_filename(&a.name))
                     .header("Content-Transfer-Encoding", mail_builder::headers::raw::Raw::new(cte));
             }
-            MimePart::new(mime, a.data.as_slice()).attachment(sanitize_filename(&a.name))
+            let part = MimePart::new(mime, a.data.as_slice()).attachment(sanitize_filename(&a.name));
+            // A kept Content-ID goes into a header line as it is: one with spaces, line breaks or
+            // brackets inside, or too long for the line, is left off.
+            let cid = a.content_id.trim().trim_start_matches('<').trim_end_matches('>');
+            let fits = !cid.is_empty() && cid.len() <= MAX_CID && !cid.chars().any(|c| c.is_control() || c.is_whitespace() || c == '<' || c == '>');
+            if fits { part.cid(cid.to_string()) } else { part }
         })
         .collect();
     // The text with bare line ends (mail-builder writes CR LF): copied only when it has others.
@@ -608,6 +617,10 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
     };
     b.body(root).write_to_vec().map_err(|e| e.to_string())
 }
+
+/// Longest `Content-ID` an attachment keeps, in bytes: its header line stays within RFC 5322's
+/// 998 characters.
+const MAX_CID: usize = 900;
 
 /// FNV-1a, for boundaries.
 fn fnv(s: &str) -> u64 {

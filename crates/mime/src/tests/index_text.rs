@@ -338,7 +338,8 @@ pub(crate) fn assert_built_files(d: &Draft, expected: bool) {
 fn a_draft_carries_the_files_its_source_will() {
     let picture =
         |cid: &str| InlinePicture { cid: cid.into(), name: "image001.png".into(), mime: "image/png".into(), data: b"\x89PNG\r\n\x1a\nfake".to_vec() };
-    let file = |name: &str, mime: &str, data: &[u8]| OutAttachment { name: name.into(), mime: mime.into(), data: data.to_vec() };
+    let file =
+        |name: &str, mime: &str, data: &[u8]| OutAttachment { name: name.into(), mime: mime.into(), data: data.to_vec(), ..Default::default() };
     let html = Some("<p>Hi</p><img src=\"cid:LOGO@studio.example\"><img src='cid:image10'>".to_string());
     let base = Draft { subject: "Logo".into(), body: "Hi".into(), html: html.clone(), ..Default::default() };
     assert_built_files(&base, false);

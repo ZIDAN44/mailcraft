@@ -69,13 +69,13 @@ fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool
                 if !cid.is_empty() && html.is_some() && refs.cites(cid) {
                     d.inline.push(InlinePicture { cid: cid.to_string(), name, mime, data });
                 } else {
-                    d.attachments.push(OutAttachment { name, mime, data });
+                    d.attachments.push(OutAttachment { name, mime, data, ..Default::default() });
                 }
             }
             File::Message(inner) => {
                 let subject = if inner.subject.trim().is_empty() { "message".to_string() } else { inner.subject.trim().to_string() };
                 let raw = to_raw(*inner, &format!("{fallback_id}.1"))?;
-                d.attachments.push(OutAttachment { name: format!("{subject}.eml"), mime: "message/rfc822".into(), data: raw });
+                d.attachments.push(OutAttachment { name: format!("{subject}.eml"), mime: "message/rfc822".into(), data: raw, ..Default::default() });
             }
         }
     }

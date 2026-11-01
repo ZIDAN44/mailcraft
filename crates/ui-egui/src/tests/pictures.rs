@@ -223,7 +223,7 @@ fn with_files(a: &mut MailApp, uid: u32, files: Vec<(String, &str, Vec<u8>)>) ->
     let d = Draft {
         subject: format!("Files {uid}"),
         body: "Here they are.".into(),
-        attachments: files.into_iter().map(|(name, mime, data)| OutAttachment { name, mime: mime.into(), data }).collect(),
+        attachments: files.into_iter().map(|(name, mime, data)| OutAttachment { name, mime: mime.into(), data, ..Default::default() }).collect(),
         ..Default::default()
     };
     let raw = mime::build(&d, &mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example"), NOW, &format!("<files{uid}@x>")).unwrap();

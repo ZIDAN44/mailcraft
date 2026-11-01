@@ -59,6 +59,7 @@ pub(super) fn arrive(s: &mut Session, id: &str, n: u32, method: &str, events: &[
             name: "invite.ics".into(),
             mime: format!("text/calendar; method={method}"),
             data: ics.into_bytes(),
+            ..Default::default()
         }],
         ..Default::default()
     };

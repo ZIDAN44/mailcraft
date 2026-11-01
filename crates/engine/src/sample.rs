@@ -535,18 +535,22 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
             .attachments
             .iter()
             .map(|(name, a)| match a {
-                Attach::Png => OutAttachment { name: (*name).into(), mime: "image/png".into(), data: sample_png() },
-                Attach::Text(t) => OutAttachment { name: (*name).into(), mime: "text/plain".into(), data: t.as_bytes().to_vec() },
-                Attach::Pdf => OutAttachment { name: (*name).into(), mime: "application/pdf".into(), data: sample_pdf() },
+                Attach::Png => OutAttachment { name: (*name).into(), mime: "image/png".into(), data: sample_png(), ..Default::default() },
+                Attach::Text(t) => {
+                    OutAttachment { name: (*name).into(), mime: "text/plain".into(), data: t.as_bytes().to_vec(), ..Default::default() }
+                }
+                Attach::Pdf => OutAttachment { name: (*name).into(), mime: "application/pdf".into(), data: sample_pdf(), ..Default::default() },
                 Attach::Docx => OutAttachment {
                     name: (*name).into(),
                     mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document".into(),
                     data: sample_docx(),
+                    ..Default::default()
                 },
                 Attach::Xlsx => OutAttachment {
                     name: (*name).into(),
                     mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".into(),
                     data: sample_xlsx(),
+                    ..Default::default()
                 },
                 Attach::Invite(uid) => {
                     let events: Vec<_> = sample_pim(now, offset).events.into_iter().map(|e| e.event).filter(|e| e.uid == *uid).collect();
@@ -554,6 +558,7 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
                         name: (*name).into(),
                         mime: "text/calendar; method=REQUEST".into(),
                         data: mailcraft_model::ical::write(&events, Some("REQUEST"), date).into_bytes(),
+                        ..Default::default()
                     }
                 }
             })

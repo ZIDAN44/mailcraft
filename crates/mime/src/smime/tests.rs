@@ -124,6 +124,7 @@ fn a_message_to_sign_is_safe_to_sign() {
             name: "earlier.eml".into(),
             mime: "message/rfc822".into(),
             data: "Subject: x\r\n\r\nd\u{e9}j\u{e0}\r\n".as_bytes().to_vec(),
+            ..Default::default()
         }],
         seven_bit: true,
         ..Default::default()

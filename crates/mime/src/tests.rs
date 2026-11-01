@@ -35,6 +35,7 @@ use super::*;
 
 mod importance;
 pub(crate) mod index_text;
+mod kept_cid;
 mod one_parse;
 mod report;
 mod signature_code;
@@ -313,7 +314,7 @@ fn build_round_trips() {
         body: "Hi Ann,\nhere it is.\n".into(),
         in_reply_to: "m1@studio.example".into(),
         references: vec!["m0@studio.example".into(), "m1@studio.example".into()],
-        attachments: vec![OutAttachment { name: "board.png".into(), mime: String::new(), data: vec![1, 2, 3, 4] }],
+        attachments: vec![OutAttachment { name: "board.png".into(), mime: String::new(), data: vec![1, 2, 3, 4], ..Default::default() }],
         ..Default::default()
     };
     let raw = build(&d, &EmailAddress::new("Zoe Park", "zoe@studio.example"), 1_791_963_000, "x1@studio.example").unwrap();
@@ -387,9 +388,14 @@ fn build_writes_the_same_bytes_as_before() {
         references: vec!["m1@studio.example".into()],
         html: Some("<p>Hi <b>Ann</b></p><img src=\"cid:a@x\"><img src=\"cid:b@x\">".into()),
         attachments: vec![
-            OutAttachment { name: "board.pdf".into(), mime: String::new(), data: all_bytes.clone() },
-            OutAttachment { name: "notes.txt".into(), mime: "text/plain".into(), data: "café\r\n".repeat(40).into_bytes() },
-            OutAttachment { name: "old.eml".into(), mime: "message/rfc822".into(), data: "Subject: old\r\n\r\nnaïve\r\n".into() },
+            OutAttachment { name: "board.pdf".into(), mime: String::new(), data: all_bytes.clone(), ..Default::default() },
+            OutAttachment { name: "notes.txt".into(), mime: "text/plain".into(), data: "café\r\n".repeat(40).into_bytes(), ..Default::default() },
+            OutAttachment {
+                name: "old.eml".into(),
+                mime: "message/rfc822".into(),
+                data: "Subject: old\r\n\r\nnaïve\r\n".into(),
+                ..Default::default()
+            },
         ],
         inline: vec![
             InlinePicture {

@@ -313,7 +313,12 @@ mod tests {
                 body: "Hello there.".into(),
                 html: Some("<p>Hello <b>there</b>.</p>".into()),
                 attachments: if with_file {
-                    vec![mime::OutAttachment { name: "notes.txt".into(), mime: "text/plain".into(), data: b"remember".to_vec() }]
+                    vec![mime::OutAttachment {
+                        name: "notes.txt".into(),
+                        mime: "text/plain".into(),
+                        data: b"remember".to_vec(),
+                        ..Default::default()
+                    }]
                 } else {
                     Vec::new()
                 },
