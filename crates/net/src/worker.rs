@@ -184,6 +184,8 @@ pub struct Pool {
     indexer: indexing::Indexer,
     /// Data files being imported, by account, and the last one looked at (`imports.rs`).
     imports: imports::Imports,
+    /// Changes to mail, made in the cache on a thread of their own (`edits.rs`).
+    edits: edits::Edits,
 }
 
 /// Drafts that couldn't be saved to the server (offline, or it failed), kept with the account
@@ -246,6 +248,7 @@ impl Pool {
             search: Arc::new(AtomicU64::new(0)),
             indexer: indexing::Indexer::default(),
             imports: imports::Imports::default(),
+            edits: edits::Edits::default(),
         }
     }
 
@@ -433,30 +436,14 @@ impl Pool {
             Job::GetVacation { account } | Job::SetVacation { account, .. } if !self.workers.contains_key(&account) => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
             }
-            // Persist the change here, on the caller's thread, before the account thread is
-            // free: it may be minutes into a full sync. Waiting meant the cache could be
-            // overwritten by a folder refresh and an exit dropped the job. POP accounts keep the
-            // old route since their worker does extra local bookkeeping.
+            // Persisted on the pool's thread for changes, not the account's: it may be minutes
+            // into a full sync, and waiting meant the cache could be overwritten by a folder
+            // refresh and an exit dropped the job. Nor the caller's, the window's (`edits.rs`).
+            // The account's thread is woken after, to upload the queue at its next opportunity.
+            // POP accounts keep the old route since their worker does extra local bookkeeping.
             Job::Apply { account, op } if self.records_edits(&account) => {
-                match self.store.apply_op(&account, &op) {
-                    Ok(changed) => {
-                        if op.is_folder_op() {
-                            let folders = self.store.load_folders(&account).unwrap_or_default();
-                            self.sink.emit(Event::Folders { account: account.clone(), folders });
-                        }
-                        if let Err(e) = self.store.add_op(&account, op.clone()) {
-                            self.sink.emit(Event::Notice { account: account.clone(), message: e.to_string() });
-                        }
-                        for folder in changed {
-                            self.sink.emit(Event::FolderChanged { account: account.clone(), folder });
-                        }
-                    }
-                    Err(e) => self.sink.emit(Event::Notice { account: account.clone(), message: e.to_string() }),
-                }
-                // Wake the account thread so it uploads the queue at its next opportunity.
-                if let Some(h) = self.workers.get(&account) {
-                    let _ = h.tx.send(Job::Apply { account, op });
-                }
+                let wake = self.workers.get(&account).map(|h| h.tx.clone());
+                self.edits.send(&self.store, &self.sink, account, op, wake);
             }
             other => {
                 let id = other.account().to_string();
@@ -589,6 +576,7 @@ impl Pool {
 mod changes;
 mod connect;
 mod directory;
+mod edits;
 mod imports;
 mod indexing;
 mod remote;

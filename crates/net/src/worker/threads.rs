@@ -137,6 +137,8 @@ impl Pool {
 
     /// Export to a data file on a thread of its own.
     pub(super) fn export_pst(&mut self, account: String, path: String, name: String) {
+        // With the changes made just before it.
+        self.edits.flush();
         let sink = self.sink.clone();
         let store = self.store.clone();
         let spawned = std::thread::Builder::new().name("mail-export".into()).spawn(move || {

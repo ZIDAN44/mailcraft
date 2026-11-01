@@ -62,8 +62,11 @@ Message sources live next to it as `<validity>/<uid>.eml`. A message is identifi
 ## Offline changes (RFC 4549 "pending actions")
 
 Flag changes, moves and deletes are applied to the cache immediately (the UI updates before the
-server answers) and appended to `<account>/ops.json` by the pool on the UI side, not by the account
-thread, which may be busy for minutes; a store-wide mutex guards the file's read-modify-write.
+server answers) and appended to `<account>/ops.json` by the pool on a thread of its own for changes
+(`worker/edits.rs`, one for every account, so they keep their order), not by the account thread,
+which may be busy for minutes, nor on the UI's; a store-wide mutex guards the file's
+read-modify-write. The account thread is woken once the change is on disk, closing waits for the
+changes queued, and an export to a data file starts after them.
 When connected, the worker replays them oldest first, deleting each entry once the server accepts
 or rejects it, also between folders of a full sync. After a folder is re-read from the server,
 queued ops that touch it are applied to the new cache again:

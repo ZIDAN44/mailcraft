@@ -193,8 +193,10 @@ impl Pool {
     }
 
     /// Stop every account's threads, and pause the imports, waiting a few seconds at most for
-    /// them to write what they hold (MailCraft closing).
+    /// them to write what they hold (MailCraft closing). The changes to mail made so far are on
+    /// disk first (a message marked read just before closing stays read).
     pub fn shutdown(&mut self) {
+        self.edits.finish();
         self.indexer.shutdown();
         self.stop_all();
         self.pause_imports(Some(IMPORT_STOP_WAIT));
@@ -235,9 +237,11 @@ impl Pool {
     }
 }
 
-/// Never waits: the imports are paused and let go (they end on their own, writing what they hold).
+/// Never waits for the imports: they are paused and let go (they end on their own, writing what
+/// they hold). Waits for the changes to mail made so far to be on disk (`edits.rs`).
 impl Drop for Pool {
     fn drop(&mut self) {
+        self.edits.finish();
         self.stop_all();
         self.pause_imports(None);
     }
