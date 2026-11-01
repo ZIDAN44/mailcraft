@@ -50,25 +50,34 @@ fn an_import_asked_to_stop_keeps_what_it_read() {
     let opts = ImportOptions { cancel: Some(cancel.clone()), ..ImportOptions::default() };
     // Asked at the first word of progress (200 messages in).
     let done = import_with(&pst, &store, "s1", &opts, &mut |_| cancel.store(true, Ordering::Relaxed)).unwrap();
-    assert_eq!(done.messages, 200, "stopped at the next item");
+    assert_eq!((done.messages, done.cancelled), (200, true), "stopped at the next item, and says so");
     let inbox = done.folders.iter().find(|f| f.path == "INBOX").unwrap();
     let st = store.load_folder("s1", "INBOX").unwrap();
     assert_eq!((st.messages.len(), inbox.total), (200, 200), "what was read is listed and counted");
     assert!(st.messages.iter().all(|m| store.read_body(&m.key).is_some()), "and its sources written");
 
     let done = import_with(&pst, &store, "s2", &opts, &mut |_| {}).unwrap();
-    assert_eq!(done.messages, 0);
+    assert_eq!((done.messages, done.cancelled), (0, true));
     assert_eq!(done.folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["INBOX"]);
 
     // Not asked: the whole file, as `import` brings it in.
     let all = import(&pst, &store, "s3", &mut |_| {}).unwrap();
-    assert_eq!(all.messages, 700);
+    assert_eq!((all.messages, all.cancelled), (700, false));
+    // Asked only once the last item is in: nothing was cut short.
+    let late = Arc::new(AtomicBool::new(false));
+    let opts = ImportOptions { cancel: Some(late.clone()), ..ImportOptions::default() };
+    let small = data_file("stop-late", 3).1;
+    let done = import_with(&small, &store, "s4", &opts, &mut |_| {}).unwrap();
+    late.store(true, Ordering::Relaxed);
+    assert_eq!((done.messages, done.cancelled), (3, false));
+    let _ = std::fs::remove_dir_all(small.parent().unwrap());
     let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// An import says where its time went, how much it held and how much it wrote: its stages fit
 /// in its whole (one lane, one thread), its sources shrank as the data file keeps them, and what
-/// it held at once was at most a batch.
+/// it held at once is counted as rebuilt (here one batch held them all, a megabyte compressed to
+/// far less).
 #[test]
 fn an_import_counts_where_its_time_went() {
     let (dir, pst) = data_file("stats", 600);
@@ -81,7 +90,7 @@ fn an_import_counts_where_its_time_went() {
     assert!(s.total_ms > 0, "{s:?}");
     assert!(s.raw_bytes > 600 * 1400, "every source counted: {s:?}");
     assert!(s.kept_bytes > 0 && s.kept_bytes < s.raw_bytes / 2, "compressed: {s:?}");
-    assert!(s.peak_budget_bytes > 0 && s.peak_budget_bytes <= mailcraft_store::BACKGROUND_COMMIT as u64, "{s:?}");
+    assert_eq!(s.peak_budget_bytes, s.raw_bytes, "{s:?}");
     // A store that doesn't compress keeps them as they are.
     let plain = Store::memory();
     let s = import(&pst, &plain, "t2", &mut |_| {}).unwrap().stats;

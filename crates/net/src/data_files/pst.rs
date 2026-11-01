@@ -88,6 +88,9 @@ pub struct Imported {
     /// Messages whose only body was Rich Text that couldn't be read: imported without a body.
     /// Logged, and not in `skipped`, since the message itself came in.
     pub body_not_converted: usize,
+    /// Asked to stop before the file was read to its end ([`ImportOptions::cancel`]): what was
+    /// read is in, the rest isn't.
+    pub cancelled: bool,
     /// How long it took, and where the time went.
     pub stats: ImportStats,
 }
@@ -99,7 +102,8 @@ pub struct Imported {
 pub struct ImportStats {
     /// The whole import, from opening the file to the seal at its end.
     pub total_ms: u64,
-    /// Opening the file and finding its folders and named properties.
+    /// Opening the file and finding its named properties, then opening each folder (which loads
+    /// its tables of subfolders and items).
     pub plan_ms: u64,
     /// Reading items (their properties, recipients and attachments) from the file.
     pub read_ms: u64,
@@ -114,7 +118,9 @@ pub struct ImportStats {
     /// The writer waiting for items to be read, and readers waiting for room in the budget.
     pub writer_idle_ms: u64,
     pub budget_wait_ms: u64,
-    /// The most bytes read and not yet written at once.
+    /// The most source bytes read and not yet written at once (the batch waiting for the disk
+    /// with the one just added), counted as rebuilt, before compression: the size a budget
+    /// charges, so later figures compare with this one.
     pub peak_budget_bytes: u64,
     /// The sources' bytes as rebuilt, and as kept in the cache.
     pub raw_bytes: u64,
@@ -160,7 +166,7 @@ impl Tally {
         }
     }
 
-    /// A source of `raw` bytes kept in `kept`, with `held` bytes now waiting to be written.
+    /// A source of `raw` bytes kept in `kept`, with `held` bytes (as rebuilt) now waiting to be written.
     fn source(&self, raw: usize, kept: usize, held: usize) {
         let wide = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
         self.raw.fetch_add(wide(raw), Ordering::Relaxed);
@@ -324,7 +330,7 @@ reader!(read_ansi, AnsiPstFile, AnsiStore, AnsiMessage, AnsiAttachment);
 type ReadItem<'a> = dyn Fn(&EntryId) -> io::Result<Item> + 'a;
 
 fn walk(store: &dyn PstStore, read: &ReadItem<'_>, out: &mut Out<'_>) -> io::Result<()> {
-    let top = store.open_folder(&store.properties().ipm_sub_tree_entry_id()?)?;
+    let top = out.tally.time(Phase::Plan, || store.properties().ipm_sub_tree_entry_id().and_then(|e| store.open_folder(&e)))?;
     visit(store, &*top, None, 0, read, out);
     Ok(())
 }
@@ -338,7 +344,9 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
         if out.stopped() {
             return;
         }
-        let opened = store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| store.open_folder(&e));
+        // Opening a folder reads its tables, so it's timed with the plan.
+        let opened =
+            out.tally.time(Phase::Plan, || store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| store.open_folder(&e)));
         let sub = match opened {
             Ok(f) => f,
             Err(e) => {
@@ -352,8 +360,10 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
             // Outlook's RSS Feeds folder is its own bookkeeping, not mail.
             && !class.starts_with("IPF.Note.OutlookHomepage");
         // Outlook's own Outbox, when it has nothing waiting (MailCraft has an Outbox of its own).
-        let empty = sub.contents_table().is_none_or(|t| t.rows_matrix().next().is_none());
-        if empty && special_folder(store, 0x35E2) == Some(u32::from(row.id())) {
+        let outbox = out.tally.time(Phase::Plan, || {
+            sub.contents_table().is_none_or(|t| t.rows_matrix().next().is_none()) && special_folder(store, 0x35E2) == Some(u32::from(row.id()))
+        });
+        if outbox {
             continue;
         }
         if !mail {

@@ -8,7 +8,8 @@
 //!
 //! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB` and `MC_RECYCLE`
 //! (unset: the app's), and it ends with one `stats:` line of numbers (`pst::ImportStats`), where
-//! its time went.
+//! its time went. With `MC_VERIFY=1` it then reads every listed message back from the cache and
+//! counts those present, those that parse and their attachments (counts only).
 //!
 //! Memory is watched from outside (the test process's working set), so the numbers are the
 //! process's, allocator and all.
@@ -201,6 +202,21 @@ fn import() {
         dir_size(&cache) as f64 / 1e9
     );
     println!("stats: {}", serde_json::to_string(&done.stats).unwrap());
+    if env("MC_VERIFY").is_some() {
+        let (mut present, mut parsed, mut attachments) = (0usize, 0usize, 0usize);
+        for f in &done.folders {
+            let Ok(st) = store.load_folder("d1", &f.path) else { continue };
+            for m in &st.messages {
+                let Some(raw) = store.read_body(&m.key) else { continue };
+                present += 1;
+                if let Some(p) = mailcraft_mime::parse(&raw) {
+                    parsed += 1;
+                    attachments += p.attachments.len();
+                }
+            }
+        }
+        println!("verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments", present - parsed);
+    }
 }
 
 fn dir_size(p: &Path) -> u64 {

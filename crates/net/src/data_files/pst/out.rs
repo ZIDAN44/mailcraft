@@ -40,8 +40,11 @@ pub(super) struct Out<'a> {
     /// Sources read (compressed already) but not yet written, and their size as kept.
     pub(super) pending: Vec<(MessageKey, mailcraft_store::Prepared)>,
     pub(super) pending_bytes: usize,
-    /// Set from elsewhere to stop reading.
+    /// The same sources' bytes as rebuilt, before compression.
+    pending_raw: usize,
+    /// Set from elsewhere to stop reading, and whether it stopped the import.
     cancel: Option<Arc<AtomicBool>>,
+    cancelled: bool,
     /// When the import began, and where its time has gone since.
     pub(super) began: Instant,
     pub(super) tally: Tally,
@@ -63,7 +66,9 @@ impl<'a> Out<'a> {
             pim: Pim::default(),
             pending: Vec::new(),
             pending_bytes: 0,
+            pending_raw: 0,
             cancel: opts.cancel.clone(),
+            cancelled: false,
             began: Instant::now(),
             tally: Tally::default(),
         }
@@ -72,8 +77,9 @@ impl<'a> Out<'a> {
 
 impl Out<'_> {
     /// Whether the import was asked to stop: nothing more is read, and what was is kept.
-    pub(super) fn stopped(&self) -> bool {
-        self.cancel.as_ref().is_some_and(|c| c.load(Ordering::Relaxed))
+    pub(super) fn stopped(&mut self) -> bool {
+        self.cancelled |= self.cancel.as_ref().is_some_and(|c| c.load(Ordering::Relaxed));
+        self.cancelled
     }
 
     /// Count `n` items left out for `reason`.
@@ -213,7 +219,8 @@ impl Out<'_> {
             self.flush();
         }
         self.pending_bytes = self.pending_bytes.saturating_add(prepared.kept_len());
-        self.tally.source(raw_len, prepared.kept_len(), self.pending_bytes);
+        self.pending_raw = self.pending_raw.saturating_add(raw_len);
+        self.tally.source(raw_len, prepared.kept_len(), self.pending_raw);
         self.pending.push((key, prepared));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {
             self.flush();
@@ -235,6 +242,7 @@ impl Out<'_> {
         }
         let batch = std::mem::take(&mut self.pending);
         self.pending_bytes = 0;
+        self.pending_raw = 0;
         let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
         if let Err(e) = self.tally.time(Phase::Write, || self.store.write_prepared(batch, false)) {
             log::warn!("import: {e}");
@@ -328,6 +336,7 @@ impl Out<'_> {
             skipped: self.skipped,
             skips: std::mem::take(&mut self.skips),
             body_not_converted: self.body_not_converted,
+            cancelled: self.cancelled,
             stats: ImportStats::default(),
         })
     }
