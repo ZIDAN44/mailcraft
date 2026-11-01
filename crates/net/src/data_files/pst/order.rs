@@ -19,18 +19,22 @@ pub(super) struct Done {
 }
 
 pub(super) enum Step {
-    /// What the file holds, for the progress.
-    Totals { items: u64, bytes: u64, folders: usize },
-    /// A mail folder begins (`index` in the plan), under the plan's folder `parent`.
-    Folder { index: usize, parent: Option<usize>, name: String },
+    /// What the file holds, for the progress, and its record key and fingerprint, for its
+    /// checkpoints.
+    Totals { items: u64, bytes: u64, folders: usize, record_key: String, fingerprint: u64 },
+    /// A folder of the file (its `node`) begins (`index` in the plan): a mail folder under the
+    /// plan's folder `parent`, or contacts or a calendar (`pim`). Going on, a mail folder done
+    /// already begins only to say where it went (its folders under it go there too).
+    Folder { index: usize, node: u32, parent: Option<usize>, name: String, pim: bool },
     /// …and is done.
-    FolderEnd { index: usize },
+    FolderEnd { index: usize, node: u32, pim: bool },
     /// Things left out: items (`items`), or parts of the file that aren't.
     Lost { reason: SkipReason, n: usize, items: bool },
-    /// A folder of a kind that isn't brought in, holding `items`.
-    LeftOut { items: usize },
-    /// An item of the plan's folder `folder`, of `size` bytes as the file gives it.
-    Item { folder: usize, size: u64, pim: bool, outcome: Outcome },
+    /// A folder of a kind that isn't brought in (at `node`), holding `items`.
+    LeftOut { node: u32, items: usize },
+    /// An item of the plan's folder `folder` (the file's at `node`, at `row` in it), of `size`
+    /// bytes as the file gives it.
+    Item { folder: usize, size: u64, pim: bool, node: u32, row: u64, outcome: Outcome },
 }
 
 /// Apply what comes through `results` to `out`, in order, until every sender is gone or the
@@ -52,6 +56,11 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
             Err(RecvTimeoutError::Timeout) => {
                 out.flush();
                 out.publish(false);
+                // Nothing to write for a while (contacts read, or items left out): the
+                // checkpoint goes on its own.
+                if out.checkpoint_due() {
+                    out.checkpoint();
+                }
                 flushed = Instant::now();
                 continue;
             }
@@ -74,6 +83,9 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
         if flushed.elapsed() >= FLUSH_EVERY {
             out.flush();
             out.publish(false);
+            if out.checkpoint_due() {
+                out.checkpoint();
+            }
             flushed = Instant::now();
         }
     }
@@ -92,30 +104,38 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
 
 fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done: Done) {
     #[cfg(test)]
-    if let Some(super::lanes::tests::Fault::WriterAfter(n)) = ctx.opts.fault
+    if let Some(super::lanes::tests::Fault::WriterAfter(n) | super::lanes::tests::Fault::CutOffAfter(n)) = ctx.opts.fault
         && out.read as u64 >= n
     {
         panic!("a test's writer fault");
     }
     let path_of = |paths: &Vec<Option<String>>, i: usize| paths.get(i).cloned().flatten();
     match done.step {
-        Step::Totals { items, bytes, folders } => out.totals(items, bytes, folders),
-        Step::Folder { index, parent, name } => {
+        Step::Totals { items, bytes, folders, record_key, fingerprint } => {
+            out.totals(items, bytes, folders);
+            out.source_known(ctx.path, record_key, fingerprint);
+        }
+        Step::Folder { node, pim: true, .. } => out.begin_pim_folder(node),
+        Step::Folder { index, node, parent, name, pim: false } => {
             let parent = parent.and_then(|p| path_of(paths, p));
-            let path = out.add_folder(parent.as_deref(), &name);
+            let path = out.begin_folder(node, parent.as_deref(), &name);
             if paths.len() <= index {
                 paths.resize(index.saturating_add(1), None);
             }
             if let Some(slot) = paths.get_mut(index) {
-                *slot = Some(path);
+                *slot = path;
             }
         }
-        Step::FolderEnd { index } => {
+        Step::FolderEnd { node, pim: true, .. } => out.other_folder_done(node),
+        Step::FolderEnd { index, pim: false, .. } => {
             if let Some(path) = path_of(paths, index) {
                 out.save_folder(&path);
             }
         }
-        Step::LeftOut { items } => out.leave_out_folder(items),
+        Step::LeftOut { node, items } => {
+            out.leave_out_folder(items);
+            out.other_folder_done(node);
+        }
         Step::Lost { reason, n, items } => {
             if items {
                 out.skip(reason, n);
@@ -123,8 +143,9 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
                 out.lose(reason, n);
             }
         }
-        Step::Item { folder, size, pim, outcome } => {
+        Step::Item { folder, size, pim, node, row, outcome } => {
             let mut held = done.charge;
+            let failed = matches!(outcome, Outcome::Failed);
             match outcome {
                 Outcome::Built(b) => {
                     if let Some(path) = path_of(paths, folder) {
@@ -134,8 +155,8 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
                 }
                 Outcome::Pim(it) => out.add_pim(*it),
                 Outcome::NotMail => out.skip(SkipReason::ItemNotUsable, 1),
-                Outcome::Unreadable if pim => out.skip(SkipReason::ItemUnreadable, 1),
-                Outcome::Unreadable => out.skip(SkipReason::MessageUnreadable, 1),
+                Outcome::Unreadable | Outcome::Failed if pim => out.skip(SkipReason::ItemUnreadable, 1),
+                Outcome::Unreadable | Outcome::Failed => out.skip(SkipReason::MessageUnreadable, 1),
                 Outcome::NotRebuilt => out.skip(SkipReason::MessageNotRebuilt, 1),
                 // Not read: the import is stopping, and it isn't counted.
                 Outcome::Stopped => {
@@ -145,6 +166,7 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
             }
             ctx.budget.release(held);
             out.item_read(size);
+            out.row_done(node, row, failed);
         }
     }
 }

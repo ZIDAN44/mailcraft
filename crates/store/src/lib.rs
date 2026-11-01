@@ -162,6 +162,20 @@ pub struct ListTail {
     pub page: Vec<Summary>,
 }
 
+impl ListTail {
+    /// Whether it adds up: only full pages written, no more unread than messages in them, not
+    /// too many of either, and the messages not yet in a page in rising number order.
+    pub fn is_sound(&self) -> bool {
+        let full = u64::try_from(self.pages.len()).ok().and_then(|n| n.checked_mul(PAGE_MESSAGES as u64));
+        let rising = self.page.windows(2).all(|w| w.first().map(|m| m.key.uid) < w.get(1).map(|m| m.key.uid));
+        self.pages.len() <= TAIL_PAGES_MAX
+            && self.page.len() <= TAIL_PAGE_MAX
+            && full == Some(self.in_pages)
+            && u64::from(self.unread_in_pages) <= self.in_pages
+            && rising
+    }
+}
+
 /// A list's tail names at most this many pages written (4 billion messages), and holds at most
 /// two pages' worth not yet in one.
 pub const TAIL_PAGES_MAX: usize = 1_000_000;

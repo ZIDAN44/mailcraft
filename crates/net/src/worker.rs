@@ -295,8 +295,7 @@ impl Pool {
                     log::warn!("autoconfiguration: {e}");
                 }
             }
-            // An import starts from the beginning: nothing records where one stopped yet.
-            Job::ImportPst { account, path, resume: _ } => self.import_pst(account, path),
+            Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
             Job::StopImport { account, how } => self.stop_import(&account, how),
             // The desktop keeps keys in the system's keychain: nothing to keep unlocked.

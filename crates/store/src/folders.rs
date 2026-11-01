@@ -241,13 +241,11 @@ impl Store {
     /// doesn't add up (pages that aren't full ones, more unread than messages, too many) is an
     /// error, and nothing is written.
     pub fn resume_list_writer(&self, account: &str, folder: &str, tail: ListTail) -> Result<ListWriter> {
-        let ListTail { pages, in_pages, unread_in_pages, page } = tail;
-        let full = u64::try_from(pages.len()).ok().and_then(|n| n.checked_mul(PAGE_MESSAGES as u64));
-        let rising = page.windows(2).all(|w| w.first().map(|m| m.key.uid) < w.get(1).map(|m| m.key.uid));
-        if pages.len() > TAIL_PAGES_MAX || page.len() > TAIL_PAGE_MAX || full != Some(in_pages) || u64::from(unread_in_pages) > in_pages || !rising {
+        if !tail.is_sound() {
             let source = io::Error::new(io::ErrorKind::InvalidData, "a folder list's tail that doesn't add up");
             return Err(StoreError::Io { path: format!("{account}/{folder}"), source });
         }
+        let ListTail { pages, in_pages, unread_in_pages, page } = tail;
         let total = usize::try_from(in_pages).unwrap_or(usize::MAX);
         let mut w = ListWriter { account: account.to_string(), folder: folder.to_string(), pages, page: Vec::new(), total, unread: unread_in_pages };
         w.push(self, page)?;

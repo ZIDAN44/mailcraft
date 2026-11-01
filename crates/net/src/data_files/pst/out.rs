@@ -4,6 +4,7 @@
 use super::budget::Budget;
 use super::item::Item;
 use super::lanes::Built;
+use super::resume::CheckState;
 use super::*;
 
 mod indexing;
@@ -21,10 +22,10 @@ const PUBLISH_EVERY: Duration = Duration::from_secs(1);
 
 /// A folder being read.
 pub(super) struct Open {
-    uid_next: u32,
+    pub(super) uid_next: u32,
     /// Messages whose sources may not be written yet (they go to the list once they are).
-    waiting: Vec<mailcraft_model::Summary>,
-    list: mailcraft_store::ListWriter,
+    pub(super) waiting: Vec<mailcraft_model::Summary>,
+    pub(super) list: mailcraft_store::ListWriter,
 }
 
 /// What has been written so far.
@@ -48,7 +49,7 @@ pub(super) struct Out<'a> {
     /// What the file holds (its items and their bytes), and the bytes of the items read so far.
     total: usize,
     bytes_total: u64,
-    bytes_done: u64,
+    pub(super) bytes_done: u64,
     folders_total: usize,
     /// Contacts and calendar items read so far.
     pub(super) pim: Pim,
@@ -78,6 +79,8 @@ pub(super) struct Out<'a> {
     /// messages put in it.
     index: Option<indexing::Index>,
     indexed: u64,
+    /// Where the import has got, for its checkpoints (`resume`).
+    pub(super) note: super::resume::Note,
 }
 
 impl<'a> Out<'a> {
@@ -114,6 +117,7 @@ impl<'a> Out<'a> {
             batch_bytes: if opts.batch_bytes > 0 { opts.batch_bytes } else { BATCH_BYTES },
             index: None,
             indexed: 0,
+            note: super::resume::Note::default(),
         }
     }
 }
@@ -223,6 +227,7 @@ impl Out<'_> {
     pub(super) fn add_pim(&mut self, it: Item) {
         let began = Instant::now();
         self.pim_of(it);
+        self.pim_read();
         self.tally.since(Phase::Build, began);
     }
 
@@ -352,7 +357,15 @@ impl Out<'_> {
         self.pending_raw = 0;
         let charge = std::mem::take(&mut self.pending_charge);
         let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
-        let wrote = self.tally.time(Phase::Write, || self.store.write_prepared(batch, false));
+        // Every so often the checkpoint goes with the batch, naming it.
+        let wrote = if self.checkpoint_due() {
+            let docs = self.checkpoint_docs();
+            let wrote = self.tally.time(Phase::Write, || self.store.write_batch(self.account, batch, docs));
+            self.checkpointed(wrote.is_ok());
+            wrote
+        } else {
+            self.tally.time(Phase::Write, || self.store.write_prepared(batch, false))
+        };
         // Their words go into the index once their sources are in.
         self.index_written(wrote.is_ok());
         if let Err(e) = wrote {
@@ -402,17 +415,20 @@ impl Out<'_> {
         f.total = total;
         let f = f.clone();
         self.finished.push(f);
+        self.mail_folder_done(path);
         self.publish(false);
     }
 
     /// The folders finished so far put in the account's folder list in one write, and said to
     /// the sink, unless the list was written less than [`PUBLISH_EVERY`] ago (`now`: whenever).
-    /// A write that fails keeps them for the next, and says why.
+    /// A write that fails keeps them for the next, and says why. A checkpoint naming them done
+    /// goes first: a folder shown is never read again, whatever the user did to it since.
     pub(super) fn publish(&mut self, now: bool) -> Option<String> {
         if self.finished.is_empty() || (!now && self.published.is_some_and(|t| t.elapsed() < PUBLISH_EVERY)) {
             return None;
         }
         self.published = Some(Instant::now());
+        self.checkpoint();
         match self.tally.time(Phase::Commit, || self.store.upsert_folders(self.account, &self.finished)) {
             Ok(()) => {
                 for f in std::mem::take(&mut self.finished) {
@@ -480,14 +496,27 @@ impl Out<'_> {
         let stopped = self.stopped_as();
         let stopped_in = self.part_way();
         if stopped == Some(StopHow::Pause) {
-            // Paused: a folder part-way through stays out of the list, to be gone on with; it
-            // was never shown, so nothing in it was changed meanwhile.
-            let part_way: Vec<String> = self.states.keys().cloned().collect();
-            self.folders.retain(|f| !part_way.contains(&f.path));
+            // Paused: a folder part-way through stays out of the list, to be gone on with from the
+            // checkpoint; it was never shown, so nothing in it was changed meanwhile.
+            self.ending(CheckState::Running);
+            let last_save = self.publish(true);
+            self.checkpoint();
+            // Going on, one not reached again yet is part-way through still.
+            let mut part_way: Vec<String> = self.states.keys().cloned().collect();
+            part_way.extend(self.part_way_path());
             self.states.clear();
-        } else if !self.folders.iter().any(|f| f.role == FolderRole::Inbox) {
+            let folders = self.folders.iter().filter(|f| !part_way.contains(&f.path)).cloned().collect();
+            return self.came_to(folders, stopped, stopped_in, last_save);
+        }
+        if stopped == Some(StopHow::Cancel) {
+            // Cancelled: the folder part-way through is finished as it is, and gone on with when
+            // asked, from where it stopped.
+            self.ending(CheckState::Cancelled);
+        }
+        if !self.folders.iter().any(|f| f.role == FolderRole::Inbox) {
             // An Inbox to open, even when the file had none.
             let path = self.add_folder(None, "Inbox");
+            self.note.invented = Some(path.clone());
             self.save_folder(&path);
         }
         // Folders left part-way (the file ended early, or the import was cancelled) still get
@@ -501,22 +530,31 @@ impl Out<'_> {
         // failed as it finished, too) are added as they stand: what the window changed meanwhile
         // stays.
         let mut last_save = self.publish(true);
-        let (contacts, events, notes) = (self.pim.cards.len(), self.pim.events.len(), self.pim.notes.len());
-        if contacts + events + notes > 0 {
+        if self.pim.cards.len() + self.pim.events.len() + self.pim.notes.len() > 0 {
             self.pim.ensure_defaults();
             if let Err(e) = self.tally.time(Phase::Commit, || self.store.save_account_doc(self.account, PIM_DOC, &self.pim)) {
                 last_save.get_or_insert(e.to_string());
             }
         }
+        if stopped != Some(StopHow::Cancel) {
+            self.ending(CheckState::Done);
+        }
+        self.checkpoint();
         if self.body_not_converted > 0 {
             log::info!("{} messages kept their body only as Rich Text that couldn't be read: they came in without one", self.body_not_converted);
         }
+        let folders = std::mem::take(&mut self.folders);
+        self.came_to(folders, stopped, stopped_in, last_save)
+    }
+
+    /// What the import came to, with `folders`.
+    fn came_to(&mut self, folders: Vec<Folder>, stopped: Option<StopHow>, stopped_in: Option<String>, last_save: Option<String>) -> Imported {
         Imported {
-            folders: std::mem::take(&mut self.folders),
+            folders,
             messages: self.imported,
-            contacts,
-            events,
-            notes,
+            contacts: self.pim.cards.len(),
+            events: self.pim.events.len(),
+            notes: self.pim.notes.len(),
             skipped: self.skipped,
             skips: std::mem::take(&mut self.skips),
             body_not_converted: self.body_not_converted,
@@ -524,6 +562,9 @@ impl Out<'_> {
             stopped_in,
             stats: ImportStats::default(),
             last_save,
+            runs: self.note.runs.saturating_add(1),
+            earlier_ms: self.note.earlier_ms,
+            blocked: None,
         }
     }
 }

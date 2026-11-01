@@ -432,3 +432,59 @@ fn a_mailcraft_copy_stopped_part_way_keeps_nothing() {
     assert!(source.exists(), "the file copied from stays");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Paused as MailCraft closes, an import asked to go on does, from where it stopped: it ends with
+/// every message, in two runs. Asked to go on with a file that's gone, it waits on the user,
+/// saying why.
+#[test]
+fn a_paused_import_goes_on_where_it_stopped() {
+    let (dir, pst, store, mut p) = setup("go-on", 20, 2000, "g1", 30);
+    p.submit(Job::ImportPst { account: "g1".into(), path: pst.clone(), resume: false });
+    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    p.submit(Job::StopImport { account: "g1".into(), how: StopHow::Pause });
+    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    let end = Instant::now() + Duration::from_secs(10);
+    while p.importing("g1") && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    slow("g1", 0);
+    p.submit(Job::ImportPst { account: "g1".into(), path: pst.clone(), resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let report = match seen.last() {
+        Some(Event::Imported { report: Some(r), error: None, .. }) => r.clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!((report.messages, report.runs, report.stopped), (2020, 2, None));
+    assert_eq!(store.load_folder("g1", "Projects").unwrap().messages.len(), 2000);
+    // Done: asked again, it says so without reading the file, even one that's gone.
+    let end = Instant::now() + Duration::from_secs(10);
+    while p.importing("g1") && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    std::fs::remove_file(&pst).unwrap();
+    p.submit(Job::ImportPst { account: "g1".into(), path: pst.clone(), resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    assert!(matches!(seen.last(), Some(Event::Imported { messages: 2020, error: None, .. })), "{seen:?}");
+
+    // Paused, then gone: it waits on the user.
+    let (dir2, pst2, _store2, mut p2) = setup("go-on-gone", 20, 2000, "g2", 30);
+    p2.submit(Job::ImportPst { account: "g2".into(), path: pst2.clone(), resume: false });
+    events_until(&p2, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    p2.submit(Job::StopImport { account: "g2".into(), how: StopHow::Pause });
+    events_until(&p2, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    let end = Instant::now() + Duration::from_secs(10);
+    while p2.importing("g2") && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    std::fs::remove_file(&pst2).unwrap();
+    p2.submit(Job::ImportPst { account: "g2".into(), path: pst2, resume: true });
+    let seen =
+        events_until(&p2, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Blocked));
+    assert!(
+        matches!(seen.last(), Some(Event::ImportProgress { progress, .. }) if progress.blocked == Some(mailcraft_model::job::Blocked::SourceMissing)),
+        "{seen:?}"
+    );
+    assert!(!seen.iter().any(ended), "nothing ends: it waits");
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&dir2);
+}

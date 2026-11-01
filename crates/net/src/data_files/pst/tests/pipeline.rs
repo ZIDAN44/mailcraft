@@ -84,7 +84,7 @@ fn lanes(n: usize) -> ImportOptions {
 }
 
 /// Everything an import left in the store: the folder list, every folder's list, every source.
-fn everything(store: &Store, account: &str) -> (Vec<Folder>, Vec<(String, mailcraft_store::FolderState)>, Vec<Vec<u8>>) {
+pub(super) fn everything(store: &Store, account: &str) -> (Vec<Folder>, Vec<(String, mailcraft_store::FolderState)>, Vec<Vec<u8>>) {
     let folders = store.load_folders(account).unwrap();
     let mut lists = Vec::new();
     let mut sources = Vec::new();

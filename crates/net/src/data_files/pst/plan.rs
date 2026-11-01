@@ -18,7 +18,7 @@ use super::*;
 /// Jobs waiting for a lane, at most.
 pub(super) const JOBS: usize = 1024;
 /// Folders read, at most; past this the rest of the file isn't.
-const MAX_FOLDERS: usize = 100_000;
+pub(super) const MAX_FOLDERS: usize = 100_000;
 /// Items handed out, at most.
 const MAX_ITEMS: u64 = 10_000_000;
 /// Items read of one folder, at most.
@@ -43,6 +43,7 @@ pub(super) struct PlanFolder {
     pub(super) name: String,
     pub(super) kind: Kind,
     pub(super) rows: u64,
+    pub(super) bytes: u64,
 }
 
 #[derive(Default)]
@@ -55,6 +56,8 @@ pub(super) struct Plan {
     pub(super) lost: BTreeMap<SkipReason, usize>,
     /// Past [`MAX_FOLDERS`] or [`MAX_ITEMS`]: nothing more is planned.
     full: bool,
+    /// The file's own record key (PidTagRecordKey of its store), in hex.
+    pub(super) record_key: String,
 }
 
 /// The folders a plan has taken, against the file going round in circles or on for ever.
@@ -87,6 +90,26 @@ impl Guard {
 }
 
 impl Plan {
+    /// What the file holds, in one number: each folder brought in, by its node, kind, items and
+    /// their bytes, and the file's record key. A file changed where its items aren't (Outlook
+    /// writing its header) has the same; one with an item more or less, another.
+    pub(super) fn fingerprint(&self) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut add = |bytes: &[u8]| {
+            for b in bytes {
+                h = (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
+            }
+        };
+        add(self.record_key.as_bytes());
+        for f in self.folders.iter().filter(|f| f.kind != Kind::LeftOut) {
+            add(&f.node.to_le_bytes());
+            add(&[u8::from(f.kind == Kind::Mail)]);
+            add(&f.rows.to_le_bytes());
+            add(&f.bytes.to_le_bytes());
+        }
+        h
+    }
+
     fn lose(&mut self, reason: SkipReason) {
         let n = self.lost.entry(reason).or_default();
         *n = n.saturating_add(1);
@@ -105,7 +128,7 @@ impl Plan {
 /// stops).
 pub(super) fn plan(store: &dyn PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
     let top = store.properties().ipm_sub_tree_entry_id().and_then(|e| store.open_folder(&e))?;
-    let mut plan = Plan::default();
+    let mut plan = Plan { record_key: record_key(store), ..Plan::default() };
     let mut guard = Guard::default();
     let outbox = special_folder(store, 0x35E2);
     visit(store, &*top, None, 0, outbox, &mut guard, &mut plan, ctx);
@@ -183,7 +206,7 @@ fn visit(
             continue;
         }
         let index = plan.folders.len();
-        plan.folders.push(PlanFolder { node, parent, name, kind, rows });
+        plan.folders.push(PlanFolder { node, parent, name, kind, rows, bytes });
         if kind != Kind::LeftOut {
             plan.items = plan.items.saturating_add(rows);
             plan.bytes = plan.bytes.saturating_add(bytes);
@@ -267,11 +290,12 @@ impl Feed {
 
     /// Hand a job to the lanes, waiting while they have [`JOBS`] waiting already; false once
     /// they're gone, or the import is stopping (`stopped`).
-    fn job(&mut self, node: u32, size: u64, folder: usize, pim: bool, stopped: &dyn Fn() -> bool) -> bool {
+    fn job(&mut self, node: u32, size: u64, at: (usize, u32, u64), pim: bool, stopped: &dyn Fn() -> bool) -> bool {
         let seq = self.seq;
         self.seq = self.seq.saturating_add(1);
         let charge = budget::charge_for(i64::try_from(size).ok().filter(|s| *s > 0));
-        let mut job = Job { seq, node, size, charge, folder, pim };
+        let (folder, folder_node, row) = at;
+        let mut job = Job { seq, node, size, charge, folder, pim, folder_node, row };
         loop {
             match self.jobs.try_send(job) {
                 Ok(()) => return true,
@@ -289,11 +313,14 @@ impl Feed {
 /// Hand out the work of `plan`, read from `store`, until it's done or the import stops.
 pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
     let stopped = || ctx.stopped();
+    let skip = ctx.resume.as_ref();
     let folders = plan.folders.iter().filter(|f| f.kind == Kind::Mail).count();
-    if !feed.step(Step::Totals { items: plan.items, bytes: plan.bytes, folders }) {
+    let totals = Step::Totals { items: plan.items, bytes: plan.bytes, folders, record_key: plan.record_key.clone(), fingerprint: plan.fingerprint() };
+    if !feed.step(totals) {
         return;
     }
-    for (reason, n) in &plan.lost {
+    // Going on, what the plan lost was counted the first time.
+    for (reason, n) in plan.lost.iter().filter(|_| skip.is_none()) {
         if !feed.step(Step::Lost { reason: *reason, n: *n, items: false }) {
             return;
         }
@@ -303,29 +330,42 @@ pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &C
         if stopped() {
             return;
         }
+        let folder = Step::Folder { index, node: f.node, parent: f.parent, name: f.name.clone(), pim: f.kind == Kind::Pim };
+        // Done already: a mail folder says only where it went.
+        if skip.is_some_and(|s| s.done(f.node)) {
+            if f.kind == Kind::Mail && !feed.step(folder) {
+                return;
+            }
+            continue;
+        }
         match f.kind {
             Kind::LeftOut => {
-                if !feed.step(Step::LeftOut { items: count(f.rows) }) {
+                if !feed.step(Step::LeftOut { node: f.node, items: count(f.rows) }) {
                     return;
                 }
                 continue;
             }
-            Kind::Mail => {
-                if !feed.step(Step::Folder { index, parent: f.parent, name: f.name.clone() }) {
+            Kind::Mail | Kind::Pim => {
+                if !feed.step(folder) {
                     return;
                 }
             }
-            Kind::Pim => {}
         }
+        let start = skip.map_or(0, |s| s.start(f.node));
         let began = Instant::now();
         let opened = store.properties().make_entry_id(NodeId::from(f.node)).and_then(|e| store.open_folder(&e));
         ctx.tally.since(Phase::Plan, began);
         match opened {
             Ok(sub) => {
                 if let Some(table) = sub.contents_table() {
-                    for (node, size) in sizes(&**table) {
+                    for (row, (node, size)) in sizes(&**table).enumerate() {
                         if stopped() {
                             return;
+                        }
+                        // Read already, or one the reader failed on.
+                        let row = u64::try_from(row).unwrap_or(u64::MAX);
+                        if row < start || skip.is_some_and(|s| s.failed(f.node, row)) {
+                            continue;
                         }
                         if handed >= MAX_ITEMS {
                             feed.step(Step::Lost { reason: SkipReason::StoppedEarly, n: 1, items: false });
@@ -339,7 +379,7 @@ pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &C
                             _ => size,
                         };
                         handed += 1;
-                        if !feed.job(node, size, index, f.kind == Kind::Pim, &stopped) {
+                        if !feed.job(node, size, (index, f.node, row), f.kind == Kind::Pim, &stopped) {
                             return;
                         }
                     }
@@ -352,7 +392,7 @@ pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &C
                 }
             }
         }
-        if f.kind == Kind::Mail && !feed.step(Step::FolderEnd { index }) {
+        if !feed.step(Step::FolderEnd { index, node: f.node, pim: f.kind == Kind::Pim }) {
             return;
         }
     }
@@ -360,6 +400,14 @@ pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &C
 
 fn count(n: u64) -> usize {
     usize::try_from(n).unwrap_or(usize::MAX)
+}
+
+/// The store's record key (`0x0FF9`), in hex: "" when it has none, or one too long to be one.
+fn record_key(store: &dyn PstStore) -> String {
+    match store.properties().get(0x0FF9) {
+        Some(PropertyValue::Binary(b)) if b.buffer().len() <= 64 => b.buffer().iter().map(|x| format!("{x:02x}")).collect(),
+        _ => String::new(),
+    }
 }
 
 /// The node of one of the store's special folders (`0x35E2`: the Outbox), from its entry id

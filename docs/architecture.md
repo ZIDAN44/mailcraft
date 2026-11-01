@@ -171,7 +171,17 @@ written (`Compose`), preferences and status-bar notices.
   to throw it away (`Job::StopImport{Discard}`, its id not given again), and goes with what came
   in once the import says so; when that never comes it leaves the list after `REMOVE_BACKSTOP` events, its data
   file and record left to the import (which removes the file as it ends) or to the next start,
-  and a removal not finished when MailCraft closed is finished as it opens. An import interrupted
+  and a removal not finished when MailCraft closed is finished as it opens. An import notes where it got in
+  the account's own data file (`import.json`, `pst/resume.rs`): the folders done by node, the
+  one part-way through with its next row, next number and list tail (`ListWriter::tail`,
+  `Store::resume_list_writer`), the rows the reader failed on, the counts and the file's size,
+  time, record key and fingerprint (each folder's node, items and bytes). It goes in with the
+  batch it names (`Store::write_batch`: one durable, sealed commit) at least every 10 s, before
+  finished folders are published, and as the import stops or ends (`Running`, `Cancelled`,
+  `Done`). `ImportOptions::resume` (`Job::ImportPst{resume}`) goes on from it: done folders are
+  skipped, the part-way one reopened (sources past its number dropped, `Store::drop_bodies_from`),
+  and a file not the same (`Blocked::SourceChanged`, `SourceMissing`, `Locked`) waits on the
+  user with nothing written; a `Done` note answers without reading the file. An import interrupted
   (still `Running` in `imports.json`) goes on as MailCraft opens; one stopped or blocked waits
   for `account.resumeImport`, `account.keepImported` or `account.restartImport` (a POP account's
   connection waits with either); until then, as while it runs, the account's folders aren't

@@ -65,7 +65,7 @@ impl Pool {
     /// Import a data file on a thread of its own: an Outlook one (`.pst`), or MailCraft's own
     /// (`.mailcraft`, copied in as it is). An account already importing isn't given a second;
     /// one whose import is being thrown away gets it once that's over.
-    pub(super) fn import_pst(&mut self, account: String, path: String) {
+    pub(super) fn import_pst(&mut self, account: String, path: String, resume: bool) {
         self.prune_imports();
         if let Some(ctl) = self.imports.running.get_mut(&account) {
             let mut queue = lock(&ctl.queue);
@@ -97,13 +97,14 @@ impl Pool {
         let importing = self.indexer.importing(&account);
         let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
             let _importing = importing;
-            let (mut path, mut stop, mut left) = (path, asked, Vec::new());
+            let (mut path, mut stop, mut left, mut resume) = (path, asked, Vec::new(), resume);
             loop {
                 let planned = planned_for(&looked, &path);
-                left.extend(run(&store, &sink, &account, &path, &stop, planned));
+                left.extend(run(&store, &sink, &account, &path, &stop, planned, resume));
                 let mut q = lock(&queued);
                 match q.next.take() {
-                    Some((next, asked)) => (path, stop) = (next, asked),
+                    // One asked for after an import thrown away starts afresh.
+                    Some((next, asked)) => (path, stop, resume) = (next, asked, false),
                     None => {
                         q.ended = true;
                         return left;
@@ -218,6 +219,7 @@ impl Pool {
                     Ok(planned) => {
                         (facts.messages, facts.folders, facts.pim_items, facts.bytes) =
                             (planned.messages, planned.folders, planned.pim_items, planned.bytes);
+                        facts.record_key.clone_from(&planned.record_key);
                         let planned = Arc::new(planned);
                         *lock(&looked) = Some(Looked { path: path.clone(), size: facts.size, modified: facts.modified, planned });
                     }
@@ -250,7 +252,7 @@ fn planned_for(looked: &Mutex<Option<Looked>>, path: &str) -> Option<Arc<Planned
 
 /// An import, start to end, on its thread. Returns the data file of one thrown away that
 /// couldn't be removed yet.
-fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, planned: Option<Arc<Planned>>) -> Option<PathBuf> {
+fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, planned: Option<Arc<Planned>>, resume: bool) -> Option<PathBuf> {
     let began = Instant::now();
     // Stopped while it waited behind an import thrown away: it never began.
     if let Some(how) = stop.how() {
@@ -265,7 +267,7 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
     if path.to_ascii_lowercase().ends_with(".mailcraft") {
         return copy_in(&mut told, path);
     }
-    let opts = ImportOptions { stop: stop.clone(), planned, ..ImportOptions::default() };
+    let opts = ImportOptions { stop: stop.clone(), planned, resume, ..ImportOptions::default() };
     #[cfg(test)]
     let opts = ImportOptions { fault: tests::fault_for(account), ..opts };
     let result = crate::pst::import_into(Path::new(path), store, account, &opts, &mut told);
@@ -275,6 +277,12 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
         return thrown_away(&told, path, messages, skipped);
     }
     match result {
+        // It can't go on from where it stopped (the file changed, went, or is held): it waits
+        // on the user, nothing read.
+        Ok(done) if done.blocked.is_some() => {
+            let progress = ImportProgress { phase: ImportPhase::Blocked, blocked: done.blocked, run_ms: ms(began), ..ImportProgress::default() };
+            sink.emit(Event::ImportProgress { account: account.to_string(), progress });
+        }
         // Paused: what came in is kept, and only a word that it stopped is said, with the folders
         // finished (the last of them may not have been said yet).
         Ok(done) if done.stopped == Some(StopHow::Pause) => {
@@ -452,8 +460,8 @@ fn report_of(done: &Imported, path: &str, store: &Store, account: &str, began: I
         contacts: count(done.contacts),
         events: count(done.events),
         notes: count(done.notes),
-        elapsed_ms: ms(began),
-        runs: 1,
+        elapsed_ms: ms(began).saturating_add(done.earlier_ms),
+        runs: done.runs.max(1),
         ..ImportReport::default()
     };
     for (reason, n) in &done.skips {

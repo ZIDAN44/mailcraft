@@ -27,9 +27,12 @@ pub(super) struct Job {
     /// Its size as the file gives it (0: not given), and what it's charged.
     pub(super) size: u64,
     pub(super) charge: u64,
-    /// The plan's folder it's in, and whether that's contacts or a calendar.
+    /// The plan's folder it's in, and whether that's contacts or a calendar; and that folder's
+    /// node and the item's row in it (from 0), where a checkpoint notes it.
     pub(super) folder: usize,
     pub(super) pim: bool,
+    pub(super) folder_node: u32,
+    pub(super) row: u64,
 }
 
 /// What became of an item.
@@ -41,6 +44,8 @@ pub(super) enum Outcome {
     /// Something in a mail folder that isn't mail (an appointment, a contact): not brought in.
     NotMail,
     Unreadable,
+    /// The reader failed on it (a panic): never read again when the import goes on.
+    Failed,
     NotRebuilt,
     /// Not read: the import is stopping.
     Stopped,
@@ -71,6 +76,10 @@ pub(super) struct Ctx<'a> {
     pub(super) index: bool,
     pub(super) budget: Arc<Budget>,
     pub(super) tally: Arc<Tally>,
+    /// Going on from a checkpoint: what the planner leaves out, and whether the file turned out
+    /// not to be the one the checkpoint was of.
+    pub(super) resume: Option<super::resume::Skip>,
+    pub(super) changed: AtomicBool,
     /// Set to stop every thread: the writer is done (or failed), or the file is damaged.
     pub(super) halt: AtomicBool,
     pub(super) damaged: AtomicBool,
@@ -96,6 +105,8 @@ impl<'a> Ctx<'a> {
             index: out.indexing(),
             budget: out.budget.clone(),
             tally: out.tally.clone(),
+            resume: None,
+            changed: AtomicBool::new(false),
             halt: AtomicBool::new(false),
             damaged: AtomicBool::new(false),
             panics: AtomicUsize::new(0),
@@ -118,6 +129,8 @@ impl<'a> Ctx<'a> {
             index: false,
             budget: Arc::new(Budget::new(0)),
             tally: Arc::default(),
+            resume: None,
+            changed: AtomicBool::new(false),
             halt: AtomicBool::new(false),
             damaged: AtomicBool::new(false),
             panics: AtomicUsize::new(0),
@@ -207,18 +220,18 @@ pub(super) fn gone(ctx: &Ctx<'_>, jobs: &Jobs, n: usize) {
 /// Answers a job when dropped, unless it was answered: a lane that unwinds with a job in hand
 /// still answers it, so the writer, which applies items in order, never waits for one.
 struct Answer<'a> {
-    job: Option<(u64, usize, u64, bool)>,
+    job: Option<(u64, usize, u64, bool, u32, u64)>,
     results: &'a Sender<Done>,
 }
 
 impl<'a> Answer<'a> {
     fn new(job: &Job, results: &'a Sender<Done>) -> Self {
-        Answer { job: Some((job.seq, job.folder, job.size, job.pim)), results }
+        Answer { job: Some((job.seq, job.folder, job.size, job.pim, job.folder_node, job.row)), results }
     }
 
     fn send(&mut self, outcome: Outcome, charge: u64) {
-        if let Some((seq, folder, size, pim)) = self.job.take() {
-            let _ = self.results.send(Done { seq, step: Step::Item { folder, size, pim, outcome }, charge });
+        if let Some((seq, folder, size, pim, node, row)) = self.job.take() {
+            let _ = self.results.send(Done { seq, step: Step::Item { folder, size, pim, node, row, outcome }, charge });
         }
     }
 }
@@ -255,7 +268,7 @@ fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &R
                     ctx.damaged.store(true, Ordering::Relaxed);
                     ctx.stop();
                 }
-                Outcome::Unreadable
+                Outcome::Failed
             }
         };
         // What the writer holds from here is the source as kept with its words, or the contact or
@@ -472,12 +485,17 @@ pub(super) mod tests {
         PanicAt(u64),
         /// …on every item.
         PanicAlways,
+        /// …on the item at this row of its folder (from 0), however many times it's read.
+        PanicRow(u64),
         /// The planner panics once it has handed out this many items.
         PlannerAfter(u64),
         /// …or as it plans the folder that is this many into the file (from 0).
         PlanAt(usize),
         /// The writer panics on applying this many items.
         WriterAfter(u64),
+        /// The import is cut off once the writer has applied this many items, as if the
+        /// process ended there: nothing more is written, not even what an end writes.
+        CutOffAfter(u64),
         /// The file says every item is a byte.
         Understate,
         /// Each item takes this many milliseconds longer to read (an import slow enough to be
@@ -487,11 +505,12 @@ pub(super) mod tests {
 
     /// A panic the test asked for, at the item `job` is (the items are counted as the lanes take
     /// them, so which one is the nth depends on the lanes: one panics all the same).
-    pub(super) fn fault(ctx: &Ctx<'_>, _job: &Job) {
+    pub(super) fn fault(ctx: &Ctx<'_>, job: &Job) {
         let n = ctx.items_taken.fetch_add(1, Ordering::Relaxed);
         match ctx.opts.fault {
             Some(Fault::PanicAlways) => panic!("a test's reader fault"),
             Some(Fault::PanicAt(at)) if n == at => panic!("a test's reader fault"),
+            Some(Fault::PanicRow(row)) if job.row == row => panic!("a test's reader fault"),
             Some(Fault::Slow(ms)) => std::thread::sleep(Duration::from_millis(ms)),
             _ => {}
         }

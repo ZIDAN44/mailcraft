@@ -52,6 +52,7 @@ mod props;
 mod protected;
 mod rebuild;
 mod report;
+mod resume;
 #[cfg(test)]
 mod tests;
 
@@ -65,6 +66,8 @@ use out::Out;
 #[doc(hidden)]
 pub use props::Val;
 pub(crate) use props::{one_off_address, text_of};
+#[doc(hidden)]
+pub use resume::checkpoint_from_bytes;
 
 /// Folders nested deeper than this are left out.
 const MAX_DEPTH: usize = 32;
@@ -126,6 +129,12 @@ pub struct Imported {
     /// Why the folder list or the contacts and calendar couldn't be saved at the end, when they
     /// couldn't: the messages above came in all the same.
     pub last_save: Option<String>,
+    /// The runs the import has taken, this one included (it went on from where it stopped), and
+    /// the time the earlier ones took.
+    pub runs: u32,
+    pub earlier_ms: u64,
+    /// It couldn't go on from where it stopped, and why: nothing was read or written.
+    pub blocked: Option<mailcraft_model::job::Blocked>,
 }
 
 /// How far an import has got, as it goes.
@@ -328,6 +337,9 @@ pub struct ImportOptions {
     /// The file as planned when it was looked at ([`inspect`]), when it hasn't changed since:
     /// its folders aren't walked again.
     pub planned: Option<Arc<Planned>>,
+    /// Go on from where the import into this account stopped, as its checkpoint says (none:
+    /// from the start). One done already is told as it ended, without reading the file.
+    pub resume: bool,
     /// The reader's chunk of the file, in KiB (0: its own), the items read between reopenings
     /// of the handle that reads them (0: only once its caches hold too much), and how much its
     /// caches may hold before that, in bytes (0: its own limit): for tests and measuring.
@@ -402,6 +414,16 @@ pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptio
 /// [`import_with`], telling `sink` how it goes and of each folder as it's done.
 pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptions, sink: &mut dyn ImportSink) -> Result<Imported, String> {
     let mut out = Out::new(store, account, opts, sink);
+    let skip = if opts.resume {
+        match resume::load(store, account) {
+            resume::Found::Nothing => None,
+            resume::Found::Unsound => return Ok(blocked(mailcraft_model::job::Blocked::SourceChanged)),
+            resume::Found::Some(cp) if cp.state == resume::CheckState::Done => return Ok(cp.imported(store, account)),
+            resume::Found::Some(cp) => Some(out.resume_from(*cp)),
+        }
+    } else {
+        None
+    };
     // `!BDN` then the client magic: `SM` a data file, `SO` Outlook's offline copy of a server
     // account (MS-PST 2.2.2.6).
     let mut head = [0u8; 10];
@@ -424,7 +446,8 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     if !opts.no_index {
         out.open_index();
     }
-    let ctx = lanes::Ctx::new(path, opts, account, &out);
+    let mut ctx = lanes::Ctx::new(path, opts, account, &out);
+    ctx.resume = skip;
     let lanes = ctx.lanes();
     out.lanes = u64::try_from(lanes).unwrap_or(u64::MAX);
     let (job_tx, job_rx) = std::sync::mpsc::sync_channel(plan::JOBS);
@@ -476,6 +499,25 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
         out.seal();
         return Err("the import could not start: the computer is short of resources; try again".into());
     };
+    // Going on, a file that isn't the one it was (or can't be read now) waits on the user, with
+    // nothing written.
+    if ctx.resume.is_some() && !out.note_ready() {
+        let why = match &planned {
+            _ if ctx.changed.load(Ordering::Relaxed) => Some(mailcraft_model::job::Blocked::SourceChanged),
+            Ok(Err(e)) => Some(resume::blocked_by(e)),
+            Err(_) => Some(mailcraft_model::job::Blocked::SourceChanged),
+            Ok(Ok(())) => None,
+        };
+        if let Some(why) = why {
+            out.seal();
+            return Ok(blocked(why));
+        }
+    }
+    // Cut off as if the process had ended: nothing an end writes is written.
+    #[cfg(test)]
+    if wrote.is_err() && matches!(opts.fault, Some(lanes::tests::Fault::CutOffAfter(_))) {
+        return Err("cut off".into());
+    }
     if wrote.is_err() {
         log::warn!("{}: the import stopped writing; what was written is kept", path.display());
         out.lose(SkipReason::StoppedEarly, 1);
@@ -516,6 +558,11 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     }
 }
 
+/// An import that couldn't go on from where it stopped, and why.
+fn blocked(why: mailcraft_model::job::Blocked) -> Imported {
+    Imported { blocked: Some(why), ..Imported::default() }
+}
+
 /// An account's bulk write ([`Store::bulk_begin`]), ended when dropped, on every way out of an
 /// import (a panic included: the file then keeps its cache until it's next asked for).
 struct Bulk<'a> {
@@ -551,6 +598,13 @@ fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
             &fresh
         }
     };
+    // Going on: only with the file it began on.
+    if let Some(skip) = &ctx.resume
+        && !skip.same_file(ctx.path, &planned.record_key, planned.fingerprint())
+    {
+        ctx.changed.store(true, Ordering::Relaxed);
+        return Ok(());
+    }
     plan::stream(&*store, planned, &mut feed, ctx);
     ctx.tally.reading(&source, 0, pages.estimate());
     Ok(())
@@ -591,6 +645,8 @@ pub struct Planned {
     pub pim_items: u64,
     /// The items' own sizes, summed (what the progress goes by).
     pub bytes: u64,
+    /// The file's own record key, in hex ("" when it has none).
+    pub record_key: String,
 }
 
 impl std::fmt::Debug for Planned {
@@ -620,7 +676,7 @@ pub fn inspect(path: &Path) -> Result<Planned, String> {
     let rows = |kind: plan::Kind| plan.folders.iter().filter(|f| f.kind == kind).fold(0u64, |n, f| n.saturating_add(f.rows));
     let (messages, pim_items) = (rows(plan::Kind::Mail), rows(plan::Kind::Pim));
     let folders = u32::try_from(plan.folders.iter().filter(|f| f.kind == plan::Kind::Mail).count()).unwrap_or(u32::MAX);
-    Ok(Planned { messages, folders, pim_items, bytes: plan.bytes, plan })
+    Ok(Planned { messages, folders, pim_items, bytes: plan.bytes, record_key: plan.record_key.clone(), plan })
 }
 
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the

@@ -1642,8 +1642,23 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   longer says "N messages imported so far" in a notice every few seconds. A data file's account
   left with nothing in it by an import that never ended (before this was kept) is found as one to
   import again or remove. Still open: the planned folders shown ahead as an outline, once the
-  window can show them as not yet open to changes; and going on from where it stopped (continuing
-  reads the file again from its start, the same messages coming out the same way).
+  window can show them as not yet open to changes.
+- **Going on where an import stopped:** continuing an import read the file again from its start
+  (the same messages coming out the same way, so a 41 GB file paused near its end took as long
+  again). An import now notes where it got inside the account's data file, in the same commit as
+  the messages it names: the folders done, the one part-way through (its next item, its next
+  message number and its list so far), the items the reader failed on, and the counts. It's
+  written at least every 10 seconds, before finished folders are shown, and as the import
+  stops or ends, each time a commit that waits for the disk and reopens at once after a crash.
+  Paused (MailCraft closing), cancelled, or cut off (the computer turned off), it goes on from
+  that note: what was written after it is written again under the same numbers, an item the
+  reader failed on is never read again, and a cancelled folder, shown since, keeps its messages
+  and numbers. The file is checked first: the same size and time, or else the same record key
+  and the same items and bytes in each folder (Outlook opening a file changes its time and
+  nothing it holds), and one that changed or went waits on the user instead of being mixed in.
+  An import done answers at once without reading the file. A MailCraft data file
+  brought in leaves its own import's note behind. The checkpoint read back is checked (a fuzz
+  target, `import_checkpoint`).
 - **Seeing an import go:** opening a `.pst` said "Opening {file}…" in the status bar for as long
   as it took (13.6 minutes on a 41 GB file), with no total, no percentage, no time left and no
   way to stop it, and the folder pane said "Loading folders…". A file chosen is now looked at
