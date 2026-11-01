@@ -1,9 +1,12 @@
-//! What an import has written so far: folders, their lists, message sources and contacts.
+//! What an import has written so far: folders, their lists, message sources and contacts, and
+//! the messages' words in the account's search index (`indexing`).
 
 use super::budget::Budget;
 use super::item::Item;
 use super::lanes::Built;
 use super::*;
+
+mod indexing;
 
 /// Message sources written to the cache together (one transaction): at most this many…
 const BATCH_MESSAGES: usize = 2000;
@@ -71,6 +74,10 @@ pub(super) struct Out<'a> {
     published: Option<Instant>,
     /// The most a batch of sources holds as kept ([`BATCH_BYTES`] unless measuring).
     batch_bytes: usize,
+    /// The account's search index, held for the import (none: it isn't indexing), and the
+    /// messages put in it.
+    index: Option<indexing::Index>,
+    indexed: u64,
 }
 
 impl<'a> Out<'a> {
@@ -105,6 +112,8 @@ impl<'a> Out<'a> {
             finished: Vec::new(),
             published: None,
             batch_bytes: if opts.batch_bytes > 0 { opts.batch_bytes } else { BATCH_BYTES },
+            index: None,
+            indexed: 0,
         }
     }
 }
@@ -276,7 +285,7 @@ impl Out<'_> {
         }
         let fallback = format!("pst.{}.test.{}@mailcraft.invalid", self.account, self.read);
         let packs = self.store.packs(self.account);
-        match super::lanes::build(it, &fallback, packs, &self.tally) {
+        match super::lanes::build(it, &fallback, packs, self.indexing(), &self.tally) {
             super::lanes::Outcome::Built(b) => self.add_built(path, *b, 0),
             super::lanes::Outcome::NotRebuilt => self.skip(SkipReason::MessageNotRebuilt, 1),
             _ => {}
@@ -290,11 +299,13 @@ impl Out<'_> {
             self.budget.release(charge);
             return;
         };
-        let Built { mut summary, prepared, raw_len, charset_unsupported, body_not_converted, without_address, left_out } = b;
+        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out } = b;
         let uid = st.uid_next;
         st.uid_next = uid.saturating_add(1);
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
         summary.key = key.clone();
+        let size = summary.size;
+        let msgid = mailcraft_store::search::msgid_hash(&summary.message_id);
         st.waiting.push(summary);
         let page_full = st.waiting.len() >= mailcraft_store::PAGE_MESSAGES;
         if charset_unsupported {
@@ -319,6 +330,7 @@ impl Out<'_> {
         self.pending_raw = self.pending_raw.saturating_add(raw_len);
         self.pending_charge = self.pending_charge.saturating_add(charge);
         self.tally.source(raw_len, prepared.kept_len(), self.pending_raw);
+        self.index_later(&key, msgid, size, doc);
         self.pending.push((key, prepared));
         if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= self.batch_bytes {
             self.flush();
@@ -340,7 +352,10 @@ impl Out<'_> {
         self.pending_raw = 0;
         let charge = std::mem::take(&mut self.pending_charge);
         let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
-        if let Err(e) = self.tally.time(Phase::Write, || self.store.write_prepared(batch, false)) {
+        let wrote = self.tally.time(Phase::Write, || self.store.write_prepared(batch, false));
+        // Their words go into the index once their sources are in.
+        self.index_written(wrote.is_ok());
+        if let Err(e) = wrote {
             log::warn!("import: {e}");
             for key in &keys {
                 if let Some(st) = self.states.get_mut(&key.folder) {
@@ -373,7 +388,10 @@ impl Out<'_> {
         let Some(st) = self.states.remove(path) else { return };
         let head = FolderState { validity: 1, uid_next: st.uid_next, ..Default::default() };
         let (unread, total) = match self.tally.time(Phase::Commit, || st.list.finish(self.store, &head)) {
-            Ok(c) => c,
+            Ok(c) => {
+                self.index_folder_done(path);
+                c
+            }
             Err(e) => {
                 log::warn!("import: {e}");
                 (0, 0)
@@ -419,13 +437,15 @@ impl Out<'_> {
         let mut done = self.write_out();
         self.seal();
         done.stats = self.tally.snapshot(self.began.elapsed(), self.lanes);
+        done.stats.indexed = self.indexed;
         log::info!("import: {}", serde_json::to_string(&done.stats).unwrap_or_default());
         done
     }
 
-    /// What went in so far made durable, and the data file sealed: the end of every import,
-    /// finished or given up on.
-    pub(super) fn seal(&self) {
+    /// What went in so far made durable, its words written to the search index, and the data
+    /// file sealed: the end of every import, finished or given up on.
+    pub(super) fn seal(&mut self) {
+        self.index_end();
         if let Err(e) = self.tally.time(Phase::Commit, || self.store.seal(self.account)) {
             log::warn!("import: {e}");
         }

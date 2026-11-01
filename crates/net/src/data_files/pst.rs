@@ -184,6 +184,10 @@ pub struct ImportStats {
     /// The writer waiting for items to be read, and readers waiting for room in the budget.
     pub writer_idle_ms: u64,
     pub budget_wait_ms: u64,
+    /// Taking the messages' text and words out for search, and writing them to the account's
+    /// search index; and the messages put in it.
+    pub index_ms: u64,
+    pub indexed: u64,
     /// The most source bytes read and not yet written at once (the batch waiting for the disk
     /// with the one just added), counted as rebuilt, before compression: the size a budget
     /// charges, so later figures compare with this one.
@@ -216,13 +220,15 @@ enum Phase {
     Idle,
     /// Lanes waiting for room in the budget.
     Wait,
+    /// Making messages' words for search, and writing them.
+    Index,
 }
 
 /// An import's running counts, which any of its threads may add to.
 #[derive(Default)]
 struct Tally {
     /// Nanoseconds in each [`Phase`].
-    nanos: [AtomicU64; 8],
+    nanos: [AtomicU64; 9],
     peak: AtomicU64,
     raw: AtomicU64,
     kept: AtomicU64,
@@ -289,6 +295,8 @@ impl Tally {
             commit_ms: ms(Phase::Commit),
             writer_idle_ms: ms(Phase::Idle),
             budget_wait_ms: ms(Phase::Wait),
+            index_ms: ms(Phase::Index),
+            indexed: 0,
             peak_budget_bytes: self.peak.load(Ordering::Relaxed),
             raw_bytes: self.raw.load(Ordering::Relaxed),
             kept_bytes: self.kept.load(Ordering::Relaxed),
@@ -335,6 +343,10 @@ pub struct ImportOptions {
     pub cache_bytes: usize,
     #[doc(hidden)]
     pub batch_bytes: usize,
+    /// Leave the account's search index alone (it's brought up to the mail afterwards, by
+    /// reading every message again): for measuring what indexing as it imports costs.
+    #[doc(hidden)]
+    pub no_index: bool,
     /// A fault for a test to put in the import's threads.
     #[cfg(test)]
     pub(crate) fault: Option<lanes::tests::Fault>,
@@ -407,6 +419,11 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     // meanwhile (they all go before the writer is). A file this can't open, the planner can't
     // either, and says why.
     let _held = open::open_read(path).ok();
+    // The messages go into the account's search index as they're written, unless another
+    // writer holds it (then they're indexed after, as mail from anywhere is).
+    if !opts.no_index {
+        out.open_index();
+    }
     let ctx = lanes::Ctx::new(path, opts, account, &out);
     let lanes = ctx.lanes();
     out.lanes = u64::try_from(lanes).unwrap_or(u64::MAX);

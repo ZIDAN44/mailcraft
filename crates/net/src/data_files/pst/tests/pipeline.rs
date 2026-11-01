@@ -20,7 +20,7 @@ use super::super::{ImportOptions, ImportSink, Imported, Progress, SkipReason, im
 /// A data file with mail in three folders, two nested: plain and HTML messages, some with a file
 /// of 10-300 KiB or a picture the HTML shows, some with no message id. `big` gives every third
 /// message a file of about a megabyte instead.
-fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, PathBuf) {
+pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, PathBuf) {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-lanes-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -107,7 +107,7 @@ fn within_a_minute<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) ->
     rx.recv_timeout(Duration::from_secs(60)).expect("the import came back")
 }
 
-fn run(pst: &Path, store: &Store, account: &str, opts: &ImportOptions) -> Imported {
+pub(super) fn run(pst: &Path, store: &Store, account: &str, opts: &ImportOptions) -> Imported {
     import_with(pst, store, account, opts, &mut |_| {}).unwrap()
 }
 

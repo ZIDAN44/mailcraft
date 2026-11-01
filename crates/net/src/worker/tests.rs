@@ -372,6 +372,40 @@ fn no_pass_runs_during_an_import() {
     until(&pool, |e| matches!(e, Event::Indexed { work, finished: true, .. } if work.done == 2));
 }
 
+/// A data file's messages go into the index as the import writes them: the pass asked for at
+/// its end has nothing to add, and reads nothing.
+#[test]
+fn an_imported_file_leaves_nothing_to_index() {
+    use pst_rw::{UnicodePstFile, UnicodePstMessage};
+    let t = std::env::temp_dir().join(format!("mailcraft-worker-import-index-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&t);
+    std::fs::create_dir_all(&t).unwrap();
+    let file = t.join("in.pst");
+    let message = UnicodePstMessage {
+        subject: "Plan",
+        sender_name: "Ana",
+        sender_email: "ana@studio.example",
+        recipients: &[],
+        body: "the rehearsal moved to thursday",
+        html_body: None,
+        message_id: "<plan@studio.example>",
+        delivery_time: 133_485_408_000_000_000,
+    };
+    drop(UnicodePstFile::create_with_attachments(&file, &message, &[]).unwrap());
+    let store = Store::memory();
+    let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    pool.submit(Job::ImportPst { account: "p1".into(), path: file.to_string_lossy().into_owned(), resume: false });
+    until(&pool, |e| matches!(e, Event::Imported { messages: 1, done: true, error: None, .. }));
+    let reads = store.reads();
+    pool.submit(Job::Index { account: "p1".into(), folders: Vec::new() });
+    let seen = until(&pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
+    assert!(matches!(seen.last(), Some(Event::Indexed { work, failed: 0, .. }) if work.total == 0), "{seen:?}");
+    assert_eq!(store.reads(), reads, "no message read");
+    let mut r = search::Reader::open(&store, "p1").unwrap().unwrap();
+    assert_eq!(r.word(&store, search::Field::Body, "rehearsal").unwrap().count(), 1);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// A pass's end isn't hidden by the next pass starting before the window looks: both are
 /// heard, the end first; a later report of the next only replaces the one before it.
 #[test]

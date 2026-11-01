@@ -1,5 +1,6 @@
 //! The lanes: threads that each read items through a handle of their own on the data file, and
-//! make each mail item's message, summary and compressed source, ready for the writer to keep.
+//! make each mail item's message, summary and compressed source, and its words for search, ready
+//! for the writer to keep.
 //!
 //! Every job a lane takes is answered once, whatever happens to it: read, left out, or lost to a
 //! panic in the reader (the lane then opens its handle again and goes on). A run of
@@ -46,10 +47,11 @@ pub(super) enum Outcome {
 }
 
 /// A message made from an item: its summary (its key is the writer's to give), its source ready
-/// to keep, and what the report counts of it.
+/// to keep, its words for search (when the import indexes), and what the report counts of it.
 pub(super) struct Built {
     pub(super) summary: mailcraft_model::Summary,
     pub(super) prepared: mailcraft_store::Prepared,
+    pub(super) doc: Option<mailcraft_store::search::Ready>,
     pub(super) raw_len: usize,
     pub(super) charset_unsupported: bool,
     pub(super) body_not_converted: bool,
@@ -65,6 +67,8 @@ pub(super) struct Ctx<'a> {
     /// Names this file in the message ids made for items that have none.
     pub(super) filetag: String,
     pub(super) packs: bool,
+    /// Whether the messages' words are made for the account's search index.
+    pub(super) index: bool,
     pub(super) budget: Arc<Budget>,
     pub(super) tally: Arc<Tally>,
     /// Set to stop every thread: the writer is done (or failed), or the file is damaged.
@@ -89,6 +93,7 @@ impl<'a> Ctx<'a> {
             account,
             filetag: filetag(path),
             packs: out.store.packs(account),
+            index: out.indexing(),
             budget: out.budget.clone(),
             tally: out.tally.clone(),
             halt: AtomicBool::new(false),
@@ -252,10 +257,13 @@ fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &R
                 Outcome::Unreadable
             }
         };
-        // What the writer holds from here is the source as kept, or the contact or calendar item
-        // as read (until it's added): the rest goes back now.
+        // What the writer holds from here is the source as kept with its words, or the contact or
+        // calendar item as read (until it's added): the rest goes back now.
         let kept = match &outcome {
-            Outcome::Built(b) => u64::try_from(b.prepared.kept_len()).unwrap_or(u64::MAX).min(charge),
+            Outcome::Built(b) => {
+                let words = b.doc.as_ref().map_or(0, mailcraft_store::search::Ready::bytes);
+                u64::try_from(b.prepared.kept_len().saturating_add(words)).unwrap_or(u64::MAX).min(charge)
+            }
             Outcome::Pim(it) => weight(it).min(charge),
             _ => 0,
         };
@@ -291,7 +299,7 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
         return Outcome::Pim(Box::new(it));
     }
     let fallback = format!("pst.{}.{}.{:x}@mailcraft.invalid", ctx.account, ctx.filetag, job.node);
-    build(it, &fallback, ctx.packs, &ctx.tally)
+    build(it, &fallback, ctx.packs, ctx.index, &ctx.tally)
 }
 
 /// Whether an item of `class` comes in as mail: meeting requests and receipts are mail too, and so
@@ -321,8 +329,8 @@ fn weight(it: &Item) -> u64 {
 }
 
 /// An item made into its message, summary and source ready to keep (`packs`: compressed, as
-/// the data file keeps it).
-pub(super) fn build(mut it: Item, fallback: &str, packs: bool, tally: &Tally) -> Outcome {
+/// the data file keeps it), and its words for search (`index`), from the message as rebuilt.
+pub(super) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tally: &Tally) -> Outcome {
     // What the report counts, read before the item goes into its message.
     let (charset_unsupported, body_not_converted, without_address) = (it.charset_unsupported, it.body_not_converted, it.recipients_without_address);
     let left_out = std::mem::take(&mut it.left_out);
@@ -337,9 +345,10 @@ pub(super) fn build(mut it: Item, fallback: &str, packs: bool, tally: &Tally) ->
     // Its key is the writer's to give, with its place in its folder.
     let key = MessageKey { account: String::new(), folder: String::new(), validity: 1, uid: 0 };
     let summary = tally.time(Phase::Build, || summary_of(&raw, glance, key, size));
+    let doc = index.then(|| tally.time(Phase::Index, || mailcraft_store::search::Ready::of(&mime::index_doc(&raw))));
     let raw_len = raw.len();
     let prepared = tally.time(Phase::Pack, || Store::prepare(packs, raw));
-    Outcome::Built(Box::new(Built { summary, prepared, raw_len, charset_unsupported, body_not_converted, without_address, left_out }))
+    Outcome::Built(Box::new(Built { summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out }))
 }
 
 macro_rules! lane {

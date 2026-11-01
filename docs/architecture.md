@@ -311,7 +311,16 @@ asks have stopped for 1.5 s; the messages are read and taken apart (`mime::index
 two of the machine's threads (1 to 8), each under `catch_unwind` (one that panics is kept with no
 words and counted), through a channel of 64 to the pass thread. No pass runs for an account a
 data file is being imported into, and `Job::StopIndex` (or the account's removal) stops one
-between two messages. Its progress, `Event::Indexed`, isn't sent on the pool's channel: only the
+between two messages. A `.pst` import indexes as it goes instead (`pst/out/indexing.rs`): it
+holds the account's writer for the whole import (waiting up to 5 s for a pass asked to stop to
+let go of it, and importing without it if it doesn't), the lanes make each message's words from
+the message as rebuilt (`mime::index_doc`, then `search::Ready::of`, so the writer thread only
+files them with `Writer::add_ready`), each message goes in once its source's batch is written,
+and each folder is marked as brought up as it is finished, so the pass at the import's end reads
+nothing and passes every folder over. A write of the index that fails lets it go for the rest
+of the import and costs the import nothing: the next pass adds what it lacks. Indexing as it
+goes costs the import time all the same (about a fifth on a 41 GB file, against a 157 s pass
+after it): the index's writes share the data file with the import's, which wait for them. Its progress, `Event::Indexed`, isn't sent on the pool's channel: only the
 newest for each account is kept until `Pool::poll` takes it. In the browser
 (`apps/mailcraft-web/src/backend/indexing.rs`) the pass gives the page back every 16 messages
 or 1 MiB read, and between merge steps.

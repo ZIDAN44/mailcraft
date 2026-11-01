@@ -1757,3 +1757,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   hover. Advanced search has Received after and Received before (days, as `after:` and
   `before:`). A search that fails part-way ends, and the index it was reading is left alone
   until it's written again, so the next search can't fail on it too.
+- **A `.pst` import indexes as it goes:** a data file's messages were indexed only after its
+  import, by a pass reading every one of them again (157 s for the 41 GB file measured, the
+  app holding 631 MB at its peak). The import now puts each message in the account's
+  search index as it writes it, its words made from the message as rebuilt on the threads that
+  read the file, and marks each folder as indexed as it finishes it: the pass at its end reads
+  no message. The index is written in short transactions of its own, after the sources it
+  names; one that can't be written, or an index another pass still holds 5 s after the import
+  began, costs the import nothing, and the pass after it adds what's missing. It isn't free: on
+  the 41 GB file the import took 197–245 s with indexing against 161–219 s without it, run
+  in pairs on a machine busy with other work (12–37% more, about a fifth in the middle), for a
+  pass of 157 s it no longer needs; the aim, within 5%, isn't met. The extra time is the index's own
+  writes into the account's data file, which the import's writes wait for: an index filed and
+  written on a thread of its own, its writes sealed or not, measured no faster.

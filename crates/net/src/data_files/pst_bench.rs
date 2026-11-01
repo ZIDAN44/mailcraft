@@ -13,7 +13,9 @@
 //! line (the process's bytes read and written, and its peak working set). With `MC_VERIFY=1` it then reads every listed message back from the cache and
 //! counts those present, those that parse and their attachments (counts only), with a digest of
 //! the folders, their lists and every source: two imports of the same file (one lane and many,
-//! say) came out the same when their digests are.
+//! say) came out the same when their digests are; and what a search index pass would still have
+//! to do (none to add, no folder read, when the import indexed as it went; `MC_NO_INDEX=1` imports
+//! without indexing, to compare).
 //!
 //! Memory is watched from outside (the test process's working set), so the numbers are the
 //! process's, allocator and all.
@@ -195,6 +197,8 @@ fn import() {
         handle_cache_bytes: u64::try_from(knob("MC_HANDLE_CACHE_KB")).unwrap_or(0).saturating_mul(1024),
         cache_bytes: knob("MC_BULK_CACHE_MB").saturating_mul(1024 * 1024),
         batch_bytes: knob("MC_BATCH_KB").saturating_mul(1024),
+        // `MC_NO_INDEX`: without the search index, to see what indexing as it goes costs.
+        no_index: env("MC_NO_INDEX").is_some(),
         ..Default::default()
     };
     let done = crate::pst::import_with(&path, &store, "d1", &opts, &mut progress).unwrap();
@@ -238,6 +242,19 @@ fn import() {
             }
         }
         println!("verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {digest:016x}", present - parsed);
+        // What a pass would still have to do for search, now the import is in.
+        let reads = store.reads();
+        let w = mailcraft_store::search::Writer::open(&store, "d1").unwrap();
+        let plan = mailcraft_store::search::plan(&store, &w, "d1", &[]).unwrap();
+        println!(
+            "index: {} live, then to add {}, no source {}, to remove {}, folders read {}, messages read {}",
+            w.live(),
+            plan.add.len(),
+            plan.no_source.len(),
+            plan.remove.len(),
+            plan.total,
+            store.reads() - reads
+        );
     }
 }
 

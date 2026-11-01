@@ -783,6 +783,7 @@ fn imports_a_data_file() {
 mod chunked;
 mod embedded;
 mod files;
+mod indexing;
 mod losses;
 mod options;
 mod pim_gaps;
