@@ -1830,3 +1830,21 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the three agree. Only the pages of a folder's list holding a message put right are written. A
   message the index couldn't read, or couldn't read all the parts of (a file nested past its
   limits), keeps what its summary says, for `has:attachment` too.
+- **Searches that find tens of thousands:** measured on a made-up mailbox of 50,000 messages in
+  40 folders (the Inbox 12,000; `sample::big`, for the tests and `bench.rs`), a search finding a
+  few messages a step rebuilt the whole list each step, and each one found was first looked for
+  over the whole list: a common phrase took 14 s from a session just opened, and showing 35,000
+  found held frames for 30â€“65 ms. A long list now takes what's found every so many steps (one
+  for each 2,048 messages it holds; a short one at once), at the start of a step where the
+  window's clock counts it; its index keeps the keys' hashes rather than hashing them again;
+  the end of a search adds what's left to the list it streamed into rather than copying every
+  message found again; a phrase's candidates are checked in the index's order (103 pages read
+  rather than 1,015); the list a search replaces is let go of a slice a frame; and the search
+  command takes 4 units rather than 16 before the window's frames take over. In the window
+  (release build) a word takes 25 ms warm and 130 ms just opened (its summaries' text made),
+  the common phrase 0.3â€“0.4 s, `is:read`'s 35,000 70â€“80 ms and a one-letter word's 47,000
+  180â€“270 ms, a word's frames spending at most 8 ms on the search; Down through the 12,000
+  builds no rows (8 ms a frame at p99). Not met: the frame that shows 35,000â€“47,000 found
+  builds the list at once, 10â€“12 ms; `is:unread` over 50,000 takes 35 ms against the 15 ms
+  aimed for over 35,000; the common phrase's 16,667 found, each checked against its text, take
+  longer than the 150 ms aimed for a phrase.

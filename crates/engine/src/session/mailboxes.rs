@@ -5,7 +5,7 @@ use super::*;
 mod nav;
 mod patch;
 mod rows;
-pub(crate) use nav::ListNav;
+pub(crate) use nav::{ListNav, key_hash};
 pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
 
 impl Session {
@@ -360,6 +360,7 @@ impl Session {
                     run.gone.clear();
                     // What its end had gathered is older than this.
                     run.gather_again();
+                    run.owns_list = true;
                     self.search_state.run = Some(run);
                     found
                 }
@@ -397,12 +398,13 @@ impl Session {
     /// Show `list`, as filtered and arranged: its conversations, its index and its rows built
     /// with it, and the selection kept where it's still in it.
     pub(super) fn take_list(&mut self, list: Vec<Summary>) {
-        self.take_list_with(list, true);
+        self.take_list_with(list, Vec::new(), true);
     }
 
     /// [`Session::take_list`]; `threads`: its conversations worked out now when the list shows
-    /// them (a search still streaming leaves them for its end).
-    pub(super) fn take_list_with(&mut self, list: Vec<Summary>, threads_now: bool) {
+    /// them (a search still streaming leaves them for its end); `hashes`: each of its keys'
+    /// hashes in its order when they're known (empty: hashed here).
+    pub(super) fn take_list_with(&mut self, list: Vec<Summary>, hashes: Vec<u64>, threads_now: bool) {
         // Conversations are worked out once here when the list shows them (arranged by date);
         // arranged otherwise, the reading pane still shows the open message's, worked out once
         // with the first message opened (`thread_at`) rather than with every rebuild.
@@ -414,23 +416,23 @@ impl Session {
         } else {
             Vec::new()
         };
-        self.nav.build(&list, &all, conversations, !shown);
+        self.nav.build_hashed(&list, hashes, &all, conversations, !shown);
         self.threads = all;
-        let alive: BTreeSet<&MessageKey> = list.iter().map(|m| &m.key).collect();
-        self.selection.retain(|k| alive.contains(k));
-        if self.focus.as_ref().is_some_and(|k| !alive.contains(k)) {
+        self.list = list;
+        // What's chosen stays where it's still in the list (looked up: a set of every key in a
+        // list of tens of thousands cost more than its index).
+        let mut selection = std::mem::take(&mut self.selection);
+        selection.retain(|k| self.listed(k));
+        self.selection = selection;
+        if self.focus.as_ref().is_some_and(|k| !self.listed(k)) {
             self.focus = None;
         }
-        if self.anchor.as_ref().is_some_and(|k| !alive.contains(k)) {
+        if self.anchor.as_ref().is_some_and(|k| !self.listed(k)) {
             self.anchor = None;
         }
-        if let Some(r) = &self.reading
-            && !alive.contains(&r.key)
-            && self.search.is_none()
-        {
+        if self.reading.as_ref().is_some_and(|r| !self.listed(&r.key)) && self.search.is_none() {
             self.reading = None;
         }
-        self.list = list;
         self.rebuild_rows();
         self.revision = self.revision.wrapping_add(1);
     }

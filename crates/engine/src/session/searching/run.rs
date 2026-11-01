@@ -19,6 +19,7 @@ use std::collections::VecDeque;
 use mailcraft_store::FolderLoad;
 use mailcraft_store::search::{Bits, Field, ScanCursor};
 
+use super::finish::Finish;
 use super::matching::{Answers, Candidate, Index, Recorder, Verdict, Verifying, classify, from_source};
 use super::*;
 
@@ -99,16 +100,6 @@ enum Loaded {
     Failed,
 }
 
-/// The end of a run: what's found, put together a step at a time.
-#[derive(Debug, Default)]
-enum Finish {
-    #[default]
-    Due,
-    Staged(Vec<Summary>),
-    Arranged(Vec<Summary>),
-    Done,
-}
-
 /// A search, running or done.
 pub(crate) struct SearchRun {
     pub(crate) q: String,
@@ -134,15 +125,22 @@ pub(crate) struct SearchRun {
     /// Found since last shown, and found before and no longer.
     pub(crate) fresh: Vec<Summary>,
     pub(crate) gone: HashSet<MessageKey>,
+    /// Steps since what was found was last shown.
+    pub(crate) unshown_steps: usize,
     /// Found before in a folder being scanned again: let go at its end unless found again.
     recheck: HashSet<MessageKey>,
     verify: VecDeque<Candidate>,
+    /// `verify` is in the order of the docs: their texts read a page after another, each once.
+    verify_sorted: bool,
     verifying: Option<Verifying>,
     fallback: VecDeque<Candidate>,
     /// What each message checked against its text said (flags never change it).
     pub(crate) known: HashMap<MessageKey, Answers>,
     pub(crate) missing: HashSet<MessageKey>,
-    finish: Finish,
+    /// The list shows this run's finds alone (`refresh_list` put it together for it), each
+    /// change since merged in: its end needs only what's left to show.
+    pub(crate) owns_list: bool,
+    pub(super) finish: Finish,
 }
 
 impl SearchRun {
@@ -193,12 +191,15 @@ impl SearchRun {
             found: HashSet::new(),
             fresh: Vec::new(),
             gone: HashSet::new(),
+            unshown_steps: 0,
             recheck: HashSet::new(),
             verify: VecDeque::new(),
+            verify_sorted: true,
             verifying: None,
             fallback: VecDeque::new(),
             known: HashMap::new(),
             missing: HashSet::new(),
+            owns_list: false,
             finish: Finish::Due,
         }
     }
@@ -295,6 +296,7 @@ impl SearchRun {
             }
             Verdict::Verify(doc) if !last => {
                 self.verify.push_back(Candidate { m: m.clone(), doc: Some(doc), awaiting });
+                self.verify_sorted = false;
                 self.finish = Finish::Due;
             }
             Verdict::Missing if self.wait && !last => {
@@ -347,14 +349,16 @@ impl Session {
     /// [`Session::search_step`], asking `more` after each unit whether to go on (the window
     /// asks its clock: the engine reads none). What's found is shown once, at the end.
     pub fn search_step_while(&mut self, units: u32, more: &mut dyn FnMut() -> bool) -> SearchProgress {
+        self.let_go_some();
         let Some(mut run) = self.search_state.run.take() else { return SearchProgress { done: true, ..Default::default() } };
         let before = self.revision;
         let went = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.follow_indexes(&mut run);
+            // What earlier steps found, shown before this one's units (where the window's
+            // clock counts it); then what this one found, if that's cheap.
+            self.publish_due(&mut run, true);
             self.run_units(&mut run, units, more);
-            if !run.done() && !run.wait && (!run.fresh.is_empty() || !run.gone.is_empty()) {
-                self.publish_stream(&mut run);
-            }
+            self.publish_due(&mut run, false);
         }));
         if went.is_err() {
             // The search goes. What it was reading may be what's wrong: each index it read is
@@ -662,6 +666,13 @@ impl Session {
         let mut v = match run.verifying.take() {
             Some(v) => v,
             None => {
+                if !run.verify_sorted {
+                    // Checked in the folders' order, a message after another read a page of texts
+                    // afresh (a common phrase over 50,000 messages: 1,015 pages read, each 256 KiB
+                    // unpacked); in the docs' order each page is read once (103).
+                    run.verify.make_contiguous().sort_by(|a, b| a.m.key.account.cmp(&b.m.key.account).then(a.doc.cmp(&b.doc)));
+                    run.verify_sorted = true;
+                }
                 let Some(c) = run.verify.pop_front() else { return 0 };
                 let reader = self.search_state.readers.get(&c.m.key.account).and_then(|s| s.reader.as_ref());
                 match (c.doc, reader) {
@@ -729,30 +740,6 @@ impl Session {
             }
         };
         run.record(&c.m, verdict, c.awaiting, true);
-        1
-    }
-
-    /// One step of putting the list together: what's found gathered and filtered, arranged,
-    /// then shown with its conversations.
-    fn finish_unit(&mut self, run: &mut SearchRun) -> u32 {
-        run.finish = match std::mem::take(&mut run.finish) {
-            Finish::Due => {
-                let list = self.search_list(run);
-                Finish::Staged(self.filtered(list))
-            }
-            Finish::Staged(mut list) => {
-                super::super::mailboxes::arrange_list(&mut list, self.prefs.arrange, self.prefs.reverse_sort);
-                Finish::Arranged(list)
-            }
-            Finish::Arranged(list) => {
-                self.keep_senders();
-                self.take_list(list);
-                run.fresh.clear();
-                run.gone.clear();
-                Finish::Done
-            }
-            Finish::Done => Finish::Done,
-        };
         1
     }
 }

@@ -9,6 +9,7 @@ use mailcraft_store::search::Reader;
 
 use super::*;
 
+mod finish;
 mod folder_text;
 mod matching;
 mod publish;
@@ -47,8 +48,11 @@ pub(crate) struct Indexing {
 /// writes a generation every few seconds, and each read of it costs the doc pages it changed.
 const READER_REFRESH: i64 = 2;
 /// Units a search steps when it starts in the background: a small mailbox's search is there at
-/// once.
-const FIRST_UNITS: u32 = 16;
+/// once. Few: the command takes them whatever the time (sixteen of a cold mailbox's, their
+/// summaries' text made, held the frame searching for 20 ms); the window steps the rest.
+const FIRST_UNITS: u32 = 4;
+/// Summaries of a list a search replaced let go of a step (or a tick).
+const LET_GO: usize = 4096;
 
 /// An account's index as search reads it.
 #[derive(Debug)]
@@ -77,6 +81,9 @@ pub(crate) struct SearchState {
     /// Searches don't wait: the window steps them each frame ([`Session::set_background_search`]).
     background: bool,
     pub(crate) stats: SearchStats,
+    /// The list a search started over, let go of [`LET_GO`] summaries a step: letting go of tens
+    /// of thousands at once (each with its strings) held the frame that searched for 10â€“20 ms.
+    letting_go: Vec<Summary>,
     /// A test's: the next step stops part-way, as a bug would.
     #[cfg(test)]
     pub(crate) fault: bool,
@@ -428,11 +435,33 @@ impl Session {
         if wait {
             self.settle_search();
         } else {
-            // Nothing of the last search's results stays shown meanwhile.
+            // Nothing of the last search's results stays shown meanwhile (let go of a slice a
+            // step).
+            let shown = std::mem::take(&mut self.list);
+            if self.search_state.letting_go.is_empty() {
+                self.search_state.letting_go = shown;
+            } else {
+                self.search_state.letting_go.extend(shown);
+            }
             self.refresh_list();
             self.search_step(FIRST_UNITS);
         }
         self.list.len()
+    }
+
+    /// Let go of a slice of the list a search replaced (each step and each tick).
+    pub(crate) fn let_go_some(&mut self) {
+        let left = self.search_state.letting_go.len().saturating_sub(LET_GO);
+        self.search_state.letting_go.truncate(left);
+        if left == 0 {
+            self.search_state.letting_go = Vec::new();
+        }
+    }
+
+    /// How many summaries of a list a search replaced are still to be let go of.
+    #[cfg(test)]
+    pub(crate) fn letting_go(&self) -> usize {
+        self.search_state.letting_go.len()
     }
 
     /// How many folders the search keeps in the cache.

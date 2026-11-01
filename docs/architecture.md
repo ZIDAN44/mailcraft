@@ -243,8 +243,11 @@ The session runs a search a bounded unit of work at a time (`session/searching/r
 folder's list read (`Store::folder_load`), an account's index opened, up to two of its pages looked
 through for a query word (`Reader::scan_prefix`), 512 summaries checked, a message's kept text
 read or 256 KiB of it checked (a phrase across two slices is in the second, which starts 4 KiB
-back), or a step of putting the list together at the end (gathered and filtered, arranged, shown
-with its conversations). The folders a search reads stay in the cache while it lasts, and their
+back), or putting the list together at the end (`searching/finish.rs`: a search that streamed
+into the list adds what's left to it, arranged otherwise or put into conversations when the list
+shows them so; one that waited gathers its finds from the folders, a step each for gathering,
+arranging and showing). A phrase's candidates are checked in the index's doc order, so each page of
+texts is read once. The folders a search reads stay in the cache while it lasts, and their
 summaries' folded text is kept between searches (`searching/folder_text.rs`, 48 MiB, forgotten
 with the folder's list). The summary settles flags, dates, senders and subjects; the index's
 words settle the text (`searching/matching.rs`: `has:attachment` takes the files the index counted,
@@ -256,8 +259,14 @@ search that waits (the CLI, scripts, tests: the default) reads it from its sourc
 (`mime::index_doc`), so it finds what the index would. The window turns waiting off
 (`set_background_search`) and steps the search for 6 ms of each frame
 (`search_step_while`, which asks the window's clock after each unit; the engine reads none): what's
-found is merged into the list by date once a step (`searching/publish.rs`), conversations and other
-arrangements at the end. A step that panics ends the search, and the indexes it was reading are
+found is merged into the list by date (`searching/publish.rs`): at the step's end while the list
+holds at most 4,096 messages, else at the start of a later step (where the window's clock counts it)
+once a step has gone by for each 2,048 messages it holds, so a long list isn't built again every
+step; the list's index keeps its keys' hashes for that (`ListNav::build_hashed`), and the list a
+search replaces is let go of 4,096 summaries a step or tick. Conversations and other arrangements
+come at the end. `sample::big` makes a mailbox of 50,000 messages in 40 folders, what each measured
+search should find counted as it's made, for `tests/mail/search_big.rs`, the window's frame test
+and `bench.rs`. A step that panics ends the search, and the indexes it was reading are
 left unread until their writer writes them again. The list says "Searching…" while it runs, that
 results may be missing while mail isn't indexed yet (how far the passes under way have come,
 `indexing_work`, which the status bar shows too through `ui-egui/src/look/progress.rs`), and what

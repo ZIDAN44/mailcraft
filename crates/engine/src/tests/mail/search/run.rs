@@ -108,7 +108,8 @@ fn results_stream_in_a_step_at_a_time() {
             break;
         }
     }
-    assert!(steps > 6, "{steps}");
+    // (The list put together at the end takes one unit: what's found is in it already.)
+    assert!(steps > 4, "{steps}");
     assert_eq!(s.list.len(), 9000 / 7);
     assert!(s.list.windows(2).all(|w| w[0].when() >= w[1].when()), "newest first");
     // A new query mid-run takes its place.

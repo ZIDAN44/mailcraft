@@ -5,6 +5,7 @@ use super::*;
 mod deferred;
 mod nav;
 mod search;
+mod search_big;
 mod store_errors;
 
 #[test]

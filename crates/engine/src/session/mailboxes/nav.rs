@@ -3,7 +3,7 @@
 //! its conversation) is a lookup, not a pass over every message: on a folder of ten thousand
 //! messages, each Down walked the list several times over.
 
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::hash::{BuildHasherDefault, DefaultHasher, Hash, Hasher};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -25,7 +25,7 @@ pub(crate) struct ListNav {
     /// A hash of each key, to the first place in the list with that key. Each lookup is checked
     /// against the list, so a hash shared by two keys, or a list changed by hand since, is
     /// looked through instead.
-    pos: HashMap<u64, u32>,
+    pos: HashMap<u64, u32, BuildHasherDefault<Hashed>>,
     /// The list's length when this was built: another means the list changed since.
     len: usize,
     /// The hash of each key, by its place in the list when this was built: a conversation is
@@ -64,9 +64,30 @@ pub(crate) struct ListNav {
     pub(crate) structure: u64,
 }
 
+/// The keys of [`ListNav::pos`] are hashes already: taken as they are, not hashed again (half
+/// of building the index of a list of tens of thousands).
+#[derive(Default)]
+pub(crate) struct Hashed(u64);
+
+impl Hasher for Hashed {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = self.0.rotate_left(8) ^ u64::from(b);
+        }
+    }
+
+    fn write_u64(&mut self, n: u64) {
+        self.0 = n;
+    }
+}
+
 /// The hash a key is found by. `DefaultHasher::new` has fixed keys: the same on every run and
 /// in the browser.
-fn key_hash(k: &MessageKey) -> u64 {
+pub(crate) fn key_hash(k: &MessageKey) -> u64 {
     let mut h = DefaultHasher::new();
     k.hash(&mut h);
     h.finish()
@@ -75,11 +96,18 @@ fn key_hash(k: &MessageKey) -> u64 {
 impl ListNav {
     /// Index `list`, whose conversations are `threads` (none: conversations off, or `lazy`: on
     /// but not shown, worked out when first needed).
+    #[cfg(test)]
     pub(crate) fn build(&mut self, list: &[Summary], threads: &[Thread], conversations: bool, lazy: bool) {
+        let hashes = list.iter().map(|m| key_hash(&m.key)).collect();
+        self.build_hashed(list, hashes, threads, conversations, lazy);
+    }
+
+    /// [`ListNav::build`], each key's hash given (`hashes`, in the list's order: those kept
+    /// from before need no hashing again); hashed here when it isn't one a message.
+    pub(crate) fn build_hashed(&mut self, list: &[Summary], hashes: Vec<u64>, threads: &[Thread], conversations: bool, lazy: bool) {
         self.pos.clear();
         self.pos.reserve(list.len());
-        self.hashes.clear();
-        self.hashes.extend(list.iter().map(|m| key_hash(&m.key)));
+        self.hashes = if hashes.len() == list.len() { hashes } else { list.iter().map(|m| key_hash(&m.key)).collect() };
         for (i, &h) in self.hashes.iter().enumerate() {
             // Past u32: not indexed, looked for instead.
             let Ok(i) = u32::try_from(i) else { break };
@@ -129,6 +157,24 @@ impl Session {
             return Some(i);
         }
         self.list.iter().position(|m| &m.key == key)
+    }
+
+    /// Whether a message is in the list: [`Session::index_of`], but a key the list's index
+    /// doesn't have is taken as not there, rather than looked for over the whole list (the list
+    /// is only set with its index built, by `take_list`). Asked for each of the thousands of
+    /// messages a search finds in a step, the looking over cost more than the rest of showing them.
+    pub(crate) fn listed(&self, key: &MessageKey) -> bool {
+        if self.nav_fresh() && !self.nav.pos.contains_key(&key_hash(key)) {
+            return false;
+        }
+        self.index_of(key).is_some()
+    }
+
+    /// The hash of each key in the list, in its order, as its index was built: taken (to build it
+    /// again with), so asked only when it's built again at once. `None` when it wasn't built for
+    /// the list as it is.
+    pub(crate) fn take_hashes(&mut self) -> Option<Vec<u64>> {
+        self.nav_fresh().then(|| std::mem::take(&mut self.nav.hashes))
     }
 
     /// Whether the list's index was built for the list as it is (not one changed by hand since).
