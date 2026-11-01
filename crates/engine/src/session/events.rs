@@ -164,8 +164,11 @@ impl Session {
                 }
                 self.index_body(&key, &raw);
                 self.invitation_body(&key);
-                // Downloaded now, or read from the cache: a pass finds which.
-                self.want_index(&key.account, Some(&key.folder));
+                // Downloaded now, or read from the cache: a pass finds which. A local account's
+                // (a data file's) is always read from it, nothing new to index.
+                if !self.account(&key.account).is_none_or(AccountState::is_local) {
+                    self.want_index(&key.account, Some(&key.folder));
+                }
             }
             Event::BodyFailed { key, error } => {
                 self.source_failed(&key, &error);

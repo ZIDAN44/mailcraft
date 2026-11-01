@@ -176,6 +176,15 @@ impl Session {
             }
         }
         self.recount_local(account, (!op.is_folder_op()).then_some(&touched));
+        // The search index follows a message moved or deleted (no server tells it here). A
+        // flag or category changes nothing it keeps.
+        if op.is_folder_op() {
+            self.want_index(account, None);
+        } else if !matches!(op, Op::SetFlag { .. } | Op::SetKeyword { .. }) {
+            for f in &touched {
+                self.want_index(account, Some(f));
+            }
+        }
         Ok(())
     }
 

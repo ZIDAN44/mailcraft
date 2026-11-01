@@ -541,9 +541,18 @@ fn index_asks_are_one_while_they_wait() {
     s.set_indexing(true);
     assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: Vec::new() }], "every account brought up");
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    // A local account's message is read from its data file: nothing new.
     s.apply(Event::Body { key: key("Sent Items"), raw: b"Subject: x\r\n\r\nx".to_vec() });
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
-    assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: vec!["INBOX".into(), "Sent Items".into()] }]);
+    assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: vec!["INBOX".into()] }]);
+    // A local move asks for both folders (no server says they changed); a mark-read for none.
+    s.run("folder.open", &json!({"account": a, "folder": "INBOX"})).unwrap();
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    s.run("mail.move", &json!({"folder": "Archive"})).unwrap();
+    assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: vec!["Archive".into(), "INBOX".into()] }]);
+    s.run("mail.markRead", &json!({})).ok();
+    assert!(s.take_jobs().is_empty(), "a flag changes nothing indexed");
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     let folders = s.account(&a).unwrap().folders.clone();
     s.apply(Event::Folders { account: a.clone(), folders });
