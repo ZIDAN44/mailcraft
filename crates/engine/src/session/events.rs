@@ -151,7 +151,10 @@ impl Session {
             Event::Body { key, raw } if mime::is_text_first(&raw) => self.show_body(&key, &raw),
             Event::Body { key, raw } => {
                 self.source_arrived(&key, &raw);
-                self.show_body(&key, &raw);
+                // The open message's: parsed on another thread, where the window has one.
+                if !self.defer_arrived(&key, &raw) {
+                    self.show_body(&key, &raw);
+                }
                 self.index_body(&key, &raw);
                 self.invitation_body(&key);
             }

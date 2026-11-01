@@ -18,10 +18,31 @@ fn has_selection(s: &Session) -> Option<&'static str> {
 
 fn has_reading(s: &Session) -> Option<&'static str> {
     match &s.reading {
-        Some(r) if r.parsed.is_some() => None,
+        // (One being got ready is, once the command runs: `Session::run` finishes it first.)
+        Some(r) if r.parsed.is_some() || s.body_waiting(&r.key) => None,
         Some(_) => Some("the message is still downloading"),
         None => Some("open a message first"),
     }
+}
+
+/// Commands that only move about the list (or open another message): they leave the open
+/// message's body being got ready on another thread, where every other command waits for it.
+pub(crate) fn leaves_body_waiting(id: &str) -> bool {
+    matches!(
+        id,
+        "list.open"
+            | "list.select"
+            | "list.selectRange"
+            | "list.selectAll"
+            | "list.next"
+            | "list.prev"
+            | "list.first"
+            | "list.last"
+            | "list.pageDown"
+            | "list.pageUp"
+            | "folder.open"
+            | "folder.unified"
+    ) || id.starts_with("list.extend")
 }
 
 fn has_compose(s: &Session) -> Option<&'static str> {

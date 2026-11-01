@@ -11,6 +11,9 @@ pub use source::{SOURCE_SHOWN, SourceView};
 mod senders;
 pub use senders::SenderMarks;
 pub(crate) use senders::Senders;
+mod prepare;
+pub(crate) use prepare::BodyLane;
+pub use prepare::{BodyWork, PreparedBody};
 
 impl Session {
     pub fn open_view(&mut self, view: View) {
@@ -79,14 +82,19 @@ impl Session {
         self.anchor = Some(key.clone());
         let thread = self.thread_of(key);
         self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread, warning: None, security: None, text_first: false });
-        let cached = if key.folder == OUTBOX {
-            self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
+        if self.body.defer {
+            // Read and parsed on another thread: the pane waits for it.
+            self.defer_read(key);
         } else {
-            self.store.as_ref().and_then(|s| s.read_body(key))
-        };
-        match cached {
-            Some(raw) => self.show_body(key, &raw),
-            None => self.jobs.push(Job::FetchBody { key: key.clone() }),
+            let cached = if key.folder == OUTBOX {
+                self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
+            } else {
+                self.store.as_ref().and_then(|s| s.read_body(key))
+            };
+            match cached {
+                Some(raw) => self.show_body(key, &raw),
+                None => self.jobs.push(Job::FetchBody { key: key.clone() }),
+            }
         }
         let unread = key.folder != OUTBOX && self.summary(key).is_some_and(|m| !m.flags.seen);
         if mark && unread && self.prefs.mark_read_on_open {
@@ -139,27 +147,45 @@ impl Session {
 
     /// A message as it's read: one without a `Date` gets the time the server took it in, as the
     /// list shows it (replies and forwards quoted it as sent on 1 January 1970).
-    fn parse_for_reading(&self, key: &MessageKey, raw: &[u8]) -> Option<Arc<mime::Parsed>> {
-        let mut p = mime::parse(raw)?;
+    fn parse_for_reading(&mut self, key: &MessageKey, raw: &[u8]) -> Option<Arc<mime::Parsed>> {
+        self.body.parsed_here = self.body.parsed_here.wrapping_add(1);
+        let p = mime::parse(raw)?;
+        Some(self.for_reading(key, p))
+    }
+
+    /// A parsed message as it's read (see [`Session::parse_for_reading`]).
+    fn for_reading(&self, key: &MessageKey, mut p: mime::Parsed) -> Arc<mime::Parsed> {
         if p.date == 0
             && let Some(m) = self.summary(key)
         {
             p.date = m.date;
         }
-        Some(Arc::new(p))
+        Arc::new(p)
     }
 
     pub(super) fn show_body(&mut self, key: &MessageKey, raw: &[u8]) {
         // Signed or encrypted: what's inside is what's shown, the protection said beside it.
         let shown = self.reading.as_ref().is_some_and(|r| &r.key == key) || self.windows.iter().any(|w| &w.key == key && w.parsed.is_none());
         let (raw, security) = if shown { self.unwrap(key, raw) } else { (std::borrow::Cow::Borrowed(raw), None) };
-        let raw = &*raw;
+        let text_first = mime::is_text_first(&raw);
+        self.show_ready(key, &raw, None, text_first, security);
+    }
+
+    /// Show a body (its protection taken off already): `parsed`, when it was parsed already
+    /// (on another thread), else it's parsed here.
+    fn show_ready(&mut self, key: &MessageKey, raw: &[u8], parsed: Option<Option<Arc<mime::Parsed>>>, text_first: bool, security: Option<Security>) {
+        // Shown now: the pane waits for it no longer.
+        if self.reading.as_ref().is_some_and(|r| &r.key == key) {
+            self.stop_waiting(key);
+        }
         let mut windows = std::mem::take(&mut self.windows);
-        let text_first = mime::is_text_first(raw);
         // Parsed once, however many places show it.
-        let mut parsed = None;
+        let mut parsed = parsed;
         for w in windows.iter_mut().filter(|w| &w.key == key && (w.parsed.is_none() || w.text_first)) {
-            w.parsed = parsed.get_or_insert_with(|| self.parse_for_reading(key, raw)).clone();
+            if parsed.is_none() {
+                parsed = Some(self.parse_for_reading(key, raw));
+            }
+            w.parsed = parsed.clone().flatten();
             w.text_first = text_first;
             w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
             let from = w.parsed.as_ref().map(|p| (p.from.clone(), p.bulk));

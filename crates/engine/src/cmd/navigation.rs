@@ -400,6 +400,8 @@ pub(super) fn read_message(s: &mut Session, v: &Value) -> CmdResult {
         let k = key_param(s, v)?;
         if s.reading.as_ref().is_none_or(|r| r.key != k) {
             s.open_message(&k);
+            // Read now, not on the window's thread.
+            s.finish_pending_body();
         }
     }
     let r = s.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;

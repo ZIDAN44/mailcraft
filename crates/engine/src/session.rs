@@ -36,7 +36,7 @@ mod security;
 mod writing;
 #[cfg(test)]
 pub(crate) use opening::source_lines;
-pub use opening::{SOURCE_SHOWN, SourceView, Toward};
+pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
 pub use writing::{Compose, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
@@ -523,6 +523,8 @@ pub struct Session {
     index_builds: u64,
     /// How many times a message was shown in the reading pane ([`Session::messages_shown`]).
     shown: u64,
+    /// The open message's body, when it's got ready on another thread.
+    pub(crate) body: opening::BodyLane,
     /// Accounts a data file is being imported into: their folders' search words wait for the end.
     importing: HashSet<String>,
     /// The message in the reading pane to mark read, and when (`ReadInPane::Shown` with a wait).
@@ -624,6 +626,7 @@ impl Session {
             index: HashMap::new(),
             index_builds: 0,
             shown: 0,
+            body: Default::default(),
             importing: HashSet::new(),
             read_due: None,
             read_on_leave: None,
@@ -686,6 +689,12 @@ impl Session {
     pub fn run(&mut self, id: &str, params: &Value) -> CmdResult {
         let reg = self.registry.clone();
         let spec = reg.get(id).ok_or_else(|| CmdError::Unknown(id.to_string()))?;
+        // What the command acts on is the message as shown: its body, still being got ready on
+        // another thread, is got ready here first (moving about the list doesn't wait for it).
+        if !crate::cmd::leaves_body_waiting(id) && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.finish_pending_body())).is_err() {
+            log::error!("the open message couldn't be shown");
+            PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
         if let Some(why) = (spec.enabled)(self) {
             return Err(CmdError::Disabled(why.to_string()));
         }
