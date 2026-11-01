@@ -636,6 +636,7 @@ use atomic::private_dir;
 pub use atomic::write_atomic;
 pub use bodies::Prepared;
 use files::{Files, Routed};
+pub use folders::FolderLoad;
 pub use opening::{OpenProgress, OpenStage};
 
 mod accounts;

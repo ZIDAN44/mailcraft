@@ -51,6 +51,8 @@ struct Cache {
     pages: HashMap<String, (u64, Arc<Vec<u8>>)>,
     bytes: usize,
     tick: u64,
+    /// Pages read from the store (not found here).
+    reads: u64,
 }
 
 impl Cache {
@@ -61,6 +63,7 @@ impl Cache {
             *t = self.tick;
             return Ok(page.clone());
         }
+        self.reads = self.reads.wrapping_add(1);
         let page = Arc::new(need_file(store, path)?);
         if page.len() <= CACHE_BYTES / 4 {
             while self.bytes + page.len() > CACHE_BYTES {
@@ -256,6 +259,12 @@ impl Reader {
     /// Docs in the index (those removed not counted).
     pub fn live(&self) -> u32 {
         self.meta.live
+    }
+
+    /// Lexicon, postings and text pages read from the store so far (those its cache held not
+    /// counted): what a search's budget counts.
+    pub fn pages_read(&self) -> u64 {
+        self.cache.reads
     }
 
     /// The doc a message is, when it's indexed.

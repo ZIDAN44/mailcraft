@@ -4,32 +4,80 @@ use crate::*;
 
 impl Store {
     pub fn load_folder(&self, account: &str, folder: &str) -> Result<FolderState> {
+        let mut load = self.folder_load(account, folder)?;
+        while !load.step(self)? {}
+        Ok(load.finish())
+    }
+
+    /// Start reading a folder's list a page at a time ([`FolderLoad`]): its head is read now.
+    pub fn folder_load(&self, account: &str, folder: &str) -> Result<FolderLoad> {
         let dir = self.folder_dir(account, folder);
         let file: StateFile = self.read_json(&dir.join("state.json"))?;
-        let mut st = FolderState {
+        let st = FolderState {
             validity: file.validity,
             uid_next: file.uid_next,
             highest_modseq: file.highest_modseq,
             messages: file.messages,
             window: file.window,
         };
+        Ok(FolderLoad { account: account.to_string(), folder: folder.to_string(), dir, st, pages: file.pages.len(), next: 0 })
+    }
+}
+
+/// A folder's list being read a page at a time ([`Store::folder_load`]), so whoever reads it can
+/// do something else between pages (a search on the window's thread reads a big folder over
+/// several frames): [`FolderLoad::step`] until it says it's done, then [`FolderLoad::finish`].
+#[derive(Debug)]
+pub struct FolderLoad {
+    account: String,
+    folder: String,
+    dir: PathBuf,
+    st: FolderState,
+    /// Pages the list has, and the next to read.
+    pages: usize,
+    next: usize,
+}
+
+impl FolderLoad {
+    /// Read the next page of the list; `true` once there is none left.
+    pub fn step(&mut self, store: &Store) -> Result<bool> {
+        if self.next >= self.pages {
+            return Ok(true);
+        }
+        let page: Vec<Summary> = store.read_json(&self.dir.join(format!("state-{}.json", self.next)))?;
+        self.st.messages.extend(page);
+        self.next += 1;
+        Ok(self.next >= self.pages)
+    }
+
+    /// Whether every page is read.
+    pub fn done(&self) -> bool {
+        self.next >= self.pages
+    }
+
+    /// Pages read so far, the head counted.
+    pub fn pages_read(&self) -> usize {
+        self.next.saturating_add(1)
+    }
+
+    /// The list as read: newest first, its keys its own.
+    pub fn finish(self) -> FolderState {
+        let mut st = self.st;
         // A big folder's list in pages (by number): put together, newest first again.
-        if !file.pages.is_empty() {
-            for i in 0..file.pages.len() {
-                let page: Vec<Summary> = self.read_json(&dir.join(format!("state-{i}.json")))?;
-                st.messages.extend(page);
-            }
+        if self.pages > 0 {
             sort_newest_first(&mut st.messages);
         }
         // Keys are rebuilt rather than trusted: a renamed or copied cache stays consistent.
         for m in &mut st.messages {
-            m.key.account = account.to_string();
-            m.key.folder = folder.to_string();
+            m.key.account.clone_from(&self.account);
+            m.key.folder.clone_from(&self.folder);
             m.key.validity = st.validity;
         }
-        Ok(st)
+        st
     }
+}
 
+impl Store {
     /// Keep a folder's list. A big one goes in pages of [`PAGE_MESSAGES`] by number, and only
     /// the pages that changed are written: one message marked read in a folder of hundreds of
     /// thousands rewrote all of it (hundreds of megabytes, held in memory twice over).

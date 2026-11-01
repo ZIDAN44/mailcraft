@@ -42,6 +42,15 @@ fn a_big_folder_list_is_kept_in_pages() {
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 4, "three pages and the list");
         let back = s.load_folder("a1", "INBOX").unwrap();
         assert_eq!(back, st, "{packed}: read back newest first, as it was");
+        // Read a page at a time (a search reading it over frames): the same list.
+        let mut load = s.folder_load("a1", "INBOX").unwrap();
+        let mut steps = 0;
+        while !load.step(&s).unwrap() {
+            steps += 1;
+        }
+        assert_eq!((steps, load.pages_read()), (2, 4), "a page a step, the head counted");
+        assert!(load.done() && load.step(&s).unwrap(), "done stays done");
+        assert_eq!(load.finish(), st);
         // A flag: one page.
         if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 10) {
             m.flags.seen = true;
