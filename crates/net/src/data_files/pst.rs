@@ -329,6 +329,12 @@ pub struct ImportOptions {
     pub recycle: usize,
     #[doc(hidden)]
     pub handle_cache_bytes: u64,
+    /// The data file's cache while the import writes to it, and the most a batch of sources
+    /// holds, in bytes (0: their own): for measuring.
+    #[doc(hidden)]
+    pub cache_bytes: usize,
+    #[doc(hidden)]
+    pub batch_bytes: usize,
     /// A fault for a test to put in the import's threads.
     #[cfg(test)]
     pub(crate) fault: Option<lanes::tests::Fault>,
@@ -393,6 +399,10 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     {
         return Err("this is Outlook's offline copy of a server account (.ost), not a data file: add the account itself to see its mail".into());
     }
+    // The account's data file has a bigger cache while the import writes, and lets go of it
+    // however the import ends.
+    let cache = if opts.cache_bytes > 0 { opts.cache_bytes } else { mailcraft_store::BULK_CACHE };
+    let _bulk = Bulk::begin(store, account, cache);
     // Kept from writers from here until the import is done, whichever handles are reading it
     // meanwhile (they all go before the writer is). A file this can't open, the planner can't
     // either, and says why.
@@ -486,6 +496,26 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
             Err(e)
         }
         None => Ok(out.finish()),
+    }
+}
+
+/// An account's bulk write ([`Store::bulk_begin`]), ended when dropped, on every way out of an
+/// import (a panic included).
+struct Bulk<'a> {
+    store: &'a Store,
+    account: &'a str,
+}
+
+impl<'a> Bulk<'a> {
+    fn begin(store: &'a Store, account: &'a str, cache_bytes: usize) -> Bulk<'a> {
+        store.bulk_begin(account, cache_bytes);
+        Bulk { store, account }
+    }
+}
+
+impl Drop for Bulk<'_> {
+    fn drop(&mut self) {
+        self.store.bulk_end(self.account);
     }
 }
 

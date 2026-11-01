@@ -51,6 +51,8 @@ thiserror = { workspace = true }
 ipconfig = "0.3"
 
 [dev-dependencies]
+# The import bench counts how the data file's cache is used (`pst_bench.rs`).
+mailcraft-store = { workspace = true, features = ["cache-metrics"] }
 # The S/MIME round trip reads the test certificates (PEM).
 der = { version = "0.7", features = ["pem"] }
 proptest = "1"

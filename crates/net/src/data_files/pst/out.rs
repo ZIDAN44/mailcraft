@@ -69,6 +69,8 @@ pub(super) struct Out<'a> {
     /// written (none: not yet).
     finished: Vec<Folder>,
     published: Option<Instant>,
+    /// The most a batch of sources holds as kept ([`BATCH_BYTES`] unless measuring).
+    batch_bytes: usize,
 }
 
 impl<'a> Out<'a> {
@@ -102,6 +104,7 @@ impl<'a> Out<'a> {
             lanes: 1,
             finished: Vec::new(),
             published: None,
+            batch_bytes: if opts.batch_bytes > 0 { opts.batch_bytes } else { BATCH_BYTES },
         }
     }
 }
@@ -309,7 +312,7 @@ impl Out<'_> {
             self.lose(*reason, *n);
         }
         // One that would take the batch past its size goes into the next (a big one alone).
-        if self.pending_bytes.saturating_add(prepared.kept_len()) > BATCH_BYTES {
+        if self.pending_bytes.saturating_add(prepared.kept_len()) > self.batch_bytes {
             self.flush();
         }
         self.pending_bytes = self.pending_bytes.saturating_add(prepared.kept_len());
@@ -317,7 +320,7 @@ impl Out<'_> {
         self.pending_charge = self.pending_charge.saturating_add(charge);
         self.tally.source(raw_len, prepared.kept_len(), self.pending_raw);
         self.pending.push((key, prepared));
-        if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= BATCH_BYTES {
+        if page_full || self.pending.len() >= BATCH_MESSAGES || self.pending_bytes >= self.batch_bytes {
             self.flush();
         }
         // A page's worth whose sources are written: into the folder's list.

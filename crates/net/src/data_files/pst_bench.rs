@@ -6,9 +6,11 @@
 //! MC_PST=D:\big.pst MC_CACHE=D:\cache cargo test -p mailcraft-net --release --lib pst_bench::import -- --ignored --nocapture
 //! ```
 //!
-//! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB`, `MC_RECYCLE` and `MC_HANDLE_CACHE_KB`
-//! (unset: the app's), and it ends with one `stats:` line of numbers (`pst::ImportStats`), where
-//! its time went. With `MC_VERIFY=1` it then reads every listed message back from the cache and
+//! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB`, `MC_RECYCLE`, `MC_HANDLE_CACHE_KB`,
+//! `MC_BULK_CACHE_MB` (the data file's cache meanwhile) and `MC_BATCH_KB` (unset: the app's), and
+//! it ends with one `stats:` line of numbers (`pst::ImportStats`), where its time went, a `cache:`
+//! line (how the data file's cache was used, `mailcraft_store::CacheUse`) and on Windows an `io:`
+//! line (the process's bytes read and written, and its peak working set). With `MC_VERIFY=1` it then reads every listed message back from the cache and
 //! counts those present, those that parse and their attachments (counts only), with a digest of
 //! the folders, their lists and every source: two imports of the same file (one lane and many,
 //! say) came out the same when their digests are.
@@ -191,6 +193,8 @@ fn import() {
         chunk_kb: knob("MC_CHUNK_KB"),
         recycle: knob("MC_RECYCLE"),
         handle_cache_bytes: u64::try_from(knob("MC_HANDLE_CACHE_KB")).unwrap_or(0).saturating_mul(1024),
+        cache_bytes: knob("MC_BULK_CACHE_MB").saturating_mul(1024 * 1024),
+        batch_bytes: knob("MC_BATCH_KB").saturating_mul(1024),
         ..Default::default()
     };
     let done = crate::pst::import_with(&path, &store, "d1", &opts, &mut progress).unwrap();
@@ -206,6 +210,10 @@ fn import() {
         dir_size(&cache) as f64 / 1e9
     );
     println!("stats: {}", serde_json::to_string(&done.stats).unwrap());
+    println!("cache: {}", serde_json::to_string(&store.cache_use("d1")).unwrap());
+    if let Some(io) = io_counts() {
+        println!("io: {io}");
+    }
     if env("MC_VERIFY").is_some() {
         let (mut present, mut parsed, mut attachments) = (0usize, 0usize, 0usize);
         // FNV-1a over what the import left: a number, nothing of the mail itself.
@@ -231,6 +239,21 @@ fn import() {
         }
         println!("verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {digest:016x}", present - parsed);
     }
+}
+
+/// This process's bytes read and written, and its peak working set, as Windows counts them
+/// (asked of PowerShell: the bench needs no system calls of its own). None elsewhere.
+fn io_counts() -> Option<String> {
+    if !cfg!(windows) {
+        return None;
+    }
+    let pid = std::process::id();
+    let script = format!(
+        "$p = Get-CimInstance Win32_Process -Filter 'ProcessId={pid}'; $w = Get-Process -Id {pid}; \
+         '{{\"read_bytes\":' + $p.ReadTransferCount + ',\"write_bytes\":' + $p.WriteTransferCount + ',\"peak_ws_bytes\":' + $w.PeakWorkingSet64 + '}}'"
+    );
+    let out = std::process::Command::new("powershell").args(["-NoProfile", "-Command", &script]).output().ok()?;
+    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 fn dir_size(p: &Path) -> u64 {

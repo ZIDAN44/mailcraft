@@ -274,3 +274,27 @@ fn nothing_writes_the_data_file_while_it_is_read() {
     assert!(std::fs::OpenOptions::new().write(true).open(&pst).is_ok());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The import's data file has the bulk cache while it writes, and the usual one after, however
+/// the import ends: finished, or failed part-way (a file that isn't a data file at all).
+#[test]
+fn an_import_has_the_bulk_cache_only_while_it_writes() {
+    let (dir, pst) = data_file("bulk-cache", 300);
+    let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
+    let mut during = Vec::new();
+    let done = import_with(&pst, &store, "b1", &one_lane(), &mut |_| during.push(store.data_file_cache("b1"))).unwrap();
+    assert_eq!(done.messages, 300);
+    assert!(during.contains(&Some(mailcraft_store::BULK_CACHE)), "written with the bulk cache: {during:?}");
+    assert_eq!(store.data_file_cache("b1"), None, "let go of as the import ended");
+    assert_eq!(store.load_folder("b1", "INBOX").unwrap().messages.len(), 300);
+    assert_eq!(store.data_file_cache("b1"), Some(mailcraft_store::CACHE));
+
+    let junk = dir.join("junk.pst");
+    std::fs::write(&junk, b"!BDN not really a data file at all, just some bytes".repeat(20)).unwrap();
+    store
+        .write_body(&mailcraft_model::MessageKey { account: "b2".into(), folder: "INBOX".into(), validity: 1, uid: 1 }, b"Subject: x\r\n\r\ny")
+        .unwrap();
+    assert!(import_with(&junk, &store, "b2", &one_lane(), &mut |_| {}).is_err());
+    assert_ne!(store.data_file_cache("b2"), Some(mailcraft_store::BULK_CACHE), "a failed import lets go of it too");
+    let _ = std::fs::remove_dir_all(&dir);
+}

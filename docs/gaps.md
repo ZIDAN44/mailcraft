@@ -1543,6 +1543,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   disk the import keeps busy: it took 7 to 11 ms by median, but its p99 was 45 to 230 ms on a busy
   machine (13 ms with no import), over the 60 ms aimed at. Still open: making a background batch
   durable while a write from the window waits, or a smaller run left waiting.
+- **The data file's cache during an import:** a data file's write transaction keeps what it
+  changes in half the file's 16 MiB cache, and past that writes pages out and reads them back;
+  with the import's 16 MiB batches this was thought to be the extra 28 GB read and 25.6 GB written
+  on the 47 GB file. The batches are 2 MiB since, and an import now gives its data file a 32 MiB
+  cache while it writes (`Store::bulk_begin`), closed and opened again as the import starts and
+  ends, or the first time it's asked for once nobody holds it. Measured on a made-up file of
+  600,000 messages (7.9 GB): 7.17 GB written for a 6.87 GB data file (1.04 times), against
+  7.22 GB with the small cache; pages read back by a transaction 58% fewer, for about 22 MB more
+  at the peak. 48, 64, 128 and 192 MiB took 1 to 5 points more off for up to 225 MB more, and
+  4 or 8 MiB batches read back 1.7 and 4 times as many pages. The close at the end (16 ms, the next open 6 to 9 ms) also gives back the room the
+  file grew by ahead of its contents: 8.59 GB came down to 6.87 GB at once, rather than when
+  MailCraft closed. Not measured on the 47 GB file yet.
 - **Big attachments from a data file:** an imported message's files were copied on their way in
   (into the message being built, again into its parts, its source written out twice to put the
   original header back, and the item kept until it was compressed), so a message with an
