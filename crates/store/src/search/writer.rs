@@ -423,7 +423,14 @@ impl Writer {
         for (i, d) in self.docs.iter().enumerate().filter(|(_, d)| d.live()) {
             let Some(folder) = self.folders.get(usize::from(d.folder)) else { continue };
             let doc = u32::try_from(i).unwrap_or(u32::MAX);
-            let indexed = Indexed { doc, validity: d.validity, msgid_hash: d.msgid_hash, size: d.size, source: d.bits & NO_SOURCE == 0 };
+            let indexed = Indexed {
+                doc,
+                validity: d.validity,
+                msgid_hash: d.msgid_hash,
+                size: d.size,
+                source: d.bits & NO_SOURCE == 0,
+                files: d.files_known(),
+            };
             out.entry(folder.clone()).or_default().insert(d.uid, indexed);
         }
         out
@@ -520,6 +527,8 @@ pub struct Indexed {
     pub size: u32,
     /// Its source was kept when it was added (not [`Writer::add_no_source`]).
     pub source: bool,
+    /// Whether it carries files, as far as the index knows ([`DocInfo::files_known`]).
+    pub files: Option<bool>,
 }
 
 /// Each live doc by its folder and uid.

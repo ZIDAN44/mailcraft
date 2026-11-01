@@ -550,3 +550,54 @@ fn a_pass_stopped_partway_leaves_the_rest_to_the_next() {
     let pass = Pass::start(&s, "a1", &[]).unwrap();
     assert_eq!((pass.adds().len(), pass.work().total), (0, 0), "nothing left to read");
 }
+
+/// A pass gathers the summaries that say otherwise than the index about files: each message
+/// added whose doc counts files where its summary has none, or none where it has some (pictures
+/// its text shows, counted by an old import); not one with no source or one it couldn't read
+/// (the summary says, then). Put right, the next plan finds nothing; a summary wrong again (an
+/// old list put back) is found by the plan from the doc already indexed, with nothing read.
+#[test]
+fn a_pass_finds_summaries_wrong_about_files() {
+    let s = Store::memory();
+    let with = |uid: u32, files: bool| Summary { has_attachments: files, ..summary("INBOX", uid, &format!("{uid}@x"), 10, i64::from(uid)) };
+    let inbox = vec![with(5, true), with(4, true), with(3, true), with(2, false), with(1, true)];
+    mail(&s, &[("INBOX", inbox)], &[("INBOX", 1), ("INBOX", 2), ("INBOX", 3), ("INBOX", 5)]);
+    let mut pass = Pass::start(&s, "a1", &[]).unwrap();
+    assert!(pass.take_files().is_empty(), "nothing indexed yet");
+    let uids: Vec<u32> = pass.adds().iter().map(|m| m.key.uid).collect();
+    assert_eq!(uids, [5, 3, 2, 1]);
+    // 5 couldn't be read; 3 carries a file, as its summary says; 2 one its summary missed; 1
+    // only a picture its text shows.
+    pass.add_unreadable(&s, 0).unwrap();
+    pass.add(&s, 1, Some(&text("three", &["plan.pdf"], 1))).unwrap();
+    pass.add(&s, 2, Some(&text("two", &["plan.pdf"], 1))).unwrap();
+    pass.add(&s, 3, Some(&text("one", &[], 0))).unwrap();
+    let found = pass.take_files();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found.get("INBOX"), Some(&FilesFound { validity: 7, with: vec![2], without: vec![1] }));
+    assert!(pass.take_files().is_empty(), "taken");
+    assert_eq!(s.set_has_files("a1", "INBOX", &found["INBOX"]).unwrap(), 2);
+    pass.finish(&s, true).unwrap();
+    drop(pass);
+    let st = s.load_folder("a1", "INBOX").unwrap();
+    let files: Vec<bool> = [1, 2, 3, 4, 5].iter().map(|u| st.find(*u).unwrap().has_attachments).collect();
+    assert_eq!(files, [false, true, true, true, true], "4 has no source and 5 couldn't be read: as their summaries say");
+
+    // Its list changed since the mark (by the putting right): looked at again, nothing found.
+    let w = Writer::open(&s, "a1").unwrap();
+    let again = plan_of(&s, &w);
+    assert!(again.is_empty() && again.files.is_empty(), "{again:?}");
+    // Wrong again, from a list held elsewhere since (a message marked read in it too): found
+    // from the docs, nothing read.
+    let reads = s.reads();
+    let mut old = st.clone();
+    for m in old.messages.iter_mut().filter(|m| m.key.uid <= 2) {
+        m.has_attachments = m.key.uid == 1;
+        m.flags.seen = true;
+    }
+    s.save_folder("a1", "INBOX", &old).unwrap();
+    let again = plan_of(&s, &w);
+    assert_eq!(again.files.get("INBOX"), Some(&FilesFound { validity: 7, with: vec![2], without: vec![1] }));
+    assert!(again.add.is_empty());
+    assert_eq!(s.reads(), reads, "no message read");
+}

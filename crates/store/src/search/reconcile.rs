@@ -4,9 +4,11 @@
 //! Message-ID or size is another message (removed, and added again); one that left a folder and
 //! turned up in another, alone with its Message-ID and size, moved (its doc goes with it, nothing
 //! read). A folder whose list and sources are as they were when it was last brought up
-//! ([`revision`]) is passed over without reading its list.
+//! ([`revision`]) is passed over without reading its list. A message whose summary says it
+//! carries files where its doc says otherwise (a `.pst` imported before pictures the text shows
+//! stopped counting) is noted, for its summary to be put right ([`FilesFound`]).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::Hasher;
 
 use super::*;
@@ -17,7 +19,35 @@ pub struct Message {
     pub key: MessageKey,
     pub msgid_hash: u64,
     pub size: u32,
+    /// Its summary says it carries files.
+    pub has_files: bool,
 }
+
+/// A folder's messages whose summaries say otherwise than the index about carrying files: those
+/// that do carry files (`with`) and those that only show pictures in their text (`without`), by
+/// uid, in the folder's list of `validity`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FilesFound {
+    pub validity: u32,
+    pub with: Vec<u32>,
+    pub without: Vec<u32>,
+}
+
+impl FilesFound {
+    /// Note that the message `uid` carries files (`files`) or not.
+    pub fn note(&mut self, uid: u32, files: bool) {
+        if files { self.with.push(uid) } else { self.without.push(uid) }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.with.is_empty() && self.without.is_empty()
+    }
+}
+
+/// What a folder's list and sources are hashed with besides themselves: a different number
+/// makes every folder's mark from before stale, so each is compared once more. 2: summaries are
+/// checked against the index's files (marks from before never were).
+const REVISION_KIND: u64 = 2;
 
 /// What brings an index up to its mail.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -35,6 +65,8 @@ pub struct Plan {
     /// Each folder looked at and its [`revision`] (0: gone): [`Writer::mark`] it once its adds
     /// are all in.
     pub marks: Vec<(String, u64)>,
+    /// Messages already indexed whose summaries say otherwise about their files, by folder.
+    pub files: BTreeMap<String, FilesFound>,
     /// The messages in the folders looked at.
     pub total: usize,
     /// The writer's [epoch](Writer::epoch) when it was made: its doc ids mean nothing in another.
@@ -87,6 +119,7 @@ pub fn revision(store: &Store, account: &str, folder: &str) -> Option<u64> {
     let mut uids = store.cached_bodies(account, folder, validity);
     uids.sort_unstable();
     let mut h = Fnv(0xcbf2_9ce4_8422_2325);
+    h.write(&REVISION_KIND.to_le_bytes());
     h.write(&head);
     h.write_u32(validity);
     for uid in uids {
@@ -143,13 +176,22 @@ pub fn plan(store: &Store, w: &Writer, account: &str, folders: &[String]) -> Res
             let has = sources.contains(&s.key.uid);
             let hash = msgid_hash(&s.message_id);
             match docs.remove(&s.key.uid) {
-                // The same message: a source let go since leaves its words in.
-                Some(i) if i.validity == st.validity && i.msgid_hash == hash && i.size == s.size && (i.source || !has) => continue,
+                // The same message: a source let go since leaves its words in. Its summary is
+                // put right where it says otherwise about files.
+                Some(i) if i.validity == st.validity && i.msgid_hash == hash && i.size == s.size && (i.source || !has) => {
+                    if let Some(files) = i.files.filter(|f| *f != s.has_attachments) {
+                        plan.files
+                            .entry(folder.clone())
+                            .or_insert_with(|| FilesFound { validity: st.validity, ..FilesFound::default() })
+                            .note(s.key.uid, files);
+                    }
+                    continue;
+                }
                 // Another message, or its source kept since.
                 Some(i) => gone.push(i),
                 None => {}
             }
-            adds.push((s.date, Message { key: s.key.clone(), msgid_hash: hash, size: s.size }, has));
+            adds.push((s.date, Message { key: s.key.clone(), msgid_hash: hash, size: s.size, has_files: s.has_attachments }, has));
         }
         gone.extend(docs.into_values());
         if let Some(rev) = rev {

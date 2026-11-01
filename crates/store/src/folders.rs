@@ -93,7 +93,7 @@ impl Store {
     }
 
     /// [`Store::save_folder`], saying how many files it wrote (the list and the pages that
-    /// changed).
+    /// changed). Under the lock [`Store::set_has_files`] puts a list right under.
     pub(crate) fn save_folder_counted(
         &self,
         account: &str,
@@ -101,6 +101,7 @@ impl Store {
         state: &FolderState,
         changed: Option<&std::collections::HashSet<u32>>,
     ) -> Result<usize> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = self.folder_dir(account, folder);
         let head = dir.join("state.json");
         let json_err = |p: &Path| {
@@ -152,6 +153,76 @@ impl Store {
             let _ = self.files.remove_file(&dir.join(format!("state-{i}.json")));
         }
         Ok(written)
+    }
+
+    /// Put right whether these messages carry files (what an index pass found their summaries
+    /// to say otherwise about), in the folder's list as it stands now: only the pages holding
+    /// one that changed are written again, with the list's head (which names its pages), in one
+    /// transaction. It reads and writes under the lock every save of a list takes, so a flag
+    /// marked meanwhile from the window isn't written over. A list of another validity is left
+    /// as it is. How many summaries changed.
+    pub fn set_has_files(&self, account: &str, folder: &str, found: &crate::search::FilesFound) -> Result<usize> {
+        if found.is_empty() {
+            return Ok(0);
+        }
+        let with: std::collections::HashSet<u32> = found.with.iter().copied().collect();
+        let without: std::collections::HashSet<u32> = found.without.iter().copied().collect();
+        let wanted = with.len().saturating_add(without.len());
+        // Whether `m` is one of them (`.0`), and whether it changed (`.1`).
+        let set = |m: &mut Summary| {
+            let files = if with.contains(&m.key.uid) {
+                true
+            } else if without.contains(&m.key.uid) {
+                false
+            } else {
+                return (false, false);
+            };
+            let changed = m.has_attachments != files;
+            m.has_attachments = files;
+            (true, changed)
+        };
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let dir = self.folder_dir(account, folder);
+        let head = dir.join("state.json");
+        let mut file: StateFile = self.read_json(&head)?;
+        if file.validity != found.validity {
+            return Ok(0);
+        }
+        let (mut seen, mut changed) = (0usize, 0usize);
+        for m in &mut file.messages {
+            let (one, c) = set(m);
+            seen += usize::from(one);
+            changed += usize::from(c);
+        }
+        let mut writes: Vec<(PathBuf, Vec<u8>)> = Vec::new();
+        for (i, hash) in file.pages.iter_mut().enumerate() {
+            if seen >= wanted {
+                break;
+            }
+            let path = dir.join(format!("state-{i}.json"));
+            let mut page: Vec<Summary> = self.read_json(&path)?;
+            let mut here = 0usize;
+            for m in &mut page {
+                let (one, c) = set(m);
+                seen += usize::from(one);
+                here += usize::from(c);
+            }
+            if here == 0 {
+                continue;
+            }
+            let p = path.display().to_string();
+            let bytes = serde_json::to_vec(&page).map_err(|source| StoreError::Json { path: p, source })?;
+            *hash = page_hash(&bytes);
+            writes.push((path, bytes));
+            changed += here;
+        }
+        if changed == 0 {
+            return Ok(0);
+        }
+        let p = head.display().to_string();
+        writes.push((head, serde_json::to_vec(&file).map_err(|source| StoreError::Json { path: p, source })?));
+        self.write_files(writes)?;
+        Ok(changed)
     }
 
     /// Write a folder's list a page at a time (importing a data file, the whole list needn't be

@@ -56,7 +56,7 @@ mod tests;
 pub use format::Blob;
 pub use pass::Pass;
 pub use reader::{DocInfo, Reader, ScanCursor};
-pub use reconcile::{Message, Plan, msgid_hash, plan, revision};
+pub use reconcile::{FilesFound, Message, Plan, msgid_hash, plan, revision};
 pub use writer::{Flush, Indexed, RENUMBER_SLACK, Ready, TOMBSTONE_AGE, Writer};
 
 /// The doc table's page size, in docs: a doc's id is its page × this + its slot.
@@ -246,6 +246,19 @@ impl DocRec {
     pub(crate) fn live(&self) -> bool {
         self.folder != DEAD
     }
+
+    /// Whether its message carries files, as far as the index knows ([`files_known`]).
+    pub(crate) fn files_known(&self) -> Option<bool> {
+        files_known(self.files, self.bits)
+    }
+}
+
+/// Whether a doc's message carries files (`files` of them, `bits` its flags), as far as the
+/// index knows: not when its source isn't kept, nor when it couldn't be read (something left
+/// out, and neither text nor a file found). The summary says, then.
+pub(crate) fn files_known(files: u16, bits: u8) -> Option<bool> {
+    let unread = files == 0 && bits & TRUNCATED != 0 && bits & HAS_TEXT == 0;
+    (bits & NO_SOURCE == 0 && !unread).then_some(files > 0)
 }
 
 /// Where an account's index is.

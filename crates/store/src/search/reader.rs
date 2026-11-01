@@ -37,6 +37,16 @@ pub struct DocInfo {
     pub size: u32,
 }
 
+impl DocInfo {
+    /// Whether the message carries files, as far as the index knows: `None` when its source
+    /// isn't kept or it couldn't be read (its summary says, then). `has:attachment` and the
+    /// summaries put right by a pass ([`Pass::take_files`]) read it alike.
+    pub fn files_known(&self) -> Option<bool> {
+        let bits = if self.has_text { HAS_TEXT } else { 0 } | if self.truncated { TRUNCATED } else { 0 } | if self.no_source { NO_SOURCE } else { 0 };
+        files_known(self.files, bits)
+    }
+}
+
 /// Where a [`Reader::scan_prefix`] got to.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ScanCursor {

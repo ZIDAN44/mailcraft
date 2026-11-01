@@ -85,6 +85,43 @@ fn a_big_folder_list_is_kept_in_pages() {
     }
 }
 
+/// Summaries put right about their files (what an index pass found): only the pages holding
+/// one that changed are written again, with the list's head; a list of another validity, or
+/// messages already right, write nothing; a list kept whole is put right in place.
+#[test]
+fn a_files_flip_writes_only_the_pages_it_touches() {
+    let s = Store::memory();
+    let n = PAGE_MESSAGES as u32 * 2 + 500;
+    let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, true)).collect(), ..Default::default() };
+    for m in st.messages.iter_mut().filter(|m| m.key.uid % 2 == 0) {
+        m.has_attachments = true;
+    }
+    sort_newest_first(&mut st.messages);
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    s.track_changes();
+    // 10 had files only by its pictures; 4097 (the second page) carries one after all.
+    let found = search::FilesFound { validity: 3, with: vec![4097], without: vec![10] };
+    assert_eq!(s.set_has_files("a1", "INBOX", &found).unwrap(), 2);
+    let mut written: Vec<String> = s.take_changes().into_iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default().to_string()).collect();
+    written.sort();
+    assert_eq!(written, ["state-0.json", "state-1.json", "state.json"], "the third page isn't written");
+    let back = s.load_folder("a1", "INBOX").unwrap();
+    assert!(!back.find(10).unwrap().has_attachments && back.find(4097).unwrap().has_attachments);
+    assert!(back.find(12).unwrap().has_attachments && !back.find(11).unwrap().has_attachments, "the others as they were");
+    assert_eq!(back.messages.len(), st.messages.len());
+    // Already right, or another validity: nothing written.
+    assert_eq!(s.set_has_files("a1", "INBOX", &found).unwrap(), 0);
+    assert_eq!(s.set_has_files("a1", "INBOX", &search::FilesFound { validity: 4, without: vec![12], ..Default::default() }).unwrap(), 0);
+    assert!(s.take_changes().is_empty());
+    assert!(s.load_folder("a1", "INBOX").unwrap().find(12).unwrap().has_attachments);
+    // A small list, kept whole.
+    let small = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false), msg(1, false)], ..Default::default() };
+    s.save_folder("a1", "Small", &small).unwrap();
+    assert_eq!(s.set_has_files("a1", "Small", &search::FilesFound { validity: 3, with: vec![1], ..Default::default() }).unwrap(), 1);
+    let back = s.load_folder("a1", "Small").unwrap();
+    assert!(back.find(1).unwrap().has_attachments && !back.find(2).unwrap().has_attachments);
+}
+
 pub(crate) fn temp_store(name: &str) -> Store {
     let dir = std::env::temp_dir().join(format!("mailcraft-store-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
