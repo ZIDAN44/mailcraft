@@ -1713,12 +1713,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   its folders are read a few at a time.
 - **Room for an import:** the window looked at a chosen `.pst` before importing it, but never
   learnt how big MailCraft's copy would be or how much room the drive had, so it couldn't warn
-  that the copy wouldn't fit. A file looked at now says the size of
+  that the copy wouldn't fit; and a drive that filled during an import failed every batch after,
+  counting thousands of messages as couldn't be saved. A file looked at now says the size of
   its copy (98% of its messages' own sizes: 38.65 GB for 39.5 GB on the 41 GB file), the room
   asked for (130% of that and 2 GB besides, for the file's growth while it's written) and the
   room free on the drive of the data files' folder (or the nearest folder above it that's
   there); Import is offered only when it fits, and a room that can't be told doesn't stop it.
-  A file that makes the reader fail as it's looked at
+  An import asks for the room as it begins, with every checkpoint and every 64 MB it writes:
+  with less than 1 GB left it stops as a pause does, keeping and listing what came in, nothing
+  counted as left out, and waits saying the drive is too full; Continue asks again, and goes on
+  from where it stopped once there's room. A file that makes the reader fail as it's looked at
   is said to be one that couldn't be looked at.
 - **Long folders:** moving through a folder of thousands of messages finds each one through an
   index built with the list, instead of walking the list several times a step; the conversation

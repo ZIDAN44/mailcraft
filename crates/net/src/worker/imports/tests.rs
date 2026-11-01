@@ -10,7 +10,7 @@ use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage
 
 use super::*;
 use crate::pst::Fault;
-use crate::space::Filling;
+use crate::space::{Filling, LOW_SPACE};
 
 /// Accounts whose imports a test puts a fault in: slowed down (each item, in milliseconds), or
 /// failing to plan a folder.
@@ -506,6 +506,55 @@ fn a_paused_import_goes_on_where_it_stopped() {
     assert!(!seen.iter().any(ended), "nothing ends: it waits");
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&dir2);
+}
+
+/// The drive filling up as an import writes: it stops itself, as a pause does, with what came in
+/// kept and listed and nothing counted as left out, and waits on the user, saying why. Asked to
+/// go on with the drive still full, it waits again, nothing read; with room, it goes on from
+/// where it stopped.
+#[test]
+fn a_full_drive_stops_an_import_with_nothing_lost() {
+    let (dir, pst, store, mut p) = setup("full", 20, 2000, "f1", 1);
+    // Roomy as it begins, full from its first batch on.
+    let drive = give_drive("f1", Filling::new(1, 300 << 20));
+    p.submit(Job::ImportPst { account: "f1".into(), path: pst.clone(), resume: false });
+    let blocked = |e: &Event| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Blocked);
+    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    let Some(Event::ImportProgress { progress, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert_eq!(progress.blocked, Some(mailcraft_model::job::Blocked::DiskFull { free: 300 << 20 }));
+    assert!(progress.imported > 0 && progress.imported < 2020, "stopped part-way: {progress:?}");
+    assert_eq!(progress.skipped, 0, "nothing counted as left out");
+    assert!(drive.asks() >= 2);
+    let listed: usize = store.load_folders("f1").unwrap().iter().map(|f| store.load_folder("f1", &f.path).unwrap().messages.len()).sum();
+    assert_eq!(u64::try_from(listed).unwrap(), progress.imported, "what came in is listed");
+    let end = Instant::now() + Duration::from_secs(10);
+    while p.importing("f1") && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // Still full: it waits again, nothing read.
+    let drive = give_drive("f1", Filling::new(0, LOW_SPACE - 1));
+    p.submit(Job::ImportPst { account: "f1".into(), path: pst.clone(), resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    assert!(
+        matches!(seen.last(), Some(Event::ImportProgress { progress, .. }) if progress.blocked == Some(mailcraft_model::job::Blocked::DiskFull { free: LOW_SPACE - 1 })),
+        "{seen:?}"
+    );
+    assert_eq!(drive.asks(), 1);
+    let end = Instant::now() + Duration::from_secs(10);
+    while p.importing("f1") && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // Room again: it goes on, and ends with every message.
+    give_drive("f1", Filling::new(usize::MAX, 0));
+    p.submit(Job::ImportPst { account: "f1".into(), path: pst, resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let report = match seen.last() {
+        Some(Event::Imported { report: Some(r), error: None, .. }) => r.clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!((report.messages, report.runs, report.skips.len()), (2020, 2, 0), "{report:?}");
+    assert_eq!(store.load_folder("f1", "Projects").unwrap().messages.len(), 2000);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A data file looked at says how big MailCraft's copy will be, the room asked for, and the room

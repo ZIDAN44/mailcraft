@@ -185,7 +185,11 @@ written (`Compose`), preferences and status-bar notices.
   `Done`). `ImportOptions::resume` (`Job::ImportPst{resume}`) goes on from it: done folders are
   skipped, the part-way one reopened (sources past its number dropped, `Store::drop_bodies_from`),
   and a file not the same (`Blocked::SourceChanged`, `SourceMissing`, `Locked`) waits on the
-  user with nothing written; a `Done` note answers without reading the file. The note wins over
+  user with nothing written; a `Done` note answers without reading the file. The room left where
+  the data file is written (`net::space`, `fs4` on the nearest folder there) is asked as the
+  import begins, with every checkpoint and every 64 MiB written (`pst/out/room.rs`): under
+  `LOW_SPACE` (1 GiB) it stops itself as a pause does and waits as `Blocked::DiskFull`, nothing
+  counted as left out. The note wins over
   `imports.json` as MailCraft opens (`accounts/importing/note.rs`): a `Cancelled` one isn't gone
   on with by itself, and a data file's account with a `Running` or `Cancelled` note and no record
   gets one back. An import interrupted

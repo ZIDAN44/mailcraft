@@ -3,6 +3,7 @@
 //! stopped. A file that changed since, or went, isn't gone on with; one Outlook only opened is.
 
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use mailcraft_model::job::{Blocked, SkipReason, StopHow};
@@ -17,6 +18,7 @@ use super::super::out::Out;
 use super::super::resume::{self, CHECKPOINT_DOC, CheckState, Checkpoint, Found};
 use super::super::{ImportOptions, Imported, Stop, import_with};
 use super::pipeline::{data_file, everything};
+use crate::space::{Filling, LOW_SPACE};
 
 fn store_at(dir: &Path, name: &str) -> Store {
     Store::open_packed(dir.join(name).join("app"), dir.join(name).join("Files")).unwrap()
@@ -338,4 +340,34 @@ fn a_checkpoint_that_does_not_add_up_is_refused() {
         assert!(Checkpoint::parse(bad).is_none(), "{}", String::from_utf8_lossy(bad));
         assert_eq!(super::super::checkpoint_from_bytes(bad), None);
     }
+}
+
+/// The drive filling up part-way: the import stops itself as a pause does (nothing counted as
+/// left out, the checkpoint saying where it got) and says why; gone on with once there's room,
+/// it's the import that never stopped. Too full to begin, it reads and writes nothing.
+#[test]
+fn a_full_drive_pauses_and_room_again_goes_on() {
+    let (dir, pst) = data_file("resume-full", 300, false);
+    let whole = store_at(&dir, "whole");
+    import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
+    let store = store_at(&dir, "part");
+    let o = ImportOptions { space: Some(Arc::new(Filling::new(4, 1 << 20))), ..often(None) };
+    let part = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
+    assert_eq!(part.blocked, Some(Blocked::DiskFull { free: 1 << 20 }));
+    assert_eq!((part.stopped, part.skipped), (Some(StopHow::Pause), 0));
+    assert!(part.skips.is_empty(), "{:?}", part.skips);
+    assert!(part.messages > 0 && part.messages < 900, "stopped part-way: {}", part.messages);
+    assert_eq!(checkpoint(&store).state, CheckState::Running);
+    let (done, _) = go_on(&pst, &store, None);
+    assert_eq!((done.messages, done.skipped, done.runs, done.blocked), (900, 0, 2, None));
+    assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
+
+    // Too full to begin: nothing is read, and no data file is made.
+    let empty = store_at(&dir, "empty");
+    let o = ImportOptions { space: Some(Arc::new(Filling::new(0, LOW_SPACE - 1))), ..opts(2, None) };
+    let mut told = 0;
+    let none = import_with(&pst, &empty, "a1", &o, &mut |_| told += 1).unwrap();
+    assert_eq!((none.blocked, none.messages, told), (Some(Blocked::DiskFull { free: LOW_SPACE - 1 }), 0, 0));
+    assert!(empty.data_file("a1").is_none_or(|f| !f.exists()), "no data file");
+    let _ = std::fs::remove_dir_all(&dir);
 }

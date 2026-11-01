@@ -318,7 +318,7 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
     }
     let opts = ImportOptions { stop: stop.clone(), planned, resume, ..ImportOptions::default() };
     #[cfg(test)]
-    let opts = ImportOptions { fault: tests::fault_for(account), ..opts };
+    let opts = ImportOptions { fault: tests::fault_for(account), space: tests::space_for(account), ..opts };
     let result = crate::pst::import_into(Path::new(path), store, account, &opts, &mut told);
     // Thrown away, however far it got (it may have ended on its own just before).
     if stop.how() == Some(StopHow::Discard) {
@@ -326,10 +326,15 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
         return thrown_away(&told, path, messages, skipped);
     }
     match result {
-        // It can't go on from where it stopped (the file changed, went, or is held): it waits
-        // on the user, nothing read.
+        // It can't go on (the file changed, went, or is held, or the drive is full): it waits on
+        // the user. Stopped for want of room part-way, what came in is kept, as when paused.
         Ok(done) if done.blocked.is_some() => {
-            let progress = ImportProgress { phase: ImportPhase::Blocked, blocked: done.blocked, run_ms: ms(began), ..ImportProgress::default() };
+            if !done.folders.is_empty() {
+                sink.emit(Event::Folders { account: account.to_string(), folders: done.folders });
+            }
+            told.last.imported = done.messages;
+            told.last.skipped = done.skipped;
+            let progress = ImportProgress { blocked: done.blocked, ..told.progress(ImportPhase::Blocked) };
             sink.emit(Event::ImportProgress { account: account.to_string(), progress });
         }
         // Paused: what came in is kept, and only a word that it stopped is said, with the folders
@@ -548,10 +553,15 @@ impl Told<'_> {
         if self.thrown_away() {
             return;
         }
+        self.sink.emit(Event::ImportProgress { account: self.account.to_string(), progress: self.progress(phase) });
+    }
+
+    /// How far the import has got, in `phase`.
+    fn progress(&self, phase: ImportPhase) -> ImportProgress {
         let t = &self.last;
         let run_ms = ms(self.began);
         let phase = if phase == ImportPhase::Importing && self.stop.raised() { ImportPhase::Stopping } else { phase };
-        let progress = ImportProgress {
+        ImportProgress {
             phase,
             // Items read, which only go up: a batch that can't be written is still read.
             work: Work { done: count(t.read), total: count(t.total), bytes_done: t.bytes_done, bytes_total: t.bytes_total },
@@ -562,8 +572,7 @@ impl Told<'_> {
             elapsed_ms: run_ms,
             run_ms,
             ..ImportProgress::default()
-        };
-        self.sink.emit(Event::ImportProgress { account: self.account.to_string(), progress });
+        }
     }
 
     fn thrown_away(&self) -> bool {

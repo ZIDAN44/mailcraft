@@ -9,6 +9,7 @@ use super::*;
 
 mod indexing;
 pub(super) mod sent_ids;
+mod room;
 
 /// Message sources written to the cache together (one transaction): at most this many…
 const BATCH_MESSAGES: usize = 2000;
@@ -84,6 +85,8 @@ pub(super) struct Out<'a> {
     pub(super) note: super::resume::Note,
     /// The replies and ids read, for the sent items read last (`sent_ids`).
     pub(super) sent: sent_ids::SentIds,
+    /// The room left where the data file is written, as it's written.
+    room: room::Room,
 }
 
 impl<'a> Out<'a> {
@@ -122,6 +125,7 @@ impl<'a> Out<'a> {
             indexed: 0,
             note: super::resume::Note::every(checkpoint_every(opts)),
             sent: sent_ids::SentIds::default(),
+            room: room::Room::new(store, account, opts),
         }
     }
 }
@@ -376,6 +380,7 @@ impl Out<'_> {
         if self.pending.is_empty() {
             return false;
         }
+        self.mind_room(self.pending_bytes, checkpoint);
         let batch = std::mem::take(&mut self.pending);
         self.pending_bytes = 0;
         self.pending_raw = 0;
@@ -595,7 +600,8 @@ impl Out<'_> {
             last_save,
             runs: self.note.runs.saturating_add(1),
             earlier_ms: self.note.earlier_ms,
-            blocked: None,
+            // Stopped for want of room (and not asked to stop further meanwhile): it waits for more.
+            blocked: self.room.full().filter(|_| stopped == Some(StopHow::Pause)).map(|free| mailcraft_model::job::Blocked::DiskFull { free }),
         }
     }
 }

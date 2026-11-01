@@ -56,6 +56,7 @@ mod resume;
 #[cfg(test)]
 mod tests;
 
+pub use super::space::{LOW_SPACE, Space};
 use chunked::Shared;
 use embedded::{Holder, Part, item_with_files};
 use item::{File, Item, attachment, item, message_class, message_code_page, unread_attachment};
@@ -347,6 +348,10 @@ pub struct ImportOptions {
     /// Go on from where the import into this account stopped, as its checkpoint says (none:
     /// from the start). One done already is told as it ended, without reading the file.
     pub resume: bool,
+    /// Where the room left on the drive is asked (none: the computer's own drives): the import
+    /// stops itself, as if paused, when there's less than [`LOW_SPACE`] where it writes.
+    #[doc(hidden)]
+    pub space: Option<Arc<dyn Space>>,
     /// The reader's chunk of the file, in KiB (0: its own), the items read between reopenings
     /// of the handle that reads them (0: only once its caches hold too much), and how much its
     /// caches may hold before that, in bytes (0: its own limit): for tests and measuring.
@@ -445,6 +450,10 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
         && head.get(8..10) == Some(b"SO")
     {
         return Err("this is Outlook's offline copy of a server account (.ost), not a data file: add the account itself to see its mail".into());
+    }
+    // Too little room left to go on: it waits for more, with nothing read.
+    if let Some(free) = out.short_of_room() {
+        return Ok(blocked(mailcraft_model::job::Blocked::DiskFull { free }));
     }
     // The account's data file has a bigger cache while the import writes, and lets go of it
     // however the import ends.
