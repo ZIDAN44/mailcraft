@@ -174,6 +174,19 @@ impl Session {
     /// Count a local account's folders again (`only` these, or all of them). One whose list
     /// can't be read keeps its counts (not 0).
     pub(super) fn recount_local(&mut self, account: &str, only: Option<&[String]>) {
+        let counts = self.count_local(account, only);
+        // Local accounts have no server to report counts: keep them on disk. Only the counts, in
+        // the list as it is there (written only when they differ): an import adds its folders
+        // to it as they finish, and the list held here may not have them yet. Compared with
+        // the disk, not with the list here, which a flag change has counted already.
+        let Some(store) = &self.store else { return };
+        let found = store.update_folder_counts(account, &counts);
+        self.counts_kept(account, &counts, found);
+    }
+
+    /// Count `only` (all the account's folders when `None`) and set the counts in the account's
+    /// list here: the counts, to keep on disk.
+    pub(super) fn count_local(&mut self, account: &str, only: Option<&[String]>) -> Vec<(String, u32, u32)> {
         let paths: Vec<String> = match only {
             Some(list) => list.to_vec(),
             None => self.account(account).map(|a| a.folders.iter().map(|f| f.path.clone()).collect()).unwrap_or_default(),
@@ -195,13 +208,15 @@ impl Session {
                 }
             }
         }
-        // Local accounts have no server to report counts: keep them on disk. Only the counts, in
-        // the list as it is there (written only when they differ): an import adds its folders
-        // to it as they finish, and the list held here may not have them yet. Compared with
-        // the disk, not with the list here, which a flag change has counted already. A list on
-        // disk that has none of them (it was damaged and set aside) is written again from here.
+        counts
+    }
+
+    /// The counts were kept in the list on disk (`found`: how many of their folders it has). A
+    /// list on disk that has none of them (it was damaged and set aside) is written again from
+    /// here.
+    pub(super) fn counts_kept(&self, account: &str, counts: &[(String, u32, u32)], found: Result<usize, mailcraft_store::StoreError>) {
         let Some(store) = &self.store else { return };
-        let saved = match store.update_folder_counts(account, &counts) {
+        let saved = match found {
             Ok(0) if !counts.is_empty() => self.account(account).filter(|a| !a.folders.is_empty()).map(|a| store.save_folders(account, &a.folders)),
             Ok(_) => None,
             Err(e) => Some(Err(e)),

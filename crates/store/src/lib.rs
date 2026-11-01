@@ -253,7 +253,13 @@ impl ListWriter {
         };
         let p = path.display().to_string();
         let bytes = serde_json::to_vec(&file).map_err(|source| StoreError::Json { path: p, source })?;
-        store.files.write(&path, &bytes)?;
+        // A new list: no marks from an old one put on it.
+        let marks = dir.join(folders::MARKS);
+        let mut writes = vec![(path, bytes)];
+        if store.has_marks(&marks) {
+            writes.push((marks, b"[]".to_vec()));
+        }
+        store.write_files(writes)?;
         for i in file.pages.len()..old.pages.len() {
             let _ = store.files.remove_file(&dir.join(format!("state-{i}.json")));
         }

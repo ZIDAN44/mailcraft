@@ -137,15 +137,17 @@ impl Session {
         if matches!(op, Op::SetFlag { .. } | Op::SetKeyword { .. })
             && touched.iter().all(|f| self.cache.contains_key(&(account.to_string(), f.clone())))
         {
+            // The lists and the folders' counts in one write: for a big folder, only the marks
+            // kept beside its pages.
             let changed: HashSet<u32> = op.keys().iter().map(|k| k.uid).collect();
-            for f in &touched {
-                if let Some(st) = self.cache.get(&(account.to_string(), f.clone()))
-                    && let Err(e) = store.save_folder_changed(account, f, st, &changed)
-                {
-                    self.notice(e.to_string(), true);
-                }
+            let counts = self.count_local(account, Some(&touched));
+            let lists: Vec<(&str, &FolderState)> =
+                touched.iter().filter_map(|f| self.cache.get(&(account.to_string(), f.clone())).map(|st| (f.as_str(), st))).collect();
+            let saved = store.save_marks(account, &lists, &changed, &counts);
+            match saved {
+                Ok(found) => self.counts_kept(account, &counts, Ok(found)),
+                Err(e) => self.notice(e.to_string(), true),
             }
-            self.recount_local(account, Some(&touched));
             return Ok(());
         }
         if let Op::Move { keys, to } = op {

@@ -57,17 +57,18 @@ fn a_big_folder_list_is_kept_in_pages() {
         }
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 2, "one page and the list");
         assert!(s.load_folder("a1", "INBOX").unwrap().find(10).unwrap().flags.seen);
-        // Told which changed: the same, without looking at the rest.
+        // Told which changed: kept beside the pages, which aren't even looked at.
         if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 8000) {
             m.flags.flagged = true;
         }
         let changed: std::collections::HashSet<u32> = [8000].into_iter().collect();
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 2);
+        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 1, "the marks alone");
         assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
-        // New mail: the last page.
+        // New mail: the last page, and the page the mark was kept beside (the marks emptied).
         st.messages.insert(0, msg(n + 1));
         st.uid_next = n + 2;
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 2);
+        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 4);
+        assert!(s.load_folder("a1", "INBOX").unwrap().find(8000).unwrap().flags.flagged);
         assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize + 1);
         // Told only of a flag, but a message came too: every page looked at, so it's kept.
         st.messages.insert(0, msg(n + 2));
@@ -126,6 +127,69 @@ pub(crate) fn temp_store(name: &str) -> Store {
     let dir = std::env::temp_dir().join(format!("mailcraft-store-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     Store::open(dir).unwrap()
+}
+
+/// A message marked read in a big folder writes a few bytes beside its pages (with the folder's
+/// counts, in one write), not a page of thousands; read back, the list has the mark, and what
+/// puts the summaries right about their files keeps it. Too many marks go into their pages; a
+/// list written afresh has none; a damaged marks file isn't fatal.
+#[test]
+fn a_mark_in_a_big_folder_writes_a_few_bytes() {
+    let s = Store::memory();
+    let n = PAGE_MESSAGES as u32 * 2 + 749;
+    let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, false)).collect(), ..Default::default() };
+    sort_newest_first(&mut st.messages);
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    s.save_folders("a1", &[Folder { account: "a1".into(), path: "INBOX".into(), unread: n, total: n, ..Default::default() }]).unwrap();
+    s.track_changes();
+    let mark = |st: &mut FolderState, uids: &[u32]| {
+        for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
+            m.flags.seen = true;
+        }
+        let changed: std::collections::HashSet<u32> = uids.iter().copied().collect();
+        let unread = u32::try_from(st.messages.iter().filter(|m| !m.flags.seen).count()).unwrap();
+        s.save_marks("a1", &[("INBOX", &*st)], &changed, &[("INBOX".into(), unread, n)]).unwrap()
+    };
+    assert_eq!(mark(&mut st, &[5000]), 1, "the folder is in the account's list");
+    let written = s.take_changes();
+    let bytes: usize = written.iter().map(|(_, b)| b.as_ref().map_or(0, Vec::len)).sum();
+    let mut names: Vec<&str> = written.iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["folders.json", "state-marks.json"], "no page");
+    assert!(bytes < 64 << 10, "{bytes} bytes");
+    let back = s.load_folder("a1", "INBOX").unwrap();
+    assert_eq!(back, st, "read back with the mark");
+    assert_eq!(s.load_folders("a1").unwrap()[0].unread, n - 1);
+    // Put right about its files, the page is written again from disk: the mark stays.
+    let found = search::FilesFound { validity: 3, with: vec![5001], without: Vec::new() };
+    assert_eq!(s.set_has_files("a1", "INBOX", &found).unwrap(), 1);
+    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 5001) {
+        m.has_attachments = true;
+    }
+    assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
+    // More than the marks hold: into their pages, the marks emptied.
+    let many: Vec<u32> = (1..=u32::try_from(folders::MARKS_MAX).unwrap()).map(|i| i * 17).collect();
+    s.take_changes();
+    mark(&mut st, &many);
+    let mut names: Vec<String> = s.take_changes().into_iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default().to_string()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["folders.json", "state-0.json", "state-1.json", "state-2.json", "state-marks.json", "state.json"]);
+    let marks = s.folder_dir("a1", "INBOX").join(folders::MARKS);
+    assert!(!s.has_marks(&marks), "emptied");
+    assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
+    // A damaged marks file: set aside, the list read as its pages have it.
+    mark(&mut st, &[7]);
+    s.files.write(&marks, b"[[7, {\"seen\": tr").unwrap();
+    let back = s.load_folder("a1", "INBOX").unwrap();
+    assert!(!back.find(7).unwrap().flags.seen && back.find(17).unwrap().flags.seen);
+    // A list written afresh (an import's) has no marks from before.
+    mark(&mut st, &[9]);
+    let mut w = s.list_writer("a1", "INBOX");
+    let mut fresh: Vec<Summary> = (1..=n).map(|uid| msg(uid, false)).collect();
+    fresh.sort_by_key(|m| m.key.uid);
+    w.push(&s, fresh).unwrap();
+    w.finish(&s, &st).unwrap();
+    assert!(!s.load_folder("a1", "INBOX").unwrap().find(9).unwrap().flags.seen);
 }
 
 fn msg(uid: u32, seen: bool) -> Summary {

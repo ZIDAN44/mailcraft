@@ -1,5 +1,7 @@
 //! The store: folders' lists of messages, and changes applied to them.
 
+use mailcraft_model::Flags;
+
 use crate::*;
 
 impl Store {
@@ -20,9 +22,21 @@ impl Store {
             messages: file.messages,
             window: file.window,
         };
-        Ok(FolderLoad { account: account.to_string(), folder: folder.to_string(), dir, st, pages: file.pages.len(), next: 0 })
+        // A list in pages: the flags marked since its pages were written, put on them at the end.
+        let marks: Vec<(u32, Flags)> = if file.pages.is_empty() { Vec::new() } else { self.read_json(&dir.join(MARKS))? };
+        Ok(FolderLoad { account: account.to_string(), folder: folder.to_string(), dir, st, pages: file.pages.len(), next: 0, marks })
     }
 }
+
+/// Beside a list kept in pages: the flags of the messages marked since its pages were written
+/// (number, flags), so a message marked read writes a few bytes, not its page of thousands
+/// (about 2 MB, and 24 to 90 ms of the window's frame in a folder of 10,941). The next save of
+/// the whole list puts them into the pages and empties it.
+pub(crate) const MARKS: &str = "state-marks.json";
+
+/// The most messages kept marked beside a list's pages (about 50 KB): one more puts them into
+/// their pages.
+pub const MARKS_MAX: usize = 512;
 
 /// A folder's list being read a page at a time ([`Store::folder_load`]), so whoever reads it can
 /// do something else between pages (a search on the window's thread reads a big folder over
@@ -36,6 +50,8 @@ pub struct FolderLoad {
     /// Pages the list has, and the next to read.
     pages: usize,
     next: usize,
+    /// The flags marked since the pages were written ([`MARKS`]).
+    marks: Vec<(u32, Flags)>,
 }
 
 impl FolderLoad {
@@ -66,6 +82,14 @@ impl FolderLoad {
         // A big folder's list in pages (by number): put together, newest first again.
         if self.pages > 0 {
             sort_newest_first(&mut st.messages);
+        }
+        if !self.marks.is_empty() {
+            let marks: HashMap<u32, Flags> = self.marks.into_iter().collect();
+            for m in &mut st.messages {
+                if let Some(f) = marks.get(&m.key.uid) {
+                    m.flags.clone_from(f);
+                }
+            }
         }
         // Keys are rebuilt rather than trusted: a renamed or copied cache stays consistent.
         for m in &mut st.messages {
@@ -102,6 +126,67 @@ impl Store {
         changed: Option<&std::collections::HashSet<u32>>,
     ) -> Result<usize> {
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (writes, stale) = self.list_writes(account, folder, state, changed)?;
+        // The list and its pages together (one transaction in a data file).
+        let written = writes.len();
+        self.write_files(writes)?;
+        self.remove_stale(stale);
+        Ok(written)
+    }
+
+    /// Keep what marking flags (read, flagged, a category) changed: each of `lists` after only
+    /// `changed`'s flags changed ([`Store::save_folder_changed`]), and the account's folder counts
+    /// ([`Store::update_folder_counts`]), all in one write (one durable commit in a data file,
+    /// not one for each, made while the window waits). Says how many of the counts' folders the
+    /// account's list has.
+    pub fn save_marks(
+        &self,
+        account: &str,
+        lists: &[(&str, &FolderState)],
+        changed: &std::collections::HashSet<u32>,
+        counts: &[(String, u32, u32)],
+    ) -> Result<usize> {
+        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (mut writes, mut stale) = (Vec::new(), Vec::new());
+        for (folder, state) in lists {
+            let (w, s) = self.list_writes(account, folder, state, Some(changed))?;
+            writes.extend(w);
+            stale.extend(s);
+        }
+        let mut list = self.load_folders(account)?;
+        let (found, recounted) = set_counts(&mut list, counts);
+        if recounted {
+            let path = self.account_dir(account).join("folders.json");
+            let bytes = serde_json::to_vec(&list).map_err(|source| StoreError::Json { path: path.display().to_string(), source })?;
+            writes.push((path, bytes));
+        }
+        self.write_files(writes)?;
+        self.remove_stale(stale);
+        Ok(found)
+    }
+
+    /// Whether the marks beside a list's pages ([`MARKS`]) have any.
+    pub(crate) fn has_marks(&self, path: &Path) -> bool {
+        self.files.read(path).is_ok_and(|b| b.as_slice() != b"[]")
+    }
+
+    /// Pages a list no longer has, gone once it's written without them.
+    fn remove_stale(&self, stale: Vec<PathBuf>) {
+        for p in stale {
+            let _ = self.files.remove_file(&p);
+        }
+    }
+
+    /// What keeping a folder's list writes (with the lock held), and the pages it no longer has.
+    /// Told only flags changed, and with few marked since its pages were written: the marks alone
+    /// ([`MARKS`]). Otherwise the pages that changed and the head, and the marks emptied.
+    fn list_writes(
+        &self,
+        account: &str,
+        folder: &str,
+        state: &FolderState,
+        changed: Option<&std::collections::HashSet<u32>>,
+    ) -> Result<(Vec<(PathBuf, Vec<u8>)>, Vec<PathBuf>)> {
         let dir = self.folder_dir(account, folder);
         let head = dir.join("state.json");
         let json_err = |p: &Path| {
@@ -119,14 +204,34 @@ impl Store {
             count: 0,
         };
         let mut writes: Vec<(PathBuf, Vec<u8>)> = Vec::new();
+        let marks_path = dir.join(MARKS);
         if state.messages.len() <= PAGE_MESSAGES {
             file.messages = state.messages.clone();
         } else {
+            let n = state.messages.len();
+            // The same messages as last time, some flags changed: the other pages stand.
+            let same = changed.filter(|_| old.count == n && old.pages.len() == n.div_ceil(PAGE_MESSAGES));
+            // Few marked since the pages were written: those kept beside them, nothing else.
+            let mut folded: Option<std::collections::HashSet<u32>> = None;
+            if let Some(changed) = same {
+                let kept: Vec<(u32, Flags)> = self.read_json(&marks_path)?;
+                let mut marks: BTreeMap<u32, &Flags> = kept.iter().map(|(uid, f)| (*uid, f)).collect();
+                for m in state.messages.iter().filter(|m| changed.contains(&m.key.uid)) {
+                    marks.insert(m.key.uid, &m.flags);
+                }
+                if marks.len() <= MARKS_MAX {
+                    let list: Vec<(u32, &Flags)> = marks.into_iter().collect();
+                    let bytes = serde_json::to_vec(&list).map_err(json_err(&marks_path))?;
+                    return Ok((vec![(marks_path, bytes)], Vec::new()));
+                }
+                // Too many: their pages are written again (as the list has them now), and the
+                // marks emptied.
+                folded = Some(marks.into_keys().collect());
+            }
+            let same = folded.as_ref().or(same);
             let mut by_number: Vec<&Summary> = state.messages.iter().collect();
             by_number.sort_by_key(|m| m.key.uid);
-            file.count = by_number.len();
-            // The same messages as last time, some flags changed: the other pages stand.
-            let same = changed.filter(|_| old.count == by_number.len() && old.pages.len() == by_number.len().div_ceil(PAGE_MESSAGES));
+            file.count = n;
             for (i, page) in by_number.chunks(PAGE_MESSAGES).enumerate() {
                 if let Some(changed) = same
                     && let Some(&hash) = old.pages.get(i)
@@ -144,15 +249,13 @@ impl Store {
                 file.pages.push(hash);
             }
         }
-        writes.push((head.clone(), serde_json::to_vec(&file).map_err(json_err(&head))?));
-        // The list and its pages together (one transaction in a data file).
-        let written = writes.len();
-        self.write_files(writes)?;
-        // Pages the list no longer has.
-        for i in file.pages.len()..old.pages.len() {
-            let _ = self.files.remove_file(&dir.join(format!("state-{i}.json")));
+        // The pages have every flag now: the marks beside them emptied, with them.
+        if self.has_marks(&marks_path) {
+            writes.push((marks_path, b"[]".to_vec()));
         }
-        Ok(written)
+        writes.push((head.clone(), serde_json::to_vec(&file).map_err(json_err(&head))?));
+        let stale = (file.pages.len()..old.pages.len()).map(|i| dir.join(format!("state-{i}.json"))).collect();
+        Ok((writes, stale))
     }
 
     /// Put right whether these messages carry files (what an index pass found their summaries
@@ -437,18 +540,25 @@ impl Store {
     pub fn update_folder_counts(&self, account: &str, counts: &[(String, u32, u32)]) -> Result<usize> {
         let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut list = self.load_folders(account)?;
-        let (mut found, mut changed) = (0, false);
-        for (path, unread, total) in counts {
-            if let Some(f) = list.iter_mut().find(|f| f.path == *path) {
-                found += 1;
-                changed |= f.unread != *unread || f.total != *total;
-                f.unread = *unread;
-                f.total = *total;
-            }
-        }
+        let (found, changed) = set_counts(&mut list, counts);
         if changed {
             self.write_folders(account, &list)?;
         }
         Ok(found)
     }
+}
+
+/// Set the counts (`path`, unread, total) of the folders `list` has: how many it has, and
+/// whether any count changed.
+fn set_counts(list: &mut [Folder], counts: &[(String, u32, u32)]) -> (usize, bool) {
+    let (mut found, mut changed) = (0, false);
+    for (path, unread, total) in counts {
+        if let Some(f) = list.iter_mut().find(|f| f.path == *path) {
+            found += 1;
+            changed |= f.unread != *unread || f.total != *total;
+            f.unread = *unread;
+            f.total = *total;
+        }
+    }
+    (found, changed)
 }
