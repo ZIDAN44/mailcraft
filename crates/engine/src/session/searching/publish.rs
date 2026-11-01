@@ -181,10 +181,29 @@ impl Session {
                 }
             }
         }
-        // Nothing new to show: what the list shows of them is patched in place.
-        if same {
-            run.fresh.clear();
-            run.gone.clear();
+        // Nothing new to show: what the list shows of them is patched in place. What was found
+        // and isn't shown yet (a long list takes it a few steps later, or at the end) stays to be
+        // shown, with the flags as they are now (the copies it holds were taken before).
+        if same && !run.fresh.is_empty() {
+            let changed: HashSet<&MessageKey> = keys.iter().collect();
+            let mut at: HashMap<&MessageKey, usize> = HashMap::new();
+            let mut folders: HashSet<(String, String)> = HashSet::new();
+            for (i, m) in run.fresh.iter().enumerate() {
+                if changed.contains(&m.key) {
+                    at.insert(&m.key, i);
+                    folders.insert((m.key.account.clone(), m.key.folder.clone()));
+                }
+            }
+            let mut now: Vec<(usize, Summary)> = Vec::new();
+            for k in &folders {
+                let Some(st) = self.cache.get(k) else { continue };
+                now.extend(st.messages.iter().filter_map(|m| at.get(&m.key).map(|i| (*i, m.clone()))));
+            }
+            for (i, m) in now {
+                if let Some(slot) = run.fresh.get_mut(i) {
+                    *slot = m;
+                }
+            }
         }
         same
     }

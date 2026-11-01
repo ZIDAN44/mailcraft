@@ -199,6 +199,31 @@ fn thirty_five_thousand_found_stream_in() {
     assert_eq!(s.letting_go(), 0);
 }
 
+/// A result flagged (and one not shown yet, as a server's change would) while the run still
+/// reads the folder it's in, the list long enough to take what's found only every few steps:
+/// what was found and not shown yet still shows (it was let go of when the flag was weighed
+/// again), with its flags as they are.
+#[test]
+fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
+    let (mut s, t) = cold();
+    s.run("search.run", &json!({"query": "is:read", "scope": "all"})).unwrap();
+    s.search_step(8);
+    s.search_step(8);
+    let unshown = s.search_unshown();
+    assert!(s.list.len() > 4096 && !unshown.is_empty(), "{} shown, {} not yet", s.list.len(), unshown.len());
+    // One shown, one found and not shown yet: both flagged.
+    let shown = s.list.first().map(|m| m.key.clone()).unwrap();
+    let unshown = unshown.last().cloned().unwrap();
+    s.run("list.select", &json!({"key": shown.to_id()})).unwrap();
+    s.run("mail.flag", &json!({"on": true})).unwrap();
+    s.apply_op(&unshown.account, Op::SetFlag { keys: vec![unshown.clone()], flag: Flag::Flagged, on: true });
+    while !s.search_step(8).done {}
+    assert_eq!((s.list.len(), s.search_progress().unwrap().found), (t.read, t.read));
+    for k in [&shown, &unshown] {
+        assert!(s.list.iter().any(|m| m.key == *k && m.flags.flagged), "flagged in the list");
+    }
+}
+
 /// Hand-run, in release (`cargo test -p mailcraft-engine --release --lib search_big -- --ignored
 /// --nocapture`; `MC_QUERY` for one query): how long each query takes over the mailbox, all
 /// told and step by step, from a session just opened and again: in steps of 8 units, and in
