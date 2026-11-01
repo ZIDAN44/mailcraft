@@ -1,6 +1,6 @@
 //! An item as read from the file: its properties, recipients and attachments.
 
-use super::props::{Val, code_page, one_off_address, read, val};
+use super::props::{Val, clean_name, code_page, is_address, one_off_address, read, val};
 use super::*;
 
 /// A mail item, as read.
@@ -78,13 +78,17 @@ pub(super) fn item_of<'a>(
     {
         it.extra = Some(crate::pst_pim::extract(p, named));
     }
-    // A subject may start with a prefix marker (0x01, length).
+    // A subject may start with a prefix marker (0x01, length); control characters in the rest
+    // are spaces.
     it.subject = {
         let raw = s(0x0037);
-        if raw.starts_with('\u{1}') { raw.chars().skip(2).collect() } else { raw }
+        let skip = if raw.starts_with('\u{1}') { 2 } else { 0 };
+        raw.chars().skip(skip).map(|c| if c.is_control() { ' ' } else { c }).collect()
     };
-    let email = |ids: &[u16]| ids.iter().map(|id| s(*id)).find(|e| e.contains('@')).unwrap_or_default();
-    let name = |ids: &[u16]| ids.iter().map(|id| s(*id)).find(|n| !n.is_empty()).unwrap_or_default();
+    // Names and addresses go into header lines: an address only when it is one, a name with
+    // no line breaks.
+    let email = |ids: &[u16]| ids.iter().map(|id| s(*id).trim().to_string()).find(|e| is_address(e)).unwrap_or_default();
+    let name = |ids: &[u16]| ids.iter().map(|id| clean_name(&s(*id))).find(|n| !n.is_empty()).unwrap_or_default();
     it.from = EmailAddress::new(name(&[0x0C1A, 0x0042]), email(&[0x5D01, 0x0C1F, 0x5D02, 0x0065]));
     it.date = [0x0E06, 0x0039, 0x3007].iter().find_map(|id| p(*id).and_then(|v| v.time())).unwrap_or(0);
     it.body = s(0x1000);
@@ -161,9 +165,13 @@ pub(super) fn item_of<'a>(
             Some(Val::Bin(b)) => one_off_address(b),
             _ => None,
         };
-        let found = [get(0x39FE), get(0x3003)].into_iter().find(|e| e.contains('@')).map(|e| (String::new(), e)).or_else(one_off);
+        let found =
+            [get(0x39FE), get(0x3003)].into_iter().map(|e| e.trim().to_string()).find(|e| is_address(e)).map(|e| (String::new(), e)).or_else(one_off);
+        // Left out without an address. Not counted yet: the import's loss report counts it
+        // (SkipReason::RecipientWithoutAddress) for a header-less item only, as a header
+        // item's own To and Cc still carry the address.
         let Some((one_off_name, address)) = found else { continue };
-        let name = get(0x3001);
+        let name = clean_name(&get(0x3001));
         let a = EmailAddress::new(if name.is_empty() { one_off_name } else { name }, address);
         match row(0x0C15) {
             Some(Val::Int(2)) => it.cc.push(a),
@@ -194,14 +202,20 @@ fn rtf_into(it: &mut Item, compressed: &[u8]) {
 
 /// The message ids in a References or In-Reply-To value as the file keeps it: every `<…>` when
 /// there is one (`<a><b>`, `<a>,<b>`, `<a> , <b>`), else the words between spaces and commas;
-/// without their brackets; the last [`MAX_IDS`], as threading keeps them.
+/// without their brackets, each at most [`MAX_ID`] bytes; the last [`MAX_IDS`], as threading
+/// keeps them.
 pub(super) fn message_ids(s: &str) -> Vec<String> {
     let words: Vec<&str> = if s.contains('<') {
         s.split('<').skip(1).filter_map(|w| w.split_once('>').map(|(id, _)| id)).collect()
     } else {
         s.split(|c: char| c.is_whitespace() || c == ',').collect()
     };
-    let mut ids: Vec<String> = words.into_iter().map(mailcraft_model::thread::norm_id).filter(|id| !id.is_empty()).collect();
+    let cap = |mut id: String| {
+        let end = (0..=MAX_ID.min(id.len())).rev().find(|i| id.is_char_boundary(*i)).unwrap_or(0);
+        id.truncate(end);
+        id
+    };
+    let mut ids: Vec<String> = words.into_iter().map(|w| cap(mailcraft_model::thread::norm_id(w))).filter(|id| !id.is_empty()).collect();
     ids.drain(..ids.len().saturating_sub(MAX_IDS));
     ids
 }

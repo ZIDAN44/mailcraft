@@ -93,9 +93,9 @@ pub(super) fn header_text(s: &str, cap: usize) -> String {
     words.join("\r\n ")
 }
 
-/// Whether a header block has a line named `name`.
+/// Whether a header block has a line named `name` (a folded line's continuation names nothing).
 fn has_header(head: &str, name: &str) -> bool {
-    head.lines().any(|l| l.split_once(':').is_some_and(|(n, _)| n.trim().eq_ignore_ascii_case(name)))
+    head.lines().filter(|l| !l.starts_with([' ', '\t'])).any(|l| l.split_once(':').is_some_and(|(n, _)| n.trim_end().eq_ignore_ascii_case(name)))
 }
 
 /// Keep the item's original headers (when it came in by mail) above the rebuilt body; a sent
@@ -113,7 +113,8 @@ fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(
     if !original.is_empty() && original.len() <= MAX_HEADERS && original.contains(':') {
         // The original's own headers except its body's description, then the rebuilt body's.
         let mut keep = false;
-        for line in original.lines() {
+        // A blank line would end the header there.
+        for line in original.lines().filter(|l| !l.trim_end_matches('\r').is_empty()) {
             if !line.starts_with([' ', '\t']) {
                 keep = !mime_header(line);
             }
@@ -136,8 +137,9 @@ fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(
             }
         }
     } else {
+        let bcc = bcc_line(bcc);
         if !bcc.is_empty() {
-            out.push_str(&format!("Bcc: {}\r\n", mailcraft_model::addr::format_list(bcc)));
+            out.push_str(&format!("Bcc: {bcc}\r\n"));
         }
         for (name, value) in extra.iter().filter(|(name, _)| !has_header(&head, name)) {
             out.push_str(&format!("{name}: {value}\r\n"));
@@ -149,6 +151,23 @@ fn with_headers(built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(
     // `body` starts with the blank line ending the header.
     raw.extend_from_slice(body.get(2..).unwrap_or_default());
     raw
+}
+
+/// A Bcc header's value from the item's: the addresses that are one, each name cleaned and
+/// encoded as other header text (quoted when it holds a comma or such), one address per line.
+fn bcc_line(bcc: &[EmailAddress]) -> String {
+    let one = |a: &EmailAddress| {
+        let name = header_text(&a.name, MAX_NAME);
+        if name.is_empty() {
+            a.email.clone()
+        } else if name.contains(['"', '\\', ',', ';', ':', '<', '>', '@', '(', ')', '[', ']', '.']) {
+            format!("\"{}\" <{}>", name.replace(['"', '\\'], "'"), a.email)
+        } else {
+            format!("{name} <{}>", a.email)
+        }
+    };
+    let list: Vec<String> = bcc.iter().filter(|a| super::props::is_address(&a.email)).map(one).collect();
+    list.join(",\r\n ")
 }
 
 /// A message's summary from its rebuilt source's headers, with its preview and attachments

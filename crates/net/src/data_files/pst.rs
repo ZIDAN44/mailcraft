@@ -61,6 +61,11 @@ const MAX_THREAD_BLOCKS: usize = 50;
 const MAX_KEYWORDS: usize = 64;
 /// Longest Thread-Topic written, in characters.
 const MAX_TOPIC: usize = 512;
+/// Longest message id kept, in bytes: `Message-ID: <…>` stays within a header line's 998.
+const MAX_ID: usize = 900;
+/// Longest address kept (RFC 5321's path, less its brackets), and name, in characters.
+const MAX_ADDRESS: usize = 254;
+const MAX_NAME: usize = 256;
 
 /// What an import did.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

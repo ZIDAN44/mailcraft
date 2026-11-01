@@ -112,7 +112,22 @@ pub(super) fn one_off_address(b: &[u8]) -> Option<(String, String)> {
     let name = next();
     let _kind = next();
     let address = next().trim().to_string();
-    address.contains('@').then(|| (name.trim().to_string(), address))
+    is_address(&address).then(|| (clean_name(&name), address))
+}
+
+/// Whether text from the file is an address a header line can carry: with an `@` (an Exchange
+/// address is a directory path), no control characters (line breaks), at most
+/// [`super::MAX_ADDRESS`] bytes. Anything else is kept as the file has it (a quoted local part's
+/// spaces, say).
+pub(super) fn is_address(s: &str) -> bool {
+    s.len() <= super::MAX_ADDRESS && s.contains('@') && !s.chars().any(char::is_control)
+}
+
+/// A name from the file as a header line can carry it: control characters and line breaks as
+/// spaces (runs of spaces one), at most [`super::MAX_NAME`] characters.
+pub(super) fn clean_name(s: &str) -> String {
+    let name: String = s.chars().map(|c| if c.is_control() { ' ' } else { c }).take(super::MAX_NAME).collect();
+    name.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Bytes from the file as text in `code_page`: an 8-bit string in the message's code page, or
