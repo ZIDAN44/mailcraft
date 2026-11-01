@@ -35,13 +35,18 @@ const OVERHEAD_DEFAULT: u64 = 20_000;
 pub(super) const CURSOR: &str = "recompress.cursor";
 /// The longest key a cursor can be (a store path is at most 512 bytes).
 const CURSOR_MAX: usize = 1024;
+/// What recompressing has found over every run of it, each a u64 of bytes as they were kept: the
+/// files tried that stayed as they were (they don't compress: pictures, archives), and what the
+/// others came down by.
+pub(super) const STAYED_RAW: &str = "recompress.raw";
+pub(super) const SAVED: &str = "recompress.saved";
 
 /// One file in this many is sampled for whether it's kept raw (the first of them too).
 const SAMPLE_EVERY: u64 = 128;
 /// How much of a sampled file is compressed to see whether it would be.
 const TRIAL_MAX: usize = 64 << 10;
-/// The search index keeps its own pages packed already: not sampled.
-const SEARCH: &str = "search/";
+/// The search index keeps its own pages packed already: not sampled, nor compressed again.
+pub(super) const SEARCH: &str = "search/";
 
 /// What `META` says, each value read on its own: one that's missing or can't be read as what it
 /// should be is as if it weren't there.
@@ -50,6 +55,8 @@ pub(super) struct Meta {
     pub(super) deflate: u64,
     pub(super) overhead: Option<u64>,
     pub(super) cursor: Option<String>,
+    pub(super) stayed_raw: u64,
+    pub(super) saved: u64,
 }
 
 /// A u64 as kept (8 bytes, little-endian).
@@ -70,6 +77,8 @@ pub(super) fn read_meta(tx: &redb::ReadTransaction) -> io::Result<Meta> {
         deflate: value(DEFLATE)?.as_deref().and_then(u64_of).unwrap_or(0),
         overhead: value(OVERHEAD)?.as_deref().and_then(u64_of).filter(|ppm| *ppm <= 1_000_000),
         cursor: value(CURSOR)?.filter(|c| !c.is_empty() && c.len() <= CURSOR_MAX).and_then(|c| String::from_utf8(c).ok()),
+        stayed_raw: value(STAYED_RAW)?.as_deref().and_then(u64_of).unwrap_or(0),
+        saved: value(SAVED)?.as_deref().and_then(u64_of).unwrap_or(0),
     })
 }
 

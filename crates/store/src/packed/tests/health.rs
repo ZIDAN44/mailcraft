@@ -318,7 +318,7 @@ fn meta_is_read_value_by_value() {
             ],
         )
     });
-    assert_eq!(good, super::super::Meta { deflate: 2, overhead: Some(31_000), cursor: Some("INBOX/1/7.eml".into()) });
+    assert_eq!(good, super::super::Meta { deflate: 2, overhead: Some(31_000), cursor: Some("INBOX/1/7.eml".into()), ..Default::default() });
     // A table of another kind under the name.
     let other = read(&|tx| {
         let def: TableDefinition<u64, u64> = TableDefinition::new("meta");

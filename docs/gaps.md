@@ -1892,3 +1892,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   builds the list at once, 10–12 ms; `is:unread` over 50,000 takes 35 ms against the 15 ms
   aimed for over 35,000; the common phrase's 16,667 found, each checked against its text, take
   longer than the 150 ms aimed for a phrase (Open, 9).
+- **Attachments a build before 0.32 kept raw:** a data file those builds made keeps most base64
+  attachments uncompressed (34.9 GiB of a 47 GB file). The store can now compress them again in
+  the background (`Store::recompress_data_file`): a batch of at most 2 MiB at a time, each
+  compressed before it takes the file, stopped between any two and gone on with later (a kill
+  loses nothing), a message written again meanwhile left as written. On a made-up file the base64
+  came down to 0.76 of its size, and a write from the window waited at most 4 to 6 ms (p99) for it.
+  Not yet run by the app: compacting (at idle, and File › Info › Compact now) comes with it, and so
+  does giving the freed room back to the drive.

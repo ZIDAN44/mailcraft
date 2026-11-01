@@ -23,6 +23,7 @@ use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use crate::{CACHE, OpenProgress, Prepared, Result, StoreError, io_err, write_atomic};
 
 mod commit;
+mod compact;
 #[cfg(any(test, feature = "test-drive"))]
 mod filling;
 mod health;
@@ -129,6 +130,8 @@ pub(crate) struct Packs {
     /// Data files made new that couldn't say how they're kept (`META`) as they were made: their
     /// writes say so until one of them reaches the disk.
     fresh: Mutex<HashSet<String>>,
+    /// Accounts whose data file is being compressed again ([`Packs::recompress`]): one at a time.
+    recompressing: Mutex<HashSet<String>>,
 }
 
 impl std::fmt::Debug for Packs {
@@ -160,6 +163,7 @@ impl Packs {
             #[cfg(any(test, feature = "test-drive"))]
             full: Arc::default(),
             fresh: Mutex::default(),
+            recompressing: Mutex::default(),
         })
     }
 

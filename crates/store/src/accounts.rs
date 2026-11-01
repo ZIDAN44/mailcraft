@@ -1,5 +1,9 @@
 //! The store: accounts' data, data files (kept or online only), and removing them.
 
+use std::sync::atomic::AtomicBool;
+
+use mailcraft_model::job::progress::Work;
+
 use crate::*;
 
 impl Store {
@@ -45,6 +49,30 @@ impl Store {
                 x.compacted(&a).map_err(|source| StoreError::Io { path: a, source })
             }
             _ => Ok(()),
+        }
+    }
+
+    /// What an account's data file keeps raw that compresses (a build before 0.32 kept base64
+    /// attachments so) compressed again, a few files at a time in the background: each batch is
+    /// compressed away from the file, then written in a short transaction of its own, so a write
+    /// from the window waits at most for one. `cancel` stops it between batches; the next call goes
+    /// on from where it got to. `progress` hears how far it has come after each batch. The file
+    /// gets smaller only once compacted (the space freed is used again meanwhile). `None` when the
+    /// account has no data file.
+    pub fn recompress_data_file(&self, account: &str, cancel: &AtomicBool, progress: &mut dyn FnMut(Work)) -> Result<Option<Recompressed>> {
+        if self.is_online_only(account) {
+            return Ok(None);
+        }
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => {
+                let a = safe_segment(account);
+                x.recompress(&a, cancel, progress).map_err(|source| StoreError::Io { path: a, source })
+            }
+            _ => {
+                let _ = (cancel, progress);
+                Ok(None)
+            }
         }
     }
 
@@ -288,6 +316,26 @@ pub struct DataFileHealth {
     pub recompressed: bool,
     /// A recompress was stopped part way: there's more to do.
     pub recompress_stopped: bool,
+}
+
+/// What compressing a data file again did ([`Store::recompress_data_file`]), in this run.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Recompressed {
+    /// Files compressed again: how many, and their bytes as they were kept and as they are now.
+    pub files: u64,
+    pub before: u64,
+    pub after: u64,
+    /// Files tried that stayed as they were (they don't compress: pictures, archives), and their
+    /// bytes.
+    pub stayed_raw: u64,
+    pub stayed_raw_bytes: u64,
+    /// Files written again while they were being compressed: left as written.
+    pub changed: u64,
+    /// What every run of it has saved, as the data file records it.
+    pub saved_in_all: u64,
+    /// Everything was gone through: the data file says it's all kept as this build keeps it.
+    /// Otherwise it was stopped, and the next run goes on from where it got to.
+    pub finished: bool,
 }
 
 impl DataFileHealth {

@@ -4,6 +4,7 @@ use crate::Store;
 
 mod bulk;
 mod commits;
+mod compact;
 mod full;
 mod health;
 mod opening;

@@ -275,6 +275,19 @@ impl Packs {
         since: Option<u64>,
         f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
     ) -> io::Result<()> {
+        self.change_in_tx(account, how, undurable, since, |t, _| f(t))
+    }
+
+    /// [`Packs::change_since`], `f` also given the transaction (to write `META` in the same
+    /// commit: a recompress's cursor goes in with the batch it's after).
+    pub(super) fn change_in_tx(
+        &self,
+        account: &str,
+        how: Commit,
+        undurable: usize,
+        since: Option<u64>,
+        f: impl FnOnce(&mut Tables<'_>, &redb::WriteTransaction) -> io::Result<()>,
+    ) -> io::Result<()> {
         let Some(db) = self.db(account, true)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
         let done = self.change_in(&db, account, how, undurable, since, f);
         if let Err(e) = &done
@@ -298,7 +311,7 @@ impl Packs {
         how: Commit,
         undurable: usize,
         since: Option<u64>,
-        f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>,
+        f: impl FnOnce(&mut Tables<'_>, &redb::WriteTransaction) -> io::Result<()>,
     ) -> io::Result<()> {
         #[cfg(test)]
         let start = Instant::now();
@@ -337,7 +350,7 @@ impl Packs {
         }
         {
             let mut tables = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)? };
-            f(&mut tables)?;
+            f(&mut tables, &tx)?;
         }
         let before = self.seals.count(account, (!how.durable).then_some(undurable));
         // Taken with the writer held: a write noted after it began once this commit let go.

@@ -129,6 +129,19 @@ compressed as it keeps it (so it isn't sampled, even after a crash or a full dri
 else reached the disk), and a recompress keeps the last key it did there. What a sample finds is
 scaled to the files it's drawn from, not the search index, which a recompress passes over.
 
+A recompress (`crates/store/src/packed/compact.rs`, `Store::recompress_data_file`) compresses
+again what such a file keeps raw that compresses, the first half of compacting it. It goes through
+the list of files in key order, a batch at a time: read in a read transaction of its own (at most
+`BACKGROUND_COMMIT` as kept, a bigger file alone, files over 256 MiB left as they are), compressed
+away from the file up to eight ways at once, then written in a short transaction not waited for to
+the disk, with the last key it got to in `meta` (`recompress.cursor`), so a stopped or killed run
+goes on from there and a write from the window waits for one batch at most. A file is written back
+only if it's what was read (its length and a hash of every piece), so one written again meanwhile
+is left as written; the search index's files, those compressed already, small ones and damaged
+ones are passed over, and those tried that stayed as they were (pictures) are counted in `meta`
+with what the others saved. Its last commit is sealed: once stopped, to put the cursor on the disk;
+at the end, to say the file is all kept as this build keeps it.
+
 ## The browser (`apps/mailcraft-web`)
 
 The same `MailApp` runs in eframe's web runner. The store is `Store::memory()`, loaded from
