@@ -133,7 +133,7 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
                     }
                 }
                 Outcome::Pim(it) => out.add_pim(*it),
-                Outcome::NotMail => {}
+                Outcome::NotMail => out.skip(SkipReason::ItemNotUsable, 1),
                 Outcome::Unreadable if pim => out.skip(SkipReason::ItemUnreadable, 1),
                 Outcome::Unreadable => out.skip(SkipReason::MessageUnreadable, 1),
                 Outcome::NotRebuilt => out.skip(SkipReason::MessageNotRebuilt, 1),

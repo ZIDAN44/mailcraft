@@ -30,7 +30,8 @@ pub(super) struct Item {
     pub(super) sensitivity: u8,
     pub(super) flags: Flags,
     pub(super) files: Vec<File>,
-    /// A contact's or appointment's own properties.
+    /// A contact's, contact group's, appointment's, meeting request's or journal entry's own
+    /// properties.
     pub(super) extra: Option<crate::pst_pim::Extra>,
     /// Text of the item's, or of a message attached to it, is in a code page MailCraft can't read
     /// and lost all but its ASCII.
@@ -113,11 +114,8 @@ pub(super) fn item_of<'a>(
     let charset_unsupported = files.iter().any(|f| matches!(f, File::Message(m) if m.charset_unsupported));
     let mut it = Item { class: s(0x001A), files, charset_unsupported, ..Default::default() };
     let class = it.class.to_ascii_lowercase();
-    if class.starts_with("ipm.contact")
-        || class.starts_with("ipm.appointment")
-        || class.starts_with("ipm.task")
-        || class.starts_with("ipm.stickynote")
-    {
+    let pim = ["ipm.contact", "ipm.distlist", "ipm.appointment", "ipm.schedule.meeting", "ipm.task", "ipm.stickynote", "ipm.activity"];
+    if pim.iter().any(|c| class.starts_with(c)) {
         it.extra = Some(crate::pst_pim::extract(p, named));
     }
     // A subject may start with a prefix marker (0x01, length); control characters in the rest

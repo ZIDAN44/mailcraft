@@ -21,6 +21,8 @@ pub enum Val<'a> {
     Time(i64),
     /// Several texts (a multi-valued string: categories).
     Texts(Vec<String>),
+    /// Several byte strings (a multi-valued binary: a contact group's members).
+    Bins(Vec<&'a [u8]>),
     Object,
     /// Present, of a type the import does not read (a 16- or 64-bit integer, a float, a GUID,
     /// an error code...): it still hides a fallback property.
@@ -60,6 +62,7 @@ pub(super) fn val(v: &PropertyValue, code_page: u32) -> Val<'_> {
         PropertyValue::MultipleString8(list) => {
             Val::Texts(list.iter().map(|s| decode(s.buffer(), code_page, false).trim_end_matches('\0').to_string()).collect())
         }
+        PropertyValue::MultipleBinary(list) => Val::Bins(list.iter().map(|b| b.buffer()).collect()),
         PropertyValue::Object(_) => Val::Object,
         _ => Val::Other,
     }
@@ -93,7 +96,7 @@ const MAX_ONE_OFF: usize = 1024;
 /// bytes, the one-off provider, a version and flags (0x8000: its strings are UTF-16), then the
 /// display name, the address type and the address, each ending in a NUL. `None` unless it is one
 /// and the address has an `@` (an Exchange address is a directory path).
-pub(super) fn one_off_address(b: &[u8]) -> Option<(String, String)> {
+pub(crate) fn one_off_address(b: &[u8]) -> Option<(String, String)> {
     if b.len() > MAX_ONE_OFF || b.get(4..20)? != ONE_OFF {
         return None;
     }

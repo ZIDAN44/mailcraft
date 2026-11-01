@@ -30,9 +30,9 @@ const MESSAGE_SIZE: u16 = 0x0E08;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Kind {
     Mail,
-    /// Contacts, a calendar, tasks or notes: their items go to the address book and calendar.
+    /// Contacts, a calendar, tasks, notes or a journal: their items go to the address book and calendar.
     Pim,
-    /// A kind MailCraft has no place for (a journal, RSS feeds): its items are counted.
+    /// A kind MailCraft has no place for (RSS feeds): its items are counted.
     LeftOut,
 }
 
@@ -222,7 +222,7 @@ fn classify(class: &str) -> Kind {
         && !class.starts_with("IPF.Note.OutlookHomepage");
     if mail {
         Kind::Mail
-    } else if ["IPF.Contact", "IPF.Appointment", "IPF.Task", "IPF.StickyNote"].iter().any(|k| class.starts_with(k)) {
+    } else if ["IPF.Contact", "IPF.Appointment", "IPF.Task", "IPF.StickyNote", "IPF.Journal"].iter().any(|k| class.starts_with(k)) {
         Kind::Pim
     } else {
         Kind::LeftOut
@@ -399,6 +399,7 @@ mod tests {
         assert_eq!(classify("IPF.Note.OutlookHomepage"), Kind::LeftOut);
         assert_eq!(classify("IPF.Contact"), Kind::Pim);
         assert_eq!(classify("IPF.Appointment"), Kind::Pim);
-        assert_eq!(classify("IPF.Journal"), Kind::LeftOut);
+        assert_eq!(classify("IPF.Journal"), Kind::Pim);
+        assert_eq!(classify("IPF.RssFeed"), Kind::LeftOut);
     }
 }

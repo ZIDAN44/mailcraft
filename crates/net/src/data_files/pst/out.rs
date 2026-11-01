@@ -195,7 +195,8 @@ impl Out<'_> {
         path
     }
 
-    /// A contact, calendar item or note (anything else in their folders is left out).
+    /// A contact, contact group, calendar item, note or journal entry (anything else in their
+    /// folders is left out).
     pub(super) fn add_pim(&mut self, it: Item) {
         let began = Instant::now();
         self.pim_of(it);
@@ -206,7 +207,20 @@ impl Out<'_> {
         let Some(x) = &it.extra else { return };
         let n = self.pim.events.len() + self.pim.cards.len() + self.pim.notes.len();
         let uid = format!("pst-{}-{n}@mailcraft.invalid", self.account);
-        if it.class.to_ascii_lowercase().starts_with("ipm.stickynote") {
+        let class = it.class.to_ascii_lowercase();
+        if class.starts_with("ipm.activity") {
+            // MailCraft has no journal: an entry is a note.
+            let text = crate::pst_pim::journal_text(x, &it.subject, &it.body);
+            if text.is_empty() {
+                self.skip(SkipReason::ItemNotUsable, 1);
+                return;
+            }
+            let note = Note { uid, text, color: NOTE_YELLOW, modified: x.modified.unwrap_or(it.date) };
+            self.pim.notes.push(StoredNote { note, ..Default::default() });
+        } else if class.starts_with("ipm.distlist") {
+            let card = crate::pst_pim::group_of(x, &it.subject, &it.body, uid);
+            self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
+        } else if class.starts_with("ipm.stickynote") {
             // A note's text is its body (its subject is the first line of it).
             let text = if it.body.trim().is_empty() { it.subject.clone() } else { it.body.replace("\r\n", "\n") };
             if text.trim().is_empty() {
@@ -216,7 +230,7 @@ impl Out<'_> {
             let note =
                 Note { uid, text: text.trim_end().to_string(), color: x.note_color.unwrap_or(NOTE_YELLOW), modified: x.modified.unwrap_or(it.date) };
             self.pim.notes.push(StoredNote { note, ..Default::default() });
-        } else if it.class.to_ascii_lowercase().starts_with("ipm.task") {
+        } else if class.starts_with("ipm.task") {
             // MailCraft has no task list: a task with a due date shows in the calendar that day.
             let Some(due) = x.due else {
                 self.skip(SkipReason::ItemNotUsable, 1);
@@ -227,7 +241,7 @@ impl Out<'_> {
             if let Some(event) = crate::pst_pim::event_of(&day, &summary, &it.body, &EmailAddress::default(), &[], uid) {
                 self.pim.events.push(StoredEvent { calendar: LOCAL.into(), event, ..Default::default() });
             }
-        } else if it.class.to_ascii_lowercase().starts_with("ipm.contact") {
+        } else if class.starts_with("ipm.contact") {
             let card = crate::pst_pim::card_of(x, &it.body, uid);
             self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
         } else {
@@ -243,6 +257,7 @@ impl Out<'_> {
     #[cfg(test)]
     pub(super) fn add_message(&mut self, path: &str, it: Item) {
         if !super::lanes::is_mail(&it.class) {
+            self.skip(SkipReason::ItemNotUsable, 1);
             return;
         }
         let fallback = format!("pst.{}.test.{}@mailcraft.invalid", self.account, self.read);

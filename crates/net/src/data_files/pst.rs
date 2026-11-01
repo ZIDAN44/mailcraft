@@ -3,9 +3,10 @@
 //! The file is read with Microsoft's MIT-licensed `outlook-pst` crate (MS-PST): the folder tree
 //! under the top of the mailbox becomes folders, and each mail item is written out again as a
 //! standard message (RFC 5322 / MIME) from its properties (MS-OXCMSG / MS-OXPROPS), keeping the
-//! original headers when the item has them. Contacts and calendar items go to the account's address
-//! book and calendar (see `pst_pim`), notes to its notes; tasks show in the calendar on their due
-//! day (MailCraft has no task list), and those without one are left out.
+//! original headers when the item has them. Contacts, contact groups and calendar items go to the
+//! account's address book and calendar (see `pst_pim`), notes and journal entries to its notes;
+//! tasks show in the calendar on their due day (MailCraft has no task list), and those without
+//! one are left out.
 //!
 //! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
 //! can't be read are skipped and counted, and sizes are capped.
@@ -61,7 +62,7 @@ use open::Recycle;
 use out::Out;
 #[doc(hidden)]
 pub use props::Val;
-pub(crate) use props::text_of;
+pub(crate) use props::{one_off_address, text_of};
 
 /// Folders nested deeper than this are left out.
 const MAX_DEPTH: usize = 32;

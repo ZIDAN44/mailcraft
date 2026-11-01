@@ -1,4 +1,5 @@
-//! Contacts and calendar items in an Outlook data file (MS-OXOCNTC, MS-OXOCAL).
+//! Contacts, contact groups, calendar items, meeting requests and journal entries in an Outlook
+//! data file (MS-OXOCNTC, MS-OXOCAL, MS-OXOJRNL).
 //!
 //! Most of what makes a contact or an appointment lives in *named* properties: their ids differ
 //! from file to file and are found through the file's name-to-id map (MS-PST 2.4.7). The
@@ -9,7 +10,7 @@ use std::collections::HashMap;
 
 use mailcraft_model::EmailAddress;
 use mailcraft_model::dates::civil_from_days;
-use mailcraft_model::ical::{Attendee, CalEvent};
+use mailcraft_model::ical::{self, Attendee, CalEvent, Privacy, ShowAs};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use outlook_pst::ltp::prop_context::{GuidValue, PropertyValue};
 use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId, PS_MAPI, PS_PUBLIC_STRINGS};
@@ -23,11 +24,20 @@ const PSETID_ADDRESS: GuidKey = (0x0006_2004, 0, 0, OLE);
 const PSETID_APPOINTMENT: GuidKey = (0x0006_2002, 0, 0, OLE);
 const PSETID_TASK: GuidKey = (0x0006_2003, 0, 0, OLE);
 const PSETID_NOTE: GuidKey = (0x0006_200E, 0, 0, OLE);
+const PSETID_COMMON: GuidKey = (0x0006_2008, 0, 0, OLE);
+const PSETID_LOG: GuidKey = (0x0006_200A, 0, 0, OLE);
 const PSETID_MEETING: GuidKey = (0x6ED8_DA90, 0x450B, 0x101B, [0x98, 0xDA, 0x00, 0xAA, 0x00, 0x3F, 0x13, 0x05]);
 /// Name-to-id entries read at most.
 const MAX_NAMES: usize = 200_000;
 /// Deleted occurrences read at most.
 const MAX_EXCEPTIONS: usize = 5_000;
+/// A contact group's members, and an event's categories, kept at most.
+const MAX_MEMBERS: usize = 10_000;
+const MAX_CATEGORIES: usize = 64;
+/// A reminder further ahead than a year (in minutes) isn't one; nor a journal entry longer.
+const MAX_MINUTES: i64 = 366 * 24 * 60;
+/// The provider of a wrapped entry id (a contact group's member, MS-OXOCNTC 2.2.2.2.1).
+const WRAPPED: [u8; 16] = [0xC0, 0x91, 0xAD, 0xD3, 0x51, 0x9D, 0xCF, 0x11, 0xA4, 0xA9, 0x00, 0xAA, 0x00, 0x47, 0xFA, 0xA4];
 /// Minutes from 1601-01-01 to 1970-01-01.
 const EPOCH_MINUTES: i64 = 11_644_473_600 / 60;
 
@@ -134,6 +144,20 @@ pub(crate) struct Extra {
     pub note_color: Option<u8>,
     /// When it last changed.
     pub modified: Option<i64>,
+    /// A meeting's version (PidLidAppointmentSequence).
+    pub sequence: u32,
+    /// An event's categories, how it shows its time (PidLidBusyStatus: 0 free, 1 tentative, 2
+    /// busy, 3 away, 4 working elsewhere), its sensitivity (1 personal, 2 private, 3
+    /// confidential) and its reminder, in minutes before it starts.
+    pub categories: Vec<String>,
+    pub busy: Option<i64>,
+    pub sensitivity: u8,
+    pub reminder: Option<i64>,
+    /// A contact group's members that carry their address: (name, address).
+    pub members: Vec<(String, String)>,
+    /// A journal entry's start and end.
+    pub log_start: Option<i64>,
+    pub log_end: Option<i64>,
 }
 
 /// Read the contact and appointment properties of an item.
@@ -195,7 +219,104 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> 
         x.note_color = u8::try_from(c).ok().filter(|c| *c < mailcraft_model::pim::NOTE_COLORS);
     }
     x.modified = p(0x3008).and_then(|v| v.time());
+    x.sequence = match n(PSETID_APPOINTMENT, 0x8201) {
+        Some(Val::Int(s)) => u32::try_from(s).unwrap_or(0),
+        _ => 0,
+    };
+    if let Some(Val::Texts(names)) = named.keywords().and_then(p) {
+        for name in names.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+            if x.categories.len() < MAX_CATEGORIES && !x.categories.iter().any(|c| c == name) {
+                x.categories.push(name.to_string());
+            }
+        }
+    }
+    x.busy = match n(PSETID_APPOINTMENT, 0x8205) {
+        Some(Val::Int(b)) => Some(b),
+        _ => None,
+    };
+    x.sensitivity = match p(0x0036) {
+        Some(Val::Int(s @ 1..=3)) => u8::try_from(s).unwrap_or(0),
+        _ => 0,
+    };
+    // A reminder that's set: so many minutes ahead, or Outlook's 15 when it doesn't say.
+    if matches!(n(PSETID_COMMON, 0x8503), Some(Val::Bool(true))) {
+        x.reminder = match n(PSETID_COMMON, 0x8501) {
+            Some(Val::Int(m)) if (0..=MAX_MINUTES).contains(&m) => Some(m),
+            _ => Some(15),
+        };
+    }
+    x.members = members(n(PSETID_ADDRESS, 0x8054), n(PSETID_ADDRESS, 0x8055));
+    x.log_start = n(PSETID_LOG, 0x8706).and_then(|v| v.time());
+    x.log_end = n(PSETID_LOG, 0x8708).and_then(|v| v.time()).or_else(|| match (x.log_start, n(PSETID_LOG, 0x8707)) {
+        (Some(start), Some(Val::Int(minutes))) if (0..=MAX_MINUTES).contains(&minutes) => Some(start.saturating_add(minutes * 60)),
+        _ => None,
+    });
     x
+}
+
+/// A contact group's members that carry their address: each of its one-off members
+/// (PidLidDistributionListOneOffMembers), and those of its members (PidLidDistributionListMembers)
+/// whose wrapped entry id holds one; once each. A member that is only a contact of the file is
+/// left out (its address is in that contact).
+fn members(one_offs: Option<Val<'_>>, wrapped: Option<Val<'_>>) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut add = |found: Option<(String, String)>| {
+        if let Some((name, address)) = found
+            && out.len() < MAX_MEMBERS
+            && !out.iter().any(|(_, a)| a.eq_ignore_ascii_case(&address))
+        {
+            out.push((name, address));
+        }
+    };
+    if let Some(Val::Bins(list)) = one_offs {
+        list.iter().for_each(|b| add(crate::pst::one_off_address(b)));
+    }
+    if let Some(Val::Bins(list)) = wrapped {
+        // Flags, the provider, then a type whose low bits say what's wrapped (0: a one-off).
+        for b in list {
+            if b.get(4..20) == Some(&WRAPPED[..]) && b.get(20).is_some_and(|t| t & 0x0F == 0) {
+                add(b.get(21..).and_then(crate::pst::one_off_address));
+            }
+        }
+    }
+    out
+}
+
+/// The contact group as a card (vCard 4's `KIND:group`, a `MEMBER` for each member) whose note
+/// lists its members, above its own text.
+pub(crate) fn group_of(x: &Extra, subject: &str, body: &str, uid: String) -> Card {
+    let mut card = card_of(x, body, uid);
+    if card.name.is_empty() {
+        card.name = subject.trim().to_string();
+    }
+    let list: Vec<String> = x.members.iter().map(|(n, a)| if n.is_empty() { a.clone() } else { format!("{n} <{a}>") }).collect();
+    card.note = [list.join("\n"), card.note].into_iter().filter(|t| !t.is_empty()).collect::<Vec<_>>().join("\n\n");
+    card.extra.push("KIND:group".into());
+    card.extra.extend(x.members.iter().map(|(_, a)| format!("MEMBER:mailto:{a}")));
+    card
+}
+
+/// A journal entry as a note's text: its subject, when it was (in UTC), then its own text.
+pub(crate) fn journal_text(x: &Extra, subject: &str, body: &str) -> String {
+    let at = |t: i64| {
+        let (y, m, d) = civil_from_days(t.div_euclid(86_400));
+        let s = t.rem_euclid(86_400);
+        (format!("{y:04}-{m:02}-{d:02}"), format!("{:02}:{:02}", s / 3600, s % 3600 / 60))
+    };
+    let when = x.log_start.map(|start| {
+        let (day, time) = at(start);
+        match x.log_end.filter(|e| *e > start).map(at) {
+            Some((end_day, end)) if end_day == day => format!("{day} {time}–{end} UTC"),
+            Some((end_day, end)) => format!("{day} {time} – {end_day} {end} UTC"),
+            None => format!("{day} {time} UTC"),
+        }
+    });
+    let body = body.replace("\r\n", "\n");
+    [subject.trim().to_string(), when.unwrap_or_default(), body.trim().to_string()]
+        .into_iter()
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The contact as a card.
@@ -252,8 +373,74 @@ pub(crate) fn event_of(x: &Extra, subject: &str, body: &str, from: &EmailAddress
         exdates,
         organizer: (!from.email.is_empty() && !attendees.is_empty()).then(|| person(from)),
         attendees: attendees.iter().map(person).collect(),
+        sequence: x.sequence,
+        categories: x.categories.clone(),
         ..Default::default()
     })
+    .map(|mut e| {
+        let show = match x.busy {
+            Some(0) => Some(ShowAs::Free),
+            Some(1) => Some(ShowAs::Tentative),
+            Some(3) => Some(ShowAs::OutOfOffice),
+            Some(4) => Some(ShowAs::WorkingElsewhere),
+            _ => None,
+        };
+        if let Some(show) = show {
+            ical::set_show_as(&mut e, show);
+        }
+        match x.sensitivity {
+            1 => ical::set_personal(&mut e),
+            2 => ical::set_privacy(&mut e, Privacy::Private),
+            3 => ical::set_privacy(&mut e, Privacy::Confidential),
+            _ => {}
+        }
+        if x.reminder.is_some() {
+            ical::set_reminder(&mut e, x.reminder);
+        }
+        e
+    })
+}
+
+/// A meeting request, cancellation or answer (`IPM.Schedule.Meeting.*`, of class `class`) as
+/// the calendar it carried (RFC 6047): its method and its text, stamped when it was sent
+/// (`date`). A request and a cancellation go from their organizer (`from`) to `guests`; an
+/// answer from its guest (`from`) to the organizer (the first of `guests`). `None` for another
+/// kind (a forward's notice) or one with no time.
+pub(crate) fn invitation(
+    x: &Extra,
+    class: &str,
+    subject: &str,
+    body: &str,
+    from: &EmailAddress,
+    guests: &[EmailAddress],
+    date: i64,
+    uid: String,
+) -> Option<(&'static str, String)> {
+    let kind = class.to_ascii_lowercase();
+    let kind = kind.strip_prefix("ipm.schedule.meeting.")?;
+    let (method, answer) = if kind.starts_with("request") {
+        ("REQUEST", None)
+    } else if kind.starts_with("canceled") {
+        ("CANCEL", None)
+    } else if kind.starts_with("resp.pos") {
+        ("REPLY", Some("ACCEPTED"))
+    } else if kind.starts_with("resp.neg") {
+        ("REPLY", Some("DECLINED"))
+    } else if kind.starts_with("resp.tent") {
+        ("REPLY", Some("TENTATIVE"))
+    } else {
+        return None;
+    };
+    let mut e = event_of(x, subject, body, from, guests, uid)?;
+    e.dtstamp = date;
+    if let Some(partstat) = answer {
+        let person = |a: &EmailAddress| Attendee { email: a.email.clone(), name: a.name.clone(), ..Default::default() };
+        e.organizer = guests.first().map(person);
+        e.attendees = vec![Attendee { partstat: partstat.into(), ..person(from) }];
+    } else if method == "CANCEL" {
+        e.status = "CANCELLED".into();
+    }
+    Some((method, ical::write(&[e], Some(method), date)))
 }
 
 struct Bytes<'a>(&'a [u8], usize);
@@ -348,121 +535,4 @@ pub(crate) fn recurrence(blob: &[u8], start: i64) -> Option<(String, Vec<i64>)> 
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use mailcraft_model::dates::days_from_civil;
-
-    /// Names in the string stream are found by their offset; a damaged offset or length is no name.
-    #[test]
-    fn names_in_the_string_stream() {
-        let mut stream = vec![0xAA, 0xBB];
-        for name in ["Keywords", "x-custom"] {
-            let bytes: Vec<u8> = name.encode_utf16().flat_map(u16::to_le_bytes).collect();
-            stream.extend((bytes.len() as u32).to_le_bytes());
-            stream.extend(bytes);
-        }
-        assert_eq!(name_at(&stream, 2).as_deref(), Some("Keywords"));
-        assert_eq!(name_at(&stream, 22).as_deref(), Some("x-custom"));
-        for at in [0, 1, 3, 21, 23, 1000, u32::MAX] {
-            let _ = name_at(&stream, at);
-        }
-        assert_eq!(name_at(&stream, 39), None, "past the end");
-        let huge = [0xFF, 0xFF, 0xFF, 0xFF, b'a', 0];
-        assert_eq!(name_at(&huge, 0), None);
-    }
-
-    fn minutes(y: i64, m: u32, d: u32) -> u32 {
-        u32::try_from((days_from_civil(y, m, d) * 1440) + EPOCH_MINUTES).unwrap()
-    }
-
-    fn blob(frequency: u16, pattern: u16, period: u32, specific: &[u32], end: (u32, u32), deleted: &[u32], modified: &[u32], first: u32) -> Vec<u8> {
-        let mut v = Vec::new();
-        for x in [0x3004u16, 0x3004, frequency, pattern, 0] {
-            v.extend(x.to_le_bytes());
-        }
-        let mut words = vec![first, period, 0];
-        words.extend(specific);
-        words.extend([end.0, end.1, 0, u32::try_from(deleted.len()).unwrap()]);
-        words.extend(deleted);
-        words.push(u32::try_from(modified.len()).unwrap());
-        words.extend(modified);
-        words.extend([first, minutes(4500, 1, 1), 0x3006, 0x3008, 9 * 60]);
-        for w in words {
-            v.extend(w.to_le_bytes());
-        }
-        v
-    }
-
-    #[test]
-    fn recurrence_patterns_become_rules() {
-        // Mondays and Wednesdays at 09:00 in UTC+2 (07:00Z), ten times, one deleted, one moved.
-        let first = minutes(2026, 10, 5);
-        let start = days_from_civil(2026, 10, 5) * 86_400 + 7 * 3600;
-        let b = blob(0x200B, 0x0001, 1, &[0b000_1010], (0x2022, 10), &[minutes(2026, 10, 7), minutes(2026, 10, 12)], &[minutes(2026, 10, 12)], first);
-        let (rule, ex) = recurrence(&b, start).unwrap();
-        assert_eq!(rule, "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;COUNT=10");
-        assert_eq!(ex, [days_from_civil(2026, 10, 7) * 86_400 + 7 * 3600]);
-        // Every second day, until a date.
-        let b = blob(0x200A, 0x0000, 2880, &[], (0x2021, 0), &[], &[], first);
-        let b = {
-            let mut b = b;
-            let at = b.len() - 4 * 4;
-            b.splice(at..at + 4, minutes(2026, 12, 31).to_le_bytes());
-            b
-        };
-        assert_eq!(recurrence(&b, start).unwrap().0, "FREQ=DAILY;INTERVAL=2;UNTIL=20261231T235959Z");
-        // Every weekday; the last Friday of each month; every year.
-        assert_eq!(recurrence(&blob(0x200A, 0x0001, 1, &[0x3E], (0x2023, 0), &[], &[], first), start).unwrap().0, "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR");
-        assert_eq!(
-            recurrence(&blob(0x200C, 0x0003, 1, &[0b010_0000, 5], (0x2023, 0), &[], &[], first), start).unwrap().0,
-            "FREQ=MONTHLY;INTERVAL=1;BYDAY=-1FR"
-        );
-        assert_eq!(recurrence(&blob(0x200D, 0x0002, 12, &[5], (0x2023, 0), &[], &[], first), start).unwrap().0, "FREQ=YEARLY;INTERVAL=1");
-        // Junk is no rule, and never a crash.
-        assert!(recurrence(&[], start).is_none());
-        assert!(recurrence(&b[..20], start).is_none());
-        assert!(recurrence(&blob(0x7777, 0x0001, 1, &[1], (0x2023, 0), &[], &[], first), start).is_none());
-        let mut huge = blob(0x200B, 0x0001, 1, &[1], (0x2023, 0), &[], &[], first);
-        huge.splice(38..42, u32::MAX.to_le_bytes());
-        assert!(recurrence(&huge, start).is_none());
-    }
-
-    /// A named start or end of a type that is not a time leaves the event without one: it does not
-    /// fall back to the plain start and end properties.
-    #[test]
-    fn a_mistyped_named_time_hides_the_fallback() {
-        let ids = HashMap::from([((PSETID_APPOINTMENT, 0x820D), 0x8001), ((PSETID_APPOINTMENT, 0x820E), 0x8002)]);
-        let named = Named { ids, keywords: None };
-        let props = HashMap::from([(0x8001, Val::Other), (0x8002, Val::Time(133_485_408_000_000_000)), (0x0060, Val::Time(133_485_408_000_000_000))]);
-        let x = extract(&|id| props.get(&id).cloned(), &named);
-        assert_eq!((x.start, x.end), (None, Some(1_704_067_200)));
-    }
-
-    #[test]
-    fn contacts_and_appointments_map() {
-        let x = Extra {
-            given: "Ana".into(),
-            family: "Lima".into(),
-            company: "Contoso".into(),
-            emails: vec!["ana@contoso.example".into()],
-            phones: vec![("+1 555 0100".into(), "cell")],
-            ..Default::default()
-        };
-        let c = card_of(&x, "Met at the fair.\r\n", "u1".into());
-        assert_eq!((c.name.as_str(), c.org.as_str(), c.note.as_str()), ("Ana Lima", "Contoso", "Met at the fair."));
-        assert_eq!(c.phones[0], Typed { value: "+1 555 0100".into(), kind: "cell".into() });
-        let day = days_from_civil(2026, 10, 20) * 86_400;
-        // An all-day item stored at local midnight in UTC+6 (18:00Z the day before).
-        let x =
-            Extra { start: Some(day - 6 * 3600), end: Some(day + 86_400 - 6 * 3600), all_day: true, location: "Hall".into(), ..Default::default() };
-        let e = event_of(&x, "Fair", "", &EmailAddress::default(), &[], "u2".into()).unwrap();
-        assert_eq!((e.start, e.end, e.all_day, e.uid.as_str(), e.location.as_str()), (day, day + 86_400, true, "u2", "Hall"));
-        assert!(e.organizer.is_none());
-        let x = Extra { start: Some(day + 3600), end: Some(day), uid: "0400".into(), ..Default::default() };
-        let ana = EmailAddress::new("Ana", "ana@contoso.example");
-        let e = event_of(&x, "Call", "", &EmailAddress::new("Me", "me@x.example"), std::slice::from_ref(&ana), "u3".into()).unwrap();
-        assert_eq!((e.end, e.uid.as_str()), (day + 3600, "0400"));
-        assert_eq!(e.organizer.unwrap().email, "me@x.example");
-        assert!(event_of(&Extra::default(), "", "", &EmailAddress::default(), &[], "u".into()).is_none());
-    }
-}
+mod tests;

@@ -48,6 +48,14 @@ fn take_text(it: &mut Item) -> String {
 fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool), String> {
     // An S/MIME item's content, kept aside to go back in once its header fields are made.
     let protected = super::protected::kind(&it.class).and_then(|kind| Some((kind, super::protected::content(&it.files)?.to_vec())));
+    // A meeting request's, cancellation's or answer's calendar, unless it carries one already.
+    let has_calendar = it.files.iter().any(|f| {
+        matches!(f, File::Data { name, mime, .. } if mime.to_ascii_lowercase().starts_with("text/calendar") || name.to_ascii_lowercase().ends_with(".ics"))
+    });
+    let calendar = it.extra.as_ref().filter(|_| !has_calendar).and_then(|x| {
+        let guests: Vec<EmailAddress> = it.to.iter().chain(&it.cc).cloned().collect();
+        crate::pst_pim::invitation(x, &it.class, &it.subject, &text, &it.from, &guests, it.date, fallback_id.to_string())
+    });
     let html = it.html.take().filter(|h| !h.trim().is_empty());
     let mut d = Draft {
         to: std::mem::take(&mut it.to),
@@ -82,6 +90,14 @@ fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool
                 d.attachments.push(OutAttachment { name: format!("{subject}.eml"), mime: "message/rfc822".into(), data: raw, ..Default::default() });
             }
         }
+    }
+    if let Some((method, ics)) = calendar {
+        d.attachments.push(OutAttachment {
+            name: "invite.ics".into(),
+            mime: format!("text/calendar; method={method}"),
+            data: ics.into_bytes(),
+            ..Default::default()
+        });
     }
     d.html = html;
     // An id from the file goes into a header line: no spaces or line breaks.

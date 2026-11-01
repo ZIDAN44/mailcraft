@@ -273,11 +273,16 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
     build(it, &fallback, ctx.packs, &ctx.tally)
 }
 
-/// Whether an item of `class` comes in as mail: meeting requests and receipts are mail too;
-/// appointments, contacts and tasks in a mail folder aren't.
+/// Whether an item of `class` comes in as mail: meeting requests and receipts are mail too, and so
+/// are a post and a document; appointments, contacts and tasks in a mail folder aren't.
 pub(super) fn is_mail(class: &str) -> bool {
     let class = class.to_ascii_lowercase();
-    class.is_empty() || class.starts_with("ipm.note") || class.starts_with("ipm.schedule") || class.starts_with("report.")
+    class.is_empty()
+        || class.starts_with("ipm.note")
+        || class.starts_with("ipm.schedule")
+        || class.starts_with("report.")
+        || class.starts_with("ipm.post")
+        || class.starts_with("ipm.document")
 }
 
 /// An item's bytes as read: its text and its files'.

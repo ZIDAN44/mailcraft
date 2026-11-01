@@ -785,6 +785,7 @@ mod embedded;
 mod files;
 mod losses;
 mod options;
+mod pim_gaps;
 mod pipeline;
 mod protected;
 mod reader;

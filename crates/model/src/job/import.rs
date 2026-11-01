@@ -158,13 +158,14 @@ pub enum SkipReason {
     CharsetUnsupported,
     FolderUnreadable,
     FolderTooDeep,
-    /// A folder of a kind MailCraft has no place for (a journal, RSS feeds), holding items; and
+    /// A folder of a kind MailCraft has no place for (RSS feeds, a list of rules), holding items; and
     /// those items.
     FolderLeftOut,
     ItemInFolderLeftOut,
     /// A contact, calendar item, task or note that couldn't be read at all…
     ItemUnreadable,
-    /// …or that was read but can't be used (an empty note, a task with no date).
+    /// …or that was read but can't be used (an empty note, a task with no date, a contact or
+    /// a sharing invitation in a mail folder).
     ItemNotUsable,
     /// The file is damaged past this point: reading stopped.
     StoppedEarly,
