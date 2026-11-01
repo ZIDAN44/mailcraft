@@ -15,6 +15,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `imap` | everything an IMAP server sends through a session (greeting to MOVE, with a folder sync) |
 | `jmap` | a JMAP server's answers (split at form feeds) through sign-in, folder list and folder sync; push events; URLs |
 | `search` | the search box: the query language, its dates on any clock, a query checked against a message and its text, folding, the Advanced form, JMAP filters, modified UTF-7; lookalike senders, known names on other addresses, External |
+| `data_file` | an account's data file as a build before 0.32 may have left it, damaged any way (files whole and in pieces, notes of any length, pieces missing, compressed or raw, the search index's, its `meta` table): its health measured, then compressed again, stopped after a batch and gone on with, and every file that read back before reads back the same |
 | `search_index` | an account's search index as its files read back (meta, doc table, text pages, segments), each damaged any way: opened, words looked up whole and a page at a time, texts read, a commit followed, and written to |
 | `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
 | `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files; a message told signed or encrypted from its header alone, never wrongly told it isn't |

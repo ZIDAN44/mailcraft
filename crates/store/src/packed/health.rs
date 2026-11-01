@@ -117,7 +117,7 @@ fn compresses_to(bytes: &[u8]) -> Option<usize> {
 
 /// What the walk of `FILES` adds up.
 #[derive(Default)]
-struct Walk {
+pub(super) struct Walk {
     files: u64,
     kept: u64,
     live: u64,
@@ -181,7 +181,7 @@ impl Packs {
 /// One walk of `FILES`: every file's kept length and the bytes it takes, and when `sample`, one
 /// file in [`SAMPLE_EVERY`] (big enough to compress, and not the index's) looked at: kept raw, its
 /// first piece (at most [`TRIAL_MAX`]) is compressed to see whether it would be.
-fn walk(tx: &redb::ReadTransaction, sample: bool) -> io::Result<Walk> {
+pub(super) fn walk(tx: &redb::ReadTransaction, sample: bool) -> io::Result<Walk> {
     let mut w = Walk::default();
     let files = match tx.open_table(FILES) {
         Ok(t) => t,

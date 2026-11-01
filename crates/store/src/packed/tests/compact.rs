@@ -371,3 +371,57 @@ fn a_write_from_the_window_waits_little_for_a_recompress() {
     drop(s);
     let _ = std::fs::remove_dir_all(&t);
 }
+
+/// A fuzz input of records (`fuzz_db`): a value in `FILES`, `PIECES` or `META`.
+fn record(out: &mut Vec<u8>, kind: u8, key: &str, piece: Option<u8>, value: &[u8], times: u8) {
+    out.push(kind);
+    out.push(key.len() as u8);
+    out.extend_from_slice(key.as_bytes());
+    if let Some(n) = piece {
+        out.push(n);
+    }
+    out.extend_from_slice(&(value.len() as u16).to_le_bytes());
+    out.push(times);
+    out.extend_from_slice(value);
+}
+
+/// The fuzz target's input that every kind of file is in (its seed, `fuzz/seeds/data_file`).
+fn fuzz_seed() -> Vec<u8> {
+    let mut i = Vec::new();
+    let line = b"QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ejAxMjM0\r\n";
+    record(&mut i, b'F', "INBOX/1/1.eml", None, line, 40);
+    let mut note = b"\0MailCraft:pieces\0".to_vec();
+    note.extend_from_slice(&(line.len() as u64 * 100).to_le_bytes());
+    record(&mut i, b'F', "INBOX/1/2.eml", None, &note, 1);
+    record(&mut i, b'P', "INBOX/1/2.eml", Some(0), line, 50);
+    record(&mut i, b'P', "INBOX/1/2.eml", Some(1), line, 50);
+    record(&mut i, b'F', "INBOX/1/3.eml", None, b"\0MailCraft:pieces\0\xff\xff\xff\xff\0\0\0\0", 1);
+    record(&mut i, b'F', "INBOX/1/4.eml", None, b"\0MailCraft:deflate\0\x03\0", 1);
+    record(&mut i, b'F', "search/a1/seg1", None, line, 30);
+    record(&mut i, b'F', "Sent/1/1.eml", None, &noise(3000, 5), 1);
+    record(&mut i, b'M', "recompress.cursor", None, b"INBOX/1/1.eml", 1);
+    record(&mut i, b'M', "deflate", None, &1u64.to_le_bytes(), 1);
+    i
+}
+
+/// The fuzz target's hook, on its seed (every file reads back the same once compressed again), and
+/// on that seed damaged every way a few hundred times (never a panic).
+#[test]
+fn the_fuzz_targets_data_files_read_back_the_same() {
+    let seed = fuzz_seed();
+    assert!(crate::fuzz_data_file(&seed));
+    let written = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/data_file/kinds");
+    assert_eq!(std::fs::read(&written).ok().as_deref(), Some(seed.as_slice()), "fuzz/seeds/data_file/kinds is the seed made here");
+    let mut x = 0x2545_f491_4f6c_dd1du64;
+    for round in 0..300 {
+        let mut input = seed.clone();
+        for _ in 0..1 + round % 8 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            let at = (x >> 8) as usize % input.len();
+            input[at] = (x >> 40) as u8;
+        }
+        assert!(crate::fuzz_data_file(&input), "round {round}");
+    }
+}

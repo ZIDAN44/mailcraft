@@ -23,6 +23,9 @@ pub(super) const DEFLATE_MIN: usize = 1024;
 const DEFLATE_ROOM: (usize, usize) = (8, 10);
 /// The most a compressed file may come to (a crafted data file can't fill the memory).
 pub(super) const INFLATE_MAX: u64 = 1 << 30;
+/// The most set aside at once for a file in pieces, before its pieces are read: its note says how
+/// long it is, and a crafted one can say 1 GiB with no pieces at all.
+const RESERVE_MAX: usize = 64 << 20;
 
 /// A file as kept: compressed (fast deflate) when that saves a tenth or more.
 ///
@@ -160,7 +163,7 @@ impl Tables<'_> {
     pub(super) fn take_kept(&mut self, key: &str) -> io::Result<Option<Vec<u8>>> {
         let Some(v) = self.files.remove(key).map_err(disk)?.map(|g| g.value().to_vec()) else { return Ok(None) };
         let Some(len) = pieced_len(&v) else { return Ok(Some(v)) };
-        let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(1 << 30));
+        let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(RESERVE_MAX));
         for (_, piece) in self.pieces.extract_from_if((key, 0)..=(key, u32::MAX), |_, _| true).map_err(disk)?.flatten() {
             out.extend_from_slice(piece.value());
         }
@@ -190,7 +193,7 @@ pub(super) fn read_file(
     let Some(v) = files.get(key).map_err(other)?.map(|g| g.value().to_vec()) else { return Ok(None) };
     let Some(len) = pieced_len(&v) else { return unpack(v).map(Some) };
     let pieces = tx.open_table(PIECES).map_err(other)?;
-    let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(1 << 30));
+    let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(RESERVE_MAX));
     for item in pieces.range((key, 0)..=(key, u32::MAX)).map_err(other)? {
         let (_, piece) = item.map_err(other)?;
         out.extend_from_slice(piece.value());

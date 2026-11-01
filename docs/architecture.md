@@ -140,7 +140,8 @@ only if it's what was read (its length and a hash of every piece), so one writte
 is left as written; the search index's files, those compressed already, small ones and damaged
 ones are passed over, and those tried that stayed as they were (pictures) are counted in `meta`
 with what the others saved. Its last commit is sealed: once stopped, to put the cursor on the disk;
-at the end, to say the file is all kept as this build keeps it.
+at the end, to say the file is all kept as this build keeps it. The `data_file` fuzz target builds
+a hostile file in memory from records and checks every file reads back the same after it.
 
 ## The browser (`apps/mailcraft-web`)
 

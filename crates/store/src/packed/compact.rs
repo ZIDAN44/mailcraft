@@ -73,7 +73,7 @@ pub(super) enum Step {
     Last,
 }
 
-/// What a run works on: an account's data file in the store.
+/// What a run works on: an account's data file in the store, or a database the fuzz target made.
 pub(super) trait Target {
     /// The database, as it is now (an account's file is taken up for each batch, not held for the
     /// whole run: it can be let go of, or opened again with another cache, between them).
@@ -373,4 +373,111 @@ impl Packs {
         let target = Account { packs: self, account, reopened: self.reopened(account) };
         recompress(&target, cancel, progress).map(Some)
     }
+}
+
+/// A database of its own, in memory, as a fuzz target's [`Target`].
+struct InMemory(Arc<Database>);
+
+impl Target for InMemory {
+    fn db(&self) -> io::Result<Arc<Database>> {
+        Ok(self.0.clone())
+    }
+
+    fn commit(&self, _: Step, f: &mut dyn FnMut(&mut Tables<'_>, &redb::WriteTransaction) -> io::Result<()>) -> io::Result<()> {
+        let tx = self.0.begin_write().map_err(disk)?;
+        {
+            let mut t = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)? };
+            f(&mut t, &tx)?;
+        }
+        tx.commit().map_err(disk)
+    }
+}
+
+/// The most a fuzz input's values come to, repeated: room for files in pieces and batches.
+const FUZZ_MAX: usize = 8 << 20;
+
+/// A data file from a fuzz input (`fuzz/fuzz_targets/store/data_file.rs`), in memory: records one
+/// after another, each a letter saying where it goes (`F` a value in `FILES`: a whole file, or the
+/// note of one in pieces; `P` a piece; `M` a value in `META`), its key's length (a byte) and key,
+/// for a piece its number (a byte), then its value's length (two bytes, little-endian), a count of
+/// times it's repeated (a byte) and the value.
+fn fuzz_db(input: &[u8]) -> io::Result<Database> {
+    let db = Database::builder().create_with_backend(redb::backends::InMemoryBackend::new()).map_err(other)?;
+    let tx = db.begin_write().map_err(disk)?;
+    {
+        let mut files = tx.open_table(FILES).map_err(disk)?;
+        let mut pieces = tx.open_table(PIECES).map_err(disk)?;
+        let mut meta = tx.open_table(META).map_err(disk)?;
+        let (mut at, mut total) = (0usize, 0usize);
+        let mut take = |n: usize| -> Option<&[u8]> {
+            let s = input.get(at..at.checked_add(n)?)?;
+            at += n;
+            Some(s)
+        };
+        while let Some(&[kind]) = take(1) {
+            let Some(&[klen]) = take(1) else { break };
+            let Some(key) = take(usize::from(klen)).map(|k| String::from_utf8_lossy(k).into_owned()) else { break };
+            let piece = if kind == b'P' {
+                let Some(&[n]) = take(1) else { break };
+                u32::from(n)
+            } else {
+                0
+            };
+            let Some(&[lo, hi, times]) = take(3) else { break };
+            let Some(one) = take(usize::from(u16::from_le_bytes([lo, hi]))) else { break };
+            let value = one.repeat(usize::from(times.max(1)));
+            total = total.saturating_add(value.len());
+            if total > FUZZ_MAX {
+                break;
+            }
+            match kind {
+                b'F' => drop(files.insert(key.as_str(), value.as_slice()).map_err(disk)?),
+                b'P' => drop(pieces.insert((key.as_str(), piece), value.as_slice()).map_err(disk)?),
+                b'M' => drop(meta.insert(key.as_str(), value.as_slice()).map_err(disk)?),
+                _ => {}
+            }
+        }
+    }
+    tx.commit().map_err(disk)?;
+    Ok(db)
+}
+
+/// Every file of `db` as it reads back (`None`: it doesn't).
+fn read_all(db: &Database) -> BTreeMap<String, Option<Vec<u8>>> {
+    let mut out = BTreeMap::new();
+    let Ok(tx) = db.begin_read() else { return out };
+    let Ok(files) = tx.open_table(FILES) else { return out };
+    let Ok(iter) = files.iter() else { return out };
+    let keys: Vec<String> = iter.filter_map(|i| i.ok().map(|(k, _)| k.value().to_string())).collect();
+    for k in keys {
+        let v = read_file(&tx, &files, &k).ok().flatten();
+        out.insert(k, v);
+    }
+    out
+}
+
+/// A hostile data file (see [`fuzz_db`]) measured as its health is, compressed again (stopped
+/// after its first batch, gone on with, then once more with nothing left to do), and read back
+/// whole: whether every file that read back before reads back the same.
+#[doc(hidden)]
+pub fn fuzz_data_file(input: &[u8]) -> bool {
+    let Ok(db) = fuzz_db(input) else { return true };
+    let db = Arc::new(db);
+    if let Ok(tx) = db.begin_read() {
+        let _ = read_meta(&tx);
+        let _ = walk(&tx, true);
+    }
+    let before = read_all(&db);
+    let target = InMemory(db.clone());
+    let (stop, mut heard) = (AtomicBool::new(false), 0);
+    let _ = recompress(&target, &stop, &mut |_| {
+        heard += 1;
+        // Heard once as it starts, then after each batch.
+        stop.store(heard >= 2, Ordering::Relaxed);
+    });
+    let go = AtomicBool::new(false);
+    let _ = recompress(&target, &go, &mut |_| {});
+    let _ = recompress(&target, &go, &mut |_| {});
+    let after = read_all(&db);
+    before.into_iter().all(|(k, v)| v.is_none_or(|v| after.get(&k).is_some_and(|a| a.as_ref() == Some(&v))))
 }

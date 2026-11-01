@@ -30,6 +30,7 @@ mod health;
 mod kept;
 mod open;
 use commit::*;
+pub use compact::fuzz_data_file;
 use health::*;
 use kept::*;
 pub(crate) use kept::{pack_owned, unpack};
