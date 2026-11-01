@@ -97,8 +97,8 @@ impl Session {
             }
         }
         // The one read before, kept in the list only while it was read (`refresh_list`), goes.
-        if prev.as_ref().and_then(|k| self.summary(k)).is_some_and(|m| !self.filter_keeps(self.filter, m)) {
-            self.refresh_list();
+        if let Some(prev) = prev.filter(|k| self.summary(k).is_some_and(|m| !self.filter_keeps(self.filter, m))) {
+            self.drop_from_list(&prev);
         }
     }
 

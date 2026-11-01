@@ -27,13 +27,14 @@ impl Session {
         }
         let local = self.account(account).is_none_or(AccountState::is_local);
         self.apply_op_memory(account, &op);
-        let done = if local {
-            self.apply_op_local(account, &op)
-        } else {
+        let done = if local { self.apply_op_local(account, &op) } else { Ok(()) };
+        // A flag or category is changed in the list as it stands, where that gives the same list.
+        if !self.patch_list(&op) {
+            self.refresh_list();
+        }
+        if !local {
             self.jobs.push(Job::Apply { account: account.to_string(), op });
-            Ok(())
-        };
-        self.refresh_list();
+        }
         done
     }
 

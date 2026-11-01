@@ -7,6 +7,8 @@ use super::*;
 use crate::model::{EmailAddress, MessageKey, Summary};
 use crate::session::{Arrange, arrange_list};
 
+mod patch;
+
 /// A session over nothing, its list `list` indexed as `refresh_list` indexes it.
 fn indexed(list: Vec<Summary>) -> Session {
     let mut s = Session::open(None, mailcraft_model::dates::Clock::new(NOW, 0));
@@ -171,8 +173,8 @@ fn opening_read_mail_works_nothing_out() {
     for k in &keys {
         s.open_message(k);
     }
-    // The last read mark built the list again: its conversations come with the first look.
-    let built = s.nav.threadings() + 1;
+    // A read mark changes the list as it stands: the conversations worked out are kept.
+    let built = s.nav.threadings();
     for k in keys.iter().chain(&keys) {
         s.open_message(k);
         assert!(s.reading.as_ref().is_some_and(|r| r.thread.contains(k)), "a message is in its own conversation");

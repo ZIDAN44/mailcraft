@@ -133,7 +133,12 @@ written (`Compose`), preferences and status-bar notices.
   pinned mail) are built with it too, and again by `tick()` when the day turns: `rows()` lends
   them, Up, Down and Shift+click look their row up (a step copies one key, a Shift range as
   many as it selects), and the interface lays the rows out again only when `nav_structure()`
-  changes.
+  changes. A flag or category changed on mail in the list is taken into the list as it stands
+  (`patch_list` in `session/mailboxes/patch.rs`) rather than by building it again, where that
+  gives the same list: a read mark counts its row's unread again, mail the filter now leaves out
+  goes, a list arranged by flag is arranged again and a pin lays the rows out again; a search,
+  the Outbox, deleted and junk marks, and mail the filter lets in are built again. The proptest
+  `patched_list_equals_refresh` holds it to `refresh_list`.
 
 - `run(id, params)` dispatches a command from the registry (`cmd.rs`), checking `enabled` first and
   catching panics.

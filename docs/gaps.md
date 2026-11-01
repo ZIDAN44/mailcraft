@@ -1412,7 +1412,14 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   those passed over keep their flags. With nothing focused, such a step lands where as many
   single Downs would; Page Down still goes to the top row. A step also built every row of the
   list again to find where it was (1.5 to 11 ms on 20,000 messages, by the arrangement); the
-  rows are now kept with the list and a step looks its row up.
+  rows are now kept with the list and a step looks its row up. Marking the message landed on
+  read built the whole list again as well (each message copied out of the folder, filtered,
+  arranged, its conversations and rows worked out): a read mark, a flag or a category now
+  changes the list as it stands, counting its row's unread again, taking out what the filter
+  now leaves out (shown Unread only, the message read goes once another is opened), arranging
+  the list again only when it's arranged by flag. Opening and marking read 100 messages in a
+  made-up folder of 10,941 took 2.1 s, now 0.5 s. With a search open the list is still built
+  again.
 - **A message with many pictures:** each thumbnail read and parsed the whole message again, in
   the frame drawing it (a 33 MB message with 36 pictures took 2.6 s to show), and past 64 the
   thumbnails were thrown away and made again every frame, so the window froze for as long as the

@@ -131,6 +131,11 @@ impl Session {
         self.list.iter().position(|m| &m.key == key)
     }
 
+    /// Whether the list's index was built for the list as it is (not one changed by hand since).
+    pub(super) fn nav_fresh(&self) -> bool {
+        self.nav.len == self.list.len()
+    }
+
     pub fn summary(&self, key: &MessageKey) -> Option<&Summary> {
         self.index_of(key).and_then(|i| self.list.get(i))
     }
