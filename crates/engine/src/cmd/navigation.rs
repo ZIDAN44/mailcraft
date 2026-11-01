@@ -80,17 +80,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"key": string (from the anchor to it), "add"?: bool (keep the rest selected: Ctrl+Shift+click)}"#),
         // `by`: a key held down repeats faster than a frame; the window sends the presses queued
         // in one as a single step, so only the message landed on is read (and marked read).
-        CommandSpec::new("list.next", "Next message", "Message list", |s, v| s.move_focus(Toward::By(by(v)))).key("Down / J").params(BY),
-        CommandSpec::new("list.prev", "Previous message", "Message list", |s, v| s.move_focus(Toward::By(-by(v)))).key("Up / K").params(BY),
+        CommandSpec::new("list.next", "Next message", "Message list", |s, v| s.move_focus(Toward::Steps(by(v)))).key("Down / J").params(BY),
+        CommandSpec::new("list.prev", "Previous message", "Message list", |s, v| s.move_focus(Toward::Steps(-by(v)))).key("Up / K").params(BY),
         CommandSpec::new("list.first", "First message", "Message list", |s, _| s.move_focus(Toward::First)).key("Home"),
         CommandSpec::new("list.last", "Last message", "Message list", |s, _| s.move_focus(Toward::Last)).key("End"),
         CommandSpec::new("list.pageDown", "A page down", "Message list", |s, v| s.move_focus(Toward::By(page(v)))).key("PageDown").params(PAGE),
         CommandSpec::new("list.pageUp", "A page up", "Message list", |s, v| s.move_focus(Toward::By(-page(v)))).key("PageUp").params(PAGE),
         // Shift with them: selected from the anchor to where the focus goes (issue #26).
-        CommandSpec::new("list.extendNext", "Select the next message too", "Message list", |s, v| s.extend_selection(Toward::By(by(v))))
+        CommandSpec::new("list.extendNext", "Select the next message too", "Message list", |s, v| s.extend_selection(Toward::Steps(by(v))))
             .key("Shift+Down")
             .params(BY),
-        CommandSpec::new("list.extendPrev", "Select the previous message too", "Message list", |s, v| s.extend_selection(Toward::By(-by(v))))
+        CommandSpec::new("list.extendPrev", "Select the previous message too", "Message list", |s, v| s.extend_selection(Toward::Steps(-by(v))))
             .key("Shift+Up")
             .params(BY),
         CommandSpec::new("list.extendFirst", "Select to the first message", "Message list", |s, _| s.extend_selection(Toward::First)).key("Shift+Home"),

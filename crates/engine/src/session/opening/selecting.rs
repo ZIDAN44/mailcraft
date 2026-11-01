@@ -7,8 +7,11 @@ use super::*;
 /// Where the focus goes in the list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Toward {
-    /// So many rows down (up, when less than 0).
+    /// So many rows down (up, when less than 0): a page. With no focus, the top row.
     By(i64),
+    /// So many single steps down (up, when less than 0): Down or Up pressed n times. With no
+    /// focus, where n single steps land, the first of them on the top row.
+    Steps(i64),
     First,
     Last,
 }
@@ -38,16 +41,16 @@ impl Session {
         rows.iter().position(|k| members.contains(k))
     }
 
-    /// The row the focus goes to from where it is (no focus: from the top, the first step down
-    /// landing on the first row, as n single steps do).
+    /// The row the focus goes to from where it is (no focus: a page goes to the top row, n single
+    /// steps from the top, the first of them landing on the first row).
     fn row_toward(&self, rows: &[MessageKey], toward: Toward) -> Option<usize> {
         let last = rows.len().checked_sub(1)?;
         let cur = self.focus.as_ref().and_then(|k| self.row_of(rows, k));
         Some(match (toward, cur) {
-            (Toward::First, _) => 0,
+            (Toward::First, _) | (Toward::By(_), None) => 0,
             (Toward::Last, _) => last,
-            (Toward::By(n), None) => usize::try_from(n.saturating_sub(1).max(0)).unwrap_or(usize::MAX).min(last),
-            (Toward::By(n), Some(c)) => {
+            (Toward::Steps(n), None) => usize::try_from(n.saturating_sub(1).max(0)).unwrap_or(usize::MAX).min(last),
+            (Toward::By(n) | Toward::Steps(n), Some(c)) => {
                 let c = i64::try_from(c).unwrap_or(i64::MAX);
                 usize::try_from(c.saturating_add(n).max(0)).unwrap_or(0).min(last)
             }
@@ -68,9 +71,10 @@ impl Session {
     /// (going back toward the anchor selects less), as in Outlook's list.
     pub fn extend_selection(&mut self, toward: Toward) -> CmdResult {
         let rows = self.row_keys();
-        // Nothing chosen yet: a step of n starts where the first of n single steps lands, the top.
+        // Nothing chosen yet: n steps start where the first of n single steps lands, the top (a
+        // page selects the top row alone, as it did before).
         let placed = |k: &Option<MessageKey>| k.as_ref().and_then(|k| self.row_of(&rows, k)).is_some();
-        if matches!(toward, Toward::By(_)) && !placed(&self.anchor) && !placed(&self.focus) {
+        if matches!(toward, Toward::Steps(_)) && !placed(&self.anchor) && !placed(&self.focus) {
             self.anchor = rows.first().cloned();
         }
         match self.row_toward(&rows, toward) {

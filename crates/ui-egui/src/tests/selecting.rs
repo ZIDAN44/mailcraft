@@ -225,3 +225,35 @@ fn queued_downs_read_only_the_message_landed_on() {
     assert_eq!(a.session.selection.len(), 3);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The same on an Inbox longer than the presses (the sample's is shorter, so the test above stops
+/// at its last row): 20 Downs in one frame read the 21st message, and only it.
+#[test]
+fn twenty_queued_downs_land_twenty_rows_on() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-ui-twenty-downs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    sample::seed_if_empty(&store, NOW).unwrap();
+    let mut st = store.load_folder(sample::SAMPLE_ACCOUNT, "INBOX").unwrap();
+    let first = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    for uid in first..first + 30 {
+        let key = MessageKey { account: sample::SAMPLE_ACCOUNT.into(), folder: "INBOX".into(), validity: st.validity, uid };
+        store.write_body(&key, format!("From: a@x.example\r\nSubject: Message {uid}\r\n\r\nText.\r\n").as_bytes()).unwrap();
+        let date = NOW - 86_400 * i64::from(uid);
+        st.messages.push(Summary { key, subject: format!("Message {uid}"), date, ..Default::default() });
+    }
+    store.save_folder(sample::SAMPLE_ACCOUNT, "INBOX", &st).unwrap();
+    let mut a = MailApp::new(Session::open(Some(store), Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(NullServices(NOW)));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    let keys = a.session.row_keys();
+    assert!(keys.len() > 21, "{}", keys.len());
+    let shown = a.session.messages_shown();
+    let downs =
+        (0..20).map(|i| Event::Key { key: Key::ArrowDown, physical_key: None, pressed: true, repeat: i > 0, modifiers: Modifiers::NONE }).collect();
+    frame(&ctx, &mut a, downs);
+    assert_eq!(a.session.reading.as_ref().map(|r| &r.key), Some(&keys[20]), "20 rows on");
+    assert_eq!(a.session.messages_shown(), shown + 1, "one message shown for 20 presses");
+    let _ = std::fs::remove_dir_all(dir);
+}

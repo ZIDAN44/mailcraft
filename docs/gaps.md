@@ -1406,7 +1406,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   every 727 ms (median) and marked read every message it passed. The presses of Down or Up (J,
   K, with Shift too) queued in one frame are now one step of so many messages (`list.next
   {"by": n}`): only the message landed on is read and marked read, as in Outlook's list, and
-  those passed over keep their flags.
+  those passed over keep their flags. With nothing focused, such a step lands where as many
+  single Downs would; Page Down still goes to the top row.
 - **A message with many pictures:** each thumbnail read and parsed the whole message again, in
   the frame drawing it (a 33 MB message with 36 pictures took 2.6 s to show), and past 64 the
   thumbnails were thrown away and made again every frame, so the window froze for as long as the

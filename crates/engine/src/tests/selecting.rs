@@ -303,4 +303,51 @@ fn several_steps_from_nothing_focused() {
     s.run("list.prev", &json!({"by": 3})).unwrap();
     assert_eq!(focus(&s), all[0]);
     done(s);
+    // A page from nothing focused isn't steps: Page Down goes to the top row, and Shift+Page
+    // Down selects it alone (found reviewing the coalesced Down presses).
+    let mut s = sample_session("steps-none-page");
+    s.run("list.pageDown", &json!({"rows": 3})).unwrap();
+    assert_eq!(focus(&s), all[0]);
+    done(s);
+    let mut s = sample_session("steps-none-extend-page");
+    s.run("list.extendPageDown", &json!({"rows": 3})).unwrap();
+    assert_eq!(selected(&s), vec![all[0].clone()]);
+    done(s);
+}
+
+/// A session whose Inbox has `extra` more messages than the sample's, all unread.
+fn long_session(name: &str, extra: u32) -> Session {
+    let store = temp(name);
+    assert!(sample::seed_if_empty(&store, NOW).unwrap());
+    let a = sample::SAMPLE_ACCOUNT;
+    let mut st = store.load_folder(a, "INBOX").unwrap();
+    let first = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    for uid in first..first + extra {
+        let key = MessageKey { account: a.into(), folder: "INBOX".into(), validity: st.validity, uid };
+        store.write_body(&key, format!("From: a@x.example\r\nSubject: Message {uid}\r\n\r\nText.\r\n").as_bytes()).unwrap();
+        let date = NOW - 86_400 * i64::from(uid);
+        st.messages.push(mailcraft_model::Summary { key, subject: format!("Message {uid}"), date, ..Default::default() });
+    }
+    store.save_folder(a, "INBOX", &st).unwrap();
+    Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0))
+}
+
+/// Twenty Downs held in one frame on a list longer than that: one step of 20 lands where 20
+/// single steps do, the 21st row, and reads that message alone.
+#[test]
+fn twenty_steps_on_a_long_list() {
+    let mut s = long_session("steps-twenty", 30);
+    let all = rows(&s);
+    assert!(all.len() > 21, "{}", all.len());
+    s.run("list.first", &json!({})).unwrap();
+    let shown = s.messages_shown();
+    s.run("list.next", &json!({"by": 20})).unwrap();
+    assert_eq!(focus(&s), all[20]);
+    assert_eq!(s.messages_shown(), shown + 1);
+    s.run("list.first", &json!({})).unwrap();
+    for _ in 0..20 {
+        s.run("list.next", &json!({})).unwrap();
+    }
+    assert_eq!(focus(&s), all[20], "as 20 single steps");
+    done(s);
 }
