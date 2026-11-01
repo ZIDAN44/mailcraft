@@ -39,27 +39,43 @@ enum Ask {
 }
 
 /// Events of which only the newest for an account matters (how its pass is going), held until
-/// the window takes them: a window minimised through a long pass holds one, not hundreds.
+/// the window takes them: a window minimised through a long pass holds one, not hundreds. A
+/// pass's end is kept apart from how the next is going, so one starting at once doesn't hide it.
 #[derive(Default)]
-struct Latest(Mutex<BTreeMap<String, Event>>);
+pub(super) struct Latest(Mutex<BTreeMap<String, (Option<Event>, Option<Event>)>>);
 
 impl Latest {
-    fn put(&self, account: &str, e: Event) {
-        lock(&self.0).insert(account.to_string(), e);
+    pub(super) fn put(&self, account: &str, e: Event) {
+        let mut g = lock(&self.0);
+        let (ended, going) = g.entry(account.to_string()).or_default();
+        if matches!(e, Event::Indexed { finished: true, .. }) {
+            *ended = Some(e);
+            *going = None;
+        } else {
+            *going = Some(e);
+        }
     }
 
-    fn take(&self) -> Vec<Event> {
-        std::mem::take(&mut *lock(&self.0)).into_values().collect()
+    pub(super) fn take(&self) -> Vec<Event> {
+        std::mem::take(&mut *lock(&self.0)).into_values().flat_map(|(ended, going)| ended.into_iter().chain(going)).collect()
     }
 
-    fn pop(&self) -> Option<Event> {
-        lock(&self.0).pop_first().map(|(_, e)| e)
+    pub(super) fn pop(&self) -> Option<Event> {
+        let mut g = lock(&self.0);
+        let mut first = g.first_entry()?;
+        let (ended, going) = first.get_mut();
+        let e = ended.take().or_else(|| going.take());
+        if ended.is_none() && going.is_none() {
+            first.remove();
+        }
+        e
     }
 }
 
 #[derive(Default)]
 struct Shared {
-    /// Accounts a data file is being imported into: their passes wait for its end.
+    /// Accounts a data file is being imported into: their passes wait for its end. Held while a
+    /// pass is chosen and said to be running, so an import or a stop then comes before or after.
     importing: Mutex<HashSet<String>>,
     /// The account whose pass is running, and what stops it.
     running: Mutex<Option<(String, Arc<AtomicBool>)>>,
@@ -120,6 +136,7 @@ impl Indexer {
 
     /// Stop `account`'s pass if one is running, and forget what was asked of it.
     pub(super) fn stop(&self, account: &str) {
+        let _choosing = lock(&self.shared.importing);
         if let Some((a, stop)) = lock(&self.shared.running).as_ref()
             && a == account
         {
@@ -133,12 +150,14 @@ impl Indexer {
     /// A data file is being imported into `account`: its pass stops, and none runs for it until
     /// what this returns is dropped.
     pub(super) fn importing(&self, account: &str) -> Importing {
-        lock(&self.shared.importing).insert(account.to_string());
+        let mut importing = lock(&self.shared.importing);
+        importing.insert(account.to_string());
         if let Some((a, stop)) = lock(&self.shared.running).as_ref()
             && a == account
         {
             stop.store(true, Ordering::Relaxed);
         }
+        drop(importing);
         Importing { shared: self.shared.clone(), account: account.to_string() }
     }
 
@@ -179,9 +198,16 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
     let mut pending = Pending::new();
     loop {
         let now = Instant::now();
-        let importing = lock(&shared.importing).clone();
-        let ready = pending.iter().find(|(a, (_, at))| *at <= now && !importing.contains(*a)).map(|(a, _)| a.clone());
-        let Some((account, (folders, _))) = ready.and_then(|a| pending.remove_entry(&a)) else {
+        let choosing = lock(&shared.importing);
+        let ready = pending.iter().find(|(a, (_, at))| *at <= now && !choosing.contains(*a)).map(|(a, _)| a.clone());
+        let chosen = ready.and_then(|a| pending.remove_entry(&a));
+        let stop = Arc::new(AtomicBool::new(false));
+        if let Some((account, _)) = &chosen {
+            *lock(&shared.running) = Some((account.clone(), stop.clone()));
+        }
+        let importing = choosing.clone();
+        drop(choosing);
+        let Some((account, (folders, _))) = chosen else {
             let wait = pending.iter().map(|(a, (_, at))| if importing.contains(a) { RETRY } else { at.saturating_duration_since(now) }).min();
             let ask = match wait {
                 Some(w) => rx.recv_timeout(w),
@@ -197,8 +223,6 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
             }
             continue;
         };
-        let stop = Arc::new(AtomicBool::new(false));
-        *lock(&shared.running) = Some((account.clone(), stop.clone()));
         let folders: Vec<String> = folders.map(|f| f.into_iter().collect()).unwrap_or_default();
         let mut report = |e: Event| {
             shared.latest.put(&account, e);
@@ -216,6 +240,8 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
                     log::warn!("{account}: {e}");
                 }
             }
+            // Stopped (the account removed, an import begun): what it couldn't write is no matter.
+            Err(e) if stop.load(Ordering::Relaxed) => log::info!("{account}: an index pass stopped: {e}"),
             Err(e) => log::warn!("{account}: the search index wasn't brought up to the mail: {e}"),
         }
     }
@@ -247,7 +273,7 @@ pub(super) fn pass(
         finished,
     };
     report(indexed(&p, false));
-    let adds = p.adds().to_vec();
+    let adds = p.adds().clone();
     let (next, quit) = (AtomicUsize::new(0), AtomicBool::new(false));
     let mut failed = None;
     std::thread::scope(|s| {

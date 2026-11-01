@@ -216,6 +216,12 @@ fn until(pool: &Pool, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
 /// An account of `n` messages in its Inbox, each with its source: `word{uid}` and `common`.
 fn indexed_mail(n: u32) -> Store {
     let s = Store::memory();
+    fill(&s, n);
+    s
+}
+
+/// `n` messages in `s`'s account `a1`, as [`indexed_mail`] has them.
+fn fill(s: &Store, n: u32) {
     let messages = (1..=n)
         .map(|uid| mailcraft_model::Summary {
             key: MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid },
@@ -232,7 +238,6 @@ fn indexed_mail(n: u32) -> Store {
         let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid };
         s.write_body(&key, format!("Subject: m\r\nMessage-ID: <m{uid}@x>\r\n\r\nword{uid} common\r\n").as_bytes()).unwrap();
     }
-    s
 }
 
 /// A pass as the indexer runs it, with this extraction; how it ended.
@@ -298,6 +303,39 @@ fn a_pass_stopped_partway_leaves_a_consistent_index() {
     assert_eq!(found(&s, "word40"), [40], "once");
 }
 
+/// An account removed while its pass runs (the store letting go of it before the pass hears the
+/// stop) isn't written again: the pass's last write once put its index back, making the removed
+/// account a new data file beside the one it kept.
+#[test]
+fn a_pass_writes_nothing_for_an_account_removed_meanwhile() {
+    let t = std::env::temp_dir().join(format!("mailcraft-index-removed-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&t);
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[AccountConfig { id: "a1".into(), ..Default::default() }]).unwrap();
+    fill(&s, 20);
+    let files = || {
+        let mut names: Vec<String> = std::fs::read_dir(t.join("Files")).unwrap().filter_map(|e| e.ok()?.file_name().into_string().ok()).collect();
+        names.sort();
+        names
+    };
+    let before = files();
+    let stop = AtomicBool::new(false);
+    let read = AtomicUsize::new(0);
+    let removing = |raw: &[u8]| {
+        // Removed as the session removes it, the stop coming after.
+        if read.fetch_add(1, Ordering::Relaxed) == 5 {
+            s.remove_account("a1").unwrap();
+            stop.store(true, Ordering::Relaxed);
+        }
+        mailcraft_mime::index_doc(raw)
+    };
+    let _ = indexing::pass(&s, "a1", &[], &stop, 1, &removing, &mut |_| {});
+    assert_eq!(s.data_file("a1"), None, "a removed account got a data file back");
+    assert_eq!(files(), before);
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// A message whose text can't be taken out (the extraction panics) is counted, kept with no
 /// words, and doesn't stop the others.
 #[test]
@@ -334,6 +372,39 @@ fn no_pass_runs_during_an_import() {
     until(&pool, |e| matches!(e, Event::Indexed { work, finished: true, .. } if work.done == 2));
 }
 
+/// A pass's end isn't hidden by the next pass starting before the window looks: both are
+/// heard, the end first; a later report of the next only replaces the one before it.
+#[test]
+fn a_pass_end_outlives_the_next_pass_starting() {
+    let indexed = |done, finished| Event::Indexed {
+        account: "a1".into(),
+        work: mailcraft_model::job::Work { done, ..Default::default() },
+        generation: 1,
+        failed: 0,
+        finished,
+    };
+    let latest = indexing::Latest::default();
+    latest.put("a1", indexed(1, false));
+    latest.put("a1", indexed(5, true));
+    latest.put("a1", indexed(0, false));
+    latest.put("a1", indexed(2, false));
+    latest.put("b2", indexed(3, true));
+    let heard: Vec<(u64, bool)> = latest
+        .take()
+        .into_iter()
+        .filter_map(|e| match e {
+            Event::Indexed { work, finished, .. } => Some((work.done, finished)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(heard, [(5, true), (2, false), (3, true)]);
+    latest.put("a1", indexed(5, true));
+    latest.put("a1", indexed(0, false));
+    assert!(matches!(latest.pop(), Some(Event::Indexed { finished: true, .. })));
+    assert!(matches!(latest.pop(), Some(Event::Indexed { finished: false, .. })));
+    assert!(latest.pop().is_none());
+}
+
 /// Asks for an account are one: folders add up, none (every folder) takes them all, and the
 /// latest time to start is kept.
 #[test]
@@ -351,9 +422,10 @@ fn asks_for_an_account_are_one() {
 /// A mark-read from the window while a pass writes a data file's index waits for one of the
 /// pass's short transactions at most: compared with the same mark-reads alone (which write a
 /// page of a 20,000-message list). Measured in release on 32 threads: 20,000 messages indexed in
-/// 9.5 s; a mark-read's median 49 ms alone and 59 ms during the pass, p99 108 and 128 ms. A
-/// measurement, as the store's (timings on a busy machine swing too far to hold them in a
-/// test): run alone with `--ignored --nocapture`.
+/// 9.5 s; a mark-read's median 49 ms alone and 59 ms during the pass, p99 108 and 128 ms. The
+/// plan's 60 ms for a mark-read during a pass is not met (the list's own page costs most of it):
+/// what this holds is the wait the pass adds. A measurement, as the store's (timings on a busy
+/// machine swing too far to hold them in a test): run alone with `--ignored --nocapture`.
 #[test]
 #[ignore = "a measurement: run alone with --ignored --nocapture"]
 fn a_mark_read_waits_little_for_an_index_pass() {

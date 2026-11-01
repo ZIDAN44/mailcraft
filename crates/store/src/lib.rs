@@ -312,8 +312,9 @@ pub struct Store {
     changes: Arc<Mutex<()>>,
     /// How many message sources were read ([`Store::reads`]).
     reads: Arc<std::sync::atomic::AtomicU64>,
-    /// The accounts whose search index is being written ([`search::Writer`]).
-    search_writers: Arc<Mutex<HashSet<String>>>,
+    /// The accounts whose search index is being written ([`search::Writer`]), and whether the
+    /// account has gone meanwhile.
+    search_writers: Arc<Mutex<search::Writers>>,
 }
 
 impl Store {

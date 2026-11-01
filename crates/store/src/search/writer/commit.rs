@@ -248,14 +248,15 @@ impl Writer {
         let mut bytes = 0usize;
         for (p, prepared) in files {
             if !batch.is_empty() && bytes.saturating_add(prepared.kept_len()) > BACKGROUND_COMMIT {
-                store.files.write_prepared(std::mem::take(&mut batch), false)?;
+                let b = std::mem::take(&mut batch);
+                self.held.writing(|| store.files.write_prepared(b, false))?;
                 bytes = 0;
             }
             bytes = bytes.saturating_add(prepared.kept_len());
             batch.push((p, prepared));
         }
         if !batch.is_empty() {
-            store.files.write_prepared(batch, false)?;
+            self.held.writing(|| store.files.write_prepared(batch, false))?;
         }
         Ok(())
     }
@@ -270,7 +271,7 @@ impl Writer {
             return Err(damaged(&path, "a meta it couldn't read back"));
         }
         let gone: Vec<PathBuf> = gone.iter().map(|n| n.path(&self.base)).collect();
-        store.files.replace(&self.base, Some((&path, &bytes)), &gone, true)
+        self.held.writing(|| store.files.replace(&self.base, Some((&path, &bytes)), &gone, true))
     }
 
     /// Remove files (those already gone are no matter), in one transaction not waited for.
@@ -279,7 +280,7 @@ impl Writer {
             return;
         }
         let paths: Vec<PathBuf> = names.iter().map(|n| n.path(&self.base)).collect();
-        if let Err(e) = store.files.replace(&self.base, None, &paths, false) {
+        if let Err(e) = self.held.writing(|| store.files.replace(&self.base, None, &paths, false)) {
             log::warn!("{}'s search index: files not removed: {e}", self.account);
         }
     }

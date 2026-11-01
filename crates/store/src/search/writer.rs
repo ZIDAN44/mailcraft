@@ -77,7 +77,7 @@ pub struct Writer {
     /// The most bytes the last merge held, as it counted them.
     #[cfg(test)]
     pub(crate) merge_peak: usize,
-    _held: Held,
+    held: Held,
 }
 
 /// A new generation made ready by [`Writer::prepare`], to be [committed](Writer::commit).
@@ -172,7 +172,7 @@ impl Writer {
                 Err(e) if is_damaged(&e) => {
                     set_aside(store, account)?;
                     let base = w.base.clone();
-                    w = Writer::with(store, account, base, fresh(store, account), Vec::new(), w._held);
+                    w = Writer::with(store, account, base, fresh(store, account), Vec::new(), w.held);
                     w.clean(store);
                 }
                 Err(e) => return Err(e),
@@ -221,7 +221,7 @@ impl Writer {
             renumber_slack: RENUMBER_SLACK,
             #[cfg(test)]
             merge_peak: 0,
-            _held: held,
+            held,
         }
     }
 

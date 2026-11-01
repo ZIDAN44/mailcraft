@@ -152,6 +152,8 @@ impl Store {
     /// An account removed, as Outlook removes one: its data file stays where it is, closed and
     /// no one's (returned, when there is one), and what's kept outside data files goes.
     pub fn remove_account(&self, account: &str) -> Result<Option<PathBuf>> {
+        // Its search index, being written in the background, isn't written back after.
+        self.search_gone(account);
         if self.forget_online(account) {
             return Ok(None);
         }
@@ -168,6 +170,7 @@ impl Store {
     /// Forget everything about an account, its data file too (one that never held anyone's mail:
     /// a file that failed to open, an account starting again).
     pub fn delete_account(&self, account: &str) -> Result<()> {
+        self.search_gone(account);
         if self.forget_online(account) {
             return Ok(());
         }

@@ -37,8 +37,9 @@
 //! the app on one folder layout) nothing stops a second yet: the `search/v1/lock` lease comes with
 //! the CLI's `--index`, when the CLI first writes an index.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::hash::BuildHasher;
+use std::sync::RwLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::*;
@@ -341,21 +342,54 @@ pub(crate) fn new_epoch(not: u64) -> u64 {
     if e == not || e == 0 { e.wrapping_add(1).max(1) } else { e }
 }
 
+/// The accounts whose index is held for writing, each with whether it has gone since.
+pub(crate) type Writers = HashMap<String, Arc<RwLock<bool>>>;
+
 /// An account's index held for writing: let go when dropped.
 #[derive(Debug)]
 pub(crate) struct Held {
-    writers: Arc<Mutex<HashSet<String>>>,
+    writers: Arc<Mutex<Writers>>,
     account: String,
+    /// Set once the account is removed: nothing more is written for it. Read-held while the
+    /// writer writes, so the removal waits for a write under way rather than come in its middle.
+    gone: Arc<RwLock<bool>>,
 }
 
 impl Held {
     /// Hold `account`'s index, or say it's held already.
     pub(crate) fn take(store: &Store, account: &str) -> Result<Held> {
         let mut g = store.search_writers.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if !g.insert(account.to_string()) {
+        if g.contains_key(account) {
             return Err(StoreError::Busy { path: format!("{account}/search") });
         }
-        Ok(Held { writers: store.search_writers.clone(), account: account.to_string() })
+        let gone = Arc::new(RwLock::new(false));
+        g.insert(account.to_string(), gone.clone());
+        Ok(Held { writers: store.search_writers.clone(), account: account.to_string(), gone })
+    }
+
+    /// `write` run while the account is still here, its removal waiting for it; an error
+    /// without running it once the account has gone. A writer still holding a removed account's
+    /// index wrote it back after the removal, making the account a new data file.
+    pub(crate) fn writing<T>(&self, write: impl FnOnce() -> Result<T>) -> Result<T> {
+        let gone = self.gone.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if *gone {
+            return Err(StoreError::Io {
+                path: format!("{}/search", self.account),
+                source: io::Error::new(io::ErrorKind::NotFound, "the account has gone"),
+            });
+        }
+        write()
+    }
+}
+
+impl Store {
+    /// `account` has gone: a writer holding its index writes nothing more, one writing now
+    /// finishes first.
+    pub(crate) fn search_gone(&self, account: &str) {
+        let gone = self.search_writers.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(account).cloned();
+        if let Some(gone) = gone {
+            *gone.write().unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+        }
     }
 }
 

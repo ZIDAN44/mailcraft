@@ -15,6 +15,8 @@ use super::*;
 pub struct Pass {
     writer: Writer,
     plan: Plan,
+    /// The plan's messages to add, shared with the threads that read them.
+    adds: Arc<[Message]>,
     done: u64,
     bytes_done: u64,
     bytes_total: u64,
@@ -26,20 +28,22 @@ impl Pass {
     /// `folders` up to the mail (none: every folder), and make the changes that read nothing.
     pub fn start(store: &Store, account: &str, folders: &[String]) -> Result<Pass> {
         let mut writer = Writer::open(store, account)?;
-        let plan = plan(store, &writer, account, folders)?;
+        let mut plan = plan(store, &writer, account, folders)?;
         plan.apply(&mut writer)?;
-        let bytes_total = plan.add.iter().map(|m| u64::from(m.size)).fold(0, u64::saturating_add);
-        Ok(Pass { writer, plan, done: 0, bytes_done: 0, bytes_total, failed: 0 })
+        let adds: Arc<[Message]> = std::mem::take(&mut plan.add).into();
+        let bytes_total = adds.iter().map(|m| u64::from(m.size)).fold(0, u64::saturating_add);
+        Ok(Pass { writer, plan, adds, done: 0, bytes_done: 0, bytes_total, failed: 0 })
     }
 
-    /// The messages to read and add, newest first: each given back by its place here.
-    pub fn adds(&self) -> &[Message] {
-        &self.plan.add
+    /// The messages to read and add, newest first: each given back by its place here. Shared,
+    /// so threads reading them need no copy (a big file's plan holds hundreds of thousands).
+    pub fn adds(&self) -> &Arc<[Message]> {
+        &self.adds
     }
 
     /// How far it has come: messages and their bytes handed back, of those to add.
     pub fn work(&self) -> Work {
-        let total = u64::try_from(self.plan.add.len()).unwrap_or(u64::MAX);
+        let total = u64::try_from(self.adds.len()).unwrap_or(u64::MAX);
         Work { done: self.done, total, bytes_done: self.bytes_done, bytes_total: self.bytes_total }
     }
 
@@ -57,7 +61,7 @@ impl Pass {
     /// gone since the plan (not added: the next plan settles it). Writes a generation when
     /// enough is held, and returns it. An error is the index's: stop the pass.
     pub fn add(&mut self, store: &Store, i: usize, doc: Option<&IndexDoc>) -> Result<Option<u64>> {
-        let Some(m) = self.plan.add.get(i) else { return Ok(None) };
+        let Some(m) = self.adds.get(i) else { return Ok(None) };
         self.done = self.done.saturating_add(1);
         self.bytes_done = self.bytes_done.saturating_add(u64::from(m.size));
         if let Some(doc) = doc {
