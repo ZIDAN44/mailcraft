@@ -240,6 +240,30 @@ hi
     done(s);
 }
 
+/// A message waiting in the reading pane and in a window of its own is parsed once when it
+/// comes, both showing that one parse (each frame copies it for nothing); a reply quotes a copy
+/// of its own, the one shown left as it was.
+#[test]
+fn a_message_shown_twice_is_parsed_once() {
+    use std::sync::Arc;
+    let mut s = sample_session("parsed-once");
+    let k = s.list.first().map(|m| m.key.clone()).unwrap();
+    s.store.as_ref().unwrap().remove_body(&k);
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    s.run("message.popOut", &json!({"key": k.to_id()})).unwrap();
+    assert!(s.reading.as_ref().unwrap().parsed.is_none() && s.windows[0].parsed.is_none());
+    s.apply(Event::Body { key: k.clone(), raw: b"From: Ana <ana@posteo.example>\r\nSubject: Twice\r\n\r\nhi\r\n".to_vec() });
+    let pane = s.reading.as_ref().unwrap().parsed.clone().unwrap();
+    let window = s.windows[0].parsed.clone().unwrap();
+    assert!(Arc::ptr_eq(&pane, &window), "one parse");
+    assert_eq!(pane.subject, "Twice");
+    s.run("mail.reply", &json!({})).unwrap();
+    assert!(s.compose.as_ref().is_some_and(|c| c.subject.contains("Twice")));
+    assert!(Arc::ptr_eq(s.reading.as_ref().unwrap().parsed.as_ref().unwrap(), &pane), "the one shown is left as it was");
+    assert_eq!(*pane, *window);
+    done(s);
+}
+
 #[test]
 fn mailbox_settings_commands() {
     // Emptying Deleted Items (the sample mailbox: straight to the cache).

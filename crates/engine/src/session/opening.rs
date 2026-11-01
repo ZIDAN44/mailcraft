@@ -139,25 +139,27 @@ impl Session {
 
     /// A message as it's read: one without a `Date` gets the time the server took it in, as the
     /// list shows it (replies and forwards quoted it as sent on 1 January 1970).
-    fn parse_for_reading(&self, key: &MessageKey, raw: &[u8]) -> Option<mime::Parsed> {
+    fn parse_for_reading(&self, key: &MessageKey, raw: &[u8]) -> Option<Arc<mime::Parsed>> {
         let mut p = mime::parse(raw)?;
         if p.date == 0
             && let Some(m) = self.summary(key)
         {
             p.date = m.date;
         }
-        Some(p)
+        Some(Arc::new(p))
     }
 
     pub(super) fn show_body(&mut self, key: &MessageKey, raw: &[u8]) {
         // Signed or encrypted: what's inside is what's shown, the protection said beside it.
         let shown = self.reading.as_ref().is_some_and(|r| &r.key == key) || self.windows.iter().any(|w| &w.key == key && w.parsed.is_none());
-        let (raw, security) = if shown { self.unwrap(key, raw) } else { (raw.to_vec(), None) };
-        let raw = raw.as_slice();
+        let (raw, security) = if shown { self.unwrap(key, raw) } else { (std::borrow::Cow::Borrowed(raw), None) };
+        let raw = &*raw;
         let mut windows = std::mem::take(&mut self.windows);
         let text_first = mime::is_text_first(raw);
+        // Parsed once, however many places show it.
+        let mut parsed = None;
         for w in windows.iter_mut().filter(|w| &w.key == key && (w.parsed.is_none() || w.text_first)) {
-            w.parsed = self.parse_for_reading(key, raw);
+            w.parsed = parsed.get_or_insert_with(|| self.parse_for_reading(key, raw)).clone();
             w.text_first = text_first;
             w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
             let from = w.parsed.as_ref().map(|p| (p.from.clone(), p.bulk));
@@ -167,7 +169,7 @@ impl Session {
         self.windows = windows;
         // Only the open message is laid out (bodies downloaded ahead aren't, each costing time).
         if self.reading.as_ref().is_some_and(|r| &r.key == key)
-            && let parsed = self.parse_for_reading(key, raw)
+            && let parsed = parsed.unwrap_or_else(|| self.parse_for_reading(key, raw))
             && let Some(r) = self.reading.as_mut()
         {
             r.error = if parsed.is_none() { Some("this message could not be read".into()) } else { None };

@@ -281,8 +281,12 @@ impl Session {
 
     /// What `raw` shows once its protection is taken off, and what that protection was: a
     /// signature checked, the content inside an encryption (when it's been decrypted; if not, it's
-    /// asked for and the message stays as it is until it comes). `key` is the message.
-    pub(super) fn unwrap(&mut self, key: &MessageKey, raw: &[u8]) -> (Vec<u8>, Option<Security>) {
+    /// asked for and the message stays as it is until it comes). `key` is the message. One whose
+    /// header says it isn't protected is given back as it is, neither copied nor parsed.
+    pub(super) fn unwrap<'a>(&mut self, key: &MessageKey, raw: &'a [u8]) -> (std::borrow::Cow<'a, [u8]>, Option<Security>) {
+        if !mime::smime::is_protected(raw) {
+            return (std::borrow::Cow::Borrowed(raw), None);
+        }
         let mut cur = raw.to_vec();
         let mut sec = Security::default();
         let mut any = false;
@@ -333,7 +337,7 @@ impl Session {
                 }
             }
         }
-        (cur, any.then_some(sec))
+        (std::borrow::Cow::Owned(cur), any.then_some(sec))
     }
 
     /// A message as it reads: what [`Session::unwrap`] shows, without checking anything again.

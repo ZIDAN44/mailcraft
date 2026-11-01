@@ -19,7 +19,7 @@ fn card(png: &[u8]) -> String {
     )
 }
 
-fn sent(s: &mut Session, subject: &str) -> mime::Parsed {
+fn sent(s: &mut Session, subject: &str) -> std::sync::Arc<mime::Parsed> {
     s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
     let k = key_of(s, subject);
     s.run("list.open", &k).unwrap();

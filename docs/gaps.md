@@ -1499,3 +1499,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   pane, and the invitation card's calendar file) is still read in the charset it names, and a
   forward, or an Outbox message taken back to change, sends it with that charset on its type.
   The size the list shows is still the text's.
+- **Opening a big message:** whether a message is signed or encrypted was found by parsing all of
+  it, then it was copied and parsed again to show it, so a message of 50 MB of pictures spent
+  about 0.1 s being looked at for a signature it didn't have. Its header alone says now (12 to
+  18 µs on that message); only signed or encrypted mail is read further, which includes a `.p7m`
+  sent as `application/octet-stream`, named in its Content-Type or only in its
+  Content-Disposition. The message shown is parsed once for the reading pane and its own window
+  together, and drawing them no longer copies it every frame; a reply takes its own copy.
