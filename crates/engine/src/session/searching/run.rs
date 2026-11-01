@@ -37,6 +37,9 @@ pub struct SearchProgress {
     pub found: usize,
     /// Messages that may match but whose text isn't indexed yet.
     pub missing: usize,
+    /// Messages that may match past where their text was cut short (too long to index whole):
+    /// not waiting for anything.
+    pub cut_short: usize,
     /// The list changed in the last step.
     pub changed: bool,
 }
@@ -139,6 +142,8 @@ pub(crate) struct SearchRun {
     /// What each message checked against its text said (flags never change it).
     pub(crate) known: HashMap<MessageKey, Answers>,
     pub(crate) missing: HashSet<MessageKey>,
+    /// Those whose text was cut short ([`Verdict::CutShort`]).
+    pub(crate) cut_short: HashSet<MessageKey>,
     /// The list shows this run's finds alone (`refresh_list` put it together for it), each
     /// change since merged in: its end needs only what's left to show.
     pub(crate) owns_list: bool,
@@ -202,6 +207,7 @@ impl SearchRun {
             fallback: VecDeque::new(),
             known: HashMap::new(),
             missing: HashSet::new(),
+            cut_short: HashSet::new(),
             owns_list: false,
             finish: Finish::Due,
         }
@@ -250,7 +256,7 @@ impl SearchRun {
     }
 
     pub(crate) fn progress(&self, changed: bool) -> SearchProgress {
-        SearchProgress { done: self.done(), found: self.found.len(), missing: self.missing.len(), changed }
+        SearchProgress { done: self.done(), found: self.found.len(), missing: self.missing.len(), cut_short: self.cut_short.len(), changed }
     }
 
     /// Scan folder `fi` again (its list changed): what it found before stays found until the
@@ -261,6 +267,7 @@ impl SearchRun {
         self.recheck.extend(self.found.iter().filter(|k| here(k)).cloned());
         // What a message's text said stays known: a message (its key) never changes its text.
         self.missing.retain(|k| !here(k));
+        self.cut_short.retain(|k| !here(k));
         self.verify.retain(|c| !here(&c.m.key));
         self.fallback.retain(|c| !here(&c.m.key));
         if self.verifying.as_ref().is_some_and(|v| here(&v.c.m.key)) {
@@ -289,6 +296,9 @@ impl SearchRun {
     pub(crate) fn record(&mut self, m: &Summary, v: Verdict, awaiting: bool, last: bool) {
         let key = &m.key;
         self.recheck.remove(key);
+        if !matches!(v, Verdict::CutShort) {
+            self.cut_short.remove(key);
+        }
         match v {
             Verdict::Yes => {
                 self.missing.remove(key);
@@ -306,11 +316,14 @@ impl SearchRun {
                 self.fallback.push_back(Candidate { m: m.clone(), doc: None, awaiting });
                 self.finish = Finish::Due;
             }
-            Verdict::No | Verdict::Verify(_) | Verdict::Missing => {
-                if matches!(v, Verdict::No) {
+            Verdict::No | Verdict::Verify(_) | Verdict::Missing | Verdict::CutShort => {
+                if matches!(v, Verdict::No | Verdict::CutShort) {
                     self.missing.remove(key);
                 } else {
                     self.missing.insert(key.clone());
+                }
+                if matches!(v, Verdict::CutShort) {
+                    self.cut_short.insert(key.clone());
                 }
                 if self.found.remove(key) {
                     self.gone.insert(key.clone());
@@ -583,7 +596,8 @@ impl Session {
             // Unchanged and nothing to do: not cloned.
             let same = match v {
                 Verdict::Yes => run.found.contains(&m.key) && !run.recheck.contains(&m.key),
-                Verdict::No => !run.found.contains(&m.key) && !run.missing.contains(&m.key),
+                Verdict::No => !run.found.contains(&m.key) && !run.missing.contains(&m.key) && !run.cut_short.contains(&m.key),
+                Verdict::CutShort => !run.found.contains(&m.key) && run.cut_short.contains(&m.key),
                 _ => false,
             };
             if !same {
@@ -715,6 +729,7 @@ impl Session {
             Some(answers) => {
                 let c = v.c;
                 let st = SummaryText::for_query(&c.m, &run.query);
+                // A long message's stays cut short whenever it's weighed again from these.
                 let verdict = classify(&run.query, &c.m, &st, c.awaiting, None, Some(&answers));
                 if answers.said() {
                     run.known.insert(c.m.key.clone(), answers);

@@ -78,14 +78,14 @@ pub trait TextSource {
 }
 
 /// What an index answers for a word it looked up (`found`, or not). Not there is a no, unless
-/// what it was made from was cut short (too long, too many parts) or had no text to read (only
-/// files), when it can't tell.
-pub fn indexed(found: bool, field: TextField, truncated: bool, has_text: bool) -> Tri {
-    match (found, field) {
-        (true, _) => Tri::Yes,
-        (false, TextField::Body) if truncated || !has_text => Tri::Unknown,
-        (false, TextField::Names) if truncated => Tri::Unknown,
-        (false, _) => Tri::No,
+/// what it was made from was cut short (too long, too many parts), when it can't tell. A message
+/// read whole with no text (pictures and files only) has no word: `-word` finds it (658 such
+/// messages of the 41 GB file weren't found by one, and were counted as not indexed yet).
+pub fn indexed(found: bool, _field: TextField, truncated: bool, _has_text: bool) -> Tri {
+    match found {
+        true => Tri::Yes,
+        false if truncated => Tri::Unknown,
+        false => Tri::No,
     }
 }
 

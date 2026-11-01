@@ -1376,6 +1376,7 @@ month	May	5月
 	Searching…	正在搜索…
 	Some results may be missing: still indexing ({percent}%)	可能缺少部分结果：仍在编制索引 ({percent}%)
 	Some results may be missing: still indexing	可能缺少部分结果：仍在编制索引
+	Some long messages were searched only in part	部分长邮件只搜索了一部分
 	Couldn't read the date “{value}”	无法读取日期“{value}”
 	Received after	接收日期晚于
 	Received before	接收日期早于

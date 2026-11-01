@@ -1375,6 +1375,7 @@ month	May	مايو
 	Searching…	جارٍ البحث…
 	Some results may be missing: still indexing ({percent}%)	قد تنقص بعض النتائج: ما زالت الفهرسة جارية ({percent}%)
 	Some results may be missing: still indexing	قد تنقص بعض النتائج: ما زالت الفهرسة جارية
+	Some long messages were searched only in part	بُحث في بعض الرسائل الطويلة جزئيًا فقط
 	Couldn't read the date “{value}”	تعذّرت قراءة التاريخ «{value}»
 	Received after	مستلمة بعد
 	Received before	مستلمة قبل

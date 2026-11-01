@@ -349,6 +349,58 @@ fn long_texts_are_searched_whole() {
     done(s);
 }
 
+/// What the index settles isn't checked again, nor told as waiting for it: a message of
+/// pictures only has no word, so `-word` finds it (658 of the 41 GB file's weren't found); one
+/// cut short (past 1,000,000 characters) may hold a word past its cut, which nothing kept can
+/// tell, so it's counted apart, not as "still indexing", and its kept text isn't read for a word.
+/// The part of a dotted word (`xx.quokka`) is a word. A phrase its kept text was read for and
+/// didn't have stays cut short when the message is weighed again (a flag on it, its folder
+/// scanned again): it went back to "still indexing".
+#[test]
+fn what_the_index_settles_is_not_checked_again() {
+    let mut s = sample_session("search-settled");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    let key = |uid: u32| mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
+    let (pictures, long, dotted) = (key(uid), key(uid + 1), key(uid + 2));
+    let raw = "From: a@x.example\r\nSubject: Pictures\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p><img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
+    store.write_body(&pictures, raw.as_bytes()).unwrap();
+    let text = format!("alpha beta {}zanzibar", "lorem ".repeat(200_000));
+    store.write_body(&long, format!("From: a@x.example\r\nSubject: Long\r\n\r\n{text}\r\n").as_bytes()).unwrap();
+    store.write_body(&dotted, b"From: a@x.example\r\nSubject: Dotted\r\n\r\nSee xx.quokka here.\r\n").unwrap();
+    for (k, subject) in [(&pictures, "Pictures"), (&long, "Long"), (&dotted, "Dotted")] {
+        st.messages.insert(0, mailcraft_model::Summary { key: k.clone(), subject: subject.into(), ..Default::default() });
+    }
+    store.save_folder(&a, "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    index_now(&s, &a);
+    let search = |s: &mut Session, q: &str| {
+        s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
+        let p = s.search_progress().unwrap();
+        let listed = |k: &mailcraft_model::MessageKey| s.list.iter().any(|m| &m.key == k);
+        ((listed(&pictures), listed(&long), listed(&dotted)), (p.missing, p.cut_short))
+    };
+    assert_eq!(search(&mut s, "-quokka"), ((true, false, false), (0, 1)), "no text: no word; the long one may have it");
+    assert_eq!(search(&mut s, "quokka"), ((false, false, true), (0, 1)));
+    let texts = s.search_stats().texts;
+    assert_eq!(search(&mut s, "zanzibar"), ((false, false, false), (0, 1)), "past the cut");
+    assert_eq!(s.search_stats().texts, texts, "no kept text read for a word");
+    assert_eq!(search(&mut s, "subject:pictures"), ((true, false, false), (0, 0)));
+    let texts = s.search_stats().texts;
+    assert_eq!(search(&mut s, "\"beta alpha\""), ((false, false, false), (0, 1)));
+    assert!(s.search_stats().texts > texts, "its kept text read for the phrase");
+    let progress = |s: &Session| s.search_progress().map(|p| (p.missing, p.cut_short));
+    s.search_patched(std::slice::from_ref(&long));
+    settle(&mut s, 1);
+    assert_eq!(progress(&s), Some((0, 1)), "after a flag on it");
+    s.search_folder_changed(&a, "INBOX");
+    settle(&mut s, 1);
+    assert_eq!(progress(&s), Some((0, 1)), "after its folder is scanned again");
+    done(s);
+}
+
 /// With an index, a word that must be missing, an address and a word in the files' names read
 /// no message.
 #[test]

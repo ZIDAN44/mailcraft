@@ -1380,6 +1380,7 @@ month	May	mayo
 	Searching…	Buscando…
 	Some results may be missing: still indexing ({percent}%)	Puede que falten resultados: aún se está indexando ({percent}%)
 	Some results may be missing: still indexing	Puede que falten resultados: aún se está indexando
+	Some long messages were searched only in part	Algunos mensajes largos solo se buscaron en parte
 	Couldn't read the date “{value}”	No se pudo leer la fecha «{value}»
 	Received after	Recibido después del
 	Received before	Recibido antes del

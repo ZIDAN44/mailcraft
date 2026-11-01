@@ -1376,6 +1376,7 @@ month	May	5月
 	Searching…	検索しています…
 	Some results may be missing: still indexing ({percent}%)	一部の結果が表示されていない可能性があります: インデックス作成中 ({percent}%)
 	Some results may be missing: still indexing	一部の結果が表示されていない可能性があります: インデックス作成中
+	Some long messages were searched only in part	一部の長いメッセージは途中までしか検索されていません
 	Couldn't read the date “{value}”	日付「{value}」を読み取れませんでした
 	Received after	受信日 (以降)
 	Received before	受信日 (以前)

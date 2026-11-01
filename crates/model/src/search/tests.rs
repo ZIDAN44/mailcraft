@@ -185,11 +185,12 @@ fn three_valued_logic() {
     assert_eq!((!Yes, !No, !Unknown), (No, Yes, Unknown));
 }
 
-/// What isn't in an index's postings is a no, unless the text it was made from was cut short or
-/// had none: then a word looked for, or left out with `-`, can't be told, and only a summary
-/// clause that fails settles it.
+/// What isn't in an index's postings is a no, unless the text it was made from was cut short:
+/// then a word looked for, or left out with `-`, can't be told, and only a summary clause that
+/// fails settles it. A message read whole with no text (pictures only) has no word: `-word`
+/// finds it (658 of the 41 GB file's weren't found, and were told as not indexed yet).
 #[test]
-fn a_truncated_or_textless_doc_is_unknown_when_a_word_is_missing() {
+fn a_truncated_doc_is_unknown_when_a_word_is_missing() {
     let m = sample(); // unread
     let whole = IndexDoc { text: "storyboard notes".into(), has_text: true, ..Default::default() };
     let cut = IndexDoc { truncated: true, ..whole.clone() };
@@ -197,10 +198,11 @@ fn a_truncated_or_textless_doc_is_unknown_when_a_word_is_missing() {
     let t = |s: &str, d: &IndexDoc| eval(&Query::parse(s), &m, d);
     assert_eq!((t("budget", &whole), t("-budget", &whole)), (Tri::No, Tri::Yes));
     assert_eq!((t("budget", &cut), t("-budget", &cut)), (Tri::Unknown, Tri::Unknown), "past the cut, it may be there");
-    assert_eq!((t("budget", &files_only), t("-budget", &files_only)), (Tri::Unknown, Tri::Unknown));
+    assert_eq!((t("budget", &files_only), t("-budget", &files_only)), (Tri::No, Tri::Yes), "no text: no word");
     // AND: another clause's no settles it, a yes doesn't.
     assert_eq!(t("budget is:read", &cut), Tri::No);
     assert_eq!(t("-budget is:read", &files_only), Tri::No);
+    assert_eq!(t("-budget is:unread", &files_only), Tri::Yes);
     assert_eq!(t("budget is:unread", &cut), Tri::Unknown);
     assert_eq!(t("storyboard budget", &cut), Tri::Unknown);
     assert_eq!(t("storyboard", &cut), Tri::Yes, "found is found");
@@ -212,6 +214,8 @@ fn a_truncated_or_textless_doc_is_unknown_when_a_word_is_missing() {
     assert_eq!(t("attachment:report", &cut), Tri::Unknown);
     assert_eq!((t("attachment:scan", &files_only), t("attachment:report", &files_only)), (Tri::Yes, Tri::No));
     assert_eq!(indexed(false, TextField::Body, false, true), Tri::No);
+    assert_eq!(indexed(false, TextField::Body, false, false), Tri::No, "read whole, no text");
+    assert_eq!(indexed(false, TextField::Body, true, false), Tri::Unknown);
 }
 
 #[test]

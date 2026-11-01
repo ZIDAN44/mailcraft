@@ -137,7 +137,8 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
 }
 
 /// How the search is going, under the list's head: still searching; what may be missing (mail
-/// whose text the search index doesn't have yet); what couldn't be read of what was typed.
+/// whose text the search index doesn't have yet), or, more quietly, mail too long to search
+/// whole; what couldn't be read of what was typed.
 fn search_status(s: &Session, t: &theme::Tokens, ui: &mut Ui) {
     if s.search.is_none() {
         return;
@@ -145,8 +146,10 @@ fn search_status(s: &Session, t: &theme::Tokens, ui: &mut Ui) {
     let progress = s.search_progress();
     let running = progress.is_some_and(|p| !p.done);
     let missing = progress.is_some_and(|p| p.missing > 0);
+    // Not waiting for anything, so not "still indexing" (it showed with every message indexed).
+    let cut_short = !missing && progress.is_some_and(|p| p.cut_short > 0);
     let problems = s.search_problems();
-    if !running && !missing && problems.is_empty() {
+    if !running && !missing && !cut_short && problems.is_empty() {
         return;
     }
     ui.add_space(2.0);
@@ -161,6 +164,9 @@ fn search_status(s: &Session, t: &theme::Tokens, ui: &mut Ui) {
                 None => tl!("Some results may be missing: still indexing").to_string(),
             };
             ui.label(RichText::new(text).color(t.warn).small());
+        }
+        if cut_short {
+            ui.label(RichText::new(tl!("Some long messages were searched only in part")).color(t.dim).small());
         }
         for p in problems {
             let text = match p {

@@ -84,6 +84,8 @@ impl TextSource for Recorder {
 pub(crate) struct Answers {
     atoms: Vec<(Atom, Tri)>,
     pub(crate) files: Option<bool>,
+    /// The text was cut short: what it doesn't settle may be past the cut ([`Verdict::CutShort`]).
+    truncated: bool,
 }
 
 impl Answers {
@@ -198,6 +200,9 @@ pub(crate) enum Verdict {
     Verify(u32),
     /// Not indexed yet: it may match.
     Missing,
+    /// Indexed, but its text was cut short (too long): what's past the cut may match, and
+    /// nothing kept can tell (its kept text is what its words were indexed from).
+    CutShort,
 }
 
 /// The index an account has, and the words a search looked up in it (none: the query asks
@@ -222,13 +227,23 @@ pub(crate) fn classify(query: &Query, m: &Summary, st: &SummaryText, awaiting: b
         Tri::Unknown => Verdict::Missing,
     };
     if let Some(k) = known {
-        return settled(eval(k));
+        return match eval(k) {
+            // Not found in what was kept of a long message: past its cut it may be.
+            Tri::Unknown if k.truncated => Verdict::CutShort,
+            t => settled(t),
+        };
     }
     match (index.and_then(|ix| ix.terms), doc) {
         (_, Some((_, info))) if info.no_source => settled(eval(&NoText)),
         (Some(terms), Some((d, info))) => match eval(&IndexText { terms, doc: d, info }) {
             Tri::Yes => Verdict::Yes,
             Tri::No => Verdict::No,
+            // Unknown only for the cut: its words are in the index as they are in the text kept,
+            // so checking that text says nothing more (it read the text of every long message
+            // for each word searched: 163 to 341 ms a search of the 41 GB file).
+            Tri::Unknown if info.truncated && eval(&IndexText { terms, doc: d, info: DocInfo { truncated: false, ..info } }) != Tri::Unknown => {
+                Verdict::CutShort
+            }
             Tri::Unknown => Verdict::Verify(d),
         },
         _ => settled(eval(&Unindexed)),
@@ -248,7 +263,7 @@ pub(crate) fn from_source(raw: &[u8], atoms: &[Atom]) -> Answers {
             (a.clone(), t)
         })
         .collect();
-    Answers { atoms, files: Some(doc.files > 0) }
+    Answers { atoms, files: Some(doc.files > 0), truncated: false }
 }
 
 /// A message's text being checked against what a query asks of it, a slice a unit.
@@ -309,7 +324,7 @@ impl Verifying {
         }
         let (truncated, has_text) = (self.info.truncated, self.info.has_text);
         let atoms = self.atoms.iter().zip(&self.found).map(|(a, f)| (a.clone(), indexed(*f, a.field(), truncated, has_text))).collect();
-        Some(Answers { atoms, files: self.info.files_known() })
+        Some(Answers { atoms, files: self.info.files_known(), truncated })
     }
 }
 

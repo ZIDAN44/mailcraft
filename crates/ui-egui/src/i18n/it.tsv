@@ -1379,6 +1379,7 @@ month	May	maggio
 	Searching…	Ricerca in corso…
 	Some results may be missing: still indexing ({percent}%)	Alcuni risultati potrebbero mancare: indicizzazione in corso ({percent}%)
 	Some results may be missing: still indexing	Alcuni risultati potrebbero mancare: indicizzazione in corso
+	Some long messages were searched only in part	Alcuni messaggi lunghi sono stati cercati solo in parte
 	Couldn't read the date “{value}”	Impossibile leggere la data «{value}»
 	Received after	Ricevuto dopo il
 	Received before	Ricevuto prima del

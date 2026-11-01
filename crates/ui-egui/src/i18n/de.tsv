@@ -1380,6 +1380,7 @@ month	May	Mai
 	Searching…	Suche läuft…
 	Some results may be missing: still indexing ({percent}%)	Möglicherweise fehlen Ergebnisse: Indizierung läuft noch ({percent} %)
 	Some results may be missing: still indexing	Möglicherweise fehlen Ergebnisse: Indizierung läuft noch
+	Some long messages were searched only in part	Einige lange Nachrichten wurden nur teilweise durchsucht
 	Couldn't read the date “{value}”	Das Datum „{value}“ konnte nicht gelesen werden
 	Received after	Empfangen nach
 	Received before	Empfangen vor

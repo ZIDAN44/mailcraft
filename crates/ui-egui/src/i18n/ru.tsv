@@ -1379,6 +1379,7 @@ month	May	Май
 	Searching…	Поиск…
 	Some results may be missing: still indexing ({percent}%)	Некоторые результаты могут отсутствовать: индексация ещё идёт ({percent}%)
 	Some results may be missing: still indexing	Некоторые результаты могут отсутствовать: индексация ещё идёт
+	Some long messages were searched only in part	Некоторые длинные сообщения просмотрены не полностью
 	Couldn't read the date “{value}”	Не удалось прочитать дату «{value}»
 	Received after	Получено после
 	Received before	Получено до

@@ -1375,6 +1375,7 @@ month	May	mei
 	Searching…	Zoeken…
 	Some results may be missing: still indexing ({percent}%)	Er kunnen resultaten ontbreken: nog bezig met indexeren ({percent}%)
 	Some results may be missing: still indexing	Er kunnen resultaten ontbreken: nog bezig met indexeren
+	Some long messages were searched only in part	Sommige lange berichten zijn maar gedeeltelijk doorzocht
 	Couldn't read the date “{value}”	De datum “{value}” kon niet worden gelezen
 	Received after	Ontvangen na
 	Received before	Ontvangen voor

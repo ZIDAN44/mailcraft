@@ -1375,6 +1375,7 @@ month	May	מאי
 	Searching…	מחפש…
 	Some results may be missing: still indexing ({percent}%)	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע ({percent}%)
 	Some results may be missing: still indexing	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע
+	Some long messages were searched only in part	חלק מההודעות הארוכות נבדקו רק בחלקן
 	Couldn't read the date “{value}”	לא ניתן לקרוא את התאריך „{value}”
 	Received after	התקבל אחרי
 	Received before	התקבל לפני
