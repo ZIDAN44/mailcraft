@@ -282,6 +282,27 @@ fn killed_after_a_write() {
     std::process::abort();
 }
 
+/// An import's checkpoint goes in with its batch, in one commit that waits for the disk and is
+/// sealed: the batches before it are on the disk with it, and nothing waits for a seal.
+#[test]
+fn a_checkpoint_and_its_batch_are_one_sealed_commit() {
+    let t = temp("checkpoint");
+    let s = packed_store(&t);
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let mut uid = 1000u32;
+    s.write_prepared(background_batch(&mut uid), false).unwrap();
+    assert!(packs.seals.undurable("a1").0 > 0 && packs.seals.waiting_for("a1"));
+    let batch = background_batch(&mut uid);
+    let keys: Vec<MessageKey> = batch.iter().map(|(k, _)| k.clone()).collect();
+    s.write_batch("a1", batch, vec![("import.json", br#"{"next":7}"#.to_vec())]).unwrap();
+    assert_eq!(packs.seals.undurable("a1").0, 0, "the batches before it are on the disk");
+    assert!(!packs.seals.waiting_for("a1"), "and it's sealed");
+    assert!(keys.iter().all(|k| s.has_body(k)));
+    assert_eq!(s.load_account_doc::<serde_json::Value>("a1", "import.json").unwrap(), serde_json::json!({"next": 7}));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// A sealed commit (a search index's meta) clears only the writes before it: one that came in as
 /// soon as it let go of the file still waits for its seal.
 #[test]

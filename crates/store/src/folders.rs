@@ -235,6 +235,25 @@ impl Store {
         ListWriter { account: account.to_string(), folder: folder.to_string(), pages: Vec::new(), page: Vec::new(), total: 0, unread: 0 }
     }
 
+    /// Go on writing a folder's list from where `tail` says it had got ([`ListWriter::tail`]):
+    /// the pages it names are taken as written, and its messages not yet in one are handed over
+    /// again (a page they fill is written now). A tail read back from a file is hostile: one that
+    /// doesn't add up (pages that aren't full ones, more unread than messages, too many) is an
+    /// error, and nothing is written.
+    pub fn resume_list_writer(&self, account: &str, folder: &str, tail: ListTail) -> Result<ListWriter> {
+        let ListTail { pages, in_pages, unread_in_pages, page } = tail;
+        let full = u64::try_from(pages.len()).ok().and_then(|n| n.checked_mul(PAGE_MESSAGES as u64));
+        let rising = page.windows(2).all(|w| w.first().map(|m| m.key.uid) < w.get(1).map(|m| m.key.uid));
+        if pages.len() > TAIL_PAGES_MAX || page.len() > TAIL_PAGE_MAX || full != Some(in_pages) || u64::from(unread_in_pages) > in_pages || !rising {
+            let source = io::Error::new(io::ErrorKind::InvalidData, "a folder list's tail that doesn't add up");
+            return Err(StoreError::Io { path: format!("{account}/{folder}"), source });
+        }
+        let total = usize::try_from(in_pages).unwrap_or(usize::MAX);
+        let mut w = ListWriter { account: account.to_string(), folder: folder.to_string(), pages, page: Vec::new(), total, unread: unread_in_pages };
+        w.push(self, page)?;
+        Ok(w)
+    }
+
     /// Several files at once (one transaction in a data file).
     pub(super) fn write_files(&self, items: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
         #[cfg(not(target_arch = "wasm32"))]

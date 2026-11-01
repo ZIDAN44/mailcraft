@@ -150,6 +150,23 @@ pub struct ListWriter {
     unread: u32,
 }
 
+/// A folder's list part-way through being written ([`ListWriter::tail`]): the hashes of the pages
+/// written, the messages in them and how many of those are unread, and the messages not yet in a
+/// page. Read back from a file, it's checked before it's used ([`Store::resume_list_writer`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ListTail {
+    pub pages: Vec<u64>,
+    pub in_pages: u64,
+    pub unread_in_pages: u32,
+    pub page: Vec<Summary>,
+}
+
+/// A list's tail names at most this many pages written (4 billion messages), and holds at most
+/// two pages' worth not yet in one.
+pub const TAIL_PAGES_MAX: usize = 1_000_000;
+pub const TAIL_PAGE_MAX: usize = 2 * PAGE_MESSAGES;
+
 impl ListWriter {
     /// Add messages (in rising number order); full pages are written as they fill.
     pub fn push(&mut self, store: &Store, messages: Vec<Summary>) -> Result<()> {
@@ -174,6 +191,20 @@ impl ListWriter {
         self.pages.push(page_hash(&bytes));
         self.page.clear();
         Ok(())
+    }
+
+    /// Where the list has got to, with `more` (messages after those handed over, in rising number
+    /// order) at its end: what an import notes to go on writing it later
+    /// ([`Store::resume_list_writer`]). Nothing is written.
+    pub fn tail(&self, more: &[Summary]) -> ListTail {
+        let written = self.page.len();
+        let unread_page = self.page.iter().filter(|m| !m.flags.seen && !m.flags.deleted).count();
+        ListTail {
+            pages: self.pages.clone(),
+            in_pages: u64::try_from(self.total.saturating_sub(written)).unwrap_or(u64::MAX),
+            unread_in_pages: self.unread.saturating_sub(u32::try_from(unread_page).unwrap_or(u32::MAX)),
+            page: self.page.iter().chain(more).cloned().collect(),
+        }
     }
 
     /// Write what's left and the list (with `head`'s sync state): its (unread, total).
@@ -539,6 +570,17 @@ impl Store {
     /// A small document kept with an account's cache (removed with it).
     pub fn load_account_doc<T: DeserializeOwned + Default>(&self, account: &str, name: &str) -> Result<T> {
         self.read_json(&self.account_dir(account).join(safe_doc(name)))
+    }
+
+    /// An account's document as it's kept, for a reader that checks it itself (one that can't be
+    /// read is left where it is, not set aside); `None` when there's none.
+    pub fn load_account_doc_bytes(&self, account: &str, name: &str) -> Result<Option<Vec<u8>>> {
+        let path = self.account_dir(account).join(safe_doc(name));
+        match self.files.read(&path) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(io_err(&path)(e)),
+        }
     }
 
     pub fn save_account_doc<T: Serialize + ?Sized>(&self, account: &str, name: &str, value: &T) -> Result<()> {

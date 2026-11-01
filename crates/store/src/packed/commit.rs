@@ -362,6 +362,41 @@ impl Packs {
         Ok(())
     }
 
+    /// Sources and the documents saying what they are (an import's checkpoint), in one durable,
+    /// sealed transaction per data file: a crash leaves both or neither, and reopens at once.
+    pub(crate) fn write_batch(&self, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        let mut by_account: BTreeMap<String, (Vec<(String, Prepared)>, Vec<(String, Vec<u8>)>)> = BTreeMap::new();
+        for (p, prepared) in items {
+            match self.place(&p) {
+                Place::In(a, k) => by_account.entry(a).or_default().0.push((k, prepared)),
+                Place::Account(_) | Place::Disk => write_atomic(&p, &prepared.into_raw().map_err(io_err(&p))?)?,
+            }
+        }
+        for (p, bytes) in docs {
+            match self.place(&p) {
+                Place::In(a, k) => by_account.entry(a).or_default().1.push((k, bytes)),
+                Place::Account(_) | Place::Disk => write_atomic(&p, &bytes)?,
+            }
+        }
+        for (a, (files, docs)) in by_account {
+            self.change_with(&a, Commit::SEALED, 0, |t| {
+                for (k, prepared) in &files {
+                    if prepared.kept {
+                        t.put_kept(k, &prepared.bytes)?;
+                    } else {
+                        t.put(k, &prepared.bytes)?;
+                    }
+                }
+                for (k, bytes) in &docs {
+                    t.put(k, bytes)?;
+                }
+                Ok(())
+            })
+            .map_err(|source| StoreError::Io { path: a.clone(), source })?;
+        }
+        Ok(())
+    }
+
     /// Seal the data file of the account folder `dir`, when it has one.
     pub(crate) fn seal(&self, dir: &Path) -> Result<()> {
         let Place::Account(a) = self.place(dir) else { return Ok(()) };

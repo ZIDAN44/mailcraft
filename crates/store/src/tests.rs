@@ -487,3 +487,74 @@ fn a_failing_store_says_so_and_writes_nothing_over() {
     assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
     assert_eq!(s.load_body(&k9).unwrap().as_deref(), Some(&b"x"[..]));
 }
+
+/// A folder's list written part-way, noted as its tail, and gone on with from that tail (an
+/// import that stopped and goes on) comes out as the list written in one go: the same pages,
+/// counts and order. A tail that doesn't add up is refused, with nothing written.
+#[test]
+fn a_list_goes_on_from_its_tail_as_if_never_stopped() {
+    let n = PAGE_MESSAGES as u32 * 2 + 700;
+    let unread = |uid: u32| msg(uid, !uid.is_multiple_of(3));
+    let head = FolderState { validity: 3, uid_next: n + 1, ..Default::default() };
+    for stop in [10, PAGE_MESSAGES as u32 - 1, PAGE_MESSAGES as u32 + 5, 2 * PAGE_MESSAGES as u32] {
+        let (whole, parts) = (Store::memory(), Store::memory());
+        let mut w = whole.list_writer("a1", "INBOX");
+        w.push(&whole, (1..=n).map(unread).collect()).unwrap();
+        let counts = w.finish(&whole, &head).unwrap();
+
+        let mut w = parts.list_writer("a1", "INBOX");
+        w.push(&parts, (1..=stop).map(unread).collect()).unwrap();
+        // Messages written since the last page, not yet handed over, go in the tail too.
+        let tail = w.tail(&[unread(stop + 1), unread(stop + 2)]);
+        drop(w);
+        let back: ListTail = serde_json::from_slice(&serde_json::to_vec(&tail).unwrap()).unwrap();
+        let mut w = parts.resume_list_writer("a1", "INBOX", back).unwrap();
+        w.push(&parts, (stop + 3..=n).map(unread).collect()).unwrap();
+        assert_eq!(w.finish(&parts, &head).unwrap(), counts, "stopped at {stop}");
+        assert_eq!(parts.load_folder("a1", "INBOX").unwrap(), whole.load_folder("a1", "INBOX").unwrap(), "stopped at {stop}");
+        assert_eq!(parts.snapshot(|_| true), whole.snapshot(|_| true), "stopped at {stop}: the same files");
+    }
+    let s = Store::memory();
+    s.track_changes();
+    let refused = |tail: ListTail| s.resume_list_writer("a1", "INBOX", tail).is_err();
+    assert!(refused(ListTail { pages: vec![1], in_pages: 3, ..Default::default() }), "a page that isn't a full one");
+    assert!(refused(ListTail { pages: vec![1], in_pages: PAGE_MESSAGES as u64, unread_in_pages: u32::MAX, ..Default::default() }));
+    assert!(refused(ListTail { page: (1..=TAIL_PAGE_MAX as u32 + 1).map(unread).collect(), ..Default::default() }), "too long");
+    assert!(refused(ListTail { page: vec![unread(5), unread(4)], ..Default::default() }), "out of order");
+    assert!(refused(ListTail {
+        pages: vec![0; TAIL_PAGES_MAX + 1],
+        in_pages: (TAIL_PAGES_MAX as u64 + 1) * PAGE_MESSAGES as u64,
+        ..Default::default()
+    }));
+    assert!(s.take_changes().is_empty(), "nothing written for a tail refused");
+}
+
+/// The sources of a folder past a number go, read as numbers (10 is past 9), in one change, and
+/// only that folder's under that validity; a batch and the document naming it go in together.
+#[test]
+fn sources_past_a_number_are_dropped_by_number() {
+    for packed in [false, true] {
+        let dir = std::env::temp_dir().join(format!("mailcraft-drop-from-{packed}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let s = if packed { Store::open_packed(dir.join("app"), dir.join("Files")).unwrap() } else { Store::open(&dir).unwrap() };
+        let key = |folder: &str, validity: u32, uid: u32| MessageKey { account: "a1".into(), folder: folder.into(), validity, uid };
+        let batch =
+            [2, 9, 10, 11, 100].iter().map(|u| (key("INBOX", 1, *u), Store::prepare(s.packs("a1"), format!("Subject: {u}\r\n\r\nx").into_bytes())));
+        let mut bodies: Vec<_> = batch.collect();
+        bodies.push((key("INBOX", 2, 50), Store::prepare(s.packs("a1"), b"Subject: v2\r\n\r\nx".to_vec())));
+        bodies.push((key("Sent", 1, 50), Store::prepare(s.packs("a1"), b"Subject: sent\r\n\r\nx".to_vec())));
+        s.write_batch("a1", bodies, vec![("import.json", br#"{"version":1}"#.to_vec())]).unwrap();
+        assert_eq!(s.load_account_doc::<serde_json::Value>("a1", "import.json").unwrap(), serde_json::json!({"version": 1}));
+        assert_eq!(s.load_account_doc_bytes("a1", "import.json").unwrap().as_deref(), Some(&br#"{"version":1}"#[..]));
+        assert_eq!(s.load_account_doc_bytes("a1", "gone.json").unwrap(), None);
+        assert_eq!(s.drop_bodies_from("a1", "INBOX", 1, 10).unwrap(), 3, "{packed}");
+        let mut left = s.cached_bodies("a1", "INBOX", 1);
+        left.sort_unstable();
+        assert_eq!(left, [2, 9], "{packed}");
+        assert!(s.has_body(&key("INBOX", 2, 50)) && s.has_body(&key("Sent", 1, 50)), "{packed}: others stay");
+        assert_eq!(s.drop_bodies_from("a1", "INBOX", 1, 10).unwrap(), 0);
+        assert_eq!(s.drop_bodies_from("a1", "Nowhere", 1, 1).unwrap(), 0);
+        drop(s);
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

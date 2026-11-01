@@ -32,6 +32,8 @@ fn an_account_starts_from_an_existing_data_file() {
     st.messages.push(Summary { key: k.clone(), subject: "hi".into(), ..Default::default() });
     old.save_folder("a1", "INBOX", &st).unwrap();
     old.save_account_doc("a1", "pim.json", &serde_json::json!({"notes": []})).unwrap();
+    // An import into it noted how far it got: this account's isn't that import.
+    old.save_account_doc("a1", "import.json", &serde_json::json!({"version": 1, "state": "running"})).unwrap();
     // Changes still to make on its server, and mail still to send: they stay behind.
     old.save_ops("a1", &[mailcraft_model::Op::Expunge { keys: vec![k.clone()] }]).unwrap();
     old.outbox_add("a1", &crate::OutboxItem { id: 4, ..Default::default() }, b"Subject: later\r\n\r\nx").unwrap();
@@ -50,6 +52,7 @@ fn an_account_starts_from_an_existing_data_file() {
     assert_eq!(st.messages[0].key, mine, "renumbered as this account's");
     assert_eq!(s.read_body(&mine).unwrap(), b"Subject: hi\r\n\r\nhello");
     assert_eq!(s.load_account_doc::<serde_json::Value>("p7", "pim.json").unwrap(), serde_json::json!({"notes": []}));
+    assert_eq!(s.load_account_doc::<Option<serde_json::Value>>("p7", "import.json").unwrap(), None, "an import's note stays behind");
     assert!(file.exists(), "the file it came from stays");
     assert!(!t.join("app").join(".import-p7.tmp").exists(), "the copy read from is gone");
 

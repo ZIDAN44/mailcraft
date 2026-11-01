@@ -132,6 +132,22 @@ impl Files {
         }
     }
 
+    /// Sources and the documents describing them ([`Store::write_batch`]): in a data file one
+    /// sealed transaction; elsewhere the sources first, then the documents.
+    pub(super) fn write_batch(&self, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.write_batch(items, docs),
+            _ => {
+                self.write_prepared(items, true)?;
+                for (p, bytes) in &docs {
+                    self.write(p, bytes)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
     /// Files written and removed together (a search index's meta and what it no longer uses): in a
     /// data file one transaction, sealed when `seal` (otherwise a batch not waited for);
     /// elsewhere `put` written first, then `gone` removed (one not there is no matter).
@@ -405,6 +421,11 @@ impl Routed {
             self.held.write_prepared(held, durable)?;
         }
         if main.is_empty() { Ok(()) } else { self.main.write_prepared(main, durable) }
+    }
+
+    /// [`Files::write_batch`] for an account's files, all under its folder `dir`.
+    pub(super) fn write_batch(&self, dir: &Path, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        self.at(dir).write_batch(items, docs)
     }
 
     /// [`Files::replace`] for files all under `dir`.

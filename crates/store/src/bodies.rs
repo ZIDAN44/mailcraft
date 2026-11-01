@@ -111,6 +111,38 @@ impl Store {
         self.files.write_prepared(items, durable)
     }
 
+    /// Sources made ready ([`Store::prepare`]) and `account`'s documents (`docs`: a plain file
+    /// name and its bytes, as [`Store::save_account_doc`] keeps them) written together, the
+    /// documents saying what the sources are: an import's checkpoint. In a data file it's one
+    /// transaction, durable and sealed (it makes the batches before it durable too, and a crash
+    /// after it reopens at once); elsewhere the sources go first and the documents last, so a
+    /// document never names a source that isn't there.
+    pub fn write_batch(&self, account: &str, bodies: Vec<(MessageKey, Prepared)>, docs: Vec<(&str, Vec<u8>)>) -> Result<()> {
+        let dir = self.account_dir(account);
+        let items = bodies.into_iter().map(|(k, p)| (self.body_path(&k), p)).collect();
+        let docs = docs.into_iter().map(|(name, bytes)| (dir.join(safe_doc(name)), bytes)).collect();
+        self.files.write_batch(&dir, items, docs)
+    }
+
+    /// Remove the sources kept for `folder` (as numbered under `validity`) numbered `uid_next` or
+    /// above, in one change: what an import wrote past the checkpoint it goes on from, or past
+    /// where it was stopped, that no list names. Numbers are read as numbers ("10" is above "9").
+    /// Returns how many went.
+    pub fn drop_bodies_from(&self, account: &str, folder: &str, validity: u32, uid_next: u32) -> Result<usize> {
+        let dir = self.folder_dir(account, folder).join(validity.to_string());
+        let gone: Vec<PathBuf> = self
+            .files
+            .list(&dir)
+            .into_iter()
+            .filter(|(name, _)| name.strip_suffix(".eml").and_then(|n| n.parse::<u32>().ok()).is_some_and(|uid| uid >= uid_next))
+            .map(|(_, p)| p)
+            .collect();
+        if !gone.is_empty() {
+            self.files.replace(&self.account_dir(account), None, &gone, false)?;
+        }
+        Ok(gone.len())
+    }
+
     /// Make an account's data file reopen at once after a crash, as it is now: a durable commit
     /// that records where its free space is. Commits don't do that on their own (on a 37 GB file it
     /// tripled a small one's time), so a crash after one costs a full check of the file when it
