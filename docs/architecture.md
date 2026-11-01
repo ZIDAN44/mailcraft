@@ -331,7 +331,11 @@ one rewritten, under the lock every save of a list takes) and sent as
 `Event::AttachmentsKnown`, which the session takes into the summaries it holds
 (`mailboxes/patch.rs`), so the paperclip, Has files and `has:attachment` agree; a doc that couldn't
 be read, or whose parts were cut with no file found (`IndexDoc::parts_cut`: a file may be nested
-past the walk's limits), leaves the summary to say (`DocInfo::files_known`). In the browser
+past the walk's limits), leaves the summary to say (`DocInfo::files_known`). The lock keeps the
+putting right from writing over a save, not a save that loaded the list before it from writing
+the old flags back (a sync, a flag from the window), so a folder put right, or whose list
+couldn't be written, isn't marked (`Pass::unmark`): the next pass looks at it again, from the
+docs with nothing read, and puts it right once more. In the browser
 (`apps/mailcraft-web/src/backend/indexing.rs`) the pass gives the page back every 16 messages
 or 1 MiB read, and between merge steps.
 

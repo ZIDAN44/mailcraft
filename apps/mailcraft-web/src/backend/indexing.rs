@@ -109,13 +109,20 @@ async fn pass(sh: &Rcs, account: &str, folders: &[String]) -> StoreResult<()> {
 }
 
 /// Put right in their folders' lists the summaries the pass found to say otherwise than the
-/// index about carrying files, and tell the window of each folder changed.
+/// index about carrying files, and tell the window of each folder changed. A folder put right,
+/// or that couldn't be, isn't marked: the next pass looks at it again ([`Pass::unmark`]).
 fn settle_files(sh: &Rcs, store: &Store, account: &str, p: &mut Pass) {
     for (folder, found) in p.take_files() {
         match store.set_has_files(account, &folder, &found) {
             Ok(0) => {}
-            Ok(_) => emit(sh, Event::AttachmentsKnown { account: account.to_string(), folder, with: found.with, without: found.without }),
-            Err(e) => log::warn!("{account}: whether {} messages carry files wasn't kept: {e}", found.with.len().saturating_add(found.without.len())),
+            Ok(_) => {
+                p.unmark(&folder);
+                emit(sh, Event::AttachmentsKnown { account: account.to_string(), folder, with: found.with, without: found.without });
+            }
+            Err(e) => {
+                log::warn!("{account}: whether {} messages carry files wasn't kept: {e}", found.with.len().saturating_add(found.without.len()));
+                p.unmark(&folder);
+            }
         }
     }
 }
@@ -141,6 +148,8 @@ async fn walk(sh: &Rcs, store: &Store, account: &str, p: &mut Pass) -> StoreResu
         }
     }
     let complete = !stopped(sh) && i >= p.adds().len();
+    // Put right before the folders are marked, so one that couldn't be isn't.
+    settle_files(sh, store, account, p);
     p.finish(store, complete)?;
     let at = u64::try_from(now()).unwrap_or(0);
     while complete && !stopped(sh) && p.merge_step(store, at)? {

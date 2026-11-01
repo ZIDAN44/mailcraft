@@ -159,8 +159,11 @@ impl Store {
     /// to say otherwise about), in the folder's list as it stands now: only the pages holding
     /// one that changed are written again, with the list's head (which names its pages), in one
     /// transaction. It reads and writes under the lock every save of a list takes, so a flag
-    /// marked meanwhile from the window isn't written over. A list of another validity is left
-    /// as it is. How many summaries changed.
+    /// marked meanwhile from the window isn't written over. The other way round it isn't kept
+    /// from: a save that loaded the list before this (a sync, a flag from the window) writes the
+    /// old flags back; the pass that put the folder right leaves it unmarked
+    /// ([`Pass::unmark`](crate::search::Pass::unmark)), so the next looks at it again and puts it
+    /// right once more. A list of another validity is left as it is. How many summaries changed.
     pub fn set_has_files(&self, account: &str, folder: &str, found: &crate::search::FilesFound) -> Result<usize> {
         if found.is_empty() {
             return Ok(0);

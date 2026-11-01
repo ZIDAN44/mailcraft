@@ -412,6 +412,57 @@ fn an_imported_file_leaves_nothing_to_index() {
 #[test]
 fn a_pass_puts_right_what_summaries_say_of_files() {
     let s = Store::memory();
+    wrong_about_files(&s);
+    let before = s.load_folder("a1", "INBOX").unwrap();
+    let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
+    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
+    let mut known = Vec::new();
+    until(&pool, |e| {
+        if let Event::AttachmentsKnown { folder, with, without, .. } = e {
+            known.push((folder.clone(), with.clone(), without.clone()));
+        }
+        matches!(e, Event::Indexed { finished: true, .. })
+    });
+    assert_eq!(known, [("INBOX".to_string(), vec![2], vec![1])]);
+    let st = s.load_folder("a1", "INBOX").unwrap();
+    assert_eq!((st.find(1).unwrap().has_attachments, st.find(2).unwrap().has_attachments), (false, true));
+    // A save that loaded the list before writes it back as it was (the very bytes the pass was
+    // planned on): the folder wasn't marked, so the next pass puts it right again.
+    s.save_folder("a1", "INBOX", &before).unwrap();
+    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
+    let seen = until(&pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
+    assert_eq!(seen.iter().filter(|e| matches!(e, Event::AttachmentsKnown { .. })).count(), 1, "{seen:?}");
+    assert!(!s.load_folder("a1", "INBOX").unwrap().find(1).unwrap().has_attachments);
+    // The next pass finds them right: nothing to tell.
+    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
+    let seen = until(&pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
+    assert!(!seen.iter().any(|e| matches!(e, Event::AttachmentsKnown { .. })), "{seen:?}");
+}
+
+/// Summaries that couldn't be put right (the list's write failed) leave their folder unmarked:
+/// the next pass, its list unchanged, finds them again from the index and puts them right.
+#[test]
+fn summaries_not_put_right_are_tried_again() {
+    let s = Store::failing();
+    wrong_about_files(&s);
+    s.fail(None, Some("state.json"));
+    let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
+    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
+    let seen = until(&pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
+    assert!(!seen.iter().any(|e| matches!(e, Event::AttachmentsKnown { .. })), "{seen:?}");
+    assert!(s.load_folder("a1", "INBOX").unwrap().find(1).unwrap().has_attachments, "not written");
+    s.fail(None, None);
+    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
+    let seen = until(&pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
+    let known: Vec<_> = seen.iter().filter(|e| matches!(e, Event::AttachmentsKnown { .. })).collect();
+    assert_eq!(known.len(), 1, "{seen:?}");
+    let st = s.load_folder("a1", "INBOX").unwrap();
+    assert_eq!((st.find(1).unwrap().has_attachments, st.find(2).unwrap().has_attachments), (false, true));
+}
+
+/// INBOX's two messages, their summaries wrong about files: 1 shows only a picture in its text
+/// and is said to carry one; 2 carries a PDF and is said not to.
+fn wrong_about_files(s: &Store) {
     let picture = concat!(
         "Subject: pic\r\nMessage-ID: <1@x>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"b\"\r\n\r\n",
         "--b\r\nContent-Type: text/html\r\n\r\n<p>see <img src=\"cid:pic1\"></p>\r\n",
@@ -439,22 +490,6 @@ fn a_pass_puts_right_what_summaries_say_of_files() {
     for (uid, raw) in [(1, picture), (2, file)] {
         s.write_body(&MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid }, raw.as_bytes()).unwrap();
     }
-    let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
-    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
-    let mut known = Vec::new();
-    until(&pool, |e| {
-        if let Event::AttachmentsKnown { folder, with, without, .. } = e {
-            known.push((folder.clone(), with.clone(), without.clone()));
-        }
-        matches!(e, Event::Indexed { finished: true, .. })
-    });
-    assert_eq!(known, [("INBOX".to_string(), vec![2], vec![1])]);
-    let st = s.load_folder("a1", "INBOX").unwrap();
-    assert_eq!((st.find(1).unwrap().has_attachments, st.find(2).unwrap().has_attachments), (false, true));
-    // The next pass finds them right: nothing to tell.
-    pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });
-    let seen = until(&pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
-    assert!(!seen.iter().any(|e| matches!(e, Event::AttachmentsKnown { .. })), "{seen:?}");
 }
 
 /// A pass's end isn't hidden by the next pass starting before the window looks: both are

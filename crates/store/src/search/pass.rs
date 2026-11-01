@@ -65,6 +65,18 @@ impl Pass {
         std::mem::take(&mut self.files)
     }
 
+    /// `folder`'s summaries found wrong were put right, or couldn't be: its mark goes at the
+    /// [end](Pass::finish), so the next plan looks at it again. A failed write leaves its list
+    /// as planned, and a save that loaded the list before the putting right can write it back
+    /// as it was: a mark would hide either.
+    pub fn unmark(&mut self, folder: &str) {
+        for (f, revision) in &mut self.plan.marks {
+            if f == folder {
+                *revision = 0;
+            }
+        }
+    }
+
     /// The index's generation as last written.
     pub fn generation(&self) -> u64 {
         self.writer.generation()

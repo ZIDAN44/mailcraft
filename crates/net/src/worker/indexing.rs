@@ -334,24 +334,32 @@ pub(super) fn pass(
         // The readers stop at their next message (the channel they send on has gone too).
         quit.store(true, Ordering::Relaxed);
     });
+    // What it found holds whether the pass ended well or not: the messages were read. Put right
+    // before the folders are marked, so one that couldn't be isn't.
+    settle_files(store, account, &mut p, report);
     let ended = match failed {
         Some(e) => Err(e),
         None => finish(store, &mut p, stop),
     };
-    // What it found holds whether the pass ended well or not: the messages were read.
-    settle_files(store, account, &mut p, report);
     report(indexed(&p, true));
     ended
 }
 
 /// Put right in their folders' lists the summaries the pass found to say otherwise than the
-/// index about carrying files, and tell the window of each folder changed.
+/// index about carrying files, and tell the window of each folder changed. A folder put right,
+/// or that couldn't be, isn't marked: the next pass looks at it again ([`Pass::unmark`]).
 fn settle_files(store: &Store, account: &str, p: &mut Pass, report: &mut dyn FnMut(Event)) {
     for (folder, found) in p.take_files() {
         match store.set_has_files(account, &folder, &found) {
             Ok(0) => {}
-            Ok(_) => report(Event::AttachmentsKnown { account: account.to_string(), folder, with: found.with, without: found.without }),
-            Err(e) => log::warn!("{account}: whether {} messages carry files wasn't kept: {e}", found.with.len().saturating_add(found.without.len())),
+            Ok(_) => {
+                p.unmark(&folder);
+                report(Event::AttachmentsKnown { account: account.to_string(), folder, with: found.with, without: found.without });
+            }
+            Err(e) => {
+                log::warn!("{account}: whether {} messages carry files wasn't kept: {e}", found.with.len().saturating_add(found.without.len()));
+                p.unmark(&folder);
+            }
         }
     }
 }
