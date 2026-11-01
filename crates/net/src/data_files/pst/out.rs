@@ -8,8 +8,8 @@ use super::resume::CheckState;
 use super::*;
 
 mod indexing;
-pub(super) mod sent_ids;
 mod room;
+pub(super) mod sent_ids;
 
 /// Message sources written to the cache together (one transaction): at most this many…
 const BATCH_MESSAGES: usize = 2000;
