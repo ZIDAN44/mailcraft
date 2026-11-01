@@ -201,7 +201,8 @@ pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
     let q = Query::parse(query);
     let mut out = Vec::new();
     let atom = |s: &str| SearchArg::Atom(s.to_string());
-    for c in q.clauses.iter().take(16) {
+    // `-attachment:x` as NOT TEXT x would also leave out mail that only mentions x.
+    for c in q.clauses.iter().filter(|c| !(c.negated && c.term.asks_names())).take(16) {
         let not = |out: &mut Vec<SearchArg>| {
             if c.negated {
                 out.push(atom("NOT"));

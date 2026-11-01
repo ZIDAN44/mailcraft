@@ -155,11 +155,46 @@ pub struct SummaryText {
 
 impl SummaryText {
     pub fn of(m: &Summary) -> SummaryText {
+        SummaryText::with_parts(m, [true; 4])
+    }
+
+    /// Only the parts `q` looks in, the others left empty: what a search not keeping it reads
+    /// (folding the preview and every recipient for `from:` made such a search several times
+    /// slower). Nothing at all for a query of flags, sizes and dates.
+    pub fn for_query(m: &Summary, q: &Query) -> SummaryText {
+        fn mark(t: &Term, want: &mut [bool; 4]) {
+            match t {
+                Term::Words(f, _) | Term::Phrase(f, _) => {
+                    for p in places(f).0 {
+                        if let Some(w) = want.get_mut(*p as usize) {
+                            *w = true;
+                        }
+                    }
+                }
+                Term::AnyOf(any) => any.iter().for_each(|t| mark(t, want)),
+                _ => {}
+            }
+        }
+        let mut want = [false; 4];
+        q.clauses.iter().for_each(|c| mark(&c.term, &mut want));
+        if want == [false; 4] {
+            return SummaryText::default();
+        }
+        SummaryText::with_parts(m, want)
+    }
+
+    fn with_parts(m: &Summary, want: [bool; 4]) -> SummaryText {
         let mut st = SummaryText::default();
-        let from = addr_text(std::slice::from_ref(&m.from));
-        let mut to = addr_text(&m.to);
-        to.push_str(&addr_text(&m.cc));
-        for (i, text) in [m.subject.as_str(), &from, &to, &m.preview].into_iter().enumerate() {
+        let wanted = |p: Part| want.get(p as usize).copied().unwrap_or(false);
+        let from = if wanted(Part::From) { addr_text(std::slice::from_ref(&m.from)) } else { String::new() };
+        let mut to = String::new();
+        if wanted(Part::To) {
+            to = addr_text(&m.to);
+            to.push_str(&addr_text(&m.cc));
+        }
+        let subject = if wanted(Part::Subject) { m.subject.as_str() } else { "" };
+        let preview = if wanted(Part::Preview) { m.preview.as_str() } else { "" };
+        for (i, text) in [subject, &from, &to, preview].into_iter().enumerate() {
             let mut part = String::new();
             join(all_words(text), &mut part);
             st.folded.push_str(&part);
@@ -278,7 +313,8 @@ impl Query {
         let mut v = Vec::new();
         for c in self.clauses.iter().filter(|c| !c.negated) {
             match &c.term {
-                Term::Words(_, w) => v.extend(w.iter().map(|w| fold_word(w).into_owned())),
+                // An empty word would be a prefix of every one: the index would offer everything.
+                Term::Words(_, w) => v.extend(w.iter().map(|w| fold_word(w).into_owned()).filter(|w| !w.is_empty())),
                 Term::Phrase(_, p) => v.extend(tokens(p).map(Cow::into_owned)),
                 _ => {}
             }

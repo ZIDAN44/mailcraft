@@ -413,7 +413,7 @@ fn junk_dates_are_problems() {
         "received:..",
         "received:>",
         "received:1969",
-        "received:soon",
+        "received:yesterdays",
         "after:2024-00-10",
         "before:>=2024",
         "received:2024-01-01..2024-99",
@@ -428,6 +428,29 @@ fn junk_dates_are_problems() {
         (query.clauses.len(), query.problems, Query::parse("received:2024").problems),
         (2, vec![Problem::Date("received:2024-13".into())], vec![])
     );
+    // A value not meant as a date is still the words typed (the problem said all the same):
+    // these weren't fields before, and prose after them was searched whole.
+    for (typed, words) in [
+        ("budget before: launch", vec!["budget", "before", "launch"]),
+        ("meeting date: friday", vec!["meeting", "date", "friday"]),
+        ("sent: from the phone", vec!["sent", "from", "the", "phone"]),
+        ("after:party", vec!["after", "party"]),
+        ("received:soon", vec!["received", "soon"]),
+    ] {
+        let query = Query::parse(typed);
+        let found: Vec<String> = query
+            .clauses
+            .iter()
+            .flat_map(|c| match &c.term {
+                Term::Words(Field::Any, ws) => ws.clone(),
+                other => panic!("{typed}: {other:?}"),
+            })
+            .collect();
+        assert_eq!((found, query.problems.len()), (words.iter().map(|w| w.to_string()).collect(), 1), "{typed}");
+    }
+    let mut m = sample();
+    m.subject = "After party photos".into();
+    assert!(q("after:party", &m));
     // Leap days are days.
     assert!(Query::parse("received:2024-02-29").problems.is_empty() && !Query::parse("received:2023-02-29").problems.is_empty());
     assert!(dates::is_day("2024-03-15") && dates::is_day("2024/3/5") && !dates::is_day("2024-03") && !dates::is_day("today"));
@@ -438,4 +461,24 @@ fn junk_dates_are_problems() {
             let _ = range(q, &berlin(now));
         }
     }
+}
+
+/// A word that folds to nothing (a combining mark alone, which Unicode counts a word) asks the
+/// index for nothing: as an empty prefix it offered every message, and matched them all.
+#[test]
+fn a_word_folding_to_nothing_is_no_word() {
+    let mut index = Index::new();
+    index.add(1, "alpha");
+    index.add(2, "beta");
+    for typed in ["\u{345}", "\u{301}\u{345}", "body:\u{345}", "from:\u{345},\u{301}"] {
+        let query = Query::parse(typed);
+        assert!(query.index_words().iter().all(|w| !w.is_empty()), "{typed}");
+        let m = Summary { subject: "x".into(), ..Default::default() };
+        assert_ne!(eval(&query, &m, &"anything"), Tri::Yes, "{typed}");
+    }
+    // Beside other words it's no word at all: they alone narrow and decide.
+    let query = Query::parse("beta \u{345}");
+    assert_eq!((query.index_words(), index.candidates(&query)), (vec!["beta".to_string()], BTreeSet::from([2])));
+    let m = Summary { subject: "Beta\u{345} notes".into(), ..Default::default() };
+    assert_eq!(eval(&Query::parse("beta\u{345}"), &m, &""), Tri::Yes);
 }

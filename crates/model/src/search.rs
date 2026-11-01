@@ -82,17 +82,30 @@ pub enum Term {
     Date(DateSpec),
 }
 
+impl Term {
+    /// Whether it looks in the files' names (`attachment:`), alone or among others. A server can
+    /// only ask the whole text for those, which finds more: asked negated, it would find too
+    /// little, so a server is asked the rest and what it finds is checked here.
+    pub fn asks_names(&self) -> bool {
+        match self {
+            Term::Words(f, _) | Term::Phrase(f, _) => *f == Field::Attachment,
+            Term::AnyOf(any) => any.iter().any(Term::asks_names),
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Clause {
     pub term: Term,
     pub negated: bool,
 }
 
-/// Something typed that couldn't be read, and was left out of the search (the search box says
-/// so, rather than looking for it as words).
+/// Something typed that couldn't be read (the search box says so): left out of the search, or,
+/// when it wasn't meant as one (`before: launch`), looked for as the words typed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Problem {
-    /// A date that isn't one (`received:2024-13`): the term as typed.
+    /// A date that isn't one (`received:2024-13`, `after:party`): the term as typed.
     Date(String),
 }
 

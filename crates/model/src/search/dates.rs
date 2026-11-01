@@ -109,6 +109,16 @@ pub fn is_day(value: &str) -> bool {
     matches!(point(value.trim()), Some(DatePoint::Day { .. }))
 }
 
+/// Whether a value is meant as a date, if not a good one: it starts with a digit or a comparison
+/// (`2024-13`, `>=`, `..`) or one of the names from today. Anything else (`before: launch`,
+/// `date: friday`) is words that happen to follow the field's name.
+pub(super) fn looks_like_date(value: &str) -> bool {
+    let v = unquote(value);
+    let named: String = v.chars().filter(|c| !matches!(c, ' ' | '-' | '_')).collect();
+    v.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '<' | '>' | '=' | '.'))
+        || ["today", "yesterday", "thisweek", "lastweek", "thismonth", "lastmonth", "thisyear", "lastyear"].iter().any(|n| named.starts_with(n))
+}
+
 fn unquote(value: &str) -> String {
     let v = value.trim();
     let v = v.strip_prefix('"').unwrap_or(v);

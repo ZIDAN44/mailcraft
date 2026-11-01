@@ -1430,8 +1430,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   (`2024-01-01..2024-03-31`) or a comparison (`>=2024-03-01`), in the user's time zone;
   `after:` and `before:` take the same dates (from its start on, and before it starts).
   `received:2024` was two words that matched nearly everything; a date that isn't one
-  (`2024-13`) is now left out rather than looked for. `attachment:` asks
-  for a word in the files' names (for now the message's text is looked through with them).
+  (`2024-13`) is now left out rather than looked for (the search box doesn't say so yet: the
+  query keeps the problem for it to show), while words that only follow the name
+  (`before: launch`, `date: friday`, `after:party`) are still looked for as words. `attachment:`
+  asks for a word in the files' names (for now the message's text is looked through with them);
+  a server can only look through the whole text for them, so `-attachment:` isn't asked of it
+  and what it finds is checked here. What a server finds is checked against the dates, flags
+  and replies it wasn't asked about; the words it was asked stay its own to match (IMAP finds
+  `from:oana` in "Joana", which the list doesn't). A lone accent typed is no longer a word
+  that every message starts with.
 - **Mail from a `.pst` that came without headers** (sent items, drafts, mail Outlook made
   itself): a forwarded message shows as forwarded (by Outlook's last action on it, or its
   forwarded icon), high and low importance come through, and the ids it answers are read

@@ -117,10 +117,27 @@ proptest! {
     fn any_query_reads_and_checks(q in r#"[a-z:"<>=./ 0-9-]{0,40}|\PC{0,60}"#, now in any::<i64>(), offset in any::<i32>(), subject in r"\PC{0,30}") {
         let mut query = Query::parse(&q);
         query.resolve(&Clock::new(now, offset));
-        let m = mailcraft_model::Summary { subject, date: now, ..Default::default() };
+        let who = mailcraft_model::EmailAddress::new(subject.clone(), "ana@studio.example");
+        let m = mailcraft_model::Summary { preview: subject.clone(), from: who.clone(), to: vec![who.clone()], cc: vec![who], subject, date: now, ..Default::default() };
         let st = SummaryText::of(&m);
-        let _ = query.eval(&Doc { summary: &m, summary_text: &st, awaiting: false, files: None, text: &q.as_str() });
+        let whole = query.eval(&Doc { summary: &m, summary_text: &st, awaiting: false, files: None, text: &q.as_str() });
+        // Only the parts the query looks in, folded: the same answer.
+        let some = SummaryText::for_query(&m, &query);
+        prop_assert_eq!(query.eval(&Doc { summary: &m, summary_text: &some, awaiting: false, files: None, text: &q.as_str() }), whole);
         let _ = (query.text_words(), query.index_words(), query.needs_text());
+        prop_assert!(query.index_words().iter().all(|w| !w.is_empty()));
+    }
+
+    /// Accents typed alone, a field's value or not, ask the index for no empty word (which would
+    /// offer every message) and match no summary for sure.
+    #[test]
+    fn marks_alone_are_no_words(marks in r"[\u{300}-\u{36f}\u{345}]{1,6}", field in "|from:|to:|subject:|body:|attachment:", subject in "[a-zA-Zà-ÿ ]{0,30}") {
+        let query = Query::parse(&format!("{field}{marks}"));
+        prop_assert!(query.index_words().iter().all(|w| !w.is_empty()));
+        prop_assert!(query.text_words().iter().all(|(_, w, _)| !w.is_empty()));
+        let m = mailcraft_model::Summary { subject, ..Default::default() };
+        let st = SummaryText::of(&m);
+        prop_assert_ne!(query.eval(&Doc { summary: &m, summary_text: &st, awaiting: false, files: None, text: &"anything at all" }), mailcraft_model::search::Tri::Yes);
     }
 
     /// A contact written as a vCard reads back as the same contact.

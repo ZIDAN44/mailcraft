@@ -20,7 +20,8 @@ pub fn search_filter(query: &str) -> Option<Value> {
         Field::Attachment => "text",
     };
     let keyword = |k: &str, has: bool| if has { json!({"hasKeyword": k}) } else { json!({"notKeyword": k}) };
-    for c in q.clauses.iter().take(16) {
+    // `-attachment:x` as NOT text x would also leave out mail that only mentions x.
+    for c in q.clauses.iter().filter(|c| !(c.negated && c.term.asks_names())).take(16) {
         let not = |v: Value| if c.negated { json!({"operator": "NOT", "conditions": [v]}) } else { v };
         match &c.term {
             Term::Words(f, words) => {

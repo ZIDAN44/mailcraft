@@ -368,13 +368,17 @@ impl Session {
     }
 
     /// What the servers found for a search, here: each checked against what its summary can
-    /// tell (dates, flags, senders, waiting for a reply), which the servers weren't all asked;
-    /// its words, which they were, are taken on trust.
+    /// tell (dates, flags, waiting for a reply), which the servers weren't all asked; its words,
+    /// which they were, are taken on trust. Words wanted in the senders, recipients or subject
+    /// are the server's to match too: IMAP finds them inside words, as the list doesn't, and a
+    /// find left out for it would be lost. (Unwanted ones, `-from:ana`, the server left out
+    /// more widely than the list would.)
     pub(super) fn server_hits(&mut self, q: &str, keys: &[MessageKey]) -> Vec<Summary> {
         if keys.is_empty() {
             return Vec::new();
         }
-        let query = self.query_of(q);
+        let mut query = self.query_of(q);
+        query.clauses.retain(|c| c.negated || !asks_field_words(&c.term));
         let awaiting = if query.clauses.iter().any(|c| asks_awaiting(&c.term)) { self.awaiting_replies() } else { HashSet::new() };
         let mut out = Vec::new();
         for key in keys {
@@ -489,8 +493,8 @@ fn matches(query: &Query, m: &Summary, text: Known<'_>, awaiting: bool) -> bool 
 
 /// Whether a message matches a query, with what's known of its text: yes, no or can't tell.
 fn eval(query: &Query, m: &Summary, text: Known<'_>, awaiting: bool) -> Tri {
-    // A query of flags, sizes and dates reads no word of the summary: none is folded for it.
-    let st = if query.clauses.iter().any(|c| asks_words(&c.term)) { SummaryText::of(m) } else { SummaryText::default() };
+    // Only the parts the query looks in are folded (none for flags, sizes and dates).
+    let st = SummaryText::for_query(m, query);
     query.eval(&Doc { summary: m, summary_text: &st, awaiting, files: None, text: &text })
 }
 
@@ -502,12 +506,13 @@ fn text_hash(text: &str) -> u64 {
     h.finish()
 }
 
-/// Whether a search term looks for words (in any field).
-fn asks_words(t: &mailcraft_model::search::Term) -> bool {
-    use mailcraft_model::search::Term;
+/// Whether a search term looks for words in the senders, recipients or subject (alone or among
+/// others): what a server matches its own way (IMAP's FROM finds `ana` in "Joana").
+fn asks_field_words(t: &mailcraft_model::search::Term) -> bool {
+    use mailcraft_model::search::{Field, Term};
     match t {
-        Term::Words(..) | Term::Phrase(..) => true,
-        Term::AnyOf(any) => any.iter().any(asks_words),
+        Term::Words(f, _) | Term::Phrase(f, _) => matches!(f, Field::From | Field::To | Field::Subject),
+        Term::AnyOf(any) => !any.is_empty() && any.iter().all(asks_field_words),
         _ => false,
     }
 }

@@ -125,7 +125,8 @@ fn text_term(field: Field, value: &str) -> Option<Term> {
         let phrase = inner.strip_suffix('"').unwrap_or(inner).trim().to_lowercase();
         return (!phrase.is_empty()).then_some(Term::Phrase(field, phrase));
     }
-    let w: Vec<String> = words(value).collect();
+    // A word that folds to nothing (a combining mark alone) would be a prefix of every word.
+    let w: Vec<String> = words(value).filter(|w| !fold_word(w).is_empty()).collect();
     if w.is_empty() {
         // Punctuation-only input (`@`, `.`) is still a substring to look for.
         let v = value.trim().to_lowercase();
@@ -135,13 +136,17 @@ fn text_term(field: Field, value: &str) -> Option<Term> {
 }
 
 /// A date term, or the problem with it: a date that isn't one is left out, never looked for as
-/// words (`received:2024` became two words, and matched nearly everything).
-fn date_term(spec: Option<DateSpec>, tok: &str, problems: &mut Vec<Problem>) -> Option<Term> {
+/// words (`received:2024` became two words, and matched nearly everything). A value that isn't
+/// meant as a date (`before: launch`, `after:party`) is still the words typed, as it was before
+/// these were fields, with the problem said all the same.
+fn date_term(spec: Option<DateSpec>, value: &str, tok: &str, problems: &mut Vec<Problem>) -> Option<Term> {
     match spec {
         Some(s) => Some(Term::Date(s)),
         None => {
             problems.push(Problem::Date(tok.chars().take(100).collect()));
-            None
+            // Apart: UAX #29 reads `before:launch` as one word, which no text holds.
+            let (key, _) = tok.split_once(':').unwrap_or((tok, ""));
+            if dates::looks_like_date(value) { None } else { text_term(Field::Any, &format!("{key} {value}")) }
         }
     }
 }
@@ -164,9 +169,9 @@ impl Query {
                     "subject" => text_term(Field::Subject, v),
                     "body" => text_term(Field::Body, v),
                     "attachment" | "attachments" => list_term(Field::Attachment, v),
-                    "received" | "sent" | "date" => date_term(dates::period(v), &tok, &mut problems),
-                    "after" => date_term(dates::after(v), &tok, &mut problems),
-                    "before" => date_term(dates::before(v), &tok, &mut problems),
+                    "received" | "sent" | "date" => date_term(dates::period(v), v, &tok, &mut problems),
+                    "after" => date_term(dates::after(v), v, &tok, &mut problems),
+                    "before" => date_term(dates::before(v), v, &tok, &mut problems),
                     "has" if v.eq_ignore_ascii_case("attachment") || v.eq_ignore_ascii_case("attachments") => Some(Term::HasAttachment(true)),
                     "hasattachment" | "hasattachments" => yes_no(v).map(Term::HasAttachment),
                     "is" => match v.to_ascii_lowercase().as_str() {

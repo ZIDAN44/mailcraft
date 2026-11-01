@@ -472,10 +472,11 @@ fn a_list_of_file_names_reads_the_names() {
 }
 
 /// The servers are asked for words, not dates: what they find outside a search's dates (or
-/// other summary terms) isn't listed.
+/// other summary terms) isn't listed. The words they were asked are theirs to match: IMAP's FROM
+/// and SUBJECT find them inside words, which the list's own search doesn't.
 #[test]
 fn server_finds_are_checked_against_the_dates() {
-    use mailcraft_model::{Folder, FolderRole, MessageKey, Summary};
+    use mailcraft_model::{EmailAddress, Folder, FolderRole, MessageKey, Summary};
     let mut s = sample_session("server-dates");
     let a = s
         .run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org", "smtpHost": "mail.example.org"}))
@@ -493,18 +494,34 @@ fn server_finds_are_checked_against_the_dates() {
     let mut st = store.load_folder(&a, "INBOX").unwrap();
     st.validity = 1;
     st.messages = vec![
-        Summary { key: key(7), subject: "Old one".into(), date: 86_400, ..Default::default() },
+        Summary {
+            key: key(7),
+            subject: "Old figures".into(),
+            from: EmailAddress::new("Joana Smith", "j.smith@corp.example"),
+            date: 86_400,
+            ..Default::default()
+        },
         Summary { key: key(8), subject: "New one".into(), date: now, ..Default::default() },
     ];
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     let shown = |s: &Session| s.list.iter().map(|m| m.subject.clone()).collect::<Vec<_>>();
-    for (q, want) in [("needle received:today", ["New one"]), ("needle -received:today", ["Old one"])] {
+    for (q, keys, want) in [
+        ("needle received:today", vec![7, 8], vec!["New one"]),
+        ("needle -received:today", vec![7, 8], vec!["Old figures"]),
+        // Found by the server inside a word: listed, as before the dates came in.
+        ("from:oana", vec![7], vec!["Old figures"]),
+        ("subject:ures -received:today", vec![7], vec!["Old figures"]),
+        ("from:oana received:today", vec![7], vec![]),
+        // What the server wasn't asked is still checked here.
+        ("from:oana is:flagged", vec![7], vec![]),
+    ] {
         s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
         s.run("search.server", &json!({})).unwrap();
         s.take_jobs();
         let sent = s.server_search.as_ref().map(|x| x.sent.clone()).unwrap_or_default();
-        s.apply(Event::ServerSearched { account: a.clone(), query: sent, keys: vec![key(7), key(8)], error: None, done: true });
+        assert_eq!(sent, q, "asked the server");
+        s.apply(Event::ServerSearched { account: a.clone(), query: sent, keys: keys.into_iter().map(key).collect(), error: None, done: true });
         assert_eq!(shown(&s), want, "{q}");
     }
     done(s);
