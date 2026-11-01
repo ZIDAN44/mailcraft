@@ -14,8 +14,7 @@ use std::collections::{BTreeMap, HashMap};
 use mailcraft_model::search::{IndexDoc, TOKENIZER_VERSION, tokens};
 
 use super::format::{
-    MAX_META, MAX_NAME_BYTES, MAX_SEGMENTS, MAX_TEXT_PAGE, Meta, SegBuilder, SegFiles, SegInfo, TextPage, encode_blob, encode_docs, encode_meta,
-    encode_text_page,
+    MAX_META, MAX_NAME_BYTES, MAX_SEGMENTS, Meta, SegBuilder, SegFiles, SegInfo, TextPage, encode_blob, encode_docs, encode_meta, encode_text_page,
 };
 use super::*;
 
@@ -47,6 +46,8 @@ pub struct Writer {
     text_bytes: usize,
     /// Texts to take out of their pages, by page.
     drop_texts: BTreeMap<u32, BTreeSet<u32>>,
+    /// The bytes of those pages, each read and written again by the next flush.
+    drop_bytes: usize,
     live: u32,
     dead: u32,
     /// Changes with every change: a flush prepared before one is out of date.
@@ -59,6 +60,9 @@ pub struct Writer {
     /// Fewer segments than a meta names, to reach the limit sooner.
     #[cfg(test)]
     pub(crate) max_segments: usize,
+    /// A smaller [`IN_FLIGHT_BYTES`], to reach it sooner.
+    #[cfg(test)]
+    pub(crate) in_flight: usize,
     _held: Held,
 }
 
@@ -190,12 +194,15 @@ impl Writer {
             texts: Vec::new(),
             text_bytes: 0,
             drop_texts: BTreeMap::new(),
+            drop_bytes: 0,
             stamp: 0,
             orphans: false,
             #[cfg(test)]
             stop_before_meta: false,
             #[cfg(test)]
             max_segments: MAX_SEGMENTS,
+            #[cfg(test)]
+            in_flight: IN_FLIGHT_BYTES,
             _held: held,
         }
     }
@@ -231,14 +238,20 @@ impl Writer {
         Some((key, d.msgid_hash, d.size))
     }
 
-    /// Bytes held for the next flush.
+    /// Bytes held for the next flush, or that it will hold: the text pages losing a text are
+    /// read and written again whole.
     pub fn pending_bytes(&self) -> usize {
-        self.word_bytes.saturating_add(self.text_bytes).saturating_add(self.dirty.len().saturating_mul(DOCS_PER_PAGE as usize * format::REC))
+        let docs = self.dirty.len().saturating_mul(DOCS_PER_PAGE as usize * format::REC);
+        self.word_bytes.saturating_add(self.text_bytes).saturating_add(self.drop_bytes).saturating_add(docs)
     }
 
     /// Whether enough is held to flush now ([`IN_FLIGHT_BYTES`]: its half).
     pub fn should_flush(&self) -> bool {
-        self.pending_bytes() >= IN_FLIGHT_BYTES / 2
+        #[cfg(not(test))]
+        let in_flight = IN_FLIGHT_BYTES;
+        #[cfg(test)]
+        let in_flight = self.in_flight;
+        self.pending_bytes() >= in_flight / 2
     }
 
     /// A folder's number, a new folder given the next. A name longer than the meta keeps is
@@ -309,7 +322,12 @@ impl Writer {
                 self.text_bytes = self.text_bytes.saturating_sub(blob.len());
             }
         } else {
-            self.drop_texts.entry(text).or_default().insert(doc);
+            let page = self.meta.text_pages.get(text as usize).map_or(0, |t| t.bytes as usize);
+            let drop = self.drop_texts.entry(text).or_default();
+            if drop.is_empty() {
+                self.drop_bytes = self.drop_bytes.saturating_add(page);
+            }
+            drop.insert(doc);
         }
         self.live = self.live.saturating_sub(1);
         self.dead = self.dead.saturating_add(1);
@@ -342,6 +360,7 @@ impl Writer {
         self.commit(store, f)
     }
 
+    /// Whether a flush has anything to write (a rebuild left to finish is the commit's).
     fn has_changes(&self) -> bool {
         !self.dirty.is_empty() || !self.words.is_empty() || !self.texts.is_empty() || !self.drop_texts.is_empty()
     }
@@ -454,9 +473,10 @@ impl Writer {
             let mut size = pages.get(&at).map_or(0, |r| r.iter().map(|(_, b)| b.len() + 8).sum::<usize>());
             let mut count = pages.get(&at).map_or(0, Vec::len);
             for (doc, blob) in &self.texts {
-                // A full page, or one this text would take past what a page may be, is ended.
-                let over = size > 0 && size.saturating_add(blob.len() + 8) > MAX_TEXT_PAGE - 64;
-                if size >= TEXT_PAGE || over || count >= usize::from(u16::MAX) {
+                // A page this text would take past [`TEXT_PAGE`] is ended: a longer text has a
+                // page of its own.
+                let over = size > 0 && size.saturating_add(blob.len() + 8) > TEXT_PAGE;
+                if over || count >= usize::from(u16::MAX) {
                     at = at.checked_add(1).ok_or_else(|| damaged(&self.base, "too many text pages"))?;
                     (size, count) = (0, 0);
                 }
@@ -499,12 +519,22 @@ impl Writer {
     /// Write a prepared flush: its files in short transactions, then its meta with the files it
     /// no longer uses removed, in one sealed transaction. The new generation, or `None` when the
     /// flush had nothing. A flush prepared before a later change is refused (prepare it again);
-    /// one that fails leaves the generation before it, its files removed by the next commit.
+    /// one that fails before its meta leaves the generation before it, its files removed by the
+    /// next commit. Past [`MAX_SEGMENTS`] the words are then made again from the texts: an error
+    /// there that isn't damage is left for the next flush to finish (`Ok`, the generation in).
     pub fn commit(&mut self, store: &Store, flush: Flush) -> Result<Option<u64>> {
         if flush.stamp != self.stamp {
             return Err(io_err(&self.base)(other("the index changed after this flush was made")));
         }
         if flush.is_empty() {
+            // Words a commit before began to make again and didn't finish.
+            if self.meta.tokenizer != TOKENIZER_VERSION {
+                if self.orphans {
+                    self.clean(store);
+                }
+                self.rebuild(store)?;
+                return Ok(Some(self.meta.generation));
+            }
             return Ok(None);
         }
         if self.orphans {
@@ -532,11 +562,19 @@ impl Writer {
         self.texts.clear();
         self.text_bytes = 0;
         self.drop_texts.clear();
+        self.drop_bytes = 0;
         self.dirty.clear();
         self.stamp = self.stamp.wrapping_add(1);
-        // Segments up to what a meta names: their words made into few again.
-        if self.meta.tokenizer != TOKENIZER_VERSION {
-            self.rebuild(store)?;
+        // Segments up to what a meta names: their words made into few again. The generation is
+        // in whatever comes of it: one that doesn't finish is tried again by the next flush (the
+        // reader has no index meanwhile), and an index it finds damaged is the error.
+        if self.meta.tokenizer != TOKENIZER_VERSION
+            && let Err(e) = self.rebuild(store)
+        {
+            if is_damaged(&e) {
+                return Err(e);
+            }
+            log::warn!("{}'s search index: its words not made again yet: {e}", self.account);
         }
         Ok(Some(generation))
     }
@@ -669,10 +707,28 @@ fn load(store: &Store, account: &str, base: &Path) -> Result<Option<(Meta, Vec<D
     Ok(Some((meta, docs)))
 }
 
-/// A new index's meta: past the generation and segments of one set aside, so nothing of that
-/// one is taken for this one's.
+/// A new index's meta: past the generation and segments of one set aside (its meta's, when it
+/// reads, and its files' names still there), so nothing of that one is taken for this one's.
+/// Numbers too near the end to go on from start again (the new epoch keeps them apart).
 fn fresh(store: &Store, account: &str) -> Meta {
+    let base = dir(store, account);
     let bad = meta_path(store, account).with_extension("bin.bad");
     let old = read_file(store, &bad).ok().flatten().and_then(|b| format::decode_meta(&b).ok()).unwrap_or_default();
-    Meta { tokenizer: TOKENIZER_VERSION, generation: old.generation, next_seg: old.next_seg, epoch: new_epoch(old.epoch), ..Meta::default() }
+    let (mut generation, mut next_seg) = (old.generation, old.next_seg);
+    for sub in SUBDIRS {
+        for (name, _) in store.files.list(&base.join(sub)) {
+            match Name::parse(sub, &name) {
+                Some(Name::Docs { generation: g, .. } | Name::Text { generation: g, .. }) => generation = generation.max(g),
+                Some(Name::SegHead(id) | Name::SegLex(id, _) | Name::SegPost(id, _)) => next_seg = next_seg.max(id.saturating_add(1)),
+                None => {}
+            }
+        }
+    }
+    if generation > u64::MAX / 2 {
+        generation = 0;
+    }
+    if next_seg > u32::MAX / 2 {
+        next_seg = 0;
+    }
+    Meta { tokenizer: TOKENIZER_VERSION, generation, next_seg, epoch: new_epoch(old.epoch), ..Meta::default() }
 }

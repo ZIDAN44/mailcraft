@@ -11,6 +11,7 @@
 //!                     under the generation that changed it (copy on write)
 //! t/<g>-<p>.bin       the messages' text and files' names (the phrase checker's source, and
 //!                     what the postings are made again from), in pages of up to 256 KiB
+//!                     (a longer text alone in one), shared by every segment's docs
 //! s/<id>-h.bin        a segment's head: each lexicon page's first word
 //! s/<id>-l<n>.bin     a lexicon page: words, front-coded, with their postings or where they are
 //! s/<id>-p<n>.bin     a postings page: sorted doc ids as varint deltas
@@ -49,7 +50,8 @@ pub use writer::{Flush, Writer};
 
 /// The doc table's page size, in docs: a doc's id is its page × this + its slot.
 pub const DOCS_PER_PAGE: u32 = 4096;
-/// A text page is closed once this full (a longer text has a page of its own).
+/// Most bytes in a text page holding more than one text: a text that would take a page past it
+/// starts the next, and a longer text has a page of its own.
 pub const TEXT_PAGE: usize = 256 << 10;
 /// Most bytes in a lexicon page.
 pub const LEX_PAGE: usize = 64 << 10;
@@ -341,11 +343,6 @@ impl Held {
         }
         Ok(Held { writers: store.search_writers.clone(), account: account.to_string() })
     }
-}
-
-/// Whether `account`'s index is held by a writer of this store.
-pub(crate) fn writer_held(store: &Store, account: &str) -> bool {
-    store.search_writers.lock().unwrap_or_else(std::sync::PoisonError::into_inner).contains(account)
 }
 
 impl Drop for Held {

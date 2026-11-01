@@ -191,8 +191,10 @@ under `<account>/search/v1/`, so in the account's data file, on disk, or in memo
 it; a data file from before has none and opens unchanged). A meta (`meta.bin`) names what the index
 is: a doc table of 32-byte records in pages of 4,096, copied on write under the generation that
 changed them; the texts and files' names kept for each message (versioned records in text pages
-of up to 256 KiB, what phrases are checked against and words made again from when the tokenizer
-changes, with no message read); and immutable segments of words (field letter + folded word: `b`
+of up to 256 KiB, a longer text alone in one, what phrases are checked against and words made
+again from when the tokenizer changes, with no message read; one pool of pages for the whole
+index rather than a set per segment: a removed message leaves its page in its own commit, so a
+merge has only words to drop); and immutable segments of words (field letter + folded word: `b`
 text, `n` names, `a` whole addresses and domains), each a head, front-coded lexicon pages and
 varint postings pages. `search::Writer` adds, removes and moves docs in memory and flushes a new
 generation in two steps: `prepare` encodes and compresses its files, `commit` writes them in
@@ -203,10 +205,11 @@ failed batch before the meta leaves the generation before, and the writer remove
 when it next opens (only names the meta lets it work out). A message removed leaves its text page
 in that same commit; its words go when its segment is merged. The writer never writes what its
 reader would refuse: a folder name over 4 KiB is refused (that message isn't indexed), a text is
-cut at 7 MiB (marked truncated), and at 4,096 segments the words are made again from the texts.
+cut at 1.875 MiB (marked truncated; a million characters of plain text fit), so a page alone
+still goes in one background transaction, and at 4,096 segments the words are made again from the texts.
 One writer per account at a time within a process; across processes (the CLI and the app on one
 folder layout) nothing stops a second yet: the `search/v1/lock` lease comes with the CLI's
-`--index`, when the CLI first writes an index. `search::Reader` holds the doc table
+`--index`, when the CLI first writes an index (open in [gaps.md](gaps.md)). `search::Reader` holds the doc table
 and the segments' heads, reads lexicon, postings and text pages as needed (a page cache keyed by
 the index's random epoch), looks words up a few pages at a time, and follows the writer by reading
 only what a newer generation changed. Every file is decoded with checks (`search/format.rs`,

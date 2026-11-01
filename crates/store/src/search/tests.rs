@@ -314,11 +314,20 @@ fn a_damaged_index_is_set_aside_and_made_again() {
     assert_eq!(found(&mut r, &s, Field::Body, "fresh"), [0]);
     assert!(found(&mut r, &s, Field::Body, "words").is_empty());
 
-    // A meta that doesn't read: the same.
+    // A meta that doesn't read: the same, the new one still past the old one's files.
+    w.add(&mk("INBOX", 10), 1, 1, &text("again", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
     drop(w);
+    let old = load_meta(&s, "a1").unwrap().unwrap();
     s.files.write(&meta_path(&s, "a1"), b"MCSM\x09").unwrap();
     assert!(Reader::open(&s, "a1").unwrap().is_none());
-    assert_eq!(Writer::open(&s, "a1").unwrap().live(), 0);
+    let mut w = Writer::open(&s, "a1").unwrap();
+    assert_eq!(w.live(), 0);
+    w.add(&mk("INBOX", 11), 1, 1, &text("third", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let new = load_meta(&s, "a1").unwrap().unwrap();
+    assert!(new.generation > old.generation && new.next_seg > old.next_seg && new.epoch != old.epoch, "{new:?} after {old:?}");
+    assert!(new.segments.iter().all(|seg| seg.id >= old.next_seg));
 }
 
 /// A meta claiming billions of docs whose pages aren't there: set aside, nothing allocated for
@@ -512,7 +521,94 @@ fn a_text_too_long_for_a_page_is_cut() {
     assert!(r.info(big).unwrap().truncated && !r.info(small).unwrap().truncated);
     let blob = r.text(&s, big).unwrap().unwrap();
     assert!(blob.text.len() <= MAX_BLOB_TEXT && blob.text.starts_with("word \u{e9}") && blob.names == ["a.pdf"]);
-    assert!(load_meta(&s, "a1").unwrap().unwrap().text_pages.iter().all(|t| (t.bytes as usize) <= MAX_TEXT_PAGE));
+    assert_text_pages(&s);
+}
+
+/// Every text page holds at most [`TEXT_PAGE`], or one text alone that still goes in one
+/// background transaction.
+fn assert_text_pages(s: &Store) {
+    let meta = load_meta(s, "a1").unwrap().unwrap();
+    for (p, t) in meta.text_pages.iter().enumerate().filter(|(_, t)| t.generation != 0) {
+        let page = s.files.read(&Name::Text { generation: t.generation, page: p as u32 }.path(&dir(s, "a1"))).unwrap();
+        let texts = decode_text_page(&page, meta.next_doc).unwrap().len();
+        let bytes = t.bytes as usize;
+        assert!(bytes <= TEXT_PAGE || (texts == 1 && bytes <= crate::BACKGROUND_COMMIT), "page {p}: {bytes} bytes, {texts} texts");
+    }
+}
+
+/// A text longer than a page has a page of its own: it never joins the texts of a page that has
+/// some, nor do they join its.
+#[test]
+fn a_long_text_has_a_page_of_its_own() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let small = w.add(&mk("INBOX", 1), 1, 1, &text(&"short ".repeat(1000), &[], 0)).unwrap();
+    let long = w.add(&mk("INBOX", 2), 1, 1, &text(&"long ".repeat(800_000), &[], 0)).unwrap();
+    let after = w.add(&mk("INBOX", 3), 1, 1, &text("after", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    assert_text_pages(&s);
+    let meta = load_meta(&s, "a1").unwrap().unwrap();
+    assert_eq!(meta.text_pages.len(), 3, "{:?}", meta.text_pages);
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.text(&s, long).unwrap().unwrap().text.len(), MAX_BLOB_TEXT);
+    assert!(r.info(long).unwrap().truncated);
+    assert!(r.text(&s, small).unwrap().is_some() && r.text(&s, after).unwrap().is_some());
+}
+
+/// Removals count toward what a flush holds: the text pages losing a text are read and written
+/// again whole, so a change that only removes still flushes before it holds too much.
+#[test]
+fn removals_count_toward_what_a_flush_holds() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    w.in_flight = 1 << 20;
+    let mut docs = Vec::new();
+    for i in 0..128u32 {
+        let t: String = (0..2000).map(|n| format!("w{i}x{n} ")).collect();
+        docs.push(w.add(&mk("INBOX", i + 1), 1, 1, &text(&t, &[], 0)).unwrap());
+        if w.should_flush() {
+            w.flush(&s).unwrap();
+        }
+    }
+    w.flush(&s).unwrap();
+    let pages = load_meta(&s, "a1").unwrap().unwrap().text_pages.len();
+    assert!(pages >= 8, "{pages} text pages");
+    let mut flushes = 0;
+    for d in docs.iter().step_by(2) {
+        w.remove(*d);
+        if w.should_flush() {
+            let f = w.prepare(&s).unwrap();
+            assert!(f.bytes() <= w.in_flight, "a flush of {} bytes", f.bytes());
+            w.commit(&s, f).unwrap();
+            flushes += 1;
+        }
+    }
+    assert!(flushes >= 2, "removals alone flushed {flushes} times");
+    w.flush(&s).unwrap();
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!(r.live(), 64);
+    assert!(r.text(&s, docs[0]).unwrap().is_none() && r.text(&s, docs[1]).unwrap().is_some());
+}
+
+/// Words a commit began to make again (at the segments' limit) and didn't finish are made by the
+/// next flush, with nothing new to write: the index isn't left without them.
+#[test]
+fn words_left_to_make_again_are_made_by_the_next_flush() {
+    let s = Store::failing();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    w.max_segments = 1;
+    w.add(&mk("INBOX", 1), 1, 1, &text("first", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    w.add(&mk("INBOX", 2), 2, 2, &text("second", &[], 0)).unwrap();
+    s.fail(None, Some("-h.bin"));
+    assert_eq!(w.flush(&s).unwrap(), Some(2), "the generation is in");
+    assert!(Reader::open(&s, "a1").unwrap().is_none(), "its words not made yet");
+    s.fail(None, None);
+    assert_eq!(w.flush(&s).unwrap(), Some(3));
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    assert_eq!((found(&mut r, &s, Field::Body, "first"), found(&mut r, &s, Field::Body, "second")), (vec![0], vec![1]));
+    assert_eq!(w.flush(&s).unwrap(), None);
+    assert_eq!(files(&s).1, BTreeSet::new());
 }
 
 /// A message added at a folder and uid another doc holds under an older validity replaces it:

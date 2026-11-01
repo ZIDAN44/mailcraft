@@ -395,10 +395,10 @@ impl Reader {
 /// the error instead, for the writer's holder to set it aside (a writer would put back the meta
 /// renamed under it).
 fn damage(store: &Store, account: &str, e: StoreError) -> Result<Option<Reader>> {
-    if writer_held(store, account) {
-        return Err(e);
-    }
+    // Held while it's set aside, so no writer opens the index meanwhile (and writes it back).
+    let Ok(held) = Held::take(store, account) else { return Err(e) };
     set_aside(store, account)?;
+    drop(held);
     Ok(None)
 }
 

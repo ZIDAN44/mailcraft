@@ -24,11 +24,13 @@ const REC_VERSION: u8 = 1;
 /// A doc record's bytes.
 pub(crate) const REC: usize = 32;
 pub(crate) const MAX_META: usize = 32 << 20;
-/// Most bytes in a text page: one text alone (4 MB at most) and its names.
+/// Most bytes a text page read back may have (the writer's are at most [`TEXT_PAGE`], or one text
+/// alone with its names, under [`BACKGROUND_COMMIT`]).
 pub(crate) const MAX_TEXT_PAGE: usize = 8 << 20;
-/// Most bytes of a message's text kept: a page's worth, less room for its names and the page's
-/// other texts (a text over a page's room ends a page; [`encode_blob`] cuts one past this).
-pub(crate) const MAX_BLOB_TEXT: usize = MAX_TEXT_PAGE - (1 << 20);
+/// Most bytes of a message's text kept ([`encode_blob`] cuts one past this): with its names, a
+/// page alone still goes in one background transaction and the reader's cache. A whole
+/// [`MAX_INDEX_CHARS`](mailcraft_model::search::MAX_INDEX_CHARS) of plain text fits.
+pub(crate) const MAX_BLOB_TEXT: usize = BACKGROUND_COMMIT - MAX_NAMES_BYTES - (64 << 10);
 /// Most bytes of a message's files' names kept.
 const MAX_NAMES_BYTES: usize = 64 << 10;
 /// Longest folder or file name kept (the writer takes no longer folder name).
