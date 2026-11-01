@@ -40,9 +40,37 @@ pub(super) struct Out<'a> {
     /// Sources read (compressed already) but not yet written, and their size as kept.
     pub(super) pending: Vec<(MessageKey, mailcraft_store::Prepared)>,
     pub(super) pending_bytes: usize,
+    /// Set from elsewhere to stop reading.
+    cancel: Option<Arc<AtomicBool>>,
+}
+
+impl<'a> Out<'a> {
+    /// Nothing written yet, into `account`'s cache.
+    pub(super) fn new(store: &'a Store, account: &'a str, opts: &ImportOptions, progress: &'a mut dyn FnMut(usize)) -> Self {
+        Out {
+            store,
+            account,
+            folders: Vec::new(),
+            states: HashMap::new(),
+            imported: 0,
+            skipped: 0,
+            skips: BTreeMap::new(),
+            body_not_converted: 0,
+            progress,
+            pim: Pim::default(),
+            pending: Vec::new(),
+            pending_bytes: 0,
+            cancel: opts.cancel.clone(),
+        }
+    }
 }
 
 impl Out<'_> {
+    /// Whether the import was asked to stop: nothing more is read, and what was is kept.
+    pub(super) fn stopped(&self) -> bool {
+        self.cancel.as_ref().is_some_and(|c| c.load(Ordering::Relaxed))
+    }
+
     /// Count `n` items left out for `reason`.
     pub(super) fn skip(&mut self, reason: SkipReason, n: usize) {
         self.skipped = self.skipped.saturating_add(n);

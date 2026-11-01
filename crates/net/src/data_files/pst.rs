@@ -14,6 +14,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
 use mailcraft_model::job::SkipReason;
@@ -87,23 +89,34 @@ pub struct Imported {
     pub body_not_converted: usize,
 }
 
-/// Import the data file at `path` into `account`'s cache (an account with no server). Calls
-/// `progress` with the number of messages imported so far, every so often.
+/// How an import runs; the default is how the app imports.
+#[derive(Clone, Debug, Default)]
+pub struct ImportOptions {
+    /// Items read at once, each on a thread of its own (0: as many as suit the computer).
+    pub lanes: usize,
+    /// Bytes read but not yet written that the import may hold (0: its own limit).
+    pub budget_bytes: usize,
+    /// Set from another thread to stop: nothing more is read, and what was read is written and
+    /// kept, as when a file ends early.
+    pub cancel: Option<Arc<AtomicBool>>,
+    /// The reader's chunk of the file, in KiB (0: its own), and the items read between reopenings
+    /// of the file (0: its own): for measuring.
+    #[doc(hidden)]
+    pub chunk_kb: usize,
+    #[doc(hidden)]
+    pub recycle: usize,
+}
+
+/// Import the data file at `path` into `account`'s cache (an account with no server), as the app
+/// does. Calls `progress` with the number of messages imported so far, every so often.
 pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(usize)) -> Result<Imported, String> {
-    let mut out = Out {
-        store,
-        account,
-        folders: Vec::new(),
-        states: HashMap::new(),
-        imported: 0,
-        skipped: 0,
-        skips: BTreeMap::new(),
-        body_not_converted: 0,
-        progress,
-        pim: Pim::default(),
-        pending: Vec::new(),
-        pending_bytes: 0,
-    };
+    import_with(path, store, account, &ImportOptions::default(), progress)
+}
+
+/// [`import`], run as `opts` say. The reader is one lane for now, holding at most a batch of
+/// sources: `lanes`, `budget_bytes`, `chunk_kb` and `recycle` are taken for when it's more.
+pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptions, progress: &mut dyn FnMut(usize)) -> Result<Imported, String> {
+    let mut out = Out::new(store, account, opts, progress);
     // `!BDN` then the client magic: `SM` a data file, `SO` Outlook's offline copy of a server
     // account (MS-PST 2.2.2.6).
     let mut head = [0u8; 10];
@@ -217,6 +230,9 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
     }
     let Some(table) = folder.hierarchy_table() else { return };
     for row in table.rows_matrix() {
+        if out.stopped() {
+            return;
+        }
         let opened = store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| store.open_folder(&e));
         let sub = match opened {
             Ok(f) => f,
@@ -250,6 +266,9 @@ fn visit(store: &dyn PstStore, folder: &dyn PstFolder, parent: Option<&str>, dep
         let path = out.add_folder(parent, &name);
         if let Some(contents) = sub.contents_table() {
             for row in contents.rows_matrix() {
+                if out.stopped() {
+                    break;
+                }
                 let item = store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e));
                 match item {
                     Ok(i) => out.add_message(&path, i),
@@ -278,6 +297,9 @@ fn special_folder(store: &dyn PstStore, prop: u16) -> Option<u32> {
 fn read_items(store: &dyn PstStore, folder: &dyn PstFolder, read: &ReadItem<'_>, out: &mut Out<'_>) {
     let Some(contents) = folder.contents_table() else { return };
     for row in contents.rows_matrix() {
+        if out.stopped() {
+            return;
+        }
         match store.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| read(&e)) {
             Ok(i) => out.add_pim(i),
             Err(e) => {

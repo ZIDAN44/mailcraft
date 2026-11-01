@@ -56,20 +56,7 @@ fn notes_come_in_as_notes() {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let mut progress = |_| {};
-    let mut out = Out {
-        store: &store,
-        account: "d1",
-        folders: Vec::new(),
-        states: HashMap::new(),
-        imported: 0,
-        skipped: 0,
-        skips: BTreeMap::new(),
-        body_not_converted: 0,
-        progress: &mut progress,
-        pim: Pim::default(),
-        pending: Vec::new(),
-        pending_bytes: 0,
-    };
+    let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
     let note = |body: &str, color: Option<u8>| Item {
         class: "IPM.StickyNote".into(),
         subject: body.lines().next().unwrap_or_default().into(),
@@ -99,20 +86,7 @@ fn a_big_message_goes_alone() {
     let store = Store::failing();
     store.fail(None, Some("2.eml"));
     let mut progress = |_| {};
-    let mut out = Out {
-        store: &store,
-        account: "d1",
-        folders: Vec::new(),
-        states: HashMap::new(),
-        imported: 0,
-        skipped: 0,
-        skips: BTreeMap::new(),
-        body_not_converted: 0,
-        progress: &mut progress,
-        pim: Pim::default(),
-        pending: Vec::new(),
-        pending_bytes: 0,
-    };
+    let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
     let inbox = out.add_folder(None, "Inbox");
     let mail = |body: String| Item { class: "IPM.Note".into(), subject: "s".into(), date: 1_704_067_200, body, ..Default::default() };
     out.add_message(&inbox, mail("small".into()));
@@ -263,20 +237,7 @@ fn an_unsupported_charset_is_in_the_report() {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let mut progress = |_| {};
-    let mut out = Out {
-        store: &store,
-        account: "d1",
-        folders: Vec::new(),
-        states: HashMap::new(),
-        imported: 0,
-        skipped: 0,
-        skips: BTreeMap::new(),
-        body_not_converted: 0,
-        progress: &mut progress,
-        pim: Pim::default(),
-        pending: Vec::new(),
-        pending_bytes: 0,
-    };
+    let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
     let inbox = out.add_folder(None, "Inbox");
     let mail = |lost: bool| Item {
         class: "IPM.Note".into(),
@@ -664,20 +625,7 @@ fn a_recipient_without_an_address_is_counted() {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let mut progress = |_| {};
-    let mut out = Out {
-        store: &store,
-        account: "r1",
-        folders: Vec::new(),
-        states: HashMap::new(),
-        imported: 0,
-        skipped: 0,
-        skips: BTreeMap::new(),
-        body_not_converted: 0,
-        progress: &mut progress,
-        pim: Pim::default(),
-        pending: Vec::new(),
-        pending_bytes: 0,
-    };
+    let mut out = Out::new(&store, "r1", &ImportOptions::default(), &mut progress);
     let path = out.add_folder(None, "Inbox");
     out.add_message(&path, Item { subject: "s".into(), body: "b".into(), date: 1_704_067_200, ..read("") });
     let done = out.finish().unwrap();
@@ -831,6 +779,7 @@ fn imports_a_data_file() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+mod options;
 mod reader;
 
 mod real_files {
