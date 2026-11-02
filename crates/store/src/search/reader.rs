@@ -21,6 +21,12 @@ use super::*;
 const CACHE_BYTES: usize = 8 << 20;
 /// Times a reader opens again when commits keep removing what it was reading.
 const RETRIES: usize = 16;
+/// Docs a scan sets for each page it may read: a short prefix has thousands of words, most of
+/// them with their docs in the lexicon page itself (no page read for them), and one call took
+/// all of a page's (2–3 ms, a one-letter word's steps 16–24 ms).
+pub(super) const DOCS_A_PAGE: usize = 32 << 10;
+/// What a word counts toward that at least, however few its docs (each is a word decoded).
+pub(super) const DOCS_A_WORD: usize = 32;
 
 /// What the index knows of a doc besides its words.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -326,11 +332,14 @@ impl Reader {
 
     /// Set in `out` the live docs with a word of `field` starting with `prefix` (folded as
     /// [`tokens`](mailcraft_model::search::tokens) gives words; an [address](address_words)
-    /// lower-cased), reading at most about `max_pages` pages (at least one word's worth): `true`
-    /// once done, `false` to be called again with the same cursor.
+    /// lower-cased), reading at most about `max_pages` pages and setting the docs of about as
+    /// many pages' worth of words ([`DOCS_A_PAGE`]), at least one word's: `true` once done,
+    /// `false` to be called again with the same cursor.
     pub fn scan_prefix(&mut self, store: &Store, field: Field, prefix: &str, cur: &mut ScanCursor, out: &mut Bits, max_pages: usize) -> Result<bool> {
         let target = key(field, prefix);
         let mut read = 0usize;
+        let mut docs = 0usize;
+        let most_docs = max_pages.saturating_mul(DOCS_A_PAGE);
         let mut moved = false;
         while let Some((info, firsts)) = self.heads.get(cur.seg) {
             let info = *info;
@@ -363,10 +372,11 @@ impl Reader {
                     past = true;
                     break;
                 }
-                if matches!(e.at, Postings::At { .. }) && moved && read >= max_pages {
+                if moved && ((matches!(e.at, Postings::At { .. }) && read >= max_pages) || docs >= most_docs) {
                     return Ok(false);
                 }
                 read += self.postings(store, &info, e, out)?;
+                docs = docs.saturating_add(usize::try_from(e.df).unwrap_or(usize::MAX).max(DOCS_A_WORD));
                 cur.entry += 1;
                 moved = true;
             }
