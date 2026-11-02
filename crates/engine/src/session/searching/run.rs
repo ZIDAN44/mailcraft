@@ -21,6 +21,7 @@ use mailcraft_store::search::Field;
 
 use super::finish::Finish;
 use super::folded::TextOf;
+use super::found::RunKey;
 use super::look_up::Terms;
 use super::matching::{Answers, Candidate, Index, Recorder, Verdict, Verifying, classify, from_source};
 use super::work::SearchWork;
@@ -120,24 +121,24 @@ pub(crate) struct SearchRun {
     asks_awaiting: bool,
     awaited: HashSet<MessageKey>,
     pub(super) terms: HashMap<String, Terms>,
-    pub(crate) found: HashSet<MessageKey>,
+    pub(crate) found: HashSet<RunKey>,
     /// Found since last shown, and found before and no longer.
     pub(crate) fresh: Vec<SharedSummary>,
-    pub(crate) gone: HashSet<MessageKey>,
+    pub(crate) gone: HashSet<RunKey>,
     /// Steps since what was found was last shown.
     pub(crate) unshown_steps: usize,
     /// Found before in a folder being scanned again: let go at its end unless found again.
-    recheck: HashSet<MessageKey>,
+    recheck: HashSet<RunKey>,
     verify: VecDeque<Candidate>,
     /// `verify` is in the order of the docs: their texts read a page after another, each once.
     verify_sorted: bool,
     verifying: Option<Verifying>,
     fallback: VecDeque<Candidate>,
     /// What each message checked against its text said (flags never change it).
-    pub(crate) known: HashMap<MessageKey, Answers>,
-    pub(crate) missing: HashSet<MessageKey>,
+    pub(crate) known: HashMap<RunKey, Answers>,
+    pub(crate) missing: HashSet<RunKey>,
     /// Those whose text was cut short ([`Verdict::CutShort`]).
-    pub(crate) cut_short: HashSet<MessageKey>,
+    pub(crate) cut_short: HashSet<RunKey>,
     /// The list shows this run's finds alone (`refresh_list` put it together for it), each
     /// change since merged in: its end needs only what's left to show.
     pub(crate) owns_list: bool,
@@ -263,34 +264,33 @@ impl SearchRun {
         SearchProgress { done: self.done(), found: self.found.len(), missing: self.missing.len(), cut_short: self.cut_short.len(), changed }
     }
 
-    /// A run done with: what it holds of each message (found, answered, waiting to be shown or
-    /// checked, what its text said) moved to `summaries`, `keys` and `answers`, to be let go of a
-    /// slice at a time; the rest, small, goes now.
+    /// A run done with: what it holds of each message (waiting to be shown or checked, waiting
+    /// for a reply, what its text said) moved to `summaries`, `keys` and `answers`, to be let go
+    /// of a slice at a time; the rest goes now (its sets of found, missing and the like hold no
+    /// strings: a buffer each).
     pub(crate) fn let_go_into(self, summaries: &mut Vec<SharedSummary>, keys: &mut Vec<MessageKey>, answers: &mut Vec<Answers>) {
-        let SearchRun { found, fresh, gone, recheck, verify, fallback, known, missing, cut_short, awaited, .. } = self;
+        let SearchRun { fresh, verify, fallback, known, awaited, .. } = self;
         summaries.extend(fresh);
         summaries.extend(verify.into_iter().chain(fallback).map(|c| c.m));
-        keys.extend(found.into_iter().chain(gone).chain(recheck).chain(missing).chain(cut_short).chain(awaited));
+        keys.extend(awaited);
         // What each of a common phrase's 16,667 candidates said (its words, each a string), let
         // go of at once, held the frame that searched again for 10-20 ms.
-        for (k, a) in known {
-            keys.push(k);
-            answers.push(a);
-        }
+        answers.extend(known.into_values());
     }
 
     /// Scan folder `fi` again (its list changed): what it found before stays found until the
     /// scan says otherwise.
     pub(crate) fn rescan(&mut self, fi: usize) {
-        let Some((a, f)) = self.folders.get(fi).cloned() else { return };
-        let here = |k: &MessageKey| k.account == a && k.folder == f;
-        self.recheck.extend(self.found.iter().filter(|k| here(k)).cloned());
+        if fi >= self.folders.len() {
+            return;
+        }
+        self.recheck.extend(self.found.iter().filter(|k| k.folder() == fi).copied());
         // What a message's text said stays known: a message (its key) never changes its text.
-        self.missing.retain(|k| !here(k));
-        self.cut_short.retain(|k| !here(k));
-        self.verify.retain(|c| !here(&c.m.key));
-        self.fallback.retain(|c| !here(&c.m.key));
-        if self.verifying.as_ref().is_some_and(|v| here(&v.c.m.key)) {
+        self.missing.retain(|k| k.folder() != fi);
+        self.cut_short.retain(|k| k.folder() != fi);
+        self.verify.retain(|c| c.fi != fi);
+        self.fallback.retain(|c| c.fi != fi);
+        if self.verifying.as_ref().is_some_and(|v| v.c.fi == fi) {
             self.verifying = None;
         }
         if self.cur.as_ref().is_some_and(|c| c.fi == fi) {
@@ -312,15 +312,17 @@ impl SearchRun {
         }
     }
 
-    /// Where `m` stands now, as `v` says (`last`: nothing more can be read for it). Taken, not
-    /// copied: a word found in thousands of messages copied each summary twice.
-    pub(crate) fn record(&mut self, m: SharedSummary, v: Verdict, awaiting: bool, last: bool) {
-        self.record_at(m, v, awaiting, last, None);
+    /// Where `m`, of the run's folder `fi`, stands now, as `v` says (`last`: nothing more can be
+    /// read for it). Its summary shared, not copied, and its key in the sets without its strings
+    /// ([`RunKey`]): a word found in thousands of messages copied each summary twice, and its
+    /// key's two strings into each set it went into.
+    pub(crate) fn record(&mut self, fi: usize, m: SharedSummary, v: Verdict, awaiting: bool, last: bool) {
+        self.record_at(fi, m, v, awaiting, last, None);
     }
 
     /// [`SearchRun::record`] of the message at `at` in its folder's list.
-    fn record_at(&mut self, m: SharedSummary, v: Verdict, awaiting: bool, last: bool, at: Option<usize>) {
-        let key = &m.key;
+    fn record_at(&mut self, fi: usize, m: SharedSummary, v: Verdict, awaiting: bool, last: bool, at: Option<usize>) {
+        let key = RunKey::of(fi, &m.key);
         forget(&mut self.recheck, key);
         if !matches!(v, Verdict::CutShort) {
             forget(&mut self.cut_short, key);
@@ -329,30 +331,30 @@ impl SearchRun {
             Verdict::Yes => {
                 forget(&mut self.missing, key);
                 forget(&mut self.gone, key);
-                if self.found.insert(key.clone()) {
+                if self.found.insert(key) {
                     self.fresh.push(m);
                 }
             }
             Verdict::Verify(doc) if !last => {
-                self.verify.push_back(Candidate { m, doc: Some(doc), awaiting, at });
+                self.verify.push_back(Candidate { fi, m, doc: Some(doc), awaiting, at });
                 self.verify_sorted = false;
                 self.finish = Finish::Due;
             }
             Verdict::Missing if self.wait && !last => {
-                self.fallback.push_back(Candidate { m, doc: None, awaiting, at });
+                self.fallback.push_back(Candidate { fi, m, doc: None, awaiting, at });
                 self.finish = Finish::Due;
             }
             Verdict::No | Verdict::Verify(_) | Verdict::Missing | Verdict::CutShort => {
                 if matches!(v, Verdict::No | Verdict::CutShort) {
-                    self.missing.remove(key);
+                    forget(&mut self.missing, key);
                 } else {
-                    self.missing.insert(key.clone());
+                    self.missing.insert(key);
                 }
                 if matches!(v, Verdict::CutShort) {
-                    self.cut_short.insert(key.clone());
+                    self.cut_short.insert(key);
                 }
-                if self.found.remove(key) {
-                    self.gone.insert(key.clone());
+                if !self.found.is_empty() && self.found.remove(&key) {
+                    self.gone.insert(key);
                 }
             }
         }
@@ -361,9 +363,9 @@ impl SearchRun {
 
 /// `key` no longer in `set`: an empty set (most are, most of the time) isn't asked, which would
 /// hash the key.
-fn forget(set: &mut HashSet<MessageKey>, key: &MessageKey) {
+fn forget(set: &mut HashSet<RunKey>, key: RunKey) {
     if !set.is_empty() {
-        set.remove(key);
+        set.remove(&key);
     }
 }
 
@@ -573,7 +575,7 @@ impl Session {
                 return 1;
             }
             Loaded::Failed => {
-                self.folder_scanned(run, &k);
+                self.folder_scanned(run, cur.fi);
                 return 1;
             }
             Loaded::Ready => {}
@@ -598,7 +600,7 @@ impl Session {
         }
         // A slice of the summaries.
         let Some(st) = self.cache.get(&k) else {
-            self.folder_scanned(run, &k);
+            self.folder_scanned(run, cur.fi);
             return 1;
         };
         let len = st.messages.len();
@@ -621,15 +623,16 @@ impl Session {
             }
             let text = texts.get(i).unwrap_or(&none);
             let awaiting = !run.awaited.is_empty() && run.awaited.contains(&m.key);
-            let known = if run.known.is_empty() { None } else { run.known.get(&m.key) };
+            let rk = RunKey::of(cur.fi, &m.key);
+            let known = if run.known.is_empty() { None } else { run.known.get(&rk) };
             let v = classify(&run.query, m, text, awaiting, index, known);
-            // Unchanged and nothing to do: not cloned.
+            // Unchanged and nothing to do: not recorded.
             let same = match v {
                 Verdict::No if cur.first => true,
                 _ if cur.first => false,
-                Verdict::Yes => run.found.contains(&m.key) && !run.recheck.contains(&m.key),
-                Verdict::No => !run.found.contains(&m.key) && !run.missing.contains(&m.key) && !run.cut_short.contains(&m.key),
-                Verdict::CutShort => !run.found.contains(&m.key) && run.cut_short.contains(&m.key),
+                Verdict::Yes => run.found.contains(&rk) && !run.recheck.contains(&rk),
+                Verdict::No => !run.found.contains(&rk) && !run.missing.contains(&rk) && !run.cut_short.contains(&rk),
+                Verdict::CutShort => !run.found.contains(&rk) && run.cut_short.contains(&rk),
                 _ => false,
             };
             if !same {
@@ -639,20 +642,23 @@ impl Session {
         let checked = u64::try_from(end.saturating_sub(cur.at)).unwrap_or(u64::MAX);
         self.search_state.stats.summaries = self.search_state.stats.summaries.saturating_add(checked);
         for (m, v, awaiting, at) in verdicts {
-            run.record_at(m, v, awaiting, false, Some(at));
+            run.record_at(cur.fi, m, v, awaiting, false, Some(at));
         }
         cur.at = end;
         if end >= len {
-            self.folder_scanned(run, &k);
+            self.folder_scanned(run, cur.fi);
         } else {
             run.cur = Some(cur);
         }
         1
     }
 
-    /// A folder scanned in full: what was found there before and wasn't found again goes.
-    fn folder_scanned(&mut self, run: &mut SearchRun, k: &(String, String)) {
-        let left: Vec<MessageKey> = run.recheck.iter().filter(|m| m.account == k.0 && m.folder == k.1).cloned().collect();
+    /// A folder scanned in full (`fi`): what was found there before and wasn't found again goes.
+    fn folder_scanned(&mut self, run: &mut SearchRun, fi: usize) {
+        if run.recheck.is_empty() {
+            return;
+        }
+        let left: Vec<RunKey> = run.recheck.iter().filter(|k| k.folder() == fi).copied().collect();
         for key in left {
             run.recheck.remove(&key);
             if run.found.remove(&key) {
@@ -697,7 +703,7 @@ impl Session {
                     }
                     // Its index went meanwhile: it may be missing.
                     _ => {
-                        run.record(c.m, Verdict::Missing, c.awaiting, true);
+                        run.record(c.fi, c.m, Verdict::Missing, c.awaiting, true);
                         return 1;
                     }
                 }
@@ -705,7 +711,7 @@ impl Session {
         };
         let account = v.c.m.key.account.clone();
         let (Some(store), Some(reader)) = (self.store.clone(), self.search_state.readers.get_mut(&account).and_then(|s| s.reader.as_mut())) else {
-            run.record(v.c.m, Verdict::Missing, v.c.awaiting, true);
+            run.record(v.c.fi, v.c.m, Verdict::Missing, v.c.awaiting, true);
             return 1;
         };
         let before = reader.pages_read();
@@ -722,9 +728,9 @@ impl Session {
                 // A long message's stays cut short whenever it's weighed again from these.
                 let verdict = classify(&run.query, &c.m, &st, c.awaiting, None, Some(&answers));
                 if answers.said() {
-                    run.known.insert(c.m.key.clone(), answers);
+                    run.known.insert(RunKey::of(c.fi, &c.m.key), answers);
                 }
-                run.record(c.m, verdict, c.awaiting, true);
+                run.record(c.fi, c.m, verdict, c.awaiting, true);
             }
         }
         1
@@ -741,7 +747,7 @@ impl Session {
             Some(raw) => {
                 let answers = from_source(&raw, &atoms);
                 let verdict = classify(&run.query, &c.m, &st, c.awaiting, None, Some(&answers));
-                run.known.insert(c.m.key.clone(), answers);
+                run.known.insert(RunKey::of(c.fi, &c.m.key), answers);
                 verdict
             }
             // Not kept here (only its headers came): its summary alone is searched, for now
@@ -755,7 +761,7 @@ impl Session {
                 }
             }
         };
-        run.record(c.m, verdict, c.awaiting, true);
+        run.record(c.fi, c.m, verdict, c.awaiting, true);
         1
     }
 }

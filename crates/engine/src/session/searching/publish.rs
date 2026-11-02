@@ -10,6 +10,7 @@
 use std::cmp::Ordering;
 
 use super::super::mailboxes::key_hash;
+use super::found::RunKey;
 use super::matching::{Index, Verdict, classify};
 use super::run::SearchRun;
 use super::*;
@@ -37,15 +38,16 @@ impl Session {
     /// What the run found, as the folders hold it now (a folder let go of meanwhile: as the list
     /// shows it), with what the servers found for the same query, newest first.
     pub(crate) fn search_list(&mut self, run: &SearchRun) -> Vec<SharedSummary> {
-        let mut by_folder: HashMap<(&str, &str), HashSet<u32>> = HashMap::new();
+        let mut by_folder: HashMap<usize, HashSet<u32>> = HashMap::new();
         for k in &run.found {
-            by_folder.entry((k.account.as_str(), k.folder.as_str())).or_default().insert(k.uid);
+            by_folder.entry(k.folder()).or_default().insert(k.uid());
         }
         let mut found = Vec::with_capacity(run.found.len());
-        for ((a, f), uids) in by_folder {
-            match self.cache.get(&(a.to_string(), f.to_string())) {
+        for (fi, uids) in by_folder {
+            let Some(k) = run.folders.get(fi) else { continue };
+            match self.cache.get(k) {
                 Some(st) => found.extend(st.messages.iter().filter(|m| uids.contains(&m.key.uid) && !m.flags.deleted).cloned()),
-                None => found.extend(self.list.iter().filter(|m| m.key.account == a && m.key.folder == f && uids.contains(&m.key.uid)).cloned()),
+                None => found.extend(self.list.iter().filter(|m| m.key.account == k.0 && m.key.folder == k.1 && uids.contains(&m.key.uid)).cloned()),
             }
         }
         found.extend(self.server_found(run).into_iter().map(SharedSummary::new));
@@ -62,7 +64,7 @@ impl Session {
     pub(super) fn server_found(&mut self, run: &SearchRun) -> Vec<Summary> {
         let q = run.q.clone();
         let hits: Vec<MessageKey> =
-            self.server_search.iter().filter(|ss| ss.query == q).flat_map(|ss| ss.found.iter()).filter(|k| !run.found.contains(k)).cloned().collect();
+            self.server_search.iter().filter(|ss| ss.query == q).flat_map(|ss| ss.found.iter()).filter(|k| !run.has_found(k)).cloned().collect();
         // The servers can't tell dates or what's waiting for a reply: checked here.
         self.server_hits(&q, &hits, run.awaited())
     }
@@ -90,7 +92,7 @@ impl Session {
     pub(crate) fn publish_stream(&mut self, run: &mut SearchRun) {
         let filter = self.filter;
         let reverse = self.prefs.reverse_sort;
-        let gone = std::mem::take(&mut run.gone);
+        let gone: HashSet<MessageKey> = std::mem::take(&mut run.gone).into_iter().filter_map(|k| run.message_key(k)).collect();
         let mut fresh: Vec<SharedSummary> =
             std::mem::take(&mut run.fresh).into_iter().filter(|m| self.filter_keeps(filter, m) && !self.listed(&m.key)).collect();
         if self.open_search_folder_name().is_some() {
@@ -169,12 +171,14 @@ impl Session {
             for m in st.messages.iter().filter(|m| uids.contains(&m.key.uid)) {
                 let text = SummaryText::for_query(m, &run.query);
                 let awaiting = run.awaited().is_some_and(|a| a.contains(&m.key));
-                let v = if m.flags.deleted { Verdict::No } else { classify(&run.query, m, &text, awaiting, index, run.known.get(&m.key)) };
+                let known = run.known.get(&RunKey::of(fi, &m.key));
+                let v = if m.flags.deleted { Verdict::No } else { classify(&run.query, m, &text, awaiting, index, known) };
                 verdicts.push((SharedSummary::clone(m), v, awaiting));
             }
             for (m, v, awaiting) in verdicts {
-                let (was, key) = (run.found.contains(&m.key), m.key.clone());
-                run.record(m, v, awaiting, false);
+                let key = RunKey::of(fi, &m.key);
+                let was = run.found.contains(&key);
+                run.record(fi, m, v, awaiting, false);
                 // Still to be read: the list is put together once it is.
                 if run.found.contains(&key) != was || !run.idle() {
                     same = false;

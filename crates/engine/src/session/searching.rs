@@ -12,6 +12,7 @@ use super::*;
 mod finish;
 mod folded;
 mod folder_text;
+mod found;
 mod kept;
 mod look_up;
 mod matching;

@@ -186,6 +186,8 @@ impl TextSource for IndexText<'_> {
 /// A message to check further, as it was when found.
 #[derive(Clone, Debug)]
 pub(crate) struct Candidate {
+    /// Its folder: an index into the run's folders.
+    pub(crate) fi: usize,
     pub(crate) m: SharedSummary,
     /// Its doc in its account's index, when it's there.
     pub(crate) doc: Option<u32>,
