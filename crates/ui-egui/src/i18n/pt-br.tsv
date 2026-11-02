@@ -401,7 +401,7 @@
 	Send automatic replies	Enviar respostas automáticas
 	Server settings…	Configurações do servidor…
 	Read all mail as plain text	Ler todos os emails como texto sem formatação
-	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	Formatação, cores e imagens são omitidas. “Mostrar formatado”, acima de uma mensagem, volta atrás.
+	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Formatação, cores e imagens são omitidas. “Mostrar formatado”, acima de uma mensagem, mostra essa mensagem como foi enviada.
 	Show mail without its formatting	Mostrar emails sem a formatação
 	Show a line of each message in the list	Mostrar uma linha de cada mensagem na lista
 	Sort new mail as it arrives: move it, flag it, categorize it.	Organize os emails novos assim que chegam: mova, sinalize ou categorize.

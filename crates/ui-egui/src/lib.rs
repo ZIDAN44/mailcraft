@@ -211,6 +211,9 @@ pub enum Action {
     OpenFolder(PathBuf),
     /// Choose a folder to move MailCraft's data into (at the next start).
     MoveDataFolder,
+    /// Show one message formatted (true) or as plain text, whatever the setting for all mail
+    /// says (that stays as it is).
+    ShowFormatted(MessageKey, bool),
     /// Forget a move asked for.
     CancelDataMove,
 }
@@ -269,6 +272,8 @@ pub struct UiState {
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
     /// previews attachments in the reading pane.
     pub attachment_view: Option<(MessageKey, usize)>,
+    /// The messages shown formatted or as plain text for themselves, not by the setting.
+    shown_as: reading::body::ShownAs,
     /// The attachments selected in a message's strip (a click picks one, Ctrl+click adds or
     /// removes one, Ctrl+A takes them all), and whether the strip has the keyboard: it was the
     /// last thing clicked, so Ctrl+A selects attachments rather than mail.
@@ -445,6 +450,7 @@ impl MailApp {
                 search_times: app::SearchTimes::default(),
                 compose_alert: None,
                 attachment_view: None,
+                shown_as: Default::default(),
                 attachment_selected: None,
                 attachments_active: false,
                 attachment_hovered: false,

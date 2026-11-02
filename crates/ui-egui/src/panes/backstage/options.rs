@@ -189,12 +189,13 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             switch(ui, s.prefs.reply_window, tl!("Write replies and forwards in a window of their own"), "view.replyWindow", acts);
         });
         // Every message as plain text, as Outlook's own setting for all mail: here, out of the
-        // way, with one message's More actions (⋯) and View › Plain text for the moment.
+        // way, and View › Plain text; one message's More actions (⋯) and Show formatted switch
+        // that message alone.
         setting(
             ui,
             false,
             tl!("Read all mail as plain text"),
-            Some(tl!("Formatting, colours and pictures are left out. Show formatted, above a message, switches back.")),
+            Some(tl!("Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.")),
             &mut |ui| {
                 let mut v = !s.prefs.show_html;
                 if widgets::switch(ui, &t, &mut v, tl!("Read all mail as plain text")).changed() {

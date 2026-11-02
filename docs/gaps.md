@@ -2453,9 +2453,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
 - **Plain text out of the way:** "Show as plain text" was a link right above an HTML message's
   text, where it was clicked by mistake, and it turned every message plain. It's now where
   Outlook keeps the same thing: File › Options › Reading has "Read all mail as plain text" (the
-  setting it always was, said the way round it works), and for the moment, a check in the
-  message's More actions (⋯) and View › Message › Plain text. Above a message shown as text, "Shown
-  as text." and Show formatted are the way back. The command (`view.html`), its use from the
-  CLI and `--cmd`, and the setting are as they were. A headless test finds no link over the text,
-  turns plain text on and off from More actions, Show formatted, the View ribbon and the Options
-  switch, and runs the command by id.
+  setting it always was, said the way round it works), as does View › Message › Plain text. One
+  message is switched by itself, the setting left as it is: a check in its More actions (⋯), in
+  the reading pane and in the toolbar of a message's own window, and, above a message shown as
+  text, "Shown as text." with Show formatted (as Outlook shows one message as HTML while all mail
+  is read as plain text). Those choices last while MailCraft is open, and are forgotten when the
+  setting changes. The command (`view.html`), its use from the CLI and `--cmd`, and the setting
+  are as they were. Headless tests find no link over the text; switch one message from More
+  actions and Show formatted with the setting unchanged, on and off; switch the setting from the
+  View ribbon and the Options switch; and switch a message in its own window from its toolbar.

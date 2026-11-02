@@ -401,7 +401,7 @@
 	Send automatic replies	Envoyer des réponses automatiques
 	Server settings…	Paramètres du serveur…
 	Read all mail as plain text	Lire tout le courrier en texte brut
-	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	La mise en forme, les couleurs et les images sont omises. « Afficher avec la mise en forme », au-dessus d’un message, revient en arrière.
+	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	La mise en forme, les couleurs et les images sont omises. « Afficher avec la mise en forme », au-dessus d’un message, affiche ce message tel qu’il a été envoyé.
 	Show mail without its formatting	Afficher le courrier sans sa mise en forme
 	Show a line of each message in the list	Afficher une ligne de chaque message dans la liste
 	Sort new mail as it arrives: move it, flag it, categorize it.	Triez le nouveau courrier à son arrivée : déplacez-le, marquez-le, classez-le.

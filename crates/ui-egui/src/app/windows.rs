@@ -142,7 +142,7 @@ impl MailApp {
         }
         egui::Panel::top("message-page-bar")
             .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 6)).stroke(egui::Stroke::new(1.0, t.border)))
-            .show(ui, |ui| window_toolbar(ui, &self.session, &t, key, acts));
+            .show(ui, |ui| window_toolbar(ui, &self.session, &self.ui, key, acts));
         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
             reading::window(&mut self.session, &mut self.ui, ui, w, acts);
         });
@@ -187,7 +187,7 @@ impl MailApp {
                 let closing = ui.input(|i| i.viewport().close_requested() || i.key_pressed(Key::Escape));
                 egui::Panel::top(egui::Id::unique(("message-window-bar", key.to_id())))
                     .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 6)).stroke(egui::Stroke::new(1.0, t.border)))
-                    .show(ui, |ui| window_toolbar(ui, session, &t, &key, &mut mine));
+                    .show(ui, |ui| window_toolbar(ui, session, st, &key, &mut mine));
                 egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                     reading::window(session, st, ui, w.clone(), &mut mine);
                 });
@@ -368,7 +368,8 @@ pub(crate) fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
 
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so
 /// they close this one; so do Delete and Archive.
-pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, t: &Tokens, key: &MessageKey, acts: &mut Vec<Action>) {
+pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &MessageKey, acts: &mut Vec<Action>) {
+    let t = &st.tokens;
     let close = || Action::Run("message.closeWindow", json!({"key": key.to_id()}));
     let flagged = s.summary(key).is_some_and(|m| m.flags.flagged);
     let unread = s.summary(key).is_some_and(|m| !m.flags.seen);
@@ -413,6 +414,17 @@ pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, t: &Tokens, key: &Message
             acts.push(Action::Open(key.clone()));
             acts.push(Action::Print);
         }
+        // More, as the reading pane's ⋯: what's done to this message alone, staying open.
+        let more = widgets::more_pill(ui, "More actions", t);
+        egui::Popup::menu(&more).show(|ui| {
+            if ui.button(tl!("View message source")).clicked() {
+                acts.push(Action::Run("message.source", json!({"key": key.to_id()})));
+                ui.close();
+            }
+            if let Some(p) = s.windows.iter().find(|w| &w.key == key).and_then(|w| w.parsed.as_ref()) {
+                reading::plain_text_check(s, st, ui, key, p, acts);
+            }
+        });
         // Drawn inside the page (the browser), the window has no title bar to close it from.
         if ui.ctx().embed_viewports() {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {

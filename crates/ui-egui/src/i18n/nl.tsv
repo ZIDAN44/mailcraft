@@ -400,7 +400,7 @@
 	Send automatic replies	Automatische antwoorden verzenden
 	Server settings…	Serverinstellingen…
 	Read all mail as plain text	Alle e-mail als platte tekst lezen
-	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	Opmaak, kleuren en afbeeldingen worden weggelaten. ‘Met opmaak weergeven’, boven een bericht, zet het terug.
+	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Opmaak, kleuren en afbeeldingen worden weggelaten. ‘Met opmaak weergeven’, boven een bericht, toont dat bericht zoals het is verzonden.
 	Show mail without its formatting	E-mail zonder opmaak weergeven
 	Show a line of each message in the list	Een regel van elk bericht in de lijst weergeven
 	Sort new mail as it arrives: move it, flag it, categorize it.	Sorteer nieuwe mail bij binnenkomst: verplaatsen, markeren, categoriseren.

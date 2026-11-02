@@ -400,7 +400,7 @@
 	Send automatic replies	Отправлять автоответы
 	Server settings…	Параметры сервера…
 	Read all mail as plain text	Читать всю почту как обычный текст
-	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	Форматирование, цвета и рисунки опускаются. «Показать с форматированием» над письмом возвращает их.
+	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Форматирование, цвета и рисунки опускаются. «Показать с форматированием» над письмом показывает это письмо таким, каким оно было отправлено.
 	Show mail without its formatting	Показывать письма без форматирования
 	Show a line of each message in the list	Показывать строку каждого письма в списке
 	Sort new mail as it arrives: move it, flag it, categorize it.	Сортируйте новую почту при поступлении: перемещайте, помечайте, распределяйте по категориям.

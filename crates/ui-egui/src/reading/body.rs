@@ -2,12 +2,55 @@
 
 use super::*;
 
+/// The messages shown otherwise than the setting for all mail (File › Options, View › Plain
+/// text) says: one message formatted though all mail is read as plain text, or the other way,
+/// as Outlook shows one message as HTML from above it and leaves the setting as it was.
+#[derive(Default)]
+pub struct ShownAs {
+    /// The setting these were chosen against: changed, they're forgotten.
+    against: bool,
+    /// Each message's key, and whether it's shown formatted.
+    each: std::collections::HashMap<MessageKey, bool>,
+}
+
+/// More than this many messages switched, the oldest choices aren't worth keeping.
+const SHOWN_AS_MAX: usize = 256;
+
+impl ShownAs {
+    /// Whether message `key` is shown formatted, `all` being the setting for all mail.
+    pub fn formatted(&self, key: &MessageKey, all: bool) -> bool {
+        if self.against != all {
+            return all;
+        }
+        self.each.get(key).copied().unwrap_or(all)
+    }
+
+    /// Show message `key` formatted (`on`) or as plain text, whatever the setting `all` says.
+    pub fn set(&mut self, key: &MessageKey, on: bool, all: bool) {
+        if self.against != all || self.each.len() >= SHOWN_AS_MAX {
+            self.each.clear();
+            self.against = all;
+        }
+        if on == all {
+            self.each.remove(key);
+        } else {
+            self.each.insert(key.clone(), on);
+        }
+    }
+}
+
+/// Whether message `key` (parsed as `p`) is shown formatted: it has formatting, and it's
+/// shown that way, by the setting or for itself.
+pub(crate) fn shown_formatted(s: &Session, st: &UiState, key: &MessageKey, p: &mime::Parsed) -> bool {
+    !p.rich.is_empty() && st.shown_as.formatted(key, s.prefs.show_html)
+}
+
 /// Above an HTML message: whether its web pictures are hidden, and, shown as plain text, the way
-/// back to its formatting. The way to plain text isn't here, a click from the text: it's in
-/// More actions (⋯), View › Plain text and File › Options, where Outlook keeps it too.
-pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, p: &mime::Parsed, acts: &mut Vec<Action>) {
+/// back to its formatting (for this message; the setting stays). The way to plain text isn't
+/// here, a click from the text: it's in More actions (⋯), View › Plain text and File › Options,
+/// where Outlook keeps it too.
+pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, formatted: bool, acts: &mut Vec<Action>) {
     let web = s.remote_pictures();
-    let formatted = s.prefs.show_html && !p.rich.is_empty();
     if !web.is_empty() && !s.pictures_allowed() && formatted {
         egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(
             ui,
@@ -59,7 +102,7 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, p: &mime::Parsed, a
             } else {
                 ui.label(RichText::new(tl!("Shown as text.")).color(t.faint).small());
                 if !p.rich.is_empty() && ui.link(RichText::new(tl!("Show formatted")).small()).clicked() {
-                    acts.push(Action::Run("view.html", json!({"on": true})));
+                    acts.push(Action::ShowFormatted(key.clone(), true));
                 }
             }
         });

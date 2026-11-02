@@ -77,6 +77,18 @@ pub fn window(s: &mut Session, st: &mut UiState, ui: &mut Ui, w: mailcraft_engin
     }
 }
 
+/// One message's "Show as plain text", in its More actions (⋯): here rather than over the text,
+/// where it was clicked by mistake, and for this message only (File › Options has it for all).
+pub(crate) fn plain_text_check(s: &Session, st: &UiState, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, acts: &mut Vec<Action>) {
+    if p.had_html && !p.rich.is_empty() {
+        let mut plain = !shown_formatted(s, st, key, p);
+        if ui.checkbox(&mut plain, tl!("Show as plain text")).clicked() {
+            acts.push(Action::ShowFormatted(key.clone(), !plain));
+            ui.close();
+        }
+    }
+}
+
 fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, in_window: bool) {
     let t = st.tokens;
     let Some(r) = s.reading.clone() else { return };
@@ -360,15 +372,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                     acts.push(Action::Run("message.source", json!({"key": r.key.to_id()})));
                                     ui.close();
                                 }
-                                // Here rather than over the text, where it was clicked by
-                                // mistake; for every message, as File › Options has it.
-                                if p.had_html && !p.rich.is_empty() {
-                                    let mut plain = !s.prefs.show_html;
-                                    if ui.checkbox(&mut plain, tl!("Show as plain text")).clicked() {
-                                        acts.push(Action::Run("view.html", json!({"on": !plain})));
-                                        ui.close();
-                                    }
-                                }
+                                plain_text_check(s, st, ui, &r.key, p, acts);
                             });
                         });
                     }
@@ -386,7 +390,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
 
             // Attachments.
             // Pictures the formatted message shows in place aren't listed again as files.
-            let formatted = s.prefs.show_html && !p.rich.is_empty();
+            let formatted = shown_formatted(s, st, &r.key, p);
             let shown: Vec<usize> = if formatted { p.images.iter().filter_map(|i| mime::picture_attachment(p, i)).collect() } else { Vec::new() };
             let in_place = |a: &mime::AttachmentInfo| shown.contains(&a.index);
             // An invitation is shown as its card above, not as a file.
@@ -436,7 +440,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 hidden_bar(&t, ui, &r.key, p);
             }
             if p.had_html {
-                html_bar(s, &t, ui, p, acts);
+                html_bar(s, &t, ui, &r.key, p, formatted, acts);
             }
             if let Some(u) = &p.unsubscribe {
                 ui.label(RichText::new(tf!("Mailing list: unsubscribe at {address}", address = widgets::shorten(u, 80))).color(t.faint).small());
@@ -450,7 +454,6 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             }
             // The text is selected as one, whatever it's drawn as (`text_selection`).
             text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())));
-            let formatted = s.prefs.show_html && !p.rich.is_empty();
             if formatted {
                 rich_body(s, st, ui, &r.key, p, acts);
             } else if p.text.len() > long_text::LONG {
