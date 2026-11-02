@@ -84,7 +84,9 @@ reads through ten handles of its own, each thread through its own while it's fre
 writes and flushes before it, from every thread. Writes, flushes and the lock that keeps
 another copy of MailCraft out stay on the database's own handle, the lock from its lock bytes
 (far past any data) rather than from the file's start, where it held the other handles' reads
-back.
+back. A file kept compressed in pieces is uncompressed as its pieces are read
+(`packed/kept.rs`, `read_file`), so a big message's source is held once, never compressed and
+uncompressed at the same time.
 
 How a data file commits (`crates/store/src/packed/commit.rs`): writes from the window are durable
 at once. Writers in the background (a `.pst` import, a MailCraft data file brought in) prepare

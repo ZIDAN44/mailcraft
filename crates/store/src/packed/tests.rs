@@ -262,6 +262,51 @@ x"
     let _ = std::fs::remove_dir_all(t);
 }
 
+/// A file in pieces is read back as written whether it's kept compressed (uncompressed as its
+/// pieces are read) or not, and every byte of a compressed one comes from its pieces in order;
+/// one with a piece gone, at its start, in its middle or at its end, is told as damaged (taken
+/// as missing), never handed back short.
+#[test]
+fn a_file_in_pieces_reads_back_compressed_or_not() {
+    let t = temp("pieces-read");
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
+    // An attachment's base64 (kept compressed, in about 40 pieces) and noise (kept as it is).
+    let attached: Vec<u8> = b"Subject: sheet\r\n\r\n".iter().copied().chain(base64(&noise(2_000_000, 5))).collect();
+    let raw = noise(1_500_000, 6);
+    assert!(super::pack(&attached).starts_with(super::DEFLATED) && super::pack(&attached).len() > 16 * super::PAGE * 4);
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let pieces_of = |uid: u32| -> (String, usize) {
+        let inside = s.body_path(&key(uid)).strip_prefix(t.join("app").join("a1")).unwrap().to_str().unwrap().replace('\\', "/");
+        let db = packs.db("a1", false).unwrap().unwrap();
+        let tx = redb::ReadableDatabase::begin_read(&*db).unwrap();
+        let n = tx.open_table(super::PIECES).unwrap().range((inside.as_str(), 0)..=(inside.as_str(), u32::MAX)).unwrap().count();
+        (inside, n)
+    };
+    for (uid, bytes) in [(1, &attached), (2, &raw)] {
+        s.write_body(&key(uid), bytes).unwrap();
+        assert_eq!(s.read_body(&key(uid)).as_ref(), Some(bytes));
+        let (_, n) = pieces_of(uid);
+        assert!(n > 3, "{n} pieces");
+        // A piece gone: the first, one in the middle, the last.
+        for (i, gone) in [0, n / 2, n - 1].into_iter().enumerate() {
+            let uid2 = uid * 10 + i as u32;
+            s.write_body(&key(uid2), bytes).unwrap();
+            let (inside, _) = pieces_of(uid2);
+            let db = packs.db("a1", false).unwrap().unwrap();
+            let tx = db.begin_write().unwrap();
+            tx.open_table(super::PIECES).unwrap().remove((inside.as_str(), gone as u32)).unwrap();
+            tx.commit().unwrap();
+            assert_eq!(s.load_body(&key(uid2)).unwrap(), None, "uid {uid}: piece {gone} of {n} gone");
+            let e = packs.read(&s.body_path(&key(uid2))).unwrap_err();
+            assert_eq!(e.kind(), std::io::ErrorKind::InvalidData, "uid {uid}: piece {gone} of {n} gone: {e}");
+        }
+    }
+    drop(s);
+    let _ = std::fs::remove_dir_all(t);
+}
+
 /// Bytes that don't compress (xorshift).
 fn noise(n: usize, seed: u64) -> Vec<u8> {
     let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;

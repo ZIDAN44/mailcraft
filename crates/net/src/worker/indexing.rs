@@ -31,8 +31,9 @@ const IN_FLIGHT: usize = 64;
 /// Bytes in flight across the readers: sources (by their summaries' sizes) being read and taken
 /// apart, then the texts taken out of them until they're added. One of 30 MB on each of eight
 /// threads at once held hundreds of megabytes, and 64 texts waiting more (the pass over the 41 GB
-/// file peaked 545 MB above the window's own). A source bigger than this is read alone; small
-/// ones each count as [`LEAST_COST`].
+/// file peaked 545 MB above the window's own). A source is held uncompressed only, as its pieces
+/// are read (`Store::read_body`), so it holds about what it counts for. A source bigger than this
+/// is read alone; small ones each count as [`LEAST_COST`].
 const READING_BYTES: u64 = 48 << 20;
 /// What a small source counts for in [`READING_BYTES`] (its reading's own buffers).
 const LEAST_COST: u64 = 64 << 10;

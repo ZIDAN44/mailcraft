@@ -197,21 +197,98 @@ impl Tables<'_> {
 }
 
 /// A file from a read transaction: whole, or put together from its pieces, and uncompressed.
+///
+/// A compressed file in pieces is uncompressed as its pieces are read, never held compressed
+/// whole besides: a source of 30 MB kept in 23 MB held both at once while it was uncompressed,
+/// and the search index's readers, eight such sources at a time, held most of what its pass
+/// added to the app's memory.
 pub(super) fn read_file(
     tx: &redb::ReadTransaction,
     files: &impl ReadableTable<&'static str, &'static [u8]>,
     key: &str,
 ) -> io::Result<Option<Vec<u8>>> {
+    use std::io::Read;
     let Some(v) = files.get(key).map_err(other)?.map(|g| g.value().to_vec()) else { return Ok(None) };
     let Some(len) = pieced_len(&v) else { return unpack(v).map(Some) };
     let pieces = tx.open_table(PIECES).map_err(other)?;
-    let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(RESERVE_MAX));
-    for item in pieces.range((key, 0)..=(key, u32::MAX)).map_err(other)? {
-        let (_, piece) = item.map_err(other)?;
-        out.extend_from_slice(piece.value());
+    let mut reader = PieceReader { pieces: pieces.range((key, 0)..=(key, u32::MAX)).map_err(other)?, piece: None, at: 0, read: 0, failed: false };
+    // Whether it's compressed: its first bytes, read before anything else.
+    let mut head = Vec::with_capacity(DEFLATED.len());
+    (&mut reader).take(DEFLATED.len() as u64).read_to_end(&mut head)?;
+    let out = if head == DEFLATED {
+        let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).saturating_mul(3).min(RESERVE_MAX));
+        let inflated = flate2::read::DeflateDecoder::new(&mut reader).take(INFLATE_MAX + 1).read_to_end(&mut out);
+        if reader.failed {
+            return Err(inflated.err().unwrap_or_else(|| io::Error::other("a piece couldn't be read")));
+        }
+        // What follows the stream, if anything, counted with the rest: a piece missing is told
+        // as such whether or not the stream ended well without it.
+        io::copy(&mut reader, &mut io::sink())?;
+        if reader.read != len {
+            return Err(pieces_missing(key));
+        }
+        inflated?;
+        if out.len() as u64 > INFLATE_MAX {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "a compressed file is too big"));
+        }
+        out
+    } else {
+        let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(RESERVE_MAX));
+        out.extend_from_slice(&head);
+        reader.read_to_end(&mut out)?;
+        if reader.read != len {
+            return Err(pieces_missing(key));
+        }
+        out
+    };
+    Ok(Some(out))
+}
+
+fn pieces_missing(key: &str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, format!("{key}: pieces missing"))
+}
+
+/// A file's pieces read one after another, as one stream of its bytes as kept, counted.
+struct PieceReader<'a> {
+    pieces: redb::Range<'a, (&'static str, u32), &'static [u8]>,
+    piece: Option<redb::AccessGuard<'a, &'static [u8]>>,
+    /// How far into `piece`.
+    at: usize,
+    /// Bytes read, all told.
+    read: u64,
+    /// A piece couldn't be read (the error was given).
+    failed: bool,
+}
+
+impl io::Read for PieceReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        loop {
+            if let Some(p) = &self.piece {
+                let rest = p.value().get(self.at..).unwrap_or_default();
+                if !rest.is_empty() {
+                    let n = rest.len().min(buf.len());
+                    if let (Some(to), Some(from)) = (buf.get_mut(..n), rest.get(..n)) {
+                        to.copy_from_slice(from);
+                    }
+                    self.at = self.at.saturating_add(n);
+                    self.read = self.read.saturating_add(n as u64);
+                    return Ok(n);
+                }
+            }
+            match self.pieces.next() {
+                Some(Ok((_, piece))) => {
+                    self.piece = Some(piece);
+                    self.at = 0;
+                }
+                Some(Err(e)) => {
+                    self.failed = true;
+                    return Err(other(e));
+                }
+                None => {
+                    self.piece = None;
+                    return Ok(0);
+                }
+            }
+        }
     }
-    if out.len() as u64 != len {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("{key}: pieces missing")));
-    }
-    unpack(out).map(Some)
 }
