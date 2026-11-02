@@ -5,9 +5,9 @@
 //! view) folds nothing again. Kept beside the folder's list, message for message, and checked
 //! against it at each use: a list that changed under it (a message in or out) has its texts
 //! made again from there, so a missed invalidation can't give a stale answer. A summary that
-//! changed in place (its preview filled in by its download) comes with its folder read again,
-//! which forgets the folder's texts ([`FolderTexts::forget`]). Flags aren't text: a mark-read
-//! keeps them.
+//! changed in place (its preview filled in by its download) keeps its uid at its place, which that
+//! check can't see: its text is made again then ([`FolderTexts::changed`]). Flags aren't text: a
+//! mark-read keeps them.
 
 use super::*;
 
@@ -94,6 +94,20 @@ impl FolderTexts {
             return None;
         }
         ft.texts.get(at)
+    }
+
+    /// `m`'s summary changed in place (its preview filled in by its download): the text kept for
+    /// it is made again, the folder's others kept.
+    pub(crate) fn changed(&mut self, m: &Summary) {
+        let Some(ft) = self.folders.get_mut(&(m.key.account.clone(), m.key.folder.clone())) else { return };
+        let Some(at) = ft.uids.iter().position(|u| *u == m.key.uid) else { return };
+        let Some(slot) = ft.texts.get_mut(at) else { return };
+        let st = SummaryText::of(m);
+        let (was, now) = (slot.bytes(), st.bytes());
+        *slot = st;
+        ft.bytes = ft.bytes.saturating_sub(was).saturating_add(now);
+        self.bytes = self.bytes.saturating_sub(was).saturating_add(now);
+        self.made = self.made.wrapping_add(1);
     }
 
     /// A folder's list was read again or changed: its texts go.

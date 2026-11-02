@@ -183,6 +183,28 @@ fn a_message_downloaded_fills_its_entry_without_reading_the_folder() {
     assert_eq!(s.list, shown, "memory as disk has it");
 }
 
+/// A message downloaded again while no search shows: its folder's texts, kept from a search
+/// before, take its new preview, and the next search goes by that one. They kept the old text (a
+/// summary changed in place keeps its uid at its place): a word the preview no longer had was
+/// still found in it, one only the new preview had wasn't, until the folder was read again.
+#[test]
+fn a_message_filled_between_searches_is_searched_as_filled() {
+    let (mut s, _id) = server_inbox(40);
+    let key = s.row_keys()[5].clone();
+    let found = |s: &mut Session, q: &str| s.run("search.run", &json!({"query": q})).unwrap()["results"].as_u64().unwrap();
+    let mut filled = downloaded(&s, &key).unwrap();
+    s.apply(Event::Filled { summary: Box::new(filled.clone()) });
+    assert_eq!(found(&mut s, "mix"), 1);
+    s.run("search.clear", &json!({})).unwrap();
+    assert!(s.search.is_none());
+    filled.preview = "Second pass of the stems".into();
+    s.apply(Event::Filled { summary: Box::new(filled) });
+    assert_eq!(found(&mut s, "mix"), 0, "the old preview not searched");
+    s.run("search.clear", &json!({})).unwrap();
+    assert_eq!(found(&mut s, "stems"), 1, "the new one");
+    assert_eq!(found(&mut s, "plan"), 40);
+}
+
 /// A message a filter hid (Has attachments) whose summary filled now shows a file: the list is
 /// built again, the message in it. It was looked for in the list first, and not being there, left
 /// out until something else built the list.

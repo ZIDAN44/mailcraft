@@ -166,6 +166,8 @@ impl Session {
         let (size, importance, bulk) = (m.size != now.size, m.importance != now.importance, m.bulk != now.bulk);
         m.clone_from(&now);
         self.mail_changed();
+        // The text searches keep for it is the old one (it's still the message at its place).
+        self.search_state.texts.changed(&now);
         // A search holds what it found as it was: it's run again over the folder.
         if self.search.is_some() {
             self.search_folder_changed(&k.0, &k.1);

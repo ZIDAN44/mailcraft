@@ -309,7 +309,8 @@ written (`Compose`), preferences and status-bar notices.
   more than were sent, a notice from the account, or a minute's wait reads the folder again. A
   message downloaded comes back as its summary filled from its source (`Event::Filled`, made by
   `mailcraft_jmap::keep_source` for every protocol), which the folder in memory and the list's
-  entry take (`patch.rs`), built again only where what changed decides what the list shows.
+  entry take (`patch.rs`), built again only where what changed decides what the list shows; the
+  text searches keep for that summary is made again (`FolderTexts::changed`).
 - Local-only accounts (the sample mailbox) apply changes to the cache directly, including moves
   (new UIDs in the destination) and sending (filed in Sent).
 - Data files imported into accounts (`session/accounts/importing.rs`, commands in

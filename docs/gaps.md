@@ -2104,7 +2104,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   120 Hz screen, and the negated word took 198 ms. Every count matches the file's ground truth. A
   text kept folded is kept with the doc it was read from, in the index's epoch: a key that comes
   back as another message (a local folder deleted and made again numbers its mail from 1 again) is
-  checked against its own text, and a folder's texts go when it leaves the listing. The app's runs
+  checked against its own text, and a folder's texts go when it leaves the listing. A summary
+  filled in by its download while no search showed kept its old text there, its uid unchanged at
+  its place (a word only its new preview had went unfound, one it no longer had still found):
+  that text is made again now, the folder's others kept. The app's runs
   on the file were built before the last search change (what a phrase's candidates said let go of
   a slice a tick, which only moves work out of the step that starts the next search); the made-up
   mailbox's figures are from the final tree.
