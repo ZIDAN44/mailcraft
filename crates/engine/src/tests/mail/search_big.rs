@@ -102,8 +102,9 @@ fn search_by(s: &mut Session, q: &str, scope: &str, by: &mut dyn FnMut(&mut Sess
 
 /// Every query over every mailbox, as the window runs it: each `search_step(8)` reads at most
 /// 16 store pages (folders' lists and the index together), checks at most 8 × 512 summaries and
-/// 8 texts (the command's first 4 units, half that), and reads no message; flags read nothing of
-/// the index; and each finds what the mailbox holds, the list newest first.
+/// 8 texts (the command's first 4 units, half that), makes at most 8 × 128 summaries' texts (in
+/// a session just opened: 512 a unit took 11–15 ms a step), and reads no message; flags read
+/// nothing of the index; and each finds what the mailbox holds, the list newest first.
 #[test]
 fn each_step_is_bounded_over_fifty_thousand_messages() {
     let (mut s, t) = cold();
@@ -114,6 +115,7 @@ fn each_step_is_bounded_over_fifty_thousand_messages() {
             let (d, n) = (st.read, if i == 0 { 4 } else { 8 });
             assert!(d.folder_pages + d.reader_pages <= 2 * n, "{q}: store pages {} + {}", d.folder_pages, d.reader_pages);
             assert!(d.summaries <= 512 * n, "{q}: summaries {}", d.summaries);
+            assert!(d.summary_texts <= 128 * n, "{q}: summaries' texts made {}", d.summary_texts);
             assert!(d.texts <= n, "{q}: texts {}", d.texts);
             assert!(d.units <= n, "{q}: units {}", d.units);
         }

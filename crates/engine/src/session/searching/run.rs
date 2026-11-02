@@ -26,6 +26,9 @@ use super::*;
 
 /// Summaries checked in one unit.
 pub(crate) const UNIT_MESSAGES: usize = 512;
+/// Summaries' texts made in one unit, when they aren't kept yet (a search in a session just
+/// opened): making one takes several times as long as checking it.
+pub(crate) const UNIT_FOLDS: usize = 128;
 /// Index pages looked through for a word in one unit (at least one word's worth).
 pub(crate) const UNIT_PAGES: usize = 2;
 
@@ -613,8 +616,15 @@ impl Session {
             return 1;
         };
         let len = st.messages.len();
-        let end = cur.at.saturating_add(UNIT_MESSAGES).min(len);
-        let texts: &[SummaryText] = if run.summary_words { self.search_state.texts.texts(&k.0, &k.1, &st.messages, cur.at..end) } else { &[] };
+        let mut end = cur.at.saturating_add(UNIT_MESSAGES).min(len);
+        let texts: &[SummaryText] = if run.summary_words {
+            let texts = self.search_state.texts.texts(&k.0, &k.1, &st.messages, cur.at..end, UNIT_FOLDS);
+            // (At least one a unit, whatever: a text missing is searched as an empty one.)
+            end = end.min(cur.at.saturating_add(texts.len()).max(cur.at.saturating_add(1)));
+            texts
+        } else {
+            &[]
+        };
         let reader = self.search_state.readers.get(&account).and_then(|s| s.reader.as_ref());
         let index = reader.filter(|_| run.uses_index()).map(|reader| Index::of(reader, run.terms.get(&account), &k.1));
         let none = SummaryText::default();

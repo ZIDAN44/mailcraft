@@ -36,10 +36,11 @@ pub(crate) struct FolderTexts {
 impl FolderTexts {
     /// The texts of `messages[range]` (the folder's list as it is now), made for those not kept
     /// or no longer the same message. A range past what's kept makes what lies between too.
-    pub(crate) fn texts(&mut self, account: &str, folder: &str, messages: &[Summary], range: std::ops::Range<usize>) -> &[SummaryText] {
+    /// At most `make` are made (at least one): the texts given may stop short of the range's
+    /// end, where they do.
+    pub(crate) fn texts(&mut self, account: &str, folder: &str, messages: &[Summary], range: std::ops::Range<usize>, make: usize) -> &[SummaryText] {
         self.tick = self.tick.wrapping_add(1);
         let k = (account.to_string(), folder.to_string());
-        let end = range.end.min(messages.len());
         let ft = self.folders.entry(k.clone()).or_default();
         ft.used = self.tick;
         // Kept only while each is still the message at its place.
@@ -54,6 +55,8 @@ impl FolderTexts {
             ft.bytes = ft.bytes.saturating_sub(gone);
             self.bytes = self.bytes.saturating_sub(gone);
         }
+        let most = ft.texts.len().saturating_add(make).max(range.start.saturating_add(1));
+        let end = range.end.min(messages.len()).min(most);
         let mut added = 0usize;
         for m in messages.get(ft.texts.len()..end).unwrap_or_default() {
             let st = SummaryText::of(m);
