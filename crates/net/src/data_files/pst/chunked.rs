@@ -4,8 +4,14 @@
 //! before each: on a plain `File` that was millions of tiny reads, one after another. Here each
 //! range read stays in a cache (the root pages, once read, are never read again while they're in
 //! it), a read that follows on from the one before reads ahead (the blocks of a big attachment
-//! mostly lie in order), and any other reads exactly what was asked, so scattered pages don't
+//! often lie in order), and any other reads exactly what was asked, so scattered pages don't
 //! read a chunk each for a few hundred bytes they use.
+//!
+//! But a block read near the last block read reads the chunk around it: an attachment's blocks
+//! that aren't in order mostly lie close together, in no order. Read one by one, the 41 GB file's
+//! attachments of 20 MB and more took over a thousand reads each, a second or more on a lane of
+//! their own, while every other item waited behind them for the writer; read by the chunk, half
+//! the reads in all, for 9% more bytes.
 //!
 //! The cache is the file's, not a handle's ([`Source`], shared through an `Rc`): the handles
 //! outlook-pst reads through are reopened to let go of their own caches (`open.rs`), and each
@@ -34,6 +40,8 @@ pub(super) const PAGE: usize = 512;
 pub(super) const PAGE_COST: u64 = 1024;
 /// Pages counted per handle: past this many, it's due to be reopened anyway.
 const MAX_COUNTED: usize = 1 << 16;
+/// A block read this near where the last one read ended reads the chunk around it.
+const NEAR: u64 = 4 * 1024 * 1024;
 
 /// A data file opened to read, and what has been read of it.
 pub(super) struct Source {
@@ -49,6 +57,8 @@ pub(super) struct Source {
     tick: u64,
     /// Where the last range read from the file ended: a miss there (or just past) reads ahead.
     last_miss: Option<u64>,
+    /// Where the last read for a block (anything but a page) ended: a miss near it reads its chunk.
+    last_block: Option<u64>,
     /// Bytes read from the file, and reads made.
     pub(super) bytes_read: u64,
     pub(super) reads: u64,
@@ -83,6 +93,7 @@ impl Source {
             held: 0,
             tick: 0,
             last_miss: None,
+            last_block: None,
             bytes_read: 0,
             reads: 0,
             stop,
@@ -120,17 +131,31 @@ impl Source {
             let got = self.fill(pos, buf.get_mut(..want).unwrap_or_default())?;
             return Ok(got);
         }
-        let want = if follows { buf.len().max(self.chunk.saturating_mul(READ_AHEAD)) } else { buf.len() };
-        let want = usize::try_from(room.min(wide(want))).unwrap_or(0);
-        let mut data = vec![0; want];
-        let got = self.fill(pos, &mut data)?;
+        let block = buf.len() != PAGE;
+        let near = block && !follows && self.last_block.is_some_and(|end| end.abs_diff(pos) < NEAR);
+        let (start, end) = if near {
+            // The chunk around it, less what's cached on either side.
+            let chunk = wide(self.chunk);
+            let aligned = pos - pos % chunk;
+            let before = self.slots.range(..pos).next_back().map_or(0, |(s, slot)| s.saturating_add(wide(slot.data.len())));
+            (aligned.max(before).min(pos), aligned.saturating_add(chunk).min(next).max(pos.saturating_add(wide(buf.len())).min(next)))
+        } else {
+            let want = if follows { buf.len().max(self.chunk.saturating_mul(READ_AHEAD)) } else { buf.len() };
+            (pos, pos.saturating_add(room.min(wide(want))))
+        };
+        let mut data = vec![0; usize::try_from(end.saturating_sub(start)).unwrap_or(0)];
+        let got = self.fill(start, &mut data)?;
         data.truncate(got);
-        let n = got.min(buf.len());
-        if let (Some(to), Some(from)) = (buf.get_mut(..n), data.get(..n)) {
+        if block {
+            self.last_block = self.last_miss;
+        }
+        let skip = usize::try_from(pos - start).unwrap_or(usize::MAX);
+        let n = got.saturating_sub(skip).min(buf.len());
+        if let (Some(to), Some(from)) = (buf.get_mut(..n), data.get(skip..skip.saturating_add(n))) {
             to.copy_from_slice(from);
         }
         if got > 0 {
-            self.keep(pos, data);
+            self.keep(start, data);
         }
         Ok(n)
     }

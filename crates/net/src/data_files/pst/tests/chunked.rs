@@ -164,3 +164,39 @@ fn ranges_are_read_once_and_ahead_only_in_order() {
     assert_eq!(shared.borrow().bytes_read, read);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// An attachment's blocks close together in no order: read by the chunk, not one by one; a block
+/// far from the last is read exactly, and so are pages, near or not.
+#[test]
+fn blocks_near_the_last_read_their_chunk() {
+    let (dir, path) = file_of("near", 16 * 1024 * 1024);
+    let shared = source(&path, 0);
+    let (mut r, _) = ChunkReader::new(&shared);
+    let mut plain = std::fs::File::open(&path).unwrap();
+    let mut block = [0; 8192];
+    let mut want = [0; 8192];
+    // 64 blocks of the 512 KiB from 4 MiB on, in a scattered order (37 is prime to 64).
+    let base = 4 * 1024 * 1024u64;
+    for i in 0..64u64 {
+        let at = base + (i * 37 % 64) * 8192;
+        r.seek(SeekFrom::Start(at)).unwrap();
+        r.read_exact(&mut block).unwrap();
+        plain.seek(SeekFrom::Start(at)).unwrap();
+        plain.read_exact(&mut want).unwrap();
+        assert_eq!(block, want, "block {i}");
+    }
+    let (reads, bytes) = (shared.borrow().reads, shared.borrow().bytes_read);
+    assert!(reads <= 9, "{reads} reads for 64 blocks in 8 chunks");
+    assert!(bytes <= 512 * 1024 + 8192, "{bytes} bytes read for 512 KiB");
+
+    // Far from the last: exactly the block.
+    r.seek(SeekFrom::Start(12 * 1024 * 1024 + 100)).unwrap();
+    r.read_exact(&mut block).unwrap();
+    assert_eq!(shared.borrow().bytes_read - bytes, 8192);
+    // A page near it (not following on): exactly the page.
+    let mut page = [0; PAGE];
+    r.seek(SeekFrom::Start(13 * 1024 * 1024)).unwrap();
+    r.read_exact(&mut page).unwrap();
+    assert_eq!(shared.borrow().bytes_read - bytes, 8192 + PAGE as u64);
+    let _ = std::fs::remove_dir_all(&dir);
+}
