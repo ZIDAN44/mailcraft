@@ -239,6 +239,8 @@ fn import() {
     let mut waits: Vec<u64> = Vec::new();
     let done = loop {
         if waits.len() >= pauses {
+            // Gone on with to the end: the last pause's stop isn't this run's.
+            opts.stop = crate::pst::Stop::default();
             break crate::pst::import_into(&path, &store, "d1", &opts, &mut progress).unwrap();
         }
         let stop = crate::pst::Stop::default();

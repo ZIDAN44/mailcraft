@@ -265,9 +265,10 @@ pub(crate) fn nav_line(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
     true
 }
 
-/// The folders an import hasn't brought in yet, as its plan names them, under its account's
-/// folders in the folder pane: faint, in the order they come in, each where it will be. One
-/// shows as any other folder once it's in (until then nothing can be done with it).
+/// The folders an import hasn't brought in yet, as its plan names them, after its account's
+/// folders in the folder pane: faint, in the order they come in, each indented as deep as it
+/// will be. One shows as any other folder, in its place, once it's in (until then nothing can be
+/// done with it).
 pub(crate) fn outline(s: &Session, t: &Tokens, ui: &mut Ui, account: &str, have: &[mailcraft_engine::model::Folder]) {
     let Some(st) = s.import_state(account).filter(|st| !st.removing) else { return };
     for f in st.planned.iter().filter(|f| !have.iter().any(|h| h.path == f.path)) {

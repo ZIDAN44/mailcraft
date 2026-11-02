@@ -1661,8 +1661,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   left with nothing in it by an import that never ended (before this was kept) is found as one to
   import again or remove. The folders a file holds are shown ahead as an outline: as soon as
   an import (or a run of one going on) has planned the file, the folders not in yet are listed
-  faint under the account's, each where it will be, and each becomes a folder like any other
-  as it finishes: in the window, importing the 41 GB file, 42 of its 46 folders were outlined
+  faint after the account's, indented as deep as each will be, and each becomes a folder like
+  any other, in its place, as it finishes: in the window, importing the 41 GB file, 42 of its 46 folders were outlined
   5 s in, 9 a minute in, and none once it was done.
 - **Going on where an import stopped:** continuing an import read the file again from its start
   (the same messages coming out the same way, so a 41 GB file paused near its end took as long
@@ -1904,14 +1904,19 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   of 114 took 10 to 17 s (16.8 s at the 99th, under 2 s aimed at), all in one run at one place,
   where the import gone on with stopped again before it got any further, the process waiting on
   something rather than working; a stop that slow outlasts the 10 s MailCraft waits for an
-  import as it closes. It waited for each item being read to be read to its end: a 37 MB one's
-  reads took 1.2 s with another program writing to the drive, and on a drive kept that busy, or
-  a slow one, many times that. The threads reading the file now ask before each read whether
-  the import is stopping, and let the item in hand go (it's read again going on), as does the
-  walk over the folders, whose plan cut short is no longer taken for a file that changed: 20
-  pauses with another program writing to the drive all along stopped in 0.3 s by median and
-  1.2 s at worst (0.6 s and 1.7 s before; in a test whose reads take a second each, 11.6 s
-  before and within 2.5 s now). In the window, on a fresh import (release build, scratch data
+  import as it closes. That tail didn't come again, so what caused it isn't known. One wait
+  with no bound was found and is gone: a stop waited for each item being read to be read to its
+  end (a 37 MB one's reads took 1.2 s with another program writing to the drive, and on a drive
+  kept that busy, or a slow one, many times that). The threads reading the file now ask before
+  each read whether the import is stopping, and let the item in hand go (it's read again going
+  on), as does the walk over the folders, whose plan cut short is no longer taken for a file
+  that changed: 20 pauses in the first 7,000 messages with another program writing to the drive
+  all along stopped in 0.3 s by median and 1.2 s at worst (0.6 s and 1.7 s before; in a test
+  whose reads take a second each, 11.6 s before and within 2.5 s now), and 18 where the tail
+  was, 31,600 to 33,800 messages in, three runs each going on and stopping again before it got
+  further, with the drive written to all along, in 0.6 s by median and 1.3 s at worst. Whether
+  the slow read was what held those 5 stops isn't confirmed: the 2 s aim is met where it was
+  measured again, not shown met for whatever held them. In the window, on a fresh import (release build, scratch data
   folder), Stop showed the import stopped 0.39–0.64 s after it was pressed (0.30–0.55 s on the
   build before), and Close MailCraft ended the process 0.46 s after (0.40–0.43 s): a pause there
   was quick before too, its slow ones rare. The writer was busy 58–61% of the
