@@ -493,6 +493,13 @@ impl Session {
         self.search_state.letting_go.len() + self.search_state.letting_go_keys.len()
     }
 
+    /// The summaries and keys of lists a search replaced, still to be let go of (for the memory
+    /// they hold, `bench::big_mailbox`).
+    #[cfg(test)]
+    pub(crate) fn letting_go_parts(&self) -> (&[Summary], &[MessageKey]) {
+        (&self.search_state.letting_go, &self.search_state.letting_go_keys)
+    }
+
     /// What the run found that the list doesn't show yet.
     #[cfg(test)]
     pub(crate) fn search_unshown(&self) -> Vec<MessageKey> {

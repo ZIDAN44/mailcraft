@@ -11,7 +11,8 @@
 //! ([`crate::sample::big`], 50,000 messages), in memory.
 //!
 //! Each step prints how long it took, and `memory` lines what the summaries kept in memory take
-//! (and the process, on Windows) as the folder, a 500-Down walk and a search hold them. Steps
+//! (and the process, on Windows) as the folder, a 500-Down walk (its read marks undone after)
+//! and a search hold them. Steps
 //! are a few seconds apart so a watcher outside sees each. `MC_DATA_CACHE_MB` opens the
 //! account's data file with that cache instead of the usual one; built with
 //! `-F mailcraft-store/cache-metrics`, `cache` lines
@@ -48,10 +49,15 @@ fn common_domain(s: &mut Session, account: &str, folder: &str) -> String {
     counts.into_iter().max_by_key(|(d, n)| (*n, *d)).map(|(d, _)| d.to_string()).unwrap_or_else(|| "example".into())
 }
 
-/// Down 500 times from the top, each message opened as it's landed on, as one holds the key
-/// down: the worst and the middle step. Then the largest message in the list opened.
+/// Down 500 times from the top, each message opened (and marked read) as it's landed on, as one
+/// holds the key down: the worst and the middle step. Then the largest message in the list
+/// opened. What it marked read is marked unread again after, so the steps that follow count the
+/// mailbox as it was made (`is:unread` the generator's own number).
 fn walk(s: &mut Session) {
     let Some(first) = s.list.first().map(|m| m.key.clone()) else { return };
+    let largest = s.list.iter().max_by_key(|m| m.size).map(|m| (m.key.clone(), m.size));
+    let unread: Vec<_> =
+        s.list.iter().take(501).chain(s.list.iter().max_by_key(|m| m.size)).filter(|m| !m.flags.seen).map(|m| m.key.clone()).collect();
     let _ = s.run("list.open", &json!({"key": first.to_id()}));
     std::thread::sleep(Duration::from_secs(3));
     let mut steps: Vec<f64> = (0..500)
@@ -66,9 +72,12 @@ fn walk(s: &mut Session) {
     println!("Down x500: median {:.2} ms, p90 {:.2}, max {:.2}, {:.2} s in all", at(50), at(90), at(100), steps.iter().sum::<f64>() / 1000.0);
     let at = s.reading.as_ref().and_then(|r| s.list.iter().position(|m| m.key == r.key));
     println!("reading the message at {at:?}");
-    if let Some(m) = s.list.iter().max_by_key(|m| m.size) {
-        let (key, size) = (m.key.clone(), m.size);
+    if let Some((key, size)) = largest {
         step(&format!("open the largest message ({} KB)", size / 1024), || drop(s.run("list.open", &json!({"key": key.to_id()}))));
+    }
+    for k in &unread {
+        let _ = s.run("list.select", &json!({"key": k.to_id()}));
+        let _ = s.run("mail.markUnread", &json!({}));
     }
 }
 
@@ -166,7 +175,13 @@ fn big_mailbox() {
     let domain = common_domain(&mut s, &account, &biggest);
     step("a common domain", || s.run_search(&domain, crate::SearchScope::All));
     println!("found {}", s.list.len());
+    // The lists the searches replaced are let go of a slice a step and a tick, and the bench
+    // doesn't tick: counted as they are, then again once the app's ticks would have let them go.
     memory::report(&s, "with a large search shown");
+    while s.letting_go() > 0 {
+        s.let_go_some();
+    }
+    memory::report(&s, "with a large search shown, the lists it replaced let go of");
     if let Some(k) = s.list.first().map(|m| m.key.clone()) {
         let _ = s.run("list.select", &json!({"key": k.to_id()}));
         step("search after mark-read", || drop(s.run("mail.markRead", &json!({}))));

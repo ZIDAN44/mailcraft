@@ -51,22 +51,35 @@ fn mb(n: usize) -> String {
     format!("{:.1} MB", n as f64 / 1_048_576.0)
 }
 
+/// What each holder of summaries holds: the list on view, the folders cached, the list kept
+/// while a search shows, and the lists searches replaced, let go of a slice a step and a tick.
+fn holders(s: &Session) -> [Parts; 4] {
+    let cached = s.cache.values().flat_map(|st| st.messages.iter());
+    [Parts::of(&s.list), Parts::of(cached), Parts::of(s.kept_summaries()), Parts::of(s.letting_go_parts().0)]
+}
+
 /// Print what the summaries in memory take now, and what each way of sharing them would save.
 pub(super) fn report(s: &Session, at: &str) {
     let cached: Vec<&Summary> = s.cache.values().flat_map(|st| st.messages.iter()).collect();
     let kept = s.kept_summaries();
-    let (list, cache, kept_p) = (Parts::of(&s.list), Parts::of(cached.iter().copied()), Parts::of(kept));
-    let all = [list, cache, kept_p];
+    // Beside the lists searches replaced, the keys of what their runs found.
+    let (going, going_keys) = s.letting_go_parts();
+    let all = holders(s);
+    let [list, cache, kept_p, going_p] = all;
     let total: usize = all.iter().map(Parts::total).sum();
     let count: usize = all.iter().map(|p| p.count).sum();
+    let key_bytes: usize = going_keys.iter().map(|k| std::mem::size_of::<crate::model::MessageKey>() + k.heap_bytes()).sum();
     println!(
-        "memory {at}: summaries {count} of {} bytes each ({} cached in {} folders, {} listed, {} kept for after a search), {}",
+        "memory {at}: summaries {count} of {} bytes each ({} cached in {} folders, {} listed, {} kept for after a search, {} still to be let go of), {}; and {} keys to be let go of, {}",
         std::mem::size_of::<Summary>(),
         cache.count,
         s.cache.len(),
         list.count,
         kept_p.count,
-        mb(total)
+        going_p.count,
+        mb(total),
+        going_keys.len(),
+        mb(key_bytes)
     );
     let sum = |f: fn(&Parts) -> usize| all.iter().map(f).sum::<usize>();
     println!(
@@ -83,25 +96,29 @@ pub(super) fn report(s: &Session, at: &str) {
     // each); each cached one moves into an `Arc` of its own (its two counts beside it), a
     // pointer to it left in the cache.
     let in_cache: HashSet<&crate::model::MessageKey> = cached.iter().map(|m| &m.key).collect();
-    let copies = s.list.iter().chain(kept).filter(|m| in_cache.contains(&m.key));
+    let copies = s.list.iter().chain(kept).chain(going).filter(|m| in_cache.contains(&m.key));
     let copied = Parts::of(copies);
     let size = std::mem::size_of::<Summary>();
     let boxed = 8 + heap_room(16 + size) - size;
     let arc = copied.total().saturating_sub(copied.count * 8).saturating_sub(cache.count * boxed);
     // Interned: each key's account and folder one string per folder (an `Arc<str>` is 16 bytes,
-    // a `String` 24: 16 saved inline per key too), each sender's name and address one string.
+    // a `String` 24: 16 saved inline per key too), each address's name and address one string,
+    // the sender's and To's and Cc's alike (To mostly the user's own).
     let keys = sum(|p| p.keys) + count * 16;
-    let mut senders = HashSet::new();
-    let mut sender_heap = 0usize;
-    for m in s.list.iter().chain(cached.iter().copied()).chain(kept) {
-        sender_heap += m.from.heap_bytes();
-        senders.insert(&m.from);
+    let mut addresses = HashSet::new();
+    let (mut address_heap, mut held) = (0usize, 0usize);
+    for m in s.list.iter().chain(cached.iter().copied()).chain(kept).chain(going) {
+        for a in std::iter::once(&m.from).chain(&m.to).chain(&m.cc) {
+            address_heap += a.heap_bytes();
+            held += 1;
+            addresses.insert(a);
+        }
     }
-    let unique: usize = senders.iter().map(|a| a.heap_bytes()).sum();
-    let names = sender_heap.saturating_sub(unique) + count * 16;
+    let unique: usize = addresses.iter().map(|a| a.heap_bytes()).sum();
+    let names = address_heap.saturating_sub(unique) + held * 16;
     let share = |n: usize| if total == 0 { 0.0 } else { n as f64 * 100.0 / total as f64 };
     println!(
-        "  saved by sharing whole summaries (Arc<Summary>): {} ({:.0}%); by interning keys: {} ({:.0}%); and senders: {} ({:.0}%)",
+        "  saved by sharing whole summaries (Arc<Summary>): {} ({:.0}%); by interning keys: {} ({:.0}%); and addresses: {} ({:.0}%)",
         mb(arc),
         share(arc),
         mb(keys),
@@ -138,4 +155,22 @@ fn the_parts_add_up_to_what_each_summary_holds() {
     let each: usize = cached.iter().map(|m| std::mem::size_of::<Summary>() + m.heap_bytes()).sum();
     assert_eq!(Parts::of(cached.iter().copied()).total(), each);
     assert!(cached.iter().all(|m| m.heap_bytes() > 0));
+}
+
+#[test]
+fn the_lists_a_search_replaced_are_counted_till_let_go_of() {
+    let store = crate::store::Store::memory();
+    crate::sample::big::generate(&store, 1_800_000_000, crate::sample::big::Shape { folders: 3, messages: 300, inbox: 100 }).unwrap();
+    let mut s = Session::open(Some(store), crate::model::dates::Clock::new(1_800_000_000, 0));
+    s.run("folder.open", &serde_json::json!({"account": crate::sample::big::ACCOUNT, "folder": "INBOX"})).unwrap();
+    let [list, ..] = holders(&s);
+    assert!(list.count > 0);
+    // A search's list replacing it: the folder's, not let go of till the steps and ticks after.
+    let shown = std::mem::take(&mut s.list);
+    s.let_go(shown);
+    let [_, _, _, going] = holders(&s);
+    assert_eq!((going.count, going.total()), (list.count, list.total()));
+    s.let_go_some();
+    let [_, _, _, going] = holders(&s);
+    assert_eq!(going.count, 0);
 }

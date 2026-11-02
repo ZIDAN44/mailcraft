@@ -2161,17 +2161,24 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   55% to 60% (67 to 58 s left) and "Less than a minute" from 64% (54 s left).
 - **What the lists in memory take, and sharing them:** `Summary::heap_bytes` counts what a
   summary holds besides its own 360 bytes (its strings and lists by capacity, rounded to the
-  allocator's 16), and `bench::big_mailbox` counts it by part with the biggest folder open, after
-  500 Downs (each message opened, then the largest, 117 KB) and with searches shown, beside the
-  process's private bytes. On the made-up mailbox of 50,000 messages the 62,000 summaries held
-  with the Inbox's 12,000 listed take 49.4 MB of the process's 143 MB, the same after the walk
-  (a Down 0.01 ms in the middle, 0.9 ms at most): 21.3 MB the summaries themselves, 14.4 MB
-  addresses, 7.6 MB previews. Sharing whole summaries between the folders kept and the list
-  (`Arc<Summary>`) would save 6.6 MB of it (13%); interning keys' account and folder 2.8 MB (6%)
-  and senders 3.8 MB more (8%). With a search of 35,006 shown (97,006 summaries, 73.5 MB, the
-  process 298 MB) sharing would save 30.4 MB (41%), interning still 14%. Neither is done:
-  interning, the cheaper, saves less than the 20% it had to, and sharing saves that only while a
-  big search is shown, for a change to how every list in the engine, the store and sync holds
-  and edits its summaries (a flag changed would copy a shared one); either way at most a tenth of
-  the process. Of the 155 MB the process grew by from the folder view to that search, 24 MB is
-  summaries; the rest is the index built in between and the search's own.
+  allocator's 16), and `bench::big_mailbox` counts it by part, in the list, the folders cached,
+  the list kept while a search shows and the lists searches replaced (let go of a slice a step
+  and a tick), with the biggest folder open, after 500 Downs (each message opened, then the
+  largest, 117 KB; their read marks undone after, so the searches that follow find what the
+  mailbox was made with) and with searches shown, beside the process's private bytes. On the
+  made-up mailbox of 50,000 messages the 62,000 summaries held with the Inbox's 12,000 listed
+  take 49.4 MB of the process's 143 MB, the same after the walk (a Down 0.02 ms in the middle,
+  1 ms at most): 21.3 MB the summaries themselves, 14.4 MB addresses, 7.6 MB previews. Sharing
+  whole summaries between the folders kept and the list (`Arc<Summary>`) would save 6.6 MB of it
+  (13%); interning keys' account and folder 2.8 MB (6%) and addresses (sender, To and Cc) 6.6 MB
+  more (13%), 19% in all, To being one address here (the user's own, as mostly in real mail).
+  With a search of 35,006 shown (97,006 summaries, 73.5 MB, the process 298 MB) sharing would
+  save 30.4 MB (41%), interning 14.8 MB (20%). Neither is done: interning, the cheaper, saves
+  less than the 20% it had to with a folder open and reaches it only while a big search is
+  shown, for a change to every address and key the engine, store and sync build; sharing saves
+  more only then too, for a change to how every list holds and edits its summaries (a flag
+  changed would copy a shared one); either way at most a twentieth of the process (a tenth for
+  sharing). Of the 155 MB the process grew by from the folder view to that search, 24 MB is
+  summaries and 8.4 MB the keys of what the searches before found (100,284), still to be let go
+  of because the bench doesn't tick (gone after the ticks the app would run: 288 MB); the rest
+  is the index built in between and the search's own.
