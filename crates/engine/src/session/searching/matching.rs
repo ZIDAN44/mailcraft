@@ -211,12 +211,28 @@ pub(crate) enum Verdict {
 pub(crate) struct Index<'a> {
     pub(crate) reader: &'a Reader,
     pub(crate) terms: Option<&'a Terms>,
+    /// The folder whose messages are weighed, as the index numbers it (`None`: none of its
+    /// messages is indexed).
+    folder: Option<u16>,
+}
+
+impl<'a> Index<'a> {
+    /// The index as it weighs the messages of `folder`: the folder looked up once, not for each.
+    pub(crate) fn of(reader: &'a Reader, terms: Option<&'a Terms>, folder: &str) -> Index<'a> {
+        Index { reader, terms, folder: reader.folder_number(folder) }
+    }
+
+    /// `m`'s doc and what's known of it, when it's indexed (`m` is of the folder).
+    fn doc(&self, m: &Summary) -> Option<(u32, DocInfo)> {
+        let d = self.reader.doc_at(self.folder?, m.key.validity, m.key.uid)?;
+        Some((d, self.reader.info(d)?))
+    }
 }
 
 /// The verdict on `m` (its summary's text `st`): from its summary and the index, or from what
 /// its text was found to say before (`known`).
 pub(crate) fn classify(query: &Query, m: &Summary, st: &SummaryText, awaiting: bool, index: Option<Index<'_>>, known: Option<&Answers>) -> Verdict {
-    let doc = index.and_then(|ix| ix.reader.doc(&m.key).and_then(|d| Some((d, ix.reader.info(d)?))));
+    let doc = index.and_then(|ix| ix.doc(m));
     // Files as the index read them: pictures the text shows aren't counted (`has:attachment`).
     // One it couldn't read is the summary's to say, as for the Has files filter.
     let files = known.and_then(|k| k.files).or_else(|| doc.and_then(|(_, i)| i.files_known()));

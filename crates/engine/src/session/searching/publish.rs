@@ -164,7 +164,7 @@ impl Session {
             let Some(k) = run.folders.get(fi).cloned() else { continue };
             let Some(st) = self.cache.get(&k) else { continue };
             let reader = self.search_state.readers.get(&k.0).and_then(|s| s.reader.as_ref());
-            let index = reader.filter(|_| run.uses_index()).map(|reader| Index { reader, terms: run.terms_of(&k.0) });
+            let index = reader.filter(|_| run.uses_index()).map(|reader| Index::of(reader, run.terms_of(&k.0), &k.1));
             let mut verdicts = Vec::new();
             for m in st.messages.iter().filter(|m| uids.contains(&m.key.uid)) {
                 let text = SummaryText::for_query(m, &run.query);

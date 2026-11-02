@@ -8,6 +8,8 @@
 //! no ends it, so the text is only asked about for a message that passes everything else.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use super::fold::{all_words, has_phrase, has_prefix, join, parts, with_parts};
 use super::*;
@@ -381,12 +383,16 @@ fn word(f: &Field, w: &str, doc: &Doc<'_>) -> Tri {
     let address = w.contains(['@', '.']);
     let (parts, fields) = places(f);
     let st = doc.summary_text;
+    // Most summaries don't hold it at all: one quick look through all their words first, before
+    // each part's own (each summary's parts looked through word by word was most of what a word
+    // search of 35,000 cost).
+    let anywhere = st.folded.contains(&*folded);
     // The preview isn't kept as written: an address is looked for in it as `phrase` does.
     let raw_has = |p: Part| match st.raw_part(p) {
         Some(raw) => raw.contains(w),
-        None => doc.summary.preview.to_lowercase().contains(w),
+        None => lowered_contains(&doc.summary.preview, w),
     };
-    let in_summary = parts.iter().any(|p| has_prefix(st.part(*p), &folded) || (address && raw_has(*p)));
+    let in_summary = parts.iter().any(|p| (anywhere && has_prefix(st.part(*p), &folded)) || (address && raw_has(*p)));
     if in_summary {
         return Tri::Yes;
     }
@@ -396,21 +402,53 @@ fn word(f: &Field, w: &str, doc: &Doc<'_>) -> Tri {
 /// A phrase (as typed, lower-cased) in a field: its folded words one after another, or, when it
 /// has none (`@`), the text as written holding it.
 fn phrase(f: &Field, p: &str, doc: &Doc<'_>) -> Tri {
-    let words: Vec<String> = all_words(p).map(Cow::into_owned).collect();
-    let joined = words.join(" ");
+    let folded = phrase_words(p);
+    let (words, joined) = (&folded.0, &folded.1);
     let (parts, fields) = places(f);
     let st = doc.summary_text;
+    let anywhere = st.folded.contains(joined.as_str());
     let in_part = |part: Part| {
         if !words.is_empty() {
-            return has_phrase(st.part(part), &joined);
+            return anywhere && has_phrase(st.part(part), joined);
         }
         match st.raw_part(part) {
             Some(raw) => raw.contains(p),
-            None => doc.summary.preview.to_lowercase().contains(p),
+            None => lowered_contains(&doc.summary.preview, p),
         }
     };
     if parts.iter().any(|part| in_part(*part)) {
         return Tri::Yes;
     }
-    fields.iter().fold(Tri::No, |acc, tf| if acc == Tri::Yes { acc } else { acc.or(doc.text.phrase(*tf, &words, p)) })
+    fields.iter().fold(Tri::No, |acc, tf| if acc == Tri::Yes { acc } else { acc.or(doc.text.phrase(*tf, words, p)) })
+}
+
+thread_local! {
+    /// The last phrase's folded words, and them joined: a search checks one phrase against
+    /// every summary in turn, and folding it again for each (its words split, each a string)
+    /// cost as much as checking them.
+    static PHRASE: RefCell<(String, Rc<(Vec<String>, String)>)> = RefCell::default();
+}
+
+/// A phrase's folded words, and them joined by spaces.
+fn phrase_words(p: &str) -> Rc<(Vec<String>, String)> {
+    PHRASE.with(|last| {
+        let mut last = last.borrow_mut();
+        if last.0 != p {
+            let words: Vec<String> = all_words(p).map(Cow::into_owned).collect();
+            let joined = words.join(" ");
+            *last = (p.to_string(), Rc::new((words, joined)));
+        }
+        last.1.clone()
+    })
+}
+
+/// Whether `text` lower-cased holds `lowered` (lower-cased already): an ASCII text is looked
+/// through as it is, not copied lower-cased first (the preview of each summary, for an address
+/// searched for), with the same answer.
+pub(crate) fn lowered_contains(text: &str, lowered: &str) -> bool {
+    if !text.is_ascii() {
+        return text.to_lowercase().contains(lowered);
+    }
+    let (hay, want) = (text.as_bytes(), lowered.as_bytes());
+    want.is_empty() || hay.windows(want.len()).any(|w| w.iter().zip(want).all(|(h, c)| h.to_ascii_lowercase() == *c))
 }

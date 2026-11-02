@@ -121,7 +121,7 @@ pub(super) fn join<'a>(words: impl Iterator<Item = Cow<'a, str>>, out: &mut Stri
 
 /// Whether a folded text (words split by single spaces) has a word starting with `prefix`.
 pub(super) fn has_prefix(text: &str, prefix: &str) -> bool {
-    !prefix.is_empty() && text.match_indices(prefix).any(|(i, _)| starts_word(text, i))
+    !prefix.is_empty() && text.contains(prefix) && text.match_indices(prefix).any(|(i, _)| starts_word(text, i))
 }
 
 /// Whether a folded text has these folded words one after another (`phrase`, joined by spaces),

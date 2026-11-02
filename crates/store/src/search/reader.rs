@@ -284,9 +284,19 @@ impl Reader {
 
     /// The doc a message is, when it's indexed.
     pub fn doc(&self, key: &MessageKey) -> Option<u32> {
-        let f = self.folder_ix.get(&key.folder)?;
-        let doc = *self.by_key.get(&(*f, key.uid))?;
-        self.docs.get(doc as usize).filter(|d| d.live() && d.validity == key.validity).map(|_| doc)
+        self.doc_at(self.folder_number(&key.folder)?, key.validity, key.uid)
+    }
+
+    /// What the index numbers a folder by, for looking up its messages one after another
+    /// ([`Reader::doc_at`]) without the folder's name each time.
+    pub fn folder_number(&self, folder: &str) -> Option<u16> {
+        self.folder_ix.get(folder).copied()
+    }
+
+    /// The doc a message of the folder numbered `folder` is, when it's indexed.
+    pub fn doc_at(&self, folder: u16, validity: u32, uid: u32) -> Option<u32> {
+        let doc = *self.by_key.get(&(folder, uid))?;
+        self.docs.get(doc as usize).filter(|d| d.live() && d.validity == validity).map(|_| doc)
     }
 
     /// The message a live doc is.

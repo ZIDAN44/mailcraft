@@ -295,11 +295,12 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// --nocapture`; `MC_QUERY` for one query): how long each query takes over the mailbox, all
 /// told and step by step, from a session just opened and again: in steps of 8 units, and in
 /// frames as the window takes them (as many units as fit in 6 ms). It holds the budgets the
-/// searches meet (search.md §11), so a slower one fails it: a word, warm, 50 ms all told and
-/// 4 ms a step at p99, each frame at most 8 ms; a one-letter word, warm, 300 ms all told. Not
-/// met yet, and only printed (docs/gaps.md, Open): a step in a session just opened (its
-/// summaries' text made), `is:unread`'s 15 ms, a phrase's 150 ms, a one-letter word's 6 ms a
-/// step, and the frame that shows tens of thousands found.
+/// searches meet (search.md §11), so a slower one fails it: a word, warm, 20 ms all told (25 ms
+/// before each summary was looked through once for it) and 4 ms a step at p99, each frame at
+/// most 8 ms; a one-letter word, warm, 300 ms all told. Not met yet, and only printed
+/// (docs/gaps.md, Open): a step in a session just opened (its summaries' text made),
+/// `is:unread`'s 15 ms, a phrase's 150 ms, a one-letter word's 6 ms a step, and the frame that
+/// shows tens of thousands found.
 #[test]
 #[ignore]
 fn how_long_searches_take() {
@@ -333,7 +334,7 @@ fn how_long_searches_take() {
             let word = [big::RARE, "zurich", big::CJK, big::FAR].contains(&q.as_str());
             let ms = Duration::from_millis;
             match cache {
-                "warm" if word => assert!(all <= ms(50) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
+                "warm" if word => assert!(all <= ms(20) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
                 "warm, frames" if word => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
                 "warm" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
                 _ => {}

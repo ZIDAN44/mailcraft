@@ -67,7 +67,8 @@ pub struct SearchStats {
 /// The words a search looks up in an account's index, and the docs each was found in.
 #[derive(Debug, Default)]
 pub(crate) struct Terms {
-    bits: HashMap<Field, HashMap<String, Bits>>,
+    /// A few (the words typed): looked through in turn, as each summary asks, not hashed.
+    bits: Vec<(Field, String, Bits)>,
     todo: Vec<(Field, String)>,
     cursor: ScanCursor,
     scanning: Option<Bits>,
@@ -76,7 +77,7 @@ pub(crate) struct Terms {
 impl Terms {
     /// Whether `doc` has a word of `field` starting with `word`; `None`: not looked up.
     pub(crate) fn has(&self, field: Field, word: &str, doc: u32) -> Option<bool> {
-        self.bits.get(&field).and_then(|w| w.get(word)).map(|b| b.get(doc))
+        self.bits.iter().find(|(f, w, _)| *f == field && w == word).map(|(_, _, b)| b.get(doc))
     }
 
     fn ready(&self) -> bool {
@@ -92,6 +93,10 @@ struct Cursor {
     /// Its account's index was looked at.
     indexed: bool,
     at: usize,
+    /// Its first scan in this run: nothing of it is found, missing or cut short yet, so what
+    /// isn't found needs no looking up (each summary's key hashed three times was a third of
+    /// what checking a flag over 50,000 cost).
+    first: bool,
 }
 
 /// What a folder's list being had in the cache came to.
@@ -124,6 +129,8 @@ pub(crate) struct SearchRun {
     on_view: usize,
     /// Folders still to scan (indices into `folders`), in order.
     pending: VecDeque<usize>,
+    /// Those whose scan began, by index: scanned again, they may hold what was found.
+    begun: Vec<bool>,
     cur: Option<Cursor>,
     awaiting: Option<(AwaitingScan, Option<FolderLoad>, usize)>,
     asks_awaiting: bool,
@@ -196,6 +203,7 @@ impl SearchRun {
             wait,
             words,
             pending: (0..folders.len()).collect(),
+            begun: vec![false; folders.len()],
             folders,
             cur: None,
             awaited: HashSet::new(),
@@ -319,14 +327,14 @@ impl SearchRun {
     /// copied: a word found in thousands of messages copied each summary twice.
     pub(crate) fn record(&mut self, m: Summary, v: Verdict, awaiting: bool, last: bool) {
         let key = &m.key;
-        self.recheck.remove(key);
+        forget(&mut self.recheck, key);
         if !matches!(v, Verdict::CutShort) {
-            self.cut_short.remove(key);
+            forget(&mut self.cut_short, key);
         }
         match v {
             Verdict::Yes => {
-                self.missing.remove(key);
-                self.gone.remove(key);
+                forget(&mut self.missing, key);
+                forget(&mut self.gone, key);
                 if self.found.insert(key.clone()) {
                     self.fresh.push(m);
                 }
@@ -354,6 +362,14 @@ impl SearchRun {
                 }
             }
         }
+    }
+}
+
+/// `key` no longer in `set`: an empty set (most are, most of the time) isn't asked, which would
+/// hash the key.
+fn forget(set: &mut HashSet<MessageKey>, key: &MessageKey) {
+    if !set.is_empty() {
+        set.remove(key);
     }
 }
 
@@ -533,7 +549,13 @@ impl Session {
         let mut cur = match run.cur.take() {
             Some(c) => c,
             None => match run.pending.pop_front() {
-                Some(fi) => Cursor { fi, ..Default::default() },
+                Some(fi) => {
+                    let first = run.begun.get(fi).is_some_and(|b| !b);
+                    if let Some(b) = run.begun.get_mut(fi) {
+                        *b = true;
+                    }
+                    Cursor { fi, first, ..Default::default() }
+                }
                 None => return 0,
             },
         };
@@ -588,7 +610,7 @@ impl Session {
         let end = cur.at.saturating_add(UNIT_MESSAGES).min(len);
         let texts: &[SummaryText] = if run.summary_words { self.search_state.texts.texts(&k.0, &k.1, &st.messages, cur.at..end) } else { &[] };
         let reader = self.search_state.readers.get(&account).and_then(|s| s.reader.as_ref());
-        let index = reader.filter(|_| run.uses_index()).map(|reader| Index { reader, terms: run.terms.get(&account) });
+        let index = reader.filter(|_| run.uses_index()).map(|reader| Index::of(reader, run.terms.get(&account), &k.1));
         let none = SummaryText::default();
         let mut verdicts = Vec::new();
         for (i, m) in st.messages.get(cur.at..end).unwrap_or_default().iter().enumerate() {
@@ -596,10 +618,13 @@ impl Session {
                 continue;
             }
             let text = texts.get(i).unwrap_or(&none);
-            let awaiting = run.awaited.contains(&m.key);
-            let v = classify(&run.query, m, text, awaiting, index, run.known.get(&m.key));
+            let awaiting = !run.awaited.is_empty() && run.awaited.contains(&m.key);
+            let known = if run.known.is_empty() { None } else { run.known.get(&m.key) };
+            let v = classify(&run.query, m, text, awaiting, index, known);
             // Unchanged and nothing to do: not cloned.
             let same = match v {
+                Verdict::No if cur.first => true,
+                _ if cur.first => false,
                 Verdict::Yes => run.found.contains(&m.key) && !run.recheck.contains(&m.key),
                 Verdict::No => !run.found.contains(&m.key) && !run.missing.contains(&m.key) && !run.cut_short.contains(&m.key),
                 Verdict::CutShort => !run.found.contains(&m.key) && run.cut_short.contains(&m.key),
@@ -668,7 +693,8 @@ impl Session {
         match done {
             Ok(false) => terms.scanning = Some(bits),
             Ok(true) => {
-                terms.bits.entry(field).or_default().insert(word, bits);
+                terms.bits.retain(|(f, w, _)| *f != field || *w != word);
+                terms.bits.push((field, word, bits));
                 terms.todo.remove(0);
                 terms.cursor = ScanCursor::default();
             }

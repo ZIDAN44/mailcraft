@@ -155,6 +155,24 @@ fn an_address_in_the_preview() {
     assert!(!q("jun@studio.example", &m));
 }
 
+/// The preview looked through for an address without being copied lower-cased first says what
+/// the copy would: an ASCII one as it is, any other (a Kelvin sign lower-cases to `k`) copied.
+#[test]
+fn a_preview_looked_through_as_written_says_what_lower_cased_would() {
+    for (text, want) in [
+        ("Write to <ANA@Studio.Example>", "ana@studio.example"),
+        ("Write to <ana@studio.example>", "ana@studio.exam"),
+        ("ana@studio", "ana@studio.example"),
+        ("", "a"),
+        ("abc", ""),
+        ("a\u{212a}b@studio.example", "akb@studio"),
+        ("Zürich ana@x.example", "ana@x.example"),
+        ("Ana@x", "Ana@x"),
+    ] {
+        assert_eq!(matching::lowered_contains(text, want), text.to_lowercase().contains(want), "{text:?} {want:?}");
+    }
+}
+
 /// `has:attachment` asks the text's files first (pictures shown in it aren't), then the summary.
 #[test]
 fn files_known_from_the_text_come_first() {
