@@ -18,7 +18,8 @@
 //! [`SLOW_WAIT`] is logged with who waited. The window's own writes of an account's folder list go
 //! the same way ([`Store::count_later`], [`Store::save_folders_later`]), after the marks before
 //! them, and it reads no folder whose marks are still to be written ([`Store::marks_waiting_for`]):
-//! it waits for none of them.
+//! it waits for none of them. What writes a data file in the background gives way to them before
+//! each of its writes ([`Store::give_way_to_marks`]), so a mark waits behind one of those at most.
 
 use std::collections::VecDeque;
 #[cfg(not(target_arch = "wasm32"))]
@@ -33,6 +34,9 @@ use crate::*;
 
 /// How long [`Store::flush_marks`] waits for the marks before it at most.
 const FLUSH_WAIT: Duration = Duration::from_secs(10);
+/// How long a writer in the background waits for the marks before one of its writes at most
+/// ([`Store::give_way_to_marks`]): marks held up (by the disk, or a test) slow it, never stop it.
+const GIVE_WAY: Duration = Duration::from_secs(1);
 /// A wait for the marks, or for the lock every change of a list takes, longer than this is
 /// logged with who waited: on the window's thread it held a frame (a hold of Down on a 38 GB
 /// data file once had frames of 0.5 and 1.8 s while marks were committed).
@@ -179,6 +183,27 @@ impl Store {
     #[track_caller]
     pub fn flush_marks_of(&self, account: &str, folder: Option<&str>) -> bool {
         self.wait_marks(|q| q.waiting_for(account, folder))
+    }
+
+    /// Let the marks of `account` handed over so far go first: what writes its data file in the
+    /// background (the search index's pass) waits for them before each of its writes,
+    /// [`GIVE_WAY`] at most. The lists' lock and the data file's writer aren't handed on in turn,
+    /// so a pass writing one folder's list after another, or one batch after another, kept a mark
+    /// waiting through a run of them (0.3 s, while a pass put a hundred folders' lists right): now
+    /// a mark waits for the one being written at most. Not logged: no frame waits for it.
+    pub fn give_way_to_marks(&self, account: &str) {
+        let mut q = self.marking.queue();
+        let slow = Slow::start();
+        while q.waiting_for(account, None) {
+            let left = GIVE_WAY.saturating_sub(slow.took());
+            if left.is_zero() {
+                return;
+            }
+            q = match self.marking.state.written.wait_timeout(q, left) {
+                Ok((q, _)) => q,
+                Err(e) => e.into_inner().0,
+            };
+        }
     }
 
     /// Wait while `waiting` says so, [`FLUSH_WAIT`] at most; a wait over [`SLOW_WAIT`] is logged

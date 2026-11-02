@@ -566,13 +566,53 @@ fn asks_for_an_account_are_one() {
     assert_eq!(p.get("a1").map(|(f, w)| (f.is_none(), *w)), Some((true, at + Duration::from_secs(1))));
 }
 
-/// A mark-read from the window while a pass writes a data file's index waits for one of the
-/// pass's short transactions at most: compared with the same mark-reads alone (which write a
-/// page of a 20,000-message list). Measured in release on 32 threads: 20,000 messages indexed in
-/// 9.5 s; a mark-read's median 49 ms alone and 59 ms during the pass, p99 108 and 128 ms. The
-/// plan's 60 ms for a mark-read during a pass is not met (the list's own page costs most of it):
-/// what this holds is the wait the pass adds. A measurement, as the store's (timings on a busy
-/// machine swing too far to hold them in a test): run alone with `--ignored --nocapture`.
+/// A pass gives way to the read marks: with a mark handed over while it reads (its plan waited
+/// for those before), it writes nothing of the index until the mark is in (a second at most), so
+/// a mark never waits behind a run of the pass's writes.
+#[test]
+fn a_pass_gives_way_to_read_marks() {
+    let s = indexed_mail(30);
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid: 1 };
+    // The first message taken apart holds the pass there until the mark has been handed over.
+    let (reading, read) = (std::sync::Mutex::new(None::<mpsc::Sender<()>>), std::sync::Mutex::new(None::<mpsc::Receiver<()>>));
+    let (tx, started) = mpsc::channel();
+    let (go, rx) = mpsc::channel();
+    *reading.lock().unwrap() = Some(tx);
+    *read.lock().unwrap() = Some(rx);
+    let extract = |raw: &[u8]| {
+        if let Some(tx) = reading.lock().unwrap().take() {
+            tx.send(()).unwrap();
+            read.lock().unwrap().take().unwrap().recv().unwrap();
+        }
+        mailcraft_mime::index_doc(raw)
+    };
+    let stop = AtomicBool::new(false);
+    std::thread::scope(|sc| {
+        let pass = sc.spawn(|| indexing::pass(&s, "a1", &[], &stop, 1, &extract, &mut |_| {}));
+        started.recv().unwrap();
+        let marks = s.pause_marks();
+        let seen = mailcraft_model::Flags { seen: true, ..Default::default() };
+        s.mark_later("a1", vec![mailcraft_store::FolderMarks { folder: "INBOX".into(), validity: 7, flags: vec![(key.uid, seen)] }], Vec::new());
+        go.send(()).unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!pass.is_finished(), "the pass wrote its index with a read mark waiting");
+        assert!(s.marks_waiting());
+        drop(marks);
+        assert!(pass.join().unwrap().is_ok());
+    });
+    assert!(!s.marks_waiting());
+    assert!(s.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.key.uid == 1 && m.flags.seen));
+    assert!(matches!(index_with(&s, &stop, 2, &mailcraft_mime::index_doc), Event::Indexed { work, .. } if work.total == 0), "all indexed");
+}
+
+/// A mark-read from the window while a pass writes a data file's index, the way the window makes
+/// it (handed to the store's thread for marks, timed until it's on disk), waits for one of the
+/// pass's short transactions at most: compared with the same mark-reads alone. Measured in release
+/// on 32 threads: 20,000 messages indexed in 9.8 s; a mark-read's median 3.4 ms alone and 3.6 ms
+/// during the pass, p99 3.7 and 11.7 ms, within the plan's 60 ms (made in the window's frame, as
+/// this measured before, they took 49 and 59 ms by median, 108 and 128 ms at p99). A measurement,
+/// as the store's (timings on a busy machine swing too far to hold them in a test): run alone
+/// with `--ignored --nocapture`; `index_bench` measures the same on a real data file.
 #[test]
 #[ignore = "a measurement: run alone with --ignored --nocapture"]
 fn a_mark_read_waits_little_for_an_index_pass() {
@@ -607,8 +647,10 @@ fn a_mark_read_waits_little_for_an_index_pass() {
     }
     let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid: 1 };
     let mark = |on: bool| {
+        let flags = mailcraft_model::Flags { seen: on, ..Default::default() };
         let t0 = Instant::now();
-        s.apply_op("a1", &Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on }).unwrap();
+        s.mark_later("a1", vec![mailcraft_store::FolderMarks { folder: "INBOX".into(), validity: 7, flags: vec![(key.uid, flags)] }], Vec::new());
+        assert!(s.flush_marks());
         t0.elapsed().as_secs_f64() * 1000.0
     };
     let at = |took: &mut Vec<f64>, q: usize| {
@@ -639,7 +681,7 @@ fn a_mark_read_waits_little_for_an_index_pass() {
         "{n} messages indexed in {whole:?} ({reports} reports); mark-reads alone: median {alone50:.1} ms, p99 {alone99:.1} ms; {} during the pass: median {median:.1} ms, p99 {p99:.1} ms",
         took.len()
     );
-    assert!(p99 - alone99 <= 60.0, "a mark-read took {p99:.1} ms (p99) during the pass, {alone99:.1} ms alone");
+    assert!(p99 <= 60.0, "a mark-read took {p99:.1} ms (p99) during the pass, {alone99:.1} ms alone");
     drop(s);
     let _ = std::fs::remove_dir_all(&t);
 }

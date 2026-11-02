@@ -242,13 +242,15 @@ impl Writer {
     }
 
     /// Files written in transactions of at most [`BACKGROUND_COMMIT`] kept bytes, none waiting
-    /// for the disk (the meta's does, for them all).
+    /// for the disk (the meta's does, for them all), each after the read marks waiting
+    /// ([`Store::give_way_to_marks`]), as the meta and a removal are.
     pub(super) fn write_batches(&self, store: &Store, files: Vec<(PathBuf, Prepared)>) -> Result<()> {
         let mut batch = Vec::new();
         let mut bytes = 0usize;
         for (p, prepared) in files {
             if !batch.is_empty() && bytes.saturating_add(prepared.kept_len()) > BACKGROUND_COMMIT {
                 let b = std::mem::take(&mut batch);
+                store.give_way_to_marks(&self.account);
                 self.held.writing(|| store.files.write_prepared(b, false))?;
                 bytes = 0;
             }
@@ -256,6 +258,7 @@ impl Writer {
             batch.push((p, prepared));
         }
         if !batch.is_empty() {
+            store.give_way_to_marks(&self.account);
             self.held.writing(|| store.files.write_prepared(batch, false))?;
         }
         Ok(())
@@ -271,6 +274,7 @@ impl Writer {
             return Err(damaged(&path, "a meta it couldn't read back"));
         }
         let gone: Vec<PathBuf> = gone.iter().map(|n| n.path(&self.base)).collect();
+        store.give_way_to_marks(&self.account);
         self.held.writing(|| store.files.replace(&self.base, Some((&path, &bytes)), &gone, true))
     }
 
@@ -280,6 +284,7 @@ impl Writer {
             return;
         }
         let paths: Vec<PathBuf> = names.iter().map(|n| n.path(&self.base)).collect();
+        store.give_way_to_marks(&self.account);
         if let Err(e) = self.held.writing(|| store.files.replace(&self.base, None, &paths, false)) {
             log::warn!("{}'s search index: files not removed: {e}", self.account);
         }

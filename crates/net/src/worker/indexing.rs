@@ -3,7 +3,8 @@
 //! once they stop for [`QUIET`]. A pass's messages are read and their text taken out on threads
 //! of their own (all but two of the machine's, at most eight), each message under `catch_unwind`;
 //! the pass thread adds them, writing a generation in short background transactions whenever it
-//! holds enough, so a mark-read from the window waits for one of them at most. No pass runs for
+//! holds enough, each after the read marks waiting ([`Store::give_way_to_marks`]), so a mark-read
+//! from the window waits for one of them at most. No pass runs for
 //! an account a data file is being imported into, and [`Job::StopIndex`] stops one between two
 //! messages, what it added kept. Summaries a pass finds to say otherwise than the index about a
 //! message's files (pictures the text shows counted as files) are put right in the folder's list
@@ -41,6 +42,11 @@ const LEAST_COST: u64 = 64 << 10;
 const ROOM_WAIT: Duration = Duration::from_millis(50);
 /// How often a pass says how it's going, besides at each generation it writes.
 const PROGRESS_EVERY: Duration = Duration::from_millis(500);
+/// How often a pass puts right the summaries it found to say otherwise about files, at a
+/// generation it wrote (and at its end). Each folder's list is read and written again whole page
+/// by page under the lock a read mark takes too: at every generation, the first pass over the
+/// 41 GB file's data file wrote lists 835 times in 44 s, 10 s of it with that lock held.
+const SETTLE_EVERY: Duration = Duration::from_secs(5);
 
 /// The threads that read a pass's messages: all but two of the machine's, from 1 to 8.
 pub(super) fn readers() -> usize {
@@ -393,7 +399,7 @@ pub(super) fn pass(
             }
         }
         drop(tx);
-        let mut told = Instant::now();
+        let (mut told, mut settled) = (Instant::now(), Instant::now());
         let mut waited = Instant::now();
         for (i, doc, kept) in rx {
             if stop.load(Ordering::Relaxed) {
@@ -413,8 +419,9 @@ pub(super) fn pass(
             room.give(kept);
             match added {
                 Ok(flushed) if flushed.is_some() || told.elapsed() >= PROGRESS_EVERY => {
-                    if flushed.is_some() {
+                    if flushed.is_some() && settled.elapsed() >= SETTLE_EVERY {
                         settle_files(store, account, &mut p, report);
+                        settled = Instant::now();
                     }
                     report(indexed(&p, false));
                     told = Instant::now();
@@ -490,6 +497,8 @@ impl PassTimes {
 /// or that couldn't be, isn't marked: the next pass looks at it again ([`Pass::unmark`]).
 fn settle_files(store: &Store, account: &str, p: &mut Pass, report: &mut dyn FnMut(Event)) {
     for (folder, found) in p.take_files() {
+        // One folder's list after another: a read mark goes between any two.
+        store.give_way_to_marks(account);
         match store.set_has_files(account, &folder, &found) {
             Ok(0) => {}
             Ok(_) => {

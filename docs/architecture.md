@@ -527,7 +527,11 @@ marks the folders only when it read all it planned, and merges. On the desktop
 (`net/src/worker/indexing.rs`) one "mail-index" thread runs a pass at a time, once an account's
 asks have stopped for 1.5 s; the messages are read and taken apart (`mime::index_doc`) on all but
 two of the machine's threads (1 to 8), each under `catch_unwind` (one that panics is kept with no
-words and counted), through a channel of 64 to the pass thread. No pass runs for an account a
+words and counted), through a channel of 64 to the pass thread, the sources being read and the
+texts waiting held to 48 MiB by their sizes. Each write of the index (a batch, a meta, a removal)
+and each folder's list put right first lets the read marks handed over before it be written
+(`Store::give_way_to_marks`, a second at most), so a mark from the window waits behind one of the
+pass's writes at most. No pass runs for an account a
 data file is being imported into, and `Job::StopIndex` (or the account's removal) stops one
 between two messages. A `.pst` import indexes as it goes instead (`pst/out/indexing.rs`): it
 holds the account's writer for the whole import (waiting up to 5 s for a pass asked to stop to
@@ -545,7 +549,8 @@ summary says about files with what its doc counted (pictures the text shows aren
 plan for the docs it already has (a folder unchanged since it was marked is passed over, so the
 marks carry a kind, bumped once to have every folder looked at again), each add as it comes.
 What disagrees is put right in the folder's list by `Store::set_has_files` (the pages holding
-one rewritten, under the lock every save of a list takes) and sent as
+one rewritten, under the lock every save of a list takes; at a generation written at most every
+5 s, and at the pass's end) and sent as
 `Event::AttachmentsKnown`, which the session takes into the summaries it holds
 (`mailboxes/patch.rs`), so the paperclip, Has files and `has:attachment` agree; a doc that couldn't
 be read, or whose parts were cut with no file found (`IndexDoc::parts_cut`: a file may be nested
