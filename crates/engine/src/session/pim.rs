@@ -94,12 +94,13 @@ pub struct AgendaItem {
     pub show_as: ical::ShowAs,
 }
 
-/// A person in an address book.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Person {
-    pub account: String,
-    pub book: String,
-    pub card: Card,
+/// A person in an address book, borrowed from it: a card can carry its picture and files
+/// (megabytes of base64), and the People module lists everyone on every frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Person<'a> {
+    pub account: &'a str,
+    pub book: &'a str,
+    pub card: &'a Card,
 }
 
 /// A calendar colour of this or above is an account's colour ([`Session::calendar_color`]).
@@ -506,22 +507,18 @@ impl Session {
     // ----- people -----
 
     /// Everyone in the address books matching a search, by name.
-    pub fn people(&self, query: &str) -> Vec<Person> {
-        let mut out: Vec<Person> = self
+    pub fn people(&self, query: &str) -> Vec<Person<'_>> {
+        let mut out: Vec<Person<'_>> = self
             .pim
             .iter()
-            .flat_map(|(a, p)| {
-                p.cards.iter().filter(|c| c.card.matches(query)).map(|c| Person { account: a.clone(), book: c.book.clone(), card: c.card.clone() })
-            })
+            .flat_map(|(a, p)| p.cards.iter().filter(|c| c.card.matches(query)).map(|c| Person { account: a, book: &c.book, card: &c.card }))
             .collect();
-        out.sort_by_key(|p| p.card.display().to_lowercase());
+        out.sort_by_cached_key(|p| p.card.display().to_lowercase());
         out
     }
 
-    pub fn find_person(&self, uid: &str) -> Option<Person> {
-        self.pim.iter().find_map(|(a, p)| {
-            p.cards.iter().find(|c| c.card.uid == uid).map(|c| Person { account: a.clone(), book: c.book.clone(), card: c.card.clone() })
-        })
+    pub fn find_person(&self, uid: &str) -> Option<Person<'_>> {
+        self.pim.iter().find_map(|(a, p)| p.cards.iter().find(|c| c.card.uid == uid).map(|c| Person { account: a, book: &c.book, card: &c.card }))
     }
 
     /// Add someone; returns their uid.
@@ -547,7 +544,7 @@ impl Session {
     }
 
     pub fn update_card(&mut self, uid: &str, change: impl FnOnce(&mut Card)) -> CmdResult {
-        let account = self.find_person(uid).map(|p| p.account).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
+        let account = self.find_person(uid).map(|p| p.account.to_string()).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
         if self.person_read_only(uid) {
             return Err(CmdError::Disabled("this contact is in a shared address book that can't be changed here".into()));
         }
@@ -564,7 +561,7 @@ impl Session {
     }
 
     pub fn delete_card(&mut self, uid: &str) -> CmdResult {
-        let account = self.find_person(uid).map(|p| p.account).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
+        let account = self.find_person(uid).map(|p| p.account.to_string()).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
         if self.person_read_only(uid) {
             return Err(CmdError::Disabled("this contact is in a shared address book that can't be changed here".into()));
         }

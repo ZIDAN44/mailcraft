@@ -357,7 +357,7 @@ pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
     a.ui.person = a.session.people("").first().map(|p| p.card.uid.clone());
     frame(ctx, a, vec![]);
     if let Some(p) = a.session.people("").first() {
-        a.ui.dialog = Some(Dialog::edit_contact(&p.card));
+        a.ui.dialog = Some(Dialog::edit_contact(p.card));
         frame(ctx, a, vec![]);
     }
     a.ui.dialog = None;

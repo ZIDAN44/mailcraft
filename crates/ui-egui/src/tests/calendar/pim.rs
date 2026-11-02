@@ -83,7 +83,7 @@ fn calendar_and_people_forms_save_through_commands() {
     // Issue #1: each number keeps its kind, the address and birthday their fields, and the form
     // shows them where they were.
     assert_eq!((card.phones[0].kind.as_str(), card.addresses[0].kind.as_str(), card.birthday.as_str()), ("cell", "home", "1990-07-12"));
-    let back = crate::pim_dialogs::ContactForm::edit(&card);
+    let back = crate::pim_dialogs::ContactForm::edit(card);
     assert_eq!((back.phones[2].as_str(), back.addresses[1].city.as_str(), back.address_shown), ("+32 490 12 34 56", "Gent", 1));
     f.emails[0] = "not an address".into();
     a.ui.dialog = Some(Dialog::new_contact());

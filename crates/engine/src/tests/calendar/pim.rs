@@ -112,6 +112,10 @@ fn people_in_the_address_book() {
     s.run("contact.update", &json!({"uid": uid, "phones": ["+1 555 0101"], "title": "Colourist"})).unwrap();
     let p = s.find_person(&uid).unwrap();
     assert_eq!((p.card.phones[0].value.as_str(), p.card.title.as_str(), p.card.emails.len()), ("+1 555 0101", "Colourist", 2));
+    // People are lent, not copied: a card can carry megabytes of picture and files, and People
+    // lists everyone on every frame.
+    let stored = s.pim.values().flat_map(|x| &x.cards).find(|c| c.card.uid == uid).map(|c| &c.card).unwrap();
+    assert!(std::ptr::eq(p.card, stored) && s.people("Mira").iter().any(|x| std::ptr::eq(x.card, stored)));
     s.run("contact.delete", &json!({"uid": uid})).unwrap();
     assert!(s.find_person(&uid).is_none());
     // The sender of a message, once.
@@ -538,7 +542,7 @@ fn the_address_book_opens_with_the_one_chosen() {
     assert_eq!(mine, s.run("contact.addressBook", &json!({"source": book})).unwrap(), "it opens with the one chosen");
     assert!(!mine.as_array().unwrap().is_empty());
     let (account, id) = book.strip_prefix("book:").and_then(|b| b.split_once(':')).unwrap();
-    let in_book = s.people("").into_iter().filter(|p| p.account == account && p.book == id).flat_map(|p| p.card.emails).count();
+    let in_book = s.people("").into_iter().filter(|p| p.account == account && p.book == id).flat_map(|p| &p.card.emails).count();
     assert_eq!(mine.as_array().unwrap().len(), in_book);
     let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!(back.address_book, book, "kept with the settings");

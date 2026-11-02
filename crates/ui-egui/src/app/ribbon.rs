@@ -131,7 +131,7 @@ impl MailApp {
                     if widgets::tool_button(ui, Icon::Drafts, "Edit", &t, picked.is_some()).clicked()
                         && let Some(p) = &picked
                     {
-                        acts.push(Action::Dialog(Dialog::edit_contact(&p.card)));
+                        acts.push(Action::Dialog(Dialog::edit_contact(p.card)));
                     }
                     if widgets::tool_button(ui, Icon::Delete, "Delete", &t, picked.is_some()).clicked()
                         && let Some(p) = &picked

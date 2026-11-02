@@ -6,7 +6,7 @@ use super::*;
 pub(super) const MAX_PEOPLE_SHOWN: usize = 50;
 
 /// The contact someone is saved as, if they are (by address).
-pub(super) fn known_contact(s: &Session, email: &str) -> Option<mailcraft_engine::model::vcard::Card> {
+pub(super) fn known_contact<'a>(s: &'a Session, email: &str) -> Option<&'a mailcraft_engine::model::vcard::Card> {
     if email.trim().is_empty() {
         return None;
     }
@@ -29,7 +29,7 @@ pub(super) fn person_menus(s: &Session, t: &Tokens, r: &egui::Response, a: &Emai
         return;
     }
     let known = known_contact(s, &a.email);
-    egui::Popup::menu(r).id(r.id.with("card")).show(|ui| contact_card(ui, t, a, known.as_ref(), acts));
+    egui::Popup::menu(r).id(r.id.with("card")).show(|ui| contact_card(ui, t, a, known, acts));
     r.context_menu(|ui| {
         if ui.button(tl!("Send email")).clicked() {
             acts.push(Action::Run("mail.new", json!({"to": a.to_string()})));

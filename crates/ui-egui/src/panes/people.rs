@@ -101,7 +101,7 @@ impl Column {
             Column::Notes => c.note.lines().next().unwrap_or_default().to_string(),
             Column::Book => s
                 .pim
-                .get(&p.account)
+                .get(p.account)
                 .and_then(|pim| pim.books.iter().find(|b| b.id == p.book))
                 .map(|b| if b.id == mailcraft_engine::model::pim::LOCAL { tl!("Contacts").to_string() } else { b.name.clone() })
                 .unwrap_or_default(),
@@ -193,7 +193,7 @@ fn index_letter(name: &str) -> char {
 
 /// The side pane: everyone, A to Z (searched from the box at the top).
 /// The people shown: those matching the search, in the address book chosen.
-pub(crate) fn shown(s: &Session, st: &UiState) -> Vec<mailcraft_engine::Person> {
+pub(crate) fn shown<'a>(s: &'a Session, st: &UiState) -> Vec<mailcraft_engine::Person<'a>> {
     let mut people = s.people(&st.people_query);
     if let Some((account, book)) = &st.people_book {
         people.retain(|p| p.account == *account && p.book == *book);
@@ -329,7 +329,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         st.person = Some(p.card.uid.clone());
                     }
                     if resp.double_clicked() && !s.person_read_only(&p.card.uid) {
-                        acts.push(Action::Dialog(Dialog::edit_contact(&p.card)));
+                        acts.push(Action::Dialog(Dialog::edit_contact(p.card)));
                     }
                 }
             });
@@ -456,7 +456,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 ui.label(RichText::new(&c.note).color(t.text));
             }
             ui.add_space(14.0);
-            if let Some(a) = s.account(&p.account) {
+            if let Some(a) = s.account(p.account) {
                 ui.label(RichText::new(tf!("In the address book of {account}", account = a.config.email)).color(t.faint).small());
             }
         });

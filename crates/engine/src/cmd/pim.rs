@@ -260,7 +260,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("contact.update", "Edit contact", "People › Contact", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
-            let current = s.find_person(&uid).map(|x| x.card).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
+            let current = s.find_person(&uid).map(|x| x.card.clone()).ok_or_else(|| CmdError::Params(format!("no contact `{uid}`")))?;
             let c = card_from(v, current)?;
             s.update_card(&uid, |x| *x = c)
         })

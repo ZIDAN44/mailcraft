@@ -1905,7 +1905,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   or address-book file is now read to 16 MB, as much as one opened is (4 MB and 1 MB before), so
   the files kept leave room for the rest (a calendar past 20,000 events, or an address book past
   50,000 cards or 16 MB, still doesn't read back whole), and the calendar borrows its events to draw them instead of copying them, files and
-  all, at each frame. MailCraft doesn't show these files yet; they go with the event or card
+  all, at each frame, as People does its cards (`Session::people` hands out `Person`s that
+  borrow theirs, the status bar, list and reading pane's contact card copying none). MailCraft doesn't show these files yet; they go with the event or card
   when it's exported (`.ics`, `.vcf`). A note's and a journal entry's files still don't come in. The 41 GB file
   measured has none of these (its calendar, contacts and tasks folders are empty, and its
   34,691 items are all mail), so they're tried on made-up items only: `outlook-pst-rw` writes
