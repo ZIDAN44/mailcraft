@@ -263,20 +263,19 @@ impl Packs {
     /// `account` takes a long write (a big local move) until [`Packs::long_end`]: each of its
     /// commits that waits for the disk is sealed meanwhile, as in a bulk write, so a crash
     /// part-way reopens the file at once. Written since its last seal, the file is sealed now,
-    /// so a crash before the long write's first such commit does too.
+    /// so a crash before the long write's first such commit does too. Whether it was written is
+    /// asked with its writer held: a background commit that began before the long write did, and
+    /// so wasn't sealed, has committed by then, and is sealed after.
     pub(crate) fn long_begin(&self, account: &str) {
         {
             let mut open = Packs::lock(&self.open);
             let n = open.long_writers.entry(account.to_string()).or_default();
             *n = n.saturating_add(1);
         }
-        if !self.seals.seal_due(account) {
-            return;
-        }
         let _writing = ThreadWriting::begin();
         match self.db(account, false) {
             Ok(Some(db)) => {
-                if let Err(e) = seal(&db, &self.seals, account) {
+                if let Err(e) = seal_if_due(&db, &self.seals, account) {
                     log::warn!("{account}'s data file couldn't be sealed: {e}");
                 }
             }

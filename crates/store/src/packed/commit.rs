@@ -306,6 +306,26 @@ pub(super) fn seal(db: &Database, seals: &Seals, account: &str) -> io::Result<()
     seal_with(db, seals, account, |_| Ok(()))
 }
 
+/// An empty sealed commit of `account`'s data file if it waits for a seal, asked once its writer
+/// is held: a commit that began before and wasn't sealed has said so by then (it says so before
+/// it commits), so none slips in unsealed between the look and the seal.
+pub(super) fn seal_if_due(db: &Database, seals: &Seals, account: &str) -> io::Result<()> {
+    let mut tx = db.begin_write().map_err(disk)?;
+    if !seals.seal_due(account) {
+        return tx.abort().map_err(disk);
+    }
+    tx.set_quick_repair(true);
+    let before = seals.count(account, None);
+    let at = Instant::now();
+    tx.commit().map_err(|e| {
+        seals.restore(account, before);
+        disk(e)
+    })?;
+    seals.timed(true, at.elapsed());
+    seals.sealed(account, at);
+    Ok(())
+}
+
 /// A sealed commit of `account`'s data file that makes only the changes `f` makes (to `META`).
 pub(super) fn seal_with(db: &Database, seals: &Seals, account: &str, f: impl FnOnce(&redb::WriteTransaction) -> io::Result<()>) -> io::Result<()> {
     let mut tx = db.begin_write().map_err(disk)?;
@@ -435,6 +455,12 @@ impl Packs {
             tables.touched
         };
         let before = self.seals.count(account, (!how.durable).then_some(undurable));
+        // Said with the writer held, before the commit: whoever takes the writer after (a long
+        // write beginning, [`seal_if_due`]) knows the file waits for a seal. A commit that fails
+        // leaves the file sealed once quiet, for nothing.
+        if !how.seal {
+            self.seals.written(account, db);
+        }
         // Taken with the writer held: a write noted after it began once this commit let go.
         let at = Instant::now();
         if let Err(e) = tx.commit() {
@@ -452,8 +478,6 @@ impl Packs {
         }
         if how.seal {
             self.seals.sealed(account, at);
-        } else {
-            self.seals.written(account, db);
         }
         Ok(())
     }

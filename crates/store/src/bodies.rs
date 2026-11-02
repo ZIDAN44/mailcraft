@@ -291,7 +291,10 @@ impl Store {
                 x.long_begin(&account);
                 LongWrite { store: self, account: Some(account) }
             }
-            _ => LongWrite { store: self, account: None },
+            _ => {
+                let _ = account;
+                LongWrite { store: self, account: None }
+            }
         }
     }
 

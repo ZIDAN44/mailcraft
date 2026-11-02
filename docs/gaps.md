@@ -2354,23 +2354,26 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   check above, its 507,372 free ranges checked in under a second), then 4,332 more in
   98 s; the copy read back with 34,931 messages and then 39,263, every one readable, as all
   34,691 were before, its attachment and recipient rows up by the ones added.
-- **A crash during a long move opens at once:** a local move of more than a batch of messages
-  now writes its batches without waiting for the disk and seals the data file each time it does
-  wait (every 256 MB, and for its last batch, lists and counts), and seals a file written since
-  its last seal as it begins. Before, each batch waited for the disk unsealed, so a crash in the
-  middle needed the whole file checked: killed 4–6 s into a move of 10,941 messages out of the
-  37 GB copy's biggest folder, MailCraft's window came at once but the check took 98–105 s.
-  Killed 4, 60 and 120 s into the same move, it now opens in 0.7–1.2 s with no check. The move
-  took 164 and 175 s before and 164 and 138 s after (two runs each; the disk's cache sways them
-  more than the change): its commits that waited for the disk went from 855 unsealed (18.6–23.1 s
-  in all) to 52–53 sealed (9.0–11.7 s), a seal by itself costing 12–19 ms by median and 23 ms at
-  most on that file. Each now writes out up to 256 MB, so the longest took 1.2–2.3 s against
-  0.5–0.8 s; the window waits through the whole move either way, as a local move runs on its
-  thread. An import's commits were sealed already: killed 90 s in, and again 60 s into the run
-  that went on, the file opened in 0.7 s with no check, as before. Not yet: a crash within two
-  seconds of an ordinary write (a read mark, a short move) still checks the whole file (83 s
-  after a kill 3 s into a session of read marks); emptying or deleting a big folder writes a
-  commit per message, each unsealed.
+- **A crash during a long move opens at once:** a local move of more than a batch of messages now
+  writes its batches without waiting for the disk and seals the data file each time it does wait
+  (every 256 MB, and for its last batch, lists and counts), and seals a file written since its last
+  seal as it begins (asked with the file's writer held, so a background commit that began before the
+  move and wasn't sealed is sealed after it). Before, each batch waited for the disk unsealed, so a
+  crash in the middle needed the whole file checked: killed 4–6 s into a move of 10,941 messages out
+  of the 37 GB copy's biggest folder, MailCraft's window came at once but the check took 98–105 s.
+  Killed 4, 60 and 120 s into the same move, it now opens in 0.7–1.2 s with no check. The move took
+  164 and 175 s before and 164 and 138 s after: two runs each, the disk's cache swaying them more
+  than the change, so whether sealing adds 2% or less to a move isn't shown by them. Its commits
+  that waited for the disk went from 855 unsealed (18.6–23.1 s in all) to 52–53 sealed (9.0–11.7 s),
+  a seal by itself costing 12–19 ms by median and 23 ms at most on that file. Each now writes out up
+  to 256 MB, so the longest took 1.2–2.3 s against 0.5–0.8 s: the 60 ms limit for a write on the
+  window's thread isn't met by a long move, before or after, as a local move runs on that thread and
+  waits for the disk there (sealing more often would make each wait shorter but not short enough,
+  and the move longer); only moving it off the window's thread would. An import's commits were
+  sealed already: killed 90 s in, and again 60 s into the run that went on, the file opened in 0.7 s
+  with no check, as before. Not yet: a crash within two seconds of an ordinary write (a read mark, a
+  short move) still checks the whole file (83 s after a kill 3 s into a session of read marks);
+  emptying or deleting a big folder writes a commit per message, each unsealed.
 - **How far the check of a data file is, in percent:** the card shown while a data file not
   closed properly is checked says how far it is ("42% checked") under its bar. The database says
   so only as each of its passes over the file begins (0, 60 and 90%), so the bar stood still for

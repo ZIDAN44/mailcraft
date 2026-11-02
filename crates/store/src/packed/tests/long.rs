@@ -67,13 +67,7 @@ fn a_long_write_lets_batches_run_longer_and_ends() {
     let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
     let over = crate::packed::commit::UNDURABLE_MAX + 1;
     let big = |uid: u32| vec![(inbox(uid), Store::prepare(false, vec![b'x'; over]))];
-    s.write_body(
-        &inbox(99),
-        b"Subject: first
-
-x",
-    )
-    .unwrap();
+    s.write_body(&inbox(99), b"Subject: first\r\n\r\nx").unwrap();
     {
         let _a = s.long_write("a1");
         let _b = s.long_write("a1");
@@ -90,6 +84,41 @@ x",
     assert_eq!(s.commit_times().plain.count, before.plain.count + 1, "outside it, a batch past the run waits for the disk, unsealed");
     // Other stores have no long write to take.
     drop(Store::memory().long_write("a1"));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// A background commit that began before a long write did (so isn't sealed) and commits as it
+/// begins is sealed as it begins: it looked whether the file waited for a seal before that commit
+/// said so, and went on unsealed, so a crash before the long write's first commit that waited for
+/// the disk checked the whole file.
+#[test]
+fn a_long_write_seals_a_commit_begun_before_it() {
+    let t = temp("long-race");
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    s.write_body(&inbox(99), b"Subject: first\r\n\r\nx").unwrap();
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    drop(s.long_write("a1"));
+    assert!(!packs.seals.seal_due("a1"), "sealed as the first long write began");
+    let ((inside, is_inside), (go, gone)) = (std::sync::mpsc::channel(), std::sync::mpsc::channel::<()>());
+    std::thread::scope(|scope| {
+        let background = scope.spawn(move || {
+            packs.change_with("a1", crate::packed::commit::Commit::PLAIN, 0, |tables| {
+                tables.files.insert("background", b"x".as_slice()).map_err(std::io::Error::other)?;
+                let _ = inside.send(());
+                let _ = gone.recv();
+                Ok(())
+            })
+        });
+        is_inside.recv().unwrap();
+        let long = scope.spawn(|| drop(s.long_write("a1")));
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        go.send(()).unwrap();
+        background.join().unwrap().unwrap();
+        long.join().unwrap();
+    });
+    assert!(!packs.seals.seal_due("a1"), "the background commit was left unsealed");
     drop(s);
     let _ = std::fs::remove_dir_all(&t);
 }

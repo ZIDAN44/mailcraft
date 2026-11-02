@@ -59,14 +59,7 @@ fn big_move() {
     for i in 0..9 {
         let key = crate::model::MessageKey { account: account.clone(), folder: "INBOX".into(), validity: 1, uid: u32::MAX - i };
         let t = Instant::now();
-        store
-            .write_body(
-                &key,
-                b"Subject: x
-
-x",
-            )
-            .unwrap();
+        store.write_body(&key, b"Subject: x\r\n\r\nx").unwrap();
         plain.push(t.elapsed().as_secs_f64() * 1000.0);
         let t = Instant::now();
         store.seal(&account).unwrap();
