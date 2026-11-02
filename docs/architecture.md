@@ -410,70 +410,69 @@ read, an ASCII text split into words a byte at a time by UAX #29's ASCII rules (
 held to unicode-segmentation by a proptest), an ASCII word only lower-cased and split at its join
 characters, the addresses folded a name and an address at a time: about 4x as fast on plain
 summaries as a string for each part, word and piece, and byte for byte the same, which a proptest
-holds against the old way), the text's from a `TextSource` (the index, or the text itself), which answers unknown for a
-word it lacks when the text was cut short (a message read
-whole with no text has no word: no). A word UAX #29 keeps joined by `.`, `:`, an apostrophe or
-`_` ("site.word") has its parts of two letters or more indexed and read as words beside it
-(`fold::index_tokens`, `parts`; `TOKENIZER_VERSION` 2).
+holds against the old way), the text's from a `TextSource` (the index, or the text itself), which
+answers unknown for a word it lacks when the text was cut short (a message read whole with no text
+has no word: no). A word UAX #29 keeps joined by `.`, `:`, an apostrophe or `_` ("site.word") has
+its parts of two letters or more indexed and read as words beside it (`fold::index_tokens`, `parts`;
+`TOKENIZER_VERSION` 2).
 
 The session runs a search a bounded unit of work at a time (`session/searching/run.rs`:
 `start_search`, then `search_step(units)`), no clock and no network in it: a unit is a page of a
-folder's list read (`Store::folder_load`), an account's index opened (in the window, ticks open
-each account's ahead of any search, one a tick, so a search just after the window opens finds it
-open: `open_indexes_ahead`), up to two of its pages looked
-through for a query word and the docs of about two pages' worth of its words set
-(`Reader::scan_prefix`: a one-letter word's thousands of words, their docs in the lexicon page
-itself, are spread over units too, the lexicon page looked through last kept decoded so a page is
-decoded once however many units read it; a word looked up lately is taken as the same generation of the
-index gave it, `searching/look_up.rs`, 32 words an account), 512 summaries checked (128 whose folded
-text is made first, in a session just opened), a message's kept text read or 256 KiB of it checked
-(a phrase across two slices is in the second, which starts 4 KiB back), or putting the list together
-at the end (`searching/finish.rs`: a search that streamed into the list adds what's left to it,
-arranged otherwise or put into conversations when the list shows them so; one that waited gathers
-its finds from the folders, a step each for gathering, arranging and showing). A phrase's candidates
-are checked in the index's doc order, so each page of texts is read once. The folders a search reads
-stay in the cache while it lasts, and their summaries' folded text is kept between searches
-(`searching/folder_text.rs`, 48 MiB, forgotten with the folder's list); a phrase's candidates take
-theirs from there, and the texts they're checked against are kept folded, by message, for the
-next search (`searching/folded.rs`, 32 MiB: what the running search uses stays, what earlier ones
-used makes room, and past that a text isn't kept), so a phrase typed on or searched again reads and
-folds nothing. Each is kept with the doc it was read from, in the index's epoch: a key that comes
-back as another message (a local folder made again numbers its mail from 1 again) is another doc,
-and its text is read afresh; a folder's texts go when it leaves the listing. The index reader keeps the text pages it reads in a
-cache apart from its lexicon and postings pages, so checking texts doesn't push out the pages words
-are looked up in. The summary settles flags, dates, senders and subjects; the index's words settle
-the text (`searching/matching.rs`: `has:attachment` takes the files the index counted, pictures the
-text shows left out); a phrase, or an address the index can't look up, is checked
-against the text the index keeps. A word the index doesn't find in a text cut short isn't: its
-words are in the index as they are in that text, so the message is counted apart (`cut_short`),
-not as missing. What a message's text said is kept for the
-search (flags are never text), so a flag changed on a result is weighed again for that message
-alone (`search_patched`). A message the index doesn't have yet may be missing (`missing`); a
-search that waits (the CLI, scripts, tests: the default) reads it from its source instead
-(`mime::index_doc`), so it finds what the index would. The window turns waiting off
-(`set_background_search`) and steps the search for 6 ms of each frame
-(`search_step_timed`, which asks the window's clock after each unit and tells it what each part
-of the step was, `SearchWork`, `searching/work.rs`: the window logs a part over 50 ms by its kind;
-the engine reads no clock). A folder's list isn't read while read marks wait to be written (the
-read would wait for them): the step goes on and reads it once they're on disk. What's
-found is merged into the list by date (`searching/publish.rs`): at the step's end while the list
-holds at most 4,096 messages, else at the start of a later step (where the window's clock counts it)
-once a step has gone by for each 2,048 messages it holds, so a long list isn't built again every
-step; the list's index keeps its keys' hashes for that (`ListNav::build_hashed`), and the list a
-search replaces is let go of 4,096 summaries a step or tick (what its candidates' texts said,
-1,024). Conversations and other arrangements come at the end. `sample::big` makes a mailbox of
-50,000 messages in 40 folders, what each measured
-search should find counted as it's made, for `tests/mail/search_big.rs`, the window's frame test
-and `bench.rs` (which also counts what the summaries held take, `Summary::heap_bytes`, through a
-500-Down walk and searches). A step that panics ends the search, and the indexes it was reading are
-left unread until their writer writes them again. The list says "Searching…" while it runs, that
-results may be missing while mail isn't indexed yet (only then; mail too long to index whole gets
-a quieter note: how far the passes under way have come,
-`indexing_work`, which the status bar shows too through `ui-egui/src/look/progress.rs`), and what
-couldn't be read of the query (`search_problems`). Mail coming into or leaving a folder has that folder scanned again (what it found stays
-shown until the scan says otherwise); a newer generation of an index (`Event::Indexed`, read again
-at most every 2 s, at once when the pass is over) has its account's words looked up again and its
-folders scanned again; folders appearing or going start the search again.
+folder's list read (`Store::folder_load`), an account's index opened (in the window, ticks open each
+account's ahead of any search, one a tick, so a search just after the window opens finds it open:
+`open_indexes_ahead`, and kept open, and in memory, whether or not anyone searches; the tick takes
+2-4 ms over the made-up 50,000 messages), up to two of its pages looked through for a query word and
+the docs of about two pages' worth of its words set (`Reader::scan_prefix`: a one-letter word's
+thousands of words, their docs in the lexicon page itself, are spread over units too, the lexicon
+page looked through last kept decoded so a page is decoded once however many units read it; a word
+looked up lately is taken as the same generation of the index gave it, `searching/look_up.rs`, 32
+words an account), 512 summaries checked (128 whose folded text is made first, in a session just
+opened), a message's kept text read or 256 KiB of it checked (a phrase across two slices is in the
+second, which starts 4 KiB back), or putting the list together at the end (`searching/finish.rs`: a
+search that streamed into the list adds what's left to it, arranged otherwise or put into
+conversations when the list shows them so; one that waited gathers its finds from the folders, a
+step each for gathering, arranging and showing). A phrase's candidates are checked in the index's
+doc order, so each page of texts is read once. The folders a search reads stay in the cache while it
+lasts, and their summaries' folded text is kept between searches (`searching/folder_text.rs`, 48
+MiB, forgotten with the folder's list); a phrase's candidates take theirs from there, and the texts
+they're checked against are kept folded, by message, for the next search (`searching/folded.rs`, 32
+MiB: what the running search uses stays, what earlier ones used makes room, and past that a text
+isn't kept), so a phrase typed on or searched again reads and folds nothing. Each is kept with the
+doc it was read from, in the index's epoch: a key that comes back as another message (a local folder
+made again numbers its mail from 1 again) is another doc, and its text is read afresh; a folder's
+texts go when it leaves the listing. The index reader keeps the text pages it reads in a cache apart
+from its lexicon and postings pages, so checking texts doesn't push out the pages words are looked
+up in. The summary settles flags, dates, senders and subjects; the index's words settle the text
+(`searching/matching.rs`: `has:attachment` takes the files the index counted, pictures the text
+shows left out); a phrase, or an address the index can't look up, is checked against the text the
+index keeps. A word the index doesn't find in a text cut short isn't: its words are in the index as
+they are in that text, so the message is counted apart (`cut_short`), not as missing. What a
+message's text said is kept for the search (flags are never text), so a flag changed on a result is
+weighed again for that message alone (`search_patched`). A message the index doesn't have yet may be
+missing (`missing`); a search that waits (the CLI, scripts, tests: the default) reads it from its
+source instead (`mime::index_doc`), so it finds what the index would. The window turns waiting off
+(`set_background_search`) and steps the search for 6 ms of each frame (`search_step_timed`, which
+asks the window's clock after each unit and tells it what each part of the step was, `SearchWork`,
+`searching/work.rs`: the window logs a part over 50 ms by its kind; the engine reads no clock). A
+folder's list isn't read while read marks wait to be written (the read would wait for them): the
+step goes on and reads it once they're on disk. What's found is merged into the list by date
+(`searching/publish.rs`): at the step's end while the list holds at most 4,096 messages, else at the
+start of a later step (where the window's clock counts it) once a step has gone by for each 2,048
+messages it holds, so a long list isn't built again every step; the list's index keeps its keys'
+hashes for that (`ListNav::build_hashed`), and the list a search replaces is let go of 4,096
+summaries a step or tick (what its candidates' texts said, 1,024). Conversations and other
+arrangements come at the end. `sample::big` makes a mailbox of 50,000 messages in 40 folders, what
+each measured search should find counted as it's made, for `tests/mail/search_big.rs`, the window's
+frame test and `bench.rs` (which also counts what the summaries held take, `Summary::heap_bytes`,
+through a 500-Down walk and searches). A step that panics ends the search, and the indexes it was
+reading are left unread until their writer writes them again. The list says "Searching…" while it
+runs, that results may be missing while mail isn't indexed yet (only then; mail too long to index
+whole gets a quieter note: how far the passes under way have come, `indexing_work`, which the status
+bar shows too through `ui-egui/src/look/progress.rs`), and what couldn't be read of the query
+(`search_problems`). Mail coming into or leaving a folder has that folder scanned again (what it
+found stays shown until the scan says otherwise); a newer generation of an index (`Event::Indexed`,
+read again at most every 2 s, at once when the pass is over) has its account's words looked up again
+and its folders scanned again; folders appearing or going start the search again.
 
 The index is kept with each account's mail (`store/src/search.rs` + `search/`,
 under `<account>/search/v1/`, so in the account's data file, on disk, or in memory like the rest of
