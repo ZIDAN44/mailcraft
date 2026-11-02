@@ -72,7 +72,9 @@ impl Session {
 
     /// The cached state of a folder, loaded from disk on first use; empty while it can't be read.
     pub fn folder_state(&mut self, account: &str, folder: &str) -> &FolderState {
-        if let Err(e) = self.load_cached(account, folder) {
+        if let Err(e) = self.load_cached(account, folder)
+            && !read_soon(&e)
+        {
             log::warn!("a folder's list couldn't be read: {e}");
         }
         static EMPTY: std::sync::OnceLock<FolderState> = std::sync::OnceLock::new();
@@ -87,6 +89,14 @@ impl Session {
             // Not read while a compaction has its data file to itself: read once it's given back.
             if self.compaction.exclusive(account) {
                 let busy = std::io::Error::new(std::io::ErrorKind::WouldBlock, "this data file is being compacted; it's ready in a moment");
+                return Err(mailcraft_store::StoreError::Io { path: account.to_string(), source: busy });
+            }
+            // Nor while read marks of it wait to be written (marked, then let go of from the
+            // cache): the read would wait for their commit in the window's frame, seconds now and
+            // then on a big data file. Read once they're written (`marks_kept`).
+            if self.store.as_ref().is_some_and(|s| s.marks_waiting_for(account, Some(folder))) {
+                self.marks_deferred.insert(k);
+                let busy = std::io::Error::new(std::io::ErrorKind::WouldBlock, "its read marks are being saved; it's ready in a moment");
                 return Err(mailcraft_store::StoreError::Io { path: account.to_string(), source: busy });
             }
             let st = match &self.store {
@@ -493,4 +503,10 @@ fn fill_name(known: &mut EmailAddress, directory: &EmailAddress) {
     if bare && !directory.name.trim().is_empty() {
         known.name = directory.name.clone();
     }
+}
+
+/// Whether `e` is a folder's list not read for now, to be read in a moment (its data file had to
+/// itself by a compaction, its read marks being written): nothing to tell.
+pub(super) fn read_soon(e: &mailcraft_store::StoreError) -> bool {
+    matches!(e, mailcraft_store::StoreError::Io { source, .. } if source.kind() == std::io::ErrorKind::WouldBlock)
 }

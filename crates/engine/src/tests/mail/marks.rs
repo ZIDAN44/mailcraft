@@ -113,6 +113,59 @@ fn the_window_never_waits_for_marks_being_written() {
     done(s);
 }
 
+/// While a read mark's commit holds the lock every change of a list is made under (on a 38 GB
+/// data file such a commit took 3 s now and then, the disk flushing), the window's thread waits for
+/// nothing: Down steps marking mail read, the account's folders counted again, a rule saved, and
+/// the folder whose marks are still to be written opened again after the cache let go of it. That
+/// folder isn't read from the disk then (the read waited for its marks' commit): it's read on a
+/// tick once they're written, with them.
+#[test]
+fn the_window_never_waits_while_a_mark_is_committed() {
+    use std::time::{Duration, Instant};
+    let store = Store::memory();
+    let mut s = big_projects(&store, 2000);
+    s.set_cache_limit(100);
+    let first = s.row_keys()[0].to_id();
+    s.run("list.open", &json!({"key": first})).unwrap();
+    assert!(store.flush_marks());
+    // The marks' thread held mid-commit: paused, the lists' lock held, for a while.
+    let (held, release) = (std::sync::mpsc::channel(), std::sync::mpsc::channel::<()>());
+    let holder = {
+        let store = store.clone();
+        let (held, release) = (held.0, release.1);
+        std::thread::spawn(move || {
+            let _paused = store.pause_marks();
+            let _lists = store.hold_lists();
+            held.send(()).unwrap();
+            let _ = release.recv_timeout(Duration::from_secs(20));
+        })
+    };
+    held.1.recv().unwrap();
+    let began = Instant::now();
+    for _ in 0..5 {
+        s.run("list.next", &json!({})).unwrap();
+    }
+    assert!(store.marks_waiting());
+    s.recount_local("sample", None);
+    s.run("rules.add", &json!({"rule": {"name": "Mixes", "conditions": [{"if": "subject", "value": "mix"}], "actions": [{"do": "flag"}]}})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    assert!(!s.cache.contains_key(&("sample".to_string(), "Projects".to_string())), "let go of by the cache");
+    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    s.tick();
+    let took = began.elapsed();
+    assert!(took < Duration::from_secs(2), "the window waited {took:?}");
+    assert!(s.list.is_empty(), "not read while its marks wait");
+    release.0.send(()).unwrap();
+    holder.join().unwrap();
+    assert!(store.flush_marks());
+    s.tick();
+    assert_eq!(s.list.len(), 2000, "read once they're written");
+    assert_eq!(s.list.iter().filter(|m| m.flags.seen).count(), 6, "with the marks");
+    let listed = store.load_folders("sample").unwrap();
+    assert_eq!(listed.iter().find(|f| f.path == "Projects").map(|f| (f.unread, f.total)), Some((1994, 2000)));
+    done(s);
+}
+
 /// What a Down step costs the window in a data file's folder of 10,941 unread messages, in a real
 /// data file (`cargo test -p mailcraft-engine --release down_steps_on_a_big_data_file_folder --
 /// --ignored --nocapture`): the step with its read mark handed over, and the mark written on the

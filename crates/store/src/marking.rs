@@ -15,7 +15,10 @@
 //! waits for another folder's or another account's. The thread's own store doesn't wait on
 //! itself. A mark that couldn't be kept is told ([`Store::take_marks_failed`]), for the window to
 //! read its folders again from the disk. A wait of the window's holds its frame: one longer than
-//! [`SLOW_WAIT`] is logged with who waited.
+//! [`SLOW_WAIT`] is logged with who waited. The window's own writes of an account's folder list go
+//! the same way ([`Store::count_later`], [`Store::save_folders_later`]), after the marks before
+//! them, and it reads no folder whose marks are still to be written ([`Store::marks_waiting_for`]):
+//! it waits for none of them.
 
 use std::collections::VecDeque;
 #[cfg(not(target_arch = "wasm32"))]
@@ -96,6 +99,8 @@ struct Task {
     account: String,
     lists: Vec<FolderMarks>,
     counts: Vec<(String, u32, u32)>,
+    /// The account's whole folder list, to write instead ([`Store::save_folders_later`]).
+    folders: Option<Vec<Folder>>,
     /// How many times the account had been removed when they were made ([`Store::while_kept`]).
     seen: u64,
 }
@@ -124,7 +129,25 @@ impl Store {
     /// (`path`, unread, total), together, on the store's thread for marks after those handed
     /// over before (written at once where there's no such thread: the browser).
     pub fn mark_later(&self, account: &str, lists: Vec<FolderMarks>, counts: Vec<(String, u32, u32)>) {
-        let task = Task { account: account.to_string(), lists, counts, seen: self.removals(account) };
+        self.write_later(Task { account: account.to_string(), lists, counts, folders: None, seen: self.removals(account) });
+    }
+
+    /// Keep the account's whole folder list (`folders`) on the store's thread for marks, after the
+    /// marks handed over before: a durable commit of a data file not made in the window's frame,
+    /// nor waiting there for those marks. One that couldn't be kept is told
+    /// ([`MarksAfter::Failed`], with no folders).
+    pub fn save_folders_later(&self, account: &str, folders: Vec<Folder>) {
+        self.write_later(Task {
+            account: account.to_string(),
+            lists: Vec::new(),
+            counts: Vec::new(),
+            folders: Some(folders),
+            seen: self.removals(account),
+        });
+    }
+
+    /// Hand `task` to the store's thread for marks (written at once where there's none).
+    fn write_later(&self, task: Task) {
         #[cfg(not(target_arch = "wasm32"))]
         let task = match self.send_marks(task) {
             Ok(()) => return,
@@ -220,6 +243,13 @@ impl Store {
         self.marking.state.pause.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Hold the lock every change of a list is made under, as the thread for marks does through a
+    /// commit (tests: what the window's thread would wait for).
+    #[doc(hidden)]
+    pub fn hold_lists(&self) -> MutexGuard<'_, ()> {
+        self.hold_changes()
+    }
+
     /// What came of the marks written since the last call that the window should hear of.
     pub fn take_marks_failed(&self) -> Vec<MarksAfter> {
         std::mem::take(&mut self.marking.queue().after)
@@ -284,6 +314,12 @@ impl Store {
 
     /// Write `task` (nothing for an account removed since): what the window should hear of.
     fn write_marks(&self, task: &Task) -> Vec<MarksAfter> {
+        if let Some(folders) = &task.folders {
+            return match self.while_kept(&task.account, task.seen, || self.save_folders(&task.account, folders)) {
+                Some(Err(e)) => vec![failed(task, e.to_string())],
+                _ => Vec::new(),
+            };
+        }
         match self.while_kept(&task.account, task.seen, || self.save_flags(&task.account, &task.lists, &task.counts)) {
             None => Vec::new(),
             Some(Ok(0)) if !task.counts.is_empty() => vec![MarksAfter::Unlisted { account: task.account.clone() }],

@@ -436,6 +436,9 @@ pub struct Session {
     /// Flag and category changes sent for a server account's mail, their echo still to come
     /// (`mailboxes/echo.rs`).
     pub(crate) echoes: mailboxes::Echoes,
+    /// Folders not read from disk while their read marks were still being written (the read
+    /// would have waited for them in the window's frame): read once they're written.
+    pub(crate) marks_deferred: BTreeSet<(String, String)>,
     /// Flags owed to originals, keyed by the Outbox id of the reply or forward that earns them:
     /// set when the server accepts that message. Saved to disk so a restart keeps them.
     pending_marks: BTreeMap<u64, (MessageKey, Flag)>,
@@ -572,6 +575,7 @@ impl Session {
             cache: HashMap::new(),
             cache_order: Vec::new(),
             echoes: mailboxes::Echoes::default(),
+            marks_deferred: BTreeSet::new(),
             pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,
             contacts: None,

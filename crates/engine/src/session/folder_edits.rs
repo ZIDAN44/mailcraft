@@ -173,7 +173,7 @@ impl Session {
 
     /// Count a local account's folders again (`only` these, or all of them). One whose list
     /// can't be read keeps its counts (not 0).
-    pub(super) fn recount_local(&mut self, account: &str, only: Option<&[String]>) {
+    pub(crate) fn recount_local(&mut self, account: &str, only: Option<&[String]>) {
         let counts = self.count_local(account, only);
         // Local accounts have no server to report counts: keep them on disk. Only the counts, in
         // the list as it is there (written only when they differ): an import adds its folders
@@ -195,8 +195,11 @@ impl Session {
         };
         let mut counts = Vec::new();
         for p in paths {
+            // One whose read marks wait to be written is counted with them, by the marks' thread.
             if let Err(e) = self.load_cached(account, &p) {
-                log::warn!("{account}: a folder isn't counted: {e}");
+                if !mailboxes::read_soon(&e) {
+                    log::warn!("{account}: a folder isn't counted: {e}");
+                }
                 continue;
             }
             let st = self.folder_state(account, &p);
@@ -222,19 +225,39 @@ impl Session {
             match after {
                 MarksAfter::Failed { account, folders, message } => {
                     self.notice(message, true);
+                    // A folder list not written (no folders) isn't counted again: that would
+                    // write it again, and fail again, every frame.
+                    let recount = !folders.is_empty();
                     for folder in folders {
                         self.apply(Event::FolderChanged { account: account.clone(), folder });
                     }
-                    self.recount_local(&account, None);
+                    if recount {
+                        self.recount_local(&account, None);
+                    }
                 }
+                // Written on the marks' thread too: a failure comes back as one with no folders.
                 MarksAfter::Unlisted { account } => {
-                    if let Some(a) = self.account(&account).filter(|a| !a.folders.is_empty())
-                        && let Err(e) = store.save_folders(&account, &a.folders)
-                    {
-                        self.notice(e.to_string(), true);
+                    if let Some(a) = self.account(&account).filter(|a| !a.folders.is_empty()) {
+                        store.save_folders_later(&account, a.folders.clone());
                     }
                 }
             }
+        }
+        // Folders not read while their marks were being written: read now they're written, the
+        // list built again when it shows them.
+        if self.marks_deferred.is_empty() {
+            return;
+        }
+        let written: Vec<(String, String)> = self.marks_deferred.iter().filter(|(a, f)| !store.marks_waiting_for(a, Some(f))).cloned().collect();
+        if written.is_empty() {
+            return;
+        }
+        for k in &written {
+            self.marks_deferred.remove(k);
+        }
+        let shown = self.view_folders();
+        if self.search.is_none() && written.iter().any(|k| shown.contains(k)) {
+            self.refresh_list();
         }
     }
 

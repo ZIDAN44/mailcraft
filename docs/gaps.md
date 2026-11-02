@@ -2031,11 +2031,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   waiting for them in the window's frame; and the window's settings, flushed to the disk every
   few seconds when they changed (5–15 ms of a frame, 197 ms once while the disk was busy), are
   written on a thread of their own. A wait for the marks, or for the lock every change of a list
-  takes, over 50 ms is logged with what waited. Measured on the real file: 40 read/unread toggles
-  had every mark written within 5.3 ms, and six ten-second holds of Down over unread mail had
-  no frame over 16 ms without disk load; with a disk flushing writes beside it, frames of 21–57
-  ms now and then, and twice the window answered nothing for 0.6–0.8 s between frames, no wait
-  for the marks among them (Open: what holds the window there).
+  takes, over 50 ms is logged with what waited, and the log's lines are written on a thread of
+  their own too (a line logged from the window's thread waited there for the disk). A folder whose
+  marks are still being written isn't read from the disk by the window at all (opened again after
+  the cache let go of it, its read waited for their commit): it's read a moment later, once
+  they're written, and a folder list the window writes whole goes on the marks' thread.
+  Measured on the real file: 40 read/unread toggles had every mark written within 5.3 ms, and six
+  ten-second holds of Down over unread mail had no frame over 16 ms without disk load; with a disk
+  flushing writes beside it, frames of 21–57 ms now and then, and twice the window answered
+  nothing for 0.6–0.8 s between frames, no wait for the marks among them (Open: what holds the
+  window there).
 - **A data file read on handles of its own:** on Windows every read and write through one handle
   waits for the one before it, so the search index's eight readers, the marks' commits and
   their flushes and the window's own reads all queued on the data file's one handle: building
