@@ -1692,7 +1692,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   first: how many items in how many folders, the size of MailCraft's copy and where it goes, the
   room free there (no Import when it won't fit), and the account it's already open as (go to it,
   continue it, or import another copy). While it's read the status bar has its bar, from the
-  folders' item counts and sizes, so an item weighs its bytes plus as much as 128 KB would (a
+  folders' item counts and sizes, so an item weighs its bytes plus as much as 16 KB would (a
   folder of small messages isn't shown as nearly free), with the percentage from the first
   progress and "About 40 min left" once 20 s and 2% are behind it, smoothed over about 30 s and
   revised only when off by more than 10% or 15 s (under a minute, minutes up to an hour and a
@@ -1930,10 +1930,19 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   first folders, of big messages, going slower. By the design's rule an item should now weigh
   nothing in the bar: fitted folder by folder as the design asks (26 folders, r2 0.975, on a run
   slowed by other work) as over the progress, an item costs less than nothing (-0.4 to -2.2 ms),
-  which says that a big item costs more for each byte, not what an item costs of its own. It
-  still weighs 128 KB until the owner decides: bytes alone judged the time left no better (from
-  half done 5–15% off against 4–26%, from a tenth 38–116% against 52–108%), and a file of many
-  small messages, which this one isn't, is where an item's own cost shows.
+  which says that a big item costs more for each byte, not what an item costs of its own. What
+  an item costs of its own was then measured where it shows, on two files made for it and
+  imported twice each: 40,000 messages of about 4.6 KB in 1.46–1.55 s and 6,000 of about 1 MB in
+  11.4–11.6 s, which is 29 µs an item and 1.8 ns a byte, so an item now weighs 16 KB (128 KB
+  came from the import that read one item at a time, at about 2 ms an item). Replayed over eight
+  imports of the 41 GB file, the time left with 16 KB was off by up to 16% from half done and
+  146% from a tenth (19% and 155% with 128 KB, 20% and 147% with bytes alone). The aims stay
+  unmet, and no weight meets them: on this file the speed goes up and down by a half, the same
+  way in every run, from one stretch of folders to the next (the first twentieth half as slow
+  again, the next stretch twice as fast), with what the items hold, which the plan doesn't see;
+  an estimate that starts from the run's own average and turns into the 30 s one by half done
+  was off by up to 64% from a tenth but 21% from half done, so it wasn't taken. Meeting them
+  needs another aim or another way to tell the time left: the owner's to choose.
 - **What a `.pst` import keeps, measured whole:** every item and attachment of the 41 GB file
   (34,691 messages in 46 folders) was compared with what an import of it holds, read from the
   file a second time, and the benchmark's own count of what came in (`pst_bench::import`'s
