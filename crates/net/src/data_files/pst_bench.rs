@@ -21,14 +21,17 @@
 //! `MC_NO_INDEX=1` imports without indexing, to compare).
 //!
 //! A run read from start to end also prints a `fit:` line, what an item and a byte took, fitted
-//! over the run's progress (the item weight the bar should go by: `ITEM_WEIGHT`), and `eta:`
-//! lines, how far off the time left the window says would have been, with the app's weight, the
-//! fitted one, bytes alone and those in `MC_WEIGHTS` (`MC_TRACE`: what it said and what was
-//! true at every 5%). `MC_SAMPLES=<file>` keeps that progress, for `replay` to judge again with
-//! other weights without importing. `MC_RESUME=1` (with `MC_KEEP`) goes on from where an import into
+//! over the run's progress (the item weight the bar should go by: `ITEM_WEIGHT`), and a `fit by
+//! folder:` line, the same fitted over each folder's items, bytes and time; and `eta:` lines, how
+//! far off the time left the window says would have been, with the app's weight, the fitted
+//! one, bytes alone and those in `MC_WEIGHTS` (`MC_TRACE`: what it said and what was true at
+//! every 5%), and how far off even the run's own average rate, known ahead, would have been.
+//! `MC_SAMPLES=<file>` keeps that progress, for `eta::replay` to judge again with other weights
+//! without importing. `MC_RESUME=1` (with `MC_KEEP`) goes on from where an import into
 //! the cache stopped, after an `open:` line timing the data file's opening (one cut off by a kill
 //! is checked then); `MC_PAUSES=n` pauses it n times at random, going on each time, and prints how
-//! long each pause took to stop it, with that run's numbers (`MC_PAUSE_S`, `MC_SEED`).
+//! long each pause took to stop it, with that run's numbers (`MC_PAUSE_S`, `MC_SEED`; `MC_PAUSE_AT`
+//! pauses first as so many messages are in, to aim them at one place).
 //! `MC_CHECKPOINT_S` writes a checkpoint that often instead of the app's every 10 s (a big
 //! number: only those at each folder's end), to time what they cost.
 //!
@@ -38,8 +41,9 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use mailcraft_model::job::{Eta, ITEM_WEIGHT, StopHow, Work};
+use mailcraft_model::job::StopHow;
 
+use eta::{judge, judge_folders};
 use pst_rw::{UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
 fn env(name: &str) -> Option<String> {
@@ -202,19 +206,9 @@ fn import() {
     let known = store.load_folders("d1").map(|f| f.len()).unwrap_or(0);
     println!("open: {} ms, {known} folders", opened.elapsed().as_millis());
     let began = Instant::now();
-    let mut last = Instant::now();
-    let mut samples: Vec<Sample> = Vec::new();
-    let mut totals = (0u64, 0u64);
-    let mut progress = |t: crate::pst::Progress| {
-        let n = t.imported;
-        let ms = u64::try_from(began.elapsed().as_millis()).unwrap_or(u64::MAX);
-        samples.push(Sample { ms, items: t.read as u64, bytes: t.bytes_done });
-        totals = (t.total as u64, t.bytes_total);
-        if last.elapsed().as_secs_f64() >= 5.0 {
-            last = Instant::now();
-            println!("{n} messages, {:.0} s, {:.0}/s", began.elapsed().as_secs_f64(), n as f64 / began.elapsed().as_secs_f64());
-        }
-    };
+    // The messages in so far, for the pauses that wait for them (`MC_PAUSE_AT`).
+    let seen = std::sync::atomic::AtomicUsize::new(0);
+    let mut progress = Watch { began, last: began, samples: Vec::new(), ends: Vec::new(), totals: (0, 0), seen: &seen };
     let knob = |name: &str| env(name).and_then(|v| v.parse::<usize>().ok()).unwrap_or(0);
     let mut opts = crate::pst::ImportOptions {
         lanes: knob("MC_LANES"),
@@ -233,29 +227,42 @@ fn import() {
         ..Default::default()
     };
     // `MC_PAUSES=n`: paused n times, each between 1 s and `MC_PAUSE_S` (default 8) into its run,
-    // and gone on with each time; how long each took to stop is timed.
+    // and gone on with each time; how long each took to stop is timed. `MC_PAUSE_AT=m`: none
+    // before m messages are in, the first as they are and the rest that long after.
     let pauses = knob("MC_PAUSES");
+    let pause_at = knob("MC_PAUSE_AT");
     let gap_ms = u64::try_from(if env("MC_PAUSE_S").is_some() { knob("MC_PAUSE_S").max(2) } else { 8 }).unwrap_or(8) * 1000;
     let mut noise = Noise(env("MC_SEED").and_then(|v| v.parse().ok()).unwrap_or(0x2545_F491_4F6C_DD1D));
     let mut waits: Vec<u64> = Vec::new();
     let done = loop {
         if waits.len() >= pauses {
-            break crate::pst::import_with(&path, &store, "d1", &opts, &mut progress).unwrap();
+            break crate::pst::import_into(&path, &store, "d1", &opts, &mut progress).unwrap();
         }
         let stop = crate::pst::Stop::default();
         opts.stop = stop.clone();
-        let after = Duration::from_millis(1000 + noise.below(gap_ms - 1000));
+        // Aimed, the first pause comes as soon as the messages are in.
+        let after = if pause_at > 0 && waits.is_empty() { Duration::ZERO } else { Duration::from_millis(1000 + noise.below(gap_ms - 1000)) };
         // Told when the import ended by itself first, so it isn't paused after.
         let (tx, rx) = std::sync::mpsc::channel::<()>();
+        let seen = &seen;
         let (done, took) = std::thread::scope(|s| {
-            let pauser = s.spawn(move || match rx.recv_timeout(after) {
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    stop.raise(StopHow::Pause);
-                    Some(Instant::now())
+            let pauser = s.spawn(move || {
+                let mut clock: Option<Instant> = None;
+                loop {
+                    if clock.is_none() && seen.load(std::sync::atomic::Ordering::Relaxed) >= pause_at {
+                        clock = Some(Instant::now());
+                    }
+                    if clock.is_some_and(|c| c.elapsed() >= after) {
+                        stop.raise(StopHow::Pause);
+                        return Some(Instant::now());
+                    }
+                    match rx.recv_timeout(Duration::from_millis(10)) {
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                        _ => return None,
+                    }
                 }
-                _ => None,
             });
-            let done = crate::pst::import_with(&path, &store, "d1", &opts, &mut progress).unwrap();
+            let done = crate::pst::import_into(&path, &store, "d1", &opts, &mut progress).unwrap();
             let returned = Instant::now();
             let _ = tx.send(());
             let raised = pauser.join().ok().flatten();
@@ -297,7 +304,8 @@ fn import() {
     // What an item and a byte cost, and how far off the time left the window says would have
     // been: for a run read from start to end only.
     if pauses == 0 && !opts.resume {
-        // `MC_SAMPLES`: the progress kept in a file too (times and counts), for `replay`.
+        // `MC_SAMPLES`: the progress kept in a file too (times and counts), for `eta::replay`.
+        let Watch { samples, ends, totals, .. } = progress;
         if let Some(to) = env("MC_SAMPLES") {
             let mut text = format!("{},{},{end_ms}\n", totals.0, totals.1);
             for s in &samples {
@@ -305,6 +313,7 @@ fn import() {
             }
             std::fs::write(to, text).unwrap();
         }
+        judge_folders(&samples, ends);
         judge(&samples, totals, end_ms);
     }
     if env("MC_VERIFY").is_some() {
@@ -412,6 +421,8 @@ fn dir_size(p: &Path) -> u64 {
     rd.flatten().map(|e| if e.path().is_dir() { dir_size(&e.path()) } else { e.metadata().map(|m| m.len()).unwrap_or(0) }).sum()
 }
 
+mod eta;
+
 /// Progress as an import told it: the time into it, and the items read and their bytes (as the
 /// file gives them).
 #[derive(Clone, Copy, Debug)]
@@ -421,192 +432,44 @@ struct Sample {
     bytes: u64,
 }
 
-/// Spans shorter than this are left out of the fit: one big item can take most of a second.
-const FIT_SPAN_MS: u64 = 2000;
-
-/// What an item and a byte took over an import, fitted: a span of it took `item_ms` for each
-/// item read in it and `byte_ns` for each byte; `r2` is the share of the spans' times it
-/// explains (through the origin), over `spans` spans.
-#[derive(Clone, Copy, Debug)]
-struct Fit {
-    item_ms: f64,
-    byte_ns: f64,
-    r2: f64,
-    spans: usize,
+/// What the benchmark sees of an import: its progress with the time (printed every 5 s), and
+/// where it was as each folder ended.
+struct Watch<'a> {
+    began: Instant,
+    last: Instant,
+    samples: Vec<Sample>,
+    ends: Vec<Sample>,
+    /// Items in the file and their bytes, once known.
+    totals: (u64, u64),
+    seen: &'a std::sync::atomic::AtomicUsize,
 }
 
-impl Fit {
-    /// The bytes an item weighs: those that take as long to import as an item does besides them
-    /// (`ITEM_WEIGHT`, fitted). 0 when the fit says nothing sensible.
-    fn weight(&self) -> u64 {
-        let w = self.item_ms * 1e6 / self.byte_ns;
-        if w.is_finite() && w > 0.0 { w as u64 } else { 0 }
+impl Watch<'_> {
+    fn now(&self) -> u64 {
+        u64::try_from(self.began.elapsed().as_millis()).unwrap_or(u64::MAX)
     }
 }
 
-/// Least squares, through the origin, over the import cut into spans of at least `span_ms` from
-/// one sample to a later one: the time each took against the items and bytes read in it. None
-/// with fewer than two spans, or when items and bytes went up together throughout.
-fn fit(samples: &[Sample], span_ms: u64) -> Option<Fit> {
-    let mut spans = Vec::new();
-    let mut from = *samples.first()?;
-    for s in samples.iter().skip(1) {
-        if s.ms.saturating_sub(from.ms) >= span_ms {
-            let d = |a: u64, b: u64| a.saturating_sub(b) as f64;
-            spans.push((d(s.items, from.items), d(s.bytes, from.bytes), d(s.ms, from.ms)));
-            from = *s;
+impl crate::pst::ImportSink for Watch<'_> {
+    fn progress(&mut self, t: crate::pst::Progress) {
+        let n = t.imported;
+        self.seen.store(n, std::sync::atomic::Ordering::Relaxed);
+        let ms = self.now();
+        self.samples.push(Sample { ms, items: t.read as u64, bytes: t.bytes_done });
+        self.totals = (t.total as u64, t.bytes_total);
+        if self.last.elapsed().as_secs_f64() >= 5.0 {
+            self.last = Instant::now();
+            let secs = self.began.elapsed().as_secs_f64();
+            println!("{n} messages, {secs:.0} s, {:.0}/s", n as f64 / secs);
         }
     }
-    let (mut xx, mut xy, mut yy, mut xt, mut yt, mut tt) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-    for &(x, y, t) in &spans {
-        (xx, xy, yy) = (xx + x * x, xy + x * y, yy + y * y);
-        (xt, yt, tt) = (xt + x * t, yt + y * t, tt + t * t);
+
+    /// A folder ended: what had been read by then (as last told), at this time.
+    fn folder(&mut self, _done: &mailcraft_model::Folder) {
+        let ms = self.now();
+        let at = self.samples.last().map_or(Sample { ms, items: 0, bytes: 0 }, |s| Sample { ms, ..*s });
+        self.ends.push(at);
     }
-    let det = xx * yy - xy * xy;
-    if spans.len() < 2 || det <= 1e-9 * xx * yy {
-        return None;
-    }
-    let (a, b) = ((xt * yy - yt * xy) / det, (yt * xx - xt * xy) / det);
-    let sse: f64 = spans.iter().map(|&(x, y, t)| (t - a * x - b * y).powi(2)).sum();
-    Some(Fit { item_ms: a, byte_ns: b * 1e6, r2: if tt > 0.0 { 1.0 - sse / tt } else { 0.0 }, spans: spans.len() })
-}
-
-/// How far off the time left would have been: the worst share it was off by from 10% done and
-/// from 50% (by the bar), and the bar and the time when it was first shown.
-#[derive(Clone, Copy, Debug, Default)]
-struct EtaError {
-    from_10: f64,
-    from_50: f64,
-    first_permille: u16,
-    first_ms: u64,
-}
-
-/// Below a minute left the window says "less than a minute" whatever the estimate, so only
-/// times of a minute or more, said or true, are judged.
-const JUDGED_FROM_S: f64 = 60.0;
-
-/// The time left as the window works it out (`Eta`, items weighing `weight` bytes besides their
-/// own) from an import's samples, with `totals` (items, bytes), against the time it really took
-/// to end at `end_ms`. The window's clock is taken to be the worker's.
-fn eta_error(samples: &[Sample], totals: (u64, u64), end_ms: u64, weight: u64) -> EtaError {
-    let mut eta = Eta::default();
-    let mut out = EtaError::default();
-    let mut shown = false;
-    // `MC_TRACE`: what was said and what was true at every 5% (by the bar).
-    let (trace, mut next_trace) = (env("MC_TRACE").is_some(), 0u16);
-    for s in samples {
-        let work = Work { done: s.items, total: totals.0, bytes_done: s.bytes, bytes_total: totals.1 };
-        eta.sample(s.ms, work.weighted_done(weight), work.weighted_total(weight), 0, s.ms);
-        let Some(left) = eta.remaining_s(s.ms) else { continue };
-        let permille = work.permille(weight).unwrap_or(0);
-        if !shown {
-            (shown, out.first_permille, out.first_ms) = (true, permille, s.ms);
-        }
-        let truth = end_ms.saturating_sub(s.ms) as f64 / 1000.0;
-        if trace && permille >= next_trace {
-            println!("  {:.1}% done, {} s in: {left} s left said, {truth:.0} s true", permille as f64 / 10.0, s.ms / 1000);
-            next_trace = (permille / 50 + 1) * 50;
-        }
-        let left = left as f64;
-        if truth < JUDGED_FROM_S && left < JUDGED_FROM_S {
-            continue;
-        }
-        let off = (left - truth).abs() / truth.max(1.0);
-        if permille >= 100 {
-            out.from_10 = out.from_10.max(off);
-        }
-        if permille >= 500 {
-            out.from_50 = out.from_50.max(off);
-        }
-    }
-    out
-}
-
-/// What an item and a byte cost over an import's progress, and how far off the time left would
-/// have been with the app's item weight, bytes alone, the fitted weight and those in `MC_WEIGHTS`
-/// (a list of bytes).
-fn judge(samples: &[Sample], totals: (u64, u64), end_ms: u64) {
-    let fitted = fit(samples, FIT_SPAN_MS);
-    if let Some(f) = fitted {
-        println!("fit: {:.3} ms an item, {:.2} ns a byte, item weight {} bytes, r2 {:.3}, {} spans", f.item_ms, f.byte_ns, f.weight(), f.r2, f.spans);
-    }
-    let mut weights = vec![("app".to_string(), ITEM_WEIGHT), ("bytes only".to_string(), 0)];
-    weights.extend(fitted.map(|f| ("fitted".to_string(), f.weight())));
-    let asked = env("MC_WEIGHTS").unwrap_or_default();
-    weights.extend(asked.split(',').filter_map(|w| w.trim().parse().ok()).map(|w| ("asked".to_string(), w)));
-    for (name, weight) in weights {
-        let e = eta_error(samples, totals, end_ms, weight);
-        println!(
-            "eta ({name}, item weight {weight}): worst {:.1}% off from 10% done, {:.1}% from 50%; first shown at {:.1}% done, {} s in",
-            e.from_10 * 100.0,
-            e.from_50 * 100.0,
-            e.first_permille as f64 / 10.0,
-            e.first_ms / 1000
-        );
-    }
-}
-
-/// Judge again the progress an import kept in `MC_SAMPLES` (made by `import` with it set), with
-/// `MC_WEIGHTS` and `MC_TRACE` as there.
-#[test]
-#[ignore]
-fn replay() {
-    let text = std::fs::read_to_string(env("MC_SAMPLES").expect("MC_SAMPLES: the progress an import kept")).unwrap();
-    let mut lines = text.lines().map(|l| l.split(',').map(|n| n.trim().parse::<u64>().unwrap()).collect::<Vec<_>>());
-    let head = lines.next().unwrap();
-    let samples: Vec<Sample> = lines.map(|l| Sample { ms: l[0], items: l[1], bytes: l[2] }).collect();
-    judge(&samples, (head[0], head[1]), head[2]);
-}
-
-/// Samples of an import every 200 items of `items` (sizes in bytes), where an item takes
-/// `item_ms` and a byte `byte_ns`.
-fn simulated(items: &[u64], item_ms: f64, byte_ns: f64) -> Vec<Sample> {
-    let (mut t, mut bytes, mut out) = (0.0f64, 0u64, Vec::new());
-    for (k, size) in items.iter().enumerate() {
-        t += item_ms + *size as f64 * byte_ns / 1e6;
-        bytes += size;
-        if (k + 1) % 200 == 0 {
-            out.push(Sample { ms: t as u64, items: k as u64 + 1, bytes });
-        }
-    }
-    out
-}
-
-/// Folders of many small messages, then of few big ones, then small again.
-fn mixed_items() -> Vec<u64> {
-    let mut items = vec![4_000u64; 20_000];
-    items.extend(std::iter::repeat_n(3_000_000u64, 2_000));
-    items.extend(std::iter::repeat_n(6_000u64, 20_000));
-    items
-}
-
-/// The fit finds what an item and a byte cost from the progress alone, however the folders mix
-/// small and big items.
-#[test]
-fn the_fit_finds_what_an_item_and_a_byte_cost() {
-    let f = fit(&simulated(&mixed_items(), 2.0, 18.0), FIT_SPAN_MS).unwrap();
-    assert!((f.item_ms - 2.0).abs() < 0.05, "{f:?}");
-    assert!((f.byte_ns - 18.0).abs() < 0.5, "{f:?}");
-    assert!((105_000..118_000).contains(&f.weight()) && f.r2 > 0.99, "{f:?}");
-    // Every item alike: nothing tells an item's cost from its bytes'.
-    assert!(fit(&simulated(&[5_000; 10_000], 2.0, 18.0), FIT_SPAN_MS).is_none());
-    assert!(fit(&[], FIT_SPAN_MS).is_none());
-}
-
-/// The time left is judged against when the import really ended: right with items weighed as
-/// they cost, and far off when they weigh nothing and small items come first.
-#[test]
-fn the_time_left_is_judged_against_the_real_end() {
-    let items = mixed_items();
-    let samples = simulated(&items, 2.0, 18.0);
-    let totals = (items.len() as u64, items.iter().sum());
-    let end = samples.last().unwrap().ms;
-    let right = eta_error(&samples, totals, end, 111_111);
-    assert!(right.from_10 < 0.05 && right.from_50 < 0.05, "{right:?}");
-    assert!(right.first_ms >= 20_000 && right.first_permille >= 20, "nothing said early: {right:?}");
-    let bytes_only = eta_error(&samples, totals, end, 0);
-    assert!(bytes_only.from_10 > 0.2, "{bytes_only:?}");
-    assert_eq!(eta_error(&[], totals, end, 0).first_ms, 0);
 }
 
 /// A data file with a folder bigger than a page of the list: imported, the folder lists every
