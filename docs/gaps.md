@@ -1660,7 +1660,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   making the message, its summary and its compressed source; the writer keeps them in the
   file's order, so an import comes out byte for byte the same whatever the number of lanes,
   and an item with no message id gets one from the file and its place in it, the same when the
-  file is imported again. What the lanes hold at once is bounded (384 MB, charged by the size
+  file is imported again. What the lanes hold at once is bounded (288 MiB, charged by the size
   the file gives an item and again by what it is once read, given back once it's written);
   the item the writer needs next always goes ahead, so the import can't wait on itself. Each
   folder goes into the account's folder list as it finishes, and the window's own count saves
@@ -2467,3 +2467,22 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   are as they were. Headless tests find no link over the text; switch one message from More
   actions and Show formatted with the setting unchanged, on and off; switch the setting from the
   View ribbon and the Options switch; and switch a message in its own window from its toolbar.
+- **A `.pst` import that keeps its writer busy:** on the 41 GB file the import's writer stood
+  idle 40 to 44% of the time, waiting for one big item (20 to 40 MB) at a time: a lane whose
+  charge didn't fit the byte budget waited while the lanes after it took the room as it came
+  back, so the big item went only once the writer needed it, alone. Room is now given in the
+  items' order (an item charged more than the whole budget only waits for its turn and holds no
+  one up); a block read within 4 MiB of the last block read reads the 64 KiB chunk around it, as
+  a big attachment's blocks lie close together in no order (1.12 million reads, against 1.97
+  million, for 61.3 GB against 56.7 GB); the search index is written on a thread of its own,
+  handed each batch's words once the batch is written; and the budget is 288 MiB (384 MB
+  before), the reader's handles reopened once their pages are thought to hold 4 MiB (16 MiB
+  before). Measured on a machine shared with other builds: by the benchmark the import took
+  130 to 179 s (173 to 214 s before) with the writer 78 to 84% busy (56 to 61% before), and 143 to
+  144 s without the index, so indexing as it goes adds no time beyond the runs' spread; the
+  data file is the same (same digests of every message, folder and list, and the same kept
+  bytes as before). In the app, four imports took 111 to 152 s with the writer 84 to 90% busy,
+  peaking at 818 to 860 MB of working set (958 to 994 MB of private bytes), growing by 40 to
+  170 MB from a fifth of the way to nine tenths. Not met: the writer 85% busy in every run, a
+  peak within 850 MB in every run and flat, and reading the items within 160 s (the lanes spend
+  515 to 690 s reading, summed over 12 of them that wait on the disk at once).

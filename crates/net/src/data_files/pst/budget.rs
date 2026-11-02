@@ -20,8 +20,10 @@ use std::time::{Duration, Instant};
 
 use super::*;
 
-/// What an import may hold when not told otherwise.
-pub(super) const CAP: u64 = 384 * 1024 * 1024;
+/// What an import may hold when not told otherwise. With room given in order the lanes keep the
+/// writer busy with less: on the 41 GB file, in the app, 288 MiB kept it 84 to 90% busy at peaks
+/// of 818 to 860 MB, where 384 MiB peaked at 950 to 972 MB (850 MB aimed at).
+pub(super) const CAP: u64 = 288 * 1024 * 1024;
 /// A waiting lane looks at the stop flag this often, woken or not.
 const RECHECK: Duration = Duration::from_millis(200);
 
