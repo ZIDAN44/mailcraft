@@ -265,6 +265,9 @@ pub(super) fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done
         }
         let mut charge = job.charge;
         let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| one(ctx, &job, read, &mut charge))) {
+            // Asked to stop meanwhile: the reads failed from then on (`chunked::stopping`), so
+            // whatever came of the item, it's let go of, not counted, and read again going on.
+            _ if ctx.opts.stop.raised() => Outcome::Stopped,
             Ok(o) => {
                 ctx.panics.store(0, Ordering::Relaxed);
                 o
@@ -299,6 +302,8 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
     #[cfg(test)]
     tests::fault(ctx, job);
     let mut it = match ctx.tally.time(Phase::Read, || read(job.node)) {
+        // Read whole as the import was asked to stop: it isn't made.
+        Ok(_) if ctx.opts.stop.raised() => return Outcome::Stopped,
         Ok(it) => it,
         Err(e) => {
             log::info!("an item could not be read: {e}");
@@ -400,7 +405,7 @@ macro_rules! lane {
     ($name:ident, $file:ty, $store:ty, $message:ty, $attachment:ty) => {
         fn $name(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>) {
             // Read only, through a cache of its own.
-            let source = match open::source(ctx.path, ctx.opts.chunk_kb) {
+            let source = match open::source(ctx.path, ctx.opts) {
                 Ok(s) => s,
                 Err(e) => {
                     log::info!("a reader could not open the data file: {e}");
@@ -409,6 +414,12 @@ macro_rules! lane {
                     return;
                 }
             };
+            #[cfg(test)]
+            if let Some(tests::Fault::SlowReads(ms)) = ctx.opts.fault
+                && let Ok(mut s) = source.try_borrow_mut()
+            {
+                s.slow = Some(Duration::from_millis(ms));
+            }
             let recycle = Recycle::of(ctx.opts);
             let store_of = |pst: $file| {
                 pst.set_max_value_size(MAX_VALUE);
@@ -532,6 +543,9 @@ pub(super) mod tests {
         /// Each item takes this many milliseconds longer to read (an import slow enough to be
         /// stopped part-way).
         Slow(u64),
+        /// Each read the lanes make from the data file takes this many milliseconds (a slow
+        /// drive: an item takes many of them).
+        SlowReads(u64),
     }
 
     /// What a test does to each item of a data file read (whether it's one of the Sent Items

@@ -34,9 +34,10 @@ pub(super) fn open_read(path: &Path) -> io::Result<File> {
     options.open(path)
 }
 
-/// `path` opened to read through a cache of its own, in chunks of `chunk_kb` KiB (0: the default).
-pub(super) fn source(path: &Path, chunk_kb: usize) -> io::Result<Shared> {
-    Source::new(open_read(path)?, chunk_kb)
+/// `path` opened to read through a cache of its own, in the chunks `opts` say (`chunk_kb`), its
+/// reads failing once the import is asked to stop.
+pub(super) fn source(path: &Path, opts: &ImportOptions) -> io::Result<Shared> {
+    Source::new(open_read(path)?, opts.chunk_kb, opts.stop.clone())
 }
 
 /// When the handle that reads items is opened again.

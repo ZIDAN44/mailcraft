@@ -27,7 +27,7 @@ fn file_of(name: &str, len: usize) -> (PathBuf, PathBuf) {
 }
 
 fn source(path: &Path, chunk_kb: usize) -> Shared {
-    Source::new(open_read(path).unwrap(), chunk_kb).unwrap()
+    Source::new(open_read(path).unwrap(), chunk_kb, super::super::Stop::default()).unwrap()
 }
 
 /// Ten thousand seeks and reads of every size, at random, from both: the same bytes, the same

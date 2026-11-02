@@ -15,8 +15,9 @@ use mailcraft_model::pim::{PIM_DOC, Pim};
 use super::*;
 use crate::pst::{ImportOptions, ImportSink, Imported, Planned, Progress, Stop};
 
-/// How long closing MailCraft waits for its imports to pause: each finishes the item in hand and
-/// writes what it holds. One that takes longer (a reader stuck on a slow drive) is let go.
+/// How long closing MailCraft waits for its imports to pause: each lets go of the items it's
+/// reading at their next read and writes what it holds. One that takes longer (a read stuck on a
+/// drive that doesn't answer) is let go.
 pub(super) const IMPORT_STOP_WAIT: Duration = Duration::from_secs(10);
 /// The account's folder list is sent at most this often while an import finishes folders.
 const FOLDERS_EVERY: Duration = Duration::from_millis(500);

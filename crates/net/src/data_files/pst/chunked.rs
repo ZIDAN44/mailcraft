@@ -11,12 +11,17 @@
 //! outlook-pst reads through are reopened to let go of their own caches (`open.rs`), and each
 //! new one starts with what the old ones read. A `BufReader` wouldn't do: it forgets its buffer
 //! at every seek, and outlook-pst seeks before every read.
+//!
+//! An import asked to stop is told so by its next read, whichever thread reads: an item of
+//! hundreds of megabytes on a slow drive is let go of part-way, not read to its end first.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::rc::Rc;
+
+use super::Stop;
 
 /// The reader's chunk: what a read that follows on from the last one reads ahead in, four at once.
 pub(super) const CHUNK: usize = 64 * 1024;
@@ -47,6 +52,11 @@ pub(super) struct Source {
     /// Bytes read from the file, and reads made.
     pub(super) bytes_read: u64,
     pub(super) reads: u64,
+    /// Raised: every read from here fails ([`stopping`]).
+    stop: Stop,
+    /// Each read from the file takes this much longer (a slow drive, for a test).
+    #[cfg(test)]
+    pub(super) slow: Option<std::time::Duration>,
 }
 
 struct Slot {
@@ -57,8 +67,8 @@ struct Slot {
 pub(super) type Shared = Rc<RefCell<Source>>;
 
 impl Source {
-    /// `file`, read in chunks of `chunk_kb` KiB (0: [`CHUNK`]).
-    pub(super) fn new(file: File, chunk_kb: usize) -> io::Result<Shared> {
+    /// `file`, read in chunks of `chunk_kb` KiB (0: [`CHUNK`]), until `stop` is raised.
+    pub(super) fn new(file: File, chunk_kb: usize, stop: Stop) -> io::Result<Shared> {
         let len = file.metadata()?.len();
         let chunk = match chunk_kb {
             0 => CHUNK,
@@ -75,6 +85,9 @@ impl Source {
             last_miss: None,
             bytes_read: 0,
             reads: 0,
+            stop,
+            #[cfg(test)]
+            slow: None,
         })))
     }
 
@@ -139,6 +152,10 @@ impl Source {
 
     /// `buf` filled from the file at `pos`, as far as the file goes: how much was.
     fn fill(&mut self, pos: u64, buf: &mut [u8]) -> io::Result<usize> {
+        #[cfg(test)]
+        if let Some(slow) = self.slow {
+            std::thread::sleep(slow);
+        }
         self.file.seek(SeekFrom::Start(pos))?;
         let mut got = 0;
         while let Some(rest) = buf.get_mut(got..).filter(|r| !r.is_empty()) {
@@ -183,12 +200,19 @@ impl Source {
     }
 }
 
+/// What a read says once the import is asked to stop: an error of its own, which the reader
+/// passes on (never `Interrupted`, which a reader tries again).
+pub(super) fn stopping() -> io::Error {
+    io::Error::other("the import is stopping")
+}
+
 /// One handle's view of a [`Source`]: its own position, and the pages it has read, which
 /// outlook-pst keeps for as long as the handle lives.
 pub(super) struct ChunkReader {
     source: Shared,
     pos: u64,
     pages: Pages,
+    stop: Stop,
 }
 
 /// The offsets of the pages a handle has read.
@@ -215,12 +239,16 @@ impl ChunkReader {
     /// A new handle on `source`, at its start, and the pages it will read.
     pub(super) fn new(source: &Shared) -> (Self, Pages) {
         let pages = Pages::default();
-        (ChunkReader { source: source.clone(), pos: 0, pages: pages.clone() }, pages)
+        let stop = source.try_borrow().map(|s| s.stop.clone()).unwrap_or_default();
+        (ChunkReader { source: source.clone(), pos: 0, pages: pages.clone(), stop }, pages)
     }
 }
 
 impl Read for ChunkReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.stop.raised() {
+            return Err(stopping());
+        }
         if buf.len() == PAGE {
             self.pages.read(self.pos);
         }

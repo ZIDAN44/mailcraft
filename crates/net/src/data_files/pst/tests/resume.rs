@@ -200,6 +200,35 @@ fn cancelled_before_the_paused_folder_is_reached_keeps_its_list() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Paused while an item is read from a slow drive, the import stops at the read in hand, not at
+/// the end of the item (each read a second here: an item takes several): nothing half read is
+/// kept or counted, and gone on with, it's the import that never stopped.
+#[test]
+fn a_pause_stops_part_way_through_an_item() {
+    let (dir, pst) = data_file("resume-slow-read", 40, true);
+    let whole = store_at(&dir, "whole");
+    import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
+    let store = store_at(&dir, "part");
+    let stop = Stop::default();
+    let o = ImportOptions { stop: stop.clone(), ..opts(1, Some(Fault::SlowReads(1000))) };
+    let raised = std::thread::scope(|s| {
+        let asked = s.spawn(|| {
+            std::thread::sleep(Duration::from_millis(1500));
+            stop.raise(StopHow::Pause);
+            std::time::Instant::now()
+        });
+        let part = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
+        let took = asked.join().unwrap().elapsed();
+        assert_eq!((part.stopped, part.messages, part.skipped), (Some(StopHow::Pause), 0, 0));
+        took
+    });
+    assert!(raised < Duration::from_millis(2500), "stopped {raised:?} after the pause");
+    let (done, _) = go_on(&pst, &store, None);
+    assert_eq!((done.messages, done.skipped), (120, 0));
+    assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A row the reader fails on is counted once and never read again: gone on with, the import
 /// skips it, and comes out as one that never stopped with the same failures.
 #[test]
@@ -234,6 +263,12 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
     stopped_at(&touched, &copy, 400, StopHow::Pause, None);
     let later = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
     std::fs::File::options().write(true).open(&touched).unwrap().set_modified(later).unwrap();
+    // Paused again before the file is planned whole: a stop, not a file that changed.
+    let stop = Stop::default();
+    stop.raise(StopHow::Pause);
+    let o = ImportOptions { stop, resume: true, ..opts(2, None) };
+    let paused = import_with(&touched, &copy, "a1", &o, &mut |_| {}).unwrap();
+    assert_eq!((paused.stopped, paused.blocked), (Some(StopHow::Pause), None));
     let (done, _) = go_on(&touched, &copy, None);
     assert_eq!((done.messages, done.blocked), (900, None));
     assert_eq!(everything(&copy, "a1"), everything(&whole, "a1"));

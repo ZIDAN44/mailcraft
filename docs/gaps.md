@@ -1890,14 +1890,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   with 107,328 attachments (the 107,134 files aimed at, with the 187 attached messages and 7
   empty files that come in since attached messages do). The checkpoints cost under 1%: 29 to 42
   of them took 1.2–1.9 s, the batches they went with included, and one every 10 s besides those
-  at each folder's end changed nothing by the clock. Still short of the aims: a pause took 0.3 s
-  to stop by median, but 5 of 114 took 10 to 17 s (16.8 s at the 99th, under 2 s aimed at), all
-  in one run at one place, 31,860 messages in, where the import gone on with stopped again before
-  it got any further; 15 pauses aimed at that place since stopped within 0.7 s, the writer, the
-  threads reading the file and the sealing of the data file each done within half a second of
-  one, and the process held only 60–110 MB through those slow stops, waiting on something rather
-  than working: what isn't known, and a stop that slow outlasts the 10 s MailCraft waits for an
-  import as it closes, which then ends as one killed does. The writer was busy 58–61% of the
+  at each folder's end changed nothing by the clock. A pause took 0.3 s to stop by median, but 5
+  of 114 took 10 to 17 s (16.8 s at the 99th, under 2 s aimed at), all in one run at one place,
+  where the import gone on with stopped again before it got any further, the process waiting on
+  something rather than working; a stop that slow outlasts the 10 s MailCraft waits for an
+  import as it closes. It waited for each item being read to be read to its end: a 37 MB one's
+  reads took 1.2 s with another program writing to the drive, and on a drive kept that busy, or
+  a slow one, many times that. The threads reading the file now ask before each read whether
+  the import is stopping, and let the item in hand go (it's read again going on), as does the
+  walk over the folders, whose plan cut short is no longer taken for a file that changed: 20
+  pauses with another program writing to the drive all along stopped in 0.3 s by median and
+  1.2 s at worst (0.6 s and 1.7 s before; in a test whose reads take a second each, 11.6 s
+  before and within 2.5 s now). The writer was busy 58–61% of the
   time with indexing (55–58% without), 85% aimed at: it waits on the threads reading the file.
   The peak was 1.17–1.22 GB with indexing (0.76 GB without), its working set growing by a third
   from a fifth of the way to nine tenths, where 1 GB and flat were aimed at; opening the data

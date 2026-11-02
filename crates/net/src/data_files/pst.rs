@@ -547,6 +547,13 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
         out.seal();
         return Err("the import could not start: the computer is short of resources; try again".into());
     };
+    // Asked to stop, the file's reads fail from then on: whatever the planner came to then is a
+    // stop, not a damaged file (it's planned whole again going on). Stopped before the file was
+    // planned, the writer had nothing to see the stop by: it's a stop all the same.
+    let planned = if opts.stop.raised() { Ok(Ok(())) } else { planned };
+    if opts.stop.raised() && !out.note_ready() {
+        out.stopped();
+    }
     // Going on, a file that isn't the one it was (or can't be read now) waits on the user, with
     // nothing written.
     if ctx.resume.is_some() && !out.note_ready() {
@@ -646,7 +653,11 @@ fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
             &fresh
         }
     };
-    // Going on: only with the file it began on.
+    // Stopped as it was planned: the plan may be part of the file, so nothing is handed out (and
+    // the file isn't taken for another). Going on: only with the file it began on.
+    if ctx.stopped() {
+        return Ok(());
+    }
     if let Some(skip) = &ctx.resume
         && !skip.same_file(ctx.path, &planned.record_key, planned.fingerprint())
     {
@@ -662,7 +673,7 @@ fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
 /// start through a handle of its own). Read only, and kept from writers while it's read. Locked
 /// by Outlook, this is what fails: said so by the import, rather than tried as the older format.
 fn opened(ctx: &lanes::Ctx<'_>) -> io::Result<(Rc<dyn PstStore>, Shared, chunked::Pages)> {
-    let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
+    let source = open::source(ctx.path, ctx.opts)?;
     let (walk, pages) = open::handle(&source);
     if let Ok(pst) = UnicodePstFile::read_from(walk) {
         ctx.format.store(1, Ordering::Release);
@@ -672,7 +683,7 @@ fn opened(ctx: &lanes::Ctx<'_>) -> io::Result<(Rc<dyn PstStore>, Shared, chunked
     }
     ctx.tally.reading(&source, 0, 0);
     drop(source);
-    let source = open::source(ctx.path, ctx.opts.chunk_kb)?;
+    let source = open::source(ctx.path, ctx.opts)?;
     let (walk, pages) = open::handle(&source);
     let pst = AnsiPstFile::read_from(walk)?;
     ctx.format.store(2, Ordering::Release);

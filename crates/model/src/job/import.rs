@@ -49,7 +49,7 @@ pub enum ImportPhase {
     Importing,
     /// Everything read; the last of it being written.
     Finishing,
-    /// Asked to stop; finishing the item in hand.
+    /// Asked to stop; writing what was read before it.
     Stopping,
     /// Stopped, to go on the next time MailCraft opens.
     Paused,
